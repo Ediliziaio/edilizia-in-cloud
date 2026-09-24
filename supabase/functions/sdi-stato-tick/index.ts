@@ -27,7 +27,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { serveConMetricheRapida } from "../_shared/withMetricsRapida.ts";
 import { leggiImpostazionePiattaforma } from "../_shared/getPlatformSetting.ts";
-import { estraiIdentificativoSdi, leggiEsitoOpenapi } from "../_shared/sdiStatoOpenapi.ts";
+import { esitoDefinitivo, estraiIdentificativoSdi, leggiEsitoOpenapi } from "../_shared/sdiStatoOpenapi.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -36,8 +36,16 @@ const supabase = createClient(
 
 /** Documenti guardati per giro: tiene la chiamata lontana dai limiti. */
 const PER_GIRO = 40;
-/** Stati SDI già definitivi: non si chiede più niente. */
+/** Esiti che chiudono sempre il controllo (vedi esitoDefinitivo). */
 const DEFINITIVI = ["NS", "EC01", "EC02", "DT"];
+/** Chiudono il controllo tranne che verso la Pubblica Amministrazione. */
+const DEFINITIVI_TRA_PRIVATI = ["RC", "MC"];
+/**
+ * Oltre questa età dall'emissione non si chiede più niente: la PA ha 15 giorni
+ * per rispondere, poi lo SDI manda la decorrenza. Senza un limite, una fattura
+ * con un esito che non sappiamo leggere si chiederebbe per sempre.
+ */
+const GIORNI_MASSIMI = 45;
 
 serveConMetricheRapida("sdi-stato-tick", async (req) => {
   const cors = { ...getCorsHeaders(req), "Access-Control-Allow-Methods": "POST, OPTIONS" };
@@ -55,17 +63,28 @@ serveConMetricheRapida("sdi-stato-tick", async (req) => {
   if (!autorizzato) return json({ error: "non autorizzato" }, 401);
 
   try {
-    // Documenti trasmessi davvero (non in modalità manuale) e senza esito finale.
-    const { data: documenti, error } = await supabase
+    // Documenti trasmessi davvero (non in modalità manuale) e senza esito finale:
+    // la consegna chiude le fatture tra privati, non quelle verso la PA.
+    const tutti = [...DEFINITIVI, ...DEFINITIVI_TRA_PRIVATI].join(",");
+    const dal = new Date(Date.now() - GIORNI_MASSIMI * 86_400_000).toISOString().slice(0, 10);
+    const inviate = () => supabase
       .from("documenti_fiscali")
-      .select("id, company_id, numero, sdi_id_trasmissione, sdi_stato, stato, trasmissione")
+      .select("id, company_id, numero, sdi_id_trasmissione, sdi_stato, stato, trasmissione, tipo_cliente:cliente_snapshot->>tipo_cliente")
       .not("sdi_id_trasmissione", "is", null)
       .eq("trasmissione", "sdi")
       .is("deleted_at", null)
-      .or(`sdi_stato.is.null,sdi_stato.not.in.(${DEFINITIVI.join(",")})`)
-      .order("updated_at", { ascending: true })
-      .limit(PER_GIRO);
+      .gte("data_emissione", dal);
+    // Due letture semplici invece di un filtro combinato: senza esito finale, e
+    // quelle verso la PA consegnate che aspettano ancora la risposta dell'ente.
+    const [aperte, versoPa] = await Promise.all([
+      inviate().or(`sdi_stato.is.null,sdi_stato.not.in.(${tutti})`)
+        .order("updated_at", { ascending: true }).limit(PER_GIRO),
+      inviate().in("sdi_stato", DEFINITIVI_TRA_PRIVATI).eq("cliente_snapshot->>tipo_cliente", "PA")
+        .order("updated_at", { ascending: true }).limit(PER_GIRO),
+    ]);
+    const error = aperte.error ?? versoPa.error;
     if (error) return json({ error: error.message }, 500);
+    const documenti = [...(aperte.data ?? []), ...(versoPa.data ?? [])].slice(0, PER_GIRO);
     if (!documenti?.length) return json({ ok: true, guardati: 0 });
 
     const tokenOpenapi = ((await leggiImpostazionePiattaforma("openapi_it_token")) || "").trim();
@@ -83,6 +102,7 @@ serveConMetricheRapida("sdi-stato-tick", async (req) => {
     for (const doc of documenti) {
       // Gli invii in modalità manuale hanno un id finto: non si chiede niente.
       if (String(doc.sdi_id_trasmissione).startsWith("MAN-")) continue;
+      if (esitoDefinitivo(doc.sdi_stato, doc.tipo_cliente === "PA")) continue;
 
       let grezzo: unknown = null;
       let httpStatus = 0;
@@ -102,25 +122,37 @@ serveConMetricheRapida("sdi-stato-tick", async (req) => {
         continue;
       }
 
-      await supabase.from("sdi_provider_responses").insert({
-        company_id: doc.company_id,
-        documento_id: doc.id,
-        provider: "openapi",
-        endpoint: `https://${base}/IT-invoices/${doc.sdi_id_trasmissione}`,
-        status_code: httpStatus,
-        response_json: grezzo,
-        detected_keys: grezzo && typeof grezzo === "object" ? Object.keys(grezzo as object) : [],
-      });
+      const ok = httpStatus >= 200 && httpStatus < 300;
+      const esito = ok ? leggiEsitoOpenapi(grezzo) : null;
 
-      if (httpStatus < 200 || httpStatus >= 300) {
+      // La risposta grezza si conserva solo quando dice qualcosa: un errore, un
+      // esito nuovo o uno che non sappiamo leggere. Prima si scriveva a ogni
+      // giro, 96 righe al giorno per fattura.
+      if (!ok || !esito || esito.sdi_stato !== (doc.sdi_stato ?? "")) {
+        await supabase.from("sdi_provider_responses").insert({
+          company_id: doc.company_id,
+          documento_id: doc.id,
+          provider: "openapi",
+          endpoint: `https://${base}/IT-invoices/${doc.sdi_id_trasmissione}`,
+          status_code: httpStatus,
+          response_json: grezzo,
+          detected_keys: grezzo && typeof grezzo === "object" ? Object.keys(grezzo as object) : [],
+        });
+      }
+
+      if (!ok) {
         falliti++;
         continue;
       }
 
-      const esito = leggiEsitoOpenapi(grezzo);
       if (!esito) {
-        // Non si inventa uno stato: si lascia com'è e si scrive cosa ha risposto.
+        // Non si inventa uno stato: si lascia com'è e si scrive cosa ha risposto,
+        // al massimo una volta ogni sei ore per documento.
         sconosciuti++;
+        const { data: giaScritto } = await supabase.from("sdi_log").select("id")
+          .eq("documento_id", doc.id).eq("evento", "esito_non_riconosciuto")
+          .gte("created_at", new Date(Date.now() - 6 * 3_600_000).toISOString()).limit(1);
+        if (giaScritto?.length) continue;
         await supabase.from("sdi_log").insert({
           company_id: doc.company_id,
           documento_id: doc.id,

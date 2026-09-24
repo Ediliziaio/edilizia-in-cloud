@@ -42,6 +42,24 @@ const ESITI: Record<string, EsitoSdi> = {
   EC02: { sdi_stato: "EC02", stato: "rifiutata", messaggio: "Rifiutata dal destinatario." },
 };
 
+/**
+ * La fattura ha ancora un esito da aspettare?
+ *
+ * Tra aziende e verso i privati (FPR12) l'ultima notifica è la consegna (RC) o
+ * la mancata consegna (MC): dopo non arriva più niente. Solo verso la Pubblica
+ * Amministrazione (FPA12) alla consegna seguono accettazione, rifiuto o
+ * decorrenza dei termini (15 giorni). Fino al 24/09/2026 RC e MC non
+ * chiudevano mai il controllo: ogni fattura consegnata si chiedeva a openapi
+ * ogni 15 minuti per sempre (96 chiamate al giorno, gratis solo le prime 1.000
+ * al giorno per tutto l'account), e con 40 fatture consegnate le nuove non si
+ * guardavano più.
+ */
+export function esitoDefinitivo(sdiStato: string | null | undefined, versoPa: boolean): boolean {
+  const s = String(sdiStato ?? "").trim().toUpperCase();
+  if (s === "NS" || s === "EC01" || s === "EC02" || s === "DT") return true;
+  return !versoPa && (s === "RC" || s === "MC");
+}
+
 /** Parole d'uso comune → sigla SDI. Si confronta per contenuto, non per uguaglianza. */
 const PAROLE: Array<[RegExp, string]> = [
   [/scartat|rifiutata dallo sdi|\brejected\b|\bdiscarded\b|\bnotifica_scarto\b/i, "NS"],

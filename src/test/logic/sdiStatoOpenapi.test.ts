@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  estraiIdentificativoSdi, estraiStato, leggiEsitoOpenapi,
+  esitoDefinitivo, estraiIdentificativoSdi, estraiStato, leggiEsitoOpenapi,
 } from "../../../supabase/functions/_shared/sdiStatoOpenapi";
 
 describe("sigle dello SDI", () => {
@@ -57,5 +57,27 @@ describe("dove cercare i campi", () => {
     expect(estraiIdentificativoSdi({ identificativo_sdi: " 12345 " })).toBe("12345");
     expect(estraiIdentificativoSdi({ data: { idSdi: 999 } })).toBe("999");
     expect(estraiIdentificativoSdi({ data: {} })).toBeNull();
+  });
+});
+
+describe("quando smettere di chiedere l'esito", () => {
+  // Ogni richiesta a openapi è gratis solo fino a 1.000 al giorno per tutto
+  // l'account: una fattura chiusa che si continua a chiedere ogni 15 minuti
+  // costa, e con 40 così le nuove non si guardano più.
+  it("tra privati la consegna e la mancata consegna chiudono", () => {
+    expect(esitoDefinitivo("RC", false)).toBe(true);
+    expect(esitoDefinitivo("MC", false)).toBe(true);
+  });
+  it("verso la PA dopo la consegna si aspetta ancora accettazione o decorrenza", () => {
+    expect(esitoDefinitivo("RC", true)).toBe(false);
+    expect(esitoDefinitivo("MC", true)).toBe(false);
+    expect(esitoDefinitivo("EC01", true)).toBe(true);
+    expect(esitoDefinitivo("DT", true)).toBe(true);
+  });
+  it("scarto e rifiuto chiudono sempre; in attesa o senza esito no", () => {
+    expect(esitoDefinitivo("NS", false)).toBe(true);
+    expect(esitoDefinitivo("EC02", true)).toBe(true);
+    expect(esitoDefinitivo("AT", false)).toBe(false);
+    expect(esitoDefinitivo(null, false)).toBe(false);
   });
 });
