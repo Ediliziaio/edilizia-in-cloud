@@ -135,6 +135,22 @@ export default function ClientiLogin() {
           setIsSubmitting(false);
           return;
         }
+
+        // Cliente bloccato = portale clienti non attivo per la sua azienda (lo
+        // impone il database: 20280924110000). Prima questa pagina non lo
+        // guardava: con «Password dimenticata» un cliente bloccato entrava in un
+        // portale vuoto. Ora esce subito, con il motivo.
+        const { data: profiloCliente } = await supabase
+          .from("profiles")
+          .select("is_blocked")
+          .eq("id", loggedUser.id)
+          .maybeSingle();
+        if ((profiloCliente as { is_blocked?: boolean | null } | null)?.is_blocked) {
+          await supabase.auth.signOut();
+          setFormError("Il portale clienti non è attivo. Per informazioni contatta l'azienda.");
+          setIsSubmitting(false);
+          return;
+        }
       }
 
       toast({ title: "Accesso effettuato", description: "Benvenuto nel portale clienti!" });

@@ -86,3 +86,17 @@ describe("le regole nel database", () => {
     expect(migrazione).toContain("create trigger trg_portale_spento_blocca_clienti");
   });
 });
+
+describe("un cliente bloccato non entra", () => {
+  it("il login dei clienti guarda il blocco e fa uscire subito", () => {
+    const login = leggi("src/pages/ClientiLogin.tsx");
+    expect(login).toMatch(/from\("profiles"\)\s*\.select\("is_blocked"\)/);
+    expect(login).toContain("Il portale clienti non è attivo. Per informazioni contatta l'azienda.");
+  });
+
+  it("l'area clienti mostra il muro anche a chi ha già una sessione aperta", () => {
+    const area = leggi("src/components/layouts/CustomerLayout.tsx");
+    expect(area).toContain("!previewSession.isPreview && (profile as { is_blocked?: boolean | null } | null)?.is_blocked");
+    expect(area).toContain("Portale clienti non attivo");
+  });
+});

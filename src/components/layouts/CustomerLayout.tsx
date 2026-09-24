@@ -101,6 +101,29 @@ export function CustomerLayout() {
     return () => clearBrandTheme();
   }, [effectiveBrand]);
 
+  // Cliente bloccato = portale clienti non attivo per la sua azienda (regola nel
+  // database, 20280924110000). Il login lo ferma già; questo copre chi arriva
+  // con una sessione aperta. L'anteprima dell'admin non passa di qui.
+  if (!previewSession.isPreview && (profile as { is_blocked?: boolean | null } | null)?.is_blocked) {
+    return (
+      <div className="flex min-h-screen w-full items-center justify-center bg-muted/30 px-4">
+        <div className="w-full max-w-sm rounded-2xl border bg-background p-6 text-center shadow-sm">
+          <h1 className="text-lg font-semibold">Portale clienti non attivo</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Il portale clienti non è attivo. Per informazioni contatta l'azienda.
+          </p>
+          <button
+            type="button"
+            onClick={() => signOut()}
+            className="mt-4 inline-flex items-center justify-center gap-2 rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted"
+          >
+            <LogOut className="h-4 w-4" /> Esci
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full bg-muted/30">
