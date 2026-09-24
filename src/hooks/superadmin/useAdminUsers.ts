@@ -96,6 +96,13 @@ export function useAdminUserSessions(userId: string | null) {
   });
 }
 
+/** Revoca e blocco chiudono gli accessi veri (auth.sessions), non solo le righe dell'elenco. */
+function dispositiviDisconnessi(n: number | undefined): string {
+  const accessi = n ?? 0;
+  if (accessi === 0) return "Nessun dispositivo era collegato.";
+  return accessi === 1 ? "Disconnesso da 1 dispositivo." : `Disconnesso da ${accessi} dispositivi.`;
+}
+
 export function useAdminUserActions() {
   const queryClient = useQueryClient();
 
@@ -110,16 +117,14 @@ export function useAdminUserActions() {
         p_user_id: v.userId, p_blocked: v.blocked, p_reason: v.reason ?? null,
       } as never);
       if (error) throw error;
-      const res = data as unknown as { error?: string; sessioni_chiuse?: number };
+      const res = data as unknown as { error?: string; sessioni_chiuse?: number; accessi_chiusi?: number };
       if (res?.error) throw new Error(res.error);
       return res;
     },
     onSuccess: (res, v) => {
       invalida();
       toast.success(v.blocked ? "Utente bloccato" : "Utente sbloccato", {
-        description: v.blocked && res?.sessioni_chiuse
-          ? `${res.sessioni_chiuse} sessioni chiuse`
-          : undefined,
+        description: v.blocked && res?.accessi_chiusi ? dispositiviDisconnessi(res.accessi_chiusi) : undefined,
       });
     },
     onError: (e: Error) => toast.error("Operazione non riuscita", { description: e.message }),
@@ -131,11 +136,13 @@ export function useAdminUserActions() {
         p_user_id: v.userId, p_session_id: v.sessionId ?? null,
       } as never);
       if (error) throw error;
-      return data as unknown as { sessioni_revocate?: number };
+      return data as unknown as { sessioni_revocate?: number; accessi_chiusi?: number };
     },
     onSuccess: (res) => {
       invalida();
-      toast.success(`${res?.sessioni_revocate ?? 0} sessioni revocate`);
+      toast.success(`${res?.sessioni_revocate ?? 0} sessioni revocate`, {
+        description: dispositiviDisconnessi(res?.accessi_chiusi),
+      });
     },
     onError: (e: Error) => toast.error("Revoca non riuscita", { description: e.message }),
   });

@@ -36,6 +36,7 @@ import { AnalyticsProvider } from "@/contexts/AnalyticsProvider";
 import { Force2FAGuard } from "@/components/auth/Force2FAGuard";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { useSessionTimeout } from "@/hooks/useSessionTimeout";
+import { useAccessoRevocato } from "@/hooks/useAccessoRevocato";
 import { captureVelocityError } from "@/lib/velocity/sentry";
 import { BillingModeProvider } from "@/contexts/BillingModeContext";
 import { SubdomainRedirect } from "@/components/auth/SubdomainRedirect";
@@ -534,9 +535,13 @@ function BootGuardDismiss() {
   return null;
 }
 
-/** v8.6.99 — Monta hook globale che forza logout dopo 45gg dal login. */
+/**
+ * v8.6.99 — Monta hook globale che forza logout dopo 45gg dal login.
+ * 24/09/2026 — e che torna al login quando l'accesso viene chiuso (revoca, blocco).
+ */
 function SessionTimeoutGuard() {
   useSessionTimeout();
+  useAccessoRevocato();
   return null;
 }
 
@@ -857,7 +862,7 @@ const App = () => (
                 richiesta utente: era invasivo e copriva i CTA sul mobile.
                 Il browser stesso propone "Aggiungi a Home" dal menu condividi. */}
             {/* <InstallPWAPrompt /> */}
-            {/* v8.6.99 — Auto-logout dopo 45gg dal login */}
+            {/* v8.6.99 — Auto-logout dopo 45gg dal login, e all'accesso chiuso */}
             <SessionTimeoutGuard />
           </Suspense>
           </BillingModeProvider>

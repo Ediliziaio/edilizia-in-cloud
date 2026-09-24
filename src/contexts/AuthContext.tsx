@@ -13,6 +13,7 @@ import { warmupCriticalEdgeFunctions } from "@/lib/utils/edgeWarmup";
 import { mergeProfileCompanyAccess, resolveMultiCompanySelection } from "@/lib/auth/multiCompany";
 import { computeEffectiveRole } from "@/lib/roleHierarchy";
 import { conRiprova } from "@/lib/auth/conRiprova";
+import { idAccessoDalToken, sessioneDaRegistrare } from "@/lib/auth/accessoRevocato";
 import { useLocation } from "react-router-dom";
 import { areaDaPercorso, ruoloEffettivoPerArea, areeDisponibili as calcolaAree, haEntrambeLeAree } from "@/lib/auth/aree";
 import type { AppArea } from "@/lib/auth/aree";
@@ -90,6 +91,8 @@ if (import.meta.hot && typeof window !== "undefined") {
 
 // Impersonation persisted in sessionStorage (tab-scoped), validated server-side on restore
 const SESSION_ID_KEY = "user_session_id";
+// L'accesso (claim session_id del token) a cui appartiene la riga salvata qui sopra.
+const SESSION_AUTH_KEY = "user_session_auth_id";
 const IMP_COMPANY_KEY = "imp_company_id";
 const IMP_TOKEN_KEY = "imp_token";
 const MULTI_COMPANY_KEY = "multi_company_selected";
@@ -275,6 +278,8 @@ async function startSession(accessToken: string) {
     });
     if (data?.session_id) {
       sessionStorage.setItem(SESSION_ID_KEY, data.session_id);
+      const accesso = idAccessoDalToken(accessToken);
+      if (accesso) sessionStorage.setItem(SESSION_AUTH_KEY, accesso);
     }
   } catch {
     // Non-blocking
@@ -289,6 +294,7 @@ async function endSession() {
         body: { action: "end", session_id: sessionId },
       });
       sessionStorage.removeItem(SESSION_ID_KEY);
+      sessionStorage.removeItem(SESSION_AUTH_KEY);
     }
   } catch {
     // Non-blocking
@@ -360,6 +366,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     clearStaleSupabaseAuthStorage();
     sessionStorage.removeItem(SESSION_ID_KEY);
+    sessionStorage.removeItem(SESSION_AUTH_KEY);
     sessionStorage.removeItem(IMP_COMPANY_KEY);
     sessionStorage.removeItem(IMP_TOKEN_KEY);
     sessionStorage.removeItem(IMP_TOKEN_TS_KEY);
@@ -970,8 +977,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             isLoading: false,
           });
           // Start session tracking (fire-and-forget, pass token directly to avoid
-          // a redundant getSession() call that would compete for the storage lock)
-          if (!sessionStorage.getItem(SESSION_ID_KEY)) {
+          // a redundant getSession() call that would compete for the storage lock).
+          // Anche quando la riga salvata è di un altro accesso: la revoca chiude
+          // l'accesso che la riga dichiara.
+          if (sessioneDaRegistrare(
+            session.access_token,
+            sessionStorage.getItem(SESSION_ID_KEY),
+            sessionStorage.getItem(SESSION_AUTH_KEY),
+          )) {
             startSession(session.access_token);
           }
           // Riscalda edge function critiche per UX (manage-totp, maps-proxy, ecc).

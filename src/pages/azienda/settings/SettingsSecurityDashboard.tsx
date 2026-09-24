@@ -169,7 +169,10 @@ export default function SettingsSecurityDashboard() {
       queryClient.invalidateQueries({ queryKey: ["security-overview"] });
       queryClient.invalidateQueries({ queryKey: ["security-audit"] });
       toast.success("Sessione revocata", {
-        description: data?.revoked_count ? `${data.revoked_count} sessioni revocate` : "Operazione completata",
+        // Una sessione non collegata a un dispositivo preciso chiude tutti gli accessi.
+        description: data?.tutti_i_dispositivi
+          ? "Disconnesso da tutti i dispositivi."
+          : data?.revoked_count ? `${data.revoked_count} sessioni revocate` : "Operazione completata",
       });
       setRevokeTarget(null);
     },

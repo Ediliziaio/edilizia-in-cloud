@@ -48,14 +48,19 @@ export function UserSessionsTab({ userId }: UserSessionsTabProps) {
 
   const revokeMutation = useMutation({
     mutationFn: async (sessionId: string) => {
-      const { error } = await supabase.functions.invoke("revoke-user-session", {
+      const { data, error } = await supabase.functions.invoke("revoke-user-session", {
         body: { session_id: sessionId, reason: "Revoked by admin" },
       });
       if (error) throw error;
+      return data as { tutti_i_dispositivi?: boolean } | null;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.userSessions.byUser(userId) });
-      toast({ title: "Sessione revocata" });
+      toast({
+        title: "Sessione revocata",
+        // Una sessione non collegata a un dispositivo preciso chiude tutti gli accessi.
+        description: data?.tutti_i_dispositivi ? "L'utente è stato disconnesso da tutti i dispositivi." : undefined,
+      });
     },
     onError: () => {
       toast({ title: "Errore", description: "Impossibile revocare la sessione.", variant: "destructive" });

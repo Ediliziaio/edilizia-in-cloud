@@ -1,5 +1,6 @@
 import { requireAuth } from "../_shared/auth.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { idAccessoDalToken } from "../_shared/revocaSessioni.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -33,23 +34,25 @@ Deno.serve(async (req) => {
         });
       }
 
-      const { data: session, error } = await supabaseAdmin
-        .from("user_sessions")
-        .insert({
-          user_id: userId,
-          company_id: companyId,
-          ip_address: ip_address || null,
-          user_agent: user_agent || null,
-          device_type: device_type || null,
-          browser: browser || null,
-          os: os || null,
-        })
-        .select("id")
-        .single();
+      // Una riga per accesso (auth.sessions) e azienda: le schede dello stesso
+      // browser condividono l'accesso, e riaprendo l'app si riprende la riga
+      // invece di aprirne un'altra. Un accesso già chiuso non ne riapre una,
+      // anche se il suo token vale ancora fino alla scadenza. La revoca trova
+      // l'accesso da chiudere proprio da qui (revoke-user-session).
+      const { data: rigaId, error } = await supabaseAdmin.rpc("registra_sessione_app", {
+        p_user_id: userId,
+        p_company_id: companyId,
+        p_auth_session_id: idAccessoDalToken(req.headers.get("Authorization")),
+        p_ip_address: ip_address || null,
+        p_user_agent: user_agent || null,
+        p_device_type: device_type || null,
+        p_browser: browser || null,
+        p_os: os || null,
+      });
 
       if (error) throw error;
 
-      return new Response(JSON.stringify({ session_id: session.id }), {
+      return new Response(JSON.stringify(rigaId ? { session_id: rigaId } : { session_id: null, skipped: true }), {
         headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
