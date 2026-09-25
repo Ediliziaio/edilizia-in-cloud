@@ -52,7 +52,7 @@ describe("il colore di un blocco vale se è stato scelto", () => {
 });
 
 describe("i contatti dell'impresa nel preventivo", () => {
-  const profilo = { email: "giancarlo.turchetto@ener.it", phone: "045 000000" };
+  const profilo = { email: "consulente@esempio.it", phone: "045 000000" };
 
   it("quelli scritti nel modello valgono più del profilo", () => {
     expect(contattiImpresa({ email_impresa: " info@ener.it ", telefono_impresa: "045 123456" }, profilo))
@@ -61,8 +61,8 @@ describe("i contatti dell'impresa nel preventivo", () => {
 
   it("vuoti o solo spazi: restano quelli del profilo", () => {
     expect(contattiImpresa({ email_impresa: "", telefono_impresa: "   " }, profilo))
-      .toEqual({ email: "giancarlo.turchetto@ener.it", phone: "045 000000" });
-    expect(contattiImpresa(undefined, profilo)).toEqual({ email: "giancarlo.turchetto@ener.it", phone: "045 000000" });
+      .toEqual({ email: "consulente@esempio.it", phone: "045 000000" });
+    expect(contattiImpresa(undefined, profilo)).toEqual({ email: "consulente@esempio.it", phone: "045 000000" });
     expect(contattiImpresa({}, {})).toEqual({ email: null, phone: null });
   });
 });
@@ -111,7 +111,7 @@ describe("le anteprime seguono il PDF", { timeout: 30_000 }, () => {
   it("anche l'anteprima dal vivo del preventivo colora la copertina come il PDF", () => {
     const props: QuoteLivePreviewProps = {
       template: resolveQuoteTemplatePreview(offerta, [copertina(VERDE_ENER)]),
-      companyName: "Ener Italia S.p.A.", clientName: "Mauro Tartani", title: "Fotovoltaico", validityDays: 30,
+      companyName: "Ener Italia S.p.A.", clientName: "Mario Rossi", title: "Fotovoltaico", validityDays: 30,
       items: [], subtotal: 0, net: 0, total: 0, vatBreakdown: {}, discountPercent: 0, manualPrice: false,
       showPrices: true, onlyTotal: false, showDiscounts: true, showNotes: true, showConditions: true, showSignature: true,
       paymentMethod: "Bonifico", paymentPhases: [],

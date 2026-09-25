@@ -2,7 +2,6 @@ import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
 import { PDFDocument, rgb, StandardFonts, degrees } from "https://esm.sh/pdf-lib@1.17.1";
-import qrcode from "https://esm.sh/qrcode-generator@1.4.4?target=deno";
 // Libreria template componibile: carica i blocchi linkati + sostituisce merge tag
 import { fondoPerTestoBianco, scurisci, schiarisci, testoSuChiaro, testoSuScuro, normalizzaHex } from "../_shared/temaColori.ts";
 import { loadTemplateWithBlocks, attachLinkedBlocks, applyMergeTagsToTemplate, buildMergeContext, substituteMergeTags, type ComposedTemplate } from "../_shared/quoteTemplateComposer.ts";
@@ -10,7 +9,7 @@ import { condizioniStandard, MODULO_RECESSO } from "../_shared/condizioniStandar
 import { testoPerPdf } from "../_shared/testoPerPdf.ts";
 import { formatoImmagine, leggiLogo, logoDiRiserva } from "../_shared/logoAzienda.ts";
 import { COLORE_ACCENTO_DI_FABBRICA, coloreCopertina, coloreDelBlocco, colorePreventivo, contattiImpresa, titoliMarkdown } from "../_shared/blocchiModelloPreventivo.ts";
-import { componiRighe, nomeLeggibile, paroleDelTitolo, pezziConGrassetto, senzaSezioneClausole, sezioneClausole, titoloGenerico, type ParolaTitolo, type Pezzo } from "../_shared/impaginaPreventivo.ts";
+import { componiRighe, nomeLeggibile, paroleDelTitolo, percorsoDellAzienda, pezziConGrassetto, senzaSezioneClausole, sezioneClausole, titoloGenerico, type ParolaTitolo, type Pezzo } from "../_shared/impaginaPreventivo.ts";
 import { agevolazioniPreventivo, riepilogoPrezzi } from "../_shared/prezziPreventivo.ts";
 
 // ─── Helpers ───
@@ -176,6 +175,11 @@ Deno.serve(async (req) => {
       return v == null ? predefinito : v !== false;
     };
 
+    // L'azienda di cui si leggono i file riservati del modello (il timbro): nel
+    // preventivo vero quella del preventivo; in anteprima quella del modello, se
+    // chi chiama ci può entrare, se no la sua.
+    let aziendaAnteprima: string | null = null;
+
     if (isPreview) {
       // Use sample data – no DB lookups needed
       t = { ...DEFAULT_T, ...template_data };
@@ -184,6 +188,14 @@ Deno.serve(async (req) => {
         .select("company_id")
         .eq("id", userId)
         .maybeSingle();
+      aziendaAnteprima = profile?.company_id ?? null;
+      const aziendaDelModello = typeof template_data?.company_id === "string" ? template_data.company_id : null;
+      if (aziendaDelModello && aziendaDelModello !== aziendaAnteprima) {
+        try {
+          await requireCompanyAccess(supabaseAdmin, userId, aziendaDelModello, corsH);
+          aziendaAnteprima = aziendaDelModello;
+        } catch { /* niente accesso a quell'azienda: resta la sua */ }
+      }
       if (profile?.company_id) {
         t = await attachLinkedBlocks(
           supabaseAdmin,
@@ -526,6 +538,28 @@ Deno.serve(async (req) => {
         console.warn("Logo not loaded:", e);
       }
     }
+    // La dimensione del logo scelta nel modello (Piccola, Media, Grande): il
+    // classico la ignorava e il logo usciva sempre piccolo (25/09/2026).
+    const scalaLogo = t.logo_size === "small" ? 0.8 : t.logo_size === "large" ? 1.4 : 1;
+
+    // ─── Timbro e firma dell'impresa (25/09/2026) ───
+    // Si caricano una volta nel modello e si stampano nel riquadro «Per l'impresa»
+    // di ogni preventivo. Il file sta nel contenitore riservato dei modelli e si
+    // legge solo dalla cartella dell'azienda: il percorso di un'altra resta fuori.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let timbroEmbed: any = null;
+    const percorsoTimbro = percorsoDellAzienda(t.timbro_firma_url, isPreview ? aziendaAnteprima : quote?.company_id);
+    if (percorsoTimbro) {
+      try {
+        const { data: fileTimbro } = await supabaseAdmin.storage.from("quote-template-assets").download(percorsoTimbro);
+        const bytes = fileTimbro ? new Uint8Array(await fileTimbro.arrayBuffer()) : null;
+        const formato = bytes ? formatoImmagine(bytes) : null;
+        if (bytes && formato === "png") timbroEmbed = await pdfDoc.embedPng(bytes);
+        else if (bytes && formato === "jpg") timbroEmbed = await pdfDoc.embedJpg(bytes);
+      } catch (e) {
+        console.warn("[generate-quote-pdf] timbro non caricato (riquadro senza timbro):", e instanceof Error ? e.message : e);
+      }
+    }
 
     // ── Layout "classic premium" (default): stile documento professionale ──
     // Colore forte per la barra del totale e i dettagli: brand white-label se
@@ -755,15 +789,46 @@ Deno.serve(async (req) => {
         cover.drawLine({ start: { x: 470, y: pageHeight - 20 }, end: { x: 470, y: pageHeight - 520 }, thickness: 0.6, color: biancoC, opacity: 0.16, dashArray: [6, 5] });
       }
 
-      // In alto: il logo su una targhetta bianca (i loghi nascono per il fondo chiaro), o il nome.
+      // In alto: il logo su una targhetta bianca arrotondata (i loghi nascono per il
+      // fondo chiaro), grande quanto dice il modello; senza logo, il nome. A destra
+      // chi emette il preventivo: nome, mail e telefono dell'impresa.
+      // 25/09/2026: prima una targhetta di 40 punti, qualunque dimensione si scegliesse.
       const margineC = 48;
       const largoC = pageWidth - margineC * 2;
-      if (logoEmbed && t.show_logo) {
-        const sc = Math.min(40 / logoEmbed.height, 150 / logoEmbed.width);
+      const topC = pageHeight - 44;
+      const conLogoC = !!(logoEmbed && t.show_logo);
+      let largoTarghetta = 0;
+      if (conLogoC) {
+        const sc = Math.min((58 * scalaLogo) / logoEmbed.height, (210 * scalaLogo) / logoEmbed.width);
         const lw = logoEmbed.width * sc, lh = logoEmbed.height * sc;
-        cover.drawRectangle({ x: margineC, y: pageHeight - 46 - lh - 16, width: lw + 24, height: lh + 16, color: biancoC });
-        cover.drawImage(logoEmbed, { x: margineC + 12, y: pageHeight - 46 - lh - 8, width: lw, height: lh });
-      } else if (company?.name) {
+        const padX = 16, padY = 12;
+        largoTarghetta = lw + padX * 2;
+        arrotondato(cover, margineC, topC - lh - padY * 2, largoTarghetta, lh + padY * 2, biancoC, 8);
+        cover.drawImage(logoEmbed, { x: margineC + padX, y: topC - lh - padY, width: lw, height: lh });
+      }
+      const contattiC = [company?.email, company?.phone ? `Tel. ${company.phone}` : null].filter(Boolean).join("  ·  ");
+      // Col logo, nome e contatti a destra, mai sopra la targhetta; senza logo il nome
+      // spaziato sta a sinistra e i contatti gli vanno sotto (un nome lungo li copriva).
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const righeEmittente: Array<{ testo: string; f: any; size: number; opacity: number }> = [
+        ...(conLogoC && company?.name ? [{ testo: String(company.name), f: fontBold, size: 10, opacity: 1 }] : []),
+        ...(conLogoC && contattiC ? [{ testo: contattiC, f: font, size: 7.8, opacity: 0.8 }] : []),
+      ];
+      const largoDestra = Math.min(largoC * 0.5, largoC - largoTarghetta - 24);
+      let yEmittente = topC - 12;
+      for (const r of righeEmittente) {
+        let testo = winAnsiSafe(r.testo);
+        while (testo.length > 3 && r.f.widthOfTextAtSize(testo, r.size) > largoDestra) testo = testo.slice(0, -2);
+        if (testo !== winAnsiSafe(r.testo)) testo = testo.trimEnd() + "…";
+        if (largoDestra > 40) cover.drawText(testo, { x: pageWidth - margineC - r.f.widthOfTextAtSize(testo, r.size), y: yEmittente, size: r.size, font: r.f, color: biancoC, opacity: r.opacity });
+        yEmittente -= r.size + 5;
+      }
+      if (!conLogoC && contattiC) {
+        let testo = winAnsiSafe(contattiC);
+        while (testo.length > 3 && font.widthOfTextAtSize(testo, 7.8) > largoC) testo = testo.slice(0, -2);
+        cover.drawText(testo, { x: margineC, y: pageHeight - 78, size: 7.8, font, color: biancoC, opacity: 0.8 });
+      }
+      if (!conLogoC && company?.name) {
         const nome = winAnsiSafe(String(company.name).toUpperCase()).slice(0, 48);
         let nx = margineC;
         for (const ch of nome) { // lettere spaziate: pdf-lib non ha la spaziatura fra i caratteri
@@ -804,10 +869,15 @@ Deno.serve(async (req) => {
       });
 
       // Il titolo: nero del carattere, con la parola fra asterischi in corsivo e nel colore d'evidenza.
-      const titoloGrezzo = String(t.cover_title ?? "").trim() || "La nostra *offerta* per voi.";
+      // Il nome del cliente scritto tutto maiuscolo («ROSSI MARIO») nel titolo
+      // grande si legge meglio così: «Rossi Mario». Il dato resta com'è altrove.
+      const nomeCliente = String(quote.client_name ?? "").trim();
+      const nomeDaRendereLeggibile = nomeCliente.length > 2 && nomeCliente === nomeCliente.toUpperCase() && /\p{Lu}/u.test(nomeCliente);
+      const conNomeLeggibile = (testo: string) => nomeDaRendereLeggibile ? testo.split(nomeCliente).join(nomeLeggibile(nomeCliente)) : testo;
+      const titoloGrezzo = conNomeLeggibile(String(t.cover_title ?? "").trim()) || "La nostra *offerta* per voi.";
       const corpoT = 38;
       const righeT = righeDelTitolo(titoloGrezzo, corpoT, largoC * 0.94, fontCorsivo).slice(0, 4);
-      const sottotitolo = winAnsiSafe(String(t.cover_subtitle ?? "").trim() || String(quote.title ?? "").trim());
+      const sottotitolo = winAnsiSafe(conNomeLeggibile(String(t.cover_subtitle ?? "").trim()) || String(quote.title ?? "").trim());
       const righeSotto = sottotitolo ? wrapText(sottotitolo, 62).slice(0, 3) : [];
       const interlinea = corpoT * 1.2;
       // Dal basso verso l'alto: scheda, sottotitolo, titolo, occhiello.
@@ -840,7 +910,7 @@ Deno.serve(async (req) => {
     const testataInterna = (pg: any): number => {
       const yT = pageHeight - 40;
       if (logoEmbed && t.show_logo) {
-        const sc = Math.min(20 / logoEmbed.height, 110 / logoEmbed.width);
+        const sc = Math.min((22 * scalaLogo) / logoEmbed.height, (120 * scalaLogo) / logoEmbed.width);
         pg.drawImage(logoEmbed, { x: margin, y: yT - 6, width: logoEmbed.width * sc, height: logoEmbed.height * sc });
       } else {
         let nome = winAnsiSafe(String(company?.name || "")).toUpperCase();
@@ -1202,9 +1272,14 @@ Deno.serve(async (req) => {
       };
 
       const yTesta = pageHeight - 46;
+      // Il logo parte a 30 punti dal bordo e scende quanto è alto (Piccola/Media/Grande
+      // nel modello): la barra a segmenti e il titolo gli stanno sotto.
+      let baseLogo = yTesta - 10;
       if (logoEmbed && t.show_logo) {
-        const scale = Math.min(34 / logoEmbed.height, 150 / logoEmbed.width);
-        page.drawImage(logoEmbed, { x: margin, y: yTesta - 10, width: logoEmbed.width * scale, height: logoEmbed.height * scale });
+        const scale = Math.min((40 * scalaLogo) / logoEmbed.height, (180 * scalaLogo) / logoEmbed.width);
+        const altezzaLogo = logoEmbed.height * scale;
+        baseLogo = Math.min(yTesta - 10, pageHeight - 30 - altezzaLogo);
+        page.drawImage(logoEmbed, { x: margin, y: baseLogo, width: logoEmbed.width * scale, height: altezzaLogo });
       } else {
         let nome = winAnsiSafe(String(company?.name || "Azienda")).toUpperCase();
         while (nome.length > 3 && larghezzaSpaziata(nome, 10, fontBold, 0.6) > contentWidth - 200) nome = nome.slice(0, -2);
@@ -1215,10 +1290,11 @@ Deno.serve(async (req) => {
       spaziato(etichettaDoc, pageWidth - margin - wEt, yTesta + 6, 6.8, fontBold, inkMarcaC, 1.3);
       const dataDocTesto = new Date(quote.created_at).toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" });
       drawRight(page, dataDocTesto, pageWidth - margin, yTesta - 6, 8, font, grigioEdC);
-      segmenti(margin, yTesta - 22, contentWidth);
+      const ySegmenti = Math.min(yTesta - 22, baseLogo - 12);
+      segmenti(margin, ySegmenti, contentWidth);
 
       // ── Titolo: occhiello e frase, con la parola fra asterischi in corsivo ──
-      y = yTesta - 56;
+      y = ySegmenti - 34;
       const fontCorsivoT = await pdfDoc.embedFont(StandardFonts.TimesRomanItalic);
       const occhiello = "LA NOSTRA OFFERTA";
       const xTitolo = (w: number) => allineaHeader === "center" ? (pageWidth - w) / 2 : allineaHeader === "right" ? pageWidth - margin - w : margin;
@@ -2162,9 +2238,6 @@ Deno.serve(async (req) => {
         ? ((quote as any).payment_phases as Array<Record<string, unknown>>).filter((p) => p && typeof p === "object")
         : [];
       const metodoPag = typeof (quote as any).payment_method === "string" ? String((quote as any).payment_method).trim() : "";
-      const conFirmaOnline = Boolean((quote as any).firma_digitale_abilitata && (quote as any).signature_token);
-      const siteUrl = branding?.siteUrl || Deno.env.get("SITE_URL") || "https://app.ediliziaincloud.com";
-      const signUrl = `${siteUrl}/preventivo/${quote.id}?token=${(quote as any).signature_token}`;
       if (fasiPag.length > 0 && !classicPremium) {
         const altezzaPiano = 30 + fasiPag.length * 13 + (metodoPag ? 12 : 0);
         newPageIfNeeded(altezzaPiano + 20);
@@ -2189,118 +2262,43 @@ Deno.serve(async (req) => {
         y -= 6;
       }
 
-      // ── QR firma digitale ──────────────────────────────────────────
-      if (conFirmaOnline && !classicPremium) {
-        try {
-          // QR (55pt) + etichetta: senza guardia usciva dal fondo pagina.
-          newPageIfNeeded(100);
-          const qr = qrcode(0, "M");
-          qr.addData(signUrl);
-          qr.make();
-          const count = qr.getModuleCount();
-          const qrSize = 55;
-          const cellSize = qrSize / count;
-          const qrX = totX;
-          const qrY = y - 10;
-          // White background
-          page.drawRectangle({ x: qrX - 2, y: qrY - qrSize - 2, width: qrSize + 4, height: qrSize + 4, color: rgb(1, 1, 1) });
-          for (let r = 0; r < count; r++) {
-            for (let c = 0; c < count; c++) {
-              if (qr.isDark(r, c)) {
-                page.drawRectangle({
-                  x: qrX + c * cellSize,
-                  y: qrY - (r + 1) * cellSize,
-                  width: cellSize,
-                  height: cellSize,
-                  color: rgb(0, 0, 0),
-                });
-              }
-            }
-          }
-          page.drawText("Firma online", { x: qrX, y: qrY - qrSize - 12, size: 7, font, color: grayC });
-          y = qrY - qrSize - 25;
-        } catch (qrErr) {
-          console.warn("QR generation failed:", qrErr);
-        }
-      }
+      // Il QR della firma online nel PDF non c'è più (25/09/2026, deciso da Florin):
+      // il cliente firma dal link che riceve con il preventivo.
 
-      // ── Classico: il piano dei pagamenti e la firma online, affiancati ──
-      // Prima erano un riquadro azzurro e un QR incolonnati sotto il totale, con
-      // mezza pagina vuota accanto. Il piano a sinistra, la scheda del QR a destra;
-      // da solo, ciascuno prende la sua parte di riga.
-      if (classicPremium && (fasiPag.length > 0 || conFirmaOnline)) {
-        const wQr = conFirmaOnline ? (fasiPag.length > 0 ? 196 : contentWidth) : 0;
-        const gapQr = fasiPag.length > 0 && conFirmaOnline ? 22 : 0;
-        const wPiano = contentWidth - wQr - gapQr;
-        const hPiano = fasiPag.length > 0 ? 24 + (metodoPag ? 14 : 0) + fasiPag.length * 20 : 0;
-        const hQr = conFirmaOnline ? 76 : 0;
-        newPageIfNeeded(Math.max(hPiano, hQr) + 60);
+      // ── Classico: il piano dei pagamenti, a tutta larghezza ──
+      // Prima era un riquadro azzurro incolonnato sotto il totale.
+      if (classicPremium && fasiPag.length > 0) {
+        const wPiano = contentWidth;
+        const hPiano = 24 + (metodoPag ? 14 : 0) + fasiPag.length * 20;
+        newPageIfNeeded(hPiano + 60);
         y -= 14;
         const top = y;
-        let fondoPiano = top;
-        if (fasiPag.length > 0) {
-          titolinoSu(page, "PIANO DEI PAGAMENTI", margin, top, wPiano);
-          let yy = top - 22;
-          if (metodoPag) {
-            page.drawText(winAnsiSafe(`Modalità: ${metodoPag}`).slice(0, 80), { x: margin, y: yy, size: 8, font, color: grigioEdC });
-            yy -= 15;
-          }
-          fasiPag.forEach((fase, i) => {
-            const etichetta = String(fase.label ?? "").trim() || "Rata";
-            const pct = Number(fase.percent) || 0;
-            const importo = Number(fase.amount) || 0;
-            // Il numero della rata in un cerchio nel colore dell'azienda.
-            page.drawCircle({ x: margin + 7, y: yy + 3, size: 7, color: fondoEdC });
-            const n = String(i + 1);
-            page.drawText(n, { x: margin + 7 - textW(n, 7.2, fontBold) / 2, y: yy + 0.5, size: 7.2, font: fontBold, color: rgb(1, 1, 1) });
-            const wImp = textW(fmtEur(importo), 9, fontBold);
-            const wPct = pct ? textW(`${pct}%`, 8, font) + 14 : 0;
-            let et = winAnsiSafe(etichetta);
-            while (et.length > 3 && textW(et, 8.8) > wPiano - 22 - wImp - wPct - 12) et = et.slice(0, -2);
-            if (et !== winAnsiSafe(etichetta)) et = et.trimEnd() + "…";
-            page.drawText(et, { x: margin + 22, y: yy, size: 8.8, font, color: inchiostroC });
-            if (pct) drawRight(page, `${pct}%`, margin + wPiano - wImp - 14, yy, 8, font, grigioEdC);
-            drawRight(page, fmtEur(importo), margin + wPiano, yy, 9, fontBold, inchiostroC);
-            page.drawLine({ start: { x: margin + 22, y: yy - 7 }, end: { x: margin + wPiano, y: yy - 7 }, thickness: 0.5, color: filettoC });
-            yy -= 20;
-          });
-          fondoPiano = yy + 8;
+        titolinoSu(page, "PIANO DEI PAGAMENTI", margin, top, wPiano);
+        let yy = top - 22;
+        if (metodoPag) {
+          page.drawText(winAnsiSafe(`Modalità: ${metodoPag}`).slice(0, 80), { x: margin, y: yy, size: 8, font, color: grigioEdC });
+          yy -= 15;
         }
-        let fondoQr = top;
-        if (conFirmaOnline) {
-          try {
-            const xQr = margin + contentWidth - wQr;
-            const hScheda = 70;
-            page.drawRectangle({ x: xQr, y: top - hScheda + 8, width: wQr, height: hScheda, color: tintaLeggeraC });
-            page.drawRectangle({ x: xQr, y: top - hScheda + 8, width: 3, height: hScheda, color: fondoEdC });
-            const lato = 54;
-            const qr = qrcode(0, "M");
-            qr.addData(signUrl);
-            qr.make();
-            const count = qr.getModuleCount();
-            const cella = lato / count;
-            const qx = xQr + 14;
-            const qy = top;
-            page.drawRectangle({ x: qx - 3, y: qy - lato - 3, width: lato + 6, height: lato + 6, color: rgb(1, 1, 1) });
-            for (let r = 0; r < count; r++) {
-              for (let c = 0; c < count; c++) {
-                if (qr.isDark(r, c)) page.drawRectangle({ x: qx + c * cella, y: qy - (r + 1) * cella, width: cella, height: cella, color: inchiostroC });
-              }
-            }
-            const tx = qx + lato + 14;
-            spaziatoSu(page, "FIRMA ONLINE", tx, top - 10, 7, fontBold, inkMarcaC, 1.4);
-            const spiegazione = "Inquadra il codice con la fotocamera del telefono: si apre il preventivo e lo firmi online, in un minuto.";
-            let yq = top - 24;
-            for (const r of righeDi([{ testo: spiegazione, stile: { f: font, size: 7.8, c: inchiostroC } }], xQr + wQr - tx - 12).slice(0, 5)) {
-              disegnaRiga(page, r, tx, yq);
-              yq -= 10.4;
-            }
-            fondoQr = top - hScheda + 8;
-          } catch (qrErr) {
-            console.warn("QR generation failed:", qrErr);
-          }
-        }
-        y = Math.min(fondoPiano, fondoQr) - 18;
+        fasiPag.forEach((fase, i) => {
+          const etichetta = String(fase.label ?? "").trim() || "Rata";
+          const pct = Number(fase.percent) || 0;
+          const importo = Number(fase.amount) || 0;
+          // Il numero della rata in un cerchio nel colore dell'azienda.
+          page.drawCircle({ x: margin + 7, y: yy + 3, size: 7, color: fondoEdC });
+          const n = String(i + 1);
+          page.drawText(n, { x: margin + 7 - textW(n, 7.2, fontBold) / 2, y: yy + 0.5, size: 7.2, font: fontBold, color: rgb(1, 1, 1) });
+          const wImp = textW(fmtEur(importo), 9, fontBold);
+          const wPct = pct ? textW(`${pct}%`, 8, font) + 14 : 0;
+          let et = winAnsiSafe(etichetta);
+          while (et.length > 3 && textW(et, 8.8) > wPiano - 22 - wImp - wPct - 12) et = et.slice(0, -2);
+          if (et !== winAnsiSafe(etichetta)) et = et.trimEnd() + "…";
+          page.drawText(et, { x: margin + 22, y: yy, size: 8.8, font, color: inchiostroC });
+          if (pct) drawRight(page, `${pct}%`, margin + wPiano - wImp - 14, yy, 8, font, grigioEdC);
+          drawRight(page, fmtEur(importo), margin + wPiano, yy, 9, fontBold, inchiostroC);
+          page.drawLine({ start: { x: margin + 22, y: yy - 7 }, end: { x: margin + wPiano, y: yy - 7 }, thickness: 0.5, color: filettoC });
+          yy -= 20;
+        });
+        y = yy + 8 - 18;
       }
 
       // ── Sezioni finali classic: condizioni/tempi/note + firme ──
@@ -2332,6 +2330,8 @@ Deno.serve(async (req) => {
         if (infoCols.length > 0) {
           newPageIfNeeded(190);
           const gap = 16;
+          const righeColonna = (testo: string, larghezza: number) =>
+            righeDi([{ testo: testo.replace(/\s+/g, " ").slice(0, 480), stile: { f: font, size: 8, c: grigioEdC } }], larghezza).slice(0, 8);
           const colW = (contentWidth - gap * (infoCols.length - 1)) / infoCols.length;
           const colTop = y;
           let deepest = colTop;
@@ -2341,7 +2341,7 @@ Deno.serve(async (req) => {
             // testo che va a capo misurato sulla larghezza della colonna.
             titolinoSu(page, c.label, cx, colTop, colW);
             let ty = colTop - 20;
-            for (const r of righeDi([{ testo: c.text.replace(/\s+/g, " ").slice(0, 480), stile: { f: font, size: 8, c: grigioEdC } }], colW).slice(0, 8)) {
+            for (const r of righeColonna(c.text, colW)) {
               disegnaRiga(page, r, cx, ty);
               ty -= 10.8;
             }
@@ -2366,8 +2366,8 @@ Deno.serve(async (req) => {
           y -= 16;
         }
 
-        // Riquadri firma
-        newPageIfNeeded(150);
+        // Riquadri firma (più alti col timbro dell'impresa)
+        newPageIfNeeded(timbroEmbed ? 170 : 150);
         titolinoSu(page, "ACCETTAZIONE DEL PREVENTIVO", margin, y, contentWidth);
         y -= 20;
         // La firma vale anche per le condizioni che seguono: va detto qui, dove
@@ -2383,7 +2383,7 @@ Deno.serve(async (req) => {
           y -= 12;
         }
         const sigW = (contentWidth - 14) / 2;
-        const sigH = 66;
+        const sigH = timbroEmbed ? 86 : 66;
         // Righe da firmare, come nel documento edile: il filetto, sotto che cosa ci
         // va e di chi è la firma. Prima erano due riquadri con il titolo colorato.
         const sigBox = (x: number, label: string, chi: string) => {
@@ -2395,7 +2395,22 @@ Deno.serve(async (req) => {
           page.drawText(c, { x, y: y - sigH + 5, size: 7.5, font: fontBold, color: inchiostroC });
         };
         sigBox(margin, "LUOGO, DATA E FIRMA DEL CLIENTE", String(quote.client_name ?? ""));
-        sigBox(margin + sigW + 14, "PER L'IMPRESA", String(company?.name ?? ""));
+        if (timbroEmbed) {
+          // Timbro e firma caricati nel modello, sopra la riga e un po' a cavallo,
+          // come su carta: il cliente riceve il preventivo già firmato dall'impresa.
+          // Si disegnano PRIMA della riga e dell'etichetta: una scansione a fondo
+          // bianco altrimenti le copre (trovato dal revisore il 25/09).
+          const sc = Math.min((sigW * 0.62) / timbroEmbed.width, 56 / timbroEmbed.height);
+          const yRiga = y - sigH + 26;
+          page.drawImage(timbroEmbed, {
+            x: margin + sigW + 14 + 6,
+            y: yRiga - 8,
+            width: timbroEmbed.width * sc,
+            height: timbroEmbed.height * sc,
+          });
+        }
+        // Sotto la riga dell'impresa anche chi firma, se il modello lo dice.
+        sigBox(margin + sigW + 14, "PER L'IMPRESA", [company?.name, t.firmatario_impresa].map((v) => String(v ?? "").trim()).filter(Boolean).join(" — "));
         y -= sigH + 12;
       }
 

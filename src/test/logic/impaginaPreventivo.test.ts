@@ -44,7 +44,7 @@ describe("il titolo", () => {
   });
 
   it("il nome tutto maiuscolo diventa leggibile, quello scritto a mano resta com'è", () => {
-    expect(nomeLeggibile("TARTANI MAURO")).toBe("Tartani Mauro");
+    expect(nomeLeggibile("ROSSI MARIO")).toBe("Rossi Mario");
     expect(nomeLeggibile("D'ANGELO LUCA")).toBe("D'Angelo Luca");
     expect(nomeLeggibile("Luca D'ANGELO")).toBe("Luca D'ANGELO");
     expect(nomeLeggibile("  mario   rossi ")).toBe("mario rossi");
