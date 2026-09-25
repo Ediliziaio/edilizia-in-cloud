@@ -117,10 +117,10 @@ const MODALITA_CARDS: Array<{
   label: string;
   descrizione: string;
 }> = [
-  { value: "griglia", label: "Griglia L×H", descrizione: "Matrice dimensioni → prezzo. Default serramenti." },
-  { value: "mq", label: "Al mq", descrizione: "Prezzo moltiplicato per la superficie." },
-  { value: "pz", label: "A pezzo", descrizione: "Prezzo fisso per ogni pezzo." },
-  { value: "misura_libera", label: "Misura libera", descrizione: "Prezzo manuale al preventivo." },
+  { value: "pz", label: "A pezzo", descrizione: "Un prezzo per ogni pezzo. Es. portoncini, porte, accessori." },
+  { value: "mq", label: "Al mq", descrizione: "Prezzo al metro quadro, moltiplicato per la superficie. Es. finestre." },
+  { value: "griglia", label: "Griglia L×H", descrizione: "Un prezzo per ogni misura: tabella larghezza × altezza da compilare." },
+  { value: "misura_libera", label: "Misura libera", descrizione: "Il prezzo si scrive nel preventivo." },
 ];
 
 const UM_OPTIONS = ["pz", "mq", "ml", "mc", "kg", "a_corpo"];
@@ -239,7 +239,14 @@ export function FamilyEditor() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { upload: uploadImage, remove: removeImage, isUploading, isRemoving } =
     useArticleImageUpload();
-  const [modalita, setModalita] = useState<ModalitaPrezzoBase>("griglia");
+  // Con un prodotto nuovo la prima cosa è scegliere come si vende (25/09/2026):
+  // finché non si sceglie non c'è nessuna modalità selezionata e il resto
+  // dell'editor non compare. Prima si partiva dalla griglia senza dirlo, e un
+  // portoncino di Renova è rimasto senza prezzo: tabella vuota, e i nomi delle
+  // misure diventati «900» e «2100».
+  const [modalita, setModalita] = useState<ModalitaPrezzoBase>("pz");
+  const [modalitaScelta, setModalitaScelta] = useState(false);
+  const modalitaDecisa = !isNew || modalitaScelta;
   const [unitOfMeasure, setUnitOfMeasure] = useState("pz");
   const [vatRate, setVatRate] = useState("22");
   // IVA di acquisto: pagata al fornitore. Separata da vatRate (IVA vendita)
@@ -862,7 +869,7 @@ export function FamilyEditor() {
     return null;
   };
 
-  const canSaveBase = nome.trim().length > 0;
+  const canSaveBase = nome.trim().length > 0 && modalitaDecisa;
   const saving = createFamily.isPending || updateFamily.isPending;
 
   // M-31 (audit): il beforeunload copre solo l'unload del browser, non la
@@ -995,6 +1002,80 @@ export function FamilyEditor() {
 
             {/* STEP 1 — Dati base */}
             <TabsContent value="1" className="space-y-4 mt-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Come si vende questo prodotto?</CardTitle>
+                  {!modalitaDecisa ? (
+                    <p className="text-sm text-muted-foreground">
+                      Scegli prima questo: il resto dell'editor si adatta alla modalità.
+                    </p>
+                  ) : null}
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <RadioGroup
+                    value={modalitaDecisa ? modalita : ""}
+                    onValueChange={(v) => {
+                      setModalita(v as ModalitaPrezzoBase);
+                      setModalitaScelta(true);
+                    }}
+                    aria-label="Modalità prezzo base"
+                    className="grid grid-cols-1 sm:grid-cols-2 gap-2"
+                  >
+                    {MODALITA_CARDS.map((m) => (
+                      <label
+                        key={m.value}
+                        htmlFor={`mod-${m.value}`}
+                        className={`flex gap-3 p-3 border rounded-md cursor-pointer transition-all ${modalitaDecisa && modalita === m.value ? "border-primary ring-2 ring-primary/20 bg-primary/5" : "border-slate-300 bg-white shadow-sm hover:border-primary/60"}`}
+                      >
+                        <RadioGroupItem
+                          id={`mod-${m.value}`}
+                          value={m.value}
+                          className="mt-0.5"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-sm">{m.label}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {m.descrizione}
+                          </div>
+                        </div>
+                      </label>
+                    ))}
+                  </RadioGroup>
+
+                  {modalitaDecisa && modalita === "griglia" ? (
+                    <div className="space-y-1">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <Label htmlFor="f-griglia-x">Nome della misura in orizzontale</Label>
+                          <Input
+                            id="f-griglia-x"
+                            value={grigliaXLabel}
+                            onChange={(e) => setGrigliaXLabel(e.target.value)}
+                            placeholder="Larghezza (mm)"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="f-griglia-y">Nome della misura in verticale</Label>
+                          <Input
+                            id="f-griglia-y"
+                            value={grigliaYLabel}
+                            onChange={(e) => setGrigliaYLabel(e.target.value)}
+                            placeholder="Altezza (mm)"
+                          />
+                        </div>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Qui va solo il nome. Le misure (es. 900, 2100) e i loro prezzi
+                        si scrivono nella tabella, al passo Prezzo. Per un prezzo unico
+                        scegli «A pezzo».
+                      </p>
+                    </div>
+                  ) : null}
+                </CardContent>
+              </Card>
+
+              {modalitaDecisa ? (
+                <>
               <Card>
                 <CardHeader>
                   <CardTitle className="text-base">Dati base</CardTitle>
@@ -1258,35 +1339,6 @@ export function FamilyEditor() {
                     ensureFamilyId={saveBase}
                   />
 
-                  <div>
-                    <Label>Modalità prezzo base</Label>
-                    <RadioGroup
-                      value={modalita}
-                      onValueChange={(v) => setModalita(v as ModalitaPrezzoBase)}
-                      className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2"
-                    >
-                      {MODALITA_CARDS.map((m) => (
-                        <label
-                          key={m.value}
-                          htmlFor={`mod-${m.value}`}
-                          className={`flex gap-3 p-3 border rounded-md cursor-pointer transition-all ${modalita === m.value ? "border-primary ring-2 ring-primary/20 bg-primary/5" : "border-slate-300 bg-white shadow-sm hover:border-primary/60"}`}
-                        >
-                          <RadioGroupItem
-                            id={`mod-${m.value}`}
-                            value={m.value}
-                            className="mt-0.5"
-                          />
-                          <div className="flex-1 min-w-0">
-                            <div className="font-medium text-sm">{m.label}</div>
-                            <div className="text-xs text-muted-foreground">
-                              {m.descrizione}
-                            </div>
-                          </div>
-                        </label>
-                      ))}
-                    </RadioGroup>
-                  </div>
-
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <Label htmlFor="f-um">Unità di misura</Label>
@@ -1330,26 +1382,6 @@ export function FamilyEditor() {
                     </div>
                   </div>
 
-                  {modalita === "griglia" ? (
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <Label htmlFor="f-griglia-x">Etichetta asse X</Label>
-                        <Input
-                          id="f-griglia-x"
-                          value={grigliaXLabel}
-                          onChange={(e) => setGrigliaXLabel(e.target.value)}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="f-griglia-y">Etichetta asse Y</Label>
-                        <Input
-                          id="f-griglia-y"
-                          value={grigliaYLabel}
-                          onChange={(e) => setGrigliaYLabel(e.target.value)}
-                        />
-                      </div>
-                    </div>
-                  ) : null}
                 </CardContent>
               </Card>
 
@@ -1404,6 +1436,8 @@ export function FamilyEditor() {
                   )}
                 </Button>
               </div>
+                </>
+              ) : null}
             </TabsContent>
 
             {/* STEP 2 — Prezzo */}
