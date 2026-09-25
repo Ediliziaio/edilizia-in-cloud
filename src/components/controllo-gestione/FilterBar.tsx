@@ -1,5 +1,4 @@
 import { useMemo } from "react";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -47,17 +46,17 @@ export function FilterBar({ value, onChange, showScenario = false, showPeriodo =
 
   const update = (patch: Partial<CGFilters>) => onChange({ ...value, ...patch });
 
-  // Mobile: una riga compatta (3 colonne, label nascoste, select piccoli) per non
-  // rubare spazio in alto. Desktop (sm+): griglia etichettata classica.
+  // La barra si vede solo da tablet (sul telefono l'anno sta nella testata):
+  // una riga di selettori accanto al titolo, senza etichette sopra — il valore
+  // dice già cos'è («2026», «Anno completo», «Marzo») — e senza fascia grigia.
   return (
-    <div className="grid grid-cols-3 gap-2 border-b bg-muted/30 px-3 py-2 sm:grid-cols-2 sm:gap-3 sm:px-4 sm:py-3 lg:grid-cols-4">
-      <div className="sm:space-y-1">
-        <Label className="hidden text-xs text-muted-foreground sm:block">Anno</Label>
+    <div className="flex flex-wrap items-center gap-2">
+      <div>
         <Select
           value={String(value.anno)}
           onValueChange={(v) => update({ anno: Number(v) })}
         >
-          <SelectTrigger className="h-8 text-xs sm:h-9 sm:text-sm">
+          <SelectTrigger className="h-9 w-[96px]" aria-label="Anno">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -69,13 +68,12 @@ export function FilterBar({ value, onChange, showScenario = false, showPeriodo =
       </div>
 
       {showPeriodo && (
-        <div className="sm:space-y-1">
-          <Label className="hidden text-xs text-muted-foreground sm:block">Periodo</Label>
+        <div>
           <Select
             value={value.periodo}
             onValueChange={(v) => update({ periodo: v as CGPeriodo })}
           >
-            <SelectTrigger className="h-8 text-xs sm:h-9 sm:text-sm">
+            <SelectTrigger className="h-9 w-[170px]" aria-label="Periodo">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -88,14 +86,13 @@ export function FilterBar({ value, onChange, showScenario = false, showPeriodo =
       )}
 
       {showPeriodo && (
-        <div className="sm:space-y-1">
-          <Label className="hidden text-xs text-muted-foreground sm:block">Mese</Label>
+        <div>
           <Select
             value={String(value.mese)}
             onValueChange={(v) => update({ mese: Number(v) })}
             disabled={value.periodo === "annuale"}
           >
-            <SelectTrigger className="h-8 text-xs sm:h-9 sm:text-sm">
+            <SelectTrigger className="h-9 w-[130px]" aria-label="Mese">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -108,14 +105,15 @@ export function FilterBar({ value, onChange, showScenario = false, showPeriodo =
       )}
 
       {showScenario && (
-        <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">Scenario piano</Label>
+        <div className="flex items-center gap-2">
+          {/* «Predefinito» da solo non dice di cosa: qui l'etichetta resta, in riga. */}
+          <span className="text-xs text-muted-foreground">Scenario</span>
           <Select
             value={value.scenarioId ?? "_default"}
             onValueChange={(v) => update({ scenarioId: v === "_default" ? null : v })}
             disabled={scenariLoading}
           >
-            <SelectTrigger className="h-8 text-xs sm:h-9 sm:text-sm">
+            <SelectTrigger className="h-9 w-[220px]" aria-label="Scenario piano">
               <SelectValue placeholder={scenariLoading ? "Caricamento…" : "Predefinito"} />
             </SelectTrigger>
             <SelectContent>

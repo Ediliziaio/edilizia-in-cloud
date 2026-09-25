@@ -44,6 +44,9 @@ import { TabDashboard } from "@/components/controllo-gestione/tabs/TabDashboard"
 import { TabHealthCheck } from "@/components/controllo-gestione/tabs/TabHealthCheck";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { ChevronDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 /**
  * Su telefono tre schede su quattordici: il riepilogo, la cassa e le commesse
@@ -75,6 +78,32 @@ const URL_TO_TAB: Record<string, CGTab> = {
   "pacchetto-banca": "pdf",
   configurazione: "config",
 };
+/**
+ * Da tablet le schede sono quattordici e a 1440 uscivano dalla riga
+ * («Health-check» tagliata, le ultime cinque solo scorrendo di lato). Quelle
+ * che non ci stanno finiscono in «Altro». `vis` dice da che larghezza la
+ * scheda sta nella riga; "menu" = sempre in «Altro».
+ */
+type VisScheda = "sempre" | "xl" | "2xl" | "menu";
+const SCHEDE_DESKTOP: { tab: CGTab; label: string; vis: VisScheda }[] = [
+  { tab: "dash", label: "Dashboard", vis: "sempre" },
+  { tab: "ce", label: "CE riclassificato", vis: "sempre" },
+  { tab: "sp", label: "Stato patrimoniale", vis: "xl" },
+  { tab: "cashflow", label: "Cash Flow", vis: "sempre" },
+  { tab: "pfn", label: "PFN & Debiti", vis: "2xl" },
+  { tab: "commesse", label: "Commesse", vis: "sempre" },
+  { tab: "prodotti", label: "Prodotti & Categorie", vis: "menu" },
+  { tab: "budget", label: "Budget", vis: "xl" },
+  { tab: "indici", label: "Indici avanzati", vis: "menu" },
+  { tab: "health", label: "Health-check", vis: "menu" },
+  { tab: "piano", label: "Piano industriale", vis: "menu" },
+  { tab: "rating", label: "Rating bancario", vis: "menu" },
+  { tab: "pdf", label: "Pacchetto banca", vis: "menu" },
+  { tab: "config", label: "Configurazione", vis: "menu" },
+];
+const CLASSE_SCHEDA: Record<VisScheda, string> = { sempre: "", xl: "hidden xl:inline-flex", "2xl": "hidden 2xl:inline-flex", menu: "hidden" };
+const CLASSE_VOCE_ALTRO: Record<VisScheda, string> = { sempre: "hidden", xl: "xl:hidden", "2xl": "2xl:hidden", menu: "" };
+
 const TAB_TO_URL: Record<CGTab, string> = {
   dash: "dashboard",
   ce: "ce",
@@ -152,30 +181,43 @@ export default function ControlloGestione() {
 
   const tabVisibile: CGTab = isMobile && !TAB_MOBILE.includes(activeTab) ? "dash" : activeTab;
   const anniDisponibili = [0, 1, 2, 3].map((d) => new Date().getFullYear() - 2 + d);
+  // «Altro» si accende (e prende il nome della scheda) quando la scheda aperta
+  // è fra quelle che a questa larghezza stanno nel menu.
+  const schedaAttiva = SCHEDE_DESKTOP.find((s) => s.tab === tabVisibile);
+  const fasciaAttiva: VisScheda = schedaAttiva?.vis ?? "sempre";
 
   return (
     <div className="flex flex-col h-full">
+      {isMobile ? (
       <DashboardSelectorBar
-        title={isMobile ? "Controllo gestione" : "Controllo di Gestione"}
+        title="Controllo gestione"
         // Mobile: l'anno sta sulla riga del titolo invece di una riga sua.
-        actions={isMobile ? (
+        actions={
           <Select value={String(filters.anno)} onValueChange={(v) => setFilters({ ...filters, anno: Number(v) })}>
             <SelectTrigger className="h-8 w-[84px] text-xs" aria-label="Anno"><SelectValue /></SelectTrigger>
             <SelectContent>
               {anniDisponibili.map((a) => <SelectItem key={a} value={String(a)}>{a}</SelectItem>)}
             </SelectContent>
           </Select>
-        ) : undefined}
+        }
       />
-      {!isMobile && (
-        <FilterBar
-          value={filters}
-          onChange={setFilters}
-          showScenario={activeTab === "piano"}
-          // Periodo/Mese oggi li consuma solo il CE riclassificato: altrove erano
-          // controlli morti. Li mostriamo solo dove filtrano davvero.
-          showPeriodo={activeTab === "ce"}
-        />
+      ) : (
+        // Da tablet: titolo vero come nelle altre pagine e filtri sulla stessa
+        // riga, invece di tre fasce una sotto l'altra (barra, filtri, schede).
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pb-3">
+          <DashboardSelectorBar title="Controllo di Gestione" soloSelettore />
+          {/* mr-auto e non flex-1+truncate: se i filtri non ci stanno vanno a
+              capo loro, il titolo non si taglia («Controllo di Ges…»). */}
+          <h1 className="mr-auto whitespace-nowrap text-2xl font-bold tracking-tight text-slate-900">Controllo di Gestione</h1>
+          <FilterBar
+            value={filters}
+            onChange={setFilters}
+            showScenario={activeTab === "piano"}
+            // Periodo/Mese oggi li consuma solo il CE riclassificato: altrove erano
+            // controlli morti. Li mostriamo solo dove filtrano davvero.
+            showPeriodo={activeTab === "ce"}
+          />
+        </div>
       )}
 
       <Tabs
@@ -183,7 +225,7 @@ export default function ControlloGestione() {
         onValueChange={handleTabChange}
         className="flex-1 overflow-y-auto"
       >
-        <div className="px-3 sm:px-4 pt-3 sticky top-0 z-10 bg-background border-b">
+        <div className={isMobile ? "px-3 sm:px-4 pt-3 sticky top-0 z-10 bg-background border-b" : "pb-4"}>
           {/* Mobile: scroll orizzontale con min-w sui trigger per evitare
               overlap del testo. Desktop: layout flex naturale. */}
           {isMobile ? (
@@ -193,26 +235,46 @@ export default function ControlloGestione() {
               <TabsTrigger value="commesse">Commesse</TabsTrigger>
             </TabsList>
           ) : (
-          <TabsList className="w-full sm:w-auto overflow-x-auto flex-nowrap justify-start gap-1 [&>button]:min-w-[8rem] sm:[&>button]:min-w-0 [&>button]:shrink-0">
-            <TabsTrigger value="dash">Dashboard</TabsTrigger>
-            <TabsTrigger value="ce">CE riclassificato</TabsTrigger>
-            <TabsTrigger value="sp">Stato patrimoniale</TabsTrigger>
-            <TabsTrigger value="cashflow">Cash Flow</TabsTrigger>
-            <TabsTrigger value="pfn">PFN & Debiti</TabsTrigger>
-            <TabsTrigger value="commesse">Commesse</TabsTrigger>
-            <TabsTrigger value="prodotti">Prodotti & Categorie</TabsTrigger>
-            <TabsTrigger value="budget">Budget</TabsTrigger>
-            <TabsTrigger value="indici">Indici avanzati</TabsTrigger>
-            <TabsTrigger value="health">Health-check</TabsTrigger>
-            <TabsTrigger value="piano">Piano industriale</TabsTrigger>
-            <TabsTrigger value="rating">Rating bancario</TabsTrigger>
-            <TabsTrigger value="pdf">Pacchetto banca</TabsTrigger>
-            <TabsTrigger value="config">Configurazione</TabsTrigger>
+          <TabsList className="max-w-full justify-start gap-1">
+            {SCHEDE_DESKTOP.filter((s) => s.vis !== "menu").map((s) => (
+              <TabsTrigger key={s.tab} value={s.tab} className={CLASSE_SCHEDA[s.vis]}>{s.label}</TabsTrigger>
+            ))}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className={cn(
+                    "inline-flex items-center gap-1 whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium transition-all hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    fasciaAttiva === "menu" && "bg-background text-foreground shadow-sm",
+                    fasciaAttiva === "xl" && "max-xl:bg-background max-xl:text-foreground max-xl:shadow-sm",
+                    fasciaAttiva === "2xl" && "max-2xl:bg-background max-2xl:text-foreground max-2xl:shadow-sm",
+                  )}
+                >
+                  {fasciaAttiva === "menu" ? schedaAttiva?.label
+                    : fasciaAttiva === "xl" ? (<><span className="xl:hidden">{schedaAttiva?.label}</span><span className="hidden xl:inline">Altro</span></>)
+                    : fasciaAttiva === "2xl" ? (<><span className="2xl:hidden">{schedaAttiva?.label}</span><span className="hidden 2xl:inline">Altro</span></>)
+                    : "Altro"}
+                  <ChevronDown className="h-3.5 w-3.5" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="min-w-[200px]">
+                {SCHEDE_DESKTOP.filter((s) => s.vis !== "sempre").map((s) => (
+                  <DropdownMenuItem
+                    key={s.tab}
+                    className={cn(CLASSE_VOCE_ALTRO[s.vis], s.tab === tabVisibile && "font-semibold text-foreground")}
+                    onSelect={() => handleTabChange(s.tab)}
+                  >
+                    {s.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </TabsList>
           )}
         </div>
 
-        <div className="p-3 sm:p-4">
+        {/* Da tablet il margine lo dà il layout: niente p-4 in più. */}
+        <div className={isMobile ? "p-3 sm:p-4" : undefined}>
           <TabsContent value="dash" className="mt-0">
             <TabDashboard anno={filters.anno} />
           </TabsContent>

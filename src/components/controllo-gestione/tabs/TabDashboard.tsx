@@ -25,7 +25,7 @@ import { cn } from "@/lib/utils";
 import {
   Activity, AlertTriangle, ArrowDown, ArrowRight,
   Banknote, Bot, Building, Briefcase, CheckCircle2,
-  ChevronDown, ChevronUp, ClipboardList, Lightbulb, Send, Shield,
+  ChevronDown, ChevronUp, ClipboardList, Send, Shield,
   Sparkles, Target, TrendingDown, TrendingUp, Wallet,
 } from "lucide-react";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
@@ -414,17 +414,23 @@ export function TabDashboard({ anno }: Props) {
     return <CogestEmptyState />;
   }
 
+  // Da 640 prima i numeri, poi gli avvisi e la cassa, in fondo regia e
+  // assistente: i sei KPI finivano sotto la piega, dopo due riquadri alti.
+  // Sul telefono l'ordine resta quello del codice.
   return (
-    <div className="space-y-4">
-      <DashboardActionCenter
-        actions={recommendedActions}
-        cfoQuestion={cfoQuestion}
-        cfoAnswer={cfoAnswer}
-        onQuestionChange={setCfoQuestion}
-        onAsk={handleCfoQuestion}
-      />
+    <div className="space-y-4 sm:flex sm:flex-col sm:gap-4 sm:space-y-0">
+      <div className="sm:order-5">
+        <DashboardActionCenter
+          actions={recommendedActions}
+          cfoQuestion={cfoQuestion}
+          cfoAnswer={cfoAnswer}
+          onQuestionChange={setCfoQuestion}
+          onAsk={handleCfoQuestion}
+        />
+      </div>
 
       {hasPartialDataError && (
+        <div className="sm:order-1">
         <PartialDataWarning
           onRetry={() => {
             void sp.refetch();
@@ -437,10 +443,11 @@ export function TabDashboard({ anno }: Props) {
             void rt.refetch();
           }}
         />
+        </div>
       )}
 
-      {/* Top: 6 KPI macro */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
+      {/* Top: 6 KPI macro (tre per riga da 768: a due per riga erano tre righe) */}
+      <div className="grid grid-cols-2 gap-3 sm:order-2 md:grid-cols-3 xl:grid-cols-6">
         <KPIMacro
           label="Ricavi"
           value={ce.data ? formatCurrency(ricavi) : "—"}
@@ -495,7 +502,7 @@ export function TabDashboard({ anno }: Props) {
       </div>
 
       {/* Alert panel */}
-      <Card className="rounded-2xl">
+      <Card className="rounded-2xl sm:order-3">
         <CardHeader className="pb-3 max-sm:p-3 max-sm:pb-2">
           <CardTitle className="flex items-center gap-2 text-base">
             <AlertTriangle className="h-4 w-4" /> Alert e segnalazioni
@@ -537,7 +544,7 @@ export function TabDashboard({ anno }: Props) {
       </Card>
 
       {/* Mini-chart cash flow + commesse aside */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:order-4 lg:grid-cols-3">
         {/* Grafico cassa (recharts): vetrina da scrivania, illeggibile a 375px
             e pesante da montare → nascosto su mobile. Restano KPI + "Cantieri
             attivi" (operativo). */}
@@ -545,9 +552,6 @@ export function TabDashboard({ anno }: Props) {
         <Card className="rounded-2xl lg:col-span-2">
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Cassa: andamento previsto {anno}</CardTitle>
-            <p className="text-xs text-muted-foreground">
-              Saldo a fine mese atteso, considerando entrate e uscite.
-            </p>
           </CardHeader>
           <CardContent>
             <div className="h-56">
@@ -678,9 +682,6 @@ function DashboardActionCenter({
                 <ClipboardList className="h-4 w-4 text-primary" />
                 Regia operativa
               </CardTitle>
-              <p className="mt-1 text-xs text-muted-foreground max-sm:hidden">
-                Priorità calcolate dai dati di cassa, bilancio, commesse, budget e rating.
-              </p>
             </div>
             <Badge variant="outline" className="shrink-0">
               {actions.length} {actions.length === 1 ? "azione" : "azioni"}
@@ -709,9 +710,6 @@ function DashboardActionCenter({
             <Bot className="h-4 w-4 text-blue-700" />
             Assistente CFO
           </CardTitle>
-          <p className="text-xs text-muted-foreground">
-            Scrivi una domanda: l'assistente interpreta i KPI già caricati nella dashboard.
-          </p>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex flex-wrap gap-2">
@@ -743,10 +741,8 @@ function DashboardActionCenter({
               className="min-h-[86px] resize-none bg-white/85"
               placeholder="Es. spiegami cosa fare nei prossimi 7 giorni per migliorare cassa e rating"
             />
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-[11px] text-muted-foreground">
-                Risposta basata su dati live del modulo, senza uscire dalla pagina.
-              </p>
+            {/* Senza le frasi di spiegazione: i suggerimenti e il campo bastano. */}
+            <div className="flex items-center justify-end gap-3">
               <Button
                 type="button"
                 size="sm"
@@ -858,19 +854,9 @@ function RecommendedActionRow({
 }
 
 function CfoAnswerPanel({ answer }: { answer: CfoAnswer | null }) {
-  if (!answer) {
-    return (
-      <div className="rounded-xl border border-dashed bg-white/70 p-3 text-sm text-muted-foreground">
-        <div className="flex items-center gap-2 font-medium text-foreground">
-          <Lightbulb className="h-4 w-4 text-amber-500" />
-          Pronto per analizzare
-        </div>
-        <p className="mt-1">
-          Usa un suggerimento rapido o scrivi una domanda. La risposta collega numeri, rischi e prossime mosse.
-        </p>
-      </div>
-    );
-  }
+  // Senza risposta niente riquadro «Pronto per analizzare»: ripeteva a parole
+  // i suggerimenti e il campo che stanno subito sopra.
+  if (!answer) return null;
 
   return (
     <div className="rounded-xl border bg-white/85 p-3">
