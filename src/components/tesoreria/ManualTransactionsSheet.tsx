@@ -69,7 +69,8 @@ export function ManualTransactionsSheet({ account, open, onOpenChange }: {
 
         <div className="mt-4 flex gap-2">
           <Button size="sm" onClick={() => setAdding((v) => !v)}><Plus className="h-4 w-4 mr-1" /> Movimento</Button>
-          <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}><Upload className="h-4 w-4 mr-1" /> Importa estratto conto</Button>
+          {/* Mobile no: niente importazioni da telefono. */}
+          <Button size="sm" variant="outline" onClick={() => setImportOpen(true)} className="max-sm:hidden"><Upload className="h-4 w-4 mr-1" /> Importa estratto conto</Button>
         </div>
 
         {adding && (
@@ -97,20 +98,20 @@ export function ManualTransactionsSheet({ account, open, onOpenChange }: {
           {txQuery.isLoading ? (
             Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full rounded-lg" />)
           ) : rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-8 text-center">Nessun movimento. Aggiungine uno o importa l'estratto conto.</p>
+            <p className="text-sm text-muted-foreground py-8 text-center max-sm:py-3 max-sm:text-xs">Nessun movimento.<span className="max-sm:hidden"> Aggiungine uno o importa l'estratto conto.</span></p>
           ) : rows.map((r) => (
-            <div key={r.id} className="flex items-center gap-3 rounded-lg border px-3 py-2">
-              <div className={r.amount >= 0 ? "text-green-700" : "text-destructive"}>
+            <div key={r.id} className="flex items-center gap-3 rounded-lg border px-3 py-2 max-sm:gap-2">
+              <div className={`max-sm:hidden ${r.amount >= 0 ? "text-green-700" : "text-destructive"}`}>
                 {r.amount >= 0 ? <ArrowDownLeft className="h-4 w-4" /> : <ArrowUpRight className="h-4 w-4" />}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{r.description || "Movimento"}</p>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-sm font-medium truncate max-sm:text-[13px]">{r.description || "Movimento"}</p>
+                <p className="text-xs text-muted-foreground max-sm:text-[11px]">
                   {format(new Date(r.booking_date), "dd/MM/yyyy", { locale: it })}
                   {r.source && r.source !== "manuale" ? ` · ${r.source === "import_ai" ? "AI" : "import"}` : ""}
                 </p>
               </div>
-              <p className={`font-mono text-sm ${r.amount >= 0 ? "text-green-700" : "text-destructive"}`}>
+              <p className={`font-mono text-sm max-sm:font-sans max-sm:text-[13px] max-sm:font-semibold ${r.amount >= 0 ? "text-green-700" : "text-destructive"}`}>
                 {r.amount >= 0 ? "+" : "−"}{formatCurrency(Math.abs(r.amount))}
               </p>
               <button
