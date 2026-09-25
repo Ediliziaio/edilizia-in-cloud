@@ -1726,7 +1726,14 @@ export function CompanyLayout() {
   // non un antenato overflow:auto di altezza illimitata che scorre col body.
   const isClassicQuoteEditor = /^\/azienda\/marketing\/preventivi\/(nuovo|[^/]+\/modifica)\/?$/.test(location.pathname);
   // A bounded scrolling main keeps template navigation and PDF preview sticky.
-  const isViewportEditor = isClassicQuoteEditor || /^\/azienda\/impostazioni\/template-preventivi\/?$/.test(location.pathname);
+  // Anche la chat (Conversazioni / Team) e la scheda contatto, che ha la sua
+  // chat al centro: con l'altezza libera la pagina intera
+  // scorreva coi messaggi, la barra per scrivere finiva in fondo e l'ultimo
+  // messaggio andava cercato (25/09/2026). Bloccata, ogni colonna scorre da sé.
+  const isViewportEditor = isClassicQuoteEditor
+    || /^\/azienda\/impostazioni\/template-preventivi\/?$/.test(location.pathname)
+    || /^\/azienda\/chat\/?$/.test(location.pathname)
+    || /^\/azienda\/marketing\/contatti\/[^/]+\/?$/.test(location.pathname);
 
   const showSupport = permissions.canViewTickets && isModuleEnabled("tickets");
 

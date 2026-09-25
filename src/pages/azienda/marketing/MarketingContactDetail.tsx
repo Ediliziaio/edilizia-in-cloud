@@ -151,10 +151,6 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
   const [verifyingEmail, setVerifyingEmail] = useState(false);
   const [emailStatus, setEmailStatus] = useState<string | null>(null);
   const [emailSubject, setEmailSubject] = useState("");
-  // Seed per il composer WhatsApp (precompila il testo dai template, stesso
-  // meccanismo seedText/seedAt usato in QuickContactSendDialog).
-  const [waSeedText, setWaSeedText] = useState("");
-  const [waSeedAt, setWaSeedAt] = useState(0);
   // 2026-05-27 (richiesta utente): CC + BCC (CCN) per channel=email.
   // Toggle stile Gmail. Stringa CSV/space parsata in submit.
   const [emailCc, setEmailCc] = useState("");
@@ -758,9 +754,11 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
     // Altezza definita per il layout a colonne con scroll interno. In area admin
     // (contesto piattaforma) la top-bar + padding del <main> sono più alti, quindi
     // sottraiamo di più: senza, il composer in fondo veniva tagliato.
+    // In azienda il layout blocca l'altezza su questa pagina (CompanyLayout):
+    // h-full la riempie senza sforare, e cronologia e composer restano fermi.
     <div className={cn(
       "flex flex-col min-h-[calc(100dvh-8rem)] md:overflow-hidden bg-background",
-      isPlatformContext ? "md:h-[calc(100dvh-8rem)]" : "md:h-[calc(100dvh-3.5rem)]",
+      isPlatformContext ? "md:h-[calc(100dvh-8rem)]" : "md:h-full md:min-h-0",
     )}>
       <div className="px-3 pt-2">
         <ApiHealthBanner filter={["whatsapp", "email_marketing"]} />
@@ -1583,9 +1581,11 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
           )}
           <div className="flex items-start px-3 pb-2.5 pt-1.5 gap-2">
             {/* Template picker — applica già le variabili; per email imposta
-                oggetto+testo, per sms imposta il testo, per whatsapp fa il
-                seed del composer. */}
-            <MessageTemplatePicker
+                oggetto+testo, per sms e WA locale imposta il testo. Non sul
+                WhatsApp ufficiale: lì i modelli sono quelli approvati da Meta,
+                nel «Testo libero / Template» del compositore — due pulsanti
+                «Template» uno accanto all'altro confondevano (25/09/2026). */}
+            {messageChannel !== "whatsapp" && <MessageTemplatePicker
               channel={messageChannel === "whatsapp_locale" ? "whatsapp" : messageChannel}
               vars={buildTemplateVars({
                 firstName: contact.first_name,
@@ -1598,25 +1598,18 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                 custom: waContactFields,
               })}
               onInsert={({ subject, body }) => {
-                if (messageChannel === "whatsapp") {
-                  setWaSeedText(body);
-                  setWaSeedAt((n) => n + 1);
-                } else {
-                  if (messageChannel === "email" && subject != null) setEmailSubject(subject.slice(0, 200));
-                  setMessageText(body.slice(0, 5000)); // vale anche per whatsapp_locale
-                }
+                if (messageChannel === "email" && subject != null) setEmailSubject(subject.slice(0, 200));
+                setMessageText(body.slice(0, 5000)); // vale anche per whatsapp_locale
               }}
               align="start"
               triggerClassName="h-9 md:h-7 gap-1.5 text-xs shrink-0"
-            />
+            />}
             {messageChannel === "whatsapp" ? (
               <WhatsAppComposer
                 phone={contact.phone}
                 isSending={sendMessage.isPending}
                 className="flex-1"
                 contactFields={waContactFields}
-                seedText={waSeedText}
-                seedAt={waSeedAt}
                 onSend={async ({ waNumberId, content, template }) => {
                   await sendMessage.mutateAsync({
                     channel: "whatsapp",

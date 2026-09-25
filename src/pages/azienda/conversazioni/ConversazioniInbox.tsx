@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -20,7 +21,7 @@ import { cn } from "@/lib/utils";
 import {
   Mail, MessageSquare, MessageCircle, StickyNote, Search, Inbox, Instagram, Facebook,
   AlertCircle, ChevronLeft, User, Briefcase, RefreshCw, UserCheck, CheckCircle2, RotateCcw, Info,
-  Bot, PauseCircle,
+  Bot, PauseCircle, ExternalLink, Phone,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
@@ -83,18 +84,35 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
     [lista, selectedKey],
   );
 
+  const schedaHref = selectedItem
+    ? selectedItem.entita_tipo === "contatto"
+      ? `/azienda/marketing/contatti/${selectedItem.entita_id}`
+      : `/azienda/clienti/${selectedItem.entita_id}`
+    : "";
+
   const { data: timeline = [], isLoading: timelineLoading } = useConversazioneTimeline(
     selectedItem?.entita_tipo ?? null,
     selectedItem?.entita_id ?? null,
   );
 
-  // Auto-scroll all'ultimo messaggio quando si apre una conversazione o ne arriva
-  // uno nuovo (timeline ordinata ASC → il più recente è in fondo). Solo scroll, no
-  // setState → nessun re-render / lint set-state-in-effect.
-  const bottomRef = useRef<HTMLDivElement>(null);
+  // La chat parte dall'ultimo messaggio, come WhatsApp: all'apertura si va in
+  // fondo, e quando arriva un messaggio nuovo si segue solo se si era già in
+  // fondo (chi sta rileggendo quelli vecchi non viene strappato via).
+  // Scroll diretto sul contenitore: scrollIntoView faceva scorrere anche la
+  // pagina intorno. Solo scroll, niente setState.
+  const threadRef = useRef<HTMLDivElement>(null);
+  const inFondoRef = useRef(true);
+  const apertaRef = useRef<string | null>(null);
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ block: "end" });
-  }, [timeline, selectedKey]);
+    const el = threadRef.current;
+    if (!el) return;
+    const nuovaConversazione = apertaRef.current !== selectedKey;
+    if (nuovaConversazione || inFondoRef.current) {
+      el.scrollTop = el.scrollHeight;
+      inFondoRef.current = true;
+    }
+    if (!timelineLoading) apertaRef.current = selectedKey;
+  }, [timeline, selectedKey, timelineLoading]);
 
   // Realtime: aggiornamento istantaneo dell'inbox.
   //  • `conversazioni` (già nella publication): cambi stato/assegnazione/letto fatti
@@ -227,7 +245,7 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
     <div className="h-full flex overflow-hidden rounded-xl border bg-card">
       {/* ═══ Sidebar lista ═══ */}
       <aside className={cn(
-        "w-full md:w-[340px] md:min-w-[300px] min-h-0 border-r flex flex-col bg-background",
+        "w-full md:w-[300px] md:min-w-[260px] 2xl:w-[340px] min-h-0 border-r flex flex-col bg-background",
         selectedItem ? "hidden md:flex" : "flex",
       )}>
         <div className="p-3 border-b">
@@ -395,71 +413,94 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
           </div>
         ) : (
           <>
-            <header className="h-14 px-3 sm:px-4 border-b flex items-center gap-3 bg-background shrink-0">
-              <Button variant="ghost" size="icon" className="md:hidden -ml-1" aria-label="Torna alla lista" onClick={() => setSelectedKey(null)}>
-                <ChevronLeft className="h-5 w-5" />
-              </Button>
-              <Avatar className="h-9 w-9">
-                <AvatarFallback className={cn("text-xs", selectedItem.entita_tipo === "cliente" ? "bg-indigo-100 text-indigo-700" : "bg-primary/10 text-primary")}>
-                  {iniziali(selectedItem.nome, selectedItem.email)}
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0 flex-1">
-                <div className="font-semibold text-sm truncate flex items-center gap-2">
-                  {selectedItem.nome || selectedItem.email || "Senza nome"}
-                  <Badge variant="secondary" className="gap-1 shrink-0">
-                    {selectedItem.entita_tipo === "cliente" ? <Briefcase className="h-3 w-3" /> : <User className="h-3 w-3" />}
-                    {selectedItem.entita_tipo === "cliente" ? "Cliente" : "Contatto"}
-                  </Badge>
+            {/* Nome e recapiti su tutta la larghezza, azioni sotto: prima i
+                pulsanti si mangiavano lo spazio e il nome usciva «Florin An…». */}
+            <header className="px-3 sm:px-4 py-2 border-b bg-background shrink-0 space-y-1.5">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <Button variant="ghost" size="icon" className="md:hidden -ml-1 h-8 w-8 shrink-0" aria-label="Torna alla lista" onClick={() => setSelectedKey(null)}>
+                  <ChevronLeft className="h-5 w-5" />
+                </Button>
+                <Link to={schedaHref} className="shrink-0" aria-label="Apri la scheda del contatto">
+                  <Avatar className="h-9 w-9">
+                    <AvatarFallback className={cn("text-xs", selectedItem.entita_tipo === "cliente" ? "bg-indigo-100 text-indigo-700" : "bg-primary/10 text-primary")}>
+                      {iniziali(selectedItem.nome, selectedItem.email)}
+                    </AvatarFallback>
+                  </Avatar>
+                </Link>
+                <div className="min-w-0 flex-1">
+                  <Link
+                    to={schedaHref}
+                    className="font-semibold text-sm hover:underline flex items-center gap-1.5 min-w-0"
+                    title="Apri la scheda completa"
+                  >
+                    <span className="truncate">{selectedItem.nome || selectedItem.email || "Senza nome"}</span>
+                    <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" />
+                  </Link>
+                  <div className="text-xs text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                    {selectedItem.telefono && (
+                      <a href={`tel:${selectedItem.telefono}`} className="inline-flex items-center gap-1 hover:text-foreground">
+                        <Phone className="h-3 w-3" />{selectedItem.telefono}
+                      </a>
+                    )}
+                    {selectedItem.email && (
+                      <span className="inline-flex items-center gap-1 min-w-0"><Mail className="h-3 w-3 shrink-0" /><span className="truncate">{selectedItem.email}</span></span>
+                    )}
+                  </div>
                 </div>
-                <div className="text-xs text-muted-foreground truncate flex items-center gap-3">
-                  {selectedItem.email && <span className="inline-flex items-center gap-1"><Mail className="h-3 w-3" />{selectedItem.email}</span>}
-                  {selectedItem.telefono && <span className="inline-flex items-center gap-1"><MessageSquare className="h-3 w-3" />{selectedItem.telefono}</span>}
-                </div>
+                <Badge variant="secondary" className="gap-1 shrink-0">
+                  {selectedItem.entita_tipo === "cliente" ? <Briefcase className="h-3 w-3" /> : <User className="h-3 w-3" />}
+                  {selectedItem.entita_tipo === "cliente" ? "Cliente" : "Contatto"}
+                </Badge>
               </div>
-              {/* Azioni GHL: scheda (sotto xl) / assegna a me / chiudi-riapri */}
-              <div className="flex items-center gap-1 shrink-0">
+              {/* Azioni GHL: scheda (sotto xl) / pausa assistente / assegna a me / chiudi-riapri */}
+              <div className="flex flex-wrap items-center gap-1">
                 <Button
-                  variant="ghost" size="icon" className="h-8 w-8 xl:hidden"
-                  aria-label="Apri scheda contatto"
+                  variant="ghost" size="sm" className="h-7 gap-1.5 text-xs xl:hidden"
                   onClick={() => setSchedaOpen(true)}
                 >
-                  <Info className="h-4 w-4" />
+                  <Info className="h-3.5 w-3.5" /> Scheda
                 </Button>
                 {selectedItem.entita_tipo === "contatto" && assistente.data?.haAgente && (
                   <Button
                     variant={assistente.data.inPausa ? "secondary" : "ghost"}
-                    size="sm" className="h-8 gap-1.5 text-xs"
+                    size="sm" className="h-7 gap-1.5 text-xs"
                     onClick={cambiaPausaAssistente} disabled={overlay.isPending}
                     title={assistente.data.inPausa
                       ? `L'assistente non risponde a questo contatto${assistente.data.motivo ? ` (${assistente.data.motivo})` : ""}. Clicca per riattivarlo.`
                       : "Metti in pausa l'assistente WhatsApp per questo contatto"}
                   >
                     {assistente.data.inPausa ? <PauseCircle className="h-3.5 w-3.5" /> : <Bot className="h-3.5 w-3.5" />}
-                    <span className="hidden lg:inline">{assistente.data.inPausa ? "Assistente in pausa" : "Pausa assistente"}</span>
+                    {assistente.data.inPausa ? "Assistente in pausa" : "Pausa assistente"}
                   </Button>
                 )}
                 <Button
                   variant={selectedItem.assegnato_a === user?.id ? "secondary" : "ghost"}
-                  size="sm" className="h-8 gap-1.5 text-xs"
+                  size="sm" className="h-7 gap-1.5 text-xs"
                   onClick={assegnaAMe} disabled={overlay.isPending}
                 >
                   <UserCheck className="h-3.5 w-3.5" />
-                  <span className="hidden lg:inline">{selectedItem.assegnato_a === user?.id ? "Assegnata a te" : "Assegna a me"}</span>
+                  {selectedItem.assegnato_a === user?.id ? "Assegnata a te" : "Assegna a me"}
                 </Button>
                 {selectedItem.stato === "chiusa" ? (
-                  <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => aggiornaStato("aperta")} disabled={overlay.isPending}>
-                    <RotateCcw className="h-3.5 w-3.5" /><span className="hidden lg:inline">Riapri</span>
+                  <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs" onClick={() => aggiornaStato("aperta")} disabled={overlay.isPending}>
+                    <RotateCcw className="h-3.5 w-3.5" />Riapri
                   </Button>
                 ) : (
-                  <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => aggiornaStato("chiusa")} disabled={overlay.isPending}>
-                    <CheckCircle2 className="h-3.5 w-3.5" /><span className="hidden lg:inline">Chiudi</span>
+                  <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs" onClick={() => aggiornaStato("chiusa")} disabled={overlay.isPending}>
+                    <CheckCircle2 className="h-3.5 w-3.5" />Chiudi
                   </Button>
                 )}
               </div>
             </header>
 
-            <ScrollArea className="flex-1 min-h-0 px-3 sm:px-4 py-4">
+            <div
+              ref={threadRef}
+              onScroll={(e) => {
+                const el = e.currentTarget;
+                inFondoRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+              }}
+              className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 sm:px-4 py-3"
+            >
               {timelineLoading ? (
                 <div className="space-y-3 max-w-3xl mx-auto">
                   {Array.from({ length: 5 }).map((_, i) => (
@@ -469,7 +510,7 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
               ) : timeline.length === 0 ? (
                 <div className="text-center text-sm text-muted-foreground py-10">Nessun messaggio in questa conversazione.</div>
               ) : (
-                <div className="space-y-3 max-w-3xl mx-auto">
+                <div className="space-y-2 max-w-3xl mx-auto">
                   {timeline.length > shownCount && (
                     <div className="text-center pb-1">
                       <Button
@@ -492,8 +533,8 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
                     const out = m.direzione === "out";
                     return (
                       <div key={`${m.ref_id}-${i}`} className={cn("flex", out ? "justify-end" : "justify-start")}>
-                        <div className={cn("max-w-[80%] rounded-2xl px-3.5 py-2 shadow-sm border", out ? "bg-primary text-primary-foreground border-primary/20" : "bg-background")}>
-                          <div className={cn("flex flex-wrap items-center gap-x-1.5 mb-1 text-[10px] font-medium uppercase tracking-wide", out ? "text-primary-foreground/70" : "text-muted-foreground")}>
+                        <div className={cn("max-w-[78%] rounded-2xl px-3 py-1.5 shadow-sm border", out ? "bg-primary text-primary-foreground border-primary/20" : "bg-background")}>
+                          <div className={cn("flex flex-wrap items-center gap-x-1.5 mb-0.5 text-[9px] font-medium uppercase tracking-wide", out ? "text-primary-foreground/70" : "text-muted-foreground")}>
                             <meta.Icon className="h-3 w-3 shrink-0" />{etichetta}
                             {m.oggetto && (
                               locale ? (
@@ -507,16 +548,15 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
                               )
                             )}
                           </div>
-                          <p className="text-sm whitespace-pre-wrap break-words">{m.testo || (m.media_url ? "[allegato]" : "—")}</p>
-                          <div className={cn("text-[10px] mt-1 text-right", out ? "text-primary-foreground/60" : "text-muted-foreground")}>{formatOra(m.ts)}</div>
+                          <p className="text-[13px] leading-snug whitespace-pre-wrap break-words">{m.testo || (m.media_url ? "[allegato]" : "—")}</p>
+                          <div className={cn("text-[9px] mt-0.5 text-right", out ? "text-primary-foreground/60" : "text-muted-foreground")}>{formatOra(m.ts)}</div>
                         </div>
                       </div>
                     );
                   })}
-                  <div ref={bottomRef} aria-hidden="true" />
                 </div>
               )}
-            </ScrollArea>
+            </div>
 
             <ConversazioneComposer
               key={keyOf(selectedItem)}
@@ -531,7 +571,7 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
 
       {/* ═══ Pannello laterale scheda (GHL-style) — fisso da xl in su ═══ */}
       {selectedItem && (
-        <div className="hidden min-h-0 w-72 shrink-0 border-l xl:flex xl:w-80">
+        <div className="hidden min-h-0 w-72 shrink-0 border-l xl:flex 2xl:w-80">
           <ContactDetailPanel entitaTipo={selectedItem.entita_tipo} entitaId={selectedItem.entita_id} />
         </div>
       )}
