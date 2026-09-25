@@ -30,6 +30,7 @@ import {
   Link2,
   Loader2,
   Lock,
+  MoreHorizontal,
   Package,
   RefreshCw,
   Search,
@@ -48,6 +49,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -1480,36 +1482,38 @@ export default function ContenutiMultimediali() {
   return (
     // max-sm:pb-0: sul telefono lo spazio per la barra in basso lo lascia già il layout.
     <div className="space-y-5 pb-20 md:pb-0 max-sm:space-y-3 max-sm:pb-0">
-      {/* Mobile: titolo e «Carica» su una riga, senza riquadro né descrizione;
-          cartelle nuove, Inbox AI e strumenti PDF restano al computer. */}
-      <div className="flex flex-col gap-4 rounded-md border bg-background p-5 md:flex-row md:items-start md:justify-between max-sm:flex-row max-sm:items-center max-sm:justify-between max-sm:gap-2 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0">
+      {/* Titolo e «Carica» su una riga, senza riquadro né descrizione, come
+          già sul telefono. Da tablet c'erano quattro bottoni che andavano su
+          due righe: «Nuova cartella» è già il + della colonna Cartelle, Inbox
+          AI e strumenti PDF stanno nel menu «⋯» (sul telefono restano fuori). */}
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between max-sm:flex-row max-sm:items-center max-sm:justify-between max-sm:gap-2">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <div className="flex h-10 w-10 items-center justify-center rounded-md bg-orange-500 text-white max-sm:hidden">
-              <FolderOpen className="h-5 w-5" />
-            </div>
             <div>
               <h1 className="text-2xl font-bold tracking-tight max-sm:text-lg max-sm:leading-6">EiC Drive</h1>
-              <p className="text-sm text-muted-foreground max-sm:hidden">
-                Drive aziendale per documenti, foto, computi, allegati e import AI.
-              </p>
             </div>
           </div>
         </div>
 
         <div className="flex flex-wrap gap-2 max-sm:shrink-0">
-          <Button variant="outline" onClick={() => setShowFolderDialog(true)} className="max-sm:hidden">
-            <FolderPlus className="mr-2 h-4 w-4" />
-            Nuova cartella
-          </Button>
-          <Button variant="outline" onClick={() => setShowSmartInbox(true)} className="max-sm:hidden">
-            <Inbox className="mr-2 h-4 w-4" />
-            Inbox AI
-          </Button>
-          <Button variant="outline" onClick={() => setShowPdfTools(true)} className="max-sm:hidden">
-            <FileText className="mr-2 h-4 w-4" />
-            Strumenti PDF
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon" className="max-sm:hidden" aria-label="Altre azioni" title="Altre azioni">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem className="gap-2" onSelect={() => setShowSmartInbox(true)}>
+                <Inbox className="h-4 w-4" /> Inbox AI
+              </DropdownMenuItem>
+              <DropdownMenuItem className="gap-2" onSelect={() => setShowPdfTools(true)}>
+                <FileText className="h-4 w-4" /> Strumenti PDF
+              </DropdownMenuItem>
+              <DropdownMenuItem className="gap-2" onSelect={() => setShowFolderDialog(true)}>
+                <FolderPlus className="h-4 w-4" /> Nuova cartella
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button onClick={() => setShowSmartImport(true)} className="tap-compact max-sm:h-8 max-sm:px-3 max-sm:text-xs">
             <UploadCloud className="mr-2 h-4 w-4 max-sm:mr-1.5" />
             <span className="max-sm:hidden">Carica documento</span>
@@ -1558,7 +1562,10 @@ export default function ContenutiMultimediali() {
         </div>
       ) : null}
 
-      <div className="grid gap-4 xl:grid-cols-[260px_minmax(0,1fr)_360px] max-sm:hidden">
+      {/* Cartelle accanto all'elenco già da 768 (prima fino a 1280 stavano
+          sopra, a tutta larghezza, e l'elenco partiva mezza pagina più giù);
+          il dettaglio va sotto finché non c'è posto per la terza colonna. */}
+      <div className="grid gap-4 md:grid-cols-[200px_minmax(0,1fr)] lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[260px_minmax(0,1fr)_360px] max-sm:hidden">
         <Card className="h-fit">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between gap-2">
@@ -1756,14 +1763,16 @@ export default function ContenutiMultimediali() {
           </CardContent>
         </Card>
 
-        <MediaDetailPanel
-          anteprima={!schermoStretto}
-          item={selectedItem}
-          opening={selectedItem ? openingId === selectedItem.id : false}
-          onOpen={selectedItem ? () => openSignedDocument(selectedItem) : undefined}
-          onImport={() => setShowSmartImport(true)}
-          onInbox={() => setShowSmartInbox(true)}
-        />
+        <div className="min-w-0 md:col-span-2 xl:col-span-1">
+          <MediaDetailPanel
+            anteprima={!schermoStretto}
+            item={selectedItem}
+            opening={selectedItem ? openingId === selectedItem.id : false}
+            onOpen={selectedItem ? () => openSignedDocument(selectedItem) : undefined}
+            onImport={() => setShowSmartImport(true)}
+            onInbox={() => setShowSmartInbox(true)}
+          />
+        </div>
       </div>
 
       {/* Mobile: ricerca con la cartella nel pannello filtri, documenti a righe
@@ -2115,7 +2124,9 @@ function FolderNavButton({
             {count}
           </Badge>
         </span>
-        <span className="mt-0.5 line-clamp-2 block text-[11px] font-normal leading-snug opacity-80">{description}</span>
+        {/* Sotto 1280 la colonna è di 200-220px: la spiegazione sotto ogni
+            cartella andava su tre righe e tagliava i nomi («Da clas…»). */}
+        <span className="mt-0.5 line-clamp-2 block text-[11px] font-normal leading-snug opacity-80 max-xl:hidden">{description}</span>
       </span>
     </button>
   );
