@@ -899,7 +899,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
           )}
         </TableCell>
         <TableCell
-          className="hidden whitespace-nowrap py-2 text-sm text-muted-foreground lg:table-cell"
+          className="hidden whitespace-nowrap py-2 text-sm text-muted-foreground xl:table-cell"
           title={dataCompleta(flow.updated_at)}
         >
           {quando(flow.updated_at, adessoMs)}
@@ -1077,7 +1077,11 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
       {vista === "list" && (
         <div className="border rounded-lg overflow-hidden">
           <div className="overflow-x-auto">
-            <Table>
+            {/* Colonne fisse e il nome prende il resto: a larghezza automatica il
+                nome (troncato, ma lungo) allargava la sua colonna e a 1024 la
+                tabella sbordava di 260px. Sotto 1280 meno margine nelle celle e
+                niente «Modificata». La tabella c'è solo da 768 (sotto, schede). */}
+            <Table className="table-fixed [&_td]:px-3 [&_th]:px-3 xl:[&_td]:px-4 xl:[&_th]:px-4">
               <TableHeader>
                 <TableRow className="bg-muted/20">
                   <TableHead className="h-9 w-10"><Checkbox checked={allSelected} onCheckedChange={toggleAll} /></TableHead>
@@ -1085,9 +1089,9 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
                   <TableHead className="h-9 w-28">Stato</TableHead>
                   <TableHead className="h-9 w-24 text-right">Iscritti</TableHead>
                   {/* Su una riga: andando a capo alzava tutta l'intestazione. */}
-                  <TableHead className="h-9 w-36 whitespace-nowrap">Ultima esecuzione</TableHead>
-                  <TableHead className="hidden h-9 w-28 whitespace-nowrap lg:table-cell">Modificata</TableHead>
-                  <TableHead className="h-9 w-12"></TableHead>
+                  <TableHead className="h-9 w-40 whitespace-nowrap">Ultima esecuzione</TableHead>
+                  <TableHead className="hidden h-9 w-28 whitespace-nowrap xl:table-cell">Modificata</TableHead>
+                  <TableHead className="h-9 w-14"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1106,7 +1110,9 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
                         onClick={() => toggleFolder(folder.id)}
                       >
                         <TableCell className="py-2" onClick={e => e.stopPropagation()} />
-                        <TableCell className="py-2" colSpan={5}>
+                        {/* Stesse colonne dell'intestazione a ogni larghezza: con le
+                            colonne fisse una colonna in più ruba spazio al nome. */}
+                        <TableCell className="py-2" colSpan={4}>
                           <div className="flex items-center gap-2">
                             {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
                             {isExpanded ? <FolderOpen className="h-4 w-4 text-primary" /> : <Folder className="h-4 w-4 text-primary" />}
@@ -1119,6 +1125,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
                             )}
                           </div>
                         </TableCell>
+                        <TableCell className="hidden py-2 xl:table-cell" />
                         <TableCell className="py-2" onClick={e => e.stopPropagation()}>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -1145,10 +1152,11 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
                 {/* Empty state */}
                 {filtered.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-12">
+                    <TableCell colSpan={6} className="text-center py-12">
                       <Zap className="h-10 w-10 mx-auto text-muted-foreground/30 mb-3" />
                       <p className="text-sm text-muted-foreground">Nessuna automazione con questi filtri</p>
                     </TableCell>
+                    <TableCell className="hidden xl:table-cell" />
                   </TableRow>
                 )}
               </TableBody>

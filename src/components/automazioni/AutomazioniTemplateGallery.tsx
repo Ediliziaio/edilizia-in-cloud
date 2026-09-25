@@ -2,9 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Search, Zap, Loader2 } from "lucide-react";
+import { Zap, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
@@ -20,17 +18,18 @@ import {
 
 interface Props {
   categoriaFiltro?: string | null;
+  /** Ricerca e livello arrivano dalla barra filtri della pagina (una riga sola). */
+  cerca?: string;
+  livello?: string | null;
 }
 
-export function AutomazioniTemplateGallery({ categoriaFiltro }: Props) {
+export function AutomazioniTemplateGallery({ categoriaFiltro, cerca = "", livello: difficoltaFiltro = null }: Props) {
   const navigate = useNavigate();
   const routePrefix = useMarketingRoutePrefix();
   const companyId = useEffectiveCompanyId();
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  const [cerca, setCerca] = useState("");
-  const [difficoltaFiltro, setDifficoltaFiltro] = useState<string | null>(null);
   const [activatingId, setActivatingId] = useState<string | null>(null);
 
   // Filter templates
@@ -168,41 +167,6 @@ export function AutomazioniTemplateGallery({ categoriaFiltro }: Props) {
 
   return (
     <div className="space-y-6">
-      {/* Filtri */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div className="space-y-2">
-          <h2 className="text-lg font-semibold text-foreground">Template Automazioni</h2>
-          <p className="text-sm text-muted-foreground">
-            {FLOW_TEMPLATES.length} template pronti all'uso — attiva in un click.
-          </p>
-          {/* Difficulty pills */}
-          <div className="flex gap-1.5">
-            {(["base", "intermedio", "avanzato"] as const).map(d => (
-              <button
-                key={d}
-                onClick={() => setDifficoltaFiltro(difficoltaFiltro === d ? null : d)}
-                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
-                  difficoltaFiltro === d
-                    ? DIFFICULTY_LABELS[d].color
-                    : "text-muted-foreground hover:bg-muted"
-                }`}
-              >
-                {DIFFICULTY_LABELS[d].label}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="relative w-64">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Cerca template..."
-            className="pl-9"
-            value={cerca}
-            onChange={e => setCerca(e.target.value)}
-          />
-        </div>
-      </div>
-
       {/* Grouped grid */}
       {groups.map(group => (
         <div key={group.label || 'flat'} className="space-y-3">
@@ -237,22 +201,18 @@ export function AutomazioniTemplateGallery({ categoriaFiltro }: Props) {
                     </div>
                   </div>
 
-                  <div className="bg-primary/5 rounded-lg px-3 py-2 text-xs text-primary">
-                    <span className="font-medium">Trigger:</span> {template.triggerTipo.replace(/_/g, ' ')}
-                    <br />
-                    <span className="font-medium">Step:</span> {nodeCount} nodi · {template.connections.length} connessioni
-                  </div>
+                  {/* Una riga al posto del riquadro colorato «Trigger / Step: N nodi ·
+                      N connessioni»: nodi e connessioni sono parole del builder. */}
+                  <p className="truncate text-xs text-muted-foreground">
+                    Scatta con: {template.triggerTipo.replace(/_/g, ' ')} · {nodeCount} passaggi
+                  </p>
 
-                  <div className="flex items-center justify-between mt-auto">
-                    <div className="flex gap-1.5">
-                      <Badge variant="outline" className="text-[10px]">
-                        {TEMPLATE_CATEGORIES.find(c => c.value === template.categoria)?.emoji ?? '⚡'}{' '}
-                        {template.categoria}
-                      </Badge>
-                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${diff.color}`}>
-                        {diff.label}
-                      </span>
-                    </div>
+                  {/* Niente etichetta della categoria: è già il titolo del gruppo
+                      (o il filtro scelto) e con due bottoni andava a capo. */}
+                  <div className="flex items-center justify-between gap-2 mt-auto">
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${diff.color}`}>
+                      {diff.label}
+                    </span>
                     <div className="flex gap-1.5">
                       {template.prontoAllUso && (
                         <Button
