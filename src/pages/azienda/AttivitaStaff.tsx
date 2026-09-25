@@ -58,7 +58,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem,
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -1661,7 +1662,7 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
   return (
     <>
       <Card>
-        <CardHeader className="p-3 sm:p-6 sm:pb-3">
+        <CardHeader className="p-3 sm:p-4 sm:pb-3">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2 flex-wrap min-w-0">
               <CardTitle className="flex items-center gap-2 text-lg shrink-0">
@@ -1687,7 +1688,8 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
                 title="Chiedi a Silvio come prioritizzare"
               >
                 <Sparkles className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Silvio</span>
+                {/* A 768px la colonna è di 320px: solo l'icona, se no «Nuova» va a capo. */}
+                <span className="hidden sm:inline md:hidden lg:inline">Silvio</span>
               </button>
               {/* Desktop: «Nuova» apre la scheda completa. Mobile: apre la riga
                   di aggiunta veloce (titolo e invio). Silvio ha già il bottone
@@ -1701,36 +1703,13 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
             </div>
           </div>
 
-          {/* Stats */}
-          {(stats.total > 0 || stats.completed > 0) && (
-            // Su mobile questa riga ripeteva i numeri che stanno gia' sui filtri
-            // subito sotto («Scadute (15)»): una riga in meno prima della lista.
-            <div className="mt-2 hidden sm:flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] font-medium">
-              {stats.overdue > 0 && <span className="inline-flex items-center gap-1 text-red-500"><span className="h-1.5 w-1.5 rounded-full bg-red-500" />{stats.overdue} scadute</span>}
-              {stats.inProgress > 0 && <span className="inline-flex items-center gap-1 text-blue-500"><span className="h-1.5 w-1.5 rounded-full bg-blue-500" />{stats.inProgress} in corso</span>}
-              {stats.today > 0 && <span className="inline-flex items-center gap-1 text-amber-600"><span className="h-1.5 w-1.5 rounded-full bg-amber-500" />{stats.today} oggi</span>}
-              <span className="inline-flex items-center gap-1 text-green-600"><span className="h-1.5 w-1.5 rounded-full bg-green-500" />{stats.completed} completate</span>
-            </div>
-          )}
-
-          {/* Assignee filter (visione team) — "chi". tap-compact: opt-out dal min
-              44×44 mobile che gonfiava i chip in ovali (vedi index.css). */}
-          {/* Mobile: niente riga di nomi da scorrere (una pillola per ogni
-              persona dell'azienda, 20 e oltre). La scelta sta nel pannello
-              «Filtri», aperto dal bottone accanto alla ricerca. */}
-          {seesTeamTasks && teamMembers.length > 0 && (
-            <div className="hidden sm:flex items-center gap-1.5 mt-2 overflow-x-auto pb-1 -mx-0.5 px-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {opzioniChi.map(f => (
-                <button key={f.key} onClick={() => setFilterAssignee(f.key)}
-                  className={`tap-compact inline-flex shrink-0 items-center gap-1 h-8 md:h-7 px-3 rounded-full text-xs font-medium whitespace-nowrap transition-colors active:scale-95 ${filterAssignee === f.key ? "bg-violet-600 text-white shadow-sm" : "bg-muted/60 text-muted-foreground hover:bg-muted"}`}>
-                  {f.label}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Filtri stato — "quando". */}
-          <div className="flex items-center gap-1.5 mt-2 overflow-x-auto pb-1 -mx-0.5 px-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {/* «Di chi» sta nella riga della ricerca, in una tendina: le pillole,
+              una per persona, diventavano una riga da scorrere di lato che
+              col mouse non si scorre (a 1024px si leggeva «M. B»). Su mobile
+              la scelta sta nel pannello «Filtri». */}
+          {/* Filtri stato — "quando". Da tablet vanno a capo invece di
+              scorrere di lato: col mouse l'ultima pillola restava tagliata. */}
+          <div className="flex items-center gap-1.5 mt-2 overflow-x-auto pb-1 -mx-0.5 px-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:flex-wrap sm:gap-1 sm:overflow-visible">
             {([
               { key: "tutte", label: "Tutte", count: stats.total },
               { key: "oggi", label: "Oggi", count: stats.today + stats.overdue },
@@ -1739,9 +1718,10 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
               { key: "completate", label: "Completate", count: stats.completed },
             ] as const).map(f => (
               <button key={f.key} onClick={() => { setFilter(f.key); setSelectedIds(new Set()); }}
-                className={`tap-compact inline-flex shrink-0 items-center gap-1 h-8 md:h-7 px-3 rounded-full text-xs font-medium whitespace-nowrap transition-colors active:scale-95 ${filter === f.key ? "bg-primary text-primary-foreground shadow-sm" : "bg-muted/60 text-muted-foreground hover:bg-muted"}`}>
+                className={`tap-compact inline-flex shrink-0 items-center gap-1 h-8 md:h-7 px-3 sm:px-2.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors active:scale-95 ${filter === f.key ? "bg-primary text-primary-foreground shadow-sm" : "bg-muted/60 text-muted-foreground hover:bg-muted"}`}>
                 {f.label}
-                {f.count != null && f.count > 0 && <span className={`text-[10px] ${filter === f.key ? "opacity-80" : ""}`}>({f.count})</span>}
+                {/* Il totale da tablet è già accanto al titolo: su «Tutte» era un doppione. */}
+                {f.count != null && f.count > 0 && <span className={`text-[10px] ${filter === f.key ? "opacity-80" : ""} ${f.key === "tutte" ? "sm:hidden" : ""}`}>({f.count})</span>}
               </button>
             ))}
           </div>
@@ -1774,46 +1754,42 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
               <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             </button>
             <div className="hidden sm:flex items-center gap-2">
-              {/* Group by */}
-              <Select value={groupBy} onValueChange={v => { setGroupBy(v as GroupBy); setCollapsedGroups(new Set()); }}>
-                <SelectTrigger className="h-9 sm:w-[110px] sm:flex-none text-xs"><SelectValue placeholder="Raggruppa" /></SelectTrigger>
-                <SelectContent>{GROUP_OPTIONS.map(g => <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>)}</SelectContent>
-              </Select>
-              {/* Compact toggle */}
-              <TooltipProvider delayDuration={200}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant={compact ? "default" : "outline"} size="sm" className="hidden sm:inline-flex h-9 w-9 p-0 shrink-0" onClick={() => setCompact(!compact)} aria-label="Cambia vista compatta">
-                      <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="2" width="14" height="2" rx="0.5" /><rect x="1" y="7" width="14" height="2" rx="0.5" /><rect x="1" y="12" width="14" height="2" rx="0.5" /></svg>
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>{compact ? "Vista espansa" : "Vista compatta"}</TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-              {/* Toggle modalità selezione multipla: attiva/disattiva i checkbox
-                  sulle card (di default resta solo il cerchio "completa"). */}
-              <TooltipProvider delayDuration={200}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant={selectionMode ? "default" : "outline"}
-                      size="sm"
-                      className="hidden sm:inline-flex h-9 w-9 p-0 shrink-0"
-                      onClick={() => setSelectionMode(v => { if (v) setSelectedIds(new Set()); return !v; })}
-                      aria-label="Seleziona più attività"
-                      aria-pressed={selectionMode}
-                    >
-                      <ListChecks className="h-3.5 w-3.5" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>{selectionMode ? "Esci dalla selezione" : "Seleziona più attività"}</TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              {seesTeamTasks && teamMembers.length > 0 && (
+                <Select value={filterAssignee} onValueChange={setFilterAssignee}>
+                  <SelectTrigger className="h-9 w-[112px] shrink-0 text-xs" aria-label="Di chi">
+                    <Users className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>{opzioniChi.map(o => <SelectItem key={o.key} value={o.key}>{o.label}</SelectItem>)}</SelectContent>
+                </Select>
+              )}
+              {/* Raggruppa, vista compatta e selezione multipla: tre comandi
+                  che si usano di rado, prima tre bottoni. Il pallino dice che
+                  la vista non è quella di base. */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="relative h-9 w-9 shrink-0 p-0" aria-label="Opzioni della lista">
+                    <MoreHorizontal className="h-4 w-4" />
+                    {(groupBy !== "none" || compact) && <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-primary" aria-hidden />}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-52">
+                  <DropdownMenuLabel className="text-xs text-muted-foreground">Raggruppa per</DropdownMenuLabel>
+                  <DropdownMenuRadioGroup value={groupBy} onValueChange={v => { setGroupBy(v as GroupBy); setCollapsedGroups(new Set()); }}>
+                    {GROUP_OPTIONS.map(g => <DropdownMenuRadioItem key={g.value} value={g.value}>{g.value === "none" ? "Nessun gruppo" : g.label}</DropdownMenuRadioItem>)}
+                  </DropdownMenuRadioGroup>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuCheckboxItem checked={compact} onCheckedChange={v => setCompact(v === true)}>Vista compatta</DropdownMenuCheckboxItem>
+                  <DropdownMenuItem onClick={() => setSelectionMode(v => { if (v) setSelectedIds(new Set()); return !v; })}>
+                    <ListChecks className="mr-2 h-3.5 w-3.5" />{selectionMode ? "Esci dalla selezione" : "Seleziona più attività"}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </CardHeader>
 
-        <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+        <CardContent className="p-3 pt-0 sm:p-4 sm:pt-0">
           {/* Bulk action bar — visibile in modalità selezione o quando c'è già
               una selezione; su mobile wrap, su desktop 1 riga */}
           {(hasSelection || selectionMode) && (
@@ -2175,13 +2151,16 @@ function TabAttivita() {
   const [calendarDate, setCalendarDate] = useState<string | null>(null);
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="space-y-4">
       {/* Timbratura in cima per lo staff non-admin */}
       {!isAdmin && <TimbraturaSede />}
 
-      {/* Sinistra: Meteo + Calendario (integrati) · Destra: le mie attività giornaliere */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-6">
-        <div className="lg:col-span-2 space-y-3 sm:space-y-6">
+      {/* Sinistra: Meteo + Calendario (integrati) · Destra: le mie attività.
+          Da tablet due colonne con le attività a larghezza fissa: a un terzo
+          di pagina, a 1024px, il pannello restava di 210px e tagliava
+          ricerca e filtri; sotto i 1024 finiva in fondo, dopo il calendario. */}
+      <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-[minmax(0,1fr)_320px] lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_400px]">
+        <div className="min-w-0 space-y-3 sm:space-y-4">
           <MeteoWidget compatto={isMobile} />
           {/* Calendario mese: ingombrante e poco usato su mobile (la vista
               "Oggi/Settimana" dei chip basta). Solo da tablet in su. */}
@@ -2203,7 +2182,9 @@ function TabAttivita() {
           + scroll lungo): sono la vista desktop "Regia" — raggiungibile in 1
           tap dal tab Regia. "Il troppo non va bene" sul telefono. */}
       {isAdmin && !isMobile && <TeamTaskPulse />}
-      {isAdmin && !isMobile && <TaskTeam />}
+      {/* Qui sotto c'era anche «Task del Team»: le stesse attività scadute di
+          «Priorità da guardare», in un secondo riquadro che scorreva dentro la
+          pagina. La lista completa, con i filtri per persona, è in «Regia». */}
       {/* Su mobile qui c'era un bottone «Apri regia team»: faceva la stessa
           cosa del tab «Regia» in cima alla pagina. Un modo solo. */}
     </div>
@@ -2273,14 +2254,9 @@ function TeamTaskPulse() {
     <Card>
       <CardHeader className="pb-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <ArrowUpCircle className="h-4 w-4" />Regia rapida
-            </CardTitle>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Vista sintetica sulle attività aperte di tutta l'azienda.
-            </p>
-          </div>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <ArrowUpCircle className="h-4 w-4" />Regia rapida
+          </CardTitle>
           <Button variant="outline" size="sm" className="h-8 gap-1.5" asChild>
             <Link to="/azienda/attivita?tab=regia">
               Apri regia <ExternalLink className="h-3.5 w-3.5" />
@@ -2297,19 +2273,16 @@ function TeamTaskPulse() {
           />
         ) : isLoading ? (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
               {[1, 2, 3, 4].map((item) => <Skeleton key={item} className="h-20 w-full" />)}
             </div>
             <Skeleton className="h-16 w-full" />
           </div>
         ) : pulse.openCount === 0 ? (
-          <div className="rounded-lg border border-dashed py-8 text-center text-muted-foreground">
-            <CheckCircle2 className="mx-auto mb-2 h-8 w-8 opacity-50" />
-            <p className="text-sm">Nessuna attività aperta da gestire</p>
-          </div>
+          <p className="text-sm text-muted-foreground">Nessuna attività aperta da gestire</p>
         ) : (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
               {metrics.map((metric) => (
                 <div key={metric.label} className={`rounded-lg border p-3 ${metric.className}`}>
                   <p className="text-xs font-medium opacity-80">{metric.label}</p>
@@ -2317,15 +2290,17 @@ function TeamTaskPulse() {
                 </div>
               ))}
             </div>
-            <div className="rounded-lg border">
-              <div className="flex items-center justify-between border-b px-3 py-2">
-                <p className="text-sm font-semibold">Priorità da guardare</p>
-                <Badge variant="secondary" className="text-xs">{pulse.openCount} aperte</Badge>
+            {/* Lista senza riquadro proprio: stava in una cornice dentro la
+                card, dentro la pagina. */}
+            <div>
+              <div className="flex items-center justify-between pb-1.5">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Priorità da guardare</p>
+                <span className="text-xs tabular-nums text-muted-foreground">{pulse.openCount} aperte</span>
               </div>
               {pulse.priorities.length === 0 ? (
-                <p className="px-3 py-4 text-sm text-muted-foreground">Nessuna criticità immediata.</p>
+                <p className="py-3 text-sm text-muted-foreground">Nessuna criticità immediata.</p>
               ) : (
-                <div className="divide-y">
+                <div className="divide-y border-y">
                   {pulse.priorities.map((task: any) => {
                     const priority = PRIORITY_CONFIG[task.priority ?? "normale"] ?? PRIORITY_CONFIG.normale;
                     const dueDate = task.due_date ? parseISO(task.due_date) : null;
@@ -2333,7 +2308,7 @@ function TeamTaskPulse() {
                     const assigneeName = [task.assignee?.first_name, task.assignee?.last_name].filter(Boolean).join(" ") || "Non assegnata";
 
                     return (
-                      <div key={task.id} className="flex flex-wrap items-center gap-2 px-3 py-2 text-sm">
+                      <div key={task.id} className="flex flex-wrap items-center gap-2 px-1 py-2 text-sm">
                         <div className={`h-2 w-2 shrink-0 rounded-full ${priority.dotClass}`} />
                         <span className="min-w-[180px] flex-1 truncate font-medium">{task.title}</span>
                         <span className="text-xs text-muted-foreground">{assigneeName}</span>
@@ -2349,111 +2324,6 @@ function TeamTaskPulse() {
                 </div>
               )}
             </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Task del Team (solo admin) — overview attività assegnate ai membri del team
-// ─────────────────────────────────────────────────────────────────────────────
-function TaskTeam() {
-  const { user, effectiveCompany } = useAuth();
-  const companyId = effectiveCompany?.id;
-  const [filterUser, setFilterUser] = useState<string>("all");
-
-  const { data: rawTeamMembers = [] } = useCompanyStaffUsers(companyId);
-  const teamMembers = rawTeamMembers.filter((member) => member.id !== user?.id);
-
-  // Fetch team tasks
-  const { data: teamTasks = [], isLoading, isError, error, refetch } = useQuery({
-    queryKey: ["team-tasks", companyId, user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("tasks")
-        .select(`id, title, status, priority, due_date, assigned_to,
-          assignee:profiles!tasks_assigned_to_fkey(first_name, last_name)`)
-        .eq("company_id", companyId!)
-        .neq("assigned_to", user!.id)
-        .neq("status", "completata")
-        .order("due_date", { ascending: true, nullsFirst: false })
-        .limit(100);
-      if (error) throw error;
-      return data ?? [];
-    },
-    enabled: !!companyId && !!user?.id,
-    staleTime: 60_000,
-  });
-
-  const filteredTasks = useMemo(() => {
-    if (filterUser === "all") return teamTasks;
-    return teamTasks.filter((t: any) => t.assigned_to === filterUser);
-  }, [teamTasks, filterUser]);
-
-  const today = startOfDay(new Date());
-
-  return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Users className="h-4 w-4" />Task del Team
-            {teamTasks.length > 0 && <Badge variant="secondary" className="text-xs">{teamTasks.length}</Badge>}
-          </CardTitle>
-          <Select value={filterUser} onValueChange={setFilterUser}>
-            <SelectTrigger className="h-8 w-[160px] text-xs"><SelectValue placeholder="Tutti" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tutti i membri</SelectItem>
-              {teamMembers.map((m) => (
-                <SelectItem key={m.id} value={m.id}>{m.first_name} {m.last_name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {isError ? (
-          <InlineLoadError
-            title="Errore nel caricamento task team"
-            description={error instanceof Error ? error.message : "Non riesco a leggere le attività del team in questo momento."}
-            onRetry={() => refetch()}
-          />
-        ) : isLoading ? (
-          <div className="space-y-2">{[1, 2, 3].map(i => <Skeleton key={i} className="h-12 w-full" />)}</div>
-        ) : filteredTasks.length === 0 ? (
-          <div className="text-center py-6 text-muted-foreground">
-            <ClipboardCheck className="h-8 w-8 mx-auto mb-2 opacity-40" />
-            <p className="text-sm">Nessuna attività assegnata al team</p>
-          </div>
-        ) : (
-          <div className="space-y-1.5 max-h-[400px] overflow-y-auto">
-            {filteredTasks.map((t: any) => {
-              const cfg = PRIORITY_CONFIG[t.priority ?? "normale"] ?? PRIORITY_CONFIG.normale;
-              const scaduta = t.due_date && isBefore(new Date(t.due_date), today) && !isToday(new Date(t.due_date));
-              const assigneeName = [t.assignee?.first_name, t.assignee?.last_name].filter(Boolean).join(" ");
-              const stCfg = STATUS_CONFIG[t.status] ?? STATUS_CONFIG.da_fare;
-              return (
-                <div key={t.id} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm ${scaduta ? "border-red-200 bg-red-50/30 dark:border-red-900/30 dark:bg-red-950/10" : "hover:bg-muted/30"}`}>
-                  <div className={`w-2 h-2 rounded-full shrink-0 ${cfg.dotClass}`} />
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm truncate">{t.title}</p>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-                        <Circle className="h-2.5 w-2.5" />{assigneeName}
-                      </span>
-                      <Badge variant="outline" className={`text-[9px] px-1 py-0 ${stCfg.className}`}>{stCfg.label}</Badge>
-                      {t.due_date && (
-                        <span className={`text-[10px] ${scaduta ? "text-red-500 font-semibold" : isToday(new Date(t.due_date)) ? "text-amber-600" : "text-muted-foreground"}`}>
-                          {isToday(new Date(t.due_date)) ? "Oggi" : format(new Date(t.due_date), "d MMM", { locale: it })}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
           </div>
         )}
       </CardContent>
@@ -2508,17 +2378,22 @@ export default function AttivitaStaff() {
   };
 
   return (
-    // Su mobile il margine lo da' gia' <main>: il p-3 qui lo raddoppiava.
-    <div className="space-y-4 sm:space-y-6 sm:p-6">
-      <AttivitaHeader />
+    // Il margine lo da' gia' <main> (12px su telefono, 24 da tablet): un
+    // padding anche qui lo raddoppiava, 48px per lato sul desktop.
+    <div>
       <Tabs value={activeTab} onValueChange={handleTabChange}>
-        {isAdmin ? (
-          <TabsList className="grid w-full max-w-full sm:max-w-md grid-cols-2 h-auto">
+        {/* Saluto e linguette su una riga quando ci stanno: sotto il saluto
+            restava una fascia vuota larga quanto la pagina. Su telefono il
+            saluto non c'e' e restano le linguette da sole. */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+          <AttivitaHeader />
+          {isAdmin ? (
+          <TabsList className="grid w-full max-w-full sm:w-80 grid-cols-2 h-auto">
             <TabsTrigger value="attivita" className="gap-1.5 text-xs sm:text-sm py-1.5 sm:py-2"><ClipboardCheck className="h-4 w-4" /><span>Dashboard</span></TabsTrigger>
             <TabsTrigger value="regia" className="gap-1.5 text-xs sm:text-sm py-1.5 sm:py-2"><Users className="h-4 w-4" /><span className="truncate">Regia<span className="hidden sm:inline"> attività</span></span></TabsTrigger>
           </TabsList>
         ) : (
-          <TabsList className={cn("grid w-full h-auto", seesRegia ? "grid-cols-5 max-w-2xl" : "grid-cols-4 max-w-xl")}>
+          <TabsList className={cn("grid w-full h-auto", seesRegia ? "grid-cols-5 max-w-2xl lg:w-[36rem]" : "grid-cols-4 max-w-xl lg:w-[30rem]")}>
             <TabsTrigger value="attivita" className="gap-1 sm:gap-1.5 text-[11px] sm:text-sm py-2 px-1 sm:px-3"><ClipboardCheck className="h-4 w-4" /><span className="truncate">Attività</span></TabsTrigger>
             {seesRegia && (
               <TabsTrigger value="regia" className="gap-1 sm:gap-1.5 text-[11px] sm:text-sm py-2 px-1 sm:px-3"><Users className="h-4 w-4" /><span className="truncate">Regia</span></TabsTrigger>
@@ -2527,10 +2402,11 @@ export default function AttivitaStaff() {
             <TabsTrigger value="ferie" className="gap-1 sm:gap-1.5 text-[11px] sm:text-sm py-2 px-1 sm:px-3"><Palmtree className="h-4 w-4" /><span className="truncate">Ferie</span></TabsTrigger>
             <TabsTrigger value="cedolini" className="gap-1 sm:gap-1.5 text-[11px] sm:text-sm py-2 px-1 sm:px-3"><Receipt className="h-4 w-4" /><span className="truncate">Cedolini</span></TabsTrigger>
           </TabsList>
-        )}
-        <TabsContent value="attivita" className="mt-3 sm:mt-6"><TabAttivita /></TabsContent>
+          )}
+        </div>
+        <TabsContent value="attivita" className="mt-3 sm:mt-4"><TabAttivita /></TabsContent>
         {seesRegia && (
-          <TabsContent value="regia" className="mt-3 sm:mt-6">
+          <TabsContent value="regia" className="mt-3 sm:mt-4">
             <Suspense fallback={<TabFallback />}>
               <UnifiedTasks embedded initialTab="all" />
             </Suspense>
@@ -2538,9 +2414,9 @@ export default function AttivitaStaff() {
         )}
         {!isAdmin && (
           <>
-            <TabsContent value="timbrature" className="mt-3 sm:mt-6"><Suspense fallback={<TabFallback />}><TimbraturePersonali /></Suspense></TabsContent>
-            <TabsContent value="ferie" className="mt-3 sm:mt-6"><Suspense fallback={<TabFallback />}><FeriePersonali /></Suspense></TabsContent>
-            <TabsContent value="cedolini" className="mt-3 sm:mt-6"><Suspense fallback={<TabFallback />}><CedoliniPersonali /></Suspense></TabsContent>
+            <TabsContent value="timbrature" className="mt-3 sm:mt-4"><Suspense fallback={<TabFallback />}><TimbraturePersonali /></Suspense></TabsContent>
+            <TabsContent value="ferie" className="mt-3 sm:mt-4"><Suspense fallback={<TabFallback />}><FeriePersonali /></Suspense></TabsContent>
+            <TabsContent value="cedolini" className="mt-3 sm:mt-4"><Suspense fallback={<TabFallback />}><CedoliniPersonali /></Suspense></TabsContent>
           </>
         )}
       </Tabs>
