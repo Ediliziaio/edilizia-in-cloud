@@ -5,7 +5,7 @@ import { loadLaborReview, type LaborReviewRequest } from "@/lib/campo/loadLaborR
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 
-const eur = (n: number) => n.toLocaleString("it-IT", {style:"currency",currency:"EUR"});
+const eur = (n: number) => n.toLocaleString("it-IT", {style:"currency",currency:"EUR",useGrouping:true});
 interface Props extends LaborReviewRequest {
   busy: boolean; onClose: () => void;
   onInspect?: (reportId: string) => void;

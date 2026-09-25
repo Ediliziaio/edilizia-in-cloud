@@ -1573,7 +1573,7 @@ function OrdersListInner() {
           const trimmed = val.length > maxLen ? val.slice(0, maxLen - 1) + "…" : val;
           if (c.align === "right" && val) {
             const formatted = String(row[c.key as keyof typeof row] ?? "").includes(".")
-              ? `€ ${Number(row[c.key as keyof typeof row]).toLocaleString("it-IT", { minimumFractionDigits: 2 })}`
+              ? `€ ${Number(row[c.key as keyof typeof row]).toLocaleString("it-IT", { minimumFractionDigits: 2, useGrouping: true })}`
               : trimmed;
             doc.text(formatted, x + c.w - 4, y, { align: "right" });
           } else {

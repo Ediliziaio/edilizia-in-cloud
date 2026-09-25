@@ -654,9 +654,9 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
                   {somma > 0 && (
                     <p className="text-xs text-muted-foreground">
                       Verifica conti: {extract.voci.length} voci · somma{" "}
-                      {somma.toLocaleString("it-IT", { minimumFractionDigits: 2 })} €
+                      {somma.toLocaleString("it-IT", { minimumFractionDigits: 2, useGrouping: true })} €
                       {contractImponibile(extract) != null &&
-                        ` · imponibile ${contractImponibile(extract)!.toLocaleString("it-IT", { minimumFractionDigits: 2 })} €`}
+                        ` · imponibile ${contractImponibile(extract)!.toLocaleString("it-IT", { minimumFractionDigits: 2, useGrouping: true })} €`}
                     </p>
                   )}
                   {coerenza.length > 0 && (

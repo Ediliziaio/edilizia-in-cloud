@@ -945,7 +945,7 @@ export default function CompanyCustomerDetail() {
             icon={Euro}
             iconColor="text-emerald-500"
             label="Valore totale"
-            value={`€ ${totalOrderValue.toLocaleString("it-IT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
+            value={`€ ${totalOrderValue.toLocaleString("it-IT", { minimumFractionDigits: 0, maximumFractionDigits: 0, useGrouping: true })}`}
             subtext="in ordini"
           />
           <KpiCard
