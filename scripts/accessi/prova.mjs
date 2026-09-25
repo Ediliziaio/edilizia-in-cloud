@@ -44,9 +44,18 @@
  */
 
 const argomenti = process.argv.slice(2);
+function esci(messaggio) {
+  console.error(messaggio);
+  process.exit(2);
+}
+// Un'opzione senza valore (in fondo, o seguita da un'altra opzione) è un
+// errore: ignorarla toglierebbe uno scenario dalla prova senza dirlo.
 const valore = (nome) => {
   const i = argomenti.indexOf(nome);
-  return i >= 0 ? argomenti[i + 1] : undefined;
+  if (i < 0) return undefined;
+  const v = argomenti[i + 1];
+  if (v === undefined || v.startsWith("--")) esci(`${nome} vuole un valore.`);
+  return v;
 };
 const presente = (nome) => argomenti.includes(nome);
 
@@ -55,10 +64,6 @@ const NOME = /^[a-z_][a-z0-9_]*$/;
 const STATI = ["nessuno", "attivo", "sospeso", "invitato", "scaduto"];
 const RUOLI_ACCESSO = ["company_admin", "company_staff", "salesperson", "call_center", "employee", "subcontractor"];
 
-function esci(messaggio) {
-  console.error(messaggio);
-  process.exit(2);
-}
 function uuid(nome, obbligatorio = false) {
   const v = valore(nome);
   if (v === undefined) {
@@ -103,7 +108,10 @@ if (!Number.isInteger(limite) || limite < 1) esci("--limite deve essere un inter
 const letterale = (s) => `'${String(s).replace(/'/g, "''")}'`;
 
 const sql = `-- Prova degli accessi generata da scripts/accessi/prova.mjs: finisce con
--- RAISE EXCEPTION, quindi non resta scritto niente.
+-- RAISE EXCEPTION, quindi non resta scritto niente. I timeout stanno fuori dal
+-- DO: impostati dentro non fermano il blocco che è già partito.
+set local lock_timeout = '3s';
+set local statement_timeout = '180s';
 do $prova$
 declare
   azienda constant uuid := ${letterale(azienda)};
@@ -128,9 +136,6 @@ declare
   esiti text;
   errori text := '';
 begin
-  perform set_config('lock_timeout', '3s', true);
-  perform set_config('statement_timeout', '180s', true);
-
   for s in select * from jsonb_to_recordset(scenari) as x(etichetta text, tipo text, utente uuid, stato text) loop
     -- Preparazione come postgres. Claims '{}' e non '': i trigger fanno ::json.
     perform set_config('role', 'postgres', true);
@@ -160,6 +165,9 @@ begin
     intestazione := intestazione || ' | ' || s.etichetta;
 
     foreach tab in array tabelle loop
+      letti := '?';
+      modificati := '–';
+      cancellati := '–';
       scrivibile := tab = 'companies' or exists (
         select 1 from pg_catalog.pg_attribute a
          where a.attrelid = ('public.' || tab)::regclass and a.attname = 'company_id' and not a.attisdropped);
@@ -190,7 +198,13 @@ begin
           modificati := n::text;
           raise exception using errcode = 'P0001', message = 'annulla';
         exception
-          when sqlstate 'P0001' then null;
+          -- Anche un trigger che fa RAISE EXCEPTION senza codice dà P0001:
+          -- solo il nostro «annulla» vuol dire «riuscita, poi annullata».
+          when sqlstate 'P0001' then
+            if sqlerrm <> 'annulla' then
+              modificati := 'err';
+              errori := errori || E'\\n  ' || s.etichetta || ' / ' || tab || ' (modifica, trigger): ' || sqlerrm;
+            end if;
           when insufficient_privilege then modificati := 'neg';
           when others then
             modificati := 'err';
@@ -207,7 +221,11 @@ begin
             cancellati := n::text;
             raise exception using errcode = 'P0001', message = 'annulla';
           exception
-            when sqlstate 'P0001' then null;
+            when sqlstate 'P0001' then
+              if sqlerrm <> 'annulla' then
+                cancellati := 'err';
+                errori := errori || E'\\n  ' || s.etichetta || ' / ' || tab || ' (cancella, trigger): ' || sqlerrm;
+              end if;
             when insufficient_privilege then cancellati := 'neg';
             when others then
               cancellati := 'err';
@@ -217,7 +235,7 @@ begin
         cella := letti || '/' || modificati || '/' || cancellati;
       end if;
 
-      risultati := jsonb_set(risultati, array[tab], coalesce(risultati -> tab, '[]'::jsonb) || to_jsonb(cella));
+      risultati := jsonb_set(risultati, array[tab], coalesce(risultati -> tab, '[]'::jsonb) || to_jsonb(coalesce(cella, '?')));
     end loop;
   end loop;
 

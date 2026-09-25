@@ -87,9 +87,17 @@ blocca per ultimo e alla fine annulla tutto.
   massimo 255.
 - **Segnaposti nei comandi di prova:** si sostituiscono dal più lungo
   (`:altro` e `:admin` prima di `:a`), se no si rompono a vicenda.
-- **Scritture sui dati:** sempre `lock_timeout` a 3 secondi e
-  `statement_timeout`. Su tabelle grandi il conteggio va limitato
-  (`--limite`), perché le funzioni per riga lo rendono lento.
+- **Timeout:** `set local lock_timeout = '3s'` e
+  `set local statement_timeout = '…'` vanno **prima** del `DO`, come
+  istruzioni a sé (le mette già `prova.mjs`). Un `statement_timeout`
+  impostato dentro il blocco non lo ferma: il blocco è già partito. Su
+  tabelle grandi il conteggio va limitato (`--limite`), perché le funzioni per
+  riga lo rendono lento.
+- **Chi aspetta te:** la preparazione modifica righe di `companies` e
+  `profiles` e le tiene bloccate fino alla fine della prova. Le scritture
+  vere dell'azienda su quelle righe aspettano. Per le prove con
+  `--scritture`, o con cliente e bloccato, preferisci un'azienda demo e tieni
+  la prova corta.
 
 ## Il metodo prima/dopo
 
@@ -139,9 +147,12 @@ Una correzione che blocca un uso legittimo è sbagliata quanto il buco.
   esplicito; una funzione di trigger non ha bisogno di alcun `EXECUTE`.
 - Nel commento in testa: cosa si poteva fare prima, provato come, chi deve
   continuare a funzionare.
-- C'è un test di contratto in `src/test/logic/` che legge la migrazione e
-  tiene fermi i punti che contano. Non basta che passi: fai una controprova
-  (togli un pezzo in una copia e guarda che diventi rosso).
+- Insieme alla migrazione proponi un test di contratto, che legge la
+  migrazione e tiene fermi i punti che contano. Scrivilo nella tua cartella
+  di lavoro, accanto alla migrazione, con il percorso che dovrà avere
+  (`src/test/logic/<nome>.test.ts`): li sposta nel repository la sessione
+  principale quando applica. Non basta che passi: fai una controprova in una
+  copia a parte (togli un pezzo e guarda che diventi rosso).
 
 ## Resoconto (formato)
 
