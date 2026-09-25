@@ -261,7 +261,7 @@ export default function SettingsNotifiche() {
 
   if (isLoading) {
     return (
-      <div className="space-y-3 p-4 max-w-3xl mx-auto">
+      <div className="space-y-3 p-4 max-w-3xl mx-auto md:p-0 md:mx-0">
         <Skeleton className="h-32" />
         <Skeleton className="h-48" />
       </div>
@@ -269,9 +269,12 @@ export default function SettingsNotifiche() {
   }
 
   return (
-    <div className="space-y-4 p-4 md:p-6 max-w-3xl mx-auto">
-      {/* Header */}
-      <div className="flex items-start gap-3">
+    // Da 768 senza margine proprio né centratura: il margine lo dà la cornice
+    // delle impostazioni (prima si sommava) e le altre pagine partono a sinistra.
+    <div className="space-y-4 p-4 md:p-0 max-w-3xl mx-auto md:mx-0">
+      {/* Header — da 768 c'è già la testata delle impostazioni con lo stesso
+          titolo e la stessa frase. */}
+      <div className="flex items-start gap-3 md:hidden">
         <div className="shrink-0 h-10 w-10 rounded-lg bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center">
           <Bell className="h-5 w-5 text-violet-600 dark:text-violet-400" />
         </div>

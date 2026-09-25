@@ -30,21 +30,12 @@ export default function SettingsProfile() {
 
   return (
     <div className="space-y-6 max-sm:space-y-3">
-      {/* Header pattern h-10 w-10 bg-primary/10. Mobile: solo l'eventuale
-          «Sola lettura» (il titolo è già nella testata delle impostazioni). */}
-      <div className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 ${canEdit ? "max-sm:hidden" : ""}`}>
-        <div className="flex items-start gap-3 min-w-0 max-sm:hidden">
-          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-            <Building2 className="h-5 w-5 text-primary" />
-          </div>
-          <div className="min-w-0">
-            {/* v8.6.64 — niente h1: SettingsLayout monta già "Profilo aziendale" come h1 */}
-            <h2 className="text-xl sm:text-2xl font-bold leading-tight">Profilo Azienda</h2>
-            <p className="text-sm text-muted-foreground">
-              Dati dell'azienda, logo e impostazioni del portale clienti.
-            </p>
-          </div>
-        </div>
+      {/* Solo l'eventuale «Sola lettura»: il titolo «Profilo Azienda» con icona
+          e frase ripeteva la testata delle impostazioni (sul telefono era già
+          nascosto; ora anche da tablet). */}
+      {/* Il contenitore resta anche vuoto (nascosto): con space-y tiene lo
+          stesso margine sopra la prima card, sul telefono come prima. */}
+      <div className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 ${canEdit ? "hidden" : ""}`}>
         {!canEdit && (
           <Badge variant="secondary" className="shrink-0 self-start">Sola lettura</Badge>
         )}
@@ -61,7 +52,8 @@ export default function SettingsProfile() {
             <CardDescription className="max-sm:hidden">
               Logo usato su preventivi PDF, email, portale clienti e branding generale.
               Per il white-label completo (colori, favicon, nome) vai in{" "}
-              <Link to="/azienda/impostazioni/branding" className="underline font-medium">/branding</Link>.
+              {/* Il link mostrava il percorso «/branding»: ora il nome della pagina. */}
+              <Link to="/azienda/impostazioni/branding" className="underline font-medium">White-Label</Link>.
             </CardDescription>
           </CardHeader>
           <CardContent className={CORPO_CARD}>
