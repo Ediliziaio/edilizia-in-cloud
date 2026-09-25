@@ -365,19 +365,22 @@ export default function RenderCategoryHub() {
   if (isScopriPlan) return <UpgradeScopriWall type="render_ai" inline />;
 
   return (
-    <div className="space-y-8">
-      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/50 p-5 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+    // Telefono: titolo e crediti su una riga, moduli a tessere 2 per riga,
+    // ultimi render a griglia 2×; niente catalogo (impostazione), spiegazioni e
+    // filtro CRM.
+    <div className="space-y-8 max-md:space-y-3">
+      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/50 p-5 shadow-sm max-md:rounded-none max-md:border-0 max-md:bg-none max-md:p-0 max-md:shadow-none">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between max-md:flex-row max-md:items-center max-md:justify-between max-md:gap-2">
           <div className="flex items-start gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200 max-md:hidden">
               <Sparkles className="h-5 w-5" />
             </div>
             <div>
-              <div className="mb-1 text-sm font-medium uppercase tracking-wider text-orange-700">
+              <div className="mb-1 text-sm font-medium uppercase tracking-wider text-orange-700 max-md:hidden">
                 Render AI
               </div>
-              <h1 className="text-2xl font-bold text-slate-950 sm:text-3xl">Centro render</h1>
-              <p className="mt-1 max-w-2xl text-sm text-slate-600">
+              <h1 className="text-2xl font-bold text-slate-950 sm:text-3xl max-md:text-lg">Centro render</h1>
+              <p className="mt-1 max-w-2xl text-sm text-slate-600 max-md:hidden">
                 Scegli il modulo giusto, filtra per categoria e ritrova subito i render collegati a utenti, contatti e opportunità.
               </p>
             </div>
@@ -386,7 +389,7 @@ export default function RenderCategoryHub() {
             <RenderCreditsWidget />
             {/* Il catalogo foto dei prodotti: prima stava tra le impostazioni dei preventivi. */}
             {(permessi.isAdmin || permessi.canViewSettingsCustomization) && (
-              <Button asChild variant="outline" size="sm">
+              <Button asChild variant="outline" size="sm" className="max-md:hidden">
                 <Link to="/azienda/impostazioni/catalogo-render">
                   <Image className="mr-1.5 h-4 w-4" />
                   Catalogo render
@@ -441,18 +444,20 @@ export default function RenderCategoryHub() {
 
       {stats.stale > 0 && (
         <Card className="border-orange-200 bg-orange-50/75">
-          <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-orange-700" />
-              <div>
-                <p className="text-sm font-semibold text-orange-950">Ci sono render da verificare</p>
-                <p className="text-sm text-orange-800">
+          <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between max-md:flex-row max-md:items-center max-md:gap-2 max-md:px-3 max-md:py-2">
+            <div className="flex items-start gap-3 max-md:min-w-0 max-md:gap-2">
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-orange-700 max-md:h-4 max-md:w-4" />
+              <div className="max-md:min-w-0">
+                <p className="text-sm font-semibold text-orange-950 max-md:text-[13px]">Ci sono render da verificare</p>
+                <p className="text-sm text-orange-800 max-md:hidden">
                   {stats.stale} render risultano in coda o elaborazione da oltre 30 minuti. Controlla il modulo relativo prima di rigenerare per evitare doppie operazioni.
                 </p>
+                <p className="hidden text-[11px] text-orange-800 max-md:block">{stats.stale} in coda da oltre 30 minuti</p>
               </div>
             </div>
-            <Button variant="outline" size="sm" className="border-orange-200 bg-white/80" onClick={() => setRecentStatusFilter("processing")}>
-              Filtra in lavorazione
+            <Button variant="outline" size="sm" className="border-orange-200 bg-white/80 max-md:h-8 max-md:shrink-0 max-md:px-2.5 max-md:text-xs" onClick={() => setRecentStatusFilter("processing")}>
+              <span className="max-md:hidden">Filtra in lavorazione</span>
+              <span className="hidden max-md:inline">Mostrali</span>
             </Button>
           </CardContent>
         </Card>
@@ -477,16 +482,16 @@ export default function RenderCategoryHub() {
         </CardContent>
       </Card>
 
-      <section className="space-y-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+      <section className="space-y-4 max-md:space-y-2">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between max-md:gap-2">
           <div>
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider max-md:text-[13px] max-md:normal-case max-md:tracking-normal max-md:text-foreground">
               Moduli render
             </h2>
-            <p className="text-sm text-muted-foreground">Filtra per area di intervento o cerca materiale, ambiente e sistema.</p>
+            <p className="text-sm text-muted-foreground max-md:hidden">Filtra per area di intervento o cerca materiale, ambiente e sistema.</p>
           </div>
-          <div className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm sm:flex-row lg:min-w-[520px]">
-            <div className="relative flex-1">
+          <div className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm sm:flex-row lg:min-w-[520px] max-md:flex-row max-md:border-0 max-md:bg-transparent max-md:p-0 max-md:shadow-none">
+            <div className="relative flex-1 max-md:min-w-0">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={categorySearch}
@@ -496,7 +501,7 @@ export default function RenderCategoryHub() {
               />
             </div>
             <Select value={groupFilter} onValueChange={(value) => setGroupFilter(value as CategoryGroup)}>
-              <SelectTrigger className="sm:w-[180px]">
+              <SelectTrigger className="sm:w-[180px] max-md:w-[130px] max-md:shrink-0">
                 <SelectValue placeholder="Categoria" />
               </SelectTrigger>
               <SelectContent>
@@ -526,7 +531,7 @@ export default function RenderCategoryHub() {
           ))}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 max-md:grid-cols-2 max-md:gap-2">
           {filteredCategories.map((cat) => {
             const Icon = cat.icon;
             const count = categoryCounts[cat.id] ?? 0;
@@ -538,12 +543,12 @@ export default function RenderCategoryHub() {
                 }`}
                 onClick={() => handleCategoryClick(cat)}
               >
-                <CardContent className="p-5 space-y-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className={`w-12 h-12 rounded-xl ${cat.color} flex items-center justify-center`}>
-                      <Icon className="h-6 w-6" />
+                <CardContent className="p-5 space-y-4 max-md:flex max-md:items-center max-md:gap-2 max-md:space-y-0 max-md:p-2.5">
+                  <div className="flex items-start justify-between gap-3 max-md:shrink-0">
+                    <div className={`w-12 h-12 rounded-xl ${cat.color} flex items-center justify-center max-md:h-8 max-md:w-8 max-md:rounded-lg`}>
+                      <Icon className="h-6 w-6 max-md:h-4 max-md:w-4" />
                     </div>
-                    <div className="flex flex-col items-end gap-1">
+                    <div className="flex flex-col items-end gap-1 max-md:hidden">
                       <Badge className={cat.badge === "Attivo"
                         ? "bg-green-100 text-green-700 hover:bg-green-100"
                         : "bg-slate-100 text-slate-700 hover:bg-slate-100"
@@ -553,14 +558,17 @@ export default function RenderCategoryHub() {
                       <span className="text-[11px] text-muted-foreground">{count} recenti</span>
                     </div>
                   </div>
-                  <div>
+                  <div className="max-md:min-w-0">
                     <div className="flex items-center gap-2">
-                      <h3 className="font-semibold text-lg">{cat.title}</h3>
-                      <Badge variant="outline" className="text-[10px]">{cat.groupLabel}</Badge>
+                      <h3 className="font-semibold text-lg max-md:truncate max-md:text-[13px] max-md:leading-tight">{cat.title}</h3>
+                      <Badge variant="outline" className="text-[10px] max-md:hidden">{cat.groupLabel}</Badge>
                     </div>
-                    <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{cat.description}</p>
+                    <p className="text-sm text-muted-foreground mt-1 leading-relaxed max-md:hidden">{cat.description}</p>
+                    <p className="hidden text-[11px] leading-tight text-muted-foreground max-md:block">
+                      {cat.active ? `${count} recenti` : cat.badge}
+                    </p>
                   </div>
-                  <div className="flex flex-wrap gap-1.5">
+                  <div className="flex flex-wrap gap-1.5 max-md:hidden">
                     {cat.tags.slice(0, 4).map((tag) => (
                       <Badge key={tag} variant="secondary" className="text-[10px] capitalize">
                         {tag}
@@ -574,17 +582,17 @@ export default function RenderCategoryHub() {
         </div>
       </section>
 
-      <section className="space-y-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+      <section className="space-y-4 max-md:space-y-2">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between max-md:gap-2">
           <div>
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider max-md:text-[13px] max-md:normal-case max-md:tracking-normal max-md:text-foreground">
               Ultimi render
             </h2>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground max-md:hidden">
               Vista unica di tutti i moduli, con stato, autore e collegamento CRM.
             </p>
           </div>
-          <div className="grid gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm sm:grid-cols-3 lg:min-w-[560px]">
+          <div className="grid gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm sm:grid-cols-3 lg:min-w-[560px] max-md:grid-cols-2 max-md:border-0 max-md:bg-transparent max-md:p-0 max-md:shadow-none">
             <Select value={recentTypeFilter} onValueChange={setRecentTypeFilter}>
               <SelectTrigger>
                 <SelectValue placeholder="Tipo render" />
@@ -611,7 +619,7 @@ export default function RenderCategoryHub() {
               </SelectContent>
             </Select>
             <Select value={crmFilter} onValueChange={setCrmFilter}>
-              <SelectTrigger>
+              <SelectTrigger className="max-md:hidden">
                 <SelectValue placeholder="CRM" />
               </SelectTrigger>
               <SelectContent>
@@ -646,11 +654,11 @@ export default function RenderCategoryHub() {
           </Card>
         ) : recentRenders.length === 0 ? (
           <Card>
-            <CardContent className="py-14 flex flex-col items-center gap-3 text-center">
-              <Image className="h-12 w-12 text-muted-foreground/30" />
+            <CardContent className="py-14 flex flex-col items-center gap-3 text-center max-md:py-4">
+              <Image className="h-12 w-12 text-muted-foreground/30 max-md:hidden" />
               <div>
-                <p className="font-medium">Ancora nessun render</p>
-                <p className="text-sm text-muted-foreground mt-1">Scegli un modulo sopra per generare il primo render AI.</p>
+                <p className="font-medium max-md:text-[13px]">Ancora nessun render</p>
+                <p className="text-sm text-muted-foreground mt-1 max-md:hidden">Scegli un modulo sopra per generare il primo render AI.</p>
               </div>
             </CardContent>
           </Card>
@@ -665,7 +673,7 @@ export default function RenderCategoryHub() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 max-md:grid-cols-2 max-md:gap-2">
             {filteredRecent.slice(0, 16).map((item) => {
               const typeColor = categories.find((cat) => cat.id === item.render_type)?.color ?? "bg-muted text-foreground";
               const status = normalizeRenderStatus(item.status);
@@ -690,22 +698,26 @@ export default function RenderCategoryHub() {
                       </div>
                     )}
                   </div>
-                  <CardContent className="p-3 space-y-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <Badge variant="secondary" className={`${typeColor} text-[10px] border-0`}>
+                  <CardContent className="p-3 space-y-2 max-md:space-y-1 max-md:p-2">
+                    <div className="flex items-center justify-between gap-2 max-md:gap-1">
+                      <Badge variant="secondary" className={`${typeColor} text-[10px] border-0 max-md:min-w-0 max-md:truncate max-md:px-1.5`}>
                         {formatType(item.render_type)}
                       </Badge>
-                      <Badge variant={status === "failed" ? "destructive" : "outline"} className="text-[10px]">
+                      {/* Telefono: «Completato» è il caso normale, si mostra solo uno stato diverso. */}
+                      <Badge
+                        variant={status === "failed" ? "destructive" : "outline"}
+                        className={`text-[10px] ${status === "completed" ? "max-md:hidden" : "max-md:shrink-0 max-md:px-1.5"}`}
+                      >
                         {statusLabel[status] ?? status}
                       </Badge>
                     </div>
-                    <div className="space-y-1 text-xs text-muted-foreground">
+                    <div className="space-y-1 text-xs text-muted-foreground max-md:text-[11px]">
                       <p className="flex items-center gap-1.5 truncate">
-                        <CalendarDays className="h-3.5 w-3.5 shrink-0" />
+                        <CalendarDays className="h-3.5 w-3.5 shrink-0 max-md:hidden" />
                         {formatRenderDate(item.created_at)}
                       </p>
                       {item.meta.createdByName && (
-                        <p className="flex items-center gap-1.5 truncate">
+                        <p className="flex items-center gap-1.5 truncate max-md:hidden">
                           <UserRound className="h-3.5 w-3.5 shrink-0" />
                           {item.meta.createdByName}
                         </p>
