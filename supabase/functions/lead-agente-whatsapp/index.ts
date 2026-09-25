@@ -29,6 +29,7 @@ import { sanitizeAnswer } from "../_shared/structuredOutput.ts";
 import { leggiConfigAgenteLead, type ConfigAgenteLead } from "../_shared/agenteLeadConfig.ts";
 import { turniPerLlm, type RigaMessaggio } from "../_shared/storiaWhatsApp.ts";
 import { promptAgenteLead } from "../_shared/promptAgenteLead.ts";
+import { messaggiRiepilogo, notaRiepilogo } from "../_shared/riepilogoChatLead.ts";
 import { avvisaUtenti, specificheStrumenti, trovaStrumento, type CtxAgente } from "./strumenti.ts";
 
 interface Richiesta {
@@ -172,6 +173,7 @@ async function unGiro(admin: Admin, g: {
     qualificazione: (qualifica?.qualificazione_json ?? {}) as Record<string, unknown>,
     faseAttuale,
     calendarioNome: String(calendario?.name ?? "calendario delle chiamate"),
+    showroom: g.config.showroom.map((x) => ({ nome: x.nome, indirizzo: x.indirizzo })),
   });
 
   const ctx: CtxAgente = {
@@ -189,7 +191,7 @@ async function unGiro(admin: Admin, g: {
   }
 
   const conv: ChatMessage[] = [{ role: "system", content: sistema }, ...turni.map((t) => ({ role: t.role, content: t.content }))];
-  const strumenti = specificheStrumenti();
+  const strumenti = specificheStrumenti(g.config);
   let testoFinale: string | null = null;
   let tokIn = 0, tokOut = 0, modello = budget.model_override ?? "routing";
   const chiedi = async (toolChoice: "auto" | "none", maxTokens: number) => {
@@ -215,7 +217,7 @@ async function unGiro(admin: Admin, g: {
       // In ordine, non in parallelo: una prenotazione e lo spostamento di fase
       // non devono pestarsi.
       for (const tc of msg.tool_calls) {
-        const strumento = trovaStrumento(tc.function.name);
+        const strumento = trovaStrumento(tc.function.name, g.config);
         let args: Record<string, unknown> = {};
         try { args = JSON.parse(tc.function.arguments || "{}"); } catch { /* argomenti vuoti */ }
         const t0 = Date.now();
@@ -270,7 +272,65 @@ async function unGiro(admin: Admin, g: {
     await avvisaUtenti(ctx, "Assistente WhatsApp: invio non riuscito", "La risposta dell'assistente non è partita (WhatsApp l'ha rifiutata). Rispondi tu da Conversazioni.");
     return "fermo";
   }
+  if (ctx.riepilogo) {
+    await scriviRiepilogo(admin, {
+      companyId: g.companyId,
+      contactId: g.contatto.id,
+      opportunityId: ctx.riepilogo.opportunityId,
+      esito: ctx.riepilogo.esito,
+      nomeAzienda: String(azienda?.name ?? "l'azienda"),
+      nomeContatto: [g.contatto.first_name, g.contatto.last_name].filter(Boolean).join(" "),
+      chat: [...turni, { role: "assistant" as const, content: risposta }],
+      messageId: g.messageId,
+    });
+  }
   return "inviata";
+}
+
+/**
+ * Il riepilogo della chat negli appunti dell'opportunità (marketing_contact_notes
+ * con opportunity_id), dopo che il cliente ha già la sua risposta: se l'AI non
+ * risponde, la chat resta comunque in Conversazioni e si avvisa nel log.
+ */
+async function scriviRiepilogo(admin: Admin, r: {
+  companyId: string;
+  contactId: string;
+  opportunityId: string | null;
+  esito: string;
+  nomeAzienda: string;
+  nomeContatto: string;
+  chat: Array<{ role: "user" | "assistant"; content: string }>;
+  messageId: string | null;
+}): Promise<void> {
+  try {
+    const { data: q } = await admin.from("marketing_contacts").select("qualificazione_json").eq("id", r.contactId).maybeSingle();
+    const risposta = await callOpenAI({
+      task_kind: "lead_qualificazione",
+      company_id: r.companyId,
+      wa_message_id: r.messageId,
+      messages: messaggiRiepilogo({
+        nomeAzienda: r.nomeAzienda,
+        nomeContatto: r.nomeContatto,
+        qualificazione: (q?.qualificazione_json ?? {}) as Record<string, unknown>,
+        esito: r.esito,
+        chat: r.chat,
+      }) as ChatMessage[],
+      temperature: 0.2,
+      max_tokens: 350,
+    });
+    await consumeBudget(admin, r.companyId, estimateCostEur(risposta.model, risposta.usage?.prompt_tokens ?? 0, risposta.usage?.completion_tokens ?? 0));
+    const testo = (risposta.choices[0]?.message?.content ?? "").trim();
+    if (!testo) return;
+    const { error } = await admin.from("marketing_contact_notes").insert({
+      company_id: r.companyId,
+      contact_id: r.contactId,
+      opportunity_id: r.opportunityId,
+      content: notaRiepilogo(testo, r.esito),
+    });
+    if (error) console.warn("[lead-agente] riepilogo non salvato:", error.message);
+  } catch (e) {
+    console.warn("[lead-agente] riepilogo non scritto:", String(e).slice(0, 200));
+  }
 }
 
 // ── Turno e messaggi nuovi ──────────────────────────────────────────────────

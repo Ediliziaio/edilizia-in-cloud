@@ -121,10 +121,3 @@ export function matchesSalesArea(area: SalesArea, query: string) {
   const haystack = normalize([area.title, area.summary, ...area.interventions.flatMap(item => [item.title, item.summary, ...item.fields])].join(" "));
   return normalize(query).trim().split(/\s+/).filter(Boolean).every(word => haystack.includes(word));
 }
-export function salesAreaHref(params: URLSearchParams, area?: SalesArea, intervention?: SalesIntervention) {
-  const next = new URLSearchParams(params);
-  next.set("tab", "moduli"); next.delete("vista_moduli");
-  if (area) next.set("area", area.id); else next.delete("area");
-  if (area && intervention && area.interventions.some(item => item.id === intervention.id)) next.set("intervento", intervention.id); else next.delete("intervento");
-  return `?${next.toString()}`;
-}

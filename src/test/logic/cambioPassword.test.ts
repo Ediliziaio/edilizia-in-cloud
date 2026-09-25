@@ -60,7 +60,6 @@ describe("le pagine dove si cambia la propria password", () => {
   const pagine = {
     obbligatoria: leggi("src/pages/auth/ChangePassword.tsx"),
     recupero: leggi("src/pages/auth/ResetPassword.tsx"),
-    impostazioni: leggi("src/components/settings/ChangePasswordForm.tsx"),
     profilo: leggi("src/pages/azienda/impostazioni/MioProfilo.tsx"),
   };
 

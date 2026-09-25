@@ -67702,6 +67702,7 @@ export type Database = {
           delivery_terms_text: string | null
           description: string | null
           email_impresa: string | null
+          firmatario_impresa: string | null
           font_family: string | null
           font_size_base: number
           footer_text: string | null
@@ -67754,6 +67755,7 @@ export type Database = {
           telefono_impresa: string | null
           text_color: string | null
           thumbnail_url: string | null
+          timbro_firma_url: string | null
           updated_at: string | null
           watermark_text: string | null
         }
@@ -67772,6 +67774,7 @@ export type Database = {
           delivery_terms_text?: string | null
           description?: string | null
           email_impresa?: string | null
+          firmatario_impresa?: string | null
           font_family?: string | null
           font_size_base?: number
           footer_text?: string | null
@@ -67824,6 +67827,7 @@ export type Database = {
           telefono_impresa?: string | null
           text_color?: string | null
           thumbnail_url?: string | null
+          timbro_firma_url?: string | null
           updated_at?: string | null
           watermark_text?: string | null
         }
@@ -67842,6 +67846,7 @@ export type Database = {
           delivery_terms_text?: string | null
           description?: string | null
           email_impresa?: string | null
+          firmatario_impresa?: string | null
           font_family?: string | null
           font_size_base?: number
           footer_text?: string | null
@@ -67894,6 +67899,7 @@ export type Database = {
           telefono_impresa?: string | null
           text_color?: string | null
           thumbnail_url?: string | null
+          timbro_firma_url?: string | null
           updated_at?: string | null
           watermark_text?: string | null
         }

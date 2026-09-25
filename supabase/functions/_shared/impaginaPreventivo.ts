@@ -48,7 +48,7 @@ export function titoloGenerico(titolo: string, numero?: string | null): boolean 
 }
 
 /**
- * Il nome come si legge in un titolo: «TARTANI MAURO» diventa «Tartani Mauro».
+ * Il nome come si legge in un titolo: «ROSSI MARIO» diventa «Rossi Mario».
  * Un nome scritto con le minuscole resta com'è: chi l'ha scritto così lo voleva.
  */
 export function nomeLeggibile(nome: string): string {
@@ -192,4 +192,22 @@ export function senzaSezioneClausole(testo: string): string {
     }
   }
   return [...righe.slice(0, inizio), ...righe.slice(fine)].join("\n").trim();
+}
+
+// ─── I file riservati del modello (il timbro dell'impresa) ─────────────────
+
+/**
+ * Il percorso di un file del contenitore dei modelli, solo se sta nella cartella
+ * dell'azienda («<azienda>/…»); se no null. La funzione legge col service role:
+ * senza questo controllo un modello potrebbe indicare il timbro di un'altra
+ * azienda e stamparlo nel proprio preventivo.
+ */
+export function percorsoDellAzienda(percorso: unknown, azienda: string | null | undefined): string | null {
+  const p = String(percorso ?? "").trim().replace(/^\/+/, "");
+  if (!p || !azienda) return null;
+  if (!p.startsWith(`${azienda}/`) || p.includes("..") || p.includes("//")) return null;
+  // «%2e%2e» e la barra rovesciata: la richiesta allo storage li trasforma in «..»
+  // e «/», e il percorso uscirebbe dalla cartella (trovato dal revisore il 25/09).
+  if (/[%\\]/.test(p)) return null;
+  return p;
 }

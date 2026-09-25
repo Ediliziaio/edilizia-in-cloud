@@ -129,6 +129,5 @@ describe("l'app non scrive le colonne d'accesso sul proprio profilo", () => {
     const trovati = new Set(propri.map((p) => p.file));
     expect(trovati).toContain("src/pages/azienda/impostazioni/MioProfilo.tsx");
     expect(trovati).toContain("src/pages/cliente/CustomerProfile.tsx");
-    expect(trovati).toContain("src/components/settings/ChangePasswordForm.tsx");
   });
 });

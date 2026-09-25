@@ -42,6 +42,19 @@ describe("promptAgenteLead", () => {
     expect(promptAgenteLead(BASE)).toMatch(/Non dire che il contatto ha compilato un modulo/);
   });
 
+  it("con gli showroom fissa l'appuntamento di persona se il cliente lo chiede", () => {
+    const p = promptAgenteLead({ ...BASE, showroom: [{ nome: "Lissone", indirizzo: "Via Nuova Valassina 27" }, { nome: "Inverigo", indirizzo: null }] });
+    expect(p).toContain("prenota_showroom");
+    expect(p).toContain("Lissone (Via Nuova Valassina 27); Inverigo");
+    expect(p).toContain("non insistere con la telefonata");
+  });
+
+  it("senza showroom non promette appuntamenti di persona", () => {
+    const p = promptAgenteLead(BASE);
+    expect(p).not.toContain("prenota_showroom");
+    expect(p).toContain("Si fissano solo telefonate");
+  });
+
   it("orari e prenotazioni solo dagli strumenti", () => {
     const p = promptAgenteLead(BASE);
     expect(p).toContain("orari_liberi");

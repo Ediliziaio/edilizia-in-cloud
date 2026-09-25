@@ -43,6 +43,8 @@ export interface DatiPromptLead {
   qualificazione: Record<string, unknown>;
   faseAttuale: string | null;
   calendarioNome: string;
+  /** Showroom dove il cliente può chiedere di venire; vuoto = solo chiamate. */
+  showroom?: Array<{ nome: string; indirizzo: string | null }>;
 }
 
 export function promptAgenteLead(d: DatiPromptLead): string {
@@ -59,9 +61,14 @@ export function promptAgenteLead(d: DatiPromptLead): string {
     d.faseAttuale ? `Fase attuale dell'opportunità: ${d.faseAttuale}.` : "",
   ].filter(Boolean).join("\n");
 
+  const showroom = (d.showroom ?? []).filter((x) => x.nome.trim());
+  const regolaShowroom = showroom.length
+    ? `\n- Se il cliente chiede di venire in showroom o di fissare un appuntamento di persona, fissalo: non insistere con la telefonata. Chiedi quale showroom preferisce (proponi il più vicino alla sua zona) tra: ${showroom.map((x) => x.indirizzo ? `${x.nome} (${x.indirizzo})` : x.nome).join("; ")}. Leggi gli orari con orari_liberi indicando lo showroom e fissa con prenota_showroom; nella conferma scrivi l'indirizzo.`
+    : "\n- Si fissano solo telefonate: se il cliente chiede di venire in showroom, fissa la telefonata e digli che in chiamata il consulente organizzerà la visita.";
+
   const regole = `# Regole di ${d.nomeAzienda} che valgono sempre (prevalgono su tutto il resto)
 - Gli orari si propongono SOLO tra quelli restituiti dallo strumento orari_liberi, che legge il «${d.calendarioNome}»: mai inventarli, mai proporre orari passati.
-- La chiamata si fissa SOLO con lo strumento prenota_chiamata, e si conferma al cliente solo dopo che lo strumento ha risposto ok. Se risponde che l'orario non è più libero, richiama orari_liberi e proponi altri orari.
+- La chiamata si fissa SOLO con lo strumento prenota_chiamata, e si conferma al cliente solo dopo che lo strumento ha risposto ok. Se risponde che l'orario non è più libero, richiama orari_liberi e proponi altri orari.${regolaShowroom}
 - Quando il contatto risponde a una delle domande (zona, intervento, tempistica, motivazione), salvala con salva_risposte.
 - Se il lavoro è fuori dalla zona servita, usa segna_fuori_zona e chiudi con gentilezza.
 - Se il cliente chiede una persona, è arrabbiato o la richiesta non rientra in queste istruzioni, usa passa_a_operatore e digli che lo ricontatterà una persona del team.

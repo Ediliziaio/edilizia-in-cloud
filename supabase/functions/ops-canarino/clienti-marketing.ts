@@ -27,7 +27,7 @@ export function oraDiRoma(adesso = new Date()): number {
 export async function rapportoClientiMarketing(
   supabase: SupabaseClient,
   urlConsole: string,
-): Promise<{ subject: string; html: string; cose: number; clienti: number; priorita: Priorita[]; giorno: string }> {
+): Promise<{ subject: string; html: string; corpo: string; cose: number; clienti: number; priorita: Priorita[]; giorno: string }> {
   let { data, error } = await supabase.rpc("mkt_rapporto_mattino");
   if (error) throw new Error(`mkt_rapporto_mattino: ${error.message}`);
   let r = data as DatiRapporto;
@@ -48,6 +48,7 @@ export async function rapportoClientiMarketing(
   return {
     subject: fatto.subject,
     html: fatto.html,
+    corpo: fatto.corpo,
     cose: fatto.priorita.length,
     clienti: fatto.attivi,
     priorita: fatto.priorita,

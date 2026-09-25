@@ -19,7 +19,6 @@ vi.mock("@/hooks/useTermoidraulicoPDF", () => ({ useTermoidraulicoPDF: () => ({ 
 vi.mock("@/components/termoidraulico/TermoidraulicoLivePreviewPanel", () => ({ TermoidraulicoLivePreviewPanel: () : null => null }));
 vi.mock("@/components/termoidraulico/TermoidraulicoTemplatePreviewDialog", () => ({ TermoidraulicoTemplatePreviewDialog: () : null => null }));
 vi.mock("@/components/preventivi/StandardTextTemplatePicker", () => ({ StandardTextTemplatePicker: () : null => null }));
-vi.mock("@/components/preventivi/CopertinaAnteprima", () => ({ CopertinaAnteprima: () : null => null }));
 vi.mock("@/components/preventivi/AiSalesProfileForm", () => ({ AiSalesProfileForm: () : null => null }));
 vi.mock("@/components/preventivi/AiTemplateReviewDialog", () => ({ AiTemplateReviewDialog: () : null => null }));
 vi.mock("sonner", () => ({ toast: { success: calls.success, error: calls.error } }));

@@ -294,6 +294,21 @@ interface TemplateCardProps {
   onDelete: () => void;
 }
 
+/** Il timbro sta nel contenitore riservato dei modelli: si vede con un link a scadenza. */
+function AnteprimaTimbro({ percorso }: { percorso: string }) {
+  const [link, setLink] = useState<string | null>(null);
+  useEffect(() => {
+    let vivo = true;
+    setLink(null);
+    void supabase.storage.from("quote-template-assets").createSignedUrl(percorso, 60 * 60).then(({ data }) => {
+      if (vivo) setLink(data?.signedUrl ?? null);
+    });
+    return () => { vivo = false; };
+  }, [percorso]);
+  if (!link) return <div className="h-16 w-40 rounded-md border border-dashed bg-muted/40" aria-hidden="true" />;
+  return <img src={link} alt="Timbro e firma dell'impresa" className="h-16 max-w-[200px] rounded-md border bg-white object-contain p-1" />;
+}
+
 function TemplateCard({ tmpl, kindMeta, logoSrcFor, effectiveCompanyName, brandColor, templates, onEdit, onDuplicate, onDelete }: TemplateCardProps) {
   const kind = (tmpl.kind as QuoteTemplateKind | undefined) ?? 'offerta';
 
@@ -884,6 +899,35 @@ export default function SettingsQuoteTemplates() {
       toast.error(err instanceof Error ? err.message : "Errore caricamento copertina");
     } finally {
       setCoverUploading(false);
+      e.target.value = "";
+    }
+  };
+
+  // Timbro e firma dell'impresa (25/09/2026): si carica una volta nel modello e il
+  // PDF lo stampa nel riquadro «Per l'impresa» di ogni preventivo. Nel contenitore
+  // riservato dei modelli, nella cartella dell'azienda: la firma non è pubblica.
+  const [timbroUploading, setTimbroUploading] = useState(false);
+  const handleTimbroUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !effectiveCompany?.id) return;
+    if (file.size > 2 * 1024 * 1024) { toast.error("Max 2MB"); return; }
+    if (!ALLOWED_LOGO_TYPES.has(file.type)) {
+      toast.error("Carica il timbro in PNG o JPG");
+      e.target.value = "";
+      return;
+    }
+    setTimbroUploading(true);
+    try {
+      const ext = file.type === "image/png" ? "png" : "jpg";
+      const path = `${effectiveCompany.id}/template-timbro-${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from("quote-template-assets").upload(path, file, { upsert: true });
+      if (error) throw error;
+      updateForm({ timbro_firma_url: path });
+      toast.success("Timbro caricato: salva il modello per usarlo nei preventivi");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Errore caricamento timbro");
+    } finally {
+      setTimbroUploading(false);
       e.target.value = "";
     }
   };
@@ -1916,6 +1960,36 @@ export default function SettingsQuoteTemplates() {
                     </p>
                   </div>
                 )}
+                {/* Timbro e firma dell'impresa (25/09/2026): caricati una volta, escono già
+                    firmati nel riquadro «Per l'impresa» di ogni preventivo di questo modello. */}
+                <div className="border-t pt-3 space-y-2">
+                  <Label className="text-sm font-medium">Timbro e firma dell'impresa</Label>
+                  <div className="flex flex-wrap items-center gap-3">
+                    {form.timbro_firma_url && <AnteprimaTimbro percorso={form.timbro_firma_url} />}
+                    <label className="cursor-pointer inline-flex items-center gap-2 px-3 py-1.5 border rounded-md text-sm hover:bg-muted transition-colors">
+                      <Upload className="h-4 w-4" />
+                      {timbroUploading ? "Caricamento..." : form.timbro_firma_url ? "Cambia immagine" : "Carica immagine"}
+                      <input type="file" accept="image/png,image/jpeg" className="hidden" onChange={handleTimbroUpload} disabled={timbroUploading} />
+                    </label>
+                    {form.timbro_firma_url && (
+                      <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => updateForm({ timbro_firma_url: null })}>
+                        <Trash2 className="h-4 w-4 mr-1" />Rimuovi
+                      </Button>
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="firmatario_impresa" className="text-xs text-muted-foreground">Chi firma per l'impresa</Label>
+                    <Input
+                      id="firmatario_impresa"
+                      value={form.firmatario_impresa ?? ''}
+                      onChange={e => updateForm({ firmatario_impresa: e.target.value })}
+                      placeholder="Es. Mario Rossi, legale rappresentante"
+                    />
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    Timbro e firma insieme, meglio un PNG con il fondo trasparente. Esce nel riquadro «Per l'impresa» di ogni preventivo di questo modello: il cliente lo riceve già firmato da voi. È una firma grafica, non una firma digitale.
+                  </p>
+                </div>
                 <div className="border-t pt-3 space-y-3">
                   <div className="flex items-center gap-3">
                     <Switch checked={form.show_watermark ?? false} onCheckedChange={v => updateForm({ show_watermark: v })} />

@@ -17,7 +17,6 @@ vi.mock("@/hooks/useTettiPDF", () => ({ useTettiPDF: () => ({ previewPDF: calls.
 vi.mock("@/components/tetti/TettiLivePreviewPanel", () => ({ TettiLivePreviewPanel: () : null => null }));
 vi.mock("@/components/tetti/TettiTemplatePreviewDialog", () => ({ TettiTemplatePreviewDialog: () : null => null }));
 vi.mock("@/components/preventivi/StandardTextTemplatePicker", () => ({ StandardTextTemplatePicker: () : null => null }));
-vi.mock("@/components/preventivi/CopertinaAnteprima", () => ({ CopertinaAnteprima: () : null => null }));
 vi.mock("@/components/preventivi/AiSalesProfileForm", () => ({ AiSalesProfileForm: () : null => null }));
 vi.mock("@/components/preventivi/AiTemplateReviewDialog", () => ({ AiTemplateReviewDialog: () : null => null }));
 vi.mock("sonner", () => ({ toast: { success: calls.success, error: calls.error } }));

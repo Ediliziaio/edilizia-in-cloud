@@ -1,10 +1,11 @@
 /**
  * Gli strumenti dell'agente WhatsApp dei lead (25/09/2026).
  *
- * Cinque, come i passi della Conversation AI di GoHighLevel che Il Bagno
- * usava: leggere gli orari veri del calendario, fissare (o spostare) la
- * chiamata, salvare le risposte di qualificazione, segnare il fuori zona,
- * passare la mano a una persona. Ogni esito che conta sposta l'opportunità
+ * Come i passi della Conversation AI di GoHighLevel che Il Bagno usava:
+ * leggere gli orari veri del calendario, fissare (o spostare) la chiamata,
+ * salvare le risposte di qualificazione, segnare il fuori zona, passare la
+ * mano a una persona. In più, se l'azienda ha indicato i suoi showroom,
+ * fissare l'appuntamento in showroom quando il cliente chiede di venire. Ogni esito che conta sposta l'opportunità
  * nella fase scelta dall'azienda, con lo stato automatico della fase (come il
  * kanban): i trigger del database avvisano poi le sue automazioni
  * («Appuntamento prenotato», «Fase cambiata»).
@@ -12,7 +13,7 @@
 
 // deno-lint-ignore-file no-explicit-any
 
-import type { ConfigAgenteLead } from "../_shared/agenteLeadConfig.ts";
+import type { ConfigAgenteLead, ShowroomAgenteLead } from "../_shared/agenteLeadConfig.ts";
 import { dataEstesa, sincronizzaCalendariEsterni } from "../_shared/appuntamentiPubblici.ts";
 import { dataRoma, prenotaSuCalendario, slotLiberiCalendario, STATI_CHE_LIBERANO } from "../_shared/calendarioPrenotazione.ts";
 import { fasciaDi, type Fascia } from "../_shared/calendarioSlot.ts";
@@ -26,6 +27,8 @@ export interface CtxAgente {
   adesso: Date;
   /** Prenotazioni fatte in questo giro: al massimo una. */
   prenotazioniNelGiro: number;
+  /** Esito da riassumere negli appunti dell'opportunità dopo la risposta (prenotazione, fuori zona, operatore). */
+  riepilogo?: { esito: string; opportunityId: string | null } | null;
 }
 
 export type EsitoStrumento = Record<string, unknown> & { ok: boolean };
@@ -151,14 +154,14 @@ async function aggiungiTag(ctx: CtxAgente, tag: string | null): Promise<void> {
   await ctx.admin.from("marketing_contacts").update({ tags: [...tags, tag] }).eq("id", ctx.contactId);
 }
 
-/** Il prossimo appuntamento del contatto su questo calendario, se c'è. */
-async function appuntamentoInCorso(ctx: CtxAgente): Promise<{ id: string; appointment_date: string; appointment_time: string } | null> {
+/** Il prossimo appuntamento del contatto su questi calendari, se c'è. */
+async function appuntamentoInCorso(ctx: CtxAgente, calendari: string[]): Promise<{ id: string; calendar_id: string; appointment_date: string; appointment_time: string } | null> {
   const { data } = await ctx.admin
     .from("appointments")
-    .select("id, appointment_date, appointment_time")
+    .select("id, calendar_id, appointment_date, appointment_time")
     .eq("company_id", ctx.companyId)
     .eq("contact_id", ctx.contactId)
-    .eq("calendar_id", ctx.config.calendarioId)
+    .in("calendar_id", calendari)
     .gte("appointment_date", dataRoma(ctx.adesso))
     .not("status", "in", FILTRO_ANNULLATI)
     .order("appointment_date").order("appointment_time")
@@ -178,15 +181,40 @@ function giornoDa(arg: unknown, adesso: Date): string | null {
 
 // ── orari_liberi ────────────────────────────────────────────────────────────
 
+/** Lo showroom chiesto dal modello, per nome (senza badare a maiuscole o a «showroom di …»). */
+function trovaShowroom(ctx: CtxAgente, nome: unknown): ShowroomAgenteLead | null {
+  const v = String(nome ?? "").trim().toLowerCase().replace(/^(lo |il )?show-?room (di )?/, "");
+  if (!v) return null;
+  return ctx.config.showroom.find((s) => s.nome.toLowerCase() === v)
+    ?? ctx.config.showroom.find((s) => s.nome.toLowerCase().includes(v) || v.includes(s.nome.toLowerCase()))
+    ?? null;
+}
+
+/** Orari liberi di un giorno su più calendari (i consulenti di uno showroom): basta che uno sia libero. */
+async function slotLiberiSuCalendari(ctx: CtxAgente, calendari: string[], dataIso: string): Promise<{ attivi: number; nome: string; slot: string[] }> {
+  const tutti = new Set<string>();
+  let attivi = 0;
+  let nome = "";
+  for (const id of calendari) {
+    const { calendario, slot } = await slotLiberiCalendario(ctx.admin, id, dataIso, { companyId: ctx.companyId, adesso: ctx.adesso });
+    if (!calendario) continue;
+    attivi++;
+    nome = nome || calendario.name;
+    for (const s of slot) tutti.add(s);
+  }
+  return { attivi, nome, slot: [...tutti].sort() };
+}
+
 const orariLiberi: Strumento = {
   name: "orari_liberi",
   description:
-    "Legge gli orari liberi VERI del calendario delle chiamate. Usalo prima di proporre qualunque orario. Restituisce fino a 3 giorni con orari disponibili nella fascia richiesta.",
+    "Legge gli orari liberi VERI: della telefonata con il consulente, oppure di uno showroom se passi showroom. Usalo prima di proporre qualunque orario. Restituisce fino a 3 giorni con orari disponibili nella fascia richiesta.",
   parameters: {
     type: "object",
     properties: {
       giorno: { type: "string", description: "«oggi», «domani», «dopodomani» oppure una data YYYY-MM-DD. Se manca, da oggi in avanti." },
       fascia: { type: "string", enum: ["mattina", "pomeriggio", "sera"], description: "La fascia preferita dal cliente, se l'ha detta." },
+      showroom: { type: "string", description: "Solo per un appuntamento in showroom: il nome dello showroom. Senza, sono gli orari della telefonata." },
     },
     additionalProperties: false,
   },
@@ -194,6 +222,11 @@ const orariLiberi: Strumento = {
     const primo = giornoDa(args.giorno, ctx.adesso);
     if (!primo) return { ok: false, errore: "giorno_non_valido", messaggio: "Giorno non valido o già passato." };
     const fascia = (["mattina", "pomeriggio", "sera"] as const).includes(args.fascia as Fascia) ? (args.fascia as Fascia) : null;
+    const showroom = args.showroom ? trovaShowroom(ctx, args.showroom) : null;
+    if (args.showroom && !showroom) {
+      return { ok: false, errore: "showroom_sconosciuto", showroom_disponibili: ctx.config.showroom.map((s) => s.nome) };
+    }
+    const calendari = showroom ? showroom.calendari : [ctx.config.calendarioId];
 
     const [y, m, d] = primo.split("-").map(Number);
     const giorni: Array<{ data: string; giorno: string; orari: string[] }> = [];
@@ -202,15 +235,16 @@ const orariLiberi: Strumento = {
       const dataIso = new Date(Date.UTC(y, m - 1, d + i, 12)).toISOString().slice(0, 10);
       const settimana = giornoSettimana(dataIso);
       if (ctx.config.soloFeriali && (settimana === 0 || settimana === 6)) continue;
-      const { calendario, slot } = await slotLiberiCalendario(ctx.admin, ctx.config.calendarioId, dataIso, { companyId: ctx.companyId, adesso: ctx.adesso });
-      if (!calendario) return { ok: false, errore: "calendario_non_valido", messaggio: "Il calendario delle chiamate non è attivo." };
-      calendarioNome = calendario.name;
+      const { attivi, nome, slot } = await slotLiberiSuCalendari(ctx, calendari, dataIso);
+      if (!attivi) return { ok: false, errore: "calendario_non_valido", messaggio: showroom ? "I calendari di questo showroom non sono attivi." : "Il calendario delle chiamate non è attivo." };
+      calendarioNome = nome;
       const orari = (fascia ? slot.filter((s) => fasciaDi(s) === fascia) : slot).slice(0, 6);
       if (orari.length) giorni.push({ data: dataIso, giorno: dataEstesa(dataIso), orari });
     }
     return {
       ok: true,
-      calendario: calendarioNome,
+      per: showroom ? `appuntamento nello showroom di ${showroom.nome}` : "telefonata con il consulente",
+      calendario: showroom ? showroom.nome : calendarioNome,
       fascia: fascia ?? "tutte",
       giorni,
       nota: giorni.length
@@ -220,12 +254,117 @@ const orariLiberi: Strumento = {
   },
 };
 
-// ── prenota_chiamata ────────────────────────────────────────────────────────
+// ── prenotazione (chiamata o showroom) ──────────────────────────────────────
+
+/** Le regole comuni prima di fissare: una per risposta, formato, orizzonte, giorni feriali. */
+function controllaPrenotazione(ctx: CtxAgente, args: Record<string, unknown>): { data: string; ora: string } | EsitoStrumento {
+  if (ctx.prenotazioniNelGiro >= 1) return { ok: false, errore: "una_alla_volta", messaggio: "Una sola prenotazione per risposta." };
+  const data = String(args.data ?? "").trim();
+  const ora = String(args.ora ?? "").trim().slice(0, 5);
+  if (!DATA_ISO.test(data) || !ORA.test(ora)) return { ok: false, errore: "formato", messaggio: "Servono data YYYY-MM-DD e ora HH:MM." };
+  const oggi = dataRoma(ctx.adesso);
+  const ultimo = dataRoma(ctx.adesso, ctx.config.giorniProposta + 7);
+  if (data < oggi || data > ultimo) return { ok: false, errore: "fuori_orizzonte", messaggio: "Questa data non è tra quelle prenotabili: richiama orari_liberi." };
+  const settimana = giornoSettimana(data);
+  if (ctx.config.soloFeriali && (settimana === 0 || settimana === 6)) {
+    return { ok: false, errore: "giorno_non_feriale", messaggio: "Si prenota solo dal lunedì al venerdì." };
+  }
+  return { data, ora };
+}
+
+function descrizioneAppuntamento(ctx: CtxAgente, q: Record<string, unknown>): string {
+  return [
+    ctx.contatto.phone && `Tel: ${ctx.contatto.phone}`,
+    q.zona && `Zona: ${q.zona}`,
+    q.intervento && `Intervento: ${q.intervento}`,
+    q.tempistica && `Tempistica: ${q.tempistica}`,
+    q.motivazione && `Motivazione: ${q.motivazione}`,
+    "Fissato dall'assistente WhatsApp.",
+  ].filter(Boolean).join("\n");
+}
+
+/**
+ * Fissa su uno dei calendari (il primo libero a quell'ora), annulla quello di
+ * prima se si sposta, sposta la fase, avvisa il team e prepara il riepilogo.
+ */
+async function prenota(ctx: CtxAgente, p: {
+  calendari: string[];
+  data: string;
+  ora: string;
+  sposta: boolean;
+  tipo: "telefonata" | "appuntamento";
+  cosa: string;
+  /** «chiamata» è femminile, «appuntamento» maschile: fissata/fissato. */
+  femminile: boolean;
+  faseId: string | null;
+}): Promise<EsitoStrumento> {
+  const giaFissato = await appuntamentoInCorso(ctx, p.calendari);
+  if (giaFissato && !p.sposta) {
+    return {
+      ok: false,
+      errore: "gia_prenotato",
+      data: giaFissato.appointment_date,
+      ora: String(giaFissato.appointment_time).slice(0, 5),
+      messaggio: `Il cliente ha già ${p.cosa} ${dataEstesa(giaFissato.appointment_date)} alle ${String(giaFissato.appointment_time).slice(0, 5)}.`,
+    };
+  }
+
+  // L'opportunità esiste prima dell'appuntamento: i trigger dell'insert la vedono.
+  const opp = await assicuraOpportunita(ctx, null);
+  const { data: c } = await ctx.admin.from("marketing_contacts").select("qualificazione_json").eq("id", ctx.contactId).maybeSingle();
+  const q = (c?.qualificazione_json ?? {}) as Record<string, unknown>;
+  const nome = nomeContatto(ctx) || "Lead WhatsApp";
+
+  let esito: Awaited<ReturnType<typeof prenotaSuCalendario>> | null = null;
+  let calendarioUsato = "";
+  for (const calendarId of p.calendari) {
+    esito = await prenotaSuCalendario(ctx.admin, {
+      calendarId,
+      companyId: ctx.companyId,
+      dataIso: p.data,
+      ora: p.ora,
+      contactId: ctx.contactId,
+      opportunityId: opp?.id ?? null,
+      titolo: `${nome} — ${p.cosa} dal WhatsApp`,
+      descrizione: descrizioneAppuntamento(ctx, q),
+      tipo: p.tipo,
+      adesso: ctx.adesso,
+    });
+    if (esito.ok) { calendarioUsato = calendarId; break; }
+    if (esito.motivo !== "non_libero" && esito.motivo !== "calendario_non_valido") break;
+  }
+  if (!esito || !esito.ok) return { ok: false, errore: esito?.motivo ?? "non_libero", messaggio: esito?.messaggio ?? "Questo orario non è più libero." };
+  ctx.prenotazioniNelGiro++;
+
+  const { data: cal } = await ctx.admin.from("marketing_calendars").select("name, owner_id").eq("id", calendarioUsato).maybeSingle();
+  // Spostamento: quello di prima si annulla solo dopo che il nuovo c'è.
+  if (giaFissato) {
+    const { data: calPrima } = await ctx.admin.from("marketing_calendars").select("owner_id").eq("id", giaFissato.calendar_id).maybeSingle();
+    await ctx.admin.from("appointments").update({ status: "annullato" }).eq("id", giaFissato.id).eq("company_id", ctx.companyId);
+    await sincronizzaCalendariEsterni({ azione: "delete-event", appointmentId: giaFissato.id, companyId: ctx.companyId, userId: calPrima?.owner_id ?? null });
+  }
+
+  const fase = await spostaFase(ctx, p.faseId);
+  await aggiungiTag(ctx, ctx.config.tagPrenotato);
+  await unisciQualificazione(ctx, { appuntamento: { data: p.data, ora: p.ora, tipo: p.tipo, appointment_id: esito.appointmentId } });
+
+  const cosaMaiuscola = p.cosa.charAt(0).toUpperCase() + p.cosa.slice(1);
+  const dove = cal?.name ? ` (${cal.name})` : "";
+  const o = p.femminile ? "a" : "o";
+  ctx.riepilogo = { esito: `${cosaMaiuscola} ${giaFissato ? `spostat${o} a` : `fissat${o} per`} ${esito.quando}${dove}`, opportunityId: opp?.id ?? null };
+  await avvisaUtenti(
+    ctx,
+    `WhatsApp: ${p.cosa} ${giaFissato ? `spostat${o}` : `fissat${o}`} con ${nome}`,
+    `${esito.quando}${dove}. L'ha fissat${o} l'assistente WhatsApp: il riepilogo della chat è negli appunti dell'opportunità.`,
+    cal?.owner_id ? [cal.owner_id] : [],
+  );
+  return { ok: true, quando: esito.quando, data: p.data, ora: p.ora, dove: cal?.name ?? null, spostata: Boolean(giaFissato), fase_spostata: fase };
+}
 
 const prenotaChiamata: Strumento = {
   name: "prenota_chiamata",
   description:
-    "Fissa la telefonata con un consulente all'orario scelto dal cliente (deve essere uno di quelli dati da orari_liberi). Se il cliente ha già una chiamata fissata risponde gia_prenotato: per spostarla richiamalo con sposta=true solo se il cliente ha chiesto di cambiarla. Conferma al cliente SOLO se risponde ok.",
+    "Fissa la telefonata con un consulente all'orario scelto dal cliente (deve essere uno di quelli dati da orari_liberi senza showroom). Se il cliente ha già una chiamata fissata risponde gia_prenotato: per spostarla richiamalo con sposta=true solo se il cliente ha chiesto di cambiarla. Conferma al cliente SOLO se risponde ok.",
   parameters: {
     type: "object",
     properties: {
@@ -237,69 +376,52 @@ const prenotaChiamata: Strumento = {
     additionalProperties: false,
   },
   async handler(ctx, args) {
-    if (ctx.prenotazioniNelGiro >= 1) return { ok: false, errore: "una_alla_volta", messaggio: "Una sola prenotazione per risposta." };
-    const data = String(args.data ?? "").trim();
-    const ora = String(args.ora ?? "").trim().slice(0, 5);
-    if (!DATA_ISO.test(data) || !ORA.test(ora)) return { ok: false, errore: "formato", messaggio: "Servono data YYYY-MM-DD e ora HH:MM." };
-
-    // Le stesse regole con cui si propongono gli orari.
-    const oggi = dataRoma(ctx.adesso);
-    const ultimo = dataRoma(ctx.adesso, ctx.config.giorniProposta + 7);
-    if (data < oggi || data > ultimo) return { ok: false, errore: "fuori_orizzonte", messaggio: "Questa data non è tra quelle prenotabili: richiama orari_liberi." };
-    const settimana = giornoSettimana(data);
-    if (ctx.config.soloFeriali && (settimana === 0 || settimana === 6)) {
-      return { ok: false, errore: "giorno_non_feriale", messaggio: "Si prenota solo dal lunedì al venerdì." };
-    }
-
-    const giaFissato = await appuntamentoInCorso(ctx);
-    if (giaFissato && args.sposta !== true) {
-      return {
-        ok: false,
-        errore: "gia_prenotato",
-        data: giaFissato.appointment_date,
-        ora: String(giaFissato.appointment_time).slice(0, 5),
-        messaggio: `Il cliente ha già una chiamata fissata ${dataEstesa(giaFissato.appointment_date)} alle ${String(giaFissato.appointment_time).slice(0, 5)}.`,
-      };
-    }
-
-    // L'opportunità esiste prima dell'appuntamento: i trigger dell'insert la vedono.
-    const opp = await assicuraOpportunita(ctx, null);
-    const { data: c } = await ctx.admin.from("marketing_contacts").select("qualificazione_json").eq("id", ctx.contactId).maybeSingle();
-    const q = (c?.qualificazione_json ?? {}) as Record<string, unknown>;
-    const nome = nomeContatto(ctx) || "Lead WhatsApp";
-    const esito = await prenotaSuCalendario(ctx.admin, {
-      calendarId: ctx.config.calendarioId,
-      companyId: ctx.companyId,
-      dataIso: data,
-      ora,
-      contactId: ctx.contactId,
-      opportunityId: opp?.id ?? null,
-      titolo: `${nome} — chiamata dal WhatsApp`,
-      descrizione: [
-        ctx.contatto.phone && `Tel: ${ctx.contatto.phone}`,
-        q.zona && `Zona: ${q.zona}`,
-        q.intervento && `Intervento: ${q.intervento}`,
-        q.tempistica && `Tempistica: ${q.tempistica}`,
-        q.motivazione && `Motivazione: ${q.motivazione}`,
-        "Fissato dall'assistente WhatsApp.",
-      ].filter(Boolean).join("\n"),
-      tipo: "agente_ai",
-      adesso: ctx.adesso,
+    const controllo = controllaPrenotazione(ctx, args);
+    if ("ok" in controllo) return controllo;
+    return await prenota(ctx, {
+      calendari: [ctx.config.calendarioId],
+      data: controllo.data,
+      ora: controllo.ora,
+      sposta: args.sposta === true,
+      tipo: "telefonata",
+      cosa: "chiamata",
+      femminile: true,
+      faseId: ctx.config.fasePrenotatoId,
     });
-    if (!esito.ok) return { ok: false, errore: esito.motivo, messaggio: esito.messaggio };
-    ctx.prenotazioniNelGiro++;
+  },
+};
 
-    // Spostamento: la chiamata di prima si annulla solo dopo che la nuova c'è.
-    if (giaFissato) {
-      const { data: cal } = await ctx.admin.from("marketing_calendars").select("owner_id").eq("id", ctx.config.calendarioId).maybeSingle();
-      await ctx.admin.from("appointments").update({ status: "annullato" }).eq("id", giaFissato.id).eq("company_id", ctx.companyId);
-      await sincronizzaCalendariEsterni({ azione: "delete-event", appointmentId: giaFissato.id, companyId: ctx.companyId, userId: cal?.owner_id ?? null });
-    }
-
-    const fase = await spostaFase(ctx, ctx.config.fasePrenotatoId);
-    await aggiungiTag(ctx, ctx.config.tagPrenotato);
-    await unisciQualificazione(ctx, { appuntamento: { data, ora, appointment_id: esito.appointmentId } });
-    return { ok: true, quando: esito.quando, data, ora, spostata: Boolean(giaFissato), fase_spostata: fase };
+const prenotaShowroom: Strumento = {
+  name: "prenota_showroom",
+  description:
+    "Fissa un appuntamento di persona nello showroom scelto dal cliente, all'orario scelto (deve essere uno di quelli dati da orari_liberi con lo stesso showroom). Usalo quando il cliente chiede di venire in showroom. Se ha già un appuntamento in quello showroom risponde gia_prenotato: per spostarlo richiamalo con sposta=true solo se il cliente l'ha chiesto. Conferma al cliente SOLO se risponde ok, con l'indirizzo dello showroom.",
+  parameters: {
+    type: "object",
+    properties: {
+      showroom: { type: "string", description: "Il nome dello showroom." },
+      data: { type: "string", description: "YYYY-MM-DD" },
+      ora: { type: "string", description: "HH:MM" },
+      sposta: { type: "boolean", description: "true solo se il cliente ha chiesto di spostare l'appuntamento già fissato." },
+    },
+    required: ["showroom", "data", "ora"],
+    additionalProperties: false,
+  },
+  async handler(ctx, args) {
+    const showroom = trovaShowroom(ctx, args.showroom);
+    if (!showroom) return { ok: false, errore: "showroom_sconosciuto", showroom_disponibili: ctx.config.showroom.map((s) => s.nome) };
+    const controllo = controllaPrenotazione(ctx, args);
+    if ("ok" in controllo) return controllo;
+    const esito = await prenota(ctx, {
+      calendari: showroom.calendari,
+      data: controllo.data,
+      ora: controllo.ora,
+      sposta: args.sposta === true,
+      tipo: "appuntamento",
+      cosa: `appuntamento in showroom a ${showroom.nome}`,
+      femminile: false,
+      faseId: ctx.config.faseShowroomId ?? ctx.config.fasePrenotatoId,
+    });
+    return esito.ok ? { ...esito, showroom: showroom.nome, indirizzo: showroom.indirizzo } : esito;
   },
 };
 
@@ -353,6 +475,7 @@ const segnaFuoriZona: Strumento = {
     const zona = String(args.zona ?? "").trim().slice(0, 200);
     await unisciQualificazione(ctx, { zona, fuori_zona: true });
     const fase = await spostaFase(ctx, ctx.config.faseFuoriZonaId);
+    ctx.riepilogo = { esito: `Fuori dalla zona servita (${zona})`, opportunityId: (await opportunitaAperta(ctx))?.id ?? null };
     return { ok: true, fase_spostata: fase };
   },
 };
@@ -381,17 +504,28 @@ const passaAOperatore: Strumento = {
     }, { onConflict: "company_id,entita_tipo,entita_id" });
     if (error) console.warn("[lead-agente] pausa non salvata:", error.message);
     const fase = await spostaFase(ctx, ctx.config.faseOperatoreId);
+    ctx.riepilogo = { esito: `Passato a una persona del team: ${motivo}`, opportunityId: (await opportunitaAperta(ctx))?.id ?? null };
     const nome = nomeContatto(ctx) || ctx.contatto.phone || "un lead";
     await avvisaUtenti(ctx, `WhatsApp: ${nome} chiede una persona`, `L'assistente ha passato la conversazione. Motivo: ${motivo}`);
     return { ok: !error, in_pausa: !error, fase_spostata: fase };
   },
 };
 
-/** Avvisa in app le persone scelte nella configurazione, solo se sono dell'azienda. */
-export async function avvisaUtenti(ctx: Pick<CtxAgente, "admin" | "companyId" | "contactId" | "config">, titolo: string, testo: string): Promise<void> {
-  if (!ctx.config.utentiDaAvvisare.length) return;
+/**
+ * Avvisa in app le persone scelte nella configurazione (più quelle passate,
+ * es. il titolare del calendario su cui si è prenotato), solo se sono
+ * dell'azienda.
+ */
+export async function avvisaUtenti(
+  ctx: Pick<CtxAgente, "admin" | "companyId" | "contactId" | "config">,
+  titolo: string,
+  testo: string,
+  altri: string[] = [],
+): Promise<void> {
+  const destinatari = [...new Set([...ctx.config.utentiDaAvvisare, ...altri])];
+  if (!destinatari.length) return;
   const { data: persone } = await ctx.admin
-    .from("profiles").select("id").eq("company_id", ctx.companyId).in("id", ctx.config.utentiDaAvvisare);
+    .from("profiles").select("id").eq("company_id", ctx.companyId).in("id", destinatari);
   for (const p of (persone ?? []) as Array<{ id: string }>) {
     const { error } = await ctx.admin.rpc("create_notification", {
       p_company_id: ctx.companyId,
@@ -407,15 +541,33 @@ export async function avvisaUtenti(ctx: Pick<CtxAgente, "admin" | "companyId" | 
   }
 }
 
-export const STRUMENTI_AGENTE_LEAD: Strumento[] = [orariLiberi, prenotaChiamata, salvaRisposte, segnaFuoriZona, passaAOperatore];
+export const STRUMENTI_AGENTE_LEAD: Strumento[] = [orariLiberi, prenotaChiamata, prenotaShowroom, salvaRisposte, segnaFuoriZona, passaAOperatore];
 
-export function specificheStrumenti() {
-  return STRUMENTI_AGENTE_LEAD.map((s) => ({
-    type: "function" as const,
-    function: { name: s.name, description: s.description, parameters: s.parameters },
-  }));
+/** Gli strumenti che l'agente vede: lo showroom solo se l'azienda ne ha indicato almeno uno. */
+function strumentiPer(config: ConfigAgenteLead): Strumento[] {
+  return STRUMENTI_AGENTE_LEAD.filter((s) => s.name !== "prenota_showroom" || config.showroom.length > 0);
 }
 
-export function trovaStrumento(nome: string): Strumento | undefined {
-  return STRUMENTI_AGENTE_LEAD.find((s) => s.name === nome);
+export function specificheStrumenti(config: ConfigAgenteLead) {
+  const nomi = config.showroom.map((s) => s.nome).join(", ");
+  return strumentiPer(config).map((s) => {
+    // Senza showroom il parametro sparisce; con gli showroom, il modello ne vede i nomi.
+    let parameters = s.parameters;
+    if (s.name === "orari_liberi") {
+      const props = { ...(s.parameters.properties as Record<string, unknown>) };
+      if (!config.showroom.length) delete props.showroom;
+      else props.showroom = { type: "string", enum: config.showroom.map((x) => x.nome), description: `Solo per un appuntamento in showroom. Showroom: ${nomi}.` };
+      parameters = { ...s.parameters, properties: props };
+    }
+    if (s.name === "prenota_showroom") {
+      const props = { ...(s.parameters.properties as Record<string, unknown>) };
+      props.showroom = { type: "string", enum: config.showroom.map((x) => x.nome) };
+      parameters = { ...s.parameters, properties: props };
+    }
+    return { type: "function" as const, function: { name: s.name, description: s.description, parameters } };
+  });
+}
+
+export function trovaStrumento(nome: string, config: ConfigAgenteLead): Strumento | undefined {
+  return strumentiPer(config).find((s) => s.name === nome);
 }

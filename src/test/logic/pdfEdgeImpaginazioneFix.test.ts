@@ -71,9 +71,11 @@ describe("fix impaginazione/encoding PDF edge (audit)", () => {
       expect(source).toContain("f.widthOfTextAtSize(winAnsiSafe(s), size)");
     });
 
-    it("guardia fondo pagina prima di box finanziamento e QR firma", () => {
+    it("guardia fondo pagina prima del box finanziamento; il QR della firma non si stampa più", () => {
       expect(source).toContain("newPageIfNeeded(80)");
-      expect(source).toContain("newPageIfNeeded(100)");
+      // Dal 25/09/2026 il QR della firma online nel PDF non c'è (deciso da Florin):
+      // il cliente firma dal link che riceve.
+      expect(source).not.toContain("qrcode(");
     });
 
     it("footing IVA: totale derivato + residuo sull'aliquota maggiore (mai negativa)", () => {
