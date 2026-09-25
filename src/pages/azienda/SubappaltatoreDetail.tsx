@@ -835,22 +835,8 @@ export default function SubappaltatoreDetail() {
               </Badge>
             )}
             <DurcBadge scadenza={effectiveDurc} hasDoc={hasDurcDoc} />
-            {!hasAppCantiere && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="max-sm:hidden"
-                onClick={() => collegaCampoMutation.mutate()}
-                disabled={collegaCampoMutation.isPending}
-              >
-                {collegaCampoMutation.isPending ? (
-                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-                ) : (
-                  <Link2 className="mr-1.5 h-4 w-4" />
-                )}
-                Collega app cantiere
-              </Button>
-            )}
+            {/* «Collega app cantiere» qui non c'è più: era lo stesso bottone del
+                riquadro «Account app cantiere» in Anagrafica, dove si spiega cosa fa. */}
             {sub.telefono && (
               <Button asChild variant="outline" size="sm" className="tap-compact h-7 px-2.5 text-xs sm:hidden">
                 <a href={`tel:${sub.telefono}`}><Phone className="mr-1 h-3.5 w-3.5" />Chiama</a>

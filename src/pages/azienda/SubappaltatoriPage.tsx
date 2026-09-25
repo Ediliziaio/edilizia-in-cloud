@@ -36,11 +36,12 @@ import { CercaConFiltri, KpiMobili, PannelloFiltri, PilloleFiltro, RigaMobile } 
 import { DATA_MASSIMA, dataPlausibile } from '@/lib/dataPlausibile';
 
 function DurcBadge({ scadenza }: { scadenza: string | null }) {
-  if (!scadenza) return <Badge variant="outline" className="text-xs">DURC mancante</Badge>;
+  // whitespace-nowrap: nella tabella «DURC scaduto» andava su due righe.
+  if (!scadenza) return <Badge variant="outline" className="whitespace-nowrap text-xs">DURC mancante</Badge>;
   const daysLeft = differenceInDays(parseISO(scadenza), new Date());
-  if (daysLeft < 0) return <Badge className="text-xs bg-red-600 text-white">DURC scaduto</Badge>;
-  if (daysLeft <= 30) return <Badge className="text-xs bg-yellow-500 text-white">DURC {daysLeft}gg</Badge>;
-  return <Badge className="text-xs bg-green-600 text-white">DURC OK</Badge>;
+  if (daysLeft < 0) return <Badge className="whitespace-nowrap text-xs bg-red-600 text-white">DURC scaduto</Badge>;
+  if (daysLeft <= 30) return <Badge className="whitespace-nowrap text-xs bg-yellow-500 text-white">DURC {daysLeft}gg</Badge>;
+  return <Badge className="whitespace-nowrap text-xs bg-green-600 text-white">DURC OK</Badge>;
 }
 
 function StatoBadge({ stato }: { stato: StatoContratto | null }) {
@@ -58,8 +59,8 @@ function StatoBadge({ stato }: { stato: StatoContratto | null }) {
 
 function AttivoBadge({ attivo }: { attivo: boolean | null }) {
   return attivo
-    ? <Badge className="text-xs bg-green-600 text-white">Attivo</Badge>
-    : <Badge variant="secondary" className="text-xs">Non attivo</Badge>;
+    ? <Badge className="whitespace-nowrap text-xs bg-green-600 text-white">Attivo</Badge>
+    : <Badge variant="secondary" className="whitespace-nowrap text-xs">Non attivo</Badge>;
 }
 
 function isMissingCampoLinkColumn(error: unknown) {
@@ -485,7 +486,8 @@ export default function SubappaltatoriPage() {
       />
 
       {/* Filtri */}
-      <div className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm sm:flex-row max-sm:hidden">
+      {/* Filtri sullo sfondo, senza riquadro, come nelle altre liste. */}
+      <div className="flex flex-col gap-2 sm:flex-row max-sm:hidden">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -567,7 +569,9 @@ export default function SubappaltatoriPage() {
         <Card className="hidden md:block">
           <CardContent className="p-0">
             <div className="overflow-x-auto">
-              <Table>
+              {/* Contatti da 1280 e documenti da 1024, celle più strette sotto i
+                  1280: a 768 la tabella era larga 918px e lo stato restava fuori. */}
+              <Table className="[&_td]:px-2.5 [&_th]:px-2.5 xl:[&_td]:px-4 xl:[&_th]:px-4">
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-10">
@@ -578,11 +582,13 @@ export default function SubappaltatoriPage() {
                       />
                     </TableHead>
                     <TableHead>Ditta</TableHead>
-                    <TableHead>P.IVA / C.F.</TableHead>
-                    <TableHead>Sede</TableHead>
-                    <TableHead>Contatti</TableHead>
+                    {/* P.IVA e sede da 1536px: stanno nel dettaglio, e con i contatti
+                        e le pastiglie la tabella non stava nella pagina. */}
+                    <TableHead className="hidden 2xl:table-cell">P.IVA / C.F.</TableHead>
+                    <TableHead className="hidden 2xl:table-cell">Sede</TableHead>
+                    <TableHead className="hidden xl:table-cell">Contatti</TableHead>
                     <TableHead>DURC</TableHead>
-                    <TableHead>Documenti</TableHead>
+                    <TableHead className="hidden lg:table-cell">Documenti</TableHead>
                     <TableHead>Stato</TableHead>
                     <TableHead className="text-right">Azioni</TableHead>
                   </TableRow>
@@ -608,7 +614,7 @@ export default function SubappaltatoriPage() {
                         )}
                       </TableCell>
                       {/* P.IVA / C.F. */}
-                      <TableCell className="text-sm">
+                      <TableCell className="hidden 2xl:table-cell text-sm">
                         {sub.piva && <div>P.IVA {sub.piva}</div>}
                         {sub.codice_fiscale && (
                           <div className="text-xs text-muted-foreground">C.F. {sub.codice_fiscale}</div>
@@ -616,13 +622,13 @@ export default function SubappaltatoriPage() {
                         {!sub.piva && !sub.codice_fiscale && <span className="text-muted-foreground">—</span>}
                       </TableCell>
                       {/* Sede */}
-                      <TableCell className="max-w-[180px] text-sm">
+                      <TableCell className="hidden 2xl:table-cell max-w-[180px] text-sm">
                         {sub.indirizzo
                           ? <span className="block truncate" title={sub.indirizzo}>{sub.indirizzo}</span>
                           : <span className="text-muted-foreground">—</span>}
                       </TableCell>
                       {/* Contatti */}
-                      <TableCell>
+                      <TableCell className="hidden xl:table-cell">
                         <div className="flex flex-col gap-1 text-sm text-muted-foreground">
                           {(sub as any).telefono && (
                             <a href={`tel:${(sub as any).telefono}`} className="flex items-center gap-1 hover:text-foreground transition-colors">
@@ -650,7 +656,7 @@ export default function SubappaltatoriPage() {
                       {/* DURC */}
                       <TableCell><DurcBadge scadenza={sub.durc_scadenza} /></TableCell>
                       {/* Documenti */}
-                      <TableCell>
+                      <TableCell className="hidden lg:table-cell">
                         {docCountFor(sub) > 0 ? (
                           <Badge className="text-xs bg-green-600 text-white">
                             <FileText className="h-3 w-3 mr-1" />{docCountFor(sub)}
@@ -670,10 +676,11 @@ export default function SubappaltatoriPage() {
                       </TableCell>
                       {/* Azioni */}
                       <TableCell className="text-right">
-                        <Button asChild variant="outline" size="sm">
-                          <Link to={`/azienda/subappaltatori/${sub.id}`}>
-                            <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
-                            Dettaglio
+                        {/* Icona: il bottone «Dettaglio» con la scritta, uguale su
+                            ogni riga, era la colonna più larga dopo la ditta. */}
+                        <Button asChild variant="ghost" size="icon" className="h-8 w-8" title="Apri il dettaglio">
+                          <Link to={`/azienda/subappaltatori/${sub.id}`} aria-label={`Apri ${sub.ragione_sociale}`}>
+                            <ExternalLink className="h-4 w-4" />
                           </Link>
                         </Button>
                       </TableCell>
