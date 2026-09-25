@@ -1242,19 +1242,14 @@ export default function ReputationManager() {
 
   return (
     <div className="space-y-5 max-sm:space-y-3">
-      {/* Telefono: titolo e «Chiedi recensioni» su una riga, senza riquadro, icona né spiegazione. */}
-      <div className="rounded-lg border bg-white p-4 shadow-sm max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between max-sm:flex-row max-sm:items-center max-sm:justify-between max-sm:gap-2">
+      {/* Titolo e azioni su una riga, senza riquadro, icona, bollino «Presidio
+          attivo» né spiegazione: come sul telefono e nelle altre pagine. */}
+      <div>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between max-sm:flex-row max-sm:items-center max-sm:justify-between max-sm:gap-2">
           <div className="flex items-start gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-700 max-sm:hidden">
-              <Star className="h-5 w-5" />
-            </div>
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-2xl font-bold text-slate-950 max-sm:text-lg">Reputazione</h1>
-                <Badge className="border-0 bg-emerald-100 text-emerald-800 hover:bg-emerald-100 max-sm:hidden">
-                  Presidio attivo
-                </Badge>
                 {isHydrating && (
                   <Badge variant="outline" className="gap-1.5 border-blue-200 bg-blue-50 text-blue-700">
                     <Loader2 className="h-3 w-3 animate-spin" />
@@ -1262,9 +1257,6 @@ export default function ReputationManager() {
                   </Badge>
                 )}
               </div>
-              <p className="mt-1 text-sm text-slate-600 max-sm:hidden">
-                Recensioni, richieste automatiche e risposte per {companyNameForCopy}.
-              </p>
             </div>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row">
@@ -1288,7 +1280,8 @@ export default function ReputationManager() {
         </AlertDescription>
       </Alert>
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 max-sm:grid-cols-2 max-sm:gap-2">
+      {/* Quattro in riga da 1024 (a due per riga erano due righe alte). */}
+      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4 max-sm:grid-cols-2 max-sm:gap-2">
         <Card>
           <CardContent className={KPI_CONTENUTO}>
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-amber-700 max-sm:hidden">

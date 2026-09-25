@@ -160,17 +160,15 @@ export default function SimulatoreIndex() {
   const hasNessunRisultatoFiltro = !isLoading && simulazioni.length > 0 && filtrate.length === 0;
 
   return (
-    <div className="p-6 space-y-6 max-sm:space-y-3 max-sm:p-0">
-      {/* Header — telefono: titolo e «Nuova» su una riga, senza icona né descrizione */}
+    // Niente p-6: il margine lo dà il layout (sul telefono era già p-0).
+    <div className="space-y-6 max-sm:space-y-3">
+      {/* Header — titolo e «Nuova» su una riga, senza icona né descrizione
+          (da tablet c'era lo slogan «il tuo Excel, potenziato»). */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between max-sm:flex-row max-sm:items-center max-sm:justify-between max-sm:gap-2">
         <div className="space-y-1">
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2 max-sm:text-lg">
-            <Calculator className="h-6 w-6 text-primary max-sm:hidden" />
             Simulatore
           </h1>
-          <p className="text-muted-foreground text-sm max-w-2xl max-sm:hidden">
-            Simula contratti: margine, IVA, finanziamenti — il tuo Excel, potenziato.
-          </p>
         </div>
         <Button onClick={() => setNuovaOpen(true)} className="gap-2 shrink-0 max-sm:h-9 max-sm:px-3">
           <Plus className="h-4 w-4" />
