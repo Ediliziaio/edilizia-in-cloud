@@ -70,6 +70,8 @@ import {
 import { bytesToBase64 } from "../../../../supabase/functions/_shared/base64";
 
 import { useIsMobile } from "@/hooks/use-mobile";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { CercaConFiltri, KpiMobili, PannelloFiltri, PilloleFiltro } from "@/components/mobile/FiltriMobile";
 // ─── Types ────────────────────────────────────────────────────
 
 interface FatturaRicevuta {
@@ -153,6 +155,10 @@ export default function FattureRicevutePage() {
   const [report, setReport] = useState<{ esiti: EsitoImport[]; scartati: FileScartato[] } | null>(null);
   const [confermaClassifica, setConfermaClassifica] = useState(false);
   const [classProgress, setClassProgress] = useState<{ fatte: number; totale: number } | null>(null);
+  // Mobile: anno e stato in un pannello dal basso; una fattura si apre in un
+  // riquadro dal basso con i numeri e «Contabilizza».
+  const [filtriMobileAperti, setFiltriMobileAperti] = useState(false);
+  const [dettaglioMobile, setDettaglioMobile] = useState<FatturaRicevuta | null>(null);
 
   const { data: partitaIvaAzienda } = useQuery({
     queryKey: ["azienda-partita-iva", companyId],
@@ -586,16 +592,16 @@ export default function FattureRicevutePage() {
   // ─── Render ─────────────────────────────────────────────
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
+    <div className="space-y-6 max-sm:space-y-3">
+      {/* Header — mobile: solo il titolo (importa XML e classificazione AI al desktop). */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Fatture Ricevute</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-2xl font-bold text-foreground max-sm:text-lg">Fatture Ricevute</h1>
+          <p className="text-sm text-muted-foreground max-sm:hidden">
             Fatture passive ricevute dal Sistema di Interscambio
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 max-sm:hidden">
           <input
             ref={fileInputRef}
             type="file"
@@ -640,22 +646,27 @@ export default function FattureRicevutePage() {
         </div>
       </div>
 
+      {/* Mobile: una riga con il problema; la spiegazione e il bottone (che
+          porta a un collegamento da fare al computer) restano al desktop. */}
       {integrazione?.received_scope_missing && (
-        <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950/30">
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
+        <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950/30 max-sm:px-3 max-sm:py-2">
+          <div className="flex items-start gap-3 max-sm:items-center max-sm:gap-2">
+            <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400 max-sm:h-4 max-sm:w-4" />
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+              <p className="text-sm font-semibold text-amber-900 dark:text-amber-200 max-sm:text-xs">
                 Le fatture dei fornitori non stanno arrivando
               </p>
-              <p className="mt-0.5 text-sm text-amber-800 dark:text-amber-300">
+              <p className="mt-0.5 text-sm text-amber-800 dark:text-amber-300 max-sm:hidden">
                 Il collegamento con il gestionale funziona per le fatture che emetti, ma non ha il
                 permesso di leggere quelle che ricevi: il provider risponde «permesso negato». Serve
                 ricollegare l'account una volta, autorizzando anche i documenti ricevuti.
               </p>
-              <Button asChild variant="outline" size="sm" className="mt-3 border-amber-400 bg-white hover:bg-amber-100">
-                <Link to="/azienda/impostazioni/fatturazione">Ricollega il gestionale</Link>
-              </Button>
+              {/* Da telefono la fatturazione non si imposta (solo computer o tablet). */}
+              {!isMobile && (
+                <Button asChild variant="outline" size="sm" className="mt-3 border-amber-400 bg-white hover:bg-amber-100">
+                  <Link to="/azienda/impostazioni/fatturazione">Ricollega il gestionale</Link>
+                </Button>
+              )}
             </div>
           </div>
         </div>
@@ -719,8 +730,8 @@ export default function FattureRicevutePage() {
         </Card>
       )}
 
-      {/* Testata navy di famiglia. */}
-      <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
+      {/* Testata navy di famiglia. Mobile: due numeri (vedi sotto). */}
+      <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm max-sm:hidden">
         <div className="bg-[#173b67] p-4 text-white sm:p-5">
           <div className="flex items-start gap-3">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)] sm:h-11 sm:w-11">
@@ -755,8 +766,33 @@ export default function FattureRicevutePage() {
         </div>
       </div>
 
+      {/* Mobile: «Da leggere» (filtra) e l'importo del periodo, nome e cifra. */}
+      <KpiMobili
+        className="sm:hidden"
+        voci={[
+          {
+            label: "Da leggere",
+            valore: String(kpi.nonLette),
+            tono: kpi.nonLette > 0 ? "text-orange-600" : undefined,
+            onClick: () => setStatoFilter((s) => (s === "non_letta" ? "all" : "non_letta")),
+            attivo: statoFilter === "non_letta",
+          },
+          { label: annoFilter === "all" ? "Importo totale" : `Importo ${annoFilter}`, valore: formatCurrency(kpi.importoTotale) },
+        ]}
+      />
+
+      {/* Mobile: ricerca e bottone dei filtri (anno e stato nel pannello). */}
+      <CercaConFiltri
+        className="sm:hidden"
+        valore={searchQuery}
+        onCambia={setSearchQuery}
+        segnaposto="Cerca fornitore o numero"
+        filtriAttivi={(annoFilter !== annoCorrente ? 1 : 0) + (statoFilter !== "all" ? 1 : 0)}
+        onApriFiltri={() => setFiltriMobileAperti(true)}
+      />
+
       {/* Filters */}
-      <div className="flex gap-3">
+      <div className="flex gap-3 max-sm:hidden">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -796,15 +832,46 @@ export default function FattureRicevutePage() {
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
       ) : filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-          <Inbox className="h-12 w-12 mb-4" />
-          <p className="text-lg font-medium">Nessuna fattura ricevuta</p>
-          <p className="text-sm">
+        // Mobile: una riga di testo, senza icona grande né spiegazione.
+        <div className="flex flex-col items-center justify-center py-12 text-muted-foreground max-sm:py-4">
+          <Inbox className="h-12 w-12 mb-4 max-sm:hidden" />
+          <p className="text-lg font-medium max-sm:text-xs max-sm:font-normal">Nessuna fattura ricevuta</p>
+          <p className="text-sm max-sm:hidden">
             Le fatture arriveranno automaticamente dal SDI oppure puoi importare XML manualmente.
           </p>
         </div>
       ) : (
-        <Card>
+        <>
+        {/* Mobile: una riga per fattura (fornitore, numero · data, totale e
+            stato); si apre un riquadro dal basso. Via la tabella a dieci colonne. */}
+        <div className="divide-y divide-border overflow-hidden rounded-lg border bg-card sm:hidden">
+          {filtered.map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              onClick={() => setDettaglioMobile(f)}
+              className="tap-compact flex w-full items-center gap-2.5 px-3 py-2.5 text-left active:bg-muted"
+            >
+              {f.stato === "non_letta" && <span className="h-2 w-2 shrink-0 rounded-full bg-blue-500" aria-label="Da leggere" />}
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[13px] font-semibold leading-tight">{f.cedente_ragione_sociale}</div>
+                <div className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground">
+                  N. {f.numero_fattura} · {formatDateShort(f.data_fattura)}
+                  {f.categoria_ai ? ` · ${etichettaCategoria(f.categoria_ai)}` : ""}
+                </div>
+              </div>
+              <div className="shrink-0 text-right">
+                <div className="text-[13px] font-semibold leading-tight tabular-nums">
+                  {f.totale_documento != null ? formatCurrency(f.totale_documento) : "—"}
+                </div>
+                <div className={`mt-0.5 text-[11px] leading-tight ${f.stato === "contabilizzata" ? "text-green-600" : "text-muted-foreground"}`}>
+                  {STATO_CONFIG[f.stato]?.label ?? f.stato}
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+        <Card className="max-sm:hidden">
           <Table>
             <TableHeader>
               <TableRow>
@@ -976,7 +1043,78 @@ export default function FattureRicevutePage() {
             </TableBody>
           </Table>
         </Card>
+        </>
       )}
+
+      {/* Mobile: anno e stato. */}
+      <PannelloFiltri
+        aperto={filtriMobileAperti}
+        onAperto={setFiltriMobileAperti}
+        attivi={(annoFilter !== annoCorrente ? 1 : 0) + (statoFilter !== "all" ? 1 : 0)}
+        onAzzera={() => { setAnnoFilter(annoCorrente); setStatoFilter("all"); }}
+        risultati={isLoading ? undefined : filtered.length}
+      >
+        <PilloleFiltro
+          titolo="Anno"
+          valore={annoFilter}
+          onScegli={setAnnoFilter}
+          scelte={[...anniDisponibili.map((a) => ({ value: a, label: a })), { value: "all", label: "Tutti" }]}
+        />
+        <PilloleFiltro
+          titolo="Stato"
+          valore={statoFilter}
+          onScegli={setStatoFilter}
+          scelte={[
+            { value: "all", label: "Tutti" },
+            { value: "non_letta", label: "Da leggere" },
+            { value: "letta", label: "Lette" },
+            { value: "contabilizzata", label: "Contabilizzate" },
+          ]}
+        />
+      </PannelloFiltri>
+
+      {/* Mobile: la fattura in un riquadro dal basso, coi numeri e l'unica
+          azione che serve da telefono (anteprima XML, file, ordine al desktop). */}
+      <Sheet open={!!dettaglioMobile} onOpenChange={(o) => { if (!o) setDettaglioMobile(null); }}>
+        <SheetContent side="bottom" className="max-h-[85dvh] overflow-y-auto rounded-t-2xl px-4 pb-6">
+          {dettaglioMobile && (
+            <>
+              <SheetHeader className="text-left">
+                <SheetTitle className="pr-6 text-base leading-tight">{dettaglioMobile.cedente_ragione_sociale}</SheetTitle>
+              </SheetHeader>
+              <p className="mt-1 text-xs text-muted-foreground">
+                N. {dettaglioMobile.numero_fattura} · {formatDateShort(dettaglioMobile.data_fattura)}
+                {dettaglioMobile.cedente_piva ? ` · P.IVA ${dettaglioMobile.cedente_piva}` : ""}
+              </p>
+              <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+                {[
+                  { l: "Imponibile", v: dettaglioMobile.imponibile_totale },
+                  { l: "IVA", v: dettaglioMobile.iva_totale },
+                  { l: "Totale", v: dettaglioMobile.totale_documento },
+                ].map((x) => (
+                  <div key={x.l} className="rounded-lg border px-2 py-1.5">
+                    <p className="text-[11px] text-muted-foreground">{x.l}</p>
+                    <p className="text-[13px] font-semibold tabular-nums">{x.v != null ? formatCurrency(x.v) : "—"}</p>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-3 text-xs text-muted-foreground">
+                {STATO_CONFIG[dettaglioMobile.stato]?.label ?? dettaglioMobile.stato}
+                {dettaglioMobile.categoria_ai ? ` · ${etichettaCategoria(dettaglioMobile.categoria_ai)}` : ""}
+                {dettaglioMobile.purchase_order_id ? ` · ordine ${odaNumbers[dettaglioMobile.purchase_order_id] ?? "collegato"}` : ""}
+              </p>
+              {dettaglioMobile.stato !== "contabilizzata" && (
+                <Button
+                  className="mt-4 h-10 w-full bg-green-600 hover:bg-green-700"
+                  onClick={() => { setContabilizzaFattura(dettaglioMobile); setDettaglioMobile(null); }}
+                >
+                  <CheckCircle2 className="h-4 w-4 mr-1" /> Contabilizza
+                </Button>
+              )}
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
 
       {/* Contabilizza Confirmation Dialog */}
       <AlertDialog open={!!contabilizzaFattura} onOpenChange={(open) => { if (!open) setContabilizzaFattura(null); }}>
@@ -985,13 +1123,14 @@ export default function FattureRicevutePage() {
             <AlertDialogTitle>Contabilizza fattura ricevuta</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-2">
-                <p>
+                {/* Mobile: basta il riepilogo sotto, senza la spiegazione. */}
+                <p className="max-sm:hidden">
                   {contabilizzaFattura?.purchase_order_id
                     ? "La fattura è collegata a un ordine: l'importo del costo già registrato alla ricezione verrà corretto con quello della fattura (nessun costo doppio)."
                     : "Verrà creato il costo corrispondente, con imponibile e IVA della fattura, visibile in Costi e nel Previsionale."}
                 </p>
                 {contabilizzaFattura && (
-                  <div className="bg-muted rounded-md p-3 text-sm space-y-1">
+                  <div className="bg-muted rounded-md p-3 text-sm space-y-1 max-sm:px-3 max-sm:py-2 max-sm:text-xs">
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Cedente</span>
                       <span className="font-medium">{contabilizzaFattura.cedente_ragione_sociale}</span>
