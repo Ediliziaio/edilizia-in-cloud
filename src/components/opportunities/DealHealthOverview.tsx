@@ -70,12 +70,13 @@ export const DealHealthOverview = memo(function DealHealthOverview({ companyId, 
   ];
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+    // Telefono: quattro numeri in una riga, senza icone.
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 max-sm:grid-cols-4 max-sm:gap-1.5">
       {items.map((item) => (
-        <div key={item.label} className={`flex flex-col items-center p-3 rounded-lg ${item.bgClass}`}>
-          <item.icon className={`h-4 w-4 ${item.iconClass} mb-1`} />
-          <span className={`text-xl font-bold ${item.valueClass}`}>{item.count}</span>
-          <span className="text-[10px] text-muted-foreground">{item.label}</span>
+        <div key={item.label} className={`flex flex-col items-center p-3 rounded-lg max-sm:px-1 max-sm:py-2 ${item.bgClass}`}>
+          <item.icon className={`h-4 w-4 ${item.iconClass} mb-1 max-sm:hidden`} />
+          <span className={`text-xl font-bold max-sm:text-lg max-sm:leading-tight ${item.valueClass}`}>{item.count}</span>
+          <span className="text-[10px] text-muted-foreground max-sm:whitespace-nowrap">{item.label}</span>
         </div>
       ))}
     </div>

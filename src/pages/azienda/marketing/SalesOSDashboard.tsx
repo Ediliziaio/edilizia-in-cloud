@@ -65,6 +65,8 @@ import { Settings2 } from "lucide-react";
 import { getPeriodRange, PERIOD_OPTIONS, type SalesOSPeriod } from "@/lib/salesOSPeriod";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar, MousePointerClick } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { RigaMobile } from "@/components/mobile/FiltriMobile";
 
 // ─── Utilities ───────────────────────────────────────────────────────────────
 
@@ -365,8 +367,9 @@ function ExportCsvButton({
     <Button
       size="sm"
       variant="ghost"
-      // v8.6.75 (LOOP-AZ-6) — h-9 mobile (Apple HIG min tap), h-7 desktop
-      className="h-9 md:h-7 gap-1 text-xs"
+      // v8.6.75 (LOOP-AZ-6) — h-9 mobile (Apple HIG min tap), h-7 desktop.
+      // Telefono: niente esportazioni.
+      className="h-9 md:h-7 gap-1 text-xs max-sm:hidden"
       onClick={onClick}
       disabled={disabled}
     >
@@ -584,25 +587,27 @@ function SalesFocusPanel({
     ((velocity?.sales_velocity ?? 0) > 0 || activeQuotesValue > 0 || (velocity?.open_opportunities ?? 0) > 0);
 
   return (
-    <Card className="border-slate-200 shadow-sm">
-      <CardHeader className="pb-3">
+    // Telefono: senza riquadro esterno, i numeri e le azioni stanno a filo pagina.
+    <Card className="border-slate-200 shadow-sm max-sm:border-0 max-sm:bg-transparent max-sm:shadow-none">
+      <CardHeader className="pb-3 max-sm:px-0 max-sm:pb-2 max-sm:pt-0">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Gauge className="h-4 w-4 text-orange-600" />
+            <CardTitle className="flex items-center gap-2 text-base max-sm:text-sm">
+              <Gauge className="h-4 w-4 text-orange-600 max-sm:hidden" />
               Comando commerciale di oggi
             </CardTitle>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <p className="mt-1 text-sm text-muted-foreground max-sm:hidden">
               Lettura operativa del periodo: cosa è stimato, cosa è già firmato e quale azione sblocca vendite.
             </p>
           </div>
-          <Badge variant="secondary">{periodLabel}</Badge>
+          <Badge variant="secondary" className="max-sm:hidden">{periodLabel}</Badge>
         </div>
       </CardHeader>
-      <CardContent>
-        <div className="grid gap-4 xl:grid-cols-[0.95fr_1.3fr]">
-          <div className="rounded-lg border bg-muted/20 p-4">
-            <div className="flex items-center justify-between gap-3">
+      <CardContent className="max-sm:p-0">
+        <div className="grid gap-4 xl:grid-cols-[0.95fr_1.3fr] max-sm:gap-3">
+          {/* Telefono: quattro numeri 2×2 senza la riga sotto né la spiegazione. */}
+          <div className="rounded-lg border bg-muted/20 p-4 max-sm:border-0 max-sm:bg-transparent max-sm:p-0">
+            <div className="flex items-center justify-between gap-3 max-sm:hidden">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Numeri senza ambiguità
               </p>
@@ -612,12 +617,12 @@ function SalesFocusPanel({
                 </Badge>
               )}
             </div>
-            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 max-sm:mt-0 max-sm:grid-cols-2 max-sm:gap-2">
               {metrics.map((metric) => (
-                <div key={metric.label} className="rounded-md bg-background p-3">
+                <div key={metric.label} className="rounded-md bg-background p-3 max-sm:border max-sm:px-2.5 max-sm:py-2">
                   <p className="text-[11px] font-medium text-muted-foreground">{metric.label}</p>
-                  <p className="mt-1 text-lg font-semibold leading-tight">{metric.value}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">{metric.detail}</p>
+                  <p className="mt-1 text-lg font-semibold leading-tight max-sm:mt-0.5 max-sm:text-base">{metric.value}</p>
+                  <p className="mt-1 text-xs text-muted-foreground max-sm:hidden">{metric.detail}</p>
                 </div>
               ))}
             </div>
@@ -634,7 +639,7 @@ function SalesFocusPanel({
                 </Button>
               </div>
             )}
-            <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+            <p className="mt-3 text-xs leading-relaxed text-muted-foreground max-sm:hidden">
               {revenueGap
                 ? "La pipeline si muove, ma nel periodo non risultano firme: priorità a preventivi, follow-up e motivi di perdita."
                 : "Velocity e ricavo firmato sono separati: usa la prima per ritmo atteso, il secondo per risultato reale."}
@@ -642,14 +647,14 @@ function SalesFocusPanel({
           </div>
 
           <div>
-            <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="mb-3 flex items-center justify-between gap-3 max-sm:mb-1.5">
               <div>
-                <p className="text-sm font-semibold">Cosa fare adesso</p>
-                <p className="text-xs text-muted-foreground">Ordine suggerito per venditore o responsabile commerciale.</p>
+                <p className="text-sm font-semibold max-sm:text-[13px]">Cosa fare adesso</p>
+                <p className="text-xs text-muted-foreground max-sm:hidden">Ordine suggerito per venditore o responsabile commerciale.</p>
               </div>
-              <Badge variant="outline">{commandActions.length} azioni</Badge>
+              <Badge variant="outline" className="max-sm:hidden">{commandActions.length} azioni</Badge>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-2 max-sm:gap-2">
               {commandActions.map((voce) => {
                 const item = nonArrivati[voce.key]
                   ? { ...voce, icon: AlertTriangle, value: "—", detail: "Dati non arrivati: riprova tra poco.", tone: "text-red-600", badge: "Errore" }
@@ -664,9 +669,11 @@ function SalesFocusPanel({
                     key={item.key}
                     type="button"
                     onClick={() => handleCommandClick(item.target)}
-                    className="group min-h-[132px] rounded-lg border bg-background p-4 text-left transition hover:border-primary/40 hover:bg-muted/30 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    // Telefono: titolo, cifra e azione; senza icona, etichetta né spiegazione.
+                    // La configurazione del punteggio si fa dal computer: sul telefono la voce non c'è.
+                    className={`group min-h-[132px] rounded-lg border bg-background p-4 text-left transition hover:border-primary/40 hover:bg-muted/30 focus:outline-none focus:ring-2 focus:ring-primary/30 max-sm:min-h-0 max-sm:border-slate-200 max-sm:px-3 max-sm:py-2.5 ${item.target === "config" ? "max-sm:hidden" : ""}`}
                   >
-                    <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start justify-between gap-3 max-sm:hidden">
                       <div className="flex items-center gap-2">
                         <span className="rounded-md bg-muted p-2">
                           <Icon className={`h-4 w-4 ${item.tone}`} />
@@ -677,12 +684,12 @@ function SalesFocusPanel({
                       </div>
                       <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 transition group-hover:opacity-100" />
                     </div>
-                    <div className="mt-3">
-                      <p className="text-sm font-semibold leading-tight">{item.title}</p>
-                      <p className="mt-1 text-xl font-bold leading-tight">{displayValue}</p>
-                      <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{item.detail}</p>
+                    <div className="mt-3 max-sm:mt-0 max-sm:flex max-sm:items-baseline max-sm:justify-between max-sm:gap-2">
+                      <p className="text-sm font-semibold leading-tight max-sm:text-[13px]">{item.title}</p>
+                      <p className="mt-1 text-xl font-bold leading-tight max-sm:mt-0 max-sm:shrink-0 max-sm:text-base">{displayValue}</p>
+                      <p className="mt-1 line-clamp-2 text-xs text-muted-foreground max-sm:hidden">{item.detail}</p>
                     </div>
-                    <p className="mt-3 text-xs font-medium text-primary">{item.action}</p>
+                    <p className="mt-3 text-xs font-medium text-primary max-sm:mt-0.5">{item.action}</p>
                   </button>
                 );
               })}
@@ -895,11 +902,27 @@ function StalledOpportunitiesPanel({ companyId, pipelineId }: { companyId: strin
   return (
     <>
     {canExportClients && (
-      <div className="flex justify-end mb-2">
+      <div className="flex justify-end mb-2 max-sm:hidden">
         <ExportCsvButton onClick={handleExport} />
       </div>
     )}
-    <Table>
+    {/* Telefono: righe (opportunità, contatto · fase, giorni ferma, valore) al posto della tabella a 6 colonne. */}
+    <div className="-mx-2 divide-y divide-border sm:hidden">
+      {stalled.map((s) => {
+        const severity = severityLabel(s.days_stalled, s.stalled_threshold);
+        return (
+          <RigaMobile
+            key={s.opportunity_id}
+            to={`/azienda/marketing/opportunita?apri=${s.opportunity_id}`}
+            titolo={s.opportunity_name}
+            sottotitolo={[s.contact_name, s.stage_name].filter(Boolean).join(" · ")}
+            valore={fmt(s.value)}
+            stato={<Badge variant={severity.variant} className="text-[10px]">ferma da {s.days_stalled}gg</Badge>}
+          />
+        );
+      })}
+    </div>
+    <Table className="max-sm:hidden">
       <TableHeader>
         <TableRow>
           <TableHead>Opportunità</TableHead>
@@ -971,7 +994,8 @@ function RimandoClassificaVenditori() {
   const permissions = usePermissions();
   if (!permissions.canViewMarketingReports) return null;
   return (
-    <Card>
+    // Telefono: niente rimando descrittivo, la classifica si apre da Reportistica.
+    <Card className="max-sm:hidden">
       <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-start gap-3">
           <Users className="h-5 w-5 text-primary mt-0.5 shrink-0" />
@@ -1150,11 +1174,27 @@ function TopLeadsTable({ companyId, limit = 10 }: { companyId: string; limit?: n
   return (
     <>
     {canExportClients && (
-      <div className="flex justify-end mb-2">
+      <div className="flex justify-end mb-2 max-sm:hidden">
         <ExportCsvButton onClick={handleExport} />
       </div>
     )}
-    <Table>
+    {/* Telefono: righe (nome, azienda · fonte, score, fascia) al posto della tabella. */}
+    <div className="-mx-2 divide-y divide-border sm:hidden">
+      {leads.map((lead) => {
+        const hasScore = leadHasUsefulScore(lead);
+        return (
+          <RigaMobile
+            key={lead.id}
+            to={`/azienda/marketing/contatti/${lead.id}`}
+            titolo={lead.full_name}
+            sottotitolo={[lead.company_name, lead.source].filter(Boolean).join(" · ")}
+            valore={hasScore ? `${lead.lead_score}` : "N/D"}
+            stato={lead.icp_tier ? <Badge className={`text-[10px] ${tierColor[lead.icp_tier] ?? ""}`}>{lead.icp_tier}</Badge> : undefined}
+          />
+        );
+      })}
+    </div>
+    <Table className="max-sm:hidden">
       <TableHeader>
         <TableRow>
           <TableHead>Lead</TableHead>
@@ -1266,6 +1306,10 @@ export default function SalesOSDashboard() {
     setActiveTab(isSalesOSTab(queryTab) ? queryTab : "pipeline");
   }, [queryTab]);
 
+  // Telefono: tre schede; analisi (grafico) e configurazione del punteggio restano al computer.
+  const isMobile = useIsMobile();
+  const schedaAttiva = isMobile && (activeTab === "analisi" || activeTab === "config") ? "pipeline" : activeTab;
+
   const handleTabChange = (value: string) => {
     const nextTab = isSalesOSTab(value) ? value : "pipeline";
     setActiveTab(nextTab);
@@ -1288,17 +1332,17 @@ export default function SalesOSDashboard() {
     );
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/50 p-5 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="space-y-6 max-sm:space-y-3">
+      {/* Header — telefono: senza riquadro, titolo e periodo su una riga */}
+      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/50 p-5 shadow-sm max-sm:rounded-none max-sm:border-0 max-sm:bg-none max-sm:p-0 max-sm:shadow-none">
+        <div className="flex flex-wrap items-center justify-between gap-3 max-sm:flex-nowrap max-sm:gap-2">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200 max-sm:hidden">
               <Target className="h-5 w-5" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-slate-950">Sales OS</h1>
-              <p className="text-sm text-slate-600">
+              <h1 className="text-2xl font-bold text-slate-950 max-sm:text-lg">Sales OS</h1>
+              <p className="text-sm text-slate-600 max-sm:hidden">
                 Centro di comando commerciale
               </p>
             </div>
@@ -1320,10 +1364,10 @@ export default function SalesOSDashboard() {
               </Select>
             </div>
           )}
-          <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white/80 px-2 py-1 shadow-sm">
-            <Calendar className="h-4 w-4 text-orange-500" />
+          <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white/80 px-2 py-1 shadow-sm max-sm:px-1 max-sm:py-0">
+            <Calendar className="h-4 w-4 text-orange-500 max-sm:hidden" />
             <Select value={period} onValueChange={(v) => setPeriod(v as SalesOSPeriod)}>
-              <SelectTrigger className="h-9 w-[180px] border-0 bg-transparent shadow-none">
+              <SelectTrigger className="h-9 w-[180px] border-0 bg-transparent shadow-none max-sm:w-[130px]">
                 <SelectValue placeholder="Periodo" />
               </SelectTrigger>
               <SelectContent>
@@ -1339,8 +1383,8 @@ export default function SalesOSDashboard() {
         </div>
       </div>
 
-      {/* KPI Bar — sempre visibile */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {/* KPI Bar — telefono no: gli stessi numeri stanno nel «comando di oggi» qui sotto. */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 max-sm:hidden">
         <SalesVelocityCard companyId={companyId} daysBack={range.daysBack} periodLabel={range.label} pipelineId={pipelineId} />
         <QuoteRevenueCard
           companyId={companyId}
@@ -1363,36 +1407,37 @@ export default function SalesOSDashboard() {
       />
 
       {/* Tabs principali */}
-      <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <TabsList className="flex h-auto w-full max-w-full justify-start gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm sm:grid sm:max-w-2xl sm:grid-cols-5">
-          <TabsTrigger value="pipeline" className="flex shrink-0 items-center gap-1.5 whitespace-nowrap data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
+      <Tabs value={schedaAttiva} onValueChange={handleTabChange}>
+        <TabsList className="flex h-auto w-full max-w-full justify-start gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm sm:grid sm:max-w-2xl sm:grid-cols-5 max-sm:rounded-xl max-sm:p-1 max-sm:shadow-none">
+          <TabsTrigger value="pipeline" className="flex shrink-0 items-center gap-1.5 whitespace-nowrap data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700 max-sm:flex-1 max-sm:justify-center">
             <TrendingUp className="h-3.5 w-3.5" />
             Pipeline
           </TabsTrigger>
-          <TabsTrigger value="stalled" className="flex shrink-0 items-center gap-1.5 whitespace-nowrap data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
+          <TabsTrigger value="stalled" className="flex shrink-0 items-center gap-1.5 whitespace-nowrap data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700 max-sm:flex-1 max-sm:justify-center">
             <AlertTriangle className="h-3.5 w-3.5" />
             Ferme
           </TabsTrigger>
-          <TabsTrigger value="team" className="flex shrink-0 items-center gap-1.5 whitespace-nowrap data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
+          <TabsTrigger value="team" className="flex shrink-0 items-center gap-1.5 whitespace-nowrap data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700 max-sm:flex-1 max-sm:justify-center">
             <Flame className="h-3.5 w-3.5" />
             Lead
           </TabsTrigger>
-          <TabsTrigger value="analisi" className="flex shrink-0 items-center gap-1.5 whitespace-nowrap data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
+          <TabsTrigger value="analisi" className="flex shrink-0 items-center gap-1.5 whitespace-nowrap data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700 max-sm:hidden">
             <Zap className="h-3.5 w-3.5" />
             Analisi
           </TabsTrigger>
-          <TabsTrigger value="config" className="flex shrink-0 items-center gap-1.5 whitespace-nowrap data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
+          <TabsTrigger value="config" className="flex shrink-0 items-center gap-1.5 whitespace-nowrap data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700 max-sm:hidden">
             <Settings2 className="h-3.5 w-3.5" />
             Config
           </TabsTrigger>
         </TabsList>
 
         {/* TAB: Pipeline & Forecast */}
-        <TabsContent value="pipeline" className="space-y-4 mt-4">
+        <TabsContent value="pipeline" className="space-y-4 mt-4 max-sm:mt-3">
           {/* Deal Health Overview */}
           <DealHealthOverview companyId={companyId} pipelineId={pipelineId} />
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Telefono: i due grafici restano al computer. */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 max-sm:hidden">
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -1422,27 +1467,28 @@ export default function SalesOSDashboard() {
         </TabsContent>
 
         {/* TAB: Opportunità ferme */}
-        <TabsContent value="stalled" className="mt-4">
-          <Card>
-            <CardHeader>
+        <TabsContent value="stalled" className="mt-4 max-sm:mt-3">
+          {/* Telefono: elenco a filo pagina, senza riquadro. */}
+          <Card className="max-sm:border-0 max-sm:bg-transparent max-sm:shadow-none">
+            <CardHeader className="max-sm:px-0 max-sm:pb-1 max-sm:pt-0">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-destructive" />
-                Opportunità Ferme — Richiede Attenzione
+                <AlertTriangle className="h-4 w-4 text-destructive max-sm:hidden" />
+                Opportunità Ferme<span className="max-sm:hidden"> — Richiede Attenzione</span>
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="max-sm:p-0">
               <StalledOpportunitiesPanel companyId={companyId} pipelineId={pipelineId} />
             </CardContent>
           </Card>
         </TabsContent>
 
         {/* TAB: Lead (il valore resta «team» per i link salvati) */}
-        <TabsContent value="team" className="space-y-4 mt-4">
+        <TabsContent value="team" className="space-y-4 mt-4 max-sm:mt-3">
           <RimandoClassificaVenditori />
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <Card className="max-sm:border-0 max-sm:bg-transparent max-sm:shadow-none">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 max-sm:px-0 max-sm:pb-1 max-sm:pt-0">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <Target className="h-4 w-4 text-primary" />
+                <Target className="h-4 w-4 text-primary max-sm:hidden" />
                 Top Lead per Score
               </CardTitle>
               <Select value={String(topLeadsLimit)} onValueChange={(v) => setTopLeadsLimit(Number(v))}>
@@ -1457,7 +1503,7 @@ export default function SalesOSDashboard() {
                 </SelectContent>
               </Select>
             </CardHeader>
-            <CardContent>
+            <CardContent className="max-sm:p-0">
               <TopLeadsTable companyId={companyId} limit={topLeadsLimit} />
             </CardContent>
           </Card>
