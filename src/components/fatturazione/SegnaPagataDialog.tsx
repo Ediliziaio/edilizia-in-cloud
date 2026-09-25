@@ -71,7 +71,8 @@ function ModuloIncasso({ fatture, escluse, onOpenChange, onFatto }: Omit<Props, 
     <>
       <DialogHeader>
         <DialogTitle>{una || fatture.length === 0 ? "Segna pagata" : `Segna pagate ${fatture.length} fatture`}</DialogTitle>
-        <DialogDescription>
+        {/* Mobile: la spiegazione resta solo per i lettori di schermo. */}
+        <DialogDescription className="max-sm:sr-only">
           {fatture.length === 0
             ? "Nessuna delle fatture selezionate ha qualcosa da incassare."
             : una
@@ -89,7 +90,7 @@ function ModuloIncasso({ fatture, escluse, onOpenChange, onFatto }: Omit<Props, 
       )}
 
       {fatture.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3 max-sm:gap-2">
           <div className="space-y-1.5">
             <Label htmlFor="incasso-metodo">Metodo</Label>
             <Select value={metodo} onValueChange={setMetodo}>
@@ -104,7 +105,7 @@ function ModuloIncasso({ fatture, escluse, onOpenChange, onFatto }: Omit<Props, 
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="incasso-data">Data dell'incasso</Label>
+            <Label htmlFor="incasso-data">Data<span className="max-sm:hidden"> dell'incasso</span></Label>
             <Input id="incasso-data" type="date" value={data} max={oggi()} onChange={(e) => setData(e.target.value)} />
             {!dataValida && <p className="text-xs text-destructive">Scegli una data non futura.</p>}
           </div>
@@ -112,7 +113,8 @@ function ModuloIncasso({ fatture, escluse, onOpenChange, onFatto }: Omit<Props, 
       )}
 
       <DialogFooter>
-        <Button variant="outline" onClick={() => onOpenChange(false)} disabled={segnaPagata.isPending}>
+        {/* Mobile: «Annulla» no, c'è la X (resta «Chiudi» quando non c'è altro). */}
+        <Button variant="outline" onClick={() => onOpenChange(false)} disabled={segnaPagata.isPending} className={fatture.length > 0 ? "max-sm:hidden" : undefined}>
           {fatture.length === 0 ? "Chiudi" : "Annulla"}
         </Button>
         {fatture.length > 0 && (

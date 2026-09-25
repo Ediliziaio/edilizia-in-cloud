@@ -68,8 +68,9 @@ export function SdiStatoBanner({
   return (
     <div
       className={cn(
-        "border flex flex-col sm:flex-row sm:items-center gap-3",
-        variante === "barra" ? "border-x-0 border-t-0 px-4 sm:px-6 py-3" : "rounded-lg p-4",
+        // Mobile: titolo e bottone sulla stessa riga, senza la spiegazione.
+        "border flex flex-col sm:flex-row sm:items-center gap-3 max-sm:flex-row max-sm:items-center max-sm:gap-2",
+        variante === "barra" ? "border-x-0 border-t-0 px-4 sm:px-6 py-3 max-sm:px-3 max-sm:py-2" : "rounded-lg p-4 max-sm:p-2.5",
         STILI[f.tono],
       )}
       role="status"
@@ -81,7 +82,7 @@ export function SdiStatoBanner({
           <p className="text-sm font-medium">{TITOLI[f.fase]}</p>
           {motivo && <p className="text-sm">Motivo: {motivo}</p>}
           {erroreInvio && <p className="text-sm">Ultimo tentativo non riuscito: {erroreInvio}</p>}
-          <p className="text-xs opacity-80">
+          <p className="text-xs opacity-80 max-sm:hidden">
             {f.spiegazione}
             {consegna && ` Esito arrivato il ${consegna}.`}
             {scartata && " I campi qui sotto sono di nuovo modificabili, tranne numero e data."}
@@ -91,13 +92,13 @@ export function SdiStatoBanner({
 
       <div className="flex gap-2 flex-wrap shrink-0">
         {onScaricaXml && (f.fase === "da_inviare" || f.fase === "manuale" || f.fase === "inviata" || f.fase === "accettata") && (
-          <Button variant="outline" size="sm" className="h-8 text-xs bg-background" onClick={onScaricaXml}>
+          <Button variant="outline" size="sm" className="h-8 text-xs bg-background max-sm:hidden" onClick={onScaricaXml}>
             <FileDown className="h-3.5 w-3.5 mr-1" /> Scarica XML
           </Button>
         )}
 
         {f.fase === "in_elaborazione" && onAggiorna && (
-          <Button variant="outline" size="sm" className="h-8 text-xs bg-background" onClick={onAggiorna} disabled={isAggiorna}>
+          <Button variant="outline" size="sm" className="tap-compact h-8 text-xs bg-background" onClick={onAggiorna} disabled={isAggiorna}>
             {isAggiorna ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5 mr-1" />}
             Aggiorna stato
           </Button>
@@ -106,7 +107,7 @@ export function SdiStatoBanner({
         {inviabile && (
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button size="sm" className="h-8 text-xs gap-1 bg-blue-600 hover:bg-blue-700 text-white" disabled={isInvio}>
+              <Button size="sm" className="tap-compact h-8 text-xs gap-1 bg-blue-600 hover:bg-blue-700 text-white" disabled={isInvio}>
                 {isInvio ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
                 {scartata ? "Rimanda allo SDI" : "Invia allo SDI"}
               </Button>

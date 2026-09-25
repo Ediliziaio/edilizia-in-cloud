@@ -19,6 +19,7 @@ import { useNavigate } from "react-router-dom";
 import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
 import { formatCurrency, formatDateIt } from "@/lib/formatters";
 import { METODI_INCASSO } from "@/lib/fatturazione/incassi";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 // La stessa lista di «Segna pagata»: lib/fatturazione/incassi.ts.
 const METODI = METODI_INCASSO;
@@ -29,6 +30,7 @@ type RegistroIncassiProps = {
 
 export default function RegistroIncassi({ embedded = false }: RegistroIncassiProps = {}) {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const [tab, setTab] = useState("incassi");
   const [sheetOpen, setSheetOpen] = useState(false);
 
@@ -152,8 +154,10 @@ export default function RegistroIncassi({ embedded = false }: RegistroIncassiPro
   };
 
   return (
-    <div className={cn("space-y-6", !embedded && "p-6")}>
-      <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
+    // Mobile, dentro l'hub Fatturazione: «contents», i figli stanno nella colonna
+    // dell'hub e il titolo (order -2) sale sopra le linguette (order -1).
+    <div className={cn("space-y-6", !embedded && "p-6 max-sm:space-y-3 max-sm:p-0", embedded && "max-sm:contents max-sm:space-y-0")}>
+      <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6 max-sm:-order-2">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex min-w-0 items-start gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
@@ -166,16 +170,20 @@ export default function RegistroIncassi({ embedded = false }: RegistroIncassiPro
           </div>
         <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
           <SheetTrigger asChild>
-            <Button size="sm" className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
-              <Plus className="h-4 w-4 mr-1" /> Registra Incasso
+            <Button size="sm" className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-8 max-sm:px-3 max-sm:text-xs">
+              <Plus className="h-4 w-4 mr-1" /> <span className="max-sm:hidden">Registra Incasso</span><span className="sm:hidden">Registra</span>
             </Button>
           </SheetTrigger>
-          <SheetContent className="w-full sm:w-[480px]">
-            <SheetHeader>
-              <SheetTitle>Registra Incasso</SheetTitle>
+          {/* Mobile: pannello dal basso, campi brevi affiancati, via le note. */}
+          <SheetContent
+            side={isMobile ? "bottom" : "right"}
+            className={cn("w-full sm:w-[480px]", isMobile && "max-h-[90dvh] overflow-y-auto rounded-t-2xl px-4 pb-6")}
+          >
+            <SheetHeader className="max-sm:text-left">
+              <SheetTitle className="max-sm:text-base">Registra Incasso</SheetTitle>
             </SheetHeader>
-            <div className="space-y-4 mt-6">
-              <div>
+            <div className="space-y-4 mt-6 max-sm:mt-3 max-sm:grid max-sm:grid-cols-2 max-sm:gap-x-2 max-sm:gap-y-3 max-sm:space-y-0">
+              <div className="max-sm:col-span-2">
                 <Label className="text-sm">Fattura</Label>
                 <Select value={formDocId} onValueChange={handleSelectInvoice}>
                   <SelectTrigger>
@@ -201,8 +209,8 @@ export default function RegistroIncassi({ embedded = false }: RegistroIncassiPro
                   onChange={(e) => setFormImporto(e.target.value)}
                 />
                 {formImporto && parseFloat(formImporto) < maxImporto && (
-                  <p className="text-xs text-amber-600 mt-1">
-                    Incasso parziale — residuo: {formatCurrency(maxImporto - parseFloat(formImporto))}
+                  <p className="text-xs text-amber-600 mt-1 max-sm:text-[11px]">
+                    <span className="max-sm:hidden">Incasso parziale — residuo: </span><span className="sm:hidden">Residuo </span>{formatCurrency(maxImporto - parseFloat(formImporto))}
                   </p>
                 )}
               </div>
@@ -242,17 +250,17 @@ export default function RegistroIncassi({ embedded = false }: RegistroIncassiPro
               </div>
 
               <div>
-                <Label className="text-sm">Riferimento (CRO, n. assegno...)</Label>
+                <Label className="text-sm"><span className="max-sm:hidden">Riferimento (CRO, n. assegno...)</span><span className="sm:hidden">Riferimento</span></Label>
                 <Input value={formRiferimento} onChange={(e) => setFormRiferimento(e.target.value)} />
               </div>
 
-              <div>
+              <div className="max-sm:hidden">
                 <Label className="text-sm">Note</Label>
                 <Input value={formNote} onChange={(e) => setFormNote(e.target.value)} />
               </div>
 
               <Button
-                className="w-full"
+                className="w-full max-sm:col-span-2"
                 onClick={handleSubmit}
                 disabled={createMovimento.isPending || !formDocId}
               >
@@ -266,27 +274,54 @@ export default function RegistroIncassi({ embedded = false }: RegistroIncassiPro
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      {/* Mobile: due numeri (incassato del mese e scaduto); gli altri due al desktop. */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 max-sm:gap-2">
         <OperationalKpiCard icon={TrendingUp} label="Incassato mese" value={formatCurrency(kpis.incassatoMese)} hint="registrato nel mese" tone="green" />
-        <OperationalKpiCard icon={Wallet} label="Da incassare" value={formatCurrency(kpis.daIncassare)} hint="fatture aperte" tone="blue" />
+        <OperationalKpiCard icon={Wallet} label="Da incassare" value={formatCurrency(kpis.daIncassare)} hint="fatture aperte" tone="blue" className="max-sm:hidden" />
         <OperationalKpiCard icon={AlertTriangle} label="Scaduto" value={formatCurrency(kpis.scaduto)} hint="da sollecitare" tone={kpis.scaduto > 0 ? "red" : "green"} />
-        <OperationalKpiCard icon={Clock} label="Non scaduto" value={formatCurrency(kpis.saldo)} hint="ancora nei termini" tone="amber" />
+        <OperationalKpiCard icon={Clock} label="Non scaduto" value={formatCurrency(kpis.saldo)} hint="ancora nei termini" tone="amber" className="max-sm:hidden" />
       </div>
 
       {/* Tabs */}
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList>
-          <TabsTrigger value="incassi">Incassi</TabsTrigger>
-          <TabsTrigger value="scadenzario">Scadenzario</TabsTrigger>
+        <TabsList className="max-sm:grid max-sm:h-9 max-sm:w-full max-sm:grid-cols-2">
+          <TabsTrigger value="incassi" className="tap-compact max-sm:text-xs">Incassi</TabsTrigger>
+          <TabsTrigger value="scadenzario" className="tap-compact max-sm:text-xs">Scadenzario</TabsTrigger>
         </TabsList>
 
         <TabsContent value="incassi">
+          {/* Mobile: un incasso per riga (importo, metodo e riferimento, data),
+              senza tabella a sette colonne e senza cestino. */}
+          {!movLoading && (
+            <div className="divide-y divide-border overflow-hidden rounded-lg border bg-card sm:hidden">
+              {(movimenti ?? []).map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  disabled={!m.documento_id}
+                  onClick={() => m.documento_id && navigate(`/azienda/documenti/${m.documento_id}/dettaglio`)}
+                  className="tap-compact flex w-full items-center gap-2.5 px-3 py-2.5 text-left active:bg-muted disabled:opacity-100"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[13px] font-semibold capitalize leading-tight">{m.metodo ?? "Incasso"}</div>
+                    <div className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground">
+                      {formatDateIt(m.data_movimento)}{m.riferimento ? ` · ${m.riferimento}` : ""}
+                    </div>
+                  </div>
+                  <span className="shrink-0 text-[13px] font-semibold tabular-nums">{formatCurrency(m.importo)}</span>
+                </button>
+              ))}
+              {(movimenti ?? []).length === 0 && (
+                <p className="px-3 py-3 text-center text-xs text-muted-foreground">Nessun incasso registrato</p>
+              )}
+            </div>
+          )}
           {movLoading ? (
             <div className="flex justify-center py-12">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           ) : (
-            <Card>
+            <Card className="max-sm:hidden">
               <CardContent className="p-0 overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -352,28 +387,29 @@ export default function RegistroIncassi({ embedded = false }: RegistroIncassiPro
         </TabsContent>
 
         <TabsContent value="scadenzario">
-          <div className="space-y-2">
+          {/* Mobile: righe da ~52px, testo 13/11px, giorni al posto del badge. */}
+          <div className="space-y-2 max-sm:space-y-1">
             {scadenzario.length === 0 && (
-              <div className="text-center py-12 text-muted-foreground">Nessuna scadenza aperta</div>
+              <div className="text-center py-12 text-muted-foreground max-sm:py-4 max-sm:text-xs">Nessuna scadenza aperta</div>
             )}
             {scadenzario.map((d) => (
               <div
                 key={d.id}
-                className={cn("flex items-center justify-between p-3 rounded-md cursor-pointer", urgencyStyles[d.urgency])}
+                className={cn("flex items-center justify-between p-3 rounded-md cursor-pointer max-sm:gap-2 max-sm:px-3 max-sm:py-2", urgencyStyles[d.urgency])}
                 onClick={() => navigate(`/azienda/documenti/${d.id}/dettaglio`)}
               >
-                <div className="flex items-center gap-4">
-                  <div>
-                    <p className="font-medium text-sm">{d.cliente_snapshot?.ragione_sociale}</p>
-                    <p className="text-xs text-muted-foreground">N° {d.numero}</p>
+                <div className="flex items-center gap-4 max-sm:min-w-0">
+                  <div className="max-sm:min-w-0">
+                    <p className="font-medium text-sm max-sm:truncate max-sm:text-[13px] max-sm:leading-tight">{d.cliente_snapshot?.ragione_sociale}</p>
+                    <p className="text-xs text-muted-foreground max-sm:text-[11px]">N° {d.numero}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-6 text-sm">
+                <div className="flex items-center gap-6 text-sm max-sm:shrink-0 max-sm:gap-2">
                   <div className="text-right">
-                    <p className="font-mono">{formatCurrency(d.totale_da_pagare - d.importo_pagato)}</p>
-                    <p className="text-xs text-muted-foreground">Scad. {formatDateIt(d.data_scadenza)}</p>
+                    <p className="font-mono max-sm:font-sans max-sm:text-[13px] max-sm:font-semibold max-sm:leading-tight">{formatCurrency(d.totale_da_pagare - d.importo_pagato)}</p>
+                    <p className="text-xs text-muted-foreground max-sm:text-[11px]">Scad. {formatDateIt(d.data_scadenza)}</p>
                   </div>
-                  <Badge variant={d.urgency === "scaduta" ? "destructive" : d.urgency === "oggi" ? "outline" : "secondary"}>
+                  <Badge className="max-sm:hidden" variant={d.urgency === "scaduta" ? "destructive" : d.urgency === "oggi" ? "outline" : "secondary"}>
                     {d.urgency === "scaduta" ? `${Math.abs(d.diff)} gg fa` : d.urgency === "oggi" ? "Oggi" : `tra ${d.diff} gg`}
                   </Badge>
                 </div>

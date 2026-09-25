@@ -56,7 +56,12 @@ import RegistroIncassi from "./RegistroIncassi";
 import CassettoSDI from "./CassettoSDI";
 
 import { useIsMobile } from "@/hooks/use-mobile";
+import { CercaConFiltri, PannelloFiltri, PilloleFiltro } from "@/components/mobile/FiltriMobile";
 const PER_PAGE = 25;
+
+// Mobile: due schede su cinque (clienti fiscali, cassetto SDI e fiscalità
+// restano al desktop).
+const HUB_TABS_MOBILE: BillingHubTab[] = ["fatture", "incassi"];
 
 type BillingHubTab = "fatture" | "rubrica" | "incassi" | "sdi" | "fiscalita";
 
@@ -126,8 +131,10 @@ function BillingHubTabs({
   onChange: (tab: BillingHubTab) => void;
 }) {
   return (
-    <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm">
-      <div className="flex min-w-max gap-1">
+    // Mobile: due linguette affiancate da 36px, senza icone né descrizioni;
+    // sta sotto il titolo della pagina (vedi l'ordine nel contenitore).
+    <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm max-sm:-order-1 max-sm:rounded-lg max-sm:p-1 max-sm:shadow-none">
+      <div className="flex min-w-max gap-1 max-sm:grid max-sm:min-w-0 max-sm:grid-cols-2">
         {HUB_TABS.map((tab) => {
           const isActive = activeTab === tab.id;
           const TabIcon = tab.icon;
@@ -142,21 +149,23 @@ function BillingHubTabs({
                 // (icon-only o wrap). Su md+ ritorna min-w-[170px] per
                 // layout descrittivo originale.
                 "flex min-w-0 md:min-w-[170px] items-center gap-2 rounded-xl px-3 py-2 text-left transition-all flex-1 md:flex-initial",
+                "tap-compact max-sm:h-8 max-sm:justify-center max-sm:rounded-md max-sm:py-0",
+                !HUB_TABS_MOBILE.includes(tab.id) && "max-sm:hidden",
                 isActive
                   ? "bg-slate-950 text-white shadow-sm"
                   : "text-slate-600 hover:bg-slate-50 hover:text-slate-950",
               )}
             >
               <span className={cn(
-                "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
+                "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg max-sm:hidden",
                 isActive ? "bg-white/15 text-white" : "bg-slate-100 text-slate-500",
               )}>
                 <TabIcon className="h-4 w-4" />
               </span>
               <span className="min-w-0">
-                <span className="block truncate text-sm font-semibold">{tab.label}</span>
+                <span className="block truncate text-sm font-semibold max-sm:text-xs">{tab.id === "incassi" ? <><span className="max-sm:hidden">Registro incassi</span><span className="sm:hidden">Incassi</span></> : tab.label}</span>
                 <span className={cn(
-                  "block truncate text-[11px]",
+                  "block truncate text-[11px] max-sm:hidden",
                   isActive ? "text-white/70" : "text-slate-500",
                 )}>
                   {tab.description}
@@ -240,9 +249,12 @@ function FiscalitaPanel() {
 }
 
 function DocumentiFiscaliHub() {
+  const isMobile = useIsMobile();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get("tab") as BillingHubTab | null;
-  const activeHubTab = HUB_TABS.some((tab) => tab.id === requestedTab) ? requestedTab! : "fatture";
+  const schedaValida = HUB_TABS.some((tab) => tab.id === requestedTab) ? requestedTab! : "fatture";
+  // Mobile: un indirizzo verso una scheda che qui non c'è apre le fatture.
+  const activeHubTab = isMobile && !HUB_TABS_MOBILE.includes(schedaValida) ? "fatture" : schedaValida;
 
   const handleHubTabChange = (tab: BillingHubTab) => {
     const next = new URLSearchParams(searchParams);
@@ -255,8 +267,10 @@ function DocumentiFiscaliHub() {
     setSearchParams(next, { replace: false });
   };
 
+  // Mobile: colonna flessibile, così le linguette (order -1) scendono sotto il
+  // titolo della scheda (order -2), che sta dentro il componente figlio.
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 max-sm:flex max-sm:flex-col max-sm:gap-3 max-sm:space-y-0">
       <BillingHubTabs activeTab={activeHubTab} onChange={handleHubTabChange} />
 
       {activeHubTab === "fatture" && <DocumentiFiscaliListInner />}
@@ -294,6 +308,8 @@ function DocumentiFiscaliListInner() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [bulkPayOpen, setBulkPayOpen] = useState(false);
+  // Mobile: tipo di documento e stato in un pannello dal basso.
+  const [filtriMobileAperti, setFiltriMobileAperti] = useState(false);
 
   const { isScopriPlan } = useSubscriptionLimits();
   const { data: azienda } = useAnagraficaAzienda();
@@ -571,9 +587,10 @@ function DocumentiFiscaliListInner() {
 
   return (
     <>
-    <div className="space-y-4">
+    {/* Mobile: «contents», i figli stanno nella colonna del contenitore (vedi hub). */}
+    <div className="space-y-4 max-sm:contents max-sm:space-y-0">
       {/* ── Header ─────────────────────────────────────── */}
-      <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
+      <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6 max-sm:-order-2">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex min-w-0 items-start gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
@@ -585,21 +602,22 @@ function DocumentiFiscaliListInner() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" asChild className="gap-1.5">
+            {/* Mobile: solo «Nuovo»; report, abbinamento e impostazioni restano al desktop. */}
+            <Button variant="outline" size="sm" asChild className="gap-1.5 max-sm:hidden">
               <Link to="/azienda/documenti/report">
                 <BarChart3 className="h-4 w-4" />
                 <span className="hidden sm:inline">Report fiscali</span>
               </Link>
             </Button>
             {!isCommercialistaMode && effectiveCompany?.id && (
-              <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setAbbinaAperto(true)}>
+              <Button variant="outline" size="sm" className="gap-1.5 max-sm:hidden" onClick={() => setAbbinaAperto(true)}>
                 <Link2 className="h-4 w-4" />
                 <span className="hidden sm:inline">Abbina alle commesse</span>
               </Button>
             )}
             {!isCommercialistaMode && (
               <>
-                <Button variant="outline" size="sm" asChild className="gap-1.5">
+                <Button variant="outline" size="sm" asChild className="gap-1.5 max-sm:hidden">
                   <Link to="/azienda/impostazioni/fatturazione-nativa">
                     <Settings2 className="h-4 w-4" />
                     <span className="hidden sm:inline">Impostazioni</span>
@@ -607,8 +625,8 @@ function DocumentiFiscaliListInner() {
                 </Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button className="gap-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
-                      <Plus className="h-4 w-4" /> Nuovo documento
+                    <Button className="gap-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-8 max-sm:gap-1 max-sm:px-3 max-sm:text-xs">
+                      <Plus className="h-4 w-4" /> <span className="max-sm:hidden">Nuovo documento</span><span className="sm:hidden">Nuovo</span>
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
@@ -659,7 +677,8 @@ function DocumentiFiscaliListInner() {
       )}
 
       {/* ── Tabs ───────────────────────────────────────── */}
-      <div className="flex items-center gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+      {/* Mobile: il tipo di documento sta nel pannello dei filtri. */}
+      <div className="flex items-center gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm max-sm:hidden">
         {TIPO_TABS.map((tab) => {
           const count = counts?.[tab.countKey as keyof typeof counts] ?? 0;
           const isActive = activeTab === tab.id;
@@ -694,17 +713,26 @@ function DocumentiFiscaliListInner() {
 
       {/* ── Cestino info banner ─────────────────────── */}
       {isTrash && (
-        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 flex items-start gap-2 text-sm">
-          <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 flex items-start gap-2 text-sm max-sm:p-2 max-sm:text-xs">
+          <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0 max-sm:hidden" />
           <div className="text-amber-800 dark:text-amber-300">
-            Bozze e documenti non fiscali vengono eliminati definitivamente dopo <strong>14 giorni</strong>; puoi ripristinarli prima della scadenza.
-            Fatture, note di credito e DDT restano invece archiviati anche dopo: la conservazione è obbligatoria per legge.
+            Bozze e documenti non fiscali vengono eliminati definitivamente dopo <strong>14 giorni</strong><span className="max-sm:hidden">; puoi ripristinarli prima della scadenza.
+            Fatture, note di credito e DDT restano invece archiviati anche dopo: la conservazione è obbligatoria per legge.</span>
           </div>
         </div>
       )}
 
       {/* ── Filters ────────────────────────────────────── */}
-      <div className="flex items-center gap-3 flex-wrap rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm">
+      {/* Mobile: ricerca e bottone dei filtri (tipo e stato nel pannello). */}
+      <CercaConFiltri
+        className="sm:hidden"
+        valore={searchRaw}
+        onCambia={(v) => { setSearchRaw(v); setPage(0); }}
+        segnaposto="Cerca numero o cliente"
+        filtriAttivi={(activeTab !== "fattura" ? 1 : 0) + (statoFilter !== "all" ? 1 : 0)}
+        onApriFiltri={() => setFiltriMobileAperti(true)}
+      />
+      <div className="flex items-center gap-3 flex-wrap rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm max-sm:hidden">
         {!isTrash && (
           <Select value={statoFilter} onValueChange={(v) => { setStatoFilter(v); setPage(0); }}>
             <SelectTrigger className="w-[160px] h-9 text-xs">
@@ -742,8 +770,9 @@ function DocumentiFiscaliListInner() {
       </div>
 
       {/* ── Bulk Actions Bar ───────────────────────────── */}
+      {/* Mobile no: niente selezione multipla. */}
       {someSelected && (
-        <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/50 px-4 py-2.5">
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/50 px-4 py-2.5 max-sm:hidden">
           <span className="text-sm font-medium">{selectedIds.size} selezionat{selectedIds.size === 1 ? "o" : "i"}</span>
 
           {/* Niente export su telefono. */}
@@ -808,20 +837,61 @@ function DocumentiFiscaliListInner() {
           )}
         </div>
       ) : docs.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-20 text-center">
-          <currentTab.icon className="h-16 w-16 text-muted-foreground/30 mb-4" />
-          <p className="text-lg font-medium">{currentTab.emptyTitle}</p>
-          <p className="text-sm text-muted-foreground mt-1">
+        // Mobile: una riga di testo, senza riquadro tratteggiato né icona grande.
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-20 text-center max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:py-6">
+          <currentTab.icon className="h-16 w-16 text-muted-foreground/30 mb-4 max-sm:hidden" />
+          <p className="text-lg font-medium max-sm:text-sm">{currentTab.emptyTitle}</p>
+          <p className="text-sm text-muted-foreground mt-1 max-sm:hidden">
             {hasFilters ? "Prova a modificare i filtri." : currentTab.emptyDescription}
           </p>
           {!hasFilters && !isTrash && (
-            <Button className="mt-4" onClick={() => navigate(`/azienda/documenti/nuovo?tipo=${currentTab.tipos?.[0] ?? "fattura"}`)}>
+            <Button className="mt-4 max-sm:hidden" onClick={() => navigate(`/azienda/documenti/nuovo?tipo=${currentTab.tipos?.[0] ?? "fattura"}`)}>
               <Plus className="h-4 w-4 mr-1" /> {currentTab.label === "Fatture" ? "Crea la tua prima fattura" : `Nuovo ${currentTab.label.toLowerCase().replace(/i$/, "o")}`}
             </Button>
           )}
         </div>
       ) : (
-        <div className="border rounded-lg overflow-hidden">
+        <>
+        {/* Mobile: una riga per documento (cliente, numero · data · scadenza,
+            importo e stato), senza casella, colonne, menu e piè con l'export. */}
+        <div className="divide-y divide-border overflow-hidden rounded-lg border bg-card sm:hidden">
+          {docs.map((doc) => {
+            const scadenza = getScadenzaInfo(doc);
+            const isDdt = doc.tipo === "ddt";
+            return (
+              <button
+                key={doc.id}
+                type="button"
+                onClick={() => navigate(`/azienda/documenti/${doc.id}/dettaglio`)}
+                className="tap-compact flex w-full items-center gap-2.5 px-3 py-2.5 text-left active:bg-muted"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[13px] font-semibold leading-tight">{doc.cliente_snapshot?.ragione_sociale || "—"}</div>
+                  <div className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground">
+                    {doc.numero} · {formatDateShort(doc.data_emissione)}
+                    {scadenza?.scaduta && <span className="font-medium text-destructive"> · scaduta da {scadenza.giorni} gg</span>}
+                    {scadenza && !scadenza.scaduta && scadenza.urgente && <span className="text-amber-600"> · scade in {scadenza.giorni} gg</span>}
+                  </div>
+                </div>
+                <div className="shrink-0 text-right">
+                  <div className={cn("text-[13px] font-semibold leading-tight tabular-nums", activeTab === "nota_credito" && "text-destructive")}>
+                    {formatCurrency(doc.totale_documento)}
+                  </div>
+                  <div className="mt-0.5 flex justify-end">
+                    {isDdt && !isTrash ? (
+                      <span className={cn("text-[11px]", doc.ddt_fattura_id ? "text-emerald-600" : "text-amber-600")}>
+                        {doc.ddt_fattura_id ? "Fatturato" : "Da fatturare"}
+                      </span>
+                    ) : (
+                      <StatoBadge stato={doc.stato} className="px-1.5 py-0 text-[10px] [&>svg]:hidden" />
+                    )}
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+        <div className="border rounded-lg overflow-hidden max-sm:hidden">
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -1127,12 +1197,13 @@ function DocumentiFiscaliListInner() {
             totalDocumento={totals.tot}
           />
         </div>
+        </>
       )}
 
       {/* ── Pagination ─────────────────────────────────── */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground max-sm:text-xs">
             Pagina {page + 1} di {totalPages}
           </p>
           <div className="flex items-center gap-2">
@@ -1145,6 +1216,42 @@ function DocumentiFiscaliListInner() {
           </div>
         </div>
       )}
+
+      {/* Mobile: tipo di documento (le linguette del desktop) e stato. */}
+      <PannelloFiltri
+        aperto={filtriMobileAperti}
+        onAperto={setFiltriMobileAperti}
+        attivi={(activeTab !== "fattura" ? 1 : 0) + (statoFilter !== "all" ? 1 : 0)}
+        onAzzera={() => { handleTabChange("fattura"); setStatoFilter("all"); }}
+        risultati={total}
+      >
+        <PilloleFiltro
+          titolo="Documenti"
+          valore={activeTab}
+          onScegli={handleTabChange}
+          scelte={TIPO_TABS.map((tab) => ({
+            value: tab.id,
+            label: tab.label,
+            n: (counts?.[tab.countKey as keyof typeof counts] as number | undefined) ?? 0,
+          })).filter((c) => c.n > 0 || c.value === activeTab || c.value === "fattura")}
+        />
+        {!isTrash && (
+          <PilloleFiltro
+            titolo="Stato"
+            valore={statoFilter}
+            onScegli={(v) => { setStatoFilter(v); setPage(0); }}
+            scelte={[
+              { value: "all", label: "Tutti" },
+              { value: "bozza", label: "Bozza" },
+              { value: "emessa", label: "Emessa" },
+              { value: "scaduta", label: "Scaduta" },
+              { value: "parzialmente_pagata", label: "Parz. pagata" },
+              { value: "pagata", label: "Pagata" },
+              { value: "sdi:scartata", label: "Scartate SDI" },
+            ]}
+          />
+        )}
+      </PannelloFiltri>
 
       {/* ── Delete Confirmation Dialog ───────────────── */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
