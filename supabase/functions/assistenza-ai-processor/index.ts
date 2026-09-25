@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
   // Load contact
   const { data: contact } = await supabase
     .from("marketing_contacts")
-    .select("id, company_id, nome, cognome, telefono, stato, tipo")
+    .select("id, company_id, first_name, last_name, phone, stato, tipo")
     .eq("id", body.contact_id)
     .maybeSingle();
 
@@ -64,7 +64,7 @@ Deno.serve(async (req) => {
 
   // Load message se fornito
   let userContent: string | null = body.content ?? null;
-  let phone: string = body.phone ?? contact.telefono ?? "";
+  let phone: string = body.phone ?? contact.phone ?? "";
   if (body.message_id) {
     const { data: msg } = await supabase
       .from("whatsapp_messages")
@@ -90,18 +90,19 @@ Deno.serve(async (req) => {
     supabase,
     company_id: contact.company_id,
     contact_id: contact.id,
-    contact: { nome: contact.nome, cognome: contact.cognome, stato: contact.stato, tipo: contact.tipo },
+    contact: { nome: contact.first_name, cognome: contact.last_name, stato: contact.stato, tipo: contact.tipo },
     phone,
     wa_number_id: body.wa_number_id,
     wa_message_id: body.message_id ?? null,
   };
 
-  // Storia ultimi 6 turni
+  // Storia ultimi 6 turni, nei due versi (per `from_phone` si leggevano solo
+  // i messaggi del cliente, mai le risposte già date).
   const { data: history } = await supabase
     .from("whatsapp_messages")
     .select("direction, content_text")
     .eq("company_id", contact.company_id)
-    .eq("from_phone", phone)
+    .eq("contact_id", contact.id)
     .order("created_at", { ascending: false })
     .limit(6);
 

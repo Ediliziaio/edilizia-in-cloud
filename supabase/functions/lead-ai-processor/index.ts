@@ -43,7 +43,7 @@ Deno.serve(async (req) => {
 
   const { data: contact } = await supabase
     .from("marketing_contacts")
-    .select("id, company_id, nome, cognome, telefono, stato, qualificazione_json")
+    .select("id, company_id, first_name, last_name, phone, stato, qualificazione_json")
     .eq("id", body.contact_id)
     .maybeSingle();
 
@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
 
   const budget = await checkBudget(supabase, contact.company_id);
   if (!budget.ok) {
-    await sendReply(body.wa_number_id, contact.company_id, contact.telefono ?? "", budget.user_message);
+    await sendReply(body.wa_number_id, contact.company_id, contact.phone ?? "", budget.user_message);
     return json({ ok: true, skipped: "budget" }, 200);
   }
 
@@ -70,17 +70,18 @@ Deno.serve(async (req) => {
     supabase,
     company_id: contact.company_id,
     contact_id: contact.id,
-    telefono: contact.telefono ?? "",
+    telefono: contact.phone ?? "",
     wa_number_id: body.wa_number_id,
     qualificazione: (contact.qualificazione_json ?? {}) as Record<string, unknown>,
   };
 
-  // Storia ultimi 8 turni
+  // Storia ultimi 8 turni, nei due versi: per `from_phone` si leggevano solo
+  // i messaggi del cliente (in uscita `from_phone` è il numero dell'azienda).
   const { data: history } = await supabase
     .from("whatsapp_messages")
     .select("direction, content_text")
     .eq("company_id", contact.company_id)
-    .eq("from_phone", contact.telefono ?? "")
+    .eq("contact_id", contact.id)
     .order("created_at", { ascending: false })
     .limit(8);
 
@@ -183,7 +184,7 @@ Deno.serve(async (req) => {
     } else {
       finalText = sanitizedReply.cleaned || finalText;
     }
-    await sendReply(body.wa_number_id, contact.company_id, contact.telefono ?? "", finalText);
+    await sendReply(body.wa_number_id, contact.company_id, contact.phone ?? "", finalText);
 
     const cost = estimateCostEur(model, tokIn, tokOut);
     await consumeBudget(supabase, contact.company_id, cost);
@@ -193,7 +194,7 @@ Deno.serve(async (req) => {
     // MP05-FIX — Credit-aware error handling
     if (err instanceof InsufficientCreditsError) {
       try {
-        await sendReply(body.wa_number_id, contact.company_id, contact.telefono ?? "", err.user_message_it);
+        await sendReply(body.wa_number_id, contact.company_id, contact.phone ?? "", err.user_message_it);
       } catch { /* silent */ }
       return json({ ok: false, reason: err.reason }, 402);
     }
