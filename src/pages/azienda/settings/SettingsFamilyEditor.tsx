@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 /**
  * Editor famiglia articoli — pagina admin-only.
@@ -49,6 +50,24 @@ export default function SettingsFamilyEditor() {
           </Button>
         </CardContent>
       </Card>
+    );
+  }
+
+  // Chi vede il listino senza poterlo modificare apre il prodotto per
+  // consultarlo: dal 26/09/2026 il database non gli salva nessuna modifica,
+  // quindi lo diciamo prima, invece di lasciargli credere di aver salvato.
+  if (!isAdmin) {
+    return (
+      <div className="space-y-3">
+        <Alert>
+          <ShieldAlert className="h-4 w-4" aria-hidden="true" />
+          <AlertDescription>
+            Stai consultando il prodotto. Per modificarlo serve il permesso
+            «Listino &amp; Prezzi» in modifica: chiedilo al tuo amministratore.
+          </AlertDescription>
+        </Alert>
+        <FamilyEditor />
+      </div>
     );
   }
 

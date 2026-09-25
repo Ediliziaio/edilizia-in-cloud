@@ -46,6 +46,10 @@ interface Props {
   /** Etichette assi griglia (default: "Larghezza (mm)" × "Altezza (mm)"). */
   asseXLabel?: string;
   asseYLabel?: string;
+  /** Chi vede il listino senza poterlo modificare consulta la matrice: dal
+   *  26/09/2026 il database non gli salva le celle, quindi campi e pulsanti
+   *  restano spenti. */
+  solaLettura?: boolean;
 }
 
 /** Stato locale di una cella prima del salvataggio. */
@@ -67,6 +71,7 @@ export function MatriceEditor({
   productLine,
   asseXLabel = "Larghezza (mm)",
   asseYLabel = "Altezza (mm)",
+  solaLettura = false,
 }: Props) {
   const { cells: serverCells, isLoading, isError, refetch } = useGridCells({
     familyId,
@@ -395,19 +400,25 @@ export function MatriceEditor({
             </span>
           </CardDescription>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => setImportOpen(true)}
-          disabled={isSavingAll}
-          className="h-10 w-full sm:w-auto shrink-0"
-        >
-          <Upload className="h-4 w-4 mr-1.5" aria-hidden />
-          Importa Excel/CSV
-        </Button>
+        {solaLettura ? (
+          <Badge variant="outline" className="shrink-0 text-xs font-normal">Sola lettura</Badge>
+        ) : (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setImportOpen(true)}
+            disabled={isSavingAll}
+            className="h-10 w-full sm:w-auto shrink-0"
+          >
+            <Upload className="h-4 w-4 mr-1.5" aria-hidden />
+            Importa Excel/CSV
+          </Button>
+        )}
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* disabled su un fieldset spegne ogni campo e pulsante che contiene. */}
+        <fieldset disabled={solaLettura} className="m-0 min-w-0 space-y-4 border-0 p-0">
         {/* Asse X */}
         <div className="space-y-2">
           <label htmlFor="matrice-new-x" className="text-sm font-medium">{asseXLabel}</label>
@@ -701,6 +712,7 @@ export function MatriceEditor({
             )}
           </Button>
         </div>
+        </fieldset>
       </CardContent>
 
       <ImportMatriceDialog
