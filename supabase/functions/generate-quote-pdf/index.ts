@@ -283,6 +283,27 @@ Deno.serve(async (req) => {
       // multi-azienda o super admin. Prima chi lavora su più aziende prendeva 403.
       await requireCompanyAccess(supabaseAdmin, userId, quote.company_id, corsH);
 
+      // Copia di firma di un preventivo di modulo (source «modulo:…», vedi
+      // src/lib/moduli/quoteBridge.ts): il PDF è quello del modulo, caricato dal
+      // bridge. Rigenerarlo qui metteva al suo posto un preventivo classico vuoto,
+      // ed era quello che il cliente riceveva in firma.
+      if (typeof quote.source === "string" && quote.source.startsWith("modulo:")) {
+        if (!quote.pdf_storage_path) {
+          return errorResponse("Il PDF di questo preventivo si crea dal preventivo del modulo.", 409, corsH);
+        }
+        const { data: delModulo } = await supabaseAdmin.storage
+          .from("quote-pdfs")
+          .createSignedUrl(quote.pdf_storage_path, 3600);
+        if (!delModulo?.signedUrl) return errorResponse("PDF del preventivo del modulo non disponibile.", 404, corsH);
+        return jsonResponse({
+          success: true,
+          pdf_path: quote.pdf_storage_path,
+          signed_url: delModulo.signedUrl,
+          da_modulo: true,
+          message: "PDF del preventivo del modulo: non si rigenera da qui.",
+        }, 200, corsH);
+      }
+
       // Batch 2 — tutto il resto dipende solo da quote/company: un giro solo
       // di rete invece di 7 round-trip sequenziali (≈ -300ms a generazione).
       const resolveTemplate = async (): Promise<ComposedTemplate | null> => {

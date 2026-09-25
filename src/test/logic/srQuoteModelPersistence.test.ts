@@ -2,9 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createFullSerramentiTemplate } from "@/lib/moduli-vendita/fullSerramentiModules";
 import { makeSrQuoteModelSnapshot, quoteModelTemplate, SR_OPERATIONAL_MODELS } from "@/lib/serramenti/quoteModel";
 
-const db = vi.hoisted(() => ({ project: null as Record<string, unknown> | null, insert: vi.fn(), update: vi.fn(), missingColumn: false }));
+const db = vi.hoisted(() => ({ project: null as Record<string, unknown> | null, insert: vi.fn(), update: vi.fn(), invoke: vi.fn(), missingColumn: false }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {
   auth: { getUser: async () => ({ data: { user: { id: "user-A" } } }) },
+  functions: { invoke: async (nome: string, opzioni: unknown) => { db.invoke(nome, opzioni); return { data: { ok: true, html_url: "html", public_url: "pubblico", duration_ms: 1, pages_count: 1 }, error: null as null }; } },
   from: (table: string) => {
     let insertValue: Record<string, unknown> | null = null;
     const result = () => ({ data: table === "sr_template_pdf" ? { iva_percentuale_default: 10, valido_giorni_default: 15, anticipo_pct_default: 40 }
@@ -64,8 +65,10 @@ describe("quote model persistence contract (mocked database)", () => {
     await updateProgetto("quote", { cliente_nome: "Nome nuovo", modello_snapshot: null as null });
     expect(db.update).toHaveBeenCalledExactlyOnceWith({ cliente_nome: "Nome nuovo" });
   });
-  it("blocks the incompatible public-signature renderer before invocation", async () => {
+  it("genera la pagina di firma anche per un preventivo fatto con un modello (25/09/2026)", async () => {
     db.project = { modello_snapshot: makeSrQuoteModelSnapshot("A", "persiane", createFullSerramentiTemplate({ company_id: "A" }, "persiane")) };
-    await expect(generaPdf("quote")).rejects.toThrow(/PDF A4/);
+    await expect(generaPdf("quote")).resolves.toMatchObject({ public_url: "pubblico" });
+    // Il modello lo sceglie il server (sr-genera-pdf legge modello_snapshot): il client passa solo il preventivo.
+    expect(db.invoke).toHaveBeenCalledExactlyOnceWith("sr-genera-pdf", { body: { progetto_id: "quote" } });
   });
 });
