@@ -27,11 +27,13 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import {
-  HardHat, Plus, Search, FileText, FileX2, AlertTriangle, Phone, ExternalLink, Loader2, Mail, MapPin, Link2, Link2Off, ShieldCheck, Trash2, CheckCircle2, XCircle, X,
+  HardHat, Plus, Search, FileText, FileX2, AlertTriangle, Phone, ExternalLink, Loader2, Mail, ShieldCheck, Trash2, CheckCircle2, XCircle, X,
 } from 'lucide-react';
 import { differenceInDays, parseISO } from 'date-fns';
 import type { SubappaltatoreConDashboard, StatoContratto } from '@/types/subappaltatori';
 import { OperationalKpiCard } from '@/components/orders/OperationalKpiCard';
+import { CercaConFiltri, KpiMobili, PannelloFiltri, PilloleFiltro, RigaMobile } from '@/components/mobile/FiltriMobile';
+import { DATA_MASSIMA, dataPlausibile } from '@/lib/dataPlausibile';
 
 function DurcBadge({ scadenza }: { scadenza: string | null }) {
   if (!scadenza) return <Badge variant="outline" className="text-xs">DURC mancante</Badge>;
@@ -69,6 +71,21 @@ function isMissingCampoLinkColumn(error: unknown) {
   );
 }
 
+/** DURC scaduto o in scadenza entro 30 giorni. */
+function durcDaControllare(scadenza: string | null) {
+  if (!scadenza) return false;
+  return differenceInDays(parseISO(scadenza), new Date()) <= 30;
+}
+
+/** DURC in una parola colorata, per la riga su telefono. */
+function DurcTesto({ scadenza }: { scadenza: string | null }) {
+  if (!scadenza) return <span className="text-muted-foreground">DURC mancante</span>;
+  const daysLeft = differenceInDays(parseISO(scadenza), new Date());
+  if (daysLeft < 0) return <span className="font-medium text-red-600">DURC scaduto</span>;
+  if (daysLeft <= 30) return <span className="font-medium text-amber-600">DURC {daysLeft}gg</span>;
+  return <span className="text-green-700">DURC ok</span>;
+}
+
 export default function SubappaltatoriPage() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id ?? '';
@@ -78,6 +95,9 @@ export default function SubappaltatoriPage() {
   const [search, setSearch] = useState('');
   const [filtroDoc, setFiltroDoc] = useState('__all__');
   const [filtroStato, setFiltroStato] = useState('__all__');
+  // DURC scaduto o entro 30 giorni: è il riquadro «DURC in scadenza» su telefono.
+  const [soloDurcInScadenza, setSoloDurcInScadenza] = useState(false);
+  const [filtriMobileAperti, setFiltriMobileAperti] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   // Selezione multipla (id = id scheda sicurezza, come le righe del view).
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -204,10 +224,7 @@ export default function SubappaltatoriPage() {
       s.campo_subappaltatore_id ? (docCountMap[s.campo_subappaltatore_id] ?? 0) > 0 : false,
     ).length;
     const senzaDocumenti = subappaltatori.length - conDocumenti;
-    const durcScaduti = subappaltatori.filter(s => {
-      if (!s.durc_scadenza) return false;
-      return differenceInDays(parseISO(s.durc_scadenza), new Date()) <= 30;
-    }).length;
+    const durcScaduti = subappaltatori.filter(s => durcDaControllare(s.durc_scadenza)).length;
     return { attivi, conDocumenti, senzaDocumenti, durcScaduti };
   }, [subappaltatori, docCountMap]);
 
@@ -225,14 +242,17 @@ export default function SubappaltatoriPage() {
       if (filtroStato === '__inactive__' && s.campo_is_active) return false;
       if (filtroStato !== '__all__' && filtroStato !== '__active__' && filtroStato !== '__inactive__'
           && s.stato_contratto !== filtroStato) return false;
+      if (soloDurcInScadenza && !durcDaControllare(s.durc_scadenza)) return false;
       return true;
     });
-  }, [subappaltatori, search, filtroDoc, filtroStato, docCountMap]);
+  }, [subappaltatori, search, filtroDoc, filtroStato, soloDurcInScadenza, docCountMap]);
+  const nFiltriMobile = [filtroDoc !== '__all__', filtroStato !== '__all__', soloDurcInScadenza].filter(Boolean).length;
 
   // ── Mutation nuovo subappaltatore ────────────────────────────────────────
   const createMutation = useMutation({
     mutationFn: async () => {
       if (!form.ragione_sociale.trim()) throw new Error('Ragione sociale obbligatoria');
+      if (!dataPlausibile(form.durc_scadenza)) throw new Error('Scadenza DURC non valida: controlla l\'anno');
       const campoSubappaltatoreId = await findOrCreateCampoSubappaltatore();
       const payload: Record<string, unknown> = {
           company_id: companyId,
@@ -402,7 +422,7 @@ export default function SubappaltatoriPage() {
   if (isScopriPlan) return <UpgradeScopriWall type="generic" inline />;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-sm:space-y-3">
       {/* Header */}
       <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -427,16 +447,45 @@ export default function SubappaltatoriPage() {
         </div>
       </div>
 
+      {/* Mobile: solo i due numeri che chiedono di fare qualcosa, e fanno da filtro. */}
+      <KpiMobili
+        className="sm:hidden"
+        voci={[
+          {
+            label: 'Senza documenti',
+            valore: String(stats.senzaDocumenti),
+            tono: stats.senzaDocumenti > 0 ? 'text-amber-600' : undefined,
+            onClick: () => setFiltroDoc(filtroDoc === '__senza__' ? '__all__' : '__senza__'),
+            attivo: filtroDoc === '__senza__',
+          },
+          {
+            label: 'DURC in scadenza',
+            valore: String(stats.durcScaduti),
+            tono: stats.durcScaduti > 0 ? 'text-red-600' : undefined,
+            onClick: () => setSoloDurcInScadenza(v => !v),
+            attivo: soloDurcInScadenza,
+          },
+        ]}
+      />
+
       {/* Stats */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 max-sm:hidden">
         <OperationalKpiCard icon={HardHat} label="Attivi" value={stats.attivi} hint="collaboratori attivi" tone="green" />
         <OperationalKpiCard icon={FileText} label="Con documenti" value={stats.conDocumenti} hint="fascicolo presente" tone="blue" />
         <OperationalKpiCard icon={FileX2} label="Senza documenti" value={stats.senzaDocumenti} hint={stats.senzaDocumenti > 0 ? "da completare" : "tutti ok"} tone={stats.senzaDocumenti > 0 ? "amber" : "green"} />
         <OperationalKpiCard icon={AlertTriangle} label="DURC in scadenza" value={stats.durcScaduti} hint={stats.durcScaduti > 0 ? "richiede controllo" : "documenti ok"} tone={stats.durcScaduti > 0 ? "red" : "green"} />
       </div>
 
+      <CercaConFiltri
+        className="sm:hidden"
+        valore={search}
+        onCambia={setSearch}
+        filtriAttivi={nFiltriMobile}
+        onApriFiltri={() => setFiltriMobileAperti(true)}
+      />
+
       {/* Filtri */}
-      <div className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm sm:flex-row">
+      <div className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm sm:flex-row max-sm:hidden">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -500,10 +549,10 @@ export default function SubappaltatoriPage() {
         </div>
       ) : filtered.length === 0 ? (
         <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16 text-center space-y-4">
-            <HardHat className="h-16 w-16 text-muted-foreground/40" />
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center space-y-4 max-sm:space-y-2 max-sm:py-8">
+            <HardHat className="h-16 w-16 text-muted-foreground/40 max-sm:h-10 max-sm:w-10" />
             <div>
-              <p className="font-semibold text-lg">Nessun subappaltatore</p>
+              <p className="font-semibold text-lg max-sm:text-sm">Nessun subappaltatore</p>
               <p className="text-sm text-muted-foreground mt-1">
                 {search || filtroDoc !== '__all__' || filtroStato !== '__all__'
                   ? 'Nessun risultato per i filtri selezionati.'
@@ -636,97 +685,28 @@ export default function SubappaltatoriPage() {
           </CardContent>
         </Card>
 
-        {/* ── Card mobile (< md) ────────────────────────────────────────── */}
-        <div className="space-y-3 md:hidden">
+        {/* ── Righe mobile (< md): ditta e lavori a sinistra, DURC e documenti a
+            destra; attivazione, account app cantiere e contatti nel dettaglio. ── */}
+        <div className="divide-y overflow-hidden rounded-xl border bg-card md:hidden">
           {filtered.map((sub) => {
+            const nDoc = docCountFor(sub);
             return (
-              <Card key={sub.id} className="hover:border-primary/50 transition-colors">
-                <CardContent className="p-4">
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center shrink-0">
-                      <HardHat className="h-5 w-5 text-orange-600" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2 flex-wrap">
-                        <div>
-                          <p className="font-semibold">{sub.ragione_sociale}</p>
-                          {sub.tipo_lavori && (
-                            <p className="text-sm text-muted-foreground">{sub.tipo_lavori}</p>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          {sub.campo_subappaltatore_id ? (
-                            <Badge variant="outline" className="text-xs border-green-200 bg-green-50 text-green-700">
-                              <Link2 className="mr-1 h-3 w-3" />
-                              {sub.campo_user_id ? 'Account app cantiere attivo' : 'Anagrafica app cantiere collegata'}
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="text-xs border-amber-200 bg-amber-50 text-amber-700">
-                              <Link2Off className="mr-1 h-3 w-3" />
-                              Account app cantiere da collegare
-                            </Badge>
-                          )}
-                          <DurcBadge scadenza={sub.durc_scadenza} />
-                          {docCountFor(sub) > 0 ? (
-                            <Badge className="text-xs bg-green-600 text-white">
-                              <FileText className="h-3 w-3 mr-1" />{docCountFor(sub)} doc
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="text-xs text-amber-700 border-amber-200">
-                              <FileX2 className="h-3 w-3 mr-1" />No doc
-                            </Badge>
-                          )}
-                          <StatoBadge stato={sub.stato_contratto} />
-                          <AttivoBadge attivo={sub.campo_is_active} />
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground flex-wrap">
-                        {sub.responsabile && <span>{sub.responsabile}</span>}
-                        {sub.piva && <span>P.IVA {sub.piva}</span>}
-                        {(sub as any).telefono && (
-                          <a
-                            href={`tel:${(sub as any).telefono}`}
-                            className="flex items-center gap-1 hover:text-foreground transition-colors"
-                          >
-                            <Phone className="h-3 w-3" />
-                            {(sub as any).telefono}
-                          </a>
-                        )}
-                        {sub.email && (
-                          <a
-                            href={`mailto:${sub.email}`}
-                            className="flex items-center gap-1 hover:text-foreground transition-colors"
-                          >
-                            <Mail className="h-3 w-3" />
-                            {sub.email}
-                          </a>
-                        )}
-                        {sub.indirizzo && (
-                          <span className="flex items-center gap-1">
-                            <MapPin className="h-3 w-3" />
-                            {sub.indirizzo}
-                          </span>
-                        )}
-                      </div>
-
-
-                      <div className="mt-3 flex items-center justify-between gap-2">
-                        <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <AttivoToggle sub={sub} />
-                          {sub.campo_is_active ? 'Attivo' : 'Non attivo'}
-                        </label>
-                        <Button asChild variant="outline" size="sm">
-                          <Link to={`/azienda/subappaltatori/${sub.id}`}>
-                            <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
-                            Dettaglio
-                          </Link>
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+              <RigaMobile
+                key={sub.id}
+                to={`/azienda/subappaltatori/${sub.id}`}
+                sinistra={
+                  <span
+                    className={`h-2 w-2 shrink-0 rounded-full ${sub.campo_is_active ? 'bg-green-500' : 'bg-slate-300'}`}
+                    aria-label={sub.campo_is_active ? 'Attivo' : 'Non attivo'}
+                  />
+                }
+                titolo={sub.ragione_sociale}
+                sottotitolo={[sub.tipo_lavori, sub.responsabile].filter(Boolean).join(' · ') || undefined}
+                valore={<span className="text-[11px]"><DurcTesto scadenza={sub.durc_scadenza} /></span>}
+                stato={nDoc > 0
+                  ? <span className="text-muted-foreground">{nDoc} doc</span>
+                  : <span className="text-muted-foreground">Nessun doc</span>}
+              />
             );
           })}
         </div>
@@ -738,14 +718,16 @@ export default function SubappaltatoriPage() {
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <HardHat className="h-5 w-5 text-orange-500" />
+              <HardHat className="h-5 w-5 text-orange-500 max-sm:hidden" />
               Nuovo Subappaltatore
             </DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5 sm:col-span-2">
+          {/* Mobile: i campi per iniziare, a due colonne; codice fiscale, PEC, sede,
+              cantiere e note si completano dal dettaglio. */}
+          <div className="space-y-4 max-sm:space-y-3">
+            <div className="grid gap-4 sm:grid-cols-2 max-sm:grid-cols-2 max-sm:gap-3">
+              <div className="space-y-1.5 sm:col-span-2 max-sm:col-span-2">
               <Label>Ragione sociale <span className="text-destructive">*</span></Label>
               <Input
                 value={form.ragione_sociale}
@@ -758,7 +740,7 @@ export default function SubappaltatoriPage() {
                 <Input
                   value={form.piva}
                   onChange={(e) => setForm(f => ({ ...f, piva: e.target.value }))}
-                  placeholder="Es. 01234567890"
+                  placeholder="01234567890"
                 />
               </div>
               <div className="space-y-1.5">
@@ -766,11 +748,11 @@ export default function SubappaltatoriPage() {
               <Input
                 value={form.tipo_lavori}
                 onChange={(e) => setForm(f => ({ ...f, tipo_lavori: e.target.value }))}
-                placeholder="Es. Impianto elettrico, muratura..."
+                placeholder="Es. Elettrico"
               />
               </div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Responsabile</Label>
                 <Input
@@ -788,7 +770,7 @@ export default function SubappaltatoriPage() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label>Email</Label>
                 <Input
@@ -798,7 +780,7 @@ export default function SubappaltatoriPage() {
                   placeholder="amministrazione@azienda.it"
                 />
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 max-sm:hidden">
                 <Label>PEC</Label>
                 <Input
                   type="email"
@@ -807,8 +789,17 @@ export default function SubappaltatoriPage() {
                   placeholder="azienda@pec.it"
                 />
               </div>
+              <div className="space-y-1.5 sm:hidden">
+                <Label>Scadenza DURC</Label>
+                <Input
+                  type="date"
+                  max={DATA_MASSIMA}
+                  value={form.durc_scadenza}
+                  onChange={(e) => setForm(f => ({ ...f, durc_scadenza: e.target.value }))}
+                />
+              </div>
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 max-sm:hidden">
               <Label>Codice Fiscale</Label>
               <Input
                 value={form.codice_fiscale}
@@ -816,7 +807,7 @@ export default function SubappaltatoriPage() {
                 placeholder="Es. RSSMRA80A01H501U (utile per ditte individuali)"
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 max-sm:hidden">
               <Label>Indirizzo sede</Label>
               <Input
                 value={form.indirizzo}
@@ -824,15 +815,16 @@ export default function SubappaltatoriPage() {
                 placeholder="Via, CAP, città, provincia"
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 max-sm:hidden">
               <Label>Scadenza DURC</Label>
               <Input
                 type="date"
+                max={DATA_MASSIMA}
                 value={form.durc_scadenza}
                 onChange={(e) => setForm(f => ({ ...f, durc_scadenza: e.target.value }))}
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 max-sm:hidden">
               <Label>Cantiere / Ordine</Label>
               <Select
                 value={form.ordine_id || 'none'}
@@ -849,7 +841,7 @@ export default function SubappaltatoriPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 max-sm:hidden">
               <Label>Note</Label>
               <Input
                 value={form.note}
@@ -860,7 +852,7 @@ export default function SubappaltatoriPage() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={createMutation.isPending}>
+            <Button variant="outline" className="max-sm:hidden" onClick={() => setDialogOpen(false)} disabled={createMutation.isPending}>
               Annulla
             </Button>
             <Button
@@ -873,6 +865,48 @@ export default function SubappaltatoriPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Filtri su telefono: documenti, stato e DURC a pillole. */}
+      <PannelloFiltri
+        aperto={filtriMobileAperti}
+        onAperto={setFiltriMobileAperti}
+        attivi={nFiltriMobile}
+        onAzzera={() => { setFiltroDoc('__all__'); setFiltroStato('__all__'); setSoloDurcInScadenza(false); }}
+        risultati={filtered.length}
+      >
+        <PilloleFiltro
+          titolo="Documenti"
+          valore={filtroDoc}
+          onScegli={setFiltroDoc}
+          scelte={[
+            { value: '__all__', label: 'Tutti' },
+            { value: '__con__', label: 'Con documenti' },
+            { value: '__senza__', label: 'Senza documenti' },
+          ]}
+        />
+        <PilloleFiltro
+          titolo="DURC"
+          valore={soloDurcInScadenza ? 'scadenza' : 'tutti'}
+          onScegli={(v) => setSoloDurcInScadenza(v === 'scadenza')}
+          scelte={[
+            { value: 'tutti', label: 'Tutti' },
+            { value: 'scadenza', label: 'Scaduto o in scadenza' },
+          ]}
+        />
+        <PilloleFiltro
+          titolo="Stato"
+          valore={filtroStato}
+          onScegli={setFiltroStato}
+          scelte={[
+            { value: '__all__', label: 'Tutti' },
+            { value: '__active__', label: 'Attivi' },
+            { value: '__inactive__', label: 'Non attivi' },
+            { value: 'attivo', label: 'Contratto attivo' },
+            { value: 'sospeso', label: 'Sospeso' },
+            { value: 'completato', label: 'Completato' },
+          ]}
+        />
+      </PannelloFiltri>
 
       {/* Conferma eliminazione in blocco */}
       <Dialog open={confermaEliminaBulk} onOpenChange={setConfermaEliminaBulk}>

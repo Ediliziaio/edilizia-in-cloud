@@ -26,8 +26,9 @@ import {
 } from '@/components/ui/alert';
 import {
   ArrowLeft, HardHat, FileText, Euro, Loader2, Plus, AlertTriangle, CheckCircle2, ExternalLink,
-  Check, Upload, Trash2, BriefcaseBusiness, CreditCard, Mail, MapPin, Link2, Link2Off, FileArchive,
+  Check, Upload, Trash2, BriefcaseBusiness, CreditCard, Mail, MapPin, Link2, Link2Off, FileArchive, Phone,
 } from 'lucide-react';
+import { DATA_MASSIMA, dataPlausibile } from '@/lib/dataPlausibile';
 import type {
   ContrattoSubappalto, SALSubappaltatore, RitenutaGaranzia,
   DocumentoSubappaltatore, StatoSALSub, TipoDocumentoSub,
@@ -358,6 +359,7 @@ export default function SubappaltatoreDetail() {
   const saveAnagraficaMutation = useMutation({
     mutationFn: async () => {
       if (!anagraficaForm.ragione_sociale.trim()) throw new Error('Ragione sociale obbligatoria');
+      if (!dataPlausibile(anagraficaForm.durc_scadenza)) throw new Error('Scadenza DURC non valida: controlla l\'anno');
       const campoId = sub?.campo_subappaltatore_id
         ? sub.campo_subappaltatore_id
         : await findOrCreateCampoSubappaltatore(anagraficaForm);
@@ -453,6 +455,7 @@ export default function SubappaltatoreDetail() {
   const uploadDocumentMutation = useMutation({
     mutationFn: async () => {
       if (!docFile) throw new Error('Seleziona un file');
+      if (!dataPlausibile(docForm.data_scadenza)) throw new Error('Scadenza non valida: controlla l\'anno');
       const safeName = docFile.name.replace(/[^\w.-]+/g, '_');
       const filePath = `${companyId}/${id}/${Date.now()}-${safeName}`;
       const { error: uploadError } = await supabase.storage
@@ -525,6 +528,7 @@ export default function SubappaltatoreDetail() {
   // Imposta/aggiorna SOLO la scadenza DURC sulla scheda (badge in alto si aggiorna).
   const setDurcMutation = useMutation({
     mutationFn: async (date: string) => {
+      if (!dataPlausibile(date)) throw new Error('Scadenza DURC non valida: controlla l\'anno');
       const { error } = await (supabase as any)
         .from('subappaltatori_sicurezza')
         .update({ durc_scadenza: date || null })
@@ -799,18 +803,19 @@ export default function SubappaltatoreDetail() {
     documentiCompliance.some((d) => d.tipo === 'durc');
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="rounded-2xl border border-slate-200 bg-white px-4 py-5 shadow-sm sm:px-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <div className="space-y-6 max-sm:space-y-3">
+      {/* Header. Mobile: senza riquadro e senza la seconda freccia (c'è quella
+          della barra in alto); dati fiscali e app cantiere stanno in «Dati». */}
+      <div className="rounded-2xl border border-slate-200 bg-white px-4 py-5 shadow-sm sm:px-6 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between max-sm:gap-2">
           <div className="flex min-w-0 items-start gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/azienda/subappaltatori')}>
+        <Button variant="ghost" size="icon" className="max-sm:hidden" onClick={() => navigate('/azienda/subappaltatori')}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div className="flex-1 min-w-0">
-              <h1 className="text-xl sm:text-2xl font-bold truncate">{sub.ragione_sociale}</h1>
-              <p className="text-sm text-muted-foreground">{sub.tipo_lavori ?? 'Subappaltatore'}</p>
-              <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-500">
+              <h1 className="text-xl sm:text-2xl font-bold truncate max-sm:text-lg max-sm:leading-tight">{sub.ragione_sociale}</h1>
+              <p className="text-sm text-muted-foreground max-sm:text-xs">{sub.tipo_lavori ?? 'Subappaltatore'}</p>
+              <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-500 max-sm:hidden">
                 {sub.piva && <span>P.IVA {sub.piva}</span>}
                 {sub.indirizzo && <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{sub.indirizzo}</span>}
                 {sub.email && <span className="flex items-center gap-1"><Mail className="h-3 w-3" />{sub.email}</span>}
@@ -819,12 +824,12 @@ export default function SubappaltatoreDetail() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {hasAppCantiere ? (
-              <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700">
+              <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700 max-sm:hidden">
                 <Link2 className="mr-1 h-3 w-3" />
                 {appCantiere?.user_id ? 'Account app cantiere attivo' : 'Anagrafica app cantiere collegata'}
               </Badge>
             ) : (
-              <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
+              <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700 max-sm:hidden">
                 <Link2Off className="mr-1 h-3 w-3" />
                 App cantiere non collegata
               </Badge>
@@ -834,6 +839,7 @@ export default function SubappaltatoreDetail() {
               <Button
                 variant="outline"
                 size="sm"
+                className="max-sm:hidden"
                 onClick={() => collegaCampoMutation.mutate()}
                 disabled={collegaCampoMutation.isPending}
               >
@@ -845,7 +851,12 @@ export default function SubappaltatoreDetail() {
                 Collega app cantiere
               </Button>
             )}
-            <Button variant="outline" size="sm" onClick={openAnagraficaDialog}>
+            {sub.telefono && (
+              <Button asChild variant="outline" size="sm" className="tap-compact h-7 px-2.5 text-xs sm:hidden">
+                <a href={`tel:${sub.telefono}`}><Phone className="mr-1 h-3.5 w-3.5" />Chiama</a>
+              </Button>
+            )}
+            <Button variant="outline" size="sm" className="tap-compact max-sm:h-7 max-sm:px-2.5 max-sm:text-xs" onClick={openAnagraficaDialog}>
               Modifica
             </Button>
           </div>
@@ -853,34 +864,35 @@ export default function SubappaltatoreDetail() {
       </div>
 
       <Tabs defaultValue="anagrafica">
-        <TabsList className="w-full grid grid-cols-5 h-auto">
+        {/* Mobile: Dati, Contratto e SAL; commessa e ritenute restano al desktop. */}
+        <TabsList className="w-full grid grid-cols-5 h-auto max-sm:grid-cols-3">
           <TabsTrigger value="anagrafica" className="text-xs py-2">
             <span className="hidden sm:inline">Anagrafica</span>
             <span className="sm:hidden">Dati</span>
           </TabsTrigger>
-          <TabsTrigger value="lavori" className="text-xs py-2">Lavori</TabsTrigger>
+          <TabsTrigger value="lavori" className="text-xs py-2 max-sm:hidden">Lavori</TabsTrigger>
           <TabsTrigger value="contratto" className="text-xs py-2">Contratto</TabsTrigger>
           <TabsTrigger value="sal" className="text-xs py-2">SAL</TabsTrigger>
-          <TabsTrigger value="ritenute" className="text-xs py-2">
+          <TabsTrigger value="ritenute" className="text-xs py-2 max-sm:hidden">
             <span className="hidden sm:inline">Ritenute</span>
             <span className="sm:hidden">Rit.</span>
           </TabsTrigger>
         </TabsList>
 
         {/* ─── Tab 1: Anagrafica ─────────────────────────────────────────────── */}
-        <TabsContent value="anagrafica" className="space-y-4 mt-4">
+        <TabsContent value="anagrafica" className="space-y-4 mt-4 max-sm:mt-3 max-sm:space-y-3">
           <Card>
-            <CardHeader className="pb-3">
+            <CardHeader className="pb-3 max-sm:hidden">
               <CardTitle className="text-base flex items-center gap-2">
                 <HardHat className="h-4 w-4" /> Dati anagrafici
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="rounded-lg border bg-slate-50 p-3">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-sm font-medium">Account app cantiere</p>
-                    <p className="text-xs text-muted-foreground">
+            <CardContent className="space-y-3 max-sm:space-y-2 max-sm:p-3">
+              <div className="rounded-lg border bg-slate-50 p-3 max-sm:px-2.5 max-sm:py-2">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between max-sm:flex-row max-sm:items-center max-sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium max-sm:text-[13px]">{hasAppCantiere ? 'Account app cantiere' : <><span className="sm:hidden">App cantiere non collegata</span><span className="max-sm:hidden">Account app cantiere</span></>}</p>
+                    <p className={`text-xs text-muted-foreground ${hasAppCantiere ? 'max-sm:truncate max-sm:text-[11px]' : 'max-sm:hidden'}`}>
                       {hasAppCantiere
                         ? appCantiere?.user_id
                           ? `Account attivo: ${appCantiere.user_email ?? 'email non indicata'}`
@@ -894,17 +906,20 @@ export default function SubappaltatoreDetail() {
                     <Button
                       variant="outline"
                       size="sm"
+                      className="tap-compact max-sm:h-7 max-sm:shrink-0 max-sm:px-2.5 max-sm:text-xs"
                       onClick={() => collegaCampoMutation.mutate()}
                       disabled={collegaCampoMutation.isPending}
                     >
-                      <Link2 className="mr-1.5 h-4 w-4" />
-                      Collega app cantiere
+                      <Link2 className="mr-1.5 h-4 w-4 max-sm:h-3.5 max-sm:w-3.5" />
+                      <span className="max-sm:hidden">Collega app cantiere</span>
+                      <span className="sm:hidden">Collega</span>
                     </Button>
                   )}
                 </div>
               </div>
               {[
-                { label: 'Ragione sociale', value: sub.ragione_sociale },
+                // Mobile: ragione sociale, tipo lavori e DURC sono già nella testata.
+                { label: 'Ragione sociale', value: sub.ragione_sociale, giaInTestata: true },
                 { label: 'P.IVA', value: sub.piva },
                 { label: 'Codice Fiscale', value: sub.codice_fiscale },
                 { label: 'Indirizzo', value: sub.indirizzo },
@@ -912,21 +927,22 @@ export default function SubappaltatoreDetail() {
                 { label: 'Telefono', value: sub.telefono },
                 { label: 'Email', value: sub.email },
                 { label: 'PEC', value: sub.pec },
-                { label: 'Tipo lavori', value: sub.tipo_lavori },
+                { label: 'Tipo lavori', value: sub.tipo_lavori, giaInTestata: true },
                 { label: 'Note', value: sub.note },
-              ].map(({ label, value }) => value ? (
-                <div key={label} className="flex gap-3">
-                  <span className="text-sm text-muted-foreground w-32 shrink-0">{label}</span>
-                  <span className="text-sm font-medium">{value}</span>
+              ].map(({ label, value, giaInTestata }) => value ? (
+                <div key={label} className={`flex gap-3 ${giaInTestata ? 'max-sm:hidden' : ''}`}>
+                  <span className="text-sm text-muted-foreground w-32 shrink-0 max-sm:w-24 max-sm:text-xs">{label}</span>
+                  <span className="text-sm font-medium max-sm:min-w-0 max-sm:break-words max-sm:text-[13px]">{value}</span>
                 </div>
               ) : null)}
-              <div className="flex flex-wrap items-center gap-3">
-                <span className="text-sm text-muted-foreground w-32 shrink-0">Scadenza DURC</span>
+              <div className={`flex flex-wrap items-center gap-3 ${effectiveDurc ? 'max-sm:hidden' : ''}`}>
+                <span className="text-sm text-muted-foreground w-32 shrink-0 max-sm:w-24 max-sm:text-xs">Scadenza DURC</span>
                 <DurcBadge scadenza={effectiveDurc} hasDoc={hasDurcDoc} />
                 {!effectiveDurc && (
                   <div className="flex items-center gap-2">
                     <Input
                       type="date"
+                      max={DATA_MASSIMA}
                       value={durcDateInput}
                       onChange={(e) => setDurcDateInput(e.target.value)}
                       className="h-8 w-auto text-xs"
@@ -948,26 +964,29 @@ export default function SubappaltatoreDetail() {
           </Card>
 
           {/* Documenti */}
+          {/* Mobile: niente import ZIP né spiegazione; «Carica» per fotografare
+              o scegliere il documento. */}
           <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center justify-between gap-2">
+            <CardHeader className="pb-3 max-sm:p-3 max-sm:pb-2">
+              <CardTitle className="text-base flex items-center justify-between gap-2 max-sm:text-sm">
                 <span className="flex items-center gap-2">
-                  <FileText className="h-4 w-4" /> Documenti idoneità
+                  <FileText className="h-4 w-4 max-sm:hidden" /> <span className="max-sm:hidden">Documenti idoneità</span><span className="sm:hidden">Documenti</span>
                 </span>
                 <span className="flex gap-2">
-                  <Button size="sm" variant="outline" onClick={() => setBulkDocDialog(true)}>
+                  <Button size="sm" variant="outline" className="max-sm:hidden" onClick={() => setBulkDocDialog(true)}>
                     <FileArchive className="h-4 w-4 mr-1.5" />
                     Importa ZIP
                   </Button>
-                  <Button size="sm" onClick={() => setDocDialog(true)}>
-                    <Upload className="h-4 w-4 mr-1.5" />
-                    Carica documento
+                  <Button size="sm" className="tap-compact max-sm:h-7 max-sm:px-2.5 max-sm:text-xs" onClick={() => setDocDialog(true)}>
+                    <Upload className="h-4 w-4 mr-1.5 max-sm:h-3.5 max-sm:w-3.5" />
+                    <span className="max-sm:hidden">Carica documento</span>
+                    <span className="sm:hidden">Carica</span>
                   </Button>
                 </span>
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <p className="text-xs text-muted-foreground mb-3">
+            <CardContent className="max-sm:p-3 max-sm:pt-0">
+              <p className="text-xs text-muted-foreground mb-3 max-sm:hidden">
                 Carica qui <strong>DURC</strong>, visura camerale, POS, polizze e altri documenti di idoneità.
                 Per il DURC indica la <strong>data di scadenza</strong>: aggiorna in automatico il badge in alto.
               </p>
@@ -980,9 +999,9 @@ export default function SubappaltatoreDetail() {
                       ? differenceInDays(parseISO(doc.data_scadenza), new Date())
                       : null;
                     return (
-                      <div key={doc.id} className="flex items-center justify-between border rounded-lg p-3">
-                        <div>
-                          <p className="text-sm font-medium">
+                      <div key={doc.id} className="flex items-center justify-between border rounded-lg p-3 max-sm:px-2.5 max-sm:py-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium max-sm:truncate max-sm:text-[13px]">
                             {TIPO_DOC_LABELS[doc.tipo]}
                             {doc.nome_file && <span className="text-muted-foreground ml-1">— {doc.nome_file}</span>}
                           </p>
@@ -1032,14 +1051,14 @@ export default function SubappaltatoreDetail() {
               modulo Sicurezza, resi accessibili anche da qui. */}
           {sub.campo_subappaltatore_id && documentiCompliance.length > 0 && (
             <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <FileText className="h-4 w-4" /> Documenti caricati
+              <CardHeader className="pb-3 max-sm:p-3 max-sm:pb-2">
+                <CardTitle className="text-base flex items-center gap-2 max-sm:text-sm">
+                  <FileText className="h-4 w-4 max-sm:hidden" /> Documenti caricati
                   <Badge variant="secondary" className="ml-1">{documentiCompliance.length}</Badge>
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <p className="text-xs text-muted-foreground mb-3">
+              <CardContent className="max-sm:p-3 max-sm:pt-0">
+                <p className="text-xs text-muted-foreground mb-3 max-sm:hidden">
                   Documenti importati dall'anagrafica o dall'import massivo (modulo Sicurezza), in sola lettura.
                 </p>
                 <div className="space-y-2">
@@ -1048,9 +1067,9 @@ export default function SubappaltatoreDetail() {
                       ? differenceInDays(parseISO(doc.scadenza), new Date())
                       : null;
                     return (
-                      <div key={doc.id} className="flex items-center justify-between border rounded-lg p-3">
+                      <div key={doc.id} className="flex items-center justify-between border rounded-lg p-3 max-sm:px-2.5 max-sm:py-2">
                         <div className="min-w-0">
-                          <p className="text-sm font-medium">
+                          <p className="text-sm font-medium max-sm:text-[13px]">
                             {COMPLIANCE_TIPO_LABELS[doc.tipo] ?? doc.tipo}
                           </p>
                           {doc.scadenza && (
@@ -1078,7 +1097,7 @@ export default function SubappaltatoreDetail() {
         </TabsContent>
 
         {/* ─── Tab 2: Lavori svolti ──────────────────────────────────────────── */}
-        <TabsContent value="lavori" className="space-y-4 mt-4">
+        <TabsContent value="lavori" className="space-y-4 mt-4 max-sm:mt-3 max-sm:space-y-3">
           <div className="grid gap-3 sm:grid-cols-3">
             <Card>
               <CardContent className="p-4">
@@ -1141,22 +1160,23 @@ export default function SubappaltatoreDetail() {
         </TabsContent>
 
         {/* ─── Tab 2: Contratto ──────────────────────────────────────────────── */}
-        <TabsContent value="contratto" className="space-y-4 mt-4">
+        <TabsContent value="contratto" className="space-y-4 mt-4 max-sm:mt-3 max-sm:space-y-3">
           {!sub?.order_id && (
             <Alert className="border-amber-300 bg-amber-50">
               <AlertTriangle className="h-4 w-4 text-amber-600" />
-              <AlertDescription className="text-amber-800 text-sm">
-                Questo subappaltatore non è collegato a nessun cantiere/ordine. Per creare un contratto, associalo prima a un ordine dall'elenco subappaltatori.
+              <AlertDescription className="text-amber-800 text-sm max-sm:text-xs">
+                <span className="max-sm:hidden">Questo subappaltatore non è collegato a nessun cantiere/ordine. Per creare un contratto, associalo prima a un ordine dall'elenco subappaltatori.</span>
+                <span className="sm:hidden">Nessun cantiere collegato: collegalo per creare il contratto.</span>
               </AlertDescription>
             </Alert>
           )}
           {!contratto ? (
             <Card>
-              <CardContent className="flex flex-col items-center justify-center py-12 text-center gap-4">
-                <FileText className="h-12 w-12 text-muted-foreground/40" />
+              <CardContent className="flex flex-col items-center justify-center py-12 text-center gap-4 max-sm:gap-2 max-sm:py-6">
+                <FileText className="h-12 w-12 text-muted-foreground/40 max-sm:hidden" />
                 <div>
-                  <p className="font-semibold">Nessun contratto</p>
-                  <p className="text-sm text-muted-foreground mt-1">Crea il contratto di subappalto per iniziare a tracciare SAL e ritenute.</p>
+                  <p className="font-semibold max-sm:text-sm">Nessun contratto</p>
+                  <p className="text-sm text-muted-foreground mt-1 max-sm:hidden">Crea il contratto di subappalto per iniziare a tracciare SAL e ritenute.</p>
                 </div>
                 <Button onClick={() => setContrattoDialog(true)} disabled={!sub?.order_id}>
                   <Plus className="h-4 w-4 mr-2" />
@@ -1234,8 +1254,8 @@ export default function SubappaltatoreDetail() {
         </TabsContent>
 
         {/* ─── Tab 3: SAL Ricevuti ────────────────────────────────────────────── */}
-        <TabsContent value="sal" className="space-y-4 mt-4">
-          <div className="flex justify-end">
+        <TabsContent value="sal" className="space-y-4 mt-4 max-sm:mt-3 max-sm:space-y-3">
+          <div className={`flex justify-end ${!contratto ? 'max-sm:hidden' : ''}`}>
             <Button
               size="sm"
               disabled={!contratto}
@@ -1252,7 +1272,7 @@ export default function SubappaltatoreDetail() {
           {!contratto && (
             <Alert className="border-amber-500/40 bg-amber-50/50 dark:bg-amber-900/10">
               <AlertTriangle className="h-4 w-4 text-amber-600" />
-              <AlertDescription className="text-amber-800 dark:text-amber-200">
+              <AlertDescription className="text-amber-800 dark:text-amber-200 max-sm:text-xs">
                 Vai prima nel tab <strong>Contratto</strong> per creare il contratto di subappalto.
               </AlertDescription>
             </Alert>
@@ -1268,7 +1288,7 @@ export default function SubappaltatoreDetail() {
             <div className="space-y-3">
               {salList.map((sal) => (
                 <Card key={sal.id}>
-                  <CardContent className="p-4">
+                  <CardContent className="p-4 max-sm:p-3">
                     <div className="flex items-start justify-between gap-2 flex-wrap">
                       <div>
                         <p className="font-semibold">SAL #{sal.numero_sal}</p>
@@ -1376,7 +1396,7 @@ export default function SubappaltatoreDetail() {
         </TabsContent>
 
         {/* ─── Tab 4: Ritenute & Pagamenti ──────────────────────────────────── */}
-        <TabsContent value="ritenute" className="space-y-4 mt-4">
+        <TabsContent value="ritenute" className="space-y-4 mt-4 max-sm:mt-3 max-sm:space-y-3">
           {/* Riepilogo */}
           <div className="grid grid-cols-2 gap-3">
             <Card>
@@ -1478,12 +1498,12 @@ export default function SubappaltatoreDetail() {
       <Dialog open={anagraficaDialog} onOpenChange={setAnagraficaDialog}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Modifica anagrafica subappaltatore</DialogTitle>
-            <DialogDescription>Completa i dati fiscali, operativi e di contatto.</DialogDescription>
+            <DialogTitle><span className="max-sm:hidden">Modifica anagrafica subappaltatore</span><span className="sm:hidden">Modifica dati</span></DialogTitle>
+            <DialogDescription className="max-sm:sr-only">Completa i dati fiscali, operativi e di contatto.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5 sm:col-span-2">
+            <div className="grid gap-3 sm:grid-cols-2 max-sm:grid-cols-2">
+              <div className="space-y-1.5 sm:col-span-2 max-sm:col-span-2">
                 <Label>Ragione sociale *</Label>
                 <Input value={anagraficaForm.ragione_sociale} onChange={(e) => setAnagraficaForm(f => ({ ...f, ragione_sociale: e.target.value }))} />
               </div>
@@ -1517,20 +1537,20 @@ export default function SubappaltatoreDetail() {
               </div>
               <div className="space-y-1.5">
                 <Label>Scadenza DURC</Label>
-                <Input type="date" value={anagraficaForm.durc_scadenza} onChange={(e) => setAnagraficaForm(f => ({ ...f, durc_scadenza: e.target.value }))} />
+                <Input type="date" max={DATA_MASSIMA} value={anagraficaForm.durc_scadenza} onChange={(e) => setAnagraficaForm(f => ({ ...f, durc_scadenza: e.target.value }))} />
               </div>
-              <div className="space-y-1.5 sm:col-span-2">
+              <div className="space-y-1.5 sm:col-span-2 max-sm:col-span-2">
                 <Label>Indirizzo sede</Label>
                 <Input value={anagraficaForm.indirizzo} onChange={(e) => setAnagraficaForm(f => ({ ...f, indirizzo: e.target.value }))} />
               </div>
-              <div className="space-y-1.5 sm:col-span-2">
+              <div className="space-y-1.5 sm:col-span-2 max-sm:col-span-2">
                 <Label>Note</Label>
-                <Textarea value={anagraficaForm.note} onChange={(e) => setAnagraficaForm(f => ({ ...f, note: e.target.value }))} rows={3} />
+                <Textarea value={anagraficaForm.note} onChange={(e) => setAnagraficaForm(f => ({ ...f, note: e.target.value }))} rows={3} className="max-sm:min-h-[60px]" />
               </div>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAnagraficaDialog(false)} disabled={saveAnagraficaMutation.isPending}>Annulla</Button>
+            <Button variant="outline" className="max-sm:hidden" onClick={() => setAnagraficaDialog(false)} disabled={saveAnagraficaMutation.isPending}>Annulla</Button>
             <Button onClick={() => saveAnagraficaMutation.mutate()} disabled={saveAnagraficaMutation.isPending || !anagraficaForm.ragione_sociale.trim()}>
               {saveAnagraficaMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Salva anagrafica
@@ -1544,7 +1564,7 @@ export default function SubappaltatoreDetail() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Carica documento</DialogTitle>
-            <DialogDescription>DURC, visura, DVR, polizze, attestazioni o altri documenti del subappaltatore.</DialogDescription>
+            <DialogDescription className="max-sm:sr-only">DURC, visura, DVR, polizze, attestazioni o altri documenti del subappaltatore.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-1.5">
@@ -1576,23 +1596,24 @@ export default function SubappaltatoreDetail() {
               }} />
               {docFile && <p className="text-xs text-muted-foreground">{docFile.name}</p>}
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
+            {/* Mobile: basta la scadenza (è quella che accende gli avvisi). */}
+            <div className="grid grid-cols-2 gap-3 max-sm:grid-cols-1">
+              <div className="space-y-1.5 max-sm:hidden">
                 <Label>Data rilascio</Label>
                 <Input type="date" value={docForm.data_rilascio} onChange={(e) => setDocForm(f => ({ ...f, data_rilascio: e.target.value }))} />
               </div>
               <div className="space-y-1.5">
                 <Label>Scadenza</Label>
-                <Input type="date" value={docForm.data_scadenza} onChange={(e) => setDocForm(f => ({ ...f, data_scadenza: e.target.value }))} />
+                <Input type="date" max={DATA_MASSIMA} value={docForm.data_scadenza} onChange={(e) => setDocForm(f => ({ ...f, data_scadenza: e.target.value }))} />
               </div>
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 max-sm:hidden">
               <Label>Note</Label>
               <Textarea value={docForm.note} onChange={(e) => setDocForm(f => ({ ...f, note: e.target.value }))} rows={2} />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDocDialog(false)} disabled={uploadDocumentMutation.isPending}>Annulla</Button>
+            <Button variant="outline" className="max-sm:hidden" onClick={() => setDocDialog(false)} disabled={uploadDocumentMutation.isPending}>Annulla</Button>
             <Button onClick={() => uploadDocumentMutation.mutate()} disabled={uploadDocumentMutation.isPending || !docFile}>
               {uploadDocumentMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Carica
@@ -1614,7 +1635,7 @@ export default function SubappaltatoreDetail() {
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Registra pagamento SAL</DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="max-sm:sr-only">
               {paymentSAL ? `Netto da pagare: €${paymentSAL.importo_netto.toLocaleString('it-IT')}` : ''}
             </DialogDescription>
           </DialogHeader>
@@ -1642,7 +1663,7 @@ export default function SubappaltatoreDetail() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setPaymentSAL(null)} disabled={registraPagamentoMutation.isPending}>Annulla</Button>
+            <Button variant="outline" className="max-sm:hidden" onClick={() => setPaymentSAL(null)} disabled={registraPagamentoMutation.isPending}>Annulla</Button>
             <Button onClick={() => registraPagamentoMutation.mutate()} disabled={registraPagamentoMutation.isPending}>
               {registraPagamentoMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Segna pagato
@@ -1712,7 +1733,7 @@ export default function SubappaltatoreDetail() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setContrattoDialog(false)} disabled={saveContrattoMutation.isPending}>Annulla</Button>
+            <Button variant="outline" className="max-sm:hidden" onClick={() => setContrattoDialog(false)} disabled={saveContrattoMutation.isPending}>Annulla</Button>
             <Button onClick={() => saveContrattoMutation.mutate()} disabled={saveContrattoMutation.isPending || !contrattoForm.descrizione_lavori.trim()}>
               {saveContrattoMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Salva contratto
@@ -1726,7 +1747,7 @@ export default function SubappaltatoreDetail() {
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Contesta SAL</DialogTitle>
-            <DialogDescription>Inserisci le motivazioni della contestazione.</DialogDescription>
+            <DialogDescription className="max-sm:sr-only">Inserisci le motivazioni della contestazione.</DialogDescription>
           </DialogHeader>
           <div>
             <Label>Note contestazione</Label>
@@ -1738,7 +1759,7 @@ export default function SubappaltatoreDetail() {
             />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setContestaId(null)}>Annulla</Button>
+            <Button variant="outline" className="max-sm:hidden" onClick={() => setContestaId(null)}>Annulla</Button>
             <Button
               variant="destructive"
               onClick={() => contestaSALMutation.mutate({ id: contestaSALId!, note: contestaNote })}
@@ -1837,7 +1858,7 @@ export default function SubappaltatoreDetail() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setSalDialog(false)} disabled={saveSalMutation.isPending}>Annulla</Button>
+            <Button variant="outline" className="max-sm:hidden" onClick={() => setSalDialog(false)} disabled={saveSalMutation.isPending}>Annulla</Button>
             <Button onClick={() => saveSalMutation.mutate()} disabled={saveSalMutation.isPending || !salForm.importo_lordo}>
               {saveSalMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Registra SAL
