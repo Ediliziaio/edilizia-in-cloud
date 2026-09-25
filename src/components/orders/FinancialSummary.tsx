@@ -930,7 +930,7 @@ export function FinancialSummaryReadOnly({
               </span>
             )}
           </span>
-          <span className={inst.type === 'balance' ? "font-bold text-lg" : "text-primary font-medium"}>
+          <span className={inst.type === 'balance' ? "font-bold text-lg max-sm:text-base" : "text-primary font-medium"}>
             {formatCurrency(amount)}
           </span>
         </div>
@@ -1037,15 +1037,17 @@ export function FinancialSummaryReadOnly({
     );
   };
 
+  // Mobile: testo a 14px e niente riquadri incassato/da incassare con la
+  // barra: li ha già la testata della commessa. Restano totali e rate.
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="max-sm:p-3 max-sm:pb-2">
         <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-          <Euro className="h-5 w-5" />
+          <Euro className="h-5 w-5 max-sm:h-4 max-sm:w-4" />
           Riepilogo
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="space-y-3 max-sm:space-y-2 max-sm:p-3 max-sm:pt-0 max-sm:text-sm">
         <div className="flex justify-between">
           <span className="text-muted-foreground">Imponibile</span>
           <span className="font-medium">{formatCurrency(totalAmount)}</span>
@@ -1058,7 +1060,7 @@ export function FinancialSummaryReadOnly({
           <span>Totale con IVA</span>
           <span>{formatCurrency(totalWithVat)}</span>
         </div>
-        <div className="grid grid-cols-2 gap-2 border-t pt-3 text-sm">
+        <div className="grid grid-cols-2 gap-2 border-t pt-3 text-sm max-sm:hidden">
           <div className="rounded-md bg-emerald-50 px-2 py-1 text-emerald-700">
             <div className="text-[11px]">Incassato</div>
             <div className="font-semibold">{formatCurrency(collectedAmount)}</div>
@@ -1074,7 +1076,7 @@ export function FinancialSummaryReadOnly({
           if (incassabile <= 0) return null;
           const pct = Math.min(100, Math.round((collectedAmount / incassabile) * 100));
           return (
-            <div className="space-y-1">
+            <div className="space-y-1 max-sm:hidden">
               <div className="h-2 overflow-hidden rounded-full bg-muted">
                 <div
                   className="h-full rounded-full bg-emerald-500 transition-all"

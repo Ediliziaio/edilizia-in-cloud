@@ -172,8 +172,8 @@ export function OdVSection({ orderId, companyId }: OdVSectionProps) {
               <Skeleton className="h-16 w-full" />
             </div>
           ) : odvList.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">
-              Nessuna variante registrata. I lavori extra richiedono un OdV firmato dal cliente.
+            <p className="text-sm text-muted-foreground text-center py-4 max-sm:py-2 max-sm:text-xs">
+              Nessuna variante registrata.<span className="max-sm:hidden"> I lavori extra richiedono un OdV firmato dal cliente.</span>
             </p>
           ) : (
             <div className="space-y-2">

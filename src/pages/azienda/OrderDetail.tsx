@@ -1759,9 +1759,11 @@ function OrderDetailInner() {
                 quando l'acconto non copre i fornitori. Additiva, non tocca il
                 Conto economico. Richiede ANCHE canViewCosts: il costo
                 materiali dei fornitori è metà del suo messaggio. */}
+            {/* Mobile no: è una stima d'ufficio (materiali contro acconto). */}
             {permissions.canViewOrderAmounts &&
               permissions.canViewCosts &&
               (collectedGross > 0 || costoMaterialiGross > 0) && (
+                <div className="max-sm:hidden">
                 <QuoteCard
                   title={
                     <span className="flex items-center gap-2">
@@ -1851,9 +1853,14 @@ function OrderDetailInner() {
                     </p>
                   </div>
                 </QuoteCard>
+                </div>
               )}
 
-            <OrderErrors orderId={id!} />
+            {/* Errori e perdite: il riquadro parla dell'azienda (ultimi 12 mesi)
+                e si registra al computer. */}
+            <div className="max-sm:hidden">
+              <OrderErrors orderId={id!} />
+            </div>
             <div id="section-ritenute" className="scroll-mt-24">
               <RitenuteTab orderId={id!} />
             </div>

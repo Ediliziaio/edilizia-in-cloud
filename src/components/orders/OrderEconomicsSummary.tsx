@@ -241,9 +241,11 @@ export function OrderEconomicsSummary({
     );
   }
 
+  // Mobile: i tre numeri, gli avvisi e le voci di costo in riga. Grafico,
+  // pianificato/consuntivo e barra incassi (già in testata) al computer.
   return (
     <Card id="section-conto-economico" className="scroll-mt-24 border-l-4 border-l-orange-400">
-      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-3">
+      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-3 max-sm:p-3 max-sm:pb-2">
         <CardTitle className="flex items-center gap-2 text-base">
           {econ.margin >= 0 ? (
             <TrendingUp className="h-4 w-4 text-emerald-500" />
@@ -256,11 +258,11 @@ export function OrderEconomicsSummary({
           Margine {pct1(econ.marginPct)}%
         </Badge>
       </CardHeader>
-      <CardContent>
+      <CardContent className="max-sm:p-3 max-sm:pt-0">
         {/* Su desktop la colonna donut si allarga (era fissa 200px mentre la
             colonna KPI si stirava a nastro sui monitor larghi → donut minuscolo
             e sbilanciato). minmax(0,1fr) evita l'overflow del contenuto denso. */}
-        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_240px] md:items-center xl:grid-cols-[minmax(0,1fr)_300px]">
+        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_240px] md:items-center xl:grid-cols-[minmax(0,1fr)_300px] max-sm:gap-2">
           {/* KPI + cassa */}
           <div className="space-y-3">
             <div className="grid grid-cols-3 gap-2 sm:gap-3">
@@ -276,7 +278,7 @@ export function OrderEconomicsSummary({
             </div>
 
             {econ.costsTot > econ.itemsNet && econ.margin >= 0 && (
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground max-sm:hidden">
                 Margine pianificato: su soli materiali{" "}
                 <strong className="text-foreground">{pct1(econ.attesoMaterialiPct)}%</strong> → completo{" "}
                 <strong className={marginColor}>{pct1(econ.marginPct)}%</strong>{" "}
@@ -288,7 +290,7 @@ export function OrderEconomicsSummary({
 
             {/* Pianificato vs Consuntivo materiali: costo preventivato vs realmente
                 ordinato ai fornitori (ODA) + variazioni. Controllo sovracosti. */}
-            <div className="rounded-lg border bg-muted/20 p-2.5 text-xs">
+            <div className="rounded-lg border bg-muted/20 p-2.5 text-xs max-sm:hidden">
               <div className="mb-1.5 flex items-center justify-between">
                 <span className="font-medium text-foreground">Materiali: pianificato vs consuntivo</span>
                 {consuntivo.odaCount > 0 && (
@@ -385,8 +387,8 @@ export function OrderEconomicsSummary({
               })()}
             </div>
 
-            {/* Cassa */}
-            <div>
+            {/* Cassa — mobile no: incassato e residuo sono già nella testata della commessa. */}
+            <div className="max-sm:hidden">
               {/* gap + flex-wrap: a 375px "Incassato …" e "Da incassare …" si
                   attaccavano (justify-between senza spazio) → ora minimo gap e
                   vanno a capo se non entrano. */}
@@ -435,7 +437,7 @@ export function OrderEconomicsSummary({
           {/* Donut composizione interattivo (SVG a dimensioni fisse, niente
               ResponsiveContainer → non può rompere il layout). Hover su
               segmento o legenda → dettaglio della voce al centro. */}
-          <div className="flex min-h-[190px] items-center justify-center rounded-xl border bg-muted/20 p-3 md:h-full">
+          <div className="flex min-h-[190px] items-center justify-center rounded-xl border bg-muted/20 p-3 md:h-full max-sm:hidden">
             {composition.length > 0 && compositionTotal > 0 ? (
               <DonutChart
                 data={composition}
@@ -476,7 +478,7 @@ export function OrderEconomicsSummary({
 
         {/* Legenda composizione: hover su una voce → highlight del segmento nel donut */}
         {composition.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-x-2 gap-y-1 text-[11px]">
+          <div className="mt-3 flex flex-wrap gap-x-2 gap-y-1 text-[11px] max-sm:mt-2">
             {composition.map((d) => (
               <span
                 key={d.key}
