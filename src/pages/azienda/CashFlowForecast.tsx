@@ -20,6 +20,7 @@ import { TrediciSettimaneTab } from "@/components/forecast/TrediciSettimaneTab";
 
 
 import { useIsMobile } from "@/hooks/use-mobile";
+import { KpiMobili } from "@/components/mobile/FiltriMobile";
 export default function CashFlowForecast() {
   const isMobile = useIsMobile();
   const navigate = useNavigate();
@@ -191,7 +192,7 @@ export default function CashFlowForecast() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-sm:space-y-3">
       {/* Header */}
       <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6 print:mb-4">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -206,7 +207,8 @@ export default function CashFlowForecast() {
               </p>
             </div>
           </div>
-        <div className="flex items-center gap-2 print:hidden flex-wrap">
+        {/* Mobile no: tesoreria, scadenzario e prima nota sono già nel menu. */}
+        <div className="flex items-center gap-2 print:hidden flex-wrap max-sm:hidden">
           <Button variant="outline" size="sm" onClick={() => navigate("/azienda/tesoreria")} className="gap-1">
             <Landmark className="h-4 w-4" />
             <span className="hidden sm:inline">Tesoreria</span>
@@ -260,7 +262,7 @@ export default function CashFlowForecast() {
       {bankingSummary && (
         // Testata navy di famiglia. Formato euro standard it-IT ("52.942 €",
         // non "€52.942"): come nel resto del gestionale.
-        <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
+        <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm max-sm:hidden">
           <div className="bg-[#173b67] p-4 text-white sm:p-5">
             <div className="flex items-start gap-3">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)] sm:h-11 sm:w-11">
@@ -292,6 +294,21 @@ export default function CashFlowForecast() {
         </div>
       )}
 
+      {/* Mobile: saldo di oggi e quello stimato fra 30 giorni, nome e cifra. */}
+      {bankingSummary && (
+        <KpiMobili
+          className="sm:hidden"
+          voci={[
+            { label: "Saldo banca", valore: new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: true }).format(bankingSummary.bankBalance) },
+            {
+              label: "Fra 30 giorni",
+              valore: new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: true }).format(bankingSummary.forecast30),
+              tono: bankingSummary.forecast30 < 0 ? "text-rose-600" : undefined,
+            },
+          ]}
+        />
+      )}
+
       {/* Proiezione 90 giorni — su errore lo diciamo, prima falliva in silenzio
           e l'utente credeva che il grafico predittivo semplicemente non esistesse. */}
       {realDataError && (
@@ -309,16 +326,19 @@ export default function CashFlowForecast() {
       )}
 
       {/* Tabs */}
+      {/* Mobile: due schede su cinque, entrate e uscite; marginalità, previsione
+          di cassa e 13 settimane restano al desktop (il saldo previsto è nel
+          grafico qui sopra). */}
       <Tabs defaultValue="incassato" className="w-full">
-        <TabsList className="flex flex-wrap h-auto gap-1 p-1 w-full justify-start">
-          <TabsTrigger value="incassato">Incassato</TabsTrigger>
-          <TabsTrigger value="marginalita">Marginalità</TabsTrigger>
-          <TabsTrigger value="costi">Previsionale Costi</TabsTrigger>
-          <TabsTrigger value="cassa">Previsione di Cassa</TabsTrigger>
-          <TabsTrigger value="settimane">13 settimane</TabsTrigger>
+        <TabsList className="flex flex-wrap h-auto gap-1 p-1 w-full justify-start max-sm:grid max-sm:grid-cols-2">
+          <TabsTrigger value="incassato" className="tap-compact max-sm:h-8 max-sm:text-xs"><span className="max-sm:hidden">Incassato</span><span className="sm:hidden">Entrate</span></TabsTrigger>
+          <TabsTrigger value="marginalita" className="max-sm:hidden">Marginalità</TabsTrigger>
+          <TabsTrigger value="costi" className="tap-compact max-sm:h-8 max-sm:text-xs"><span className="max-sm:hidden">Previsionale Costi</span><span className="sm:hidden">Uscite</span></TabsTrigger>
+          <TabsTrigger value="cassa" className="max-sm:hidden">Previsione di Cassa</TabsTrigger>
+          <TabsTrigger value="settimane" className="max-sm:hidden">13 settimane</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="incassato" className="mt-6">
+        <TabsContent value="incassato" className="mt-6 max-sm:mt-3">
           <CollectedTab orders={orders} expectedPayments={expectedPayments} />
         </TabsContent>
 
@@ -328,7 +348,7 @@ export default function CashFlowForecast() {
           </div>
         </TabsContent>
 
-        <TabsContent value="costi" className="mt-6">
+        <TabsContent value="costi" className="mt-6 max-sm:mt-3">
           <CostsForecastTab
             expectedExpenses={expectedExpenses}
             expectedCommissions={expectedCommissions}

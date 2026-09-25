@@ -312,9 +312,11 @@ export function CollectedTab({ orders, expectedPayments }: CollectedTabProps) {
   }, [allCollected]);
 
   return (
-    <div className="space-y-6">
-      {/* DSO KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+    // Mobile: colonna flessibile (i riquadri nascosti non lasciano margini) con
+    // l'avanzamento del mese, poi «Da ricevere», poi «Già incassato».
+    <div className="space-y-6 max-sm:flex max-sm:flex-col max-sm:gap-3 max-sm:space-y-0">
+      {/* DSO KPI Cards. Mobile no: indici da scrivania. */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-sm:hidden">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-2 mb-1">
@@ -366,7 +368,7 @@ export function CollectedTab({ orders, expectedPayments }: CollectedTabProps) {
 
       {/* Monthly Collections YTD Chart */}
       {monthlyCollectionsYTD.length > 0 && (
-        <Card>
+        <Card className="max-sm:hidden">
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Incassato Mensile — Anno Corrente</CardTitle>
           </CardHeader>
@@ -390,17 +392,17 @@ export function CollectedTab({ orders, expectedPayments }: CollectedTabProps) {
       )}
       {/* Hero Progress Card */}
       <Card className="border-l-4 border-l-emerald-500">
-        <CardContent className="pt-6">
-          <div className="flex flex-col md:flex-row md:items-center gap-6">
-            <div className="flex-1 space-y-3">
+        <CardContent className="pt-6 max-sm:p-3">
+          <div className="flex flex-col md:flex-row md:items-center gap-6 max-sm:gap-2">
+            <div className="flex-1 space-y-3 max-sm:space-y-1.5">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-medium text-muted-foreground">
-                  Progresso incassi — {format(now, "MMMM yyyy", { locale: it })}
+                <h3 className="text-sm font-medium text-muted-foreground max-sm:text-xs">
+                  <span className="max-sm:hidden">Progresso incassi — </span>{format(now, "MMMM yyyy", { locale: it })}
                 </h3>
-                <span className="text-2xl font-bold text-emerald-600">{progressPercent}%</span>
+                <span className="text-2xl font-bold text-emerald-600 max-sm:text-base">{progressPercent}%</span>
               </div>
-              <Progress value={progressPercent} className="h-3" />
-              <div className="flex justify-between text-sm">
+              <Progress value={progressPercent} className="h-3 max-sm:h-2" />
+              <div className="flex justify-between text-sm max-sm:text-[11px]">
                 <span className="text-emerald-600 font-medium">
                   Incassato: {formatCurrency(collectedTotal)}
                   <span className="text-muted-foreground font-normal ml-1">({collectedThisMonth.length})</span>
@@ -411,7 +413,8 @@ export function CollectedTab({ orders, expectedPayments }: CollectedTabProps) {
                 </span>
               </div>
             </div>
-            <div className="text-right md:border-l md:pl-6 border-border">
+            {/* Mobile no: è la somma dei due numeri qui accanto. */}
+            <div className="text-right md:border-l md:pl-6 border-border max-sm:hidden">
               <p className="text-xs text-muted-foreground">Obiettivo mese</p>
               <p className="text-xl font-bold">{formatCurrency(totalTarget)}</p>
             </div>
@@ -419,8 +422,8 @@ export function CollectedTab({ orders, expectedPayments }: CollectedTabProps) {
         </CardContent>
       </Card>
 
-      {/* Compact summary cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* Compact summary cards. Mobile no: le stesse cifre stanno in «Da ricevere». */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-sm:hidden">
         <Card>
           <CardContent className="pt-6">
             <p className="text-sm text-muted-foreground">Prossimo mese</p>
@@ -458,14 +461,14 @@ export function CollectedTab({ orders, expectedPayments }: CollectedTabProps) {
         </Card>
       </div>
 
-      {/* Già Incassato */}
-      <Card>
-        <CardHeader className="pb-3">
+      {/* Già Incassato — mobile: in fondo, solo il mese, una riga per incasso. */}
+      <Card className="max-sm:order-1 max-sm:overflow-hidden">
+        <CardHeader className="pb-3 max-sm:p-3 max-sm:pb-2">
           <div className="flex flex-col gap-3">
-            <CardTitle className="text-lg">
+            <CardTitle className="text-lg max-sm:text-sm">
               {showingFiltered ? "Già incassato — Periodo personalizzato" : `Già incassato — ${format(now, "MMMM yyyy", { locale: it })}`}
             </CardTitle>
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 max-sm:hidden">
               <div className="flex flex-wrap items-center border rounded-md">
                 {([
                   { key: "thisMonth", label: "Questo mese" },
@@ -521,15 +524,32 @@ export function CollectedTab({ orders, expectedPayments }: CollectedTabProps) {
             </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="max-sm:p-0">
           {filteredCollected.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-4 text-center">
+            <p className="text-sm text-muted-foreground py-4 text-center max-sm:px-3 max-sm:pb-3 max-sm:pt-0 max-sm:text-left max-sm:text-xs">
               Nessun incasso registrato{showingFiltered ? " nel periodo selezionato" : " questo mese"}
               {searchQuery && " per questa ricerca"}
             </p>
           ) : (
             <>
-              <Table>
+              <div className="divide-y border-t sm:hidden">
+                {paginatedCollected.map((p, i) => (
+                  <div
+                    key={`${p.orderId}-${p.type}-${i}`}
+                    onClick={() => p.orderId && navigate(`/azienda/ordini/${p.orderId}`)}
+                    className={cn("flex items-center gap-2.5 px-3 py-2.5", p.orderId && "cursor-pointer active:bg-muted")}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[13px] font-semibold leading-tight">{p.customerName}</p>
+                      <p className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground">
+                        {format(p.paidDate, "dd/MM")} · {p.orderCode || "—"} · {p.type}
+                      </p>
+                    </div>
+                    <span className="shrink-0 text-[13px] font-semibold tabular-nums text-emerald-600">{formatCurrency(p.amount)}</span>
+                  </div>
+                ))}
+              </div>
+              <Table className="max-sm:hidden">
                 <TableHeader>
                   <TableRow>
                     <SortableTableHead column="date" label="Data" sortConfig={sortConfig} onSort={toggleSort} />
@@ -555,19 +575,36 @@ export function CollectedTab({ orders, expectedPayments }: CollectedTabProps) {
                   ))}
                 </TableBody>
               </Table>
-              <TablePagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                pageSize={pageSize}
-                totalItems={totalItems}
-                onPageChange={setPage}
-                onPageSizeChange={setPageSize}
-              />
+              {/* Mobile: solo precedente/successiva; il contenitore c'è solo
+                  quando la paginazione compare (niente margine sul desktop). */}
+              {totalItems > 25 && (
+                <div className="max-sm:hidden">
+                  <TablePagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    pageSize={pageSize}
+                    totalItems={totalItems}
+                    onPageChange={setPage}
+                    onPageSizeChange={setPageSize}
+                  />
+                </div>
+              )}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between border-t px-3 py-2 sm:hidden">
+                  <Button variant="outline" size="icon" className="tap-compact h-8 w-8" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)} aria-label="Pagina precedente">
+                    <ChevronRight className="h-4 w-4 rotate-180" />
+                  </Button>
+                  <span className="text-xs tabular-nums text-muted-foreground">{currentPage} di {totalPages}</span>
+                  <Button variant="outline" size="icon" className="tap-compact h-8 w-8" disabled={currentPage >= totalPages} onClick={() => setPage(currentPage + 1)} aria-label="Pagina successiva">
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
             </>
           )}
           {/* Sticky total footer - always visible */}
           {filteredCollected.length > 0 && (
-            <div className="flex justify-end mt-3 pt-3 border-t">
+            <div className="flex justify-end mt-3 pt-3 border-t max-sm:hidden">
               <span className="text-sm font-semibold text-emerald-600">
                 Totale: {formatCurrency(filteredCollectedTotal)}
                 <span className="text-muted-foreground font-normal ml-2">({filteredCollected.length} pagamenti)</span>
@@ -579,13 +616,13 @@ export function CollectedTab({ orders, expectedPayments }: CollectedTabProps) {
 
       {/* Unified "Da Ricevere" */}
       <Card>
-        <CardHeader className="pb-3">
+        <CardHeader className="pb-3 max-sm:p-3 max-sm:pb-1">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-lg">Da ricevere</CardTitle>
-            <span className="text-sm font-semibold text-amber-600">{formatCurrency(allExpectedTotal)}</span>
+            <CardTitle className="text-lg max-sm:text-sm">Da ricevere</CardTitle>
+            <span className="text-sm font-semibold text-amber-600 max-sm:text-[13px]">{formatCurrency(allExpectedTotal)}</span>
           </div>
         </CardHeader>
-        <CardContent className="space-y-1">
+        <CardContent className="space-y-1 max-sm:px-1 max-sm:pb-1">
           {Object.keys(groupedExpected).length === 0 ? (
             <p className="text-sm text-muted-foreground py-4 text-center">Nessun pagamento atteso</p>
           ) : (
@@ -631,10 +668,10 @@ function ExpectedGroupSection({ groupKey, group, isExpanded, onToggle }: {
   return (
     <Collapsible open={isExpanded} onOpenChange={onToggle}>
       <CollapsibleTrigger asChild>
-        <button className="flex items-center justify-between w-full px-3 py-2.5 rounded-md hover:bg-muted/50 transition-colors text-left">
+        <button className="tap-compact flex items-center justify-between w-full px-3 py-2.5 rounded-md hover:bg-muted/50 transition-colors text-left max-sm:px-2 max-sm:py-2">
           <div className="flex items-center gap-2">
             {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
-            <span className="text-sm font-medium capitalize">{group.label}</span>
+            <span className="text-sm font-medium capitalize max-sm:text-[13px]">{group.label}</span>
             {group.isOverdue && (
               <Badge variant="destructive" className="text-[10px] h-5 gap-1">
                 <AlertTriangle className="h-3 w-3" />
@@ -645,14 +682,33 @@ function ExpectedGroupSection({ groupKey, group, isExpanded, onToggle }: {
               <span className="text-xs text-muted-foreground">({group.payments.length})</span>
             )}
           </div>
-          <span className={`text-sm font-semibold ${group.isOverdue ? "text-destructive" : "text-amber-600"}`}>
+          <span className={`text-sm font-semibold max-sm:text-[13px] ${group.isOverdue ? "text-destructive" : "text-amber-600"}`}>
             {formatCurrency(group.total)}
           </span>
         </button>
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <div className="pl-2 pr-1 pb-2">
-          <Table>
+        <div className="pl-2 pr-1 pb-2 max-sm:p-0">
+          {/* Mobile: un pagamento per riga (cliente; data, ordine e tipo; importo). */}
+          <div className="divide-y sm:hidden">
+            {group.payments.map((p, i) => (
+              <div
+                key={`${p.orderId}-${p.type}-${i}`}
+                onClick={() => p.orderId && navigate(`/azienda/ordini/${p.orderId}`)}
+                className={`flex items-center gap-2.5 px-3 py-2.5 ${p.orderId ? "cursor-pointer active:bg-muted" : ""}`}
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[13px] font-semibold leading-tight">{p.customerName}</p>
+                  <p className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground">
+                    <span className={group.isOverdue ? "font-medium text-destructive" : ""}>{p.expectedDate ? format(p.expectedDate, "dd/MM/yy") : "senza data"}</span>
+                    {` · ${p.orderCode || "—"} · ${p.type}`}
+                  </p>
+                </div>
+                <span className="shrink-0 text-[13px] font-semibold tabular-nums">{formatCurrency(p.amount)}</span>
+              </div>
+            ))}
+          </div>
+          <Table className="max-sm:hidden">
             <TableHeader>
               <TableRow>
                 <TableHead>Data prevista</TableHead>

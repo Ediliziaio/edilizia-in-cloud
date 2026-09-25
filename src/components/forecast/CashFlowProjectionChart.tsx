@@ -7,6 +7,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import type { CashFlowProjectionDay } from "@/hooks/useCashFlowRealData";
 import { useNavigate } from "react-router-dom";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface CashFlowProjectionChartProps {
   projection: CashFlowProjectionDay[];
@@ -22,18 +23,20 @@ const RANGES = [
 
 export function CashFlowProjectionChart({ projection, currentBalance, hasBanking }: CashFlowProjectionChartProps) {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const [range, setRange] = useState(30);
 
   if (!hasBanking) {
     return (
+      // Mobile: una riga col bottone, senza icona e spiegazione.
       <Card>
-        <CardContent className="py-10 text-center space-y-3">
-          <AlertTriangle className="h-8 w-8 text-amber-500 mx-auto" />
-          <p className="text-sm font-medium text-foreground">Nessun conto bancario collegato</p>
-          <p className="text-xs text-muted-foreground">
+        <CardContent className="py-10 text-center space-y-3 max-sm:flex max-sm:items-center max-sm:justify-between max-sm:gap-2 max-sm:space-y-0 max-sm:p-3 max-sm:text-left">
+          <AlertTriangle className="h-8 w-8 text-amber-500 mx-auto max-sm:hidden" />
+          <p className="text-sm font-medium text-foreground max-sm:text-xs">Nessun conto bancario collegato</p>
+          <p className="text-xs text-muted-foreground max-sm:hidden">
             Collega il conto bancario per attivare il forecast preciso con dati reali.
           </p>
-          <Button size="sm" variant="outline" onClick={() => navigate("/azienda/tesoreria")}>
+          <Button size="sm" variant="outline" onClick={() => navigate("/azienda/tesoreria")} className="tap-compact max-sm:h-8 max-sm:shrink-0 max-sm:text-xs">
             Vai a Tesoreria
           </Button>
         </CardContent>
@@ -53,11 +56,12 @@ export function CashFlowProjectionChart({ projection, currentBalance, hasBanking
 
   return (
     <Card>
-      <CardHeader>
+      {/* Mobile: intestazione stretta, titolo corto, grafico più basso. */}
+      <CardHeader className="max-sm:p-3 max-sm:pb-1">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base flex items-center gap-2">
-            <TrendingUp className="h-4 w-4" />
-            Proiezione Saldo Cassa
+          <CardTitle className="text-base flex items-center gap-2 max-sm:text-sm">
+            <TrendingUp className="h-4 w-4 max-sm:hidden" />
+            <span className="max-sm:hidden">Proiezione Saldo Cassa</span><span className="sm:hidden">Saldo previsto</span>
           </CardTitle>
           <div className="flex gap-1">
             {RANGES.map(({ label, days }) => (
@@ -65,7 +69,7 @@ export function CashFlowProjectionChart({ projection, currentBalance, hasBanking
                 key={days}
                 size="sm"
                 variant={range === days ? "default" : "outline"}
-                className="h-7 px-3 text-xs"
+                className="tap-compact h-7 px-3 text-xs max-sm:px-2"
                 onClick={() => setRange(days)}
               >
                 {label}
@@ -79,8 +83,8 @@ export function CashFlowProjectionChart({ projection, currentBalance, hasBanking
           </p>
         )}
       </CardHeader>
-      <CardContent>
-        <ResponsiveContainer width="100%" height={280}>
+      <CardContent className="max-sm:px-1 max-sm:pb-2">
+        <ResponsiveContainer width="100%" height={isMobile ? 180 : 280}>
           <LineChart data={data}>
             {/* Assi e tooltip nello stile di famiglia (v. grafico Commesse). */}
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#edf2f7" />
