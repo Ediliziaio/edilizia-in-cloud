@@ -26,13 +26,13 @@ Nessuno dei sistemi EiC ricade in "inaccettabile" (sono pratiche vietate come so
 | 12 | ai-lead-score | Score lead commerciali | **Limitato** | Suggerimento commerciale, decisione umana | Trasparenza |
 | 13 | ai-customer-ltv | Predizione LTV | **Limitato** | Statistico, suggerimento | Trasparenza |
 | 14 | ai-allocazione-operai | Suggerisce team | **⚠️ Borderline / da configurare** | Se fosse autonomo nelle assegnazioni HR potrebbe essere alto rischio. Configurazione attuale: suggerisce, decide umano → limitato | Trasparenza + HIL obbligatorio + no decisioni autonome HR |
-| 15 | ai-pricing-suggest | Suggerisce prezzo | **Limitato** | Suggerimento commerciale | Trasparenza |
+| 15 | ~~ai-pricing-suggest~~ (tolto il 25/09/2026, mai attivato) | Suggerisce prezzo | **Limitato** | Suggerimento commerciale | Trasparenza |
 | 16 | ai-foto-cantiere-quality | Vision check qualità | **Limitato** | Analisi suggerimento, decisione umana | Trasparenza |
 | 17 | ai-biz-card-ocr | OCR biglietto da visita | **Minimo** | Estrazione dati | Nessuno specifico |
-| 18 | ai-summarize | Riassume testo | **Limitato** | Generazione contenuti | Etichetta |
-| 19 | ai-executive-briefing | Briefing C-level | **Limitato** | Generazione report, decisione umana | Trasparenza |
-| 20 | ai-fraud-review | Review anomalie | **⚠️ Borderline / da configurare** | Se classificasse autonomamente come "frode" un soggetto, potrebbe avvicinarsi all'alto rischio. Configurazione attuale: suggerisce e segnala, decide umano | Trasparenza + HIL + no etichette automatiche di "frode" |
-| 21 | ai-briefing-per-ruolo | Briefing personalizzato | **Limitato** | Contenuti generati per utente | Etichetta |
+| 18 | ~~ai-summarize~~ (tolto il 25/09/2026, mai attivato) | Riassume testo | **Limitato** | Generazione contenuti | Etichetta |
+| 19 | ~~ai-executive-briefing~~ (tolto il 25/09/2026, mai attivato) | Briefing C-level | **Limitato** | Generazione report, decisione umana | Trasparenza |
+| 20 | ~~ai-fraud-review~~ (tolto il 25/09/2026, mai attivato) | Review anomalie | **⚠️ Borderline / da configurare** | Se classificasse autonomamente come "frode" un soggetto, potrebbe avvicinarsi all'alto rischio. Configurazione attuale: suggerisce e segnala, decide umano | Trasparenza + HIL + no etichette automatiche di "frode" |
+| 21 | ~~ai-briefing-per-ruolo~~ (tolto il 25/09/2026, mai attivato) | Briefing personalizzato | **Limitato** | Contenuti generati per utente | Etichetta |
 | 22 | ai-genera-preventivo-v2 | Genera preventivi | **Limitato** | Bozza, revisionata | Trasparenza |
 | 23 | computo-ai-extract | OCR computi | **Minimo** | Estrazione | Nessuno |
 | 24 | ai-tabella-finanziamento-extract | OCR finanziamenti | **Minimo** | Estrazione | Nessuno |
@@ -58,6 +58,8 @@ Due edge function meritano attenzione particolare:
 - DPIA estesa con focus su discriminazione algoritmica
 
 ### ai-fraud-review
+
+> Tolto il 25/09/2026: nessuna pagina lo chiamava e non è mai stato attivato. La valutazione qui sotto resta come riferimento se tornasse.
 
 **Rischio**: classificare un soggetto come "frodante" in autonomia avrebbe implicazioni legali serie.
 

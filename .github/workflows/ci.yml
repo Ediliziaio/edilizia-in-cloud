@@ -174,10 +174,17 @@ jobs:
           FAILED=()
           for fn in ${{ steps.changed.outputs.functions }}; do
             echo "──────────────────────────────────────────"
-            # Una funzione tolta dal repository compare nel diff ma non c'è più
-            # niente da pubblicare: senza questo controllo il job falliva.
+            # Una funzione tolta dal repository si cancella anche dal progetto:
+            # prima restava pubblicata e chiamabile da chiunque conoscesse
+            # l'URL (25/09/2026: 43 funzioni mai usate tolte in un colpo).
+            # Il repository è la fonte, come per le migrazioni. Se la
+            # cancellazione non riesce (già tolta a mano) è solo un avviso.
             if [ ! -d "supabase/functions/${fn}" ]; then
-              echo "↷ ${fn} — tolta dal repository, niente da pubblicare"
+              if supabase functions delete "${fn}" --project-ref "${SUPABASE_PROJECT_ID}" --yes; then
+                echo "✗ ${fn} — tolta dal repository, cancellata dal progetto"
+              else
+                echo "::warning::${fn} tolta dal repository ma non cancellata dal progetto (forse già assente)"
+              fi
               continue
             fi
             echo "→ Deploying: ${fn}"

@@ -163,16 +163,10 @@ verify_jwt = false
 [functions.public-checkout]
 verify_jwt = false
 
-[functions.generate-landing-image]
-verify_jwt = false
-
 [functions.manage-super-admins]
 verify_jwt = false
 
 [functions.sign-in-as-user]
-verify_jwt = false
-
-[functions.analyze-message]
 verify_jwt = false
 
 [functions.whatsapp-webhook]
@@ -182,9 +176,6 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.whatsapp-connect]
-verify_jwt = false
-
-[functions.whatsapp-status]
 verify_jwt = false
 
 [functions.whatsapp-embedded-config]
@@ -407,9 +398,6 @@ verify_jwt = false
 [functions.internal-agent-webhook]
 verify_jwt = false
 
-[functions.internal-campaign-manager]
-verify_jwt = false
-
 [functions.track-user-session]
 verify_jwt = false
 
@@ -464,9 +452,6 @@ verify_jwt = false
 [functions.referral-payout-executor]
 verify_jwt = false
 
-[functions.process-internal-automation]
-verify_jwt = false
-
 [functions.billing-connect]
 verify_jwt = false
 
@@ -492,12 +477,6 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.verify-custom-domain]
-verify_jwt = false
-
-[functions.authenticate-api-key]
-verify_jwt = false
-
-[functions.invite-admin]
 verify_jwt = false
 
 [functions.test-integration]
@@ -574,9 +553,6 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.admin-dashboard-data]
-verify_jwt = false
-
-[functions.admin-export-financials]
 verify_jwt = false
 
 [functions.admin-mrr-data]
@@ -673,9 +649,6 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.gbp-sync-reviews]
-verify_jwt = true
-
-[functions.gbp-reply-review]
 verify_jwt = true
 
 [functions.outlook-calendar-auth]
@@ -996,9 +969,6 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.sync-openrouter-catalog]
-verify_jwt = false
-
-[functions.task-automation-trigger]
 verify_jwt = false
 
 [functions.topup-outbox-recovery]
