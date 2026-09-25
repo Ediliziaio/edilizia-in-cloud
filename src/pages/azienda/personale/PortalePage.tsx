@@ -72,6 +72,9 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { AvvisoSoloDaComputer } from "@/components/mobile/SoloDaComputer";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -1058,6 +1061,8 @@ export interface PortalePageProps {
 
 export default function PortalePage({ portalContext = "azienda", mode = "full" }: PortalePageProps = {}) {
   const { effectiveCompany, user } = useAuth();
+  const permissions = usePermissions();
+  const isMobile = useIsMobile();
   const companyId = effectiveCompany?.id ?? null;
   const userId = user?.id ?? null;
   const isAdminContext = portalContext === "admin";
@@ -1747,6 +1752,22 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
     }
   };
 
+  // Dal telefono i corsi si guardano, non si creano (regola dell'utente,
+  // 25/09/2026): «Crea corsi» mostra solo dove guardarli. Il tablet no.
+  if (mode === "builder" && isMobile) {
+    const doveGuardarli = permissions.canManagePortal
+      ? "/azienda/personale/portale"
+      : permissions.canViewFormazione
+        ? "/azienda/formazione"
+        : null;
+    return (
+      <AvvisoSoloDaComputer
+        titolo="I corsi si creano da computer o tablet"
+        azione={doveGuardarli ? { etichetta: "Vedi i corsi", to: doveGuardarli } : undefined}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Hero header + stat cards + azioni authoring — SOLO gestione (Crea corsi
@@ -2277,6 +2298,9 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
             companyId={companyId}
             userId={userId}
             onOpenAsset={openAssetAction}
+            nomeAcademy={
+              !isAdminContext && effectiveCompany?.name ? `${nomeSenzaFormaGiuridica(effectiveCompany.name)} Academy` : "Academy"
+            }
           />
         </TabsContent>
       </Tabs>
@@ -4177,18 +4201,29 @@ function PeopleProgressPanel({
   );
 }
 
+/** «Demo Azienda S.r.l.» → «Demo Azienda»: nel nome del portale la forma giuridica stona. */
+function nomeSenzaFormaGiuridica(nome: string): string {
+  const pulito = nome
+    .replace(/[\s,]+(s\.?\s?r\.?\s?l\.?(\s?s\.?)?|s\.?\s?p\.?\s?a\.?|s\.?\s?n\.?\s?c\.?|s\.?\s?a\.?\s?s\.?)$/i, "")
+    .trim();
+  return pulito || nome;
+}
+
 function PortalPreview({
   course,
   courses,
   companyId,
   userId,
   onOpenAsset,
+  nomeAcademy = "Academy",
 }: {
   course?: PortalCourse;
   courses: PortalCourse[];
   companyId?: string | null;
   userId?: string | null;
   onOpenAsset: (asset: PortalAsset) => void;
+  /** Il nome del portale: «<azienda> Academy». Era scritto fisso «Demo Azienda Academy». */
+  nomeAcademy?: string;
 }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const learnerCourses = useMemo(() => {
@@ -4706,22 +4741,23 @@ function PortalPreview({
   }
 
   return (
-    <section id="portal-preview-root" className="space-y-5">
+    <section id="portal-preview-root" className="space-y-5 max-sm:space-y-3">
       {learnerView === "library" && (
-        <div className="z-10 rounded-3xl border border-slate-200 bg-white/95 p-3 shadow-sm backdrop-blur sm:sticky sm:top-2">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="z-10 rounded-3xl border border-slate-200 bg-white/95 p-3 shadow-sm backdrop-blur sm:sticky sm:top-2 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none max-sm:backdrop-blur-none">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between max-sm:gap-2">
+            {/* Mobile: il nome del portale come titolo, senza icona né sottotitolo. */}
             <div className="flex min-w-0 items-center gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-600 text-white">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-600 text-white max-sm:hidden">
                 <GraduationCap className="h-5 w-5" />
               </div>
               <div className="min-w-0">
                 <div className="flex min-w-0 flex-wrap items-center gap-2">
-                  <p className="truncate text-sm font-bold text-slate-950">Demo Azienda Academy</p>
+                  <p className="truncate text-sm font-bold text-slate-950 max-sm:text-base">{nomeAcademy}</p>
                   <Badge variant="outline" className="hidden border-blue-200 bg-blue-50 text-[11px] text-blue-700 sm:inline-flex">
                     Anteprima admin
                   </Badge>
                 </div>
-                <p className="truncate text-xs text-slate-500">Area utente finale · corsi, materiali, quiz e attestati</p>
+                <p className="truncate text-xs text-slate-500 max-sm:hidden">Area utente finale · corsi, materiali, quiz e attestati</p>
               </div>
             </div>
             <div className="relative min-w-0 flex-1 lg:max-w-2xl">
@@ -4730,7 +4766,7 @@ function PortalPreview({
                 value={learnerSearch}
                 onChange={(event) => setLearnerSearch(event.target.value)}
                 className="h-10 rounded-2xl border-slate-200 pl-9 text-base sm:text-sm"
-                placeholder="Cerca corsi, manuali o procedure"
+                placeholder="Cerca corsi e procedure"
               />
             </div>
           </div>
@@ -4739,7 +4775,31 @@ function PortalPreview({
 
       {learnerView === "library" ? (
         <>
-      <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+      {/* Mobile: al posto del riquadro blu (567px con testi e numeri) una riga
+          sola per riprendere il corso. */}
+      <button
+        type="button"
+        onClick={() =>
+          openLearnerCourse(activeLearnerCourse, activeModule?.id ?? activeLearnerCourse.modules[0]?.id ?? "")
+        }
+        className="tap-compact flex w-full items-center gap-3 rounded-xl bg-blue-900 px-3 py-2.5 text-left text-white sm:hidden"
+      >
+        <PlayCircle className="h-5 w-5 shrink-0 text-orange-300" aria-hidden="true" />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-semibold">{activeLearnerCourse.title}</span>
+          <span className="mt-1 flex items-center gap-2">
+            <span className="h-1.5 flex-1 rounded-full bg-white/20">
+              <span
+                className="block h-1.5 rounded-full bg-orange-400"
+                style={{ width: `${Math.max(previewCourseCompletion, 4)}%` }}
+              />
+            </span>
+            <span className="text-[11px] tabular-nums text-blue-100">{previewCourseCompletion}%</span>
+          </span>
+        </span>
+        <span className="shrink-0 text-xs font-semibold">Riprendi</span>
+      </button>
+      <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm max-sm:hidden">
         <div className="grid gap-5 bg-gradient-to-br from-blue-950 via-blue-900 to-slate-900 p-5 text-white lg:grid-cols-[minmax(0,1.1fr)_360px] lg:p-6">
           <div className="flex min-w-0 flex-col justify-between gap-5">
             <div>
@@ -4785,16 +4845,17 @@ function PortalPreview({
         </div>
       </div>
 
-      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-          <div>
+      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between max-sm:gap-2">
+          <div className="max-sm:hidden">
             <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Libreria personale</p>
             <h3 className="mt-1 text-xl font-bold text-slate-950">I tuoi corsi sbloccati</h3>
             <p className="mt-1 text-sm text-slate-500">
               Corsi pubblicati, stato di avanzamento e prossimo passo.
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          {/* Mobile: i quattro filtri su una riga sola, che scorre se serve. */}
+          <div className="flex flex-wrap gap-2 max-sm:-mx-3 max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:px-3 max-sm:scrollbar-none">
             {[
               { value: "tutti" as const, label: "Tutti" },
               { value: "in_corso" as const, label: "In corso" },
@@ -4809,7 +4870,7 @@ function PortalPreview({
                   updateLearnerUrl({ filter: filter.value });
                 }}
                 className={cn(
-                  "rounded-full border px-3 py-1.5 text-xs font-semibold transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700",
+                  "tap-compact shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700",
                   learnerFilter === filter.value
                     ? "border-blue-200 bg-blue-50 text-blue-700"
                     : "border-slate-200 bg-white text-slate-500",
@@ -4821,7 +4882,7 @@ function PortalPreview({
           </div>
         </div>
 
-        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3 max-sm:mt-2 max-sm:gap-0 max-sm:divide-y max-sm:divide-border max-sm:overflow-hidden max-sm:rounded-xl max-sm:border max-sm:border-border max-sm:bg-card">
           {filteredLearnerCourses.map((item) => (
             <LearnerCourseCard
               key={item.id}
@@ -4834,10 +4895,10 @@ function PortalPreview({
         </div>
 
         {filteredLearnerCourses.length === 0 && (
-          <div className="mt-5 rounded-2xl border border-dashed border-slate-300 p-8 text-center">
-            <Search className="mx-auto h-8 w-8 text-slate-400" />
-            <h4 className="mt-3 font-bold text-slate-950">Nessun corso trovato</h4>
-            <p className="mt-1 text-sm text-slate-500">Cambia ricerca o filtro per vedere altri corsi sbloccati.</p>
+          <div className="mt-5 rounded-2xl border border-dashed border-slate-300 p-8 text-center max-sm:mt-2 max-sm:p-4">
+            <Search className="mx-auto h-8 w-8 text-slate-400 max-sm:hidden" />
+            <h4 className="mt-3 font-bold text-slate-950 max-sm:mt-0 max-sm:text-sm max-sm:font-medium">Nessun corso trovato</h4>
+            <p className="mt-1 text-sm text-slate-500 max-sm:hidden">Cambia ricerca o filtro per vedere altri corsi sbloccati.</p>
           </div>
         )}
       </section>
@@ -4851,11 +4912,11 @@ function PortalPreview({
           className="fixed inset-0 z-[9999] isolate min-h-dvh overflow-y-auto overscroll-contain bg-slate-50"
         >
           <div className="sticky top-0 z-30 border-b border-slate-200 bg-white shadow-sm">
-            <div className="mx-auto flex max-w-[1640px] flex-col gap-3 px-4 py-3 lg:px-6 xl:flex-row xl:items-center xl:justify-between">
-              <div className="flex min-w-0 items-center gap-3">
+            <div className="mx-auto flex max-w-[1640px] flex-col gap-3 px-4 py-3 lg:px-6 xl:flex-row xl:items-center xl:justify-between max-sm:gap-2 max-sm:px-3 max-sm:py-2">
+              <div className="flex min-w-0 items-center gap-3 max-sm:gap-2">
                 <Button
                   variant="outline"
-                  className="h-11 shrink-0 gap-2 rounded-2xl border-slate-200 text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                  className="h-11 shrink-0 gap-2 rounded-2xl border-slate-200 text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 tap-compact max-sm:h-9 max-sm:w-9 max-sm:rounded-xl max-sm:px-0"
                   onClick={() => {
                     // Back gerarchico: dalla lezione si torna alla panoramica del
                     // corso; dalla panoramica si esce alla libreria.
@@ -4879,7 +4940,7 @@ function PortalPreview({
                   </span>
                 </Button>
                 <div className="min-w-0">
-                  <h3 className="truncate text-lg font-bold text-slate-950 lg:text-xl">{activeLearnerCourse.title}</h3>
+                  <h3 className="truncate text-lg font-bold text-slate-950 lg:text-xl max-sm:text-base">{activeLearnerCourse.title}</h3>
                 </div>
               </div>
 
@@ -4925,7 +4986,8 @@ function PortalPreview({
                     className="h-10 justify-center gap-1.5 rounded-2xl px-1.5 text-xs sm:gap-2 sm:px-4 sm:text-sm border-blue-200 text-blue-700"
                     onClick={openLearnerMaterials}
                   >
-                    <Download className="h-4 w-4" />
+                    <Download className="h-4 w-4 max-sm:hidden" />
+                    <FileArchive className="h-4 w-4 sm:hidden" />
                     Materiali
                   </Button>
                 </div>
@@ -4943,14 +5005,15 @@ function PortalPreview({
             </div>
           </div>
 
-          <div className="mx-auto max-w-[1640px] px-4 py-5 lg:px-6 lg:py-6">
+          <div className="mx-auto max-w-[1640px] px-4 py-5 lg:px-6 lg:py-6 max-sm:px-3 max-sm:py-3">
             {/* Hero corso (titolo + progress + Avvia lezione): SOLO in panoramica.
                 In modalità lezione è ridondante (si è già dentro) e spinge giù il
                 contenuto — lì basta l'header sticky + il player. */}
             {courseExperienceView === "overview" && (
-            <div className="mb-5 overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
-              <div className="grid gap-5 bg-gradient-to-r from-white via-blue-50 to-orange-50 p-5 lg:grid-cols-[minmax(0,1fr)_340px] lg:p-6">
-                <div className="min-w-0 space-y-4">
+            <div className="mb-5 overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm max-sm:mb-3 max-sm:rounded-xl">
+              <div className="grid gap-5 bg-gradient-to-r from-white via-blue-50 to-orange-50 p-5 lg:grid-cols-[minmax(0,1fr)_340px] lg:p-6 max-sm:gap-0 max-sm:p-0">
+                {/* Mobile: titolo già nella barra in alto, niente etichette né descrizione. */}
+                <div className="min-w-0 space-y-4 max-sm:hidden">
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">
                       {areaLabels[activeLearnerCourse.area]}
@@ -4970,12 +5033,12 @@ function PortalPreview({
                   </div>
                 </div>
 
-                <div className="rounded-3xl border border-blue-100 bg-white/90 p-4 shadow-sm">
+                <div className="rounded-3xl border border-blue-100 bg-white/90 p-4 shadow-sm max-sm:rounded-none max-sm:border-0 max-sm:p-3 max-sm:shadow-none">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Avanzamento</p>
-                      <div className="mt-1 flex items-end gap-2">
-                        <span className="text-4xl font-bold text-slate-950">{previewCourseCompletion}%</span>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 max-sm:hidden">Avanzamento</p>
+                      <div className="mt-1 flex items-end gap-2 max-sm:mt-0">
+                        <span className="text-4xl font-bold text-slate-950 max-sm:text-2xl">{previewCourseCompletion}%</span>
                         <span className="pb-1 text-xs font-semibold text-slate-500">
                           {remainingModules === 0
                             ? "Corso completato"
@@ -4985,13 +5048,13 @@ function PortalPreview({
                         </span>
                       </div>
                     </div>
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-700">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-700 max-sm:hidden">
                       <GraduationCap className="h-5 w-5" />
                     </div>
                   </div>
-                  <Progress value={previewCourseCompletion} className="mt-4 h-2" />
+                  <Progress value={previewCourseCompletion} className="mt-4 h-2 max-sm:mt-2" />
                   <Button
-                    className="mt-4 h-11 w-full gap-2 bg-blue-600 hover:bg-blue-700"
+                    className="mt-4 h-11 w-full gap-2 bg-blue-600 hover:bg-blue-700 max-sm:mt-3 max-sm:h-10"
                     onClick={() => openLearnerLesson(activeModule?.id ?? activeLearnerCourse.modules[0]?.id ?? "")}
                     disabled={!hasLearnerModules}
                   >
@@ -5021,8 +5084,10 @@ function PortalPreview({
                 onOpenAsset={onOpenAsset}
               />
             ) : (
-            <div className="grid gap-5 xl:grid-cols-[420px_minmax(0,1fr)]">
-              <aside className="space-y-4 xl:sticky xl:top-24 xl:self-start">
+            <div className="grid gap-5 xl:grid-cols-[420px_minmax(0,1fr)] max-sm:gap-3">
+              {/* Mobile: prima la lezione. Il programma sta in «Panoramica», il
+                  «percorso» ripeteva la percentuale. */}
+              <aside className="space-y-4 xl:sticky xl:top-24 xl:self-start max-sm:hidden">
                 <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
                   <div className="mb-4 flex items-center justify-between gap-3">
                     <div>
@@ -5142,7 +5207,7 @@ function PortalPreview({
                 </div>
               </aside>
 
-              <div className="min-w-0 space-y-4">
+              <div className="min-w-0 space-y-4 max-sm:space-y-3">
                 <LearnerLessonPlayer
                   module={activeModule}
                   asset={activePreviewAsset}
@@ -5156,19 +5221,19 @@ function PortalPreview({
                   onOpenAsset={onOpenAsset}
                 />
 
-                <div id="portal-preview-materials" className="scroll-mt-24 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm lg:p-5">
-                  <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div id="portal-preview-materials" className="scroll-mt-24 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm lg:p-5 max-sm:rounded-xl max-sm:p-3">
+                  <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between max-sm:mb-2">
                     <div>
-                      <h4 className="text-lg font-bold text-slate-950">Materiali, quiz e allegati</h4>
-                      <p className="text-sm text-slate-500">
+                      <h4 className="text-lg font-bold text-slate-950 max-sm:text-sm">Materiali, quiz e allegati</h4>
+                      <p className="text-sm text-slate-500 max-sm:hidden">
                         {hasGeneralCourseAssets
                           ? "Risorse del modulo piu materiali generali del corso."
                           : "Risorse, PDF, video, procedure e quiz collegati al modulo."}
                       </p>
                     </div>
-                    <Download className="h-5 w-5 text-blue-600" />
+                    <Download className="h-5 w-5 text-blue-600 max-sm:hidden" />
                   </div>
-                  <div className="grid gap-3 lg:grid-cols-2">
+                  <div className="grid gap-3 lg:grid-cols-2 max-sm:gap-2">
                     {moduleAssets.map((asset) => (
                       <LearnerAssetRow
                         key={asset.id}
@@ -5201,7 +5266,9 @@ function PortalPreview({
                   }}
                 />
 
-                <div className="grid gap-4 lg:grid-cols-3">
+                {/* Mobile no: nota e chiarimento sono solo un avviso a video, il
+                    prossimo passo è già il bottone «Prossimo» della lezione. */}
+                <div className="grid gap-4 lg:grid-cols-3 max-sm:hidden">
                   <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
                     <h4 className="font-bold text-slate-950">Azioni studente</h4>
                     <p className="mt-1 text-sm text-slate-500">Note, domande e presa visione restano nel percorso.</p>
@@ -5356,9 +5423,10 @@ function LearnerCourseOverview({
   // asset con quel moduleId). Default: espanso il primo modulo da completare.
   const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>({});
   return (
-    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
-      <div className="min-w-0 space-y-5">
-        <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm lg:p-6">
+    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px] max-sm:gap-3">
+      <div className="min-w-0 space-y-5 max-sm:space-y-3">
+        {/* Mobile: i quattro numeri sono già nell'elenco dei moduli. */}
+        <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm lg:p-6 max-sm:hidden">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <h3 className="text-2xl font-bold text-slate-950">Il corso in sintesi</h3>
@@ -5373,18 +5441,18 @@ function LearnerCourseOverview({
           </div>
         </section>
 
-        <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm lg:p-6">
-          <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm lg:p-6 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
+          <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between max-sm:mb-2 max-sm:flex-row max-sm:items-center max-sm:justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Programma</p>
-              <h3 className="mt-1 text-xl font-bold text-slate-950">Moduli del corso</h3>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 max-sm:hidden">Programma</p>
+              <h3 className="mt-1 text-xl font-bold text-slate-950 max-sm:mt-0 max-sm:text-sm max-sm:font-semibold">Moduli del corso</h3>
             </div>
             <Badge variant="outline" className="w-fit border-blue-200 bg-blue-50 text-blue-700">
               {remainingModules} da completare
             </Badge>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-3 max-sm:space-y-2">
             {course.modules.map((module, index) => {
               const moduleCompletion = getModuleCompletion(module);
               const isActive = module.id === activeModuleId;
@@ -5395,7 +5463,7 @@ function LearnerCourseOverview({
                 <div
                   key={module.id}
                   className={cn(
-                    "rounded-3xl border bg-white transition",
+                    "rounded-3xl border bg-white transition max-sm:rounded-xl",
                     isActive ? "border-blue-300 ring-1 ring-blue-100" : "border-slate-200",
                   )}
                 >
@@ -5409,11 +5477,11 @@ function LearnerCourseOverview({
                         toggleExpanded();
                       }
                     }}
-                    className="grid w-full cursor-pointer grid-cols-[40px_minmax(0,1fr)] gap-3 rounded-3xl p-3.5 text-left transition hover:bg-blue-50/50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 sm:grid-cols-[56px_minmax(0,1fr)] sm:gap-4 sm:p-4"
+                    className="grid w-full cursor-pointer grid-cols-[40px_minmax(0,1fr)] gap-3 rounded-3xl p-3.5 text-left transition hover:bg-blue-50/50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 sm:grid-cols-[56px_minmax(0,1fr)] sm:gap-4 sm:p-4 max-sm:grid-cols-[32px_minmax(0,1fr)] max-sm:gap-2.5 max-sm:rounded-xl max-sm:p-3"
                   >
                     <div
                       className={cn(
-                        "flex h-10 w-10 items-center justify-center rounded-2xl text-sm font-bold sm:h-14 sm:w-14 sm:text-lg",
+                        "flex h-10 w-10 items-center justify-center rounded-2xl text-sm font-bold sm:h-14 sm:w-14 sm:text-lg max-sm:h-8 max-sm:w-8 max-sm:rounded-lg",
                         moduleCompletion >= 100 ? "bg-emerald-50 text-emerald-700" : "bg-blue-50 text-blue-700",
                       )}
                     >
@@ -5423,10 +5491,11 @@ function LearnerCourseOverview({
                     <div className="min-w-0">
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex min-w-0 flex-wrap items-center gap-1.5 sm:gap-2">
-                          <h4 className="text-base font-bold text-slate-950 sm:text-lg">{module.title}</h4>
+                          <h4 className="text-base font-bold text-slate-950 sm:text-lg max-sm:text-sm max-sm:font-semibold">{module.title}</h4>
                           <Badge
                             variant="outline"
                             className={cn(
+                              "max-sm:hidden",
                               moduleCompletion >= 100
                                 ? "border-emerald-200 bg-emerald-50 text-emerald-700"
                                 : moduleCompletion > 0
@@ -5444,9 +5513,10 @@ function LearnerCourseOverview({
                           )}
                         />
                       </div>
-                      <div className="mt-2 flex items-center justify-between gap-3">
+                      <div className="mt-2 flex items-center justify-between gap-3 max-sm:mt-1">
                         <p className="truncate text-xs font-medium text-slate-500">
                           {module.duration} · {moduleLessons.length} {moduleLessons.length === 1 ? "lezione" : "lezioni"}
+                          <span className="sm:hidden"> · {moduleCompletion}%</span>
                         </p>
                         <button
                           type="button"
@@ -5454,14 +5524,14 @@ function LearnerCourseOverview({
                             event.stopPropagation();
                             onOpenLesson(module.id);
                           }}
-                          className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full bg-blue-600 pl-4 pr-3 text-sm font-semibold text-white transition hover:bg-blue-700 sm:h-9"
+                          className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full bg-blue-600 pl-4 pr-3 text-sm font-semibold text-white transition hover:bg-blue-700 sm:h-9 tap-compact max-sm:pl-3 max-sm:pr-2 max-sm:text-xs"
                         >
                           {moduleCompletion >= 100 ? "Rivedi" : moduleCompletion > 0 ? "Riprendi" : "Apri"}
                           <ChevronRight className="h-4 w-4" />
                         </button>
                       </div>
                       <p className="mt-3 hidden line-clamp-2 text-sm leading-6 text-slate-600 sm:block">{module.description}</p>
-                      <div className="mt-3 flex items-center gap-3">
+                      <div className="mt-3 flex items-center gap-3 max-sm:hidden">
                         <Progress value={moduleCompletion} className="h-1.5 flex-1 sm:h-2" />
                         <span className="w-9 text-right text-xs font-bold text-slate-500">{moduleCompletion}%</span>
                       </div>
@@ -5469,7 +5539,7 @@ function LearnerCourseOverview({
                   </div>
 
                   {isExpanded && (
-                    <div className="border-t border-slate-100 px-4 pb-4 pt-3">
+                    <div className="border-t border-slate-100 px-4 pb-4 pt-3 max-sm:px-3 max-sm:pb-3 max-sm:pt-2">
                       {moduleLessons.length > 0 ? (
                         <ul className="space-y-1.5">
                           {moduleLessons.map((lesson, lessonIndex) => {
@@ -5512,7 +5582,7 @@ function LearnerCourseOverview({
               <div className="rounded-2xl border border-dashed border-slate-300 p-6 text-center">
                 <BookOpenCheck className="mx-auto h-8 w-8 text-slate-400" />
                 <h4 className="mt-3 font-bold text-slate-950">Nessun modulo nel corso</h4>
-                <p className="mt-1 text-sm text-slate-500">
+                <p className="mt-1 text-sm text-slate-500 max-sm:hidden">
                   Aggiungi almeno un modulo dal builder per rendere questa pagina realmente fruibile dall'utente.
                 </p>
               </div>
@@ -5521,11 +5591,11 @@ function LearnerCourseOverview({
         </section>
 
         {generalAssets.length > 0 && (
-        <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm lg:p-6">
-          <div className="mb-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Risorse</p>
-            <h3 className="mt-1 text-xl font-bold text-slate-950">Materiali generali</h3>
-            <p className="mt-0.5 text-sm text-slate-500">Non collegati a un modulo specifico.</p>
+        <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm lg:p-6 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
+          <div className="mb-4 max-sm:mb-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 max-sm:hidden">Risorse</p>
+            <h3 className="mt-1 text-xl font-bold text-slate-950 max-sm:mt-0 max-sm:text-sm max-sm:font-semibold">Materiali generali</h3>
+            <p className="mt-0.5 text-sm text-slate-500 max-sm:hidden">Non collegati a un modulo specifico.</p>
           </div>
           <div className="grid gap-3 lg:grid-cols-2">
             {generalAssets.map((asset) => (
@@ -5542,7 +5612,8 @@ function LearnerCourseOverview({
         )}
       </div>
 
-      <aside className="space-y-4 xl:sticky xl:top-24 xl:self-start">
+      {/* Mobile: «Prossimo passo» ripeteva il bottone «Avvia lezione» qui sopra. */}
+      <aside className="space-y-4 xl:sticky xl:top-24 xl:self-start max-sm:hidden">
         <section className="rounded-3xl border border-orange-200 bg-orange-50 p-5 shadow-sm">
           <div className="flex items-center gap-2">
             <Flag className="h-5 w-5 text-orange-600" />
@@ -5600,9 +5671,9 @@ function LearnerLessonPlayer({
   return (
     <div
       id="portal-preview-player"
-      className="scroll-mt-24 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"
+      className="scroll-mt-24 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm max-sm:rounded-xl"
     >
-      <div className="bg-slate-950 p-3 text-white sm:p-4">
+      <div className="bg-slate-950 p-3 text-white sm:p-4 max-sm:p-2">
         <div className="relative aspect-video overflow-hidden rounded-2xl bg-slate-900 shadow-2xl">
           <div
             className={cn(
@@ -5626,7 +5697,7 @@ function LearnerLessonPlayer({
             </div>
           )}
 
-          <div className="relative flex h-full flex-col justify-between p-4 sm:p-6">
+          <div className="relative flex h-full flex-col justify-between p-4 sm:p-6 max-sm:p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <Badge className="border-white/20 bg-white/15 text-white hover:bg-white/15">
                 {asset ? assetTypeLabels[asset.type] : "Lezione"}
@@ -5636,18 +5707,18 @@ function LearnerLessonPlayer({
               </span>
             </div>
 
-            <div className="flex flex-1 items-center justify-center py-8">
-              <div className="flex h-24 w-24 items-center justify-center rounded-full border border-white/25 bg-white/15 shadow-xl backdrop-blur sm:h-28 sm:w-28">
-                {isCompleted ? <CheckCircle2 className="h-12 w-12" /> : <PlayCircle className="h-12 w-12" />}
+            <div className="flex flex-1 items-center justify-center py-8 max-sm:py-1">
+              <div className="flex h-24 w-24 items-center justify-center rounded-full border border-white/25 bg-white/15 shadow-xl backdrop-blur sm:h-28 sm:w-28 max-sm:h-14 max-sm:w-14">
+                {isCompleted ? <CheckCircle2 className="h-12 w-12 max-sm:h-7 max-sm:w-7" /> : <PlayCircle className="h-12 w-12 max-sm:h-7 max-sm:w-7" />}
               </div>
             </div>
 
             <div className="max-w-3xl">
-              <p className="text-xs font-semibold uppercase tracking-wide text-blue-100">
+              <p className="text-xs font-semibold uppercase tracking-wide text-blue-100 max-sm:hidden">
                 {isVideo ? "Anteprima video" : "Anteprima contenuto"}
               </p>
-              <h4 className="mt-1 line-clamp-2 text-2xl font-bold sm:text-3xl">{previewTitle}</h4>
-              <div className="mt-4 flex items-center gap-3 text-xs text-white/80">
+              <h4 className="mt-1 line-clamp-2 text-2xl font-bold sm:text-3xl max-sm:mt-0 max-sm:line-clamp-1 max-sm:text-base">{previewTitle}</h4>
+              <div className="mt-4 flex items-center gap-3 text-xs text-white/80 max-sm:mt-1.5">
                 <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/20">
                   <div className="h-full w-[42%] rounded-full bg-orange-400" />
                 </div>
@@ -5658,16 +5729,16 @@ function LearnerLessonPlayer({
         </div>
       </div>
 
-      <div className="border-t border-slate-200 bg-white p-4 lg:p-5">
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-start">
+      <div className="border-t border-slate-200 bg-white p-4 lg:p-5 max-sm:p-3">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-start max-sm:gap-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Lezione corrente</p>
-            <h4 className="mt-1 text-xl font-bold text-slate-950">{module?.title ?? "Modulo introduttivo"}</h4>
-            <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-600">
+            <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 max-sm:hidden">Lezione corrente</p>
+            <h4 className="mt-1 text-xl font-bold text-slate-950 max-sm:mt-0 max-sm:text-sm">{module?.title ?? "Modulo introduttivo"}</h4>
+            <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-600 max-sm:hidden">
               {module?.description ?? "Apri un modulo per vedere contenuti, materiali e avanzamento."}
             </p>
 
-            <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+            <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3 max-sm:mt-2 max-sm:rounded-xl">
               <div className="flex items-start gap-3">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
                   <SelectedIcon className="h-4 w-4" />
@@ -5675,34 +5746,38 @@ function LearnerLessonPlayer({
                 <div className="min-w-0">
                   <p className="text-sm font-bold text-slate-950">{previewTitle}</p>
                   <p className="mt-1 line-clamp-3 text-xs leading-5 text-slate-500">{previewDescription}</p>
-                  <p className="mt-2 text-xs font-medium text-emerald-700">{resourceLabel}</p>
+                  <p className="mt-2 text-xs font-medium text-emerald-700 max-sm:hidden">{resourceLabel}</p>
                 </div>
               </div>
               {asset && (
                 <Button
                   variant="outline"
-                  className="mt-3 h-9 gap-2 border-blue-200 text-blue-700 hover:bg-blue-50"
+                  className="mt-3 h-9 gap-2 border-blue-200 text-blue-700 hover:bg-blue-50 max-sm:mt-2"
                   onClick={() => onOpenAsset(asset)}
                 >
                   {asset.type === "link" ? <ExternalLink className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  Apri contenuto completo
+                  <span className="max-sm:hidden">Apri contenuto completo</span>
+                  <span className="sm:hidden">Apri tutto</span>
                 </Button>
               )}
             </div>
           </div>
 
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
+          {/* Mobile: i due bottoni affiancati, con etichette corte. */}
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1 max-sm:flex">
             <Button
-              className="h-11 bg-blue-600 hover:bg-blue-700"
+              className="h-11 bg-blue-600 hover:bg-blue-700 max-sm:h-10 max-sm:flex-1"
               onClick={onComplete}
               disabled={isCompleted}
             >
               <CheckCircle2 className="mr-2 h-4 w-4" />
-              {isCompleted ? "Lezione completata" : "Completa lezione"}
+              <span className="max-sm:hidden">{isCompleted ? "Lezione completata" : "Completa lezione"}</span>
+              <span className="sm:hidden">{isCompleted ? "Completata" : "Completa"}</span>
             </Button>
             {nextModule && (
-              <Button variant="outline" className="h-11" onClick={onNextModule}>
-                Prossimo modulo
+              <Button variant="outline" className="h-11 max-sm:h-10 max-sm:flex-1" onClick={onNextModule}>
+                <span className="max-sm:hidden">Prossimo modulo</span>
+                <span className="sm:hidden">Prossimo</span>
                 <ChevronRight className="ml-2 h-4 w-4" />
               </Button>
             )}
@@ -5730,7 +5805,7 @@ function LearnerAcknowledgementPanel({
     return (
       <section
         id="portal-preview-acknowledgement"
-        className="scroll-mt-24 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm lg:p-5"
+        className="scroll-mt-24 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm lg:p-5 max-sm:hidden"
       >
         <div className="flex items-start gap-3">
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-slate-50 text-slate-500">
@@ -5750,17 +5825,20 @@ function LearnerAcknowledgementPanel({
   return (
     <section
       id="portal-preview-acknowledgement"
-      className="scroll-mt-24 rounded-3xl border border-emerald-200 bg-emerald-50/60 p-4 shadow-sm lg:p-5"
+      className="scroll-mt-24 rounded-3xl border border-emerald-200 bg-emerald-50/60 p-4 shadow-sm lg:p-5 max-sm:rounded-xl max-sm:p-3"
     >
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between max-sm:flex-row max-sm:items-center max-sm:justify-between">
         <div className="flex items-start gap-3">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-emerald-700 shadow-sm">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-emerald-700 shadow-sm max-sm:hidden">
             <ShieldCheck className="h-5 w-5" />
           </div>
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Registro presa visione</p>
-            <h4 className="mt-1 text-lg font-bold text-slate-950">Conferme richieste per questo modulo</h4>
-            <p className="mt-1 text-sm leading-6 text-slate-600">
+            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 max-sm:hidden">Registro presa visione</p>
+            <h4 className="mt-1 text-lg font-bold text-slate-950 max-sm:mt-0 max-sm:text-sm">
+              <span className="max-sm:hidden">Conferme richieste per questo modulo</span>
+              <span className="sm:hidden">Presa visione</span>
+            </h4>
+            <p className="mt-1 text-sm leading-6 text-slate-600 max-sm:hidden">
               L'utente vede cosa deve confermare, quale documento riguarda e lo stato della firma.
             </p>
           </div>
@@ -5770,15 +5848,15 @@ function LearnerAcknowledgementPanel({
         </Badge>
       </div>
 
-      <div className="mt-4 grid gap-3">
+      <div className="mt-4 grid gap-3 max-sm:mt-2 max-sm:gap-2">
         {items.map((item) => {
           const signedAt = signatures[item.id];
           return (
-            <div key={item.id} className="rounded-2xl border border-emerald-100 bg-white p-3 shadow-sm">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div key={item.id} className="rounded-2xl border border-emerald-100 bg-white p-3 shadow-sm max-sm:rounded-xl">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between max-sm:gap-2">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h5 className="font-bold text-slate-950">{item.title}</h5>
+                    <h5 className="font-bold text-slate-950 max-sm:text-sm">{item.title}</h5>
                     <Badge
                       variant="outline"
                       className={cn(
@@ -5791,17 +5869,17 @@ function LearnerAcknowledgementPanel({
                       {signedAt ? "Firmata" : "Da firmare"}
                     </Badge>
                   </div>
-                  <p className="mt-1 text-sm leading-6 text-slate-600">{item.description}</p>
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="mt-1 text-sm leading-6 text-slate-600 max-sm:hidden">{item.description}</p>
+                  <p className="mt-1 text-xs text-slate-500 max-sm:hidden">
                     {item.courseTitle} · {item.moduleTitle}
                     {signedAt ? ` · registrata ${signedAt}` : ""}
                   </p>
                 </div>
-                <div className="flex shrink-0 flex-wrap gap-2">
+                <div className="flex shrink-0 flex-wrap gap-2 max-sm:flex-nowrap">
                   {item.asset && (
                     <Button
                       variant="outline"
-                      className="h-10 gap-2 border-blue-200 text-blue-700 hover:bg-blue-50"
+                      className="tap-compact h-10 gap-2 border-blue-200 text-blue-700 hover:bg-blue-50 max-sm:h-9"
                       onClick={() => onOpenAsset(item.asset as PortalAsset)}
                     >
                       <Eye className="h-4 w-4" />
@@ -5810,7 +5888,7 @@ function LearnerAcknowledgementPanel({
                   )}
                   <Button
                     className={cn(
-                      "h-10 gap-2",
+                      "tap-compact h-10 gap-2 max-sm:h-9 max-sm:flex-1",
                       signedAt
                         ? "bg-emerald-600 hover:bg-emerald-700"
                         : "bg-blue-600 hover:bg-blue-700",
@@ -5818,7 +5896,8 @@ function LearnerAcknowledgementPanel({
                     onClick={() => onSign(item)}
                   >
                     <CheckCircle2 className="h-4 w-4" />
-                    {signedAt ? "Aggiorna firma" : "Firma presa visione"}
+                    <span className="max-sm:hidden">{signedAt ? "Aggiorna firma" : "Firma presa visione"}</span>
+                    <span className="sm:hidden">{signedAt ? "Firmata" : "Firma"}</span>
                   </Button>
                 </div>
               </div>
@@ -5858,9 +5937,24 @@ function LearnerCourseCard({
       className={cn(
         "group overflow-hidden rounded-3xl border bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
         active ? "border-blue-300 ring-2 ring-blue-100" : "border-slate-200",
+        // Mobile: una riga dell'elenco, niente copertina né descrizione.
+        "max-sm:flex max-sm:items-center max-sm:gap-3 max-sm:rounded-none max-sm:border-0 max-sm:px-3 max-sm:py-2.5 max-sm:shadow-none max-sm:ring-0 max-sm:ring-offset-0 max-sm:hover:translate-y-0",
       )}
     >
-      <div className="relative aspect-[16/8] bg-gradient-to-br from-blue-700 via-blue-600 to-orange-400 p-4 text-white">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-700 to-orange-400 text-white sm:hidden" aria-hidden="true">
+        <GraduationCap className="h-4 w-4" />
+      </span>
+      <span className="min-w-0 flex-1 sm:hidden">
+        <span className="block truncate text-sm font-medium text-slate-950">{course.title}</span>
+        <span className="block truncate text-xs text-slate-500">
+          {areaLabels[course.area]} · {course.modules.length} moduli · {completion}%
+        </span>
+      </span>
+      <span className={cn("inline-flex shrink-0 items-center gap-0.5 rounded-full px-2 py-0.5 text-[11px] font-semibold sm:hidden", statusCopy.className)}>
+        {statusCopy.label}
+        <ChevronRight className="h-3 w-3" />
+      </span>
+      <div className="relative aspect-[16/8] bg-gradient-to-br from-blue-700 via-blue-600 to-orange-400 p-4 text-white max-sm:hidden">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_10%,rgba(255,255,255,0.28),transparent_28%)]" />
         <div className="relative flex h-full flex-col justify-between">
           <div className="flex items-center justify-between gap-2">
@@ -5873,7 +5967,7 @@ function LearnerCourseCard({
           </div>
         </div>
       </div>
-      <div className="p-4">
+      <div className="p-4 max-sm:hidden">
         <p className="line-clamp-2 text-sm leading-6 text-slate-600">{course.description}</p>
         <div className="mt-4 flex items-center gap-3">
           <Progress value={completion} className="h-2 flex-1" />
@@ -5929,10 +6023,11 @@ function LearnerAssetRow({
         isSelectable && "cursor-pointer",
       )}
     >
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+      {/* Mobile: una riga (icona, titolo, bottone), come un elenco file. */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center max-sm:flex-row max-sm:items-center max-sm:gap-2.5">
         <div
           className={cn(
-            "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-blue-700",
+            "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-blue-700 max-sm:h-9 max-sm:w-9 max-sm:rounded-lg",
             active ? "bg-blue-100" : "bg-blue-50",
           )}
         >
@@ -5940,22 +6035,24 @@ function LearnerAssetRow({
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="truncate text-sm font-bold text-slate-950">{asset.title}</p>
-            <Badge variant="outline" className="h-6 border-slate-200 bg-slate-50 text-[11px] text-slate-600">
+            <p className="truncate text-sm font-bold text-slate-950 max-sm:font-semibold">{asset.title}</p>
+            <Badge variant="outline" className="h-6 border-slate-200 bg-slate-50 text-[11px] text-slate-600 max-sm:hidden">
               {assetTypeLabels[asset.type]}
             </Badge>
           </div>
-          <p className="mt-1 text-xs text-slate-500">
-            {getAssetModuleTitle(course, asset)} · {asset.duration}
+          <p className="mt-1 text-xs text-slate-500 max-sm:mt-0 max-sm:truncate">
+            <span className="sm:hidden">{assetTypeLabels[asset.type]} · </span>
+            <span className="max-sm:hidden">{getAssetModuleTitle(course, asset)} · </span>
+            {asset.duration}
           </p>
-          <p className={cn("mt-0.5 truncate text-xs", isOpenable ? "text-emerald-700" : "text-orange-600")}>
+          <p className={cn("mt-0.5 truncate text-xs max-sm:hidden", isOpenable ? "text-emerald-700" : "text-orange-600")}>
             {getAssetStorageHint(asset)}
           </p>
         </div>
         <Button
           variant="outline"
           size="sm"
-          className="h-9 shrink-0 gap-1 border-blue-200 px-3 text-blue-700 hover:bg-blue-50 disabled:border-slate-200 disabled:text-slate-400"
+          className="tap-compact h-9 shrink-0 gap-1 border-blue-200 px-3 text-blue-700 hover:bg-blue-50 disabled:border-slate-200 disabled:text-slate-400 max-sm:h-8 max-sm:px-2.5"
           onClick={(event) => {
             event.stopPropagation();
             onOpen();
@@ -5967,9 +6064,16 @@ function LearnerAssetRow({
           ) : asset.downloadable === false || asset.content ? (
             <Eye className="h-3.5 w-3.5" />
           ) : (
-            <Download className="h-3.5 w-3.5" />
+            <>
+              <Download className="h-3.5 w-3.5 max-sm:hidden" />
+              <Eye className="h-3.5 w-3.5 sm:hidden" />
+            </>
           )}
-          {isOpenable ? getAssetActionLabel(asset) : "Da collegare"}
+          {/* Mobile: il file si apre nel visore del telefono, non si «scarica». */}
+          <span className="max-sm:hidden">{isOpenable ? getAssetActionLabel(asset) : "Da collegare"}</span>
+          <span className="sm:hidden">
+            {isOpenable ? (getAssetActionLabel(asset) === "Scarica" ? "Apri" : getAssetActionLabel(asset)) : "Da collegare"}
+          </span>
         </Button>
       </div>
     </div>
