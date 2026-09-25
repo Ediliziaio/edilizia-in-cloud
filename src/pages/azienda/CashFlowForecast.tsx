@@ -1,5 +1,6 @@
 import { format } from "date-fns";
-import { Download, Printer, CalendarClock, BookOpen, Landmark, TrendingUp, TrendingDown, Sparkles } from "lucide-react";
+import { Download, Printer, CalendarClock, Landmark, TrendingUp, TrendingDown, Sparkles, MoreHorizontal } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { exportToCSV } from "@/lib/csvExport";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,7 +10,6 @@ import { CollectedTab } from "@/components/forecast/CollectedTab";
 import { CostsForecastTab } from "@/components/forecast/CostsForecastTab";
 import { CashForecastTab } from "@/components/forecast/CashForecastTab";
 import { MarginTab } from "@/components/forecast/MarginTab";
-import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCashFlowRealData } from "@/hooks/useCashFlowRealData";
@@ -23,7 +23,6 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { KpiMobili } from "@/components/mobile/FiltriMobile";
 export default function CashFlowForecast() {
   const isMobile = useIsMobile();
-  const navigate = useNavigate();
 
   const {
     isLoading,
@@ -207,32 +206,28 @@ export default function CashFlowForecast() {
               </p>
             </div>
           </div>
-        {/* Mobile no: tesoreria, scadenzario e prima nota sono già nel menu. */}
-        <div className="flex items-center gap-2 print:hidden flex-wrap max-sm:hidden">
-          <Button variant="outline" size="sm" onClick={() => navigate("/azienda/tesoreria")} className="gap-1">
-            <Landmark className="h-4 w-4" />
-            <span className="hidden sm:inline">Tesoreria</span>
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => navigate("/azienda/scadenzario")} className="gap-1">
-            <CalendarClock className="h-4 w-4" />
-            <span className="hidden sm:inline">Scadenzario</span>
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => navigate("/azienda/prima-nota")} className="gap-1">
-            <BookOpen className="h-4 w-4" />
-            <span className="hidden sm:inline">Prima Nota</span>
-          </Button>
-          {/* Niente export su telefono. */}
-          {!isMobile && (
-            <Button variant="outline" size="sm" onClick={exportCSV} className="gap-1">
-              <Download className="h-4 w-4" />
-              <span className="hidden sm:inline">Esporta CSV</span>
-            </Button>
-          )}
-          <Button variant="outline" size="sm" onClick={() => window.print()} className="gap-1 hidden sm:flex">
-            <Printer className="h-4 w-4" />
-            <span className="hidden sm:inline">Stampa PDF</span>
-          </Button>
-        </div>
+        {/* Tesoreria, Scadenzario e Prima Nota erano tre bottoni-collegamento:
+            stanno già nel menu a sinistra, qui sotto a questa. Restano export
+            e stampa, in un menu «⋯» (a 1024 i cinque bottoni mandavano a capo
+            anche il titolo). Sotto 640 niente menu; tra 640 e 768 solo la stampa
+            (l'export non si fa da telefono). */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon" className="shrink-0 print:hidden max-sm:hidden" aria-label="Altre azioni" title="Altre azioni">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {!isMobile && (
+                <DropdownMenuItem className="gap-2" onSelect={exportCSV}>
+                  <Download className="h-4 w-4" /> Esporta CSV
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem className="gap-2" onSelect={() => window.print()}>
+                <Printer className="h-4 w-4" /> Stampa PDF
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -264,16 +259,9 @@ export default function CashFlowForecast() {
         // non "€52.942"): come nel resto del gestionale.
         <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm max-sm:hidden">
           <div className="bg-[#173b67] p-4 text-white sm:p-5">
-            <div className="flex items-start gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)] sm:h-11 sm:w-11">
-                <CalendarClock className="h-4 w-4 sm:h-5 sm:w-5" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-orange-100 sm:text-xs">Previsionale</p>
-                <h2 className="mt-0.5 text-base font-semibold text-white sm:text-xl">La cassa che verrà</h2>
-              </div>
-            </div>
-            <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-5 sm:gap-3 xl:grid-cols-4">
+            {/* Senza titoletto «Previsionale — La cassa che verrà»: ripeteva
+                il titolo della pagina. */}
+            <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
               {[
                 { label: "Saldo banca", value: bankingSummary.bankBalance, icon: Landmark, tone: "text-blue-100", hint: "saldo reale conti" },
                 { label: "Entrate attese", value: bankingSummary.pendingIncome, icon: TrendingUp, tone: "text-emerald-200", hint: "incassi aperti" },
