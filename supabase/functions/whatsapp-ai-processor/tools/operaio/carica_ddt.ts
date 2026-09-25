@@ -58,7 +58,7 @@ export const caricaDDTDef: Omit<ToolDef, "handler"> = {
       },
       order_id: { type: "string", description: "ID commessa/cantiere se già noto" },
       cantiere_hint: { type: "string" },
-      media_url: { type: "string", description: "URL della foto del DDT" },
+      media_url: { type: "string", description: "Non serve: si usa la foto arrivata su WhatsApp" },
       note: { type: "string" },
     },
     required: ["numero_ddt", "fornitore"],
@@ -109,6 +109,11 @@ export async function caricaDDT(
   const numero = (args.numero_ddt ?? "").toString().trim();
   const fornitore = (args.fornitore ?? "").toString().trim();
   if (!fornitore) return errResult("no_fornitore", "Mi serve il nome del fornitore per registrare il DDT.");
+
+  // La foto del DDT è quella arrivata con il messaggio (o poco prima): il
+  // modello non ne conosce il link, quindi media_url di solito manca.
+  const fotoUrl = args.media_url ||
+    (ctx.mediaCorrente && ["image", "document"].includes(ctx.mediaCorrente.tipo) ? ctx.mediaCorrente.url : null);
 
   const righeArg = Array.isArray(args.righe) ? args.righe : [];
   const dataIso = toIsoDate(args.data_ddt);
@@ -172,7 +177,7 @@ export async function caricaDDT(
         descrizione,
         urgenza: "media",
         tipo_problema: "ddt_da_registrare",
-        photo_urls: args.media_url ? [args.media_url] : [],
+        photo_urls: fotoUrl ? [fotoUrl] : [],
         source: "whatsapp",
       })
       .select("id")
@@ -200,7 +205,7 @@ export async function caricaDDT(
       unita_misura: r.unita_misura ? r.unita_misura.toString().trim() : null,
     })),
     // Contesto WhatsApp (non standard email): foto + cantiere risolto.
-    foto_url: args.media_url ?? null,
+    foto_url: fotoUrl,
     cantiere: orderId ? { id: orderId, nome: cantiereNome } : null,
     indirizzo_consegna: args.indirizzo_consegna ?? null,
     note_libere: args.note ?? null,
@@ -268,7 +273,7 @@ export async function caricaDDT(
       descrizione,
       urgenza: "media",
       tipo_problema: "ddt_da_registrare",
-      photo_urls: args.media_url ? [args.media_url] : [],
+      photo_urls: fotoUrl ? [fotoUrl] : [],
       source: "whatsapp",
     });
 

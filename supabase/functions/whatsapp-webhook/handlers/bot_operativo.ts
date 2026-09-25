@@ -210,7 +210,9 @@ export async function handleBotOperativo(
           }),
         );
       } else {
-        fetch(`${supabaseUrl}/functions/v1/whatsapp-ai-processor`, {
+        // waitUntil: senza, la chiamata poteva morire con la risposta a Meta
+        // (stesso schema del gestore lead).
+        const chiamata = fetch(`${supabaseUrl}/functions/v1/whatsapp-ai-processor`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -228,6 +230,8 @@ export async function handleBotOperativo(
             }),
           ),
         );
+        // deno-lint-ignore no-explicit-any
+        (globalThis as any).EdgeRuntime?.waitUntil?.(chiamata);
       }
     }
   }
