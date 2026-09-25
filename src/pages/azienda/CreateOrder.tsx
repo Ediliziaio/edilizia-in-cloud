@@ -1085,9 +1085,10 @@ function CreateOrderInner() {
               </p>
             </div>
             <div className="flex items-center justify-center gap-3 flex-wrap">
+              {/* Dal telefono l'abbonamento non si gestisce (regola dell'utente, 25/09/2026). */}
               <Button
                 onClick={() => navigate("/azienda/impostazioni/abbonamento")}
-                className="gap-2 bg-[#E8521A] hover:bg-[#d44714] text-white"
+                className="gap-2 bg-[#E8521A] hover:bg-[#d44714] text-white max-md:hidden"
               >
                 <Sparkles className="h-4 w-4" />
                 Gestisci abbonamento

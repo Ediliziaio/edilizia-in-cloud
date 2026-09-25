@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { isMobileAppRuntime } from "@/lib/mobile/platform";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 export type ScopriWallType =
   | "max_orders"
@@ -115,6 +116,9 @@ interface UpgradeScopriWallProps {
 export function UpgradeScopriWall({ type, inline = false, onDismiss }: UpgradeScopriWallProps) {
   const navigate = useNavigate();
   const msg = WALL_MESSAGES[type];
+  // Dal telefono il piano non si cambia (regola dell'utente, 25/09/2026): lo
+  // stesso avviso neutro dell'app.
+  const isMobile = useIsMobile();
 
   const handleUpgrade = () => {
     navigate("/azienda/impostazioni/abbonamento");
@@ -124,7 +128,7 @@ export function UpgradeScopriWall({ type, inline = false, onDismiss }: UpgradeSc
   // né CTA di upgrade/acquisto (porterebbero a meccanismi di pagamento esterni).
   // Stato "non incluso" neutro, senza prezzo, senza link/bottone d'acquisto. Sul
   // web resta il nudge completo con prezzo + CTA.
-  if (isMobileAppRuntime) {
+  if (isMobileAppRuntime || isMobile) {
     return (
       <div className={cn(
         "rounded-lg border border-orange-200 bg-orange-50 dark:bg-orange-950/20 dark:border-orange-900",
@@ -136,7 +140,7 @@ export function UpgradeScopriWall({ type, inline = false, onDismiss }: UpgradeSc
             Funzionalità non inclusa nel tuo piano attuale
           </p>
           <p className="text-xs text-orange-700 dark:text-orange-400 mt-0.5">
-            Per ampliare il piano contatta l'assistenza.
+            {isMobileAppRuntime ? "Per ampliare il piano contatta l'assistenza." : "Il piano si cambia dal computer."}
           </p>
         </div>
       </div>
@@ -206,6 +210,7 @@ interface ScopriProgressBannerProps {
 
 export function ScopriProgressBanner({ usedOrders, maxOrders, planName = "Scopri" }: ScopriProgressBannerProps) {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const remaining = maxOrders - usedOrders;
   const pct = (usedOrders / maxOrders) * 100;
 
@@ -244,7 +249,7 @@ export function ScopriProgressBanner({ usedOrders, maxOrders, planName = "Scopri
       </div>
       {/* App Store 3.1.1: niente CTA upgrade nell'app mobile (la barra resta
           informativa: mostra solo l'uso cantieri, senza acquisto). */}
-      {isNearLimit && !isMobileAppRuntime && (
+      {isNearLimit && !isMobileAppRuntime && !isMobile && (
         <Button
           size="sm"
           variant="outline"

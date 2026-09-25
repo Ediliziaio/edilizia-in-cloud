@@ -8,6 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { isMobileAppRuntime } from "@/lib/mobile/platform";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface PlanLimitResult {
   allowed: boolean;
@@ -24,6 +25,8 @@ interface Props {
 export function PlanLimitWarning({ resourceType = "orders", className }: Props) {
   const { user } = useAuth();
   const navigate = useNavigate();
+  // Dal telefono il piano non si cambia: il limite resta come informazione.
+  const isMobile = useIsMobile();
 
   const companyId = (user as { company_id?: string } | null)?.company_id;
 
@@ -104,7 +107,7 @@ export function PlanLimitWarning({ resourceType = "orders", className }: Props) 
               </span>
               {/* App Store 3.1.1: niente CTA upgrade/acquisto nell'app mobile.
                   Il warning resta informativo (uso/limite del piano). */}
-              {!isMobileAppRuntime && (
+              {!isMobileAppRuntime && !isMobile && (
                 <Button
                   size="sm"
                   variant={isAtLimit ? "default" : "outline"}
