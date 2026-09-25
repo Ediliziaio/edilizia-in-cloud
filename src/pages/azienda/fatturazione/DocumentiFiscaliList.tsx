@@ -16,6 +16,8 @@ import { formatCurrency, formatDateShort } from "@/lib/formatters";
 import { MonthlyTimeline } from "@/components/fatturazione/MonthlyTimeline";
 import { StatoBadge } from "@/components/fatturazione/StatoBadge";
 import { FaseSdiBadge } from "@/components/fatturazione/FaseSdiBadge";
+import { SegnaPagataDialog } from "@/components/fatturazione/SegnaPagataDialog";
+import { residuoDaIncassare } from "@/lib/fatturazione/incassi";
 import { faseSdi } from "@/lib/fatturazione/sdiCassetto";
 import { DocumentiFooter } from "@/components/fatturazione/DocumentiFooter";
 import { Button } from "@/components/ui/button";
@@ -98,7 +100,7 @@ function getErrorMessage(error: unknown) {
 }
 
 function isDocumentoPagabile(doc: DocumentoFiscale) {
-  return TIPI_PAGABILI.includes(doc.tipo) && PAGABILE.includes(doc.stato);
+  return TIPI_PAGABILI.includes(doc.tipo) && PAGABILE.includes(doc.stato) && residuoDaIncassare(doc) > 0;
 }
 
 function isDocumentoEliminabile(doc: DocumentoFiscale) {
@@ -421,32 +423,9 @@ function DocumentiFiscaliListInner() {
     toast.success(`${rows.length} documenti esportati`);
   };
 
-  const handleBulkPay = async () => {
-    const now = new Date().toISOString();
-    let ok = 0;
-    let skipped = 0;
-    for (const doc of selectedDocs) {
-      if (!isDocumentoPagabile(doc)) {
-        skipped++;
-        continue;
-      }
-      try {
-        await updateMutation.mutateAsync({
-          id: doc.id,
-          stato: "pagata" as StatoDocumento,
-          importo_pagato: doc.totale_da_pagare,
-          pagato_at: now,
-        });
-        ok++;
-      } catch (err: unknown) {
-        toast.error("Pagamento non aggiornato", { description: getErrorMessage(err) });
-      }
-    }
-    if (ok > 0) toast.success(`${ok} documenti segnati come pagati`);
-    if (skipped > 0) toast.info(`${skipped} documenti non pagabili ignorati`);
-    clearSelection();
-    setBulkPayOpen(false);
-  };
+  // «Segna pagate»: un incasso per fattura (registra_incasso_atomico), solo
+  // su quelle che hanno qualcosa da incassare; le altre si dicono nel dialog.
+  const pagabiliSelezionate = useMemo(() => selectedDocs.filter(isDocumentoPagabile), [selectedDocs]);
 
   const handleBulkDelete = async () => {
     let ok = 0;
@@ -1210,39 +1189,12 @@ function DocumentiFiscaliListInner() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* ── Payment Confirmation Dialog ──────────────── */}
-      <AlertDialog open={!!payTarget} onOpenChange={(open) => !open && setPayTarget(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Segnare come pagata?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Il documento <strong>{payTarget?.numero}</strong> verrà segnato come pagato per l'importo di{" "}
-              <strong>{payTarget ? formatCurrency(payTarget.totale_da_pagare) : ""}</strong> in data odierna.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={updateMutation.isPending}
-              onClick={() => {
-                if (payTarget) {
-                  updateMutation.mutate(
-                    {
-                      id: payTarget.id,
-                      stato: "pagata",
-                      importo_pagato: payTarget.totale_da_pagare,
-                      pagato_at: new Date().toISOString(),
-                    },
-                    { onSettled: () => setPayTarget(null) }
-                  );
-                }
-              }}
-            >
-              {updateMutation.isPending ? "Aggiornamento..." : "Conferma pagamento"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* ── Segna pagata: un incasso vero, con metodo e data ── */}
+      <SegnaPagataDialog
+        open={!!payTarget}
+        onOpenChange={(open) => !open && setPayTarget(null)}
+        fatture={payTarget ? [payTarget] : []}
+      />
 
       {/* ── Bulk Delete Confirmation ─────────────────── */}
       <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
@@ -1266,26 +1218,14 @@ function DocumentiFiscaliListInner() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* ── Bulk Pay Confirmation ────────────────────── */}
-      <AlertDialog open={bulkPayOpen} onOpenChange={setBulkPayOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Segnare {selectedIds.size} documenti come pagati?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Solo i documenti con stato pagabile verranno aggiornati.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={updateMutation.isPending}
-              onClick={handleBulkPay}
-            >
-              {updateMutation.isPending ? "Aggiornamento..." : "Conferma"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* ── Segna pagate (selezione): un incasso per fattura ── */}
+      <SegnaPagataDialog
+        open={bulkPayOpen}
+        onOpenChange={setBulkPayOpen}
+        fatture={pagabiliSelezionate}
+        escluse={selectedDocs.length - pagabiliSelezionate.length}
+        onFatto={clearSelection}
+      />
     </div>
 
       {effectiveCompany?.id && (

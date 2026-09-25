@@ -18,15 +18,10 @@ import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
 import { formatCurrency, formatDateIt } from "@/lib/formatters";
+import { METODI_INCASSO } from "@/lib/fatturazione/incassi";
 
-const METODI = [
-  { value: "bonifico", label: "Bonifico" },
-  { value: "contanti", label: "Contanti" },
-  { value: "assegno", label: "Assegno" },
-  { value: "carta", label: "Carta" },
-  { value: "riba", label: "RiBa" },
-  { value: "sdd", label: "SDD" },
-];
+// La stessa lista di «Segna pagata»: lib/fatturazione/incassi.ts.
+const METODI = METODI_INCASSO;
 
 type RegistroIncassiProps = {
   embedded?: boolean;

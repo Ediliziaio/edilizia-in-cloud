@@ -11,6 +11,8 @@ import { faseSdi, motivoSdi } from "@/lib/fatturazione/sdiCassetto";
 import { useInvioSdi, useAggiornaStatoSdi } from "@/hooks/useInvioSdi";
 import { SdiStatoBanner } from "@/components/fatturazione/SdiStatoBanner";
 import { FaseSdiBadge } from "@/components/fatturazione/FaseSdiBadge";
+import { SegnaPagataDialog } from "@/components/fatturazione/SegnaPagataDialog";
+import { residuoDaIncassare } from "@/lib/fatturazione/incassi";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -61,6 +63,7 @@ export default function DocumentoDetail() {
   const updateMutation = useUpdateDocumento();
   const [ncLoading, setNcLoading] = useState(false);
   const [convertLoading, setConvertLoading] = useState(false);
+  const [pagaAperto, setPagaAperto] = useState(false);
   // Invio e esito, gli stessi dell'editor: dopo l'invio la pagina si rilegge da
   // sola e passa a «In elaborazione» (24/09/2026).
   const invioSdi = useInvioSdi();
@@ -86,7 +89,9 @@ export default function DocumentoDetail() {
   const paymentProgress = doc.totale_da_pagare > 0 ? (doc.importo_pagato / doc.totale_da_pagare) * 100 : 0;
   const isProforma = doc.tipo === "proforma";
   const isPreventivo = doc.tipo === "preventivo";
-  const canSegnaPagata = TIPI_PAGABILI.includes(doc.tipo) && ["emessa", "inviata_sdi", "consegnata", "accettata", "parzialmente_pagata"].includes(doc.stato);
+  const canSegnaPagata = TIPI_PAGABILI.includes(doc.tipo)
+    && ["emessa", "inviata_sdi", "consegnata", "accettata", "parzialmente_pagata"].includes(doc.stato)
+    && residuoDaIncassare(doc) > 0;
 
   const handleCreaNC = async (modalita: "totale" | "parziale") => {
     try {
@@ -122,10 +127,6 @@ export default function DocumentoDetail() {
     finally { setConvertLoading(false); }
   };
 
-  const handleSegnaPagata = () => {
-    if (updateMutation.isPending) return;
-    updateMutation.mutate({ id: doc.id, stato: "pagata", importo_pagato: doc.totale_da_pagare, pagato_at: new Date().toISOString() });
-  };
 
   const handleStatoPreventivo = (nuovoStato: "accettata" | "annullata") => {
     if (updateMutation.isPending) return;
@@ -203,10 +204,12 @@ export default function DocumentoDetail() {
           )}
 
           {canSegnaPagata && (
-            <Button variant="outline" size="sm" onClick={handleSegnaPagata} disabled={updateMutation.isPending}>
+            <Button variant="outline" size="sm" onClick={() => setPagaAperto(true)}>
               <CreditCard className="h-4 w-4 mr-1" /> Segna pagata
             </Button>
           )}
+          {/* Un incasso vero (registra_incasso_atomico), non più la sola etichetta. */}
+          <SegnaPagataDialog open={pagaAperto} onOpenChange={setPagaAperto} fatture={[doc]} />
 
           {canCreateNC && (
             <AlertDialog>

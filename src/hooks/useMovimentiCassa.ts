@@ -3,6 +3,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { queryKeys } from "@/lib/queryKeys";
 import { toast } from "sonner";
+import {
+  descriviEsitoIncassi,
+  registraIncassi,
+  residuoDaIncassare,
+  type ChiamataRpc,
+  type EsitoIncassi,
+} from "@/lib/fatturazione/incassi";
+import type { DocumentoFiscale } from "@/types/fatturazione";
 
 export interface MovimentoCassa {
   id: string;
@@ -116,6 +124,47 @@ export function useDeleteMovimento() {
     },
     onError: (err: Error) => {
       toast.error("Errore nell'eliminazione", { description: err.message });
+    },
+  });
+}
+
+/**
+ * «Segna pagata», su una fattura o su tante (25/09/2026): un incasso per
+ * fattura, per il residuo, con registra_incasso_atomico. Prima si aggiornava
+ * la fattura a mano e l'incasso non arrivava né in cassa né in prima nota né
+ * allo scadenzario. Un solo avviso alla fine, con quelle non riuscite.
+ */
+export function useSegnaPagata() {
+  const companyId = useEffectiveCompanyId();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: {
+      fatture: Pick<DocumentoFiscale, "id" | "numero" | "totale_da_pagare" | "importo_pagato">[];
+      metodo: string;
+      data: string;
+    }): Promise<EsitoIncassi> => {
+      if (!companyId) throw new Error("Nessuna azienda selezionata");
+      return registraIncassi(
+        supabase as unknown as ChiamataRpc,
+        companyId,
+        input.fatture.map((d) => ({ id: d.id, numero: d.numero, residuo: residuoDaIncassare(d) })),
+        { metodo: input.metodo, data: input.data },
+      );
+    },
+    onSuccess: (esito) => {
+      queryClient.invalidateQueries({ queryKey: ["movimenti-cassa"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.documentiFiscali.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.primaNota.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.scadenzario.all });
+      queryClient.invalidateQueries({ queryKey: ["cashflow"] });
+      const r = descriviEsitoIncassi(esito);
+      if (r.tutteRiuscite) toast.success(r.titolo);
+      else if (esito.registrati.length > 0) toast.warning(r.titolo, { description: r.dettaglio, duration: 10000 });
+      else toast.error(r.titolo, { description: r.dettaglio, duration: 10000 });
+    },
+    onError: (err: Error) => {
+      toast.error("Incasso non registrato", { description: err.message });
     },
   });
 }
