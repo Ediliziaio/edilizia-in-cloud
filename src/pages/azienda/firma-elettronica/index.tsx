@@ -26,6 +26,7 @@ import { useDocumentoSessioni } from '@/hooks/useDocumentoSessioni';
 import { createTimeoutSignal, withClientTimeout } from '@/lib/query-timeout';
 import { DocumentiList } from '@/components/documenti/DocumentiList';
 import { FEABadge } from '@/components/fea/FEABadge';
+import { CercaConFiltri, KpiMobili, PannelloFiltri, PilloleFiltro } from '@/components/mobile/FiltriMobile';
 import { RichiediFirmaDialog } from '@/components/fea/RichiediFirmaDialog';
 import type { DocumentoTemplate } from '@/types/fea';
 import { toast } from 'sonner';
@@ -177,6 +178,7 @@ export default function FirmaElettronicaHub() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("tutti");
   const [tipoDocFilter, setTipoDocFilter] = useState<string>("tutti");
+  const [filtriMobileAperti, setFiltriMobileAperti] = useState(false);
   const [requestsLoadingTimedOut, setRequestsLoadingTimedOut] = useState(false);
   const [richiediFirmaOpen, setRichiediFirmaOpen] = useState<{
     open: boolean;
@@ -448,11 +450,14 @@ export default function FirmaElettronicaHub() {
   };
 
   return (
-    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
-      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/50 p-4 sm:p-5 shadow-sm">
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6 max-sm:space-y-3 max-sm:p-0">
+      {/* Mobile: solo il titolo. Le firme partono dal documento (preventivo,
+          commessa), i template si creano al computer: qui su telefono si guarda
+          l'archivio e si rimanda il link. */}
+      <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/50 p-4 sm:p-5 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-start gap-3 min-w-0">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200 max-sm:hidden">
               <FileSignature className="h-5 w-5" />
             </div>
             <div className="min-w-0">
@@ -466,7 +471,7 @@ export default function FirmaElettronicaHub() {
           </div>
           {/* v8.6.67 — flex-wrap su mobile: prima i 3 elementi (badge + 2 button)
               finivano in una riga forzata e uscivano dal viewport iPhone (375px). */}
-          <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+          <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto max-sm:hidden">
             {emailProvider?.is_active ? (
               <Badge variant="outline" className="gap-1.5 border-green-200 bg-green-50 text-green-700">
                 <Mail className="h-3 w-3" />
@@ -531,8 +536,16 @@ export default function FirmaElettronicaHub() {
         </div>
       </div>
 
+      <KpiMobili
+        className="sm:hidden"
+        voci={[
+          { label: "Da firmare", valore: String(kpi.inAttesa), tono: kpi.inAttesa > 0 ? "text-amber-600" : undefined },
+          { label: "Firmati", valore: String(kpi.firmati), tono: kpi.firmati > 0 ? "text-green-700" : undefined },
+        ]}
+      />
+
       {/* KPI */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 max-sm:hidden">
         <KpiCard icon={<FileStack className="h-4 w-4" />} label="Documenti tracciati" value={String(kpi.totale)} />
         <KpiCard icon={<Clock className="h-4 w-4 text-yellow-600" />} label="Da firmare" value={String(kpi.inAttesa)} accent="yellow" />
         <KpiCard icon={<CheckCircle2 className="h-4 w-4 text-green-600" />} label="Firmati" value={String(kpi.firmati)} accent="green"
@@ -546,10 +559,10 @@ export default function FirmaElettronicaHub() {
       </div>
 
       {!emailProvider?.is_active && (
-        <Alert className="border-yellow-500/40 bg-yellow-50/60">
+        <Alert className="border-yellow-500/40 bg-yellow-50/60 max-sm:py-2.5">
           <AlertTriangle className="h-4 w-4 text-yellow-600" />
-          <AlertTitle>Email transazionale non configurata</AlertTitle>
-          <AlertDescription className="text-sm">
+          <AlertTitle className="max-sm:mb-0 max-sm:text-[13px]">Email transazionale non configurata</AlertTitle>
+          <AlertDescription className="text-sm max-sm:hidden">
             Le richieste di firma necessitano dell'invio di email automatiche con OTP e link. Configura
             un provider (Resend, SendGrid o Elastic Email) in{" "}
             <a href="/azienda/impostazioni/dominio-email" className="underline font-medium">Impostazioni → Dominio email</a>
@@ -559,7 +572,8 @@ export default function FirmaElettronicaHub() {
       )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="h-auto gap-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+        {/* Mobile: archivio e moduli; i template si gestiscono al computer. */}
+        <TabsList className="h-auto gap-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm max-sm:grid max-sm:w-full max-sm:grid-cols-2 max-sm:rounded-xl max-sm:p-1">
           <TabsTrigger value="richieste" className="gap-1.5 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
             <Send className="h-3.5 w-3.5" /> Archivio firme
             {kpi.totale > 0 && <Badge variant="secondary" className="ml-1 h-4 px-1.5 text-[10px]">{kpi.totale}</Badge>}
@@ -567,14 +581,21 @@ export default function FirmaElettronicaHub() {
           <TabsTrigger value="documenti" className="gap-1.5 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
             <FileText className="h-3.5 w-3.5" /> Moduli custom
           </TabsTrigger>
-          <TabsTrigger value="template" className="gap-1.5 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
+          <TabsTrigger value="template" className="gap-1.5 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700 max-sm:hidden">
             <FileStack className="h-3.5 w-3.5" /> Template moduli
           </TabsTrigger>
         </TabsList>
 
         {/* ── Tab RICHIESTE FIRMA ─────────────────────────────────────────── */}
-        <TabsContent value="richieste" className="mt-4 space-y-3">
-          <div className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:flex-row">
+        <TabsContent value="richieste" className="mt-4 space-y-3 max-sm:mt-3 max-sm:space-y-2">
+          <CercaConFiltri
+            className="sm:hidden"
+            valore={search}
+            onCambia={setSearch}
+            filtriAttivi={[statusFilter !== "tutti", tipoDocFilter !== "tutti"].filter(Boolean).length}
+            onApriFiltri={() => setFiltriMobileAperti(true)}
+          />
+          <div className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:flex-row max-sm:hidden">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -647,13 +668,13 @@ export default function FirmaElettronicaHub() {
             </div>
           ) : filteredRequests.length === 0 ? (
             <Card>
-              <CardContent className="p-8 text-center">
-                <Send className="h-12 w-12 text-slate-300 mx-auto mb-3" />
-                <p className="text-slate-500 font-medium">
+              <CardContent className="p-8 text-center max-sm:p-5">
+                <Send className="h-12 w-12 text-slate-300 mx-auto mb-3 max-sm:hidden" />
+                <p className="text-slate-500 font-medium max-sm:text-sm">
                   {requests.length === 0 ? "Nessuna richiesta di firma ancora" : "Nessuna richiesta corrisponde ai filtri"}
                 </p>
                 {requests.length === 0 && (
-                  <p className="text-slate-400 text-sm mt-1">
+                  <p className="text-slate-400 text-sm mt-1 max-sm:hidden">
                     Invia un preventivo dalla sua scheda oppure richiedi una firma da un modulo custom.
                   </p>
                 )}
@@ -661,45 +682,39 @@ export default function FirmaElettronicaHub() {
             </Card>
           ) : (
             <>
-            {/* Vista MOBILE a card: la tabella a 7 colonne mandava le azioni
-                (copia link / apri) fuori schermo a destra. */}
-            <div className="space-y-2 md:hidden">
+            {/* Vista MOBILE a righe: documento e firmatario a sinistra, stato a
+                destra; copia link e apri come icone piccole. */}
+            <div className="divide-y overflow-hidden rounded-xl border bg-card md:hidden">
               {filteredRequests.map((r) => {
                 const cfg = STATUS_CFG[r.status] ?? STATUS_CFG.pending;
-                const StatusIcon = cfg.icon;
                 const isExpired = isFirmaExpired(r.expires_at, r.status);
+                const quando = r.signed_at
+                  ? `firmata ${formatFirmaDate(r.signed_at)}`
+                  : isExpired
+                    ? "scaduta"
+                    : `inviata ${formatFirmaDate(r.created_at)}`;
                 return (
-                  <Card key={r.id} className="p-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-slate-900">{r.documento_label || "Documento"}</p>
-                        <p className="mt-0.5 truncate text-xs text-muted-foreground flex items-center gap-1">
-                          <Mail className="h-3 w-3 shrink-0" />{r.signer_name || "Cliente"} · {r.signer_email || "email non salvata"}
-                        </p>
-                      </div>
-                      <Badge className={`gap-1 shrink-0 ${cfg.className}`} variant="outline">
-                        <StatusIcon className="h-3 w-3" />{cfg.label}
-                      </Badge>
+                  <div key={r.id} className="flex min-h-[52px] items-center gap-2 px-3 py-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[13px] font-semibold leading-tight text-slate-900">{r.documento_label || "Documento"}</p>
+                      <p className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground">
+                        {r.signer_name || "Cliente"} · {quando}
+                      </p>
                     </div>
-                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
-                      <Badge variant="outline" className="px-1.5 py-0 text-[10px]">{TIPO_DOC_LABEL[r.tipo_documento] ?? r.tipo_documento}</Badge>
-                      <span>Inviata {formatFirmaDate(r.created_at)}</span>
-                      {r.signed_at && <span className="text-green-700 font-medium">· Firmata {formatFirmaDate(r.signed_at)}</span>}
-                      {r.expires_at && !r.signed_at && <span className={isExpired ? "text-red-600" : ""}>· scade {formatFirmaDate(r.expires_at)}{isExpired ? " (scaduto)" : ""}</span>}
-                    </div>
-                    {r.firma_url && (
-                      <div className="mt-2 flex gap-2">
-                        {r.status !== "signed" && r.status !== "refused" && (
-                          <Button variant="outline" size="sm" className="flex-1 h-10 gap-1.5" onClick={() => void copyLink(r.firma_url!)}>
-                            <Copy className="h-4 w-4" /> Copia link
-                          </Button>
-                        )}
-                        <Button variant="default" size="sm" className="flex-1 h-10 gap-1.5" asChild>
-                          <a href={r.firma_url} target="_blank" rel="noreferrer"><Send className="h-4 w-4" /> Apri</a>
-                        </Button>
-                      </div>
+                    <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium ${cfg.className}`}>{cfg.label}</span>
+                    {/* Il link serve solo finché la firma è aperta: annullata o
+                        scaduta, porta a una pagina d'errore. */}
+                    {r.firma_url && (r.status === "pending" || r.status === "otp_verified") && !isExpired && (
+                      <Button variant="ghost" size="icon" className="tap-compact h-8 w-8 shrink-0" aria-label="Copia link firma" onClick={() => void copyLink(r.firma_url!)}>
+                        <Copy className="h-4 w-4" />
+                      </Button>
                     )}
-                  </Card>
+                    {r.firma_url && r.status !== "cancelled" && r.status !== "expired" && !isExpired && (
+                      <Button variant="ghost" size="icon" className="tap-compact h-8 w-8 shrink-0" aria-label="Apri link firma" asChild>
+                        <a href={r.firma_url} target="_blank" rel="noreferrer"><ExternalLink className="h-4 w-4" /></a>
+                      </Button>
+                    )}
+                  </div>
                 );
               })}
             </div>
@@ -829,7 +844,7 @@ export default function FirmaElettronicaHub() {
         </TabsContent>
 
         {/* ── Tab DOCUMENTI COMPILATI ──────────────────────────────────────── */}
-        <TabsContent value="documenti" className="mt-4">
+        <TabsContent value="documenti" className="mt-4 max-sm:mt-3">
           {sessioniLoading ? (
             <div className="flex items-center gap-2 text-slate-500 py-8">
               <Loader2 className="h-5 w-5 animate-spin" />
@@ -837,10 +852,10 @@ export default function FirmaElettronicaHub() {
             </div>
           ) : sessioni.length === 0 ? (
             <Card>
-              <CardContent className="p-8 text-center">
-                <FileText className="h-12 w-12 text-slate-300 mx-auto mb-3" />
-                <p className="text-slate-500 font-medium">Nessun documento ancora</p>
-                <p className="text-slate-400 text-sm mt-1">
+              <CardContent className="p-8 text-center max-sm:p-5">
+                <FileText className="h-12 w-12 text-slate-300 mx-auto mb-3 max-sm:hidden" />
+                <p className="text-slate-500 font-medium max-sm:text-sm">Nessun documento ancora</p>
+                <p className="text-slate-400 text-sm mt-1 max-sm:hidden">
                   Crea un documento da un template per iniziare
                 </p>
               </CardContent>
@@ -853,11 +868,11 @@ export default function FirmaElettronicaHub() {
                 return (
                   <div
                     key={s.id}
-                    className="flex items-center gap-4 p-4 bg-white border rounded-xl hover:shadow-sm transition-shadow"
+                    className="flex items-center gap-4 p-4 bg-white border rounded-xl hover:shadow-sm transition-shadow max-sm:gap-2 max-sm:px-3 max-sm:py-2"
                   >
-                    <FileText className="h-5 w-5 text-slate-400 shrink-0" />
+                    <FileText className="h-5 w-5 text-slate-400 shrink-0 max-sm:hidden" />
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-slate-800 truncate">{s.nome}</p>
+                      <p className="font-medium text-slate-800 truncate max-sm:text-[13px]">{s.nome}</p>
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                         {s.template && (
                           <p className="text-xs text-slate-500">{s.template.nome}</p>
@@ -870,7 +885,7 @@ export default function FirmaElettronicaHub() {
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-3 shrink-0">
+                    <div className="flex items-center gap-3 shrink-0 max-sm:gap-1.5">
                       <FEABadge stato={s.stato === 'firmato' ? 'signed' : s.stato === 'in_firma' ? 'pending' : null} />
                       <span className="text-xs text-slate-400 hidden sm:inline">
                         {formatFirmaDate(s.created_at)}
@@ -879,7 +894,8 @@ export default function FirmaElettronicaHub() {
                         <Button
                           size="sm"
                           variant="outline"
-                          className="gap-1.5"
+                          className="gap-1.5 tap-compact max-sm:h-8 max-sm:w-8 max-sm:p-0"
+                          aria-label="Richiedi firma"
                           onClick={() => setRichiediFirmaOpen({
                             open: true,
                             documento_id: s.id,
@@ -888,7 +904,7 @@ export default function FirmaElettronicaHub() {
                           })}
                         >
                           <Send className="h-3.5 w-3.5" />
-                          Richiedi firma
+                          <span className="max-sm:hidden">Richiedi firma</span>
                         </Button>
                       )}
                     </div>
@@ -904,6 +920,39 @@ export default function FirmaElettronicaHub() {
           <DocumentiList onSelect={handleSelectTemplate} />
         </TabsContent>
       </Tabs>
+
+      <PannelloFiltri
+        aperto={filtriMobileAperti}
+        onAperto={setFiltriMobileAperti}
+        attivi={[statusFilter !== "tutti", tipoDocFilter !== "tutti"].filter(Boolean).length}
+        onAzzera={() => { setStatusFilter("tutti"); setTipoDocFilter("tutti"); }}
+        risultati={filteredRequests.length}
+      >
+        <PilloleFiltro
+          titolo="Stato"
+          valore={statusFilter}
+          onScegli={setStatusFilter}
+          scelte={[
+            { value: "tutti", label: "Tutti" },
+            { value: "pending", label: "In attesa" },
+            { value: "signed", label: "Firmati" },
+            { value: "refused", label: "Rifiutati" },
+            { value: "expired", label: "Scaduti" },
+          ]}
+        />
+        <PilloleFiltro
+          titolo="Documento"
+          valore={tipoDocFilter}
+          onScegli={setTipoDocFilter}
+          scelte={[
+            { value: "tutti", label: "Tutti" },
+            { value: "quote", label: "Preventivi" },
+            { value: "order", label: "Ordini" },
+            { value: "odv", label: "Ordini di vendita" },
+            { value: "sessione", label: "Moduli" },
+          ]}
+        />
+      </PannelloFiltri>
 
       <RichiediFirmaDialog
         open={richiediFirmaOpen.open}
