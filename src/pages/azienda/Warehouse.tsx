@@ -38,6 +38,7 @@ import {
   ShoppingCart,
   History,
   TrendingDown,
+  MoreHorizontal,
 } from "lucide-react";
 import { BarcodeScanner } from "@/components/warehouse/BarcodeScanner";
 import { StockUnitsDrilldownSheet } from "@/components/warehouse/StockUnitsDrilldownSheet";
@@ -67,8 +68,10 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -692,9 +695,6 @@ export default function Warehouse() {
                 </SelectContent>
               </Select>
             )}
-            <p className="hidden sm:block text-sm text-slate-500 mt-0.5">
-              Materiali, acquisti, DDT, lotti e inventario in un'unica vista operativa.
-            </p>
           </div>
         </div>
 
@@ -758,30 +758,50 @@ export default function Warehouse() {
               )}
               {!isCommercialistaMode && (
                 <>
-                  <Button variant="outline" size="sm" onClick={() => setTransferOpen(true)} className="tap-compact max-sm:h-9 max-sm:w-9 max-sm:shrink-0 max-sm:p-0" aria-label="Trasferisci tra magazzini">
+                  <Button variant="outline" size="sm" onClick={() => setTransferOpen(true)} className="tap-compact max-sm:h-9 max-sm:w-9 max-sm:shrink-0 max-sm:p-0 sm:hidden" aria-label="Trasferisci tra magazzini">
                     <ArrowLeftRight className="h-4 w-4 sm:mr-2" aria-hidden="true" />
                     <span className="hidden sm:inline">Trasferisci</span>
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => navigate("/azienda/magazzino/gestione")} className="max-sm:hidden">
-                    <SettingsIcon className="h-4 w-4 sm:mr-2" aria-hidden="true" />
-                    <span className="hidden sm:inline">Gestisci magazzini</span>
-                  </Button>
                 </>
               )}
+              {/* Da tablet un menu solo per il resto: prima erano quattro bottoni
+                  (Trasferisci, Gestisci magazzini, Esporta) e «Personalizza card»
+                  su una riga a sé sopra i numeri. */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="outline"
-                    size="sm"
-                    aria-label="Apri menu esportazione magazzino"
-                    className="max-sm:hidden"
+                    size="icon"
+                    aria-label="Altre azioni del magazzino"
+                    className="h-9 w-9 max-sm:hidden"
                   >
-                    <Download className="h-4 w-4 sm:mr-2" />
-                    <span className="hidden sm:inline">Esporta</span>
+                    <MoreHorizontal className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-72">
-                  <DropdownMenuLabel>Esporta dati magazzino</DropdownMenuLabel>
+                <DropdownMenuContent align="end" className="w-60">
+                  {!isCommercialistaMode && (
+                    <>
+                      <DropdownMenuItem onClick={() => setTransferOpen(true)}>
+                        <ArrowLeftRight className="h-4 w-4 mr-2" />
+                        Trasferisci tra magazzini
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => navigate("/azienda/magazzino/gestione")}>
+                        <SettingsIcon className="h-4 w-4 mr-2" />
+                        Gestisci magazzini
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                  <DropdownMenuItem onClick={() => setMetricsDialogOpen(true)}>
+                    <Settings2 className="h-4 w-4 mr-2" />
+                    Personalizza i riquadri
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger>
+                      <Download className="h-4 w-4 mr-2" />
+                      Esporta
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent className="w-64">
                   <DropdownMenuItem onClick={exportToCSV}>
                     <Download className="h-4 w-4 mr-2" />
                     Vista corrente CSV
@@ -816,6 +836,8 @@ export default function Warehouse() {
                     <Printer className="h-4 w-4 mr-2" />
                     Stampa lista
                   </DropdownMenuItem>
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -850,14 +872,8 @@ export default function Warehouse() {
           e duplicano informazioni già presenti nelle KPI cliccabili sotto. */}
 
       <div className="space-y-3 print:hidden">
-        {/* "Personalizza card" senza titolo né spiegazione sopra le metriche:
-            la riga costava cinquanta pixel per dire quello che si vede. */}
-        <div className="hidden sm:flex justify-end">
-          <Button variant="ghost" size="sm" onClick={() => setMetricsDialogOpen(true)} className="h-7 shrink-0 gap-2 text-xs text-muted-foreground">
-            <Settings2 className="h-3.5 w-3.5" aria-hidden="true" />
-            Personalizza card
-          </Button>
-        </div>
+        {/* «Personalizza i riquadri» sta nel menu ⋯ della testata: qui era una
+            riga intera sopra i numeri per un bottone. */}
         <div className="space-y-3">
           <WarehouseStats
             items={items}
@@ -1070,49 +1086,52 @@ export default function Warehouse() {
           <div className="flex flex-col gap-3 max-sm:gap-2">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <Tabs value={viewMode} onValueChange={handleViewModeChange} className="min-w-0">
-                <TabsList className="flex h-auto w-full max-w-full justify-start gap-1 overflow-x-auto rounded-xl p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden max-sm:grid max-sm:grid-cols-3">
+                {/* Dieci viste: da tablet vanno a capo invece di scorrere di lato
+                    (col mouse «Scadenze» restava fuori), e le icone tornano solo
+                    da 1536px, così a 1440 stanno su una riga. */}
+                <TabsList className="flex h-auto w-full max-w-full justify-start gap-1 overflow-x-auto rounded-xl p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden max-sm:grid max-sm:grid-cols-3 sm:flex-wrap sm:overflow-visible">
                   <TabsTrigger value="list" className="shrink-0 gap-1.5 px-2.5" aria-label="Vista lista commesse">
-                    <List className="h-4 w-4" />
+                    <List className="h-4 w-4 sm:hidden 2xl:block" />
                     <span className="text-[11px] sm:text-sm">Commesse</span>
                   </TabsTrigger>
                   <TabsTrigger value="purchase_list" className="shrink-0 gap-1.5 px-2.5" aria-label="Vista lista acquisti">
-                    <ShoppingCart className="h-4 w-4" />
+                    <ShoppingCart className="h-4 w-4 sm:hidden 2xl:block" />
                     <span className="text-[11px] sm:text-sm">Acquisti</span>
                   </TabsTrigger>
                   <TabsTrigger value="stock" className="shrink-0 gap-1.5 px-2.5" aria-label="Vista inventario">
-                    <PackageOpen className="h-4 w-4" />
+                    <PackageOpen className="h-4 w-4 sm:hidden 2xl:block" />
                     <span className="text-[11px] sm:text-sm">Inventario</span>
                   </TabsTrigger>
                   <TabsTrigger value="kanban" className="shrink-0 gap-1.5 px-2.5 max-sm:hidden" aria-label="Vista pipeline">
-                    <LayoutGrid className="h-4 w-4" />
+                    <LayoutGrid className="h-4 w-4 sm:hidden 2xl:block" />
                     <span className="text-[11px] sm:text-sm">Pipeline</span>
                   </TabsTrigger>
                   <TabsTrigger value="calendar" className="shrink-0 gap-1.5 px-2.5 max-sm:hidden" aria-label="Vista calendario">
-                    <CalendarIcon className="h-4 w-4" />
+                    <CalendarIcon className="h-4 w-4 sm:hidden 2xl:block" />
                     <span className="text-[11px] sm:text-sm">Calendario</span>
                   </TabsTrigger>
                   <TabsTrigger value="lotti" className="shrink-0 gap-1.5 px-2.5 max-sm:hidden" aria-label="Vista lotti">
-                    <Package className="h-4 w-4" />
+                    <Package className="h-4 w-4 sm:hidden 2xl:block" />
                     <span className="text-[11px] sm:text-sm">Lotti</span>
                   </TabsTrigger>
                   <TabsTrigger value="ddt" className="shrink-0 gap-1.5 px-2.5 max-sm:hidden" aria-label="Vista DDT">
-                    <FileText className="h-4 w-4" />
+                    <FileText className="h-4 w-4 sm:hidden 2xl:block" />
                     <span className="text-[11px] sm:text-sm">DDT</span>
                   </TabsTrigger>
                   <TabsTrigger value="uscite" className="shrink-0 gap-1.5 px-2.5 max-sm:hidden" aria-label="Vista uscite merce">
-                    <ArrowUpFromLine className="h-4 w-4" />
+                    <ArrowUpFromLine className="h-4 w-4 sm:hidden 2xl:block" />
                     <span className="text-[11px] sm:text-sm">Uscite</span>
                   </TabsTrigger>
                   <TabsTrigger value="valuation" className="shrink-0 gap-1.5 px-2.5 max-sm:hidden" aria-label="Vista valorizzazione magazzino">
-                    <Calculator className="h-4 w-4" />
+                    <Calculator className="h-4 w-4 sm:hidden 2xl:block" />
                     <span className="text-[11px] sm:text-sm">Valore</span>
                   </TabsTrigger>
                   <TabsTrigger value="scadenze" className="shrink-0 gap-1.5 px-2.5 max-sm:hidden" aria-label="Vista scadenze lotti">
-                    <Clock className="h-4 w-4" />
+                    <Clock className="h-4 w-4 sm:hidden 2xl:block" />
                     <span className="text-[11px] sm:text-sm">Scadenze</span>
                   </TabsTrigger>
                   <TabsTrigger value="movements" className="shrink-0 gap-1.5 px-2.5 max-sm:hidden" aria-label="Vista registro movimenti">
-                    <History className="h-4 w-4" />
+                    <History className="h-4 w-4 sm:hidden 2xl:block" />
                     <span className="text-[11px] sm:text-sm">Movimenti</span>
                   </TabsTrigger>
                 </TabsList>
