@@ -762,7 +762,7 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
           <NavyStatCard
             label="Da incassare"
             value={metrics.daIncassare > 0
-              ? metrics.daIncassare.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })
+              ? metrics.daIncassare.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: true })
               : "—"}
             sub={metrics.daIncassare > 0 ? "interventi a pagamento" : "niente in sospeso"}
             icon={Euro}

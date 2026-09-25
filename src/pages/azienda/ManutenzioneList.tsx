@@ -356,7 +356,7 @@ export default function ManutenzioneList() {
         className="sm:hidden"
         voci={[
           { label: "In scadenza (14 gg)", valore: String(pianiInScadenza.length), tono: pianiInScadenza.length > 0 ? "text-orange-600" : undefined },
-          { label: "Canoni al mese", valore: `${mrr.toLocaleString("it-IT", { maximumFractionDigits: 0 })} €` },
+          { label: "Canoni al mese", valore: `${mrr.toLocaleString("it-IT", { maximumFractionDigits: 0, useGrouping: true })} €` },
         ]}
       />
 
@@ -365,7 +365,7 @@ export default function ManutenzioneList() {
         <OperationalKpiCard icon={Settings} label="Impianti" value={impianti.length} hint="installazioni censite" tone="blue" />
         <OperationalKpiCard icon={AlertCircle} label="In scadenza" value={pianiInScadenza.length} hint="prossimi 14 giorni" tone={pianiInScadenza.length > 0 ? "orange" : "green"} />
         <OperationalKpiCard icon={CheckCircle2} label="Contratti attivi" value={contratti.filter((c) => c.stato === "attivo").length} hint="canoni ricorrenti" tone="green" />
-        <OperationalKpiCard icon={TrendingUp} label="MRR" value={`${mrr.toLocaleString("it-IT", { maximumFractionDigits: 0 })} €`} hint="ricavi mensili stimati" tone="amber" />
+        <OperationalKpiCard icon={TrendingUp} label="MRR" value={`${mrr.toLocaleString("it-IT", { maximumFractionDigits: 0, useGrouping: true })} €`} hint="ricavi mensili stimati" tone="amber" />
       </div>
 
       {selectedPianoIds.size > 0 && (
@@ -570,7 +570,7 @@ export default function ManutenzioneList() {
                   </div>
                 </div>
                 <div className="text-right shrink-0">
-                  <div className="font-bold text-purple-700 max-sm:text-[13px]">{Number(contratto.importo_canone).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</div>
+                  <div className="font-bold text-purple-700 max-sm:text-[13px]">{Number(contratto.importo_canone).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })} €</div>
                   <div className="text-xs text-gray-400">{contratto.tipo_fatturazione}</div>
                 </div>
               </div>
