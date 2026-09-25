@@ -365,9 +365,6 @@ verify_jwt = false
 [functions.process-scheduled-campaigns]
 verify_jwt = false
 
-[functions.resend-to-unopened]
-verify_jwt = false
-
 [functions.process-email-outbox]
 verify_jwt = false
 
@@ -938,7 +935,9 @@ verify_jwt = false
 [functions.cleanup-capture-orphans]
 verify_jwt = false
 
-[functions.cleanup-sessions]
+# Chiamata dal cron ogni 15 minuti con x-cron-secret, senza JWT: il
+# controllo lo fa il codice (chiamataInternaValida).
+[functions.check-wa-notifiche]
 verify_jwt = false
 
 [functions.compute-health-scores]

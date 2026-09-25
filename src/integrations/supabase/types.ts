@@ -30780,6 +30780,7 @@ export type Database = {
           name: string
           preview_text: string | null
           recipient_filter: Json | null
+          reinvio_di: string | null
           resend_to_unopened: boolean
           scheduled_at: string | null
           segment_json: Json | null
@@ -30819,6 +30820,7 @@ export type Database = {
           name: string
           preview_text?: string | null
           recipient_filter?: Json | null
+          reinvio_di?: string | null
           resend_to_unopened?: boolean
           scheduled_at?: string | null
           segment_json?: Json | null
@@ -30858,6 +30860,7 @@ export type Database = {
           name?: string
           preview_text?: string | null
           recipient_filter?: Json | null
+          reinvio_di?: string | null
           resend_to_unopened?: boolean
           scheduled_at?: string | null
           segment_json?: Json | null
@@ -30916,6 +30919,13 @@ export type Database = {
             columns: ["folder_id"]
             isOneToOne: false
             referencedRelation: "email_folders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_campaigns_reinvio_di_fkey"
+            columns: ["reinvio_di"]
+            isOneToOne: true
+            referencedRelation: "email_campaigns"
             referencedColumns: ["id"]
           },
           {

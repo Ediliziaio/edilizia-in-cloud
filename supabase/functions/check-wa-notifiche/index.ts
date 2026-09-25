@@ -1,24 +1,34 @@
-// MP03 — check-wa-notifiche (cron ogni 15min)
-// Valuta i trigger wa_notifiche_triggers enabled e firea notifiche rispettando cooldown.
-// MVP supporta solo trigger cron-based: fattura_scaduta, approvazione_pendente.
-// Gli event-driven (preventivo_inviato, sal_raggiunto) in MP4.
+// MP03 — check-wa-notifiche (cron ogni 15 minuti)
+// Valuta i trigger wa_notifiche_triggers accesi e manda le notifiche WhatsApp
+// rispettando il cooldown (una volta per soggetto e trigger).
+//
+// 25/09/2026: non aveva MAI avuto un cron (ora in
+// 20280925190000_cron_mancanti_campagne_notifiche_sessioni). Corretto insieme:
+//  - chi chiama si controlla col sistema comune (i segreti dei cron o la
+//    chiave di servizio), non più col solo INTERNAL_CRON_SECRET né leggendo il
+//    ruolo da un JWT non verificato;
+//  - a pg_net si risponde entro 5 secondi (serveConMetricheRapida);
+//  - «fattura scaduta» leggeva total_amount e payment_status, che non esistono:
+//    ora fatture esterne (invoices) e interne (documenti_fiscali), col residuo;
+//  - «titolare» cercava i ruoli titolare/admin, che non esistono: ora
+//    companies.titolare_user_id, altrimenti un amministratore dell'azienda;
+//  - gli eventi in coda più vecchi di 3 giorni si chiudono senza inviare.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/headers.ts";
+import { chiamataInternaValida, rispostaNonAutorizzata } from "../_shared/chiamataInterna.ts";
+import { serveConMetricheRapida } from "../_shared/withMetricsRapida.ts";
 
-function extractJwtRole(authHeader: string): string | null {
-  if (!authHeader.startsWith("Bearer ")) return null;
-  const jwt = authHeader.substring(7);
-  const parts = jwt.split(".");
-  if (parts.length !== 3) return null;
-  try {
-    const payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
-    return typeof payload.role === "string" ? payload.role : null;
-  } catch {
-    return null;
-  }
-}
+/** Un evento più vecchio di così non manda più niente: la notizia è passata. */
+const EVENTI_VALIDI_GIORNI = 3;
+
+/** Fatture interne che si incassano (come la riconciliazione bancaria). */
+const TIPI_FATTURA_INTERNA = [
+  "fattura", "fattura_pa", "parcella", "fattura_accompagnatoria", "acconto_fattura",
+  "acconto_parcella", "fattura_differita_b", "fattura_riepilogativa", "nota_debito",
+];
+const STATI_DA_INCASSARE = ["emessa", "inviata_sdi", "consegnata", "accettata", "parzialmente_pagata", "scaduta"];
 
 interface TriggerRow {
   id: string;
@@ -39,24 +49,23 @@ interface Subject {
   destinatario_phone?: string;
 }
 
-Deno.serve(async (req) => {
+serveConMetricheRapida("check-wa-notifiche", async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
-
-  const authHeader = req.headers.get("Authorization") ?? "";
-  const cronSecret = req.headers.get("x-cron-secret") ?? "";
-  const internalSecret = Deno.env.get("INTERNAL_CRON_SECRET") ?? "";
-  const roleClaim = extractJwtRole(authHeader);
-  const authorized =
-    roleClaim === "service_role" ||
-    (internalSecret.length > 0 && cronSecret === internalSecret);
-  if (!authorized) {
-    return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401 });
-  }
+  if (!chiamataInternaValida(req)) return rispostaNonAutorizzata(corsHeaders);
 
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
+
+  // Gli eventi vecchi si chiudono senza inviare: chi accende oggi una notifica
+  // non deve ricevere quelle di mesi fa.
+  const limiteEventi = new Date(Date.now() - EVENTI_VALIDI_GIORNI * 86_400_000).toISOString();
+  await supabase
+    .from("wa_notifiche_event_queue")
+    .update({ processed: true, processed_at: new Date().toISOString() })
+    .not("processed", "is", true)
+    .lt("created_at", limiteEventi);
 
   const { data: triggers } = await supabase
     .from("wa_notifiche_triggers")
@@ -71,13 +80,15 @@ Deno.serve(async (req) => {
     try {
       const subjects = await evaluateTrigger(supabase, t);
       for (const subject of subjects) {
+        // Prima il destinatario, poi il cooldown: senza un telefono la
+        // notifica non deve bruciarsi, così parte quando il numero c'è.
+        const destinatario = await resolveDestinatario(supabase, t, subject);
+        if (!destinatario) continue;
         const ok = await checkAndSetCooldown(supabase, t.id, subject.subject_id);
         if (!ok) {
           skipped++;
           continue;
         }
-        const destinatario = await resolveDestinatario(supabase, t, subject);
-        if (!destinatario) continue;
         await fireNotifica(supabase, t, subject, destinatario);
         fired++;
         details.push({
@@ -115,26 +126,60 @@ async function evaluateTrigger(
 ): Promise<Subject[]> {
   switch (t.trigger_kind) {
     case "fattura_scaduta": {
+      // Scadute da almeno N giorni e non saldate, dei gestionali esterni e
+      // della fatturazione interna. La cifra è quanto resta da incassare.
       const giorni = (t.config?.giorni_soglia as number) ?? 7;
       const soglia = new Date(Date.now() - giorni * 86_400_000).toISOString().substring(0, 10);
-      const { data } = await supabase
-        .from("invoices")
-        .select("id, invoice_number, total_amount, paid_amount, client_company_name, due_date")
-        .eq("company_id", t.company_id)
-        .neq("payment_status", "pagata")
-        .lt("due_date", soglia)
-        .limit(10);
-      return (data ?? []).map((f) => ({
-        subject_id: f.id,
-        variables: {
-          "1": String(f.invoice_number ?? "N/D"),
-          "2": f.client_company_name ?? "N/D",
-          "3": Number(f.total_amount ?? 0).toLocaleString("it-IT", {
-            minimumFractionDigits: 2,
-          }),
-          "4": f.due_date ?? "",
-        },
-      }));
+      const [esterne, interne] = await Promise.all([
+        supabase
+          .from("invoices")
+          .select("id, invoice_number, total, paid_amount, client_company_name, due_date")
+          .eq("company_id", t.company_id)
+          .is("deleted_at", null)
+          .not("status", "in", '("paid","cancelled","draft")')
+          .lt("due_date", soglia)
+          .limit(10),
+        supabase
+          .from("documenti_fiscali")
+          .select("id, numero, totale_da_pagare, importo_pagato, cliente_snapshot, data_scadenza")
+          .eq("company_id", t.company_id)
+          .is("deleted_at", null)
+          .in("tipo", TIPI_FATTURA_INTERNA)
+          .in("stato", STATI_DA_INCASSARE)
+          .lt("data_scadenza", soglia)
+          .limit(10),
+      ]);
+      const euro = (n: number) => n.toLocaleString("it-IT", { minimumFractionDigits: 2 });
+      const soggetti: Subject[] = [];
+      for (const f of esterne.data ?? []) {
+        const residuo = Number(f.total ?? 0) - Number(f.paid_amount ?? 0);
+        if (residuo <= 0.005) continue;
+        soggetti.push({
+          subject_id: f.id,
+          variables: {
+            "1": String(f.invoice_number ?? "N/D"),
+            "2": f.client_company_name ?? "N/D",
+            "3": euro(residuo),
+            "4": f.due_date ?? "",
+          },
+        });
+      }
+      for (const d of interne.data ?? []) {
+        const residuo = Number(d.totale_da_pagare ?? 0) - Number(d.importo_pagato ?? 0);
+        if (residuo <= 0.005) continue;
+        const snap = (d.cliente_snapshot ?? {}) as { ragione_sociale?: string; nome?: string; cognome?: string };
+        const cliente = snap.ragione_sociale || [snap.nome, snap.cognome].filter(Boolean).join(" ") || "N/D";
+        soggetti.push({
+          subject_id: d.id,
+          variables: {
+            "1": String(d.numero ?? "N/D"),
+            "2": cliente,
+            "3": euro(residuo),
+            "4": d.data_scadenza ?? "",
+          },
+        });
+      }
+      return soggetti.slice(0, 10);
     }
 
     case "approvazione_pendente": {
@@ -257,26 +302,37 @@ async function resolveDestinatario(
     return t.destinatario_custom_phone;
   }
   if (t.destinatario_kind === "titolare") {
-    // Cerca il profilo titolare della company
+    // Il titolare segnato sull'azienda; se manca, un amministratore
+    // dell'azienda col telefono. Mai il super admin della piattaforma: la
+    // notifica è dell'azienda.
+    const { data: azienda } = await supabase
+      .from("companies")
+      .select("titolare_user_id")
+      .eq("id", t.company_id)
+      .maybeSingle();
+    if (azienda?.titolare_user_id) {
+      const { data: titolare } = await supabase
+        .from("profiles")
+        .select("phone")
+        .eq("id", azienda.titolare_user_id)
+        .maybeSingle();
+      if (titolare?.phone) return titolare.phone;
+    }
     const { data: profiles } = await supabase
       .from("profiles")
       .select("id, phone")
       .eq("company_id", t.company_id)
       .not("phone", "is", null)
-      .limit(5);
+      .limit(20);
     const userIds = (profiles ?? []).map((p) => p.id);
     if (userIds.length === 0) return null;
     const { data: roles } = await supabase
       .from("user_roles")
-      .select("user_id, role")
-      .in("user_id", userIds);
-    const titolareUids = new Set(
-      (roles ?? [])
-        .filter((r) => ["titolare", "admin", "super_admin"].includes(String(r.role).toLowerCase()))
-        .map((r) => r.user_id),
-    );
-    const titolare = (profiles ?? []).find((p) => titolareUids.has(p.id));
-    return titolare?.phone ?? null;
+      .select("user_id")
+      .in("user_id", userIds)
+      .eq("role", "company_admin");
+    const amministratori = new Set((roles ?? []).map((r) => r.user_id));
+    return (profiles ?? []).find((p) => amministratori.has(p.id))?.phone ?? null;
   }
   return null;
 }

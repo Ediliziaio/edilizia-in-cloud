@@ -54,6 +54,8 @@ describe("migrazione del 24/09", () => {
     expect(migrazione).not.toMatch(/status IN \('opened','clicked'\)\)::bigint AS opened/);
   });
 
+  // Il reinvio a chi non ha aperto è arrivato il 25/09 (20280925190000) come
+  // campagna normale, che scala i crediti: la vecchia funzione non torna.
   it("resend-to-unopened resta senza cron finché non scala i crediti", () => {
     expect(migrazione).not.toMatch(/cron\.schedule\(\s*'resend-to-unopened/);
   });

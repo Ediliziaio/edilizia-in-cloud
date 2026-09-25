@@ -117,7 +117,7 @@ catch (err) {
 | `secure-impersonation` | SuperAdmin | Impersonazione sicura di altri utenti |
 | `sign-in-as-user` | SuperAdmin | Login come utente specifico |
 | `upsert-admin-session` | Internal | Crea/aggiorna sessione admin |
-| `cleanup-sessions` | Cron (daily) | Pulizia sessioni scadute |
+| `pulisci_sessioni_utente()` (SQL) | Cron `sessioni-utente-pulizia` | Pulizia sessioni ferme da 90 giorni, tiene l'ultima di ogni utente |
 | `manage-super-admins` | SuperAdmin | Gestione lista super admin |
 | `manage-platform-users` | SuperAdmin | Gestione utenti piattaforma |
 | `manage-permission-template` | Admin | Template permessi ruoli |
@@ -191,7 +191,7 @@ catch (err) {
 | `send-nps-survey` | Cron | Invia survey NPS agli admin |
 | `nps-survey-respond` | Public link | Registra risposta NPS (no auth) |
 | `send-partner-notification` | Internal/Cron | Notifiche ai partner |
-| `resend-to-unopened` | Client | Reinvia campagna a chi non ha aperto (BUG-06) |
+| `email_prepara_reinvii()` (SQL) | Cron `email-reinvii-non-aperti` | Dopo 48 ore crea la copia per chi non ha aperto; la spedisce send-email-campaign |
 | `email-provider-webhook` | Webhook | Normalizza eventi da provider email diversi |
 | `email-tracking` | Pixel/link | Tracking aperture email (1x1 GIF) |
 | `process-scheduled-campaigns` | Cron | Processa campagne email schedulate (BUG-05) |
@@ -241,7 +241,7 @@ catch (err) {
 | `track-user-session` | Client | Tracking sessione utente |
 | `form-render` | Public | Render form pubblico |
 | `form-submit` | Public | Submit form pubblico |
-| `determine-ab-winner` | Cron | Determina vincitore A/B test |
+| `email_ab_scegli_vincitori()` (SQL) | Cron `email-ab-vincitori` | Determina vincitore A/B test da aperture e clic |
 | `check-lifecycle-events` | Cron | Controllo eventi lifecycle utente |
 | `process-automation` | Internal | Esecuzione automazioni marketing |
 | `check-scheduled-triggers` | Cron | Verifica trigger schedulati |
@@ -295,7 +295,8 @@ Le seguenti funzioni vengono invocate da pg_cron o Supabase scheduled functions:
 | `auto-topup-trigger` | Ogni ora | `cron secret` |
 | `bank-sync-all-companies` | Ogni 4 ore | `cron secret` |
 | `bank-check-expiry` | Giornaliero | — |
-| `cleanup-sessions` | Giornaliero | `INTERNAL_CRON_SECRET` |
+| `pulisci_sessioni_utente()` (SQL) | Giornaliero 03:47 | — |
+| `check-wa-notifiche` | Ogni 15 minuti | `proactive_cron_secret` dal Vault |
 | `compute-health-scores` | Giornaliero | `cron secret` (service_role) |
 | `generate-recurring-costs` | Mensile | — |
 | `meta-token-refresh` | Giornaliero | — |
@@ -303,7 +304,8 @@ Le seguenti funzioni vengono invocate da pg_cron o Supabase scheduled functions:
 | `process-dunning` | Giornaliero | — |
 | `quote-expiry-reminder` | Giornaliero | — |
 | `send-nps-survey` | Settimanale | — |
-| `determine-ab-winner` | Settimanale | `CRON_SECRET` (optional) |
+| `email_ab_scegli_vincitori()` (SQL) | Ogni ora | — |
+| `email_prepara_reinvii()` (SQL) | Ogni 30 minuti | — |
 | `check-lifecycle-events` | Giornaliero | — |
 
 ---
@@ -433,7 +435,7 @@ Lazy-loaded su route (React.lazy):
 |----------|-----------------|
 | `secure-impersonation` | SuperAdmin role check |
 | `sign-in-as-user` | SuperAdmin role check |
-| `cleanup-sessions` | `INTERNAL_CRON_SECRET` |
+| `check-wa-notifiche` | segreti dei cron o chiave di servizio (`chiamataInternaValida`) |
 | `compute-health-scores` | `cron secret` obbligatorio (service_role) |
 | `billing-webhook` | Replay window 5min |
 | `gestisci-sede` | `requireAuth` + `verifyCompanyAccess` |
