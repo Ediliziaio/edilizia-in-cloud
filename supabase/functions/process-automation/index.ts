@@ -39,6 +39,7 @@ import {
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { brandEmailBody } from "../_shared/brandEmailBody.ts";
 import { loadContactCustomFieldResolver, applyContactCustomFields } from "../_shared/contactCustomFields.ts";
+import { nomeAzienda, nomeSaluto } from "../_shared/outreach-template.ts";
 import { costruisciVariabiliCommessa, scegliFatturaDaAllegare, sostituisciVariabiliCommessa } from "../_shared/variabiliCommessa.ts";
 
 import { serveConMetriche } from "../_shared/withMetrics.ts";
@@ -4617,6 +4618,12 @@ async function resolveContactText(
     // telefono (notifiche «manda questo WhatsApp a …»).
     telefono_whatsapp: numeroWhatsApp(contact?.phone),
     azienda: contact?.company_name ?? "",
+    // Il nome da usare nel saluto: «Danilo», oppure niente quando nel campo
+    // nome c'è la ragione sociale (93% dei contatti dell'outreach). Prima usciva
+    // «Ciao BONADIMAN SERRAMENTI SRL,» — 25/09/2026. Vuoto = «Ciao,».
+    nome_saluto: nomeSaluto({ first_name: contact?.first_name, company_name: contact?.company_name }),
+    // «Rossi Serramenti» al posto di «ROSSI SERRAMENTI S.R.L.».
+    azienda_breve: nomeAzienda(contact?.company_name),
   };
 
   // Appuntamento: si legge solo se il testo lo nomina davvero, per non fare
