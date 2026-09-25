@@ -1,17 +1,25 @@
 #!/usr/bin/env node
 /**
- * Impronta delle versioni delle migrazioni, da confrontare con il registro
- * (supabase_migrations.schema_migrations). Il controllo Supabase Preview è
- * verde solo se i due elenchi sono identici (vedi CLAUDE.md).
+ * Confronta le versioni delle migrazioni nel repository con il registro del
+ * database (supabase_migrations.schema_migrations). Il controllo Supabase
+ * Preview è verde solo se i due elenchi sono identici (vedi CLAUDE.md).
+ *
+ * Lo script non si collega al database: stampa le query da lanciare con
+ * execute_sql (sola lettura), già complete dei dati del repository.
  *
  * Uso:
- *   node scripts/pubblica/registro-migrazioni.mjs                     cartella di lavoro
- *   node scripts/pubblica/registro-migrazioni.mjs --ref origin/main   quello pubblicato
- *   node scripts/pubblica/registro-migrazioni.mjs --dal 20280925      anche le versioni da quella in poi
+ *   node scripts/pubblica/registro-migrazioni.mjs --ref <sha>                 il commit da pubblicare
+ *   node scripts/pubblica/registro-migrazioni.mjs --ref <sha> --mese 202609   il dettaglio di un mese
  *
- * Stampa numero e impronta e la query da lanciare sul registro con execute_sql:
- * stesso numero e stessa impronta = controllo verde. Con --dal stampa anche le
- * versioni recenti, per trovare la differenza quando l'impronta non torna.
+ * Senza --ref legge la cartella di lavoro, che è condivisa: contiene anche file
+ * non ancora pubblicati di altre sessioni, e il confronto può dare falsi allarmi.
+ *
+ * 1. Numero e impronta: stessi valori sul registro = controllo verde.
+ * 2. Se non tornano, la query per mese dice dove: solo i mesi con elenchi diversi.
+ * 3. Con --mese, la query elenca le versioni del registro senza file e i file
+ *    senza riga, col nome della migrazione (per capire di chi sono). Una riga
+ *    non riallineata ha la versione col timestamp vero (2026…): sta nel mese in
+ *    cui è stata applicata, non in quello del file (2028…).
  */
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -23,7 +31,11 @@ const valore = (nome) => {
   return i >= 0 ? argomenti[i + 1] : undefined;
 };
 const ref = valore("--ref");
-const dal = valore("--dal");
+const mese = valore("--mese");
+if (mese !== undefined && !/^\d{6}$/.test(mese)) {
+  console.error(`--mese vuole anno e mese, per esempio 202609 (non «${mese}»).`);
+  process.exit(2);
+}
 
 const nomi = ref
   ? execFileSync("git", ["ls-tree", "--name-only", ref, "supabase/migrations/"], { encoding: "utf8" })
@@ -37,25 +49,63 @@ const versioni = nomi
   .filter((nome) => nome.endsWith(".sql"))
   .map((nome) => nome.split("_")[0])
   .sort();
+const strane = versioni.filter((v) => !/^\d+$/.test(v));
+if (strane.length > 0) {
+  console.error(`File con una versione che non è fatta di sole cifre: ${strane.join(", ")}`);
+  process.exit(2);
+}
 const doppie = [...new Set(versioni.filter((v, i) => versioni[i - 1] === v))];
-const impronta = createHash("md5").update(versioni.join(",")).digest("hex");
+const md5 = (testo) => createHash("md5").update(testo).digest("hex");
 
-console.log(`${ref ? `Su ${ref}` : "Nella cartella di lavoro"}: ${versioni.length} migrazioni, impronta ${impronta}`);
+console.log(
+  `${ref ? `Su ${ref}` : "Nella cartella di lavoro"}: ${versioni.length} migrazioni, impronta ${md5(versioni.join(","))}`,
+);
 if (doppie.length > 0) {
   console.log(`ATTENZIONE, versioni doppie (il push si ferma con duplicate key): ${doppie.join(", ")}`);
 }
-console.log("\nSul registro, con execute_sql (sola lettura):");
+
+console.log("\n1. Sul registro, con execute_sql:");
 console.log(
-  "  select count(*) as n, md5(string_agg(version, ',' order by version)) as impronta" +
+  "select count(*) as n, md5(string_agg(version, ',' order by version)) as impronta" +
     " from supabase_migrations.schema_migrations;",
 );
-if (dal) {
-  console.log(`\nVersioni da ${dal} in poi:`);
-  console.log(`  ${versioni.filter((v) => v >= dal).join(",") || "(nessuna)"}`);
-  console.log("E sul registro:");
+
+const perMese = new Map();
+for (const v of versioni) {
+  const m = v.slice(0, 6);
+  perMese.set(m, [...(perMese.get(m) ?? []), v]);
+}
+const righe = [...perMese].map(([m, vs]) => `('${m}', ${vs.length}, '${md5(vs.join(","))}')`);
+console.log("\n2. Se numero o impronta non tornano, i mesi diversi:");
+console.log(
+  `with repo(mese, n, impronta) as (values ${righe.join(", ")}),
+registro as (
+  select left(version, 6) as mese, count(*) as n, md5(string_agg(version, ',' order by version)) as impronta
+  from supabase_migrations.schema_migrations group by 1
+)
+select coalesce(r.mese, g.mese) as mese, r.n as file_nel_repo, g.n as righe_nel_registro
+from repo r full join registro g on g.mese = r.mese
+where r.impronta is distinct from g.impronta
+order by 1;`,
+);
+
+if (mese) {
+  const delMese = perMese.get(mese) ?? [];
+  const valori = delMese.length > 0 ? delMese.map((v) => `('${v}')`).join(", ") : "(null)";
+  console.log(`\n3. Il mese ${mese} (${delMese.length} file nel repository), versione per versione:`);
   console.log(
-    "  select string_agg(version, ',' order by version) from supabase_migrations.schema_migrations" +
-      ` where version >= '${dal.replace(/[^0-9]/g, "")}';`,
+    `with repo(version) as (values ${valori})
+select 'nel registro, senza file' as dove, s.version, s.name
+from supabase_migrations.schema_migrations s
+where left(s.version, 6) = '${mese}' and s.version not in (select version from repo where version is not null)
+union all
+select 'file senza riga nel registro', r.version, null
+from repo r
+where r.version is not null
+  and not exists (select 1 from supabase_migrations.schema_migrations s where s.version = r.version)
+order by 2;`,
   );
+} else {
+  console.log("\nPer il dettaglio di un mese: stesso comando con --mese <aaaamm>.");
 }
 if (doppie.length > 0) process.exit(1);
