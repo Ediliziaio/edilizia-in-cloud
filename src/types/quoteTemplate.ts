@@ -96,6 +96,9 @@ export interface QuoteTemplate {
   payment_terms_text: string;
   delivery_terms_text: string;
   bank_details: string;
+  /** Mail e telefono dell'impresa stampati nel preventivo; vuoti = quelli del profilo aziendale. */
+  email_impresa?: string | null;
+  telefono_impresa?: string | null;
   // Copertina personalizzata + termini contrattuali/legali
   cover_image_url: string | null;
   cover_title: string | null;

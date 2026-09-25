@@ -9,6 +9,7 @@ import { loadTemplateWithBlocks, attachLinkedBlocks, applyMergeTagsToTemplate, b
 import { condizioniStandard, MODULO_RECESSO } from "../_shared/condizioniStandard.ts";
 import { testoPerPdf } from "../_shared/testoPerPdf.ts";
 import { formatoImmagine, leggiLogo, logoDiRiserva } from "../_shared/logoAzienda.ts";
+import { COLORE_ACCENTO_DI_FABBRICA, coloreCopertina, coloreDelBlocco, contattiImpresa } from "../_shared/blocchiModelloPreventivo.ts";
 
 // ─── Helpers ───
 function hexToRgb(hex: string) {
@@ -226,6 +227,7 @@ Deno.serve(async (req) => {
         vat_number: "IT01234567890",
         logo_url: null,
       };
+      Object.assign(company, contattiImpresa(t, company));
       quote = {
         quote_number: "OFF-2026-001",
         title: "Fornitura e posa serramenti",
@@ -379,6 +381,10 @@ Deno.serve(async (req) => {
             address: [companyData.legal_address, companyData.legal_city].filter(Boolean).join(", ") || null,
           }
         : null;
+      // Mail e telefono scritti nel modello valgono più di quelli del profilo
+      // (25/09/2026): per Ener il profilo aveva la mail di un consulente, e
+      // usciva sotto «L'impresa» e nel modulo di recesso.
+      if (company) Object.assign(company, contattiImpresa(t, company));
       branding = brandingData;
       const prefetchedContact = (contactRes as { data: Record<string, unknown> | null }).data ?? null;
       attachmentRows = attRes.data ?? [];
@@ -650,7 +656,10 @@ Deno.serve(async (req) => {
       // barra a segmenti e scheda in basso. Prima era una pagina bianca da modulo.
       const cover = pdfDoc.addPage([pageWidth, pageHeight]);
       pagineSenzaFooter = 1;
-      const fondoHex = fondoPerTestoBianco(normalizzaHex(t.primary_color) ?? "#1E40AF");
+      // Il colore della copertina collegata, se è stato scelto; se no quello del
+      // modello. Prima valeva solo il modello: Ener ha messo la copertina verde
+      // e il PDF usciva blu (25/09/2026).
+      const fondoHex = fondoPerTestoBianco(coloreCopertina(t.primary_color, t.composed_cover));
       const scuroHex = scurisci(fondoHex, 0.4);
       const fondoC = rgbColor(fondoHex);
       const scuroC = rgbColor(scuroHex);
@@ -846,7 +855,9 @@ Deno.serve(async (req) => {
     const contentLeftX = () => (t.layout === "bold" ? 100 : margin);
     const contentMaxWidth = () => (t.layout === "bold" ? contentWidth - 50 : contentWidth);
 
-    const drawRichTextBlock = async (title: string, body: unknown, opts: { titoloDalTesto?: boolean; fontFamily?: string | null } = {}) => {
+    const drawRichTextBlock = async (title: string, body: unknown, opts: { titoloDalTesto?: boolean; fontFamily?: string | null; colore?: string | null } = {}) => {
+      // …e il suo colore, per i titoli: quello scelto nel blocco o quello del master.
+      const titoliC = opts.colore ? rgbColor(opts.colore) : primaryC;
       // Ogni blocco della libreria può avere il suo carattere (helvetica/times/courier):
       // se impostato vale per questa sezione, altrimenti quello del master.
       const famBlocco = opts.fontFamily && opts.fontFamily !== t.font_family ? opts.fontFamily : null;
@@ -896,7 +907,7 @@ Deno.serve(async (req) => {
             y,
             size,
             font: isHeading ? fontBoldB : fontB,
-            color: isHeading ? primaryC : textC,
+            color: isHeading ? titoliC : textC,
             maxWidth: contentMaxWidth() - (isList ? 6 : 0),
           });
           y -= isHeading ? size + 5 : Math.round(13 * lhScale);
@@ -915,6 +926,11 @@ Deno.serve(async (req) => {
       const w = contentMaxWidth();
       for (const product of products) {
         ensureSpace(92, "SCHEDE PRODOTTO");
+        // I colori scelti nella scheda (bordo, categoria, prezzo; fondo): se no quelli del master.
+        const primarioScheda = coloreDelBlocco(product.primary_color);
+        const accentoScheda = coloreDelBlocco(product.accent_color, COLORE_ACCENTO_DI_FABBRICA);
+        const schedaC = primarioScheda ? rgbColor(primarioScheda) : primaryC;
+        const fondoSchedaC = accentoScheda ? rgbColor(accentoScheda) : accentC;
         const cardTop = y;
         const cardH = 82;
         page.drawRectangle({
@@ -922,8 +938,8 @@ Deno.serve(async (req) => {
           y: cardTop - cardH + 8,
           width: w,
           height: cardH,
-          color: accentC,
-          borderColor: primaryC,
+          color: fondoSchedaC,
+          borderColor: schedaC,
           borderWidth: 0.4,
         });
         page.drawText(product.product_category || "Prodotto", {
@@ -931,7 +947,7 @@ Deno.serve(async (req) => {
           y: cardTop - 12,
           size: 7.2,
           font: fontBold,
-          color: primaryC,
+          color: schedaC,
         });
         page.drawText(product.name || "Scheda prodotto", {
           x: x + 12,
@@ -979,7 +995,7 @@ Deno.serve(async (req) => {
             y: cardTop - 68,
             size: 10,
             font: fontBold,
-            color: primaryC,
+            color: schedaC,
           });
         }
         y -= cardH + 12;
@@ -1814,7 +1830,11 @@ Deno.serve(async (req) => {
     drawProductBlocks();
 
     for (const section of (t.composed_sections ?? [])) {
-      await drawRichTextBlock(section.name || "Sezione", section.body_html, { titoloDalTesto: true, fontFamily: section.font_family ?? null });
+      await drawRichTextBlock(section.name || "Sezione", section.body_html, {
+        titoloDalTesto: true,
+        fontFamily: section.font_family ?? null,
+        colore: coloreDelBlocco(section.primary_color),
+      });
     }
 
     // Condizioni contrattuali e termini legali: UNA sezione (prima erano due
@@ -1838,7 +1858,11 @@ Deno.serve(async (req) => {
       const daApprovare = clausoleDaApprovare(condizioniETermini);
       // L'elenco sta nel riquadro della seconda firma: nel testo sarebbe ripetuto.
       const testoCondizioni = daApprovare.length > 0 ? senzaSezioneClausole(condizioniETermini) : condizioniETermini;
-      await drawRichTextBlock("CONDIZIONI CONTRATTUALI E TERMINI LEGALI", testoCondizioni, { fontFamily: t.composed_terms?.font_family ?? null });
+      await drawRichTextBlock("CONDIZIONI CONTRATTUALI E TERMINI LEGALI", testoCondizioni, {
+        fontFamily: t.composed_terms?.font_family ?? null,
+        // Condizioni e legali stanno in una sezione sola: vale il colore delle condizioni, se no dei legali.
+        colore: coloreDelBlocco(t.composed_terms?.primary_color) ?? coloreDelBlocco(t.composed_legal?.primary_color),
+      });
       if (daApprovare.length > 0) {
         ensureSpace(120, "CONDIZIONI CONTRATTUALI E TERMINI LEGALI");
         y -= 6;
