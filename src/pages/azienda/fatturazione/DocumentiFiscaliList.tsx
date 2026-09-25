@@ -617,12 +617,15 @@ function DocumentiFiscaliListInner() {
             )}
             {!isCommercialistaMode && (
               <>
-                <Button variant="outline" size="sm" asChild className="gap-1.5 max-sm:hidden">
-                  <Link to="/azienda/impostazioni/fatturazione-nativa">
-                    <Settings2 className="h-4 w-4" />
-                    <span className="hidden sm:inline">Impostazioni</span>
-                  </Link>
-                </Button>
+                {/* Da telefono la fatturazione non si imposta (solo computer o tablet). */}
+                {!isMobile && (
+                  <Button variant="outline" size="sm" asChild className="gap-1.5">
+                    <Link to="/azienda/impostazioni/fatturazione-nativa">
+                      <Settings2 className="h-4 w-4" />
+                      <span className="hidden sm:inline">Impostazioni</span>
+                    </Link>
+                  </Button>
+                )}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button className="gap-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-8 max-sm:gap-1 max-sm:px-3 max-sm:text-xs">
