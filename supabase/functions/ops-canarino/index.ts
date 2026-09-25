@@ -235,7 +235,8 @@ serveConMetriche("ops-canarino", async (req) => {
   }
 
   try {
-    // I vitali li raccoglie il cron SQL delle 04:50 (ops-canarino-snapshot):
+    // I vitali li raccoglie il cron SQL delle 03:52 UTC (ops-canarino-snapshot,
+    // prima dei rapporti delle 06:00 di Roma, dal 25/09/2026):
     // via PostgREST la RPC sfora gli 8s di statement_timeout per colpa dello
     // storico pg_cron, su cui non possiamo mettere indici. Qui si legge la
     // riga pronta — e uno snapshot vecchio e' esso stesso un guasto da dire.

@@ -206,7 +206,7 @@ describe("l'email", () => {
   });
   it("i brand verdi stanno in tre righe", () => {
     const { html } = costruisciRapporto(rapporto(), "u");
-    expect(html).toContain("🟢 BEMADE S.R.L.");
+    expect(html).toContain("BEMADE S.R.L.</strong> <span style=\"color:#047857;font-size:12px;letter-spacing:0.04em;\">OK</span>");
     expect(html).not.toContain("Gestione commerciale");
   });
 });
