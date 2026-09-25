@@ -3,7 +3,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CalendarClock, Plus, Loader2, Search, Filter, X, Download, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Loader2, Search, Filter, X, Download, ChevronLeft, ChevronRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -220,7 +220,6 @@ export default function Scadenzario() {
           (prima il bottone usciva dallo schermo: pagina larga 488px). */}
       <div className="flex items-center justify-between max-sm:gap-2">
         <div className="flex items-center gap-2">
-          <CalendarClock className="h-7 w-7 text-primary max-sm:hidden" />
           <h1 className="text-2xl font-bold max-sm:text-lg">Scadenzario</h1>
         </div>
         <div className="flex items-center gap-2">
@@ -274,21 +273,25 @@ export default function Scadenzario() {
 
       {/* Tabs + Search + Filters toggle */}
       <div className="flex flex-col gap-3 max-sm:hidden">
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-          <Tabs value={tab} onValueChange={(v) => { setTab(v); setPage(1); }} className="flex-1">
-            <TabsList className="flex flex-wrap h-auto gap-1 p-1 w-full justify-start">
-              {/* Conteggi su tutti i tab (year-scoped, dalla summary server-side). */}
-              <TabsTrigger value="tutte">Tutte ({counts.tutte})</TabsTrigger>
-              <TabsTrigger value="da_incassare">Da Incassare ({counts.da_incassare})</TabsTrigger>
-              <TabsTrigger value="da_pagare">Da Pagare ({counts.da_pagare})</TabsTrigger>
+        {/* Linguette su una riga sola e ricerca accanto se ci stanno, sotto se
+            no: a 1024 le linguette andavano su due righe dentro il riquadro. */}
+        <div className="flex flex-wrap items-center gap-3">
+          <Tabs value={tab} onValueChange={(v) => { setTab(v); setPage(1); }}>
+            <TabsList className="flex h-auto gap-1 p-1 justify-start">
+              {/* Conteggi su tutti i tab (year-scoped, dalla summary server-side).
+                  Sotto 1280 resta solo quello delle scadute: con tutti i numeri la
+                  riga era 753px e a 768/1024 usciva dal riquadro. */}
+              <TabsTrigger value="tutte">Tutte<span className="hidden xl:inline">&nbsp;({counts.tutte})</span></TabsTrigger>
+              <TabsTrigger value="da_incassare">Da Incassare<span className="hidden xl:inline">&nbsp;({counts.da_incassare})</span></TabsTrigger>
+              <TabsTrigger value="da_pagare">Da Pagare<span className="hidden xl:inline">&nbsp;({counts.da_pagare})</span></TabsTrigger>
               <TabsTrigger value="scadute">
                 Scadute {counts.scadute > 0 && <span className="ml-1 text-destructive font-bold">({counts.scadute})</span>}
               </TabsTrigger>
-              <TabsTrigger value="pagate">Pagate ({counts.pagate})</TabsTrigger>
+              <TabsTrigger value="pagate">Pagate<span className="hidden xl:inline">&nbsp;({counts.pagate})</span></TabsTrigger>
               <TabsTrigger value="adempimenti">Adempimenti Fiscali</TabsTrigger>
             </TabsList>
           </Tabs>
-          <div className="flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-2">
             <div className="relative w-full sm:w-56">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input

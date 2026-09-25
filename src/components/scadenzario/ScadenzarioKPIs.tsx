@@ -1,4 +1,4 @@
-import { AlertTriangle, CalendarClock, CalendarDays, Clock, TrendingDown, TrendingUp } from "lucide-react";
+import { AlertTriangle, CalendarClock, Clock, TrendingDown, TrendingUp } from "lucide-react";
 import type { ScadenzarioSummary } from "@/hooks/useScadenzario";
 import { NavyStatCard } from "@/components/costi/KpiCard";
 import { cn } from "@/lib/utils";
@@ -40,17 +40,10 @@ export default function ScadenzarioKPIs({ summary, isLoading, className }: Props
 
   return (
     <div className={cn("overflow-hidden rounded-2xl border border-slate-200 shadow-sm", className)}>
+      {/* Senza il titoletto «Scadenzario — Cosa entra, cosa esce, quando»:
+          ripeteva il titolo della pagina subito sopra. */}
       <div className="bg-[#173b67] p-4 text-white sm:p-5">
-        <div className="flex items-start gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)] sm:h-11 sm:w-11">
-            <CalendarDays className="h-4 w-4 sm:h-5 sm:w-5" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-orange-100 sm:text-xs">Scadenzario</p>
-            <h2 className="mt-0.5 text-base font-semibold text-white sm:text-xl">Cosa entra, cosa esce, quando</h2>
-          </div>
-        </div>
-        <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-5 sm:gap-3 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
           {/* Prima questa scheda mostrava "Scadute" sommando quello che i
               clienti devono all'azienda con quello che l'azienda deve ai
               fornitori: un numero che non e' il credito, non e' il debito e non

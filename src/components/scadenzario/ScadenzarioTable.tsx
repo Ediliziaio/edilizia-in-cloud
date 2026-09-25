@@ -118,18 +118,20 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAdd
         );
       })}
     </div>
-    {/* Desktop table */}
+    {/* Desktop table. Sotto 1280 senza «Tipo» (entrata o uscita lo dicono
+        già il segno e il colore dell'importo) e con celle più strette: a
+        1024 la colonna Stato usciva dalla pagina. */}
     <div className="hidden sm:block rounded-lg border overflow-x-auto">
-      <table className="w-full text-sm">
+      <table className="w-full text-sm [&_td]:px-2.5 [&_th]:px-2.5 xl:[&_td]:px-3 xl:[&_th]:px-3">
         <thead>
           <tr className="border-b bg-muted/50">
             <th className="text-left p-3 font-medium">Scadenza</th>
-            <th className="text-left p-3 font-medium">Tipo</th>
+            <th className="hidden text-left p-3 font-medium xl:table-cell">Tipo</th>
             <th className="text-left p-3 font-medium">Descrizione</th>
             <th className="text-right p-3 font-medium">Importo</th>
             <th className="text-right p-3 font-medium">Residuo</th>
             <th className="text-left p-3 font-medium">Stato</th>
-            <th className="p-3 w-24"></th>
+            <th className="p-3 w-20"></th>
           </tr>
         </thead>
         <tbody>
@@ -197,7 +199,7 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAdd
                     </span>
                   )}
                 </td>
-                <td className="p-3">
+                <td className="hidden p-3 xl:table-cell">
                   <Badge variant="secondary" className={`text-xs ${tipoInfo.color}`}>
                     {s.direction === "entrata"
                       ? <ArrowDownLeft className="h-3 w-3 mr-1 inline" />
@@ -207,19 +209,19 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAdd
                   </Badge>
                 </td>
                 <td className="p-3">
-                  <p className="font-medium truncate max-w-[200px]">{s.description}</p>
+                  <p className="font-medium truncate max-w-[160px] xl:max-w-[200px]">{s.description}</p>
                   {refLabel && <p className="text-xs text-muted-foreground">{refLabel}</p>}
                 </td>
-                <td className="p-3 text-right font-mono">
+                <td className="p-3 text-right tabular-nums">
                   <span className={s.direction === "entrata" ? "text-green-700" : ""}>
                     {s.direction === "uscita" ? "-" : "+"}{fmtEur(s.amount)}
                   </span>
                 </td>
                 <td className="p-3 text-right">
-                  {isPaid ? (
-                    <Badge variant="secondary" className="bg-green-100 text-green-800">Saldato</Badge>
-                  ) : isCancelled ? (
-                    <Badge variant="secondary">Annullata</Badge>
+                  {/* Pagata o annullata: niente residuo e niente seconda pastiglia
+                      («Saldato» accanto a «Pagata» nella colonna Stato). */}
+                  {isPaid || isCancelled ? (
+                    <span className="text-muted-foreground">—</span>
                   ) : s.status === "parziale" ? (
                     <div className="space-y-1">
                       <span className="font-medium">{fmtEur(remaining)}</span>
