@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import { useURLFilters } from "@/hooks/useURLFilters";
 import { usePermissions } from "@/hooks/usePermissions";
-import { Plus, Package, LayoutList, Columns3, Download, Upload, MoreVertical, ChevronLeft, ChevronRight, ClipboardList, ShoppingCart, AlertTriangle, PieChart, SlidersHorizontal, Columns, FileCheck, FileText, FileSpreadsheet, ChevronDown, CalendarDays, Users as UsersIcon, Target, LifeBuoy, Hammer, CheckCircle2, ShieldCheck, ShoppingBag, Euro, TrendingUp, AlertCircle, Map as MapIcon, FileQuestion } from "lucide-react";
+import { Plus, Package, LayoutList, Columns3, Upload, MoreVertical, ChevronLeft, ChevronRight, ClipboardList, ShoppingCart, AlertTriangle, PieChart, SlidersHorizontal, Columns, FileCheck, FileText, FileSpreadsheet, ChevronDown, Users as UsersIcon, Target, LifeBuoy, Hammer, CheckCircle2, ShieldCheck, ShoppingBag, Euro, TrendingUp, AlertCircle, Map as MapIcon, FileQuestion } from "lucide-react";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 
 // 🆕 Sprint S3: Sopralluoghi come tab dentro Commesse
@@ -1716,23 +1716,8 @@ function OrdersListInner() {
           </div>
         </div>
         <div className="flex items-center gap-1.5 flex-wrap justify-start sm:justify-end">
-          {/* Selettore anno commesse — in alto, sempre visibile (filtra le commesse
-              dell'anno scelto; "Tutti" per la vista completa). */}
-          {/* Duplicato: l'anno è già nel pannello Filtri → su mobile toglilo
-              dalla toolbar per non affollarla. */}
-          <Select value={yearFilter} onValueChange={setYearFilter}>
-            <SelectTrigger className="hidden sm:flex h-8 w-auto min-w-[6.5rem] gap-1 px-2.5 text-xs" aria-label="Filtra commesse per anno">
-              <CalendarDays className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-              <SelectValue placeholder="Anno" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="corrente">{currentYear} + aperte precedenti</SelectItem>
-              <SelectItem value="all">Tutti gli anni</SelectItem>
-              {availableYears.map((y) => (
-                <SelectItem key={y} value={String(y)}>{y}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {/* Qui c'era anche il selettore dell'anno: lo stesso della riga dei
+              filtri sotto (dove ora ha anche «{anno} + aperte precedenti»). */}
           {/* Filtri avanzati */}
           <Button
             variant="outline"
@@ -1767,8 +1752,7 @@ function OrdersListInner() {
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="outline" size="sm" className="hidden sm:flex h-8 px-2.5 text-xs" title="Colonne visibili" aria-label="Colonne visibili">
-                <Columns className="h-3.5 w-3.5 xl:mr-1" />
-                <span className="hidden xl:inline">Colonne</span>
+                <Columns className="h-3.5 w-3.5" />
               </Button>
             </PopoverTrigger>
             <PopoverContent align="end" className="w-[280px] p-3">
@@ -1808,54 +1792,35 @@ function OrdersListInner() {
           {!isMobile && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="h-8 px-2.5 text-xs" title="Esporta" aria-label="Esporta">
-                <Download className="h-3.5 w-3.5 xl:mr-1" />
-                <span className="hidden xl:inline">Esporta</span>
-                <ChevronDown className="h-3 w-3 ml-0.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-60">
-              <DropdownMenuLabel className="text-[11px]">Commesse filtrate</DropdownMenuLabel>
-              <DropdownMenuItem onClick={exportOrdersCSV}>
-                <FileText className="h-4 w-4 mr-2" /> Esporta CSV
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={exportOrdersXLSX}>
-                <FileSpreadsheet className="h-4 w-4 mr-2" /> Esporta Excel
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={exportOrdersPDF}>
-                <FileText className="h-4 w-4 mr-2" /> Esporta PDF
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel className="text-[11px]">Schede clienti</DropdownMenuLabel>
-              <DropdownMenuItem onClick={openCustomerSheetsDialog}>
-                <UsersIcon className="h-4 w-4 mr-2" /> PDF schede clienti
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          )}
-
-          {!isMobile && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
               <Button variant="outline" size="icon" className="h-8 w-8" aria-label="Altre azioni">
                 <MoreVertical className="h-3.5 w-3.5" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52">
+            {/* Esporta sta qui dentro: era un bottone a sé, e «schede clienti»
+                c'era in tutti e due i menu. */}
+            <DropdownMenuContent align="end" className="w-60">
               {!isCommercialistaMode && (
                 <>
                   <DropdownMenuItem onClick={() => setImportOpen(true)}>
                     <Upload className="h-4 w-4 mr-2" /> Importa commesse
                   </DropdownMenuItem>
-                  {!isMobile && <DropdownMenuSeparator />}
+                  <DropdownMenuSeparator />
                 </>
               )}
-              {/* Export schede clienti: nascosto su mobile */}
-              {!isMobile && (
-                <DropdownMenuItem onClick={openCustomerSheetsDialog}>
-                  <UsersIcon className="h-4 w-4 mr-2" /> Scarica schede clienti
-                </DropdownMenuItem>
-              )}
+              <DropdownMenuLabel className="text-[11px]">Esporta le commesse filtrate</DropdownMenuLabel>
+              <DropdownMenuItem onClick={exportOrdersCSV}>
+                <FileText className="h-4 w-4 mr-2" /> CSV
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={exportOrdersXLSX}>
+                <FileSpreadsheet className="h-4 w-4 mr-2" /> Excel
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={exportOrdersPDF}>
+                <FileText className="h-4 w-4 mr-2" /> PDF
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={openCustomerSheetsDialog}>
+                <UsersIcon className="h-4 w-4 mr-2" /> PDF schede clienti
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
           )}
@@ -2432,9 +2397,6 @@ function OrdersListInner() {
                     Ripristina
                   </Button>
                 )}
-                <span className="ml-auto text-[11px] text-muted-foreground hidden sm:block">
-                  Click sulle colonne per ordinare la pagina corrente
-                </span>
               </div>
 
               <OrdersTable

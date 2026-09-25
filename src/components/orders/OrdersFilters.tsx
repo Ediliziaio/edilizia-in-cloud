@@ -75,16 +75,18 @@ export function OrdersFilters({
   const [advancedOpen, setAdvancedOpen] = useState(advancedFiltersCount > 0);
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
+    // Da tablet una riga sola sullo sfondo (ricerca, stato, pagamenti, anno,
+    // mese, «In corso»): era un riquadro su due righe. Su telefono com'era.
+    <div className="sm:flex sm:flex-wrap sm:items-center sm:gap-2">
       {/* Search + In Corso + Toggle filtri avanzati (mobile) — sempre visibili */}
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1 min-w-0">
+      <div className="flex items-center gap-2 sm:contents">
+        <div className="relative flex-1 min-w-0 sm:min-w-[220px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Cerca commessa…"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="h-10 border-slate-200 pl-10 shadow-none max-sm:h-9 max-sm:bg-white"
+            className="h-10 border-slate-200 bg-white pl-10 shadow-none max-sm:h-9 sm:h-9"
             aria-label="Cerca per codice, descrizione o cliente"
           />
         </div>
@@ -110,7 +112,7 @@ export function OrdersFilters({
           variant={hideCompleted ? "default" : "outline"}
           size="sm"
           onClick={() => onHideCompletedChange(!hideCompleted)}
-          className="tap-compact h-10 shrink-0 max-sm:h-9 max-sm:w-9 max-sm:p-0"
+          className="tap-compact h-10 shrink-0 max-sm:h-9 max-sm:w-9 max-sm:p-0 sm:order-last sm:h-9"
           aria-label="Mostra solo commesse in corso"
           title="In Corso"
         >
@@ -118,16 +120,16 @@ export function OrdersFilters({
           <span className="hidden sm:inline">In Corso</span>
         </Button>
         {hasAnyFilter && (
-          <Button variant="ghost" size="icon" onClick={onClearAllFilters} className="tap-compact h-10 w-10 text-muted-foreground/60 hover:text-muted-foreground shrink-0 max-sm:h-9 max-sm:w-7" aria-label="Cancella tutti i filtri">
+          <Button variant="ghost" size="icon" onClick={onClearAllFilters} className="tap-compact h-10 w-10 text-muted-foreground/60 hover:text-muted-foreground shrink-0 max-sm:h-9 max-sm:w-7 sm:order-last sm:h-9 sm:w-9" aria-label="Cancella tutti i filtri">
             <X className="h-3.5 w-3.5" />
           </Button>
         )}
       </div>
 
       {/* Filtri avanzati: collapsed mobile (controllato), sempre visibili desktop */}
-      <div className={cn("grid grid-cols-2 gap-2 mt-2 sm:flex sm:flex-row sm:gap-2.5 sm:mt-2.5 sm:items-center", !advancedOpen && "hidden sm:flex")}>
+      <div className={cn("grid grid-cols-2 gap-2 mt-2 sm:contents", !advancedOpen && "max-sm:hidden")}>
           <Select value={statusFilter} onValueChange={onStatusFilterChange}>
-            <SelectTrigger className="h-10 w-full border-slate-200 shadow-none sm:w-[170px]">
+            <SelectTrigger className="h-10 w-full border-slate-200 bg-white shadow-none sm:h-9 sm:w-[160px]">
               <SelectValue placeholder="Stato" />
             </SelectTrigger>
             <SelectContent>
@@ -149,7 +151,7 @@ export function OrdersFilters({
             </SelectContent>
           </Select>
           <Select value={paymentFilter} onValueChange={(val) => onPaymentFilterChange(val as "all" | "pending" | "paid")}>
-            <SelectTrigger className="h-10 w-full border-slate-200 shadow-none sm:w-[170px]">
+            <SelectTrigger className="h-10 w-full border-slate-200 bg-white shadow-none sm:h-9 sm:w-[160px]">
               <SelectValue placeholder="Pagamenti" />
             </SelectTrigger>
             <SelectContent>
@@ -159,11 +161,14 @@ export function OrdersFilters({
             </SelectContent>
           </Select>
           <Select value={yearFilter} onValueChange={onYearFilterChange}>
-            <SelectTrigger className="h-10 w-full border-slate-200 shadow-none sm:w-[132px]">
+            <SelectTrigger className="h-10 w-full border-slate-200 bg-white shadow-none sm:h-9 sm:w-auto">
               <CalendarDays className="h-4 w-4 mr-1 shrink-0 text-slate-400" />
               <SelectValue placeholder="Anno" />
             </SelectTrigger>
             <SelectContent>
+              {/* La scelta di partenza della pagina: senza questa voce, col
+                  valore «corrente» il campo restava vuoto (solo l'icona). */}
+              <SelectItem value="corrente">{new Date().getFullYear()} + aperte precedenti</SelectItem>
               <SelectItem value="all">Tutti gli anni</SelectItem>
               {availableYears.map((year) => (
                 <SelectItem key={year} value={String(year)}>{year}</SelectItem>
@@ -171,7 +176,7 @@ export function OrdersFilters({
             </SelectContent>
           </Select>
           <Select value={monthFilter} onValueChange={onMonthFilterChange}>
-            <SelectTrigger className="h-10 w-full border-slate-200 shadow-none sm:w-[135px]">
+            <SelectTrigger className="h-10 w-full border-slate-200 bg-white shadow-none sm:h-9 sm:w-[140px]">
               <CalendarDays className="h-4 w-4 mr-1 shrink-0 text-slate-400" />
               <SelectValue placeholder="Mese" />
             </SelectTrigger>
