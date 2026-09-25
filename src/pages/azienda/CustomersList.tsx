@@ -7,7 +7,7 @@ import {
   Pencil, Trash2, Download, Upload, MoreVertical, AlertTriangle, ArrowUpDown,
   Calendar, UserCheck, ChevronLeft, ChevronRight,
   UserPlus, ShoppingBag, ShieldOff, Columns3, Filter, FileSpreadsheet,
-  FileText, ChevronDown, X, CreditCard, HardHat, MapPin, StickyNote, Sparkles,
+  FileText, ChevronDown, X, CreditCard, HardHat, MapPin, StickyNote, Sparkles, MoreHorizontal,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { getAvatarColor } from "@/lib/contactUtils";
@@ -827,19 +827,23 @@ function CustomersListInner() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-          {/* Niente export su telefono: sei voci di scarico in un
-              menu solo, e nessuna era protetta. E niente export senza
-              «Esporta Clienti». */}
-          {!isMobile && canExportClients && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" aria-label="Esporta clienti">
-                  <Download className="h-4 w-4 sm:mr-1.5" />
-                  <span className="hidden sm:inline">Esporta</span>
-                  <ChevronDown className="h-3.5 w-3.5 ml-1" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
+          {/* Importa ed Esporta in un menu solo (prima due bottoni). Niente
+              export su telefono né senza «Esporta Clienti»; niente import da
+              telefono (il menu si vede da 640px). */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon" aria-label="Importa ed esporta clienti" className="hidden sm:inline-flex">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem onClick={() => setImportOpen(true)}>
+                <Upload className="h-4 w-4 mr-2" /> Importa clienti
+                <Sparkles className="ml-auto h-3.5 w-3.5 text-primary" />
+              </DropdownMenuItem>
+              {!isMobile && canExportClients && (
+                <>
+                <DropdownMenuSeparator />
                 <DropdownMenuLabel className="text-[11px]">Pagina corrente</DropdownMenuLabel>
                 <DropdownMenuItem onClick={() => handleExport("csv", "page")}>
                   <FileText className="h-4 w-4 mr-2" /> CSV
@@ -878,17 +882,10 @@ function CustomersListInner() {
                     </DropdownMenuItem>
                   </>
                 )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-
-          {/* Import */}
-          {/* Mobile no: niente importazioni da telefono. */}
-          <Button variant="outline" size="sm" onClick={() => setImportOpen(true)} aria-label="Importa clienti con AI" className="hidden sm:inline-flex">
-            <Upload className="h-4 w-4 sm:mr-1.5" />
-            <span className="hidden sm:inline">Importa</span>
-            <Sparkles className="h-3.5 w-3.5 ml-1 text-primary" />
-          </Button>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           {/* Columns — la scelta colonne agisce solo sulla tabella desktop;
               su mobile la lista è a card, quindi il bottone è inutile. */}
@@ -944,8 +941,8 @@ function CustomersListInner() {
           restano nascosti su mobile (una riga pulita coi 2 principali). */}
       {/* Mobile no: i numeri erano già nascosti e restava un riquadro blu vuoto
           con scritto «Clienti». */}
+      {/* Senza l'etichetta «Clienti»: ripeteva il titolo della pagina. */}
       <div className="hidden rounded-2xl bg-[#173b67] p-3 sm:block sm:p-4">
-        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-orange-100">Clienti</p>
         {statsLoading ? (
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
             {[...Array(4)].map((_, i) => (
@@ -1004,10 +1001,12 @@ function CustomersListInner() {
       {/* Search + Filters — pattern uniformato a OrdersFilters (Commesse):
           Mobile: search + Filtri avanzati sempre visibili → toggle "Filtri rapidi" mostra 2 select
           Desktop: tutto inline una riga */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
+      {/* Da tablet una riga sola sullo sfondo, come in Commesse: era un
+          riquadro su due righe per la ricerca e due tendine. */}
+      <div className="sm:flex sm:flex-wrap sm:items-center sm:gap-2">
         {/* Riga 1: Search + Filtri avanzati button + Clear */}
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1 min-w-0">
+        <div className="flex items-center gap-2 sm:contents">
+          <div className="relative flex-1 min-w-0 sm:min-w-[220px]">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Cerca cliente…"
@@ -1030,7 +1029,7 @@ function CustomersListInner() {
           <Button
             variant="outline"
             size="sm"
-            className="tap-compact relative h-10 sm:h-9 shrink-0 max-sm:h-9 max-sm:bg-white"
+            className="tap-compact relative h-10 sm:h-9 shrink-0 max-sm:h-9 max-sm:bg-white sm:order-last"
             onClick={() => setAdvOpen(true)}
             aria-label="Apri filtri avanzati"
             title="Filtri avanzati"
@@ -1048,7 +1047,7 @@ function CustomersListInner() {
               variant="ghost"
               size="icon"
               onClick={clearAllFilters}
-              className="text-muted-foreground h-10 w-10 sm:h-9 sm:w-9 shrink-0"
+              className="text-muted-foreground h-10 w-10 sm:h-9 sm:w-9 shrink-0 sm:order-last"
               aria-label="Azzera tutti i filtri"
               title="Azzera filtri"
             >
@@ -1080,8 +1079,8 @@ function CustomersListInner() {
 
         {/* Filtri rapidi (Venditore + Ordini): collapsed mobile, sempre visibili desktop */}
         <div className={cn(
-          "mt-2 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-2 sm:mt-2.5",
-          !quickFiltersOpen && "hidden sm:flex",
+          "mt-2 grid grid-cols-2 gap-2 sm:contents",
+          !quickFiltersOpen && "max-sm:hidden",
         )}>
           <Select value={filterSalesperson} onValueChange={wrapSet(setFilterSalesperson)}>
             <SelectTrigger className="w-full h-10 sm:h-9 sm:w-[180px] min-w-0">
@@ -1424,9 +1423,11 @@ function CustomersListInner() {
             })}
           </div>
 
-          {/* Desktop table */}
+          {/* Desktop table. Colonne secondarie per larghezza (email da 1280;
+              venditore, data, avatar e le facoltative da 1536): con le
+              predefinite era larga 1.310px e scorreva di lato anche a 1440. */}
           <div className="hidden sm:block overflow-x-auto">
-          <Table>
+          <Table className="[&_td]:px-3 [&_th]:px-3 xl:[&_td]:px-4 xl:[&_th]:px-4">
             <TableHeader>
               <TableRow>
                 <TableHead className="w-10">
@@ -1436,7 +1437,7 @@ function CustomersListInner() {
                     aria-label="Seleziona pagina"
                   />
                 </TableHead>
-                {visible.avatar && <TableHead className="w-10"></TableHead>}
+                {visible.avatar && <TableHead className="w-10 hidden 2xl:table-cell"></TableHead>}
                 {visible.name && (
                   <TableHead>
                     <button className="flex items-center gap-1 hover:text-foreground transition-colors" onClick={() => toggleSort("name")}>
@@ -1445,20 +1446,20 @@ function CustomersListInner() {
                   </TableHead>
                 )}
                 {visible.health && <TableHead>Salute</TableHead>}
-                {visible.email && <TableHead>Email</TableHead>}
-                {visible.phone && <TableHead>Telefono</TableHead>}
-                {visible.fiscal_code && <TableHead>CF / P.IVA</TableHead>}
-                {visible.address && <TableHead>Indirizzo</TableHead>}
-                {visible.site_address && <TableHead>Cantiere</TableHead>}
-                {visible.notes && <TableHead>Note</TableHead>}
+                {visible.email && <TableHead className="hidden xl:table-cell">Email</TableHead>}
+                {visible.phone && <TableHead className="hidden md:table-cell">Telefono</TableHead>}
+                {visible.fiscal_code && <TableHead className="hidden 2xl:table-cell">CF / P.IVA</TableHead>}
+                {visible.address && <TableHead className="hidden 2xl:table-cell">Indirizzo</TableHead>}
+                {visible.site_address && <TableHead className="hidden 2xl:table-cell">Cantiere</TableHead>}
+                {visible.notes && <TableHead className="hidden 2xl:table-cell">Note</TableHead>}
                 {visible.created_at && (
-                  <TableHead>
+                  <TableHead className="hidden 2xl:table-cell whitespace-nowrap">
                     <button className="flex items-center gap-1 hover:text-foreground transition-colors" onClick={() => toggleSort("created_at")}>
                       <Calendar className="h-3.5 w-3.5" /> Data <ArrowUpDown className="h-3.5 w-3.5" />
                     </button>
                   </TableHead>
                 )}
-                {visible.salesperson && <TableHead>Venditore</TableHead>}
+                {visible.salesperson && <TableHead className="hidden 2xl:table-cell">Venditore</TableHead>}
                 {visible.orders && (
                   <TableHead className="text-center">
                     <button className="flex items-center gap-1 hover:text-foreground transition-colors mx-auto" onClick={() => toggleSort("orders")}>
@@ -1466,7 +1467,7 @@ function CustomersListInner() {
                     </button>
                   </TableHead>
                 )}
-                {visible.portal && <TableHead>Portale</TableHead>}
+                {visible.portal && <TableHead className="hidden 2xl:table-cell">Portale</TableHead>}
                 <TableHead className="text-right">Azioni</TableHead>
               </TableRow>
             </TableHeader>
@@ -1496,7 +1497,7 @@ function CustomersListInner() {
                       />
                     </TableCell>
                     {visible.avatar && (
-                      <TableCell>
+                      <TableCell className="hidden 2xl:table-cell">
                         <Avatar className={`h-8 w-8 shrink-0 ${avatarColor}`}>
                           <AvatarFallback className="text-xs font-bold text-white bg-transparent">
                             {initials}
@@ -1508,7 +1509,7 @@ function CustomersListInner() {
                       <TableCell>
                         <div className="space-y-0.5 min-w-0">
                           <div className="flex items-center gap-1.5">
-                            <p className="font-semibold text-sm leading-tight truncate max-w-[220px]">{fullName}</p>
+                            <p className="font-semibold text-sm leading-tight truncate max-w-[180px] xl:max-w-[220px]">{fullName}</p>
                             {customer.is_business && (
                               <Badge variant="outline" className="h-4 px-1 text-[9px] border-blue-500/40 text-blue-700 dark:text-blue-400">
                                 Azienda
@@ -1576,7 +1577,7 @@ function CustomersListInner() {
                       </TableCell>
                     )}
                     {visible.email && (
-                      <TableCell>
+                      <TableCell className="hidden xl:table-cell">
                         {cleanEmail ? (
                           <a
                             href={`mailto:${cleanEmail}`}
@@ -1592,7 +1593,7 @@ function CustomersListInner() {
                       </TableCell>
                     )}
                     {visible.phone && (
-                      <TableCell>
+                      <TableCell className="hidden md:table-cell">
                         {cleanPhone ? (
                           <a
                             href={`tel:${cleanPhone}`}
@@ -1608,7 +1609,7 @@ function CustomersListInner() {
                       </TableCell>
                     )}
                     {visible.fiscal_code && (
-                      <TableCell>
+                      <TableCell className="hidden 2xl:table-cell">
                         {customer.fiscal_code ? (
                           <span className="flex items-center gap-1.5 text-xs font-mono text-muted-foreground">
                             <CreditCard className="h-3.5 w-3.5" />
@@ -1618,7 +1619,7 @@ function CustomersListInner() {
                       </TableCell>
                     )}
                     {visible.address && (
-                      <TableCell>
+                      <TableCell className="hidden 2xl:table-cell">
                         {customer.address ? (
                           <span className="flex items-center gap-1.5 text-xs text-muted-foreground truncate max-w-[220px]">
                             <MapPin className="h-3.5 w-3.5 shrink-0" />
@@ -1628,7 +1629,7 @@ function CustomersListInner() {
                       </TableCell>
                     )}
                     {visible.site_address && (
-                      <TableCell>
+                      <TableCell className="hidden 2xl:table-cell">
                         {customer.site_address ? (
                           <span className="flex items-center gap-1.5 text-xs text-muted-foreground truncate max-w-[220px]">
                             <HardHat className="h-3.5 w-3.5 shrink-0" />
@@ -1638,7 +1639,7 @@ function CustomersListInner() {
                       </TableCell>
                     )}
                     {visible.notes && (
-                      <TableCell>
+                      <TableCell className="hidden 2xl:table-cell">
                         {customer.notes ? (
                           <TooltipProvider delayDuration={200}>
                             <Tooltip>
@@ -1657,14 +1658,14 @@ function CustomersListInner() {
                       </TableCell>
                     )}
                     {visible.created_at && (
-                      <TableCell>
+                      <TableCell className="hidden 2xl:table-cell whitespace-nowrap">
                         <span className="text-sm text-muted-foreground">
                           {customer.created_at ? format(new Date(customer.created_at), "dd MMM yyyy", { locale: it }) : "—"}
                         </span>
                       </TableCell>
                     )}
                     {visible.salesperson && (
-                      <TableCell onClick={(e) => e.stopPropagation()}>
+                      <TableCell className="hidden 2xl:table-cell" onClick={(e) => e.stopPropagation()}>
                         <Select
                           value={customer.salesperson_id || "none"}
                           onValueChange={(val) => handleInlineSalesperson(customer.id, val)}
@@ -1697,7 +1698,7 @@ function CustomersListInner() {
                       </TableCell>
                     )}
                     {visible.portal && (
-                      <TableCell>
+                      <TableCell className="hidden 2xl:table-cell">
                         {customer.portal_disabled ? (
                           <Badge variant="outline" className="text-[10px] border-amber-500/40 text-amber-700 dark:text-amber-400">
                             <ShieldOff className="h-3 w-3 mr-1" />
