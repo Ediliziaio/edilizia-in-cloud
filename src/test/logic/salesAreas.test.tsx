@@ -27,10 +27,10 @@ describe("tassonomia area → intervento", () => {
   it("mantiene un unico selettore anche per i chiamanti del vecchio catalogo", () => {
     expect(ModuliVendutaTab).toBe(SalesAreasTab);
   });
-  it("definisce 11 aree e 68 interventi senza identificatori duplicati", () => {
+  it("definisce 11 aree e 69 interventi senza identificatori duplicati", () => {
     expect(SALES_AREAS).toHaveLength(11);
     expect(new Set(SALES_AREAS.map(area => area.id)).size).toBe(11);
-    expect(SALES_AREAS.flatMap(area => area.interventions)).toHaveLength(68);
+    expect(SALES_AREAS.flatMap(area => area.interventions)).toHaveLength(69);
     for (const area of SALES_AREAS) {
       expect(MODULI_VENDITA.some(module => module.slug === area.sourceModule)).toBe(true);
       expect(new Set(area.interventions.map(item => item.id)).size).toBe(area.interventions.length);

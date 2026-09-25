@@ -5,9 +5,9 @@ import { MODULE68_EXPECTED, MODULE68_FACTORIES, MODULE68_MODELS, attachModule68A
 
 vi.stubGlobal("fetch", vi.fn(() => { throw new Error("Network forbidden in module68 audit"); }));
 const report = runModule68Audit();
-describe("68 clean factory templates: independent content and local asset inventory", () => {
-  it("covers exactly the agreed 68 models across 11 areas, with no missing or extra registry entries", () => {
-    expect(MODULE68_MODELS).toHaveLength(68); expect(Object.keys(MODULE68_EXPECTED)).toHaveLength(11);
+describe("69 clean factory templates: independent content and local asset inventory", () => {
+  it("covers exactly the agreed 69 models across 11 areas, with no missing or extra registry entries", () => {
+    expect(MODULE68_MODELS).toHaveLength(69); expect(Object.keys(MODULE68_EXPECTED)).toHaveLength(11);
     const keys = MODULE68_MODELS.map(m => m.key).sort();
     expect(SALES_AREAS.flatMap(area => area.interventions.map(model => `${area.id}/${model.id}`)).sort()).toEqual(keys);
     expect(Object.keys(FULL_MODULE_COVERS).sort()).toEqual(keys);

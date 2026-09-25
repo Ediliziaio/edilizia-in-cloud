@@ -324,6 +324,7 @@ export function useClonaProgetto() {
           iva_pct: src.iva_pct,
           prezzo_manuale: src.prezzo_manuale ?? null,
           detrazione_pct: src.detrazione_pct,
+          ...(src.conto_termico ? { conto_termico: src.conto_termico } : {}),
           note: src.note,
           template_id: src.template_id,
           ...(src.modello_snapshot ? { modello_snapshot: leggiModelloPreventivo("termoidraulico", src.modello_snapshot, companyId) } : {}),

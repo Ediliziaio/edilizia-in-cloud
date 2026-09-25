@@ -33,11 +33,15 @@ import { FinanziamentoQuoteToggle } from "@/components/moduli/FinanziamentoQuote
 import { ScontoGlobaleField } from "@/components/preventivi/ScontoGlobaleField";
 import { PrezzoPreventivoAMano } from "@/components/preventivi/PrezzoPreventivoAMano";
 import { useIdrTemplatePdf } from "@/hooks/useTermoidraulicoProgetto";
+import { ContoTermicoEconomia } from "@/components/termoidraulico/contoTermico/ContoTermicoEconomia";
+import { leggiDatiContoTermico } from "@/lib/contoTermico/dati";
 
 interface Props {
   form: Partial<IdrProgetto>;
   onChange: <K extends keyof IdrFormPatch>(key: K, value: IdrFormPatch[K]) => void;
   computo: IdrComputoVoce[];
+  /** L'intervento della libreria: col Conto Termico la detrazione lascia il posto al contributo. */
+  model?: { id: string } | null;
 }
 
 /** Coerce numerico controllato: stringa vuota → 0, clamp [0,100] per le percentuali. */
@@ -49,7 +53,8 @@ const toPct = (raw: string): number => {
   return Math.min(100, Math.max(0, v));
 };
 
-export default function StepEconomia({ form, onChange, computo }: Props) {
+export default function StepEconomia({ form, onChange, computo, model }: Props) {
+  const contoTermico = model?.id === "conto-termico";
   // Template del modulo (cached): serve a mostrare la rata solo se la promo è attiva.
   const { data: template } = useIdrTemplatePdf();
   const scontoPct = Number(form.sconto_pct ?? 0);
@@ -172,6 +177,7 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
                 value={form.prezzo_manuale}
                 sommaVoci={totali.sommaVoci}
                 onCommit={(v) => onChange("prezzo_manuale", v)}
+                sempre={contoTermico}
               />
               <ScontoGlobaleField
                 id="idr-sconto"
@@ -187,14 +193,14 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
                 onCommit={(v) => onChange("iva_pct", v)}
                 hint="In edilizia spesso 10% (termoidraulico) o 4% (prima casa)."
               />
-              <PctField
+              {!contoTermico && <PctField
                 id="idr-detrazione"
                 label="Detrazione / bonus"
                 value={form.detrazione_pct ?? 0}
                 onCommit={(v) => onChange("detrazione_pct", v)}
                 hint="Opzionale: % di detrazione fiscale (es. 50%) — importo indicativo."
                 icon={BadgePercent}
-              />
+              />}
               {/* Rata nel PDF: compare solo se la promo è configurata nel template,
                   con la rata concreta sul totale corrente (scelta per-preventivo). */}
               <FinanziamentoQuoteToggle
@@ -204,7 +210,7 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
                 onChange={(v) => onChange("mostra_finanziamento", v)}
               />
               {/* Preset incentivi termoidraulico: 1-click → imposta detrazione + massimale di spesa */}
-              <div>
+              {!contoTermico && <div>
                 <p className="mb-1 text-[10px] text-muted-foreground">Incentivi rapidi (termoidraulico):</p>
                 <div className="flex flex-wrap gap-1.5">
                   {INCENTIVI_TERMOIDRAULICO.map((inc) => {
@@ -232,9 +238,18 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
                     );
                   })}
                 </div>
-              </div>
+              </div>}
             </CardContent>
           </Card>
+
+          {contoTermico && (
+            <ContoTermicoEconomia
+              dati={leggiDatiContoTermico(form.conto_termico)}
+              onChange={(dati) => onChange("conto_termico", dati)}
+              prezzoIvaInclusa={totali.totale}
+              ivaPct={ivaPct}
+            />
+          )}
 
           {/* Totali complessivi */}
           <Card className="border-orange-200 bg-gradient-to-b from-orange-50/50 to-transparent">

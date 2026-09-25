@@ -150,6 +150,8 @@ export const INTERVENTION_LIMITS: Record<string, string> = {
     "Ricircolo, distribuzione e predisposizioni elettriche vanno quotati se necessari, oltre al generatore o accumulo.",
   "termoidraulica/manutenzione":
     "La diagnosi può richiedere approfondimenti. I ricambi non preventivabili vengono concordati prima della sostituzione.",
+  "termoidraulica/conto-termico":
+    "Il contributo del GSE è stimato: l'importo definitivo lo stabilisce il GSE. Distribuzione, terminali e opere non elencate sono esclusi.",
   "elettrico/completo":
     "Opere murarie, finiture, impianti speciali e apparecchi illuminanti devono essere esplicitamente elencati.",
   "elettrico/adeguamento":

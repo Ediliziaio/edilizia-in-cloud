@@ -1,4 +1,5 @@
 import type { TetEditorialPair } from "./fullTettiFactory";
+import { FAQ_CONTO_TERMICO } from "@/lib/contoTermico/testi";
 
 interface IdrEditorial {
   hero: string; subtitle: string; cover: string; detail: string; context: string; scope: string;
@@ -67,5 +68,18 @@ export const IDR_REMAINING_EDITORIAL = {
     stages: [["Raccolta delle informazioni", "Raccogliamo sintomi, dati dell'apparecchio e condizioni di accesso."], ["Verifica sul posto", "Svolgiamo le sole attività diagnostiche o manutentive concordate."], ["Proposta di intervento", "Se servono ulteriori opere o ricambi, li descriviamo e richiediamo conferma prima di procedere."], ["Riepilogo del servizio", "Consegniamo esito, limiti e indicazioni riferite alle attività effettivamente svolte."]],
     faq: [["L'uscita garantisce la riparazione?", "No. Una diagnosi può richiedere attività o ricambi ulteriori, da approvare separatamente."], ["I ricambi sono compresi?", "Solo quelli identificati nel computo. Nessun ricambio generico è incluso automaticamente."], ["Il prezzo copre tutte le ore?", "Il servizio deve specificare attività, tempo incluso e modalità per eventuali estensioni."], ["Posso richiedere un servizio periodico?", "Periodicità, attività e durata vanno definite in una proposta dedicata; non sono implicite."], ["Viene verificato l'intero impianto?", "Solo il perimetro concordato e accessibile. Le parti non controllate devono essere indicate."], ["Cosa succede se il guasto non è riproducibile?", "Si registrano condizioni osservate e limiti della diagnosi, concordando gli eventuali passi successivi."], ["La foto mostra il lavoro che verrà eseguito?", "È un'illustrazione. L'attività effettiva è quella descritta nella proposta."], ["È prevista reperibilità urgente?", "Solo se espressamente concordata con condizioni e disponibilità; non viene promessa dal modello."]],
     rows: [["Uscita", "Accesso programmato sull'apparecchio dimostrativo indicato", 60], ["Servizio", "Attività diagnostiche o manutentive descritte, senza ricambi", 120], ["Riepilogo", "Registrazione dei riscontri e delle attività residue", 20]],
+  },
+  // Il Conto Termico 3.0 (regole in src/lib/contoTermico): il PDF è
+  // ContoTermicoPDF, che legge da qui copertina, domande e passaggi.
+  "conto-termico": {
+    hero: "Il calore di casa.\nCon l'aiuto dello Stato.",
+    subtitle: "Pompa di calore o generatore rinnovabile al posto del vecchio impianto, con il contributo del GSE e il conto di quanto resta a te.",
+    cover: "/pdf-stock/termoidraulico/pompa-di-calore.jpg", detail: "/module-art/termoidraulica.jpg", context: "/pdf-stock/comune/consegna-documenti.jpg",
+    scope: "La proposta riguarda il generatore, i collegamenti e le attività elencate. Il contributo del Conto Termico è stimato: l'importo definitivo lo stabilisce il GSE. Distribuzione, terminali, opere murarie e adeguamenti elettrici non sono compresi se non elencati.",
+    specs: [["Impianto da sostituire", "Il Conto Termico chiede un impianto di riscaldamento funzionante che viene sostituito: si identifica prima dei lavori."], ["Generatore proposto", "Potenza ed efficienza stagionale (SCOP) risultano dalla scheda tecnica del modello: sono i dati con cui il GSE calcola il contributo."], ["Contributo e modalità", "Si concorda se il contributo arriva dal GSE al cliente o se l'impresa lo sconta in fattura con il mandato all'incasso."], ["Documenti per il GSE", "Foto prima e dopo, fatture, bonifici, schede e certificato di smaltimento si raccolgono durante i lavori."]],
+    stages: [["Sopralluogo e requisiti", "Verifichiamo l'impianto da sostituire, la casa e i requisiti del nuovo generatore."], ["Firma e installazione", "Confermi la proposta; smontiamo e smaltiamo il vecchio generatore e installiamo il nuovo."], ["Domanda al GSE", "Entro 90 giorni dalla fine dei lavori, con foto, fatture e documenti tecnici."], ["Il contributo", "Accettata la domanda, il GSE paga il contributo, oppure lo sconta l'impresa in fattura se hai scelto così."]],
+    // Le stesse domande del documento: una sola fonte, src/lib/contoTermico/testi.ts.
+    faq: FAQ_CONTO_TERMICO.map(({ domanda, risposta }) => [domanda, risposta] as TetEditorialPair),
+    rows: [["Sistema", "Pompa di calore aria-acqua con modulo idronico e bollitore della configurazione dimostrativa", 9800], ["Installazione", "Smontaggio e smaltimento del vecchio generatore, collegamenti e messa in funzione", 2300], ["Pratica GSE", "Raccolta dei documenti e invio della domanda al GSE", 400]],
   },
 } satisfies Record<string, IdrEditorial>;

@@ -38,6 +38,8 @@ export interface IdrProgetto {
    * scrive solo se l'azienda l'ha acceso (preventivo_impostazioni.prezzo_finale_a_mano).
    */
   prezzo_manuale?: number | null;
+  /** Dati del Conto Termico 3.0 (modello «conto-termico»): si leggono con leggiDatiContoTermico. */
+  conto_termico?: Partial<import("@/lib/contoTermico/dati").DatiContoTermico> | null;
   totale_imponibile: number; totale: number; note: string | null;
 }
 export interface IdrProgettoMedia { id: string; progetto_id: string; company_id: string; tipo: string; url: string; caption: string | null; ordine: number; }

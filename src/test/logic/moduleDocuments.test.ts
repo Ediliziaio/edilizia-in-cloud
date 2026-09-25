@@ -23,10 +23,11 @@ const seed = (c = "company-a", m = "vasca-doccia") =>
   createModuleDocument(c, "bagni", m, company);
 beforeEach(() => localStorage.clear());
 describe("documenti dei moduli per intervento", () => {
-  it("copre 68 interventi di 11 aree, con 55 nuovi modelli oltre ai 13 esistenti", () => {
-    expect(DOCUMENT_MODULE_COUNT).toBe(68);
+  // 69 dal 25/09/2026: il Conto Termico 3.0 nel Termoidraulico.
+  it("copre 69 interventi di 11 aree, con 56 nuovi modelli oltre ai 13 esistenti", () => {
+    expect(DOCUMENT_MODULE_COUNT).toBe(69);
     expect(Object.keys(AREA_DESIGN)).toHaveLength(11);
-    expect(Object.keys(INTERVENTION_LIMITS)).toHaveLength(55);
+    expect(Object.keys(INTERVENTION_LIMITS)).toHaveLength(56);
   });
   it.each(
     SALES_AREAS.flatMap((a) =>
