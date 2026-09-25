@@ -69,6 +69,14 @@ const MOBILE_HIDDEN_URLS = new Set<string>([
 const MOBILE_HIDDEN_AREAS = new Set<string>(["area_automazioni"]);
 
 /**
+ * Le voci che restano anche dentro una sezione nascosta. Render AI: dal
+ * telefono in cantiere si fa la foto e si genera il render (richiesta utente
+ * 2026-09-25: «da telefono niente automazioni, agenti AI e WhatsApp, invece i
+ * render sì»).
+ */
+const MOBILE_VISIBLE_IN_HIDDEN_AREAS = new Set<string>(["/azienda/render"]);
+
+/**
  * Palette per macroArea — ogni sezione ha il suo colore identificativo.
  * Sfondo icona pastello, icona vivace. Stato attivo: shade più scura.
  */
@@ -303,7 +311,11 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
 
   const filteredAreas = useMemo(() => {
     return macroAreas
-      .filter((area) => !MOBILE_HIDDEN_AREAS.has(area.id))
+      .map((area) =>
+        MOBILE_HIDDEN_AREAS.has(area.id)
+          ? { ...area, items: area.items.filter((item) => MOBILE_VISIBLE_IN_HIDDEN_AREAS.has(item.url)) }
+          : area,
+      )
       .map((area) => {
         let items = filterNavItems(area.items);
         if (search.trim()) {
