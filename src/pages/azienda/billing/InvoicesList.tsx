@@ -896,11 +896,18 @@ export default function InvoicesList() {
                   <>
                     <div>
                       <p className="font-medium">Nessuna fattura</p>
-                      <p className="text-sm text-muted-foreground">Connetti un gestionale (Fatture in Cloud, Aruba…) per importare le fatture.</p>
+                      {/* Il gestionale si collega solo da computer o tablet (25/09/2026). */}
+                      {isMobile ? (
+                        <p className="text-xs text-muted-foreground">Il gestionale si collega da computer o tablet.</p>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">Connetti un gestionale (Fatture in Cloud, Aruba…) per importare le fatture.</p>
+                      )}
                     </div>
-                    <Button variant="outline" onClick={() => navigate("/azienda/impostazioni/fatturazione")}>
-                      <Link2 className="h-4 w-4 mr-2" /> Connetti un gestionale
-                    </Button>
+                    {!isMobile && (
+                      <Button variant="outline" onClick={() => navigate("/azienda/impostazioni/fatturazione")}>
+                        <Link2 className="h-4 w-4 mr-2" /> Connetti un gestionale
+                      </Button>
+                    )}
                   </>
                 )
               ) : (
