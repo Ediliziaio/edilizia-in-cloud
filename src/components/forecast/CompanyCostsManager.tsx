@@ -35,6 +35,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { usePermissions } from "@/hooks/usePermissions";
 import { puoModificareCosti } from "@/lib/permessi/modificaSegueVisibilita";
 import { AvvisoSolaLettura } from "@/components/common/AvvisoSolaLettura";
+import { BottoneFiltri, KpiMobili, PannelloFiltri, PilloleFiltro } from "@/components/mobile/FiltriMobile";
 
 import { useCompanyCostsData, type PeriodFilter, type StatusFilter, type StatusTabFilter, type UnifiedCost } from "@/hooks/useCompanyCostsData";
 import { useCompanyCostsMutations, type CostFormData, defaultFormData } from "@/hooks/useCompanyCostsMutations";
@@ -270,6 +271,8 @@ export default function CompanyCostsManager({
   const [paymentDate, setPaymentDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [paymentMethod, setPaymentMethod] = useState<string>("bonifico");
   const [importOpen, setImportOpen] = useState(false);
+  // Mobile: i filtri stanno in un pannello dal basso.
+  const [filtriMobileAperti, setFiltriMobileAperti] = useState(false);
   const [taskCostId, setTaskCostId] = useState<string | null>(null);
 
   // Bulk selection
@@ -723,14 +726,20 @@ export default function CompanyCostsManager({
   const daModuliTipo = vociTipo.filter((c) => c.isFromOrder);
   const senzaFornitoreTipo = vociTipo.filter((c) => !c.isFromOrder && !c.supplier_id && !c.supplierName);
 
+  // Mobile: periodo, stato, fornitore e categoria in un pannello dal basso.
+  const nFiltriMobile = [periodFilter !== "all" || !!selectedMonth, statusTabFilter !== "all", supplierFilter !== "all", categoryFilter !== "all"].filter(Boolean).length;
+  const contaStato = (lista: { cost_type?: string }[]) => lista.filter((c) => c.cost_type === typeLock).length;
+
   return (
     <>
-      <Card className="overflow-hidden rounded-2xl border-slate-200 shadow-sm">
+      {/* Mobile: senza la scheda intorno, due numeri (il secondo filtra gli
+          scaduti) al posto della testata blu con quattro numeri e spiegazioni. */}
+      <Card className="overflow-hidden rounded-2xl border-slate-200 shadow-sm max-sm:overflow-visible max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:shadow-none">
         {/* Testata NAVY in stile "Riepilogo commesse": il blu scuro fa da
             contrasto e le card bordate portano i numeri che contano. Ogni
             card cliccabile filtra (anello arancio quando attiva). Le azioni
             vivono nella riga dei filtri, sotto. */}
-        <div className="bg-[#173b67] p-4 text-white sm:p-5">
+        <div className="bg-[#173b67] p-4 text-white sm:p-5 max-sm:hidden">
           <div className="flex items-start gap-3">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)] sm:h-11 sm:w-11">
               {typeLock === "fixed" ? <Landmark className="h-4 w-4 sm:h-5 sm:w-5" /> : <ReceiptText className="h-4 w-4 sm:h-5 sm:w-5" />}
@@ -802,7 +811,7 @@ export default function CompanyCostsManager({
             )}
           </div>
         </div>
-        <CardContent className="space-y-4 pt-4">
+        <CardContent className="space-y-4 pt-4 max-sm:flex max-sm:flex-col max-sm:gap-3 max-sm:space-y-0 max-sm:p-0">
           {data.isError && (
             <Alert className="border-red-200 bg-red-50 text-red-900">
               <AlertTriangle className="h-4 w-4 text-red-600" />
@@ -830,7 +839,7 @@ export default function CompanyCostsManager({
 
           {/* Filtri: una riga nuda — cerca, periodo, e il resto in un popover.
               Niente scatola dentro la scatola: la tabella deve iniziare subito. */}
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 max-sm:hidden">
             <div className="relative w-full sm:w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input placeholder="Cerca tra i costi..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="h-9 pl-9" />
@@ -971,6 +980,41 @@ export default function CompanyCostsManager({
             </div>
           </div>
 
+          {/* Mobile: in cima alla colonna (order -1). Stanno qui, dopo la riga
+              dei filtri del desktop, perché da primi figli nascosti
+              sposterebbero il desktop di 16px. */}
+          <KpiMobili
+            className="sm:hidden max-sm:-order-1"
+            voci={[
+              { label: "Totale", valore: eur0(sommaVoci(vociTipo)) },
+              {
+                label: "Scaduti",
+                valore: scadutiTipo.length > 0 ? eur0(sommaVoci(scadutiTipo)) : "0",
+                tono: scadutiTipo.length > 0 ? "text-rose-600" : undefined,
+                onClick: () => (statusTabFilter === "in_ritardo" ? setStatusTabFilter("all") : showOverdueCosts()),
+                attivo: statusTabFilter === "in_ritardo",
+              },
+            ]}
+          />
+          {/* Mobile: ricerca, filtri e «+» su una riga; riconcilia, importa ed
+              esporta restano al desktop. */}
+          <div className="flex items-center gap-2 sm:hidden max-sm:-order-1">
+            <div className="relative min-w-0 flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input placeholder="Cerca" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="h-9 bg-background pl-9 text-sm" />
+            </div>
+            <BottoneFiltri attivi={nFiltriMobile} onClick={() => setFiltriMobileAperti(true)} />
+            {!soloLettura && (
+              <Button
+                size="icon"
+                onClick={() => openCreate(typeLock)}
+                aria-label={typeLock === "fixed" ? "Nuovo costo fisso" : "Nuovo costo variabile"}
+                className="tap-compact h-9 w-9 shrink-0 bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:from-orange-600 hover:to-amber-600"
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
           {soloLettura && (
             <AvvisoSolaLettura>
               Sola lettura: qui serve il permesso «Costi», e chi ce l&apos;ha in «Sola lettura» non può scrivere.
@@ -997,7 +1041,8 @@ export default function CompanyCostsManager({
               else vaiAlMese(new Date(`${ym}-01T00:00:00`));
             };
             return (
-              <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-white to-orange-50/40 p-3 sm:p-4">
+              // Mobile no: grafico a doppio asse illeggibile a 375px.
+              <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-white to-orange-50/40 p-3 sm:p-4 max-sm:hidden">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="text-xs font-semibold uppercase text-slate-500">Andamento 12 mesi</p>
@@ -1181,6 +1226,73 @@ export default function CompanyCostsManager({
       />
 
       <CSVImportDialog open={importOpen} onOpenChange={setImportOpen} title="Importa Costi" fields={COST_IMPORT_FIELDS} onImport={mutations.handleCostsImport} />
+
+      <PannelloFiltri
+        aperto={filtriMobileAperti}
+        onAperto={setFiltriMobileAperti}
+        attivi={nFiltriMobile}
+        onAzzera={resetFilters}
+        risultati={getItemsForTab(typeLock).length}
+      >
+        <PilloleFiltro
+          titolo="Periodo"
+          valore={selectedMonth ? "custom" : periodFilter}
+          onScegli={(v) => {
+            setSelectedMonth(null);
+            setCustomDateRange(null);
+            setPeriodFilter(v as PeriodFilter);
+          }}
+          scelte={[
+            { value: "all", label: "Tutti" },
+            { value: "this_month", label: "Questo mese" },
+            { value: "next_month", label: "Prossimo mese" },
+            { value: "last_3_months", label: "Ultimi 3 mesi" },
+            { value: "this_year", label: "Quest'anno" },
+            ...(selectedMonth || periodFilter === "custom" ? [{ value: "custom", label: selectedMonth ? format(selectedMonth, "MMMM yyyy", { locale: it }) : "Personalizzato" }] : []),
+          ]}
+        />
+        <PilloleFiltro
+          titolo="Stato"
+          valore={statusTabFilter}
+          onScegli={(v) => setStatusTabFilter(v as StatusTabFilter)}
+          scelte={[
+            { value: "all", label: "Tutti", n: getItemsForTab(typeLock).length },
+            { value: "sostenuti", label: "Pagati", n: contaStato(data.statusTabLists.sostenuti) },
+            { value: "previsti", label: "Previsti", n: contaStato(data.statusTabLists.previsti) },
+            { value: "in_ritardo", label: "In ritardo", n: contaStato(data.statusTabLists.inRitardo) },
+            { value: "in_scadenza", label: "In scadenza", n: contaStato(data.statusTabLists.inScadenza) },
+            { value: "senza_scadenza", label: "Senza scadenza", n: contaStato(data.statusTabLists.senzaScadenza) },
+          ].filter((c) => c.n > 0 || c.value === "all" || c.value === statusTabFilter)}
+        />
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Fornitore</p>
+            <Select value={supplierFilter} onValueChange={setSupplierFilter}>
+              <SelectTrigger className="tap-compact h-9 text-xs"><SelectValue placeholder="Fornitore" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tutti</SelectItem>
+                <SelectItem value="none">Senza fornitore</SelectItem>
+                {data.suppliers.map((s: { id: string; name: string }) => (
+                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Categoria</p>
+            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <SelectTrigger className="tap-compact h-9 text-xs"><SelectValue placeholder="Categoria" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tutte</SelectItem>
+                <SelectItem value="none">Senza categoria</SelectItem>
+                {data.dynamicCategories.map((cat) => (
+                  <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </PannelloFiltri>
 
       <RicorrentiDialog
         open={ricorrentiOpen}

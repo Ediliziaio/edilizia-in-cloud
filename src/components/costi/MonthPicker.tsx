@@ -33,10 +33,11 @@ export function MonthPicker({
 
   return (
     <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+      {/* tap-compact: su telefono i bottoni restano da 32px (non 44). */}
       <Button
         variant="ghost"
         size="icon"
-        className="h-8 w-8"
+        className="tap-compact h-8 w-8"
         onClick={() => onChange(startOfMonth(addMonths(month, -step)))}
         aria-label="Periodo precedente"
       >
@@ -48,7 +49,7 @@ export function MonthPicker({
       <Button
         variant="ghost"
         size="icon"
-        className="h-8 w-8"
+        className="tap-compact h-8 w-8"
         onClick={() => onChange(startOfMonth(addMonths(month, step)))}
         aria-label="Periodo successivo"
       >
@@ -58,7 +59,7 @@ export function MonthPicker({
         <Button
           variant="outline"
           size="sm"
-          className="h-8 text-xs"
+          className="tap-compact h-8 text-xs"
           onClick={() => onChange(startOfMonth(now))}
         >
           Oggi

@@ -169,11 +169,14 @@ export function CostFormDialog({
       <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{editingCost ? "Modifica Costo" : "Nuovo Costo"}</DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="max-sm:sr-only">
             {editingCost ? "Aggiorna i dettagli del costo" : "Inserisci i dettagli del nuovo costo aziendale"}
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-5">
+        {/* Mobile: via titoletti di sezione, anteprima IVA, termini di
+            pagamento, generazione automatica, note e allocazione a commesse
+            (restano i valori predefiniti). */}
+        <div className="space-y-5 max-sm:space-y-3">
           {/* Basic Info */}
           <div className="space-y-3">
             <div>
@@ -253,11 +256,11 @@ export function CostFormDialog({
             </div>
           </div>
 
-          <Separator />
+          <Separator className="max-sm:hidden" />
 
           {/* Fiscal Section */}
           <div className="space-y-3">
-            <h4 className="text-sm font-semibold flex items-center gap-2 text-muted-foreground">
+            <h4 className="text-sm font-semibold flex items-center gap-2 text-muted-foreground max-sm:hidden">
               <Calculator className="h-4 w-4" /> Dati Fiscali
             </h4>
             <div>
@@ -298,7 +301,7 @@ export function CostFormDialog({
               </Label>
             </div>
             {formData.amount && formVatPreview.grossAmount > 0 && (
-              <div className="p-3 rounded-lg bg-violet-50 dark:bg-violet-900/10 border border-violet-200 dark:border-violet-800 text-sm space-y-1">
+              <div className="p-3 rounded-lg bg-violet-50 dark:bg-violet-900/10 border border-violet-200 dark:border-violet-800 text-sm space-y-1 max-sm:hidden">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Imponibile</span>
                   <span className="font-medium">{formatCurrency(formVatPreview.netAmount)}</span>
@@ -328,11 +331,11 @@ export function CostFormDialog({
             )}
           </div>
 
-          <Separator />
+          <Separator className="max-sm:hidden" />
 
           {/* Planning Section */}
           <div className="space-y-3">
-            <h4 className="text-sm font-semibold flex items-center gap-2 text-muted-foreground">
+            <h4 className="text-sm font-semibold flex items-center gap-2 text-muted-foreground max-sm:hidden">
               <Clock className="h-4 w-4" /> Pianificazione
             </h4>
             <div className="grid grid-cols-2 gap-3">
@@ -362,7 +365,7 @@ export function CostFormDialog({
             {/* Termini di pagamento come si dicono davvero: "30 gg data fattura",
                 "60 gg fine mese". Scritti così la scadenza si ricalcola quando la
                 fattura del fornitore arriva, invece di restare quella digitata. */}
-            <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 p-2.5">
+            <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 p-2.5 max-sm:hidden">
               <span className="text-xs text-muted-foreground">Si paga</span>
               <Select
                 value={formData.trigger_evento || "data_fissa"}
@@ -436,7 +439,7 @@ export function CostFormDialog({
                 ) : null}
 
                 {/* Auto-generation toggle */}
-                <div className="flex items-center gap-3 pt-1">
+                <div className="flex items-center gap-3 pt-1 max-sm:hidden">
                   <Switch
                     checked={formData.recurrence_auto || false}
                     onCheckedChange={(v) => setFormData({ ...formData, recurrence_auto: v })}
@@ -446,7 +449,7 @@ export function CostFormDialog({
                   </Label>
                 </div>
                 {formData.recurrence_auto && (
-                  <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                  <p className="text-[10px] text-muted-foreground flex items-center gap-1 max-sm:hidden">
                     <Repeat className="h-3 w-3" /> I costi futuri verranno generati automaticamente in base alla ricorrenza
                   </p>
                 )}
@@ -487,7 +490,7 @@ export function CostFormDialog({
             )}
           </div>
 
-          <div>
+          <div className="max-sm:hidden">
             <Label>Note</Label>
             <Textarea value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} placeholder="Note aggiuntive..." rows={2} maxLength={200} />
             {formData.notes && (
@@ -497,7 +500,7 @@ export function CostFormDialog({
 
           {/* Centro di Costo — Allocazioni per commessa (solo costi fissi) */}
           {formData.cost_type === "fixed" && (
-            <div className="space-y-2">
+            <div className="space-y-2 max-sm:hidden">
               <div className="flex items-center justify-between">
                 <Label className="text-sm">Alloca a commesse (opzionale)</Label>
                 <Button type="button" size="sm" variant="outline" className="h-7 gap-1 text-xs" onClick={addAlloc}>
@@ -541,7 +544,7 @@ export function CostFormDialog({
           )}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Annulla</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="max-sm:hidden">Annulla</Button>
           <Button
             onClick={handleSubmit}
             disabled={!formData.name.trim() || !formData.amount || (!formData.due_date && !aTermine) || isSaving}

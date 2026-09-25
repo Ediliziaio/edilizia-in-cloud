@@ -18,22 +18,29 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import CompanyCostsManager from "@/components/forecast/CompanyCostsManager";
 import CostsOverviewTab from "@/components/costi/CostsOverviewTab";
 import PersonnelCostsTab from "@/components/costi/PersonnelCostsTab";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const VALID_TABS = ["panoramica", "personale", "spese-fisse", "spese-variabili", "pianificazione"] as const;
 type CostsTab = (typeof VALID_TABS)[number];
+// Mobile: tre schede su cinque (costo del personale e pianificazione restano
+// al desktop: sono analisi da scrivania).
+const TABS_MOBILE: CostsTab[] = ["panoramica", "spese-fisse", "spese-variabili"];
 
 export default function CompanyCosts() {
+  const isMobile = useIsMobile();
   const [searchParams, setSearchParams] = useSearchParams();
   const rawTab = searchParams.get("tab");
   // La vecchia tab unica "spese" ora e' divisa in due: i link storici
   // atterrano sulle variabili se portavano un preset operativo, sulle
   // fisse altrimenti.
   const legacySpese: CostsTab = searchParams.get("preset") ? "spese-variabili" : "spese-fisse";
-  const activeTab: CostsTab = rawTab === "spese"
+  const schedaRichiesta: CostsTab = rawTab === "spese"
     ? legacySpese
     : VALID_TABS.includes(rawTab as CostsTab)
       ? (rawTab as CostsTab)
       : "panoramica";
+  // Mobile: un indirizzo verso una scheda che qui non c'è apre la panoramica.
+  const activeTab: CostsTab = isMobile && !TABS_MOBILE.includes(schedaRichiesta) ? "panoramica" : schedaRichiesta;
 
   // Mese condiviso tra Panoramica e Personale: cambi mese in una tab e lo
   // ritrovi nell'altra.
@@ -52,7 +59,7 @@ export default function CompanyCosts() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-sm:space-y-3">
       <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
         <div className="flex min-w-0 items-start gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
@@ -68,34 +75,35 @@ export default function CompanyCosts() {
       </div>
 
       <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <TabsList className="h-auto w-full flex-wrap justify-start gap-1 rounded-xl bg-slate-100/80 p-1 sm:w-auto">
-          <TabsTrigger value="panoramica" className="gap-1.5 rounded-lg">
+        {/* Mobile: tre linguette affiancate da 32px, senza icone. */}
+        <TabsList className="h-auto w-full flex-wrap justify-start gap-1 rounded-xl bg-slate-100/80 p-1 sm:w-auto max-sm:grid max-sm:grid-cols-3 max-sm:rounded-lg max-sm:[&_svg]:hidden">
+          <TabsTrigger value="panoramica" className="tap-compact gap-1.5 rounded-lg max-sm:h-8 max-sm:rounded-md max-sm:text-xs">
             <PieChart className="h-4 w-4" /> Panoramica
           </TabsTrigger>
-          <TabsTrigger value="personale" className="gap-1.5 rounded-lg">
+          <TabsTrigger value="personale" className="gap-1.5 rounded-lg max-sm:hidden">
             <HardHat className="h-4 w-4" /> Personale
           </TabsTrigger>
-          <TabsTrigger value="spese-fisse" className="gap-1.5 rounded-lg">
-            <Landmark className="h-4 w-4" /> Spese fisse
+          <TabsTrigger value="spese-fisse" className="tap-compact gap-1.5 rounded-lg max-sm:h-8 max-sm:rounded-md max-sm:text-xs">
+            <Landmark className="h-4 w-4" /> <span className="max-sm:hidden">Spese fisse</span><span className="sm:hidden">Fisse</span>
           </TabsTrigger>
-          <TabsTrigger value="spese-variabili" className="gap-1.5 rounded-lg">
-            <ReceiptText className="h-4 w-4" /> Spese variabili
+          <TabsTrigger value="spese-variabili" className="tap-compact gap-1.5 rounded-lg max-sm:h-8 max-sm:rounded-md max-sm:text-xs">
+            <ReceiptText className="h-4 w-4" /> <span className="max-sm:hidden">Spese variabili</span><span className="sm:hidden">Variabili</span>
           </TabsTrigger>
-          <TabsTrigger value="pianificazione" className="gap-1.5 rounded-lg">
+          <TabsTrigger value="pianificazione" className="gap-1.5 rounded-lg max-sm:hidden">
             <Target className="h-4 w-4" /> Pianificazione
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="panoramica" className="mt-4">
+        <TabsContent value="panoramica" className="mt-4 max-sm:mt-3">
           <CostsOverviewTab month={month} onMonthChange={setMonth} />
         </TabsContent>
         <TabsContent value="personale" className="mt-4">
           <PersonnelCostsTab month={month} onMonthChange={setMonth} />
         </TabsContent>
-        <TabsContent value="spese-fisse" className="mt-4">
+        <TabsContent value="spese-fisse" className="mt-4 max-sm:mt-3">
           <CompanyCostsManager view="spese" typeLock="fixed" />
         </TabsContent>
-        <TabsContent value="spese-variabili" className="mt-4">
+        <TabsContent value="spese-variabili" className="mt-4 max-sm:mt-3">
           <CompanyCostsManager view="spese" typeLock="variable" />
         </TabsContent>
         <TabsContent value="pianificazione" className="mt-4">

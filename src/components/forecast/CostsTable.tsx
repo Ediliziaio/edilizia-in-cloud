@@ -8,7 +8,7 @@ import {
   Plus, Check, Pencil, Trash2, Receipt, Repeat,
   Package, ExternalLink, Undo2, CheckSquare,
   MoreHorizontal, X, Copy, AlertCircle, AlertTriangle,
-  Clock, CircleDot, Settings2,
+  Clock, CircleDot, Settings2, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -332,7 +332,8 @@ export function CostsTable({
     <div className="space-y-4">
       {/* "Aggiungi Costo Fisso" rimosso: doppiava "Nuovo Costo" nella toolbar
           a pochi centimetri. La CTA contestuale resta solo a lista vuota. */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      {/* Mobile no: lo stato sta nel pannello dei filtri, le colonne non ci sono. */}
+      <div className="flex flex-wrap items-center justify-between gap-2 max-sm:hidden">
         <div className="min-w-0 flex-1">{leftSlot}</div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -362,7 +363,7 @@ export function CostsTable({
       </div>
 
       {someSelected && (
-        <div className="flex items-center gap-2 flex-wrap p-3 rounded-lg bg-muted border">
+        <div className="flex items-center gap-2 flex-wrap p-3 rounded-lg bg-muted border max-sm:hidden">
           <span className="text-sm font-medium">
             {selectedIds.size} costi selezionati
             <span className="ml-1.5 tabular-nums text-muted-foreground">
@@ -402,11 +403,12 @@ export function CostsTable({
       )}
 
       {items.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground">
-          <Receipt className="h-10 w-10 mx-auto mb-3 opacity-40" />
-          <p className="mb-3">Nessun costo trovato</p>
+        // Mobile: una riga di testo (il «+» è accanto alla ricerca).
+        <div className="text-center py-12 text-muted-foreground max-sm:py-3 max-sm:text-xs">
+          <Receipt className="h-10 w-10 mx-auto mb-3 opacity-40 max-sm:hidden" />
+          <p className="mb-3 max-sm:mb-0">Nessun costo trovato</p>
           {type !== "all" && !soloLettura && (
-            <Button size="sm" variant="outline" onClick={() => onOpenCreate(type === "variable" ? "variable" : "fixed")} className="gap-1">
+            <Button size="sm" variant="outline" onClick={() => onOpenCreate(type === "variable" ? "variable" : "fixed")} className="gap-1 max-sm:hidden">
               <Plus className="h-4 w-4" />
               Aggiungi il primo costo
             </Button>
@@ -414,61 +416,50 @@ export function CostsTable({
         </div>
       ) : (
         <>
-        {/* MOBILE: la tabella era dentro un overflow-hidden — le colonne oltre
-            i 375px (importi, scadenze, stati) venivano TAGLIATE, non scrollate.
-            Sotto sm si passa a card: nome, lordo, scadenza, stato e azioni. */}
-        <div className="space-y-2 sm:hidden">
+        {/* MOBILE: una riga da ~52px per costo (nome; categoria, fornitore e
+            scadenza; lordo e «Paga» o lo stato). Si tocca per modificarlo.
+            Prima: una scheda con badge, data e tre bottoni per ogni costo. */}
+        <div className="divide-y divide-border overflow-hidden rounded-lg border bg-card sm:hidden">
           {paginatedItems.map((cost) => {
             const vatRate = Number(cost.vat_rate ?? (cost as any).supplier?.vat_rate ?? 0) || 0;
             const grossM = calculateGrossFromNet(Number(cost.amount) || 0, vatRate).grossAmount;
+            const dueM = parseCostDate(cost.due_date);
+            const ritardo = !cost.is_paid && dueM && dueM < todayRef ? differenceInCalendarDays(todayRef, dueM) : null;
+            const modificabile = !cost.isFromOrder && !soloLettura;
+            const payable = modificabile && !cost.is_paid && !cost.id.startsWith(COST_ID_PREFIX.EMPLOYEE_SALARY);
             return (
-              <div key={cost.id} className="rounded-xl border border-slate-200 bg-white p-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{cost.name}</p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {[cost.category || (cost.cost_type === "fixed" ? "Fisso" : "Variabile"), (cost as any).supplier?.name || cost.supplierName].filter(Boolean).join(" · ")}
-                    </p>
-                  </div>
-                  <p className="shrink-0 text-sm font-semibold tabular-nums">{formatCurrency(grossM)}</p>
+              <div
+                key={cost.id}
+                role={modificabile ? "button" : undefined}
+                tabIndex={modificabile ? 0 : undefined}
+                onClick={modificabile ? () => onOpenEdit(cost) : undefined}
+                className={cn("flex items-center gap-2.5 px-3 py-2.5", modificabile && "cursor-pointer active:bg-muted", ritardo && "bg-red-50/60")}
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[13px] font-semibold leading-tight">{cost.name}</p>
+                  <p className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground">
+                    {[
+                      cost.category || (cost.cost_type === "fixed" ? "Fisso" : "Variabile"),
+                      (cost as any).supplier?.name || cost.supplierName,
+                      dueM && cost.due_date !== "9999-12-31" ? format(dueM, "dd/MM") : null,
+                    ].filter(Boolean).join(" · ")}
+                    {ritardo ? <span className="font-medium text-red-600"> · da {ritardo} gg</span> : null}
+                  </p>
                 </div>
-                <div className="mt-2 flex items-center justify-between gap-2">
-                  <div className="flex min-w-0 items-center gap-2">
-                    {getStatusBadge(cost)}
-                    {cost.due_date && cost.due_date !== "9999-12-31" && (
-                      <span className="text-xs text-muted-foreground">{format(parseISO(cost.due_date), "dd/MM/yyyy")}</span>
-                    )}
-                  </div>
-                  {!cost.isFromOrder && !soloLettura && (
-                    <div className="flex shrink-0 items-center">
-                      {!cost.is_paid ? (
-                        <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => onMarkPaid(cost.id)} aria-label="Segna come pagato">
-                          <CheckSquare className="h-4 w-4 text-green-600" />
-                        </Button>
-                      ) : (
-                        <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => onMarkUnpaid(cost.id)} aria-label="Riporta a non pagato">
-                          <Undo2 className="h-4 w-4 text-orange-600" />
-                        </Button>
-                      )}
-                      <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => onOpenEdit(cost)} aria-label="Modifica costo">
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-9 w-9" aria-label="Altre azioni">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => onOpenDuplicate(cost)}>
-                            <Copy className="h-4 w-4 mr-2" /> Duplica (+1 mese)
-                          </DropdownMenuItem>
-                          <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => onDelete(cost.id)}>
-                            <Trash2 className="h-4 w-4 mr-2" /> Elimina
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
+                <div className="shrink-0 text-right">
+                  <p className="text-[13px] font-semibold leading-tight tabular-nums">{formatCurrency(grossM)}</p>
+                  {cost.is_paid ? (
+                    <p className="mt-0.5 text-[11px] leading-tight text-emerald-700">Pagato</p>
+                  ) : payable ? (
+                    <button
+                      type="button"
+                      className="tap-compact mt-0.5 text-[11px] font-medium leading-tight text-primary"
+                      onClick={(e) => { e.stopPropagation(); onMarkPaid(cost.id); }}
+                    >
+                      Paga
+                    </button>
+                  ) : (
+                    <p className="mt-0.5 text-[11px] leading-tight text-muted-foreground">Da pagare</p>
                   )}
                 </div>
               </div>
@@ -778,14 +769,31 @@ export function CostsTable({
             )}
           </Table>
         </div>
-        <TablePagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          pageSize={pageSize}
-          totalItems={totalItems}
-          onPageChange={setPage}
-          onPageSizeChange={setPageSize}
-        />
+        {/* Mobile: solo precedente/successiva. Il contenitore c'è solo quando la
+            paginazione compare (niente margine vuoto sul desktop). */}
+        {totalItems > 25 && (
+          <div className="max-sm:hidden">
+            <TablePagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              pageSize={pageSize}
+              totalItems={totalItems}
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+            />
+          </div>
+        )}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between sm:hidden">
+            <Button variant="outline" size="icon" className="tap-compact h-8 w-8" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)} aria-label="Pagina precedente">
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="text-xs tabular-nums text-muted-foreground">{currentPage} di {totalPages}</span>
+            <Button variant="outline" size="icon" className="tap-compact h-8 w-8" disabled={currentPage >= totalPages} onClick={() => setPage(currentPage + 1)} aria-label="Pagina successiva">
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
         </>
       )}
     </div>

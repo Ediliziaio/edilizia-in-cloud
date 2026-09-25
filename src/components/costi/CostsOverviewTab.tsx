@@ -41,6 +41,7 @@ import { useCompanyCostsData, type UnifiedCost } from "@/hooks/useCompanyCostsDa
 import { EMPLOYEE_PROJECTION_MONTHS, computeCostiSenzaScadenza } from "@/lib/costsUtils";
 import { MonthPicker, type PeriodMode } from "./MonthPicker";
 import { NavyStatCard } from "@/components/costi/KpiCard";
+import { KpiMobili } from "@/components/mobile/FiltriMobile";
 
 // Filtri neutri: la Panoramica lavora sempre sul dataset completo e filtra
 // per periodo lato client (le query sono condivise con la tab Spese).
@@ -263,7 +264,8 @@ export function CostsOverviewTab({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 max-sm:space-y-3">
+      {/* Mobile: solo il mese (via mese/trimestre/anno e il confronto col periodo prima). */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <MonthPicker
@@ -275,7 +277,7 @@ export function CostsOverviewTab({
             }}
           />
           {/* Ampiezza periodo: mese / trimestre / anno */}
-          <div className="flex items-center gap-0.5 rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+          <div className="flex items-center gap-0.5 rounded-xl border border-slate-200 bg-white p-1 shadow-sm max-sm:hidden">
             {MODE_OPTIONS.map((opt) => (
               <button
                 key={opt.id}
@@ -300,7 +302,7 @@ export function CostsOverviewTab({
           <Badge
             variant="outline"
             className={cn(
-              "gap-1 text-xs",
+              "gap-1 text-xs max-sm:hidden",
               deltaPct > 3 && "border-red-300 text-red-700",
               deltaPct < -3 && "border-emerald-300 text-emerald-700",
             )}
@@ -317,8 +319,9 @@ export function CostsOverviewTab({
         )}
       </div>
 
-      {/* Testata navy di famiglia: il periodo scelto in tre card in vetro. */}
-      <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
+      {/* Testata navy di famiglia: il periodo scelto in tre card in vetro.
+          Mobile: due numeri, nome e cifra (vedi sotto). */}
+      <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm max-sm:hidden">
         <div className="bg-[#173b67] p-4 text-white sm:p-5">
           <div className="flex items-start gap-3">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)] sm:h-11 sm:w-11">
@@ -354,12 +357,21 @@ export function CostsOverviewTab({
         </div>
       </div>
 
-      {/* Onestà sui limiti dei totali di periodo */}
+      <KpiMobili
+        className="sm:hidden"
+        voci={[
+          { label: `Totale ${labelPeriodo}`, valore: formatCurrency(totalePeriodo) },
+          { label: "Da pagare", valore: formatCurrency(daPagarePeriodo), tono: daPagarePeriodo > 0 ? "text-rose-600" : undefined },
+        ]}
+      />
+
+      {/* Onestà sui limiti dei totali di periodo. Mobile no: sono dati da
+          sistemare al computer (avviso fisso lungo due righe). */}
       {senzaScadenza.count > 0 && (
         <button
           type="button"
           onClick={vaiAlleSpeseSenzaScadenza}
-          className="flex w-full items-center gap-2 rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-2 text-left transition-colors hover:bg-amber-100/80"
+          className="flex w-full items-center gap-2 rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-2 text-left transition-colors hover:bg-amber-100/80 max-sm:hidden"
         >
           <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
           <span className="min-w-0 text-xs text-amber-900">
@@ -369,7 +381,7 @@ export function CostsOverviewTab({
         </button>
       )}
       {oltreOrizzonte && (
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-muted-foreground max-sm:hidden">
           Oltre {EMPLOYEE_PROJECTION_MONTHS} mesi da oggi gli stipendi non sono proiettati: un periodo
           così avanti mostra solo i costi già registrati.
         </p>
@@ -377,9 +389,9 @@ export function CostsOverviewTab({
 
       <div className="grid gap-4 lg:grid-cols-5">
         {/* Ripartizione per voce */}
-        <Card className="rounded-2xl border-slate-200 shadow-sm lg:col-span-3">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">
+        <Card className="rounded-2xl border-slate-200 shadow-sm lg:col-span-3 max-sm:rounded-lg">
+          <CardHeader className="pb-2 max-sm:p-3 max-sm:pb-1">
+            <CardTitle className="text-base max-sm:text-sm">
               {drill ? (
                 <span className="flex items-center gap-2">
                   <Button
@@ -398,9 +410,9 @@ export function CostsOverviewTab({
               )}
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="max-sm:px-2 max-sm:pb-2">
             {voci.length === 0 ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">
+              <p className="py-8 text-center text-sm text-muted-foreground max-sm:py-3 max-sm:text-xs">
                 Nessun costo con scadenza in questo periodo.
               </p>
             ) : drill ? (
@@ -408,11 +420,11 @@ export function CostsOverviewTab({
                 {drill.costs.map((c) => (
                   <div
                     key={c.id}
-                    className="flex items-center gap-3 rounded-lg border border-slate-100 bg-white px-3 py-2"
+                    className="flex items-center gap-3 rounded-lg border border-slate-100 bg-white px-3 py-2 max-sm:gap-2 max-sm:px-2"
                   >
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-slate-800">{c.name}</p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="truncate text-sm font-medium text-slate-800 max-sm:text-[13px]">{c.name}</p>
+                      <p className="truncate text-xs text-muted-foreground max-sm:text-[11px]">
                         {[
                           c.supplierName,
                           c.order?.order_code,
@@ -426,11 +438,11 @@ export function CostsOverviewTab({
                     </div>
                     <Badge
                       variant={c.is_paid ? "secondary" : "outline"}
-                      className={cn("shrink-0 text-[11px]", !c.is_paid && "border-sky-300 text-sky-700")}
+                      className={cn("shrink-0 text-[11px] max-sm:hidden", !c.is_paid && "border-sky-300 text-sky-700")}
                     >
                       {c.is_paid ? "Pagato" : "Da pagare"}
                     </Badge>
-                    <span className="w-24 shrink-0 text-right text-sm font-semibold tabular-nums">
+                    <span className={cn("w-24 shrink-0 text-right text-sm font-semibold tabular-nums max-sm:w-auto max-sm:text-[13px]", c.is_paid && "max-sm:text-emerald-700")}>
                       {formatCurrency(Number(c.amount))}
                     </span>
                   </div>
@@ -447,27 +459,27 @@ export function CostsOverviewTab({
                       key={v.nome}
                       type="button"
                       onClick={() => setDrillVoce(v.nome)}
-                      className="group w-full rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-slate-50"
+                      className="tap-compact group w-full rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-slate-50"
                     >
                       <div className="flex items-baseline justify-between gap-3">
-                        <span className="flex min-w-0 items-center gap-2 text-sm font-medium text-slate-800">
+                        <span className="flex min-w-0 items-center gap-2 text-sm font-medium text-slate-800 max-sm:text-[13px]">
                           <span
                             className="h-2.5 w-2.5 shrink-0 rounded-sm"
                             style={{ backgroundColor: color }}
                           />
                           <span className="truncate">{v.nome}</span>
-                          <span className="shrink-0 text-xs text-muted-foreground">
+                          <span className="shrink-0 text-xs text-muted-foreground max-sm:text-[11px]">
                             {v.count} {v.count === 1 ? "costo" : "costi"}
                           </span>
                         </span>
-                        <span className="shrink-0 text-sm font-semibold tabular-nums text-slate-900">
+                        <span className="shrink-0 text-sm font-semibold tabular-nums text-slate-900 max-sm:text-[13px]">
                           {formatCurrency(v.totale)}
                           <span className="ml-1.5 text-xs font-normal text-muted-foreground">
                             {pct >= 0.5 ? `${pct.toFixed(0)}%` : "<1%"}
                           </span>
                         </span>
                       </div>
-                      <div className="mt-1.5 h-2.5 overflow-hidden rounded-full bg-slate-100">
+                      <div className="mt-1.5 h-2.5 overflow-hidden rounded-full bg-slate-100 max-sm:mt-1 max-sm:h-1.5">
                         <div
                           className="h-full rounded-full transition-all group-hover:opacity-80"
                           style={{ width: `${Math.max(barPct, 2)}%`, backgroundColor: color }}
@@ -476,7 +488,7 @@ export function CostsOverviewTab({
                     </button>
                   );
                 })}
-                <p className="pt-1 text-[11px] text-muted-foreground">
+                <p className="pt-1 text-[11px] text-muted-foreground max-sm:hidden">
                   Clicca una voce per vedere i singoli costi del periodo.
                 </p>
               </div>
@@ -484,8 +496,9 @@ export function CostsOverviewTab({
           </CardContent>
         </Card>
 
-        {/* Trend 12 mesi — cliccabile: un click su un mese ci naviga sopra */}
-        <Card className="rounded-2xl border-slate-200 shadow-sm lg:col-span-2">
+        {/* Trend 12 mesi — cliccabile: un click su un mese ci naviga sopra.
+            Mobile no: analisi da scrivania, il mese si cambia in cima. */}
+        <Card className="rounded-2xl border-slate-200 shadow-sm lg:col-span-2 max-sm:hidden">
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Andamento — ultimi 12 mesi</CardTitle>
           </CardHeader>

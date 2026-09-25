@@ -135,9 +135,9 @@ export function CostsDialogs({
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Registra Pagamento</DialogTitle>
-            <DialogDescription>Seleziona data e metodo di pagamento.</DialogDescription>
+            <DialogDescription className="max-sm:sr-only">Seleziona data e metodo di pagamento.</DialogDescription>
           </DialogHeader>
-          <div className="py-4 space-y-4">
+          <div className="py-4 space-y-4 max-sm:space-y-3 max-sm:py-0">
             <div>
               <Label>Data pagamento</Label>
               <Input type="date" value={paymentDate} onChange={(e) => onPaymentDateChange(e.target.value)} className="mt-2" />
@@ -162,7 +162,7 @@ export function CostsDialogs({
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => onPayDialogChange(false)}>Annulla</Button>
+            <Button variant="outline" onClick={() => onPayDialogChange(false)} className="max-sm:hidden">Annulla</Button>
             <Button onClick={onPaymentConfirm} disabled={!paymentDate || isPaymentPending}>
               {isPaymentPending ? "Salvataggio..." : "Conferma Pagamento"}
             </Button>
