@@ -192,12 +192,44 @@ export default function Preventivi() {
   ];
 
   return (
-    <div className="space-y-6 pb-20 md:pb-0">
-      <QuoteHubTabs tabs={hubTabs} active={activeTab} onSelect={handleTabChange} />
+    <div className="space-y-6 pb-20 md:pb-0 max-sm:space-y-3 max-sm:pb-0">
+      {/* Telefono: con la sola lista la barra delle schede non serve. */}
+      <QuoteHubTabs tabs={hubTabs} active={activeTab} onSelect={handleTabChange} className={hubTabs.length < 2 ? "max-sm:hidden" : undefined} />
 
       {activeTab === "lista" && (
         <>
+          {/* Telefono: titolo e «Nuovo» su una riga; «Crea da» a icona con le due
+              strade che servono fuori ufficio (foto o vocale, documento). Il
+              popup del nuovo preventivo è lo stesso della testata del computer. */}
+          <div className="flex items-center justify-between gap-2 sm:hidden">
+            <h1 className="text-lg font-bold text-slate-900">Preventivi</h1>
+            <div className="flex items-center gap-1.5">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="icon" className="tap-compact h-8 w-8" aria-label="Crea preventivo da foto, audio o documento">
+                    <Sparkles className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-60">
+                  <DropdownMenuItem onClick={() => setShowFotoModal(true)}>
+                    <Sparkles className="h-4 w-4 mr-2 text-orange-500" />
+                    Da foto, schizzi o audio
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setShowSmartImportModal(true)}>
+                    <FileUp className="h-4 w-4 mr-2" />
+                    Da un documento
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              {(permissions.canEditPreventivi || permissions.canEditMarketingOpportunities) && (
+                <Button size="sm" className="tap-compact h-8 px-3 text-xs" onClick={() => setShowNewQuote(true)}>
+                  <Plus className="mr-1 h-4 w-4" />Nuovo
+                </Button>
+              )}
+            </div>
+          </div>
           <QuotePageHeader
+            className="max-sm:hidden"
             title="Preventivi"
             subtitle="Tutte le offerte della tua azienda, dal primo contatto alla conferma."
             icon={<FileSignature className="h-5 w-5" />}

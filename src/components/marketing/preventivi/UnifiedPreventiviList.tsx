@@ -64,6 +64,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useTableSelection } from "@/hooks/useTableSelection";
 import { UnifiedBulkToolbar } from "./UnifiedBulkToolbar";
 import { PreventiviCestinoDialog } from "./PreventiviCestinoDialog";
+import { CercaConFiltri, PannelloFiltri, PilloleFiltro, RigaMobile } from "@/components/mobile/FiltriMobile";
 
 export type PreventivoTipo = "classico" | "serramenti" | "fotovoltaico" | "ristrutturazione" | "bagni" | "tetti" | "climatizzazione" | "elettrico" | "termoidraulico" | "pavimenti" | "piscine";
 export type { UnifiedStato };
@@ -121,6 +122,9 @@ function formatDateSafe(s: string | null | undefined): string {
 export function UnifiedPreventiviList() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
+  // Telefono: stato, tipo e ordine in un pannello dal basso (erano una barra
+  // con cestino e contatore, una riga di chip e una riga di schede di stato).
+  const [filtriMobileAperti, setFiltriMobileAperti] = useState(false);
   const companyId = useEffectiveCompanyId();
   // Numero, cliente e totale dei preventivi: si esportano solo con «Esporta
   // Clienti» (gli amministratori ce l'hanno sempre). Il database lo ricontrolla.
@@ -829,6 +833,8 @@ export function UnifiedPreventiviList() {
   }, [filters]);
 
   const hasAnyFilter = search !== "" || statoTab !== "all" || advancedFiltersCount > 0;
+  // Telefono: il numero sul bottone dei filtri.
+  const filtriMobileAttivi = (statoTab !== "all" ? 1 : 0) + advancedFiltersCount;
 
   const reset = () => {
     setSearch("");
@@ -922,6 +928,8 @@ export function UnifiedPreventiviList() {
     vinto: kpi.vintaCount,
     perso: kpi.persoCount,
   };
+  // Telefono: nel pannello solo i tipi che ci sono davvero in lista.
+  const tipiPresenti = Array.from(new Set(allRows.map((r) => r.tipo)));
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -1035,8 +1043,55 @@ export function UnifiedPreventiviList() {
         </div>}
       </details>}
 
+      {/* ─── Telefono: ricerca e bottone dei filtri ─── */}
+      <CercaConFiltri
+        className="md:hidden"
+        valore={search}
+        onCambia={setSearch}
+        segnaposto="Cerca numero, cliente, commerciale"
+        filtriAttivi={filtriMobileAttivi}
+        onApriFiltri={() => setFiltriMobileAperti(true)}
+      />
+      <PannelloFiltri
+        aperto={filtriMobileAperti}
+        onAperto={setFiltriMobileAperti}
+        attivi={filtriMobileAttivi}
+        onAzzera={() => { setStatoTab("all"); setFilters(DEFAULT_FILTERS); }}
+        risultati={filtered.length}
+      >
+        <PilloleFiltro
+          titolo="Stato"
+          valore={statoTab}
+          onScegli={(v) => setStatoTab(v)}
+          scelte={[
+            { value: "all", label: "Tutti", n: tabCounts.all },
+            { value: "bozza", label: "Bozze", n: tabCounts.bozza },
+            { value: "in_corso", label: "In corso", n: tabCounts.in_corso },
+            { value: "vinto", label: "Vinte", n: tabCounts.vinto },
+            { value: "perso", label: "Perse", n: tabCounts.perso },
+          ]}
+        />
+        {tipiPresenti.length > 1 && (
+          <PilloleFiltro
+            titolo="Tipo"
+            valore={filters.tipi.length === 1 ? filters.tipi[0] : "tutti"}
+            onScegli={(v) => setFilters({ ...filters, tipi: v === "tutti" ? [] : [v as PreventivoTipo] })}
+            scelte={[
+              { value: "tutti", label: "Tutti" },
+              ...tipiPresenti.map((t) => ({ value: t as string, label: TIPO_LABEL[t].label })),
+            ]}
+          />
+        )}
+        <PilloleFiltro
+          titolo="Ordine"
+          valore={filters.sort}
+          onScegli={(v) => setFilters({ ...filters, sort: v })}
+          scelte={(Object.keys(SORT_LABEL) as UnifiedFilters["sort"][]).map((k) => ({ value: k, label: SORT_LABEL[k] }))}
+        />
+      </PannelloFiltri>
+
       {/* ─── Toolbar: search + Filtra + Export + counter ─── */}
-      <Card>
+      <Card className="max-md:hidden">
         <CardContent className="p-2.5 sm:p-3 flex flex-wrap items-center gap-2">
           <div className="relative flex-1 min-w-[140px]">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -1085,9 +1140,9 @@ export function UnifiedPreventiviList() {
         </CardContent>
       </Card>
 
-      {/* ─── Chip filtri attivi ─── */}
+      {/* ─── Chip filtri attivi (telefono: il numero sta sul bottone) ─── */}
       {advancedFiltersCount > 0 && (
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-1.5 max-md:hidden">
           {filters.tipi.length > 0 && (
             <FilterChip label={`Tipi: ${filters.tipi.map((t) => TIPO_LABEL[t].label).join(", ")}`} onClear={() => setFilters({ ...filters, tipi: [] })} />
           )}
@@ -1108,8 +1163,8 @@ export function UnifiedPreventiviList() {
         </div>
       )}
 
-      {/* ─── Sub-tab stati ─── */}
-      <div className="flex items-center gap-1 overflow-x-auto pb-px">
+      {/* ─── Sub-tab stati (telefono: nel pannello dei filtri) ─── */}
+      <div className="flex items-center gap-1 overflow-x-auto pb-px max-md:hidden">
         <StatoTab label="Tutti" count={tabCounts.all} active={statoTab === "all"} onClick={() => setStatoTab("all")} />
         <StatoTab label="Bozze" count={tabCounts.bozza} active={statoTab === "bozza"} onClick={() => setStatoTab("bozza")} tone="slate" />
         <StatoTab label="In corso" count={tabCounts.in_corso} active={statoTab === "in_corso"} onClick={() => setStatoTab("in_corso")} tone="blue" />
@@ -1127,16 +1182,16 @@ export function UnifiedPreventiviList() {
               <Skeleton className="h-10" />
             </div>
           ) : allRows.length === 0 ? (
-            <div className="p-10 text-center">
-              <Inbox className="h-10 w-10 mx-auto text-muted-foreground/30 mb-2" />
+            <div className="p-10 text-center max-md:p-5">
+              <Inbox className="h-10 w-10 mx-auto text-muted-foreground/30 mb-2 max-md:hidden" />
               <p className="text-sm font-medium">Nessun preventivo ancora</p>
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="text-xs text-muted-foreground mt-1 max-md:hidden">
                 Crea il primo preventivo dal bottone in alto.
               </p>
             </div>
           ) : filtered.length === 0 ? (
-            <div className="p-10 text-center">
-              <Search className="h-10 w-10 mx-auto text-muted-foreground/30 mb-2" />
+            <div className="p-10 text-center max-md:p-5">
+              <Search className="h-10 w-10 mx-auto text-muted-foreground/30 mb-2 max-md:hidden" />
               <p className="text-sm font-medium">Nessun risultato con i filtri attuali</p>
               <div className="flex gap-2 justify-center mt-3">
                 <Button variant="outline" size="sm" onClick={() => setFiltersOpen(true)} className="text-xs gap-1">
@@ -1224,40 +1279,29 @@ export function UnifiedPreventiviList() {
                 </Table>
               </div>
 
-              <div className="md:hidden p-2 space-y-2">
+              {/* Telefono: una riga per preventivo (cliente; numero, tipo e data;
+                  importo e stato a destra). Erano schede da tre righe con due
+                  etichette colorate e l'icona del commerciale: quattro a schermo. */}
+              <div className="md:hidden divide-y divide-border">
                 {pageRows.map((r) => {
                   const tipoCfg = TIPO_LABEL[r.tipo];
                   const statoCfg = STATO_UNIF_LABEL[r.stato_unif];
-                  const TipoIcon = tipoCfg.Icon;
+                  const senzaCliente = !r.cliente || r.cliente.trim() === "—" || r.cliente.trim() === "-";
+                  const coloreStato =
+                    r.stato_unif === "vinto" ? "text-emerald-700"
+                    : r.stato_unif === "perso" ? "text-rose-600"
+                    : r.stato_unif === "in_corso" ? "text-blue-700"
+                    : "text-muted-foreground";
                   return (
-                    <div
+                    <RigaMobile
                       key={`${r.tipo}-${r.id}`}
-                      className="rounded-lg border border-slate-200 bg-card p-3 space-y-2 shadow-sm cursor-pointer transition-shadow hover:border-orange-300 hover:bg-orange-50/30 hover:shadow"
                       onClick={() => navigate(r.href)}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                            <span className="font-mono text-xs font-semibold text-orange-600">{r.numero}</span>
-                            <Badge variant="outline" className={cn("text-[10px] gap-1", tipoCfg.className)}>
-                              <TipoIcon className="h-3 w-3" /> {tipoCfg.label}
-                            </Badge>
-                            <Badge variant="outline" className={cn("text-[10px]", statoCfg.className)}>{statoCfg.label}</Badge>
-                          </div>
-                          <p className="text-sm font-medium truncate">{r.cliente}</p>
-                          {r.commerciale_nome && <p className="text-[11px] text-muted-foreground truncate">👤 {r.commerciale_nome}</p>}
-                        </div>
-                        <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                      </div>
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-medium tabular-nums">
-                          {r.totale != null ? formatCurrency(r.totale) : <span className="text-muted-foreground">—</span>}
-                        </span>
-                        <span className="text-[10px] text-muted-foreground">
-                          {formatDateSafe(r.data)}
-                        </span>
-                      </div>
-                    </div>
+                      // Senza cliente il titolo è il numero (una riga «—» non si riconosce).
+                      titolo={senzaCliente ? r.numero : r.cliente}
+                      sottotitolo={[senzaCliente ? null : r.numero, tipoCfg.label, formatDateSafe(r.data)].filter(Boolean).join(" · ")}
+                      valore={r.totale != null ? formatCurrency(r.totale) : "—"}
+                      stato={<span className={coloreStato}>{statoCfg.label}</span>}
+                    />
                   );
                 })}
               </div>

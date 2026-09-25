@@ -271,8 +271,10 @@ export default function QuoteDetail() {
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      {/* Header (replica FvPageHeader) */}
+      {/* Header (replica FvPageHeader) — telefono: senza riquadro né icona; il
+          cliente va accanto a numero e stato (il sottotitolo lì è nascosto). */}
       <QuotePageHeader
+        className="testata-pagina"
         numero={quote.quote_number}
         title={quote.title || "Preventivo"}
         subtitle={quote.client_name || undefined}
@@ -280,6 +282,7 @@ export default function QuoteDetail() {
         stato={
           <span className="inline-flex items-center gap-1.5">
             <Badge variant="outline" className={`whitespace-nowrap ${sc.className}`}>{sc.label}</Badge>
+            {quote.client_name && <span className="truncate font-medium text-slate-700 sm:hidden">{quote.client_name}</span>}
             {Number((quote as Record<string, unknown>).revision_number ?? 0) > 0 && (
               <Badge variant="secondary" className="whitespace-nowrap">
                 Rev. {Number((quote as Record<string, unknown>).revision_number)}
@@ -297,7 +300,8 @@ export default function QuoteDetail() {
             >
               <ArrowLeft className="h-4 w-4 mr-2" /> Lista
             </Button>
-            <Button variant="outline" onClick={handleGeneratePdf} disabled={generating} className="h-9 px-2.5 sm:px-3" aria-label="Genera PDF">
+            {/* Telefono no: niente PDF da scaricare (dal «…» si invia al cliente). */}
+            <Button variant="outline" onClick={handleGeneratePdf} disabled={generating} className="h-9 px-2.5 sm:px-3 max-sm:hidden" aria-label="Genera PDF">
               {generating ? <Loader2 className="h-4 w-4 sm:mr-2 animate-spin" /> : <FileDown className="h-4 w-4 sm:mr-2" />}
               <span className="hidden sm:inline">{generating ? "Generando..." : "Genera PDF"}</span>
             </Button>
@@ -389,10 +393,11 @@ export default function QuoteDetail() {
             )}
 
             {quote.status === "accettata" && (
+              // Telefono no: la strada «rivedi prima» è da scrivania, resta «Converti in Cantiere».
               <Button
                 variant="outline"
                 onClick={() => navigate(`/azienda/ordini/nuovo?quote_id=${id}`)}
-                className="h-9"
+                className="h-9 max-sm:hidden"
                 title="Apre una nuova commessa con righe e misure già compilate dal preventivo: puoi rivederle e aggiustarle prima di salvare"
               >
                 <Package className="h-4 w-4 mr-2" />
@@ -407,9 +412,10 @@ export default function QuoteDetail() {
                 onClick={() => navigate(`/azienda/ordini/${linkedOrder.id}`)}
                 className="h-9 border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-900/40 dark:text-emerald-400"
                 title="Apri la commessa generata da questo preventivo"
+                aria-label="Vai alla commessa"
               >
-                <HardHat className="h-4 w-4 mr-2" />
-                Vai alla commessa{linkedOrder.order_code ? ` ${linkedOrder.order_code}` : ""}
+                <HardHat className="h-4 w-4 mr-2 max-sm:mr-0" />
+                <span className="max-sm:hidden">Vai alla commessa{linkedOrder.order_code ? ` ${linkedOrder.order_code}` : ""}</span>
               </Button>
             )}
 
@@ -423,7 +429,7 @@ export default function QuoteDetail() {
                   onClick={() => openWhatsApp(quote)}
                 >
                   <MessageCircle className="h-4 w-4" />
-                  WhatsApp
+                  <span className="max-sm:hidden">WhatsApp</span>
                 </Button>
                 <Button
                   variant="outline"
@@ -441,18 +447,20 @@ export default function QuoteDetail() {
       />
 
       <Tabs defaultValue="offerta">
-        <TabsList className="bg-slate-100 max-w-full justify-start overflow-x-auto">
-          <TabsTrigger value="offerta" className="data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm gap-1.5">
-            <Package className="h-3.5 w-3.5" /> Offerta
+        {/* Telefono: tre schede a tutta larghezza (Offerta, Cliente, Attività);
+            documenti e versioni si guardano dal computer. */}
+        <TabsList className="bg-slate-100 max-w-full justify-start overflow-x-auto max-sm:grid max-sm:w-full max-sm:grid-cols-3">
+          <TabsTrigger value="offerta" className="tap-compact data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm gap-1.5">
+            <Package className="h-3.5 w-3.5 max-sm:hidden" /> Offerta
           </TabsTrigger>
-          <TabsTrigger value="cliente" className="data-[state=active]:bg-white gap-1.5">
-            <User className="h-3.5 w-3.5" /> Cliente
+          <TabsTrigger value="cliente" className="tap-compact data-[state=active]:bg-white gap-1.5">
+            <User className="h-3.5 w-3.5 max-sm:hidden" /> Cliente
           </TabsTrigger>
-          <TabsTrigger value="documenti" className="data-[state=active]:bg-white gap-1.5">
+          <TabsTrigger value="documenti" className="data-[state=active]:bg-white gap-1.5 max-sm:hidden">
             <FileText className="h-3.5 w-3.5" /> Documenti ({attachments.length})
           </TabsTrigger>
-          <TabsTrigger value="attivita" className="data-[state=active]:bg-white">Attività</TabsTrigger>
-          <TabsTrigger value="versioni" className="gap-1.5 data-[state=active]:bg-white">
+          <TabsTrigger value="attivita" className="tap-compact data-[state=active]:bg-white">Attività</TabsTrigger>
+          <TabsTrigger value="versioni" className="gap-1.5 data-[state=active]:bg-white max-sm:hidden">
             Versioni
             {versionCount > 0 && (
               <QuoteChip variant="orange" className="ml-0.5">{versionCount}</QuoteChip>
@@ -461,7 +469,7 @@ export default function QuoteDetail() {
         </TabsList>
 
         <TabsContent value="offerta" className="space-y-4 mt-4 sm:space-y-6">
-          <QuoteCard title="Prodotti e Servizi" icon={<Package className="h-4 w-4" />}>
+          <QuoteCard title="Prodotti e Servizi" icon={<Package className="h-4 w-4" />} className="max-sm:p-3">
               {items.length === 0 ? (
                 <p className="text-slate-500 text-sm">Nessun prodotto</p>
               ) : (
@@ -502,20 +510,19 @@ export default function QuoteDetail() {
                     </Table>
                   </div>
 
-                  {/* Mobile: una card leggibile per riga (niente tabella a 7 colonne) */}
-                  <div className="md:hidden space-y-2">
+                  {/* Mobile: una riga per voce (nome e importo; quantità × prezzo e
+                      IVA sotto). Via la descrizione, che ripeteva il nome, e il
+                      riquadro intorno a ogni voce. */}
+                  <div className="md:hidden divide-y divide-border">
                     {items.map((item) => (
-                      <div key={item.id} className="rounded-lg border border-slate-200 bg-white p-3">
+                      <div key={item.id} className="py-2 first:pt-0 last:pb-0">
                         <div className="flex items-start justify-between gap-3">
-                          <p className="font-medium text-sm leading-snug">{item.name}</p>
-                          <p className="shrink-0 font-semibold text-sm tabular-nums text-slate-900">
+                          <p className="font-medium text-[13px] leading-snug">{item.name}</p>
+                          <p className="shrink-0 font-semibold text-[13px] tabular-nums text-slate-900">
                             {formatCurrency(item.line_total || 0)}
                           </p>
                         </div>
-                        {item.description && (
-                          <p className="mt-0.5 text-xs text-muted-foreground leading-snug">{item.description}</p>
-                        )}
-                        <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-muted-foreground">
+                        <div className="mt-0.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-muted-foreground">
                           <span className="tabular-nums">
                             {item.quantity} {item.unit_of_measure} × {formatCurrency(item.unit_price)}
                           </span>
@@ -531,7 +538,7 @@ export default function QuoteDetail() {
               )}
 
               <div className="mt-4 flex flex-col items-end gap-3">
-                <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 space-y-1.5 text-sm shadow-sm">
+                <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 space-y-1.5 text-sm shadow-sm max-sm:p-3 max-sm:text-[13px]">
                   <div className="flex justify-between">
                     <span className="text-slate-500">Subtotale</span>
                     <span className="font-medium tabular-nums">{formatCurrency(quote.subtotal || 0)}</span>
@@ -549,7 +556,7 @@ export default function QuoteDetail() {
                   <div className="border-t border-slate-200 my-2" />
                   <div className="flex justify-between items-center font-bold">
                     <span className="text-base">Totale</span>
-                    <span className="text-2xl tabular-nums text-orange-600">{formatCurrency(quote.total || 0)}</span>
+                    <span className="text-2xl tabular-nums text-orange-600 max-sm:text-lg">{formatCurrency(quote.total || 0)}</span>
                   </div>
                 </div>
 

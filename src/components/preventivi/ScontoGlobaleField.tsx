@@ -139,8 +139,9 @@ export function ScontoGlobaleField({ id, value, onCommit, imponibileLordo, tipoL
         </p>
       )}
 
+      {/* Telefono no: è una nota per chi configura, non per chi fa il preventivo. */}
       {!bloccato && !daApprovare && esito.isFallback && (
-        <p className="text-[10px] leading-4 text-muted-foreground">
+        <p className="text-[10px] leading-4 text-muted-foreground max-sm:hidden">
           Nessuna regola di scontistica configurata: vale il massimo predefinito.
         </p>
       )}

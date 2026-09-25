@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useNavigate, useParams, useSearchParams, Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -338,6 +339,8 @@ import { SedeSelect } from "@/components/sedi/SedeSelect";
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function QuoteBuilder() {
+  // Telefono (<768px): la scelta del modello PDF compare solo se ce n'è più d'uno.
+  const isMobile = useIsMobile();
   const { id } = useParams();
   const [searchParams] = useSearchParams();
   const isEdit = !!id;
@@ -2032,11 +2035,12 @@ export default function QuoteBuilder() {
   // Prima le voci, poi la definizione del prezzo: stessa sequenza in modifica e riepilogo.
   const priceAndDiscountPanel = productLines.length > 0 ? (
         <Card className="border-orange-200">
-          <CardHeader className="pb-3">
+          <CardHeader className="pb-3 max-sm:p-3 max-sm:pb-2">
             <CardTitle className="text-base">Prezzo e sconto</CardTitle>
-            <p className="text-sm text-muted-foreground">Usa i prezzi dei prodotti oppure concorda un prezzo unico. L'anteprima si aggiorna con i valori applicati.</p>
+            {/* Telefono no: la spiegazione sotto il titolo. */}
+            <p className="text-sm text-muted-foreground max-sm:hidden">Usa i prezzi dei prodotti oppure concorda un prezzo unico. L'anteprima si aggiorna con i valori applicati.</p>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 max-sm:space-y-3 max-sm:p-3 max-sm:pt-0">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 {isEdit && id ? <QuoteDiscountControl quoteId={id} currentDiscount={discountPercent} approvalStatus={approvalStatus} onDiscountChange={setDiscountPercent} />
@@ -2056,7 +2060,7 @@ export default function QuoteBuilder() {
                 </div>}
               </div>
             </div>
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-slate-50 p-3 text-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-slate-50 p-3 text-sm max-sm:gap-1 max-sm:px-3 max-sm:py-2 max-sm:text-xs">
               <span className="text-slate-500">Imponibile {formatCurrency(imponibilePreventivo)} + IVA {formatCurrency(vatAmount)}</span>
               <span className="font-semibold">Totale IVA inclusa <strong className="ml-2 text-lg text-primary">{formatCurrency(total)}</strong></span>
             </div>
@@ -2068,6 +2072,7 @@ export default function QuoteBuilder() {
   const stepperSteps: QuoteStep[] = STEPS.map((s) => ({
     key: s.key,
     label: s.label,
+    labelBreve: s.labelBreve,
     icon: <s.icon className="h-4 w-4" />,
   }));
 
@@ -2089,26 +2094,29 @@ export default function QuoteBuilder() {
       {/* Recupero bozza locale (solo preventivo NUOVO) */}
       {paymentError && step === 2 && <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{paymentError} Correggi il piano prima di salvare o aprire il PDF. Le modifiche restano nella pagina.</div>}
       {!isEdit && recoverableDraft && (
-        <div className="flex flex-col gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-2 text-sm text-amber-900">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>
+        // Telefono: una riga («Bozza non salvata» + Ripristina / Ignora).
+        <div className="flex flex-col gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 sm:flex-row sm:items-center sm:justify-between max-sm:flex-row max-sm:items-center max-sm:gap-2 max-sm:px-3 max-sm:py-2">
+          <div className="flex items-start gap-2 text-sm text-amber-900 max-sm:min-w-0 max-sm:flex-1 max-sm:items-center max-sm:text-xs">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 max-sm:mt-0" />
+            <span className="max-sm:hidden">
               Hai una <strong>bozza non salvata</strong> di un preventivo
               {recoverableDraft.savedAt ? ` del ${new Date(recoverableDraft.savedAt).toLocaleString("it-IT")}` : ""}. Vuoi riprenderla?
             </span>
+            <span className="truncate font-medium sm:hidden">Bozza non salvata</span>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <Button size="sm" variant="outline" className="h-8 bg-white" onClick={restoreQuoteDraft}>
+          <div className="flex shrink-0 items-center gap-2 max-sm:gap-1">
+            <Button size="sm" variant="outline" className="tap-compact h-8 bg-white" onClick={restoreQuoteDraft}>
               Ripristina
             </Button>
-            <Button size="sm" variant="ghost" className="h-8" onClick={() => { setRecoverableDraft(null); clearQuoteDraft(); }}>
+            <Button size="sm" variant="ghost" className="tap-compact h-8 max-sm:px-2" onClick={() => { setRecoverableDraft(null); clearQuoteDraft(); }}>
               Ignora
             </Button>
           </div>
         </div>
       )}
-      {/* Header (replica FvPageHeader) */}
+      {/* Header (replica FvPageHeader) — telefono: senza riquadro né icona. */}
       <QuotePageHeader
+        className="testata-pagina"
         title={isEdit ? "Modifica preventivo" : "Nuovo preventivo"}
         subtitle={
           autosaveFailed || localDraftFailed ? (
@@ -2121,10 +2129,11 @@ export default function QuoteBuilder() {
         icon={<FileCheck className="h-5 w-5" />}
         actions={
           <>
+            {/* Telefono no: la freccia per tornare c'è già nella barra in alto. */}
             <Button
               variant="ghost"
               size="sm"
-              className="h-9"
+              className="h-9 max-sm:hidden"
               onClick={() => navigate("/azienda/marketing/preventivi")}
               title="Torna alla lista"
             >
@@ -2157,7 +2166,7 @@ export default function QuoteBuilder() {
             {canViewImpresa && isEdit && id && (
               <Link
                 to={`/azienda/marketing/preventivi/${id}/margini`}
-                className="inline-flex items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100 transition-colors h-9"
+                className="inline-flex items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100 transition-colors h-9 max-sm:hidden"
               >
                 <TrendingUp className="h-3.5 w-3.5" />
                 Margini
@@ -2188,10 +2197,12 @@ export default function QuoteBuilder() {
         <QuoteCard
           title="Dati cliente"
           icon={<User className="h-4 w-4" />}
+          className="max-sm:p-3"
         >
-          <div className="space-y-5">
-            {/* Blocco 1: Selezione rapida da contatto */}
-            <div className="rounded-lg border bg-muted/30 p-3">
+          <div className="space-y-5 max-sm:space-y-4">
+            {/* Blocco 1: Selezione rapida da contatto — telefono: senza riquadro
+                e senza la riga di spiegazione, è il primo campo e basta. */}
+            <div className="rounded-lg border bg-muted/30 p-3 max-sm:border-0 max-sm:bg-transparent max-sm:p-0">
               <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Seleziona contatto esistente</Label>
               <div className="mt-1.5">
                 <ContactCombobox companyId={companyId}
@@ -2200,7 +2211,7 @@ export default function QuoteBuilder() {
                   onChange={handleContactSelect}
                 />
               </div>
-              <p className="text-xs text-muted-foreground mt-1.5">
+              <p className="text-xs text-muted-foreground mt-1.5 max-sm:hidden">
                 Seleziona un contatto CRM per compilare automaticamente i campi sotto.
               </p>
             </div>
@@ -2210,8 +2221,9 @@ export default function QuoteBuilder() {
               <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Anagrafica cliente
               </h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
+              {/* Telefono: email e telefono affiancati, il resto a tutta riga. */}
+              <div className="grid grid-cols-2 gap-4 max-sm:gap-3">
+                <div className="max-md:col-span-2">
                   <Label>Nome cliente *</Label>
                   <Input value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Mario Rossi" />
                 </div>
@@ -2223,7 +2235,7 @@ export default function QuoteBuilder() {
                   <Label>Telefono</Label>
                   <Input value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} placeholder="+39 333 1234567" />
                 </div>
-                <details className="md:col-span-2 rounded-lg border p-3">
+                <details className="col-span-2 rounded-lg border p-3">
                   <summary className="cursor-pointer text-sm font-medium">Dati fiscali e azienda <span className="font-normal text-muted-foreground">· facoltativi</span></summary>
                   <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-3">
                 <div>
@@ -2240,7 +2252,7 @@ export default function QuoteBuilder() {
                 </div>
                   </div>
                 </details>
-                <div className="md:col-span-2">
+                <div className="col-span-2">
                   <Label>Indirizzo</Label>
                   <Input value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} placeholder="Via Roma 1, 20100 Milano (MI)" />
                 </div>
@@ -2252,13 +2264,14 @@ export default function QuoteBuilder() {
               <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Offerta
               </h4>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="md:col-span-2">
+              {/* Telefono: titolo e validità sulla stessa riga. */}
+              <div className="grid grid-cols-3 gap-4 max-sm:gap-3">
+                <div className="col-span-2">
                   <Label>Titolo offerta</Label>
                   <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="es. Fornitura e posa serramenti PVC" />
                 </div>
                 <div>
-                  <Label>Validità (giorni)</Label>
+                  <Label><span className="max-sm:hidden">Validità (giorni)</span><span className="sm:hidden">Validità gg</span></Label>
                   <Input
                     type="number"
                     min={1}
@@ -2267,12 +2280,12 @@ export default function QuoteBuilder() {
                     onBlur={() => { if (!validityDays) setValidityDays(30); }}
                   />
                 </div>
-                <div className="md:col-span-3">
+                <div className="col-span-3">
                   <Label>Descrizione</Label>
                   <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2}
                     placeholder="Breve descrizione dei lavori (appare sul PDF)" />
                 </div>
-                <details className="md:col-span-3 rounded-lg border p-3">
+                <details className="col-span-3 rounded-lg border p-3">
                   <summary className="cursor-pointer text-sm font-medium">Note per il cliente e per il team</summary>
                 <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
@@ -2318,7 +2331,7 @@ export default function QuoteBuilder() {
               <button
                 type="button"
                 onClick={() => setDettagliLavoroAperti(true)}
-                className="flex w-full items-center justify-between rounded-lg border border-dashed px-3 py-3 text-left text-sm"
+                className="flex w-full items-center justify-between rounded-lg border border-dashed px-3 py-3 text-left text-sm max-sm:border-border"
               >
                 <span>
                   <span className="font-medium">Tipo di lavoro, commerciale, sede, indirizzo</span>
@@ -2437,8 +2450,10 @@ export default function QuoteBuilder() {
         <div className="flex gap-6 items-start">
           {/* Left: items list */}
           <div className="flex-1 min-w-0 space-y-4">
-            {/* AI Quote Panel */}
+            {/* AI Quote Panel — anche su telefono (testo, voce, foto): generare le
+                righe con l'AI dal cantiere è il caso d'uso; lì è compatto. */}
             {companyId && (
+              <div>
               <AIQuotePanel
                 companyId={companyId}
                 tipoLavoro={tipoLavoro}
@@ -2447,28 +2462,30 @@ export default function QuoteBuilder() {
                   sezioni.forEach((sez) => aggiungiSezione(sez.nome, sez.righe));
                 }}
               />
+              </div>
             )}
             <Card>
-              <CardHeader>
+              <CardHeader className="max-sm:p-3">
                 <div className="flex items-center justify-between flex-wrap gap-2">
-                  <CardTitle>Prodotti e Servizi</CardTitle>
+                  <CardTitle className="max-sm:text-base">Prodotti e Servizi</CardTitle>
                   {preventivatoreUnifiedOn ? (
                     // Sprint A: entry point unificato. Le azioni secondarie
                     // (Riga libera/Sconto/Subtotale) sono dentro il dialog
                     // stesso; Nota/Trasporto/Nolo restano accessibili dal
                     // menu "Altro" sottostante per non rompere il flusso
                     // avanzato degli utenti abituati.
-                    <div className="flex flex-wrap gap-2">
-                      <Button size="sm" variant="brand" onClick={() => setAddItemOpen(true)}>
-                        <Plus className="h-4 w-4 mr-1" /> Cerca e aggiungi prodotti
+                    // Telefono: i tre bottoni su una riga, «Aggiungi prodotti» a riempire.
+                    <div className="flex flex-wrap gap-2 max-sm:w-full max-sm:flex-nowrap">
+                      <Button size="sm" variant="brand" className="max-sm:min-w-0 max-sm:flex-1" onClick={() => setAddItemOpen(true)}>
+                        <Plus className="h-4 w-4 mr-1" /> <span className="max-sm:hidden">Cerca e aggiungi prodotti</span><span className="sm:hidden">Aggiungi prodotti</span>
                       </Button>
-                      <Button type="button" size="sm" variant="outline" onClick={() => addItem("product")}>
-                        <Plus className="h-4 w-4 mr-1" /> Aggiungi voce manuale
+                      <Button type="button" size="sm" variant="outline" className="max-sm:shrink-0" onClick={() => addItem("product")}>
+                        <Plus className="h-4 w-4 mr-1 max-sm:hidden" /> <span className="max-sm:hidden">Aggiungi voce manuale</span><span className="sm:hidden">Voce libera</span>
                       </Button>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="outline" size="sm">
-                            <ChevronDown className="h-4 w-4 mr-1" /> Altro
+                          <Button variant="outline" size="sm" className="max-sm:w-9 max-sm:shrink-0 max-sm:px-0" aria-label="Altro">
+                            <ChevronDown className="h-4 w-4 mr-1 max-sm:mr-0" /> <span className="max-sm:hidden">Altro</span>
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent>
@@ -2590,7 +2607,7 @@ export default function QuoteBuilder() {
                   )}
                 </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="max-sm:p-3 max-sm:pt-0">
                 {/* FASE 7.3: banner suggerimenti sconti quantità + bundle */}
                 {suggestions.length > 0 && (
                   <div className="mb-4 space-y-2">
@@ -2645,10 +2662,10 @@ export default function QuoteBuilder() {
                   </div>
                 )}
                 {items.length === 0 ? (
-                  <div className="text-center py-12 text-muted-foreground">
-                    <Package className="h-12 w-12 mx-auto mb-3 opacity-30" />
-                    <p className="font-medium">Nessun prodotto</p>
-                    <p className="text-sm">
+                  <div className="text-center py-12 text-muted-foreground max-sm:py-5">
+                    <Package className="h-12 w-12 mx-auto mb-3 opacity-30 max-sm:hidden" />
+                    <p className="font-medium max-sm:text-[13px]">Nessun prodotto</p>
+                    <p className="text-sm max-sm:hidden">
                       Aggiungi dal listino o crea una riga libera
                     </p>
                   </div>
@@ -2699,7 +2716,8 @@ export default function QuoteBuilder() {
                               : ""
                           }`}
                         >
-                          {!isChild && dragHandle}
+                          {/* Telefono no: niente trascinamento. */}
+                          {!isChild && <span className="contents max-sm:hidden">{dragHandle}</span>}
                           {isChild && (
                             <span className="text-muted-foreground/60 text-xs mr-2 mt-2 shrink-0">
                               └
@@ -2780,13 +2798,19 @@ export default function QuoteBuilder() {
                               {/* Nome a larghezza piena: i campi numerici restano leggibili anche con l'anteprima a destra. */}
                               <div className="grid grid-cols-12 gap-2 items-end">
                                 <div className="col-span-12">
-                                  <Label className="text-xs">
+                                  <Label className="text-xs max-sm:flex max-sm:items-baseline max-sm:justify-between">
+                                    <span>
                                     Nome{" "}
                                     {isSconto && (
                                       <span className="text-red-500">
                                         (sconto)
                                       </span>
                                     )}
+                                    </span>
+                                    {/* Telefono: il totale della riga sta qui, sotto c'è posto per i campi. */}
+                                    <span className={`sm:hidden text-[13px] font-semibold tabular-nums ${isSconto ? "text-red-600" : "text-foreground"}`}>
+                                      {formatCurrency(item.quantity * item.unit_price * (1 - item.discount_percent / 100))}
+                                    </span>
                                   </Label>
                                   <Input
                                     value={item.name}
@@ -2797,8 +2821,8 @@ export default function QuoteBuilder() {
                                     className={isSconto ? "text-red-600" : ""}
                                   />
                                 </div>
-                                <div className="col-span-6 2xl:col-span-3">
-                                  <Label className="text-xs">Quantità</Label>
+                                <div className="col-span-6 2xl:col-span-3 max-sm:col-span-3">
+                                  <Label className="text-xs"><span className="max-sm:hidden">Quantità</span><span className="sm:hidden">Q.tà</span></Label>
                                   <Input
                                     type="number"
                                     min={0}
@@ -2814,8 +2838,8 @@ export default function QuoteBuilder() {
                                     }
                                   />
                                 </div>
-                                <div className="col-span-6 2xl:col-span-3">
-                                  <Label className="text-xs">Prezzo unitario €</Label>
+                                <div className="col-span-6 2xl:col-span-3 max-sm:col-span-4">
+                                  <Label className="text-xs"><span className="max-sm:hidden">Prezzo unitario €</span><span className="sm:hidden">Prezzo €</span></Label>
                                   <Input
                                     type="number"
                                     min={0}
@@ -2832,7 +2856,8 @@ export default function QuoteBuilder() {
                                     className={isSconto ? "text-red-600" : ""}
                                   />
                                 </div>
-                                <div className="col-span-4 2xl:col-span-2">
+                                {/* Telefono no: lo sconto di riga (c'è lo sconto del preventivo). */}
+                                <div className="col-span-4 2xl:col-span-2 max-sm:hidden">
                                   <Label className="text-xs">Sconto %</Label>
                                   <Input
                                     type="number"
@@ -2849,7 +2874,7 @@ export default function QuoteBuilder() {
                                     }
                                   />
                                 </div>
-                                <div className="col-span-4 2xl:col-span-2">
+                                <div className="col-span-4 2xl:col-span-2 max-sm:col-span-3">
                                   <Label className="text-xs">IVA%</Label>
                                   <Input
                                     type="number"
@@ -2864,9 +2889,9 @@ export default function QuoteBuilder() {
                                     }
                                   />
                                 </div>
-                                <div className="col-span-4 2xl:col-span-2 flex items-end justify-end gap-1">
+                                <div className="col-span-4 2xl:col-span-2 flex items-end justify-end gap-1 max-sm:col-span-2">
                                   <p
-                                    className={`font-medium text-sm py-2 ${
+                                    className={`font-medium text-sm py-2 max-sm:hidden ${
                                       isSconto ? "text-red-600" : ""
                                     }`}
                                   >
@@ -3021,7 +3046,8 @@ export default function QuoteBuilder() {
 
       {/* Advisor AI facoltativo: richieste solo su azione esplicita. */}
       {step === 1 && (
-            <details className="rounded-xl border p-4"><summary className="cursor-pointer text-sm font-medium">Consigli commerciali AI (facoltativi)</summary>
+            // Telefono no: niente assistenti AI dentro il modulo.
+            <details className="rounded-xl border p-4 max-sm:hidden"><summary className="cursor-pointer text-sm font-medium">Consigli commerciali AI (facoltativi)</summary>
               <QuoteAdvisorPanel
                 contactId={contactId}
                 clientName={clientName}
@@ -3058,10 +3084,11 @@ export default function QuoteBuilder() {
         <QuoteCard
           title="Controlla la tua offerta"
           icon={<FileCheck className="h-4 w-4" />}
+          className="max-sm:p-3"
         >
-          <div className="space-y-6">
+          <div className="space-y-6 max-sm:space-y-4">
             {(!clientReady || !productsReady) && (
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 max-sm:gap-2 max-sm:p-2.5 max-sm:text-xs">
                 <span>{!clientReady ? "Inserisci il nome del cliente per preparare il PDF." : "Aggiungi almeno un prodotto o servizio e completa i nomi delle righe."}</span>
                 <Button size="sm" variant="outline" onClick={() => setStep(!clientReady ? 0 : 1)}>{!clientReady ? "Completa cliente" : "Completa prodotti"}</Button>
               </div>
@@ -3219,8 +3246,10 @@ export default function QuoteBuilder() {
               </div>
             )}
 
-            {/* Template / Aspetto Documento */}
-            {offerTemplates.length > 0 && (
+            {/* Template / Aspetto Documento — telefono: solo se c'è da scegliere
+                (con un modello solo è una sezione senza decisioni), a righe
+                senza miniature. */}
+            {offerTemplates.length > (isMobile ? 1 : 0) && (
               <div className="border-t pt-4">
                 <h3 className="font-medium mb-3 flex items-center gap-2">
                   <Palette className="h-4 w-4" />
@@ -3229,7 +3258,7 @@ export default function QuoteBuilder() {
                 <div className="space-y-4">
                   <div>
                     <Label className="text-sm">Offerta completa</Label>
-                    <p className="mt-1 text-xs text-muted-foreground">
+                    <p className="mt-1 text-xs text-muted-foreground max-sm:hidden">
                       Copertina, testi, condizioni e stile sono inclusi nello stesso modello.
                     </p>
                     <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -3238,17 +3267,18 @@ export default function QuoteBuilder() {
                           return (
                           <button type="button" key={tmpl.id} aria-pressed={effectiveSelectedTemplateId === tmpl.id}
                             onClick={() => { setSelectedTemplateId(tmpl.id); setLayoutOverride(null); }}
-                            className={`flex flex-col items-center gap-3 rounded-xl border-2 p-4 text-left transition ${effectiveSelectedTemplateId === tmpl.id ? "border-orange-500 bg-orange-50/50" : "border-slate-200 bg-slate-50 hover:border-orange-300"}`}>
-                            <div className="pointer-events-none" aria-hidden="true"><QuoteTemplatePreview template={preview} companyName={effectiveCompany?.name} logoSrc={templateAssetUrl(tmpl.logo_url)} coverSrc={templateAssetUrl(preview.cover_image_url)} scale={0.25} /></div>
+                            className={`flex flex-col items-center gap-3 rounded-xl border-2 p-4 text-left transition max-sm:gap-1 max-sm:p-3 ${effectiveSelectedTemplateId === tmpl.id ? "border-orange-500 bg-orange-50/50" : "border-slate-200 bg-slate-50 hover:border-orange-300"}`}>
+                            <div className="pointer-events-none max-sm:hidden" aria-hidden="true"><QuoteTemplatePreview template={preview} companyName={effectiveCompany?.name} logoSrc={templateAssetUrl(tmpl.logo_url)} coverSrc={templateAssetUrl(preview.cover_image_url)} scale={0.25} /></div>
                             <span className="w-full text-sm font-semibold">{tmpl.name}{tmpl.is_default ? " · Predefinito" : ""}</span>
-                            {tmpl.description && <span className="line-clamp-2 w-full text-xs text-muted-foreground">{tmpl.description}</span>}
+                            {tmpl.description && <span className="line-clamp-2 w-full text-xs text-muted-foreground max-sm:hidden">{tmpl.description}</span>}
                           </button>
                           );
                         })}
                     </div>
                   </div>
                   {/* Layout quick-select — su telefono 2 per riga: a 4 le anteprime erano francobolli */}
-                  <details className="rounded-lg border p-3">
+                  {/* Telefono no: l'impaginazione si ritocca dal computer. */}
+                  <details className="rounded-lg border p-3 max-sm:hidden">
                     <summary className="cursor-pointer text-sm">Cambia solo l'impaginazione</summary>
                   <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {(
@@ -3285,7 +3315,8 @@ export default function QuoteBuilder() {
 
       {/* Opzioni e allegati nello stesso passaggio della revisione finale. */}
       {step === 2 && (
-        <details className="rounded-xl border border-slate-200 bg-white p-4">
+        // Telefono no: opzioni del PDF, render e allegati sono da scrivania.
+        <details className="rounded-xl border border-slate-200 bg-white p-4 max-sm:hidden">
           <summary className="cursor-pointer font-medium">Personalizza PDF e allegati <span className="text-xs font-normal text-muted-foreground">· facoltativo{selectedMaterials.length ? ` · ${selectedMaterials.length} allegati` : ""}</span></summary>
         <div className="mt-4 space-y-4">
             <QuoteRenderPicker
@@ -3571,7 +3602,8 @@ export default function QuoteBuilder() {
       )}
 
       </div>
-      <aside className="order-first min-w-0 lg:order-last lg:sticky lg:top-4">
+      {/* Telefono: vuota (anteprima nel passo «Conferma»), ma lasciava una riga di 24px. */}
+      <aside className="order-first min-w-0 lg:order-last lg:sticky lg:top-4 max-sm:hidden">
         <div className="hidden lg:block"><QuoteLivePreviewPanel
               template={effectiveTemplate}
               companyName={effectiveCompany?.name || "La tua azienda"}
@@ -3588,7 +3620,8 @@ export default function QuoteBuilder() {
               logoSrc={templateAssetUrl(effectiveTemplate.logo_url)}
               coverSrc={templateAssetUrl(effectiveTemplate.cover_image_url)}
             /></div>
-        <details className="rounded-xl border bg-white p-3 lg:hidden">
+        {/* Telefono no: l'anteprima è il passo «Conferma», il totale sta nella barra in basso. */}
+        <details className="rounded-xl border bg-white p-3 lg:hidden max-sm:hidden">
           <summary className="cursor-pointer text-sm font-semibold">Mostra anteprima live · {formatCurrency(total)}</summary>
           <div className="mt-3"><QuoteLivePreviewPanel
               template={effectiveTemplate}

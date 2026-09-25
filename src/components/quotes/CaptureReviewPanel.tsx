@@ -454,17 +454,19 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
   return (
     <div className="space-y-4">
       {/* Header confidence */}
-      <div className="flex flex-col gap-2 rounded-md border bg-background p-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-2 rounded-md border bg-background p-3 sm:flex-row sm:items-center sm:justify-between max-sm:flex-row max-sm:items-center max-sm:justify-between max-sm:px-3 max-sm:py-2">
         <div className="flex items-center gap-2 text-sm">
           {confidence > 0.7 ? (
             <CheckCircle2 className="h-4 w-4 text-emerald-600" />
           ) : (
             <AlertTriangle className="h-4 w-4 text-amber-600" />
           )}
-          <span>
+          {/* Telefono: senza «confidence», basta il segno verde o giallo. */}
+          <span className="max-sm:hidden">
             Estrazione AI completata · confidence{" "}
             <strong>{(confidence * 100).toFixed(0)}%</strong>
           </span>
+          <span className="sm:hidden font-medium">Ecco cosa ho capito</span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline">{products.length} voci estratte</Badge>
@@ -509,7 +511,7 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
             <p className="font-semibold text-rose-900 dark:text-rose-200">
               Estrazione parziale — confidenza bassa ({(confidence * 100).toFixed(0)}%)
             </p>
-            <p className="mt-0.5 text-rose-800 dark:text-rose-300">
+            <p className="mt-0.5 text-rose-800 dark:text-rose-300 max-sm:hidden">
               L'AI ha operato con confidenza ridotta. Verifica attentamente ogni voce e
               abbina al listino prima di creare il preventivo.
             </p>
@@ -519,12 +521,12 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
 
       {/* CLIENTE */}
       <Card>
-        <CardHeader className="pb-2">
+        <CardHeader className="pb-2 max-sm:p-3 max-sm:pb-2">
           <CardTitle className="text-sm flex items-center gap-2">
             <User className="h-4 w-4" /> Dati cliente
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-3 max-sm:p-3 max-sm:pt-0">
           {/* Match esistente in evidenza */}
           {exactMatch && contactStrategy === "auto" ? (
             <div className="rounded-md border border-emerald-300 bg-emerald-50 dark:bg-emerald-900/10 p-3">
@@ -541,7 +543,7 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
                       {exactMatch.email ? ` · ${exactMatch.email}` : ""}
                       {exactMatch.phone ? ` · ${exactMatch.phone}` : ""}
                     </p>
-                    <p className="text-[10px] text-muted-foreground mt-1">
+                    <p className="text-[10px] text-muted-foreground mt-1 max-sm:hidden">
                       Match: <strong>{exactMatch.match_type}</strong> ·{" "}
                       {(exactMatch.match_confidence * 100).toFixed(0)}%. I campi vuoti del contatto
                       esistente verranno aggiornati con i nuovi dati.
@@ -553,7 +555,9 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
           ) : null}
 
           {/* Strategia contact */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {/* Telefono: tre scelte a pillola (Auto, Esistente, Nuovo), senza le
+              spiegazioni sotto; «Solo lookup» resta al computer. */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 max-sm:grid-cols-3 max-sm:gap-1.5">
             {([
               { value: "auto", label: "Auto", icon: UserCheck, hint: "Trova per email/telefono o crea" },
               { value: "use_existing", label: "Esistente", icon: Search, hint: "Seleziona contatto manualmente" },
@@ -564,16 +568,16 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
                 key={opt.value}
                 type="button"
                 onClick={() => setContactStrategy(opt.value)}
-                className={`text-left p-2 border rounded-md text-xs hover:bg-muted/40 ${
+                className={`text-left p-2 border rounded-md text-xs hover:bg-muted/40 tap-compact max-sm:py-1.5 ${opt.value === "manual" ? "max-sm:hidden" : ""} ${
                   contactStrategy === opt.value
                     ? "border-primary bg-primary/5"
                     : "border-border"
                 }`}
               >
-                <div className="flex items-center gap-1 font-medium">
+                <div className="flex items-center gap-1 font-medium max-sm:justify-center">
                   <opt.icon className="h-3 w-3" /> {opt.label}
                 </div>
-                <p className="text-[10px] text-muted-foreground mt-0.5">{opt.hint}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5 max-sm:hidden">{opt.hint}</p>
               </button>
             ))}
           </div>
@@ -768,7 +772,7 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
 
       {/* PRODOTTI */}
       <Card>
-        <CardHeader className="pb-2">
+        <CardHeader className="pb-2 max-sm:p-3 max-sm:pb-2">
           <CardTitle className="text-sm flex items-center justify-between">
             <span className="flex items-center gap-2">
               <Package className="h-4 w-4" /> Voci preventivo
@@ -783,20 +787,21 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="h-7 text-[10px] px-2 text-amber-700 hover:text-amber-800 hover:bg-amber-50"
+                  // Telefono no: si toglie una voce alla volta col cestino.
+                  className="h-7 text-[10px] px-2 text-amber-700 hover:text-amber-800 hover:bg-amber-50 max-sm:hidden"
                   onClick={handleRemoveUnmatched}
                   title="Rimuovi tutte le voci non abbinate al listino"
                 >
                   Rimuovi non abbinati
                 </Button>
               )}
-              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={addProduct}>
+              <Button size="sm" variant="outline" className="h-7 text-xs tap-compact" onClick={addProduct}>
                 <Plus className="h-3 w-3 mr-1" /> Aggiungi voce
               </Button>
             </div>
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2">
+        <CardContent className="space-y-2 max-sm:p-3 max-sm:pt-0">
           {products.map((p, i) => {
             const isUnmatched = !p.match_type || p.match_type === "none" ||
               (!p.matched_template_id && !p.matched_family_id && !p.matched_tariffa_id);
@@ -828,7 +833,7 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
                     ) : (
                       <Badge
                         variant="outline"
-                        className={`text-[9px] ${
+                        className={`text-[9px] max-sm:hidden ${
                           (p.match_confidence ?? 0) > 0.8
                             ? "border-emerald-300 text-emerald-700"
                             : (p.match_confidence ?? 0) > 0.5
@@ -847,7 +852,7 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
                       </span>
                     ) : null}
                     {p.unit_price_source ? (
-                      <Badge variant="outline" className="text-[9px]">
+                      <Badge variant="outline" className="text-[9px] max-sm:hidden">
                         prezzo: {p.unit_price_source}
                       </Badge>
                     ) : null}
@@ -882,7 +887,8 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
                     placeholder="Descrizione"
                     className="h-8 text-sm"
                   />
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {/* Telefono: quantità, unità e misure su una riga sola. */}
+                  <div className="grid grid-cols-4 gap-2">
                     <div>
                       <Label className="text-[10px]">Q.tà</Label>
                       <Input
@@ -1047,8 +1053,8 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
         );
       })()}
 
-      {/* AZIONI */}
-      <div className="flex gap-2 pt-2 border-t">
+      {/* AZIONI — telefono: sempre visibili in fondo mentre si scorre la revisione. */}
+      <div className="flex gap-2 pt-2 border-t max-sm:sticky max-sm:bottom-0 max-sm:-mx-4 max-sm:bg-background max-sm:px-4 max-sm:pb-1">
         <Button variant="ghost" onClick={onCancel} disabled={saving}>
           Indietro
         </Button>

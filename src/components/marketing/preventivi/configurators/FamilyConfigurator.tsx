@@ -25,6 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { formatCurrency } from "@/lib/formatters";
+import { CampoQuantita } from "./CampoQuantita";
 import {
   calcolaPrezzoFamiglia,
   useFamilyGrid,
@@ -263,11 +264,12 @@ export function FamilyConfigurator({
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
-        <Button variant="ghost" size="sm" onClick={onBack}>
+        <Button variant="ghost" size="sm" onClick={onBack} className="max-sm:-ml-2 max-sm:h-8">
           <ArrowLeft className="mr-1 h-4 w-4" /> Prodotti
         </Button>
-        <span className="text-sm text-muted-foreground">›</span>
-        <span className="text-sm font-medium">{family.nome}</span>
+        {/* Telefono: il nome è già il titolo del foglio. */}
+        <span className="text-sm text-muted-foreground max-sm:hidden">›</span>
+        <span className="text-sm font-medium max-sm:hidden">{family.nome}</span>
       </div>
 
       {needsMisureXY(family) && (
@@ -302,7 +304,8 @@ export function FamilyConfigurator({
       )}
 
       {family.axes.length > 0 && (
-        <div className="grid gap-3 md:grid-cols-2">
+        // Telefono: varianti a due per riga, sono tendine corte.
+        <div className="grid gap-3 md:grid-cols-2 max-sm:grid-cols-2">
           {family.axes.map((axis) => {
             const values = axis.values.filter((v) => v.attivo);
             return (
@@ -336,18 +339,7 @@ export function FamilyConfigurator({
         </div>
       )}
 
-      <div>
-        <Label htmlFor="quantita">Quantità</Label>
-        <Input
-          id="quantita"
-          type="number"
-          inputMode="numeric"
-          value={quantita}
-          onChange={(e) => setQuantita(e.target.value)}
-          min={1}
-          className="max-w-[140px]"
-        />
-      </div>
+      <CampoQuantita value={quantita} onChange={setQuantita} />
 
       {item.ha_posa_automatica && item.posa_linked && (
         <div className="flex items-start gap-2 rounded-md border bg-muted/40 p-3">
@@ -360,7 +352,7 @@ export function FamilyConfigurator({
             <Label htmlFor="includi-posa" className="cursor-pointer">
               Includi manodopera nel preventivo
             </Label>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground max-sm:hidden">
               {manodoperaManuale
                 ? `Costo cliente: ${formatCurrency(posaUnit)}/${posaUm}. `
                 : tariffaPosa
@@ -374,14 +366,15 @@ export function FamilyConfigurator({
       )}
 
       <Card>
-        <CardContent className="space-y-2 pt-4">
+        <CardContent className="space-y-2 pt-4 max-sm:space-y-1.5 max-sm:p-3">
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Prezzo unitario</span>
             <span className="font-medium">
               {formatCurrency(pricing.unit_price_vendita)}
             </span>
           </div>
-          <div className="flex justify-between text-sm">
+          {/* Telefono: prezzo unitario e totale bastano. */}
+          <div className="flex justify-between text-sm max-sm:hidden">
             <span className="text-muted-foreground">Quantità × prezzo</span>
             <span className="font-medium">
               {formatCurrency(pricing.totale_vendita)}
@@ -401,10 +394,11 @@ export function FamilyConfigurator({
       </Card>
 
       <div className="flex justify-end gap-2">
-        <Button variant="outline" onClick={onBack}>
+        {/* Telefono no: «← Prodotti» in alto e la X fanno già da Annulla. */}
+        <Button variant="outline" onClick={onBack} className="max-sm:hidden">
           Annulla
         </Button>
-        <Button variant="brand" disabled={!canConfirm} onClick={handleConfirm}>
+        <Button variant="brand" disabled={!canConfirm} onClick={handleConfirm} className="max-sm:w-full">
           <Check className="mr-1 h-4 w-4" />
           {confirmLabel}
         </Button>

@@ -63,16 +63,17 @@ export function QuotePaymentTermsCard({
 
   return (
     <Card className="border-orange-100">
-      <CardHeader className="pb-3">
+      <CardHeader className="pb-3 max-sm:p-3 max-sm:pb-2">
         <CardTitle className="flex items-center gap-2 text-base">
           <Wallet className="h-4 w-4 text-orange-600" />
           Modalità e fasi di pagamento
         </CardTitle>
-        <p className="text-xs text-muted-foreground">
+        {/* Telefono no: spiegazioni sotto il titolo e in fondo alla carta. */}
+        <p className="text-xs text-muted-foreground max-sm:hidden">
           Compilate nel preventivo, firmate dal cliente e riportate automaticamente nella commessa.
         </p>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4 max-sm:space-y-3 max-sm:p-3 max-sm:pt-0">
         {/* Modalità */}
         <div className="space-y-1.5">
           <Label htmlFor="payment-method">Modalità di pagamento</Label>
@@ -183,7 +184,7 @@ export function QuotePaymentTermsCard({
 
         {/* La regola a monte: la commessa parte coi soldi del cliente, non
             coi tuoi. E le stesse fasi valgono verso il sub (back-to-back). */}
-        <p className="text-[11px] text-muted-foreground">
+        <p className="text-[11px] text-muted-foreground max-sm:hidden">
           Regola dell'acconto: copre l'acconto al fornitore più il primo mese di manodopera —
           la commessa parte coi soldi del cliente. Verso i sub: stesse fasi, pagate a SAL incassato.
         </p>
@@ -191,7 +192,7 @@ export function QuotePaymentTermsCard({
         {/* Le sei clausole del manuale (pag. 75): da scrivere nel contratto,
             non da chiedere al telefono. Chiuse di default: chi prepara il
             contratto le apre e le copia. */}
-        <details className="group rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2">
+        <details className="group rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2 max-sm:hidden">
           <summary className="cursor-pointer select-none text-xs font-medium text-slate-700 marker:content-none">
             Le sei clausole che valgono più di uno sconto — da scrivere nel contratto
           </summary>

@@ -5,9 +5,9 @@
 import { User, Package, FileCheck } from "lucide-react";
 
 export const STEPS = [
-  { key: "cliente", label: "Cliente e progetto", icon: User },
-  { key: "prodotti", label: "Prodotti e lavori", icon: Package },
-  { key: "riepilogo", label: "Anteprima e conferma", icon: FileCheck },
+  { key: "cliente", label: "Cliente e progetto", labelBreve: "Cliente", icon: User },
+  { key: "prodotti", label: "Prodotti e lavori", labelBreve: "Prodotti", icon: Package },
+  { key: "riepilogo", label: "Anteprima e conferma", labelBreve: "Conferma", icon: FileCheck },
 ] as const;
 
 export type QuoteStepKey = (typeof STEPS)[number]["key"];

@@ -417,25 +417,26 @@ export default function AIQuotePanel({
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
       <CollapsibleTrigger asChild>
-        <button className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-violet-50 to-blue-50 border border-violet-200 rounded-lg hover:bg-violet-50 transition-colors">
+        <button className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-violet-50 to-blue-50 border border-violet-200 rounded-lg hover:bg-violet-50 transition-colors tap-compact max-sm:px-3 max-sm:py-2.5">
           <div className="flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-violet-600" />
-            <span className="font-medium text-sm">Genera con AI</span>
-            <Badge variant="secondary" className="text-xs">BETA</Badge>
+            {/* Telefono: dice cosa fa (scrivi, detta o fotografa i lavori), senza «BETA». */}
+            <span className="font-medium text-sm"><span className="max-sm:hidden">Genera con AI</span><span className="sm:hidden">Genera le righe con l'AI</span></span>
+            <Badge variant="secondary" className="text-xs max-sm:hidden">BETA</Badge>
           </div>
           {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
         </button>
       </CollapsibleTrigger>
 
       <CollapsibleContent>
-        <div className="border border-violet-200 border-t-0 rounded-b-lg p-4 space-y-4">
+        <div className="border border-violet-200 border-t-0 rounded-b-lg p-4 space-y-4 max-sm:p-3 max-sm:space-y-3">
 
           {(stato === "idle" || stato === "errore") && (
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "testo" | "voce" | "foto")}>
               <TabsList className="w-full">
-                <TabsTrigger value="testo" className="flex-1"><ChevronRight className="h-3.5 w-3.5 mr-1.5" />Testo</TabsTrigger>
-                <TabsTrigger value="voce" className="flex-1"><Mic className="h-3.5 w-3.5 mr-1.5" />Voce</TabsTrigger>
-                <TabsTrigger value="foto" className="flex-1"><Camera className="h-3.5 w-3.5 mr-1.5" />Foto</TabsTrigger>
+                <TabsTrigger value="testo" className="flex-1 tap-compact"><ChevronRight className="h-3.5 w-3.5 mr-1.5" />Testo</TabsTrigger>
+                <TabsTrigger value="voce" className="flex-1 tap-compact"><Mic className="h-3.5 w-3.5 mr-1.5" />Voce</TabsTrigger>
+                <TabsTrigger value="foto" className="flex-1 tap-compact"><Camera className="h-3.5 w-3.5 mr-1.5" />Foto</TabsTrigger>
               </TabsList>
 
               <TabsContent value="testo" className="space-y-3 mt-3">
@@ -446,7 +447,8 @@ export default function AIQuotePanel({
                   rows={4}
                 />
 
-                <details>
+                {/* Telefono no: le misure si scrivono nel testo («100×140cm»). */}
+                <details className="max-sm:hidden">
                   <summary className="cursor-pointer text-sm text-muted-foreground">
                     + Aggiungi misure (opzionale)
                   </summary>
@@ -520,7 +522,7 @@ export default function AIQuotePanel({
               </TabsContent>
 
               <TabsContent value="voce" className="mt-3">
-                <div className="flex flex-col items-center gap-4 py-6">
+                <div className="flex flex-col items-center gap-4 py-6 max-sm:py-3">
                   {isRecording ? (
                     <div className="text-center">
                       <div className="relative">
@@ -571,7 +573,8 @@ export default function AIQuotePanel({
               </TabsContent>
 
               <TabsContent value="foto" className="space-y-3 mt-3">
-                <div className="rounded-md bg-violet-50 border border-violet-200 p-3 text-xs text-violet-900">
+                {/* Telefono no: la spiegazione, l'area della foto dice già cosa fare. */}
+                <div className="rounded-md bg-violet-50 border border-violet-200 p-3 text-xs text-violet-900 max-sm:hidden">
                   <p className="font-medium mb-1">Come funziona</p>
                   <p>
                     Scatta o carica fino a 5 foto: schizzo, preventivo cartaceo, foto del

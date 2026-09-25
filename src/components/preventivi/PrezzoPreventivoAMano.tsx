@@ -34,8 +34,9 @@ interface Props {
 export function PrezzoPreventivoAMano({ id, companyId, value, sommaVoci, onCommit, showDisabledHint = false }: Props) {
   const { data: attivo = false, isLoading, isError } = usePrezzoFinaleAMano(companyId);
   const scritto = Number(value ?? 0) > 0;
+  // Telefono no: un riquadro che spiega una funzione spenta e manda alle impostazioni.
   if (!attivo && !scritto) return showDisabledHint ? (
-    <div className="rounded-lg border border-dashed p-3 text-sm">
+    <div className="rounded-lg border border-dashed p-3 text-sm max-sm:hidden">
       <p className="font-medium">Prezzo manuale dell'offerta</p>
       <p className="mt-1 text-xs text-muted-foreground">
         {isLoading ? "Verifica delle impostazioni aziendali…" : isError
@@ -67,12 +68,15 @@ export function PrezzoPreventivoAMano({ id, companyId, value, sommaVoci, onCommi
         }}
         className="mt-1 h-8 bg-white text-sm tabular-nums"
       />
-      <p className="mt-1 text-xs leading-snug text-orange-900/80">
-        Applica con Invio o uscendo dal campo. {" "}
+      {/* Telefono: resta solo «Torna alla somma delle righe», la spiegazione è da scrivania. */}
+      <p className={`mt-1 text-xs leading-snug text-orange-900/80 ${scritto ? "" : "max-sm:hidden"}`}>
+        <span className="max-sm:hidden">Applica con Invio o uscendo dal campo. {" "}</span>
         {scritto ? (
           <>
+            <span className="max-sm:hidden">
             Prende il posto della somma delle righe{sommaVoci > 0 ? ` (${formatCurrency(sommaVoci)})` : ""}.
             Sconto e IVA si calcolano su questo prezzo.{" "}
+            </span>
             <button type="button" className="underline hover:no-underline" onClick={() => onCommit(null)}>
               Torna alla somma delle righe
             </button>
