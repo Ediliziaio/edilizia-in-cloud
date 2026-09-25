@@ -48,7 +48,7 @@ function Workspace({ companyId, moduleId, base }: { companyId: string; moduleId:
   return <section className="space-y-4">
     <div className="flex flex-wrap justify-between gap-2"><Button variant="outline" onClick={() => navigate(false)}>← Moduli Fotovoltaico</Button><Button variant="ghost" onClick={() => navigate(true)}>Apri la bozza precedente</Button></div>
     <div><p className="text-xs font-semibold uppercase tracking-wider text-orange-700">Area Fotovoltaico</p><h2 className="text-2xl font-semibold">{fvModuleTitle(moduleId)}</h2><p className="text-sm text-muted-foreground">Le pagine del modello originale, con contenuti dedicati a questo intervento.</p></div>
-    <p className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-xs text-sky-950"><strong>Modello dell'azienda.</strong> Testi, immagini e impostazioni si salvano online e li vedono tutti i colleghi. La bozza precedente e il template aziendale restano invariati. Il collegamento al preventivatore è ancora in lavorazione.</p>
+    <p className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-xs text-sky-950"><strong>Modello dell'azienda.</strong> Testi, immagini e impostazioni si salvano online e li vedono tutti i colleghi. Quando crei un preventivo con questo intervento, il PDF usa questo modello. La bozza precedente e il template aziendale restano invariati.</p>
     <div data-fv-module-editor><FotovoltaicoTemplateEditor embedded localModule={{ id: moduleId, template: initial.template, saved: !!initial.record, onDirtyChange,
       save: template => { revision.current = saveLocalFvTemplate(companyId, moduleId, template, revision.current).savedAt; },
     }} /></div>

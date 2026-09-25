@@ -852,7 +852,7 @@ export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localM
         localModule.save({ ...localModule.template, ...form });
         setLocalSaved(true);
         setDirty(false);
-        toast.success("Modello salvato", { description: "Salvato per l'azienda. Il template aziendale non è stato modificato." });
+        toast.success("Modello salvato", { description: "Salvato per l'azienda: lo usano i nuovi preventivi con questo intervento. Il template aziendale non è stato modificato." });
       } catch (error) { toast.error("Salvataggio non riuscito", { description: String(error) }); }
       return;
     }

@@ -85,23 +85,18 @@ export function ModelliAreaTab() {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-3 rounded-lg border bg-muted/30 p-4 sm:flex-row sm:items-center">
-        <p className="flex-1 text-sm text-muted-foreground">
-          Un modello è un&apos;area intera — tipologie, prodotti con foto e schede, varianti — presa dal listino di
-          un&apos;azienda. Chi lo installa se ne trova una <span className="font-medium text-foreground">copia sua</span>,
-          da modificare: il modello resta com&apos;è.
-        </p>
-        <Button onClick={() => setNuovo(true)} className="h-10 shrink-0">
-          <Plus className="mr-2 h-4 w-4" aria-hidden="true" /> Nuovo modello
-        </Button>
-      </div>
-
+    <div className="space-y-3">
+      {/* Cosa sono i modelli lo dice la testata della pagina: qui solo ricerca e azione. */}
       {modelli.length > 0 && (
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <div className="relative sm:w-72">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input className="pl-8" placeholder="Cerca un modello…" value={cerca} onChange={(e) => setCerca(e.target.value)} />
+        <>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="relative sm:w-72">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input className="pl-8" placeholder="Cerca un modello…" aria-label="Cerca un modello" value={cerca} onChange={(e) => setCerca(e.target.value)} />
+            </div>
+            <Button onClick={() => setNuovo(true)} className="sm:ml-auto">
+              <Plus className="mr-2 h-4 w-4" aria-hidden="true" /> Nuovo modello
+            </Button>
           </div>
           {aree.length > 1 && (
             <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filtra per area">
@@ -115,7 +110,7 @@ export function ModelliAreaTab() {
               ))}
             </div>
           )}
-        </div>
+        </>
       )}
 
       {isLoading && (

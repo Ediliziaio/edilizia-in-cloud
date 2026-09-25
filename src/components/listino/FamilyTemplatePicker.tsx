@@ -32,26 +32,11 @@ import {
   useImportArticleFamilyTemplate,
   type ArticleFamilyTemplate,
 } from "@/hooks/useArticleFamilyTemplates";
+import { etichettaModalita } from "@/lib/listino/prodottiLibreria";
+import { VERTICALI_GALLERIA } from "@/lib/verticalMapping";
 
-const VERTICALI = [
-  { value: "all",          label: "Tutti i verticali" },
-  { value: "pavimenti",    label: "Pavimenti & Rivestimenti" },
-  { value: "porte",        label: "Porte" },
-  { value: "serramenti",   label: "Serramenti" },
-  { value: "bagno",        label: "Bagno & Sanitari" },
-  { value: "elettrico",    label: "Elettrico" },
-  { value: "fotovoltaico", label: "Fotovoltaico" },
-  { value: "tetti",        label: "Tetti" },
-  { value: "cappotto",     label: "Cappotto termico" },
-  { value: "pompe_calore", label: "Pompe di calore" },
-];
-
-const MODALITA_LABEL: Record<string, string> = {
-  pz: "A pezzo",
-  mq: "Al mq",
-  griglia: "Griglia L×H",
-  misura_libera: "Misura libera",
-};
+// Gli stessi elenchi che usa il super admin in Libreria listino → Prodotti singoli.
+const VERTICALI = [{ value: "all", label: "Tutti i verticali" }, ...VERTICALI_GALLERIA];
 
 interface Props {
   open: boolean;
@@ -254,7 +239,7 @@ export function FamilyTemplatePicker({
                         <p className="text-[11px] font-semibold line-clamp-2 leading-tight">{t.nome}</p>
                         <div className="flex items-center gap-1 mt-1">
                           <Badge variant="outline" className="text-[9px] h-4 px-1">
-                            {MODALITA_LABEL[t.modalita_prezzo_base] ?? t.modalita_prezzo_base}
+                            {etichettaModalita(t.modalita_prezzo_base)}
                           </Badge>
                           {t.materiale && (
                             <span className="text-[9px] text-muted-foreground">{prettyLabel(t.materiale)}</span>
@@ -300,7 +285,7 @@ export function FamilyTemplatePicker({
                   {selected.categoria_slug && <Row label="Categoria" value={prettyLabel(selected.categoria_slug)} />}
                   {selected.tipologia && <Row label="Tipologia" value={prettyLabel(selected.tipologia)} />}
                   {selected.materiale && <Row label="Materiale" value={prettyLabel(selected.materiale)} />}
-                  <Row label="Modalità prezzo" value={MODALITA_LABEL[selected.modalita_prezzo_base] ?? selected.modalita_prezzo_base} />
+                  <Row label="Modalità prezzo" value={etichettaModalita(selected.modalita_prezzo_base)} />
                   {selected.vat_rate != null && <Row label="IVA" value={`${selected.vat_rate}%`} />}
                   {selected.unit_of_measure && <Row label="UM" value={selected.unit_of_measure} />}
                 </div>

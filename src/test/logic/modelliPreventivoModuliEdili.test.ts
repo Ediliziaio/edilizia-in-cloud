@@ -26,6 +26,9 @@ import { FULL_IDR_MODULES, createFullIdrTemplate } from "@/lib/moduli-vendita/fu
 import { FULL_PAV_MODULES, createFullPavTemplate } from "@/lib/moduli-vendita/fullPavModules";
 import { FULL_PSC_MODULES, createFullPscTemplate } from "@/lib/moduli-vendita/fullPscModules";
 import { FULL_RST_MODULES, createFullRstTemplate } from "@/lib/moduli-vendita/fullRstModules";
+import { FULL_FV_MODULES, createFullFvTemplate } from "@/lib/moduli-vendita/fullFvModules";
+import type { FvTemplate } from "@/components/fotovoltaico/FotovoltaicoTemplateEditor";
+import { MODELLI_FOTOVOLTAICO, modelloFotovoltaico } from "../../../supabase/functions/_shared/modelloFotovoltaico";
 import type { BgnTemplatePdf } from "@/types/bagni";
 import type { ClmTemplatePdf } from "@/types/climatizzazione";
 import type { EleTemplatePdf } from "@/types/elettrico";
@@ -156,5 +159,53 @@ describe("la colonna del modello nel database", () => {
     expect(sql).toContain("if new.modello_snapshot is distinct from old.modello_snapshot then");
     expect(sql).toContain("before update of modello_snapshot");
     expect(sql).toContain("revoke all on function public.preventivo_modello_immutabile() from public, anon, authenticated");
+  });
+});
+
+describe("Fotovoltaico: il modello nasce col progetto, dal server", () => {
+  const baseFv = { company_id: AZIENDA } as unknown as FvTemplate;
+
+  it("gli interventi della libreria sono tutti modelli completi", () => {
+    expect([...interventiDelModulo("fotovoltaico").map((i) => i.id)].sort()).toEqual([...FULL_FV_MODULES].sort());
+    expect([...MODELLI_FOTOVOLTAICO].sort()).toEqual([...FULL_FV_MODULES].sort());
+  });
+
+  it.each(FULL_FV_MODULES)("%s: il modello dell'app lo accetta anche il server", (id) => {
+    const snapshot = creaModelloPreventivo("fotovoltaico", AZIENDA, id, createFullFvTemplate(baseFv, AZIENDA, id));
+    expect(leggiModelloPreventivo("fotovoltaico", snapshot, AZIENDA)).toBe(snapshot);
+    expect(modelloFotovoltaico(JSON.parse(JSON.stringify(snapshot)), AZIENDA)).toMatchObject({ modelId: id, companyId: AZIENDA });
+    expect(modelloFotovoltaico(snapshot, ALTRA)).toBe(false);
+    expect(modelloFotovoltaico({ ...snapshot, modelId: "vasca-doccia" }, AZIENDA)).toBe(false);
+    expect(modelloFotovoltaico(null, AZIENDA)).toBeNull();
+  });
+
+  it("il preventivatore manda il modello alla creazione e non riprende una bozza generica", () => {
+    const wizard = leggi("src/pages/azienda/fotovoltaico/FotovoltaicoWizard.tsx");
+    expect(wizard).toContain('creaModelloPreventivo("fotovoltaico", effectiveCompanyId, modelloRichiesto.id, source)');
+    expect(wizard).toContain("const modello_snapshot = await modelloDaCongelare();");
+    expect(wizard).toMatch(/"fv-onboarding-cliente",[\s\S]*?modello_snapshot,\n/);
+    expect(wizard).toContain("!id && !progettoId && !requestedModel && ultimaBozza");
+    expect(wizard).toContain("await sincronizzaModelliAzienda(effectiveCompanyId)");
+  });
+
+  it("il server salva il modello col progetto, lo controlla e non lo scrive nel registro", () => {
+    const creazione = leggi("supabase/functions/fv-onboarding-cliente/index.ts");
+    expect(creazione).toContain("const modello = modelloFotovoltaico(modelloRichiesto, company_id);");
+    expect(creazione).toContain("...(modello ? { modello_snapshot: modello } : {}),");
+    expect(creazione).not.toMatch(/logFunction\([^)]*, payload, /);
+    const pdf = leggi("supabase/functions/fv-genera-pdf/index.ts");
+    expect(pdf).toContain("iva_aliquota, modello_snapshot\"");
+    expect(pdf).toContain("modelloDelPreventivo?.template ?? templateRes.data ?? {}");
+    expect(pdf).toContain("if (modelloDelPreventivo === false)");
+  });
+
+  it("la colonna c'è, con gli stessi interventi, e non si sostituisce", () => {
+    const cartella = resolve(process.cwd(), "supabase/migrations");
+    const file = readdirSync(cartella).find((f) => f.endsWith("_modelli_preventivo_fotovoltaico.sql"));
+    expect(file).toBeDefined();
+    const sql = readFileSync(resolve(cartella, file!), "utf8");
+    const nelDb = [...sql.match(/'modelId' in \(([^)]+)\)/)![1].matchAll(/'([^']+)'/g)].map((m) => m[1]).sort();
+    expect(nelDb).toEqual([...FULL_FV_MODULES].sort());
+    expect(sql).toContain("execute function public.preventivo_modello_immutabile()");
   });
 });

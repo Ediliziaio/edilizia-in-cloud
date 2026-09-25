@@ -1,7 +1,8 @@
 /**
  * Il modello della libreria dentro il preventivo, per i preventivatori edili
  * (25/09/2026): Bagni, Climatizzazione, Elettrico, Termoidraulico, Pavimenti,
- * Piscine, Ristrutturazione.
+ * Piscine, Ristrutturazione. Anche il Fotovoltaico usa queste funzioni per il
+ * modello, ma crea il progetto dal server (fv-onboarding-cliente).
  *
  * Quando un preventivo nasce da un intervento della libreria (Bagni «Da vasca a
  * doccia», Elettrico «Quadro elettrico»…), il modello dell'azienda per quell'intervento
@@ -22,8 +23,13 @@ export type ModuloConModelli = typeof MODULI_CON_MODELLI[number];
 export const eModuloConModelli = (slug: string): slug is ModuloConModelli =>
   (MODULI_CON_MODELLI as readonly string[]).includes(slug);
 
+/** Tutti i preventivatori che congelano il modello con queste funzioni. */
+export type ModuloConModelloPreventivo = ModuloConModelli | "fotovoltaico";
+export const eModuloConModelloPreventivo = (slug: string): slug is ModuloConModelloPreventivo =>
+  slug === "fotovoltaico" || eModuloConModelli(slug);
+
 /** La tabella dei preventivi di ogni preventivatore. */
-export const TABELLA_PREVENTIVI: Record<ModuloConModelli, string> = {
+export const TABELLA_PREVENTIVI: Record<ModuloConModelloPreventivo, string> = {
   bagni: "bgn_progetti",
   climatizzazione: "clm_progetti",
   elettrico: "ele_progetti",
@@ -31,11 +37,12 @@ export const TABELLA_PREVENTIVI: Record<ModuloConModelli, string> = {
   pavimenti: "pav_progetti",
   piscine: "pis_progetti",
   ristrutturazione: "rst_progetti",
+  fotovoltaico: "fv_progetti",
 };
 
-const NOME: Record<ModuloConModelli, string> = {
+const NOME: Record<ModuloConModelloPreventivo, string> = {
   bagni: "Bagni", climatizzazione: "Climatizzazione", elettrico: "Elettrico", termoidraulico: "Termoidraulico",
-  pavimenti: "Pavimenti", piscine: "Piscine", ristrutturazione: "Ristrutturazione",
+  pavimenti: "Pavimenti", piscine: "Piscine", ristrutturazione: "Ristrutturazione", fotovoltaico: "Fotovoltaico",
 };
 
 /**
@@ -76,12 +83,12 @@ export const TIPO_INTERVENTO_DEL_MODELLO: Record<ModuloConModelli, Readonly<Reco
 };
 
 /** Gli interventi della libreria per un preventivatore (Impostazioni → Moduli vendita). */
-export function interventiDelModulo(modulo: ModuloConModelli): readonly SalesIntervention[] {
+export function interventiDelModulo(modulo: ModuloConModelloPreventivo): readonly SalesIntervention[] {
   return SALES_AREAS.find((area) => area.sourceModule === modulo)?.interventions ?? [];
 }
 
 /** L'intervento richiesto (?modello=…) o salvato nel preventivo; undefined se non esiste. */
-export function interventoDelModulo(modulo: ModuloConModelli, id: string | null | undefined): SalesIntervention | undefined {
+export function interventoDelModulo(modulo: ModuloConModelloPreventivo, id: string | null | undefined): SalesIntervention | undefined {
   return id ? interventiDelModulo(modulo).find((intervento) => intervento.id === id) : undefined;
 }
 
@@ -97,7 +104,7 @@ type TemplateConBlocchi = { company_id?: string | null; pdf_blocchi?: Record<str
 
 /** Il modello salvato nel preventivo, controllato. Null per i preventivi senza modello. */
 export function leggiModelloPreventivo<T extends object>(
-  modulo: ModuloConModelli, value: unknown, companyId: string,
+  modulo: ModuloConModelloPreventivo, value: unknown, companyId: string,
 ): ModelloPreventivo<T> | null {
   if (value == null) return null;
   const s = value as ModelloPreventivo<T>;
@@ -115,7 +122,7 @@ export function leggiModelloPreventivo<T extends object>(
  * all'editor (i testi di serie per «ripristina», l'archivio delle foto).
  */
 export function creaModelloPreventivo<T extends object>(
-  modulo: ModuloConModelli, companyId: string, modelId: string, source: T,
+  modulo: ModuloConModelloPreventivo, companyId: string, modelId: string, source: T,
 ): ModelloPreventivo<T> {
   const template = structuredClone(source) as T & TemplateConBlocchi;
   const blocchi = { ...(template.pdf_blocchi ?? {}) };
@@ -133,7 +140,7 @@ export function creaModelloPreventivo<T extends object>(
  * dell'editor o il modello aziendale, come prima.
  */
 export async function templateDelPreventivo<T extends object>(
-  modulo: ModuloConModelli,
+  modulo: ModuloConModelloPreventivo,
   progetto: { company_id: string; modello_snapshot?: unknown },
   bozza: T | null | undefined,
   carica: (companyId: string) => Promise<T>,
