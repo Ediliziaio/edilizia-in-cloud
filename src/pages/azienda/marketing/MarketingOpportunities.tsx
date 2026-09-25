@@ -775,8 +775,9 @@ function MarketingOpportunitiesContent() {
               filtri, non solo quelle caricate nelle colonne. */}
           <Badge className="h-6 shrink-0 gap-1 bg-orange-100 px-2 text-xs tabular-nums text-orange-700 hover:bg-orange-100">
             {riepilogo ? formatCount(totaleFiltrate) : <Loader2 className="h-3 w-3 animate-spin" />}
-            {/* Tablet: solo il numero, così la testata sta su una riga. */}
-            <span className="hidden lg:inline">opportunità</span>
+            {/* Tablet e fino a 1280: solo il numero, così la testata sta su una
+                riga (a 1024 con le etichette andava a capo). */}
+            <span className="hidden xl:inline">opportunità</span>
             {aggiornoRiepilogo && riepilogo && <Loader2 className="h-3 w-3 animate-spin opacity-60" aria-label="Aggiorno i conteggi" />}
           </Badge>
         </div>
@@ -810,13 +811,14 @@ function MarketingOpportunitiesContent() {
             </TooltipTrigger>
             <TooltipContent>{layout === "mini" ? "Vista estesa" : "Vista compatta"}</TooltipContent>
           </Tooltip>
-          <Button variant="outline" size="sm" className="hidden md:inline-flex h-8 text-xs max-lg:w-8 max-lg:px-0" onClick={() => setImportOpen(true)} disabled={stages.length === 0 || !canEditOpportunities} aria-label="Importa">
-            <Upload className="mr-1.5 h-3.5 w-3.5 max-lg:mr-0" /> <span className="max-lg:hidden">Importa</span>
+          <Button variant="outline" size="sm" className="hidden md:inline-flex h-8 text-xs max-xl:w-8 max-xl:px-0" onClick={() => setImportOpen(true)} disabled={stages.length === 0 || !canEditOpportunities} aria-label="Importa">
+            <Upload className="mr-1.5 h-3.5 w-3.5 max-xl:mr-0" /> <span className="max-xl:hidden">Importa</span>
           </Button>
           {/* Telefono e tablet: «+» quadrato, la testata sta su una riga. */}
           <Button size="sm" className="tap-compact h-8 w-8 shrink-0 p-0 lg:w-auto lg:px-3 bg-gradient-to-r from-orange-500 to-amber-500 text-xs text-white shadow-sm shadow-orange-200 hover:from-orange-600 hover:to-amber-600" onClick={() => setDialogOpen(true)} disabled={stages.length === 0 || !canEditOpportunities} aria-label="Aggiungi opportunità">
             <Plus className="h-4 w-4 lg:mr-1.5 lg:h-3.5 lg:w-3.5" />
-            <span className="hidden lg:inline">Aggiungi opportunità</span>
+            <span className="hidden lg:inline xl:hidden">Aggiungi</span>
+            <span className="hidden xl:inline">Aggiungi opportunità</span>
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
