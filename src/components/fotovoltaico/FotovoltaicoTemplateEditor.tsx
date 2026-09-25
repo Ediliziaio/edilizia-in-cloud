@@ -852,7 +852,7 @@ export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localM
         localModule.save({ ...localModule.template, ...form });
         setLocalSaved(true);
         setDirty(false);
-        toast.success("Modulo salvato in locale", { description: "Il modello aziendale online non è stato modificato." });
+        toast.success("Modello salvato", { description: "Salvato per l'azienda. Il template aziendale non è stato modificato." });
       } catch (error) { toast.error("Salvataggio non riuscito", { description: String(error) }); }
       return;
     }
@@ -1668,7 +1668,7 @@ export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localM
             size="sm"
           >
             {upsertMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            {localModule ? "Salva in locale" : "Salva"}
+            Salva
           </Button>
         </div>
       </div>
@@ -2295,7 +2295,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
         description="Attiva le pagine PDF storytelling direttamente dal listino prodotti, come nei serramenti."
         icon={<FileText className="h-4 w-4" />}
       >
-        {localModule ? <p className="rounded-lg border p-4 text-sm">Le schede prodotto provengono dal listino. In questa copia locale non vengono modificati i dati condivisi.</p> : <MacroPagineDedicateManager vertical="fotovoltaico" />}
+        {localModule ? <p className="rounded-lg border p-4 text-sm">Le schede prodotto provengono dal listino. In questo modello non vengono modificati i dati condivisi.</p> : <MacroPagineDedicateManager vertical="fotovoltaico" />}
       </FvSettingsCard>
         </>
       )}
@@ -2720,7 +2720,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
 
           <TemplateEditorSaveBar>
             <span role="status" className={dirty ? "text-xs text-amber-600" : "text-xs text-muted-foreground"}>
-              {dirty ? "Modifiche non salvate" : localSaved ? "Tutto salvato" : "Copia locale da salvare"}
+              {dirty ? "Modifiche non salvate" : localSaved ? "Tutto salvato" : "Modello da salvare"}
             </span>
             <div className="flex flex-wrap items-center justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => setPreviewOpen(true)} className="gap-1.5" aria-label="Apri anteprima PDF">
@@ -2733,7 +2733,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                 className="bg-orange-500 hover:bg-orange-600 gap-1.5"
               >
                 {upsertMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                {localModule ? "Salva modulo in locale" : "Salva impostazioni"}
+                {localModule ? "Salva modello" : "Salva impostazioni"}
               </Button>
             </div>
           </TemplateEditorSaveBar>

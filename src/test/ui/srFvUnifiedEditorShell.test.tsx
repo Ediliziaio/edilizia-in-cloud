@@ -53,7 +53,7 @@ function mount(fixture: typeof fixtures[number], saved = false, save = vi.fn()) 
   const view = render(<MemoryRouter initialEntries={["/?section=page_controlli"]}>{editor}</MemoryRouter>);
   const content = view.container.querySelector(`[data-template-editor-content="${fixture.sector}"]`)! as HTMLElement;
   const bar = content.querySelector("[data-template-save-bar]")! as HTMLElement;
-  const saveButton = within(bar).getByRole("button", { name: fixture.sector === "serramenti" ? "Salva copia locale" : "Salva modulo in locale" });
+  const saveButton = within(bar).getByRole("button", { name: "Salva modello" });
   return { ...view, content, bar, saveButton, save, before, onDirtyChange };
 }
 
@@ -75,7 +75,7 @@ describe("Shell condivisa Sr/FV: tutti i 12 editor incorporati", () => {
     expect(content.nextElementSibling?.firstElementChild?.className).toBe(templateEditorLayout.previewPanel);
     expect(bar.className).toBe(templateEditorLayout.saveBar);
     expect(content.lastElementChild).toBe(bar);
-    expect(within(bar).getByRole("status")).toHaveTextContent("Copia locale da salvare");
+    expect(within(bar).getByRole("status")).toHaveTextContent("Modello da salvare");
     expect(onDirtyChange).toHaveBeenLastCalledWith(false);
     fireEvent.click(saveButton);
     expect(save).toHaveBeenCalledOnce();
@@ -127,7 +127,7 @@ describe("Shell condivisa Sr/FV: tutti i 12 editor incorporati", () => {
       fireEvent.click(saveButton);
       expect(calls.error).toHaveBeenCalled();
       expect(saveButton).toBeEnabled();
-      expect(within(bar).getByRole("status")).toHaveTextContent("Copia locale da salvare");
+      expect(within(bar).getByRole("status")).toHaveTextContent("Modello da salvare");
       expect(calls.remote).not.toHaveBeenCalled();
     });
     it(`${fixture.sector}: copia già salvata resta pulita all'apertura`, () => {

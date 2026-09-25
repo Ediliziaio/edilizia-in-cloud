@@ -68,7 +68,7 @@ export function FacciateTemplateEditor({ moduleId, template, saved, save, onDirt
   const update = <K extends keyof FullFacTemplate>(key: K, value: FullFacTemplate[K]) => patch({ [key]: value } as Pick<FullFacTemplate, K>);
   const sectionGroups = [
     { title: "AZIENDA", items: [{ id: "brand", voce: "Azienda e stile", emoji: "🏢", descrizione: "Identità aziendale, logo, colori e caratteri", pagina: null }] },
-    { title: "PAGINE DEL PDF", items: PAGINE_EDITOR_EDILI.map(item => item.id === "page_testimonianze" ? { ...item, descrizione: "Testimonianze autentiche inserite dall'azienda, solo in locale" } : item) },
+    { title: "PAGINE DEL PDF", items: PAGINE_EDITOR_EDILI.map(item => item.id === "page_testimonianze" ? { ...item, descrizione: "Testimonianze autentiche inserite dall'azienda" } : item) },
     { title: "DATI & CONTENUTI", items: [
       { id: "progetto", voce: "Esigenze e soluzione", emoji: "📝", descrizione: "Il punto di partenza e la risposta proposta", pagina: "progetto" },
       { id: "fixture", voce: "Prezzi di esempio", emoji: "🧮", descrizione: "Dati dimostrativi per verificare l'impaginazione", pagina: null },
@@ -96,7 +96,7 @@ export function FacciateTemplateEditor({ moduleId, template, saved, save, onDirt
     saveInFlight.current = true;
     setSaving(true); setError(""); const token = generation.current;
     const snapshot = structuredClone(form);
-    try { await save(snapshot); if (token === generation.current) { setBaseline(JSON.stringify(snapshot)); setPersisted(true); setStatus("Modulo salvato in locale."); } }
+    try { await save(snapshot); if (token === generation.current) { setBaseline(JSON.stringify(snapshot)); setPersisted(true); setStatus("Modello salvato."); } }
     catch (e) { if (token === generation.current) setError(e instanceof Error ? e.message : String(e)); }
     finally { saveInFlight.current = false; if (token === generation.current) setSaving(false); }
   };
@@ -134,7 +134,7 @@ export function FacciateTemplateEditor({ moduleId, template, saved, save, onDirt
       <div className="flex items-start gap-3"><div className="rounded-xl bg-orange-500 p-2.5 text-white"><Wand2 className="h-5 w-5" aria-hidden="true" /></div><div><h3 className="text-sm font-semibold">Testi pronti per questo intervento</h3><p className="mt-1 text-xs text-muted-foreground">Scegli una variante per {FAC_MODULE_TITLES[moduleId]}. Le foto e gli altri contenuti restano invariati.</p></div></div>
       <InterventionTextPicker title={FAC_MODULE_TITLES[moduleId]} choices={facCopyChoices(moduleId, defaults)} onApply={values => { if (!disabled && !saveInFlight.current) patch(values); }} />
     </fieldset>
-    {photoRefresh.added > 0 && <div className="rounded border border-sky-200 bg-sky-50 p-3 text-sm"><p>Questa copia iniziale ha {photoRefresh.added} pagine senza foto di serie. Puoi aggiungere le immagini illustrative Facciate mantenendo testi e foto personalizzate.</p><Button variant="outline" disabled={disabled || saving} onClick={() => update("pdf_blocchi", photoRefresh.blocks)}>Completa le foto Facciate</Button><p className="text-xs">Controlla l'anteprima e salva in locale per conservare l'aggiornamento.</p></div>}
+    {photoRefresh.added > 0 && <div className="rounded border border-sky-200 bg-sky-50 p-3 text-sm"><p>Questa copia iniziale ha {photoRefresh.added} pagine senza foto di serie. Puoi aggiungere le immagini illustrative Facciate mantenendo testi e foto personalizzate.</p><Button variant="outline" disabled={disabled || saving} onClick={() => update("pdf_blocchi", photoRefresh.blocks)}>Completa le foto Facciate</Button><p className="text-xs">Controlla l'anteprima e salva il modello per conservare l'aggiornamento.</p></div>}
     <TemplateEditorWorkspace>
       <TemplateEditorNavigation>
         <nav aria-label="Pagine del PDF Facciate" className={templateEditorLayout.navigationPanel}>
@@ -204,8 +204,8 @@ export function FacciateTemplateEditor({ moduleId, template, saved, save, onDirt
           contenuti={{ domande: faq, garanzie: list("garanzie"), lavori: <div className="space-y-3">{(form.gallery_lavori || []).map((item, index) => <div key={item.id} className="space-y-2 rounded border p-3"><FacciateLocalImageField label={`Lavoro ${index + 1}`} value={item.url} onChange={url => update("gallery_lavori", url ? (form.gallery_lavori || []).map((g, i) => i === index ? { ...g, url } : g) : (form.gallery_lavori || []).filter((_, i) => i !== index))} /><Input aria-label={`Didascalia lavoro ${index + 1}`} value={item.didascalia || ""} onChange={e => update("gallery_lavori", (form.gallery_lavori || []).map((g, i) => i === index ? { ...g, didascalia: e.target.value } : g))} /></div>)}<FacciateLocalImageField label="Nuovo lavoro aziendale" value={null} onChange={url => { if (url) update("gallery_lavori", [...(form.gallery_lavori || []), { id: crypto.randomUUID(), url, didascalia: "", luogo: null }]); }} /></div> }} />}
       </fieldset>
       <TemplateEditorSaveBar>
-        <div className="min-w-0 flex-1"><p role="status" aria-live="polite" className={`text-xs ${dirty ? "text-amber-700" : "text-muted-foreground"}`}>{saving ? "Salvataggio locale in corso…" : status || (dirty ? "Modifiche non salvate" : persisted ? "Copia locale salvata" : "Nuovo modulo non ancora salvato")}</p>{error && <p role="alert" className="mt-1 break-words text-xs text-destructive">Salvataggio non riuscito: {error}. Le modifiche restano da salvare.</p>}</div>
-        <div className="flex items-center gap-2"><Button type="button" variant="outline" data-show-template-preview><Eye className="mr-2 h-4 w-4" aria-hidden="true" />Anteprima PDF</Button><Button type="button" className="bg-orange-500 text-white hover:bg-orange-600" onClick={submit} disabled={(!dirty && persisted) || saving || disabled}>{saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" /> : <Save className="mr-2 h-4 w-4" aria-hidden="true" />}{saving ? "Salvataggio…" : "Salva modulo in locale"}</Button></div>
+        <div className="min-w-0 flex-1"><p role="status" aria-live="polite" className={`text-xs ${dirty ? "text-amber-700" : "text-muted-foreground"}`}>{saving ? "Salvataggio in corso…" : status || (dirty ? "Modifiche non salvate" : persisted ? "Modello salvato" : "Nuovo modulo non ancora salvato")}</p>{error && <p role="alert" className="mt-1 break-words text-xs text-destructive">Salvataggio non riuscito: {error}. Le modifiche restano da salvare.</p>}</div>
+        <div className="flex items-center gap-2"><Button type="button" variant="outline" data-show-template-preview><Eye className="mr-2 h-4 w-4" aria-hidden="true" />Anteprima PDF</Button><Button type="button" className="bg-orange-500 text-white hover:bg-orange-600" onClick={submit} disabled={(!dirty && persisted) || saving || disabled}>{saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" /> : <Save className="mr-2 h-4 w-4" aria-hidden="true" />}{saving ? "Salvataggio…" : "Salva modello"}</Button></div>
       </TemplateEditorSaveBar>
       </div>
       <aside data-template-preview className={`${templateEditorLayout.preview} ${templateEditorLayout.previewPanel}`} ref={previewRef} tabIndex={-1} aria-label="Anteprima PDF Facciate"><PdfBlobLivePreviewPanel activeSection={section} depsKey={`${moduleId}:${serialized}`} enabled={!disabled} renderBlobUrl={async () => {

@@ -3,7 +3,15 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { SerramentiModuleTemplatesPanel } from "@/components/serramenti/SerramentiModuleTemplatesPanel";
 import { loadLocalSerramentiTemplate } from "@/lib/moduli-vendita/localSerramentiTemplates";
-const state = vi.hoisted(() => ({ canEdit: true, company: "company-a", remote: vi.fn(), preview: vi.fn(), error: vi.fn(), brand: {} }));
+const state = vi.hoisted(() => ({ canEdit: true, company: "company-a", remote: vi.fn(), preview: vi.fn(), error: vi.fn(), brand: {}, archivio: vi.fn() }));
+// Dal 25/09 i modelli si salvano per l'azienda (archivioModelli.ts): qui l'archivio
+// scrive solo nel browser e registra il salvataggio, senza database.
+vi.mock("@/lib/moduli-vendita/archivioModelli", () => ({
+  archivioModelliAzienda: {
+    getItem: (chiave: string) => localStorage.getItem(chiave),
+    setItem: (chiave: string, valore: string) => { state.archivio(chiave); localStorage.setItem(chiave, valore); },
+  },
+}));
 vi.mock("@/hooks/useEffectiveCompanyId", () => ({ useEffectiveCompanyId: () => state.company }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canEditSettingsPricing: state.canEdit }) }));
 vi.mock("@/hooks/useCompanyAnagraficaForTemplate", () => ({ useCompanyAnagraficaForTemplate: () : null => null, inheritedPlaceholder: () => "" }));
@@ -26,8 +34,9 @@ describe("libreria ed editor locali Serramenti", () => {
   it("salva e riapre una personalizzazione senza mutazioni online", () => {
     mount("zanzariere");
     fireEvent.change(screen.getByLabelText("Titolo copertina"), { target: { value: "La mia zanzariera" } });
-    fireEvent.click(screen.getByRole("button", { name: "Salva modulo in locale" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     expect(loadLocalSerramentiTemplate("company-a", "zanzariere")?.template.pdf_cover_hero).toBe("La mia zanzariera");
+    expect(state.archivio).toHaveBeenCalledWith(expect.stringMatching(/:serramenti:zanzariere$/));
     fireEvent.click(screen.getByRole("button", { name: "Tutti i moduli Serramenti" }));
     fireEvent.click(screen.getByRole("button", { name: "Configura Zanzariere" }));
     expect(screen.getByLabelText("Titolo copertina")).toHaveValue("La mia zanzariera");
@@ -45,14 +54,14 @@ describe("libreria ed editor locali Serramenti", () => {
   });
   it("richiede un titolo e mantiene aperta la bozza", () => {
     mount("zanzariere"); fireEvent.change(screen.getByLabelText("Titolo copertina"), { target: { value: "" } });
-    fireEvent.click(screen.getByRole("button", { name: "Salva modulo in locale" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     expect(state.error).toHaveBeenCalledWith("Inserisci un titolo di copertina.");
     expect(screen.getByLabelText("Titolo copertina")).toHaveValue("");
-    expect(screen.getByRole("button", { name: "Salva modulo in locale" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Salva modello" })).toBeEnabled();
     expect(loadLocalSerramentiTemplate("company-a", "zanzariere")).toBeNull();
   });
   it("non apre editor per utenti privi dei permessi", () => {
     state.canEdit = false; mount("zanzariere");
-    expect(screen.queryByRole("button", { name: "Salva modulo in locale" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Salva modello" })).toBeNull();
   });
 });

@@ -122,7 +122,7 @@ describe("libreria moduli nelle impostazioni", () => {
     expect(loadLocalTettiTemplate("company-a", "ripasso")).not.toBeNull();
     expect(state.remoteSave).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Tutti i moduli Tetti" }));
-    expect(screen.getByText("Salvato in locale")).toBeInTheDocument();
+    expect(screen.getByText("Salvato")).toBeInTheDocument();
   });
   it("protegge il ritorno all'elenco con modifiche non salvate", () => {
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);

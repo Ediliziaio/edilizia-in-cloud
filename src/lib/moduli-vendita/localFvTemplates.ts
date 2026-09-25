@@ -1,5 +1,6 @@
 import type { FullFvTemplate, FullFvModuleId } from "./fullFvModules";
 import { FULL_FV_MODULES } from "./fullFvModules";
+import { archivioModelliAzienda } from "./archivioModelli";
 
 export interface LocalFvTemplate {
   version: 1; companyId: string; moduleId: FullFvModuleId; savedAt: string; template: FullFvTemplate;
@@ -21,7 +22,7 @@ function assertRecord(value: unknown, companyId: string, moduleId: FullFvModuleI
     throw new Error("Copia locale non leggibile. I dati non sono stati sovrascritti.");
   }
 }
-export function loadLocalFvTemplate(companyId: string, moduleId: FullFvModuleId, storage: StoragePort = localStorage): LocalFvTemplate | null {
+export function loadLocalFvTemplate(companyId: string, moduleId: FullFvModuleId, storage: StoragePort = archivioModelliAzienda): LocalFvTemplate | null {
   const raw = storage.getItem(localFvTemplateKey(companyId, moduleId));
   if (raw === null) return null;
   let record: unknown;
@@ -29,7 +30,7 @@ export function loadLocalFvTemplate(companyId: string, moduleId: FullFvModuleId,
   assertRecord(record, companyId, moduleId);
   return record;
 }
-export function saveLocalFvTemplate(companyId: string, moduleId: FullFvModuleId, template: FullFvTemplate, expectedSavedAt: string | null, storage: StoragePort = localStorage) {
+export function saveLocalFvTemplate(companyId: string, moduleId: FullFvModuleId, template: FullFvTemplate, expectedSavedAt: string | null, storage: StoragePort = archivioModelliAzienda) {
   const previous = loadLocalFvTemplate(companyId, moduleId, storage);
   if ((previous?.savedAt ?? null) !== expectedSavedAt) throw new Error("Il modulo è stato modificato in un'altra scheda. Riaprilo prima di salvare.");
   const record: LocalFvTemplate = { version: 1, companyId, moduleId,

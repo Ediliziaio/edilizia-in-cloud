@@ -1,5 +1,6 @@
 import type { PisTemplatePdf } from "@/types/piscine";
 import { isFullPscModuleId, type FullPscModuleId } from "./fullPscModules";
+import { archivioModelliAzienda } from "./archivioModelli";
 
 export interface LocalPscTemplate {
   version: 1;
@@ -32,7 +33,7 @@ function assertRecord(value: unknown, companyId: string, moduleId: FullPscModule
   }
 }
 
-export function loadLocalPscTemplate(companyId: string, moduleId: FullPscModuleId, storage: StoragePort = localStorage): LocalPscTemplate | null {
+export function loadLocalPscTemplate(companyId: string, moduleId: FullPscModuleId, storage: StoragePort = archivioModelliAzienda): LocalPscTemplate | null {
   const raw = storage.getItem(localPscTemplateKey(companyId, moduleId));
   if (raw === null) return null;
   let record: unknown;
@@ -42,7 +43,7 @@ export function loadLocalPscTemplate(companyId: string, moduleId: FullPscModuleI
 }
 
 /** Optimistic revision check prevents a second tab silently overwriting changes. */
-export function saveLocalPscTemplate(companyId: string, moduleId: FullPscModuleId, template: PisTemplatePdf, expectedSavedAt: string | null, storage: StoragePort = localStorage): LocalPscTemplate {
+export function saveLocalPscTemplate(companyId: string, moduleId: FullPscModuleId, template: PisTemplatePdf, expectedSavedAt: string | null, storage: StoragePort = archivioModelliAzienda): LocalPscTemplate {
   if (template.company_id !== companyId) throw new Error("Il modello appartiene a un'altra azienda. Riapri il modulo.");
   if (template.pdf_blocchi?.modulo_intervento !== moduleId) throw new Error("Il modello appartiene a un altro intervento. Riapri il modulo.");
   const existing = loadLocalPscTemplate(companyId, moduleId, storage);

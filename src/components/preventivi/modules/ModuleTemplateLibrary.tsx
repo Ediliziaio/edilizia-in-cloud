@@ -1,5 +1,6 @@
-import { lazy, Suspense, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
+import { toast } from "sonner";
 import {
   ArrowLeft,
   ArrowRight,
@@ -28,6 +29,7 @@ import {
   DOCUMENT_MODULE_COUNT,
 } from "@/lib/moduli-vendita/moduleDocuments";
 import { loadModuleDocument } from "@/lib/moduli-vendita/localModuleDocuments";
+import { MODELLO_NON_ONLINE, modelliDaMandareOnline, sincronizzaModelliAzienda } from "@/lib/moduli-vendita/archivioModelli";
 import { loadLocalSerramentiTemplate } from "@/lib/moduli-vendita/localSerramentiTemplates";
 import { findSerramentiTemplateModule } from "@/lib/moduli-vendita/serramentiTemplateModules";
 import { loadLocalTettiTemplate } from "@/lib/moduli-vendita/localTettiTemplates";
@@ -92,17 +94,17 @@ function savedStatus(company: string | null, area: string, module: string) {
       area === "pavimenti" && isFullPavModuleId(module) ? loadLocalPavTemplate(company, module) :
       area === "piscine" && isFullPscModuleId(module) ? loadLocalPscTemplate(company, module) :
       area === "facciate" && isFullFacModuleId(module) ? loadLocalFacTemplate(company, module) : undefined;
-    if (nativeSaved !== undefined) return nativeSaved ? "Salvato in locale" : loadModuleDocument(company, area, module) ? "Nuova edizione disponibile · bozza precedente conservata" : "Da personalizzare";
-    if (area === "termoidraulica" && isFullIdrModuleId(module)) return loadLocalIdrTemplate(company, module) ? "Salvato in locale" : "Da personalizzare";
+    if (nativeSaved !== undefined) return nativeSaved ? "Salvato" : loadModuleDocument(company, area, module) ? "Nuova edizione disponibile · bozza precedente conservata" : "Da personalizzare";
+    if (area === "termoidraulica" && isFullIdrModuleId(module)) return loadLocalIdrTemplate(company, module) ? "Salvato" : "Da personalizzare";
     if (area === "bagni" && isFullBgnModuleId(module)) {
-      if (loadLocalBgnTemplate(company, module)) return "Salvato in locale";
+      if (loadLocalBgnTemplate(company, module)) return "Salvato";
       return loadModuleDocument(company, area, module) ? "Edizione completa disponibile · bozza precedente conservata" : "Da personalizzare";
     }
     if (area === "ristrutturazioni" && isFullRstModuleId(module)) {
-      if (loadLocalRstTemplate(company, module)) return "Salvato in locale";
+      if (loadLocalRstTemplate(company, module)) return "Salvato";
       return loadModuleDocument(company, area, module) ? "Edizione completa disponibile · bozza precedente conservata" : "Da personalizzare";
     }
-    if (area === "fotovoltaico" && isFullFvModuleId(module)) return loadLocalFvTemplate(company, module) ? "Salvato in locale" : "Da personalizzare";
+    if (area === "fotovoltaico" && isFullFvModuleId(module)) return loadLocalFvTemplate(company, module) ? "Salvato" : "Da personalizzare";
     const sr = area === "serramenti" && findSerramentiTemplateModule(module);
     const tet = area === "tetti" && findTettiTemplateModule(module);
     const saved = sr
@@ -114,10 +116,49 @@ function savedStatus(company: string | null, area: string, module: string) {
       const edition = "template" in saved ? saved.template.pdf_blocchi?.modulo_edizione : undefined;
       if (edition !== 2) return "Edizione completa disponibile · aggiorna la copia";
     }
-    return saved ? "Salvato in locale" : "Da personalizzare";
+    return saved ? "Salvato" : "Da personalizzare";
   } catch {
-    return "Copia locale da verificare";
+    return "Modello da verificare";
   }
+}
+
+/**
+ * Allinea i modelli dell'azienda (database ↔ browser) all'apertura della libreria
+ * e a ogni «Riprova». Stato proprio, senza React Query: la libreria si monta
+ * anche fuori dall'app (anteprime, test).
+ */
+function useSincroniaModelli(companyId: string | null | undefined) {
+  const [giro, setGiro] = useState(0);
+  const [concluso, setConcluso] = useState<{ chiave: string; errore: boolean } | null>(null);
+  const chiave = companyId ? `${companyId}:${giro}` : null;
+  useEffect(() => {
+    if (!companyId) return undefined;
+    let attivo = true;
+    const questo = `${companyId}:${giro}`;
+    sincronizzaModelliAzienda(companyId).then(
+      () => { if (attivo) setConcluso({ chiave: questo, errore: false }); },
+      (e: unknown) => {
+        console.warn("[modelli libreria] sincronizzazione non riuscita:", e instanceof Error ? e.message : e);
+        if (attivo) setConcluso({ chiave: questo, errore: true });
+      },
+    );
+    return () => { attivo = false; };
+  }, [companyId, giro]);
+  // Un salvataggio dall'editor che non arriva online: lo si dice subito, e
+  // l'avviso «da mandare online» della libreria si aggiorna.
+  const [, setMancatiOnline] = useState(0);
+  useEffect(() => {
+    const avvisa = () => {
+      setMancatiOnline((n) => n + 1);
+      toast.error("Modello salvato solo in questo browser", {
+        description: "Non riesco a mandarlo online: i colleghi non lo vedono ancora. Dalla libreria dei modelli puoi riprovare.",
+      });
+    };
+    window.addEventListener(MODELLO_NON_ONLINE, avvisa);
+    return () => window.removeEventListener(MODELLO_NON_ONLINE, avvisa);
+  }, []);
+  const inCorso = !!chiave && concluso?.chiave !== chiave;
+  return { inCorso, errore: !inCorso && !!concluso?.errore, riprova: () => setGiro((g) => g + 1) };
 }
 
 export default function ModuleTemplateLibrary({
@@ -132,6 +173,10 @@ export default function ModuleTemplateLibrary({
   const { canEditSettingsPricing: canEdit } = usePermissions();
   const { isModuloVisibile, setModuloVisibile, isSaving, isLoading } =
     useModuliVisibilita();
+  // I modelli sono dell'azienda (modelli_libreria_azienda): all'apertura le copie
+  // online più recenti tornano nel browser e quelle rimaste qui vanno online.
+  const sincronia = useSincroniaModelli(companyId);
+  const daMandareOnline = companyId && !sincronia.inCorso ? modelliDaMandareOnline(companyId) : [];
   const area = findSalesArea(params.get("modulo"));
   const selected = params.get("modello");
   const module = area?.interventions.find((m) => m.id === selected);
@@ -171,6 +216,7 @@ export default function ModuleTemplateLibrary({
         </div>
       );
     if (!companyId) return <p role="status">Caricamento azienda…</p>;
+    if (sincronia.inCorso) return <p role="status">Caricamento dei modelli dell'azienda…</p>;
     return (
       <Suspense fallback={<p role="status">Caricamento editor e anteprima…</p>}>
         {area.id === "serramenti" ? (
@@ -246,7 +292,7 @@ export default function ModuleTemplateLibrary({
           <div>
             <p className="text-xs text-muted-foreground">{a.title}</p>
             <p
-              className={`text-xs ${status === "Salvato in locale" ? "text-emerald-700" : "text-muted-foreground"}`}
+              className={`text-xs ${status === "Salvato" ? "text-emerald-700" : "text-muted-foreground"}`}
             >
               {status}
             </p>
@@ -315,11 +361,29 @@ export default function ModuleTemplateLibrary({
       <div className="flex items-start gap-2 rounded-xl border border-sky-100 bg-sky-50/60 px-4 py-3 text-xs leading-relaxed text-sky-950">
         <Monitor className="mt-0.5 h-4 w-4 shrink-0" />
         <p>
-          <strong>Modelli locali.</strong> Le personalizzazioni restano in
-          questo browser, separate per azienda. Non sono ancora collegate alla
-          creazione dei preventivi. I template online restano invariati.
+          <strong>Modelli dell&apos;azienda.</strong> Le personalizzazioni si
+          salvano online e le vedono tutti i colleghi. Tetti e Serramenti
+          (finestre, persiane, intervento combinato) li usano già quando si crea
+          un preventivo; per le altre aree il preventivatore usa ancora il
+          template aziendale, che resta invariato.
         </p>
       </div>
+      {sincronia.errore && (
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-950">
+          <span>Non riesco a leggere i modelli salvati online: stai vedendo le copie di questo browser.</span>
+          <Button variant="outline" size="sm" className="h-8 bg-white" onClick={sincronia.riprova}>Riprova</Button>
+        </div>
+      )}
+      {daMandareOnline.length > 0 && (
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-950">
+          <span>
+            {daMandareOnline.length === 1
+              ? "Un modello è salvato solo in questo browser: non è ancora online e i colleghi non lo vedono."
+              : `${daMandareOnline.length} modelli sono salvati solo in questo browser: non sono ancora online e i colleghi non li vedono.`}
+          </span>
+          <Button variant="outline" size="sm" className="h-8 bg-white" onClick={sincronia.riprova}>Riprova</Button>
+        </div>
+      )}
       {selected && !module && (
         <p role="alert" className="text-sm text-amber-800">
           Modello non disponibile. Scegli uno degli interventi dell'area.

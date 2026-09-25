@@ -32,12 +32,12 @@ describe("editor completo Persiane: isolamento locale", () => {
     expect(toggle).not.toBeChecked();
     expect(save).not.toHaveBeenCalled();
     fireEvent.click(toggle);
-    fireEvent.click(screen.getByRole("button", { name: "Salva modulo in locale" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva" }));
     expect(save.mock.calls[0][0].confronto_attivo).toBe(true);
     expect(save.mock.calls[0][0].pdf_pages_order.find((page: { id: string }) => page.id === "confronto").visible).toBe(true);
     expect(save.mock.calls[0][0].confronto_righe).toEqual(seed().confronto_righe);
     fireEvent.click(toggle);
-    fireEvent.click(screen.getByRole("button", { name: "Salva modulo in locale" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva" }));
     expect(save.mock.calls[1][0].confronto_attivo).toBe(false);
     expect(save.mock.calls[1][0].pdf_pages_order.find((page: { id: string }) => page.id === "confronto").visible).toBe(false);
     expect(calls.remote).not.toHaveBeenCalled();
@@ -52,26 +52,26 @@ describe("editor completo Persiane: isolamento locale", () => {
     const save = mount(vi.fn(), "contenuti");
     fireEvent.change(screen.getByLabelText("Esclusioni del modulo"), { target: { value: "Ripristini non compresi nella fornitura." } });
     expect(save).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Salva modulo in locale" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva" }));
     expect(save.mock.calls[0][0].pdf_blocchi.modulo_esclusioni).toBe("Ripristini non compresi nella fornitura.");
     expect(calls.remote).not.toHaveBeenCalled();
   });
   it("salva la copia locale senza modificare template o libreria online", () => {
     const save = mount();
-    fireEvent.click(screen.getByRole("button", { name: "Salva modulo in locale" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva" }));
     expect(save).toHaveBeenCalledOnce();
     expect(save.mock.calls[0][0].pdf_blocchi.modulo_edizione).toBe(2);
     expect(calls.remote).not.toHaveBeenCalled();
-    expect(screen.getByRole("button", { name: "Salva modulo in locale" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Salva" })).toBeDisabled();
     expect(calls.preview).toHaveBeenLastCalledWith(expect.objectContaining({ moduleId: "persiane" }));
     expect(screen.queryByText("AI online generator")).toBeNull();
     expect(screen.queryByText("Area-wide presets")).toBeNull();
   });
   it("conserva la bozza modificata se lo spazio locale è esaurito", () => {
     mount(vi.fn(() => { throw new Error("Spazio locale esaurito"); }));
-    fireEvent.click(screen.getByRole("button", { name: "Salva modulo in locale" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva" }));
     expect(calls.error).toHaveBeenCalledWith("Spazio locale esaurito");
-    expect(screen.getByRole("button", { name: "Salva modulo in locale" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Salva" })).toBeEnabled();
     expect(calls.remote).not.toHaveBeenCalled();
   });
   it("presenta i blocchi di controllo realmente modificabili", () => {
@@ -82,7 +82,7 @@ describe("editor completo Persiane: isolamento locale", () => {
   it("non salva nella società sbagliata", () => {
     calls.company = "company-b";
     const save = mount();
-    fireEvent.click(screen.getByRole("button", { name: "Salva modulo in locale" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva" }));
     expect(save).not.toHaveBeenCalled();
     expect(calls.error).toHaveBeenCalledWith(expect.stringContaining("azienda è cambiata"));
   });
@@ -91,5 +91,5 @@ it("un modello appena aperto non segnala modifiche mai fatte", () => {
   mount(vi.fn());
   expect(screen.getByText("Modello pronto · non ancora salvato")).toBeInTheDocument();
   expect(screen.queryByText(/Modifiche non salvate/)).not.toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Salva modulo in locale" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Salva" })).toBeEnabled();
 });

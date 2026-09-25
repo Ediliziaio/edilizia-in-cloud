@@ -32,7 +32,7 @@ export function TemplateImageFieldView({ label, hint, value, busy, disabled = fa
       {value && <Button type="button" size="sm" variant="ghost" aria-label={`Rimuovi ${label.toLowerCase()}`} disabled={blocked} onClick={onRemove}><Trash2 className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />Rimuovi</Button>}
     </div>
     {help && <p className="text-xs text-muted-foreground">{help}</p>}
-    <p className="text-xs text-muted-foreground">PNG, JPG o WebP · massimo {max} MB.{localOnly && " Salvata solo in questo browser."}</p>
+    <p className="text-xs text-muted-foreground">PNG, JPG o WebP · massimo {max} MB.</p>
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
     {value && failedImage === value && <p role="alert" className="text-sm text-destructive">Immagine non disponibile. Sostituiscila o scegli un’altra foto dalla libreria.</p>}
   </div>;

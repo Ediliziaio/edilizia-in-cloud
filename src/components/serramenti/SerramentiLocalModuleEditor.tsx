@@ -43,7 +43,7 @@ export function SerramentiLocalModuleEditor({ moduleId, initial, saved, onSave, 
   const save = () => {
     if (!form.pdf_cover_hero?.trim()) { setError("Inserisci un titolo di copertina."); return; }
     if (form.condizioni_legali_attivo && !form.condizioni_legali_testo?.trim()) { setError("Scrivi le condizioni oppure disattiva la relativa pagina."); return; }
-    try { onSave(form); setDirty(false); setError(""); toast.success("Modulo salvato solo in questo browser"); }
+    try { onSave(form); setDirty(false); setError(""); toast.success("Modello salvato"); }
     catch (err) { setError(err instanceof Error ? err.message : "Salvataggio non riuscito."); }
   };
   const upload = async (file: File | undefined, key: "pdf_cover_image_url" | "logo_url") => {
@@ -54,7 +54,7 @@ export function SerramentiLocalModuleEditor({ moduleId, initial, saved, onSave, 
     finally { setUploading(false); }
   };
   return <div data-serramenti-local-editor className="space-y-4">
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-background p-3"><p role="status" className="text-sm">{dirty ? "Modifiche da salvare" : "Salvato in locale"}</p><Button disabled={uploading || !dirty} onClick={save}>Salva modulo in locale</Button></div>
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-background p-3"><p role="status" className="text-sm">{dirty ? "Modifiche da salvare" : "Salvato"}</p><Button disabled={uploading || !dirty} onClick={save}>Salva modello</Button></div>
     {error && <p role="alert" className="rounded-lg border border-red-200 p-3 text-sm text-red-700">{error}</p>}
     <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(390px,0.85fr)]">
       <div className="min-w-0 space-y-4"><nav aria-label="Sezioni del modulo" className="flex flex-wrap gap-2">{sections.map(([id, label]) => <Button key={id} size="sm" variant={id === section ? "default" : "outline"} aria-current={id === section ? "page" : undefined} onClick={() => { const next = new URLSearchParams(params); next.set("section", id); setParams(next, { replace: true }); }}>{label}</Button>)}</nav>
@@ -63,7 +63,7 @@ export function SerramentiLocalModuleEditor({ moduleId, initial, saved, onSave, 
             <fieldset className="space-y-2"><legend className="text-sm font-medium">Spunti per il sottotitolo</legend>{[module.subtitle, `Una proposta chiara per ${module.title.toLowerCase()}: prodotti, dettagli e lavorazioni.`, "Dalle tue esigenze alla soluzione: scelte definite insieme, costi descritti per iscritto."].map(value => <button key={value} type="button" className="block w-full rounded-lg border p-3 text-left text-sm hover:bg-muted" onClick={() => update("pdf_cover_subhero", value)}>{value}</button>)}</fieldset>
             <div className="grid gap-3 sm:grid-cols-2"><label className="text-sm">Colore copertina<Input type="color" value={form.pdf_cover_bg_color ?? module.color} onChange={e => update("pdf_cover_bg_color", e.target.value)} /></label><label className="text-sm">Colore delle pagine<Input type="color" value={form.colore_primario ?? module.color} onChange={e => update("colore_primario", e.target.value)} /></label></div>
             <label className="block space-y-2 text-sm"><span>Foto di copertina · PNG, JPG o WebP, massimo 1 MB</span><Input type="file" accept="image/png,image/jpeg,image/webp" disabled={uploading} onChange={e => { void upload(e.target.files?.[0], "pdf_cover_image_url"); e.target.value = ""; }} /></label>
-            {form.pdf_cover_image_url && <Button variant="outline" size="sm" onClick={() => update("pdf_cover_image_url", null)}>Rimuovi foto</Button>}<p className="text-xs text-muted-foreground">Senza foto, il PDF usa una copertina tipografica. Le immagini restano in questo browser.</p>
+            {form.pdf_cover_image_url && <Button variant="outline" size="sm" onClick={() => update("pdf_cover_image_url", null)}>Rimuovi foto</Button>}<p className="text-xs text-muted-foreground">Senza foto, il PDF usa una copertina tipografica.</p>
           </>}
           {section === "contenuti" && <>{paired("esigenze_default", "Esigenze", 3)}{paired("soluzione_default", "Soluzione", 4)}{list("perche_noi_default", "Punti di valore", 4)}</>}
           {section === "inclusioni" && <><p className="text-sm text-muted-foreground">Testi di partenza: nel preventivo finale devono corrispondere alle voci effettivamente quotate.</p>{list("incluso_default", "Lavorazioni incluse", 6)}</>}

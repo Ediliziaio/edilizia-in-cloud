@@ -501,7 +501,7 @@ function PavimentiEditorForm({ embedded = false, localModule, connected }: Props
         setLocalBaseline(JSON.stringify(form));
         setLocalSaved(true);
         setDirty(false);
-        toast.success("Modulo salvato in locale");
+        toast.success("Modello salvato");
         return;
       }
       // Upsert standard (campi tipizzati): crea/aggiorna la riga e la rimette in cache.
@@ -1260,7 +1260,7 @@ if (field === "dynamicSubtitle") { set("pdf_cover_subhero_template", (value ?? "
           {/* Barra salvataggio sticky */}
           <TemplateEditorSaveBar>
             <span className={cn("text-[11px]", dirty ? "text-amber-600" : "text-muted-foreground")}>
-              {dirty ? "Modifiche non salvate" : needsInitialSave ? "Modello originale · non ancora salvato in locale" : "Tutto salvato"}
+              {dirty ? "Modifiche non salvate" : needsInitialSave ? "Modello originale · non ancora salvato" : "Tutto salvato"}
             </span>
             <div className="flex items-center gap-2">
               <Button
@@ -1279,7 +1279,7 @@ if (field === "dynamicSubtitle") { set("pdf_cover_subhero_template", (value ?? "
                 className="gap-1.5 bg-orange-500 hover:bg-orange-600"
               >
                 {upsert.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                {localModule ? "Salva modulo in locale" : "Salva template"}
+                {localModule ? "Salva modello" : "Salva template"}
               </Button>
             </div>
           </TemplateEditorSaveBar>
@@ -1464,7 +1464,7 @@ function ImageUploadField({ label, hint, value, companyId, onChange, aspect = "a
     }
     setUploading(true);
     try {
-      if (localOnly) { onChange(await readLocalTemplateImage(file)); toast.success("Immagine aggiunta in locale"); return; }
+      if (localOnly) { onChange(await readLocalTemplateImage(file)); toast.success("Immagine aggiunta"); return; }
       const ext = file.name.includes(".") ? file.name.split(".").pop()!.toLowerCase() : "bin";
       // folder[1] DEVE essere company_id (policy storage company-scoped).
       const path = `${companyId}/pavimenti/template/${crypto.randomUUID()}.${ext}`;

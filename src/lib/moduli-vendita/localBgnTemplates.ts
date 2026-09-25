@@ -1,5 +1,6 @@
 import type { BgnTemplatePdf } from "@/types/bagni";
 import { isFullBgnModuleId, type FullBgnModuleId } from "./fullBgnModules";
+import { archivioModelliAzienda } from "./archivioModelli";
 
 export interface LocalBgnTemplate {
   version: 1;
@@ -31,7 +32,7 @@ function assertRecord(value: unknown, companyId: string, moduleId: FullBgnModule
   }
 }
 
-export function loadLocalBgnTemplate(companyId: string, moduleId: FullBgnModuleId, storage: StoragePort = localStorage): LocalBgnTemplate | null {
+export function loadLocalBgnTemplate(companyId: string, moduleId: FullBgnModuleId, storage: StoragePort = archivioModelliAzienda): LocalBgnTemplate | null {
   const raw = storage.getItem(localBgnTemplateKey(companyId, moduleId));
   if (raw === null) return null;
   let record: unknown;
@@ -41,7 +42,7 @@ export function loadLocalBgnTemplate(companyId: string, moduleId: FullBgnModuleI
 }
 
 /** Optimistic revision check prevents a second tab silently overwriting changes. */
-export function saveLocalBgnTemplate(companyId: string, moduleId: FullBgnModuleId, template: BgnTemplatePdf, expectedSavedAt: string | null, storage: StoragePort = localStorage): LocalBgnTemplate {
+export function saveLocalBgnTemplate(companyId: string, moduleId: FullBgnModuleId, template: BgnTemplatePdf, expectedSavedAt: string | null, storage: StoragePort = archivioModelliAzienda): LocalBgnTemplate {
   if (template.company_id !== companyId) throw new Error("Il modello appartiene a un'altra azienda. Riapri il modulo.");
   const existing = loadLocalBgnTemplate(companyId, moduleId, storage);
   if ((existing?.savedAt ?? null) !== expectedSavedAt) throw new Error("Questo modulo è stato modificato in un'altra scheda. Riaprilo prima di salvare.");
