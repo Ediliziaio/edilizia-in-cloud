@@ -210,11 +210,13 @@ export default function ComeStiamoAndando({ comeSezione = false }: { comeSezione
       )}
 
       {caricando ? (
-        <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
           {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-24" />)}
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-2 md:gap-3 lg:grid-cols-4">
+        // Quattro per riga da 1280px: a 1024 le schede erano di 170px e le
+        // cifre a 26px uscivano dal riquadro («319.058,0…»).
+        <div className="grid grid-cols-2 gap-2 md:gap-3 xl:grid-cols-4">
           <Numero
             icona={Banknote}
             etichetta="Incassato questo mese"

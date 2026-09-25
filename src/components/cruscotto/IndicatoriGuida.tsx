@@ -188,7 +188,9 @@ function CardIndicatore({ def, indicatore }: { def: DefIndicatore; indicatore: I
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <Icona className={cn("h-4 w-4 shrink-0", ui.icona)} />
-          <p className="text-[11px] font-medium uppercase leading-3.5 tracking-wide text-muted-foreground line-clamp-2 sm:truncate sm:text-xs">
+          {/* Due righe anche da tablet: a quattro per riga «Giorni di copertura»
+              diventava «GIORNI DI COPE…». */}
+          <p className="text-[11px] font-medium uppercase leading-3.5 tracking-wide text-muted-foreground line-clamp-2 sm:text-xs">
             {def.titolo}
           </p>
         </div>
@@ -287,20 +289,16 @@ export function IndicatoriGuida() {
               </div>
             )}
           </div>
-          <p className="hidden text-xs text-muted-foreground sm:block">
-            Solo dati reali: dove il numero è spento, la card dice cosa inserire e dove.
-            Tocca una card per aprire l'area che la spiega.
-          </p>
         </CardHeader>
         <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
           {dati.isLoading ? (
-            <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
+            <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3 xl:grid-cols-4">
               {Array.from({ length: 8 }).map((_, i) => (
                 <Skeleton key={i} className="h-32 rounded-xl" />
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
+            <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3 xl:grid-cols-4">
               {DEFINIZIONI.map((def) => (
                 <CardIndicatore key={def.chiave} def={def} indicatore={dati[def.chiave]} />
               ))}

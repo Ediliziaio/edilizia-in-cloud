@@ -109,7 +109,7 @@ export function AlertPanel({ marketingAlerts, operations, finance, todayData, bi
   if (!alerts.length) return (
     <div className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-xl px-5 py-3 flex items-center gap-2">
       <CheckCircle2 className="w-4 h-4 text-green-600" />
-      <span className="text-sm font-medium text-green-700 dark:text-green-400">0 Alert attivi — Tutto sotto controllo</span>
+      <span className="text-sm font-medium text-green-700 dark:text-green-400">Nessun avviso — tutto sotto controllo</span>
     </div>
   );
 
@@ -120,7 +120,8 @@ export function AlertPanel({ marketingAlerts, operations, finance, todayData, bi
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
           <AlertTriangle className="w-3.5 h-3.5" />
-          {alerts.length} Alert{alerts.length > 1 ? "s" : ""}
+          {/* In italiano: era «2 Alerts». */}
+          {alerts.length} {alerts.length > 1 ? "avvisi" : "avviso"}
         </span>
         {alerts.length > 3 && (
           <Button variant="ghost" size="sm" className="text-xs h-7 gap-1" onClick={() => setShowAll(!showAll)}>

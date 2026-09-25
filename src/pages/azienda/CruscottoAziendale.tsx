@@ -263,12 +263,18 @@ export default function CruscottoAziendale() {
 
   return (
     <div className="space-y-3 sm:space-y-4">
-      <DashboardSelectorBar title="Cruscotto Aziendale" />
+      {/* Su telefono la barra col nome e il selettore delle dashboard. Da
+          tablet il selettore sta accanto al titolo della testata: la barra
+          sopra ripeteva «Cruscotto Aziendale» una riga prima del titolo. */}
+      <div className="sm:hidden">
+        <DashboardSelectorBar title="Cruscotto Aziendale" />
+      </div>
 
       <DashboardPageHeader
         title="Cruscotto Aziendale"
-        subtitle={`Centro di comando operativo, economico e commerciale — ${todayCap}`}
+        subtitle={todayCap}
         icon={LayoutDashboard}
+        leftAccessory={<DashboardSelectorBar title="Cruscotto Aziendale" soloSelettore />}
         compactTitle
         toolbar={<CruscottoFilters filters={filters} onUpdate={updateFilters} compact />}
         actions={
@@ -322,7 +328,10 @@ export default function CruscottoAziendale() {
       {!isDataEmpty && (
         <SectionErrorBoundary sectionName="Executive Summary">
           <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm print:border-slate-200">
-            <div className="grid gap-0 xl:grid-cols-[minmax(280px,0.4fr)_minmax(560px,1fr)]">
+            {/* Da 1280px la colonna blu è di 260px e i due numeri se la dividono
+                in altezza: a 1440 era larga 330px con i riquadri in mezzo e due
+                fasce blu vuote sopra e sotto. */}
+            <div className="grid gap-0 xl:grid-cols-[260px_minmax(0,1fr)]">
               {/* Il pannello si allunga per stare al passo col grafico accanto.
                   Con quattro riquadri lo riempivano; rimastine due, meta' blu
                   restava vuota. Ora la colonna e' piu' stretta e i due riquadri
@@ -337,16 +346,16 @@ export default function CruscottoAziendale() {
                   Numeri del periodo
                 </p>
 
-                <div className="mt-3 grid flex-1 grid-cols-2 content-center gap-2 sm:mt-4 sm:gap-3 xl:grid-cols-1">
+                <div className="mt-3 grid flex-1 grid-cols-2 content-center gap-2 sm:mt-4 sm:gap-3 xl:grid-cols-1 xl:content-stretch">
                   {executiveKpis.map((item) => {
                     const Icon = item.icon;
                     const clickable = !!item.drilldown;
                     const cardClass = cn(
-                      "rounded-xl border border-white/12 bg-white/9 p-3 text-left transition-colors sm:p-4",
+                      "rounded-xl border border-white/12 bg-white/9 p-3 text-left transition-colors sm:p-4 xl:flex xl:items-center",
                       clickable && "cursor-pointer hover:border-orange-300/40 hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-orange-300/40",
                     );
                     const inner = (
-                      <div className="flex items-center gap-3">
+                      <div className="flex min-w-0 items-center gap-3">
                         <span
                           className={cn(
                             "hidden h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-white/10 sm:flex",
@@ -360,7 +369,7 @@ export default function CruscottoAziendale() {
                         </span>
                         <span className="min-w-0">
                           <span className="block text-[11px] font-semibold uppercase tracking-wide text-blue-100">{item.label}</span>
-                          <span className="block truncate text-lg font-bold text-white sm:text-xl">{item.value}</span>
+                          <span className="block truncate text-lg font-bold tabular-nums text-white sm:text-xl xl:text-2xl">{item.value}</span>
                           <span className="mt-0.5 block truncate text-xs text-blue-50/70">{item.hint}</span>
                         </span>
                       </div>
@@ -549,13 +558,9 @@ export default function CruscottoAziendale() {
           {/* Mobile: niente intestazione e niente cinque schede; resta la sintesi
               (i numeri che comandano e gli avvisi). Gli approfondimenti per area
               sono lavoro da scrivania. */}
-          <div className="mb-3 hidden flex-col gap-1 sm:flex sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Aree di controllo</p>
-              <h2 className="text-lg font-semibold text-slate-950">Approfondisci solo quello che ti serve ora</h2>
-            </div>
-            <p className="hidden text-sm text-slate-500 sm:block">La sintesi resta sopra. Qui sotto trovi i dettagli separati per area.</p>
-          </div>
+          {/* Da tablet qui c'erano un titolo e due frasi che spiegavano le
+              linguette subito sotto («Approfondisci solo quello che ti serve
+              ora», «La sintesi resta sopra…»): le linguette bastano. */}
 
           <Tabs value={isMobile ? "sintesi" : cruscottoTab} onValueChange={handleTabChange} className="w-full">
             {/* Mobile: riga unica scorrevole (niente griglia a 3 file con l'ultima
@@ -619,8 +624,10 @@ export default function CruscottoAziendale() {
                     <BillingKPIWidget />
                   </SectionErrorBoundary>
                   <SectionErrorBoundary sectionName="Finanza">
-                    <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-                      <CashFlowForecast finance={finance} cashFlowForecast={cashFlowForecast} isLoading={isLoading} />
+                    {/* items-start: il riquadro corto non si allunga fino all'altezza
+                        dei due accanto (restava mezzo vuoto). */}
+                    <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
+                      <CashFlowForecast cashFlowForecast={cashFlowForecast} isLoading={isLoading} />
                       <FinanzaCashFlow finance={finance} isLoading={isLoading} />
                     </div>
                     <div className="mt-4">
