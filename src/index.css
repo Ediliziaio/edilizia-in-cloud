@@ -917,3 +917,30 @@ html .react-flow .react-flow__edges svg {
     min-width: 0;
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Testata delle pagine da tablet in su (≥640px). Era un riquadro con bordo,
+   sfumatura e ombra, un quadratino arancione con l'icona e una frase sotto il
+   titolo che descriveva la pagina («Cantieri, ODA, DDT, anomalie e
+   marginalità in un'unica vista»): 90px e una cornice per dire il nome della
+   pagina, su venti pagine. Ora è una riga sullo sfondo: titolo a sinistra,
+   comandi a destra, come nelle pagine che non usano questa classe (Attività,
+   Cruscotto). Il blocco del telefono qui sopra non cambia.
+   ══════════════════════════════════════════════════════════════════════════ */
+@media (min-width: 640px) {
+  .testata-pagina {
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+  /* Solo il quadratino dell'icona (un div): i bottoni «brand» come
+     «+ Nuovo» usano lo stesso sfumato e devono restare. */
+  .testata-pagina div.from-orange-500.to-amber-400 {
+    display: none !important;
+  }
+  .testata-pagina h1 + p {
+    display: none !important;
+  }
+}
