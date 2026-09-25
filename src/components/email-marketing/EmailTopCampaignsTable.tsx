@@ -1,4 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { RigaMobile } from "@/components/mobile/FiltriMobile";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -72,10 +73,12 @@ export function EmailTopCampaignsTable({ campaigns, onCampaignClick }: EmailTopC
   };
 
   return (
+    // Telefono: una riga per campagna (data e tipo, apertura e clic), senza
+    // interruttore, CSV e ordinamento.
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-base">Email con le migliori prestazioni</CardTitle>
-        <div className="flex items-center gap-4">
+      <CardHeader className="flex flex-row items-center justify-between pb-2 max-md:p-3 max-md:pb-1">
+        <CardTitle className="text-base max-md:text-sm">Email con le migliori prestazioni</CardTitle>
+        <div className="flex items-center gap-4 max-md:hidden">
           <div className="flex items-center gap-2 text-sm">
             <span className="text-muted-foreground">Valori assoluti</span>
             <Switch checked={showNumbers} onCheckedChange={setShowNumbers} />
@@ -93,13 +96,26 @@ export function EmailTopCampaignsTable({ campaigns, onCampaignClick }: EmailTopC
           </Select>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="max-md:p-0">
         {sorted.length === 0 ? (
-          <div className="flex items-center justify-center h-32 text-muted-foreground text-sm">
+          <div className="flex items-center justify-center h-32 text-muted-foreground text-sm max-md:h-auto max-md:px-3 max-md:pb-3 max-md:text-[13px]">
             Nessuna campagna inviata ancora.
           </div>
         ) : (
-          <Table>
+          <>
+          <div className="divide-y border-t md:hidden">
+            {sorted.slice(0, 10).map((c) => (
+              <RigaMobile
+                key={c.id}
+                onClick={onCampaignClick ? () => onCampaignClick(c.id, c.name) : undefined}
+                titolo={c.name}
+                sottotitolo={`${c.sent_at ? format(new Date(c.sent_at), "dd MMM yyyy", { locale: it }) : "—"} · ${TYPE_LABELS[c.type] || c.type} · ${c.delivered.toLocaleString("it-IT")} consegnate`}
+                valore={`${rate(c.opened, c.delivered)} aperte`}
+                stato={<span className="text-muted-foreground">{rate(c.clicked, c.delivered)} clic</span>}
+              />
+            ))}
+          </div>
+          <Table className="max-md:hidden">
             <TableHeader>
               <TableRow>
                 <TableHead>Titolo</TableHead>
@@ -131,6 +147,7 @@ export function EmailTopCampaignsTable({ campaigns, onCampaignClick }: EmailTopC
               ))}
             </TableBody>
           </Table>
+          </>
         )}
       </CardContent>
     </Card>

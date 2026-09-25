@@ -9,9 +9,23 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Globe, ShieldCheck, TrendingUp, BadgeCheck, ArrowRight } from "lucide-react";
+import { AvvisoSoloDaComputer } from "@/components/mobile/SoloDaComputer";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 export function MarketingDomainGateWall() {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
+
+  // Telefono: il dominio (record DNS dal pannello del registrar) si collega da
+  // computer o tablet. Al posto del muro illustrato, il titolo e una riga.
+  if (isMobile) {
+    return (
+      <div className="space-y-3">
+        <h1 className="text-lg font-bold text-foreground">Email Marketing</h1>
+        <AvvisoSoloDaComputer titolo="Per inviare campagne serve il dominio email dell'azienda: si collega da computer o tablet" />
+      </div>
+    );
+  }
 
   return (
     <Card className="max-w-2xl mx-auto border-orange-200">

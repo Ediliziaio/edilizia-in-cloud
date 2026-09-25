@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -61,6 +62,9 @@ function esitoInvio(c: { status: string; sent_count?: number | null; failed_coun
 }
 
 export function EmailCampaignsTab() {
+  // Telefono: le campagne si guardano (stato e risultati); crearle e
+  // modificarle (editor e builder a blocchi) si fa da computer o tablet.
+  const isMobile = useIsMobile();
   const { effectiveCompany: company, user } = useAuth();
   const navigate = useNavigate();
   const emailBase = useEmailMarketingBase();
@@ -273,17 +277,17 @@ export function EmailCampaignsTab() {
       {/* Una riga sola: ricerca, stato, azioni. Pagina e scheda dicono già
           «Email Marketing › Campagne»: un terzo titolo spingeva giù la tabella. */}
       <div className="flex flex-wrap items-center gap-3">
-        <div className="relative min-w-[200px] max-w-sm flex-1">
+        <div className="relative min-w-[200px] max-w-sm flex-1 max-md:max-w-none max-md:basis-full">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input className="pl-9" placeholder="Cerca in tutte le cartelle…" value={searchInput} onChange={(e) => { setSearchInput(e.target.value); setPage(0); }} />
         </div>
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5 max-md:-mx-3 max-md:w-[calc(100%+1.5rem)] max-md:flex-nowrap max-md:overflow-x-auto max-md:px-3 max-md:scrollbar-none">
           {FILTRI_STATO.map(([v, lbl]) => (
             <button
               key={v}
               type="button"
               onClick={() => { setStatusFilter(v); setPage(0); }}
-              className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+              className={`tap-compact rounded-full border px-3 py-1 text-xs transition-colors max-md:shrink-0 max-md:py-1.5 ${
                 statusFilter === v ? "border-primary bg-primary/10 font-medium text-primary" : "text-muted-foreground hover:bg-muted/50"
               }`}
             >
@@ -291,7 +295,7 @@ export function EmailCampaignsTab() {
             </button>
           ))}
         </div>
-        <div className="ml-auto flex gap-2">
+        <div className="ml-auto flex gap-2 max-md:hidden">
           <Button variant="outline" size="sm" onClick={() => setFolderDialogOpen(true)}>
             <FolderPlus className="mr-1 h-4 w-4" /> <span className="hidden sm:inline">Crea cartella</span>
           </Button>
@@ -344,10 +348,16 @@ export function EmailCampaignsTab() {
             ) : (
               <>
                 <p className="font-medium text-foreground">Ancora nessuna campagna</p>
-                <p className="max-w-md text-sm text-muted-foreground">
-                  Scegli a chi scrivere, prepara il messaggio e mandalo subito o pianificalo: la trovi qui con i risultati.
-                </p>
-                <CampaignCreateDropdown />
+                {isMobile ? (
+                  <p className="text-[11px] text-muted-foreground">si crea da computer o tablet</p>
+                ) : (
+                  <>
+                    <p className="max-w-md text-sm text-muted-foreground">
+                      Scegli a chi scrivere, prepara il messaggio e mandalo subito o pianificalo: la trovi qui con i risultati.
+                    </p>
+                    <CampaignCreateDropdown />
+                  </>
+                )}
               </>
             )}
           </CardContent>
@@ -362,7 +372,7 @@ export function EmailCampaignsTab() {
                 <TableHead className="hidden md:table-cell">Invio</TableHead>
                 <TableHead className="hidden sm:table-cell">Data di invio</TableHead>
                 <TableHead className="hidden lg:table-cell">Ultima modifica</TableHead>
-                <TableHead className="w-10" />
+                <TableHead className="w-10 max-md:hidden" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -376,10 +386,12 @@ export function EmailCampaignsTab() {
                 return (
                   <TableRow
                     key={c.id}
-                    className="cursor-pointer"
+                    className={partita || !isMobile ? "cursor-pointer" : undefined}
                     onClick={() => partita
                       ? setDetailTarget({ id: c.id, name: c.name })
-                      : navigate(`${emailBase}/campagna/${c.id}/${c.json_content ? "builder" : "editor"}`)}
+                      : isMobile
+                        ? undefined
+                        : navigate(`${emailBase}/campagna/${c.id}/${c.json_content ? "builder" : "editor"}`)}
                   >
                     <TableCell className="font-medium">
                       <div className="flex flex-col gap-1">
@@ -402,7 +414,7 @@ export function EmailCampaignsTab() {
                     <TableCell className="hidden text-muted-foreground lg:table-cell">
                       {format(new Date(c.updated_at), "dd MMM yyyy", { locale: it })}
                     </TableCell>
-                      <TableCell onClick={(e) => e.stopPropagation()}>
+                      <TableCell onClick={(e) => e.stopPropagation()} className="max-md:hidden">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button size="icon" variant="ghost"><MoreHorizontal className="h-4 w-4" /></Button>

@@ -82,23 +82,24 @@ export function EmailKpiHero({ stats }: Props) {
   ];
 
   return (
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+    // Telefono: nome e cifra, senza icona, giudizio né conteggio sotto.
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 max-md:gap-2">
       {cards.map((c) => (
         <Card key={c.label} className="overflow-hidden">
-          <CardContent className="p-4">
+          <CardContent className="p-4 max-md:px-2.5 max-md:py-2">
             <div className="flex items-center justify-between">
-              <span className={cn("flex items-center gap-1.5 text-xs font-medium text-muted-foreground", c.accent)}>
-                {c.icon}
+              <span className={cn("flex items-center gap-1.5 text-xs font-medium text-muted-foreground max-md:truncate max-md:text-[11px]", c.accent)}>
+                <span className="contents max-md:hidden">{c.icon}</span>
                 {c.label}
               </span>
               {c.tier !== "none" && (
-                <Badge variant="outline" className={cn("text-[10px]", TIER_BADGE[c.tier].className)}>
+                <Badge variant="outline" className={cn("text-[10px] max-md:hidden", TIER_BADGE[c.tier].className)}>
                   {TIER_BADGE[c.tier].label}
                 </Badge>
               )}
             </div>
-            <p className="mt-1 text-3xl font-bold tabular-nums text-foreground">{c.big}</p>
-            <p className="text-xs text-muted-foreground">{c.sub}</p>
+            <p className="mt-1 text-3xl font-bold tabular-nums text-foreground max-md:mt-0 max-md:text-base">{c.big}</p>
+            <p className="text-xs text-muted-foreground max-md:hidden">{c.sub}</p>
           </CardContent>
         </Card>
       ))}

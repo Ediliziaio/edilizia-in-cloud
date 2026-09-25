@@ -171,12 +171,16 @@ export function EmailStatsTab() {
   }, [dailyRaw]);
 
   return (
-    <div className="space-y-6">
+    // Telefono: campagna e periodo (7/30/90/tutto), i quattro numeri, la classifica
+    // a righe. Crea campagna, date libere, funnel, salute e grafico al computer.
+    <div className="space-y-6 max-md:space-y-3">
       {/* Filter bar */}
-      <div className="flex flex-wrap items-center gap-3">
-        <CampaignCreateDropdown />
+      <div className="flex flex-wrap items-center gap-3 max-md:gap-2">
+        <div className="contents max-md:hidden">
+          <CampaignCreateDropdown />
+        </div>
         <Select value={campaignFilter} onValueChange={setCampaignFilter}>
-          <SelectTrigger className="w-[220px]"><SelectValue placeholder="Tutte le campagne" /></SelectTrigger>
+          <SelectTrigger className="w-[220px] max-md:w-full"><SelectValue placeholder="Tutte le campagne" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tutte le campagne</SelectItem>
             {campaigns.map((c: any) => (
@@ -184,13 +188,13 @@ export function EmailStatsTab() {
             ))}
           </SelectContent>
         </Select>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground max-md:hidden">
           <span>Dal</span>
           <Input type="date" className="w-[150px] h-9" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setDatePreset("custom"); }} />
           <span>al</span>
           <Input type="date" className="w-[150px] h-9" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setDatePreset("custom"); }} />
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 max-md:w-full">
           {([["7", "7 gg"], ["30", "30 gg"], ["90", "90 gg"], ["all", "Tutto"]] as const).map(([days, lbl]) => (
             <button key={days} type="button"
               onClick={() => {
@@ -200,7 +204,7 @@ export function EmailStatsTab() {
                 setDateFrom(localDay(new Date(Date.now() - Number(days) * 86400000)));
                 setDateTo(localDay(new Date()));
               }}
-              className={`rounded-full border px-2.5 py-1 text-[11px] transition-colors ${datePreset === days ? "border-primary bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-muted/50"}`}>
+              className={`tap-compact rounded-full border px-2.5 py-1 text-[11px] transition-colors max-md:flex-1 max-md:py-1.5 max-md:text-[13px] ${datePreset === days ? "border-primary bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-muted/50"}`}>
               {lbl}
             </button>
           ))}
@@ -211,7 +215,7 @@ export function EmailStatsTab() {
       <EmailKpiHero stats={stats} />
 
       {/* Funnel di conversione + salute deliverability affiancati */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 max-md:hidden">
         <EmailFunnelChart data={funnel} />
         <div>
           <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
@@ -222,7 +226,9 @@ export function EmailStatsTab() {
       </div>
 
       {/* Andamento nel tempo */}
-      <EmailPerformanceChart datasets={chartDatasets} />
+      <div className="max-md:hidden">
+        <EmailPerformanceChart datasets={chartDatasets} />
+      </div>
 
       {/* Top campaigns table — click su riga apre il dettaglio destinatari */}
       <EmailTopCampaignsTable
