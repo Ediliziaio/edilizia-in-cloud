@@ -1211,8 +1211,10 @@ export function UnifiedPreventiviList() {
                 onDone={() => { sel.clear(); void queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && String(q.queryKey[0]).startsWith('unified-prev') }); }}
               />
       <PreventiviCestinoDialog open={cestinoOpen} onOpenChange={setCestinoOpen} companyId={companyId} />
+              {/* A 1024 la tabella era larga 876px e scorreva di lato: fino a 1280
+                  senza «Commerciale» e con celle più strette. */}
               <div className="hidden md:block overflow-x-auto">
-                <Table>
+                <Table className="[&_td]:px-3 [&_th]:px-3 xl:[&_td]:px-4 xl:[&_th]:px-4">
                   <TableHeader>
                     <TableRow className="bg-slate-50/60 hover:bg-slate-50/60">
                       <TableHead className="w-10">
@@ -1225,7 +1227,7 @@ export function UnifiedPreventiviList() {
                       <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-slate-600">Numero</TableHead>
                       <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-slate-600">Cliente</TableHead>
                       <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-slate-600">Tipo</TableHead>
-                      <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-slate-600">Commerciale</TableHead>
+                      <TableHead className="hidden text-[11px] uppercase tracking-wider font-semibold text-slate-600 xl:table-cell">Commerciale</TableHead>
                       <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-slate-600">Stato</TableHead>
                       <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-slate-600 text-right">Totale</TableHead>
                       <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-slate-600">Data</TableHead>
@@ -1257,7 +1259,7 @@ export function UnifiedPreventiviList() {
                               <TipoIcon className="h-3 w-3" /> {tipoCfg.label}
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-xs text-slate-600 max-w-[140px] truncate">
+                          <TableCell className="hidden text-xs text-slate-600 max-w-[140px] truncate xl:table-cell">
                             {r.commerciale_nome ?? <span className="text-muted-foreground">—</span>}
                           </TableCell>
                           <TableCell>
@@ -1268,7 +1270,7 @@ export function UnifiedPreventiviList() {
                           <TableCell className="text-xs text-right tabular-nums font-medium">
                             {r.totale != null ? formatCurrency(r.totale) : <span className="text-muted-foreground">—</span>}
                           </TableCell>
-                          <TableCell className="text-[11px] text-muted-foreground">
+                          <TableCell className="whitespace-nowrap text-[11px] text-muted-foreground">
                             {formatDateSafe(r.data)}
                           </TableCell>
                           <TableCell><ChevronRight className="h-4 w-4 text-muted-foreground" /></TableCell>
@@ -1382,7 +1384,8 @@ function KpiCard({
     <div className={cn("relative bg-white border-l-4 rounded-lg shadow-sm p-2.5 sm:p-4", c.border)}>
       <span className={cn("absolute right-2 top-2 h-6 w-6 sm:h-7 sm:w-7 rounded-md flex items-center justify-center", c.iconBg, c.iconColor)}>{icon}</span>
       <p className="text-[10px] sm:text-[11px] font-medium text-muted-foreground uppercase tracking-wide truncate pr-7 leading-tight">{label}</p>
-      <p className={cn("text-xl sm:text-2xl font-bold leading-tight mt-0.5 sm:mt-1 tabular-nums truncate", c.valueColor)}>{value}</p>
+      {/* Tra 768 e 1280 a 24px gli importi si tagliavano («318.478,…»). */}
+      <p className={cn("text-xl sm:text-2xl md:max-xl:text-xl font-bold leading-tight mt-0.5 sm:mt-1 tabular-nums truncate", c.valueColor)}>{value}</p>
       {hint && <p className="text-[10px] text-muted-foreground mt-0.5 truncate leading-tight">{hint}</p>}
     </div>
   );

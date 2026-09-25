@@ -228,10 +228,11 @@ export default function Preventivi() {
               )}
             </div>
           </div>
+          {/* Senza sottotitolo: a 1024 si tagliava a metà («dal prim…») e diceva
+              cosa sono i preventivi a chi è nella pagina dei preventivi. */}
           <QuotePageHeader
             className="max-sm:hidden"
             title="Preventivi"
-            subtitle="Tutte le offerte della tua azienda, dal primo contatto alla conferma."
             icon={<FileSignature className="h-5 w-5" />}
             actions={
               <>
