@@ -1001,7 +1001,7 @@ export default function MarketingAppointmentDialog({
                       <svg className="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 9a3 3 0 100-6 3 3 0 000 6zM6 8a4 4 0 118 0 4 4 0 01-8 0zM10 11a5 5 0 00-5 5 1 1 0 001 1h8a1 1 0 001-1 5 5 0 00-5-5z" /></svg>
                     </span>
                     Venditore assegnato
-                    <span className="text-[10px] text-muted-foreground font-normal max-sm:hidden">(staff interno)</span>
+                    <span className="text-[10px] text-muted-foreground font-normal max-sm:hidden max-md:text-[11px]">(staff interno)</span>
                   </Label>
                   <Select value={assignedTo} onValueChange={setAssignedTo}>
                     <SelectTrigger><SelectValue placeholder="Non assegnato" /></SelectTrigger>
@@ -1012,7 +1012,7 @@ export default function MarketingAppointmentDialog({
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-[10px] text-muted-foreground max-sm:hidden">
+                  <p className="text-[10px] text-muted-foreground max-sm:hidden max-md:text-[11px]">
                     Scegli il commerciale interno che gestirà l'appuntamento.
                   </p>
                 </div>
@@ -1075,7 +1075,7 @@ export default function MarketingAppointmentDialog({
                       <svg className="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 9a3 3 0 100-6 3 3 0 000 6zM6 8a4 4 0 118 0 4 4 0 01-8 0zM10 11a5 5 0 00-5 5 1 1 0 001 1h8a1 1 0 001-1 5 5 0 00-5-5z" /></svg>
                     </span>
                     Cliente *
-                    <span className="text-[10px] text-muted-foreground font-normal max-sm:hidden">(contatto CRM)</span>
+                    <span className="text-[10px] text-muted-foreground font-normal max-sm:hidden max-md:text-[11px]">(contatto CRM)</span>
                   </Label>
                   <div>
                     <Popover
@@ -1136,7 +1136,7 @@ export default function MarketingAppointmentDialog({
                       </PopoverContent>
                     </Popover>
                   </div>
-                  <p className="text-[10px] text-muted-foreground max-sm:hidden">
+                  <p className="text-[10px] text-muted-foreground max-sm:hidden max-md:text-[11px]">
                     Persona esterna per cui è l'appuntamento (prospect o cliente).
                   </p>
                 </div>
@@ -1270,7 +1270,7 @@ export default function MarketingAppointmentDialog({
                         </Select>
                       </div>
                       {selectedOpportunity && (
-                        <p className="text-[10px] text-muted-foreground">
+                        <p className="text-[10px] text-muted-foreground max-md:text-[11px]">
                           La task sara collegata anche all'opportunita "{selectedOpportunity.name}".
                         </p>
                       )}
@@ -1397,7 +1397,7 @@ export default function MarketingAppointmentDialog({
                   <SelectContent>
                     {MARKETING_APPOINTMENT_STATUS_OPTIONS.map((option) => (
                       <SelectItem key={option.value} value={option.value}>
-                        <Badge variant={option.variant} className="text-[10px]">
+                        <Badge variant={option.variant} className="text-[10px] max-md:text-[11px]">
                           {option.label}
                         </Badge>
                       </SelectItem>

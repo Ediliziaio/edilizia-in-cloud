@@ -2406,7 +2406,7 @@ function ConnectionPill({
               <p className="flex flex-wrap items-center gap-1.5 text-sm font-medium text-slate-900">
                 {passo.titolo}
                 {!passo.obbligatorio && !passo.fatto && (
-                  <span className="rounded bg-slate-200/70 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
+                  <span className="rounded bg-slate-200/70 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600 max-md:text-[11px]">
                     facoltativo
                   </span>
                 )}
@@ -4319,7 +4319,7 @@ function LeadFormPreview({ state }: { state: BuilderState }) {
         <p className="mb-1 text-sm font-semibold text-slate-900">{introHeadline}</p>
       )}
       <p className="rounded-xl bg-slate-50 p-3 text-sm leading-relaxed text-slate-700">{introBody}</p>
-      <p className="mt-3 text-[10px] font-semibold uppercase text-slate-500">Campi del modulo ({questions.length})</p>
+      <p className="mt-3 text-[10px] font-semibold uppercase text-slate-500 max-md:text-[11px]">Campi del modulo ({questions.length})</p>
       <div className="mt-1 grid gap-1.5">
         {questions.slice(0, 8).map((field, i) => (
           <div
@@ -4330,14 +4330,14 @@ function LeadFormPreview({ state }: { state: BuilderState }) {
             )}
           >
             <span className="truncate">{field.label}</span>
-            <span className="text-[9px] text-slate-500">
+            <span className="text-[9px] text-slate-500 max-md:text-[11px]">
               {field.kind === "custom" ? "custom" : "auto"}
               {field.options?.length ? ` · ${field.options.length} opz` : ""}
             </span>
           </div>
         ))}
         {questions.length > 8 && (
-          <p className="text-[10px] text-slate-500">+ {questions.length - 8} altri campi</p>
+          <p className="text-[10px] text-slate-500 max-md:text-[11px]">+ {questions.length - 8} altri campi</p>
         )}
       </div>
       {qualifying && (
@@ -4347,7 +4347,7 @@ function LeadFormPreview({ state }: { state: BuilderState }) {
           {qualifying.options && qualifying.options.length > 0 && (
             <div className="mt-1.5 flex flex-wrap gap-1">
               {qualifying.options.slice(0, 4).map((opt) => (
-                <Badge key={opt} variant="outline" className="border-emerald-300 bg-white text-[9px] text-emerald-700">
+                <Badge key={opt} variant="outline" className="border-emerald-300 bg-white text-[9px] text-emerald-700 max-md:text-[11px]">
                   {opt}
                 </Badge>
               ))}
@@ -5303,7 +5303,7 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
                   <p className="text-sm font-bold text-slate-900">Brief campagna</p>
                   <p className="text-[11px] text-slate-500">Condiviso con Copy AI · Immagine AI · Video AI</p>
                 </div>
-                <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-semibold text-orange-600">
+                <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-semibold text-orange-600 max-md:text-[11px]">
                   ✦ Sincronizzato
                 </span>
               </div>
@@ -5366,7 +5366,7 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
           <div className="h-px flex-1 bg-gradient-to-r from-transparent to-slate-100" />
           <div className="flex items-center gap-1.5 rounded-full border border-slate-100 bg-white px-2.5 py-1 shadow-sm">
             <span className="h-1.5 w-1.5 rounded-full bg-orange-400" />
-            <span className="text-[10px] font-medium text-slate-400">Brief attivo → Copy · Immagine · Script</span>
+            <span className="text-[10px] font-medium text-slate-400 max-md:text-[11px]">Brief attivo → Copy · Immagine · Script</span>
           </div>
           <div className="h-px flex-1 bg-gradient-to-l from-transparent to-slate-100" />
         </div>
@@ -5397,11 +5397,11 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
                 </div>
               </div>
               {brief ? (
-                <span className="flex shrink-0 items-center gap-1 rounded-full border border-violet-100 bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-600">
+                <span className="flex shrink-0 items-center gap-1 rounded-full border border-violet-100 bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-600 max-md:text-[11px]">
                   <Check className="h-2.5 w-2.5" /> {SEGMENT_LABELS[segment] ?? segment}
                 </span>
               ) : (
-                <span className="shrink-0 rounded-full border border-amber-100 bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-600">
+                <span className="shrink-0 rounded-full border border-amber-100 bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-600 max-md:text-[11px]">
                   Brief mancante
                 </span>
               )}
@@ -5438,7 +5438,7 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
                       <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-white text-sm shadow-sm">{icon}</span>
                       <div>
                         <p className="text-[11px] font-semibold leading-none text-violet-800">{label}</p>
-                        <p className="mt-0.5 text-[10px] leading-none text-violet-400">{sub}</p>
+                        <p className="mt-0.5 text-[10px] leading-none text-violet-400 max-md:text-[11px]">{sub}</p>
                       </div>
                     </div>
                   ))}
@@ -5452,7 +5452,7 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
                   <span className="text-xs font-semibold uppercase text-slate-500">
                     Output AI {generatedCopy.model_used ? `· ${generatedCopy.model_used}` : ""}
                   </span>
-                  <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px]" onClick={onGenerateCopy} disabled={isGeneratingCopy}>
+                  <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px] max-md:text-[11px]" onClick={onGenerateCopy} disabled={isGeneratingCopy}>
                     <RefreshCw className="mr-1 h-3 w-3" /> Rigenera
                   </Button>
                 </div>
@@ -5498,7 +5498,7 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
                     <p className="mb-1 text-xs font-semibold uppercase text-slate-500">🎯 CTA suggerite</p>
                     <div className="flex flex-wrap gap-1">
                       {generatedCopy.cta_suggestions.map((c, i) => (
-                        <Badge key={i} variant="outline" className="border-orange-200 bg-orange-50 text-orange-700 text-[10px]">{c}</Badge>
+                        <Badge key={i} variant="outline" className="border-orange-200 bg-orange-50 text-orange-700 text-[10px] max-md:text-[11px]">{c}</Badge>
                       ))}
                     </div>
                   </div>
@@ -5550,11 +5550,11 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
               </div>
               {brief && imagePrompt !== brief ? (
                 <button type="button" onClick={() => setImagePrompt(brief)}
-                  className="flex shrink-0 items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 transition hover:bg-amber-100">
+                  className="flex shrink-0 items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 transition hover:bg-amber-100 max-md:text-[11px]">
                   <RefreshCw className="h-2.5 w-2.5" /> Sincronizza
                 </button>
               ) : brief ? (
-                <span className="flex shrink-0 items-center gap-1 rounded-full border border-amber-100 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-600">
+                <span className="flex shrink-0 items-center gap-1 rounded-full border border-amber-100 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-600 max-md:text-[11px]">
                   <Check className="h-2.5 w-2.5" /> Sincronizzato
                 </span>
               ) : null}
@@ -5621,7 +5621,7 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
             <div>
               <div className="mb-1.5 flex items-center justify-between">
                 <Label className="text-xs font-medium text-slate-600">Prompt visivo</Label>
-                <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px] text-slate-500 hover:text-amber-600"
+                <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px] text-slate-500 hover:text-amber-600 max-md:text-[11px]"
                   onClick={() => setImagePrompt(brief)}>
                   <RefreshCw className="mr-1 h-3 w-3" /> Da brief
                 </Button>
@@ -5657,7 +5657,7 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
                       style={{ width: dim.w, height: dim.h }}>
                       <div className="text-center">
                         <Wand2 className="mx-auto mb-1.5 h-5 w-5 text-amber-300" />
-                        <p className="text-[10px] font-medium text-amber-400">{aspectRatio}</p>
+                        <p className="text-[10px] font-medium text-amber-400 max-md:text-[11px]">{aspectRatio}</p>
                       </div>
                     </div>
                   );
@@ -5675,7 +5675,7 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
                 <div className="relative">
                   <img loading="lazy" src={lastGeneratedImage.public_url} alt="Immagine generata" className="w-full object-cover" />
                   <div className="absolute right-2 top-2 flex gap-1">
-                    <Badge className="bg-black/60 text-white text-[10px] backdrop-blur-sm">
+                    <Badge className="bg-black/60 text-white text-[10px] backdrop-blur-sm max-md:text-[11px]">
                       {lastGeneratedImage.width_px}×{lastGeneratedImage.height_px}
                       {lastGeneratedImage.cost_eur_cents ? ` · ${(lastGeneratedImage.cost_eur_cents / 100).toFixed(3)}€` : ""}
                     </Badge>
@@ -5736,11 +5736,11 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
           {videoTab === "script" && (
             <div className="mt-1">
               {brief ? (
-                <span className="flex w-fit items-center gap-1 rounded-full border border-rose-100 bg-rose-50 px-2 py-0.5 text-[10px] font-semibold text-rose-600">
+                <span className="flex w-fit items-center gap-1 rounded-full border border-rose-100 bg-rose-50 px-2 py-0.5 text-[10px] font-semibold text-rose-600 max-md:text-[11px]">
                   <Check className="h-2.5 w-2.5" /> {SEGMENT_LABELS[segment] ?? segment} · Brief attivo
                 </span>
               ) : (
-                <span className="flex w-fit items-center gap-1 rounded-full border border-amber-100 bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-600">
+                <span className="flex w-fit items-center gap-1 rounded-full border border-amber-100 bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-600 max-md:text-[11px]">
                   Brief mancante — impostalo in cima
                 </span>
               )}
@@ -5762,7 +5762,7 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
                         : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
                     )}>
                     {d}s
-                    <span className="ml-1 text-[10px] font-normal text-slate-400">
+                    <span className="ml-1 text-[10px] font-normal text-slate-400 max-md:text-[11px]">
                       {d === "15" ? "Stories" : d === "30" ? "Reels" : "Feed"}
                     </span>
                   </button>
@@ -5801,17 +5801,17 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
                   <Badge className="bg-rose-600 text-white">{generatedScript.total_duration}</Badge>
                   <Badge variant="outline" className="border-slate-200 text-slate-600">{generatedScript.platform}</Badge>
                   {generatedScript.model_used && (
-                    <span className="text-[10px] text-slate-400">{generatedScript.model_used}</span>
+                    <span className="text-[10px] text-slate-400 max-md:text-[11px]">{generatedScript.model_used}</span>
                   )}
                 </div>
-                <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px]" onClick={onGenerateScript} disabled={isGeneratingScript}>
+                <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px] max-md:text-[11px]" onClick={onGenerateScript} disabled={isGeneratingScript}>
                   <RefreshCw className="mr-1 h-3 w-3" /> Rigenera
                 </Button>
               </div>
 
               {/* Hook headline */}
               <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3">
-                <p className="mb-0.5 text-[10px] font-semibold uppercase text-rose-500">🪝 Hook video</p>
+                <p className="mb-0.5 text-[10px] font-semibold uppercase text-rose-500 max-md:text-[11px]">🪝 Hook video</p>
                 <p className="text-sm font-semibold text-rose-900">{generatedScript.hook}</p>
               </div>
 
@@ -5824,23 +5824,23 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
                         {scene.scene}
                       </div>
                       <span className="text-xs font-semibold">{scene.label}</span>
-                      <Badge variant="outline" className="ml-auto border-current/30 bg-white/50 text-[9px]">
+                      <Badge variant="outline" className="ml-auto border-current/30 bg-white/50 text-[9px] max-md:text-[11px]">
                         ⏱ {scene.duration_seconds}s
                       </Badge>
                     </div>
                     <div className="grid gap-1.5 sm:grid-cols-2">
                       <div>
-                        <p className="mb-0.5 text-[9px] font-bold uppercase opacity-70">📺 Testo overlay</p>
+                        <p className="mb-0.5 text-[9px] font-bold uppercase opacity-70 max-md:text-[11px]">📺 Testo overlay</p>
                         <p className="text-xs font-semibold leading-snug">{scene.overlay_text}</p>
                       </div>
                       <div>
-                        <p className="mb-0.5 text-[9px] font-bold uppercase opacity-70">🎤 Voiceover</p>
+                        <p className="mb-0.5 text-[9px] font-bold uppercase opacity-70 max-md:text-[11px]">🎤 Voiceover</p>
                         <p className="text-xs leading-snug opacity-90">{scene.voiceover}</p>
                       </div>
                     </div>
                     {scene.visual_direction && (
                       <div className="mt-1.5 rounded-md border border-white/40 bg-white/30 px-2 py-1">
-                        <p className="text-[9px] font-bold uppercase opacity-60">🎬 Regia</p>
+                        <p className="text-[9px] font-bold uppercase opacity-60 max-md:text-[11px]">🎬 Regia</p>
                         <p className="text-[11px] opacity-80">{scene.visual_direction}</p>
                       </div>
                     )}
@@ -5852,7 +5852,7 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
               <div className="flex items-center gap-2 rounded-xl border border-orange-200 bg-orange-50 px-4 py-3">
                 <ArrowRightCircle className="h-4 w-4 shrink-0 text-orange-600" />
                 <div>
-                  <p className="text-[10px] font-semibold uppercase text-orange-500">CTA finale</p>
+                  <p className="text-[10px] font-semibold uppercase text-orange-500 max-md:text-[11px]">CTA finale</p>
                   <p className="text-sm font-semibold text-orange-900">{generatedScript.cta_final}</p>
                 </div>
                 <Button variant="ghost" size="sm" className="ml-auto h-6 px-2 text-xs"
@@ -6051,10 +6051,10 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
                           {isVideo ? "🎬" : "🖼️"}
                         </Badge>
                         {m.aspect_ratio && (
-                          <Badge variant="outline" className="text-[9px] text-slate-500">{m.aspect_ratio}</Badge>
+                          <Badge variant="outline" className="text-[9px] text-slate-500 max-md:text-[11px]">{m.aspect_ratio}</Badge>
                         )}
                         {m.width_px && m.height_px && (
-                          <span className="text-[9px] text-slate-400">{m.width_px}×{m.height_px}</span>
+                          <span className="text-[9px] text-slate-400 max-md:text-[11px]">{m.width_px}×{m.height_px}</span>
                         )}
                       </div>
                     </div>
@@ -6332,7 +6332,7 @@ function AudiencesTab({ onUseInWizard }: { onUseInWizard?: () => void }) {
                     <div className="flex flex-wrap items-center gap-2">
                       <CardTitle className="text-base">{audience.name}</CardTitle>
                       {audience.recommended && (
-                        <Badge className="bg-blue-600 text-white text-[10px]">⭐ Inizia qui</Badge>
+                        <Badge className="bg-blue-600 text-white text-[10px] max-md:text-[11px]">⭐ Inizia qui</Badge>
                       )}
                     </div>
                     <p className="mt-0.5 text-xs text-slate-500">{audience.use}</p>
@@ -6357,16 +6357,16 @@ function AudiencesTab({ onUseInWizard }: { onUseInWizard?: () => void }) {
               {/* ─── NEL WIZARD ─────────────────────────────────── */}
               <div className={cn("rounded-xl border p-3 space-y-1.5", audience.color.wizard)}>
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-[10px] font-bold uppercase tracking-wide opacity-70">Nel wizard</p>
+                  <p className="text-[10px] font-bold uppercase tracking-wide opacity-70 max-md:text-[11px]">Nel wizard</p>
                   {audience.wizardAuto
-                    ? <span className="flex items-center gap-1 rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-semibold"><Check className="h-2.5 w-2.5" /> Automatico</span>
-                    : <span className="rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-semibold">+ Manuale</span>
+                    ? <span className="flex items-center gap-1 rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-semibold max-md:text-[11px]"><Check className="h-2.5 w-2.5" /> Automatico</span>
+                    : <span className="rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-semibold max-md:text-[11px]">+ Manuale</span>
                   }
                 </div>
                 <p className="text-[11px] font-medium leading-snug">{audience.wizardNote}</p>
                 <div className="flex items-center gap-1 opacity-60">
                   <ChevronRight className="h-3 w-3" />
-                  <p className="text-[10px] font-mono">{audience.wizardPath}</p>
+                  <p className="text-[10px] font-mono max-md:text-[11px]">{audience.wizardPath}</p>
                 </div>
               </div>
 
@@ -7131,18 +7131,18 @@ function SettingsTab({
                       <div key={item.label} className="flex items-center justify-between gap-2 rounded-lg border border-white/80 bg-white/70 px-3 py-2">
                         <div className="min-w-0 flex-1">
                           <p className="text-xs font-semibold text-slate-900">{item.label}</p>
-                          <p className="text-[10px] text-slate-500">{item.detail}</p>
+                          <p className="text-[10px] text-slate-500 max-md:text-[11px]">{item.detail}</p>
                         </div>
                         <div className="flex shrink-0 items-center gap-2">
                           {!item.ok && item.action && (
                             item.action.external ? (
                               <a href={item.action.href} target="_blank" rel="noopener noreferrer"
-                                className="text-[10px] font-semibold text-blue-600 underline hover:text-blue-800">
+                                className="text-[10px] font-semibold text-blue-600 underline hover:text-blue-800 max-md:text-[11px]">
                                 {item.action.label} ↗
                               </a>
                             ) : (
                               <Link to={item.action.href}
-                                className="text-[10px] font-semibold text-blue-600 underline hover:text-blue-800">
+                                className="text-[10px] font-semibold text-blue-600 underline hover:text-blue-800 max-md:text-[11px]">
                                 {item.action.label} →
                               </Link>
                             )
@@ -7306,7 +7306,7 @@ function LeadsListPanel({
                   <TableCell className="text-xs">{lead.email ?? "—"}</TableCell>
                   <TableCell>{lead.city ?? "—"}</TableCell>
                   <TableCell>
-                    <Badge variant="outline" className="border-blue-200 bg-blue-50 text-[10px] text-blue-700">
+                    <Badge variant="outline" className="border-blue-200 bg-blue-50 text-[10px] text-blue-700 max-md:text-[11px]">
                       {lead.status ?? "nuovo"}
                     </Badge>
                   </TableCell>
@@ -7923,17 +7923,17 @@ function PixelConfigCard({ companyId, integrationId }: { companyId?: string; int
             </div>
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="rounded-lg bg-slate-50 p-2.5">
-                <p className="text-[10px] text-slate-400">Pixel ID</p>
+                <p className="text-[10px] text-slate-400 max-md:text-[11px]">Pixel ID</p>
                 <p className="font-mono text-sm font-semibold text-slate-800">{config?.pixel_id}</p>
               </div>
               <div className="rounded-lg bg-slate-50 p-2.5">
-                <p className="text-[10px] text-slate-400">Ultimo evento</p>
+                <p className="text-[10px] text-slate-400 max-md:text-[11px]">Ultimo evento</p>
                 <p className="text-sm font-semibold text-slate-800">
                   {config?.last_event_at ? new Date(config.last_event_at).toLocaleString("it-IT", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "—"}
                 </p>
               </div>
               <div className="rounded-lg bg-slate-50 p-2.5">
-                <p className="text-[10px] text-slate-400">Eventi 7gg</p>
+                <p className="text-[10px] text-slate-400 max-md:text-[11px]">Eventi 7gg</p>
                 <p className="text-sm font-semibold text-slate-800">{config?.events_last_7d ?? 0}</p>
               </div>
             </div>
@@ -7999,7 +7999,7 @@ function PixelConfigCard({ companyId, integrationId }: { companyId?: string; int
             {/* Step content */}
             <div className="p-4 space-y-4">
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-orange-500">Passo {wizardStep + 1} di {WIZARD_STEPS.length}</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-orange-500 max-md:text-[11px]">Passo {wizardStep + 1} di {WIZARD_STEPS.length}</p>
                 <h3 className="text-base font-bold text-slate-800">{currentWizardStep.title}</h3>
                 <p className="text-sm text-slate-500">{currentWizardStep.description}</p>
               </div>

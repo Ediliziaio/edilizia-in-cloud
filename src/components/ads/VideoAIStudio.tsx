@@ -130,7 +130,7 @@ function JobCard({ job, onClear }: { job: VideoJob; onClear: () => void }) {
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60">
             <div className="mb-2 h-10 w-10 animate-spin rounded-full border-4 border-white/20 border-t-white" />
             <p className="text-xs font-semibold text-white">Generazione...</p>
-            <p className="mt-0.5 text-[10px] text-white/60">
+            <p className="mt-0.5 text-[10px] text-white/60 max-md:text-[11px]">
               <ElapsedTimer startedAt={job.started_at} />
             </p>
           </div>
@@ -168,10 +168,10 @@ function JobCard({ job, onClear }: { job: VideoJob; onClear: () => void }) {
           {effect?.emoji} {effect?.label ?? job.effect_id ?? "Video AI"}
         </p>
         <div className="flex flex-wrap gap-1">
-          <Badge variant="outline" className="text-[9px]">{job.duration_seconds}s</Badge>
-          <Badge variant="outline" className="text-[9px]">{job.aspect_ratio}</Badge>
+          <Badge variant="outline" className="text-[9px] max-md:text-[11px]">{job.duration_seconds}s</Badge>
+          <Badge variant="outline" className="text-[9px] max-md:text-[11px]">{job.aspect_ratio}</Badge>
           {job.cost_eur_cents_est && (
-            <Badge variant="outline" className="text-[9px] text-slate-500">~{(job.cost_eur_cents_est / 100).toFixed(2)}€</Badge>
+            <Badge variant="outline" className="text-[9px] text-slate-500 max-md:text-[11px]">~{(job.cost_eur_cents_est / 100).toFixed(2)}€</Badge>
           )}
         </div>
 
@@ -194,7 +194,7 @@ function JobCard({ job, onClear }: { job: VideoJob; onClear: () => void }) {
         )}
 
         {isFailed && (
-          <p className="text-[10px] text-red-600">{job.error ?? "Generazione fallita"}</p>
+          <p className="text-[10px] text-red-600 max-md:text-[11px]">{job.error ?? "Generazione fallita"}</p>
         )}
       </div>
     </div>
@@ -457,7 +457,7 @@ export function VideoAIStudio({ companyId, libraryImages = [] }: Props) {
                   "Tetto in costruzione, operai al lavoro",
                 ].map(p => (
                   <button key={p} type="button" onClick={() => setPrompt(p)}
-                    className="rounded-full border border-gray-200 px-2 py-0.5 text-[10px] text-gray-500 hover:border-orange-400 hover:text-orange-600">
+                    className="rounded-full border border-gray-200 px-2 py-0.5 text-[10px] text-gray-500 hover:border-orange-400 hover:text-orange-600 max-md:text-[11px]">
                     {p}
                   </button>
                 ))}
@@ -502,7 +502,7 @@ export function VideoAIStudio({ companyId, libraryImages = [] }: Props) {
                           className="flex aspect-square flex-col items-center justify-center gap-1"
                           style={{ background: `linear-gradient(135deg, ${effect.bgFrom}, ${effect.bgTo})` }}>
                           <span className="text-xl">{effect.emoji}</span>
-                          <span className="px-1 text-center text-[9px] font-semibold leading-tight text-white/90">
+                          <span className="px-1 text-center text-[9px] font-semibold leading-tight text-white/90 max-md:text-[11px]">
                             {effect.label}
                           </span>
                         </div>
@@ -529,7 +529,7 @@ export function VideoAIStudio({ companyId, libraryImages = [] }: Props) {
               <span className="text-lg">{selectedEffect.emoji}</span>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold text-gray-900">{selectedEffect.label}</p>
-                <p className="truncate text-[10px] text-gray-500">{selectedEffect.desc}</p>
+                <p className="truncate text-[10px] text-gray-500 max-md:text-[11px]">{selectedEffect.desc}</p>
               </div>
             </div>
           </div>
@@ -566,7 +566,7 @@ export function VideoAIStudio({ companyId, libraryImages = [] }: Props) {
                         : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
                     )}>
                     {ar}
-                    <span className="ml-0.5 hidden text-[9px] font-normal opacity-60 sm:inline">
+                    <span className="ml-0.5 hidden text-[9px] font-normal opacity-60 sm:inline max-md:text-[11px]">
                       {ar === "9:16" ? "Reel" : ar === "1:1" ? "Feed" : "YT"}
                     </span>
                   </button>

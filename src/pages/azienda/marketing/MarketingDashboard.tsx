@@ -460,7 +460,7 @@ export default function MarketingDashboard() {
                           <Icon className="h-4 w-4" />
                         </span>
                         <span className="min-w-0">
-                          <span className="block truncate text-[11px] font-semibold uppercase tracking-wide text-blue-100 max-sm:text-[10px]">{item.label}</span>
+                          <span className="block truncate text-[11px] font-semibold uppercase tracking-wide text-blue-100 max-sm:font-medium max-sm:normal-case max-sm:tracking-normal">{item.label}</span>
                           <span className="block truncate text-xl font-bold text-white max-sm:text-base">{item.value}</span>
                           <span className="mt-0.5 block truncate text-xs text-blue-50/70 max-sm:hidden">{item.hint}</span>
                         </span>
@@ -608,7 +608,8 @@ export default function MarketingDashboard() {
             <p className="text-sm text-slate-500">Lo stato commerciale resta sopra. Qui sotto trovi i dettagli per area.</p>
           </div>
 
-          <div className="border-b border-slate-200 pb-3 mb-3">
+          {/* Telefono: lead, pipeline e conversioni sono già nei quattro numeri in cima. */}
+          <div className="border-b border-slate-200 pb-3 mb-3 max-sm:hidden">
             <SemaforoMarketing
               leadsTotal={data.kpi.leads_total}
               leadsNew={data.kpi.leads_new}

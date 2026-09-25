@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatValue, calcDelta } from "@/components/marketing/dashboard/utils";
 import type { DashboardStats } from "@/hooks/useMarketingDashboard";
 import { ArrowUp, ArrowDown } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface Props {
   data: DashboardStats | undefined;
@@ -59,11 +60,11 @@ function KpiChip({
 
   return (
     <div className={`flex flex-col gap-0.5 rounded-md border px-2 sm:px-3 py-1.5 min-w-0 overflow-hidden ${statusBg}`}>
-      <span className="text-[9px] sm:text-[10px] text-muted-foreground leading-tight truncate">{label}</span>
+      <span className="text-[9px] sm:text-[10px] text-muted-foreground leading-tight truncate max-sm:text-[11px]">{label}</span>
       <div className="flex items-baseline gap-1 sm:gap-1.5 min-w-0">
-        <span className={`text-xs sm:text-sm font-semibold leading-tight truncate ${statusText}`}>{displayValue}</span>
+        <span className={`text-xs sm:text-sm font-semibold leading-tight truncate max-sm:text-[13px] ${statusText}`}>{displayValue}</span>
         {delta && delta.direction !== "flat" && (
-          <span className={`flex items-center text-[9px] sm:text-[10px] flex-shrink-0 ${delta.direction === "up" ? "text-green-600" : "text-red-600"}`}>
+          <span className={`flex items-center text-[9px] sm:text-[10px] flex-shrink-0 max-sm:text-[11px] ${delta.direction === "up" ? "text-green-600" : "text-red-600"}`}>
             {delta.direction === "up" ? <ArrowUp className="h-2.5 w-2.5" /> : <ArrowDown className="h-2.5 w-2.5" />}
             {delta.value}%
           </span>
@@ -74,13 +75,15 @@ function KpiChip({
 }
 
 export const TabPanoramica = memo(function TabPanoramica({ data, isLoading }: Props) {
+  const isMobile = useIsMobile();
   const kpi = data?.kpi;
   const kpiPrev = data?.kpi_prev;
 
   return (
     <div className="space-y-4">
-      {/* Hero KPI */}
-      <DashboardStrategicKPI kpi={kpi} kpiPrev={kpiPrev} isLoading={isLoading} />
+      {/* Hero KPI — telefono: fatturato, contratti e pipeline sono già nei
+          quattro numeri in cima alla pagina; qui restano le otto cifre di dettaglio. */}
+      {!isMobile && <DashboardStrategicKPI kpi={kpi} kpiPrev={kpiPrev} isLoading={isLoading} />}
 
       {/* KPI strip: 6 core + divider + 2 call center */}
       {isLoading ? (

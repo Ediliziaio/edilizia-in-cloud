@@ -280,7 +280,7 @@ export function SimScenariPanel({
                 onChange={(e) => patch({ spese_generali_pct: parsePct(e.target.value) })}
                 className="h-8 text-right tabular-nums"
               />
-              <p className="text-[10px] text-muted-foreground tabular-nums max-sm:hidden">
+              <p className="text-[10px] text-muted-foreground tabular-nums max-sm:hidden max-md:text-[11px]">
                 {formatCurrency(risultato.spese_generali)} · costo pieno{" "}
                 {formatCurrency(risultato.costo_pieno)}
               </p>
@@ -299,7 +299,7 @@ export function SimScenariPanel({
                 onChange={(e) => patch({ utile_pct: parsePct(e.target.value) })}
                 className="h-8 text-right tabular-nums"
               />
-              <p className="text-[10px] text-muted-foreground tabular-nums max-sm:hidden">
+              <p className="text-[10px] text-muted-foreground tabular-nums max-sm:hidden max-md:text-[11px]">
                 target {formatCurrency(risultato.utile_target)}
               </p>
             </div>
@@ -317,7 +317,7 @@ export function SimScenariPanel({
                 onChange={(e) => patch({ sconto_pct: parsePct(e.target.value) })}
                 className="h-8 text-right tabular-nums"
               />
-              <p className="text-[10px] text-muted-foreground tabular-nums max-sm:hidden">
+              <p className="text-[10px] text-muted-foreground tabular-nums max-sm:hidden max-md:text-[11px]">
                 −{formatCurrency(risultato.sconto_valore)} · netto{" "}
                 {formatCurrency(risultato.ricavo_netto)}
               </p>
@@ -560,7 +560,7 @@ export function SimScenariPanel({
                     >
                       {/* Nome */}
                       <div className="min-w-[8rem] flex-1 space-y-1">
-                        <Label className="text-[10px] text-muted-foreground">Beneficiario</Label>
+                        <Label className="text-[10px] text-muted-foreground max-md:text-[11px]">Beneficiario</Label>
                         <Input
                           value={p.nome}
                           placeholder="Es. Commerciale"
@@ -571,7 +571,7 @@ export function SimScenariPanel({
 
                       {/* Base */}
                       <div className="w-[9.5rem] space-y-1">
-                        <Label className="text-[10px] text-muted-foreground">Base</Label>
+                        <Label className="text-[10px] text-muted-foreground max-md:text-[11px]">Base</Label>
                         <Select
                           value={p.base}
                           onValueChange={(v) =>
@@ -593,7 +593,7 @@ export function SimScenariPanel({
 
                       {/* Valore (% o €) */}
                       <div className="w-[6.5rem] space-y-1">
-                        <Label className="text-[10px] text-muted-foreground">
+                        <Label className="text-[10px] text-muted-foreground max-md:text-[11px]">
                           {p.base === "fisso" ? "Importo (€)" : "Valore (%)"}
                         </Label>
                         <Input
@@ -611,7 +611,7 @@ export function SimScenariPanel({
 
                       {/* Valore calcolato (read-only) */}
                       <div className="w-[6rem] space-y-1">
-                        <Label className="text-[10px] text-muted-foreground">Costo</Label>
+                        <Label className="text-[10px] text-muted-foreground max-md:text-[11px]">Costo</Label>
                         <div className="flex h-8 items-center justify-end rounded-md border bg-muted/30 px-2 text-sm font-medium tabular-nums">
                           {formatCurrency(valoreRiga)}
                         </div>
@@ -935,7 +935,7 @@ export function SimScenariPanel({
                       }}
                       className="h-8 text-right tabular-nums"
                     />
-                    <p className="text-[10px] text-muted-foreground">
+                    <p className="text-[10px] text-muted-foreground max-md:text-[11px]">
                       Default: prezzo cliente − anticipo ={" "}
                       {formatCurrency(Math.max(0, risultato.prezzo_cliente - (fin?.anticipo ?? 0)))}.
                     </p>
@@ -985,7 +985,7 @@ export function SimScenariPanel({
                     </p>
                     <Badge
                       variant="outline"
-                      className="text-[10px]"
+                      className="text-[10px] max-md:text-[11px]"
                       style={{ borderColor: `hsl(${rataVar} / 0.50)`, color: `hsl(${rataVar})` }}
                     >
                       {esatto ? "Da tabella" : "Interpolato"}
@@ -1030,7 +1030,7 @@ function FinStat({
 }) {
   return (
     <div>
-      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="text-[10px] uppercase tracking-wide text-muted-foreground max-md:text-[11px]">{label}</p>
       <p
         className={cn(
           "mt-0.5 tabular-nums",
