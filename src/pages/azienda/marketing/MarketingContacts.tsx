@@ -423,7 +423,7 @@ function ContactProfileDrawer({
                   <div className="mt-2 flex flex-wrap gap-2">
                     {contact.opp_pipeline && <Badge className="bg-white text-emerald-700 hover:bg-white">{contact.opp_pipeline}</Badge>}
                     {contact.opp_stage && <Badge className="bg-white text-emerald-700 hover:bg-white">{contact.opp_stage}</Badge>}
-                    {contact.opp_value != null && <Badge className="bg-white text-emerald-700 hover:bg-white">€ {Number(contact.opp_value).toLocaleString("it-IT")}</Badge>}
+                    {contact.opp_value != null && <Badge className="bg-white text-emerald-700 hover:bg-white">€ {Number(contact.opp_value).toLocaleString("it-IT", { useGrouping: true })}</Badge>}
                   </div>
                 </div>
               )}
