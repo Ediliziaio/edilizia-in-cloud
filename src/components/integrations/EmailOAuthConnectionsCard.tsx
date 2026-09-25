@@ -108,8 +108,14 @@ const STATUS_BADGE: Record<string, { label: string; color: string; icon: typeof 
 
 export function EmailOAuthConnectionsCard() {
   const qc = useQueryClient();
-  const { effectiveCompany, user } = useAuth();
+  const { effectiveCompany, user, userRoles } = useAuth();
   const userId = user?.id ?? null;
+  // La diagnostica della configurazione (chiavi, webhook, secrets) serve a chi
+  // gestisce la piattaforma, non a chi collega la sua casella: il 25/09/2026 un
+  // cliente ha letto «Setup OAuth non completo · INBOUND_EMAIL_SECRET» e ha
+  // pensato che Gmail non funzionasse. Ai clienti solo frasi semplici.
+  const isSuperAdmin = userRoles?.includes("super_admin") ?? false;
+  const dettaglioTecnico = (e: unknown) => (isSuperAdmin ? (e instanceof Error ? e.message : String(e)) : undefined);
   const [connecting, setConnecting] = useState<"gmail" | "outlook" | null>(null);
   const [diagOpen, setDiagOpen] = useState(false);
   const [imapDialogOpen, setImapDialogOpen] = useState(false);
@@ -188,7 +194,10 @@ export function EmailOAuthConnectionsCard() {
     },
     onError: (e) => {
       setConnecting(null);
-      toast.error("Errore connessione", { description: e instanceof Error ? e.message : String(e) });
+      console.error("[email-oauth-start]", e);
+      toast.error("Non siamo riusciti ad aprire il collegamento", {
+        description: dettaglioTecnico(e) ?? "Riprova tra qualche minuto; se succede ancora, scrivici e lo sistemiamo noi.",
+      });
     },
   });
 
@@ -210,7 +219,9 @@ export function EmailOAuthConnectionsCard() {
       toast.success("Connessione rimossa");
       void qc.invalidateQueries({ queryKey: ["email-oauth-connections"] });
     },
-    onError: (e) => toast.error("Errore", { description: String(e) }),
+    onError: (e) => toast.error("Non siamo riusciti a scollegare la casella", {
+      description: dettaglioTecnico(e) ?? "Riprova tra qualche minuto.",
+    }),
   });
 
   const forceSync = useMutation({
@@ -225,7 +236,7 @@ export function EmailOAuthConnectionsCard() {
       const stored = typeof data === "object" && data && "emails_stored" in data
         ? Number((data as { emails_stored?: number }).emails_stored ?? 0)
         : null;
-      toast.success("Sync completato", {
+      toast.success("Email aggiornate", {
         description: stored == null ? "Aggiorno la lista email." : `${stored} nuove email salvate nel client personale.`,
       });
       void qc.invalidateQueries({ queryKey: ["email-oauth-connections"] });
@@ -233,7 +244,9 @@ export function EmailOAuthConnectionsCard() {
       void qc.invalidateQueries({ queryKey: ["email-threads"] });
       void qc.invalidateQueries({ queryKey: ["email-folder-counts"] });
     },
-    onError: (e) => toast.error("Errore sync", { description: String(e) }),
+    onError: (e) => toast.error("Aggiornamento non riuscito", {
+      description: dettaglioTecnico(e) ?? "Riprova tra qualche minuto: nel frattempo le email si aggiornano comunque da sole.",
+    }),
   });
 
   return (
@@ -244,7 +257,7 @@ export function EmailOAuthConnectionsCard() {
           Le mie email collegate
         </CardTitle>
         <CardDescription className="text-xs">
-          Collega il tuo Gmail, Outlook o IMAP personale: le connessioni sono visibili solo a te.
+          Collega il tuo Gmail, Outlook o un'altra casella (Aruba, Libero, iCloud…): le connessioni sono visibili solo a te.
           Se un collega collega la stessa casella, avrà una connessione separata sul suo utente.
         </CardDescription>
       </CardHeader>
@@ -280,7 +293,7 @@ export function EmailOAuthConnectionsCard() {
         </div>
 
         {/* 🆕 Setup diagnostic — visibile solo SE setup non completo */}
-        {diag && !diag.ready && (
+        {isSuperAdmin && diag && !diag.ready && (
           <div className="rounded-lg border border-amber-300 bg-amber-50/50 dark:bg-amber-950/20 dark:border-amber-900 p-3 space-y-2">
             <button
               type="button"
@@ -353,7 +366,7 @@ export function EmailOAuthConnectionsCard() {
           </div>
         )}
 
-        {diag?.ready && (
+        {isSuperAdmin && diag?.ready && (
           <div className="rounded-lg border border-emerald-300 bg-emerald-50/30 dark:bg-emerald-950/10 dark:border-emerald-900 p-2 flex items-center gap-2">
             <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
             <p className="text-xs text-emerald-800 dark:text-emerald-300">
@@ -382,18 +395,24 @@ export function EmailOAuthConnectionsCard() {
             diag.checklist?.ms_oauth_client_id?.configured !== false
             && diag.checklist?.ms_oauth_client_secret?.configured !== false
           );
+          const nonAttivo = (servizio: string) =>
+            `Il collegamento con ${servizio} non è ancora attivo. Intanto puoi usare «Altra casella email», oppure scriverci.`;
           const gmailTitle = gmailReady
             ? undefined
-            : "OAuth Google non configurato — l'admin di piattaforma deve impostare GOOGLE_OAUTH_CLIENT_ID/SECRET";
+            : isSuperAdmin
+              ? "OAuth Google non configurato — impostare GOOGLE_OAUTH_CLIENT_ID/SECRET"
+              : nonAttivo("Gmail");
           const outlookTitle = outlookReady
             ? undefined
-            : "OAuth Microsoft non configurato — l'admin di piattaforma deve impostare MS_OAUTH_CLIENT_ID/SECRET";
+            : isSuperAdmin
+              ? "OAuth Microsoft non configurato — impostare MS_OAUTH_CLIENT_ID/SECRET"
+              : nonAttivo("Outlook");
           return (
             <div className="flex flex-wrap gap-2">
               <Button
                 onClick={() => {
                   if (!gmailReady) {
-                    toast.error("OAuth Google non configurato", { description: gmailTitle });
+                    toast.error("Gmail non ancora disponibile", { description: gmailTitle });
                     return;
                   }
                   startOAuth.mutate("gmail");
@@ -413,7 +432,7 @@ export function EmailOAuthConnectionsCard() {
               <Button
                 onClick={() => {
                   if (!outlookReady) {
-                    toast.error("OAuth Microsoft non configurato", { description: outlookTitle });
+                    toast.error("Outlook non ancora disponibile", { description: outlookTitle });
                     return;
                   }
                   startOAuth.mutate("outlook");
@@ -434,10 +453,10 @@ export function EmailOAuthConnectionsCard() {
                 onClick={() => setImapDialogOpen(true)}
                 variant={!gmailReady && !outlookReady ? "default" : "outline"}
                 className="gap-2"
-                title="Per Aruba, Libero, iCloud, Yahoo, Register o server custom — sempre disponibile"
+                title="Per Aruba, Libero, iCloud, Yahoo, Register e le altre caselle — sempre disponibile"
               >
                 <Server className="h-4 w-4" />
-                Altro provider (IMAP)
+                Altra casella email
               </Button>
             </div>
           );
@@ -467,7 +486,7 @@ export function EmailOAuthConnectionsCard() {
               variant="ghost"
               size="sm"
               className="gap-1.5"
-              title="Forza sync immediato di tutti gli account"
+              title="Controlla subito se ci sono email nuove"
             >
               {forceSync.isPending ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -492,14 +511,14 @@ export function EmailOAuthConnectionsCard() {
             </div>
             <p className="text-sm font-medium text-slate-900">Nessuna casella ancora collegata</p>
             <p className="text-xs mt-1 text-slate-600 max-w-md mx-auto">
-              Collega Gmail, Outlook o un IMAP custom: <strong>solo tu vedrai le tue email</strong>.
-              L'AI Silvio ti aiuterà a triagiare, rispondere e creare task.
+              Collega Gmail, Outlook o un'altra casella: <strong>solo tu vedrai le tue email</strong>.
+              L'AI Silvio ti aiuterà a smistarle, rispondere e creare attività.
             </p>
             <div className="mt-4 flex flex-wrap gap-2 justify-center text-[10px] text-slate-500">
-              <span className="rounded-full border border-rose-200 bg-white px-2 py-0.5">📨 Gmail</span>
-              <span className="rounded-full border border-blue-200 bg-white px-2 py-0.5">📨 Outlook</span>
-              <span className="rounded-full border border-violet-200 bg-white px-2 py-0.5">📨 Aruba/Libero/iCloud</span>
-              <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5">📨 IMAP custom</span>
+              <span className="rounded-full border border-rose-200 bg-white px-2 py-0.5">Gmail</span>
+              <span className="rounded-full border border-blue-200 bg-white px-2 py-0.5">Outlook</span>
+              <span className="rounded-full border border-violet-200 bg-white px-2 py-0.5">Aruba/Libero/iCloud</span>
+              <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5">Altre caselle</span>
             </div>
           </div>
         ) : (
@@ -535,12 +554,12 @@ export function EmailOAuthConnectionsCard() {
                         <span>{c.emails_fetched_total} email totali</span>
                         <span>·</span>
                         <span>
-                          Ultimo sync: {c.last_synced_at
+                          Ultimo controllo: {c.last_synced_at
                             ? new Date(c.last_synced_at).toLocaleString("it-IT", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short" })
                             : "mai"}
                         </span>
                         <span>·</span>
-                        <span>polling ogni {c.poll_interval_minutes} min</span>
+                        <span>controllo ogni {c.poll_interval_minutes} min</span>
                       </div>
                       {c.last_sync_error && c.status === "active" && (
                         <p
