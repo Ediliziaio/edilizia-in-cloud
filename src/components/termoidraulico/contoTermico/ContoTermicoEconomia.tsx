@@ -90,6 +90,9 @@ export function ContoTermicoEconomia({ dati, onChange, prezzoIvaInclusa, ivaPct 
   const r = useMemo(() => calcolaContoTermico(economiaContoTermico(dati, prezzoIvaInclusa, ivaPct)), [dati, prezzoIvaInclusa, ivaPct]);
   const oltreIlTetto = prezzoIvaInclusa > 0 && dati.contributo > prezzoIvaInclusa * (CONTO_TERMICO.percentualeMassima / 100);
   const rate = numeroRate(dati.contributo, dati.potenza_kw);
+  // Le righe della scheda hanno campi non controllati: dopo una cancellazione si
+  // ridisegnano tutte, altrimenti la riga che sale mostrerebbe il testo di quella tolta.
+  const [giro, setGiro] = useState(0);
 
   return (
     <Card className="border-orange-200">
@@ -102,6 +105,25 @@ export function ContoTermicoEconomia({ dati, onChange, prezzoIvaInclusa, ivaPct 
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* In cima: è quello che si guarda mentre si scrivono prezzo e contributo. */}
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
+          <p className="text-xs font-semibold text-emerald-900">Cosa ottiene il cliente</p>
+          <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2 text-xs sm:grid-cols-3">
+            {[
+              ["Contributo", euro(r.contributo)],
+              ["Resta a lui", euro(r.restaATe)],
+              ["Paga ai lavori", euro(r.pagaOggi)],
+              ["Risparmio all'anno", euro(Math.max(0, r.risparmioAnnuo))],
+              ["Spesa ripagata", r.anniDiRientro != null ? `in ${anniTesto(r.anniDiRientro)}` : "oltre il periodo"],
+              [`In ${dati.anni} anni`, euro(r.beneficioFinale)],
+            ].map(([k, v]) => (
+              <div key={k}>
+                <dt className="text-[10px] uppercase tracking-wide text-emerald-800/80">{k}</dt>
+                <dd className="font-semibold tabular-nums text-emerald-950">{v}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
         <div className="space-y-1.5">
           <Label className="text-xs">Cosa si installa</Label>
           <Scelta<InterventoContoTermico>
@@ -154,13 +176,14 @@ export function ContoTermicoEconomia({ dati, onChange, prezzoIvaInclusa, ivaPct 
         <div className="space-y-1.5">
           <Label className="text-xs">Scheda tecnica del modello proposto (nel PDF)</Label>
           {dati.caratteristiche.map((x, i) => (
-            <div key={i} className="flex gap-2">
-              <Input aria-label="Caratteristica" defaultValue={x.etichetta} placeholder="Potenza termica" className="h-8 text-xs"
+            // Sul telefono voce e valore vanno su due righe: affiancati, la voce si tagliava.
+            <div key={`${giro}-${i}`} className="flex flex-wrap gap-2 rounded-lg border p-2 sm:flex-nowrap sm:border-0 sm:p-0">
+              <Input aria-label="Caratteristica" defaultValue={x.etichetta} placeholder="Potenza termica" className="h-8 basis-full text-xs sm:basis-auto sm:flex-1"
                 onBlur={(e) => cambia({ caratteristiche: dati.caratteristiche.map((y, j) => (j === i ? { ...y, etichetta: e.target.value.trim() } : y)) })} />
-              <Input aria-label="Valore" defaultValue={x.valore} placeholder="8 kW" className="h-8 w-40 text-xs"
+              <Input aria-label="Valore" defaultValue={x.valore} placeholder="8 kW" className="h-8 min-w-0 flex-1 text-xs sm:w-40 sm:flex-none"
                 onBlur={(e) => cambia({ caratteristiche: dati.caratteristiche.map((y, j) => (j === i ? { ...y, valore: e.target.value.trim() } : y)) })} />
               <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0" aria-label="Togli la riga"
-                onClick={() => cambia({ caratteristiche: dati.caratteristiche.filter((_, j) => j !== i) })}>
+                onClick={() => { setGiro((g) => g + 1); cambia({ caratteristiche: dati.caratteristiche.filter((_, j) => j !== i) }); }}>
                 <Trash2 className="h-3.5 w-3.5" />
               </Button>
             </div>
@@ -173,24 +196,6 @@ export function ContoTermicoEconomia({ dati, onChange, prezzoIvaInclusa, ivaPct 
           ) : null}
         </div>
 
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
-          <p className="text-xs font-semibold text-emerald-900">Cosa ottiene il cliente</p>
-          <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2 text-xs sm:grid-cols-3">
-            {[
-              ["Contributo", euro(r.contributo)],
-              ["Resta a lui", euro(r.restaATe)],
-              ["Paga ai lavori", euro(r.pagaOggi)],
-              ["Risparmio all'anno", euro(Math.max(0, r.risparmioAnnuo))],
-              ["Spesa ripagata", r.anniDiRientro != null ? `in ${anniTesto(r.anniDiRientro)}` : "oltre il periodo"],
-              [`In ${dati.anni} anni`, euro(r.beneficioFinale)],
-            ].map(([k, v]) => (
-              <div key={k}>
-                <dt className="text-[10px] uppercase tracking-wide text-emerald-800/80">{k}</dt>
-                <dd className="font-semibold tabular-nums text-emerald-950">{v}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
       </CardContent>
     </Card>
   );
