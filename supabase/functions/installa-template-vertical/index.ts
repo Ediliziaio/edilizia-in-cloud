@@ -6,7 +6,9 @@
 // Output: { categorie_create, famiglie_create, assi_create, valori_create }
 //
 // Logica:
-//  1. Verifica auth + permessi (utente appartiene alla company o è super_admin).
+//  1. Verifica auth + permesso di modificare il listino (verificaPermessoAzienda:
+//     l'amministratore o chi ha «Listino & Prezzi» in modifica; mai un accesso
+//     multi-azienda sospeso o scaduto).
 //  2. Carica vertical_category_templates del vertical → upsert in listino_categorie
 //     (deduplica per (company_id, nome)).
 //  3. Carica vertical_family_templates del vertical → per ogni template non già
@@ -18,6 +20,7 @@
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { verificaPermessoAzienda } from "../_shared/permessoAzienda.ts";
 
 // ── Tipi narrow sul payload JSONB assi_default ────────────────────────────────
 
@@ -59,51 +62,6 @@ function json(data: unknown, status: number, req: Request): Response {
     status,
     headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
   });
-}
-
-// ── Permessi ───────────────────────────────────────────────────────────────────
-
-async function verifyAccess(
-  supabase: SupabaseClient,
-  userId: string,
-  companyId: string,
-): Promise<void> {
-  // 1. super_admin (bypass)
-  const { data: roles } = await supabase
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", userId);
-  const isSuperAdmin = Array.isArray(roles) && roles.some((r) => r.role === "super_admin");
-  if (isSuperAdmin) return;
-
-  // 2. profiles.company_id
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("company_id")
-    .eq("id", userId)
-    .maybeSingle();
-  if (profile?.company_id === companyId) return;
-
-  // 3. multi_company_access
-  const { data: mca } = await supabase
-    .from("multi_company_access")
-    .select("id")
-    .eq("user_id", userId)
-    .eq("company_id", companyId)
-    .maybeSingle();
-  if (mca) return;
-
-  // 4. active_impersonations (super admin impersonating)
-  const { data: imp } = await supabase
-    .from("active_impersonations")
-    .select("id")
-    .eq("admin_user_id", userId)
-    .eq("target_company_id", companyId)
-    .gt("expires_at", new Date().toISOString())
-    .maybeSingle();
-  if (imp) return;
-
-  throw new Error("Non autorizzato: accesso negato a questa azienda");
 }
 
 // ── Installazione ──────────────────────────────────────────────────────────────
@@ -337,7 +295,7 @@ Deno.serve(async (req) => {
     });
 
     // 4. Autorizzazione
-    await verifyAccess(admin, userId, companyId);
+    await verificaPermessoAzienda(admin, userId, companyId, ["can_edit_settings_pricing"], "modificare il listino");
 
     // 5. Installazione
     const counts = await installTemplates(admin, companyId, vertical);

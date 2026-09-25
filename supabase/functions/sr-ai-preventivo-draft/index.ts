@@ -8,6 +8,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { getCorsHeaders, jsonResponse, errorResponse } from "../_shared/headers.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { verificaPermessoAzienda } from "../_shared/permessoAzienda.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 
 type DraftSource = "testo" | "foto" | "mixed";
@@ -71,11 +72,6 @@ interface AiDraftRaw {
   items?: AiItemRaw[];
   warnings?: string[];
   questions?: string[];
-}
-
-interface StaffEditPermissions {
-  can_edit_marketing?: boolean | null;
-  can_edit_marketing_opportunities?: boolean | null;
 }
 
 interface DraftItem {
@@ -183,8 +179,8 @@ Deno.serve(async (req) => {
     if (progettoError || !progetto) return errorResponse("Progetto serramenti non trovato", 404, cors);
 
     const companyId = progetto.company_id as string;
-    const access = await requireCompanyAccess(supabaseAdmin, userId, companyId, cors);
-    await requireSerramentiAiPermission(supabaseAdmin, userId, companyId, access.roles, cors);
+    await requireCompanyAccess(supabaseAdmin, userId, companyId, cors);
+    await requireSerramentiAiPermission(supabaseAdmin, userId, companyId, cors);
 
     const familiesRes = await supabaseAdmin
       .from("article_families")
@@ -531,42 +527,21 @@ async function requireSerramentiAiPermission(
   supabaseAdmin: any,
   userId: string,
   companyId: string,
-  roles: string[],
   cors: Record<string, string>,
 ) {
-  if (roles.includes("super_admin") || roles.includes("company_admin")) return;
-
-  const [{ data: multiAccess, error: multiError }, { data: permissions, error: permissionsError }] =
-    await Promise.all([
-      supabaseAdmin
-        .from("multi_company_access")
-        .select("access_role")
-        .eq("user_id", userId)
-        .eq("company_id", companyId)
-        .maybeSingle(),
-      supabaseAdmin
-        .from("staff_permissions")
-        .select("can_edit_marketing, can_edit_marketing_opportunities")
-        .eq("user_id", userId)
-        .eq("company_id", companyId)
-        .maybeSingle(),
-    ]);
-
-  if (multiError || permissionsError) {
+  // Chi può modificare le opportunità (o il marketing) in QUESTA azienda:
+  // l'amministratore della sua azienda o da accesso multi-azienda attivo, o lo
+  // staff col permesso. Fino al 26/09/2026 bastava essere amministratore di
+  // un'azienda qualsiasi: chi lo era nella propria entrava da staff in un'altra
+  // e passava anche lì.
+  try {
+    await verificaPermessoAzienda(
+      supabaseAdmin, userId, companyId, ["can_edit_marketing_opportunities", "can_edit_marketing"], "modificare i preventivi",
+    );
+  } catch {
     throw new Response(
-      JSON.stringify({ error: "Forbidden: unable to verify quote permissions" }),
+      JSON.stringify({ error: "Forbidden: quote edit permission required" }),
       { status: 403, headers: { ...cors, "Content-Type": "application/json" } },
     );
   }
-
-  const accessRole = (multiAccess as { access_role?: string | null } | null)?.access_role ?? null;
-  const staffPermissions = permissions as StaffEditPermissions | null;
-  const canEdit = Boolean(staffPermissions?.can_edit_marketing_opportunities || staffPermissions?.can_edit_marketing);
-
-  if (accessRole === "company_admin" || canEdit) return;
-
-  throw new Response(
-    JSON.stringify({ error: "Forbidden: quote edit permission required" }),
-    { status: 403, headers: { ...cors, "Content-Type": "application/json" } },
-  );
 }
