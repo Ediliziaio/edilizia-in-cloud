@@ -208,6 +208,7 @@ export function socialPostFromRow(row: Record<string, any>): SocialScheduledPost
     createdBy: row.created_by ?? undefined,
     approvatoDa: row.approvato_da ?? undefined,
     approvatoIl: row.approvato_il ?? undefined,
+    argomento: typeof row.argomento === "string" && row.argomento ? row.argomento : undefined,
     reviewNote: row.review_note ?? undefined,
     mediaItemId: row.media_item_id ?? undefined,
   };
@@ -230,6 +231,7 @@ export function socialPostToInsert(companyId: string, post: SocialScheduledPost)
     scheduled_at: post.scheduled_at || null,
     status: normalizeSocialPostStatus(post.status),
     review_note: post.reviewNote ?? null,
+    argomento: post.argomento ?? null,
     media_item_id: isUuid(post.mediaItemId) ? post.mediaItemId : null,
   };
 }
@@ -246,6 +248,7 @@ export function socialPostChangesToPatch(changes: Partial<SocialScheduledPost>) 
   if ("scheduled_at" in changes) patch.scheduled_at = changes.scheduled_at || null;
   if ("status" in changes) patch.status = normalizeSocialPostStatus(changes.status);
   if ("reviewNote" in changes) patch.review_note = changes.reviewNote ?? null;
+  if ("argomento" in changes) patch.argomento = changes.argomento ?? null;
   if ("mediaItemId" in changes) patch.media_item_id = isUuid(changes.mediaItemId) ? changes.mediaItemId : null;
   if ("targetPageIds" in changes) patch.target_page_ids = parseTargetPageIds(changes.targetPageIds) ?? {};
   if ("media" in changes) patch.media = mediaForDb(changes.media, true) ?? [];

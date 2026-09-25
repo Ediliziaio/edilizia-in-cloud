@@ -45,6 +45,8 @@ export interface SocialScheduledPost {
   createdBy?: string;
   approvatoDa?: string;
   approvatoIl?: string;
+  /** Argomento scelto nel composer (id di CONTENT_PILLARS); vuoto = non scelto. */
+  argomento?: string;
   reviewNote?: string;
   mediaItemId?: string;
   /** pagina di destinazione per piattaforma (page_id); vuoto = unica pagina collegata */

@@ -23,6 +23,7 @@ import {
   Eye,
   Film,
   Hash,
+  Heart,
   Image as ImageIcon,
   ImagePlus,
   Info,
@@ -65,7 +66,7 @@ import { SocialMediaUploader } from "@/components/social/SocialMediaUploader";
 import { StatistichePagineSocial } from "@/components/social/StatistichePagineSocial";
 import { useSocialManagerData } from "@/hooks/useSocialManagerData";
 import { useStatoPubblicazioneSocial } from "@/hooks/useStatoPubblicazioneSocial";
-import { usePostFacebookEsterni, usePuoApprovareSocial } from "@/hooks/useCalendarioSocial";
+import { usePostFacebookEsterni, usePostInstagramReali, usePuoApprovareSocial } from "@/hooks/useCalendarioSocial";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { readInvokeError } from "@/lib/readInvokeError";
 import {
@@ -89,6 +90,13 @@ import {
   type PostEsterno,
   type StatoCalendario,
 } from "@/lib/social/calendario";
+import {
+  costruisciGriglia,
+  numeroIntero,
+  scambiabile,
+  type CellaGriglia,
+  type PostInstagramReale,
+} from "@/lib/social/griglia";
 import {
   describePublishResult,
   metaAccountsFor,
@@ -702,12 +710,17 @@ const isUuidPost = (id: unknown): id is string => typeof id === "string" && /^[0
 
 const oraBreve = (d: Date) => d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
 
+const suInstagram = (voce: VoceCalendario) => voce.tipo === "esterno" && voce.esterno.piattaforma === "instagram";
+
 const testoVoce = (voce: VoceCalendario) =>
-  voce.tipo === "post" ? (voce.post.text.trim() || "Post senza testo") : (voce.esterno.testo.trim() || "Post su Facebook");
+  voce.tipo === "post"
+    ? (voce.post.text.trim() || "Post senza testo")
+    : (voce.esterno.testo.trim() || (suInstagram(voce) ? "Post su Instagram" : "Post su Facebook"));
 
 const stileVoce = (voce: VoceCalendario) => (voce.tipo === "post" ? STILE_STATO[voce.info.stato].voce : STILE_ESTERNO);
 
-const etichettaVoce = (voce: VoceCalendario) => (voce.tipo === "post" ? voce.info.etichetta : "Su Facebook, fuori dall'app");
+const etichettaVoce = (voce: VoceCalendario) =>
+  voce.tipo === "post" ? voce.info.etichetta : suInstagram(voce) ? "Su Instagram" : "Su Facebook, fuori dall'app";
 
 function IconePiattaforme({ ids, max = 3, size = "sm" }: { ids: string[]; max?: number; size?: "xs" | "sm" }) {
   return (
@@ -741,7 +754,7 @@ function coloreConteggio(voci: VoceCalendario[]): string {
 
 /** La voce piccola della cella del mese e della settimana. */
 function VoceCompatta({ voce, onApri }: { voce: VoceCalendario; onApri: (voce: VoceCalendario) => void }) {
-  const piattaforme = voce.tipo === "post" ? voce.post.platforms : ["facebook"];
+  const piattaforme = voce.tipo === "post" ? voce.post.platforms : [voce.esterno.piattaforma ?? "facebook"];
   return (
     <button
       type="button"
@@ -761,7 +774,7 @@ function VoceCompatta({ voce, onApri }: { voce: VoceCalendario; onApri: (voce: V
 
 /** La voce leggibile: elenchi a destra, giorno scelto, elenco per giorni del telefono. */
 function VoceEstesa({ voce, onApri, conData = false }: { voce: VoceCalendario; onApri: (voce: VoceCalendario) => void; conData?: boolean }) {
-  const piattaforme = voce.tipo === "post" ? voce.post.platforms : ["facebook"];
+  const piattaforme = voce.tipo === "post" ? voce.post.platforms : [voce.esterno.piattaforma ?? "facebook"];
   const badge = voce.tipo === "post" ? STILE_STATO[voce.info.stato].badge : STILE_ESTERNO;
   return (
     <button type="button" onClick={() => onApri(voce)}
@@ -776,7 +789,7 @@ function VoceEstesa({ voce, onApri, conData = false }: { voce: VoceCalendario; o
               : oraBreve(voce.quando)}
         </span>
         <span className={cn("ml-auto shrink-0 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold", badge)}>
-          {voce.tipo === "post" ? voce.info.etichetta : "Su Facebook"}
+          {voce.tipo === "post" ? voce.info.etichetta : suInstagram(voce) ? "Su Instagram" : "Su Facebook"}
         </span>
       </span>
       <span className="line-clamp-2 text-[12px] text-slate-700">{testoVoce(voce)}</span>
@@ -1402,17 +1415,42 @@ function PostSocialDialog({
         {esterno && (
           <>
             <DialogHeader>
-              <DialogTitle>Post su Facebook</DialogTitle>
+              <DialogTitle>{esterno.piattaforma === "instagram" ? "Post su Instagram" : "Post su Facebook"}</DialogTitle>
               <DialogDescription>
-                {esterno.pagina} · {new Date(esterno.quando).toLocaleString("it-IT", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}
+                {[esterno.pagina, new Date(esterno.quando).toLocaleString("it-IT", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })]
+                  .filter(Boolean).join(" · ")}
               </DialogDescription>
             </DialogHeader>
-            {esterno.immagine && <img loading="lazy" src={esterno.immagine} alt="" className="max-h-64 w-full rounded-xl object-cover" />}
-            <p className="whitespace-pre-line text-sm text-slate-700">{esterno.testo || "Post senza testo"}</p>
-            <p className="text-xs text-slate-500">Pubblicato direttamente su Facebook, non da qui: si modifica solo da Facebook.</p>
+            {esterno.immagine && (
+              <img loading="lazy" src={esterno.immagine} alt="" className="max-h-64 w-full rounded-xl object-cover"
+                onError={(e) => { e.currentTarget.style.display = "none"; }} />
+            )}
+            <p className="max-h-48 overflow-y-auto whitespace-pre-line text-sm text-slate-700">{esterno.testo || "Post senza testo"}</p>
+            {esterno.numeri && (
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {[
+                  { etichetta: "mi piace", valore: esterno.numeri.reazioni },
+                  { etichetta: "commenti", valore: esterno.numeri.commenti },
+                  { etichetta: "persone raggiunte", valore: esterno.numeri.copertura },
+                  { etichetta: "salvataggi", valore: esterno.numeri.salvataggi },
+                ].map((n) => (
+                  <div key={n.etichetta} className="rounded-xl bg-slate-50 px-2.5 py-2 text-center">
+                    <p className="text-base font-bold tabular-nums text-slate-800">{numeroIntero(n.valore)}</p>
+                    <p className="text-[10px] text-slate-500">{n.etichetta}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            <p className="text-xs text-slate-500">
+              {esterno.piattaforma === "instagram"
+                ? "È già su Instagram: si modifica solo da Instagram. I numeri si aggiornano ogni 4 ore."
+                : "Pubblicato direttamente su Facebook, non da qui: si modifica solo da Facebook."}
+            </p>
             {esterno.link && (
               <Button asChild variant="outline" className="w-full gap-1.5">
-                <a href={esterno.link} target="_blank" rel="noopener noreferrer"><ExternalLink className="h-4 w-4" /> Apri su Facebook</a>
+                <a href={esterno.link} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="h-4 w-4" /> {esterno.piattaforma === "instagram" ? "Apri su Instagram" : "Apri su Facebook"}
+                </a>
               </Button>
             )}
           </>
@@ -1618,6 +1656,9 @@ interface InizialeComposer {
   data?: string;
   ora?: string;
   post?: ScheduledPost;
+  /** Per un post nuovo: dove (es. la griglia Instagram di un account). */
+  piattaforme?: string[];
+  destinazioni?: Record<string, string>;
 }
 
 /**
@@ -1639,18 +1680,19 @@ function valoriIniziali(iniziale: InizialeComposer | null | undefined) {
   return {
     inModifica: modifica,
     contentTypeId: tipo,
-    piattaforme: post ? post.platforms : null,
+    piattaforme: post ? post.platforms : iniziale?.piattaforme ?? null,
+    argomento: post?.argomento ?? null,
     testo: post ? post.text : null,
     perPiattaforma,
     hashtags: post?.hashtags ?? [],
     primoCommento: post?.firstComment ?? "",
     mediaUrl: fotoPrincipale ? media[0].url ?? null : null,
     extraMedia: fotoPrincipale ? [] : media,
-    targetPageIds: post?.targetPageIds ?? {},
+    targetPageIds: post?.targetPageIds ?? iniziale?.destinazioni ?? {},
     publishNow: !(iniziale?.data || conData),
     data: iniziale?.data ?? (conData ? chiaveGiorno(conData) : ""),
     ora: iniziale?.ora ?? (conData ? oraBreve(conData) : "09:00"),
-    opzioniAperte: Boolean(post && (tipo !== "post" || perPiattaforma || post.firstComment)),
+    opzioniAperte: Boolean(post && (tipo !== "post" || perPiattaforma || post.firstComment || post.argomento)),
   };
 }
 
@@ -1690,7 +1732,7 @@ function ContentStudioTab({
 
   // ── Opzioni avanzate: formato e argomento ──────────────────────────────────
   const [opzioniAperte, setOpzioniAperte] = useState(avvio.opzioniAperte);
-  const [activePillarId, setActivePillarId] = useState<string | null>(null);
+  const [activePillarId, setActivePillarId] = useState<string | null>(avvio.argomento);
   const [contentTypeId, setContentTypeId] = useState(avvio.contentTypeId);
   const contentType = CONTENT_TYPE_CONFIG.find((c) => c.id === contentTypeId) ?? CONTENT_TYPE_CONFIG[0];
   const availablePlatforms = PLATFORMS.filter((p) => contentType.supportedBy.includes(p.id));
@@ -2078,6 +2120,7 @@ function ContentStudioTab({
       status,
       created_at: new Date().toISOString(),
       mediaItemId: selectedLibraryMedia?.id,
+      argomento: activePillarId ?? undefined,
     };
 
     try {
@@ -2166,6 +2209,7 @@ function ContentStudioTab({
       platformTexts: crossPlatformMode && Object.keys(platformTexts).length > 0
         ? platformTexts
         : undefined,
+      argomento: activePillarId ?? undefined,
     };
 
     try {
@@ -3114,312 +3158,461 @@ function GalleriaTab({
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// GRID PLANNER TAB
+// GRIGLIA INSTAGRAM — il profilo vero, nell'ordine del cliente (25/09/2026)
 // ═══════════════════════════════════════════════════════════════════════════════
+// Prima: profilo finto uguale per tutti (nome e follower inventati), i
+// programmati SOTTO i pubblicati, i pubblicati come quadrati grigi, le storie
+// nella griglia, gli account mischiati, l'argomento indovinato dal testo,
+// riquadri quadrati (Instagram dal 2025 li mostra verticali), 18 caselle finte.
+// La logica è in src/lib/social/griglia.ts.
 
-interface GridCell {
-  id: string;
-  type: "published" | "scheduled" | "placeholder";
-  gradient?: string;
-  text?: string;
-  image_url?: string;
-  scheduled_at?: string;
-  platform?: string;
-  pillar?: string;
-  pillarEmoji?: string;
+type AccountSocial = { platform_id: string; page_id: string; page_name: string; followers?: number };
+
+/** La voce del calendario per una cella: la finestra del post è la stessa. */
+function voceDaCella(cella: CellaGriglia, pagina = ""): VoceCalendario {
+  if (cella.tipo === "app") {
+    return {
+      tipo: "post",
+      id: cella.post.id,
+      quando: cella.quando ?? new Date(cella.post.created_at),
+      post: cella.post,
+      info: cella.info,
+    };
+  }
+  const r = cella.reale;
+  return {
+    tipo: "esterno",
+    id: cella.id,
+    quando: cella.quando,
+    esterno: {
+      id: r.postId,
+      pageId: r.pageId,
+      pagina,
+      testo: r.testo,
+      quando: r.quando,
+      link: r.link,
+      immagine: r.immagine,
+      piattaforma: "instagram",
+      numeri: r.numeri,
+    },
+  };
 }
 
-// Build 18-cell grid: last 6 published + future slots
-function buildGrid(posts: ScheduledPost[], demoMode: boolean): GridCell[] {
-  // Celle "pubblicato": per la Demo Azienda i 6 media demo; per un'azienda
-  // reale gli ULTIMI post davvero pubblicati (niente contenuti finti).
-  const published: GridCell[] = demoMode
-    ? DEMO_MEDIA_ITEMS.slice(0, 6).map((m) => ({
-        id: `pub-${m.id}`,
-        type: "published" as const,
-        gradient: m.gradient,
-        text: m.title,
-        platform: "instagram",
-      }))
-    : posts
-        .filter((p) => p.status === "published" && p.platforms.includes("instagram"))
-        .sort((a, b) => new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime())
-        .slice(0, 6)
-        .map((p) => ({
-          id: `pub-${p.id}`,
-          type: "published" as const,
-          gradient: "from-slate-400 to-slate-600",
-          text: p.text,
-          image_url: p.image_url,
-          platform: "instagram",
-        }));
+const dataBreve = (d: Date) => `${d.toLocaleDateString("it-IT", { weekday: "short", day: "numeric" })} · ${oraBreve(d)}`;
 
-  // Scheduled instagram posts — deterministic gradient based on post id (no random)
-  const FALLBACK_GRADIENTS = DEMO_MEDIA_ITEMS.map((m) => m.gradient);
-  const deterministicGradient = (id: string) => {
-    let hash = 0;
-    for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) & 0xffff;
-    return FALLBACK_GRADIENTS[hash % FALLBACK_GRADIENTS.length] ?? "from-slate-400 to-slate-600";
+function CellaInstagram({
+  cella,
+  attenuata,
+  scelta,
+  bersaglio,
+  trascinabile,
+  onApri,
+  onTrascinaInizio,
+  onTrascinaSopra,
+  onTrascinaVia,
+  onRilascia,
+  onTrascinaFine,
+}: {
+  cella: CellaGriglia;
+  attenuata: boolean;
+  scelta: boolean;
+  bersaglio: boolean;
+  trascinabile: boolean;
+  onApri: () => void;
+  onTrascinaInizio: () => void;
+  onTrascinaSopra: () => boolean;
+  onTrascinaVia: () => void;
+  onRilascia: () => void;
+  onTrascinaFine: () => void;
+}) {
+  // Le foto di Instagram scadono dopo qualche giorno: se non si caricano, al loro posto un riquadro pulito.
+  const [rotta, setRotta] = useState(false);
+  const app = cella.tipo === "app" ? cella : null;
+  const argomento = app?.post.argomento ? CONTENT_PILLARS.find((p) => p.id === app.post.argomento) : null;
+  const gradiente = cella.tipo === "instagram" ? cella.reale.gradiente : undefined;
+  const testo = app ? app.post.text : cella.tipo === "instagram" ? cella.reale.testo : "";
+  const etichetta = app
+    ? `${app.info.etichetta}${app.quando ? ` · ${dataBreve(app.quando)}` : ""} · ${testo || "Post senza testo"}`
+    : `Pubblicato il ${cella.quando?.toLocaleDateString("it-IT")} · ${testo || "Post senza testo"}`;
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      title={etichetta}
+      aria-label={etichetta}
+      draggable={trascinabile}
+      onClick={onApri}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onApri(); } }}
+      onDragStart={(e) => {
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", cella.id);
+        onTrascinaInizio();
+      }}
+      onDragOver={(e) => { if (onTrascinaSopra()) e.preventDefault(); }}
+      onDragLeave={onTrascinaVia}
+      onDrop={(e) => { e.preventDefault(); onRilascia(); }}
+      onDragEnd={onTrascinaFine}
+      className={cn(
+        "group relative aspect-[3/4] cursor-pointer overflow-hidden bg-slate-200 outline-none transition focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-orange-400",
+        attenuata && "opacity-30",
+        scelta && "ring-4 ring-inset ring-orange-500",
+        bersaglio && "ring-4 ring-inset ring-orange-300",
+        trascinabile && "cursor-grab active:cursor-grabbing",
+      )}
+    >
+      {gradiente ? (
+        <div className={cn("absolute inset-0 bg-gradient-to-br", gradiente)} />
+      ) : cella.immagine && !rotta ? (
+        <img loading="lazy" src={cella.immagine} alt="" draggable={false} onError={() => setRotta(true)}
+          className="absolute inset-0 h-full w-full object-cover" />
+      ) : (
+        <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-200 to-slate-300 text-slate-400">
+          {cella.formato === "reel" || cella.formato === "video" ? <Play className="h-7 w-7" /> : <ImageIcon className="h-7 w-7" />}
+        </div>
+      )}
+
+      {/* Come su Instagram: l'icona del carosello e del Reel in alto a destra */}
+      {cella.formato !== "foto" && (
+        <span className="absolute right-1.5 top-1.5 text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]">
+          {cella.formato === "carosello" ? <Layers className="h-4 w-4" /> : <Film className="h-4 w-4" />}
+        </span>
+      )}
+
+      {/* Non ancora su Instagram: cornice tratteggiata, giorno e ora, lo stato se non è «Programmato» */}
+      {app?.futura && (
+        <>
+          <div className="pointer-events-none absolute inset-1 rounded border-2 border-dashed border-white/90" />
+          <span className="absolute left-1.5 top-1.5 max-w-[calc(100%-2.5rem)] truncate rounded-full bg-white/95 px-1.5 py-0.5 text-[9px] font-bold text-slate-800 shadow-sm">
+            {app.quando ? dataBreve(app.quando) : "Senza data"}
+          </span>
+          {app.info.stato !== "programmato" && (
+            <span className={cn("absolute bottom-1.5 left-1.5 rounded-full border px-1.5 py-0.5 text-[9px] font-bold shadow-sm", STILE_STATO[app.info.stato].badge)}>
+              {app.info.etichetta}
+            </span>
+          )}
+        </>
+      )}
+
+      {argomento && (
+        <span className="absolute bottom-1.5 right-1.5 rounded-full bg-white/95 px-1 text-xs shadow-sm" title={argomento.label}>
+          {argomento.emoji}
+        </span>
+      )}
+
+      {/* Già su Instagram: i numeri al passaggio del mouse, come sul profilo */}
+      {cella.tipo === "instagram" && !gradiente && (
+        <div className="absolute inset-0 hidden items-center justify-center gap-3 bg-black/45 text-xs font-bold text-white group-hover:flex">
+          <span className="flex items-center gap-1"><Heart className="h-3.5 w-3.5 fill-white" />{numeroIntero(cella.reale.numeri.reazioni)}</span>
+          <span className="flex items-center gap-1"><MessageSquare className="h-3.5 w-3.5 fill-white" />{numeroIntero(cella.reale.numeri.commenti)}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function GridPlannerTab({
+  companyId,
+  posts,
+  stato,
+  accountSocial,
+  logoAzienda,
+  demoMode = false,
+  onApriVoce,
+  onNuovoPost,
+  onScambia,
+  onGoToSettings,
+}: {
+  companyId: string;
+  posts: ScheduledPost[];
+  stato: StatoPubblicazioneSocial | null;
+  accountSocial: AccountSocial[];
+  logoAzienda?: string | null;
+  demoMode?: boolean;
+  onApriVoce: (voce: VoceCalendario) => void;
+  onNuovoPost: (iniziale: InizialeComposer) => void;
+  onScambia: (primo: ScheduledPost, secondo: ScheduledPost) => Promise<boolean>;
+  onGoToSettings: () => void;
+}) {
+  const [adesso, setAdesso] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setAdesso(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const realiQuery = usePostInstagramReali(companyId);
+
+  // Gli account Instagram collegati, con i follower veri (social_accounts).
+  const accountVeri = Array.from(
+    new Map(
+      accountSocial
+        .filter((a) => a.platform_id === "instagram" && a.page_id)
+        .map((a) => [a.page_id, { pageId: a.page_id, nome: a.page_name, followers: a.followers ?? null }] as const),
+    ).values(),
+  );
+  // La Demo Azienda, senza Instagram, vede un profilo di prova (e lo dice).
+  const demo = demoMode && accountVeri.length === 0;
+  const accounts = demo ? [{ pageId: "demo", nome: "demo.impresaedile", followers: null as number | null }] : accountVeri;
+
+  const [pageScelta, setPageScelta] = useState<string | null>(null);
+  const account = accounts.find((a) => a.pageId === pageScelta) ?? accounts[0] ?? null;
+  const [mostraBozze, setMostraBozze] = useState(false);
+  const [evidenzia, setEvidenzia] = useState<string | null>(null);
+  const [modoScambio, setModoScambio] = useState(false);
+  const [primoScambio, setPrimoScambio] = useState<string | null>(null);
+  const [trascinato, setTrascinato] = useState<string | null>(null);
+  const [bersaglio, setBersaglio] = useState<string | null>(null);
+
+  const reali = useMemo<PostInstagramReale[]>(() => (demo
+    ? DEMO_MEDIA_ITEMS.slice(0, 9).map((m, i): PostInstagramReale => ({
+      postId: `demo-${m.id}`,
+      pageId: "demo",
+      quando: new Date(Date.UTC(2026, 8, 20 - i * 3, 9)).toISOString(),
+      formato: m.type === "video" ? "reel" : "foto",
+      testo: m.title,
+      link: null,
+      immagine: null,
+      numeri: { reazioni: null, commenti: null, copertura: null, salvataggi: null, visualizzazioni: null },
+      sincronizzatoIl: null,
+      gradiente: m.gradient,
+    }))
+    : realiQuery.data ?? []), [demo, realiQuery.data]);
+
+  const { celle, senzaAccount } = useMemo(() => (account
+    ? costruisciGriglia({
+      posts,
+      reali,
+      pageId: account.pageId,
+      accountIds: demo ? ["demo"] : accountVeri.map((a) => a.pageId),
+      mostraBozze,
+      adesso,
+    })
+    : { celle: [] as CellaGriglia[], senzaAccount: 0 }),
+  // accountVeri si ricava da accountSocial
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  [account?.pageId, accountSocial, adesso, demo, mostraBozze, posts, reali]);
+
+  const perId = new Map(celle.map((c) => [c.id, c] as const));
+  const futuri = celle.filter((c) => c.tipo === "app" && c.futura);
+  const giaSu = celle.filter((c) => !(c.tipo === "app" && c.futura));
+  const ultimiReali = giaSu.filter((c) => c.tipo === "instagram").slice(0, 4);
+  const argomentiPresenti = CONTENT_PILLARS.filter((p) => celle.some((c) => c.tipo === "app" && c.post.argomento === p.id));
+  const qualcunoScambiabile = celle.filter((c) => scambiabile(c, adesso)).length >= 2;
+  // Se questo account non può pubblicare da qui, lo si dice (i post già usciti restano visibili).
+  const statoAccount = stato?.pagine.find((p) => p.piattaforma === "instagram" && p.pageId === account?.pageId);
+  const motivo = !demo && statoAccount && !statoAccount.puoPubblicare ? statoAccount.motivo : null;
+  const ultimaLettura = reali.map((r) => r.sincronizzatoIl).filter(Boolean).sort().pop() ?? null;
+
+  const scambia = async (primoId: string, secondoId: string) => {
+    const primo = perId.get(primoId);
+    const secondo = perId.get(secondoId);
+    setPrimoScambio(null);
+    setTrascinato(null);
+    setBersaglio(null);
+    if (!primo || !secondo || primo.tipo !== "app" || secondo.tipo !== "app" || primoId === secondoId) return;
+    // Il database ricontrolla con l'ora vera: qui basta quella del minuto.
+    if (!scambiabile(primo, adesso) || !scambiabile(secondo, adesso)) {
+      toast.info("Si scambiano solo post non ancora usciti, con giorno e ora nel futuro.");
+      return;
+    }
+    if (await onScambia(primo.post, secondo.post)) setModoScambio(false);
   };
 
-  const scheduled: GridCell[] = posts
-    .filter((p) => p.platforms.includes("instagram") && (p.status === "scheduled" || p.status === "review"))
-    .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())
-    .slice(0, 9)
-    .map((p) => ({
-      id: `sched-${p.id}`,
-      type: "scheduled",
-      gradient: deterministicGradient(p.id),
-      text: p.text,
-      image_url: p.image_url,
-      scheduled_at: p.scheduled_at,
-      platform: "instagram",
-    }));
+  const clicCella = (cella: CellaGriglia) => {
+    if (!modoScambio) {
+      onApriVoce(voceDaCella(cella, account?.nome ? `@${account.nome}` : ""));
+      return;
+    }
+    if (!scambiabile(cella, adesso)) {
+      toast.info("Si scambiano solo post non ancora usciti, con giorno e ora nel futuro.");
+      return;
+    }
+    if (!primoScambio) setPrimoScambio(cella.id);
+    else if (primoScambio === cella.id) setPrimoScambio(null);
+    else void scambia(primoScambio, cella.id);
+  };
 
-  // Fill to at least 18 cells with placeholders
-  const cells = [...published, ...scheduled];
-  while (cells.length < 18) {
-    cells.push({ id: `placeholder-${cells.length}`, type: "placeholder" });
+  if (!account) {
+    return (
+      <div className="mx-auto max-w-lg rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center">
+        <p className="text-sm font-semibold text-slate-800">Instagram non è collegato</p>
+        <p className="mt-1 text-xs text-slate-500">
+          Per vedere e preparare qui il profilo Instagram, collega un account Instagram professionale alla pagina Facebook e ricollega Meta.
+        </p>
+        <Button size="sm" variant="outline" className="mt-3 gap-1.5" onClick={onGoToSettings}>
+          <Settings className="h-3.5 w-3.5" /> Collega Instagram
+        </Button>
+      </div>
+    );
   }
-  return cells.slice(0, 18);
-}
-
-// Pillar color mapping for grid overlay
-const PILLAR_GRADIENT: Record<string, string> = {
-  cantiere: "from-sky-500/80 to-sky-700/80",
-  team: "from-amber-500/80 to-amber-700/80",
-  testimonianza: "from-emerald-500/80 to-emerald-700/80",
-  educational: "from-orange-500/80 to-orange-700/80",
-  promo: "from-red-500/80 to-red-700/80",
-  portfolio: "from-violet-500/80 to-violet-700/80",
-};
-
-// Pillar keyword mapping — defined outside component to avoid recreation on every render
-const PILLAR_KEYWORDS: Record<string, string[]> = {
-  cantiere: ["cantiere", "lavori", "progress", "costruzione"],
-  team: ["team", "squadra", "collaboratori", "operai"],
-  testimonianza: ["testimonianza", "cliente", "soddisfatto", "recensione", "grazie"],
-  educational: ["consiglio", "normativa", "sapevi", "faq", "guida"],
-  promo: ["offerta", "promozione", "preventivo", "sconto", "gratis"],
-  portfolio: ["portfolio", "completato", "prima", "dopo", "risultato", "realizzazione"],
-};
-
-function getCellPillar(cell: GridCell): string | null {
-  if (cell.type !== "scheduled") return null;
-  const text = (cell.text ?? "").toLowerCase();
-  for (const p of CONTENT_PILLARS) {
-    if (p.hashtags.some((h) => text.includes(h.toLowerCase().replace("#", "")))) return p.id;
-    if (PILLAR_KEYWORDS[p.id]?.some((kw) => text.includes(kw))) return p.id;
-  }
-  return null;
-}
-
-function GridPlannerTab({ posts, demoMode = false }: { posts: ScheduledPost[]; demoMode?: boolean }) {
-  const [showLabels, setShowLabels] = useState(true);
-  const [highlightPillar, setHighlightPillar] = useState<string | null>(null);
-  const [selectedCell, setSelectedCell] = useState<GridCell | null>(null);
-
-  // Memoize grid so it doesn't rebuild on every state change (toggle labels, etc.)
-  const grid = useMemo(() => buildGrid(posts, demoMode), [posts, demoMode]);
-  // Pre-compute pillar per cell to avoid calling getCellPillar multiple times per cell
-  const cellPillars = useMemo(() => {
-    const map: Record<string, string | null> = {};
-    grid.forEach((c) => { map[c.id] = getCellPillar(c); });
-    return map;
-  }, [grid]);
-
-  const scheduledCount = grid.filter((c) => c.type === "scheduled").length;
-  const publishedCount = grid.filter((c) => c.type === "published").length;
 
   return (
     <div className="space-y-4">
-      {demoMode && (
+      {demo && (
         <Alert className="border-amber-200 bg-amber-50 py-2">
           <Info className="h-4 w-4 text-amber-600" />
           <AlertDescription className="text-xs text-amber-800">
-            Griglia dimostrativa: i post pubblicati sono esempi della Demo Azienda; quelli programmati e da approvare sono i tuoi.
+            Griglia dimostrativa: il profilo e i post pubblicati sono di esempio (Demo Azienda); quelli programmati sono i tuoi.
           </AlertDescription>
         </Alert>
       )}
 
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-base font-bold text-slate-800">Griglia Instagram</h2>
-          <p className="text-xs text-slate-500">
-            Come apparirà il profilo: {publishedCount} pubblicati · {scheduledCount} in programma
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {/* Show labels toggle */}
-          <button type="button" onClick={() => setShowLabels((v) => !v)}
-            className={cn("rounded-xl border px-3 py-1.5 text-xs font-semibold transition",
-              showLabels ? "border-orange-300 bg-orange-50 text-orange-700" : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50")}>
-            {showLabels ? "🏷 Etichette on" : "🏷 Etichette off"}
-          </button>
-        </div>
-      </div>
-
-      {/* Pillar filter */}
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-[11px] font-semibold text-slate-500">Evidenzia argomento:</span>
-        <button type="button" onClick={() => setHighlightPillar(null)}
-          className={cn("rounded-full border px-2.5 py-0.5 text-[10px] font-semibold transition",
-            highlightPillar === null ? "border-orange-400 bg-orange-100 text-orange-700" : "border-slate-200 bg-white text-slate-400 hover:border-slate-300")}>
-          Tutti
-        </button>
-        {CONTENT_PILLARS.map((p) => (
-          <button key={p.id} type="button" onClick={() => setHighlightPillar(p.id === highlightPillar ? null : p.id)}
-            className={cn("flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[10px] font-semibold transition",
-              highlightPillar === p.id
-                ? `${p.colorBg} ${p.colorBorder} ${p.colorText}`
-                : "border-slate-200 bg-white text-slate-400 hover:border-slate-300")}>
-            {p.emoji} {p.label}
-          </button>
-        ))}
-      </div>
-
-      <div className="flex flex-wrap gap-4">
-        {/* Instagram mock profile header */}
-        <div className="w-full overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-          {/* Profile header */}
-          <div className="flex items-center gap-4 border-b border-slate-100 px-4 py-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 to-amber-500 text-lg font-bold text-white shadow">
-              🏗
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-bold text-slate-900">tuaimpresaedile</p>
-              <p className="text-[11px] text-slate-500">Impresa Edile · Costruzioni e Ristrutturazioni</p>
-            </div>
-            <div className="flex gap-4 text-center">
-              <div><p className="text-sm font-bold text-slate-900">124</p><p className="text-[10px] text-slate-500">post</p></div>
-              <div><p className="text-sm font-bold text-slate-900">2.4K</p><p className="text-[10px] text-slate-500">follower</p></div>
-              <div><p className="text-sm font-bold text-slate-900">318</p><p className="text-[10px] text-slate-500">seguiti</p></div>
-            </div>
-          </div>
-
-          {/* Grid */}
-          <div className="grid grid-cols-3 gap-0.5 bg-slate-200 p-0.5">
-            {grid.map((cell) => {
-              const pillarId = cellPillars[cell.id] ?? null;
-              const pillar = CONTENT_PILLARS.find((p) => p.id === pillarId);
-              const isDimmed = highlightPillar !== null && pillarId !== highlightPillar && cell.type !== "published";
-              const isHighlighted = highlightPillar !== null && pillarId === highlightPillar;
-
-              return (
-                <button
-                  key={cell.id}
-                  type="button"
-                  onClick={() => setSelectedCell(cell.id === selectedCell?.id ? null : cell)}
-                  className={cn(
-                    "group relative aspect-square overflow-hidden transition-all",
-                    cell.type === "published" ? "bg-slate-100" : cell.type === "scheduled" ? "bg-slate-200" : "bg-slate-50",
-                    isDimmed && "opacity-30",
-                    isHighlighted && "ring-2 ring-inset ring-white",
-                    selectedCell?.id === cell.id && "ring-2 ring-inset ring-orange-400"
-                  )}
-                >
-                  {/* Background */}
-                  {cell.type === "published" && cell.gradient && (
-                    <div className={cn("absolute inset-0 bg-gradient-to-br", cell.gradient)} />
-                  )}
-                  {cell.type === "scheduled" && (
-                    cell.image_url
-                      ? <img loading="lazy" src={cell.image_url} alt="" className="absolute inset-0 h-full w-full object-cover" />
-                      : <div className={cn("absolute inset-0 bg-gradient-to-br", cell.gradient ?? "from-slate-300 to-slate-400")} />
-                  )}
-                  {cell.type === "placeholder" && (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <Plus className="h-6 w-6 text-slate-300" />
-                    </div>
-                  )}
-
-                  {/* Pillar tint overlay */}
-                  {pillar && highlightPillar === pillar.id && (
-                    <div className={cn("absolute inset-0 bg-gradient-to-br opacity-40", PILLAR_GRADIENT[pillar.id] ?? "")} />
-                  )}
-
-                  {/* Scheduled badge */}
-                  {cell.type === "scheduled" && (
-                    <div className="absolute left-1 top-1">
-                      <span className="rounded-full bg-white/90 px-1.5 py-0.5 text-[8px] font-bold text-slate-700 shadow-sm">
-                        {cell.scheduled_at
-                          ? new Date(cell.scheduled_at).toLocaleDateString("it-IT", { day: "numeric", month: "short" })
-                          : "—"}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Pillar emoji */}
-                  {pillar && showLabels && (
-                    <div className="absolute right-1 top-1">
-                      <span className="text-sm">{pillar.emoji}</span>
-                    </div>
-                  )}
-
-                  {/* Text overlay on hover */}
-                  {showLabels && cell.text && (
-                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-1.5 pb-1 pt-4 opacity-0 transition-opacity group-hover:opacity-100">
-                      <p className="line-clamp-2 text-[9px] leading-tight text-white">{cell.text}</p>
-                    </div>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* Selected cell detail */}
-      {selectedCell && selectedCell.type !== "placeholder" && (
-        <div className="rounded-2xl border border-orange-200 bg-orange-50 p-4 space-y-2">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-bold text-slate-800">
-              {selectedCell.type === "published" ? "📌 Post pubblicato" : "⏳ Post programmato"}
-            </p>
-            <button type="button" onClick={() => setSelectedCell(null)} className="rounded-full p-1 text-slate-400 hover:bg-white">
-              <X className="h-3.5 w-3.5" />
+      {accounts.length > 1 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[11px] font-semibold text-slate-500">Account:</span>
+          {accounts.map((a) => (
+            <button key={a.pageId} type="button" onClick={() => { setPageScelta(a.pageId); setPrimoScambio(null); }} aria-pressed={a.pageId === account.pageId}
+              className={cn("rounded-full border px-2.5 py-1 text-[11px] font-semibold transition",
+                a.pageId === account.pageId ? "border-orange-400 bg-orange-50 text-orange-700" : "border-slate-200 bg-white text-slate-600 hover:border-slate-300")}>
+              @{a.nome}
             </button>
-          </div>
-          {selectedCell.scheduled_at && (
-            <p className="text-xs text-slate-600">
-              📅 {new Date(selectedCell.scheduled_at).toLocaleString("it-IT", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}
-            </p>
-          )}
-          {selectedCell.text && (
-            <p className="text-sm text-slate-700">{selectedCell.text}</p>
-          )}
-          {(() => {
-            const pid = cellPillars[selectedCell.id];
-            const p = pid ? CONTENT_PILLARS.find((p) => p.id === pid) : null;
-            return p ? (
-              <span className={cn("inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold", p.colorBg, p.colorBorder, p.colorText)}>
-                {p.emoji} {p.label}
-              </span>
-            ) : null;
-          })()}
+          ))}
         </div>
       )}
 
-      {/* Legend */}
-      <div className="flex flex-wrap items-center gap-3 rounded-xl bg-slate-50 px-4 py-3">
-        <span className="text-[11px] font-bold text-slate-500">Legenda:</span>
-        {[
-          { label: "Pubblicato", color: "bg-slate-400" },
-          { label: "Programmato", color: "bg-orange-400" },
-          { label: "Libero", color: "bg-slate-200 border border-dashed border-slate-300" },
-        ].map(({ label, color }) => (
-          <div key={label} className="flex items-center gap-1.5">
-            <span className={cn("h-3 w-3 rounded-sm", color)} />
-            <span className="text-[10px] text-slate-600">{label}</span>
+      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
+        {/* ── Il profilo, largo come un telefono ── */}
+        <div className="mx-auto w-full max-w-[420px] overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex items-center gap-3 border-b border-slate-100 px-4 py-3">
+            {logoAzienda ? (
+              <img src={logoAzienda} alt="" className="h-12 w-12 shrink-0 rounded-full border border-slate-100 bg-white object-contain p-1" />
+            ) : (
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#F58529] via-[#DD2A7B] to-[#8134AF] text-lg font-bold uppercase text-white">
+                {account.nome.charAt(0) || "?"}
+              </span>
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-bold text-slate-900">{account.nome}</p>
+              <p className="text-[11px] text-slate-500">
+                {account.followers != null ? `${numeroIntero(account.followers)} follower` : demo ? "Profilo di esempio" : "Follower non ancora letti"}
+              </p>
+            </div>
+            {!demo && (
+              <a href={`https://www.instagram.com/${encodeURIComponent(account.nome)}/`} target="_blank" rel="noopener noreferrer"
+                className="flex shrink-0 items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-50">
+                <ExternalLink className="h-3 w-3" /> Apri
+              </a>
+            )}
           </div>
-        ))}
-        {CONTENT_PILLARS.map((p) => (
-          <div key={p.id} className="flex items-center gap-1">
-            <span className="text-xs">{p.emoji}</span>
-            <span className="text-[10px] text-slate-600">{p.label}</span>
+          {motivo && (
+            <p className="border-b border-slate-100 bg-amber-50 px-4 py-1.5 text-[11px] text-amber-800">
+              {spiegaMotivo(motivo).lungo}
+            </p>
+          )}
+          {celle.length > 0 ? (
+            <div className="grid grid-cols-3 gap-0.5 bg-white">
+              {celle.map((cella) => (
+                <CellaInstagram
+                  key={cella.id}
+                  cella={cella}
+                  attenuata={evidenzia !== null && !(cella.tipo === "app" && cella.post.argomento === evidenzia)}
+                  scelta={primoScambio === cella.id}
+                  bersaglio={bersaglio === cella.id}
+                  trascinabile={scambiabile(cella, adesso)}
+                  onApri={() => clicCella(cella)}
+                  onTrascinaInizio={() => setTrascinato(cella.id)}
+                  onTrascinaSopra={() => {
+                    const ok = trascinato !== null && trascinato !== cella.id && scambiabile(cella, adesso);
+                    if (ok && bersaglio !== cella.id) setBersaglio(cella.id);
+                    return ok;
+                  }}
+                  onTrascinaVia={() => setBersaglio((b) => (b === cella.id ? null : b))}
+                  onRilascia={() => { if (trascinato) void scambia(trascinato, cella.id); }}
+                  onTrascinaFine={() => { setTrascinato(null); setBersaglio(null); }}
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="px-4 py-8 text-center text-xs text-slate-500">
+              {realiQuery.isLoading ? "Carico i post di Instagram…" : "Ancora nessun post: né programmato qui, né letto da Instagram."}
+            </p>
+          )}
+        </div>
+
+        {/* ── Accanto: comandi, in programma, come sono andati ── */}
+        <div className="min-w-0 space-y-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" className="gap-1.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:from-orange-600 hover:to-amber-600"
+              onClick={() => onNuovoPost({ modo: "nuovo", piattaforme: ["instagram"], ...(demo ? {} : { destinazioni: { instagram: account.pageId } }) })}>
+              <Plus className="h-3.5 w-3.5" /> Nuovo post Instagram
+            </Button>
+            <label className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-600">
+              <input type="checkbox" className="h-3.5 w-3.5 accent-orange-500" checked={mostraBozze} onChange={(e) => setMostraBozze(e.target.checked)} />
+              Mostra le bozze
+            </label>
+            {qualcunoScambiabile && (
+              <Button size="sm" variant="outline" aria-pressed={modoScambio}
+                className={cn("gap-1.5", modoScambio && "border-orange-400 bg-orange-50 text-orange-700")}
+                onClick={() => { setModoScambio((v) => !v); setPrimoScambio(null); }}>
+                {modoScambio ? "Fine scambio" : "Scambia l'ordine"}
+              </Button>
+            )}
           </div>
-        ))}
+          {modoScambio ? (
+            <p className="rounded-xl border border-orange-200 bg-orange-50 px-3 py-2 text-xs text-orange-800">
+              {primoScambio ? "Ora tocca il post con cui scambiarlo." : "Tocca un post non ancora uscito, poi quello con cui scambiare giorno e ora."}
+            </p>
+          ) : qualcunoScambiabile ? (
+            <p className="text-[11px] text-slate-500">Per scambiare giorno e ora di due post non ancora usciti, trascinane uno sull'altro.</p>
+          ) : null}
+          {senzaAccount > 0 && (
+            <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              {senzaAccount === 1 ? "1 post Instagram non ha" : `${senzaAccount} post Instagram non hanno`} l'account scelto: aprili dal calendario con «Modifica» e scegli su quale account escono.
+            </p>
+          )}
+          {argomentiPresenti.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] font-semibold text-slate-500">Evidenzia argomento:</span>
+              {argomentiPresenti.map((p) => (
+                <button key={p.id} type="button" onClick={() => setEvidenzia(evidenzia === p.id ? null : p.id)} aria-pressed={evidenzia === p.id}
+                  className={cn("flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition",
+                    evidenzia === p.id ? `${p.colorBg} ${p.colorBorder} ${p.colorText}` : "border-slate-200 bg-white text-slate-500 hover:border-slate-300")}>
+                  {p.emoji} {p.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <p className="text-sm font-bold text-slate-800">In programma su Instagram</p>
+            {futuri.length === 0
+              ? <p className="text-xs text-slate-500">Niente in programma per @{account.nome}.</p>
+              : futuri.map((cella) => (
+                <VoceEstesa key={cella.id} voce={voceDaCella(cella, `@${account.nome}`)} onApri={() => clicCella(cella)} conData />
+              ))}
+          </div>
+
+          {!demo && (
+            <div className="space-y-2">
+              <p className="text-sm font-bold text-slate-800">Gli ultimi pubblicati</p>
+              {ultimiReali.length === 0 ? (
+                <p className="text-xs text-slate-500">
+                  {realiQuery.isError ? "Non riesco a leggere i post di Instagram." : "Nessun post letto da Instagram per questo account."}
+                </p>
+              ) : ultimiReali.map((cella) => cella.tipo === "instagram" && (
+                <button key={cella.id} type="button" onClick={() => onApriVoce(voceDaCella(cella, `@${account.nome}`))}
+                  className="flex w-full min-w-0 items-center gap-3 rounded-xl border border-slate-100 bg-white p-2 text-left shadow-sm transition hover:border-orange-200">
+                  {cella.immagine
+                    ? <img loading="lazy" src={cella.immagine} alt="" className="h-12 w-9 shrink-0 rounded object-cover" onError={(e) => { e.currentTarget.style.visibility = "hidden"; }} />
+                    : <span className="h-12 w-9 shrink-0 rounded bg-slate-200" />}
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[11px] font-semibold text-slate-500">
+                      {cella.quando.toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "short" })}
+                    </span>
+                    <span className="block truncate text-xs text-slate-700">{cella.reale.testo || "Post senza testo"}</span>
+                    <span className="block text-[11px] text-slate-500">
+                      {numeroIntero(cella.reale.numeri.reazioni)} mi piace · {numeroIntero(cella.reale.numeri.commenti)} commenti · {numeroIntero(cella.reale.numeri.copertura)} persone raggiunte
+                    </span>
+                  </span>
+                </button>
+              ))}
+              <p className="text-[11px] text-slate-400">
+                I post pubblicati arrivano da Instagram ogni 4 ore
+                {ultimaLettura ? `; ultima lettura ${new Date(ultimaLettura).toLocaleString("it-IT", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}` : ""}.
+              </p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -4029,6 +4222,7 @@ export default function SocialManagerBeta() {
       companyId={companyId}
       nomeAzienda={effectiveCompany?.name}
       settoreAzienda={effectiveCompany?.sector}
+      logoAzienda={effectiveCompany?.logo_url}
     />
   );
 }
@@ -4037,10 +4231,12 @@ function GestioneSocial({
   companyId,
   nomeAzienda,
   settoreAzienda,
+  logoAzienda,
 }: {
   companyId: string;
   nomeAzienda?: string;
   settoreAzienda?: string;
+  logoAzienda?: string | null;
 }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -4146,6 +4342,7 @@ function GestioneSocial({
           // Una bozza rimandata e poi sistemata perde la nota del rimando.
           reviewNote: post.reviewNote,
           mediaItemId: post.mediaItemId,
+          argomento: post.argomento,
         });
         saved = saved ?? { ...post, id: modificaId };
       } else {
@@ -4165,6 +4362,35 @@ function GestioneSocial({
     }
     return true;
   }, [addPost, pubblicaSubito, updatePost]);
+
+  /** Due post non ancora usciti si scambiano giorno e ora (griglia Instagram), con «Annulla». */
+  const scambiaOrari = useCallback(async (primo: ScheduledPost, secondo: ScheduledPost): Promise<boolean> => {
+    const esegui = () => supabase.rpc(
+      "scambia_orari_post_social" as never,
+      { p_primo: primo.id, p_secondo: secondo.id } as never,
+    );
+    const { error } = await esegui();
+    if (error) {
+      toast.error("Scambio non riuscito", { description: error.message });
+      return false;
+    }
+    queryClient.invalidateQueries({ queryKey: ["social-manager", "posts", companyId] });
+    const breve = (p: ScheduledPost) => `«${(p.text || "Post senza testo").slice(0, 28)}${p.text.length > 28 ? "…" : ""}»`;
+    const quando = (iso: string) => new Date(iso).toLocaleString("it-IT", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+    toast.success("Scambiati", {
+      description: `${breve(primo)} esce ${quando(secondo.scheduled_at)}, ${breve(secondo)} ${quando(primo.scheduled_at)}.`,
+      action: {
+        label: "Annulla",
+        onClick: () => {
+          void esegui().then(({ error: erroreAnnulla }) => {
+            if (erroreAnnulla) toast.error("Non riesco ad annullare lo scambio", { description: erroreAnnulla.message });
+            queryClient.invalidateQueries({ queryKey: ["social-manager", "posts", companyId] });
+          });
+        },
+      },
+    });
+    return true;
+  }, [companyId, queryClient]);
 
   /** Le azioni sul post dal calendario, con i controlli che il post esca davvero. */
   const eseguiAzione = useCallback(async (post: ScheduledPost, azione: AzionePost, dati?: DatiAzione): Promise<boolean> => {
@@ -4429,7 +4655,18 @@ function GestioneSocial({
               />
             )}
             {activeTab === "grid" && (
-              <GridPlannerTab posts={posts} demoMode={isDemoCompany} />
+              <GridPlannerTab
+                companyId={companyId}
+                posts={posts}
+                stato={statoPubblicazione.stato}
+                accountSocial={connectedAccounts}
+                logoAzienda={logoAzienda}
+                demoMode={isDemoCompany}
+                onApriVoce={setVoceAperta}
+                onNuovoPost={apriComposer}
+                onScambia={scambiaOrari}
+                onGoToSettings={goToIntegrations}
+              />
             )}
             {activeTab === "inbox" && (
               <InboxTab onUnreadChange={setInboxUnread} demoMode={isDemoCompany} />

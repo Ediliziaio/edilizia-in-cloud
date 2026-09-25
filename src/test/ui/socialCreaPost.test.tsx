@@ -138,6 +138,18 @@ describe("Crea post", () => {
     await waitFor(() => expect((screen.getByLabelText("Testo del post") as HTMLTextAreaElement).value).toBe(""));
   });
 
+  it("l'argomento scelto viaggia col post (la griglia non lo indovina più)", async () => {
+    scenario.stato = PRONTE;
+    scenario.addPost = vi.fn().mockResolvedValue({ id: "local-2", status: "draft" });
+    monta();
+    fireEvent.click(screen.getByText("Opzioni avanzate"));
+    fireEvent.click(screen.getByRole("button", { name: /Cantiere/ }));
+    fireEvent.change(screen.getByLabelText("Testo del post"), { target: { value: "Il cantiere di via Roma" } });
+    fireEvent.click(screen.getByRole("button", { name: /Salva bozza/ }));
+    await waitFor(() => expect(scenario.addPost).toHaveBeenCalledTimes(1));
+    expect(scenario.addPost.mock.calls[0][0]).toMatchObject({ argomento: "cantiere", status: "draft", scheduled_at: "" });
+  });
+
   it("un salvataggio fallito non svuota il composer", async () => {
     scenario.stato = PRONTE;
     scenario.addPost = vi.fn().mockRejectedValue(new Error("permission denied"));

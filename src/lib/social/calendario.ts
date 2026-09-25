@@ -234,7 +234,7 @@ export function azioniPost(
   }
 }
 
-/** Un post pubblicato su Facebook, letto dalla pagina (anche fuori dall'app). */
+/** Un post già pubblicato, letto da Facebook o da Instagram (anche fuori dall'app). */
 export interface PostEsterno {
   id: string;
   pageId: string;
@@ -243,6 +243,15 @@ export interface PostEsterno {
   quando: string;
   link: string | null;
   immagine: string | null;
+  /** Assente = Facebook (i post letti dalle pagine per il calendario). */
+  piattaforma?: "facebook" | "instagram";
+  numeri?: {
+    reazioni: number | null;
+    commenti: number | null;
+    copertura: number | null;
+    salvataggi: number | null;
+    visualizzazioni: number | null;
+  };
 }
 
 const inizioTesto = (testo: string) => testo.replace(/\s+/g, " ").trim().toLowerCase().slice(0, 40);

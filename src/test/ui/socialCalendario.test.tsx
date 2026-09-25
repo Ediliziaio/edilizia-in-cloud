@@ -44,6 +44,7 @@ vi.mock("@/hooks/useCompanyStaffUsers", () => ({
 vi.mock("@/hooks/useCalendarioSocial", () => ({
   usePuoApprovareSocial: () => ({ data: scenario.puoApprovare }),
   usePostFacebookEsterni: () => ({ data: { posts: scenario.esterni, errori: [] as string[] } }),
+  usePostInstagramReali: () => ({ data: [] as unknown[], isLoading: false, isError: false }),
 }));
 vi.mock("@/hooks/useSocialManagerData", () => ({
   useSocialManagerData: () => ({

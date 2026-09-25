@@ -85,7 +85,8 @@ describe("social manager storage contract", () => {
     const source = socialManagerSource();
 
     expect(source).toContain("useState<InboxItem[]>(demoMode ? DEMO_INBOX : [])");
-    expect(source).toContain("buildGrid(posts, demoMode)");
+    // Griglia: il profilo di prova solo alla Demo Azienda senza Instagram (25/09/2026).
+    expect(source).toContain("const demo = demoMode && accountVeri.length === 0;");
     expect(source).toContain("isDemoCompany ? DEMO_INBOX.filter((i) => i.status === \"unread\").length : 0");
   });
 });

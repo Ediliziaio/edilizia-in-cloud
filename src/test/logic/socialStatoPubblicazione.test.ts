@@ -159,7 +159,7 @@ describe("la pagina Social", () => {
     expect(pagina).toContain('titolo="Quando"');
     expect(pagina).toContain("Opzioni avanzate");
     expect(pagina).toContain("const [opzioniAperte, setOpzioniAperte] = useState(avvio.opzioniAperte);");
-    expect(pagina).toContain('opzioniAperte: Boolean(post && (tipo !== "post" || perPiattaforma || post.firstComment)),');
+    expect(pagina).toContain('opzioniAperte: Boolean(post && (tipo !== "post" || perPiattaforma || post.firstComment || post.argomento)),');
   });
 
   it("niente gergo né finzioni: anteprima col nome vero, niente hashtag «AI» finti", () => {
