@@ -156,6 +156,13 @@ interface OrderItemsListProps {
    * costo non viene contato due volte (materiale qui, posa nella Manodopera).
    */
   onAddLabor?: (labor: { external_team_id: string; total_cost: number; notes: string }) => void;
+  /**
+   * Il cestino sulle righe (default sì). Falso dove l'elenco non sa togliere
+   * una riga salvata: nel dettaglio commessa «Elimina» non faceva niente, e
+   * cancellare un articolo porta via in cascata ricezioni e installazioni —
+   * lì si toglie da «Modifica commessa», che salva lato server.
+   */
+  allowDelete?: boolean;
 }
 
 const STATUS_CONFIG: Record<OrderItemStatus, { label: string; badgeColor: string; borderColor: string }> = {
@@ -235,6 +242,7 @@ export function OrderItemsList({
   showOdaCoverage = false,
   fallbackCompanyId,
   onAddLabor,
+  allowDelete = true,
 }: OrderItemsListProps) {
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -1459,22 +1467,22 @@ export function OrderItemsList({
 
   return (
     <Card>
-      <CardHeader className="pb-3">
+      <CardHeader className="pb-3 max-sm:p-3 max-sm:pb-2">
         <div className="flex flex-row items-center justify-between gap-2">
-          <CardTitle className="flex items-center gap-2 min-w-0">
+          <CardTitle className="flex items-center gap-2 min-w-0 max-sm:text-base">
             <Package className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
             <span className="truncate">Articoli della Commessa</span>
           </CardTitle>
           {editable && (
-            <Button type="button" size="sm" onClick={openAddDialog} className="shrink-0">
+            <Button type="button" size="sm" onClick={openAddDialog} className="tap-compact shrink-0 max-sm:h-8 max-sm:w-8 max-sm:p-0" aria-label="Aggiungi articolo">
               <Plus className="h-4 w-4" />
               <span className="hidden sm:inline ml-1.5">Aggiungi</span>
             </Button>
           )}
         </div>
-        {/* Status summary chips */}
+        {/* Status summary chips — mobile no: lo stato è su ogni riga. */}
         {items.length > 0 && (
-          <div className="flex flex-wrap gap-2 mt-3">
+          <div className="flex flex-wrap gap-2 mt-3 max-sm:hidden">
             {(Object.entries(
               items.reduce((acc, item) => {
                 acc[item.status] = (acc[item.status] || 0) + 1;
@@ -1491,10 +1499,10 @@ export function OrderItemsList({
           </div>
         )}
       </CardHeader>
-      <CardContent>
-        {/* Source filter */}
+      <CardContent className="max-sm:p-3 max-sm:pt-0">
+        {/* Source filter — mobile no: le righe dicono già giacenza o fornitore. */}
         {items.length > 0 && (
-          <div className="flex items-center gap-2 mb-4 overflow-x-auto scrollbar-none pb-1">
+          <div className="flex items-center gap-2 mb-4 overflow-x-auto scrollbar-none pb-1 max-sm:hidden">
             <span className="text-sm text-muted-foreground shrink-0">Filtra:</span>
             <div className="flex gap-1">
               <Button type="button" variant={sourceFilter === "all" ? "default" : "outline"} size="sm" className="h-7 text-xs shrink-0" onClick={() => setSourceFilter("all")}>Tutti</Button>
@@ -1512,7 +1520,7 @@ export function OrderItemsList({
             Nessun articolo aggiunto. {editable && "Clicca su 'Aggiungi' per inserire articoli."}
           </p>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-3 max-sm:space-y-2">
             {items
               .filter(item => {
                 if (sourceFilter === "stock") return !!item.stock_item_id;
@@ -1521,13 +1529,77 @@ export function OrderItemsList({
               })
               .map((item) => {
                 const index = items.indexOf(item);
+                // Lo stato si cambia da qui sia al computer sia al telefono.
+                const controlloStato = (classeTrigger: string) =>
+                  showStatusControls ? (
+                    <Select
+                      value={item.status || "da_ordinare"}
+                      onValueChange={(value: OrderItemStatus) => handleStatusChange(index, value)}
+                    >
+                      <SelectTrigger className={cn(
+                        classeTrigger,
+                        statusConfig(item.status).badgeColor.replace(/hover:\S+/g, '')
+                      )}>
+                        {/* Etichetta esplicita: <SelectValue> da solo resta muto
+                            se lo stato non ha una voce nell'elenco. */}
+                        <span className="truncate">{statusConfig(item.status).label}</span>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(STATUS_CONFIG).map(([status, config]) => (
+                          <SelectItem key={status} value={status}>
+                            <span className="flex items-center gap-2">
+                              <span className={cn("w-2 h-2 rounded-full", config.badgeColor.split(' ')[0])} />
+                              {config.label}
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Badge className={statusConfig(item.status).badgeColor}>
+                      {statusConfig(item.status).label}
+                    </Badge>
+                  );
                 return (
               <div
                 key={item.id || index}
-                className={`p-3 rounded-lg flex flex-col gap-2 sm:flex-row sm:items-start ${statusConfig(item.status).borderColor}`}
+                className={`p-3 rounded-lg flex flex-col gap-2 sm:flex-row sm:items-start max-sm:px-2.5 max-sm:py-2 ${statusConfig(item.status).borderColor}`}
               >
+                {/* Mobile: una riga — nome e quantità; giacenza o fornitore e
+                    arrivo; stato e matita. Pagamenti, OdA, listino, distinta e
+                    allegati restano al computer (erano schede da 270-340px). */}
+                <div className="space-y-1 sm:hidden">
+                  <div className="flex items-center gap-2">
+                    <p className="min-w-0 flex-1 truncate text-[13px] font-semibold leading-tight">
+                      {item.name}
+                      {item.quantity > 1 && <span className="font-normal text-muted-foreground"> ×{item.quantity}</span>}
+                    </p>
+                    {(editable || allowEdit) && (
+                      <Button type="button" variant="ghost" size="icon" className="tap-compact -my-1 h-7 w-7 shrink-0" onClick={() => openEditDialog(index)} aria-label="Modifica">
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                    {/* Anche in «Nuova commessa» e «Modifica»: una riga sbagliata si toglie da qui. */}
+                    {editable && allowDelete && (
+                      <Button type="button" variant="ghost" size="icon" className="tap-compact -my-1 h-7 w-7 shrink-0" onClick={() => handleDeleteItem(index)} aria-label="Elimina">
+                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                      </Button>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <p className="min-w-0 flex-1 truncate text-[11px] leading-tight text-muted-foreground">
+                      {[
+                        item.stock_item_id
+                          ? "Da giacenza"
+                          : item.supplier_name || getSupplierName(item.supplier_id) || "Da fornitore",
+                        item.delivery_date ? `arrivo ${format(new Date(item.delivery_date), "dd/MM", { locale: it })}` : null,
+                      ].filter(Boolean).join(" · ")}
+                    </p>
+                    {controlloStato("tap-compact h-7 w-auto max-w-[140px] shrink-0 gap-1 px-2 text-[11px] font-medium border")}
+                  </div>
+                </div>
                 {/* Item info (left) */}
-                <div className="flex-1 min-w-0">
+                <div className="flex-1 min-w-0 max-sm:hidden">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-medium">{item.name}</span>
                     {item.quantity > 1 && (
@@ -1729,37 +1801,9 @@ export function OrderItemsList({
                 </div>
 
                 {/* Right column: status + actions + attachments (compact on desktop) */}
-                <div className="flex w-full shrink-0 flex-col items-end gap-1.5 sm:w-auto">
+                <div className="flex w-full shrink-0 flex-col items-end gap-1.5 sm:w-auto max-sm:hidden">
                   <div className="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-end">
-                    {showStatusControls ? (
-                      <Select
-                        value={item.status || "da_ordinare"}
-                        onValueChange={(value: OrderItemStatus) => handleStatusChange(index, value)}
-                      >
-                        <SelectTrigger className={cn(
-                          "flex-1 sm:flex-none sm:w-36 h-8 text-xs font-medium border",
-                          statusConfig(item.status).badgeColor.replace(/hover:\S+/g, '')
-                        )}>
-                          {/* Etichetta esplicita: <SelectValue> da solo resta muto
-                              se lo stato non ha una voce nell'elenco. */}
-                          <span className="truncate">{statusConfig(item.status).label}</span>
-                        </SelectTrigger>
-                        <SelectContent>
-                          {Object.entries(STATUS_CONFIG).map(([status, config]) => (
-                            <SelectItem key={status} value={status}>
-                              <span className="flex items-center gap-2">
-                                <span className={cn("w-2 h-2 rounded-full", config.badgeColor.split(' ')[0])} />
-                                {config.label}
-                              </span>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <Badge className={statusConfig(item.status).badgeColor}>
-                        {statusConfig(item.status).label}
-                      </Badge>
-                    )}
+                    {controlloStato("flex-1 sm:flex-none sm:w-36 h-8 text-xs font-medium border")}
                     {(editable || allowEdit) && (
                       <div className="flex items-center gap-1 shrink-0">
                         <Button type="button" variant="ghost" size="icon" onClick={() => openEditDialog(index)} title="Modifica">
@@ -1770,7 +1814,7 @@ export function OrderItemsList({
                             <Copy className="h-4 w-4 text-muted-foreground" />
                           </Button>
                         )}
-                        {editable && (
+                        {editable && allowDelete && (
                           <Button type="button" variant="ghost" size="icon" onClick={() => handleDeleteItem(index)} title="Elimina">
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>

@@ -68,13 +68,18 @@ export function OrdineArticoli({
   });
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 max-sm:space-y-3">
+      {/* Acquisti (riepilogo, ordini per fornitore, posa da spostare): lavoro
+          d'ufficio, dal telefono no — in cantiere servono gli articoli e il
+          loro stato, qui sotto. */}
+      <div className="space-y-4 max-sm:hidden">
       <OrderMaterialsSummary items={displayItems} orderId={orderId} />
       {/* Il lavoro dell'utente, fatto dal pannello: articoli da ordinare
           raggruppati per fornitore, un click per OdA. E se fra gli articoli
           c'e' della posa, il banner propone di spostarla nelle Lavorazioni. */}
       <OrdinaPerFornitorePanel orderId={orderId} orderCode={orderCode} items={displayItems} />
       {canEditOrders && canViewCosts && <PosaInLavorazioniBanner orderId={orderId} items={displayItems} />}
+      </div>
           <OrderItemsList
             items={displayItems}
             onItemsChange={onItemsChange}
@@ -86,6 +91,9 @@ export function OrdineArticoli({
             onItemUpdate={onItemUpdate}
             fallbackCompanyId={companyId}
             onAddLabor={(labor) => addLaborMutation.mutate(labor)}
+            // Qui una riga salvata non si toglie (il cestino non faceva niente):
+            // si elimina da «Modifica commessa».
+            allowDelete={false}
           />
 
       {showAttachments && <OrderAttachments orderId={orderId} editable={canEditOrders} />}

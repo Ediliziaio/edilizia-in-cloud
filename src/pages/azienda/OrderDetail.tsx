@@ -1592,7 +1592,7 @@ function OrderDetailInner() {
                   (i) => i.status === "in_magazzino",
                 ).length;
                 return (
-                  <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 rounded-lg border bg-muted/30 px-4 py-3">
+                  <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 rounded-lg border bg-muted/30 px-4 py-3 max-sm:gap-x-3 max-sm:px-3 max-sm:py-2">
                     <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
                       <span className="text-muted-foreground">
                         <strong className="text-foreground">
@@ -1615,7 +1615,8 @@ function OrderDetailInner() {
                     </div>
                     <div className="text-sm">
                       <span className="text-muted-foreground">
-                        Costo sulle righe articolo{" "}
+                        <span className="max-sm:hidden">Costo sulle righe articolo</span>
+                        <span className="sm:hidden">Costo</span>{" "}
                       </span>
                       <strong className="tabular-nums">
                         {formatCurrency(tot)}
@@ -1677,7 +1678,10 @@ function OrderDetailInner() {
                 }))}
               />
             )}
-            <OrderSerialsTrackingCard orderId={id!} orderItems={orderItems} />
+            {/* Seriali e garanzie: da computer (a mano, articolo per articolo). */}
+            <div className="max-sm:hidden">
+              <OrderSerialsTrackingCard orderId={id!} orderItems={orderItems} />
+            </div>
           </TabsContent>
 
           {/* Tab: Finanza */}
