@@ -247,14 +247,14 @@ export default function Scadenzario() {
           voci={[
             {
               label: "Scaduto da incassare",
-              valore: new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(summary.scadute_entrata_amount ?? summary.scadute_amount ?? 0),
+              valore: new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: true }).format(summary.scadute_entrata_amount ?? summary.scadute_amount ?? 0),
               tono: (summary.scadute_entrata_amount ?? summary.scadute_amount ?? 0) > 0 ? "text-rose-600" : undefined,
               onClick: () => { setTab((t) => (t === "scadute" ? "tutte" : "scadute")); setPage(1); },
               attivo: tab === "scadute",
             },
             {
               label: "Prossimi 30 giorni",
-              valore: new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(summary.prossimi_30gg_amount ?? 0),
+              valore: new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: true }).format(summary.prossimi_30gg_amount ?? 0),
             },
           ]}
         />
