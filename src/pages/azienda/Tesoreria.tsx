@@ -4,7 +4,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Landmark, LayoutDashboard, CreditCard, ArrowLeftRight, Link, Link2, RefreshCw, Loader2, TrendingUp, Settings, Receipt } from "lucide-react";
+import { Landmark, LayoutDashboard, CreditCard, ArrowLeftRight, Link, Link2, RefreshCw, Loader2, TrendingUp, Settings, Receipt, ChevronDown } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -249,6 +250,15 @@ export default function Tesoreria() {
   // Mobile: un indirizzo verso una scheda che qui non c'è apre la panoramica.
   const schedaVisibile = isMobile && !TREASURY_TABS_MOBILE.has(activeTab) ? "overview" : activeTab;
   const soloDesktop = (tab: string) => (TREASURY_TABS_MOBILE.has(tab) ? "" : "max-sm:hidden");
+  // Tra 640 e 1280 le otto linguette andavano su due righe: Connessioni, Note
+  // spese e Impostazioni (si aprono di rado) finiscono in «Altro», che prende
+  // il nome della scheda quando è aperta una di loro.
+  const SCHEDE_ALTRO = [
+    { value: "connessioni", label: "Connessioni", icon: Link },
+    { value: "note-spese", label: "Note Spese", icon: Receipt },
+    { value: "impostazioni", label: "Impostazioni", icon: Settings },
+  ];
+  const schedaInAltro = SCHEDE_ALTRO.find((s) => s.value === schedaVisibile);
 
   return (
     <div className="space-y-6 max-sm:space-y-3">
@@ -282,7 +292,9 @@ export default function Tesoreria() {
         {/* Mobile: riga singola scrollabile invece di flex-wrap (8 tab = muro
             di 3-4 righe su 375px). */}
         {/* Mobile: tre linguette affiancate da 32px, senza icone. */}
-        <TabsList className="flex h-auto w-full flex-nowrap overflow-x-auto scrollbar-hide justify-start gap-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm sm:flex-wrap sm:overflow-visible [&>button]:shrink-0 max-sm:grid max-sm:grid-cols-3 max-sm:rounded-lg max-sm:p-1 max-sm:shadow-none max-sm:[&_svg]:hidden">
+        {/* Da 640: icone delle linguette solo da 1536 (senza, a 1280 ci stanno
+            tutte e otto su una riga). */}
+        <TabsList className="flex h-auto w-full flex-nowrap overflow-x-auto scrollbar-hide justify-start gap-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm sm:flex-wrap sm:overflow-visible [&>button]:shrink-0 sm:max-2xl:[&_[role=tab]>svg]:hidden max-sm:grid max-sm:grid-cols-3 max-sm:rounded-lg max-sm:p-1 max-sm:shadow-none max-sm:[&_svg]:hidden">
           <TabsTrigger value="overview" className="tap-compact gap-2 max-sm:h-8 max-sm:text-xs">
             <LayoutDashboard className="h-4 w-4" /> <span className="max-sm:hidden">Overview</span><span className="sm:hidden">Panoramica</span>
           </TabsTrigger>
@@ -292,7 +304,7 @@ export default function Tesoreria() {
           <TabsTrigger value="transazioni" className="tap-compact gap-2 max-sm:h-8 max-sm:text-xs">
             <ArrowLeftRight className="h-4 w-4" /> <span className="max-sm:hidden">Transazioni</span><span className="sm:hidden">Movimenti</span>
           </TabsTrigger>
-          <TabsTrigger value="connessioni" className={cn("gap-2", soloDesktop("connessioni"))}>
+          <TabsTrigger value="connessioni" className={cn("gap-2", soloDesktop("connessioni"), "hidden xl:inline-flex")}>
             <Link className="h-4 w-4" /> Connessioni
           </TabsTrigger>
           <TabsTrigger value="riconciliazione" className={cn("gap-2", soloDesktop("riconciliazione"))}>
@@ -301,12 +313,38 @@ export default function Tesoreria() {
           <TabsTrigger value="previsioni" className={cn("gap-2", soloDesktop("previsioni"))}>
             <TrendingUp className="h-4 w-4" /> Previsioni
           </TabsTrigger>
-          <TabsTrigger value="note-spese" className={cn("gap-2", soloDesktop("note-spese"))}>
+          <TabsTrigger value="note-spese" className={cn("gap-2", soloDesktop("note-spese"), "hidden xl:inline-flex")}>
             <Receipt className="h-4 w-4" /> Note Spese
           </TabsTrigger>
-          <TabsTrigger value="impostazioni" className={cn("gap-2", soloDesktop("impostazioni"))}>
+          <TabsTrigger value="impostazioni" className={cn("gap-2", soloDesktop("impostazioni"), "hidden xl:inline-flex")}>
             <Settings className="h-4 w-4" /> Impostazioni
           </TabsTrigger>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className={cn(
+                  "inline-flex items-center gap-1 whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium transition-all hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring max-sm:hidden xl:hidden",
+                  schedaInAltro && "bg-background text-foreground shadow-sm",
+                )}
+              >
+                {schedaInAltro ? schedaInAltro.label : "Altro"}
+                <ChevronDown className="h-3.5 w-3.5" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              {SCHEDE_ALTRO.map((s) => (
+                <DropdownMenuItem
+                  key={s.value}
+                  className={cn("gap-2", s.value === schedaVisibile && "font-semibold")}
+                  onSelect={() => handleTabChange(s.value)}
+                >
+                  <s.icon className="h-4 w-4" />
+                  {s.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </TabsList>
 
         <TabsContent value="overview">

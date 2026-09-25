@@ -273,10 +273,13 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
   const saldoNegativo = summary && toFiniteAmount(summary.total_balance) < 0;
   const saldoBasso = summary && !saldoNegativo && toFiniteAmount(summary.total_balance) < 1000;
 
+  // Da 1280 i quattro riquadri (saldo, cash flow, spese per categoria,
+  // ultime transazioni) stanno a coppie: uno sotto l'altro a tutta larghezza
+  // erano grafici di 1100px alti 300 e la pagina scorreva per quattro schermi.
   return (
-    <div className="space-y-6 max-sm:space-y-3">
+    <div className="space-y-6 max-sm:space-y-3 xl:grid xl:grid-cols-2 xl:gap-6 xl:space-y-0">
       {error && (
-        <Card className="border-destructive/30">
+        <Card className="border-destructive/30 xl:col-span-2">
           <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-destructive">Alcuni dati non sono disponibili: {error}</p>
             <Button variant="outline" size="sm" onClick={() => loadData()}>Riprova</Button>
@@ -286,7 +289,7 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
 
       {/* KPI — stesso linguaggio dell'header di pagina: tile gradiente, card
           rounded-2xl con velo tinto, delta vs mese precedente e sparkline. */}
-      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4 sm:gap-4 max-sm:hidden">
+      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4 sm:gap-4 max-sm:hidden xl:col-span-2">
         {kpis.map((kpi, kpiIdx) => (
           <div key={kpi.title} className={`relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-card via-card ${kpi.tint} p-4 shadow-sm`}>
             <div className="flex items-center gap-2.5">
@@ -333,7 +336,7 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
       />
       {/* Alert liquidità */}
       {saldoNegativo && (
-        <div className="flex items-center gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 dark:border-rose-900/50 dark:bg-rose-950/30 max-sm:hidden">
+        <div className="flex items-center gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 dark:border-rose-900/50 dark:bg-rose-950/30 max-sm:hidden xl:col-span-2">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rose-100 dark:bg-rose-900/40">
             <AlertTriangle className="h-4 w-4 text-rose-600 dark:text-rose-400" />
           </div>
@@ -344,7 +347,7 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
         </div>
       )}
       {saldoBasso && (
-        <div className="flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/50 dark:bg-amber-950/30 max-sm:hidden">
+        <div className="flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/50 dark:bg-amber-950/30 max-sm:hidden xl:col-span-2">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-900/40">
             <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
           </div>
@@ -440,10 +443,13 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
               Nessuna uscita nel periodo. Categorizza i movimenti dalla scheda Transazioni per vedere la ripartizione.
             </p>
           ) : (
-            <div className="grid gap-6 md:grid-cols-2 items-center">
+            <div className="grid gap-6 md:grid-cols-2 items-center xl:grid-cols-1">
               {/* Donut recharts: solo desktop. Su mobile resta la lista con
-                  percentuali (stesso dato, più leggibile a dito). */}
+                  percentuali (stesso dato, più leggibile a dito). Da 1280 il
+                  riquadro è a mezza pagina: col donut accanto la lista restava
+                  senza spazio per i nomi delle categorie, quindi resta la lista. */}
               {!isMobile && (
+              <div className="xl:hidden">
               <ResponsiveContainer width="100%" height={240}>
                 <PieChart>
                   <Pie data={byCategory} dataKey="total" nameKey="category" innerRadius={62} outerRadius={95} paddingAngle={2} strokeWidth={2}>
@@ -452,6 +458,7 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
                   <Tooltip formatter={(v: number) => formatEur(v)} />
                 </PieChart>
               </ResponsiveContainer>
+              </div>
               )}
               <div className="space-y-1">
                 {(() => { const tot = byCategory.reduce((s, c) => s + c.total, 0); return byCategory.slice(0, 8).map((c) => (
