@@ -326,7 +326,8 @@ export default function ManutenzioneList() {
     }, 0);
 
   return (
-    <div className="p-6 space-y-6 max-sm:space-y-3 max-sm:p-0">
+    // Niente p-6: il margine lo dà già il layout (sul telefono era già p-0).
+    <div className="space-y-6 max-sm:space-y-3">
       {/* Header */}
       <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -362,17 +363,18 @@ export default function ManutenzioneList() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 max-sm:hidden">
-        <OperationalKpiCard icon={Settings} label="Impianti" value={impianti.length} hint="installazioni censite" tone="blue" />
+        {/* Resta solo la nota che aggiunge un dato (la finestra dei 14 giorni);
+            «installazioni censite» e simili ripetevano l'etichetta. */}
+        <OperationalKpiCard icon={Settings} label="Impianti" value={impianti.length} tone="blue" />
         <OperationalKpiCard icon={AlertCircle} label="In scadenza" value={pianiInScadenza.length} hint="prossimi 14 giorni" tone={pianiInScadenza.length > 0 ? "orange" : "green"} />
-        <OperationalKpiCard icon={CheckCircle2} label="Contratti attivi" value={contratti.filter((c) => c.stato === "attivo").length} hint="canoni ricorrenti" tone="green" />
-        <OperationalKpiCard icon={TrendingUp} label="MRR" value={`${mrr.toLocaleString("it-IT", { maximumFractionDigits: 0, useGrouping: true })} €`} hint="ricavi mensili stimati" tone="amber" />
+        <OperationalKpiCard icon={CheckCircle2} label="Contratti attivi" value={contratti.filter((c) => c.stato === "attivo").length} tone="green" />
+        <OperationalKpiCard icon={TrendingUp} label="Canoni al mese" value={`${mrr.toLocaleString("it-IT", { maximumFractionDigits: 0, useGrouping: true })} €`} tone="amber" />
       </div>
 
       {selectedPianoIds.size > 0 && (
         <div className="flex flex-col gap-3 rounded-xl border border-orange-200 bg-orange-50/80 p-3 text-sm text-orange-950 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-2">
             <Badge className="bg-orange-600">{selectedPianoIds.size} selezionati</Badge>
-            <span>Pronti per cambio tecnico, pianificazione o completamento.</span>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={clearSelection}>Annulla selezione</Button>
@@ -561,7 +563,7 @@ export default function ManutenzioneList() {
                   <div className="flex items-center gap-2">
                     <span className="font-semibold max-sm:truncate max-sm:text-[13px]">{contratto.nome_contratto}</span>
                     {/* Mobile: lo stato si vede solo quando non è «attivo», il caso normale. */}
-                    <Badge className={contratto.stato === "attivo" ? "bg-green-100 text-green-800 text-xs max-sm:hidden" : contratto.stato === "sospeso" ? "bg-yellow-100 text-yellow-800 text-xs" : "bg-gray-100 text-gray-600 text-xs"}>
+                    <Badge className={(contratto.stato === "attivo" ? "bg-green-100 text-green-800 text-xs max-sm:hidden" : contratto.stato === "sospeso" ? "bg-yellow-100 text-yellow-800 text-xs" : "bg-gray-100 text-gray-600 text-xs") + " sm:capitalize"}>
                       {contratto.stato}
                     </Badge>
                   </div>

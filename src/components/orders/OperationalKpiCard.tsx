@@ -94,9 +94,11 @@ export function OperationalKpiCard({
       {/* Riquadri più bassi (erano p-4 su schermo grande con l'icona a 40px):
           otto card in due righe rubavano una fascia di pagina alla tabella. */}
       {/* Mobile: senza riquadro dell'icona e con meno margine, così due card
-          stanno affiancate; il colore del filo a sinistra dice già lo stato. */}
+          stanno affiancate; il colore del filo a sinistra dice già lo stato.
+          Anche sotto 1280: con quattro card in riga l'icona lasciava al testo
+          meno di 100px e le etichette andavano a capo («IN / SCADENZA»). */}
       <CardContent className="flex items-center gap-3 p-3 max-sm:gap-0 max-sm:px-3 max-sm:py-2">
-        <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ring-1 max-sm:hidden", styles.iconBox)}>
+        <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ring-1 max-xl:hidden", styles.iconBox)}>
           <Icon className={cn("h-[18px] w-[18px]", styles.icon)} />
         </div>
         <div className="min-w-0">

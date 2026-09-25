@@ -292,7 +292,9 @@ export default function ImpiantoDetail() {
   const garanziaGiorni = impianto.garanzia_scadenza ? differenceInDays(new Date(impianto.garanzia_scadenza), new Date()) : null;
 
   return (
-    <div className="p-6 space-y-6 max-w-4xl max-sm:space-y-3 max-sm:p-0">
+    // Niente p-6 né colonna da 896px: il margine lo dà il layout e la scheda
+    // tecnica sta su tre colonne da 1024 (sul telefono era già p-0).
+    <div className="space-y-6 max-sm:space-y-3">
       {/* Mobile: titolo e due icone sulla stessa riga; la freccia indietro è
           già nella barra in alto. */}
       <div className="flex flex-wrap items-center gap-3 max-sm:flex-nowrap max-sm:gap-2">
@@ -342,7 +344,7 @@ export default function ImpiantoDetail() {
 
         {/* Scheda Tecnica */}
         <TabsContent value="scheda" className="mt-4 space-y-4 max-sm:mt-3 max-sm:space-y-3">
-          <div className="bg-white rounded-lg border p-4 grid grid-cols-2 gap-4 text-sm max-sm:gap-3 max-sm:p-3 max-sm:text-[13px]">
+          <div className="bg-white rounded-lg border p-4 grid grid-cols-2 gap-4 text-sm lg:grid-cols-3 max-sm:gap-3 max-sm:p-3 max-sm:text-[13px]">
             {[
               { label: "Tipo", value: impianto.tipo_impianto?.replace("_", " ") },
               { label: "Marca", value: impianto.marca },
