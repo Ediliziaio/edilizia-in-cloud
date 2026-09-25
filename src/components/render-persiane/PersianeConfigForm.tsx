@@ -37,6 +37,9 @@ import type {
   TipoPersiana,
 } from "@/modules/render-persiane/lib/types";
 import { TIPI_CON_LAMELLE } from "@/modules/render-persiane/lib/types";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { DettagliTelefono } from "@/components/render/DettagliTelefono";
+import { etichettaAnalisiPersiane } from "@/components/render-persiane/etichetteAnalisiPersiane";
 
 const OPERAZIONI: { value: TipoOperazione; label: string; desc: string; icon: typeof Replace }[] = [
   { value: "sostituisci", label: "Sostituisci", desc: "Cambia il sistema oscurante mantenendo la stessa facciata", icon: Replace },
@@ -124,6 +127,7 @@ function openingShortLabel(type: string) {
 }
 
 export function PersianeConfigForm({ value, onChange, disabled, analysis }: Props) {
+  const isMobile = useIsMobile();
   const set = <K extends keyof ConfigurazionePersiane>(key: K, val: ConfigurazionePersiane[K]) =>
     onChange({ ...value, [key]: val });
 
@@ -147,8 +151,9 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
   };
 
   return (
-    <div className="space-y-8">
-      {analysis && (
+    <div className="space-y-8 max-md:space-y-4">
+      {/* Telefono: la lettura della facciata è già al passo «Analisi». */}
+      {analysis && !isMobile && (
         <div className="rounded-xl border bg-muted/20 p-4 space-y-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -158,7 +163,7 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
               <Badge variant="secondary">{analysis.facadeType}</Badge>
               <Badge variant="secondary">{analysis.buildingStyle}</Badge>
               <Badge variant="secondary">{analysis.openingsVisible} aperture visibili</Badge>
-              <Badge variant="secondary">{analysis.imageOrientation}</Badge>
+              <Badge variant="secondary">{etichettaAnalisiPersiane("orientamento", analysis.imageOrientation)}</Badge>
             </div>
           </div>
           <p className="text-sm text-muted-foreground leading-relaxed">
@@ -168,51 +173,51 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
       )}
 
       <div className="space-y-3">
-        <Label className="text-sm font-semibold">Aperture target</Label>
-        <div className="grid gap-2 sm:grid-cols-3">
+        <Label className="text-sm font-semibold max-md:text-[13px]">Aperture target</Label>
+        <div className="grid gap-2 sm:grid-cols-3 max-sm:gap-1.5">
           <button
             type="button"
             disabled={disabled}
             onClick={() => onChange({ ...value, applica_tutte_finestre: true, target_mode: "all_visible", selected_opening_ids: [] })}
-            className={`rounded-xl border p-3 text-left transition-all ${
+            className={`rounded-xl border p-3 text-left transition-all max-md:p-2.5 ${
               value.target_mode === "all_visible" || value.applica_tutte_finestre
                 ? "border-primary bg-primary/5 ring-1 ring-primary/30"
                 : "border-slate-300 bg-white shadow-sm hover:border-primary/60 hover:shadow"
             }`}
           >
-            <p className="text-sm font-medium">Tutte le aperture</p>
-            <p className="text-xs text-muted-foreground mt-1">Applica la stessa trasformazione a tutte le finestre visibili.</p>
+            <p className="text-sm font-medium max-md:text-[13px] max-md:leading-tight">Tutte le aperture</p>
+            <p className="text-xs text-muted-foreground mt-1 max-md:hidden">Applica la stessa trasformazione a tutte le finestre visibili.</p>
           </button>
           <button
             type="button"
             disabled={disabled}
             onClick={() => onChange({ ...value, applica_tutte_finestre: false, target_mode: "main_opening", selected_opening_ids: [] })}
-            className={`rounded-xl border p-3 text-left transition-all ${
+            className={`rounded-xl border p-3 text-left transition-all max-md:p-2.5 ${
               value.target_mode === "main_opening"
                 ? "border-primary bg-primary/5 ring-1 ring-primary/30"
                 : "border-slate-300 bg-white shadow-sm hover:border-primary/60 hover:shadow"
             }`}
           >
-            <p className="text-sm font-medium">Solo apertura principale</p>
-            <p className="text-xs text-muted-foreground mt-1">Mantiene tutte le altre aperture intatte.</p>
+            <p className="text-sm font-medium max-md:text-[13px] max-md:leading-tight">Solo apertura principale</p>
+            <p className="text-xs text-muted-foreground mt-1 max-md:hidden">Mantiene tutte le altre aperture intatte.</p>
           </button>
           <button
             type="button"
             disabled={disabled || !canSelectSpecificOpenings}
             onClick={() => onChange({ ...value, applica_tutte_finestre: false, target_mode: "selected_openings", selected_opening_ids: selectedIds.length > 0 ? selectedIds : openings.slice(0, 1).map((opening) => opening.id) })}
-            className={`rounded-xl border p-3 text-left transition-all ${
+            className={`rounded-xl border p-3 text-left transition-all max-md:p-2.5 ${
               value.target_mode === "selected_openings"
                 ? "border-primary bg-primary/5 ring-1 ring-primary/30"
                 : "border-slate-300 bg-white shadow-sm hover:border-primary/60 hover:shadow"
             } ${!canSelectSpecificOpenings ? "opacity-50 cursor-not-allowed" : ""}`}
           >
-            <p className="text-sm font-medium">Aperture selezionate</p>
-            <p className="text-xs text-muted-foreground mt-1">Scegli esattamente quali finestre cambiare.</p>
+            <p className="text-sm font-medium max-md:text-[13px] max-md:leading-tight">Aperture selezionate</p>
+            <p className="text-xs text-muted-foreground mt-1 max-md:hidden">Scegli esattamente quali finestre cambiare.</p>
           </button>
         </div>
 
         {value.target_mode === "selected_openings" && canSelectSpecificOpenings && (
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div className="grid gap-2 sm:grid-cols-2 max-sm:grid-cols-2 max-sm:gap-1.5">
             {openings.map((opening) => {
               const active = selectedIds.includes(opening.id);
               return (
@@ -221,15 +226,15 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
                   type="button"
                   disabled={disabled}
                   onClick={() => toggleOpening(opening.id)}
-                  className={`rounded-xl border p-3 text-left transition-all ${
+                  className={`rounded-xl border p-3 text-left transition-all max-md:p-2.5 ${
                     active ? "border-primary bg-primary/5 ring-1 ring-primary/30" : "border-slate-300 bg-white shadow-sm hover:border-primary/60 hover:shadow"
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-medium">Apertura {opening.label}</p>
-                    <Badge variant={active ? "default" : "outline"}>{opening.position.replace(/_/g, " ")}</Badge>
+                    <p className="text-sm font-medium max-md:text-[13px] max-md:leading-tight">Apertura {opening.label}</p>
+                    <Badge variant={active ? "default" : "outline"} className="max-md:px-1.5 max-md:py-0 max-md:text-[11px] max-md:font-normal">{etichettaAnalisiPersiane("posizione", opening.position)}</Badge>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">
+                  <p className="text-xs text-muted-foreground mt-1 max-md:mt-0.5 max-md:text-[11px]">
                     {openingShortLabel(opening.existingShutterType)} · {opening.apparentSize}
                   </p>
                 </button>
@@ -240,27 +245,27 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
       </div>
 
       <div className="space-y-2">
-        <Label className="text-sm font-semibold">Operazione</Label>
-        <div className="grid gap-2 sm:grid-cols-2">
+        <Label className="text-sm font-semibold max-md:text-[13px]">Operazione</Label>
+        <div className="grid gap-2 sm:grid-cols-2 max-sm:grid-cols-2 max-sm:gap-1.5">
           {OPERAZIONI.map(({ value: opValue, label, desc, icon: Icon }) => (
             <button
               key={opValue}
               type="button"
               disabled={disabled}
               onClick={() => set("operazione", opValue)}
-              className={`rounded-xl border p-3 text-left transition-all ${
+              className={`rounded-xl border p-3 text-left transition-all max-md:p-2.5 ${
                 value.operazione === opValue
                   ? "border-primary bg-primary/5 ring-1 ring-primary/30"
                   : "border-slate-300 bg-white shadow-sm hover:border-primary/60 hover:shadow"
               }`}
             >
-              <div className="flex items-start gap-3">
-                <div className={`mt-0.5 rounded-md p-2 ${value.operazione === opValue ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
+              <div className="flex items-start gap-3 max-md:items-center max-md:gap-2">
+                <div className={`mt-0.5 rounded-md p-2 max-md:mt-0 max-md:p-1.5 ${value.operazione === opValue ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
                   <Icon className="h-4 w-4" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium">{label}</p>
-                  <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{desc}</p>
+                  <p className="text-sm font-medium max-md:text-[13px] max-md:leading-tight">{label}</p>
+                  <p className="text-xs text-muted-foreground mt-1 leading-relaxed max-md:hidden">{desc}</p>
                 </div>
               </div>
             </button>
@@ -270,8 +275,8 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
 
       {showFullConfig && !showColorOnly && (
         <div className="space-y-3">
-          <Label className="text-sm font-semibold">Tipologia oscurante</Label>
-          <div className="grid gap-2 sm:grid-cols-3">
+          <Label className="text-sm font-semibold max-md:text-[13px]">Tipologia oscurante</Label>
+          <div className="grid gap-2 sm:grid-cols-3 max-sm:grid-cols-2 max-sm:gap-1.5">
             {TIPI_PERSIANA.map(({ value: shutterType, label, icon: Icon, desc }) => (
               <button
                 key={shutterType}
@@ -284,19 +289,19 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
                   }
                   onChange(nextConfig);
                 }}
-                className={`rounded-xl border p-3 text-left transition-all ${
+                className={`rounded-xl border p-3 text-left transition-all max-md:p-2.5 ${
                   value.tipo === shutterType
                     ? "border-primary bg-primary/5 ring-1 ring-primary/30"
                     : "border-slate-300 bg-white shadow-sm hover:border-primary/60 hover:shadow"
                 }`}
               >
-                <div className="flex items-start gap-3">
-                  <div className={`rounded-md p-2 ${value.tipo === shutterType ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
+                <div className="flex items-start gap-3 max-md:items-center max-md:gap-2">
+                  <div className={`rounded-md p-2 max-md:p-1.5 ${value.tipo === shutterType ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
                     <Icon className="h-4 w-4" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium">{label}</p>
-                    <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{desc}</p>
+                    <p className="text-sm font-medium max-md:text-[13px] max-md:leading-tight">{label}</p>
+                    <p className="text-xs text-muted-foreground mt-1 leading-relaxed max-md:hidden">{desc}</p>
                   </div>
                 </div>
               </button>
@@ -307,22 +312,22 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
 
       {showFullConfig && !showColorOnly && (
         <div className="space-y-3">
-          <Label className="text-sm font-semibold">Materiale</Label>
-          <div className="grid gap-2 sm:grid-cols-3">
+          <Label className="text-sm font-semibold max-md:text-[13px]">Materiale</Label>
+          <div className="grid gap-2 sm:grid-cols-3 max-sm:grid-cols-2 max-sm:gap-1.5">
             {MATERIALI.map((material) => (
               <button
                 key={material.value}
                 type="button"
                 disabled={disabled}
                 onClick={() => set("materiale", material.value)}
-                className={`rounded-xl border p-3 text-left transition-all ${
+                className={`rounded-xl border p-3 text-left transition-all max-md:p-2.5 ${
                   value.materiale === material.value
                     ? "border-primary bg-primary/5 ring-1 ring-primary/30"
                     : "border-slate-300 bg-white shadow-sm hover:border-primary/60 hover:shadow"
                 }`}
               >
-                <p className="text-sm font-medium">{material.label}</p>
-                <p className="text-xs text-muted-foreground mt-1">{material.desc}</p>
+                <p className="text-sm font-medium max-md:text-[13px] max-md:leading-tight">{material.label}</p>
+                <p className="text-xs text-muted-foreground mt-1 max-md:hidden">{material.desc}</p>
               </button>
             ))}
           </div>
@@ -332,8 +337,8 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
       {showFullConfig && (
         <div className="space-y-3">
           <div>
-            <Label className="text-sm font-semibold">Finitura</Label>
-            <p className="text-xs text-muted-foreground mt-1">
+            <Label className="text-sm font-semibold max-md:text-[13px]">Finitura</Label>
+            <p className="text-xs text-muted-foreground mt-1 max-md:hidden">
               La finitura entra direttamente nel prompt finale del render, quindi qui conviene essere molto precisi.
             </p>
           </div>
@@ -342,7 +347,7 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
               type="button"
               disabled={disabled}
               onClick={() => set("colore_mode", "ral")}
-              className={`rounded-md border px-3 py-1.5 text-xs font-medium transition-all ${
+              className={`rounded-md border px-3 py-1.5 text-xs font-medium transition-all max-md:py-2 max-md:text-[13px] ${
                 value.colore_mode === "ral"
                   ? "border-primary bg-primary/10 text-primary"
                   : "border-slate-300 bg-white text-muted-foreground hover:border-primary/60 hover:text-foreground"
@@ -354,7 +359,7 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
               type="button"
               disabled={disabled}
               onClick={() => set("colore_mode", "legno")}
-              className={`rounded-md border px-3 py-1.5 text-xs font-medium transition-all ${
+              className={`rounded-md border px-3 py-1.5 text-xs font-medium transition-all max-md:py-2 max-md:text-[13px] ${
                 value.colore_mode === "legno"
                   ? "border-primary bg-primary/10 text-primary"
                   : "border-slate-300 bg-white text-muted-foreground hover:border-primary/60 hover:text-foreground"
@@ -365,7 +370,7 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
           </div>
 
           {value.colore_mode === "ral" ? (
-            <div className="grid gap-2 sm:grid-cols-3">
+            <div className="grid gap-2 sm:grid-cols-3 max-sm:grid-cols-2 max-sm:gap-1.5">
               {RAL_QUICK_COLORS.map((color) => {
                 const active = value.colore_ral === color.ral && value.colore_nome === color.nome;
                 return (
@@ -381,15 +386,15 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
                         colore_hex: color.hex,
                       })
                     }
-                    className={`rounded-xl border p-3 text-left transition-all ${
+                    className={`rounded-xl border p-3 text-left transition-all max-md:p-2.5 ${
                       active ? "border-primary bg-primary/5 ring-1 ring-primary/30" : "border-slate-300 bg-white shadow-sm hover:border-primary/60 hover:shadow"
                     }`}
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="h-8 w-8 rounded-full border border-black/10" style={{ backgroundColor: color.hex }} />
+                    <div className="flex items-center gap-3 max-md:gap-2">
+                      <div className="h-8 w-8 shrink-0 rounded-full border border-black/10 max-md:h-6 max-md:w-6" style={{ backgroundColor: color.hex }} />
                       <div>
-                        <p className="text-sm font-medium">{color.nome}</p>
-                        <p className="text-xs text-muted-foreground">RAL {color.ral}</p>
+                        <p className="text-sm font-medium max-md:text-[13px] max-md:leading-tight">{color.nome}</p>
+                        <p className="text-xs text-muted-foreground max-md:text-[11px]">RAL {color.ral}</p>
                       </div>
                     </div>
                   </button>
@@ -397,7 +402,7 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
               })}
             </div>
           ) : (
-            <div className="grid gap-2 sm:grid-cols-3">
+            <div className="grid gap-2 sm:grid-cols-3 max-sm:grid-cols-2 max-sm:gap-1.5">
               {EFFETTI_LEGNO.map((effect) => {
                 const active = value.effetto_legno === effect.value;
                 return (
@@ -406,13 +411,13 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
                     type="button"
                     disabled={disabled}
                     onClick={() => set("effetto_legno", effect.value)}
-                    className={`rounded-xl border p-3 text-left transition-all ${
+                    className={`rounded-xl border p-3 text-left transition-all max-md:p-2.5 ${
                       active ? "border-primary bg-primary/5 ring-1 ring-primary/30" : "border-slate-300 bg-white shadow-sm hover:border-primary/60 hover:shadow"
                     }`}
                   >
-                    <div className="h-10 rounded-lg border border-black/10" style={{ background: effect.swatch }} />
-                    <p className="text-sm font-medium mt-3">{effect.label}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Usa questo effetto come riferimento materico del render.</p>
+                    <div className="h-10 rounded-lg border border-black/10 max-md:h-7" style={{ background: effect.swatch }} />
+                    <p className="text-sm font-medium mt-3 max-md:mt-2 max-md:text-[13px] max-md:leading-tight">{effect.label}</p>
+                    <p className="text-xs text-muted-foreground mt-1 max-md:hidden">Usa questo effetto come riferimento materico del render.</p>
                   </button>
                 );
               })}
@@ -426,13 +431,13 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
               onCheckedChange={(checked) => set("colore_profilo_diverso", checked === true)}
               disabled={disabled}
             />
-            <Label htmlFor="colore_profilo_diverso" className="text-sm cursor-pointer">
+            <Label htmlFor="colore_profilo_diverso" className="text-sm cursor-pointer max-md:text-[13px]">
               Profilo esterno con colore diverso
             </Label>
           </div>
 
           {value.colore_profilo_diverso && (
-            <div className="grid gap-2 sm:grid-cols-3">
+            <div className="grid gap-2 sm:grid-cols-3 max-sm:grid-cols-2 max-sm:gap-1.5">
               {RAL_QUICK_COLORS.map((color) => {
                 const active = value.colore_profilo_hex === color.hex;
                 return (
@@ -441,15 +446,15 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
                     type="button"
                     disabled={disabled}
                     onClick={() => set("colore_profilo_hex", color.hex)}
-                    className={`rounded-xl border p-3 text-left transition-all ${
+                    className={`rounded-xl border p-3 text-left transition-all max-md:p-2.5 ${
                       active ? "border-primary bg-primary/5 ring-1 ring-primary/30" : "border-slate-300 bg-white shadow-sm hover:border-primary/60 hover:shadow"
                     }`}
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 max-md:gap-2">
                       <div className="h-6 w-6 rounded-full border border-black/10" style={{ backgroundColor: color.hex }} />
                       <div>
-                        <p className="text-sm font-medium">{color.nome}</p>
-                        <p className="text-xs text-muted-foreground">Profilo / telaio</p>
+                        <p className="text-sm font-medium max-md:text-[13px] max-md:leading-tight">{color.nome}</p>
+                        <p className="text-xs text-muted-foreground max-md:hidden">Profilo / telaio</p>
                       </div>
                     </div>
                   </button>
@@ -462,22 +467,22 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
 
       {showFullConfig && (
         <div className="space-y-3">
-          <Label className="text-sm font-semibold">Stato apertura</Label>
-          <div className="grid gap-2 sm:grid-cols-2">
+          <Label className="text-sm font-semibold max-md:text-[13px]">Stato apertura</Label>
+          <div className="grid gap-2 sm:grid-cols-2 max-sm:grid-cols-2 max-sm:gap-1.5">
             {STATI_APERTURA.map((state) => (
               <button
                 key={state.value}
                 type="button"
                 disabled={disabled}
                 onClick={() => set("stato_apertura", state.value)}
-                className={`rounded-xl border p-3 text-left transition-all ${
+                className={`rounded-xl border p-3 text-left transition-all max-md:p-2.5 ${
                   value.stato_apertura === state.value
                     ? "border-primary bg-primary/5 ring-1 ring-primary/30"
                     : "border-slate-300 bg-white shadow-sm hover:border-primary/60 hover:shadow"
                 }`}
               >
-                <p className="text-sm font-medium">{state.label}</p>
-                <p className="text-xs text-muted-foreground mt-1">{state.desc}</p>
+                <p className="text-sm font-medium max-md:text-[13px] max-md:leading-tight">{state.label}</p>
+                <p className="text-xs text-muted-foreground mt-1 max-md:hidden">{state.desc}</p>
               </button>
             ))}
           </div>
@@ -485,16 +490,16 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
       )}
 
       {showFullConfig && !showColorOnly && showLamelle && (
-        <div className="space-y-3 rounded-xl border bg-muted/20 p-4">
+        <div className="space-y-3 rounded-xl border bg-muted/20 p-4 max-md:p-3">
           <div>
-            <Label className="text-sm font-semibold">Lamelle</Label>
-            <p className="text-xs text-muted-foreground mt-1">
+            <Label className="text-sm font-semibold max-md:text-[13px]">Lamelle</Label>
+            <p className="text-xs text-muted-foreground mt-1 max-md:hidden">
               Vale per veneziane, gelosie e schermature a lame.
             </p>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-2 max-sm:grid-cols-2 max-sm:gap-2">
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Larghezza lamelle</Label>
+              <Label className="text-xs text-muted-foreground max-md:text-[11px]">Larghezza lamelle</Label>
               <Select
                 value={String(value.lamelle?.larghezza_mm ?? 50)}
                 onValueChange={(nextValue) =>
@@ -521,7 +526,7 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Apertura lamelle</Label>
+              <Label className="text-xs text-muted-foreground max-md:text-[11px]">Apertura lamelle</Label>
               <Select
                 value={value.lamelle?.apertura ?? "chiuse"}
                 onValueChange={(nextValue) =>
@@ -551,11 +556,13 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
         </div>
       )}
 
+      {/* Telefono: ferramenta, installazione e accessori hanno già valori sensati: riga chiusa. */}
+      <DettagliTelefono titolo="Ferramenta e dettagli">
       <div className="space-y-3">
-        <Label className="text-sm font-semibold">Ferramenta e dettagli</Label>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <Label className="text-sm font-semibold max-md:hidden">Ferramenta e dettagli</Label>
+        <div className="grid gap-3 sm:grid-cols-2 max-sm:grid-cols-2 max-sm:gap-2">
           <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Finitura ferramenta</Label>
+            <Label className="text-xs text-muted-foreground max-md:text-[11px]">Finitura ferramenta</Label>
             <Select
               value={value.ferramenta_finitura ?? "verniciata_tinta"}
               onValueChange={(nextValue) => set("ferramenta_finitura", nextValue as PersianaFerramentaFinitura)}
@@ -575,7 +582,7 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Logica di installazione</Label>
+            <Label className="text-xs text-muted-foreground max-md:text-[11px]">Logica di installazione</Label>
             <Select
               value={value.installazione ?? (value.tipo === "avvolgibile_esterno" || value.tipo === "veneziana_esterna" ? "guide_laterali" : value.tipo === "brise_soleil" ? "brackets_architettonici" : "cardini_tradizionali")}
               onValueChange={(nextValue) => set("installazione", nextValue as PersianaInstallazione)}
@@ -595,41 +602,43 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
           </div>
         </div>
 
-        <div className="grid gap-2 sm:grid-cols-2">
-          <div className="flex items-center gap-2 rounded-xl border p-3">
+        <div className="grid gap-2 sm:grid-cols-2 max-sm:gap-1.5">
+          <div className="flex items-center gap-2 rounded-xl border p-3 max-md:p-2.5">
             <Checkbox
               id="fermapersiana_visibile"
               checked={value.fermapersiana_visibile === true}
               onCheckedChange={(checked) => set("fermapersiana_visibile", checked === true)}
               disabled={disabled}
             />
-            <Label htmlFor="fermapersiana_visibile" className="text-sm cursor-pointer">
+            <Label htmlFor="fermapersiana_visibile" className="text-sm cursor-pointer max-md:text-[13px]">
               Mostra fermapersiane / accessori di ritenuta se coerenti
             </Label>
           </div>
 
-          <div className="flex items-center gap-2 rounded-xl border p-3">
+          <div className="flex items-center gap-2 rounded-xl border p-3 max-md:p-2.5">
             <Checkbox
               id="mantieni_accessori_non_target"
               checked={value.mantieni_accessori_non_target !== false}
               onCheckedChange={(checked) => set("mantieni_accessori_non_target", checked === true)}
               disabled={disabled}
             />
-            <Label htmlFor="mantieni_accessori_non_target" className="text-sm cursor-pointer">
+            <Label htmlFor="mantieni_accessori_non_target" className="text-sm cursor-pointer max-md:text-[13px]">
               Preserva accessori delle aperture non target
             </Label>
           </div>
         </div>
       </div>
+      </DettagliTelefono>
 
       <div className="space-y-1.5">
-        <Label>Note aggiuntive</Label>
+        <Label className="max-md:text-[13px] max-md:font-semibold">Note aggiuntive</Label>
         <Textarea
           value={value.note_libere ?? ""}
           onChange={(event) => set("note_libere", event.target.value)}
           placeholder="Es. mantieni contorni in pietra, non toccare ringhiera balcone, applica solo alla finestra centrale..."
           rows={3}
           disabled={disabled}
+          className="max-md:placeholder:text-[13px]"
         />
       </div>
     </div>

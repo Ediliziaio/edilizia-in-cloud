@@ -22,6 +22,7 @@ import type {
   TipoPergola,
   ZonaInstallazionePergola,
 } from "@/modules/render-pergole/lib/types";
+import { DettagliTelefono } from "@/components/render/DettagliTelefono";
 
 const OPERAZIONI: { value: TipoOperazionePergola; label: string; desc: string }[] = [
   { value: "add_new_pergola", label: "Aggiungi pergola", desc: "Inserisce una nuova struttura nel punto scelto." },
@@ -138,10 +139,10 @@ export function PergoleConfigForm({ value, onChange, disabled }: Props) {
   const wallMounted = value.installazione.addossata_si_no;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-md:space-y-4">
       <section className="space-y-3">
-        <Label className="text-sm font-semibold">Tipo intervento</Label>
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
+        <Label className="text-sm font-semibold max-md:text-[13px]">Tipo intervento</Label>
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2 max-sm:grid-cols-2 max-sm:gap-1.5">
           {OPERAZIONI.map((item) => {
             const selected = value.operazione === item.value;
             return (
@@ -150,12 +151,12 @@ export function PergoleConfigForm({ value, onChange, disabled }: Props) {
                 className={`cursor-pointer transition-all ${selected ? "ring-2 ring-primary border-primary bg-primary/5" : "border-slate-300 shadow-sm hover:border-primary/60 hover:shadow"} ${disabled ? "opacity-50 pointer-events-none" : ""}`}
                 onClick={() => !disabled && set("operazione", item.value)}
               >
-                <CardContent className="p-3 space-y-1">
+                <CardContent className="p-3 space-y-1 max-md:p-2.5">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-semibold">{item.label}</span>
-                    {selected && <Badge className="text-[10px] px-1.5 py-0">Attivo</Badge>}
+                    <span className="text-xs font-semibold max-md:text-[13px] max-md:leading-tight">{item.label}</span>
+                    {selected && <Badge className="text-[10px] px-1.5 py-0 max-md:hidden">Attivo</Badge>}
                   </div>
-                  <p className="text-[10px] text-muted-foreground leading-tight">{item.desc}</p>
+                  <p className="text-[10px] text-muted-foreground leading-tight max-md:hidden">{item.desc}</p>
                 </CardContent>
               </Card>
             );
@@ -164,15 +165,15 @@ export function PergoleConfigForm({ value, onChange, disabled }: Props) {
       </section>
 
       <section className="space-y-3">
-        <div className="flex items-center justify-between rounded-lg border p-3">
+        <div className="flex items-center justify-between rounded-lg border p-3 max-md:p-2.5">
           <div>
-            <Label className="text-sm font-semibold">Pergola addossata alla facciata</Label>
-            <p className="text-xs text-muted-foreground">Attacco a muro, quote porta-finestra e interferenze vengono vincolate nel prompt.</p>
+            <Label className="text-sm font-semibold max-md:text-[13px]">Pergola addossata alla facciata</Label>
+            <p className="text-xs text-muted-foreground max-md:hidden">Attacco a muro, quote porta-finestra e interferenze vengono vincolate nel prompt.</p>
           </div>
           <Switch checked={wallMounted} onCheckedChange={(checked) => setInstallazione("addossata_si_no", checked)} disabled={disabled} />
         </div>
-        <Label className="text-sm font-semibold">Zona installazione</Label>
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
+        <Label className="text-sm font-semibold max-md:text-[13px]">Zona installazione</Label>
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2 max-sm:grid-cols-2 max-sm:gap-1.5">
           {ZONE.map((item) => {
             const selected = value.installazione.zona === item.value;
             return (
@@ -181,9 +182,9 @@ export function PergoleConfigForm({ value, onChange, disabled }: Props) {
                 className={`cursor-pointer transition-all ${selected ? "ring-2 ring-primary border-primary bg-primary/5" : "border-slate-300 shadow-sm hover:border-primary/60 hover:shadow"} ${disabled ? "opacity-50 pointer-events-none" : ""}`}
                 onClick={() => !disabled && setInstallazione("zona", item.value)}
               >
-                <CardContent className="p-3 space-y-1">
-                  <span className="text-xs font-semibold">{item.label}</span>
-                  <p className="text-[10px] text-muted-foreground leading-tight">{item.desc}</p>
+                <CardContent className="p-3 space-y-1 max-md:p-2.5">
+                  <span className="text-xs font-semibold max-md:text-[13px] max-md:leading-tight">{item.label}</span>
+                  <p className="text-[10px] text-muted-foreground leading-tight max-md:hidden">{item.desc}</p>
                 </CardContent>
               </Card>
             );
@@ -199,72 +200,73 @@ export function PergoleConfigForm({ value, onChange, disabled }: Props) {
         )}
       </section>
 
-      <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label>Tipologia pergola</Label>
+      <section className="grid grid-cols-1 md:grid-cols-2 gap-4 max-md:grid-cols-2 max-md:gap-2">
+        {/* Telefono: la tipologia a tutta riga (a metà il nome si tagliava). */}
+        <div className="space-y-2 max-md:col-span-2">
+          <Label className="max-md:text-[11px]">Tipologia pergola</Label>
           <Select value={value.struttura.tipo} onValueChange={(v) => setStruttura("tipo", v as TipoPergola)} disabled={disabled}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>{TIPI.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         <div className="space-y-2">
-          <Label>Materiale struttura</Label>
+          <Label className="max-md:text-[11px]">Materiale struttura</Label>
           <Select value={value.struttura.materiale} onValueChange={(v) => setStruttura("materiale", v as MaterialeStrutturaPergola)} disabled={disabled}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>{MATERIALI.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         <div className="space-y-2">
-          <Label>Colore struttura</Label>
+          <Label className="max-md:text-[11px]">Colore struttura</Label>
           <Input value={value.struttura.colore_nome} onChange={(e) => setStruttura("colore_nome", e.target.value)} disabled={disabled} />
         </div>
         <div className="space-y-2">
-          <Label>Campione colore</Label>
+          <Label className="max-md:text-[11px]">Campione colore</Label>
           <div className="flex gap-2">
-            <Input type="color" value={value.struttura.colore_hex} onChange={(e) => setStruttura("colore_hex", e.target.value)} disabled={disabled} className="w-16 p-1" />
+            <Input type="color" value={value.struttura.colore_hex} onChange={(e) => setStruttura("colore_hex", e.target.value)} disabled={disabled} className="w-16 p-1 max-md:w-10 max-md:shrink-0" />
             <Input value={value.struttura.colore_hex} onChange={(e) => setStruttura("colore_hex", e.target.value)} disabled={disabled} />
           </div>
         </div>
       </section>
 
-      <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <section className="grid grid-cols-1 md:grid-cols-2 gap-4 max-md:grid-cols-2 max-md:gap-2">
         <div className="space-y-2">
-          <Label>Tipo copertura</Label>
+          <Label className="max-md:text-[11px]">Tipo copertura</Label>
           <Select value={value.copertura.tipo} onValueChange={(v) => setCopertura("tipo", v as TipoCoperturaPergola)} disabled={disabled}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>{COPERTURE.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         <div className="space-y-2">
-          <Label>Stato copertura / lamelle / telo</Label>
+          <Label className="max-md:text-[11px]">Stato copertura / lamelle / telo</Label>
           <Select value={value.copertura.stato} onValueChange={(v) => setCopertura("stato", v as StatoCoperturaPergola)} disabled={disabled}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>{STATI_COPERTURA.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         <div className="space-y-2">
-          <Label>Chiusure laterali</Label>
+          <Label className="max-md:text-[11px]">Chiusure laterali</Label>
           <Select value={value.chiusure_laterali.tipo} onValueChange={(v) => setChiusure("tipo", v as TipoChiusuraLaterale)} disabled={disabled}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>{CHIUSURE.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         <div className="space-y-2">
-          <Label>Stato chiusure</Label>
+          <Label className="max-md:text-[11px]">Stato chiusure</Label>
           <Select value={value.chiusure_laterali.stato} onValueChange={(v) => setChiusure("stato", v as StatoChiusuraLaterale)} disabled={disabled}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>{STATI_CHIUSURE.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         <div className="space-y-2">
-          <Label>Illuminazione integrata</Label>
+          <Label className="max-md:text-[11px]">Illuminazione integrata</Label>
           <Select value={value.illuminazione} onValueChange={(v) => set("illuminazione", v as TipoIlluminazionePergola)} disabled={disabled}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>{LUCI.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
           </Select>
         </div>
-        <div className="space-y-2">
-          <Label>Arredo sottostante</Label>
+        <div className="space-y-2 max-md:col-span-2">
+          <Label className="max-md:text-[11px]">Arredo sottostante</Label>
           <Select value={value.arredo.gestisci_arredo} onValueChange={(v) => setArredo("gestisci_arredo", v as ConfigurazionePergole["arredo"]["gestisci_arredo"])} disabled={disabled}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -276,9 +278,11 @@ export function PergoleConfigForm({ value, onChange, disabled }: Props) {
         </div>
       </section>
 
-      <section className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      {/* Telefono: ingombri e montanti hanno già valori sensati: riga chiusa. */}
+      <DettagliTelefono titolo="Ingombri e montanti">
+      <section className="grid grid-cols-1 md:grid-cols-3 gap-3 max-md:grid-cols-2 max-md:gap-2">
         <div className="space-y-2">
-          <Label>Ingombro larghezza</Label>
+          <Label className="max-md:text-[11px]">Ingombro larghezza</Label>
           <Select value={value.installazione.larghezza_apparente} onValueChange={(v) => setInstallazione("larghezza_apparente", v as ConfigurazionePergole["installazione"]["larghezza_apparente"])} disabled={disabled}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -290,7 +294,7 @@ export function PergoleConfigForm({ value, onChange, disabled }: Props) {
           </Select>
         </div>
         <div className="space-y-2">
-          <Label>Profondità</Label>
+          <Label className="max-md:text-[11px]">Profondità</Label>
           <Select value={value.installazione.profondita_apparente} onValueChange={(v) => setInstallazione("profondita_apparente", v as ConfigurazionePergole["installazione"]["profondita_apparente"])} disabled={disabled}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -302,7 +306,7 @@ export function PergoleConfigForm({ value, onChange, disabled }: Props) {
           </Select>
         </div>
         <div className="space-y-2">
-          <Label>Montanti visibili</Label>
+          <Label className="max-md:text-[11px]">Montanti visibili</Label>
           <Select value={String(value.installazione.numero_montanti ?? 2)} onValueChange={(v) => setInstallazione("numero_montanti", Number(v) as 2 | 4 | 6)} disabled={disabled}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -314,13 +318,16 @@ export function PergoleConfigForm({ value, onChange, disabled }: Props) {
         </div>
       </section>
 
+      </DettagliTelefono>
+
       <section className="space-y-2">
-        <Label>Note tecniche per AI</Label>
+        <Label className="max-md:text-[13px] max-md:font-semibold">Note tecniche per AI</Label>
         <Textarea
           value={value.note_libere ?? ""}
           onChange={(e) => set("note_libere", e.target.value)}
           placeholder="Esempio: lascia libera la portafinestra, non invadere il bordo piscina, pergola sobria e realistica."
           disabled={disabled}
+          className="max-md:min-h-[88px] max-md:placeholder:text-[13px]"
         />
       </section>
     </div>

@@ -9,8 +9,11 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
   Upload, Image as ImageIcon, Loader2, Zap,
-  CheckCircle2, Download, Share2, RefreshCw,
+  CheckCircle2, Download, Share2, RefreshCw, ImagePlus, Camera,
 } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { ZonaFotoMobile } from "@/components/render/ZonaFotoMobile";
+import { MandaRenderMobile } from "@/components/render/MandaRenderMobile";
 import { RenderWizardHeader } from "@/components/render/RenderWizardHeader";
 import { PergoleConfigForm } from "@/components/render-pergole/PergoleConfigForm";
 import { DEFAULT_PERGOLE_CONFIG } from "@/components/render-pergole/defaultPergoleConfig";
@@ -296,8 +299,30 @@ export default function RenderPergoleNew() {
     window.open(`https://wa.me/?text=${encodeURIComponent(`Ecco il render della nuova pergola!\n${url}`)}`, "_blank");
   }, [resultUrls]);
 
+  const isMobile = useIsMobile();
+  const nuovoRender = () => {
+    setStep(1);
+    setPhoto(null);
+    setPhotoPreview(null);
+    setPhotoPath(null);
+    setSessionId(null);
+    setResultUrls([]);
+    setConfig(DEFAULT_PERGOLE_CONFIG);
+  };
+
+  // A ogni passo si riparte dalla testata (prima si restava a metà pagina).
+  const radiceRef = useRef<HTMLDivElement>(null);
+  const primoPassoRef = useRef(true);
+  useEffect(() => {
+    if (primoPassoRef.current) {
+      primoPassoRef.current = false;
+      return;
+    }
+    radiceRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+  }, [step]);
+
   return (
-    <div className="space-y-6 max-w-3xl mx-auto pb-12">
+    <div ref={radiceRef} className="space-y-6 max-w-3xl mx-auto pb-12 scroll-mt-3 max-md:space-y-3">
       <RenderWizardHeader
         onBack={() => {
           if (step === 1 || step === 4) navigate("/azienda/render/pergole");
@@ -306,33 +331,47 @@ export default function RenderPergoleNew() {
         }}
         eyebrow="Render pergola fotorealistico"
         title="Stesso esterno, nuova pergola"
+        mobileTitle="Render Pergola"
         description="Visualizza la pergola sul tuo terrazzo o giardino con materiali, colori e copertura scelti."
         badgeLabel="Render AI — Pergole"
         stepLabels={["Foto", "Configura", "Elaborazione", "Risultato"]}
         currentStep={step}
         accent="violet"
       />
-      <div className="flex justify-end">
+      {/* Telefono: il saldo non occupa una riga (se finisce, avvisa il RenderCreditGate). */}
+      <div className="flex justify-end max-md:hidden">
         <RenderCreditsWidget />
       </div>
 
       <RenderCreditGate />
 
       {step === 1 && (
-        <div className="space-y-4">
-          <Card>
-            <CardHeader>
+        <div className="space-y-4 max-md:space-y-3">
+          {isMobile && !photoPreview ? (
+            <>
+              <ZonaFotoMobile
+                onScegli={() => fileRef.current?.click()}
+                suggerimento="Terrazza, patio o giardino, con la parete di appoggio"
+                accento="emerald"
+              />
+              <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleFileChange} />
+            </>
+          ) : (
+          <Card className="max-md:border-0 max-md:bg-transparent max-md:shadow-none">
+            <CardHeader className="max-md:hidden">
               <CardTitle className="text-base flex items-center gap-2">
                 <Upload className="h-4 w-4" />
                 Foto area esterna
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="max-md:p-0">
               {photoPreview ? (
                 <div className="relative rounded-lg overflow-hidden">
                   <img loading="lazy" src={photoPreview} alt="Foto caricata" className="w-full max-h-96 object-cover" />
-                  <Button variant="secondary" size="sm" className="absolute top-3 right-3 gap-1.5" onClick={() => { setPhoto(null); setPhotoPreview(null); }}>
-                    <RefreshCw className="h-3.5 w-3.5" />
+                  {/* Telefono: una pastiglia leggera sulla foto invece del bottone pieno. */}
+                  <Button variant="secondary" size="sm" className="absolute top-3 right-3 gap-1.5 max-md:right-2 max-md:top-2 max-md:h-8 max-md:rounded-full max-md:bg-black/55 max-md:px-3 max-md:text-[13px] max-md:text-white max-md:backdrop-blur-sm max-md:hover:bg-black/65" onClick={() => { setPhoto(null); setPhotoPreview(null); }}>
+                    <RefreshCw className="h-3.5 w-3.5 max-md:hidden" />
+                    <Camera className="hidden h-3.5 w-3.5 max-md:block" />
                     Cambia foto
                   </Button>
                 </div>
@@ -354,6 +393,7 @@ export default function RenderPergoleNew() {
               <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleFileChange} />
             </CardContent>
           </Card>
+          )}
 
           <RenderCrmLinker
             contactId={contactId}
@@ -362,29 +402,33 @@ export default function RenderPergoleNew() {
             onOpportunityChange={setOpportunityId}
           />
 
+          {/* Telefono: compare con la foto (prima era un bottone spento). */}
+          {(!isMobile || photo) && (
           <Button className="w-full bg-emerald-600 hover:bg-emerald-700" size="lg" disabled={!photo || uploading} onClick={goToStep2}>
             {uploading ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Caricamento...</> : "Continua con la configurazione"}
           </Button>
+          )}
         </div>
       )}
 
       {step === 2 && (
-        <div className="space-y-4">
+        <div className="space-y-4 max-md:space-y-3">
           {photoPreview && (
             <div className="rounded-lg overflow-hidden max-h-56">
               <img loading="lazy" src={photoPreview} alt="Foto pergola" className="w-full h-full object-cover" />
             </div>
           )}
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-4">
-            <Card>
-              <CardHeader>
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-4 max-md:gap-3">
+            <Card className="max-md:border-0 max-md:bg-transparent max-md:shadow-none">
+              <CardHeader className="max-md:hidden">
                 <CardTitle className="text-base">Configura pergola e installazione</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="max-md:p-0">
                 <PergoleConfigForm value={config} onChange={setConfig} />
               </CardContent>
             </Card>
-            <div className="space-y-3">
+            {/* Telefono: ambito e regole di installazione (testo tecnico) restano al computer. */}
+            <div className="space-y-3 max-md:hidden">
               <Card>
                 <CardHeader><CardTitle className="text-sm">Scope render</CardTitle></CardHeader>
                 <CardContent className="space-y-2 text-sm">
@@ -419,10 +463,11 @@ export default function RenderPergoleNew() {
       )}
 
       {step === 4 && resultUrls.length > 0 && (
-        <div className="space-y-4">
-          <Card>
-            <CardContent className="py-4">
-              <div className="flex items-center gap-2 mb-4">
+        <div className="space-y-4 max-md:space-y-3">
+          <Card className="max-md:border-0 max-md:bg-transparent max-md:shadow-none">
+            <CardContent className="py-4 max-md:p-0">
+              {/* Telefono: parla l'immagine. */}
+              <div className="flex items-center gap-2 mb-4 max-md:hidden">
                 <CheckCircle2 className="h-5 w-5 text-green-600" />
                 <span className="font-semibold text-green-700">Render completato!</span>
               </div>
@@ -433,7 +478,16 @@ export default function RenderPergoleNew() {
               )}
             </CardContent>
           </Card>
-          <div className="flex gap-2">
+          {/* Telefono: nuovo render a icona e «Manda al cliente» (l'immagine, non un link). */}
+          {isMobile && (
+            <div className="flex gap-2">
+              <Button variant="outline" className="w-11 shrink-0 px-0" onClick={nuovoRender} aria-label="Nuovo render">
+                <ImagePlus className="h-4 w-4" />
+              </Button>
+              <MandaRenderMobile resultUrl={resultUrls[0]} nomeFile="render-pergola" className="min-w-0 flex-1" />
+            </div>
+          )}
+          <div className="flex gap-2 max-md:hidden">
             <Button variant="outline" className="flex-1 gap-2" onClick={downloadResult}><Download className="h-4 w-4" />Scarica</Button>
             <Button variant="outline" className="flex-1 gap-2" onClick={shareWhatsApp}><Share2 className="h-4 w-4" />WhatsApp</Button>
           </div>
@@ -447,16 +501,8 @@ export default function RenderPergoleNew() {
             regenerateLabel="Genera nuova variante pergola"
           />
           <Button
-            className="w-full bg-emerald-600 hover:bg-emerald-700"
-            onClick={() => {
-              setStep(1);
-              setPhoto(null);
-              setPhotoPreview(null);
-              setPhotoPath(null);
-              setSessionId(null);
-              setResultUrls([]);
-              setConfig(DEFAULT_PERGOLE_CONFIG);
-            }}
+            className="w-full bg-emerald-600 hover:bg-emerald-700 max-md:hidden"
+            onClick={nuovoRender}
           >
             <RefreshCw className="h-4 w-4 mr-2" />
             Nuovo render pergola
