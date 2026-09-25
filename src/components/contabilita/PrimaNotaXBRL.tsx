@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui/button';
+import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { Download, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -17,9 +18,11 @@ interface Props {
   /** Se fornito, l'export XBRL usa TUTTE le righe filtrate (non solo la pagina
    *  corrente). Senza, ricade su `entries` (retro-compatibile). */
   fetchAll?: () => Promise<XbrlEntry[]>;
+  /** Voce di un menu «⋯» invece di un bottone (testata della Prima Nota). */
+  comeVoceMenu?: boolean;
 }
 
-export function PrimaNotaXBRL({ entries, anno, fetchAll }: Props) {
+export function PrimaNotaXBRL({ entries, anno, fetchAll, comeVoceMenu = false }: Props) {
   const [busy, setBusy] = useState(false);
 
   const handleExport = async () => {
@@ -58,6 +61,15 @@ ${entryElements}
       setBusy(false);
     }
   };
+
+  if (comeVoceMenu) {
+    return (
+      <DropdownMenuItem onSelect={() => { void handleExport(); }} disabled={busy} className="gap-2">
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+        Esporta XBRL
+      </DropdownMenuItem>
+    );
+  }
 
   return (
     <Button variant="outline" onClick={handleExport} disabled={busy}>

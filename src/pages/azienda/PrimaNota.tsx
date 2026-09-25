@@ -11,10 +11,11 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   BookOpen, Plus, Loader2, Search, Download, ArrowDownLeft, ArrowUpRight,
   TrendingUp, TrendingDown, Wallet, Bot, Trash2, FileText, ExternalLink, RefreshCw,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, MoreHorizontal,
 } from "lucide-react";
 import { CercaConFiltri, KpiMobili, PannelloFiltri, PilloleFiltro } from "@/components/mobile/FiltriMobile";
 import { PrimaNotaXBRL } from "@/components/contabilita/PrimaNotaXBRL";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { usePrimaNota } from "@/hooks/usePrimaNota";
 import NewEntryDialog from "@/components/prima-nota/NewEntryDialog";
@@ -206,12 +207,32 @@ function PrimaNotaInner() {
             </div>
           </div>
         <div className="flex gap-2 flex-wrap">
-          {/* Mobile: solo «Nuova»; CSV, XBRL e importa automatico al desktop. */}
-          <div className="contents max-sm:hidden">
-          <Button variant="outline" size="sm" onClick={exportCSV} disabled={isExporting}>
-            {isExporting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Download className="h-4 w-4 mr-1" />} CSV
-          </Button>
-          <PrimaNotaXBRL
+          {/* Mobile: solo «Nuova»; CSV, XBRL e importa automatico al desktop,
+              in un menu «⋯» accanto a «Nuova registrazione»: erano tre
+              bottoni in fila prima dell'azione principale. */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon" className="max-sm:hidden" aria-label="Altre azioni" title="Altre azioni">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64">
+              <DropdownMenuItem
+                className="gap-2"
+                onSelect={() => importMutation.mutate("both")}
+                disabled={importMutation.isPending}
+                title="Importa automaticamente da movimenti bancari riconciliati e fatture pagate"
+              >
+                {importMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                Importa da banca e fatture
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem className="gap-2" onSelect={() => { void exportCSV(); }} disabled={isExporting}>
+                {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                Esporta CSV
+              </DropdownMenuItem>
+              <PrimaNotaXBRL
+                comeVoceMenu
             entries={entries.map(e => ({
               data: e.entry_date,
               descrizione: e.description,
@@ -227,21 +248,9 @@ function PrimaNotaInner() {
               importo_avere: e.direction === 'entrata' ? Number(e.amount) : 0,
               conto: e.category,
             }))}
-          />
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => importMutation.mutate("both")}
-            disabled={importMutation.isPending}
-            title="Importa automaticamente da movimenti bancari riconciliati e fatture pagate"
-          >
-            {importMutation.isPending
-              ? <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-              : <RefreshCw className="h-4 w-4 mr-1" />}
-            <span className="hidden sm:inline">Importa Auto</span>
-            <span className="sm:hidden">Importa</span>
-          </Button>
-          </div>
+              />
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button onClick={() => setNewOpen(true)} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-8 max-sm:px-3 max-sm:text-xs">
             <Plus className="h-4 w-4 mr-1" />
             <span className="hidden sm:inline">Nuova Registrazione</span>
@@ -254,35 +263,26 @@ function PrimaNotaInner() {
       {/* Testata navy di famiglia (stessa dei Costi e delle Commesse):
           i tre numeri della cassa in card di vetro, senza troncamenti. */}
       <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm max-sm:hidden">
+        {/* Senza il titoletto «Prima Nota — La cassa, giorno per giorno» e
+            senza «periodo filtrato» sotto ogni numero: il periodo è nei
+            filtri qui sotto. */}
         <div className="bg-[#173b67] p-4 text-white sm:p-5">
-          <div className="flex items-start gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)] sm:h-11 sm:w-11">
-              <Wallet className="h-4 w-4 sm:h-5 sm:w-5" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-orange-100 sm:text-xs">Prima Nota</p>
-              <h2 className="mt-0.5 text-base font-semibold text-white sm:text-xl">La cassa, giorno per giorno</h2>
-            </div>
-          </div>
-          <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-5 sm:grid-cols-3 sm:gap-3">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">
             <NavyStatCard
               label="Entrate"
               value={isSaldoLoading ? "..." : eurTondo(saldo?.entrate || 0)}
-              sub="periodo filtrato"
               icon={TrendingUp}
               tone="text-emerald-200"
             />
             <NavyStatCard
               label="Uscite"
               value={isSaldoLoading ? "..." : eurTondo(saldo?.uscite || 0)}
-              sub="periodo filtrato"
               icon={TrendingDown}
               tone="text-rose-300"
             />
             <NavyStatCard
               label="Saldo netto"
               value={isSaldoLoading ? "..." : eurTondo(saldo?.saldo || 0)}
-              sub="entrate meno uscite"
               icon={Wallet}
               tone={(saldo?.saldo || 0) >= 0 ? "text-emerald-200" : "text-rose-300"}
             />
@@ -293,18 +293,18 @@ function PrimaNotaInner() {
       {/* Chart andamento 6 mesi: vetrina → non su mobile (i 3 KPI Entrate/
           Uscite/Saldo sopra bastano). */}
       {!isMobile && chartData.some((d) => d.entrate > 0 || d.uscite > 0) && (
-        <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-white to-orange-50/40 p-3 sm:p-4">
+        // Un titolo solo (erano «ANDAMENTO 6 MESI» e «Entrate e uscite di
+        // cassa») e il grafico direttamente nel riquadro, non in un secondo
+        // riquadro bianco dentro il primo.
+        <div className="rounded-xl border border-slate-200 bg-white p-3 sm:p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold uppercase text-slate-500">Andamento 6 mesi</p>
-              <h3 className="mt-0.5 text-base font-semibold text-slate-950">Entrate e uscite di cassa</h3>
-            </div>
+            <h3 className="text-base font-semibold text-slate-950">Entrate e uscite, ultimi 6 mesi</h3>
             <div className="flex items-center gap-3 text-xs">
               <span className="inline-flex items-center gap-1 text-slate-600"><span className="h-2 w-2 rounded-full bg-emerald-500" /> Entrate</span>
               <span className="inline-flex items-center gap-1 text-slate-600"><span className="h-2 w-2 rounded-full bg-rose-500" /> Uscite</span>
             </div>
           </div>
-          <div className="mt-3 h-[200px] rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
+          <div className="mt-3 h-[200px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData} margin={{ top: 8, right: 2, left: -10, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#edf2f7" />
@@ -348,9 +348,12 @@ function PrimaNotaInner() {
       />
 
       {/* Filters */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm sm:flex sm:flex-wrap sm:items-center sm:gap-3 max-sm:hidden">
+      {/* Una riga di filtri senza riquadro attorno; la ricerca non scende sotto
+          i 220px (a 1024 si riduceva a «C…») e, se non c'è posto, gli altri
+          filtri vanno a capo. */}
+      <div className="sm:flex sm:flex-wrap sm:items-center sm:gap-3 max-sm:hidden">
         {/* Search — full width on mobile, flexible on desktop */}
-        <div className="relative flex-1 min-w-0">
+        <div className="relative flex-1 min-w-[220px]">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Cerca..."
@@ -408,9 +411,6 @@ function PrimaNotaInner() {
             <BookOpen className="h-12 w-12 text-muted-foreground/40 mb-3 max-sm:hidden" />
             <p className="font-medium text-muted-foreground max-sm:text-xs max-sm:font-normal">Nessun movimento trovato</p>
             <p className="text-sm text-muted-foreground/70 mt-1 max-sm:hidden">Prova a modificare i filtri o aggiungi la prima registrazione</p>
-            <Button className="mt-4 max-sm:hidden" onClick={() => setNewOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" /> Nuova Registrazione
-            </Button>
           </div>
         </div>
       ) : (
@@ -444,7 +444,8 @@ function PrimaNotaInner() {
                 <th className="text-left p-3 font-medium hidden sm:table-cell">Categoria</th>
                 <th className="text-left p-3 font-medium">Descrizione</th>
                 <th className="text-right p-3 font-medium">Importo</th>
-                <th className="text-right p-3 font-medium hidden md:table-cell" title="Saldo progressivo di questa pagina (dal movimento più vecchio al più recente mostrati). Il saldo netto reale del periodo è nella card 'Saldo netto' in alto.">Progr. pag.</th>
+                {/* Saldo progressivo da 1280: a 1024 la tabella usciva di 20px. */}
+                <th className="text-right p-3 font-medium hidden xl:table-cell" title="Saldo progressivo di questa pagina (dal movimento più vecchio al più recente mostrati). Il saldo netto reale del periodo è nella card 'Saldo netto' in alto.">Progr. pag.</th>
                 <th className="text-left p-3 font-medium hidden md:table-cell">Metodo</th>
                 <th className="p-3 w-10"></th>
               </tr>
@@ -500,7 +501,7 @@ function PrimaNotaInner() {
                       {e.direction === "uscita" ? "-" : "+"}{formatCurrency(e.amount)}
                     </span>
                   </td>
-                  <td className="p-3 text-right font-mono hidden md:table-cell">
+                  <td className="p-3 text-right font-mono hidden xl:table-cell">
                     <span className={e.runningBalance >= 0 ? "" : "text-destructive"}>
                       {formatCurrency(e.runningBalance)}
                     </span>
