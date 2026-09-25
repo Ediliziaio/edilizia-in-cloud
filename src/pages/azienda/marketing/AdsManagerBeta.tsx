@@ -84,6 +84,7 @@ import { AdsBotChatPanel } from "@/components/ads/AdsBotChatPanel";
 import { PerformanceCharts } from "@/components/ads/PerformanceCharts";
 import { useMetaInsights } from "@/hooks/useMetaInsights";
 import { PendingApprovalsBanner } from "@/components/ads/PendingApprovalsBanner";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useCampaignLeads } from "@/hooks/useCampaignLeads";
 import { ABTestDialog } from "@/components/ads/ABTestDialog";
 import { AutomationRulesEditor } from "@/components/ads/AutomationRulesEditor";
@@ -1637,7 +1638,10 @@ export default function AdsManagerBeta() {
       ? "detail"
       : "list";
 
-  const activeTab: AdsTab = TABS.some((tab) => tab.value === requestedTab)
+  // Telefono: solo le campagne. Immagini e testi, guida ai pubblici e
+  // impostazioni (collegamenti, Pixel, limiti di spesa) si fanno dal computer o dal tablet.
+  const isMobile = useIsMobile();
+  const activeTab: AdsTab = TABS.some((tab) => tab.value === requestedTab) && !isMobile
     ? (requestedTab as AdsTab)
     : "campagne";
 
@@ -1974,7 +1978,7 @@ export default function AdsManagerBeta() {
         onConfirm={handleProviderConfirmed}
       />
       <ListHeader onCreate={openWizardNew} />
-      <main className="mx-auto max-w-[1500px] px-4 py-5 sm:px-6">
+      <main className="mx-auto max-w-[1500px] px-4 py-5 sm:px-6 max-sm:px-0 max-sm:pb-4 max-sm:pt-0">
         <ConnectionPill
           meta={meta}
           google={google}
@@ -1991,9 +1995,9 @@ export default function AdsManagerBeta() {
         <Tabs
           value={activeTab}
           onValueChange={(value) => setSearchParams({ tab: value })}
-          className="mt-5"
+          className="mt-5 max-sm:mt-3"
         >
-          <div className="overflow-x-auto pb-2">
+          <div className="overflow-x-auto pb-2 max-sm:hidden">
             <TabsList className="h-auto min-w-max justify-start gap-1 rounded-xl bg-white p-1 shadow-sm">
               {TABS.map((tab) => {
                 const Icon = tab.icon;
@@ -2008,11 +2012,11 @@ export default function AdsManagerBeta() {
           </div>
 
           {/* Banner approvazioni titolare (visibile solo se ci sono campagne in review) */}
-          <div className="mt-4">
+          <div className="mt-4 max-sm:mt-0 max-sm:[&:not(:empty)]:mb-3">
             <PendingApprovalsBanner companyId={companyId} onOpenCampaign={openDetail} />
           </div>
 
-          <TabsContent value="campagne" className="mt-4">
+          <TabsContent value="campagne" className="mt-4 max-sm:mt-0">
             <CampaignsHomeView
               campaigns={allCampaigns}
               draftsCount={draftRows.length}
@@ -2069,16 +2073,17 @@ export default function AdsManagerBeta() {
 
 function ListHeader({ onCreate }: { onCreate: () => void }) {
   return (
-    <div className="border-b bg-white">
-      <div className="mx-auto flex max-w-[1500px] flex-col gap-4 px-4 py-5 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
+    // Telefono: solo il titolo, senza fascia né spiegazione; le campagne si creano dal computer o dal tablet.
+    <div className="border-b bg-white max-sm:border-0 max-sm:bg-transparent">
+      <div className="mx-auto flex max-w-[1500px] flex-col gap-4 px-4 py-5 sm:px-6 lg:flex-row lg:items-center lg:justify-between max-sm:px-0 max-sm:pb-3 max-sm:pt-0">
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">Pubblicità</h1>
-          <p className="mt-1 max-w-2xl text-sm text-slate-600">
+          <h1 className="text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl max-sm:text-lg">Pubblicità</h1>
+          <p className="mt-1 max-w-2xl text-sm text-slate-600 max-sm:hidden">
             Porta richieste di preventivo dalla pubblicità su Facebook, Instagram e Google.
             Ogni campagna nasce in pausa: va online solo quando la attivi tu.
           </p>
         </div>
-        <Button onClick={onCreate} size="lg" className="shrink-0">
+        <Button onClick={onCreate} size="lg" className="shrink-0 max-sm:hidden">
           <Plus className="h-4 w-4" />
           Nuova campagna
         </Button>
@@ -2277,6 +2282,7 @@ function ConnectionPill({
   );
   const googleConnected = google.integration?.status === "connected";
   const googleReady = googleConnected && google.accounts.length > 0;
+  const isMobile = useIsMobile();
 
   const passi = [
     {
@@ -2324,14 +2330,38 @@ function ConnectionPill({
 
   if (!caricamento && mancanti.length === 0 && facoltativiDaFare.length === 0) {
     return (
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-2.5 text-sm">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-2.5 text-sm max-sm:px-3 max-sm:py-2 max-sm:text-[13px]">
         <Check className="h-4 w-4 shrink-0 text-emerald-600" />
         <span className="font-semibold text-emerald-900">Tutto pronto: puoi pubblicare.</span>
-        <span className="text-emerald-800/80">
+        <span className="text-emerald-800/80 max-sm:hidden">
           {meta.selectedAdAccounts[0]?.asset_name ?? "conto Meta"} · Pixel attivo
           {googleReady ? " · Google Ads collegato" : ""}
         </span>
       </div>
+    );
+  }
+
+  // Telefono: una riga sola; i collegamenti (Facebook, conto, Pixel) si fanno dal computer o dal tablet.
+  if (isMobile) {
+    if (caricamento) return null;
+    if (mancanti.length === 0) {
+      return (
+        <p className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-[13px] font-semibold text-emerald-900">
+          <Check className="h-4 w-4 shrink-0 text-emerald-600" />
+          Puoi pubblicare
+        </p>
+      );
+    }
+    return (
+      <p className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2 text-[13px] text-amber-900">
+        <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
+        <span className="min-w-0">
+          <span className="font-semibold">
+            {mancanti.length === 1 ? "Manca 1 passaggio per pubblicare" : `Mancano ${mancanti.length} passaggi per pubblicare`}
+          </span>
+          <span className="block text-[11px] text-amber-800/80">si imposta da computer o tablet</span>
+        </span>
+      </p>
     );
   }
 
@@ -2533,8 +2563,8 @@ function KpiBar({
 
   return (
     <Card className={cn(isEmpty && "border-dashed bg-white/60")}>
-      <CardContent className="p-4">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <CardContent className="p-4 max-sm:p-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 max-sm:grid-cols-2 max-sm:gap-x-3 max-sm:gap-y-2">
           <KpiItem
             icon={BadgeEuro}
             tone="blue"
@@ -2570,7 +2600,7 @@ function KpiBar({
         </div>
 
         {monthlyCap > 0 && (
-          <div className="mt-4">
+          <div className="mt-4 max-sm:mt-3">
             <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2 text-xs">
               <span className="text-slate-500">
                 {tettoRaggiunto
@@ -2609,9 +2639,11 @@ function KpiBar({
                   ? `Ogni richiesta ti costa ${formatEuro(costPerLead)}.`
                   : `${totalLeads} richieste con ${formatEuro(monthlySpend)} spesi.`}
               </span>{" "}
-              {cplAlto
-                ? "In edilizia si sta fra 30 e 50 €: conviene rivedere pubblico, testo o pagina di atterraggio."
-                : "Può essere il pubblico troppo stretto, la creatività debole o la pagina che non convince."}
+              <span className="max-sm:hidden">
+                {cplAlto
+                  ? "In edilizia si sta fra 30 e 50 €: conviene rivedere pubblico, testo o pagina di atterraggio."
+                  : "Può essere il pubblico troppo stretto, la creatività debole o la pagina che non convince."}
+              </span>
             </p>
             <ChiediASilvio
               label="Cosa faccio?"
@@ -2662,14 +2694,15 @@ function KpiItem({
     violet: "bg-violet-50 text-violet-700",
   };
   return (
-    <div className="flex items-start gap-3">
-      <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg", tones[tone])}>
+    // Telefono: nome e cifra, senza icona né riga di dettaglio.
+    <div className="flex items-start gap-3 max-sm:min-w-0">
+      <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg max-sm:hidden", tones[tone])}>
         <Icon className="h-4 w-4" />
       </div>
       <div className="min-w-0">
-        <p className="text-xs text-slate-500">{label}</p>
-        <p className="truncate text-lg font-bold tracking-tight text-slate-950">{value}</p>
-        <p className="truncate text-[11px] text-slate-500">{detail}</p>
+        <p className="text-xs text-slate-500 max-sm:truncate max-sm:text-[11px]">{label}</p>
+        <p className="truncate text-lg font-bold tracking-tight text-slate-950 max-sm:text-base">{value}</p>
+        <p className="truncate text-[11px] text-slate-500 max-sm:hidden">{detail}</p>
       </div>
     </div>
   );
@@ -2701,7 +2734,8 @@ function AdsBotPanel({
         : "Hai più bozze: porta online per prima quella con il punteggio di prontezza più alto, le altre restano ferme.";
 
   return (
-    <div className="flex items-start gap-2.5 rounded-lg border border-orange-100 bg-orange-50/50 px-3.5 py-2.5">
+    // Telefono: il consiglio resta al computer.
+    <div className="flex items-start gap-2.5 rounded-lg border border-orange-100 bg-orange-50/50 px-3.5 py-2.5 max-sm:hidden">
       <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-orange-600" />
       <p className="text-sm text-slate-700">{testo}</p>
     </div>
@@ -2789,12 +2823,12 @@ function CampaignsList({
   const isFilteredEmpty = !isEmpty && filtered.length === 0;
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+    <Card className="max-sm:border-0 max-sm:bg-transparent max-sm:shadow-none">
+      <CardHeader className="pb-3 max-sm:px-0 max-sm:pb-2 max-sm:pt-1">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between max-sm:gap-2">
           <div>
-            <CardTitle className="text-lg">Le tue campagne</CardTitle>
-            <CardDescription>
+            <CardTitle className="text-lg max-sm:text-sm">Le tue campagne</CardTitle>
+            <CardDescription className="max-sm:hidden">
               {isEmpty
                 ? "Qui compariranno le campagne che crei."
                 : `${campaigns.length} in elenco${draftsCount > 0 ? `, ${draftsCount} ancora da pubblicare` : ""}. Clicca una riga per aprirla.`}
@@ -2815,7 +2849,7 @@ function CampaignsList({
               )}
               {mostraFiltroStato && (
                 <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
-                  <SelectTrigger className="w-full sm:w-44"><SelectValue placeholder="Stato" /></SelectTrigger>
+                  <SelectTrigger className="w-full sm:w-44 max-sm:hidden"><SelectValue placeholder="Stato" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Tutti gli stati ({campaigns.length})</SelectItem>
                     {availableStatuses.map((status) => (
@@ -2828,7 +2862,7 @@ function CampaignsList({
               )}
               {mostraFiltroPiattaforma && (
                 <Select value={platformFilter} onValueChange={(v) => setPlatformFilter(v as typeof platformFilter)}>
-                  <SelectTrigger className="w-full sm:w-40"><SelectValue placeholder="Canale" /></SelectTrigger>
+                  <SelectTrigger className="w-full sm:w-40 max-sm:hidden"><SelectValue placeholder="Canale" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Tutti i canali</SelectItem>
                     <SelectItem value="meta">Facebook e Instagram</SelectItem>
@@ -2840,7 +2874,7 @@ function CampaignsList({
           )}
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="max-sm:p-0">
         {isLoading ? (
           <div className="flex items-center justify-center gap-3 py-10 text-sm text-slate-500">
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -2962,7 +2996,52 @@ function CampaignsList({
               </Table>
             </div>
 
-            <div className="grid gap-3 lg:hidden">
+            {/* Telefono: una riga per campagna (canale, budget, richieste), stato e pausa/online a destra. */}
+            <div className="divide-y overflow-hidden rounded-xl border bg-white sm:hidden">
+              {filtered.map((campaign) => {
+                const inCorso = togglingId === campaign.id;
+                const online = campaign.status === "active";
+                const puoAccendere = Boolean(campaign.metaCampaignId) && campaign.platform === "meta";
+                return (
+                  <div key={campaign.id} className="flex items-center gap-2 px-3 py-2">
+                    <button
+                      type="button"
+                      onClick={() => onOpenCampaign(campaign)}
+                      className="tap-compact min-w-0 flex-1 py-0.5 text-left"
+                    >
+                      <p className="truncate text-[13px] font-semibold leading-tight text-slate-950">{campaign.name}</p>
+                      <p className="mt-0.5 truncate text-[11px] leading-tight text-slate-500">
+                        {platformLabel(campaign.platform)} · {formatEuro(campaign.budgetCents)}/g · {campaign.leads || 0}{" "}
+                        {campaign.leads === 1 ? "richiesta" : "richieste"}
+                      </p>
+                    </button>
+                    <Badge variant="outline" className={cn("shrink-0 px-1.5 text-[11px]", statusClass(campaign.status))}>
+                      {statusLabel(campaign.status)}
+                    </Badge>
+                    {puoAccendere && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="tap-compact h-9 w-9 shrink-0"
+                        disabled={inCorso}
+                        aria-label={online ? "Metti in pausa" : "Manda online"}
+                        onClick={() => onToggleStatus(campaign)}
+                      >
+                        {inCorso ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : online ? (
+                          <Pause className="h-4 w-4" />
+                        ) : (
+                          <Play className="h-4 w-4 text-emerald-600" />
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="grid gap-3 lg:hidden max-sm:hidden">
               {filtered.map((campaign) => {
                 const costoRichiesta = campaign.leads > 0 ? campaign.spentCents / campaign.leads : 0;
                 const inCorso = togglingId === campaign.id;
@@ -3045,16 +3124,19 @@ function CampaignsList({
 
 function EmptyCampaigns({ onCreate }: { onCreate: () => void }) {
   return (
-    <div className="rounded-2xl border-2 border-dashed bg-gradient-to-br from-white via-slate-50 to-orange-50/50 p-10 text-center">
-      <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-md">
+    // Telefono: due righe; la prima campagna si crea dal computer o dal tablet.
+    <div className="rounded-2xl border-2 border-dashed bg-gradient-to-br from-white via-slate-50 to-orange-50/50 p-10 text-center max-sm:rounded-xl max-sm:border max-sm:bg-white max-sm:bg-none max-sm:px-3 max-sm:py-4">
+      <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-md max-sm:hidden">
         <Rocket className="h-7 w-7" />
       </div>
-      <p className="text-lg font-bold text-slate-950">Crea la tua prima campagna</p>
-      <p className="mx-auto mt-1 max-w-md text-sm text-slate-600">
+      <p className="text-lg font-bold text-slate-950 max-sm:hidden">Crea la tua prima campagna</p>
+      <p className="hidden text-[13px] font-semibold text-slate-900 max-sm:block">Nessuna campagna</p>
+      <p className="mx-auto mt-1 max-w-md text-sm text-slate-600 max-sm:hidden">
         Ti guido passo passo: scegli il lavoro che vuoi vendere, io preparo offerta,
         pubblico, testo e modulo. Niente va online finché non lo dici tu.
       </p>
-      <div className="mt-5 flex justify-center">
+      <p className="mt-0.5 hidden text-[11px] text-slate-500 max-sm:block">si crea da computer o tablet</p>
+      <div className="mt-5 flex justify-center max-sm:hidden">
         <Button onClick={onCreate} size="lg">
           <Plus className="h-4 w-4" />
           Inizia
