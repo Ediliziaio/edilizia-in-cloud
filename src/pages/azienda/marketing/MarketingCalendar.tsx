@@ -41,7 +41,6 @@ import {
   Clock,
   Users,
   RefreshCw,
-  CheckCircle2,
   Loader2,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -77,7 +76,6 @@ export default function MarketingCalendar() {
   const googleSync = useGoogleCalendarSync();
   const appleSync = useAppleCalendarSync();
   const outlookSync = useOutlookCalendarSync();
-  const { isGoogleConnected } = googleSync;
   const { isAppleConnected } = appleSync;
   const { isOutlookConnected } = outlookSync;
   const calendarSettingsPath = isAdminContext
@@ -1142,13 +1140,14 @@ export default function MarketingCalendar() {
       {/* Header redesign — telefono: titolo e «Nuovo» su una riga; sync e
           impostazioni dei calendari restano a computer e tablet. */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 max-sm:flex-row max-sm:items-center max-sm:justify-between max-sm:gap-2">
+        {/* Da 640 solo il titolo: via icona, riga «N visibili · N oggi» (sono i
+            primi due riquadri qui sotto) e bollini «sync», e fino a 1280 il
+            titolo è «Calendario» (a 1024 «Calendario appuntamenti» andava su
+            due righe). Sul telefono la riga dei numeri resta. */}
         <div className="flex items-center gap-3 max-sm:min-w-0">
-          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 max-sm:hidden">
-            <CalendarIcon className="h-5 w-5 text-primary" />
-          </div>
           <div className="max-sm:min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight max-sm:truncate max-sm:text-lg">Calendario<span className="max-sm:hidden"> appuntamenti</span></h1>
-            <p className="text-sm text-muted-foreground max-sm:text-xs">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight max-sm:truncate max-sm:text-lg">Calendario<span className="hidden xl:inline"> appuntamenti</span></h1>
+            <p className="text-sm text-muted-foreground max-sm:text-xs sm:hidden">
               {headerStats.visible} visibili · <span className="font-medium text-foreground">{headerStats.todayCount}</span> oggi
               {activeFilterCount > 0 && (
                 <>
@@ -1159,31 +1158,6 @@ export default function MarketingCalendar() {
                 </>
               )}
             </p>
-            <div className="mt-1 flex flex-wrap items-center gap-1.5 max-sm:hidden">
-              {isGoogleConnected && (
-                <Badge variant="outline" className="h-5 gap-1 border-emerald-200 bg-emerald-50 px-1.5 text-[10px] text-emerald-700">
-                  <CheckCircle2 className="h-3 w-3" />
-                  Google sync
-                </Badge>
-              )}
-              {isAppleConnected && (
-                <Badge variant="outline" className="h-5 gap-1 border-sky-200 bg-sky-50 px-1.5 text-[10px] text-sky-700">
-                  <CheckCircle2 className="h-3 w-3" />
-                  Apple sync
-                </Badge>
-              )}
-              {isOutlookConnected && (
-                <Badge variant="outline" className="h-5 gap-1 border-indigo-200 bg-indigo-50 px-1.5 text-[10px] text-indigo-700">
-                  <CheckCircle2 className="h-3 w-3" />
-                  Outlook sync
-                </Badge>
-              )}
-              {!isGoogleConnected && !isAppleConnected && !isOutlookConnected && (
-                <Badge variant="outline" className="h-5 gap-1 px-1.5 text-[10px] text-muted-foreground">
-                  Sync esterna non collegata
-                </Badge>
-              )}
-            </div>
           </div>
         </div>
         <div className="flex items-center gap-2 max-sm:shrink-0">
@@ -1363,7 +1337,10 @@ export default function MarketingCalendar() {
 
       {/* Content */}
       {activeTab === "calendar" && (
-        <div className="grid h-[calc(100vh-240px)] min-h-[560px] grid-cols-1 gap-3 overflow-hidden md:h-[calc(100vh-220px)] md:grid-cols-[minmax(0,1fr)_18rem]">
+        // Colonna dei filtri a destra solo da 1280: tra 768 e 1280 lasciava al
+        // calendario 436px e la barra di navigazione scorreva di lato. Lì i
+        // filtri si aprono dal bottone «Filtri», come sul telefono.
+        <div className="grid h-[calc(100vh-240px)] min-h-[560px] grid-cols-1 gap-3 overflow-hidden md:h-[calc(100vh-220px)] xl:grid-cols-[minmax(0,1fr)_18rem]">
           <div className="flex min-w-0 flex-col gap-3 overflow-hidden">
             {/* Navigation bar — redesign responsive */}
             <div className="flex shrink-0 items-center gap-2 overflow-x-auto pb-0.5">
@@ -1427,7 +1404,7 @@ export default function MarketingCalendar() {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-9 md:hidden gap-1.5"
+                    className="h-9 xl:hidden gap-1.5"
                     aria-label="Apri filtri"
                   >
                     <SlidersHorizontal className="h-3.5 w-3.5" />
@@ -1536,7 +1513,7 @@ export default function MarketingCalendar() {
                   : "Mostra anche i lavori operativi (cantieri, pose) di questo periodo"}
               >
                 <Clock className="h-3.5 w-3.5" />
-                <span className="hidden md:inline">{showOperativi ? "Operativi visibili" : "Mostra operativi"}</span>
+                <span className="hidden xl:inline">{showOperativi ? "Operativi visibili" : "Mostra operativi"}</span>
               </button>
             </div>
 
@@ -1636,7 +1613,7 @@ export default function MarketingCalendar() {
             )}
           </div>
 
-          <div className="hidden min-w-0 overflow-hidden rounded-lg border bg-background md:block">
+          <div className="hidden min-w-0 overflow-hidden rounded-lg border bg-background xl:block">
             <MarketingCalendarFilters
               calendars={calendars}
               users={users}
