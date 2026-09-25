@@ -1,7 +1,6 @@
 import { useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { BarChart3 } from "lucide-react";
 import FacebookAdsReport from "@/components/reporting/facebook-ads/FacebookAdsReport";
 import VenditoriPerformanceReport from "@/components/reporting/venditori/VenditoriPerformanceReport";
 import CallCenterReport from "@/components/reporting/callcenter/CallCenterReport";
@@ -44,19 +43,14 @@ const ReportisticaPage = () => {
 
   return (
     <div className="space-y-6 max-sm:space-y-3">
-      {/* Telefono: solo il titolo, senza riquadro, icona né spiegazione. */}
-      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/50 p-5 shadow-sm max-sm:rounded-none max-sm:border-0 max-sm:bg-none max-sm:p-0 max-sm:shadow-none">
+      {/* Solo il titolo, senza riquadro, icona né spiegazione: come sul
+          telefono (la spiegazione elencava le linguette subito sotto). */}
+      <div>
         <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200 max-sm:hidden">
-            <BarChart3 className="h-5 w-5" />
-          </div>
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-950 max-sm:text-lg">
               Reportistica<span className="max-sm:hidden"> marketing e vendite</span>
             </h1>
-            <p className="text-sm text-slate-600 max-sm:hidden">
-              Analizza sponsorizzate Meta, campagne Google, CRM, appuntamenti, vendite e fatturato generato.
-            </p>
           </div>
         </div>
       </div>

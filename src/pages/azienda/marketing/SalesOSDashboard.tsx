@@ -1333,18 +1333,13 @@ export default function SalesOSDashboard() {
 
   return (
     <div className="space-y-6 max-sm:space-y-3">
-      {/* Header — telefono: senza riquadro, titolo e periodo su una riga */}
-      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/50 p-5 shadow-sm max-sm:rounded-none max-sm:border-0 max-sm:bg-none max-sm:p-0 max-sm:shadow-none">
+      {/* Header — titolo e periodo su una riga, senza riquadro, icona né
+          sottotitolo: come sul telefono e nelle altre pagine. */}
+      <div>
         <div className="flex flex-wrap items-center justify-between gap-3 max-sm:flex-nowrap max-sm:gap-2">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200 max-sm:hidden">
-              <Target className="h-5 w-5" />
-            </div>
             <div>
               <h1 className="text-2xl font-bold text-slate-950 max-sm:text-lg">Sales OS</h1>
-              <p className="text-sm text-slate-600 max-sm:hidden">
-                Centro di comando commerciale
-              </p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
