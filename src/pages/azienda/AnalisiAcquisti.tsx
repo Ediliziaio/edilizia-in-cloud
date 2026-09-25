@@ -38,19 +38,39 @@ import {
   ShoppingCart,
   TrendingDown,
 } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { KpiMobili } from "@/components/mobile/FiltriMobile";
 
 
 function EmptyState({ icon: Icon, title, hint }: { icon: React.ComponentType<{ className?: string }>; title: string; hint: string }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-10 text-center">
-      <Icon className="h-8 w-8 text-muted-foreground/60" />
-      <p className="text-sm font-medium text-foreground">{title}</p>
-      <p className="max-w-md text-xs text-muted-foreground">{hint}</p>
+    // Mobile: una riga di testo, senza riquadro tratteggiato, icona e spiegazione.
+    <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-10 text-center max-sm:items-start max-sm:rounded-none max-sm:border-0 max-sm:py-0 max-sm:text-left">
+      <Icon className="h-8 w-8 text-muted-foreground/60 max-sm:hidden" />
+      <p className="text-sm font-medium text-foreground max-sm:text-xs max-sm:font-normal max-sm:text-muted-foreground">{title}</p>
+      <p className="max-w-md text-xs text-muted-foreground max-sm:hidden">{hint}</p>
+    </div>
+  );
+}
+
+/** Mobile: una riga da ~52px (nome e dettaglio a sinistra, cifra a destra). */
+function RigaAnalisi({ titolo, sotto, valore, nota, notaTono }: { titolo: string; sotto: string; valore: string; nota?: string; notaTono?: string }) {
+  return (
+    <div className="flex items-center gap-2.5 px-3 py-2.5">
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[13px] font-semibold leading-tight">{titolo}</p>
+        <p className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground">{sotto}</p>
+      </div>
+      <div className="shrink-0 text-right">
+        <p className="text-[13px] font-semibold leading-tight tabular-nums">{valore}</p>
+        {nota && <p className={`mt-0.5 text-[11px] leading-tight ${notaTono ?? "text-muted-foreground"}`}>{nota}</p>}
+      </div>
     </div>
   );
 }
 
 export default function AnalisiAcquisti() {
+  const isMobile = useIsMobile();
   const { supplierSpend, benchmark, invoiceSpend, firmaOrdine, isLoading } = useProcurementAnalysis();
 
   const ranked = supplierSpend?.ranked ?? [];
@@ -62,15 +82,21 @@ export default function AnalisiAcquisti() {
   const eur0 = (v: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(v);
 
   return (
-    <div className="container mx-auto p-4 sm:p-6 space-y-6">
-      <PageHeader
-        title="Analisi Acquisti"
-        description="Spesa per fornitore, concentrazione e benchmark dei prezzi per individuare opportunità di risparmio."
-        badge={<Badge variant="secondary" className="font-normal">Sola lettura</Badge>}
-      />
+    <div className="container mx-auto p-4 sm:p-6 space-y-6 max-sm:space-y-3 max-sm:p-0">
+      {/* Mobile: solo il titolo (via spiegazione ed etichetta «Sola lettura»). */}
+      {isMobile ? (
+        <h1 className="text-lg font-bold leading-6">Analisi Acquisti</h1>
+      ) : (
+        <PageHeader
+          title="Analisi Acquisti"
+          description="Spesa per fornitore, concentrazione e benchmark dei prezzi per individuare opportunità di risparmio."
+          badge={<Badge variant="secondary" className="font-normal">Sola lettura</Badge>}
+        />
+      )}
 
-      {/* Testata navy di famiglia: la spesa acquisti in cinque card in vetro. */}
-      <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
+      {/* Testata navy di famiglia: la spesa acquisti in cinque card in vetro.
+          Mobile: due numeri, nome e cifra. */}
+      <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm max-sm:hidden">
         <div className="bg-[#173b67] p-4 text-white sm:p-5">
           <div className="flex items-start gap-3">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)] sm:h-11 sm:w-11">
@@ -132,8 +158,23 @@ export default function AnalisiAcquisti() {
 
       {/* Il tempo tra firma e primo ordine (capp. Tempi del manuale): ogni
           giorno di attesa e' materiale che arriva tardi e cantiere fermo. */}
+      {!isLoading && (
+        <KpiMobili
+          className="sm:hidden"
+          voci={[
+            { label: "Spesa ordini", valore: eur0(supplierSpend?.totalSpend ?? 0) },
+            {
+              label: "Scaduto aperto",
+              valore: eur0(supplierSpend?.totalOpenDue ?? 0),
+              tono: supplierSpend && supplierSpend.totalOpenDue > 0 ? "text-amber-600" : undefined,
+            },
+          ]}
+        />
+      )}
+
+      {/* Mobile no: una spiegazione di tre righe. */}
       {firmaOrdine && (
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-muted-foreground max-sm:hidden">
           Dalla firma della commessa al primo ordine d'acquisto passano in media{" "}
           <strong className={firmaOrdine.mediaGiorni > 7 ? "text-orange-700" : "text-foreground"}>
             {firmaOrdine.mediaGiorni} giorni
@@ -143,22 +184,38 @@ export default function AnalisiAcquisti() {
         </p>
       )}
 
-      {/* Spesa per fornitore */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Building2 className="h-4 w-4" /> Spesa per fornitore
+      {/* Spesa per fornitore — mobile: un fornitore per riga (ordini e quota,
+          spesa e scaduto) al posto della tabella a sei colonne. */}
+      <Card className="max-sm:overflow-hidden">
+        <CardHeader className="pb-3 max-sm:p-3 max-sm:pb-2">
+          <CardTitle className="flex items-center gap-2 text-base max-sm:text-sm">
+            <Building2 className="h-4 w-4 max-sm:hidden" /> Spesa per fornitore
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="max-sm:p-0">
           {isLoading ? (
             <Skeleton className="h-48 w-full" />
           ) : ranked.length === 0 ? (
-            <EmptyState
-              icon={ShoppingCart}
-              title="Nessuna spesa registrata"
-              hint="Crea ordini d'acquisto verso i fornitori per vedere qui la spesa aggregata e la concentrazione."
-            />
+            <div className="max-sm:px-3 max-sm:pb-3">
+              <EmptyState
+                icon={ShoppingCart}
+                title="Nessuna spesa registrata"
+                hint="Crea ordini d'acquisto verso i fornitori per vedere qui la spesa aggregata e la concentrazione."
+              />
+            </div>
+          ) : isMobile ? (
+            <div className="divide-y border-t">
+              {ranked.map((r) => (
+                <RigaAnalisi
+                  key={r.supplierId}
+                  titolo={r.name}
+                  sotto={`${r.orderCount} ordini · ${formatShare(r.share)}${r.productCategory ? ` · ${r.productCategory}` : ""}`}
+                  valore={formatCurrency(r.total)}
+                  nota={r.openDueAmount > 0 ? `${formatCurrency(r.openDueAmount)} scaduto` : undefined}
+                  notaTono="text-amber-600"
+                />
+              ))}
+            </div>
           ) : (
             <Table>
               <TableHeader>
@@ -212,14 +269,15 @@ export default function AnalisiAcquisti() {
         </CardContent>
       </Card>
 
-      {/* Benchmark prezzi */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <TrendingDown className="h-4 w-4" /> Benchmark prezzi — opportunità di risparmio
+      {/* Benchmark prezzi — mobile: un articolo per riga (fornitori e prezzo
+          minimo/massimo, risparmio). Senza confronti, nessuna scheda vuota. */}
+      <Card className={benchmarks.length === 0 && !isLoading ? "max-sm:hidden" : "max-sm:overflow-hidden"}>
+        <CardHeader className="pb-3 max-sm:p-3 max-sm:pb-2">
+          <CardTitle className="flex items-center gap-2 text-base max-sm:text-sm">
+            <TrendingDown className="h-4 w-4 max-sm:hidden" /> <span className="max-sm:hidden">Benchmark prezzi — opportunità di risparmio</span><span className="sm:hidden">Confronto prezzi</span>
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="max-sm:p-0">
           {isLoading ? (
             <Skeleton className="h-48 w-full" />
           ) : benchmarks.length === 0 ? (
@@ -228,6 +286,19 @@ export default function AnalisiAcquisti() {
               title="Nessun confronto prezzi disponibile"
               hint="Servono righe d'ordine dettagliate (stesso articolo acquistato almeno due volte) per confrontare i prezzi unitari e stimare il risparmio."
             />
+          ) : isMobile ? (
+            <div className="divide-y border-t">
+              {benchmarks.map((b) => (
+                <RigaAnalisi
+                  key={b.key}
+                  titolo={b.label}
+                  sotto={`min ${formatCurrency(b.minPrice)} · max ${formatCurrency(b.maxPrice)}${b.bestSupplierName ? ` · ${b.bestSupplierName}` : ""}`}
+                  valore={formatCurrency(b.lastPrice)}
+                  nota={b.potentialSaving > 0 ? `−${formatCurrency(b.potentialSaving)}` : undefined}
+                  notaTono="text-green-600"
+                />
+              ))}
+            </div>
           ) : (
             <Table>
               <TableHeader>
@@ -274,13 +345,25 @@ export default function AnalisiAcquisti() {
 
       {/* Spesa da fatture ricevute — mostrata solo se esistono fatture passive */}
       {hasInvoices && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Receipt className="h-4 w-4" /> Spesa da fatture ricevute
+        <Card className="max-sm:overflow-hidden">
+          <CardHeader className="pb-3 max-sm:p-3 max-sm:pb-2">
+            <CardTitle className="flex items-center gap-2 text-base max-sm:text-sm">
+              <Receipt className="h-4 w-4 max-sm:hidden" /> Spesa da fatture ricevute
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="max-sm:p-0">
+            {isMobile ? (
+              <div className="divide-y border-t">
+                {invoiceRanked.map((r) => (
+                  <RigaAnalisi
+                    key={r.key}
+                    titolo={r.name}
+                    sotto={`${r.invoiceCount} fatture · ${formatShare(r.share)}`}
+                    valore={formatCurrency(r.totalImponibile)}
+                  />
+                ))}
+              </div>
+            ) : (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -315,6 +398,7 @@ export default function AnalisiAcquisti() {
                 ))}
               </TableBody>
             </Table>
+            )}
           </CardContent>
         </Card>
       )}
