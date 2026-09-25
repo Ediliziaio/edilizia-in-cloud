@@ -1,6 +1,7 @@
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireRole } from "../_shared/auth.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { applicaCadenzaFlusso } from "../_shared/outreach-cadenza.ts";
 
 /**
  * outreach-ai-flow — il SUPER_ADMIN genera un GRAFO di sequenza cold condizionale
@@ -71,11 +72,12 @@ ARCHI (campo "edges"): ogni arco collega "from_key" → "to_key" con "branch":
 Un nodo "condition" DEVE avere esattamente 2 archi uscenti: uno "default" (SÌ) e uno "alt" (NO). I nodi email/wait hanno 1 solo arco uscente "default". I nodi "end" non hanno archi uscenti.
 
 STRUTTURA TIPICA da seguire (adattala al brief):
-1) Email di apertura (delay 0) → 2) wait di 2-3 giorni → 3) condition "not_opened":
+1) Email di apertura (delay 0) → 2) wait di 4 giorni → 3) condition "not_opened":
    - ramo SÌ (non ha aperto) → email di re-invio con oggetto diverso → end
    - ramo NO (ha aperto) → email di follow-up con valore → wait → condition "replied":
        - SÌ (ha risposto) → end
        - NO → email di chiusura gentile ("breakup") → end
+CADENZA: fra un invio e il successivo passano sempre 4 giorni. delay_days/delay_hours sono l'attesa dal nodo PRECEDENTE, non dall'inizio: ogni "wait" dura 4 giorni e l'invio che viene dopo un wait (anche passando da una condition) ha delay 0; un invio che segue direttamente un altro invio ha delay_days 4.
 Lo STOP su risposta è IMPLICITO nel dispatcher: non serve un nodo per fermarsi sulla risposta, ma puoi usare la condizione "replied" per diramare prima della chiusura.
 
 REGOLE DI SCRITTURA (per i nodi email/whatsapp/sms):
@@ -88,7 +90,7 @@ REGOLE DI SCRITTURA (per i nodi email/whatsapp/sms):
 VINCOLI SUL GRAFO:
 - Da 5 a 9 nodi totali. Almeno 2 nodi d'invio (email/whatsapp/sms) e almeno 1 condition. Un solo nodo radice (la prima EMAIL, senza archi entranti).
 - Ogni "key" è una stringa breve e unica (es. "email_apertura", "attesa1", "cond_aperto", "email_followup", "fine_ok").
-- delay_days CRESCENTI lungo il percorso principale, primo step a 0.
+- La prima email ha delay 0; per le attese segui la CADENZA qui sopra.
 - Ogni ramo deve terminare (direttamente o indirettamente) in un nodo "end".
 
 Restituisci SOLO un oggetto JSON valido, senza testo attorno, con ESATTAMENTE questa forma:
@@ -212,7 +214,8 @@ function normalizeFlow(parsed: unknown): AiFlow | null {
   }
 
   const name = String(o.name ?? "").trim() || "Flusso AI";
-  return { name: name.slice(0, 120), nodes, edges };
+  // Le attese non le decide il modello: 4 giorni fra un invio e il successivo.
+  return { name: name.slice(0, 120), nodes: applicaCadenzaFlusso(nodes, edges), edges };
 }
 
 Deno.serve(async (req) => {
