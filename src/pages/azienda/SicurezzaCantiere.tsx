@@ -424,13 +424,8 @@ export default function SicurezzaCantiere() {
         </div>
       </div>
 
-      {/* Info banner (mobile no: testo normativo, non un'azione) */}
-      <div className="flex items-start gap-3 p-3 rounded-lg border bg-amber-50 border-amber-200 dark:bg-amber-950/20 dark:border-amber-700 max-sm:hidden">
-        <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-        <p className="text-xs sm:text-sm text-amber-700 dark:text-amber-400">
-          POS e DUVRI sono documenti obbligatori ai sensi del D.Lgs 81/08. Il POS segue il modello ministeriale e l'app lo compila con i dati della commessa; il DUVRI lo prepara l'AI.
-        </p>
-      </div>
+      {/* Niente fascia gialla col testo normativo: era un avviso fisso, non
+          un'azione, e ripeteva a ogni visita cosa sono POS e DUVRI. */}
 
       {/* Mobile: i due numeri che chiedono di fare qualcosa. */}
       <KpiMobili
@@ -449,7 +444,7 @@ export default function SicurezzaCantiere() {
         ]}
       />
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 max-sm:hidden">
+      <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-4 max-sm:hidden">
         {safetyStats.map((stat) => (
           <OperationalKpiCard
             key={stat.label}
@@ -466,7 +461,9 @@ export default function SicurezzaCantiere() {
       {/* Mobile: POS, verbali e scadenze (quel che serve in cantiere). Figure e
           DUVRI si preparano al computer; i subappaltatori hanno la loro pagina. */}
       <Tabs defaultValue="pos">
-        <TabsList className="flex flex-nowrap overflow-x-auto scrollbar-none max-sm:grid max-sm:w-full max-sm:grid-cols-3">
+        {/* Da 640 le schede stanno a sinistra, larghe quanto servono: su tutta
+            la riga restavano sei voci centrate in una fascia grigia. */}
+        <TabsList className="flex flex-nowrap overflow-x-auto scrollbar-none sm:inline-flex sm:max-w-full max-sm:grid max-sm:w-full max-sm:grid-cols-3">
           <TabsTrigger value="pos" className="shrink-0 gap-1.5">
             <HardHat className="h-4 w-4" /> POS
           </TabsTrigger>
@@ -499,8 +496,9 @@ export default function SicurezzaCantiere() {
 
         {/* ───── DUVRI TAB ───── */}
         <TabsContent value="duvri" className="space-y-4 mt-4 max-sm:mt-3 max-sm:space-y-2">
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">Documento Unico Valutazione Rischi Interferenza</p>
+          {/* Le schede avevano una riga di spiegazione accanto al bottone:
+              il nome della scheda basta, resta il bottone a destra. */}
+          <div className="flex items-center justify-end">
             <Button size="sm" onClick={() => setDuvriDialogOpen(true)} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
               <Plus className="h-4 w-4 mr-1" /> Genera DUVRI
             </Button>
@@ -527,9 +525,6 @@ export default function SicurezzaCantiere() {
                   <p className="font-medium">Nessun DUVRI generato</p>
                   <p className="text-sm text-muted-foreground">Il DUVRI è richiesto quando ci sono subappaltatori sull'ordine</p>
                 </div>
-                <Button size="sm" onClick={() => setDuvriDialogOpen(true)} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
-                  <Plus className="h-4 w-4 mr-1" /> Genera DUVRI
-                </Button>
               </CardContent>
             </Card>
           ) : (
@@ -641,8 +636,7 @@ export default function SicurezzaCantiere() {
         {/* ───── VERBALI TAB ───── */}
         <TabsContent value="verbali" className="space-y-4 mt-4 max-sm:mt-3 max-sm:space-y-2">
           {/* Telefono: «Aggiungi» a tutta riga, non da solo in fondo a destra. */}
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground max-sm:hidden">Verbali ispezioni e sopralluoghi D.Lgs 81/08</p>
+          <div className="flex items-center justify-end">
             <Button size="sm" onClick={nuovoVerbale} className="max-sm:h-9 max-sm:w-full max-sm:text-xs bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
               <Plus className="h-4 w-4 mr-1" /> Nuovo verbale
             </Button>
@@ -656,8 +650,8 @@ export default function SicurezzaCantiere() {
           ) : verbali.length === 0 ? (
             <Card><CardContent className="py-10 text-center space-y-2 max-sm:py-5">
               <ClipboardList className="h-10 w-10 text-muted-foreground/40 mx-auto max-sm:hidden" aria-hidden="true" />
+              {/* Niente secondo bottone: «Nuovo verbale» è già qui sopra. */}
               <p className="text-sm text-muted-foreground">Nessun verbale registrato</p>
-              <Button size="sm" onClick={nuovoVerbale} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:hidden"><Plus className="h-4 w-4 mr-1" />Aggiungi verbale</Button>
             </CardContent></Card>
           ) : (
             <div className="space-y-2">
@@ -713,8 +707,7 @@ export default function SicurezzaCantiere() {
 
         {/* ───── SUBAPPALTATORI TAB ───── */}
         <TabsContent value="subappaltatori" className="space-y-4 mt-4 max-sm:mt-3 max-sm:space-y-2">
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">Registro subappaltatori con verifica DURC</p>
+          <div className="flex items-center justify-end">
             <Button size="sm" onClick={nuovoSubappaltatore} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
               <Plus className="h-4 w-4 mr-1" /> Aggiungi
             </Button>
@@ -729,7 +722,6 @@ export default function SicurezzaCantiere() {
             <Card><CardContent className="py-10 text-center space-y-2 max-sm:py-5">
               <Building2 className="h-10 w-10 text-muted-foreground/40 mx-auto max-sm:hidden" aria-hidden="true" />
               <p className="text-sm text-muted-foreground">Nessun subappaltatore registrato</p>
-              <Button size="sm" onClick={nuovoSubappaltatore} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:hidden"><Plus className="h-4 w-4 mr-1" />Aggiungi subappaltatore</Button>
             </CardContent></Card>
           ) : (
             <div className="border rounded-lg overflow-hidden">
@@ -739,7 +731,7 @@ export default function SicurezzaCantiere() {
                     <TableHead>Ragione Sociale</TableHead>
                     <TableHead className="hidden sm:table-cell">Lavori</TableHead>
                     <TableHead className="hidden md:table-cell">Responsabile</TableHead>
-                    <TableHead>DURC Scade</TableHead>
+                    <TableHead className="whitespace-nowrap">Scadenza DURC</TableHead>
                     <TableHead className="w-[92px]" />
                   </TableRow>
                 </TableHeader>
@@ -750,7 +742,9 @@ export default function SicurezzaCantiere() {
                       <TableRow key={s.id}>
                         <TableCell>
                           <p className="font-medium text-sm">{s.ragione_sociale}</p>
-                          {s.orders && <p className="text-xs text-muted-foreground">{s.orders.description}</p>}
+                          {/* Una riga: le descrizioni dei cantieri andavano su tre righe e
+                              ogni subappaltatore occupava tre volte l'altezza. */}
+                          {s.orders && <p className="max-w-[280px] truncate text-xs text-muted-foreground" title={s.orders.description}>{s.orders.description}</p>}
                         </TableCell>
                         <TableCell className="hidden sm:table-cell text-sm">{s.tipo_lavori || "—"}</TableCell>
                         <TableCell className="hidden md:table-cell text-sm">{s.responsabile || "—"}</TableCell>
@@ -805,8 +799,7 @@ export default function SicurezzaCantiere() {
         {/* ───── SCADENZARIO TAB ───── */}
         <TabsContent value="scadenzario" className="space-y-4 mt-4 max-sm:mt-3 max-sm:space-y-2">
           {/* Telefono: «Aggiungi» a tutta riga, non da solo in fondo a destra. */}
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground max-sm:hidden">Adempimenti obbligatori D.Lgs 81/08</p>
+          <div className="flex items-center justify-end">
             <Button size="sm" onClick={nuovoAdempimento} className="max-sm:h-9 max-sm:w-full max-sm:text-xs bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
               <Plus className="h-4 w-4 mr-1" /> Aggiungi
             </Button>
@@ -821,7 +814,6 @@ export default function SicurezzaCantiere() {
             <Card><CardContent className="py-10 text-center space-y-2 max-sm:py-5">
               <CalendarClock className="h-10 w-10 text-muted-foreground/40 mx-auto max-sm:hidden" aria-hidden="true" />
               <p className="text-sm text-muted-foreground">Nessun adempimento in scadenzario</p>
-              <Button size="sm" onClick={nuovoAdempimento} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:hidden"><Plus className="h-4 w-4 mr-1" />Aggiungi adempimento</Button>
             </CardContent></Card>
           ) : (
             <div className="space-y-2">

@@ -67,13 +67,11 @@ export function PosElencoTab({ orders }: Props) {
 
   return (
     <div className="space-y-4 max-sm:space-y-2">
-      {/* Mobile no: il POS si compila al computer (editor del modello ministeriale). */}
-      <div className="flex flex-wrap items-center justify-between gap-2 max-sm:hidden">
-        <p className="text-sm text-muted-foreground">
-          Piano Operativo di Sicurezza sul modello ufficiale (D.I. 9 settembre 2014), con il controllo dei contenuti minimi dell'Allegato XV.
-        </p>
+      {/* Mobile no: il POS si compila al computer (editor del modello ministeriale).
+          Senza la frase sul decreto: resta il bottone, a destra. */}
+      <div className="flex flex-wrap items-center justify-end gap-2 max-sm:hidden">
         {puoScrivere && (
-          <Button size="sm" onClick={() => { setOrderId(""); setRuolo("affidataria_esecutrice"); setNuovoAperto(true); }}>
+          <Button size="sm" onClick={() => { setOrderId(""); setRuolo("affidataria_esecutrice"); setNuovoAperto(true); }} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
             <Plus className="mr-1 h-4 w-4" />Nuovo POS
           </Button>
         )}
@@ -100,9 +98,11 @@ export function PosElencoTab({ orders }: Props) {
             const percento = p.daCompilare ? 0 : completezzaPercento(p.contenuto);
             const titolo = [p.commessa?.order_code, p.commessa?.description].filter(Boolean).join(" — ") || "Commessa";
             return (
-              <li key={p.id} className="rounded-xl border bg-card">
+              // Da 640 PDF ed Elimina sono icone a destra della riga, non una
+              // seconda fascia sotto ogni POS.
+              <li key={p.id} className="rounded-xl border bg-card sm:flex sm:items-center">
                 <button type="button" onClick={() => navigate(`/azienda/sicurezza-cantiere/pos/${p.id}`)}
-                  className="flex w-full items-start gap-3 p-4 text-left hover:bg-muted/30 max-sm:gap-2 max-sm:px-3 max-sm:py-2.5">
+                  className="flex w-full min-w-0 items-start gap-3 p-4 text-left hover:bg-muted/30 max-sm:gap-2 max-sm:px-3 max-sm:py-2.5">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="truncate font-medium max-sm:text-[13px]">{titolo}</span>
@@ -128,24 +128,24 @@ export function PosElencoTab({ orders }: Props) {
                       </div>
                     )}
                   </div>
-                  <ChevronRight className="mt-1 h-5 w-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  <ChevronRight className="mt-1 h-5 w-5 shrink-0 text-muted-foreground sm:hidden" aria-hidden="true" />
                 </button>
                 {/* Mobile no: PDF (niente export da telefono) ed eliminazione. */}
-                <div className="flex gap-1 border-t px-3 py-1.5 max-sm:hidden">
+                <div className="flex shrink-0 items-center gap-1 pr-3 max-sm:hidden">
                   {!p.daCompilare && (
-                    <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setStampa({
+                    <Button size="icon" variant="ghost" className="h-9 w-9" title="Scarica il PDF" aria-label="Scarica il PDF" onClick={() => setStampa({
                       html: costruisciHtmlPos({
                         contenuto: p.contenuto, stato: p.status, revisione: p.revisione, revisioni: p.revisioni,
                         approvatoDa: p.approvato_da_nome, approvatoIl: p.approvato_il, codiceCommessa: p.commessa?.order_code,
                       }),
                       nome: `POS-${p.commessa?.order_code ?? p.id.slice(0, 8)}-rev${p.revisione}`,
                     })}>
-                      <FileDown className="mr-1 h-3.5 w-3.5" />PDF
+                      <FileDown className="h-4 w-4" />
                     </Button>
                   )}
                   {puoScrivere && !approvato && (
-                    <Button size="sm" variant="ghost" className="h-8 text-xs text-destructive" onClick={() => setDaEliminare(p)}>
-                      <Trash2 className="mr-1 h-3.5 w-3.5" />Elimina
+                    <Button size="icon" variant="ghost" className="h-9 w-9 text-destructive" title="Elimina il POS" aria-label="Elimina il POS" onClick={() => setDaEliminare(p)}>
+                      <Trash2 className="h-4 w-4" />
                     </Button>
                   )}
                 </div>
