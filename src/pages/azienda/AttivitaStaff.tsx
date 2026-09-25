@@ -1873,8 +1873,9 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
                       <div className="w-2 h-2 rounded-full bg-amber-500" />
                       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Attività di oggi {taskOggi.length > 0 && `(${taskOggi.length})`}</p>
                     </div>
+                    {/* Sezione vuota: una riga (queste sezioni vuote si vedono solo da tablet). */}
                     {taskOggi.length === 0 ? (
-                      <div className="rounded-lg border border-dashed bg-muted/20 p-3 text-center"><CheckCircle className="h-5 w-5 mx-auto mb-1 text-green-500 opacity-60" /><p className="text-xs text-muted-foreground">Nessuna attività per oggi</p></div>
+                      <p className="text-xs text-muted-foreground">Nessuna attività per oggi</p>
                     ) : <div className={compact ? "space-y-1" : "space-y-2"}>{taskOggi.map(renderTask)}</div>}
                   </div>
                   )}
@@ -1886,7 +1887,7 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
                       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Prossime attività {taskFuture.length > 0 && `(${taskFuture.length})`}</p>
                     </div>
                     {taskFuture.length === 0 ? (
-                      <div className="rounded-lg border border-dashed bg-muted/20 p-3 text-center"><CalendarDays className="h-5 w-5 mx-auto mb-1 text-blue-400 opacity-60" /><p className="text-xs text-muted-foreground">Nessuna attività in programma</p></div>
+                      <p className="text-xs text-muted-foreground">Nessuna attività in programma</p>
                     ) : <div className={compact ? "space-y-1" : "space-y-2"}>{taskFuture.map(renderTask)}</div>}
                   </div>
                   )}
@@ -1937,7 +1938,7 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
         <DialogContent className="max-w-[calc(100vw-1.5rem)] max-h-[90vh] overflow-y-auto sm:max-w-[480px]">
           <DialogHeader>
             <DialogTitle>{editingTask ? "Modifica attività" : "Nuova attività"}</DialogTitle>
-            <DialogDescription className="max-sm:sr-only">{editingTask ? "Modifica i dettagli dell'attività." : "Crea una nuova attività."}</DialogDescription>
+            <DialogDescription className="sr-only">{editingTask ? "Modifica i dettagli dell'attività." : "Crea una nuova attività."}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">

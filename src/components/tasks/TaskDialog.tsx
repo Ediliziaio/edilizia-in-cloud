@@ -554,7 +554,7 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
           <div className="flex items-start justify-between gap-2">
             <div>
               <DialogTitle>{isEditing ? "Modifica Attività" : "Nuova Attività"}</DialogTitle>
-              <DialogDescription className="max-sm:sr-only">
+              <DialogDescription className="sr-only">
                 {isEditing ? "Modifica i dettagli dell'attività" : "Compila i campi per creare una nuova attività"}
               </DialogDescription>
             </div>

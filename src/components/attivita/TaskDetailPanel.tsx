@@ -539,11 +539,16 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
                 {Object.entries(PRIORITY_CONFIG).map(([v, c]) => (
                   <SelectItem key={v} value={v}>{c.emoji} {c.label}</SelectItem>
                 ))}
+                {/* Priorità fuori elenco (es. «media» di attività vecchie): senza
+                    questa voce il menu in testata restava vuoto. */}
+                {task.priority && !(task.priority in PRIORITY_CONFIG) && (
+                  <SelectItem value={task.priority}>{task.priority}</SelectItem>
+                )}
               </SelectContent>
             </Select>
 
-            {/* Mobile: lo stato lo dice gia' il menu qui accanto. */}
-            <TaskStatusBadge status={task.status} statuses={statusOptions} className="hidden sm:inline-flex" />
+            {/* Qui c'era anche la pastiglia dello stato: lo dice già il menu qui
+                accanto («Da fare ▾» e «• Da fare» uno dopo l'altro). */}
             {isTaskReviewStatus(task.status, statusOptions) && (
               <Badge variant="outline" className="border-amber-200 bg-amber-50 text-xs text-amber-800">
                 Controllo responsabile
@@ -764,8 +769,10 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
             </SezioneCard>
           )}
 
-          {/* Meta */}
-          <div className="px-1 pb-1 text-[11px] text-muted-foreground space-y-0.5">
+          {/* Meta: solo su telefono. Da tablet chi l'ha creata e quando sta
+              già sotto il titolo, e le modifiche nella cronologia qui sopra:
+              in fondo era la terza volta. */}
+          <div className="px-1 pb-1 text-[11px] text-muted-foreground space-y-0.5 sm:hidden">
             {task.created_at && (
               <p>
                 Creata da {creatorName} il{" "}
