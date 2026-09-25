@@ -194,20 +194,34 @@ export function senzaSezioneClausole(testo: string): string {
   return [...righe.slice(0, inizio), ...righe.slice(fine)].join("\n").trim();
 }
 
-// ─── I file riservati del modello (il timbro dell'impresa) ─────────────────
+// ─── I file riservati del modello (logo, copertina, timbro dell'impresa) ───
 
 /**
  * Il percorso di un file del contenitore dei modelli, solo se sta nella cartella
  * dell'azienda («<azienda>/…»); se no null. La funzione legge col service role:
- * senza questo controllo un modello potrebbe indicare il timbro di un'altra
- * azienda e stamparlo nel proprio preventivo.
+ * senza questo controllo un modello potrebbe indicare il logo, la copertina o il
+ * timbro di un'altra azienda e stamparli nel proprio preventivo.
  */
 export function percorsoDellAzienda(percorso: unknown, azienda: string | null | undefined): string | null {
   const p = String(percorso ?? "").trim().replace(/^\/+/, "");
   if (!p || !azienda) return null;
   if (!p.startsWith(`${azienda}/`) || p.includes("..") || p.includes("//")) return null;
-  // «%2e%2e» e la barra rovesciata: la richiesta allo storage li trasforma in «..»
-  // e «/», e il percorso uscirebbe dalla cartella (trovato dal revisore il 25/09).
-  if (/[%\\]/.test(p)) return null;
+  // «%2e%2e», la barra rovesciata e i caratteri di controllo (tab, a capo): la
+  // richiesta allo storage li trasforma o li toglie, «.<tab>.» diventa «..» e il
+  // percorso uscirebbe dalla cartella (trovati dal revisore il 25/09).
+  if (/[%\\\u0000-\u001f\u007f]/.test(p)) return null;
   return p;
+}
+
+/**
+ * Il logo di un modello: un indirizzo http(s) passa così com'è (leggiLogo lo
+ * scarica solo se è dello storage pubblico del progetto), un percorso solo se
+ * sta nella cartella dell'azienda, come il timbro. Prima in anteprima si poteva
+ * indicare il percorso di un'altra azienda e ritrovarsi il suo file nel PDF.
+ */
+export function logoDelModello(valore: unknown, azienda: string | null | undefined): string | null {
+  const v = String(valore ?? "").trim();
+  if (!v) return null;
+  if (/^https?:\/\//i.test(v)) return v;
+  return percorsoDellAzienda(v, azienda);
 }

@@ -15,6 +15,7 @@ import {
   dentroFinestra24Ore,
   estraiMessaggiSocial,
   iscriviPaginaMeta,
+  nomeDiRipiego,
 } from "../../../supabase/functions/_shared/socialMessaggiMeta";
 
 const ROOT = join(__dirname, "../../..");
@@ -152,5 +153,24 @@ describe("verifica del webhook Meta", () => {
     expect(leggi("supabase/functions/_shared/getPlatformSetting.ts")).toMatch(/rpc\("impostazione_piattaforma"/);
     expect(webhook).toMatch(/Deno\.env\.get\("META_WEBHOOK_VERIFY_TOKEN"\)/);
     expect(webhook).not.toMatch(/WHATSAPP_VERIFY_TOKEN|WA_VERIFY_TOKEN/);
+  });
+});
+
+describe("nome delle persone di Messenger e Instagram", () => {
+  it("riconosce il nome di ripiego messo quando Meta non l'aveva dato", () => {
+    expect(nomeDiRipiego("Utente", "Messenger")).toBe(true);
+    expect(nomeDiRipiego("Utente", "Instagram")).toBe(true);
+    expect(nomeDiRipiego("@mario.rossi", "")).toBe(true);
+    expect(nomeDiRipiego("", null)).toBe(true);
+    expect(nomeDiRipiego("Mario", "Rossi")).toBe(false);
+  });
+
+  it("se il profilo non risponde si ripiega sui partecipanti della conversazione, e si riprova sui messaggi dopo", () => {
+    const src = leggi("supabase/functions/_shared/socialMessaggiMeta.ts");
+    expect(src).toContain("/conversations?platform=");
+    expect(src).toContain("fields=participants");
+    expect(src).toMatch(/Nome ancora sconosciuto: si riprova/);
+    const controllo = leggi("supabase/functions/meta-health-check/index.ts");
+    expect(controllo).toContain("completaNomiSocialMancanti");
   });
 });

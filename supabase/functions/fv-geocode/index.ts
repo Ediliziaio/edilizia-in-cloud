@@ -13,7 +13,8 @@
  * Così il geocoding funziona anche se HERE/Google non sono configurati; 404
  * solo se nessun provider trova l'indirizzo.
  *
- * Il parsing Google è mirror di src/lib/fotovoltaico/geocode.ts (unit test).
+ * Il parsing Google è gemello di _shared/forwardGeocode.ts, provato da
+ * src/test/logic/fotovoltaicoGeocode.test.ts.
  */
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth } from "../_shared/auth.ts";
@@ -97,7 +98,7 @@ function findComp(comps: AddrComp[], type: string): AddrComp | undefined {
   return comps.find((c) => Array.isArray(c.types) && c.types.includes(type));
 }
 
-// Mirror di parseGeocodeGoogle (src/lib/fotovoltaico/geocode.ts).
+// Gemello di parseGeocodeGoogle in _shared/forwardGeocode.ts.
 function parseGeocodeGoogle(resp: Record<string, unknown>): GeocodeResult | null {
   const status = resp.status as string | undefined;
   if (status && status !== "OK") return null;

@@ -44,9 +44,16 @@ interface Props {
   /** Testo da iniettare nel composer (es. bozza AI). Applicato quando seedAt cambia. */
   seedText?: string;
   seedAt?: number;
+  /**
+   * Barra da chat (Conversazioni): una riga che cresce scrivendo, Invio
+   * manda, pulsante tondo accanto — come la chat del Team. Senza, resta il
+   * riquadro con il pulsante «Invia WhatsApp» sotto.
+   */
+  compatto?: boolean;
 }
 
-export function WhatsAppComposer({ phone, onSend, isSending, className, contactFields, seedText, seedAt }: Props) {
+export function WhatsAppComposer({ phone, onSend, isSending, className, contactFields, seedText, seedAt, compatto }: Props) {
+  const areaRef = useRef<HTMLTextAreaElement>(null);
   const { data: numbers = [] } = useWhatsAppNumbers();
   const activeNumbers = useMemo(
     () => numbers.filter((n) => n.stato === "active" && n.webhook_verified),
@@ -132,6 +139,7 @@ export function WhatsAppComposer({ phone, onSend, isSending, className, contactF
     setText("");
     setTemplateId(null);
     setVars([]);
+    if (areaRef.current) areaRef.current.style.height = "";
   };
 
   if (noActiveNumber) {
@@ -146,7 +154,7 @@ export function WhatsAppComposer({ phone, onSend, isSending, className, contactF
   }
 
   return (
-    <div className={`space-y-2 ${className ?? ""}`}>
+    <div className={`${compatto ? "space-y-1.5" : "space-y-2"} ${className ?? ""}`}>
       {/* Riga unica: numero mittente + stato finestra 24h + toggle testo/template.
           Prima il caso "finestra chiusa" mostrava badge + Alert lungo: due avvisi
           per lo stesso concetto che ingolfavano il centro della scheda. Ora un
@@ -208,7 +216,40 @@ export function WhatsAppComposer({ phone, onSend, isSending, className, contactF
       </div>
 
       {/* Corpo: testo libero oppure template */}
-      {mode === "text" ? (
+      {mode === "text" && compatto ? (
+        <div className="flex items-end gap-2">
+          <textarea
+            ref={areaRef}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onInput={(e) => {
+              const el = e.currentTarget;
+              el.style.height = "auto";
+              el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                void handleSend();
+              }
+            }}
+            rows={1}
+            enterKeyHint="send"
+            placeholder="Scrivi un messaggio"
+            maxLength={4096}
+            className="block w-full resize-none rounded-xl border border-blue-200 bg-slate-50 px-3 py-2 text-base md:text-[14px] leading-snug focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:border-transparent dark:bg-[#2a3942] dark:border-blue-900/40"
+          />
+          <Button
+            size="icon"
+            onClick={handleSend}
+            disabled={!canSend}
+            aria-label="Invia WhatsApp"
+            className="h-10 w-10 shrink-0 rounded-full bg-[#00a884] text-white hover:bg-[#019173]"
+          >
+            {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+          </Button>
+        </div>
+      ) : mode === "text" ? (
         <Textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -263,12 +304,14 @@ export function WhatsAppComposer({ phone, onSend, isSending, className, contactF
         </div>
       )}
 
-      <div className="flex justify-end">
-        <Button size="sm" onClick={handleSend} disabled={!canSend} className="gap-1.5">
-          {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-          Invia WhatsApp
-        </Button>
-      </div>
+      {!(compatto && mode === "text") && (
+        <div className="flex justify-end">
+          <Button size="sm" onClick={handleSend} disabled={!canSend} className="gap-1.5">
+            {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            Invia WhatsApp
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

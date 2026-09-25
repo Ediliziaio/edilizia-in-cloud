@@ -9,7 +9,7 @@ import { condizioniStandard, MODULO_RECESSO } from "../_shared/condizioniStandar
 import { testoPerPdf } from "../_shared/testoPerPdf.ts";
 import { formatoImmagine, leggiLogo, logoDiRiserva } from "../_shared/logoAzienda.ts";
 import { COLORE_ACCENTO_DI_FABBRICA, coloreCopertina, coloreDelBlocco, colorePreventivo, contattiImpresa, titoliMarkdown } from "../_shared/blocchiModelloPreventivo.ts";
-import { componiRighe, nomeLeggibile, paroleDelTitolo, percorsoDellAzienda, pezziConGrassetto, senzaSezioneClausole, sezioneClausole, titoloGenerico, type ParolaTitolo, type Pezzo } from "../_shared/impaginaPreventivo.ts";
+import { componiRighe, logoDelModello, nomeLeggibile, paroleDelTitolo, percorsoDellAzienda, pezziConGrassetto, senzaSezioneClausole, sezioneClausole, titoloGenerico, type ParolaTitolo, type Pezzo } from "../_shared/impaginaPreventivo.ts";
 import { agevolazioniPreventivo, riepilogoPrezzi } from "../_shared/prezziPreventivo.ts";
 
 // ─── Helpers ───
@@ -175,7 +175,7 @@ Deno.serve(async (req) => {
       return v == null ? predefinito : v !== false;
     };
 
-    // L'azienda di cui si leggono i file riservati del modello (il timbro): nel
+    // L'azienda di cui si leggono i file riservati del modello (logo, copertina, timbro): nel
     // preventivo vero quella del preventivo; in anteprima quella del modello, se
     // chi chiama ci può entrare, se no la sua.
     let aziendaAnteprima: string | null = null;
@@ -515,9 +515,16 @@ Deno.serve(async (req) => {
     const filettoC = rgbColor("#E3E6EA");
     const grigioEdC = rgbColor("#5B6472");
 
+    // L'azienda di cui si leggono i file del modello (logo, copertina, timbro), dal
+    // contenitore riservato e col service role: solo dalla sua cartella.
+    const aziendaDeiFile = isPreview ? aziendaAnteprima : quote?.company_id ?? null;
+
     // ─── Logo embed ───
     let logoEmbed: any = null;
-    const logoPath = logoDiRiserva(t.logo_url, company?.logo_url);
+    // Il logo del modello, se è un percorso, solo dalla cartella dell'azienda; se no
+    // (o se non passa) quello aziendale, che oggi è sempre un indirizzo dello storage
+    // pubblico e, se un giorno fosse un percorso, passa dalla stessa regola.
+    const logoPath = logoDiRiserva(logoDelModello(t.logo_url, aziendaDeiFile), logoDelModello(company?.logo_url, aziendaDeiFile));
     if (t.show_logo && logoPath) {
       try {
         // Il logo del modello è un percorso nei due bucket dei modelli; quello
@@ -548,7 +555,7 @@ Deno.serve(async (req) => {
     // legge solo dalla cartella dell'azienda: il percorso di un'altra resta fuori.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let timbroEmbed: any = null;
-    const percorsoTimbro = percorsoDellAzienda(t.timbro_firma_url, isPreview ? aziendaAnteprima : quote?.company_id);
+    const percorsoTimbro = percorsoDellAzienda(t.timbro_firma_url, aziendaDeiFile);
     if (percorsoTimbro) {
       try {
         const { data: fileTimbro } = await supabaseAdmin.storage.from("quote-template-assets").download(percorsoTimbro);
@@ -725,7 +732,10 @@ Deno.serve(async (req) => {
     // Una pagina dedicata: immagine (se c'è) in alto, titolo grande, sottotitolo,
     // riquadro con numero/data/cliente, azienda in basso. Senza numero di pagina.
     let pagineSenzaFooter = 0;
-    const haCopertina = !!(String(t.cover_title ?? "").trim() || String(t.cover_subtitle ?? "").trim() || (t.show_cover_image && t.cover_image_url));
+    // L'immagine di copertina, come logo e timbro, solo dalla cartella dell'azienda:
+    // un percorso altrui non fa nemmeno nascere la pagina di copertina.
+    const percorsoCopertina = percorsoDellAzienda(t.cover_image_url, aziendaDeiFile);
+    const haCopertina = !!(String(t.cover_title ?? "").trim() || String(t.cover_subtitle ?? "").trim() || (t.show_cover_image && percorsoCopertina));
     if (haCopertina) {
       // Stesso linguaggio del «Piano dei lavori» dei moduli edili: pagina nel colore
       // dell'azienda, foto in tinta, titolo con una parola in corsivo (fra asterischi),
@@ -745,10 +755,9 @@ Deno.serve(async (req) => {
       cover.drawRectangle({ x: 0, y: 0, width: pageWidth, height: pageHeight, color: scuroC });
 
       let conFoto = false;
-      if (t.show_cover_image && t.cover_image_url) {
+      if (t.show_cover_image && percorsoCopertina) {
         try {
-          const path = String(t.cover_image_url);
-          const { data: fileData } = await supabaseAdmin.storage.from("quote-template-assets").download(path);
+          const { data: fileData } = await supabaseAdmin.storage.from("quote-template-assets").download(percorsoCopertina);
           if (fileData) {
             const bytes = new Uint8Array(await fileData.arrayBuffer());
             const img = bytes[0] === 0x89 && bytes[1] === 0x50 ? await pdfDoc.embedPng(bytes)

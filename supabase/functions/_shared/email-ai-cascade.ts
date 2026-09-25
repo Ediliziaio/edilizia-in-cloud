@@ -1,13 +1,15 @@
 /**
  * MP-EMAIL-AI-01 — Cascata L1 (Deno).
  *
- * Versione Deno-side dell'edge function. Inline qui (no import dal src/
- * perché edge functions girano in Deno isolato, no Vite resolution).
+ * La usano email-ai-l1-classify ed email-ai-l3-batch; la prova vitest in
+ * src/test/logic/emailClassificatoreL1.test.ts, sulle email d'esempio di
+ * src/test/fixtures/emailClassificatore.ts. La copia in src/lib/email-ai/
+ * (classifier, headers, regex-rules), che nessuna pagina usava, è stata tolta il
+ * 25/09/2026: header e regex stanno solo qui.
  *
- * Mantiene SINCRONO con `src/lib/email-ai/*.ts` — se modifichi una regex
- * lato client, ricordati di aggiornare anche qui (e viceversa).
- *
- * TODO future: estrarre regex in JSON shared per evitare duplicazione.
+ * Il valutatore delle regole dell'utente ha un gemello in src/lib/email-ai/rules-engine.ts,
+ * che calcola anche priorità, silenzia, marca da fare, etichetta, notifica e salta
+ * AI: qui si applicano solo «categoria» e «collega_entita».
  */
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -182,7 +184,7 @@ function classifyByHeaders(
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// Regex rules (sincronizzato con src/lib/email-ai/regex-rules.ts)
+// Regex rules
 // ════════════════════════════════════════════════════════════════════════════
 
 const REGOLE_REGEX: Array<{ re: RegExp; categoria: EmailCategoria; matched_by: string }> = [

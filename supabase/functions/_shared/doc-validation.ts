@@ -1,6 +1,8 @@
 /**
- * doc-validation (Deno copy) — MP-EMAIL-AI-06 · Validazioni deterministiche.
- * Copia 1:1 di src/lib/email-ai/doc-validation.ts (unit-testata lì). Pure, no deps.
+ * doc-validation — MP-EMAIL-AI-06 · Validazioni deterministiche. Pure, no deps.
+ * Provate da vitest in src/test/logic/docValidation.test.ts. La copia in
+ * src/lib/email-ai/doc-validation.ts, che nessuna pagina usava, è stata tolta il
+ * 25/09/2026 (con checkAliquota e isCampoIncerto, che non chiamava nessuno).
  */
 
 export function parseImporto(raw: unknown): number | null {

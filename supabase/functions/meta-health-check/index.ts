@@ -3,7 +3,7 @@ import { getCorsHeaders, jsonResponse, errorResponse } from "../_shared/headers.
 import { decrypt, getEncryptionKey } from "../_shared/encryption.ts";
 import { loadProviderSettings, sendViaProviderWithFailover } from "../_shared/emailProvider.ts";
 import { getMetaCredentials } from "../_shared/getMetaCredentials.ts";
-import { iscriviPaginaMeta, messaggiSocialAttivi, modalitaMessaggiSocial } from "../_shared/socialMessaggiMeta.ts";
+import { completaNomiSocialMancanti, iscriviPaginaMeta, messaggiSocialAttivi, modalitaMessaggiSocial } from "../_shared/socialMessaggiMeta.ts";
 
 const apiVersion = Deno.env.get("META_API_VERSION") || "v21.0";
 // Alert operativo quando un'integrazione si rompe (email best-effort).
@@ -183,7 +183,18 @@ Deno.serve(async (req) => {
       }
     }
 
-    return jsonResponse({ checked: (integrations || []).length, updated: results, subscriptions_healed: healed });
+    // Persone di Messenger/Instagram ancora senza nome («Utente Messenger»):
+    // si riprova a leggerlo da Meta. Dopo il resto, e solo se c'è tempo.
+    let nomiSocial: { provati: number; completati: number } | null = null;
+    if (Date.now() < selfHealDeadline) {
+      try {
+        nomiSocial = await completaNomiSocialMancanti(admin, { decrypt, encKey: getEncryptionKey(), apiVersion }, 30);
+      } catch (e) {
+        console.warn("meta-health-check: nomi social non completati:", e);
+      }
+    }
+
+    return jsonResponse({ checked: (integrations || []).length, updated: results, subscriptions_healed: healed, nomi_social: nomiSocial });
   } catch (error: any) {
     console.error("meta-health-check error:", error);
     return errorResponse(error.message, 500);

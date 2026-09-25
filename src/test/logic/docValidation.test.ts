@@ -3,11 +3,9 @@ import {
   parseImporto,
   validatePartitaIva,
   checkQuadratura,
-  checkAliquota,
   isValidIban,
   ibanEquivalenti,
-  isCampoIncerto,
-} from "../doc-validation";
+} from "../../../supabase/functions/_shared/doc-validation";
 
 describe("parseImporto", () => {
   it("formato IT 1.234,56", () => expect(parseImporto("1.234,56")).toBe(1234.56));
@@ -35,12 +33,6 @@ describe("checkQuadratura", () => {
   it("null → false", () => expect(checkQuadratura(null, 264, 1464)).toBe(false));
 });
 
-describe("checkAliquota", () => {
-  it("IVA 22% coerente", () => expect(checkAliquota(1200, 264, 22)).toBe(true));
-  it("IVA 10% coerente", () => expect(checkAliquota(1000, 100, 10)).toBe(true));
-  it("aliquota incoerente", () => expect(checkAliquota(1000, 220, 10)).toBe(false));
-});
-
 describe("isValidIban", () => {
   it("IBAN IT valido (esempio canonico)", () => expect(isValidIban("IT60X0542811101000000123456")).toBe(true));
   it("IBAN con check errato", () => expect(isValidIban("IT00X0542811101000000123456")).toBe(false));
@@ -55,11 +47,4 @@ describe("ibanEquivalenti (anti-frode BEC)", () => {
   it("diversi → false (alert)", () =>
     expect(ibanEquivalenti("IT60X0542811101000000123456", "IT60X0542811101000000999999")).toBe(false));
   it("uno vuoto → false", () => expect(ibanEquivalenti("", "IT60X0542811101000000123456")).toBe(false));
-});
-
-describe("isCampoIncerto", () => {
-  it("conf alta → certo", () => expect(isCampoIncerto({ valore: "x", conf: 0.9 })).toBe(false));
-  it("conf bassa → incerto", () => expect(isCampoIncerto({ valore: "x", conf: 0.5 })).toBe(true));
-  it("valore mancante → incerto", () => expect(isCampoIncerto({ valore: null, conf: 0.9 })).toBe(true));
-  it("campo assente → incerto", () => expect(isCampoIncerto(null)).toBe(true));
 });

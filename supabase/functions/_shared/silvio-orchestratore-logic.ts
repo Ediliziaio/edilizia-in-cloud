@@ -1,6 +1,8 @@
 /**
- * COPIA per Deno edge runtime di src/lib/silvio/orchestratore.ts (tenere in sync).
- * orchestratore.ts — MP-SILVIO-02 · logica pura della cascata intento→piano
+ * silvio-orchestratore-logic.ts — MP-SILVIO-02 · logica pura della cascata intento→piano
+ * Usata da silvio-orchestratore, provata da vitest in
+ * src/test/logic/silvioOrchestratore.test.ts. La copia in src/lib/silvio/orchestratore.ts,
+ * che nessuna pagina usava, è stata tolta il 25/09/2026: questa è l'unica.
  *
  * Il modello produce un PIANO (azioni del registro); QUI validiamo il piano,
  * decidiamo il gradino (0 deterministico → 1 Haiku → 2 Sonnet) e governiamo il

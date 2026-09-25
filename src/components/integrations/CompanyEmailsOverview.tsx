@@ -29,6 +29,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { spiegaErroreCasella } from "@/lib/email/spiegaErroreCasella";
 
 type ProfileLite = {
   id: string;
@@ -325,7 +326,7 @@ function EmailRow({
           {pollEnabled === false && (
             <Badge variant="outline" className="text-[10px] gap-1 text-muted-foreground">
               <Pause className="h-2.5 w-2.5" />
-              Polling off
+              Controllo spento
             </Badge>
           )}
         </div>
@@ -333,13 +334,13 @@ function EmailRow({
           {emailAddress}
         </div>
         {lastError && status !== "active" && status !== "connected" && (
-          <div className="text-xs text-destructive mt-0.5 truncate" title={lastError}>
-            {lastError}
+          <div className="text-xs text-destructive mt-0.5" title={lastError}>
+            {spiegaErroreCasella(lastError)}
           </div>
         )}
       </div>
       <div className="text-xs text-muted-foreground whitespace-nowrap text-right">
-        <div>Sync: {formatRelativeTime(lastSyncAt)}</div>
+        <div>Controllata: {formatRelativeTime(lastSyncAt)}</div>
         {typeof emailsFetched === "number" && emailsFetched > 0 && (
           <div className="text-[10px] opacity-70">{emailsFetched.toLocaleString("it-IT")} email</div>
         )}

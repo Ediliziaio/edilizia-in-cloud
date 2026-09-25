@@ -202,7 +202,12 @@ async function profiloUtente(ev: MessaggioSocialMeta, token: string, cfg: Cfg) {
       `https://graph.facebook.com/${cfg.apiVersion}/${ev.utenteId}?fields=${campi}&access_token=${token}`,
     );
     const j = await res.json();
-    if (!j || j.error) return {};
+    if (!j || j.error) {
+      // Prima si taceva: tutti i contatti Messenger restavano «Utente
+      // Messenger» senza sapere perché (25/09/2026).
+      console.warn("socialMessaggiMeta: profilo non letto", ev.piattaforma, j?.error?.code, j?.error?.message);
+      return {};
+    }
     return {
       nome: (j.name as string | undefined) ?? ([j.first_name, j.last_name].filter(Boolean).join(" ") || null),
       firstName: (j.first_name as string | undefined) ?? null,
@@ -213,6 +218,64 @@ async function profiloUtente(ev: MessaggioSocialMeta, token: string, cfg: Cfg) {
   } catch {
     return {};
   }
+}
+
+/**
+ * Il nome dai partecipanti della conversazione della pagina: risponde anche
+ * quando il profilo utente no (serve un accesso avanzato di Meta che la
+ * conversazione non chiede).
+ */
+async function nomeDallaConversazione(ev: MessaggioSocialMeta, paginaId: string, token: string, cfg: Cfg): Promise<{ nome?: string; username?: string }> {
+  const piattaforma = ev.piattaforma === "instagram" ? "instagram" : "messenger";
+  try {
+    const res = await (cfg.fetchFn ?? fetch)(
+      `https://graph.facebook.com/${cfg.apiVersion}/${paginaId}/conversations?platform=${piattaforma}&user_id=${ev.utenteId}&fields=participants&access_token=${token}`,
+    );
+    const j = await res.json();
+    if (!j || j.error) {
+      console.warn("socialMessaggiMeta: conversazione non letta", piattaforma, j?.error?.code, j?.error?.message);
+      return {};
+    }
+    const partecipanti = (j.data?.[0]?.participants?.data ?? []) as Array<{ id?: string; name?: string; username?: string }>;
+    const lui = partecipanti.find((x) => x.id === ev.utenteId);
+    return { nome: lui?.name || undefined, username: lui?.username || undefined };
+  } catch {
+    return {};
+  }
+}
+
+/** Profilo con il ripiego sulla conversazione: nome, nome e cognome separati, username, foto. */
+async function profiloCompleto(ev: MessaggioSocialMeta, paginaId: string, token: string, cfg: Cfg) {
+  const p: any = await profiloUtente(ev, token, cfg);
+  if (p.nome || p.username) return p;
+  const c = await nomeDallaConversazione(ev, paginaId, token, cfg);
+  if (!c.nome && !c.username) return p;
+  const [primo, ...resto] = String(c.nome ?? "").trim().split(/\s+/);
+  return { ...p, nome: c.nome ?? null, firstName: primo || null, lastName: resto.join(" ") || null, username: c.username ?? p.username ?? null };
+}
+
+/** Il contatto porta ancora il nome di ripiego messo alla creazione. */
+export function nomeDiRipiego(first: string | null | undefined, last: string | null | undefined): boolean {
+  const n = `${first ?? ""} ${last ?? ""}`.trim().toLowerCase();
+  return !n || n === "utente messenger" || n === "utente instagram" || n.startsWith("@");
+}
+
+/** Mette nome e foto sull'identità e, se il contatto ha ancora il nome di ripiego, anche sul contatto. */
+async function salvaProfilo(admin: any, identitaId: string, contactId: string | null, p: any): Promise<boolean> {
+  if (!p?.nome && !p?.username) return false;
+  await admin.from("social_identita").update({
+    nome: p.nome ?? null, username: p.username ?? null, avatar_url: p.avatar ?? null, updated_at: new Date().toISOString(),
+  }).eq("id", identitaId);
+  if (!contactId || !p.nome) return true;
+  const { data: c } = await admin.from("marketing_contacts").select("first_name, last_name").eq("id", contactId).maybeSingle();
+  if (c && nomeDiRipiego(c.first_name, c.last_name)) {
+    const [primo, ...resto] = String(p.nome).trim().split(/\s+/);
+    await admin.from("marketing_contacts").update({
+      first_name: p.firstName || primo,
+      last_name: p.lastName || resto.join(" ") || "",
+    }).eq("id", contactId);
+  }
+  return true;
 }
 
 async function creaContatto(admin: any, companyId: string, ev: MessaggioSocialMeta, p: any): Promise<string> {
@@ -236,16 +299,23 @@ async function creaContatto(admin: any, companyId: string, ev: MessaggioSocialMe
 async function identitaPerUtente(admin: any, ev: MessaggioSocialMeta, pagina: PaginaMeta, cfg: Cfg) {
   const chiave = { company_id: pagina.company_id, piattaforma: ev.piattaforma, account_id: ev.accountId, utente_id: ev.utenteId };
   const leggi = async () => {
-    const { data } = await admin.from("social_identita").select("id, contact_id")
+    const { data } = await admin.from("social_identita").select("id, contact_id, nome, username")
       .eq("company_id", chiave.company_id).eq("piattaforma", chiave.piattaforma)
       .eq("account_id", chiave.account_id).eq("utente_id", chiave.utente_id).maybeSingle();
-    return data as { id: string; contact_id: string | null } | null;
+    return data as { id: string; contact_id: string | null; nome: string | null; username: string | null } | null;
   };
   const esistente = await leggi();
-  if (esistente?.contact_id) return esistente;
+  if (esistente?.contact_id) {
+    // Nome ancora sconosciuto: si riprova a ogni messaggio che arriva.
+    if (!esistente.nome && !esistente.username && ev.direzione === "in") {
+      const t = await tokenPagina(admin, pagina, cfg).catch((): null => null);
+      if (t) await salvaProfilo(admin, esistente.id, esistente.contact_id, await profiloCompleto(ev, pagina.asset_id, t, cfg));
+    }
+    return esistente;
+  }
 
   const token = await tokenPagina(admin, pagina, cfg).catch((): null => null);
-  const profilo: any = token ? await profiloUtente(ev, token, cfg) : {};
+  const profilo: any = token ? await profiloCompleto(ev, pagina.asset_id, token, cfg) : {};
   const contactId = await creaContatto(admin, pagina.company_id, ev, profilo);
   const campiProfilo = { nome: profilo.nome ?? null, username: profilo.username ?? null, avatar_url: profilo.avatar ?? null };
 
@@ -264,6 +334,30 @@ async function identitaPerUtente(admin: any, ev: MessaggioSocialMeta, pagina: Pa
     if (vincitore) return vincitore;
   }
   throw new Error(`identità non salvata: ${error.message}`);
+}
+
+/**
+ * Rimette nome e foto sulle persone rimaste senza (tutti i contatti Messenger
+ * fino al 25/09/2026). Lo chiama il controllo Meta del mattino.
+ */
+export async function completaNomiSocialMancanti(admin: any, cfg: Cfg, limite = 30) {
+  const esito = { provati: 0, completati: 0 };
+  const { data: senzaNome } = await admin.from("social_identita")
+    .select("id, company_id, piattaforma, account_id, utente_id, pagina_id, contact_id")
+    .is("nome", null).is("username", null)
+    .order("created_at", { ascending: false })
+    .limit(limite);
+  for (const r of (senzaNome ?? []) as Array<Record<string, string | null>>) {
+    esito.provati++;
+    const piattaforma = r.piattaforma as PiattaformaSocial;
+    const pagina = await paginaDellAccount(admin, piattaforma, String(r.account_id));
+    if (!pagina) continue;
+    const token = await tokenPagina(admin, pagina, cfg).catch((): null => null);
+    if (!token) continue;
+    const ev = { piattaforma, utenteId: String(r.utente_id), accountId: String(r.account_id) } as MessaggioSocialMeta;
+    if (await salvaProfilo(admin, String(r.id), r.contact_id, await profiloCompleto(ev, pagina.asset_id, token, cfg))) esito.completati++;
+  }
+  return esito;
 }
 
 /** Registra i messaggi arrivati dal webhook. Non lancia: conta e prosegue. */

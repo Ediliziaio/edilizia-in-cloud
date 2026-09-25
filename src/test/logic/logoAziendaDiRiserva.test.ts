@@ -138,7 +138,8 @@ describe("chi usa il logo aziendale come riserva", () => {
 
   it("preventivo generale: l'indirizzo del logo aziendale si scarica, il formato si legge dai byte", () => {
     const sorgente = leggi("supabase/functions/generate-quote-pdf/index.ts");
-    expect(sorgente).toContain("const logoPath = logoDiRiserva(t.logo_url, company?.logo_url);");
+    // Il logo del modello (se è un percorso, solo dalla cartella dell'azienda), altrimenti quello aziendale.
+    expect(sorgente).toContain("const logoPath = logoDiRiserva(logoDelModello(t.logo_url, aziendaDeiFile), logoDelModello(company?.logo_url, aziendaDeiFile));");
     expect(sorgente).toContain("await leggiLogo(supabaseAdmin, logoPath, {");
     expect(sorgente).not.toContain('logoPath.endsWith(".png")');
   });
