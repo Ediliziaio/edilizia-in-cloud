@@ -1044,7 +1044,7 @@ export function OrderItemsList({
           </Button>
         </div>
         {itemPosizioni.length === 0 ? (
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-muted-foreground max-sm:hidden">
             Per ordini con piu' misure (es. serramenti): una riga per posizione, il fornitore le vedra' cosi' nell'ordine.
           </p>
         ) : (
@@ -1881,8 +1881,8 @@ export function OrderItemsList({
                       "Aggiungi" è la primary action (destra). "Aggiungi e continua"
                       è secondary (per inserimenti rapidi). Tooltip su "continua"
                       per chiarire la differenza alla prima visita. */}
-                  <DialogFooter className="mt-4 flex-col sm:flex-row gap-2">
-                    <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="sm:order-1">
+                  <DialogFooter className="mt-4 flex-col sm:flex-row gap-2 max-sm:flex-row">
+                    <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="sm:order-1 max-sm:hidden">
                       Annulla
                     </Button>
                     <TooltipProvider delayDuration={300}>
@@ -1894,9 +1894,11 @@ export function OrderItemsList({
                             onClick={handleSaveAndContinue}
                             disabled={!itemName.trim()}
                             className="sm:order-2 gap-1.5"
+                            aria-label="Aggiungi e continua"
                           >
                             <Plus className="h-3.5 w-3.5" />
-                            Aggiungi e continua
+                            <span aria-hidden="true" className="max-sm:hidden">Aggiungi e continua</span>
+                            <span aria-hidden="true" className="sm:hidden">Salva e un altro</span>
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent side="top" className="max-w-xs">
@@ -1904,7 +1906,7 @@ export function OrderItemsList({
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
-                    <Button type="button" onClick={handleSaveItem} disabled={!itemName.trim()} className="sm:order-3">
+                    <Button type="button" onClick={handleSaveItem} disabled={!itemName.trim()} className="sm:order-3 max-sm:flex-1">
                       Aggiungi
                     </Button>
                   </DialogFooter>
@@ -2030,10 +2032,11 @@ export function OrderItemsList({
                       );
                     })()}
                   </div>
-                  <DialogFooter className="mt-4">
-                    <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Annulla</Button>
+                  <DialogFooter className="mt-4 max-sm:flex-row">
+                    <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="max-sm:hidden">Annulla</Button>
                     <Button
                       type="button"
+                      className="max-sm:flex-1"
                       onClick={handlePickFromStock}
                       disabled={!selectedStockItem || !parseInt(stockPickQuantity) || parseInt(stockPickQuantity) > (stockItems.find((s) => s.id === selectedStockItem)?.quantity || 0)}
                     >
@@ -2046,8 +2049,8 @@ export function OrderItemsList({
             ) : (
               <>
                 {renderNewArticleForm()}
-                <DialogFooter className="mt-4 flex-col sm:flex-row gap-2">
-                  <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="sm:order-1">
+                <DialogFooter className="mt-4 flex-col sm:flex-row gap-2 max-sm:flex-row">
+                  <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="sm:order-1 max-sm:hidden">
                     Annulla
                   </Button>
                   {/* "Aggiungi e continua" solo in creazione (non in edit) */}
@@ -2061,9 +2064,11 @@ export function OrderItemsList({
                             onClick={handleSaveAndContinue}
                             disabled={!itemName.trim()}
                             className="sm:order-2 gap-1.5"
+                            aria-label="Aggiungi e continua"
                           >
                             <Plus className="h-3.5 w-3.5" />
-                            Aggiungi e continua
+                            <span aria-hidden="true" className="max-sm:hidden">Aggiungi e continua</span>
+                            <span aria-hidden="true" className="sm:hidden">Salva e un altro</span>
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent side="top" className="max-w-xs">
@@ -2072,7 +2077,7 @@ export function OrderItemsList({
                       </Tooltip>
                     </TooltipProvider>
                   )}
-                  <Button type="button" onClick={handleSaveItem} disabled={!itemName.trim()} className="sm:order-3">
+                  <Button type="button" onClick={handleSaveItem} disabled={!itemName.trim()} className="sm:order-3 max-sm:flex-1">
                     {editingIndex !== null ? "Salva modifiche" : "Aggiungi"}
                   </Button>
                 </DialogFooter>
