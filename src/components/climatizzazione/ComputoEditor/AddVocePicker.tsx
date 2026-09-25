@@ -82,12 +82,13 @@ function ResultRow({
         <S.Icon className="h-3.5 w-3.5" />
       </span>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-slate-800">{descrizione}</p>
+        {/* Telefono: due righe, le voci del prezzario si distinguono solo andando avanti a leggere. */}
+        <p className="truncate text-sm font-medium text-slate-800 max-sm:line-clamp-2 max-sm:whitespace-normal">{descrizione}</p>
         {meta && <p className={cn("truncate text-[11px] text-muted-foreground", source === "libera" && "max-sm:hidden")}>{meta}</p>}
       </div>
       <div className={cn("shrink-0 text-right", source === "libera" && "max-sm:hidden")}>
         <p className="text-sm font-semibold tabular-nums text-slate-900">{formatCurrency(prezzo)}</p>
-        <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{prezzoLabel}</p>
+        <p className={cn("text-[10px] uppercase tracking-wide text-muted-foreground", !prezzoLabel.startsWith("/") && "max-sm:hidden")}>{prezzoLabel}</p>
       </div>
     </CommandItem>
   );
