@@ -505,7 +505,7 @@ export function ListinoPickerDialog({
               <Button type="button" size="sm" variant={!showAllTypes && suggested.length > 0 ? "default" : "outline"} disabled={suggested.length === 0} aria-pressed={!showAllTypes && suggested.length > 0} onClick={() => { setShowAllTypes(false); setSearch(""); }}>Suggeriti per il modello ({suggested.length})</Button>
               <Button type="button" size="sm" variant={showAllTypes || suggested.length === 0 ? "default" : "outline"} aria-pressed={showAllTypes || suggested.length === 0} onClick={() => setShowAllTypes(true)}>Tutto il listino dell'area</Button>
             </div>
-            <p className="text-xs text-muted-foreground">{suggested.length === 0 ? "Nessuna tipologia suggerita associata: puoi scegliere dal listino dell'area o aggiungere una voce manuale nel preventivo." : "Categorie suggerite dal modello. La ricerca trova sempre tutti i prodotti dell'area, senza modificare il listino."}</p>
+            <p className="text-xs text-muted-foreground">{suggested.length === 0 ? "Nessuna tipologia suggerita associata: puoi scegliere dal listino dell'area o aggiungere una voce manuale nel preventivo." : "Categorie suggerite dal modello. Con «Tutto il listino dell'area» o la ricerca aggiungi anche gli altri prodotti (porte, avvolgibili, zanzariere…), senza modificare il listino."}</p>
           </div>}
           {partenza?.contesto && (
             <p className="text-[11px] font-medium text-orange-700">{partenza.contesto}</p>

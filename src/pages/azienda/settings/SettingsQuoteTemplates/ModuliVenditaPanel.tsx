@@ -391,7 +391,7 @@ function LegacyModuliVenditaPanel({ initialModulo }: { initialModulo?: string })
         </div>
         <Card className="bg-slate-50 border-slate-200">
           <CardContent className="p-3 text-xs text-slate-600">
-            💡 I template aziendali sono il punto di partenza dei nuovi preventivi. I modelli della libreria si salvano per l'azienda e li usano i preventivi creati da un intervento (per ora non Facciate e quattro modelli Serramenti).
+            💡 I template aziendali sono il punto di partenza dei nuovi preventivi. I modelli della libreria si salvano per l'azienda e li usano i preventivi creati da un intervento (tutte le aree tranne Facciate, che non ha ancora un preventivatore).
           </CardContent>
         </Card>
       </div>

@@ -40,7 +40,9 @@ describe("Serramenti model → stored document", () => {
   it("never changes legacy projects into models by guessing the title", () => {
     expect(quoteModelTemplate({ company_id: "A" })).toBeNull();
     expect(isSrQuoteModelId("Serramenti")).toBe(false);
-    expect(isSrQuoteModelId("zanzariere")).toBe(false);
+    // Un titolo o un nome simile non basta: solo gli interventi della libreria.
+    expect(isSrQuoteModelId("Zanzariere")).toBe(false);
+    expect(isSrQuoteModelId("porte")).toBe(false);
     expect(isSrQuoteModelId(null)).toBe(false);
   });
   it("rejects a template belonging to another company", () => {
@@ -75,6 +77,20 @@ describe("model-specific catalog suggestions", () => {
     expect(combined.map(t => t.standard?.nome)).toEqual(["Serramenti", "Persiane e scuri", "Zanzariere", "Tapparelle", "Cassonetti"]);
     expect(combined[0]).toBe(suggestedModelTypes(types, "finestre")[0]);
     expect(combined[1]).toBe(suggestedModelTypes(types, "persiane")[0]);
+  });
+  it("ogni modello propone i suoi prodotti, e tutto il listino resta a un clic", () => {
+    // 25/09/2026: anche avvolgibili, zanzariere e porte aprono il preventivatore.
+    // Il modello suggerisce, non limita: chi parte da «finestre» aggiunge anche porte
+    // o zanzariere da «Tutto il listino dell'area» o dalla ricerca.
+    expect(SR_OPERATIONAL_MODELS).toHaveLength(7);
+    expect(suggestedModelTypes(types, "avvolgibili").map(t => t.standard?.nome)).toEqual(["Tapparelle", "Cassonetti", "Accessori"]);
+    expect(suggestedModelTypes(types, "zanzariere").map(t => t.standard?.nome)).toEqual(["Zanzariere"]);
+    expect(suggestedModelTypes(types, "porte-ingresso").map(t => t.standard?.nome)).toEqual(["Porte blindate"]);
+    expect(suggestedModelTypes(types, "porte-interne").map(t => t.standard?.nome)).toEqual(["Porte da interno"]);
+    for (const modelId of SR_OPERATIONAL_MODELS) {
+      expect(suggestedModelTypes(types, modelId).length, modelId).toBeGreaterThan(0);
+      expect(modelCatalogTypes(types, modelId, true)).toBe(types);
+    }
   });
   it("all-catalog escape hatch and empty suggestions preserve existing products", () => {
     expect(modelCatalogTypes(types, "persiane", true)).toBe(types);

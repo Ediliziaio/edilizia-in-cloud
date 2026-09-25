@@ -163,12 +163,14 @@ describe("selettore diretto dei modelli", () => {
     expect(screen.getByRole("link", { name: "Crea preventivo generale Termoidraulica e riscaldamento" })).toHaveAttribute("href", "/azienda/termoidraulico/nuovo");
   });
 
-  it("mostra i soli tre ingressi pilota con capability confermata e propaga solo il contesto CRM", () => {
+  it("mostra i sette ingressi Serramenti con capability confermata e propaga solo il contesto CRM", () => {
+    // Dal 25/09/2026 tutti e sette i modelli Serramenti aprono il preventivatore
+    // (prima solo finestre, persiane e combinato).
     mocks.support.supported = true;
     mount("/?tab=moduli&area=serramenti&intervento=persiane&keep=no&modello=wrong&section=bad&contact_id=c%2B1&opportunity_id=o%26two");
     const links = screen.getAllByRole("link", { name: /^Apri preventivatore/ });
-    expect(links).toHaveLength(3);
-    for (const [title, id] of [["Finestre e portefinestre", "finestre"], ["Persiane e scuri", "persiane"], ["Intervento combinato", "combinato"]]) {
+    expect(links).toHaveLength(7);
+    for (const { title, id } of SALES_AREAS.find(a => a.id === "serramenti")!.interventions) {
       expect(screen.getByRole("link", { name: `Apri preventivatore ${title}` })).toHaveAttribute("href", `/azienda/serramenti/nuovo?modello=${id}&contact_id=c%2B1&opportunity_id=o%26two`);
     }
     expect(screen.getByRole("link", { name: "Crea preventivo generale Serramenti" })).toHaveAttribute("href", "/azienda/serramenti/nuovo?contact_id=c%2B1&opportunity_id=o%26two");
@@ -181,8 +183,8 @@ describe("selettore diretto dei modelli", () => {
   ])("nega Apri preventivatore senza capability affidabile: %j", support => {
     mocks.support = support;
     mount("/?tab=moduli&area=serramenti");
-    expect(screen.getAllByRole("link", { name: /^Apri preventivatore/ })).toHaveLength(3);
-    expect(screen.getAllByText("Salvataggio da attivare")).toHaveLength(3);
+    expect(screen.getAllByRole("link", { name: /^Apri preventivatore/ })).toHaveLength(7);
+    expect(screen.getAllByText("Salvataggio da attivare")).toHaveLength(7);
     expect(screen.queryByRole("link", { name: "Personalizza PDF Persiane e scuri" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Crea preventivo generale Serramenti" })).toBeInTheDocument();
   });

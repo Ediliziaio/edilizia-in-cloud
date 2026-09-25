@@ -20,6 +20,8 @@ const CAMPI = [
   { value: "opportunita.value", label: "Valore opportunità" },
   { value: "opportunita.stage_id", label: "Stage opportunità" },
   { value: "appuntamento.status", label: "Stato appuntamento" },
+  { value: "appuntamento.appointment_date", label: "Data appuntamento" },
+  { value: "appuntamento.calendar_id", label: "Calendario appuntamento" },
   { value: "ordine.total_amount", label: "Importo ordine" },
   { value: "ticket.priority", label: "Priorità ticket" },
 ];
@@ -36,6 +38,9 @@ const OPERATORI = [
   { value: "minore", label: "< minore di" },
   { value: "maggiore_uguale", label: "≥ maggiore o uguale" },
   { value: "minore_uguale", label: "≤ minore o uguale" },
+  // Per le date (ora italiana): «l'appuntamento è da oggi in poi?»
+  { value: "da_oggi", label: "è oggi o dopo (date)" },
+  { value: "prima_di_oggi", label: "è prima di oggi (date)" },
 ];
 
 interface ConditionRow {
@@ -70,7 +75,7 @@ export function ConditionConfigPanel({ config, onChange }: ConditionConfigPanelP
     updateCondizioni([...condizioni, { campo: "", operatore: "uguale", valore: "" }]);
   };
 
-  const noValueOps = ["vuoto", "non_vuoto"];
+  const noValueOps = ["vuoto", "non_vuoto", "da_oggi", "prima_di_oggi"];
 
   return (
     <div className="space-y-4">
