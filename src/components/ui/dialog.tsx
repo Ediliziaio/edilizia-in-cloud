@@ -92,7 +92,9 @@ const DialogHeader = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn("flex flex-col space-y-1.5 text-center sm:text-left", className)}
+    // Titolo a sinistra anche su telefono: il foglio dal basso ha la X a destra
+    // sulla stessa riga, e un titolo centrato ci finiva sotto o accanto storto.
+    className={cn("flex flex-col space-y-1.5 text-left", className)}
     {...props}
   />
 ));
