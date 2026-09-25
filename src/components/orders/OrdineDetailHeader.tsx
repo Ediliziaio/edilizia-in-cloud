@@ -118,13 +118,15 @@ export function OrdineDetailHeader({
               <span className="hidden sm:inline">Modifica</span>
             </Button>
           )}
-          {/* Azioni secondarie: dropdown su mobile */}
+          {/* Azioni secondarie nel menu ⋮, anche da tablet: prima sul desktop
+              erano quattro bottoni in fila (Diario, Scarica PDF, Duplica,
+              Elimina) accanto a «Registra incasso» e «Modifica». */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="outline"
                 size="icon"
-                className="tap-compact sm:hidden h-9 w-9"
+                className="tap-compact h-9 w-9"
                 aria-label="Altre azioni commessa"
               >
                 <MoreVertical className="h-4 w-4" />
@@ -160,54 +162,6 @@ export function OrdineDetailHeader({
               )}
             </DropdownMenuContent>
           </DropdownMenu>
-          {/* Desktop: tutti visibili */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => navigate(`/azienda/ordini/${ordineId}/diario`)}
-            className="hidden sm:inline-flex text-xs text-orange-600 border-orange-200 hover:bg-orange-50 hover:text-orange-700"
-          >
-            <BookOpen className="h-3.5 w-3.5 mr-1" />
-            Diario Commessa
-          </Button>
-          {onDownloadPDF && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onDownloadPDF}
-              disabled={isGeneratingPDF}
-              className="hidden sm:inline-flex text-xs"
-            >
-              {isGeneratingPDF ? (
-                <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
-              ) : (
-                <FileDown className="h-3.5 w-3.5 mr-1" />
-              )}
-              Scarica PDF
-            </Button>
-          )}
-          {canEdit && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onDuplica}
-              className="hidden sm:inline-flex text-xs"
-            >
-              <Copy className="h-3.5 w-3.5 mr-1" />
-              Duplica
-            </Button>
-          )}
-          {canDelete && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onElimina}
-              className="hidden sm:inline-flex text-xs text-red-600 border-red-200 hover:bg-red-50"
-              aria-label="Elimina commessa"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
-          )}
         </div>
       </div>
     </div>

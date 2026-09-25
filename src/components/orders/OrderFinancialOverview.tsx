@@ -56,7 +56,9 @@ export function OrderFinancialOverview(props: Props) {
         </div>
         <span className="hidden text-xs text-blue-100 sm:block">Importi e incassi sempre in vista</span>
       </div>
-      <div className={`grid grid-cols-2 gap-2 sm:gap-3 ${canViewAmounts && canViewMargins ? "xl:grid-cols-6" : canViewAmounts ? "lg:grid-cols-4" : ""}`}>
+      {/* Da tablet i quattro numeri su una riga e i pagamenti sotto: a due per
+          riga il riquadro blu era alto 460px (a 1024 riempiva lo schermo). */}
+      <div className={`grid grid-cols-2 gap-2 sm:gap-3 ${canViewAmounts && canViewMargins ? "md:grid-cols-4 xl:grid-cols-6" : canViewAmounts ? "lg:grid-cols-4" : ""}`}>
         {canViewAmounts && <>
           <Metric label="Totale contratto" value={formatCurrency(grossAmount)} hint={`IVA inclusa · ${vatRate}%`} icon={<FileText />} onClick={props.onOpenPayments} highlight />
           <Metric label="Imponibile" value={formatCurrency(totalAmount)} hint={`IVA ${formatCurrency(vatAmount)}`} icon={<ReceiptText />} onClick={props.onOpenPayments} />
@@ -65,7 +67,7 @@ export function OrderFinancialOverview(props: Props) {
           <Metric label="Margine €" value={marginReady ? formatCurrency(econ.margin) : "—"} hint={marginHint} icon={<TrendingUp />} tone={marginTone} onClick={props.onOpenEconomics} />
           <Metric label="Margine %" value={marginReady && totalAmount > 0 ? `${econ.marginPct.toLocaleString("it-IT", { maximumFractionDigits: 1 })}%` : "—"} hint={marginReady && totalAmount <= 0 ? "Imponibile non positivo" : "Margine / imponibile"} icon={<Percent />} tone={marginTone} onClick={props.onOpenEconomics} />
         </>}
-        {canViewAmounts && <button type="button" onClick={props.onOpenPayments} className="col-span-2 min-w-0 rounded-xl border border-white/20 bg-white/[0.08] p-3 max-sm:px-2.5 max-sm:py-2 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition-colors hover:bg-white/[0.14] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#173b67] sm:p-4" aria-label="Apri stato pagamenti">
+        {canViewAmounts && <button type="button" onClick={props.onOpenPayments} className={`col-span-2 min-w-0 ${canViewMargins ? "md:col-span-4 xl:col-span-2" : ""} rounded-xl border border-white/20 bg-white/[0.08] p-3 max-sm:px-2.5 max-sm:py-2 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition-colors hover:bg-white/[0.14] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#173b67] sm:p-4`} aria-label="Apri stato pagamenti">
           <span className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wide text-blue-100"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-orange-200/25 bg-orange-400/15 text-orange-100 max-sm:hidden"><Banknote className="h-3.5 w-3.5" /></span> Stato pagamenti <ArrowUpRight className="ml-auto h-3.5 w-3.5" /></span>
           <span className={`mt-2 block text-base font-semibold max-sm:mt-1 max-sm:text-sm ${paymentReady ? paymentTone : "text-blue-100"}`}>{props.installmentsError ? "Dati non disponibili" : props.installmentsLoading ? "Caricamento…" : payments.status}</span>
           {paymentReady && <>
