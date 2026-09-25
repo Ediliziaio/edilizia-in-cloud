@@ -47,6 +47,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
 import { cn } from "@/lib/utils";
 import { formatCount } from "@/lib/formatters";
+import { CercaConFiltri, PannelloFiltri, PilloleFiltro } from "@/components/mobile/FiltriMobile";
 import { CreateListDialog } from "@/components/marketing/CreateListDialog";
 import { cleanPhone } from "@/lib/contactUtils";
 import {
@@ -107,7 +108,7 @@ function MarketingOpportunitiesContent() {
   const canExportClients = permissions.canExportClients;
   const { data: pipelines = [], isLoading: loadingPipelines, error: pipelinesError, refetch: refetchPipelines } = usePipelines();
 
-  const { params: urlFilters, setParam: setURLParam } = useURLFilters({
+  const { params: urlFilters, setParam: setURLParam, setParams: setURLParams } = useURLFilters({
     selectedPipelineId: { key: "pipeline", defaultValue: "" },
     viewMode: { key: "view", defaultValue: "kanban" },
     searchInput: { key: "q", defaultValue: "" },
@@ -136,10 +137,12 @@ function MarketingOpportunitiesContent() {
   const searchQuery = useDebounce(searchInput, 350);
   const safeSearchQuery = useMemo(() => sanitizeOpportunitySearchTerm(searchQuery), [searchQuery]);
   const isMobile = useIsMobile();
-  // La pipeline (kanban) è la vista PRINCIPALE anche su mobile: una colonna per
-  // fase, scroll orizzontale tra le fasi (destra/sinistra). Il toggle "Vista lista"
-  // resta disponibile nel menu "…".
-  const viewMode = normalizedUrlState.viewMode;
+  // Mobile: sempre la lista (fasi come pillole in alto, una riga per
+  // opportunità). La kanban a colonne larghe si scorreva di lato con schede
+  // da quattro righe: da telefono non si leggeva. Il desktop sceglie come prima.
+  const viewMode = isMobile ? "list" : normalizedUrlState.viewMode;
+  // Mobile: pannello dei filtri dal basso.
+  const [filtriMobileAperti, setFiltriMobileAperti] = useState(false);
   const setViewMode = useCallback((v: "kanban" | "list") => setURLParam("viewMode", v), [setURLParam]);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
@@ -605,6 +608,9 @@ function MarketingOpportunitiesContent() {
   }, [canExportClients, fetchAllOpportunitiesForExport, selectedPipelineId, selectedPipeline, safeSearchQuery, filters, onlyMine, stages, staff, permissions.onlyAssigned, companyId]);
 
   const activeFilterCount = countActiveFilters(filters);
+  // Mobile: il numero sul bottone dei filtri (Miei, Da fare/In stallo, filtri avanzati o elenco).
+  const filtriMobileAttivi = (onlyMine ? 1 : 0) + (filtroStrip ? 1 : 0) + activeFilterCount;
+  const ordineAttuale = `${sortField}:${sortDir}`;
 
   if (importOpen) {
     return (
@@ -761,14 +767,16 @@ function MarketingOpportunitiesContent() {
     // Prima avevano un'altezza fissa calcolata a occhio e, con striscia e
     // barre sopra, finivano sotto il bordo: si scorreva la pagina E la colonna.
     <div className="flex flex-col h-full min-h-0 gap-3 md:h-[calc(100vh-137px)] md:pb-0">
-      <div className="flex shrink-0 flex-nowrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/50 p-3 shadow-sm sm:flex-wrap sm:gap-3">
+      {/* Mobile: testata senza riquadro (selettore pipeline, numero, «+»). */}
+      <div className="flex shrink-0 flex-nowrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/50 p-3 shadow-sm sm:flex-wrap sm:gap-3 max-sm:rounded-none max-sm:border-0 max-sm:bg-none max-sm:p-0 max-sm:shadow-none">
         <div className="flex min-w-0 items-center gap-2">
           <PipelineSelector pipelines={pipelines} value={selectedPipelineId} onChange={setSelectedPipelineId} />
           {/* Il totale viene dal database: tutte le opportunità che passano i
               filtri, non solo quelle caricate nelle colonne. */}
           <Badge className="h-6 shrink-0 gap-1 bg-orange-100 px-2 text-xs tabular-nums text-orange-700 hover:bg-orange-100">
             {riepilogo ? formatCount(totaleFiltrate) : <Loader2 className="h-3 w-3 animate-spin" />}
-            <span className="hidden sm:inline">opportunità</span>
+            {/* Tablet: solo il numero, così la testata sta su una riga. */}
+            <span className="hidden lg:inline">opportunità</span>
             {aggiornoRiepilogo && riepilogo && <Loader2 className="h-3 w-3 animate-spin opacity-60" aria-label="Aggiorno i conteggi" />}
           </Badge>
         </div>
@@ -794,7 +802,7 @@ function MarketingOpportunitiesContent() {
               <Button
                 variant={layout === "mini" ? "secondary" : "ghost"}
                 size="icon"
-                className="hidden md:inline-flex h-8 w-8"
+                className="hidden lg:inline-flex h-8 w-8"
                 onClick={() => setLayout(layout === "mini" ? "default" : "mini")}
               >
                 {layout === "mini" ? <Maximize2 className="h-4 w-4" /> : <Minimize2 className="h-4 w-4" />}
@@ -802,16 +810,18 @@ function MarketingOpportunitiesContent() {
             </TooltipTrigger>
             <TooltipContent>{layout === "mini" ? "Vista estesa" : "Vista compatta"}</TooltipContent>
           </Tooltip>
-          <Button variant="outline" size="sm" className="hidden md:inline-flex h-8 text-xs" onClick={() => setImportOpen(true)} disabled={stages.length === 0 || !canEditOpportunities}>
-            <Upload className="mr-1.5 h-3.5 w-3.5" /> Importa
+          <Button variant="outline" size="sm" className="hidden md:inline-flex h-8 text-xs max-lg:w-8 max-lg:px-0" onClick={() => setImportOpen(true)} disabled={stages.length === 0 || !canEditOpportunities} aria-label="Importa">
+            <Upload className="mr-1.5 h-3.5 w-3.5 max-lg:mr-0" /> <span className="max-lg:hidden">Importa</span>
           </Button>
-          <Button size="sm" className="h-8 w-8 shrink-0 p-0 sm:w-auto sm:px-3 bg-gradient-to-r from-orange-500 to-amber-500 text-xs text-white shadow-sm shadow-orange-200 hover:from-orange-600 hover:to-amber-600" onClick={() => setDialogOpen(true)} disabled={stages.length === 0 || !canEditOpportunities} aria-label="Aggiungi opportunità">
-            <Plus className="h-4 w-4 sm:mr-1.5 sm:h-3.5 sm:w-3.5" />
-            <span className="hidden sm:inline">Aggiungi opportunità</span>
+          {/* Telefono e tablet: «+» quadrato, la testata sta su una riga. */}
+          <Button size="sm" className="tap-compact h-8 w-8 shrink-0 p-0 lg:w-auto lg:px-3 bg-gradient-to-r from-orange-500 to-amber-500 text-xs text-white shadow-sm shadow-orange-200 hover:from-orange-600 hover:to-amber-600" onClick={() => setDialogOpen(true)} disabled={stages.length === 0 || !canEditOpportunities} aria-label="Aggiungi opportunità">
+            <Plus className="h-4 w-4 lg:mr-1.5 lg:h-3.5 lg:w-3.5" />
+            <span className="hidden lg:inline">Aggiungi opportunità</span>
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Altre azioni">
+              {/* Mobile no: importa, vista, campi, cestino e impostazioni sono da scrivania. */}
+              <Button variant="ghost" size="icon" className="h-8 w-8 max-sm:hidden" aria-label="Altre azioni">
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -846,7 +856,9 @@ function MarketingOpportunitiesContent() {
           già i totali per fase e così la pipeline resta la vista principale (più
           spazio verticale). In vista lista restano visibili. I numeri vengono
           dal database e contano tutte le opportunità, non solo quelle caricate. */}
-      {!(isMobile && viewMode === "kanban") && (
+      {/* Mobile no: nove riquadri di numeri prima della lista. Le fasi hanno il
+          loro numero nelle pillole, «Da fare» e «In stallo» stanno nel pannello dei filtri. */}
+      {!isMobile && (
         <div className="shrink-0">
           <OpportunityStatsStrip riepilogo={riepilogo} filtroAttivo={filtroStrip} onFiltro={setFiltroStrip} />
         </div>
@@ -868,7 +880,77 @@ function MarketingOpportunitiesContent() {
           «Tutti/Miei», filtri, ordinamento e campi. Prima erano due riquadri
           uno sotto l'altro, e la ricerca da sola occupava una riga intera:
           tutto spazio tolto alle colonne. Su mobile va su due righe. */}
-      <div className="flex shrink-0 flex-col gap-1.5 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm md:flex-row md:items-center md:gap-2">
+      <CercaConFiltri
+        className="shrink-0 sm:hidden"
+        valore={searchInput}
+        onCambia={setSearchInput}
+        segnaposto="Cerca nome, telefono, email"
+        filtriAttivi={filtriMobileAttivi}
+        onApriFiltri={() => setFiltriMobileAperti(true)}
+      />
+      <PannelloFiltri
+        aperto={filtriMobileAperti}
+        onAperto={setFiltriMobileAperti}
+        attivi={filtriMobileAttivi}
+        onAzzera={() => { setOnlyMine(false); setFiltroStrip(null); setActiveListId(null); setFilters(EMPTY_FILTERS); }}
+        risultati={riepilogo ? totaleFiltrate : undefined}
+      >
+        <PilloleFiltro
+          titolo="Mostra"
+          valore={onlyMine ? "miei" : "tutti"}
+          onScegli={(v) => setOnlyMine(v === "miei")}
+          scelte={[
+            { value: "tutti", label: "Tutte" },
+            { value: "miei", label: "Le mie" },
+          ]}
+        />
+        <PilloleFiltro
+          titolo="Da lavorare"
+          valore={filtroStrip ?? "nessuno"}
+          onScegli={(v) => setFiltroStrip(v === "nessuno" ? null : v)}
+          scelte={[
+            { value: "nessuno", label: "Tutte" },
+            { value: "azioni_scadute", label: "Da fare", n: riepilogo?.azioni_scadute },
+            { value: "stallo", label: "In stallo", n: riepilogo?.in_stallo },
+          ]}
+        />
+        <PilloleFiltro
+          titolo="Ordine"
+          valore={ordineAttuale}
+          onScegli={(v) => {
+            const [campo, verso] = v.split(":");
+            // Un solo aggiornamento dell'indirizzo: due di fila si riscrivono.
+            setURLParams({ sortField: campo, sortDir: verso });
+          }}
+          scelte={ORDINAMENTI.slice(0, 6).map((o) => ({ value: `${o.field}:${o.dir}`, label: o.label }))}
+        />
+        {savedLists.length > 0 && (
+          <PilloleFiltro
+            titolo="Elenco"
+            valore={activeListId ?? "tutto"}
+            onScegli={(v) => {
+              if (v === "tutto") { setActiveListId(null); setFilters(EMPTY_FILTERS); return; }
+              const list = savedLists.find((l: any) => l.id === v);
+              setActiveListId(v);
+              if (list?.filters && typeof list.filters === "object") setFilters({ ...EMPTY_FILTERS, ...list.filters });
+            }}
+            scelte={[{ value: "tutto", label: "Tutto" }, ...savedLists.map((l: any) => ({ value: l.id as string, label: l.name as string }))]}
+          />
+        )}
+        {/* Filtri avanzati arrivati dal computer o da un elenco: solo il numero e il modo di toglierli. */}
+        {activeFilterCount > 0 && !activeListId && (
+          <div className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2">
+            <span className="text-xs text-muted-foreground">
+              {activeFilterCount === 1 ? "1 filtro avanzato" : `${activeFilterCount} filtri avanzati`}
+            </span>
+            <Button variant="ghost" size="sm" className="tap-compact h-7 px-2 text-xs" onClick={() => setFilters(EMPTY_FILTERS)}>
+              Togli
+            </Button>
+          </div>
+        )}
+      </PannelloFiltri>
+
+      <div className="flex shrink-0 flex-col gap-1.5 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm md:flex-row md:items-center md:gap-2 max-sm:hidden">
         <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto scrollbar-none" aria-label="Elenchi salvati">
           <Button
             variant="ghost"
