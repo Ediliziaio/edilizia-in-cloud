@@ -104,17 +104,9 @@ export function ConversazioniTab({ agentIdFilter }: ConversazioniTabProps = {}) 
     // Telefono: il filtro agente a tutta larghezza (il titolo lo dice la scheda),
     // righe più basse, stato vuoto in una riga.
     <div className="space-y-6 max-md:space-y-3">
-      {/* Header */}
+      {/* Header — solo il filtro, anche da tablet: il titolo «Conversazioni»
+          (la scheda si chiama «Chiamate») e la frase sul telefono erano già via. */}
       <div className="flex items-center justify-between">
-        <div className="max-md:hidden">
-          <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
-            <MessageSquare className="h-5 w-5 text-primary" />
-            Conversazioni
-          </h2>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Storico completo delle conversazioni degli agenti AI.
-          </p>
-        </div>
         <Select value={agentFilter} onValueChange={setAgentFilter}>
           <SelectTrigger className="w-52 h-8 text-sm max-md:h-9 max-md:w-full">
             <SelectValue placeholder="Filtra per agente" />
@@ -148,7 +140,7 @@ export function ConversazioniTab({ agentIdFilter }: ConversazioniTabProps = {}) 
               dati non arrivano MAI — dirlo evita di scambiare il vuoto per
               "nessuna attività". */}
           <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800 max-md:mt-1.5 max-md:border-0 max-md:bg-transparent max-md:p-0 max-md:text-[11px]">
-            La raccolta automatica delle conversazioni (webhook eventi provider) non è ancora attiva.
+            La raccolta automatica delle conversazioni<span className="md:hidden"> (webhook eventi provider)</span> non è ancora attiva.
           </p>
         </div>
       ) : (

@@ -78,12 +78,37 @@ export function AgentiTab() {
   };
 
   return (
-    <div className="px-6 py-6 max-md:px-0 max-md:py-3">
-      {/* Toolbar — dentro una scheda con bordo, cosi' filtri e azioni si
-          leggono come una barra di controllo e non come testo sulla pagina.
+    // Da 768 niente px-6/py-6: il margine lo dà il layout (prima si sommava).
+    <div className="max-md:py-3">
+      {/* Toolbar — una riga: ricerca a sinistra, tipo, stato, «Nuovo agente».
+          Da 768 senza riquadro (era una card con ombra dentro la pagina); tra
+          768 e 1280 il tipo è un menu: con le sei pillole la riga andava a capo.
           Telefono: resta la ricerca. */}
-      <div className="mb-5 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm max-md:mb-3 max-md:border-0 max-md:bg-transparent max-md:p-0 max-md:shadow-none">
-        <div className="flex items-center gap-1.5 flex-wrap max-md:hidden">
+      <div className="mb-4 flex flex-wrap items-center gap-3 max-md:mb-3">
+        <div className="relative max-md:w-full">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            value={cerca}
+            onChange={(e) => setCerca(e.target.value)}
+            placeholder="Cerca agente..."
+            className="pl-8 w-48 h-8 text-sm max-md:h-9 max-md:w-full"
+          />
+        </div>
+
+        <Select value={filtroTipo} onValueChange={setFiltroTipo}>
+          <SelectTrigger className="hidden h-8 w-36 text-sm md:flex xl:hidden" aria-label="Tipo">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {TIPO_CHIPS.map((chip) => (
+              <SelectItem key={chip.value} value={chip.value}>
+                {chip.value === "tutti" ? "Tutti i tipi" : chip.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <div className="hidden items-center gap-1.5 flex-wrap xl:flex">
           {TIPO_CHIPS.map((chip) => {
             const Icon = chip.icon;
             return (
@@ -103,18 +128,6 @@ export function AgentiTab() {
           })}
         </div>
 
-        <div className="flex-1 max-md:hidden" />
-
-        <div className="relative max-md:w-full">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input
-            value={cerca}
-            onChange={(e) => setCerca(e.target.value)}
-            placeholder="Cerca agente..."
-            className="pl-8 w-48 h-8 text-sm max-md:h-9 max-md:w-full"
-          />
-        </div>
-
         <Select value={filtroStato} onValueChange={setFiltroStato}>
           <SelectTrigger className="w-36 h-8 text-sm max-md:hidden">
             <SelectValue placeholder="Stato" />
@@ -126,6 +139,8 @@ export function AgentiTab() {
             <SelectItem value="bozza">Bozza</SelectItem>
           </SelectContent>
         </Select>
+
+        <div className="flex-1 max-md:hidden" />
 
         <Button size="sm" onClick={() => handleCrea()} className="max-md:hidden">
           <Plus className="h-4 w-4 mr-1.5" /> Nuovo agente

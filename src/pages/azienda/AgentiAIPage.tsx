@@ -38,7 +38,8 @@ type MainTab = "agenti" | "knowledge" | "telefonia" | "conversazioni" | "chat" |
 // Alcune tab sono rilevanti solo nel contesto azienda (tracking budget
 // cliente), non per il SuperAdmin che è lui stesso il pagatore della
 // piattaforma. Vengono filtrate quando siamo in /admin/marketing/agenti-ai.
-const ALL_TABS: { key: MainTab; label: string; icon: typeof Bot; badge?: string; hiddenInAdmin?: boolean }[] = [
+// labelBreve: sotto 1280, dove le otto schede devono stare in una riga.
+const ALL_TABS: { key: MainTab; label: string; labelBreve?: string; icon: typeof Bot; badge?: string; hiddenInAdmin?: boolean }[] = [
   { key: "agenti", label: "Agenti", icon: Bot },
   { key: "knowledge", label: "Knowledge Base", icon: BookOpen },
   { key: "telefonia", label: "Telefonia", icon: Phone },
@@ -49,7 +50,7 @@ const ALL_TABS: { key: MainTab; label: string; icon: typeof Bot; badge?: string;
   // Crediti & Utilizzo: il SuperAdmin paga l'intera piattaforma, non ha
   // senso mostrargli un tracker di crediti/ricariche come se fosse un
   // cliente. Per lui la voce è gestita altrove (billing piattaforma).
-  { key: "crediti", label: "Crediti & Utilizzo", icon: CreditCard, hiddenInAdmin: true },
+  { key: "crediti", label: "Crediti & Utilizzo", labelBreve: "Crediti", icon: CreditCard, hiddenInAdmin: true },
 ];
 
 // Telefono: gli agenti si guardano (elenco, chiamate, chat); knowledge base,
@@ -93,20 +94,15 @@ export default function AgentiAIPage() {
 
   return (
     <div className="space-y-0">
-      {/* Header */}
-      {/* Telefono: solo il titolo e dove si impostano, senza riquadro né badge. */}
-      <div className="px-6 pt-6 pb-4 max-md:px-0 max-md:pb-3 max-md:pt-0">
-        <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/50 p-5 shadow-sm max-md:rounded-none max-md:border-0 max-md:bg-none max-md:p-0 max-md:shadow-none">
+      {/* Header — come sul telefono e nelle altre pagine: titolo senza
+          riquadro sfumato, icona né frase («WhatsApp vive nel suo hub…»), e
+          senza il margine proprio (px-6 pt-6) che si sommava a quello del layout. */}
+      <div className="pb-4 max-md:pb-3">
+        <div>
           <div className="mb-1 flex items-start justify-between gap-3 max-md:mb-0">
             <div className="flex items-start gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200 max-md:hidden">
-                <Bot className="h-5 w-5" />
-              </div>
               <div>
                 <h1 className="text-2xl font-bold text-slate-950 max-md:text-lg">Agenti AI</h1>
-                <p className="mt-1 text-sm text-slate-600 max-md:hidden">
-                  Gestisci agenti vocali, chat, campagne e knowledge base. WhatsApp vive nel suo hub dedicato.
-                </p>
                 <p className="hidden text-[11px] text-slate-500 max-md:block">si creano e si modificano da computer o tablet</p>
               </div>
             </div>
@@ -131,8 +127,11 @@ export default function AgentiAIPage() {
       <Tabs value={activeTab} onValueChange={handleTabChange}>
         {/* Su mobile le otto tab non ci stanno: la riga scorre invece di uscire
             dallo schermo (la pagina non deve mai scorrere in orizzontale). */}
-        <div className="overflow-x-auto px-6 pb-3 max-md:px-0">
-          <TabsList className="h-auto w-max min-w-full flex-nowrap justify-start gap-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm max-md:w-full max-md:rounded-xl max-md:p-1 max-md:shadow-none">
+        {/* Da 768 le schede standard dell'app (prima in una card con ombra e
+            l'attiva arancione) e senza icone fino a 1280: a 1024 le otto
+            schede scorrevano e «Campagne» era tagliata. */}
+        <div className="overflow-x-auto pb-3">
+          <TabsList className="gap-1 max-md:h-auto max-md:w-full max-md:min-w-full max-md:justify-start max-md:rounded-xl max-md:border max-md:border-slate-200 max-md:bg-white max-md:p-1">
             {TABS.map((tab) => {
               const Icon = tab.icon;
               return (
@@ -140,13 +139,20 @@ export default function AgentiAIPage() {
                   key={tab.key}
                   value={tab.key}
                   className={cn(
-                    "rounded-xl px-4 py-2.5 text-sm text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700 data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-orange-200",
+                    "max-md:rounded-xl max-md:text-slate-600 max-md:transition-colors max-md:hover:bg-slate-100 max-md:hover:text-slate-900 max-md:data-[state=active]:bg-orange-50 max-md:data-[state=active]:text-orange-700 max-md:data-[state=active]:shadow-sm max-md:data-[state=active]:ring-1 max-md:data-[state=active]:ring-orange-200",
                     "max-md:flex-1 max-md:rounded-lg max-md:px-2 max-md:py-2 max-md:text-[13px]",
                     !TAB_TELEFONO.includes(tab.key) && "max-md:hidden",
                   )}
                 >
-                  <Icon className="h-4 w-4 mr-1.5 max-md:hidden" />
-                  {tab.label}
+                  <Icon className="mr-1.5 hidden h-4 w-4 xl:block" />
+                  {tab.labelBreve ? (
+                    <>
+                      <span className="xl:hidden">{tab.labelBreve}</span>
+                      <span className="hidden xl:inline">{tab.label}</span>
+                    </>
+                  ) : (
+                    tab.label
+                  )}
                   {tab.badge && (
                     <Badge variant="secondary" className="ml-1.5 text-[9px] px-1 py-0">
                       {tab.badge}
@@ -164,7 +170,7 @@ export default function AgentiAIPage() {
             ? <AgentiAIStatsBar stats={stats} />
             : statsLoading
               ? (
-                <div className="grid grid-cols-2 gap-2.5 px-6 pb-4 sm:grid-cols-3 lg:grid-cols-6 md:gap-3 max-md:px-0">
+                <div className="grid grid-cols-2 gap-2.5 pb-4 sm:grid-cols-3 lg:grid-cols-6 md:gap-3">
                   {Array.from({ length: 6 }).map((_, i) => (
                     <div key={i} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
                       <div className="h-9 w-9 flex-shrink-0 animate-pulse rounded-lg bg-slate-100" />
@@ -184,33 +190,34 @@ export default function AgentiAIPage() {
           <AgentiTab />
         </TabsContent>
 
-        <TabsContent value="knowledge" className="mt-0 p-6">
+        {/* Contenuti delle schede senza p-6 da 768 (margine doppio col layout). */}
+        <TabsContent value="knowledge" className="mt-0 pt-1">
           <KnowledgeBaseTab />
         </TabsContent>
 
-        <TabsContent value="telefonia" className="mt-0 p-6">
+        <TabsContent value="telefonia" className="mt-0 pt-1">
           <TelephonyTab />
         </TabsContent>
 
-        <TabsContent value="conversazioni" className="mt-0 p-6 max-md:px-0 max-md:py-3">
+        <TabsContent value="conversazioni" className="mt-0 pt-1 max-md:py-3">
           <ConversazioniTab />
         </TabsContent>
 
-        <TabsContent value="chat" className="mt-0 p-6 max-md:px-0 max-md:py-3">
+        <TabsContent value="chat" className="mt-0 pt-1 max-md:py-3">
           <ChatConversazioniTab />
         </TabsContent>
 
-        <TabsContent value="campagne" className="mt-0 p-6">
+        <TabsContent value="campagne" className="mt-0 pt-1">
           <CampagneTab />
         </TabsContent>
 
         {/* MP-CLEANUP: rimossa tab whatsapp. Hub unico in /azienda/whatsapp. */}
 
-        <TabsContent value="statistiche" className="mt-0 p-6">
+        <TabsContent value="statistiche" className="mt-0 pt-1">
           <StatisticheTab />
         </TabsContent>
 
-        <TabsContent value="crediti" className="mt-0 p-6">
+        <TabsContent value="crediti" className="mt-0 pt-1">
           <CreditiTab />
         </TabsContent>
       </Tabs>

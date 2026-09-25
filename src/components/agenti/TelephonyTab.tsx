@@ -131,25 +131,18 @@ export function TelephonyTab() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
-            <Phone className="h-5 w-5 text-primary" />
-            Numeri Telefonici
-          </h2>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Assegna un numero a un agente vocale e collegalo per le chiamate AI. I numeri si
-            gestiscono in <Link to="/azienda/impostazioni/numeri-telefono" className="underline font-medium">Impostazioni → Telefonia</Link>.
-          </p>
-        </div>
+      {/* Solo le azioni, a destra: il titolo «Numeri Telefonici» ripeteva la
+          scheda e la frase su Impostazioni → Telefonia la ripete il riquadro
+          vuoto qui sotto (con il suo bottone). */}
+      <div className="flex items-center justify-end">
         <div className="flex items-center gap-2">
           <Button asChild variant="outline" size="sm">
             <Link to="/azienda/impostazioni/numeri-telefono"><Settings2 className="h-4 w-4 mr-1.5" /> Gestisci numeri</Link>
           </Button>
-          <Button variant="outline" size="sm" onClick={syncFromEL} disabled={syncing}>
+          <Button variant="outline" size="sm" onClick={syncFromEL} disabled={syncing} title="Sincronizza i numeri con ElevenLabs">
             {syncing ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <RefreshCw className="h-4 w-4 mr-1.5" />}
-            Sync ElevenLabs
+            {/* «Sync» all'inglese: il nome del servizio resta nel suggerimento. */}
+            Sincronizza
           </Button>
         </div>
       </div>
