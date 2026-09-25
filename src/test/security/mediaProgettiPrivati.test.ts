@@ -66,12 +66,22 @@ describe("StepMedia salva il riferimento nel bucket privato", () => {
 describe("il PDF firma le foto del progetto prima di convertirle", () => {
   it.each(MODULI)("%s", (_modulo, Nome) => {
     const sorgente = leggi(`src/hooks/use${Nome}PDF.ts`);
-    const firma = sorgente.indexOf("const linkMedia = await linkFileRiservati(imageMedia.map((m) => m.url));");
+    // Le foto del progetto si firmano sempre. L'anteprima della libreria (opts.localOnly,
+    // dati d'esempio senza foto del progetto: fullXxxModules) salta la firma: accetta
+    // solo immagini locali, e un riferimento non firmato non passa il filtro qui sotto.
+    const firma = sorgente.search(/const linkMedia = (?:opts\.localOnly[\s\S]*?: )?await linkFileRiservati\(imageMedia\.map\(\(m\) => m\.url\)\);/);
     expect(firma).toBeGreaterThan(-1);
     expect(sorgente.indexOf("toDataUrl(linkMedia[i])")).toBeGreaterThan(firma);
     expect(sorgente).not.toContain("toDataUrl(m.url)");
     // Una foto che non si è potuta firmare non arriva al renderer.
     expect(sorgente).toContain(".filter((m) => m.url && !eRiferimentoNudo(m.url));");
+  });
+
+  it.each(MODULI)("%s: il preventivatore non usa mai l'anteprima senza firma", (modulo, Nome) => {
+    for (const file of readdirSync(resolve(RADICE, `src/pages/azienda/${modulo}/${Nome}Wizard`))) {
+      expect(leggi(`src/pages/azienda/${modulo}/${Nome}Wizard/${file}`), file).not.toContain("localOnly");
+    }
+    expect(leggi(`src/pages/azienda/${modulo}/${Nome}Wizard.tsx`)).not.toContain("localOnly");
   });
 });
 
