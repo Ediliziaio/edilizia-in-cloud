@@ -164,8 +164,11 @@ export default function BillingReports({ embedded = false, anno }: { embedded?: 
           </div>
         </div>
       )}
-      {embedded && anno === undefined && (
+      {/* Con l'anno passato dalla pagina (Fatture lo passa sempre) niente
+          secondo selettore: resta solo l'export, da tablet in su. */}
+      {embedded && (anno === undefined || !isMobile) && (
         <div className="flex items-center justify-end gap-3">
+          {anno === undefined && (
           <Select value={year} onValueChange={setYear}>
             <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -174,6 +177,7 @@ export default function BillingReports({ embedded = false, anno }: { embedded?: 
               ))}
             </SelectContent>
           </Select>
+          )}
           {!isMobile && (
             <Button variant="outline" onClick={exportCsv} disabled={invoices.length === 0}>
               <Download className="h-4 w-4 mr-2" /> Esporta CSV
@@ -188,35 +192,37 @@ export default function BillingReports({ embedded = false, anno }: { embedded?: 
         <>
           {/* KPIs */}
           {/* Mobile: quattro numeri stretti (via la media fattura, che resterebbe sola su una riga). */}
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 max-sm:gap-2">
+          {/* Cinque in riga solo da 1280: a 1024 gli importi venivano tagliati
+              («649.452,40» senza €). */}
+          <div className="grid grid-cols-2 gap-4 max-sm:gap-2 md:grid-cols-3 xl:grid-cols-5">
             <Card>
               <CardContent className="pt-4 pb-3 max-sm:px-3 max-sm:py-2">
                 <p className="text-xs text-muted-foreground max-sm:text-[11px]">Fatturato netto</p>
-                <p className="text-xl font-bold max-sm:text-base">{fmtEur(kpis.totalRevenue)}</p>
+                <p className="text-xl font-bold sm:tabular-nums max-sm:text-base">{fmtEur(kpis.totalRevenue)}</p>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="pt-4 pb-3 max-sm:px-3 max-sm:py-2">
                 <p className="text-xs text-muted-foreground max-sm:text-[11px]">IVA totale</p>
-                <p className="text-xl font-bold max-sm:text-base">{fmtEur(kpis.totalVat)}</p>
+                <p className="text-xl font-bold sm:tabular-nums max-sm:text-base">{fmtEur(kpis.totalVat)}</p>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="pt-4 pb-3 max-sm:px-3 max-sm:py-2">
                 <p className="text-xs text-muted-foreground max-sm:text-[11px]">Incassato</p>
-                <p className="text-xl font-bold max-sm:text-base">{fmtEur(kpis.totalCollected)}</p>
+                <p className="text-xl font-bold sm:tabular-nums max-sm:text-base">{fmtEur(kpis.totalCollected)}</p>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="pt-4 pb-3 max-sm:px-3 max-sm:py-2">
                 <p className="text-xs text-muted-foreground max-sm:text-[11px]">Fatture emesse</p>
-                <p className="text-xl font-bold max-sm:text-base">{kpis.count}</p>
+                <p className="text-xl font-bold sm:tabular-nums max-sm:text-base">{kpis.count}</p>
               </CardContent>
             </Card>
             <Card className="max-sm:hidden">
               <CardContent className="pt-4 pb-3 max-sm:px-3 max-sm:py-2">
                 <p className="text-xs text-muted-foreground max-sm:text-[11px]">Media fattura</p>
-                <p className="text-xl font-bold max-sm:text-base">{fmtEur(kpis.avgInvoice)}</p>
+                <p className="text-xl font-bold sm:tabular-nums max-sm:text-base">{fmtEur(kpis.avgInvoice)}</p>
               </CardContent>
             </Card>
           </div>

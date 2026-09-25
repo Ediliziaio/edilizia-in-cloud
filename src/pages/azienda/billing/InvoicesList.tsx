@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Search, MoreVertical, FileText, CreditCard, Loader2, RefreshCw, Link2, Eye, BarChart3, Download, Cloud, FileCode, Inbox, AlertTriangle, CircleAlert, Receipt, Send } from "lucide-react";
+import { Search, MoreVertical, FileText, CreditCard, Loader2, RefreshCw, Link2, Eye, BarChart3, Download, Cloud, FileCode, Inbox, AlertTriangle, CircleAlert, Send } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency } from "@/lib/formatters";
 import BillingReports from "./BillingReports";
@@ -515,29 +515,14 @@ export default function InvoicesList() {
 
   return (
     <div className="space-y-6 max-sm:space-y-3">
-      {/* No provider banner */}
-      {!isLoading && !integration && !isMobile && (
-        <Card className="border-primary/30 bg-primary/5">
-          <CardContent className="pt-4 pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <Link2 className="h-5 w-5 text-primary shrink-0" />
-              <div>
-                <p className="font-medium">Connetti il tuo gestionale di fatturazione</p>
-                <p className="text-sm text-muted-foreground">Collega Fatture in Cloud, Fattura24, Aruba o Invoicetronic per importare automaticamente le fatture.</p>
-              </div>
-            </div>
-            <Button variant="outline" className="shrink-0" onClick={() => navigate("/azienda/impostazioni/fatturazione")}>
-              Configura
-            </Button>
-          </CardContent>
-        </Card>
-      )}
+      {/* Senza gestionale collegato niente fascia blu sopra il titolo con
+          «Sincronizza» spento accanto: da tablet al posto di Sincronizza c'è
+          «Collega gestionale» (vedi sotto). */}
 
       {/* Header — in colonna su mobile: con provider connesso la riga superava i 375px */}
       {/* Mobile: titolo, anno e sincronizza su una riga; via icona, gestionale e «Sync x min fa». */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between max-sm:flex-row max-sm:items-center max-sm:justify-between max-sm:gap-2">
         <div className="flex items-center gap-2">
-          <FileText className="h-7 w-7 text-primary max-sm:hidden" />
           <h1 className="text-2xl font-bold max-sm:text-lg">Fatturazione</h1>
           {integration && (
             <Badge variant="outline" className="ml-2 text-xs max-sm:hidden">
@@ -570,12 +555,22 @@ export default function InvoicesList() {
               </span>
             );
           })()}
+          {!isLoading && !integration && (
+            <Button
+              variant="outline"
+              className="gap-2 max-sm:hidden"
+              title="Fatture in Cloud, Fattura24, Aruba o Invoicetronic: le fatture arrivano da sole"
+              onClick={() => navigate("/azienda/impostazioni/fatturazione")}
+            >
+              <Link2 className="h-4 w-4" />Collega gestionale
+            </Button>
+          )}
           {/* Mobile: solo l'icona (arancio se l'ultimo sync ha più di un giorno). */}
           <Button
             onClick={syncInvoices}
             disabled={syncing || !integration}
             aria-label="Sincronizza"
-            className={cn("max-sm:h-8 max-sm:w-8 max-sm:px-0", syncFreshness(integration?.last_sync_at)?.stale && "max-sm:bg-amber-500")}
+            className={cn("max-sm:h-8 max-sm:w-8 max-sm:px-0", syncFreshness(integration?.last_sync_at)?.stale && "max-sm:bg-amber-500", !isLoading && !integration && "sm:hidden")}
           >
             {syncing ? <Loader2 className="h-4 w-4 mr-2 animate-spin max-sm:mr-0" /> : <RefreshCw className="h-4 w-4 mr-2 max-sm:mr-0" />}
             <span className="max-sm:hidden">Sincronizza</span>
@@ -624,22 +619,17 @@ export default function InvoicesList() {
           {/* Testata navy di famiglia — "Da incassare" e "Fatture scadute"
               restano azionabili: cliccandole filtrano la lista, ri-cliccare
               torna a "Tutte". */}
-          <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm max-sm:hidden">
-            <div className="bg-[#173b67] p-4 text-white sm:p-5">
-              <div className="flex items-start gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)] sm:h-11 sm:w-11">
-                  <Receipt className="h-4 w-4 sm:h-5 sm:w-5" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-orange-100 sm:text-xs">Fatturazione</p>
-                  <h2 className="mt-0.5 text-base font-semibold text-white sm:text-xl">Quanto hai fatturato, quanto ti devono</h2>
-                </div>
-              </div>
-              <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-5 sm:gap-3 xl:grid-cols-4">
+          {/* Da 1280, se c'è credito scaduto, numeri e «Recupero crediti»
+              stanno affiancati: uno sotto l'altro spingevano l'elenco delle
+              fatture a mille pixel dalla cima. Senza il titoletto «Quanto hai
+              fatturato, quanto ti devono», che ripeteva quello della pagina. */}
+          <div className={cn("grid gap-6 max-sm:hidden", recupero.totale > 0.005 && "xl:grid-cols-2")}>
+          <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
+            <div className="h-full bg-[#173b67] p-4 text-white sm:p-5">
+              <div className={cn("grid grid-cols-2 gap-2 sm:gap-3", recupero.totale > 0.005 ? "xl:h-full xl:content-center" : "xl:grid-cols-4")}>
                 <NavyStatCard
                   label="Da incassare"
                   value={fmtEur(kpis.receivable)}
-                  sub="clicca per filtrare le aperte"
                   icon={CircleAlert}
                   tone="text-orange-100"
                   onClick={() => setStatusFilter((f) => (f === "unpaid" ? "all" : "unpaid"))}
@@ -668,27 +658,6 @@ export default function InvoicesList() {
             </div>
           </div>
 
-          {/* Mobile: due numeri che filtrano la lista, al posto del riquadro blu
-              con quattro numeri, icone e spiegazioni. Dopo il riquadro e non
-              prima: da primo figlio nascosto spostava il desktop di 8px. */}
-          <KpiMobili
-            className="sm:hidden"
-            voci={[
-              {
-                label: "Da incassare",
-                valore: fmtEur(kpis.receivable),
-                onClick: () => setStatusFilter((f) => (f === "unpaid" ? "all" : "unpaid")),
-                attivo: statusFilter === "unpaid",
-              },
-              {
-                label: "Scadute",
-                valore: String(kpis.overdueCount),
-                tono: kpis.overdueCount > 0 ? "text-rose-600" : undefined,
-                onClick: () => setStatusFilter((f) => (f === "overdue" ? "all" : "overdue")),
-                attivo: statusFilter === "overdue",
-              },
-            ]}
-          />
           {/* RECUPERO CREDITI — appare solo se c'è credito scaduto. Traduce il
               numero rosso "36 scadute" in azione: quanto è vecchio il credito
               (aging) e chi ti deve di più (top debitori cliccabili). */}
@@ -755,7 +724,29 @@ export default function InvoicesList() {
               </CardContent>
             </Card>
           )}
+          </div>
 
+          {/* Mobile: due numeri che filtrano la lista, al posto del riquadro blu
+              con quattro numeri, icone e spiegazioni. Dopo il riquadro e non
+              prima: da primo figlio nascosto spostava il desktop di 8px. */}
+          <KpiMobili
+            className="sm:hidden"
+            voci={[
+              {
+                label: "Da incassare",
+                valore: fmtEur(kpis.receivable),
+                onClick: () => setStatusFilter((f) => (f === "unpaid" ? "all" : "unpaid")),
+                attivo: statusFilter === "unpaid",
+              },
+              {
+                label: "Scadute",
+                valore: String(kpis.overdueCount),
+                tono: kpis.overdueCount > 0 ? "text-rose-600" : undefined,
+                onClick: () => setStatusFilter((f) => (f === "overdue" ? "all" : "overdue")),
+                attivo: statusFilter === "overdue",
+              },
+            ]}
+          />
           {/* Tab tipo documento (stile Fatture in Cloud). Mobile: nel pannello filtri. */}
           <div className="flex flex-wrap items-center gap-1 border-b max-sm:hidden">
             {([
@@ -977,7 +968,9 @@ export default function InvoicesList() {
                 </div>
               ))}
             </div>
-            {/* Desktop table — intestazioni di mese con subtotale */}
+            {/* Desktop table — intestazioni di mese con subtotale. Sotto 1280
+                senza «Origine» e senza le iniziali del cliente: a 1024 la
+                tabella usciva di 20px. */}
             <div className="hidden sm:block rounded-lg border overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -988,7 +981,7 @@ export default function InvoicesList() {
                     <th className="text-left p-3 font-medium">Scadenza</th>
                     <th className="text-right p-3 font-medium">Importo</th>
                     <th className="text-left p-3 font-medium">Stato</th>
-                    <th className="text-left p-3 font-medium">Origine</th>
+                    <th className="hidden text-left p-3 font-medium xl:table-cell">Origine</th>
                     <th className="p-3 w-10"></th>
                   </tr>
                 </thead>
@@ -1007,7 +1000,7 @@ export default function InvoicesList() {
                             <td className="p-3 font-mono text-xs">{inv.invoice_number || "—"}</td>
                             <td className="p-3">
                               <div className="flex items-center gap-2">
-                                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-semibold text-muted-foreground">
+                                <span className="hidden h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-semibold text-muted-foreground xl:flex">
                                   {clienteInitials(inv.client_company_name)}
                                 </span>
                                 <span className="font-medium">{inv.client_company_name || "—"}</span>
@@ -1043,7 +1036,7 @@ export default function InvoicesList() {
                                 })()}
                               </div>
                             </td>
-                            <td className="p-3">
+                            <td className="hidden p-3 xl:table-cell">
                               {inv.external_provider ? (
                                 <Badge variant="outline" className="text-xs gap-1 font-normal">
                                   <Cloud className="h-3 w-3 text-muted-foreground" />
@@ -1094,8 +1087,9 @@ export default function InvoicesList() {
         </TabsContent>
 
         <TabsContent value="report" className="mt-4 max-sm:mt-3">
-          {/* Mobile: l'anno è quello della testata (niente secondo selettore). */}
-          <BillingReports embedded anno={isMobile ? yearFilter : undefined} />
+          {/* L'anno è quello della testata (niente secondo selettore, anche
+              da tablet: erano due «2026» uno sotto l'altro). */}
+          <BillingReports embedded anno={yearFilter} />
         </TabsContent>
       </Tabs>
 
