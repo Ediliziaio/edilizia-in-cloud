@@ -2347,7 +2347,10 @@ export default function SettingsQuoteTemplates() {
                         const { data, error } = await supabase.functions.invoke("generate-quote-pdf", {
                           body: {
                             preview_mode: true,
-                            template_data: form,
+                            // L'azienda del modello anche per un modello nuovo, non ancora
+                            // salvato: la funzione legge logo, copertina e timbro solo dalla
+                            // sua cartella (e solo se chi chiama ci può entrare).
+                            template_data: { ...form, company_id: form.company_id ?? effectiveCompany?.id },
                             company_name: effectiveCompany?.name,
                             preview_signature: true,
                           },

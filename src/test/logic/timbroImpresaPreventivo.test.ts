@@ -5,7 +5,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { percorsoDellAzienda } from "../../../supabase/functions/_shared/impaginaPreventivo";
+import { logoDelModello, percorsoDellAzienda } from "../../../supabase/functions/_shared/impaginaPreventivo";
 
 const leggi = (p: string) => readFileSync(join(process.cwd(), p), "utf8");
 
@@ -26,8 +26,39 @@ describe("il timbro si legge solo dalla cartella dell'azienda", () => {
     expect(percorsoDellAzienda(`${azienda}/%2e%2e/99999999-2222-3333-4444-555555555555/timbro.png`, azienda)).toBeNull();
     expect(percorsoDellAzienda(`${azienda}/..\\99999999/timbro.png`, azienda)).toBeNull();
     expect(percorsoDellAzienda(`${azienda}\\timbro.png`, azienda)).toBeNull();
+    // Tab e a capo fra i due punti: la richiesta li toglie e resta «..».
+    expect(percorsoDellAzienda(`${azienda}/.\t./99999999-2222-3333-4444-555555555555/timbro.png`, azienda)).toBeNull();
+    expect(percorsoDellAzienda(`${azienda}/.\n./99999999-2222-3333-4444-555555555555/timbro.png`, azienda)).toBeNull();
+    expect(percorsoDellAzienda(`${azienda}/.\r./x.png`, azienda)).toBeNull();
+    // Un nome di file con gli spazi resta buono.
+    expect(percorsoDellAzienda(`${azienda}/template timbro 1.png`, azienda)).toBe(`${azienda}/template timbro 1.png`);
     expect(percorsoDellAzienda("", azienda)).toBeNull();
     expect(percorsoDellAzienda(`${azienda}/timbro.png`, null)).toBeNull();
+  });
+});
+
+describe("logo e copertina del modello, come il timbro", () => {
+  const azienda = "11111111-2222-3333-4444-555555555555";
+
+  it("il logo: un indirizzo passa, un percorso solo dalla cartella dell'azienda", () => {
+    const pubblico = "https://progetto.supabase.co/storage/v1/object/public/company-logos/x/logo.png?t=1";
+    expect(logoDelModello(pubblico, azienda)).toBe(pubblico);
+    expect(logoDelModello(`${azienda}/template-logo-1.png`, azienda)).toBe(`${azienda}/template-logo-1.png`);
+    expect(logoDelModello("99999999-2222-3333-4444-555555555555/template-logo-1.png", azienda)).toBeNull();
+    expect(logoDelModello(`${azienda}/%2e%2e/altra/logo.png`, azienda)).toBeNull();
+    expect(logoDelModello("", azienda)).toBeNull();
+  });
+
+  it("nel PDF logo, copertina e timbro si leggono con la stessa azienda, in anteprima e nel preventivo vero", () => {
+    const pdf = leggi("supabase/functions/generate-quote-pdf/index.ts");
+    expect(pdf).toContain("const aziendaDeiFile = isPreview ? aziendaAnteprima : quote?.company_id ?? null;");
+    expect(pdf).toContain("const logoPath = logoDiRiserva(logoDelModello(t.logo_url, aziendaDeiFile), logoDelModello(company?.logo_url, aziendaDeiFile));");
+    expect(pdf).toContain("const percorsoCopertina = percorsoDellAzienda(t.cover_image_url, aziendaDeiFile);");
+    expect(pdf).toContain("(t.show_cover_image && percorsoCopertina));");
+    expect(pdf).toContain('supabaseAdmin.storage.from("quote-template-assets").download(percorsoCopertina)');
+    expect(pdf).toContain("const percorsoTimbro = percorsoDellAzienda(t.timbro_firma_url, aziendaDeiFile);");
+    // Nessuna lettura del contenitore dei modelli con un percorso non controllato.
+    expect(pdf).not.toContain("const path = String(t.cover_image_url);");
   });
 });
 
@@ -35,7 +66,7 @@ describe("il PDF del preventivo", () => {
   const pdf = leggi("supabase/functions/generate-quote-pdf/index.ts");
 
   it("stampa timbro e chi firma nel riquadro dell'impresa", () => {
-    expect(pdf).toContain("const percorsoTimbro = percorsoDellAzienda(t.timbro_firma_url, isPreview ? aziendaAnteprima : quote?.company_id);");
+    expect(pdf).toContain("const percorsoTimbro = percorsoDellAzienda(t.timbro_firma_url, aziendaDeiFile);");
     expect(pdf).toContain('supabaseAdmin.storage.from("quote-template-assets").download(percorsoTimbro)');
     expect(pdf).toContain("[company?.name, t.firmatario_impresa].map((v) => String(v ?? \"\").trim()).filter(Boolean).join(\" — \")");
     expect(pdf).toContain("const sigH = timbroEmbed ? 86 : 66;");
