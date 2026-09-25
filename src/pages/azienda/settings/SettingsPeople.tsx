@@ -26,6 +26,7 @@ import { AccountantChangeRequestsQueue } from "@/components/settings/AccountantC
 import Employees from "@/pages/azienda/Employees";
 import SettingsTeams from "@/pages/azienda/settings/SettingsTeams";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 type PeopleTab = "utenti" | "accessi-azienda" | "sicurezza-accessi" | "template-permessi" | "dipendenti" | "subappaltatori" | "venditori" | "team" | "commercialista";
 
@@ -38,6 +39,10 @@ function isValidTab(tab: string | null): tab is PeopleTab {
 export default function SettingsPeople() {
   const [searchParams, setSearchParams] = useSearchParams();
   const permissions = usePermissions();
+  // Mobile: solo «Utenti & Accessi» (chi c'è, invitare qualcuno). Dipendenti e
+  // subappaltatori hanno le loro pagine; accessi azienda, sicurezza, modelli di
+  // permesso, venditori, team e commercialista si configurano al computer.
+  const isMobile = useIsMobile();
 
   const isAdmin = permissions.isAdmin;
   const canViewUsers = isAdmin || permissions.canViewUsers;
@@ -93,7 +98,7 @@ export default function SettingsPeople() {
     return fallbackTab();
   };
 
-  const activeTab = resolveDefaultTab();
+  const activeTab = isMobile && canViewUsers ? "utenti" : resolveDefaultTab();
 
   const handleTabChange = (tab: string) => {
     setSearchParams({ tab }, { replace: true });
@@ -101,7 +106,7 @@ export default function SettingsPeople() {
 
   return (
     <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-      <TabsList className="flex flex-nowrap h-auto gap-1 p-1 w-full sm:w-auto justify-start overflow-x-auto scrollbar-none">
+      <TabsList className="flex flex-nowrap h-auto gap-1 p-1 w-full sm:w-auto justify-start overflow-x-auto scrollbar-none max-sm:hidden">
         {canViewUsers && (
           <TabsTrigger value="utenti" className="gap-1.5 shrink-0">
             <Shield className="h-4 w-4" />
@@ -161,7 +166,7 @@ export default function SettingsPeople() {
       {canViewUsers && (
         <TabsContent value="utenti">
           {/* Info multi-ruolo */}
-          <div className="flex items-start gap-3 p-3 mb-4 rounded-lg border border-blue-200 bg-blue-50/50 dark:bg-blue-950/20 dark:border-blue-900/50">
+          <div className="flex items-start gap-3 p-3 mb-4 rounded-lg border border-blue-200 bg-blue-50/50 dark:bg-blue-950/20 dark:border-blue-900/50 max-sm:hidden">
             <div className="h-8 w-8 rounded-lg bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center shrink-0">
               <Info className="h-4 w-4 text-blue-600 dark:text-blue-300" />
             </div>

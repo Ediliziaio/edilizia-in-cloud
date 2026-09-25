@@ -51,6 +51,7 @@ import { salvaPermessiUtente } from "@/lib/permessi/salvaPermessiUtente";
 import { aggiuntiviDisponibili, ruoliAggiuntivi, ruoloPrincipale, TESTI_RUOLO_AGGIUNTIVO, type RuoloAggiuntivo } from "@/lib/permessi/ruoliUtente";
 
 import { useIsMobile } from "@/hooks/use-mobile";
+import { CercaConFiltri, PannelloFiltri, PilloleFiltro, RigaMobile } from "@/components/mobile/FiltriMobile";
 type EffectiveRole = "company_admin" | "company_staff" | "salesperson" | "call_center" | "employee" | "subcontractor";
 type StatusFilter = "all" | "online" | "blocked" | "locked" | "never" | "inactive";
 
@@ -367,6 +368,7 @@ export function UsersConfig() {
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [teamFilter, setTeamFilter] = useState<string>("all");
+  const [filtriMobileAperti, setFiltriMobileAperti] = useState(false);
   const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
@@ -1164,9 +1166,25 @@ export function UsersConfig() {
 
   // ─── RENDER ─────────────────────────────────────────────────────────
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 max-sm:space-y-2">
+      {/* Mobile: ricerca con il pannello filtri (ruoli e stati sono lì) e «+». */}
+      <div className="flex items-center gap-2 sm:hidden">
+        <CercaConFiltri
+          className="min-w-0 flex-1"
+          valore={searchQuery}
+          onCambia={setSearchQuery}
+          filtriAttivi={[roleFilter !== "all", statusFilter !== "all", teamFilter !== "all"].filter(Boolean).length}
+          onApriFiltri={() => setFiltriMobileAperti(true)}
+        />
+        {canManageUsers && (
+          <Button size="icon" className="tap-compact h-9 w-9 shrink-0" onClick={() => setCreateDialogOpen(true)} aria-label="Nuovo utente">
+            <Plus className="h-4 w-4" />
+          </Button>
+        )}
+      </div>
+
       {/* ── Summary Bar ───────────────────────────────────────────── */}
-      <div className="flex items-center gap-3 flex-wrap">
+      <div className="flex items-center gap-3 flex-wrap max-sm:hidden">
         <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted text-sm font-medium">
           <Users className="h-4 w-4" />
           {visibleCompanyUsers.length} utenti
@@ -1226,8 +1244,8 @@ export function UsersConfig() {
       )}
 
       {/* ── Main Card ─────────────────────────────────────────────── */}
-      <Card>
-        <CardHeader className="pb-3">
+      <Card className="max-sm:overflow-hidden">
+        <CardHeader className="pb-3 max-sm:hidden">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
             {/* Search */}
             <div className="relative flex-1 max-w-sm">
@@ -1352,12 +1370,12 @@ export function UsersConfig() {
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           ) : filteredUsers.length === 0 ? (
-            <div className="p-12 text-center text-muted-foreground">
-              <Users className="h-10 w-10 mx-auto mb-3 opacity-30" />
+            <div className="p-12 text-center text-muted-foreground max-sm:p-5">
+              <Users className="h-10 w-10 mx-auto mb-3 opacity-30 max-sm:hidden" />
               <p className="font-medium">
                 {visibleCompanyUsers.length === 0 ? "Nessun utente" : "Nessun risultato"}
               </p>
-              <p className="text-sm mt-1">
+              <p className="text-sm mt-1 max-sm:hidden">
                 {visibleCompanyUsers.length === 0
                   ? "Crea il primo utente per iniziare."
                   : "Prova a modificare i filtri."}
@@ -1367,6 +1385,31 @@ export function UsersConfig() {
                   <Plus className="h-4 w-4 mr-1.5" /> Crea utente
                 </Button>
               )}
+            </div>
+          ) : isMobile ? (
+            // Mobile: una riga per persona (ruolo sotto il nome, stato a destra);
+            // niente caselle di selezione né menu: si gestisce dalla scheda.
+            <div className="divide-y">
+              {filteredUsers.map((u) => {
+                const aggiuntivi = ruoliAggiuntivi(u.allRoles, u.effectiveRole).length;
+                const gestibile = canManageUsers && !isCurrentUser(u.id);
+                return (
+                  <RigaMobile
+                    key={u.id}
+                    onClick={gestibile ? () => navigate(`/azienda/impostazioni/utenti/${u.id}`) : undefined}
+                    sinistra={
+                      <Avatar className="h-8 w-8 shrink-0">
+                        <AvatarFallback className="text-[11px] bg-primary/10 text-primary">
+                          {getInitials(u.first_name, u.last_name)}
+                        </AvatarFallback>
+                      </Avatar>
+                    }
+                    titolo={`${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() + (isCurrentUser(u.id) ? " · tu" : "")}
+                    sottotitolo={ROLE_CONFIG[u.effectiveRole]?.label + (aggiuntivi > 0 ? ` +${aggiuntivi}` : "")}
+                    stato={<UserStatus u={u} />}
+                  />
+                );
+              })}
             </div>
           ) : (
             <Table>
@@ -1502,6 +1545,45 @@ export function UsersConfig() {
             </Table>
           )}
         </CardContent>
+
+        <PannelloFiltri
+          aperto={filtriMobileAperti}
+          onAperto={setFiltriMobileAperti}
+          attivi={[roleFilter !== "all", statusFilter !== "all", teamFilter !== "all"].filter(Boolean).length}
+          onAzzera={() => { setRoleFilter("all"); setStatusFilter("all"); setTeamFilter("all"); }}
+          risultati={filteredUsers.length}
+        >
+          <PilloleFiltro
+            titolo="Ruolo"
+            valore={roleFilter}
+            onScegli={setRoleFilter}
+            scelte={[
+              { value: "all", label: "Tutti", n: visibleCompanyUsers.length },
+              ...Object.entries(ROLE_CONFIG)
+                .filter(([key]) => (roleCounts[key] || 0) > 0)
+                .map(([key, cfg]) => ({ value: key, label: cfg.label, n: roleCounts[key] || 0 })),
+            ]}
+          />
+          <PilloleFiltro
+            titolo="Stato"
+            valore={statusFilter}
+            onScegli={(v) => setStatusFilter(v as StatusFilter)}
+            scelte={[
+              { value: "all", label: "Tutti" },
+              { value: "online", label: "Online" },
+              { value: "never", label: "Mai connesso" },
+              { value: "blocked", label: "Bloccati" },
+            ]}
+          />
+          {teams.length > 0 && (
+            <PilloleFiltro
+              titolo="Team"
+              valore={teamFilter}
+              onScegli={setTeamFilter}
+              scelte={[{ value: "all", label: "Tutti" }, ...teams.map((t) => ({ value: t.id, label: t.name }))]}
+            />
+          )}
+        </PannelloFiltri>
 
         <CreateUserWizard
           open={createDialogOpen}
