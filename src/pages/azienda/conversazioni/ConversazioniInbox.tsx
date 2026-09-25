@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils";
 import {
   Mail, MessageSquare, MessageCircle, StickyNote, Search, Inbox, Instagram, Facebook,
   AlertCircle, ChevronLeft, User, Briefcase, RefreshCw, UserCheck, CheckCircle2, RotateCcw, Info,
-  Bot, PauseCircle, ExternalLink, Phone,
+  Bot, PauseCircle, ExternalLink, Phone, Check, CheckCheck, X,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
@@ -55,6 +55,36 @@ function formatOra(ts: string | null): string {
   return new Intl.DateTimeFormat("it-IT", {
     day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
   }).format(d);
+}
+
+function giornoDi(ts: string | null): string {
+  if (!ts) return "";
+  const d = new Date(ts);
+  return Number.isNaN(d.getTime()) ? "" : d.toDateString();
+}
+
+/** «Oggi», «Ieri» o «25 settembre 2026», come nella chat del Team. */
+function etichettaGiorno(ts: string | null): string {
+  if (!ts) return "";
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return "";
+  const oggi = new Date();
+  const ieri = new Date(oggi.getFullYear(), oggi.getMonth(), oggi.getDate() - 1);
+  if (d.toDateString() === oggi.toDateString()) return "Oggi";
+  if (d.toDateString() === ieri.toDateString()) return "Ieri";
+  return new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "long", year: "numeric" }).format(d);
+}
+
+/** «modello · ✗ non consegnato: problema di pagamento…» → «Non consegnato: problema di pagamento…». */
+function motivoMancataConsegna(esito: string): string {
+  const t = esito.replace(/^modello\s*·\s*/i, "").replace(/^[×✕✗]\s*/, "").trim();
+  return t ? t.charAt(0).toUpperCase() + t.slice(1) : "Non consegnato";
+}
+
+function oraDi(ts: string | null): string {
+  if (!ts) return "";
+  const d = new Date(ts);
+  return Number.isNaN(d.getTime()) ? "" : new Intl.DateTimeFormat("it-IT", { hour: "2-digit", minute: "2-digit" }).format(d);
 }
 
 interface Props {
@@ -499,7 +529,7 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
                 const el = e.currentTarget;
                 inFondoRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
               }}
-              className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 sm:px-4 py-3"
+              className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 sm:px-6 lg:px-10 py-3 bg-slate-50 dark:bg-gray-950"
             >
               {timelineLoading ? (
                 <div className="space-y-3 max-w-3xl mx-auto">
@@ -510,7 +540,9 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
               ) : timeline.length === 0 ? (
                 <div className="text-center text-sm text-muted-foreground py-10">Nessun messaggio in questa conversazione.</div>
               ) : (
-                <div className="space-y-2 max-w-3xl mx-auto">
+                // min-h-full + justify-end: con pochi messaggi stanno in basso
+                // vicino alla barra, come nella chat del Team.
+                <div className="flex min-h-full flex-col justify-end gap-1.5">
                   {timeline.length > shownCount && (
                     <div className="text-center pb-1">
                       <Button
@@ -521,7 +553,7 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
                       </Button>
                     </div>
                   )}
-                  {timeline.slice(-shownCount).map((m, i) => {
+                  {timeline.slice(-shownCount).map((m, i, visibili) => {
                     // Il canale non basta: "whatsapp" copre sia quello
                     // ufficiale (Meta) sia quello locale. Li distingue la
                     // tabella d'origine — e per il locale `oggetto` porta il
@@ -531,25 +563,61 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
                     const meta = CANALE_META[m.canale] ?? CANALE_META.email;
                     const etichetta = locale ? "WA Locale" : meta.label;
                     const out = m.direzione === "out";
+                    // Per l'email `oggetto` è l'oggetto; per il WhatsApp
+                    // ufficiale è l'esito («modello · ✓✓ letto», «× non consegnato: …»).
+                    const oggetto = (m.oggetto ?? "").trim();
+                    const eEmail = m.canale === "email";
+                    const nonConsegnato = !eEmail && !locale && /non consegnat|fallit|rifiutat/i.test(oggetto);
+                    const letto = !eEmail && /letto/i.test(oggetto);
+                    const consegnato = !eEmail && /consegnat/i.test(oggetto) && !nonConsegnato;
+                    const modello = !eEmail && /modello/i.test(oggetto);
+                    const prima = visibili[i - 1];
+                    const nuovoGiorno = !prima || giornoDi(prima.ts) !== giornoDi(m.ts);
                     return (
-                      <div key={`${m.ref_id}-${i}`} className={cn("flex", out ? "justify-end" : "justify-start")}>
-                        <div className={cn("max-w-[78%] rounded-2xl px-3 py-1.5 shadow-sm border", out ? "bg-primary text-primary-foreground border-primary/20" : "bg-background")}>
-                          <div className={cn("flex flex-wrap items-center gap-x-1.5 mb-0.5 text-[9px] font-medium uppercase tracking-wide", out ? "text-primary-foreground/70" : "text-muted-foreground")}>
-                            <meta.Icon className="h-3 w-3 shrink-0" />{etichetta}
-                            {m.oggetto && (
-                              locale ? (
-                                // Nome e numero del mittente: con piu' schede
-                                // collegate e' cio' che distingue chi ha scritto.
-                                <span className="normal-case font-normal" title={`Inviato dal numero ${m.oggetto}`}>
-                                  · da {m.oggetto}
-                                </span>
-                              ) : (
-                                <span className="normal-case font-normal truncate max-w-[200px]">· {m.oggetto}</span>
-                              )
-                            )}
+                      <div key={`${m.ref_id}-${i}`}>
+                        {nuovoGiorno && (
+                          <div className="flex justify-center my-3">
+                            <span className="bg-white dark:bg-[#202c33] text-[#54656f] dark:text-gray-400 text-[11px] font-medium px-2.5 py-0.5 rounded-lg shadow-sm">
+                              {etichettaGiorno(m.ts)}
+                            </span>
                           </div>
-                          <p className="text-[13px] leading-snug whitespace-pre-wrap break-words">{m.testo || (m.media_url ? "[allegato]" : "—")}</p>
-                          <div className={cn("text-[9px] mt-0.5 text-right", out ? "text-primary-foreground/60" : "text-muted-foreground")}>{formatOra(m.ts)}</div>
+                        )}
+                        <div className={cn("flex", out ? "justify-end" : "justify-start")}>
+                          <div
+                            className={cn(
+                              "relative max-w-[75%] min-w-[96px] rounded-lg px-2.5 py-1.5 shadow-sm",
+                              out
+                                ? "bg-[#d9fdd3] dark:bg-[#005c4b] text-foreground rounded-tr-none"
+                                : "bg-white dark:bg-[#202c33] text-foreground rounded-tl-none border-l-4 border-l-blue-500 border-y border-r border-y-blue-100 border-r-blue-100 dark:border-blue-900/40",
+                            )}
+                          >
+                            {(eEmail && oggetto) && (
+                              <p className="text-[11px] font-semibold text-[#54656f] dark:text-gray-300 truncate mb-0.5">{oggetto}</p>
+                            )}
+                            {modello && <p className="text-[10px] font-medium text-[#667781] mb-0.5">Modello WhatsApp</p>}
+                            {locale && oggetto && <p className="text-[10px] text-[#667781] mb-0.5">WA Locale · da {oggetto}</p>}
+                            <p className="text-[13px] leading-snug whitespace-pre-wrap break-words pr-[4.5rem]">
+                              {m.testo || (m.media_url ? "[allegato]" : "—")}
+                            </p>
+                            {nonConsegnato && (
+                              <p className="mt-1 text-[11px] font-medium text-red-600 dark:text-red-400 pr-[4.5rem]">
+                                {motivoMancataConsegna(oggetto)}
+                              </p>
+                            )}
+                            <span
+                              className="absolute bottom-1 right-2 flex items-center gap-0.5 text-[10px] text-[#667781] dark:text-gray-400"
+                              title={`${etichetta} · ${formatOra(m.ts)}`}
+                            >
+                              <meta.Icon className="h-2.5 w-2.5" />
+                              {oraDi(m.ts)}
+                              {out && !eEmail && !locale && (
+                                nonConsegnato ? <X className="h-3 w-3 text-red-500" />
+                                  : letto ? <CheckCheck className="h-3.5 w-3.5 text-blue-500" />
+                                  : consegnato ? <CheckCheck className="h-3.5 w-3.5" />
+                                  : <Check className="h-3 w-3" />
+                              )}
+                            </span>
+                          </div>
                         </div>
                       </div>
                     );

@@ -306,9 +306,9 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
   ];
 
   return (
-    <div className="border-t bg-background shrink-0">
-      {/* Selettore canale */}
-      <div className="flex items-center gap-1 px-3 pt-2">
+    <div className="border-t bg-white dark:bg-[#202c33] shrink-0">
+      {/* Selettore canale: piccolo, la barra deve rubare poco alla chat. */}
+      <div className="flex items-center gap-0.5 px-3 pt-1.5 overflow-x-auto">
         {CANALI.map((c) => (
           <button
             key={c.key}
@@ -316,7 +316,7 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
             disabled={c.disabled}
             onClick={() => setCanale(c.key)}
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+              "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors shrink-0",
               canale === c.key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted",
               c.disabled && "opacity-40 cursor-not-allowed",
             )}
@@ -328,7 +328,7 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
 
       {/* EMAIL */}
       {canale === "email" && (
-        <div className="p-3 space-y-2 max-w-3xl mx-auto">
+        <div className="px-3 pb-2 pt-1.5 space-y-1.5">
           {accounts.length === 0 ? (
             <div className="rounded-md border border-sky-200 bg-sky-50 px-2.5 py-2 text-[11px] text-sky-900 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-200">
               Nessuna casella personale collegata: l'email partirà dall'indirizzo della
@@ -378,9 +378,10 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
       {/* WHATSAPP — invio API reale (numero + template + finestra 24h) via whatsapp-send,
           loggato → il messaggio rientra nel thread. Niente più wa.me manuale. */}
       {canale === "whatsapp" && (
-        <div className="p-3 max-w-3xl mx-auto">
+        <div className="px-3 pb-2 pt-1.5">
           {cleanPhone ? (
             <WhatsAppComposer
+              compatto
               phone={cleanPhone}
               isSending={waSending}
               onSend={async ({ waNumberId, content, template }) => {
@@ -439,7 +440,7 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
       {/* WHATSAPP LOCALE — canale non ufficiale (OpenWA): invio diretto dal
           numero della piattaforma, il messaggio rientra nel thread. */}
       {canale === "whatsapp_locale" && (
-        <div className="p-3 max-w-3xl mx-auto space-y-2">
+        <div className="px-3 pb-2 pt-1.5 space-y-1.5">
           <p className="text-[11px] text-muted-foreground">
             Parte dal numero {numeriLocali[0]?.display_name || numeriLocali[0]?.numero}
             {numeriLocali.length > 1 && " (o dal numero già usato con questo contatto)"} · canale non ufficiale
@@ -478,7 +479,7 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
         const aperta = finestraAperta(id?.ultimo_in_at ?? null);
         const etichetta = piattaforma === "instagram" ? "Instagram" : "Messenger";
         return (
-          <div className="p-3 max-w-3xl mx-auto space-y-2">
+          <div className="px-3 pb-2 pt-1.5 space-y-1.5">
             <p className="text-[11px] text-muted-foreground">
               {etichetta}{id?.username ? ` · @${id.username}` : id?.nome ? ` · ${id.nome}` : ""}
               {aperta && " · puoi rispondere fino a 24 ore dal suo ultimo messaggio"}
@@ -520,7 +521,7 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
 
       {/* SMS */}
       {canale === "sms" && (
-        <div className="p-3 max-w-3xl mx-auto text-xs text-muted-foreground italic">
+        <div className="px-3 pb-2 pt-1.5 text-xs text-muted-foreground italic">
           Invio SMS singolo in arrivo. Per ora usa il <a href="/azienda/sms" className="underline">modulo SMS</a> dedicato.
         </div>
       )}
