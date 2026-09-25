@@ -8,6 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import { RenderPdfDownloadButton } from "@/components/render/RenderPdfDownloadButton";
+import { MandaRenderMobile } from "@/components/render/MandaRenderMobile";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { RenderCrmSummaryCard } from "@/components/render/RenderCrmSummaryCard";
 import { downloadRenderImage } from "@/lib/render/downloadRenderImage";
 import { toast } from "sonner";
@@ -26,6 +28,7 @@ const STATUS_CONFIG = {
 } as const;
 
 export default function RenderTettoGalleryDetail() {
+  const isMobile = useIsMobile();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
@@ -98,7 +101,7 @@ export default function RenderTettoGalleryDetail() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6 max-w-2xl mx-auto">
+      <div className="space-y-6 max-w-2xl mx-auto max-md:space-y-3">
         <Skeleton className="h-10 w-40" />
         <Skeleton className="aspect-video w-full rounded-xl" />
         <Skeleton className="h-32 w-full rounded-xl" />
@@ -126,14 +129,14 @@ export default function RenderTettoGalleryDetail() {
   const pannelli = (session.config as { pannelli_solari?: { attivo?: boolean; tipo?: string } } | null)?.pannelli_solari;
 
   return (
-    <div className="space-y-6 max-w-2xl mx-auto pb-12">
+    <div className="space-y-6 max-w-2xl mx-auto pb-12 max-md:space-y-3">
       {/* Header */}
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={() => navigate("/azienda/render/tetto/gallery")}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="flex-1">
-          <h1 className="text-xl font-bold flex items-center gap-2">
+          <h1 className="text-xl font-bold flex items-center gap-2 max-md:text-lg">
             <Home className="h-5 w-5 text-red-600" />
             Dettaglio render tetto
           </h1>
@@ -192,8 +195,10 @@ export default function RenderTettoGalleryDetail() {
       )}
 
       {/* Actions */}
+      {/* Telefono: «Manda al cliente» (l'immagine col foglio di condivisione) al posto di link WhatsApp, Condividi, PDF e Scarica. */}
+      {isMobile && session.status === "completed" && resultUrl && <MandaRenderMobile resultUrl={resultUrl} nomeFile="render-tetto" className="w-full" />}
       {session.status === "completed" && resultUrl && (
-        <div className="flex gap-2">
+        <div className="flex gap-2 max-md:hidden">
           <Button
             variant="outline"
             className="flex-1 gap-2 text-green-600 hover:text-green-700 hover:bg-green-50"
@@ -241,7 +246,7 @@ export default function RenderTettoGalleryDetail() {
       {/* Config summary */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Configurazione utilizzata</CardTitle>
+          <CardTitle className="text-base max-md:text-[13px]">Configurazione utilizzata</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           {manto && (

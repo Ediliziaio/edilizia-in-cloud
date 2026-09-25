@@ -75,6 +75,17 @@ const LUCE: Record<string, string> = {
   unknown: "luce non chiara",
 };
 
+const POSIZIONE: Record<string, string> = {
+  left_wall: "sulla parete sinistra",
+  right_wall: "sulla parete destra",
+  back_wall: "sulla parete di fondo",
+  center: "al centro",
+  corner_left: "nell'angolo sinistro",
+  corner_right: "nell'angolo destro",
+  under_window: "sotto la finestra",
+  unknown: "in posizione non chiara",
+};
+
 const MAPPE = {
   ambiente: AMBIENTE,
   layout: LAYOUT,
@@ -84,6 +95,7 @@ const MAPPE = {
   sanitari: SANITARI,
   condizioni: CONDIZIONI,
   luce: LUCE,
+  posizione: POSIZIONE,
 } as const;
 
 export function etichettaAnalisiBagno(tipo: keyof typeof MAPPE, codice: string | null | undefined): string {

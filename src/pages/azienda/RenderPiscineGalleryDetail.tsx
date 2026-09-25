@@ -8,6 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import { RenderPdfDownloadButton } from "@/components/render/RenderPdfDownloadButton";
+import { MandaRenderMobile } from "@/components/render/MandaRenderMobile";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { RenderCrmSummaryCard } from "@/components/render/RenderCrmSummaryCard";
 import { downloadRenderImage } from "@/lib/render/downloadRenderImage";
 import {
@@ -55,6 +57,7 @@ function asString(value: unknown): string | null {
 }
 
 export default function RenderPiscineGalleryDetail() {
+  const isMobile = useIsMobile();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
@@ -97,7 +100,7 @@ export default function RenderPiscineGalleryDetail() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6 max-w-5xl mx-auto">
+      <div className="space-y-6 max-w-5xl mx-auto max-md:space-y-3">
         <Skeleton className="h-10 w-40" />
         <Skeleton className="aspect-video w-full rounded-xl" />
         <Skeleton className="h-32 w-full rounded-xl" />
@@ -142,13 +145,13 @@ export default function RenderPiscineGalleryDetail() {
   };
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto pb-12">
+    <div className="space-y-6 max-w-5xl mx-auto pb-12 max-md:space-y-3">
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={() => navigate("/azienda/render/piscine/gallery")}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="flex-1">
-          <h1 className="text-xl font-bold flex items-center gap-2">
+          <h1 className="text-xl font-bold flex items-center gap-2 max-md:text-lg">
             <Waves className="h-5 w-5 text-emerald-600" />
             Dettaglio render piscina
           </h1>
@@ -192,8 +195,12 @@ export default function RenderPiscineGalleryDetail() {
         </Card>
       )}
 
+      {/* Telefono: «Manda al cliente» (l'immagine col foglio di condivisione) al posto di link WhatsApp, Condividi, PDF e Scarica. */}
+
+      {isMobile && session.status === "completed" && resultUrl && <MandaRenderMobile resultUrl={resultUrl} nomeFile="render-piscina" className="w-full" />}
+
       {session.status === "completed" && resultUrl && (
-        <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-4 max-md:hidden">
           <Button variant="outline" className="gap-2 text-green-600 hover:text-green-700 hover:bg-green-50" onClick={handleShare}>
             <MessageCircle className="h-4 w-4" />WhatsApp
           </Button>
@@ -231,7 +238,7 @@ export default function RenderPiscineGalleryDetail() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Scelte tecniche applicate</CardTitle>
+          <CardTitle className="text-base max-md:text-[13px]">Scelte tecniche applicate</CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
           <div className="rounded-lg border p-3 space-y-1">

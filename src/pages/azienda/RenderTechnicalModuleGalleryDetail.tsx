@@ -23,6 +23,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import { RenderCrmSummaryCard } from "@/components/render/RenderCrmSummaryCard";
 import { RenderPdfDownloadButton } from "@/components/render/RenderPdfDownloadButton";
+import { MandaRenderMobile } from "@/components/render/MandaRenderMobile";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { downloadRenderImage } from "@/lib/render/downloadRenderImage";
 import { createRenderOriginalSignedUrl } from "@/lib/render/renderStorage";
 import { renderModuleHubConfigs } from "@/lib/render/renderModuleHubConfigs";
@@ -80,6 +82,7 @@ function formatDate(value: string) {
 }
 
 export default function RenderTechnicalModuleGalleryDetail({ moduleId }: { moduleId: TechnicalRenderModuleId }) {
+  const isMobile = useIsMobile();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
@@ -178,7 +181,7 @@ export default function RenderTechnicalModuleGalleryDetail({ moduleId }: { modul
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="flex-1">
-          <h1 className="flex items-center gap-2 text-xl font-bold">
+          <h1 className="flex items-center gap-2 text-xl font-bold max-md:text-lg">
             <ModuleIcon className={`h-5 w-5 ${hubConfig.accentClassName}`} />
             Dettaglio render {spec.label.toLowerCase()}
           </h1>
@@ -224,8 +227,12 @@ export default function RenderTechnicalModuleGalleryDetail({ moduleId }: { modul
         </Card>
       )}
 
+      {/* Telefono: «Manda al cliente» (l'immagine col foglio di condivisione) al posto di link WhatsApp, Condividi, PDF e Scarica. */}
+
+      {isMobile && session.status === "completed" && resultUrl && <MandaRenderMobile resultUrl={resultUrl} nomeFile="render" className="w-full" />}
+
       {session.status === "completed" && resultUrl && (
-        <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-4 max-md:hidden">
           <Button variant="outline" className="gap-2 text-green-600 hover:bg-green-50 hover:text-green-700" onClick={handleShare}>
             <MessageCircle className="h-4 w-4" />
             WhatsApp
@@ -267,7 +274,7 @@ export default function RenderTechnicalModuleGalleryDetail({ moduleId }: { modul
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Scelte tecniche applicate</CardTitle>
+          <CardTitle className="text-base max-md:text-[13px]">Scelte tecniche applicate</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-3 text-sm sm:grid-cols-2">
           {technicalSummary.map((item) => (
@@ -290,7 +297,7 @@ export default function RenderTechnicalModuleGalleryDetail({ moduleId }: { modul
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Controlli backend</CardTitle>
+          <CardTitle className="text-base max-md:text-[13px]">Controlli backend</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">
           {summarizeTechnicalConfig(cfg).slice(0, 6).map((item) => (
