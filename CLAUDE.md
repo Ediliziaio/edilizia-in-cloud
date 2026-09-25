@@ -201,8 +201,16 @@ qualcosa che la purga cancella non finisce nel backup.
 - `prova` — ricrea le tabelle in uno schema `ripristino_prova_*`, versa le righe,
   conta, butta via lo schema. Nessun effetto su `public`. Si lancia dalla scheda
   azienda → Lifecycle → Backup → «Prova ripristino», o via `company-restore`.
-- `reale` — solo per un'azienda già purgata, tutto o niente. `profiles` non si
-  ripristina: gli utenti vanno ricreati dall'auth.
+- `reale` — solo per un'azienda già purgata, tutto o niente, a trigger spenti
+  (`SET LOCAL session_replication_role = replica`: col comando `SET`, perché
+  `set_config()` non ha il permesso): niente righe iniziali doppie, avvisi o
+  automazioni, e l'ordine delle tabelle non conta. Gli utenti rientrano se il
+  loro account auth c'è ancora (la purga non lo cancella); le righe che la purga
+  ha lasciato tornano ai valori del backup; alla fine
+  `admin_backup_collegamenti_rotti` controlla ogni chiave esterna e, se manca
+  qualcosa, annulla tutto. Collaudato il 25/09/2026 sulla Demo 2 purgata e
+  ripristinata in una transazione annullata: 13.060 righe su 13.060. Per i
+  backup a blocchi (le aziende grandi) il ripristino reale non c'è ancora.
 
 Un backup che non ha passato la prova non è un backup. Collaudato il 7 settembre
 2026 su Ke Bei Serramenti: 17.066 righe in 42 tabelle, tutte rientrate.
