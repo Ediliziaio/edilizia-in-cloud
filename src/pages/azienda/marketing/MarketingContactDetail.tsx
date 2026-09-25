@@ -5,6 +5,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { readInvokeError } from "@/lib/readInvokeError";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -379,13 +380,19 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       const { data, error } = await supabase.functions.invoke("send-contact-message", {
         body: { contact_id: id, ...params },
       });
-      if (error) throw error;
+      // Il motivo vero (finestra delle 24 ore, credito, carta) sta nel corpo
+      // della risposta: error.message è il generico «non-2xx status code».
+      if (error) throw new Error(await readInvokeError(error));
       if (data?.success === false) throw new Error(data?.error || "Invio fallito");
       return data;
     },
     onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: ["contact_messages", id] });
       queryClient.invalidateQueries({ queryKey: ["marketing_contact_activities", id] });
+      // La cronologia della scheda: email e SMS in contact_messages, il
+      // WhatsApp in whatsapp_messages (lo registra whatsapp-send).
+      queryClient.invalidateQueries({ queryKey: ["unified_messages", id] });
+      queryClient.invalidateQueries({ queryKey: ["unified_wa", companyId, id] });
       setMessageText("");
       setEmailSubject("");
       setEmailCc("");

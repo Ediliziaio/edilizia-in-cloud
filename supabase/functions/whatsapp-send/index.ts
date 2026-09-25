@@ -6,6 +6,7 @@ import { checkPaymentMethod, PAYMENT_METHOD_REQUIRED_MESSAGE } from "../_shared/
 import { addebitaMessaggioWhatsApp, rimborsaMessaggioWhatsApp } from "../_shared/whatsappCredits.ts";
 import { addonWhatsAppAttivo, rispostaAddonWhatsApp } from "../_shared/whatsappAddon.ts";
 import { corpoDelModello, lingueDelModello, testoDelModello, valoriDaiComponenti } from "../_shared/modelloWhatsApp.ts";
+import { PLATFORM_ADMIN_COMPANY_ID } from "../_shared/platformAutomation.ts";
 
 import { serveConMetriche } from "../_shared/withMetrics.ts";
 type SendType = "text" | "interactive" | "template";
@@ -196,12 +197,17 @@ serveConMetriche("whatsapp-send", async (req) => {
     );
 
     // Gate "carta obbligatoria": blocca l'invio se l'azienda non ha un metodo di pagamento valido.
-    const pmCheck = await checkPaymentMethod(adminClient, companyId);
-    if (!pmCheck.allowed) {
-      return new Response(
-        JSON.stringify({ error: pmCheck.message ?? PAYMENT_METHOD_REQUIRED_MESSAGE, code: "payment_method_required" }),
-        { status: 402, headers: jsonHeaders },
-      );
+    // Non per la piattaforma (25/09/2026): i suoi numeri li paga EiC su Meta,
+    // non ha una carta da registrare e, come per l'add-on, ne è esente. Prima
+    // ogni suo invio da qui si fermava con 402 (payment_method = none).
+    if (companyId !== PLATFORM_ADMIN_COMPANY_ID) {
+      const pmCheck = await checkPaymentMethod(adminClient, companyId);
+      if (!pmCheck.allowed) {
+        return new Response(
+          JSON.stringify({ error: pmCheck.message ?? PAYMENT_METHOD_REQUIRED_MESSAGE, code: "payment_method_required" }),
+          { status: 402, headers: jsonHeaders },
+        );
+      }
     }
 
     // Add-on WhatsApp Business: il numero dell'azienda invia solo se il piano
