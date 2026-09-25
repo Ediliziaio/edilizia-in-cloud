@@ -104,7 +104,7 @@ export default function StepCliente({ form, onChange }: Props) {
     <Card>
       <CardContent className="p-4 sm:p-5 space-y-4 max-sm:p-3 max-sm:space-y-3">
         <div className="flex items-center gap-2">
-          <div className="h-8 w-8 rounded-md bg-orange-50 text-orange-600 flex items-center justify-center">
+          <div className="h-8 w-8 rounded-md bg-orange-50 text-orange-600 flex items-center justify-center max-sm:hidden">
             <User className="h-4 w-4" />
           </div>
           <div>
@@ -121,7 +121,7 @@ export default function StepCliente({ form, onChange }: Props) {
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between max-sm:flex-row max-sm:items-center max-sm:justify-between">
             <div className="min-w-0">
               <p className="text-xs font-semibold text-slate-900">
-                {form.cliente_id ? "Contatto CRM collegato" : "Contatto CRM"}
+                {form.cliente_id ? <>Contatto CRM<span className="max-sm:hidden"> collegato</span></> : "Contatto CRM"}
               </p>
               <p className="truncate text-[11px] text-slate-500 max-sm:hidden">
                 {form.cliente_id
@@ -135,7 +135,7 @@ export default function StepCliente({ form, onChange }: Props) {
                   variant="ghost"
                   size="sm"
                   onClick={() => onChange("cliente_id", null)}
-                  className="h-8 px-2 text-xs text-slate-600 hover:bg-slate-100"
+                  className="tap-compact h-8 px-2 text-xs text-slate-600 hover:bg-slate-100"
                 >
                   Scollega
                 </Button>
@@ -145,7 +145,7 @@ export default function StepCliente({ form, onChange }: Props) {
                   <Button
                     size="sm"
                     variant="outline"
-                    className="h-8 gap-1.5 border-slate-200 px-3 text-xs text-slate-700 hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700"
+                    className="tap-compact h-8 gap-1.5 border-slate-200 px-3 text-xs text-slate-700 hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700"
                   >
                     <Users className="h-3.5 w-3.5" />
                     {form.cliente_id ? "Cambia" : "Seleziona da CRM"}
@@ -202,7 +202,8 @@ export default function StepCliente({ form, onChange }: Props) {
               className="h-9"
             />
           </div>
-          <div className="col-span-6">
+          {/* Telefono: email e telefono a tutta riga, a metà l'email non si leggeva. */}
+          <div className="col-span-12 sm:col-span-6">
             <Label className="text-xs flex items-center gap-1">
               <Mail className="h-3 w-3" /> Email
             </Label>
@@ -214,7 +215,7 @@ export default function StepCliente({ form, onChange }: Props) {
               className="h-9"
             />
           </div>
-          <div className="col-span-6">
+          <div className="col-span-12 sm:col-span-6">
             <Label className="text-xs flex items-center gap-1">
               <Phone className="h-3 w-3" /> Telefono
             </Label>
@@ -255,7 +256,7 @@ export default function StepCliente({ form, onChange }: Props) {
               ) : (
                 <Popover open={oppPickerOpen} onOpenChange={setOppPickerOpen}>
                   <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
+                    <Button variant="outline" size="sm" className="tap-compact h-8 gap-1.5 text-xs">
                       <Briefcase className="h-3.5 w-3.5" />
                       Collega opportunità
                     </Button>

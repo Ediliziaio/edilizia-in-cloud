@@ -233,8 +233,8 @@ export default function ComputoEditor({
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_300px]">
       {/* ─── Colonna principale: capitoli ─────────────────────────────────── */}
       <div className="min-w-0 space-y-3">
-        {/* Toolbar */}
-        <div className="flex flex-wrap items-center justify-between gap-2">
+        {/* Toolbar — sul telefono, a computo vuoto, i due bottoni sono già nel riquadro sotto. */}
+        <div className={cn("flex flex-wrap items-center justify-between gap-2", isEmpty && "max-sm:hidden")}>
           <div className="flex items-center gap-2">
             {/* Telefono: il titolo è già quello del passo; resta il conteggio delle voci. */}
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-50 text-orange-600 max-sm:hidden">
@@ -309,7 +309,8 @@ export default function ComputoEditor({
       </div>
 
       {/* ─── Pannello riepilogo sticky ────────────────────────────────────── */}
-      <aside className="lg:sticky lg:top-20 lg:self-start">
+      {/* Telefono: a computo vuoto il riepilogo a zero non serve. */}
+      <aside className={cn("lg:sticky lg:top-20 lg:self-start", isEmpty && "max-sm:hidden")}>
         <div className="overflow-hidden rounded-2xl border bg-card shadow-sm">
           <div className="border-b bg-gradient-to-br from-slate-50 to-white px-4 py-3">
             <p className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -429,12 +430,12 @@ function EmptyState({ onAddCapitolo, onSearch }: { onAddCapitolo: () => void; on
         Organizza il lavoro in capitoli (Demolizioni, Impianti, Finiture…) e pesca le voci
         dai tuoi listini: lavorazioni, prodotti e manodopera. Tutto si somma in tempo reale.
       </p>
-      <div className="mt-5 flex flex-wrap items-center justify-center gap-2 max-sm:mt-3">
-        <Button onClick={onAddCapitolo} className="gap-1.5 bg-orange-500 hover:bg-orange-600">
-          <Plus className="h-4 w-4" /> Aggiungi capitolo
+      <div className="mt-5 flex flex-wrap items-center justify-center gap-2 max-sm:mt-3 max-sm:flex-nowrap">
+        <Button onClick={onAddCapitolo} className="gap-1.5 bg-orange-500 hover:bg-orange-600 max-sm:flex-1 max-sm:px-2">
+          <Plus className="h-4 w-4" /> <span className="max-sm:hidden">Aggiungi capitolo</span><span className="sm:hidden">Nuovo capitolo</span>
         </Button>
-        <Button variant="outline" onClick={onSearch} className="gap-1.5">
-          <Sparkles className="h-4 w-4 text-orange-500" /> Cerca nei listini
+        <Button variant="outline" onClick={onSearch} className="gap-1.5 max-sm:flex-1 max-sm:px-2">
+          <Sparkles className="h-4 w-4 text-orange-500" /> <span className="max-sm:hidden">Cerca nei listini</span><span className="sm:hidden">Dai listini</span>
         </Button>
       </div>
     </div>

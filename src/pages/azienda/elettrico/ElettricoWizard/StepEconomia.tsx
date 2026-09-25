@@ -180,21 +180,24 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
                 imponibileLordo={imponibileLordo}
                 tipoLavoro="elettrico"
               />
-              <PctField
-                id="ele-iva"
-                label="IVA"
-                value={form.iva_pct ?? 10}
-                onCommit={(v) => onChange("iva_pct", v)}
-                hint="In edilizia spesso 10% (elettrico) o 4% (prima casa)."
-              />
-              <PctField
-                id="ele-detrazione"
-                label="Detrazione / bonus"
-                value={form.detrazione_pct ?? 0}
-                onCommit={(v) => onChange("detrazione_pct", v)}
-                hint="Opzionale: % di detrazione fiscale (es. 50%) — importo indicativo."
-                icon={BadgePercent}
-              />
+              {/* Telefono: IVA e detrazione affiancate. */}
+              <div className="space-y-3 max-sm:grid max-sm:grid-cols-2 max-sm:gap-2 max-sm:space-y-0">
+                <PctField
+                  id="ele-iva"
+                  label="IVA"
+                  value={form.iva_pct ?? 10}
+                  onCommit={(v) => onChange("iva_pct", v)}
+                  hint="In edilizia spesso 10% (elettrico) o 4% (prima casa)."
+                />
+                <PctField
+                  id="ele-detrazione"
+                  label="Detrazione / bonus"
+                  value={form.detrazione_pct ?? 0}
+                  onCommit={(v) => onChange("detrazione_pct", v)}
+                  hint="Opzionale: % di detrazione fiscale (es. 50%) — importo indicativo."
+                  icon={BadgePercent}
+                />
+              </div>
               {/* Rata nel PDF: compare solo se la promo è configurata nel template,
                   con la rata concreta sul totale corrente (scelta per-preventivo). */}
               <FinanziamentoQuoteToggle
@@ -205,7 +208,7 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
               />
               {/* Preset incentivi elettrico: 1-click → imposta detrazione + massimale di spesa */}
               <div>
-                <p className="mb-1 text-[10px] text-muted-foreground">Incentivi rapidi (elettrico):</p>
+                <p className="mb-1 text-[10px] text-muted-foreground max-sm:hidden">Incentivi rapidi (elettrico):</p>
                 <div className="flex flex-wrap gap-1.5">
                   {INCENTIVI_ELETTRICO.map((inc) => {
                     const active =
@@ -221,7 +224,7 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
                           onChange("massimale_detrazione", inc.massimale);
                         }}
                         className={cn(
-                          "rounded-full border px-2.5 py-1 text-[10px] font-medium transition-colors",
+                          "tap-compact rounded-full border px-2.5 py-1 text-[10px] font-medium transition-colors",
                           active
                             ? "border-emerald-300 bg-emerald-50 text-emerald-700"
                             : "border-slate-200 bg-white text-slate-600 hover:border-emerald-200 hover:bg-emerald-50/50",
@@ -263,7 +266,7 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
                       {formatCurrency(detraibileEur)}
                     </span>
                   </div>
-                  <p className="mt-0.5 text-[10px] text-emerald-700/80">
+                  <p className="mt-0.5 text-[10px] text-emerald-700/80 max-sm:hidden">
                     {massimale != null
                       ? `Calcolata sul tetto di spesa di ${formatCurrency(massimale)}${oltreMassimale ? " — spesa oltre il massimale" : ""}. `
                       : "Stima su imponibile netto. "}
@@ -275,7 +278,7 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
           </Card>
 
           {/* Margine complessivo */}
-          <Card>
+          <Card className="max-sm:hidden">
             <CardContent className="flex items-center justify-between gap-2 p-4">
               <div className="flex items-center gap-2">
                 <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-600">

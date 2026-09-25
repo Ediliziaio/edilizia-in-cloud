@@ -77,7 +77,7 @@ export default function StepImmobile({ form, onChange }: Props) {
     <Card>
       <CardContent className="p-4 sm:p-5 space-y-4 max-sm:p-3 max-sm:space-y-3">
         <div className="flex items-center gap-2">
-          <div className="h-8 w-8 rounded-md bg-teal-50 text-teal-600 flex items-center justify-center">
+          <div className="h-8 w-8 rounded-md bg-teal-50 text-teal-600 flex items-center justify-center max-sm:hidden">
             <LayoutGrid className="h-4 w-4" />
           </div>
           <div>
@@ -137,7 +137,7 @@ export default function StepImmobile({ form, onChange }: Props) {
               className="h-9"
             />
           </div>
-          <div className="col-span-12 sm:col-span-6">
+          <div className="col-span-5 sm:col-span-6">
             <Label className="text-xs">Città</Label>
             <Input
               value={form.cantiere_citta ?? ""}
@@ -146,7 +146,7 @@ export default function StepImmobile({ form, onChange }: Props) {
               className="h-9"
             />
           </div>
-          <div className="col-span-6 sm:col-span-3">
+          <div className="col-span-3">
             <Label className="text-xs">Provincia</Label>
             <Input
               value={form.cantiere_provincia ?? ""}
@@ -156,7 +156,7 @@ export default function StepImmobile({ form, onChange }: Props) {
               className="h-9 uppercase"
             />
           </div>
-          <div className="col-span-6 sm:col-span-3">
+          <div className="col-span-4 sm:col-span-3">
             <Label className="text-xs">CAP</Label>
             <Input
               value={form.cantiere_cap ?? ""}
@@ -246,7 +246,7 @@ export default function StepImmobile({ form, onChange }: Props) {
             placeholder="Es. stato del sottofondo, presenza di umidità di risalita, necessità di livellamento, quote porte/soglie, condominio con orari cantiere…"
             className="min-h-20 text-sm"
           />
-          <p className="text-[10px] text-muted-foreground mt-0.5">
+          <p className="text-[10px] text-muted-foreground mt-0.5 max-sm:hidden">
             Vincoli edilizi/condominiali e annotazioni utili per il preventivo (stato sottofondo, livellamento, soglie).
           </p>
         </div>

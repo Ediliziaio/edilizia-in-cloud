@@ -245,7 +245,7 @@ export default function StepMedia({ progettoId, media }: Props) {
           <Button
             type="button"
             size="sm"
-            className="gap-1.5 bg-orange-500 hover:bg-orange-600"
+            className={cn("gap-1.5 bg-orange-500 hover:bg-orange-600", ordered.length === 0 && "max-sm:hidden")}
             disabled={uploading || !companyId}
             onClick={() => fileInputRef.current?.click()}
           >
@@ -255,8 +255,20 @@ export default function StepMedia({ progettoId, media }: Props) {
         </div>
       </div>
 
+      {/* Telefono: al posto del riquadro vuoto un'area grande da toccare, che apre
+          fotocamera o galleria (il bottone in alto sparisce finché non c'è nulla). */}
+      {ordered.length === 0 && (
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading || !companyId}
+          className="flex h-36 w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-orange-200 bg-orange-50/40 text-orange-700 disabled:opacity-60 sm:hidden"
+        >
+          {uploading ? <Loader2 className="h-7 w-7 animate-spin" /> : <Camera className="h-7 w-7" />}
+          <span className="text-[13px] font-medium">Scatta o carica foto</span>
+        </button>
+      )}
       {ordered.length === 0 ? (
-        // Telefono no: il riquadro vuoto ripeteva «Carica file» che sta già in alto.
         <Card className="max-sm:hidden">
           <CardContent className="p-0">
             <EmptyState
@@ -292,7 +304,7 @@ export default function StepMedia({ progettoId, media }: Props) {
       )}
 
       {ordered.length > 0 && (
-        <p className="text-center text-[11px] text-muted-foreground">
+        <p className="text-center text-[11px] text-muted-foreground max-sm:hidden">
           {ordered.length} {ordered.length === 1 ? "file" : "file"} · PNG, JPG, WEBP o PDF · max 8 MB
         </p>
       )}

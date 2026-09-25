@@ -133,7 +133,8 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
               value={voce.unita_misura}
               onValueChange={(v) => onChange({ unita_misura: v as ClmUnitaMisura })}
             >
-              <SelectTrigger className="h-7 w-[74px] shrink-0 rounded-full border-dashed px-2 text-[11px] font-medium tabular-nums">
+              {/* tap-compact: sul telefono la regola dei 44px gonfiava ogni bottone della riga. */}
+              <SelectTrigger className="tap-compact h-7 w-[74px] shrink-0 rounded-full border-dashed px-2 text-[11px] font-medium tabular-nums">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -180,7 +181,7 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
                   variant="ghost"
                   size="sm"
                   className={cn(
-                    "h-7 gap-1 rounded-full px-2 text-[11px]",
+                    "tap-compact h-7 gap-1 rounded-full px-2 text-[11px]",
                     hasSconto ? "bg-rose-50 text-rose-600 hover:bg-rose-100" : "text-muted-foreground hover:text-foreground",
                   )}
                 >
@@ -239,8 +240,9 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
           </div>
 
           {/* Breakdown materiali + manodopera (espandibile) */}
+          {/* Telefono: i costi si guardano dal computer, come i margini. */}
           {hasCosto && (
-            <Collapsible open={breakdownOpen} onOpenChange={setBreakdownOpen}>
+            <Collapsible open={breakdownOpen} onOpenChange={setBreakdownOpen} className="max-sm:hidden">
               <CollapsibleTrigger asChild>
                 <button
                   type="button"
@@ -299,7 +301,7 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
                 variant="ghost"
                 size="icon"
                 onClick={onDuplicate}
-                className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                className="tap-compact h-7 w-7 text-muted-foreground hover:text-foreground"
               >
                 <Copy className="h-3.5 w-3.5" />
               </Button>
@@ -312,7 +314,7 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
                 variant="ghost"
                 size="icon"
                 onClick={onDelete}
-                className="h-7 w-7 text-muted-foreground hover:bg-rose-50 hover:text-rose-600"
+                className="tap-compact h-7 w-7 text-muted-foreground hover:bg-rose-50 hover:text-rose-600"
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </Button>

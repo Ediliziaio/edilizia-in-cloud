@@ -71,7 +71,7 @@ export default function StepImmobile({ form, onChange }: Props) {
     <Card>
       <CardContent className="p-4 sm:p-5 space-y-4 max-sm:p-3 max-sm:space-y-3">
         <div className="flex items-center gap-2">
-          <div className="h-8 w-8 rounded-md bg-orange-50 text-orange-600 flex items-center justify-center">
+          <div className="h-8 w-8 rounded-md bg-orange-50 text-orange-600 flex items-center justify-center max-sm:hidden">
             <Home className="h-4 w-4" />
           </div>
           <div>
@@ -113,7 +113,7 @@ export default function StepImmobile({ form, onChange }: Props) {
               className="h-9"
             />
           </div>
-          <div className="col-span-12 sm:col-span-6">
+          <div className="col-span-5 sm:col-span-6">
             <Label className="text-xs">Città</Label>
             <Input
               value={form.cantiere_citta ?? ""}
@@ -122,7 +122,7 @@ export default function StepImmobile({ form, onChange }: Props) {
               className="h-9"
             />
           </div>
-          <div className="col-span-6 sm:col-span-3">
+          <div className="col-span-3">
             <Label className="text-xs">Provincia</Label>
             <Input
               value={form.cantiere_provincia ?? ""}
@@ -132,7 +132,7 @@ export default function StepImmobile({ form, onChange }: Props) {
               className="h-9 uppercase"
             />
           </div>
-          <div className="col-span-6 sm:col-span-3">
+          <div className="col-span-4 sm:col-span-3">
             <Label className="text-xs">CAP</Label>
             <Input
               value={form.cantiere_cap ?? ""}
@@ -145,7 +145,7 @@ export default function StepImmobile({ form, onChange }: Props) {
 
         {/* Immobile */}
         <div className="grid grid-cols-12 gap-3">
-          <div className="col-span-12 sm:col-span-6">
+          <div className="col-span-7 sm:col-span-6">
             <Label className="text-xs">Tipo immobile</Label>
             <Select
               value={form.immobile_tipo ?? ""}
@@ -161,7 +161,7 @@ export default function StepImmobile({ form, onChange }: Props) {
               </SelectContent>
             </Select>
           </div>
-          <div className="col-span-12 sm:col-span-6">
+          <div className="col-span-5 sm:col-span-6">
             <Label className="text-xs">Superficie (mq)</Label>
             <Input
               type="number"
@@ -205,7 +205,7 @@ export default function StepImmobile({ form, onChange }: Props) {
           <div className="flex flex-wrap items-center gap-1.5">
             <Calculator className="h-3.5 w-3.5 text-orange-600" />
             <span className="text-xs font-semibold text-slate-800">Calcolatore superfici</span>
-            <span className="text-[10px] text-muted-foreground">— stima da superficie + n. vani + altezza</span>
+            <span className="text-[10px] text-muted-foreground max-sm:hidden">— stima da superficie + n. vani + altezza</span>
           </div>
           <div className="grid grid-cols-12 gap-3 items-end">
             <div className="col-span-6 sm:col-span-3">
@@ -234,7 +234,7 @@ export default function StepImmobile({ form, onChange }: Props) {
                   <span className="font-semibold tabular-nums">≈ {superfici.tinteggiature} m²</span> tinteggiature. Da usare nel computo.
                 </p>
               ) : (
-                <p className="text-[10px] text-muted-foreground">
+                <p className="text-[10px] text-muted-foreground max-sm:hidden">
                   Inserisci la superficie (sopra), il n. di vani e l'altezza: stimo pavimenti, pareti e tinteggiature.
                 </p>
               )}
@@ -251,7 +251,7 @@ export default function StepImmobile({ form, onChange }: Props) {
             placeholder="Es. immobile in zona vincolata, condominio con orari cantiere, accesso difficoltoso…"
             className="min-h-20 text-sm"
           />
-          <p className="text-[10px] text-muted-foreground mt-0.5">
+          <p className="text-[10px] text-muted-foreground mt-0.5 max-sm:hidden">
             Vincoli edilizi/condominiali e annotazioni utili per il preventivo.
           </p>
         </div>
