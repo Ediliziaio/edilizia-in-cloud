@@ -860,8 +860,9 @@ const App = () => (
             <PublicSiteChatWidgetGate />
             {/* v8.6.91 — Install PWA prompt (Android/iOS) — disabilitato su
                 richiesta utente: era invasivo e copriva i CTA sul mobile.
-                Il browser stesso propone "Aggiungi a Home" dal menu condividi. */}
-            {/* <InstallPWAPrompt /> */}
+                Il browser stesso propone "Aggiungi a Home" dal menu condividi.
+                Il componente è uscito dal codice il 25/09/2026 (storia git:
+                components/ui/InstallPWAPrompt). */}
             {/* v8.6.99 — Auto-logout dopo 45gg dal login, e all'accesso chiuso */}
             <SessionTimeoutGuard />
           </Suspense>

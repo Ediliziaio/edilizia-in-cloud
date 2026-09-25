@@ -61,10 +61,6 @@ describe("reportistica marketing contract", () => {
     resolve(process.cwd(), "supabase/migrations/20270523142000_fix_vendor_trend_fanout.sql"),
     "utf8",
   );
-  const commercialReport = readFileSync(
-    resolve(process.cwd(), "src/components/reporting/commercial/CommercialPerformanceReportPanel.tsx"),
-    "utf8",
-  );
   const crmSalesReport = readFileSync(
     resolve(process.cwd(), "src/components/reporting/crm-sales/CrmSalesReportPanel.tsx"),
     "utf8",
@@ -93,16 +89,11 @@ describe("reportistica marketing contract", () => {
     expect(reportisticaPage).toContain("replace: true");
   });
 
-  it("surfaces commercial reports for quotes, forecast, lead quality, margins and loss reasons", () => {
+  // Il vecchio CommercialPerformanceReportPanel è uscito dalla pagina il 24/05/2026
+  // (al suo posto CrmSalesReportPanel) e dal codice il 25/09/2026: i controlli sul
+  // suo testo verificavano un pannello che nessuno vedeva più.
+  it("surfaces commercial reports through the CRM sales panel", () => {
     expect(reportisticaPage).toContain("CrmSalesReportPanel");
-    expect(commercialReport).toContain("Preventivi e offerte");
-    expect(commercialReport).toContain("Forecast pipeline");
-    expect(commercialReport).toContain("Qualità lead");
-    expect(commercialReport).toContain("Margine reale stimato");
-    expect(commercialReport).toContain("Motivi di perdita");
-    expect(commercialReport).toContain("Sincronizzazione CRM");
-    expect(commercialReport).toContain("Preventivi senza opportunità");
-    expect(commercialReport).toContain("Vendite accettate senza ordine");
   });
 
   it("keeps CRM sales reporting decision-first instead of a wall of metrics", () => {

@@ -18,10 +18,6 @@ const companyLayoutSource = readFileSync(
   resolve(process.cwd(), "src/components/layouts/CompanyLayout.tsx"),
   "utf8",
 );
-const paletteSource = readFileSync(
-  resolve(process.cwd(), "src/components/admin/AdminCommandPalette.tsx"),
-  "utf8",
-);
 const bottomNavSource = readFileSync(
   resolve(process.cwd(), "src/components/admin/AdminBottomNav.tsx"),
   "utf8",
@@ -76,38 +72,8 @@ describe("Admin QoL improvements — round 1", () => {
     });
   });
 
-  describe("Command Palette aggiornata agli hub", () => {
-    it("punta a /admin/fatturato (hub) invece di route legacy", () => {
-      expect(paletteSource).toContain('"/admin/fatturato"');
-      expect(paletteSource).toContain('"/admin/fatturato?tab=piani"');
-      expect(paletteSource).toContain('"/admin/fatturato?tab=fatture"');
-    });
-
-    it("punta a /admin/ai (hub) per tutte le sub-section AI", () => {
-      expect(paletteSource).toContain('"/admin/ai"');
-      expect(paletteSource).toContain('"/admin/ai?section=monitor"');
-      expect(paletteSource).toContain('"/admin/ai?section=config"');
-      expect(paletteSource).toContain('"/admin/ai?section=memoria"');
-    });
-
-    it("punta a /admin/cs hub per assistenza/lifecycle/onboarding/playbook", () => {
-      expect(paletteSource).toContain('"/admin/cs"');
-      expect(paletteSource).toContain('"/admin/cs?tab=assistenza"');
-      expect(paletteSource).toContain('"/admin/cs?tab=lifecycle"');
-    });
-
-    it("ha la voce Portale Formazione", () => {
-      expect(paletteSource).toContain('"/admin/portale-formazione"');
-    });
-
-    it("permission filter aggiornato agli hub URL", () => {
-      // Vecchio filter "action.href === '/admin/ticket'" sostituito con startsWith
-      expect(paletteSource).not.toContain("'/admin/ticket'");
-      expect(paletteSource).toContain('action.href.startsWith("/admin/fatturato"');
-      expect(paletteSource).toContain('action.href.startsWith("/admin/ai"');
-      expect(paletteSource).toContain('action.href.startsWith("/admin/operazioni"');
-    });
-  });
+  // La palette comandi dell'admin (AdminCommandPalette) non è mai stata montata
+  // in nessuna pagina: tolta col codice morto il 25/09/2026, e i suoi test con lei.
 
   describe("Bottom nav mobile aggiornata", () => {
     it('non punta più a "/admin/ticket" legacy', () => {

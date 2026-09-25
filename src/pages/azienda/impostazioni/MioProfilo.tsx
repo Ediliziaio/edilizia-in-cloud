@@ -47,8 +47,8 @@ import {
 } from "@/hooks/useUserNotificationPrefs";
 // v8.6.36 — MySurveysTab rimosso dal profilo (non era semantica corretta:
 // è una LISTA OPERATIVA di sopralluoghi assegnati, non un'impostazione
-// personale). Il componente resta disponibile per future dashboard widget.
-// import { MySurveysTab } from "@/components/sopralluoghi/MySurveysTab";
+// personale). Il componente, mai più usato, è uscito dal codice il 25/09/2026:
+// se serve per un widget, è nella storia git (components/sopralluoghi/MySurveysTab).
 
 // ── Role labels ──
 const ROLE_LABELS: Record<string, string> = {
