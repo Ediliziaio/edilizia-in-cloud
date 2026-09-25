@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { ChevronLeft, ChevronRight, Hammer, Package, Wrench, CalendarClock, Check, Car, Settings, type LucideIcon } from "lucide-react";
 import { useOperativeTravelLegs } from "@/hooks/useOperativeTravelLegs";
 import { cn } from "@/lib/utils";
-import { APPOINTMENT_ICONS, DEFAULT_CALENDAR_EVENT_COLORS, getCalendarEventStyle, mapAppointmentToEditData, appuntamentoAnnullato, type CalendarEventColors } from "@/lib/calendarUtils";
+import { APPOINTMENT_ICONS, DEFAULT_CALENDAR_EVENT_COLORS, getCalendarEventStyle, mapAppointmentToEditData, appuntamentoAnnullato, etichettaCommessa, type CalendarEventColors } from "@/lib/calendarUtils";
 import { AppointmentDialog, type AppointmentData } from "@/components/appointments/AppointmentDialog";
 import { EditOrderDatesDialog } from "./EditOrderDatesDialog";
 import { toast } from "sonner";
@@ -330,7 +330,8 @@ export function CalendarDayView({
             const label = lr
               ? `🏖 ${lr.employee?.first_name ?? ""} ${lr.employee?.last_name ?? ""}`
               : o
-                ? (o.order_code || o.description?.slice(0, 30) || "Ordine")
+                // Nel giorno c'è posto: codice e cliente (o lavoro), non il solo codice.
+                ? ([o.order_code, etichettaCommessa(o)].filter(Boolean).join(" · ") || "Ordine")
                 : evt.busySlot?.team_name
                   ? `${evt.busySlot.team_name} · ${evt.busySlot.summary || "impegno"}`
                   : evt.busySlot?.summary || "Occupato";

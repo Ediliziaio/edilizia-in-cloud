@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { DEFAULT_CALENDAR_EVENT_COLORS, hasLogisticRisk, rischioPagamenti, getEmployeeInitials, WEEK_DAYS_IT, APPOINTMENT_ICONS, mapAppointmentToEditData, appuntamentoAnnullato, type CalendarEventColors } from "@/lib/calendarUtils";
+import { DEFAULT_CALENDAR_EVENT_COLORS, hasLogisticRisk, rischioPagamenti, getEmployeeInitials, etichettaCommessa, WEEK_DAYS_IT, APPOINTMENT_ICONS, mapAppointmentToEditData, appuntamentoAnnullato, type CalendarEventColors } from "@/lib/calendarUtils";
 import { formatCurrency } from "@/lib/formatters";
 import { EditOrderDatesDialog } from "./EditOrderDatesDialog";
 import type { CalendarOrder, CalendarAppointment, GoogleBusySlot, ApprovedLeave, CalendarWarehouseInfo, CalendarIntervento, CalendarManutenzione } from "@/types/calendar";
@@ -408,13 +408,8 @@ export function CalendarMonthView({
                   })()}
                 </div>
 
-                {dayEvents.length > 0 && (
-                  <div className="mb-1 flex items-center justify-between text-[10px] text-muted-foreground">
-                    <span>{dayEvents.length} attività</span>
-                    {dayEvents.length > 5 && <span className="font-medium text-primary">dense</span>}
-                  </div>
-                )}
-
+                {/* Niente riga «N attività» in cima a ogni giorno: le pastiglie si
+                    contano a colpo d'occhio e oltre cinque c'è già «+N altri». */}
                 <div className="space-y-1">
                   {dayEvents.slice(0, 5).map((event, eventIdx) => {
                     if (event.type === "google_busy" && event.busySlot) {
@@ -545,6 +540,7 @@ export function CalendarMonthView({
                     const rischioPag = (event.type === "lavoro" || event.type === "posa") ? rischioPagamenti(event.order) : null;
                     const initials = getEmployeeInitials(event.order);
                     const whInfo = event.type === "merce" && warehouseInfo ? warehouseInfo.get(event.order.id) : undefined;
+                    const etichetta = etichettaCommessa(event.order);
 
                     return (
                       <Tooltip key={`${event.order.id}-${event.type}-${eventIdx}`}>
@@ -572,9 +568,19 @@ export function CalendarMonthView({
                             {event.order.status && (
                               <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: event.order.status.color }} />
                             )}
-                            {event.type === "posa" ? <Hammer className="h-3 w-3 flex-shrink-0" /> : event.type === "lavoro" ? <Wrench className="h-3 w-3 flex-shrink-0" /> : <Package className="h-3 w-3 flex-shrink-0" />}
+                            {/* Sotto 1280 il tipo lo dice già lo stile (piena, bordata,
+                                tratteggiata): l'icona lascia il posto al nome. */}
+                            {event.type === "posa" ? <Hammer className="h-3 w-3 flex-shrink-0 max-xl:hidden" /> : event.type === "lavoro" ? <Wrench className="h-3 w-3 flex-shrink-0 max-xl:hidden" /> : <Package className="h-3 w-3 flex-shrink-0 max-xl:hidden" />}
+                            {/* Il codice «ORD-2026-0…» riempiva la pastiglia e il cliente
+                                non si vedeva mai: il codice torna davanti solo da
+                                1536, altrimenti resta nel tooltip. */}
                             <span className="truncate font-medium">
-                              {event.order.order_code || "Ordine"} - {event.order.customer.last_name}
+                              {etichetta ? (
+                                <>
+                                  {event.order.order_code && <span className="hidden 2xl:inline">{event.order.order_code} - </span>}
+                                  {etichetta}
+                                </>
+                              ) : (event.order.order_code || "Ordine")}
                             </span>
                             {logisticRisk && <AlertTriangle className={`h-3 w-3 flex-shrink-0 ${event.type === "posa" ? "text-amber-500" : "text-yellow-200"}`} />}
                             {rischioPag && (

@@ -43,6 +43,7 @@ import {
 } from "@/components/ui/tooltip";
 import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, AlertTriangle, Wrench, Settings, CalendarRange } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { etichettaCommessa } from "@/lib/calendarUtils";
 import { supabase } from "@/integrations/supabase/client";
 import type { CalendarAppointment, CalendarOrder, GanttZoom, OrderStatus, CalendarIntervento, CalendarManutenzione } from "@/types/calendar";
 import { DraggableOrderBar } from "./DraggableOrderBar";
@@ -372,6 +373,13 @@ export function CalendarGanttView({
           </Button>
         </div>
 
+        {/* Commesse e appuntamenti sono già nei numeri in cima alla pagina:
+            qui restano i due dati che ha solo il Gantt, sulla stessa riga. */}
+        <div className="flex items-center gap-4 text-xs text-muted-foreground">
+          <span>Picco carico <b className="text-sm text-foreground tabular-nums">{ganttStats.peak}</b></span>
+          <span>Giorni saturi <b className={cn("text-sm tabular-nums", ganttStats.overloadedDays > 0 ? "text-destructive" : "text-foreground")}>{ganttStats.overloadedDays}</b></span>
+        </div>
+
         <ToggleGroup
           type="single"
           value={zoom}
@@ -390,25 +398,6 @@ export function CalendarGanttView({
             Anno
           </ToggleGroupItem>
         </ToggleGroup>
-      </div>
-
-      <div className="mb-4 grid grid-cols-2 gap-2 lg:grid-cols-4">
-        <div className="rounded-lg border bg-card px-3 py-2">
-          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Commesse</p>
-          <p className="text-lg font-bold">{ganttStats.orders}</p>
-        </div>
-        <div className="rounded-lg border bg-card px-3 py-2">
-          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Appuntamenti</p>
-          <p className="text-lg font-bold">{ganttStats.appointments}</p>
-        </div>
-        <div className="rounded-lg border bg-card px-3 py-2">
-          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Picco carico</p>
-          <p className="text-lg font-bold">{ganttStats.peak}</p>
-        </div>
-        <div className="rounded-lg border bg-card px-3 py-2">
-          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Giorni saturi</p>
-          <p className={cn("text-lg font-bold", ganttStats.overloadedDays > 0 && "text-destructive")}>{ganttStats.overloadedDays}</p>
-        </div>
       </div>
 
       {sortedOrders.length === 0 ? (
@@ -430,7 +419,7 @@ export function CalendarGanttView({
                     Cliente / Ordine
                   </span>
                 </div>
-                <div className="w-16 flex items-center justify-center border-l">
+                <div className="w-16 flex items-center justify-center border-l" title="Lead time: giorni dalla commessa alla fine dei lavori">
                   <span className="text-xs font-medium text-muted-foreground">LT</span>
                 </div>
               </div>
@@ -458,13 +447,19 @@ export function CalendarGanttView({
                           <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: order.status.color }} />
                         )}
                         <span className="text-sm font-semibold truncate">
-                          {order.customer.last_name}
+                          {etichettaCommessa(order) || order.customer.last_name}
                         </span>
                       </div>
-                      <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                        <span>{order.order_code || "N/A"}</span>
-                        {initials && <span>| {initials}</span>}
-                        {extTeam && <span>| {extTeam}</span>}
+                      {/* Una riga sola, tagliata: con squadre esterne dai nomi lunghi
+                          andava a capo, usciva dai 54px della riga e copriva le
+                          commesse sopra e sotto. Il testo intero è nel tooltip. */}
+                      <div
+                        className="truncate text-[10px] text-muted-foreground"
+                        title={[order.order_code || "N/A", initials, extTeam].filter(Boolean).join(" | ")}
+                      >
+                        {order.order_code || "N/A"}
+                        {initials && ` | ${initials}`}
+                        {extTeam && ` | ${extTeam}`}
                       </div>
                     </div>
                     <div className="w-16 flex items-center justify-center border-l">

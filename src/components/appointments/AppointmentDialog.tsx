@@ -1000,7 +1000,8 @@ export function AppointmentDialog({
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEditing ? "Modifica Appuntamento" : "Nuovo Appuntamento"}</DialogTitle>
-          <DialogDescription className="max-sm:sr-only">
+          {/* Ripeteva il titolo: resta solo per i lettori di schermo. */}
+          <DialogDescription className="sr-only">
             {isEditing ? "Modifica i dettagli dell'appuntamento" : "Compila i campi per creare un nuovo appuntamento"}
           </DialogDescription>
         </DialogHeader>
@@ -1054,23 +1055,10 @@ export function AppointmentDialog({
             </div>
           </div>
 
-          {/* Mobile: niente riquadro né spiegazione; inizio e fine affiancati, la
-              durata sotto (prima tre righe una sotto l'altra). */}
-          <div className="rounded-lg border bg-slate-50/70 p-3 max-sm:border-0 max-sm:bg-transparent max-sm:p-0">
-            <div className="mb-3 flex items-center justify-between gap-3 max-sm:hidden">
-              <div>
-                <Label className="text-sm font-semibold">Orario appuntamento</Label>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Imposta inizio e fine nello stesso punto; la durata resta sincronizzata.
-                </p>
-              </div>
-              {appointmentTime && appointmentEndTime && (
-                <Badge variant="outline" className="shrink-0">
-                  {appointmentTime} - {appointmentEndTime}
-                </Badge>
-              )}
-            </div>
-
+          {/* Niente riquadro né spiegazione, come già sul telefono: le etichette
+              dei tre campi dicono tutto e l'orario scelto è nei campi stessi.
+              Mobile: inizio e fine affiancati, la durata sotto. */}
+          <div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-[1fr_1fr_140px]">
               <div className="space-y-2">
                 <Label htmlFor="apt-time">{requireTime ? "Ora inizio *" : "Ora inizio"}</Label>
@@ -1174,14 +1162,10 @@ export function AppointmentDialog({
           )}
 
           {showOrderSelect && (
-            <div className="rounded-lg border bg-slate-50/70 p-3 max-sm:border-0 max-sm:bg-transparent max-sm:p-0">
-              <div className="mb-3 flex items-start justify-between gap-3 max-sm:mb-2">
-                <div>
-                  <Label>Riferimento operativo</Label>
-                  <p className="mt-1 text-xs text-muted-foreground max-sm:hidden">
-                    Collega l'appuntamento a commessa, assistenza o manutenzione: calendario e schede operative restano allineati.
-                  </p>
-                </div>
+            // Senza riquadro e senza la frase di spiegazione, come sul telefono.
+            <div>
+              <div className="mb-2 flex items-start justify-between gap-3">
+                <Label>Riferimento operativo</Label>
                 {referenceType === "ticket" && <LifeBuoy className="mt-0.5 h-4 w-4 text-purple-600" />}
                 {referenceType === "maintenance" && <Settings className="mt-0.5 h-4 w-4 text-orange-600" />}
               </div>
