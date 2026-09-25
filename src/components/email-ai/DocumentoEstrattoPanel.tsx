@@ -11,6 +11,7 @@ import { FileText, ScanText, AlertTriangle, CheckCircle2, XCircle, Loader2, Copy
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { usePermissions } from "@/hooks/usePermissions";
 import {
   useEstraiAllegato,
   useDocumentiEstrattiPerEmail,
@@ -171,8 +172,12 @@ function ScadenzeSection({ emailId }: { emailId: string }) {
   const { data: scadenze } = useScadenzeBozzePerEmail(emailId);
   const conferma = useConfermaScadenza();
   const scarta = useScartaScadenza();
+  // «Aggiungi a scadenzario» scrive una scadenza: il database lo concede a chi
+  // ha Scadenzario, Fatturazione, Tesoreria o Pagamenti (email_scadenza_conferma).
+  const p = usePermissions();
+  const puoScadenzario = p.canViewScadenzario || p.canViewBilling || p.canViewTesoreria || p.canManagePayments;
   const visibili = (scadenze ?? []).filter((s) => s.stato !== "scartata");
-  if (visibili.length === 0) return null;
+  if (!puoScadenzario || visibili.length === 0) return null;
   return (
     <>
       {visibili.map((s) => {
