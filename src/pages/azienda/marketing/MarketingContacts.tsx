@@ -1718,11 +1718,12 @@ export default function MarketingContacts() {
           {canExportClients && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                {/* Tablet: a icona, così titolo, schede e azioni stanno su una riga. */}
+                {/* Tablet e fino a 1280: a icona, così titolo, schede e azioni
+                    stanno su una riga (a 1024 con le etichette andavano a capo). */}
                 <Button variant="outline" size="sm" className="hidden h-9 border-slate-200 bg-white hover:bg-slate-50 sm:flex" disabled={exporting || isLoading} aria-label="Esporta">
-                  <Download className="mr-2 h-4 w-4 max-lg:mr-0" />
-                  <span className="max-lg:hidden">{exporting ? "Esportando..." : selectedIds.size > 0 ? `Esporta (${selectedIds.size})` : "Esporta"}</span>
-                  <ChevronDown className="ml-1 h-3 w-3 max-lg:hidden" />
+                  <Download className="mr-2 h-4 w-4 max-xl:mr-0" />
+                  <span className="max-xl:hidden">{exporting ? "Esportando..." : selectedIds.size > 0 ? `Esporta (${selectedIds.size})` : "Esporta"}</span>
+                  <ChevronDown className="ml-1 h-3 w-3 max-xl:hidden" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
@@ -1739,7 +1740,7 @@ export default function MarketingContacts() {
             </DropdownMenu>
           )}
           <Button variant="outline" size="sm" className="hidden h-9 border-slate-200 bg-white hover:bg-slate-50 sm:flex" onClick={() => setImportOpen(true)} disabled={!canEditContacts} aria-label="Importa">
-            <Upload className="mr-2 h-4 w-4 max-lg:mr-0" /> <span className="max-lg:hidden">Importa</span>
+            <Upload className="mr-2 h-4 w-4 max-xl:mr-0" /> <span className="max-xl:hidden">Importa</span>
           </Button>
           {/* Mobile no: il menu «…» aveva solo Importa e Gestisci campi (colonne
               della tabella, che su telefono non c'è): lavoro da scrivania. */}
