@@ -268,9 +268,9 @@ export function useAdottaPrezzario() {
   const companyId = useEffectiveCompanyId();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: AdottaPrezzarioInput): Promise<{ inserite: number }> => {
+    mutationFn: async (input: AdottaPrezzarioInput): Promise<{ inserite: number; senzaUnita: number }> => {
       if (!companyId) throw new Error("Azienda non disponibile");
-      if (input.voci.length === 0) return { inserite: 0 };
+      if (input.voci.length === 0) return { inserite: 0, senzaUnita: 0 };
       // Nome fonte per la nota (una sola lettura, riusata su tutte le voci).
       const { data: fonteRow, error: fonteErr } = await sb()
         .from("prezzario_fonte")
