@@ -2,7 +2,7 @@
 
 import type React from "react";
 import { useState, useRef } from "react";
-import { Mic, ArrowUp, HardHat, Wallet, Users, TrendingUp, Loader2, Square } from "lucide-react";
+import { Mic, ArrowUp, HardHat, Wallet, Users, TrendingUp, Loader2, Square, Paperclip } from "lucide-react";
 import { SilvioAvatar } from "@/components/silvio/SilvioAvatar";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -42,10 +42,13 @@ export function AIAssistantInterface({
   onSend,
   disabled = false,
   userName,
+  onAttach,
 }: {
   onSend: (message: string) => void;
   disabled?: boolean;
   userName?: string;
+  /** Graffetta nella barra: senza, una chat nuova non poteva partire da un contratto o da una foto. */
+  onAttach?: () => void;
 }) {
   const [inputValue, setInputValue] = useState("");
   const isMobile = useIsMobile();
@@ -117,6 +120,18 @@ export function AIAssistantInterface({
           }}
           className="flex-1 min-w-0 bg-transparent text-slate-700 text-base md:text-[15px] outline-none placeholder:text-slate-400 disabled:opacity-60"
         />
+        {onAttach && (
+          <button
+            type="button"
+            onClick={onAttach}
+            disabled={disabled}
+            className="tap-compact p-2 rounded-full text-slate-400 transition-colors hover:text-slate-600 max-sm:p-1.5"
+            aria-label="Allega un documento o una foto"
+            title="Allega contratto, DDT, fattura o foto"
+          >
+            <Paperclip className="w-5 h-5 max-sm:h-4 max-sm:w-4" />
+          </button>
+        )}
         <button
           type="button"
           onClick={voice.toggle}

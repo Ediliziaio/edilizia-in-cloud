@@ -55,6 +55,7 @@ import {
 import { classifyQuery, type QueryClassification } from "../_shared/queryClassifier.ts";
 import { dominiPerAree, indiceAreeCaricabili } from "../_shared/silvioTools.ts";
 import { ruoloPrincipaleSilvio } from "../_shared/ruoloSilvio.ts";
+import { dichiaraAzioneNonEseguita, RICHIAMO_AZIONE_NON_ESEGUITA } from "../_shared/azioneDichiarata.ts";
 
 const SILVIO_SENDER_ID = "00000000-0000-0000-0000-000000000002";
 const PERSONA_KEY = "silvio";
@@ -1348,6 +1349,7 @@ serve(async (req: Request) => {
 
     // Firme delle tool-call per iterazione (per il loop-detection sotto).
     const iterationSigs: string[] = [];
+    let richiamoAzioneFatto = false;
     while (!finalContent && iteration < MAX_TOOL_ITERATIONS) {
       iteration++;
       const idempotencyKey = `${idempotencyBase}_iter${iteration}`;
@@ -1525,7 +1527,24 @@ serve(async (req: Request) => {
       }
 
       // No more tool_calls — final answer
-      finalContent = result.content || "";
+      const testoFinale = result.content || "";
+      // Azione dichiarata ma mai eseguita («✅ Attività creata» senza nessuno
+      // strumento che scrive, visto il 25/09/2026): un solo richiamo per turno,
+      // poi il modello chiama lo strumento o corregge la risposta.
+      if (
+        !richiamoAzioneFatto &&
+        !skipToolsForModel &&
+        iteration < MAX_TOOL_ITERATIONS &&
+        dichiaraAzioneNonEseguita(testoFinale, toolCallsLog)
+      ) {
+        richiamoAzioneFatto = true;
+        console.warn("[silvio-chat] azione dichiarata senza strumento: richiamo il modello");
+        if (streamingAvviato) scriviSegnaposto("…");
+        messages.push({ role: "assistant", content: testoFinale });
+        messages.push({ role: "user", content: RICHIAMO_AZIONE_NON_ESEGUITA });
+        continue;
+      }
+      finalContent = testoFinale;
       break;
     }
 

@@ -34,7 +34,16 @@ import { arrayBufferToBase64 } from "../_shared/base64.ts";
 // rompeva il deploy: "Module not found canvas.node?target=denonext")
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const pdfjs: any = await import("https://esm.sh/pdfjs-dist@4.0.379/legacy/build/pdf.mjs?bundle&no-check");
-// Disabilita worker (richiesto per ambienti senza Web Worker)
+// pdf.js 4 senza Web Worker usa un «fake worker» nello stesso processo, ma solo
+// se trova il modulo del worker in globalThis.pdfjsWorker: altrimenti cerca
+// GlobalWorkerOptions.workerSrc e, vuoto com'era, falliva su OGNI PDF con
+// «Setting up fake worker failed: No "GlobalWorkerOptions.workerSrc" specified».
+// Visto il 25/09/2026: nessun contratto, DDT o fattura in PDF arrivava a Silvio.
+// Riprodotto e verificato con Deno sullo stesso modulo esm.sh.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const pdfjsWorker: any = await import("https://esm.sh/pdfjs-dist@4.0.379/legacy/build/pdf.worker.mjs?bundle&no-check");
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+(globalThis as any).pdfjsWorker = pdfjsWorker;
 if (pdfjs?.GlobalWorkerOptions) {
   pdfjs.GlobalWorkerOptions.workerSrc = "";
 }

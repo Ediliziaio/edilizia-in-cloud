@@ -5406,6 +5406,12 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
             assegna_a: { type: "string", description: "Nome del membro del team (default: chi scrive)" },
             commessa_codice: { type: "string", description: "Codice commessa da collegare (es. GE-0012)" },
             priorita: { type: "string", description: "bassa | normale | alta | urgente (default normale)" },
+            note: {
+              type: "string",
+              description:
+                "Dettagli e ORARIO. Le attività hanno solo la data, niente ora: se l'utente dice 'alle 9' " +
+                "scrivilo qui (es. 'Ore 9:00'), altrimenti si perde.",
+            },
           },
           required: ["titolo"],
         },
@@ -5413,6 +5419,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     },
     executor: async (args, ctx) => {
       const titolo = String(args?.titolo ?? "").trim().slice(0, 300);
+      const note = String(args?.note ?? "").trim().slice(0, 2000) || null;
       if (!titolo) return { error: "Titolo obbligatorio." };
       if (!ctx.userId) return { error: "Utente non identificato: questo tool richiede un utente reale." };
       const scadenza = String(args?.scadenza ?? "").trim();
@@ -5477,6 +5484,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
           assigned_to: assignedTo,
           order_id: orderId,
           due_date: scadenza || null,
+          notes: note,
         })
         .select("id")
         .single();
@@ -5485,6 +5493,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       return {
         task_id: task.id,
         titolo,
+        note,
         assegnato_a: assignedName ?? "(chi scrive)",
         scadenza: scadenza || null,
         commessa: orderCode,

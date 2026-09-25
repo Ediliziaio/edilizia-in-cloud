@@ -89,6 +89,22 @@ const TEXT_EXTENSIONS = [
   ".xml", ".yaml", ".yml", ".html", ".htm", ".rtf", ".ini", ".conf", ".sql",
 ];
 
+/** Pillola dell'allegato: colore e sigla per tipo, così si riconosce senza leggere il nome. */
+function stileAllegato(file: File, kind: AttachmentKind): { sigla: string; classi: string } {
+  const ext = (file.name.split(".").pop() ?? "").toUpperCase().slice(0, 4);
+  if (kind === "pdf") return { sigla: "PDF", classi: "bg-red-50 text-red-600" };
+  if (kind === "audio") return { sigla: ext || "AUDIO", classi: "bg-violet-50 text-violet-600" };
+  if (["DOC", "DOCX"].includes(ext)) return { sigla: ext, classi: "bg-blue-50 text-blue-600" };
+  if (["XLS", "XLSX", "CSV"].includes(ext)) return { sigla: ext, classi: "bg-emerald-50 text-emerald-600" };
+  return { sigla: ext || "FILE", classi: "bg-slate-100 text-slate-600" };
+}
+
+function pesoFile(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1).replace(".", ",")} MB`;
+}
+
 function detectKind(file: File): AttachmentKind {
   if (file.type.startsWith("image/")) return "image";
   if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) return "pdf";
@@ -274,6 +290,7 @@ export default function SilvioAIPage() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const heroFileInputRef = useRef<HTMLInputElement>(null);
   const sendAbortRef = useRef<AbortController | null>(null);
   const deeplinkHandledRef = useRef(false);
   // Istante di mount: solo i messaggi creati DOPO vengono animati (typewriter).
@@ -1021,7 +1038,10 @@ export default function SilvioAIPage() {
     void refetchConvs();
   };
 
-  const showHero = !activeId; // nessuna conversazione selezionata → hero proattivo
+  // Nessuna conversazione → hero proattivo. Con un allegato scelto dalla
+  // graffetta dell'hero si passa al compositore (anteprima + «Cosa devo farci?»),
+  // che all'invio crea la conversazione.
+  const showHero = !activeId && attachments.length === 0;
   const threadVuoto = !!activeId && messages.length === 0 && !loadingMsgs;
 
   // Stato "pensiero" dinamico basato sull'ultima domanda dell'utente
@@ -1426,7 +1446,13 @@ export default function SilvioAIPage() {
              ci sta è centrato, se è più alto scorre normalmente dall'alto. */
           <div className="flex-1 overflow-y-auto">
             <div className="flex min-h-full w-full flex-col items-center justify-start sm:justify-center gap-4 px-2 py-6 sm:px-4 md:gap-6 md:py-10">
-            <AIAssistantInterface onSend={handleSend} disabled={sending} userName={firstName} />
+            <input ref={heroFileInputRef} type="file" multiple accept={ATTACH_ACCEPT} className="hidden" onChange={handleFilePick} />
+            <AIAssistantInterface
+              onSend={handleSend}
+              disabled={sending}
+              userName={firstName}
+              onAttach={() => heroFileInputRef.current?.click()}
+            />
             {!onboarded && (
               // Mobile no: quattro righe di istruzioni sotto i suggerimenti.
               <div className="hidden sm:block w-full max-w-2xl rounded-xl border border-orange-200 bg-orange-50/70 px-3 py-2.5 text-[13px] leading-snug sm:px-4 sm:py-3 sm:text-sm text-slate-600">
@@ -1524,27 +1550,49 @@ export default function SilvioAIPage() {
               <ActionsInlineBar />
               {/* Anteprima allegati */}
               {attachments.length > 0 && (
-                <div className="flex flex-wrap gap-2 mb-2">
-                  {attachments.map((a) => (
-                    <div key={a.id} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-xs">
-                      {a.kind === "image" && a.previewUrl ? (
-                        <img src={a.previewUrl} alt="" className="h-8 w-8 rounded object-cover" />
-                      ) : (
-                        <FileText className="h-4 w-4 text-slate-400" />
-                      )}
-                      <span className="max-w-[140px] truncate text-slate-600">{a.file.name}</span>
-                      {a.uploading ? (
-                        <Loader2 className="h-3 w-3 animate-spin text-slate-400" />
-                      ) : a.uploadError ? (
-                        <span className="text-rose-500">errore</span>
-                      ) : (
-                        <Check className="h-3 w-3 text-emerald-500" />
-                      )}
-                      <button onClick={() => removeAttachment(a.id)} className="text-slate-400 hover:text-rose-500" aria-label="Rimuovi">
-                        <X className="h-3 w-3" />
-                      </button>
-                    </div>
-                  ))}
+                // Pillola: sigla colorata del tipo (o miniatura), nome, e sotto
+                // lo stato con il peso. Prima era una riga grigia «errore ×».
+                <div className="flex gap-2 mb-2 overflow-x-auto [scrollbar-width:none] sm:flex-wrap">
+                  {attachments.map((a) => {
+                    const stile = stileAllegato(a.file, a.kind);
+                    return (
+                      <div
+                        key={a.id}
+                        className={cn(
+                          "flex w-[230px] shrink-0 items-center gap-2.5 rounded-xl border bg-white py-1.5 pl-1.5 pr-1 shadow-sm",
+                          a.uploadError ? "border-rose-200 bg-rose-50/40" : "border-slate-200",
+                        )}
+                      >
+                        {a.kind === "image" && a.previewUrl ? (
+                          <img src={a.previewUrl} alt="" className="h-9 w-9 shrink-0 rounded-lg object-cover" />
+                        ) : (
+                          <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[10px] font-bold tracking-wide", stile.classi)}>
+                            {stile.sigla}
+                          </span>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[13px] font-medium leading-tight text-slate-800">{a.file.name}</p>
+                          <p className={cn("mt-0.5 flex items-center gap-1 text-[11px] leading-tight", a.uploadError ? "text-rose-600" : "text-slate-500")}>
+                            {a.uploading ? (
+                              <><Loader2 className="h-3 w-3 animate-spin" /> Caricamento…</>
+                            ) : a.uploadError ? (
+                              <>Non caricato · riprova</>
+                            ) : (
+                              <><Check className="h-3 w-3 text-emerald-500" /> Pronto · {pesoFile(a.file.size)}</>
+                            )}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeAttachment(a.id)}
+                          className="tap-compact flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                          aria-label={`Togli ${a.file.name}`}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
 
@@ -1626,7 +1674,7 @@ export default function SilvioAIPage() {
                   }}
                   rows={1}
                   enterKeyHint="send"
-                  placeholder={attachments.length > 0 ? "Descrivi cosa vuoi che analizzi…" : isMobile ? "Scrivi a Silvio…" : "Scrivi a Silvio…  (Invio per inviare)"}
+                  placeholder={attachments.length > 0 ? (isMobile ? "Cosa devo farci?" : "Descrivi cosa vuoi che analizzi…") : isMobile ? "Scrivi a Silvio…" : "Scrivi a Silvio…  (Invio per inviare)"}
                   className="flex-1 min-w-0 resize-none outline-none text-base md:text-sm text-slate-700 placeholder:text-slate-400 max-h-40 py-1.5 max-sm:px-1"
                 />
                 {voice.recording && (
