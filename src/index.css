@@ -907,6 +907,11 @@ html .react-flow .react-flow__edges svg {
   .testata-pagina h1 + p {
     display: none !important;
   }
+  /* Titolo a 18px su tutte (alcune pagine lo avevano a 24px anche qui). */
+  .testata-pagina h1 {
+    font-size: 1.125rem !important;
+    line-height: 1.5rem !important;
+  }
   /* I bottoni della testata tengono la loro altezza (h-8/h-9): gonfiati a 44px
      dalla regola del tocco, «+ Nuovo» sembrava un blocco. */
   .testata-pagina :is(a, button) {

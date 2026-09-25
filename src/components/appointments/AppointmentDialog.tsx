@@ -1000,7 +1000,7 @@ export function AppointmentDialog({
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEditing ? "Modifica Appuntamento" : "Nuovo Appuntamento"}</DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="max-sm:sr-only">
             {isEditing ? "Modifica i dettagli dell'appuntamento" : "Compila i campi per creare un nuovo appuntamento"}
           </DialogDescription>
         </DialogHeader>
@@ -1054,8 +1054,10 @@ export function AppointmentDialog({
             </div>
           </div>
 
-          <div className="rounded-lg border bg-slate-50/70 p-3">
-            <div className="mb-3 flex items-center justify-between gap-3">
+          {/* Mobile: niente riquadro né spiegazione; inizio e fine affiancati, la
+              durata sotto (prima tre righe una sotto l'altra). */}
+          <div className="rounded-lg border bg-slate-50/70 p-3 max-sm:border-0 max-sm:bg-transparent max-sm:p-0">
+            <div className="mb-3 flex items-center justify-between gap-3 max-sm:hidden">
               <div>
                 <Label className="text-sm font-semibold">Orario appuntamento</Label>
                 <p className="mt-1 text-xs text-muted-foreground">
@@ -1069,7 +1071,7 @@ export function AppointmentDialog({
               )}
             </div>
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_140px]">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-[1fr_1fr_140px]">
               <div className="space-y-2">
                 <Label htmlFor="apt-time">{requireTime ? "Ora inizio *" : "Ora inizio"}</Label>
                 <Input
@@ -1096,7 +1098,7 @@ export function AppointmentDialog({
                 />
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-2 max-sm:col-span-2">
                 <Label>Durata</Label>
                 <Select
                   value={durationMinutes}
@@ -1172,11 +1174,11 @@ export function AppointmentDialog({
           )}
 
           {showOrderSelect && (
-            <div className="rounded-lg border bg-slate-50/70 p-3">
-              <div className="mb-3 flex items-start justify-between gap-3">
+            <div className="rounded-lg border bg-slate-50/70 p-3 max-sm:border-0 max-sm:bg-transparent max-sm:p-0">
+              <div className="mb-3 flex items-start justify-between gap-3 max-sm:mb-2">
                 <div>
                   <Label>Riferimento operativo</Label>
-                  <p className="mt-1 text-xs text-muted-foreground">
+                  <p className="mt-1 text-xs text-muted-foreground max-sm:hidden">
                     Collega l'appuntamento a commessa, assistenza o manutenzione: calendario e schede operative restano allineati.
                   </p>
                 </div>
@@ -1352,14 +1354,15 @@ export function AppointmentDialog({
           )}
         </div>
 
-        <DialogFooter className="flex-col sm:flex-row gap-2">
+        <DialogFooter className="gap-2">
           {isEditing && (
             <Button variant="destructive" onClick={handleDelete} disabled={saving || solaLettura} title={bloccoTitle} className="sm:mr-auto">
               <Trash2 className="h-4 w-4 mr-2" />
               Annulla appuntamento
             </Button>
           )}
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+          {/* Mobile: chiude la X in alto. */}
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving} className="max-sm:hidden">
             Annulla
           </Button>
           <Button onClick={handleSave} disabled={saving || solaLettura} title={bloccoTitle}>
