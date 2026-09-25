@@ -113,6 +113,8 @@ interface QuoteCardProps {
   compact?: boolean;
   /** Nasconde l'header anche se title fornito (debug) */
   noHeader?: boolean;
+  /** Telefono: niente titolo quando ripete il passo già acceso in alto. */
+  titoloSoloDaComputer?: boolean;
 }
 
 export function QuoteCard({
@@ -124,6 +126,7 @@ export function QuoteCard({
   className,
   compact,
   noHeader,
+  titoloSoloDaComputer,
 }: QuoteCardProps) {
   return (
     <div
@@ -134,7 +137,7 @@ export function QuoteCard({
       )}
     >
       {!noHeader && (title || action) && (
-        <div className="flex items-center justify-between gap-3 flex-wrap mb-3 sm:mb-4">
+        <div className={cn("flex items-center justify-between gap-3 flex-wrap mb-3 sm:mb-4", titoloSoloDaComputer && "max-sm:hidden")}>
           {title && (
             <div className="min-w-0">
               <h3 className="text-[15px] font-bold text-slate-900 flex items-center gap-2.5">

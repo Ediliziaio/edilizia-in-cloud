@@ -2198,12 +2198,14 @@ export default function QuoteBuilder() {
           title="Dati cliente"
           icon={<User className="h-4 w-4" />}
           className="max-sm:p-3"
+          titoloSoloDaComputer
         >
           <div className="space-y-5 max-sm:space-y-4">
             {/* Blocco 1: Selezione rapida da contatto — telefono: senza riquadro
                 e senza la riga di spiegazione, è il primo campo e basta. */}
             <div className="rounded-lg border bg-muted/30 p-3 max-sm:border-0 max-sm:bg-transparent max-sm:p-0">
-              <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Seleziona contatto esistente</Label>
+              {/* Telefono: il campo dice già «Cerca contatto…». */}
+              <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider max-sm:sr-only">Seleziona contatto esistente</Label>
               <div className="mt-1.5">
                 <ContactCombobox companyId={companyId}
                   contacts={contacts}
@@ -2218,7 +2220,7 @@ export default function QuoteBuilder() {
 
             {/* Blocco 2: Anagrafica cliente */}
             <div className="space-y-3">
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground max-sm:hidden">
                 Anagrafica cliente
               </h4>
               {/* Telefono: email e telefono affiancati, il resto a tutta riga. */}
@@ -3698,7 +3700,8 @@ export default function QuoteBuilder() {
             </div>
           )}
 
-          <div className="flex gap-2 items-center shrink-0">
+          {/* Telefono: il bottone principale prende il posto che resta. */}
+          <div className="flex gap-2 items-center shrink-0 max-sm:flex-1 max-sm:justify-end">
             {step === STEPS.length - 1 && (
               <Button
                 variant="outline"
@@ -3736,7 +3739,7 @@ export default function QuoteBuilder() {
                 type="button"
                 onClick={handleNext}
                 disabled={saving}
-                className="inline-flex items-center gap-1.5 px-3.5 sm:px-5 py-2 text-sm font-bold rounded-lg text-white transition-all bg-gradient-to-br from-orange-500 to-amber-400 shadow-[0_4px_12px_rgba(249,115,22,0.3)] hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(249,115,22,0.4)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 h-9"
+                className="inline-flex items-center gap-1.5 px-3.5 sm:px-5 py-2 text-sm font-bold rounded-lg text-white transition-all bg-gradient-to-br from-orange-500 to-amber-400 shadow-[0_4px_12px_rgba(249,115,22,0.3)] hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(249,115,22,0.4)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 h-9 max-sm:flex-1 max-sm:justify-center"
               >
                 Avanti<span className="hidden sm:inline"> · {STEPS[step + 1]?.label}</span>
                 <ArrowRight className="h-4 w-4" />
@@ -3746,7 +3749,7 @@ export default function QuoteBuilder() {
                 type="button"
                 onClick={() => handleSave("bozza", { complete: true })}
                 disabled={saving || !quoteReady}
-                className="inline-flex items-center gap-1.5 px-3.5 sm:px-5 py-2 text-sm font-bold rounded-lg text-white transition-all bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-[0_4px_12px_rgba(16,185,129,0.3)] hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(16,185,129,0.4)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 h-9"
+                className="inline-flex items-center gap-1.5 px-3.5 sm:px-5 py-2 text-sm font-bold rounded-lg text-white transition-all bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-[0_4px_12px_rgba(16,185,129,0.3)] hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(16,185,129,0.4)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 h-9 max-sm:flex-1 max-sm:justify-center"
               >
                 {saving ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
