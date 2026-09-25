@@ -45,6 +45,7 @@ import {
 } from "lucide-react";
 import { useProgetti, useDeleteProgetto } from "@/lib/serramenti/queries";
 import { cn } from "@/lib/utils";
+import { RigaMobile } from "@/components/mobile/FiltriMobile";
 import { format, subDays } from "date-fns";
 import { it } from "date-fns/locale";
 import type { SrStatoProgetto } from "@/types/serramenti";
@@ -413,35 +414,36 @@ export default function SerramentiIndex() {
           className="absolute -top-1/3 -right-10 w-2/5 h-[160%] pointer-events-none"
           style={{ background: "radial-gradient(circle, rgba(249,115,22,0.20) 0%, transparent 60%)" }}
         />
-        <div className="absolute right-8 top-6 opacity-10 select-none" aria-hidden>
+        <div className="absolute right-8 top-6 opacity-10 select-none max-sm:hidden" aria-hidden>
           <RectangleVertical className="h-28 w-28" strokeWidth={1.5} />
         </div>
-        <div className="relative max-w-[1400px] mx-auto px-3 sm:px-8 py-4 sm:py-8 flex items-center justify-between flex-wrap gap-3 sm:gap-4">
+        {/* Telefono: titolo e «Nuovo» su una riga; le impostazioni dal computer. */}
+        <div className="relative max-w-[1400px] mx-auto px-3 sm:px-8 py-4 sm:py-8 flex items-center justify-between flex-wrap gap-3 sm:gap-4 max-sm:flex-nowrap max-sm:py-3">
           <div className="min-w-0 flex-1">
             <button
               type="button"
               onClick={() => navigate("/azienda/marketing/preventivi")}
-              className="inline-flex items-center gap-1 text-[11px] sm:text-xs font-medium text-blue-100/90 hover:text-white mb-2 transition-colors"
+              className="inline-flex items-center gap-1 text-[11px] sm:text-xs font-medium text-blue-100/90 hover:text-white mb-2 transition-colors max-sm:mb-1"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
-              Torna ai Preventivi
+              <span className="max-sm:hidden">Torna ai Preventivi</span><span className="sm:hidden">Preventivi</span>
             </button>
-            <div className="text-[10px] sm:text-[11px] uppercase tracking-widest font-semibold mb-1 text-orange-200">
+            <div className="text-[10px] sm:text-[11px] uppercase tracking-widest font-semibold mb-1 text-orange-200 max-sm:hidden">
               ★ MARKETING & VENDITA
             </div>
-            <h1 className="text-xl sm:text-3xl font-bold tracking-tight flex items-center gap-2">
-              <RectangleVertical className="h-6 w-6 sm:h-7 sm:w-7 text-orange-400 shrink-0" />
-              <span className="truncate">Preventivatore Serramenti</span>
+            <h1 className="text-xl sm:text-3xl font-bold tracking-tight flex items-center gap-2 max-sm:text-lg">
+              <RectangleVertical className="h-6 w-6 sm:h-7 sm:w-7 text-orange-400 shrink-0 max-sm:hidden" />
+              <span className="truncate"><span className="max-sm:hidden">Preventivatore </span>Serramenti</span>
             </h1>
             <p className="hidden sm:block text-sm text-blue-100 mt-1">
               I tuoi preventivi di finestre, porte e persiane sotto controllo.
             </p>
           </div>
-          <div className="flex gap-2 w-full sm:w-auto">
+          <div className="flex gap-2 w-full sm:w-auto max-sm:w-auto max-sm:shrink-0">
             <Button
               onClick={() => navigate("/azienda/impostazioni/template-preventivi?tab=moduli-vendita&modulo=serramenti")}
               variant="outline"
-              className="bg-white/10 backdrop-blur border-white/20 text-white hover:bg-white/20 flex-1 sm:flex-initial h-10 sm:h-11 text-xs sm:text-sm"
+              className="bg-white/10 backdrop-blur border-white/20 text-white hover:bg-white/20 flex-1 sm:flex-initial h-10 sm:h-11 text-xs sm:text-sm max-sm:hidden"
               aria-label="Impostazioni serramenti"
             >
               <Settings className="h-4 w-4 sm:mr-1.5" />
@@ -449,7 +451,7 @@ export default function SerramentiIndex() {
             </Button>
             <Button
               onClick={() => navigate("/azienda/serramenti/nuovo")}
-              className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 text-white shadow-lg border-0 flex-1 sm:flex-initial h-10 sm:h-11 text-xs sm:text-sm"
+              className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 text-white shadow-lg border-0 flex-1 sm:flex-initial h-10 sm:h-11 text-xs sm:text-sm max-sm:flex-none max-sm:h-9 max-sm:px-3"
             >
               <Plus className="h-4 w-4 mr-1.5" />
               <span className="sm:hidden">Nuovo</span>
@@ -461,10 +463,12 @@ export default function SerramentiIndex() {
 
       <div className="max-w-[1400px] mx-auto px-4 sm:px-8 py-5 sm:py-6 space-y-4 sm:space-y-5">
         {/* KPI Dashboard — informativi, non cliccabili */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-          <KpiCard label="Totale preventivi" value={stats.totale} icon={<FileText className="h-4 w-4" />} tone="slate" />
+        {/* Telefono: quattro numeri col nome corto (conversione e ticket medio al computer). */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 max-sm:gap-2">
+          <KpiCard label="Totale preventivi" breve="Totale" value={stats.totale} icon={<FileText className="h-4 w-4" />} tone="slate" />
           <KpiCard
             label="Aperte (pipeline)"
+            breve="Aperte"
             value={stats.aperti}
             icon={<Layers className="h-4 w-4" />}
             tone="navy"
@@ -472,6 +476,7 @@ export default function SerramentiIndex() {
           />
           <KpiCard
             label="Vinte (contratti)"
+            breve="Vinte"
             value={stats.vinti}
             icon={<Trophy className="h-4 w-4" />}
             tone="orange"
@@ -479,6 +484,7 @@ export default function SerramentiIndex() {
           />
           <KpiCard label="Perse" value={stats.persi} icon={<XCircle className="h-4 w-4" />} tone="rose" />
           <KpiCard
+            className="max-sm:hidden"
             label="Tasso conversione"
             value={stats.conv != null ? `${stats.conv}` : "—"}
             unit={stats.conv != null ? "%" : undefined}
@@ -487,6 +493,7 @@ export default function SerramentiIndex() {
             hint={stats.vinti + stats.persi > 0 ? `su ${stats.vinti + stats.persi} decise` : "no dati"}
           />
           <KpiCard
+            className="max-sm:hidden"
             label="Ticket medio"
             value={stats.ticketMedio != null ? Math.round(stats.ticketMedio).toLocaleString("it-IT") : "—"}
             unit={stats.ticketMedio != null ? "€" : undefined}
@@ -606,7 +613,8 @@ export default function SerramentiIndex() {
             ranking per valore vinto + conversion rate per identificare
             top-performer e team-member da supportare. */}
         {stats.performanceByComm.length > 1 && (
-          <Card className="border-slate-200">
+          // Telefono: la classifica per commerciale (tabella a 6 colonne) resta al computer.
+          <Card className="border-slate-200 max-md:hidden">
             <CardContent className="p-3 space-y-2">
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <div className="flex items-center gap-1.5">
@@ -696,7 +704,7 @@ export default function SerramentiIndex() {
                 <span className="hidden sm:inline">Azzera</span>
               </Button>
             )}
-            <span className="text-xs text-muted-foreground ml-auto whitespace-nowrap">
+            <span className="text-xs text-muted-foreground ml-auto whitespace-nowrap max-sm:hidden">
               {progettiFiltrati.length} di {progetti.length}
               {totalPages > 1 && ` · pag ${currentPage}/${totalPages}`}
             </span>
@@ -950,62 +958,25 @@ export default function SerramentiIndex() {
                   </Table>
                 </div>
 
-                {/* Mobile card list */}
-                <div className="md:hidden p-2 space-y-2">
+                {/* Mobile: righe compatte (PDF ed eliminazione dal dettaglio o dal computer) */}
+                <div className="md:hidden divide-y divide-border">
                   {paginaCorrente.map((p) => {
                     const statoCfg = STATI_LABEL[p.stato as SrStatoProgetto] ?? STATI_LABEL.bozza;
                     const cliente = [p.cliente_nome, p.cliente_cognome].filter(Boolean).join(" ");
-                    const isAperto = STATI_APERTI.includes(p.stato as SrStatoProgetto);
+                    const importo = formatEuroRangeOrSingle(p.totale_min, p.totale_max);
                     return (
-                      <div
+                      <RigaMobile
                         key={p.id}
-                        className="rounded-lg border border-slate-200 bg-card p-3 space-y-2 shadow-sm cursor-pointer transition-shadow hover:border-orange-300 hover:bg-orange-50/30 hover:shadow"
-                        onClick={() => navigate(`/azienda/serramenti/${p.id}/modifica`)}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2 mb-0.5">
-                              <span className="font-mono text-xs font-semibold text-orange-600">{p.code}</span>
-                              <Badge variant="outline" className={cn("text-[10px] font-medium", statoCfg.className)}>
-                                {isAperto && <span className="inline-block w-1.5 h-1.5 rounded-full bg-current mr-1 animate-pulse" />}
-                                {statoCfg.label}
-                              </Badge>
-                            </div>
-                            <p className="text-sm font-medium truncate">{cliente || "—"}</p>
-                            <p className="text-[11px] text-muted-foreground truncate">
-                              {p.cantiere_citta ?? "—"} · {p.totale_serramenti ?? 0} pezzi
-                            </p>
-                          </div>
-                          <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                        </div>
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="font-medium tabular-nums">
-                            {formatEuroRangeOrSingle(p.totale_min, p.totale_max) !== "—" ? (
-                              <>{formatEuroRangeOrSingle(p.totale_min, p.totale_max)}</>
-                            ) : (
-                              <span className="text-muted-foreground">—</span>
-                            )}
-                          </span>
-                          <span className="text-[10px] text-muted-foreground">
-                            {p.updated_at ? format(new Date(p.updated_at), "d MMM yyyy", { locale: it }) : "—"}
-                          </span>
-                        </div>
-                        <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-                          {p.pdf_url && (
-                            <Button asChild size="sm" variant="outline" className="flex-1 h-8 text-xs">
-                              <a href={p.pdf_url} target="_blank" rel="noopener noreferrer">
-                                <ExternalLink className="h-3.5 w-3.5 mr-1.5 text-orange-600" /> PDF
-                              </a>
-                            </Button>
-                          )}
-                          <Button
-                            size="sm" variant="outline" className="h-8 text-xs"
-                            onClick={() => setToDelete({ id: p.id, code: p.code })}
-                          >
-                            <Trash2 className="h-3.5 w-3.5 text-rose-600" />
-                          </Button>
-                        </div>
-                      </div>
+                        to={`/azienda/serramenti/${p.id}/modifica`}
+                        titolo={cliente || p.code || "—"}
+                        sottotitolo={[p.code, p.cantiere_citta, p.totale_serramenti ? `${p.totale_serramenti} pz` : null].filter(Boolean).join(" · ")}
+                        valore={importo}
+                        stato={
+                          <Badge variant="outline" className={cn("text-[10px] font-medium", statoCfg.className)}>
+                            {statoCfg.label}
+                          </Badge>
+                        }
+                      />
                     );
                   })}
                 </div>
@@ -1312,9 +1283,12 @@ const TONE_CLASS: Record<KpiTone, { border: string; iconBg: string; iconText: st
 };
 
 function KpiCard({
-  label, value, unit, icon, tone = "slate", hint,
+  label, breve, value, unit, icon, tone = "slate", hint, className,
 }: {
   label: string;
+  /** Telefono: il nome corto (prima «TOTALE PREVE…»). */
+  breve?: string;
+  className?: string;
   value: string | number;
   unit?: string;
   icon: React.ReactNode;
@@ -1323,16 +1297,16 @@ function KpiCard({
 }) {
   const c = TONE_CLASS[tone];
   return (
-    <div className={cn("bg-white border-l-4 rounded-lg shadow-sm p-3 sm:p-4", c.border)}>
+    <div className={cn("bg-white border-l-4 rounded-lg shadow-sm p-3 sm:p-4 max-sm:px-3 max-sm:py-2", c.border, className)}>
       <div className="flex items-center justify-between gap-2">
         <p className="text-[10px] sm:text-[11px] font-medium text-muted-foreground uppercase tracking-wide truncate">
-          {label}
+          <span className="max-sm:hidden">{label}</span><span className="sm:hidden">{breve ?? label}</span>
         </p>
-        <span className={cn("h-7 w-7 rounded-md flex items-center justify-center shrink-0", c.iconBg, c.iconText)}>
+        <span className={cn("h-7 w-7 rounded-md flex items-center justify-center shrink-0 max-sm:hidden", c.iconBg, c.iconText)}>
           {icon}
         </span>
       </div>
-      <p className={cn("text-2xl font-bold mt-1 tabular-nums", c.valueText)}>
+      <p className={cn("text-2xl font-bold mt-1 tabular-nums max-sm:mt-0 max-sm:text-lg", c.valueText)}>
         {value}
         {unit && <span className="text-base font-normal ml-0.5">{unit}</span>}
       </p>

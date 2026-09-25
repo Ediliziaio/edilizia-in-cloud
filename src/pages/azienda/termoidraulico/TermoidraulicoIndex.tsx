@@ -38,6 +38,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { CercaConFiltri, PannelloFiltri, PilloleFiltro, RigaMobile } from "@/components/mobile/FiltriMobile";
 import { formatCurrency } from "@/lib/formatters";
 import {
   useTermoidraulicoProgetti,
@@ -61,6 +62,7 @@ export default function TermoidraulicoIndex() {
 
   const [search, setSearch] = useState("");
   const [filtroStato, setFiltroStato] = useState<string>("all");
+  const [filtriMobiliAperti, setFiltriMobiliAperti] = useState(false);
   const [toDelete, setToDelete] = useState<{ id: string; code: string | null } | null>(null);
   const [cloneOpen, setCloneOpen] = useState(false);
   const [cloningId, setCloningId] = useState<string | null>(null);
@@ -129,35 +131,36 @@ export default function TermoidraulicoIndex() {
           className="absolute -top-1/3 -right-10 w-2/5 h-[160%] pointer-events-none"
           style={{ background: "radial-gradient(circle, rgba(249,115,22,0.20) 0%, transparent 60%)" }}
         />
-        <div className="absolute right-8 top-6 opacity-10 select-none" aria-hidden>
+        <div className="absolute right-8 top-6 opacity-10 select-none max-sm:hidden" aria-hidden>
           <Hammer className="h-28 w-28" strokeWidth={1.5} />
         </div>
-        <div className="relative max-w-[1400px] mx-auto px-3 sm:px-8 py-4 sm:py-8 flex items-center justify-between flex-wrap gap-3 sm:gap-4">
+        {/* Telefono: titolo e «Nuovo» su una riga; listino e «da esistente» dal computer. */}
+        <div className="relative max-w-[1400px] mx-auto px-3 sm:px-8 py-4 sm:py-8 flex items-center justify-between flex-wrap gap-3 sm:gap-4 max-sm:flex-nowrap max-sm:py-3">
           <div className="min-w-0 flex-1">
             <button
               type="button"
               onClick={() => navigate("/azienda/marketing/preventivi")}
-              className="inline-flex items-center gap-1 text-[11px] sm:text-xs font-medium text-blue-100/90 hover:text-white mb-2 transition-colors"
+              className="inline-flex items-center gap-1 text-[11px] sm:text-xs font-medium text-blue-100/90 hover:text-white mb-2 transition-colors max-sm:mb-1"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
-              Torna ai Preventivi
+              <span className="max-sm:hidden">Torna ai Preventivi</span><span className="sm:hidden">Preventivi</span>
             </button>
-            <div className="text-[10px] sm:text-[11px] uppercase tracking-widest font-semibold mb-1 text-orange-200">
+            <div className="text-[10px] sm:text-[11px] uppercase tracking-widest font-semibold mb-1 text-orange-200 max-sm:hidden">
               ★ MARKETING & VENDITA
             </div>
-            <h1 className="text-xl sm:text-3xl font-bold tracking-tight flex items-center gap-2">
-              <Hammer className="h-6 w-6 sm:h-7 sm:w-7 text-orange-400 shrink-0" />
+            <h1 className="text-xl sm:text-3xl font-bold tracking-tight flex items-center gap-2 max-sm:text-lg">
+              <Hammer className="h-6 w-6 sm:h-7 sm:w-7 text-orange-400 shrink-0 max-sm:hidden" />
               <span className="truncate">Termoidraulico</span>
             </h1>
             <p className="hidden sm:block text-sm text-blue-100 mt-1">
               Computo metrico e preventivi di termoidraulico sotto controllo.
             </p>
           </div>
-          <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+          <div className="flex flex-wrap gap-2 w-full sm:w-auto max-sm:w-auto max-sm:shrink-0 max-sm:flex-nowrap">
             <Button
               variant="outline"
               onClick={() => navigate("/azienda/termoidraulico/listino")}
-              className="flex-1 sm:flex-initial h-10 sm:h-11 text-xs sm:text-sm border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+              className="flex-1 sm:flex-initial h-10 sm:h-11 text-xs sm:text-sm border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white max-sm:hidden"
             >
               <Layers className="h-4 w-4 mr-1.5" />
               <span className="sm:hidden">Listino</span>
@@ -167,7 +170,7 @@ export default function TermoidraulicoIndex() {
               <Button
                 variant="outline"
                 onClick={() => setCloneOpen(true)}
-                className="flex-1 sm:flex-initial h-10 sm:h-11 text-xs sm:text-sm border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+                className="flex-1 sm:flex-initial h-10 sm:h-11 text-xs sm:text-sm border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white max-sm:hidden"
               >
                 <CopyPlus className="h-4 w-4 mr-1.5" />
                 <span className="sm:hidden">Da esistente</span>
@@ -176,7 +179,7 @@ export default function TermoidraulicoIndex() {
             )}
             <Button
               onClick={() => navigate("/azienda/termoidraulico/nuovo")}
-              className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 text-white shadow-lg border-0 flex-1 sm:flex-initial h-10 sm:h-11 text-xs sm:text-sm"
+              className={cn("bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 text-white shadow-lg border-0 flex-1 sm:flex-initial h-10 sm:h-11 text-xs sm:text-sm max-sm:flex-none max-sm:h-9 max-sm:px-3", progetti.length === 0 && "max-sm:hidden")}
             >
               <Plus className="h-4 w-4 mr-1.5" />
               <span className="sm:hidden">Nuovo</span>
@@ -188,18 +191,47 @@ export default function TermoidraulicoIndex() {
 
       <div className="max-w-[1400px] mx-auto px-4 sm:px-8 py-5 sm:py-6 space-y-4 sm:space-y-5">
         {/* KPI */}
-        <div className="grid grid-cols-3 gap-3">
-          <KpiCard label="Totale progetti" value={String(stats.totale)} icon={<FileText className="h-4 w-4" />} />
+        {/* Telefono: senza progetti niente numeri a zero né ricerca. */}
+        <div className={cn("grid grid-cols-3 gap-3 max-sm:gap-2", progetti.length === 0 && "max-sm:hidden")}>
+          <KpiCard label="Totale progetti" breve="Totale" value={String(stats.totale)} icon={<FileText className="h-4 w-4" />} />
           <KpiCard label="Aperti" value={String(stats.aperti)} icon={<Layers className="h-4 w-4" />} />
           <KpiCard
             label="Valore totale"
+            breve="Valore"
             value={stats.valore > 0 ? formatCurrency(stats.valore) : "—"}
             icon={<Wallet className="h-4 w-4" />}
           />
         </div>
 
+        {/* Telefono: ricerca e stato in un foglio. */}
+        <CercaConFiltri
+          className={cn("md:hidden", progetti.length === 0 && "hidden")}
+          valore={search}
+          onCambia={setSearch}
+          segnaposto="Cerca progetto"
+          filtriAttivi={filtroStato !== "all" ? 1 : 0}
+          onApriFiltri={() => setFiltriMobiliAperti(true)}
+        />
+        <PannelloFiltri
+          aperto={filtriMobiliAperti}
+          onAperto={setFiltriMobiliAperti}
+          attivi={filtroStato !== "all" ? 1 : 0}
+          onAzzera={() => setFiltroStato("all")}
+          risultati={progettiFiltrati.length}
+        >
+          <PilloleFiltro
+            titolo="Stato"
+            valore={filtroStato}
+            onScegli={setFiltroStato}
+            scelte={[
+              { value: "all", label: "Tutti" },
+              ...(Object.keys(IDR_STATI_LABEL) as IdrStato[]).map((k) => ({ value: k, label: IDR_STATI_LABEL[k].label, n: progetti.filter((p) => p.stato === k).length })),
+            ]}
+          />
+        </PannelloFiltri>
+
         {/* Toolbar */}
-        <Card>
+        <Card className="max-md:hidden">
           <CardContent className="p-2.5 sm:p-3 flex flex-wrap items-center gap-2">
             <div className="relative flex-1 min-w-[160px] sm:min-w-[200px] w-full sm:w-auto">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -358,49 +390,24 @@ export default function TermoidraulicoIndex() {
                   </Table>
                 </div>
 
-                {/* Mobile card list */}
-                <div className="md:hidden p-2 space-y-2">
+                {/* Mobile: righe compatte (eliminare resta dalla tabella del computer) */}
+                <div className="md:hidden divide-y divide-border">
                   {progettiFiltrati.map((p) => {
                     const statoCfg = IDR_STATI_LABEL[p.stato] ?? IDR_STATI_LABEL.bozza;
                     const cliente = [p.cliente_nome, p.cliente_cognome].filter(Boolean).join(" ");
                     return (
-                      <div
+                      <RigaMobile
                         key={p.id}
-                        className="rounded-lg border border-slate-200 bg-card p-3 space-y-2 shadow-sm cursor-pointer transition-shadow hover:border-orange-300 hover:bg-orange-50/30 hover:shadow"
-                        onClick={() => navigate(`/azienda/termoidraulico/${p.id}/modifica`)}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2 mb-0.5">
-                              <span className="font-mono text-xs font-semibold text-orange-600">{p.code ?? "—"}</span>
-                              <Badge variant="outline" className={cn("text-[10px] font-medium", statoCfg.className)}>
-                                {statoCfg.label}
-                              </Badge>
-                            </div>
-                            <p className="text-sm font-medium truncate">{cliente || "—"}</p>
-                            <p className="text-[11px] text-muted-foreground truncate">
-                              {p.cantiere_citta ?? "—"}
-                            </p>
-                          </div>
-                          <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                        </div>
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="font-medium tabular-nums">
-                            {Number(p.totale) > 0 ? formatCurrency(p.totale) : <span className="text-muted-foreground">—</span>}
-                          </span>
-                          <span className="text-[10px] text-muted-foreground">
-                            {p.updated_at ? format(new Date(p.updated_at), "d MMM yyyy", { locale: it }) : "—"}
-                          </span>
-                        </div>
-                        <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-                          <Button
-                            size="sm" variant="outline" className="h-8 text-xs"
-                            onClick={() => setToDelete({ id: p.id, code: p.code })}
-                          >
-                            <Trash2 className="h-3.5 w-3.5 text-rose-600" />
-                          </Button>
-                        </div>
-                      </div>
+                        to={`/azienda/termoidraulico/${p.id}/modifica`}
+                        titolo={cliente || p.code || "—"}
+                        sottotitolo={[p.code, p.cantiere_citta].filter(Boolean).join(" · ")}
+                        valore={Number(p.totale) > 0 ? formatCurrency(p.totale) : "—"}
+                        stato={
+                          <Badge variant="outline" className={cn("text-[10px] font-medium", statoCfg.className)}>
+                            {statoCfg.label}
+                          </Badge>
+                        }
+                      />
                     );
                   })}
                 </div>
@@ -485,16 +492,19 @@ export default function TermoidraulicoIndex() {
   );
 }
 
-function KpiCard({ label, value, icon }: { label: string; value: string; icon: React.ReactNode }) {
+/** Telefono: tre numeri in riga col nome corto, senza icona (prima l'etichetta diventava «TO…»). */
+function KpiCard({ label, breve, value, icon }: { label: string; breve?: string; value: string; icon: React.ReactNode }) {
   return (
     <Card>
-      <CardContent className="p-3 flex items-center gap-3">
-        <div className="h-9 w-9 rounded-md bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
+      <CardContent className="p-3 flex items-center gap-3 max-sm:px-2.5 max-sm:py-2">
+        <div className="h-9 w-9 rounded-md bg-slate-100 text-slate-600 flex items-center justify-center shrink-0 max-sm:hidden">
           {icon}
         </div>
         <div className="min-w-0">
-          <p className="text-[10px] uppercase tracking-wide text-muted-foreground truncate">{label}</p>
-          <p className="text-base font-bold tabular-nums truncate">{value}</p>
+          <p className="text-[10px] uppercase tracking-wide text-muted-foreground truncate">
+            <span className="max-sm:hidden">{label}</span><span className="sm:hidden">{breve ?? label}</span>
+          </p>
+          <p className="text-base font-bold tabular-nums truncate max-sm:text-sm">{value}</p>
         </div>
       </CardContent>
     </Card>
@@ -503,13 +513,14 @@ function KpiCard({ label, value, icon }: { label: string; value: string; icon: R
 
 function EmptyStateFirstTime({ onCreate }: { onCreate: () => void }) {
   return (
-    <div className="p-10 text-center space-y-4">
-      <div className="mx-auto h-14 w-14 rounded-full bg-orange-50 flex items-center justify-center">
+    // Telefono: titolo e bottone, senza icona grande né spiegazione.
+    <div className="p-10 text-center space-y-4 max-sm:space-y-3 max-sm:p-5">
+      <div className="mx-auto h-14 w-14 rounded-full bg-orange-50 flex items-center justify-center max-sm:hidden">
         <Hammer className="h-7 w-7 text-orange-500" />
       </div>
       <div className="space-y-1">
         <h3 className="text-base font-semibold text-slate-900">Nessun progetto di termoidraulico</h3>
-        <p className="text-sm text-muted-foreground max-w-md mx-auto">
+        <p className="text-sm text-muted-foreground max-w-md mx-auto max-sm:hidden">
           Crea il primo progetto: componi il computo metrico dai tuoi listini e genera un preventivo PDF brandizzato per il cliente.
         </p>
       </div>
