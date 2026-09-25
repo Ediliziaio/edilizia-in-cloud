@@ -68,11 +68,13 @@ export function SmsDashboard({ onRicarica }: SmsDashboardProps) {
     { label: "Costo totale", value: new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(dashboard.costoTotale), icon: Euro, color: "text-orange-600" },
   ];
 
+  // Telefono: il credito sta già in alto accanto al titolo; restano i quattro
+  // numeri 2×2 (nome e cifra), le campagne migliori e il numero attivo.
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-md:space-y-3">
       {/* Banner wallet */}
       {wallet && (
-        <div className={`rounded-lg p-4 border ${isBlocco() ? "bg-destructive/5 border-destructive/30" : isSottoSoglia() ? "bg-amber-50 border-amber-200" : "bg-emerald-50 border-emerald-200"}`}>
+        <div className={`rounded-lg p-4 border max-md:hidden ${isBlocco() ? "bg-destructive/5 border-destructive/30" : isSottoSoglia() ? "bg-amber-50 border-amber-200" : "bg-emerald-50 border-emerald-200"}`}>
           <div className="flex items-center justify-between gap-3">
             <div className="flex-1">
               <div className="flex items-baseline gap-2">
@@ -100,27 +102,27 @@ export function SmsDashboard({ onRicarica }: SmsDashboardProps) {
       )}
 
       {/* KPI cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-md:gap-2">
         {kpis.map((kpi) => {
           const Icon = kpi.icon;
           return (
             <Card key={kpi.label}>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide">{kpi.label}</span>
-                  <Icon className={`h-4 w-4 ${kpi.color}`} />
+              <CardContent className="p-4 max-md:px-2.5 max-md:py-2">
+                <div className="flex items-center justify-between mb-2 max-md:mb-0.5">
+                  <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide max-md:truncate max-md:text-[11px] max-md:normal-case max-md:tracking-normal">{kpi.label}</span>
+                  <Icon className={`h-4 w-4 max-md:hidden ${kpi.color}`} />
                 </div>
-                <div className="text-2xl font-bold tabular-nums">{kpi.value}</div>
-                <div className="text-xs text-muted-foreground mt-1">Mese corrente</div>
+                <div className="text-2xl font-bold tabular-nums max-md:text-base">{kpi.value}</div>
+                <div className="text-xs text-muted-foreground mt-1 max-md:hidden">Mese corrente</div>
               </CardContent>
             </Card>
           );
         })}
       </div>
 
-      <div className="grid md:grid-cols-3 gap-4">
+      <div className="grid md:grid-cols-3 gap-4 max-md:gap-3">
         {/* Grafico trend */}
-        <Card className="md:col-span-2">
+        <Card className="md:col-span-2 max-md:hidden">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Andamento ultimi 6 mesi</CardTitle>
           </CardHeader>
@@ -147,10 +149,10 @@ export function SmsDashboard({ onRicarica }: SmsDashboardProps) {
 
         {/* Top campagne */}
         <Card>
-          <CardHeader className="pb-2">
+          <CardHeader className="pb-2 max-md:p-3 max-md:pb-1.5">
             <CardTitle className="text-sm font-medium">Top campagne</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-3 max-md:space-y-2 max-md:p-3 max-md:pt-0">
             {dashboard.topCampagne.length === 0 ? (
               <p className="text-sm text-muted-foreground">Nessuna campagna completata</p>
             ) : (
@@ -176,9 +178,9 @@ export function SmsDashboard({ onRicarica }: SmsDashboardProps) {
       {/* Numero attivo */}
       {numero && (
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-4 max-md:px-3 max-md:py-2.5">
             <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 max-md:hidden">
                 <Phone className="h-4 w-4 text-primary" />
               </div>
               <div>

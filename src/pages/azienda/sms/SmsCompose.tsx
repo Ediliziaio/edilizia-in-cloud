@@ -58,19 +58,22 @@ export function SmsCompose() {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Send className="h-5 w-5 text-[#1E3A5F]" />
+      <CardHeader className="max-md:p-3 max-md:pb-2">
+        <CardTitle className="flex items-center gap-2 max-md:text-sm">
+          <Send className="h-5 w-5 text-[#1E3A5F] max-md:hidden" />
           Nuovo SMS
         </CardTitle>
       </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+      <CardContent className="max-md:p-3 max-md:pt-0">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-5 max-md:space-y-3">
           {/* Destinatario */}
           <div className="space-y-1.5">
             <Label htmlFor="to_number">Numero destinatario</Label>
             <Input
               id="to_number"
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
               placeholder="+39 333 123 4567"
               {...register("to_number")}
               className={errors.to_number ? "border-red-400" : ""}
@@ -98,9 +101,12 @@ export function SmsCompose() {
 
             {/* Contatore caratteri */}
             <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span className="flex items-center gap-1">
+              {/* Il risultato si chiama tipoCharset: con «charset» (che non esiste) la
+                  scheda «Invia ora» andava in errore appena aperta. Telefono: il
+                  dettaglio tecnico non serve, resta il conteggio. */}
+              <span className="flex items-center gap-1 max-md:hidden">
                 <Info className="h-3 w-3" />
-                Charset: {partiSms.charset.toUpperCase()}
+                Charset: {partiSms.tipoCharset.toUpperCase()}
               </span>
               <span>
                 {charCount} car. · {partiSms.parti} SMS
