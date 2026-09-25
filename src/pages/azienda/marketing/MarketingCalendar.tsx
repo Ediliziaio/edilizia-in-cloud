@@ -1235,11 +1235,12 @@ export default function MarketingCalendar() {
       {/* KPI dashboard — 2026-05-27 (UX request): allineata al Calendario
           Lavori operativo per consistenza. Mostra metriche del periodo che
           l'utente sta filtrando, NON dell'intera azienda. */}
-      {/* Telefono: oggi e settimana; «da assegnare» e «conflitti» solo quando ce ne sono. */}
+      {/* Telefono: oggi e settimana; «da assegnare» e «conflitti» solo quando ce ne sono.
+          Nome a 11px e cifra a 16px, come gli altri riquadri numero del telefono. */}
       <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
         <div className="rounded-lg border bg-card px-3 py-2 max-sm:hidden">
-          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Visibili</p>
-          <p className="text-xl font-bold tabular-nums">{headerStats.visible}</p>
+          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground max-md:text-[11px] max-md:normal-case max-md:tracking-normal">Visibili</p>
+          <p className="text-xl font-bold tabular-nums max-md:text-base">{headerStats.visible}</p>
         </div>
         <button
           type="button"
@@ -1247,12 +1248,12 @@ export default function MarketingCalendar() {
           className="rounded-lg border bg-card px-3 py-2 text-left transition-colors hover:bg-muted/50"
           title="Vai a oggi"
         >
-          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Oggi</p>
-          <p className="text-xl font-bold tabular-nums">{headerStats.todayCount}</p>
+          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground max-md:text-[11px] max-md:normal-case max-md:tracking-normal">Oggi</p>
+          <p className="text-xl font-bold tabular-nums max-md:text-base">{headerStats.todayCount}</p>
         </button>
         <div className="rounded-lg border bg-card px-3 py-2">
-          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Settimana</p>
-          <p className="text-xl font-bold tabular-nums">{headerStats.weekCount}</p>
+          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground max-md:text-[11px] max-md:normal-case max-md:tracking-normal">Settimana</p>
+          <p className="text-xl font-bold tabular-nums max-md:text-base">{headerStats.weekCount}</p>
         </div>
         {/* KPI-filtro (toggle): mostra solo il sottoinsieme sulla griglia/elenco. */}
         <button
@@ -1266,11 +1267,11 @@ export default function MarketingCalendar() {
             kpiFilter === "unassigned" && "ring-2 ring-amber-400 ring-offset-1",
           )}
         >
-          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground max-md:text-[11px] max-md:normal-case max-md:tracking-normal">
             Da assegnare{kpiFilter === "unassigned" && " · filtro attivo"}
           </p>
           <p className={cn(
-            "text-xl font-bold tabular-nums",
+            "text-xl font-bold tabular-nums max-md:text-base",
             headerStats.unassigned > 0 && "text-amber-700 dark:text-amber-400"
           )}>{headerStats.unassigned}</p>
         </button>
@@ -1285,11 +1286,11 @@ export default function MarketingCalendar() {
             kpiFilter === "conflicts" && "ring-2 ring-red-400 ring-offset-1",
           )}
         >
-          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground max-md:text-[11px] max-md:normal-case max-md:tracking-normal">
             Conflitti{kpiFilter === "conflicts" && " · filtro attivo"}
           </p>
           <p className={cn(
-            "text-xl font-bold tabular-nums",
+            "text-xl font-bold tabular-nums max-md:text-base",
             headerStats.conflicts > 0 ? "text-red-700 dark:text-red-400" : "text-foreground"
           )}>{headerStats.conflicts}</p>
         </button>

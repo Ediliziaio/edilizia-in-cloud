@@ -2331,7 +2331,7 @@ function ContentStudioTab({
                   <span className={cn("flex h-5 w-5 items-center justify-center rounded text-[9px] font-bold", isSelected ? "bg-white/20" : cn(p.color, "text-white"))}>{p.icon}</span>
                   {p.name}
                   {etichetta && (
-                    <span className={cn("rounded-full px-1.5 py-0.5 text-[9px] font-medium", isSelected ? "bg-white/20" : "bg-slate-100 text-slate-500")}>
+                    <span className={cn("rounded-full px-1.5 py-0.5 text-[9px] font-medium max-md:text-[11px]", isSelected ? "bg-white/20" : "bg-slate-100 text-slate-500")}>
                       {etichetta}
                     </span>
                   )}
@@ -2438,7 +2438,7 @@ function ContentStudioTab({
                   </Button>
                 )}
               </div>
-              <p className="text-[10px] text-slate-500">
+              <p className="text-[10px] text-slate-500 max-md:text-[11px]">
                 Il testo arriva in 3 versioni: scegli quella che preferisci e ritoccala.{" "}
                 <button type="button" onClick={chiediASilvio} className="font-semibold text-orange-700 underline-offset-2 hover:underline">
                   Oppure chiedilo a Silvio
@@ -2506,7 +2506,7 @@ function ContentStudioTab({
                     ? "Titolo del video: metti all'inizio le parole che la gente cerca…"
                     : "Racconta un lavoro finito, mostra il cantiere, dai un consiglio…"} />
               {charCount > 0 && selectedPlatforms.length > 0 && (
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px]">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] max-md:text-[11px]">
                   {selectedPlatforms.map((id) => {
                     const platform = PLATFORMS.find((p) => p.id === id);
                     if (!platform) return null;
@@ -2650,7 +2650,7 @@ function ContentStudioTab({
                 onUploaded={(items) => setExtraMedia((prev) => [...prev, ...items])}
               />
             )}
-            {testoFormati && <p className="text-[10px] text-slate-400">{testoFormati}</p>}
+            {testoFormati && <p className="text-[10px] text-slate-400 max-md:text-[11px]">{testoFormati}</p>}
           </div>
 
           {/* Opzioni avanzate, chiuse: formato, argomento, testo per piattaforma, primo commento */}
