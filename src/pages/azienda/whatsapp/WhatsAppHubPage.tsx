@@ -15,6 +15,8 @@ import OperationalControlPage from "./OperationalControlPage";
 import { useSearchParams } from "react-router-dom";
 import { Bell, Bot, Megaphone, MessageSquare } from "lucide-react";
 import { useWhatsAppBase } from "./useWhatsAppBase";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { AvvisoSoloDaComputer } from "@/components/mobile/SoloDaComputer";
 
 const ALL_TABS = ["numeri", "regia", "template", "broadcast", "notifiche"] as const;
 const MARKETING_TABS = ["numeri", "template", "broadcast"] as const;
@@ -34,6 +36,19 @@ export default function WhatsAppHubPage() {
     next.set("tab", normalizeTab(value));
     setParams(next, { replace: true });
   };
+
+  // Telefono: tutto l'hub è impostazione (collegare i numeri, regia di Silvio,
+  // modelli Meta, invii di massa, notifiche) e si fa da computer o tablet.
+  // Le conversazioni si leggono e si rispondono dal CRM, dove stanno.
+  const isMobile = useIsMobile();
+  if (isMobile) {
+    return (
+      <div className="space-y-3">
+        <h1 className="text-lg font-bold">{isAdminContext ? "WhatsApp Marketing" : "WhatsApp"}</h1>
+        <AvvisoSoloDaComputer titolo="Numeri, regia AI, modelli e invii WhatsApp si impostano da computer o tablet" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
