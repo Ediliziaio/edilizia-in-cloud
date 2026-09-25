@@ -24,6 +24,24 @@ const VERTICAL_TO_GALLERY_SLUG: Record<string, string> = {
 };
 
 /**
+ * I verticali della galleria dei modelli (article_family_templates.vertical_slug),
+ * con l'etichetta che l'azienda vede nel filtro di «Importa → Modelli pronti».
+ * Un modello con un verticale fuori da qui l'azienda lo trova solo sotto
+ * «Tutti i verticali»: per questo nell'admin si sceglie da questo elenco.
+ */
+export const VERTICALI_GALLERIA: ReadonlyArray<{ value: string; label: string }> = [
+  { value: "pavimenti", label: "Pavimenti & Rivestimenti" },
+  { value: "porte", label: "Porte" },
+  { value: "serramenti", label: "Serramenti" },
+  { value: "bagno", label: "Bagno & Sanitari" },
+  { value: "elettrico", label: "Elettrico" },
+  { value: "fotovoltaico", label: "Fotovoltaico" },
+  { value: "tetti", label: "Tetti" },
+  { value: "cappotto", label: "Cappotto termico" },
+  { value: "pompe_calore", label: "Pompe di calore" },
+];
+
+/**
  * Converte uno slug verticale company-side nel suo equivalente galleria.
  * Se non c'è un mapping esplicito, restituisce lo slug originale (best-effort
  * per slug che già coincidono).

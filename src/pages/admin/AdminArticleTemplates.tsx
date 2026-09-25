@@ -21,19 +21,20 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
   Boxes, Plus, Search, Pencil, Copy, Trash2, Download, Loader2, Grid3x3,
-  Image as ImageIcon, X, Minus, ChevronDown, ChevronRight, Layers, Library, Tags,
+  Image as ImageIcon, X, Minus, ChevronDown, ChevronRight, Layers, Library, Tags, MoreHorizontal,
 } from "lucide-react";
 import { GlobalPhotoLibraryPicker } from "@/components/admin/GlobalPhotoLibraryPicker";
 import { LibreriaMarcheSerie } from "@/components/admin/LibreriaMarcheSerie";
 import { ModelliAreaTab } from "@/components/admin/listino/ModelliAreaTab";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
@@ -41,6 +42,13 @@ import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuLabel, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  FILTRO_VUOTO, MODALITA_PREZZO, categorieProdotti, etichettaModalita, etichettaSlug, filtraProdotti,
+  gruppiProdotti, testoConteggio, type FiltroProdotti, type ProdottoLibreria,
+} from "@/lib/listino/prodottiLibreria";
+import { VERTICALI_GALLERIA } from "@/lib/verticalMapping";
+import { cn } from "@/lib/utils";
 interface GridDefault { xs: number[]; ys: number[]; m: (number | null)[][] }
 
 /**
@@ -85,14 +93,6 @@ const LIBRARY_SOURCES: LibrarySource[] = [
   },
 ];
 
-/** Riga leggera per la lista: niente griglia_default/assi_default (jsonb pesanti),
- * caricati on-demand solo all'apertura dell'editor. */
-interface TemplateListItem {
-  id: string; nome: string; vertical_slug: string; categoria_slug: string | null;
-  tipologia: string | null; tags: string[] | null; modalita_prezzo_base: string | null;
-  image_url: string | null; is_active: boolean; sort_order: number | null;
-}
-
 interface Template {
   id: string;
   nome: string;
@@ -114,14 +114,23 @@ interface Template {
   sort_order: number | null;
 }
 
-/** "porta_finestra" → "Porta Finestra", "veneziane" → "Veneziane". */
-const prettyLabel = (s: string) => (s || "Senza categoria").replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+/** «serramenti» → «Serramenti», con l'etichetta che vede l'azienda. */
+const etichettaVerticale = (slug: string) =>
+  VERTICALI_GALLERIA.find((v) => v.value === slug)?.label ?? etichettaSlug(slug);
 
 const SCHEDE = ["aree", "prodotti", "marche"] as const;
 type Scheda = (typeof SCHEDE)[number];
 
+/** Cosa c'è nella scheda aperta, detto sotto il titolo: niente riquadri in più sopra gli elenchi. */
+const SPIEGAZIONE: Record<Scheda, string> = {
+  aree: "Aree intere prese dal listino di un'azienda: chi le installa ne riceve una copia sua, da modificare.",
+  prodotti: "Un prodotto alla volta, con disegno e griglia prezzi: le aziende li prendono con «Importa → Modelli pronti».",
+  marche: "Marche e serie di profilo dei serramenti.",
+};
+
 export default function AdminArticleTemplates() {
   const qc = useQueryClient();
+  const confirm = useConfirm();
   // La scheda aperta sta nell'indirizzo: si ricarica e si linka.
   const [parametri, setParametri] = useSearchParams();
   const richiesta = parametri.get("scheda");
@@ -136,10 +145,8 @@ export default function AdminArticleTemplates() {
       },
       { replace: true },
     );
-  const [search, setSearch] = useState("");
-  const [tag, setTag] = useState<string>("");
-  const [onlyInactive, setOnlyInactive] = useState(false);
-  const [categoria, setCategoria] = useState<string>("");
+  const [filtro, setFiltro] = useState<FiltroProdotti>(FILTRO_VUOTO);
+  const cambiaFiltro = (patch: Partial<FiltroProdotti>) => setFiltro((f) => ({ ...f, ...patch }));
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [creatingNew, setCreatingNew] = useState(false);
@@ -155,54 +162,22 @@ export default function AdminArticleTemplates() {
         .order("sort_order", { ascending: true })
         .order("nome", { ascending: true });
       if (error) throw error;
-      return (data ?? []) as unknown as TemplateListItem[];
+      return (data ?? []) as unknown as ProdottoLibreria[];
     },
   });
 
-  const allTags = useMemo(() => {
-    const s = new Set<string>();
-    templates.forEach((t) => (t.tags ?? []).forEach((x) => s.add(x)));
-    return Array.from(s).sort();
-  }, [templates]);
-
-  const allCategorie = useMemo(() => {
-    const s = new Set<string>();
-    templates.forEach((t) => { if (t.categoria_slug) s.add(t.categoria_slug); });
-    return Array.from(s).sort();
-  }, [templates]);
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return templates.filter((t) => {
-      if (onlyInactive && t.is_active) return false;
-      if (tag && !(t.tags ?? []).includes(tag)) return false;
-      if (categoria && (t.categoria_slug ?? "") !== categoria) return false;
-      if (!q) return true;
-      return (
-        t.nome.toLowerCase().includes(q) ||
-        (t.tipologia ?? "").toLowerCase().includes(q) ||
-        (t.categoria_slug ?? "").toLowerCase().includes(q) ||
-        (t.tags ?? []).some((x) => x.toLowerCase().includes(q))
-      );
-    });
-  }, [templates, search, tag, categoria, onlyInactive]);
-
-  // Raggruppamento per verticale → categoria (collassabile): scala a centinaia di template.
-  const groups = useMemo(() => {
-    const map = new Map<string, TemplateListItem[]>();
-    for (const t of filtered) {
-      const key = `${t.vertical_slug || "—"}/${t.categoria_slug || "senza-categoria"}`;
-      const arr = map.get(key); if (arr) arr.push(t); else map.set(key, [t]);
-    }
-    return Array.from(map.entries())
-      .map(([key, items]) => ({ key, vertical: key.split("/")[0], categoria: key.split("/")[1], items }))
-      .sort((a, b) => a.key.localeCompare(b.key, "it"));
-  }, [filtered]);
+  const categorie = useMemo(() => categorieProdotti(templates), [templates]);
+  const nascosti = useMemo(() => templates.filter((t) => !t.is_active).length, [templates]);
+  const filtered = useMemo(() => filtraProdotti(templates, filtro), [templates, filtro]);
+  // Raggruppamento per verticale → categoria (collassabile): scala a centinaia di prodotti.
+  const groups = useMemo(() => gruppiProdotti(filtered), [filtered]);
+  const piuVerticali = new Set(groups.map((g) => g.verticale)).size > 1;
+  const filtriAttivi = filtro.cerca.trim() !== "" || filtro.categoria !== null || filtro.tag !== null || filtro.soloSpenti;
 
   const toggleGroup = (key: string) =>
     setCollapsed((prev) => { const n = new Set(prev); if (n.has(key)) n.delete(key); else n.add(key); return n; });
-  const allCollapsed = groups.length > 0 && groups.every((g) => collapsed.has(g.key));
-  const toggleAll = () => setCollapsed(allCollapsed ? new Set() : new Set(groups.map((g) => g.key)));
+  const allCollapsed = groups.length > 0 && groups.every((g) => collapsed.has(g.chiave));
+  const toggleAll = () => setCollapsed(allCollapsed ? new Set() : new Set(groups.map((g) => g.chiave)));
 
   // Import generico da una qualsiasi sorgente libreria (base neutre o fornitore).
   // Idempotente per `nome`: reimportare non duplica. Dataset caricati lazy.
@@ -224,34 +199,53 @@ export default function AdminArticleTemplates() {
     onMutate: (src) => setImportingKey(src.key),
     onSettled: () => setImportingKey(null),
     onSuccess: (r) => {
-      toast.success(`${r.label}: ${r.inserted} nuovi, ${r.skipped} già presenti`);
+      toast.success(r.label, {
+        description: `${r.inserted === 1 ? "1 prodotto nuovo" : `${r.inserted} prodotti nuovi`}, ${r.skipped} già presenti.`,
+      });
       qc.invalidateQueries({ queryKey: ["admin-article-templates"] });
     },
-    onError: (e: unknown) => toast.error(`Errore import: ${(e as Error).message}`),
+    onError: (e: unknown) => toast.error("Catalogo non aggiunto", { description: (e as Error).message }),
   });
 
   const del = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("article_family_templates").delete().eq("id", id);
+    mutationFn: async (t: ProdottoLibreria) => {
+      const { error } = await supabase.from("article_family_templates").delete().eq("id", t.id);
       if (error) throw error;
     },
-    onSuccess: () => {
-      toast.success("Template eliminato");
+    onSuccess: (_d, t) => {
+      toast.success(`«${t.nome}» eliminato`);
       qc.invalidateQueries({ queryKey: ["admin-article-templates"] });
     },
-    onError: (e: unknown) => toast.error((e as Error).message),
+    onError: (e: unknown) => toast.error("Prodotto non eliminato", { description: (e as Error).message }),
   });
 
+  // Le aziende importano una COPIA (import_article_family_template): nessun
+  // legame col modello, quindi eliminarlo non tocca i loro listini.
+  const eliminaProdotto = async (t: ProdottoLibreria) => {
+    const ok = await confirm({
+      title: `Eliminare «${t.nome}»?`,
+      description:
+        "Sparisce dalla libreria. Le aziende che l'hanno già preso tengono il loro prodotto: è una copia loro. Per toglierlo solo alla vista delle aziende basta spegnere «Visibile».",
+      confirmLabel: "Elimina",
+      variant: "destructive",
+    });
+    if (ok) del.mutate(t);
+  };
+
+  // Spento = le aziende non lo vedono (policy article_family_templates_lettura_authenticated).
   const toggleActive = useMutation({
-    mutationFn: async (t: TemplateListItem) => {
+    mutationFn: async (t: ProdottoLibreria) => {
       const { error } = await supabase
         .from("article_family_templates")
         .update({ is_active: !t.is_active })
         .eq("id", t.id);
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-article-templates"] }),
-    onError: (e: unknown) => toast.error((e as Error).message),
+    onSuccess: (_d, t) => {
+      toast.success(t.is_active ? `«${t.nome}» è nascosto alle aziende` : `«${t.nome}» è visibile alle aziende`);
+      qc.invalidateQueries({ queryKey: ["admin-article-templates"] });
+    },
+    onError: (e: unknown) => toast.error("Non salvato", { description: (e as Error).message }),
   });
 
   const duplicate = useMutation({
@@ -265,43 +259,58 @@ export default function AdminArticleTemplates() {
       void _id; void _so; void _ca; void _ua; void _cb;
       const { error } = await supabase
         .from("article_family_templates")
-        .insert({ ...rest, nome: `${(rest as { nome?: string }).nome ?? "Template"} (copia)`, is_active: false } as never);
+        .insert({ ...rest, nome: `${(rest as { nome?: string }).nome ?? "Prodotto"} (copia)`, is_active: false } as never);
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Template duplicato (disattivato)");
+      toast.success("Copia creata, nascosta alle aziende", { description: "Accendi «Visibile» quando è pronta." });
       qc.invalidateQueries({ queryKey: ["admin-article-templates"] });
     },
-    onError: (e: unknown) => toast.error((e as Error).message),
+    onError: (e: unknown) => toast.error("Copia non creata", { description: (e as Error).message }),
   });
 
-  return (
-    <div className="space-y-5">
-      <div className="flex items-start gap-3">
-        <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-          <Library className="h-5 w-5 text-primary" />
-        </div>
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold leading-tight">Libreria listino</h1>
-          <p className="text-sm text-muted-foreground">
-            Quello che dai pronto alle aziende: aree intere, prodotti singoli, marche e serie dei serramenti.
-          </p>
-        </div>
-      </div>
+  const aggiungiCatalogo = (gruppo: LibrarySource["gruppo"]) =>
+    LIBRARY_SOURCES.filter((s) => s.gruppo === gruppo).map((s) => (
+      <DropdownMenuItem
+        key={s.key}
+        disabled={importLibrary.isPending}
+        onSelect={(e) => { e.preventDefault(); importLibrary.mutate(s); }}
+        className="flex-col items-start gap-0.5"
+      >
+        <span className="font-medium flex items-center gap-2">
+          {importingKey === s.key && <Loader2 className="h-3 w-3 animate-spin" />}
+          {s.label}
+        </span>
+        <span className="text-xs text-muted-foreground">{s.hint}</span>
+      </DropdownMenuItem>
+    ));
 
+  return (
+    <div className="space-y-4">
       <Tabs value={scheda} onValueChange={cambiaScheda} className="space-y-4">
-        <TabsList className="h-auto w-full flex-wrap justify-start sm:w-auto">
-          <TabsTrigger value="aree" className="gap-1.5">
-            <Layers className="h-4 w-4" aria-hidden="true" /> Modelli di area
-          </TabsTrigger>
-          <TabsTrigger value="prodotti" className="gap-1.5">
-            <Boxes className="h-4 w-4" aria-hidden="true" /> Prodotti singoli
-            {templates.length > 0 && <span className="text-xs text-muted-foreground">{templates.length}</span>}
-          </TabsTrigger>
-          <TabsTrigger value="marche" className="gap-1.5">
-            <Tags className="h-4 w-4" aria-hidden="true" /> Marche e serie
-          </TabsTrigger>
-        </TabsList>
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+              <Library className="h-5 w-5 text-primary" aria-hidden="true" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl font-bold leading-tight">Libreria listino</h1>
+              <p className="text-sm text-muted-foreground">{SPIEGAZIONE[scheda]}</p>
+            </div>
+          </div>
+          <TabsList className="h-auto w-full shrink-0 flex-wrap justify-start sm:w-auto">
+            <TabsTrigger value="aree" className="gap-1.5">
+              <Layers className="h-4 w-4" aria-hidden="true" /> Modelli di area
+            </TabsTrigger>
+            <TabsTrigger value="prodotti" className="gap-1.5">
+              <Boxes className="h-4 w-4" aria-hidden="true" /> Prodotti singoli
+              {templates.length > 0 && <span className="text-xs text-muted-foreground">{templates.length}</span>}
+            </TabsTrigger>
+            <TabsTrigger value="marche" className="gap-1.5">
+              <Tags className="h-4 w-4" aria-hidden="true" /> Marche e serie
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="aree" className="mt-0">
           <ModelliAreaTab />
@@ -313,158 +322,221 @@ export default function AdminArticleTemplates() {
           <LibreriaMarcheSerie />
         </TabsContent>
 
-        <TabsContent value="prodotti" className="mt-0 space-y-4">
-          <div className="flex flex-col gap-3 rounded-lg border bg-muted/30 p-4 sm:flex-row sm:items-center">
-            <p className="flex-1 text-sm text-muted-foreground">
-              Modelli di un prodotto alla volta (finestre, porte…), con disegno e griglia prezzi. Le aziende li prendono
-              dal loro listino, con «Importa → Modelli pronti».
-            </p>
-            <div className="flex items-center gap-2">
+        <TabsContent value="prodotti" className="mt-0 space-y-3">
+          {/* Una riga sola per cercare e agire, le pastiglie sotto: l'elenco subito. */}
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="relative sm:w-72">
+              <Search className="pointer-events-none h-4 w-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+              <Input
+                className="pl-8"
+                placeholder="Cerca per nome, codice, tag…"
+                aria-label="Cerca un prodotto"
+                value={filtro.cerca}
+                onChange={(e) => cambiaFiltro({ cerca: e.target.value })}
+              />
+            </div>
+            <div className="flex items-center gap-2 sm:ml-auto">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" disabled={importLibrary.isPending}>
+                  <Button variant="outline" className="flex-1 sm:flex-none" disabled={importLibrary.isPending}>
                     {importLibrary.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
-                    Importa da libreria
+                    <span className="sm:hidden">Cataloghi</span>
+                    <span className="hidden sm:inline">Aggiungi un catalogo</span>
                     <ChevronDown className="h-4 w-4 ml-1.5 opacity-60" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-80">
-                  <DropdownMenuLabel>Librerie base (neutre)</DropdownMenuLabel>
-                  {LIBRARY_SOURCES.filter((s) => s.gruppo === "base").map((s) => (
-                    <DropdownMenuItem
-                      key={s.key}
-                      disabled={importLibrary.isPending}
-                      onSelect={(e) => { e.preventDefault(); importLibrary.mutate(s); }}
-                      className="flex-col items-start gap-0.5"
-                    >
-                      <span className="font-medium flex items-center gap-2">
-                        {importingKey === s.key && <Loader2 className="h-3 w-3 animate-spin" />}
-                        {s.label}
-                      </span>
-                      <span className="text-xs text-muted-foreground">{s.hint}</span>
-                    </DropdownMenuItem>
-                  ))}
+                  <DropdownMenuLabel>Cataloghi base, senza fornitore</DropdownMenuLabel>
+                  {aggiungiCatalogo("base")}
                   <DropdownMenuSeparator />
-                  <DropdownMenuLabel>Cataloghi fornitore</DropdownMenuLabel>
-                  {LIBRARY_SOURCES.filter((s) => s.gruppo === "fornitore").map((s) => (
-                    <DropdownMenuItem
-                      key={s.key}
-                      disabled={importLibrary.isPending}
-                      onSelect={(e) => { e.preventDefault(); importLibrary.mutate(s); }}
-                      className="flex-col items-start gap-0.5"
-                    >
-                      <span className="font-medium flex items-center gap-2">
-                        {importingKey === s.key && <Loader2 className="h-3 w-3 animate-spin" />}
-                        {s.label}
-                      </span>
-                      <span className="text-xs text-muted-foreground">{s.hint}</span>
-                    </DropdownMenuItem>
-                  ))}
+                  <DropdownMenuLabel>Cataloghi di un fornitore</DropdownMenuLabel>
+                  {aggiungiCatalogo("fornitore")}
                 </DropdownMenuContent>
               </DropdownMenu>
-              <Button onClick={() => setCreatingNew(true)}>
+              <Button className="flex-1 sm:flex-none" onClick={() => setCreatingNew(true)}>
                 <Plus className="h-4 w-4 mr-2" /> Nuovo prodotto
               </Button>
             </div>
           </div>
 
-          <Card>
-            <CardContent className="p-3 flex flex-col sm:flex-row gap-2 sm:items-center">
-              <div className="relative flex-1">
-                <Search className="h-4 w-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <Input className="pl-8" placeholder="Cerca per nome, codice, categoria…" value={search} onChange={(e) => setSearch(e.target.value)} />
-              </div>
-              <select className="h-10 rounded-md border bg-background px-2 text-sm" value={categoria} onChange={(e) => setCategoria(e.target.value)}>
-                <option value="">Tutte le categorie</option>
-                {allCategorie.map((c) => <option key={c} value={c}>{prettyLabel(c)}</option>)}
-              </select>
-              <select className="h-10 rounded-md border bg-background px-2 text-sm" value={tag} onChange={(e) => setTag(e.target.value)}>
-                <option value="">Tutti i tag</option>
-                {allTags.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
-              <label className="flex items-center gap-2 text-sm whitespace-nowrap px-1">
-                <Switch checked={onlyInactive} onCheckedChange={setOnlyInactive} /> Solo disattivati
-              </label>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2 flex-row items-center justify-between gap-2 space-y-0">
-              <div className="min-w-0">
-                <CardTitle className="text-base">
-                  {isLoading ? "Caricamento…" : `${filtered.length} template · ${groups.length} categorie`}
-                </CardTitle>
-                <CardDescription>Clic su un template per modificarne dati e griglia prezzi.</CardDescription>
-              </div>
-              {groups.length > 1 && (
-                <Button variant="ghost" size="sm" className="shrink-0" onClick={toggleAll}>
-                  {allCollapsed ? "Espandi tutto" : "Collassa tutto"}
+          {(categorie.length > 1 || nascosti > 0 || filtro.tag) && (
+            <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filtra i prodotti">
+              {categorie.length > 1 && (
+                <>
+                  <Button size="sm" variant={filtro.categoria === null ? "default" : "outline"} className="h-8" onClick={() => cambiaFiltro({ categoria: null })}>
+                    Tutte
+                  </Button>
+                  {categorie.map((c) => (
+                    <Button
+                      key={c.slug}
+                      size="sm"
+                      variant={filtro.categoria === c.slug ? "default" : "outline"}
+                      className="h-8 gap-1.5"
+                      aria-pressed={filtro.categoria === c.slug}
+                      onClick={() => cambiaFiltro({ categoria: filtro.categoria === c.slug ? null : c.slug })}
+                    >
+                      {etichettaSlug(c.slug)} <span className="text-xs opacity-70">{c.conta}</span>
+                    </Button>
+                  ))}
+                </>
+              )}
+              {nascosti > 0 && (
+                <Button
+                  size="sm"
+                  variant={filtro.soloSpenti ? "default" : "outline"}
+                  className="h-8 gap-1.5"
+                  aria-pressed={filtro.soloSpenti}
+                  onClick={() => cambiaFiltro({ soloSpenti: !filtro.soloSpenti })}
+                >
+                  Nascosti <span className="text-xs opacity-70">{nascosti}</span>
                 </Button>
               )}
-            </CardHeader>
-            <CardContent className="p-0">
-              {groups.map((g) => {
-                const isOpen = !collapsed.has(g.key);
-                return (
-                  <div key={g.key} className="border-t first:border-t-0">
-                    <button
-                      type="button"
-                      onClick={() => toggleGroup(g.key)}
-                      className="w-full flex items-center gap-2 px-4 py-2 bg-muted/40 hover:bg-muted/60 text-left"
-                    >
-                      {isOpen ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
-                      <Layers className="h-4 w-4 text-primary/70" />
-                      <span className="font-semibold text-sm">{prettyLabel(g.categoria)}</span>
-                      {g.vertical && g.vertical !== "serramenti" && <Badge variant="outline" className="text-[10px]">{g.vertical}</Badge>}
-                      <Badge variant="secondary" className="text-[10px] ml-auto">{g.items.length}</Badge>
-                    </button>
-                    {isOpen && (
-                      <div className="divide-y">
-                        {g.items.map((t) => (
-                          <div key={t.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/40">
-                            <div className="h-9 w-9 rounded border bg-muted/40 overflow-hidden flex items-center justify-center shrink-0">
+              {filtro.tag && (
+                <Button size="sm" variant="secondary" className="h-8 gap-1" onClick={() => cambiaFiltro({ tag: null })} aria-label={`Togli il filtro ${filtro.tag}`}>
+                  Tag «{filtro.tag}» <X className="h-3.5 w-3.5" aria-hidden="true" />
+                </Button>
+              )}
+            </div>
+          )}
+
+          <Card className="overflow-hidden">
+            <div className="flex items-center justify-between gap-2 px-4 py-2">
+              <p className="text-sm font-medium">
+                {isLoading ? "Carico i prodotti…" : testoConteggio(filtered.length, groups.length)}
+              </p>
+              <div className="flex items-center gap-1">
+                {filtriAttivi && (
+                  <Button variant="ghost" size="sm" className="h-7" onClick={() => setFiltro(FILTRO_VUOTO)}>
+                    Togli i filtri
+                  </Button>
+                )}
+                {groups.length > 1 && (
+                  <Button variant="ghost" size="sm" className="h-7" onClick={toggleAll}>
+                    {allCollapsed ? "Apri tutte" : "Chiudi tutte"}
+                  </Button>
+                )}
+              </div>
+            </div>
+            {groups.map((g) => {
+              const isOpen = !collapsed.has(g.chiave);
+              return (
+                <div key={g.chiave} className="border-t">
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(g.chiave)}
+                    aria-expanded={isOpen}
+                    className="w-full flex items-center gap-2 px-4 py-2 bg-muted/40 hover:bg-muted/60 text-left"
+                  >
+                    {isOpen ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                    <span className="font-semibold text-sm">{etichettaSlug(g.categoria)}</span>
+                    {piuVerticali && <Badge variant="outline" className="text-[10px]">{etichettaVerticale(g.verticale)}</Badge>}
+                    <span className="ml-auto text-xs text-muted-foreground">{g.prodotti.length}</span>
+                  </button>
+                  {isOpen && (
+                    <div className="divide-y">
+                      {g.prodotti.map((t) => (
+                        <div key={t.id} className="flex items-center gap-2 px-4 py-2 hover:bg-muted/40 sm:gap-3">
+                          <button
+                            type="button"
+                            className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                            onClick={() => setEditingId(t.id)}
+                            aria-label={`Modifica ${t.nome}`}
+                          >
+                            <div className={cn("h-10 w-10 rounded border bg-muted/40 overflow-hidden flex items-center justify-center shrink-0", !t.is_active && "opacity-60")}>
                               {t.image_url
                                 ? <img src={t.image_url} alt="" className="w-full h-full object-contain" loading="lazy" />
                                 : <ImageIcon className="h-4 w-4 text-muted-foreground/50" />}
                             </div>
-                            <button className="flex-1 min-w-0 text-left" onClick={() => setEditingId(t.id)}>
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="font-medium text-sm truncate">{t.nome}</span>
-                                {!t.is_active && <Badge variant="outline" className="text-[10px] border-amber-300 text-amber-700 bg-amber-50">disattivo</Badge>}
-                              </div>
-                              <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap mt-0.5">
-                                {t.tipologia && <span className="font-mono">{t.tipologia}</span>}
-                                {t.modalita_prezzo_base === "griglia" && (
-                                  <span className="inline-flex items-center gap-1"><Grid3x3 className="h-3 w-3" /> Griglia L×H</span>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className={cn("font-medium text-sm truncate", !t.is_active && "text-muted-foreground")}>{t.nome}</span>
+                                {!t.is_active && (
+                                  <Badge variant="outline" className="shrink-0 text-[10px] border-amber-300 text-amber-700 bg-amber-50">nascosto</Badge>
                                 )}
-                                {(t.tags ?? []).slice(0, 3).map((x) => <Badge key={x} variant="secondary" className="text-[10px]">{x}</Badge>)}
                               </div>
-                            </button>
-                            <Switch checked={t.is_active} disabled={toggleActive.isPending} onCheckedChange={() => toggleActive.mutate(t)} title="Attiva/disattiva" aria-label={`Attiva/disattiva ${t.nome}`} />
-                            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setEditingId(t.id)} title="Modifica" aria-label={`Modifica ${t.nome}`}><Pencil className="h-4 w-4" /></Button>
-                            <Button size="icon" variant="ghost" className="h-8 w-8" disabled={duplicate.isPending} onClick={() => duplicate.mutate(t.id)} title="Duplica" aria-label={`Duplica ${t.nome}`}><Copy className="h-4 w-4" /></Button>
-                            <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" disabled={del.isPending} onClick={() => { if (confirm(`Eliminare "${t.nome}"?`)) del.mutate(t.id); }} title="Elimina" aria-label={`Elimina ${t.nome}`}><Trash2 className="h-4 w-4" /></Button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-              {/* Errore di caricamento ONESTO: prima un fetch fallito al primo load
-                  mostrava l'empty-state "Nessun template" (data=[], niente toast). */}
-              {isError && (
-                <div className="flex flex-col items-center gap-3 py-12 text-center">
-                  <p className="text-sm text-destructive">
-                    Errore nel caricamento dei template{listError instanceof Error ? `: ${listError.message}` : "."}
-                  </p>
-                  <Button size="sm" variant="outline" onClick={() => refetch()}>Riprova</Button>
+                              <div className="flex items-center gap-x-2 text-xs text-muted-foreground flex-wrap mt-0.5">
+                                {t.tipologia && <span className="font-mono">{t.tipologia}</span>}
+                                {t.modalita_prezzo_base && (
+                                  <span className="inline-flex items-center gap-1">
+                                    {t.modalita_prezzo_base === "griglia" && <Grid3x3 className="h-3 w-3" aria-hidden="true" />}
+                                    {etichettaModalita(t.modalita_prezzo_base)}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </button>
+                          {/* I tag filtrano l'elenco: al posto della tendina con cinquanta voci. */}
+                          {(t.tags ?? []).length > 0 && (
+                            <div className="hidden max-w-[40%] flex-wrap justify-end gap-1 md:flex">
+                              {(t.tags ?? []).slice(0, 3).map((x) => (
+                                <button
+                                  key={x}
+                                  type="button"
+                                  onClick={() => cambiaFiltro({ tag: filtro.tag === x ? null : x })}
+                                  title={`Solo i prodotti con «${x}»`}
+                                  aria-pressed={filtro.tag === x}
+                                  className={cn(
+                                    "rounded-full px-2 py-0.5 text-[11px] transition-colors",
+                                    filtro.tag === x ? "bg-primary text-primary-foreground" : "border bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
+                                  )}
+                                >
+                                  {x}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                          <Switch
+                            checked={t.is_active}
+                            disabled={toggleActive.isPending}
+                            onCheckedChange={() => toggleActive.mutate(t)}
+                            title="Visibile alle aziende"
+                            aria-label={`${t.nome}: visibile alle aziende`}
+                          />
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" aria-label={`Altre azioni per ${t.nome}`}>
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onSelect={() => setEditingId(t.id)}>
+                                <Pencil className="mr-2 h-4 w-4" /> Modifica
+                              </DropdownMenuItem>
+                              <DropdownMenuItem disabled={duplicate.isPending} onSelect={() => duplicate.mutate(t.id)}>
+                                <Copy className="mr-2 h-4 w-4" /> Duplica
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => void eliminaProdotto(t)}>
+                                <Trash2 className="mr-2 h-4 w-4" /> Elimina
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )}
-              {!isLoading && !isError && filtered.length === 0 && (
-                <div className="py-12 text-center text-muted-foreground text-sm">Nessun template con questi filtri.</div>
-              )}
-            </CardContent>
+              );
+            })}
+            {/* Errore di caricamento ONESTO: prima un fetch fallito al primo load
+                mostrava l'empty-state "Nessun template" (data=[], niente toast). */}
+            {isError && (
+              <div className="flex flex-col items-center gap-3 py-12 text-center border-t">
+                <p className="text-sm text-destructive">
+                  Non riesco a caricare i prodotti{listError instanceof Error ? `: ${listError.message}` : "."}
+                </p>
+                <Button size="sm" variant="outline" onClick={() => refetch()}>Riprova</Button>
+              </div>
+            )}
+            {!isLoading && !isError && templates.length === 0 && (
+              <div className="py-12 text-center border-t">
+                <p className="font-medium">La libreria dei prodotti è vuota</p>
+                <p className="mt-1 text-sm text-muted-foreground">Parti da un catalogo base o crea il primo prodotto.</p>
+              </div>
+            )}
+            {!isLoading && !isError && templates.length > 0 && filtered.length === 0 && (
+              <div className="py-12 text-center text-muted-foreground text-sm border-t">Nessun prodotto con questi filtri.</div>
+            )}
           </Card>
         </TabsContent>
       </Tabs>
@@ -472,6 +544,7 @@ export default function AdminArticleTemplates() {
       {editingId && (
         <EditDialogLoader
           id={editingId}
+          categorie={categorie.map((c) => c.slug)}
           onClose={() => setEditingId(null)}
           onSaved={() => {
             setEditingId(null);
@@ -487,6 +560,7 @@ export default function AdminArticleTemplates() {
       {creatingNew && (
         <EditDialog
           template={BLANK_TEMPLATE}
+          categorie={categorie.map((c) => c.slug)}
           onClose={() => setCreatingNew(false)}
           onSaved={() => { setCreatingNew(false); qc.invalidateQueries({ queryKey: ["admin-article-templates"] }); }}
         />
@@ -504,7 +578,7 @@ const BLANK_TEMPLATE: Template = {
 };
 
 /** Carica la riga COMPLETA on-demand (con griglia_default/assi) e apre l'editor. */
-function EditDialogLoader({ id, onClose, onSaved }: { id: string; onClose: () => void; onSaved: () => void }) {
+function EditDialogLoader({ id, categorie, onClose, onSaved }: { id: string; categorie: string[]; onClose: () => void; onSaved: () => void }) {
   const { data, isLoading, isError } = useQuery({
     queryKey: ["admin-article-template", id],
     queryFn: async () => {
@@ -517,24 +591,30 @@ function EditDialogLoader({ id, onClose, onSaved }: { id: string; onClose: () =>
     return (
       <Dialog open onOpenChange={(o) => !o && onClose()}>
         <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>{isError ? "Errore" : "Caricamento template…"}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{isError ? "Errore" : "Carico il prodotto…"}</DialogTitle></DialogHeader>
           <div className="py-6 flex items-center justify-center">
             {isError
-              ? <span className="text-sm text-destructive">Impossibile caricare il template.</span>
+              ? <span className="text-sm text-destructive">Non riesco a caricare il prodotto.</span>
               : <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />}
           </div>
         </DialogContent>
       </Dialog>
     );
   }
-  return <EditDialog template={data} onClose={onClose} onSaved={onSaved} />;
+  return <EditDialog template={data} categorie={categorie} onClose={onClose} onSaved={onSaved} />;
 }
 
-function EditDialog({ template, onClose, onSaved }: { template: Template; onClose: () => void; onSaved: () => void }) {
+function EditDialog({ template, categorie, onClose, onSaved }: {
+  template: Template; categorie: string[]; onClose: () => void; onSaved: () => void;
+}) {
   const isNew = !template.id;
   const [f, setF] = useState<Template>(template);
   const set = <K extends keyof Template>(k: K, v: Template[K]) => setF((p) => ({ ...p, [k]: v }));
   const [photoPickerOpen, setPhotoPickerOpen] = useState(false);
+  // Un verticale salvato fuori elenco resta scelto, invece di sparire dalla tendina.
+  const verticali = !f.vertical_slug || VERTICALI_GALLERIA.some((v) => v.value === f.vertical_slug)
+    ? VERTICALI_GALLERIA
+    : [...VERTICALI_GALLERIA, { value: f.vertical_slug, label: etichettaSlug(f.vertical_slug) }];
 
   // Griglia prezzi: headers in state (rari), celle in ref (perf su griglie grandi)
   const [xs, setXs] = useState<number[]>(template.griglia_default?.xs ?? []);
@@ -574,16 +654,20 @@ function EditDialog({ template, onClose, onSaved }: { template: Template; onClos
         if (error) throw error;
       }
     },
-    onSuccess: () => { toast.success(isNew ? "Template creato" : "Template aggiornato"); onSaved(); },
-    onError: (e: unknown) => toast.error((e as Error).message),
+    onSuccess: () => { toast.success(isNew ? `«${f.nome}» aggiunto alla libreria` : `«${f.nome}» salvato`); onSaved(); },
+    onError: (e: unknown) => toast.error("Non salvato", { description: (e as Error).message }),
   });
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      {/* minmax(0,1fr): senza, la riga della foto allargava il dialogo oltre lo schermo del telefono. */}
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto grid-cols-[minmax(0,1fr)]">
         <DialogHeader>
-          <DialogTitle>{isNew ? "Nuovo template" : "Modifica template"}</DialogTitle>
-          <DialogDescription>Dati globali del template articolo, importabile dalle aziende.</DialogDescription>
+          <DialogTitle>{isNew ? "Nuovo prodotto" : "Modifica prodotto"}</DialogTitle>
+          <DialogDescription>
+            Le aziende lo prendono con «Importa → Modelli pronti» e ne ricevono una copia loro: quello che cambi qui vale
+            per chi lo prende dopo.
+          </DialogDescription>
         </DialogHeader>
 
         {/* Foto */}
@@ -593,9 +677,9 @@ function EditDialog({ template, onClose, onSaved }: { template: Template; onClos
               ? <img src={f.image_url} alt="Anteprima" className="w-full h-full object-contain" />
               : <ImageIcon className="h-8 w-8 text-muted-foreground" />}
           </div>
-          <div className="flex-1 space-y-2">
+          <div className="min-w-0 flex-1 space-y-2">
             <Label>Foto prodotto</Label>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Button type="button" variant="outline" size="sm" onClick={() => setPhotoPickerOpen(true)}>
                 <ImageIcon className="h-4 w-4 mr-2" /> Scegli dalla libreria
               </Button>
@@ -615,17 +699,64 @@ function EditDialog({ template, onClose, onSaved }: { template: Template; onClos
           onSelect={(p) => set("image_url", p.url)}
         />
 
+        {/* Verticale e modalità si scelgono da un elenco: la modalità ha un CHECK nel
+            database, e un verticale fuori elenco l'azienda non lo trova nel filtro. */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="sm:col-span-2"><Label>Nome</Label><Input value={f.nome} onChange={(e) => set("nome", e.target.value)} /></div>
-          <div><Label>Codice / Tipologia</Label><Input value={f.tipologia ?? ""} onChange={(e) => set("tipologia", e.target.value)} /></div>
-          <div><Label>Categoria (slug)</Label><Input value={f.categoria_slug ?? ""} onChange={(e) => set("categoria_slug", e.target.value)} /></div>
-          <div><Label>Verticale</Label><Input value={f.vertical_slug} onChange={(e) => set("vertical_slug", e.target.value)} /></div>
-          <div><Label>Tag (separati da virgola)</Label><Input value={(f.tags ?? []).join(", ")} onChange={(e) => set("tags", e.target.value.split(",").map((s) => s.trim()).filter(Boolean))} /></div>
-          <div className="sm:col-span-2"><Label>Descrizione / note</Label><Textarea rows={2} value={f.descrizione ?? ""} onChange={(e) => set("descrizione", e.target.value)} /></div>
-          <div><Label>Modalità prezzo</Label><Input value={f.modalita_prezzo_base ?? ""} onChange={(e) => set("modalita_prezzo_base", e.target.value)} /></div>
-          <div><Label>IVA %</Label><Input type="number" value={f.vat_rate ?? 22} onChange={(e) => set("vat_rate", Number(e.target.value))} /></div>
-          <div><Label>UM</Label><Input value={f.unit_of_measure ?? ""} onChange={(e) => set("unit_of_measure", e.target.value)} /></div>
-          <div className="flex items-center gap-2 pt-6"><Switch checked={f.is_active} onCheckedChange={(v) => set("is_active", v)} /><Label>Attivo</Label></div>
+          <div className="sm:col-span-2"><Label htmlFor="prodotto-nome">Nome</Label><Input id="prodotto-nome" value={f.nome} onChange={(e) => set("nome", e.target.value)} /></div>
+          <div><Label htmlFor="prodotto-codice">Codice / Tipologia</Label><Input id="prodotto-codice" value={f.tipologia ?? ""} onChange={(e) => set("tipologia", e.target.value)} /></div>
+          <div>
+            <Label htmlFor="prodotto-categoria">Categoria</Label>
+            <Input id="prodotto-categoria" list="prodotto-categorie" placeholder="es. infissi" value={f.categoria_slug ?? ""} onChange={(e) => set("categoria_slug", e.target.value)} />
+            <datalist id="prodotto-categorie">
+              {categorie.map((c) => <option key={c} value={c}>{etichettaSlug(c)}</option>)}
+            </datalist>
+          </div>
+          <div>
+            <Label>Verticale</Label>
+            <Select value={f.vertical_slug} onValueChange={(v) => set("vertical_slug", v)}>
+              <SelectTrigger aria-label="Verticale"><SelectValue placeholder="Scegli il verticale" /></SelectTrigger>
+              <SelectContent>
+                {verticali.map((v) => <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div><Label htmlFor="prodotto-tag">Tag (separati da virgola)</Label><Input id="prodotto-tag" value={(f.tags ?? []).join(", ")} onChange={(e) => set("tags", e.target.value.split(",").map((s) => s.trim()).filter(Boolean))} /></div>
+          <div className="sm:col-span-2"><Label htmlFor="prodotto-descrizione">Descrizione / note</Label><Textarea id="prodotto-descrizione" rows={2} value={f.descrizione ?? ""} onChange={(e) => set("descrizione", e.target.value)} /></div>
+          <div>
+            <Label>Modalità prezzo</Label>
+            <Select value={f.modalita_prezzo_base ?? ""} onValueChange={(v) => set("modalita_prezzo_base", v)}>
+              <SelectTrigger aria-label="Modalità prezzo"><SelectValue placeholder="Scegli come si prezza" /></SelectTrigger>
+              <SelectContent>
+                {MODALITA_PREZZO.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          {f.modalita_prezzo_base !== "griglia" && (
+            <div>
+              {/* Senza griglia il prezzo è questo: prima non c'era modo di cambiarlo da qui. */}
+              <Label htmlFor="prodotto-prezzo">Prezzo di vendita (€ / {f.unit_of_measure || "pz"})</Label>
+              <Input
+                id="prodotto-prezzo"
+                type="number"
+                min={0}
+                step="0.01"
+                inputMode="decimal"
+                value={f.prezzo_base_vendita ?? ""}
+                onChange={(e) => set("prezzo_base_vendita", e.target.value === "" ? null : Number(e.target.value))}
+              />
+            </div>
+          )}
+          <div><Label htmlFor="prodotto-iva">IVA %</Label><Input id="prodotto-iva" type="number" value={f.vat_rate ?? 22} onChange={(e) => set("vat_rate", Number(e.target.value))} /></div>
+          <div>
+            <Label htmlFor="prodotto-um">Unità di misura</Label>
+            <Input id="prodotto-um" list="prodotto-unita" value={f.unit_of_measure ?? ""} onChange={(e) => set("unit_of_measure", e.target.value)} />
+            <datalist id="prodotto-unita">
+              {["pz", "mq", "ml", "kg", "h"].map((u) => <option key={u} value={u} />)}
+            </datalist>
+          </div>
+          <label className="flex items-center gap-2 text-sm font-medium sm:col-span-2">
+            <Switch checked={f.is_active} onCheckedChange={(v) => set("is_active", v)} /> Visibile alle aziende
+          </label>
         </div>
 
         {f.modalita_prezzo_base === "griglia" && (
