@@ -10,7 +10,7 @@ import { captureVelocityError, setSentryUserContext } from "@/lib/velocity/sentr
 import { isSuperAdminEmailAllowed } from "@/config/superAdmin";
 import { queryKeys } from "@/lib/queryKeys";
 import { warmupCriticalEdgeFunctions } from "@/lib/utils/edgeWarmup";
-import { mergeProfileCompanyAccess, resolveMultiCompanySelection } from "@/lib/auth/multiCompany";
+import { accessoMultiAziendaValido, mergeProfileCompanyAccess, resolveMultiCompanySelection } from "@/lib/auth/multiCompany";
 import { computeEffectiveRole } from "@/lib/roleHierarchy";
 import { conRiprova } from "@/lib/auth/conRiprova";
 import { idAccessoDalToken, sessioneDaRegistrare } from "@/lib/auth/accessoRevocato";
@@ -169,7 +169,8 @@ function readMultiCompanyAccessCache(): { userId: string | null; accesses: Multi
     if (!Array.isArray(entry.accesses)) return null;
     return {
       userId: typeof entry.userId === "string" ? entry.userId : null,
-      accesses: entry.accesses as MultiCompanyAccess[],
+      // un accesso scaduto dopo il salvataggio non deve ricomparire all'avvio
+      accesses: (entry.accesses as MultiCompanyAccess[]).filter((a) => accessoMultiAziendaValido(a)),
     };
   } catch {
     return null;
@@ -1682,10 +1683,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       type MultiCompanyAccessRow = MultiCompanyAccess & { companies?: Company | null };
-      const fetchedAccesses = ((data || []) as MultiCompanyAccessRow[]).map((a) => ({
-        ...a,
-        company: a.companies ?? undefined,
-      })) as MultiCompanyAccess[];
+      // Solo gli accessi attivi e non scaduti: gli altri non aprono più l'azienda
+      // (policy e user_can_access_company), e comparirebbero senza nome.
+      const fetchedAccesses = ((data || []) as MultiCompanyAccessRow[])
+        .filter((a) => accessoMultiAziendaValido(a))
+        .map((a) => ({
+          ...a,
+          company: a.companies ?? undefined,
+        })) as MultiCompanyAccess[];
 
       // Fetch ANCHE le aziende delegate al commercialista (accountant_company_access)
       // così appaiono nel company switcher e effectiveCompany può essere settato a una di esse.

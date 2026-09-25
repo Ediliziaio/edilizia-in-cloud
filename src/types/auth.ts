@@ -130,6 +130,9 @@ export interface MultiCompanyAccess {
   access_role: string;
   granted_by: string | null;
   created_at: string;
+  /** invited | active | suspended: conta solo 'active' (vedi accessoMultiAziendaValido). */
+  status?: string | null;
+  expires_at?: string | null;
   company?: Company;
 }
 
