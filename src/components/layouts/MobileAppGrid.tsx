@@ -69,12 +69,12 @@ const MOBILE_HIDDEN_URLS = new Set<string>([
 const MOBILE_HIDDEN_AREAS = new Set<string>(["area_automazioni"]);
 
 /**
- * Le voci che restano anche dentro una sezione nascosta. Render AI: dal
- * telefono in cantiere si fa la foto e si genera il render (richiesta utente
- * 2026-09-25: «da telefono niente automazioni, agenti AI e WhatsApp, invece i
- * render sì»).
+ * Le voci che restano anche dentro una sezione nascosta (richieste utente del
+ * 2026-09-25): Render AI — dal telefono in cantiere si fa la foto e si genera
+ * il render; Centralino — disponibilità, tastierino e storico chiamate. Restano
+ * fuori automazioni, agenti AI, WhatsApp e SMS.
  */
-const MOBILE_VISIBLE_IN_HIDDEN_AREAS = new Set<string>(["/azienda/render"]);
+const MOBILE_VISIBLE_IN_HIDDEN_AREAS = new Set<string>(["/azienda/render", "/azienda/centralino"]);
 
 /**
  * Palette per macroArea — ogni sezione ha il suo colore identificativo.
