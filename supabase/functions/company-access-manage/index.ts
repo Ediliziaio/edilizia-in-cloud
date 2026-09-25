@@ -15,7 +15,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth } from "../_shared/auth.ts";
-import { buildStaffPermissionsRecord } from "../_shared/staffPermissionsDefaults.ts";
+import { buildStaffPermissionsRecord, STAFF_ROLE_PRESETS } from "../_shared/staffPermissionsDefaults.ts";
 
 const ALLOWED_ROLES = new Set([
   "company_admin", "company_staff", "salesperson", "call_center", "employee", "subcontractor",
@@ -189,9 +189,10 @@ Deno.serve(async (req) => {
       }
 
       // Senza una riga staff_permissions l'invitato non-admin entrava e non
-      // vedeva nulla. I preset per ruolo vivono solo nel client: qui la riga
-      // nasce coi default completi (la modifica operativa la deriva il trigger)
-      // e l'admin la regola dalla scheda utente. Se la riga c'è già non si tocca.
+      // vedeva nulla. La riga nasce col preset del suo ruolo, lo stesso del
+      // client (STAFF_ROLE_PRESETS; la modifica operativa la deriva il
+      // trigger), e l'admin la regola dalla scheda utente. Se la riga c'è già
+      // non si tocca.
       if (accessRole !== "company_admin") {
         const { data: permRow, error: permReadErr } = await supabaseAdmin
           .from("staff_permissions").select("id")
@@ -201,7 +202,7 @@ Deno.serve(async (req) => {
         if (!permRow) {
           const { error: permErr } = await supabaseAdmin
             .from("staff_permissions")
-            .insert(buildStaffPermissionsRecord(targetUserId, companyId));
+            .insert(buildStaffPermissionsRecord(targetUserId, companyId, STAFF_ROLE_PRESETS[accessRole]));
           if (permErr) return errorResponse(`Accesso concesso, ma permessi non creati: ${permErr.message}`, 500, corsH);
         }
       }

@@ -1,5 +1,6 @@
 import { requireAuth, requireRole } from "../_shared/auth.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { buildStaffPermissionsRecord } from "../_shared/staffPermissionsDefaults.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -153,8 +154,10 @@ Deno.serve(async (req) => {
     }
 
     if (action === "apply") {
-      // Apply a template to a user's staff_permissions
-      const { template_id, target_user_id } = body;
+      // Apply a template to a user's staff_permissions. L'app mandava user_id e
+      // qui si leggeva solo target_user_id: «Applica» rispondeva sempre 400.
+      const template_id = body.template_id;
+      const target_user_id = body.target_user_id ?? body.user_id;
       if (!template_id || !target_user_id) {
         return new Response(JSON.stringify({ error: "template_id and target_user_id required" }), {
           status: 400,
@@ -163,11 +166,13 @@ Deno.serve(async (req) => {
       }
 
       // Get template permissions
+      // Solo i modelli dell'azienda e quelli di sistema, come nell'elenco.
       const { data: template } = await supabaseAdmin
         .from("permission_templates")
         .select("permissions, name")
         .eq("id", template_id)
-        .single();
+        .or(`company_id.eq.${companyId},is_system_default.eq.true`)
+        .maybeSingle();
 
       if (!template) {
         return new Response(JSON.stringify({ error: "Template not found" }), {
@@ -190,13 +195,25 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Upsert staff_permissions with template values
-      const perms = template.permissions as Record<string, boolean>;
-      const { error } = await supabaseAdmin
+      // Solo le chiavi note (una sconosciuta farebbe fallire la scrittura). Se
+      // la riga c'è si aggiornano le chiavi del modello; se manca (prima: zero
+      // righe aggiornate e «ok») si crea completa, coi predefiniti per il resto.
+      const perms = (template.permissions ?? {}) as Record<string, unknown>;
+      const record = buildStaffPermissionsRecord(target_user_id, companyId, perms);
+      const soloModello = Object.fromEntries(Object.entries(record).filter(([k]) => k in perms));
+      const { data: esistente } = await supabaseAdmin
         .from("staff_permissions")
-        .update(perms)
+        .select("user_id")
         .eq("user_id", target_user_id)
-        .eq("company_id", companyId);
+        .eq("company_id", companyId)
+        .maybeSingle();
+      const { error } = esistente
+        ? await supabaseAdmin
+          .from("staff_permissions")
+          .update(soloModello)
+          .eq("user_id", target_user_id)
+          .eq("company_id", companyId)
+        : await supabaseAdmin.from("staff_permissions").insert(record);
 
       if (error) throw error;
 

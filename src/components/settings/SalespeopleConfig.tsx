@@ -54,7 +54,11 @@ const COMMISSION_TYPE_LABELS: Record<string, { label: string; icon: React.ReactN
   percentage_collected: { label: "% sull'incassato", icon: <Receipt className="h-3 w-3" /> },
 };
 
-import { DEFAULT_PERMISSIONS } from "@/components/users/permissionsDefaults";
+import { DEFAULT_PERMISSIONS, ROLE_PRESETS } from "@/components/users/permissionsDefaults";
+
+/** Il venditore nasce col suo standard (solo Marketing & Vendita), come dalla
+ *  creazione utente: prima qui partiva da tutto spento. */
+const PERMESSI_NUOVO_VENDITORE: StaffPermissions = { ...DEFAULT_PERMISSIONS, ...ROLE_PRESETS.salesperson };
 
 const MARKETING_SECTION_KEYS = [
   "can_view_marketing_dashboard", "can_view_marketing_contacts", "can_view_marketing_opportunities",
@@ -80,7 +84,7 @@ export function SalespeopleConfig() {
   const [accountEmail, setAccountEmail] = useState("");
   const [accountPhone, setAccountPhone] = useState("");
   const [accountPassword, setAccountPassword] = useState("");
-  const [accountPermissions, setAccountPermissions] = useState<StaffPermissions>({ ...DEFAULT_PERMISSIONS });
+  const [accountPermissions, setAccountPermissions] = useState<StaffPermissions>({ ...PERMESSI_NUOVO_VENDITORE });
   const [passwordDialog, setPasswordDialog] = useState<{ open: boolean; password: string; name: string }>({
     open: false, password: "", name: "",
   });
@@ -186,7 +190,7 @@ export function SalespeopleConfig() {
 
   const resetAccountForm = () => {
     setAccountEmail(""); setAccountPhone(""); setAccountPassword("");
-    setAccountPermissions({ ...DEFAULT_PERMISSIONS });
+    setAccountPermissions({ ...PERMESSI_NUOVO_VENDITORE });
   };
 
   const handleEdit = (salesperson: Salesperson) => { setEditingSalesperson(salesperson); setDialogOpen(true); };
@@ -196,7 +200,7 @@ export function SalespeopleConfig() {
     setAccountEmail(salesperson.email || "");
     setAccountPhone(salesperson.phone || "");
     setAccountPassword("");
-    setAccountPermissions({ ...DEFAULT_PERMISSIONS });
+    setAccountPermissions({ ...PERMESSI_NUOVO_VENDITORE });
     setCreateAccountDialog({ open: true, salesperson });
   };
 

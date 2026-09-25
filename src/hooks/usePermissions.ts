@@ -529,7 +529,11 @@ function mapDbRowToPermissions(row: Record<string, unknown> | null | undefined):
     canEditMarketingOpportunities: g("can_edit_marketing_opportunities"),
     canViewMarketingActivities:    g("can_view_marketing_activities"),
     canViewMarketingAppointments:  g("can_view_marketing_appointments"),
-    canViewMarketingAutomations:   g("can_view_marketing_automations"),
+    // Automazioni: un solo permesso per lista e costruttore. Le colonne sono
+    // due (le 5 tabelle dei flussi accettano l'una o l'altra) e l'editor
+    // mostra solo «Automazioni»: chi ne aveva una sola apriva la lista ma non
+    // il costruttore, o il contrario (25/09/2026).
+    canViewMarketingAutomations:   g("can_view_marketing_automations") || g("can_view_automazioni"),
     canViewMarketingAiAgent:       g("can_view_marketing_ai_agent"),
     canViewMarketingEmail:         g("can_view_marketing_email"),
     canViewMarketingWhatsapp:      g("can_view_marketing_whatsapp"),
@@ -544,7 +548,7 @@ function mapDbRowToPermissions(row: Record<string, unknown> | null | undefined):
     canViewPreventivi:        g("can_view_preventivi"),
     canEditPreventivi:        g("can_edit_preventivi"),
     canApproveDiscounts:      g("can_approve_discounts"),
-    canViewAutomazioni:       g("can_view_automazioni"),
+    canViewAutomazioni:       g("can_view_automazioni") || g("can_view_marketing_automations"),
     canViewRenderAi:          g("can_view_render_ai"),
     canViewSalesOs:           g("can_view_sales_os"),
     canViewSmsMarketing:      g("can_view_sms_marketing"),

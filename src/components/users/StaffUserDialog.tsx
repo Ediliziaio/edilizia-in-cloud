@@ -19,11 +19,24 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { StaffPermissions } from "@/components/users/PermissionsDialog";
 import {
-  DEFAULT_PERMISSIONS, ALL_PERMISSION_SECTIONS,
+  DEFAULT_PERMISSIONS, ALL_PERMISSION_SECTIONS, ROLE_PRESETS, TEAM_VISIBILITY_SECTIONS,
   CRUSCOTTO_SECTIONS, CANTIERI_SECTIONS, FINANZA_SECTIONS, PERSONE_SECTIONS,
   MARKETING_SECTIONS, AUTOMAZIONI_SECTIONS, IMPOSTAZIONI_SECTIONS,
   isBlockedBySolaLettura, syncLegacyMarketingFlags, SOLA_LETTURA_BLOCKED_NOTE,
 } from "@/components/users/permissionsDefaults";
+
+/** I permessi con cui nasce un utente di quel ruolo: il preset del ruolo, lo
+ *  stesso della creazione da Impostazioni (prima qui partiva tutto spento, e
+ *  un venditore creato dal super admin non vedeva nemmeno il CRM). */
+function permessiDelRuolo(ruolo: StaffRoleType): StaffPermissions {
+  return { ...DEFAULT_PERMISSIONS, ...ROLE_PRESETS[ruolo] };
+}
+
+/** «Seleziona tutti» accende i moduli, non la visibilità sul team: quella non
+ *  compare in questa finestra e prima si accendeva di nascosto. */
+const SEZIONI_MODULI = ALL_PERMISSION_SECTIONS.filter(
+  (s) => !TEAM_VISIBILITY_SECTIONS.some((t) => t.viewKey === s.viewKey),
+);
 import { SolaLetturaToggle } from "@/components/users/SolaLetturaToggle";
 
 interface StaffUserDialogProps {
@@ -98,7 +111,7 @@ export function StaffUserDialog({
   // un'apertura e l'altra è gestito dal `key` sul componente (CompanyDetail),
   // che forza il remount — niente setState-in-effect.
   const [roleType, setRoleType] = useState<StaffRoleType>(defaultRoleType ?? "company_staff");
-  const [permissions, setPermissions] = useState<StaffPermissions>({ ...DEFAULT_PERMISSIONS });
+  const [permissions, setPermissions] = useState<StaffPermissions>(() => permessiDelRuolo(defaultRoleType ?? "company_staff"));
   const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [password, setPassword] = useState("");
@@ -118,7 +131,7 @@ export function StaffUserDialog({
   const handleSelectAll = () => {
     setPermissions((prev) => {
       const allTrue: any = { ...DEFAULT_PERMISSIONS, only_assigned: prev.only_assigned, sola_lettura: prev.sola_lettura };
-      ALL_PERMISSION_SECTIONS.forEach(s => {
+      SEZIONI_MODULI.forEach(s => {
         allTrue[s.viewKey] = true;
         if (s.editKey) allTrue[s.editKey] = true;
       });
@@ -181,7 +194,7 @@ export function StaffUserDialog({
   const handleClose = () => {
     setFirstName(""); setLastName(""); setEmail("");
     setRoleType(defaultRoleType ?? "company_staff");
-    setPermissions({ ...DEFAULT_PERMISSIONS });
+    setPermissions(permessiDelRuolo(defaultRoleType ?? "company_staff"));
     setTemporaryPassword(null); setCopied(false);
     setPassword(""); setShowPassword(false);
     onOpenChange(false);
@@ -287,7 +300,7 @@ export function StaffUserDialog({
                   <button
                     key={opt.value}
                     type="button"
-                    onClick={() => setRoleType(opt.value)}
+                    onClick={() => { setRoleType(opt.value); setPermissions(permessiDelRuolo(opt.value)); }}
                     className={`flex items-center gap-3 p-3 rounded-lg border-2 text-left transition-colors ${roleType === opt.value ? "border-primary bg-primary/5" : "border-border hover:border-muted-foreground/30"}`}
                     disabled={isLoading}
                   >

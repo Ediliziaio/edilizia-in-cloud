@@ -142,7 +142,8 @@ export function PermissionTemplatesManager() {
         body: {
           action: "apply",
           template_id: applyingTemplate.id,
-          user_id: selectedUserId,
+          // La funzione legge target_user_id: con user_id rispondeva sempre 400.
+          target_user_id: selectedUserId,
         },
       });
       if (error) throw error;

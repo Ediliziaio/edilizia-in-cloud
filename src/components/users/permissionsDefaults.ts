@@ -177,7 +177,7 @@ export const CANTIERI_SECTIONS: PermissionSectionDef[] = [
   { label: "Magazzino",              viewKey: "can_view_warehouse",          editKey: null, description: "Inventario e movimenti: chi lo vede li registra, salvo «Sola lettura»" },
   { label: "Gestione Articoli",      viewKey: "can_manage_warehouse_items",  editKey: null, description: "Gestisci articoli e listino magazzino" },
   { label: "Mezzi e attrezzature",   viewKey: "can_view_mezzi",              editKey: null, description: "Furgoni, mezzi e attrezzi con scadenze, tagliandi e foto: chi li vede li gestisce, salvo «Sola lettura»" },
-  { label: "Calendario",             viewKey: "can_view_calendar",           editKey: null, description: "Visualizza e gestisci il calendario" },
+  { label: "Calendario lavori",      viewKey: "can_view_calendar",           editKey: null, description: "Pose, cantieri e lavori pianificati (il calendario CRM è «Appuntamenti», in Marketing & Vendita)" },
   { label: "Clienti",                viewKey: "can_view_customers",          editKey: null, description: "Anagrafica clienti: chi la vede crea e modifica, salvo «Sola lettura»" },
   { label: "Esporta Clienti",        viewKey: "can_export_clients",          editKey: null, description: "Scarica in CSV/Excel clienti, contatti, opportunità e preventivi (anche l'archivio completo): ogni esportazione resta nel registro" },
   { label: "Ticket Assistenza",      viewKey: "can_view_tickets",            editKey: null, description: "Ticket di supporto: chi li vede li apre e li gestisce, salvo «Sola lettura»" },
@@ -202,7 +202,7 @@ export const FINANZA_SECTIONS: PermissionSectionDef[] = [
 ];
 
 export const PERSONE_SECTIONS: PermissionSectionDef[] = [
-  { label: "Personale, Chat e Messaggistica", viewKey: "can_view_persone",          editKey: null, description: "HR, chat team e messaggi interni" },
+  { label: "Personale & HR",                  viewKey: "can_view_persone",          editKey: null, description: "Schede del personale, presenze e timbrature (la chat del team è di tutti)" },
   { label: "Gestione Dipendenti",             viewKey: "can_view_employees",         editKey: null, description: "Schede dipendenti e presenze" },
   { label: "Utenti & Team",                   viewKey: "can_view_users",             editKey: null, description: "Elenco utenti e ruoli del team" },
   { label: "Giornale Lavori",                 viewKey: "can_view_giornale_lavori",   editKey: null, description: "Rapportini e giornale lavori: chi li vede li compila, salvo «Sola lettura»" },
@@ -213,7 +213,7 @@ export const PERSONE_SECTIONS: PermissionSectionDef[] = [
 export const MARKETING_SECTIONS: PermissionSectionDef[] = [
   { label: "Dashboard Marketing",     viewKey: "can_view_marketing_dashboard",      editKey: null, description: "KPI e panoramica marketing" },
   { label: "Contatti CRM",            viewKey: "can_view_marketing_contacts",       editKey: null, description: "Contatti e lead: chi li vede li crea e li modifica, salvo «Sola lettura»" },
-  { label: "Opportunità",             viewKey: "can_view_marketing_opportunities",  editKey: null, description: "Pipeline e trattative: chi le vede le crea e le sposta, salvo «Sola lettura»" },
+  { label: "Opportunità",             viewKey: "can_view_marketing_opportunities",  editKey: null, description: "Pipeline e trattative, Simulatore e moduli di vendita (Serramenti, Bagni…): chi le vede le crea e le sposta, salvo «Sola lettura»" },
   { label: "Preventivi",              viewKey: "can_view_preventivi",               editKey: null, description: "Preventivi CRM e invio in firma: chi li vede li crea e li modifica, salvo «Sola lettura»" },
   { label: "Approva Sconti",          viewKey: "can_approve_discounts",             editKey: null, description: "Può approvare/impostare sconti oltre soglia" },
   { label: "Sopralluoghi",            viewKey: "can_view_sopralluoghi",             editKey: null, description: "Sopralluoghi tecnici pre-vendita" },
@@ -228,8 +228,8 @@ export const MARKETING_SECTIONS: PermissionSectionDef[] = [
 ];
 
 export const AUTOMAZIONI_SECTIONS: PermissionSectionDef[] = [
-  { label: "Automazioni",  viewKey: "can_view_automazioni",          editKey: null, description: "Flussi automatici e trigger" },
-  { label: "Agenti AI",    viewKey: "can_view_marketing_ai_agent",   editKey: null, description: "Agenti AI (Silvio e assistenti)" },
+  { label: "Automazioni",  viewKey: "can_view_automazioni",          editKey: null, description: "Flussi automatici e trigger: l'elenco e il costruttore" },
+  { label: "Agenti AI",    viewKey: "can_view_marketing_ai_agent",   editKey: null, description: "Agenti AI verso i clienti e Centralino (Silvio, l'assistente interno, è di tutti)" },
   { label: "Render AI",    viewKey: "can_view_render_ai",            editKey: null, description: "Render fotorealistici AI" },
 ];
 
@@ -306,14 +306,13 @@ export const ROLE_PRESETS: Record<StaffRoleType, Partial<StaffPermissions>> = {
 
   // Le colonne can_edit_* operative non compaiono nei preset: le deriva
   // applyEditFollowsView (e il trigger in DB) dalla visibilità.
+  // Il venditore, di serie, vede solo Marketing & Vendita (25/09/2026, Florin):
+  // niente commesse, calendario lavori, dashboard generale, clienti delle
+  // commesse, elenco utenti, né l'hub firme di Cantieri & Lavori. I preventivi
+  // li manda in firma dal dettaglio preventivo, che non chiede quel permesso.
+  // L'amministratore può aggiungere altro a mano, persona per persona.
   salesperson: {
-    can_view_dashboard: true,
-    can_view_orders: true,
-    can_view_calendar: true,
-    can_view_customers: true,
-    can_view_users: true,
     // Livello finanziario "Commerciale": vede importi (default) ma NON margini.
-    // (prima qui c'era can_view_margins: true → incoerente col modello 3-livelli)
     can_view_formazione: true,
     can_view_marketing_dashboard: true,
     can_view_marketing_contacts: true,
@@ -324,7 +323,6 @@ export const ROLE_PRESETS: Record<StaffRoleType, Partial<StaffPermissions>> = {
     can_view_marketing_appointments: true,
     can_view_marketing_reports: true,
     can_view_reputazione: true,
-    can_view_firma_elettronica: true,
     can_view_sales_os: true,
     can_view_marketing: true,
     visible_areas: ["commerciale"],
@@ -398,7 +396,12 @@ export function syncLegacySettingsFlags(perms: StaffPermissions): StaffPermissio
 /** Sincronizza i flag legacy marketing dai permessi granulari. Deriva prima la
  *  modifica dalla visibilità, così can_edit_marketing riflette il risultato. */
 export function syncLegacyMarketingFlags(input: StaffPermissions): StaffPermissions {
-  const perms = applyEditFollowsView(input);
+  const perms = {
+    ...applyEditFollowsView(input),
+    // Il costruttore delle automazioni segue «Automazioni», l'unico
+    // interruttore che gli editor mostrano (prima nessuno lo dava).
+    can_view_marketing_automations: !!input.can_view_automazioni,
+  };
   const hasAnyView =
     perms.can_view_marketing_dashboard || perms.can_view_marketing_contacts ||
     perms.can_view_marketing_opportunities || perms.can_view_marketing_activities ||

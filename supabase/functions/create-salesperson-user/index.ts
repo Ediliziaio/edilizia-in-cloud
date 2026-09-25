@@ -82,7 +82,7 @@ Deno.serve(async (req) => {
     // invece di crearne uno nuovo. Il suo account/azienda primaria resta intatto.
     const { data: existingProfile } = await supabaseAdmin
       .from("profiles")
-      .select("id")
+      .select("id, company_id")
       .ilike("email", email)
       .maybeSingle();
 
@@ -142,22 +142,29 @@ Deno.serve(async (req) => {
     // Record COMPLETO (tutte le colonne-permesso): l'insert non dipende più dal
     // follow-up update del client per il granulare (preventivi, CRM, team, ecc.).
     const permissionsRecord = buildStaffPermissionsRecord(userId, salesperson.company_id, permissions);
-    // upsert su (user_id, company_id): idempotente se la persona viene ri-aggiunta.
+    // Se in questa azienda la persona ha già la sua riga (è già staff qui) la
+    // riga resta com'è: prima veniva sovrascritta, e collegarla come venditore
+    // le toglieva i permessi che aveva (25/09/2026).
     const { error: permError } = await supabaseAdmin
       .from("staff_permissions")
-      .upsert(permissionsRecord, { onConflict: "user_id,company_id" });
+      .upsert(permissionsRecord, { onConflict: "user_id,company_id", ignoreDuplicates: true });
     if (permError) { await rollback(); throw new Error("Errore nella creazione permessi"); }
 
     // Accesso multi-azienda: fa comparire questa azienda nel company switcher
-    // con ruolo venditore. Indispensabile quando l'azienda NON è quella primaria
-    // del profilo (caso utente esistente). Idempotente.
-    const { error: mcaError } = await supabaseAdmin
-      .from("multi_company_access")
-      .upsert(
-        { user_id: userId, company_id: salesperson.company_id, access_role: "salesperson", granted_by: caller.id },
-        { onConflict: "user_id,company_id", ignoreDuplicates: true },
-      );
-    if (mcaError) { await rollback(); throw new Error("Errore nell'accesso multi-azienda"); }
+    // con ruolo venditore. Serve solo quando l'azienda NON è quella primaria
+    // del profilo (caso utente esistente): sulla propria azienda l'accesso
+    // «venditore» scavalcava il ruolo vero della persona (un amministratore
+    // collegato come venditore diventava venditore in casa sua). Idempotente.
+    const aziendaPrimaria = isExistingUser ? existingProfile?.company_id : salesperson.company_id;
+    if (aziendaPrimaria !== salesperson.company_id) {
+      const { error: mcaError } = await supabaseAdmin
+        .from("multi_company_access")
+        .upsert(
+          { user_id: userId, company_id: salesperson.company_id, access_role: "salesperson", granted_by: caller.id },
+          { onConflict: "user_id,company_id", ignoreDuplicates: true },
+        );
+      if (mcaError) { await rollback(); throw new Error("Errore nell'accesso multi-azienda"); }
+    }
 
     const { error: linkError } = await supabaseAdmin
       .from("salespeople")
