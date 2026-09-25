@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { logger } from "@/utils/logger";
 import { supabase } from "@/integrations/supabase/client";
+import { motivoPasswordRifiutata } from "@/lib/auth/cambioPassword";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -121,7 +122,7 @@ export function ChangePasswordForm() {
       });
 
       if (updateError) {
-        toast.error("Errore durante il cambio password");
+        toast.error(motivoPasswordRifiutata(updateError), { duration: 10000 });
         setIsLoading(false);
         return;
       }
@@ -131,6 +132,10 @@ export function ChangePasswordForm() {
         .from("profiles")
         .update({ password_changed_at: new Date().toISOString() })
         .eq("id", user.id);
+
+      // Scelta da lui: se aveva una password provvisoria, non va più cambiata.
+      const { error: erroreObbligo } = await supabase.rpc("staff_update_own_password_flag", { _must_change: false });
+      if (erroreObbligo) logger.error("[password] obbligo di cambio non tolto:", erroreObbligo);
 
       // Email di sicurezza "password cambiata" (2.2): gestita NATIVAMENTE da
       // Supabase Auth (Security → "Password changed" = ON), che copre tutti i

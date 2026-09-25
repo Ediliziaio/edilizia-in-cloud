@@ -10,20 +10,12 @@ const workflowsSql = readFileSync(
   resolve(process.cwd(), "supabase/migrations/20270526210000_customer_os_workflows.sql"),
   "utf8",
 );
-const trackEventSrc = readFileSync(
-  resolve(process.cwd(), "src/lib/customer-os/trackEvent.ts"),
-  "utf8",
-);
 const profileSrc = readFileSync(
   resolve(process.cwd(), "src/lib/customer-os/customerProfile.ts"),
   "utf8",
 );
 const healthScoreSrc = readFileSync(
   resolve(process.cwd(), "src/lib/customer-os/healthScore.ts"),
-  "utf8",
-);
-const interactionLogSrc = readFileSync(
-  resolve(process.cwd(), "src/lib/customer-os/interactionLog.ts"),
   "utf8",
 );
 const workflowRunnerSrc = readFileSync(
@@ -162,18 +154,9 @@ describe("Customer OS — contract tests", () => {
     });
   });
 
+  // trackEvent e interactionLog non sono mai entrati nell'app: tolti col codice
+  // morto il 25/09/2026, e con loro i loro test.
   describe("Client helpers TS", () => {
-    it("trackEvent espone fire-and-forget API + throttling + sanitization", () => {
-      expect(trackEventSrc).toContain("export function trackEvent");
-      expect(trackEventSrc).toContain("export function trackEventBulk");
-      // Throttle anti-spam
-      expect(trackEventSrc).toContain("THROTTLE_MS = 500");
-      // Sanitize sensitive keys
-      expect(trackEventSrc).toContain("FORBIDDEN_PROPERTY_KEYS");
-      expect(trackEventSrc).toContain('"password"');
-      expect(trackEventSrc).toContain('"iban"');
-    });
-
     it("customerProfile hooks query React Query", () => {
       expect(profileSrc).toContain("export function useCustomerProfile");
       expect(profileSrc).toContain("export function useCustomerProfiles");
@@ -192,18 +175,6 @@ describe("Customer OS — contract tests", () => {
       expect(healthScoreSrc).toContain('"engaged"');
       expect(healthScoreSrc).toContain('"at_risk"');
       expect(healthScoreSrc).toContain('"churned"');
-    });
-
-    it("interactionLog supporta tutti i 14 channel + sentiment optional", () => {
-      const channels = [
-        "email_inbound", "email_outbound",
-        "chat_inbound", "chat_outbound",
-        "whatsapp_inbound", "whatsapp_outbound",
-        "phone_call_inbound", "phone_call_outbound",
-        "ticket_created", "ticket_replied", "ticket_resolved",
-        "nps_submitted", "demo_completed",
-      ];
-      channels.forEach((c) => expect(interactionLogSrc).toContain(`"${c}"`));
     });
 
     it("workflowRunner espone tutte le WorkflowKey", () => {

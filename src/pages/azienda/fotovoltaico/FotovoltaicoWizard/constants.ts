@@ -2,7 +2,7 @@
  * FotovoltaicoWizard — constants
  * Estratto da FotovoltaicoWizard.tsx (MP-MKT-001).
  */
-import type { FvTabDef } from "@/types/fotovoltaico";
+import type { FvTabDef } from "@/lib/fotovoltaico/wizardUI";
 import type { WizardData } from "./types";
 
 export const TOTAL_STEPS = 8;
