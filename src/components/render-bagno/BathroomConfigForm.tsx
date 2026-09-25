@@ -1214,7 +1214,7 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
             ? "Es. molto luminoso, stile hotel, niente decorazioni…"
             : "Indicazioni aggiuntive per l'AI, ad esempio: 'mantieni il bagno molto luminoso', 'stile hotel di lusso ma realistico', 'niente elementi decorativi extra'."}
           rows={4}
-          // Telefono: il testo scritto resta a 16px (sotto, iOS ingrandisce la pagina), il segnaposto a 13px.
+          // Telefono: segnaposto a 13px come il resto del testo.
           className="mt-1 max-md:min-h-[88px] max-md:placeholder:text-[13px]"
         />
       </div>

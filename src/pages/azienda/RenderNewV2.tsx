@@ -2503,7 +2503,7 @@ function StepAccessori({
               placeholder={isMobile
                 ? "Es. tende e radiatore identici, profilo minimal…"
                 : "Esempio: mantieni tende e radiatore identici, resa molto fotorealistica, profilo minimal ma senza cambiare il vano esistente."}
-              // Telefono: il testo scritto resta a 16px (sotto, iOS ingrandisce la pagina), il segnaposto a 13px e corto.
+              // Telefono: segnaposto corto, a 13px come il resto del testo.
               className="min-h-[120px] max-md:min-h-[88px] max-md:placeholder:text-[13px]"
             />
           </div>

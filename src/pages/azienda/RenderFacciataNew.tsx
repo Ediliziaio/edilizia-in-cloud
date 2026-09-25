@@ -19,7 +19,13 @@ import {
   PaintbrushVertical,
   ScanSearch,
   ShieldCheck,
+  ImagePlus,
+  Camera,
+  ArrowLeft,
 } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { ZonaFotoMobile } from "@/components/render/ZonaFotoMobile";
+import { MandaRenderMobile } from "@/components/render/MandaRenderMobile";
 
 import { RenderWizardHeader } from "@/components/render/RenderWizardHeader";
 
@@ -434,8 +440,33 @@ export default function RenderFacciataNew() {
     await runAnalysis(sessionId, photoPath, photoMeta);
   }, [photoMeta, photoPath, runAnalysis, sessionId]);
 
+  const isMobile = useIsMobile();
+  const nuovoRender = () => {
+    setStep(1);
+    setPhoto(null);
+    setPhotoPreview(null);
+    setPhotoPath(null);
+    setPhotoMeta(null);
+    setResultUrls([]);
+    setSessionId(null);
+    setAnalysis(null);
+    setAnalysisError(null);
+    setConfig(DEFAULT_FACCIATA_CONFIG);
+  };
+
+  // A ogni passo si riparte dalla testata (prima si restava a metà pagina).
+  const radiceRef = useRef<HTMLDivElement>(null);
+  const primoPassoRef = useRef(true);
+  useEffect(() => {
+    if (primoPassoRef.current) {
+      primoPassoRef.current = false;
+      return;
+    }
+    radiceRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+  }, [step]);
+
   return (
-    <div className="mx-auto max-w-5xl space-y-6 pb-12">
+    <div ref={radiceRef} className="mx-auto max-w-5xl space-y-6 pb-12 scroll-mt-3 max-md:space-y-3">
       <RenderWizardHeader
         onBack={() => {
           if (step > 1 && step < 5) {
@@ -446,20 +477,22 @@ export default function RenderFacciataNew() {
         }}
         eyebrow="Riqualificazione facciata fotorealistica"
         title="Stessa casa, nuova facciata"
+        mobileTitle="Render Facciata"
         description="L'AI applica intonaco, colori e finiture mantenendo prospettiva, contorno e arredo urbano della foto originale."
         badgeLabel="Render AI — Facciate"
         stepLabels={["Foto", "Analisi", "Configura", "Elaborazione", "Risultato"]}
         currentStep={step}
         accent="amber"
       />
-      <div className="flex justify-end">
+      {/* Telefono: il saldo non occupa una riga (se finisce, avvisa il RenderCreditGate). */}
+      <div className="flex justify-end max-md:hidden">
         <RenderCreditsWidget />
       </div>
 
       <RenderCreditGate />
 
       {step === 1 && (
-        <div className="space-y-4">
+        <div className="space-y-4 max-md:space-y-3">
           <input
             ref={fileRef}
             type="file"
@@ -468,7 +501,13 @@ export default function RenderFacciataNew() {
             onChange={handleFileChange}
           />
 
-          {!photoPreview ? (
+          {!photoPreview && isMobile ? (
+            <ZonaFotoMobile
+              onScegli={() => fileRef.current?.click()}
+              suggerimento="Frontale, con tutta la facciata e un po' di contesto"
+              accento="orange"
+            />
+          ) : !photoPreview ? (
             <Card
               className="cursor-pointer border-2 border-dashed hover:border-orange-400 transition-colors"
               onClick={() => fileRef.current?.click()}
@@ -484,8 +523,8 @@ export default function RenderFacciataNew() {
               </CardContent>
             </Card>
           ) : (
-            <Card>
-              <CardContent className="p-4 space-y-4">
+            <Card className="max-md:border-0 max-md:bg-transparent max-md:shadow-none">
+              <CardContent className="p-4 space-y-4 max-md:space-y-3 max-md:p-0">
                 <div className="overflow-hidden rounded-lg bg-muted">
                   <img loading="lazy"
                     src={photoPreview}
@@ -499,18 +538,22 @@ export default function RenderFacciataNew() {
                   onContactChange={setContactId}
                   onOpportunityChange={setOpportunityId}
                 />
+                {/* Telefono: «Cambia foto» a icona, l'analisi prende il resto della riga. */}
                 <div className="flex gap-2">
                   <Button
                     variant="outline"
+                    className="max-md:w-11 max-md:shrink-0 max-md:px-0"
+                    aria-label="Cambia foto"
                     onClick={() => {
                       setPhoto(null);
                       setPhotoPreview(null);
                       fileRef.current?.click();
                     }}
                   >
-                    Cambia foto
+                    <Camera className="hidden h-4 w-4 max-md:block" />
+                    <span className="max-md:hidden">Cambia foto</span>
                   </Button>
-                  <Button className="ml-auto bg-orange-600 hover:bg-orange-700" onClick={goToAnalysis} disabled={uploading}>
+                  <Button className="ml-auto bg-orange-600 hover:bg-orange-700 max-md:ml-0 max-md:min-w-0 max-md:flex-1" onClick={goToAnalysis} disabled={uploading}>
                     {uploading ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -531,9 +574,9 @@ export default function RenderFacciataNew() {
       )}
 
       {step === 2 && (
-        <div className="space-y-4">
+        <div className="space-y-4 max-md:space-y-3">
           <Card className="border-orange-200 bg-orange-50/50">
-            <CardContent className="py-6">
+            <CardContent className="py-6 max-md:p-3">
               <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div className="flex items-center gap-3">
                   {analyzing ? (
@@ -542,10 +585,10 @@ export default function RenderFacciataNew() {
                     <CheckCircle2 className="h-5 w-5 text-green-600" />
                   )}
                   <div>
-                    <p className="font-medium">
+                    <p className="font-medium max-md:text-[13px]">
                       {analyzing ? "Sto leggendo edificio, aperture e dettagli" : "Analisi edificio pronta"}
                     </p>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-sm text-muted-foreground max-md:hidden">
                       {analyzing
                         ? "Mi sto portando dietro geometria, contesto, rilievi e zone sensibili prima di configurare il render."
                         : "Abbiamo una base strutturata da usare nel wizard e nel prompt finale."}
@@ -553,7 +596,7 @@ export default function RenderFacciataNew() {
                   </div>
                 </div>
                 {!analyzing && (
-                  <Button variant="outline" onClick={() => setStep(3)}>
+                  <Button variant="outline" className="max-md:hidden" onClick={() => setStep(3)}>
                     Continua alla configurazione
                   </Button>
                 )}
@@ -576,40 +619,50 @@ export default function RenderFacciataNew() {
           )}
 
           <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm flex items-center gap-2">
+            <CardHeader className="pb-3 max-md:p-3 max-md:pb-2">
+              <CardTitle className="text-sm flex items-center gap-2 max-md:text-[13px]">
                 <Building2 className="h-4 w-4 text-orange-600" />
                 Scenario letto dalla facciata
               </CardTitle>
             </CardHeader>
-            <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              <div className="rounded-lg border p-3">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Edificio</p>
-                <p className="mt-1 font-medium">{analysis?.buildingType ?? "in lettura..."}</p>
+            {/* Telefono: due per riga, etichette a 11px e valori a 13px. */}
+            <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 max-md:grid-cols-2 max-md:gap-2 max-md:p-3 max-md:pt-0">
+              <div className="rounded-lg border p-3 max-md:p-2">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground max-md:text-[11px] max-md:normal-case max-md:tracking-normal">Edificio</p>
+                <p className="mt-1 font-medium max-md:mt-0.5 max-md:text-[13px]">{analysis?.buildingType ?? "in lettura..."}</p>
               </div>
-              <div className="rounded-lg border p-3">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Stile</p>
-                <p className="mt-1 font-medium">{analysis?.buildingStyle ?? "in lettura..."}</p>
+              <div className="rounded-lg border p-3 max-md:p-2">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground max-md:text-[11px] max-md:normal-case max-md:tracking-normal">Stile</p>
+                <p className="mt-1 font-medium max-md:mt-0.5 max-md:text-[13px]">{analysis?.buildingStyle ?? "in lettura..."}</p>
               </div>
-              <div className="rounded-lg border p-3">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Piani</p>
-                <p className="mt-1 font-medium">{analysis?.floorsCount ?? "-"}</p>
+              <div className="rounded-lg border p-3 max-md:p-2">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground max-md:text-[11px] max-md:normal-case max-md:tracking-normal">Piani</p>
+                <p className="mt-1 font-medium max-md:mt-0.5 max-md:text-[13px]">{analysis?.floorsCount ?? "-"}</p>
               </div>
-              <div className="rounded-lg border p-3">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Aperture visibili</p>
-                <p className="mt-1 font-medium">{analysis?.openingsVisible ?? "-"}</p>
+              <div className="rounded-lg border p-3 max-md:p-2">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground max-md:text-[11px] max-md:normal-case max-md:tracking-normal">Aperture visibili</p>
+                <p className="mt-1 font-medium max-md:mt-0.5 max-md:text-[13px]">{analysis?.openingsVisible ?? "-"}</p>
               </div>
             </CardContent>
           </Card>
+
+          {/* Telefono: prima la lettura dell'edificio, poi il pulsante pieno per andare avanti. */}
+          {!analyzing && isMobile && (
+            <Button className="w-full bg-orange-600 hover:bg-orange-700" onClick={() => setStep(3)}>
+              Continua alla configurazione
+            </Button>
+          )}
         </div>
       )}
 
       {step === 3 && renderPlan && (
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr),360px]">
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr),360px] max-md:grid-cols-1 max-md:gap-3">
           <FacciataConfigForm config={config} analysis={analysis} onChange={setConfig} />
 
-          <div className="space-y-4 xl:sticky xl:top-6 self-start">
-            <Card>
+          {/* Telefono: resta solo la riga dei bottoni (i riquadri sopra sono nascosti, e il loro margine resterebbe). */}
+          <div className="space-y-4 xl:sticky xl:top-6 self-start max-md:space-y-0">
+            {/* Telefono: riepilogo tecnico e regole del render restano al computer. */}
+            <Card className="max-md:hidden">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm flex items-center gap-2">
                   <PaintbrushVertical className="h-4 w-4 text-orange-600" />
@@ -618,7 +671,7 @@ export default function RenderFacciataNew() {
               </CardHeader>
               <CardContent className="space-y-4 text-sm">
                 <div>
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Sistemi attivi</p>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground max-md:text-[11px] max-md:normal-case max-md:tracking-normal">Sistemi attivi</p>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {renderPlan.replacement_manifest.activeSystems.map((item) => (
                       <Badge key={item} variant="secondary">{item.replace(/_/g, " ")}</Badge>
@@ -626,7 +679,7 @@ export default function RenderFacciataNew() {
                   </div>
                 </div>
                 <div>
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Zone coinvolte</p>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground max-md:text-[11px] max-md:normal-case max-md:tracking-normal">Zone coinvolte</p>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {renderPlan.replacement_manifest.targetedZones.map((item) => (
                       <Badge key={item} variant="outline">{item}</Badge>
@@ -646,7 +699,7 @@ export default function RenderFacciataNew() {
                   ))}
                 </div>
                 <div>
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Elementi da preservare</p>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground max-md:text-[11px] max-md:normal-case max-md:tracking-normal">Elementi da preservare</p>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {uniqueStrings(renderPlan.replacement_manifest.keepExactly).slice(0, 10).map((item) => (
                       <Badge key={item} variant="outline">{item}</Badge>
@@ -656,7 +709,7 @@ export default function RenderFacciataNew() {
               </CardContent>
             </Card>
 
-            <Card className="border-emerald-200 bg-emerald-50/60">
+            <Card className="border-emerald-200 bg-emerald-50/60 max-md:hidden">
               <CardContent className="py-4 text-sm text-emerald-950">
                 <div className="flex items-center gap-2 font-medium">
                   <ShieldCheck className="h-4 w-4" />
@@ -668,11 +721,13 @@ export default function RenderFacciataNew() {
               </CardContent>
             </Card>
 
+            {/* Telefono: indietro a icona, «Genera render» che prende il resto. */}
             <div className="flex gap-2">
-              <Button variant="outline" className="flex-1" onClick={() => setStep(2)}>
-                Indietro
+              <Button variant="outline" className="flex-1 max-md:w-11 max-md:flex-none max-md:shrink-0 max-md:px-0" onClick={() => setStep(2)} aria-label="Indietro">
+                <ArrowLeft className="hidden h-4 w-4 max-md:block" />
+                <span className="max-md:hidden">Indietro</span>
               </Button>
-              <Button className="flex-1 bg-orange-600 hover:bg-orange-700" onClick={startRender}>
+              <Button className="flex-1 bg-orange-600 hover:bg-orange-700 max-md:min-w-0" onClick={startRender}>
                 <Zap className="mr-2 h-4 w-4" />
                 Genera render
               </Button>
@@ -692,8 +747,9 @@ export default function RenderFacciataNew() {
       )}
 
       {step === 5 && resultUrls.length > 0 && (
-        <div className="space-y-4">
-          <Card className="border-green-200 bg-green-50/30">
+        <div className="space-y-4 max-md:space-y-3">
+          {/* Telefono: parla l'immagine. */}
+          <Card className="border-green-200 bg-green-50/30 max-md:hidden">
             <CardContent className="py-4 flex items-center gap-3">
               <CheckCircle2 className="h-5 w-5 text-green-600" />
               <div>
@@ -704,11 +760,11 @@ export default function RenderFacciataNew() {
           </Card>
 
           {photoPreview && (
-            <Card>
-              <CardHeader className="pb-2">
+            <Card className="max-md:border-0 max-md:bg-transparent max-md:shadow-none">
+              <CardHeader className="pb-2 max-md:hidden">
                 <CardTitle className="text-sm">Prima / Dopo</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="max-md:p-0">
                 <BeforeAfterSlider
                   beforeUrl={photoPreview}
                   afterUrl={resultUrls[0]}
@@ -718,7 +774,8 @@ export default function RenderFacciataNew() {
             </Card>
           )}
 
-          <Card>
+          {/* Telefono: c'è già «Render AI» nel confronto. */}
+          <Card className="max-md:hidden">
             <CardContent className="p-4">
               <img loading="lazy"
                 src={resultUrls[0]}
@@ -729,7 +786,7 @@ export default function RenderFacciataNew() {
           </Card>
 
           {renderPlan && (
-            <Card>
+            <Card className="max-md:hidden">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm">Intervento applicato</CardTitle>
               </CardHeader>
@@ -744,7 +801,17 @@ export default function RenderFacciataNew() {
             </Card>
           )}
 
-          <div className="flex gap-2">
+          {/* Telefono: nuovo render a icona e «Manda al cliente» (l'immagine, non un link). */}
+          {isMobile && (
+            <div className="flex gap-2">
+              <Button variant="outline" className="w-11 shrink-0 px-0" onClick={nuovoRender} aria-label="Nuovo render">
+                <ImagePlus className="h-4 w-4" />
+              </Button>
+              <MandaRenderMobile resultUrl={resultUrls[0]} nomeFile="render-facciata" className="min-w-0 flex-1" />
+            </div>
+          )}
+
+          <div className="flex gap-2 max-md:hidden">
             <Button variant="outline" className="flex-1" onClick={shareWhatsApp}>
               <Share2 className="mr-2 h-4 w-4" />
               WhatsApp
@@ -767,19 +834,8 @@ export default function RenderFacciataNew() {
 
           <Button
             variant="outline"
-            className="w-full"
-            onClick={() => {
-              setStep(1);
-              setPhoto(null);
-              setPhotoPreview(null);
-              setPhotoPath(null);
-              setPhotoMeta(null);
-              setResultUrls([]);
-              setSessionId(null);
-              setAnalysis(null);
-              setAnalysisError(null);
-              setConfig(DEFAULT_FACCIATA_CONFIG);
-            }}
+            className="w-full max-md:hidden"
+            onClick={nuovoRender}
           >
             <RefreshCw className="mr-2 h-4 w-4" />
             Nuovo render facciata

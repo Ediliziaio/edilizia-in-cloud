@@ -9,6 +9,7 @@ import {
   type RenderCatalogVerticale,
 } from "@/lib/render/renderCatalog";
 import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface Props {
   companyId?: string;
@@ -26,15 +27,18 @@ interface Props {
  * Compatto anche su mobile: una riga scorrevole di miniature.
  */
 export function CatalogReferencePicker({ companyId, verticale, categorie, selectedIds, onChange }: Props) {
+  const isMobile = useIsMobile();
   const { assets, urls, loading } = useRenderCatalogAssets(companyId, verticale);
   const visibili = useMemo(() => assets.filter((a) => categorie.includes(a.categoria)), [assets, categorie]);
   const pieno = selectedIds.length >= MAX_CATALOG_REFERENCES;
 
   if (!companyId || loading) return null;
   if (visibili.length === 0) {
+    // Telefono: niente invito a riempire il catalogo, che si imposta dal computer
+    // (e niente elemento nascosto che lasci il suo spazio nella sezione).
+    if (isMobile) return null;
     return (
-      // Telefono: niente invito a riempire il catalogo, che si imposta dal computer.
-      <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground max-md:hidden">
+      <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
         <ImagePlus className="h-3.5 w-3.5" />
         <span>
           Nessuna foto prodotto per questa sezione.{" "}

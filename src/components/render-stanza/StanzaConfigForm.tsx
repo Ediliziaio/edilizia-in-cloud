@@ -114,11 +114,12 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
   ].filter(Boolean).length;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-md:space-y-4">
       {/* ── Tipo Stanza ────────────────────────────────────────────── */}
       <div>
-        <Label className="text-sm font-semibold mb-2 block">Tipo di stanza</Label>
-        <div className="grid grid-cols-5 gap-2">
+        <Label className="text-sm font-semibold mb-2 block max-md:text-[13px]">Tipo di stanza</Label>
+        {/* Telefono: cinque per riga troncavano i nomi («Camera da l…»): quattro, a 11px. */}
+        <div className="grid grid-cols-5 gap-2 max-sm:grid-cols-4 max-sm:gap-1.5">
           {TIPI_STANZA.map(({ value: v, label, icon: Icon }) => (
             <button
               key={v}
@@ -132,7 +133,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
               onClick={() => set("tipo_stanza", v)}
             >
               <Icon className="h-4 w-4" />
-              <span className="truncate w-full text-center">{label}</span>
+              <span className="truncate w-full text-center max-md:whitespace-normal max-md:text-[11px] max-md:leading-tight">{label}</span>
             </button>
           ))}
         </div>
@@ -140,21 +141,21 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
 
       {/* ── Stile Target ───────────────────────────────────────────── */}
       <div>
-        <Label className="text-sm font-semibold mb-2 block">Stile target</Label>
-        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+        <Label className="text-sm font-semibold mb-2 block max-md:text-[13px]">Stile target</Label>
+        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-sm:gap-1.5">
           {STILI.map(({ value: v, label, color }) => (
             <button
               key={v}
               type="button"
               disabled={disabled}
-              className={`flex items-center gap-2 p-2.5 rounded-lg border text-xs transition-all ${
+              className={`flex items-center gap-2 p-2.5 rounded-lg border text-xs transition-all max-md:gap-1.5 max-md:px-2 max-md:text-[11px] ${
                 value.stile_target === v
                   ? "border-primary bg-primary/5 ring-1 ring-primary font-semibold"
                   : "border-slate-300 bg-white shadow-sm hover:border-primary/60 hover:shadow"
               }`}
               onClick={() => set("stile_target", v)}
             >
-              <div className={`w-5 h-5 rounded-full shrink-0 ${color}`} />
+              <div className={`w-5 h-5 rounded-full shrink-0 max-md:h-4 max-md:w-4 ${color}`} />
               <span className="truncate">{label}</span>
             </button>
           ))}
@@ -163,22 +164,23 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
 
       {/* ── Intensita ──────────────────────────────────────────────── */}
       <div>
-        <Label className="text-sm font-semibold mb-2 block">Intensita trasformazione</Label>
+        <Label className="text-sm font-semibold mb-2 block max-md:text-[13px]">Intensità trasformazione</Label>
         <div className="grid grid-cols-3 gap-2">
           {INTENSITA.map(({ value: v, label, desc }) => (
             <button
               key={v}
               type="button"
               disabled={disabled}
-              className={`flex flex-col items-center gap-1 p-3 rounded-lg border text-center transition-all ${
+              className={`flex flex-col items-center gap-1 p-3 rounded-lg border text-center transition-all max-md:p-2 ${
                 value.intensita === v
                   ? "border-primary bg-primary/5 ring-1 ring-primary"
                   : "border-slate-300 bg-white shadow-sm hover:border-primary/60 hover:shadow"
               }`}
               onClick={() => set("intensita", v)}
             >
-              <span className="font-semibold text-sm">{label}</span>
-              <span className="text-[10px] text-muted-foreground leading-tight">{desc}</span>
+              <span className="font-semibold text-sm max-md:text-[13px]">{label}</span>
+              {/* Telefono: la spiegazione (tre righe a 10px) resta al computer. */}
+              <span className="text-[10px] text-muted-foreground leading-tight max-md:hidden">{desc}</span>
             </button>
           ))}
         </div>
@@ -186,16 +188,17 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
 
       {/* ── Interventi (accordion) ─────────────────────────────────── */}
       <div>
-        <Label className="text-sm font-semibold mb-2 block">
+        <Label className="text-sm font-semibold mb-2 block max-md:text-[13px]">
           Interventi ({activeCount} attivi)
         </Label>
-        <Accordion type="multiple" className="space-y-1">
+        {/* Telefono: un elenco unico a righe invece di schede staccate. */}
+        <Accordion type="multiple" className="space-y-1 max-md:space-y-0 max-md:divide-y max-md:overflow-hidden max-md:rounded-xl max-md:border max-md:bg-card">
           {/* VERNICIATURA */}
-          <AccordionItem value="verniciatura" className="border rounded-lg px-3">
+          <AccordionItem value="verniciatura" className="border rounded-lg px-3 max-md:rounded-none max-md:border-0">
             <AccordionTrigger className="py-2.5 hover:no-underline">
               <div className="flex items-center gap-2 flex-1">
                 <Paintbrush className="h-4 w-4 text-pink-500" />
-                <span className="text-sm font-medium">Verniciatura pareti</span>
+                <span className="text-sm font-medium max-md:text-[13px]">Verniciatura pareti</span>
                 <div className="ml-auto mr-2" onClick={(e) => e.stopPropagation()}>
                   <Switch
                     checked={value.verniciatura.attivo}
@@ -210,7 +213,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                 <CatalogReferencePicker companyId={companyId} verticale="stanza" categorie={["parete"]} selectedIds={value.catalogo_reference_ids ?? []} onChange={(ids) => set("catalogo_reference_ids", ids)} />
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <Label className="text-xs">Colore</Label>
+                    <Label className="text-xs max-md:text-[11px]">Colore</Label>
                     <div className="flex gap-2">
                       <Input
                         type="color"
@@ -229,7 +232,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                     </div>
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">Finitura</Label>
+                    <Label className="text-xs max-md:text-[11px]">Finitura</Label>
                     <Select
                       value={value.verniciatura.finitura ?? "satinato"}
                       onValueChange={(v) => set("verniciatura", { ...value.verniciatura, finitura: v as never })}
@@ -246,7 +249,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                   </div>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Applica a</Label>
+                  <Label className="text-xs max-md:text-[11px]">Applica a</Label>
                   <Select
                     value={value.verniciatura.applica_a ?? "tutte"}
                     onValueChange={(v) => set("verniciatura", { ...value.verniciatura, applica_a: v as never })}
@@ -284,11 +287,11 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
           </AccordionItem>
 
           {/* PAVIMENTO */}
-          <AccordionItem value="pavimento" className="border rounded-lg px-3">
+          <AccordionItem value="pavimento" className="border rounded-lg px-3 max-md:rounded-none max-md:border-0">
             <AccordionTrigger className="py-2.5 hover:no-underline">
               <div className="flex items-center gap-2 flex-1">
                 <Grid3X3 className="h-4 w-4 text-amber-500" />
-                <span className="text-sm font-medium">Pavimento</span>
+                <span className="text-sm font-medium max-md:text-[13px]">Pavimento</span>
                 <div className="ml-auto mr-2" onClick={(e) => e.stopPropagation()}>
                   <Switch
                     checked={value.pavimento.attivo}
@@ -303,7 +306,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                 <CatalogReferencePicker companyId={companyId} verticale="stanza" categorie={["pavimento"]} selectedIds={value.catalogo_reference_ids ?? []} onChange={(ids) => set("catalogo_reference_ids", ids)} />
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <Label className="text-xs">Tipo</Label>
+                    <Label className="text-xs max-md:text-[11px]">Tipo</Label>
                     <Select
                       value={value.pavimento.tipo ?? "gres_porcellanato"}
                       onValueChange={(v) => set("pavimento", { ...value.pavimento, tipo: v })}
@@ -328,7 +331,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                     </Select>
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">Colore</Label>
+                    <Label className="text-xs max-md:text-[11px]">Colore</Label>
                     <Input
                       type="color"
                       className="w-full h-8 p-0.5 cursor-pointer"
@@ -340,7 +343,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <Label className="text-xs">Effetto visivo</Label>
+                    <Label className="text-xs max-md:text-[11px]">Effetto visivo</Label>
                     <Select
                       value={value.pavimento.effetto_visivo ?? "cemento"}
                       onValueChange={(v) => set("pavimento", { ...value.pavimento, effetto_visivo: v })}
@@ -360,7 +363,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                     </Select>
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">Formato / scala</Label>
+                    <Label className="text-xs max-md:text-[11px]">Formato / scala</Label>
                     <Select
                       value={value.pavimento.formato_piastrella ?? "60x60"}
                       onValueChange={(v) => set("pavimento", { ...value.pavimento, formato_piastrella: v })}
@@ -382,7 +385,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <Label className="text-xs">Pattern</Label>
+                    <Label className="text-xs max-md:text-[11px]">Pattern</Label>
                     <Select
                       value={value.pavimento.pattern ?? "dritto"}
                       onValueChange={(v) => set("pavimento", { ...value.pavimento, pattern: v })}
@@ -403,7 +406,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                     </Select>
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">Finitura</Label>
+                    <Label className="text-xs max-md:text-[11px]">Finitura</Label>
                     <Select
                       value={value.pavimento.finitura ?? "opaco"}
                       onValueChange={(v) => set("pavimento", { ...value.pavimento, finitura: v })}
@@ -423,7 +426,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <Label className="text-xs">Fuga / giunto</Label>
+                    <Label className="text-xs max-md:text-[11px]">Fuga / giunto</Label>
                     <Select
                       value={String(value.pavimento.fuga_larghezza_mm ?? 2)}
                       onValueChange={(v) => set("pavimento", { ...value.pavimento, fuga_larghezza_mm: Number(v) })}
@@ -440,7 +443,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                     </Select>
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">Colore fuga</Label>
+                    <Label className="text-xs max-md:text-[11px]">Colore fuga</Label>
                     <Select
                       value={value.pavimento.fuga_colore ?? "tono_su_tono"}
                       onValueChange={(v) => set("pavimento", { ...value.pavimento, fuga_colore: v as never })}
@@ -459,7 +462,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                   </div>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Battiscopa</Label>
+                  <Label className="text-xs max-md:text-[11px]">Battiscopa</Label>
                   <Select
                     value={value.pavimento.battiscopa_azione ?? "mantieni"}
                     onValueChange={(v) => set("pavimento", { ...value.pavimento, battiscopa_azione: v as never })}
@@ -478,11 +481,11 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
           </AccordionItem>
 
           {/* ARREDO */}
-          <AccordionItem value="arredo" className="border rounded-lg px-3">
+          <AccordionItem value="arredo" className="border rounded-lg px-3 max-md:rounded-none max-md:border-0">
             <AccordionTrigger className="py-2.5 hover:no-underline">
               <div className="flex items-center gap-2 flex-1">
                 <Armchair className="h-4 w-4 text-indigo-500" />
-                <span className="text-sm font-medium">Arredo</span>
+                <span className="text-sm font-medium max-md:text-[13px]">Arredo</span>
                 <div className="ml-auto mr-2" onClick={(e) => e.stopPropagation()}>
                   <Switch
                     checked={value.arredo.attivo}
@@ -496,7 +499,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
               <AccordionContent className="pb-3 space-y-3">
                 <CatalogReferencePicker companyId={companyId} verticale="stanza" categorie={["arredo"]} selectedIds={value.catalogo_reference_ids ?? []} onChange={(ids) => set("catalogo_reference_ids", ids)} />
                 <div className="space-y-1">
-                  <Label className="text-xs">Intensita cambio</Label>
+                  <Label className="text-xs max-md:text-[11px]">Intensita cambio</Label>
                   <Select
                     value={value.arredo.intensita_cambio ?? "stile_mantenendo_layout"}
                     onValueChange={(v) => set("arredo", { ...value.arredo, intensita_cambio: v as never })}
@@ -512,7 +515,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <Label className="text-xs">Materiale</Label>
+                    <Label className="text-xs max-md:text-[11px]">Materiale</Label>
                     <Select
                       value={value.arredo.materiale ?? "legno_chiaro"}
                       onValueChange={(v) => set("arredo", { ...value.arredo, materiale: v as never })}
@@ -530,7 +533,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                     </Select>
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">Colore principale</Label>
+                    <Label className="text-xs max-md:text-[11px]">Colore principale</Label>
                     <Input
                       type="color"
                       className="w-full h-8 p-0.5 cursor-pointer"
@@ -541,7 +544,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                   </div>
                 </div>
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs">Mantieni elettrodomestici</Label>
+                  <Label className="text-xs max-md:text-[11px]">Mantieni elettrodomestici</Label>
                   <Switch
                     checked={value.arredo.mantieni_elettrodomestici ?? true}
                     onCheckedChange={(v) => set("arredo", { ...value.arredo, mantieni_elettrodomestici: v })}
@@ -553,11 +556,11 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
           </AccordionItem>
 
           {/* SOFFITTO */}
-          <AccordionItem value="soffitto" className="border rounded-lg px-3">
+          <AccordionItem value="soffitto" className="border rounded-lg px-3 max-md:rounded-none max-md:border-0">
             <AccordionTrigger className="py-2.5 hover:no-underline">
               <div className="flex items-center gap-2 flex-1">
                 <Layers className="h-4 w-4 text-sky-500" />
-                <span className="text-sm font-medium">Soffitto</span>
+                <span className="text-sm font-medium max-md:text-[13px]">Soffitto</span>
                 <div className="ml-auto mr-2" onClick={(e) => e.stopPropagation()}>
                   <Switch
                     checked={value.soffitto.attivo}
@@ -571,7 +574,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
               <AccordionContent className="pb-3 space-y-3">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <Label className="text-xs">Tipo</Label>
+                    <Label className="text-xs max-md:text-[11px]">Tipo</Label>
                     <Select
                       value={value.soffitto.tipo ?? "piano"}
                       onValueChange={(v) => set("soffitto", { ...value.soffitto, tipo: v as never })}
@@ -587,7 +590,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                     </Select>
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">Colore</Label>
+                    <Label className="text-xs max-md:text-[11px]">Colore</Label>
                     <Input
                       type="color"
                       className="w-full h-8 p-0.5 cursor-pointer"
@@ -599,7 +602,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                 </div>
                 {value.soffitto.tipo === "travi_legno" && (
                   <div className="space-y-1">
-                    <Label className="text-xs">Colore travi</Label>
+                    <Label className="text-xs max-md:text-[11px]">Colore travi</Label>
                     <Input
                       placeholder="es. noce scuro, rovere naturale"
                       value={value.soffitto.colore_travi ?? ""}
@@ -614,11 +617,11 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
           </AccordionItem>
 
           {/* ILLUMINAZIONE */}
-          <AccordionItem value="illuminazione" className="border rounded-lg px-3">
+          <AccordionItem value="illuminazione" className="border rounded-lg px-3 max-md:rounded-none max-md:border-0">
             <AccordionTrigger className="py-2.5 hover:no-underline">
               <div className="flex items-center gap-2 flex-1">
                 <Lamp className="h-4 w-4 text-yellow-500" />
-                <span className="text-sm font-medium">Illuminazione</span>
+                <span className="text-sm font-medium max-md:text-[13px]">Illuminazione</span>
                 <div className="ml-auto mr-2" onClick={(e) => e.stopPropagation()}>
                   <Switch
                     checked={value.illuminazione.attivo}
@@ -631,7 +634,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
             {value.illuminazione.attivo && (
               <AccordionContent className="pb-3 space-y-3">
                 <div className="space-y-1">
-                  <Label className="text-xs">Tipo illuminazione</Label>
+                  <Label className="text-xs max-md:text-[11px]">Tipo illuminazione</Label>
                   <Select
                     value={value.illuminazione.tipo ?? "misto"}
                     onValueChange={(v) => set("illuminazione", { ...value.illuminazione, tipo: v as never })}
@@ -650,7 +653,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <Label className="text-xs">Temperatura</Label>
+                    <Label className="text-xs max-md:text-[11px]">Temperatura</Label>
                     <Select
                       value={value.illuminazione.temperatura ?? "calda_2700k"}
                       onValueChange={(v) => set("illuminazione", { ...value.illuminazione, temperatura: v as never })}
@@ -665,7 +668,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                     </Select>
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">Intensita</Label>
+                    <Label className="text-xs max-md:text-[11px]">Intensita</Label>
                     <Select
                       value={value.illuminazione.intensita_luce ?? "normale"}
                       onValueChange={(v) => set("illuminazione", { ...value.illuminazione, intensita_luce: v as never })}
@@ -685,11 +688,11 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
           </AccordionItem>
 
           {/* CARTA DA PARATI */}
-          <AccordionItem value="carta_da_parati" className="border rounded-lg px-3">
+          <AccordionItem value="carta_da_parati" className="border rounded-lg px-3 max-md:rounded-none max-md:border-0">
             <AccordionTrigger className="py-2.5 hover:no-underline">
               <div className="flex items-center gap-2 flex-1">
                 <Wallpaper className="h-4 w-4 text-rose-500" />
-                <span className="text-sm font-medium">Carta da parati</span>
+                <span className="text-sm font-medium max-md:text-[13px]">Carta da parati</span>
                 <div className="ml-auto mr-2" onClick={(e) => e.stopPropagation()}>
                   <Switch
                     checked={value.carta_da_parati.attivo}
@@ -704,7 +707,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                 <CatalogReferencePicker companyId={companyId} verticale="stanza" categorie={["parete"]} selectedIds={value.catalogo_reference_ids ?? []} onChange={(ids) => set("catalogo_reference_ids", ids)} />
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <Label className="text-xs">Pattern</Label>
+                    <Label className="text-xs max-md:text-[11px]">Pattern</Label>
                     <Select
                       value={value.carta_da_parati.stile_pattern ?? "geometrico"}
                       onValueChange={(v) => set("carta_da_parati", { ...value.carta_da_parati, stile_pattern: v as never })}
@@ -725,7 +728,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                     </Select>
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">Applica a</Label>
+                    <Label className="text-xs max-md:text-[11px]">Applica a</Label>
                     <Select
                       value={value.carta_da_parati.applica_a ?? "parete_principale"}
                       onValueChange={(v) => set("carta_da_parati", { ...value.carta_da_parati, applica_a: v as never })}
@@ -740,7 +743,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                   </div>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Colore base</Label>
+                  <Label className="text-xs max-md:text-[11px]">Colore base</Label>
                   <Input
                     placeholder="es. bianco ghiaccio, grigio perla..."
                     value={value.carta_da_parati.colore_base ?? ""}
@@ -750,7 +753,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Descrizione aggiuntiva</Label>
+                  <Label className="text-xs max-md:text-[11px]">Descrizione aggiuntiva</Label>
                   <Input
                     placeholder="Descrivi il motivo desiderato..."
                     value={value.carta_da_parati.descrizione ?? ""}
@@ -764,11 +767,11 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
           </AccordionItem>
 
           {/* RIVESTIMENTO PARETI */}
-          <AccordionItem value="rivestimento" className="border rounded-lg px-3">
+          <AccordionItem value="rivestimento" className="border rounded-lg px-3 max-md:rounded-none max-md:border-0">
             <AccordionTrigger className="py-2.5 hover:no-underline">
               <div className="flex items-center gap-2 flex-1">
                 <Sun className="h-4 w-4 text-stone-500" />
-                <span className="text-sm font-medium">Rivestimento pareti</span>
+                <span className="text-sm font-medium max-md:text-[13px]">Rivestimento pareti</span>
                 <div className="ml-auto mr-2" onClick={(e) => e.stopPropagation()}>
                   <Switch
                     checked={value.rivestimento_pareti.attivo}
@@ -783,7 +786,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                 <CatalogReferencePicker companyId={companyId} verticale="stanza" categorie={["parete"]} selectedIds={value.catalogo_reference_ids ?? []} onChange={(ids) => set("catalogo_reference_ids", ids)} />
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <Label className="text-xs">Tipo</Label>
+                    <Label className="text-xs max-md:text-[11px]">Tipo</Label>
                     <Select
                       value={value.rivestimento_pareti.tipo ?? "boiserie_legno"}
                       onValueChange={(v) => set("rivestimento_pareti", { ...value.rivestimento_pareti, tipo: v as never })}
@@ -801,7 +804,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                     </Select>
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">Applica a</Label>
+                    <Label className="text-xs max-md:text-[11px]">Applica a</Label>
                     <Select
                       value={value.rivestimento_pareti.applica_a ?? "parete_principale"}
                       onValueChange={(v) => set("rivestimento_pareti", { ...value.rivestimento_pareti, applica_a: v as never })}
@@ -816,7 +819,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                   </div>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Colore</Label>
+                  <Label className="text-xs max-md:text-[11px]">Colore</Label>
                   <Input
                     type="color"
                     className="w-full h-8 p-0.5 cursor-pointer"
@@ -830,11 +833,11 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
           </AccordionItem>
 
           {/* TENDE */}
-          <AccordionItem value="tende" className="border rounded-lg px-3">
+          <AccordionItem value="tende" className="border rounded-lg px-3 max-md:rounded-none max-md:border-0">
             <AccordionTrigger className="py-2.5 hover:no-underline">
               <div className="flex items-center gap-2 flex-1">
                 <Blinds className="h-4 w-4 text-teal-500" />
-                <span className="text-sm font-medium">Tende</span>
+                <span className="text-sm font-medium max-md:text-[13px]">Tende</span>
                 <div className="ml-auto mr-2" onClick={(e) => e.stopPropagation()}>
                   <Switch
                     checked={value.tende.attivo}
@@ -847,7 +850,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
             {value.tende.attivo && (
               <AccordionContent className="pb-3 space-y-3">
                 <div className="space-y-1">
-                  <Label className="text-xs">Tipo</Label>
+                  <Label className="text-xs max-md:text-[11px]">Tipo</Label>
                   <Select
                     value={value.tende.tipo ?? "tende_classiche"}
                     onValueChange={(v) => set("tende", { ...value.tende, tipo: v as never })}
@@ -887,11 +890,11 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
 
           {/* RESTYLING CUCINA (solo se tipo_stanza = cucina) */}
           {value.tipo_stanza === "cucina" && (
-            <AccordionItem value="cucina" className="border rounded-lg px-3">
+            <AccordionItem value="cucina" className="border rounded-lg px-3 max-md:rounded-none max-md:border-0">
               <AccordionTrigger className="py-2.5 hover:no-underline">
                 <div className="flex items-center gap-2 flex-1">
                   <ChefHat className="h-4 w-4 text-orange-500" />
-                  <span className="text-sm font-medium">Restyling cucina</span>
+                  <span className="text-sm font-medium max-md:text-[13px]">Restyling cucina</span>
                   <div className="ml-auto mr-2" onClick={(e) => e.stopPropagation()}>
                     <Switch
                       checked={value.restyling_cucina?.attivo ?? false}
@@ -905,7 +908,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                 <AccordionContent className="pb-3 space-y-3">
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <Label className="text-xs">Materiale frontali</Label>
+                      <Label className="text-xs max-md:text-[11px]">Materiale frontali</Label>
                       <Select
                         value={value.restyling_cucina.materiale_frontali ?? "laccato"}
                         onValueChange={(v) => set("restyling_cucina", { ...value.restyling_cucina!, materiale_frontali: v as never })}
@@ -922,7 +925,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                       </Select>
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs">Colore frontali</Label>
+                      <Label className="text-xs max-md:text-[11px]">Colore frontali</Label>
                       <Input
                         type="color"
                         className="w-full h-8 p-0.5 cursor-pointer"
@@ -934,7 +937,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <Label className="text-xs">Piano lavoro</Label>
+                      <Label className="text-xs max-md:text-[11px]">Piano lavoro</Label>
                       <Select
                         value={value.restyling_cucina.piano_lavoro_materiale ?? "quarzo"}
                         onValueChange={(v) => set("restyling_cucina", { ...value.restyling_cucina!, piano_lavoro_materiale: v as never })}
@@ -951,7 +954,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                       </Select>
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs">Colore piano</Label>
+                      <Label className="text-xs max-md:text-[11px]">Colore piano</Label>
                       <Input
                         type="color"
                         className="w-full h-8 p-0.5 cursor-pointer"
@@ -962,7 +965,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                     </div>
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">Maniglie</Label>
+                    <Label className="text-xs max-md:text-[11px]">Maniglie</Label>
                     <Select
                       value={value.restyling_cucina.maniglie ?? "senza_maniglia"}
                       onValueChange={(v) => set("restyling_cucina", { ...value.restyling_cucina!, maniglie: v as never })}
@@ -979,7 +982,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                     </Select>
                   </div>
                   <div className="flex items-center justify-between">
-                    <Label className="text-xs">Cambia piano cottura</Label>
+                    <Label className="text-xs max-md:text-[11px]">Cambia piano cottura</Label>
                     <Switch
                       checked={value.restyling_cucina.cambia_piano_cottura ?? false}
                       onCheckedChange={(v) => set("restyling_cucina", { ...value.restyling_cucina!, cambia_piano_cottura: v })}
@@ -992,11 +995,11 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
           )}
 
           {/* SPAZI E DETTAGLI */}
-          <AccordionItem value="spazi_dettagli" className="border rounded-lg px-3">
+          <AccordionItem value="spazi_dettagli" className="border rounded-lg px-3 max-md:rounded-none max-md:border-0">
             <AccordionTrigger className="py-2.5 hover:no-underline">
               <div className="flex items-center gap-2 flex-1">
                 <LayoutList className="h-4 w-4 text-violet-500" />
-                <span className="text-sm font-medium">Spazi e dettagli</span>
+                <span className="text-sm font-medium max-md:text-[13px]">Spazi e dettagli</span>
                 <div className="ml-auto mr-2" onClick={(e) => e.stopPropagation()}>
                   <Switch
                     checked={value.spazi_dettagli?.attivo ?? false}
@@ -1009,7 +1012,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
             {value.spazi_dettagli?.attivo && (
               <AccordionContent className="pb-3 space-y-3">
                 <div className="space-y-1">
-                  <Label className="text-xs">Logica spazio</Label>
+                  <Label className="text-xs max-md:text-[11px]">Logica spazio</Label>
                   <Select
                     value={value.spazi_dettagli.layout_strategy ?? "mantieni_layout"}
                     onValueChange={(v) => set("spazi_dettagli", { ...value.spazi_dettagli!, layout_strategy: v as never })}
@@ -1025,7 +1028,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                   </Select>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Elementi da mantenere</Label>
+                  <Label className="text-xs max-md:text-[11px]">Elementi da mantenere</Label>
                   <Input
                     placeholder="es. divano, tavolo, finestra, radiatore..."
                     value={value.spazi_dettagli.elementi_da_mantenere ?? ""}
@@ -1036,7 +1039,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <Label className="text-xs">Aggiungi</Label>
+                    <Label className="text-xs max-md:text-[11px]">Aggiungi</Label>
                     <Textarea
                       placeholder="es. due applique, pianta, tappeto neutro..."
                       value={value.spazi_dettagli.elementi_da_aggiungere ?? ""}
@@ -1047,7 +1050,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">Rimuovi</Label>
+                    <Label className="text-xs max-md:text-[11px]">Rimuovi</Label>
                     <Textarea
                       placeholder="es. mobile basso, tende vecchie..."
                       value={value.spazi_dettagli.elementi_da_rimuovere ?? ""}
@@ -1059,7 +1062,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                   </div>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Note tecniche per il render</Label>
+                  <Label className="text-xs max-md:text-[11px]">Note tecniche per il render</Label>
                   <Textarea
                     placeholder="es. lascia passaggio libero verso la finestra, non coprire il termosifone..."
                     value={value.spazi_dettagli.note_tecniche ?? ""}
@@ -1077,14 +1080,14 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
 
       {/* ── Note libere ────────────────────────────────────────────── */}
       <div className="space-y-1.5">
-        <Label className="text-xs">Note libere</Label>
+        <Label className="text-xs max-md:text-[11px]">Note libere</Label>
         <Textarea
           value={value.note_libere ?? ""}
           onChange={(e) => set("note_libere", e.target.value)}
           placeholder="Istruzioni aggiuntive per l'AI (es. mantieni il divano rosso, aggiungi piante...)"
           rows={2}
           disabled={disabled}
-          className="text-xs"
+          className="text-xs max-md:placeholder:text-[13px]"
         />
       </div>
     </div>
