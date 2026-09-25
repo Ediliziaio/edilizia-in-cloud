@@ -53,6 +53,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useTableSelection } from "@/hooks/useTableSelection";
 import { ModuloBulkToolbar } from "@/components/moduli/ModuloBulkToolbar";
+import { FV_ARCHETIPI_LABEL } from "@/lib/fotovoltaico/tipi";
+import { CercaConFiltri, PannelloFiltri, PilloleFiltro, RigaMobile } from "@/components/mobile/FiltriMobile";
 
 const STATI_LABEL = {
   bozza: { label: "Bozza", variant: "default" as const },
@@ -62,15 +64,7 @@ const STATI_LABEL = {
   annullato: { label: "Annullato", variant: "red" as const },
 };
 
-const ARCHETIPI_LABEL = {
-  privato_prima: "Privato 1ª casa",
-  privato_seconda: "Privato 2ª casa",
-  privato_isee: "Privato ISEE basso",
-  pmi: "PMI",
-  condominio: "Condominio",
-  cer: "CER",
-  industriale_grande: "Industriale grande",
-} as const;
+const ARCHETIPI_LABEL = FV_ARCHETIPI_LABEL;
 
 export default function FotovoltaicoIndex() {
   const navigate = useNavigate();
@@ -104,6 +98,7 @@ export default function FotovoltaicoIndex() {
   const [search, setSearch] = useState("");
   const [filtroStato, setFiltroStato] = useState<string>("all");
   const [filtroArchetipo, setFiltroArchetipo] = useState<string>("all");
+  const [filtriMobiliAperti, setFiltriMobiliAperti] = useState(false);
 
   const progettiFiltrati = useMemo(() => {
     const s = search.trim().toLowerCase();
@@ -142,36 +137,37 @@ export default function FotovoltaicoIndex() {
           }}
         />
         <div
-          className="absolute right-8 top-6 text-7xl opacity-10 select-none"
+          className="absolute right-8 top-6 text-7xl opacity-10 select-none max-sm:hidden"
           aria-hidden
         >
           ☀
         </div>
-        <div className="relative max-w-[1400px] mx-auto px-3 sm:px-8 py-4 sm:py-8 flex items-center justify-between flex-wrap gap-3 sm:gap-4">
+        {/* Telefono: titolo e «Nuovo» su una riga; impostazioni e componenti si curano dal computer. */}
+        <div className="relative max-w-[1400px] mx-auto px-3 sm:px-8 py-4 sm:py-8 flex items-center justify-between flex-wrap gap-3 sm:gap-4 max-sm:flex-nowrap max-sm:py-3">
           <div className="min-w-0 flex-1">
             <Link
               to="/azienda/marketing/preventivi"
-              className="inline-flex items-center gap-1 text-[11px] sm:text-xs font-medium text-blue-100/90 hover:text-white mb-2 transition-colors"
+              className="inline-flex items-center gap-1 text-[11px] sm:text-xs font-medium text-blue-100/90 hover:text-white mb-2 transition-colors max-sm:mb-1"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
-              Torna ai Preventivi
+              <span className="max-sm:hidden">Torna ai Preventivi</span><span className="sm:hidden">Preventivi</span>
             </Link>
-            <div className="text-[10px] sm:text-xs uppercase tracking-widest font-semibold mb-1 text-orange-200">
+            <div className="text-[10px] sm:text-xs uppercase tracking-widest font-semibold mb-1 text-orange-200 max-sm:hidden">
               ★ MARKETING & VENDITA
             </div>
-            <h1 className="text-xl sm:text-3xl font-bold tracking-tight">Fotovoltaico</h1>
+            <h1 className="text-xl sm:text-3xl font-bold tracking-tight max-sm:text-lg">Fotovoltaico</h1>
             <p className="hidden sm:block text-sm text-blue-100 mt-1">
               I tuoi preventivi fotovoltaici, sempre sotto controllo.
             </p>
           </div>
-          <div className="flex gap-2 w-full sm:w-auto">
+          <div className="flex gap-2 w-full sm:w-auto max-sm:w-auto max-sm:shrink-0">
             {canManagePreventivo && (
               <>
                 <Button
                   asChild
                   size="default"
                   variant="outline"
-                  className="bg-white/10 backdrop-blur border-white/20 text-white hover:bg-white/20 flex-1 sm:flex-initial sm:size-lg h-10 sm:h-11 text-xs sm:text-sm"
+                  className="bg-white/10 backdrop-blur border-white/20 text-white hover:bg-white/20 flex-1 sm:flex-initial sm:size-lg h-10 sm:h-11 text-xs sm:text-sm max-sm:hidden"
                 >
                   <Link to="/azienda/impostazioni/template-preventivi?tab=moduli-vendita&modulo=fotovoltaico" aria-label="Impostazioni modulo fotovoltaico">
                     <Settings className="h-4 w-4 sm:mr-1.5" />
@@ -182,7 +178,7 @@ export default function FotovoltaicoIndex() {
                   asChild
                   size="default"
                   variant="outline"
-                  className="bg-white/10 backdrop-blur border-white/20 text-white hover:bg-white/20 flex-1 sm:flex-initial sm:size-lg h-10 sm:h-11 text-xs sm:text-sm"
+                  className="bg-white/10 backdrop-blur border-white/20 text-white hover:bg-white/20 flex-1 sm:flex-initial sm:size-lg h-10 sm:h-11 text-xs sm:text-sm max-sm:hidden"
                 >
                   <Link to="/azienda/marketing/fotovoltaico/componenti" aria-label="Componenti FV (pannelli, inverter, accumuli)">
                     <Boxes className="h-4 w-4 sm:mr-1.5" />
@@ -192,7 +188,7 @@ export default function FotovoltaicoIndex() {
                 <Button
                   asChild
                   size="default"
-                  className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 text-white shadow-lg border-0 flex-1 sm:flex-initial sm:size-lg h-10 sm:h-11 text-xs sm:text-sm"
+                  className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 text-white shadow-lg border-0 flex-1 sm:flex-initial sm:size-lg h-10 sm:h-11 text-xs sm:text-sm max-sm:h-9 max-sm:px-3"
                 >
                   <Link to="/azienda/marketing/fotovoltaico/nuovo">
                     <Plus className="h-4 w-4 mr-1.5" />
@@ -206,9 +202,9 @@ export default function FotovoltaicoIndex() {
         </div>
       </div>
 
-      <div className="max-w-[1400px] mx-auto px-3 sm:px-8 py-4 sm:py-6 space-y-4 sm:space-y-5">
-        {/* KPI Dashboard */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-2.5 sm:gap-3">
+      <div className="max-w-[1400px] mx-auto px-3 sm:px-8 py-4 sm:py-6 space-y-4 sm:space-y-5 max-sm:space-y-3 max-sm:py-3">
+        {/* KPI Dashboard — telefono: quattro numeri, 2 per riga (il margine resta al computer) */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2.5 sm:gap-3 max-sm:gap-2">
           <FvKpi
             label="Progetti totali"
             value={stats?.progetti_totali ?? 0}
@@ -246,6 +242,7 @@ export default function FotovoltaicoIndex() {
           />
           {canViewImpresa && (
             <FvKpi
+              className="max-sm:hidden"
               label="Margine medio"
               value={
                 stats?.margine_medio != null
@@ -258,8 +255,46 @@ export default function FotovoltaicoIndex() {
           )}
         </div>
 
+        {/* Telefono: ricerca e filtri in un foglio (stato, archetipo). */}
+        <CercaConFiltri
+          className="sm:hidden"
+          valore={search}
+          onCambia={setSearch}
+          segnaposto="Cerca progetto"
+          filtriAttivi={(filtroStato !== "all" ? 1 : 0) + (filtroArchetipo !== "all" ? 1 : 0)}
+          onApriFiltri={() => setFiltriMobiliAperti(true)}
+        />
+        <PannelloFiltri
+          aperto={filtriMobiliAperti}
+          onAperto={setFiltriMobiliAperti}
+          attivi={(filtroStato !== "all" ? 1 : 0) + (filtroArchetipo !== "all" ? 1 : 0)}
+          onAzzera={() => { setFiltroStato("all"); setFiltroArchetipo("all"); }}
+          risultati={progettiFiltrati.length}
+        >
+          <PilloleFiltro
+            titolo="Stato"
+            valore={filtroStato}
+            onScegli={setFiltroStato}
+            scelte={[
+              { value: "all", label: "Tutti" },
+              ...Object.entries(STATI_LABEL)
+                .filter(([k]) => k !== "annullato")
+                .map(([k, v]) => ({ value: k, label: v.label, n: progetti.filter((p) => p.stato === k).length })),
+            ]}
+          />
+          <PilloleFiltro
+            titolo="Archetipo"
+            valore={filtroArchetipo}
+            onScegli={setFiltroArchetipo}
+            scelte={[
+              { value: "all", label: "Tutti" },
+              ...Object.entries(ARCHETIPI_LABEL).map(([k, v]) => ({ value: k, label: v })),
+            ]}
+          />
+        </PannelloFiltri>
+
         {/* Filtri */}
-        <FvCard>
+        <FvCard className="max-sm:hidden">
           <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 sm:gap-3 sm:items-center">
             <div className="relative w-full sm:flex-1 sm:min-w-64 sm:max-w-md">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
@@ -413,47 +448,22 @@ export default function FotovoltaicoIndex() {
                 </div>
               </FvCard>
             ) : (
-              progettiFiltrati.map((p) => {
-                const stato = STATI_LABEL[p.stato as keyof typeof STATI_LABEL] ?? STATI_LABEL.bozza;
-                return (
-                  <div
-                    key={p.id}
-                    onClick={() => navigate(`/azienda/marketing/fotovoltaico/${p.id}`)}
-                    className="bg-white border border-slate-200 rounded-xl p-3 active:scale-[0.99] transition-transform cursor-pointer shadow-sm"
-                  >
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <div className="flex-1 min-w-0">
-                        <div className="font-mono text-[10px] text-slate-500 font-semibold mb-0.5">{p.numero}</div>
-                        <div className="font-semibold text-sm text-slate-900 truncate">{p.cliente_nome ?? "—"}</div>
-                        <div className="text-xs text-slate-500 truncate">{p.titolo}</div>
-                      </div>
-                      <FvChip variant={stato.variant}>{stato.label}</FvChip>
-                    </div>
-                    <div className="grid grid-cols-3 gap-2 text-xs">
-                      <div>
-                        <div className="text-[10px] text-slate-400 uppercase tracking-wider">Potenza</div>
-                        <div className="font-semibold text-slate-700 tabular-nums">
-                          {p.potenza_kwp != null ? `${Number(p.potenza_kwp).toFixed(2)} kWp` : "—"}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-[10px] text-slate-400 uppercase tracking-wider">Importo</div>
-                        <div className="font-semibold text-slate-900 tabular-nums">
-                          {importoFv(p) != null
-                            ? `€ ${Number(importoFv(p)).toLocaleString("it-IT", { maximumFractionDigits: 0 })}`
-                            : "—"}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-[10px] text-slate-400 uppercase tracking-wider">Payback</div>
-                        <div className="font-semibold text-emerald-600 tabular-nums">
-                          {p.payback_anni != null ? `${p.payback_anni}a` : "—"}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
+              <div className="divide-y divide-border overflow-hidden rounded-xl border bg-white">
+                {progettiFiltrati.map((p) => {
+                  const stato = STATI_LABEL[p.stato as keyof typeof STATI_LABEL] ?? STATI_LABEL.bozza;
+                  const importo = importoFv(p);
+                  return (
+                    <RigaMobile
+                      key={p.id}
+                      to={`/azienda/marketing/fotovoltaico/${p.id}`}
+                      titolo={p.cliente_nome || p.titolo || "—"}
+                      sottotitolo={[p.numero, p.potenza_kwp != null ? `${Number(p.potenza_kwp).toFixed(2)} kWp` : null].filter(Boolean).join(" · ")}
+                      valore={importo != null ? `€ ${Number(importo).toLocaleString("it-IT", { maximumFractionDigits: 0 })}` : "—"}
+                      stato={<FvChip variant={stato.variant}>{stato.label}</FvChip>}
+                    />
+                  );
+                })}
+              </div>
             )}
           </div>
 

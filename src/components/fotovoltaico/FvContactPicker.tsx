@@ -73,12 +73,14 @@ export function FvContactPicker({
 
   return (
     <div className="rounded-md border border-border bg-muted/20 px-3 py-2.5 mb-3">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      {/* Telefono: una riga, titolo corto e bottoni; la spiegazione resta al computer. */}
+      <div className="flex flex-row items-center justify-between gap-2">
         <div className="min-w-0">
           <p className="text-xs font-semibold">
-            {clienteId ? "Contatto CRM collegato" : "Collega a un contatto esistente"}
+            <span className="max-md:hidden">{clienteId ? "Contatto CRM collegato" : "Collega a un contatto esistente"}</span>
+            <span className="md:hidden">Contatto CRM</span>
           </p>
-          <p className="truncate text-[11px] text-muted-foreground">
+          <p className="truncate text-[11px] text-muted-foreground max-md:hidden">
             {clienteId
               ? "Anagrafica e recapiti sincronizzati dal contatto."
               : "Seleziona un contatto dal CRM per compilare automaticamente i dati."}
@@ -90,14 +92,14 @@ export function FvContactPicker({
               variant="ghost"
               size="sm"
               onClick={onClear}
-              className="h-8 px-2 text-xs text-muted-foreground"
+              className="tap-compact h-8 px-2 text-xs text-muted-foreground"
             >
               Scollega
             </Button>
           )}
           <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
-              <Button size="sm" variant="outline" className="h-8 gap-1.5 px-3 text-xs">
+              <Button size="sm" variant="outline" className="tap-compact h-8 gap-1.5 px-3 text-xs">
                 <Users className="h-3.5 w-3.5" />
                 {clienteId ? "Cambia" : "Seleziona da CRM"}
               </Button>

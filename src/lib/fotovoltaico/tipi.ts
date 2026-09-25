@@ -13,6 +13,17 @@ export type FvArchetipo =
   | "cer"            // W2
   | "industriale_grande"; // W3
 
+/** Come si chiamano gli archetipi a schermo (il dettaglio mostrava «privato_prima»). */
+export const FV_ARCHETIPI_LABEL: Record<FvArchetipo, string> = {
+  privato_prima: "Privato 1ª casa",
+  privato_seconda: "Privato 2ª casa",
+  privato_isee: "Privato ISEE basso",
+  pmi: "PMI",
+  condominio: "Condominio",
+  cer: "CER",
+  industriale_grande: "Industriale grande",
+};
+
 // ─── Stati progetto ─────────────────────────────────────────────────────────
 export type FvStatoProgetto =
   | "bozza"

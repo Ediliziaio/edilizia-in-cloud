@@ -11,7 +11,7 @@
  *   yellow = #FACC15  (warning)
  */
 
-import { ReactNode } from "react";
+import { ReactNode, useEffect, useRef } from "react";
 import { Check, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -24,6 +24,8 @@ export interface FvTabDef {
   label: string;
   /** Categoria (es. "Fase 1") */
   small?: string;
+  /** Telefono: nome corto nella pillola (es. «Finanza» per «Anteprima finanziaria»). */
+  breve?: string;
 }
 
 interface FvTabBarProps {
@@ -41,10 +43,19 @@ export function FvTabBar({ tabs, current, completed, allowJumpForward, onSelect 
   const pct = Math.round((current / tabs.length) * 100);
   const remaining = tabs.length - current;
   const minutesRemaining = remaining > 0 ? Math.max(1, Math.round(remaining * 1.5)) : 0;
+  const rigaRef = useRef<HTMLDivElement | null>(null);
+
+  // Telefono: le otto pillole scorrono; quella della fase attiva si porta al centro.
+  useEffect(() => {
+    const riga = rigaRef.current;
+    const attiva = riga?.querySelector<HTMLElement>(`[data-tab="${current}"]`);
+    if (!riga || !attiva || riga.scrollWidth <= riga.clientWidth) return;
+    riga.scrollTo({ left: attiva.offsetLeft - (riga.clientWidth - attiva.clientWidth) / 2, behavior: "smooth" });
+  }, [current]);
 
   return (
     <div className="sticky top-0 z-30 bg-white border-b border-slate-200 shadow-[0_1px_0_rgba(15,23,42,0.05)]">
-      <div className="px-4 sm:px-8 flex gap-0 overflow-x-auto fv-tab-scroll">
+      <div ref={rigaRef} className="px-4 sm:px-8 flex gap-0 overflow-x-auto fv-tab-scroll max-md:gap-1 max-md:px-2 max-md:py-1.5">
         {tabs.map((t) => {
           const isActive = t.num === current;
           const isCompleted = completed.has(t.num);
@@ -67,12 +78,17 @@ export function FvTabBar({ tabs, current, completed, allowJumpForward, onSelect 
                 isCompleted && !isActive && "text-slate-700",
                 !isActive && !isCompleted && "text-slate-500",
                 !isClickable && "opacity-45 cursor-not-allowed hover:bg-transparent",
+                // Telefono: pillola col nome corto — fatte in verde, l'attiva piena, le altre spente.
+                "tap-compact max-md:gap-0 max-md:rounded-full max-md:border max-md:px-2.5 max-md:py-1 max-md:text-[11px]",
+                isActive && "max-md:border-orange-500 max-md:bg-orange-500 max-md:text-white",
+                isCompleted && !isActive && "max-md:border-emerald-200 max-md:bg-emerald-50 max-md:text-emerald-800",
+                !isActive && !isCompleted && "max-md:border-slate-200",
               )}
               aria-current={isActive ? "step" : undefined}
             >
               <span
                 className={cn(
-                  "flex items-center justify-center w-6 h-6 rounded-full border text-[11px] font-bold flex-shrink-0 transition-all",
+                  "flex items-center justify-center w-6 h-6 rounded-full border text-[11px] font-bold flex-shrink-0 transition-all max-md:hidden",
                   !isActive && !isCompleted && "bg-slate-100 border-slate-300 text-slate-500",
                   isActive && "border-orange-500 text-white shadow-[0_2px_8px_rgba(249,115,22,0.4)] bg-gradient-to-br from-orange-500 to-amber-400",
                   isCompleted && "bg-emerald-600 border-emerald-600 text-white",
@@ -82,18 +98,20 @@ export function FvTabBar({ tabs, current, completed, allowJumpForward, onSelect 
               </span>
               <span className="flex flex-col items-start leading-tight text-left">
                 {t.small && (
-                  <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">
+                  <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wider max-md:hidden">
                     {t.small}
                   </span>
                 )}
-                <span>{t.label}</span>
+                <span className="max-md:hidden">{t.label}</span>
+                <span className="md:hidden">{t.breve ?? t.label}</span>
               </span>
             </button>
           );
         })}
       </div>
       {/* Progress bar */}
-      <div className="bg-slate-50 px-4 sm:px-8 py-2 flex items-center gap-3 text-xs text-slate-500 border-t border-slate-100">
+      {/* Telefono: la fase la dicono già le pillole. */}
+      <div className="bg-slate-50 px-4 sm:px-8 py-2 flex items-center gap-3 text-xs text-slate-500 border-t border-slate-100 max-md:hidden">
         <span>
           <strong className="text-slate-900">Fase {current} di {tabs.length}</strong> ·{" "}
           {tabs[current - 1]?.label}
@@ -142,29 +160,30 @@ export function FvPageHeader({
   lastModified,
 }: FvPageHeaderProps) {
   return (
-    <div className="bg-white px-4 sm:px-8 pt-5 pb-1 border-b border-slate-200">
-      <div className="flex items-center gap-3 flex-wrap text-xs text-slate-500 mb-2">
+    <div className="bg-white px-4 sm:px-8 pt-5 pb-1 border-b border-slate-200 max-md:pt-3">
+      <div className="flex items-center gap-3 flex-wrap text-xs text-slate-500 mb-2 max-md:mb-1 max-md:gap-2 max-md:flex-nowrap">
         {numero && (
-          <span className="font-mono bg-slate-100 text-slate-800 font-semibold px-2 py-0.5 rounded text-[11px]">
+          <span className="font-mono bg-slate-100 text-slate-800 font-semibold px-2 py-0.5 rounded text-[11px] shrink-0">
             {numero}
           </span>
         )}
         {stato && (
-          <span className="bg-orange-100 text-orange-700 font-semibold px-2 py-0.5 rounded text-[11px]">
+          <span className="bg-orange-100 text-orange-700 font-semibold px-2 py-0.5 rounded text-[11px] shrink-0">
             {stato}
           </span>
         )}
-        {chips}
-        {lastModified && <span>· {lastModified}</span>}
+        <span className="contents max-md:hidden">{chips}</span>
+        {lastModified && <span className="max-md:min-w-0 max-md:truncate">· {lastModified}</span>}
       </div>
-      <div className="flex items-start justify-between gap-3 sm:gap-6 flex-wrap mb-4 sm:mb-5">
+      {/* Telefono: titolo e azioni (solo icone) sulla stessa riga. */}
+      <div className="flex items-start justify-between gap-3 sm:gap-6 flex-wrap mb-4 sm:mb-5 max-md:mb-2 max-md:flex-nowrap max-md:items-center">
         <div className="min-w-0 flex-1">
           <h1 className="text-lg sm:text-2xl font-bold text-slate-900 tracking-tight leading-tight truncate">{title}</h1>
           {subtitle && (
             <p className="hidden sm:block text-slate-500 text-sm mt-1 truncate max-w-xl">{subtitle}</p>
           )}
         </div>
-        {actions && <div className="flex w-full sm:w-auto gap-2 items-center flex-wrap justify-end">{actions}</div>}
+        {actions && <div className="flex w-full sm:w-auto gap-2 items-center flex-wrap justify-end max-md:w-auto max-md:shrink-0 max-md:flex-nowrap max-md:gap-1">{actions}</div>}
       </div>
     </div>
   );
@@ -181,11 +200,11 @@ interface FvPanelTitleProps {
 
 export function FvPanelTitle({ step, totalSteps: _totalSteps, title, subtitle }: FvPanelTitleProps) {
   return (
-    <div className="mb-6">
-      <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight mb-1">
+    <div className="mb-6 max-md:mb-3">
+      <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight mb-1 max-md:mb-0 max-md:text-base">
         Fase {step} — {title}
       </h2>
-      {subtitle && <p className="text-sm text-slate-500">{subtitle}</p>}
+      {subtitle && <p className="text-sm text-slate-500 max-md:hidden">{subtitle}</p>}
     </div>
   );
 }
@@ -207,13 +226,16 @@ export function FvCard({ title, action, children, className, compact }: FvCardPr
       className={cn(
         "bg-white border border-slate-200 rounded-2xl shadow-sm transition-shadow hover:shadow-md",
         compact ? "p-4" : "p-5 sm:p-6",
+        // Telefono: meno cornice attorno ai dati; min-w-0 perché nelle griglie a una
+        // colonna un testo lungo (il nome del pannello) allargava la scheda oltre lo schermo.
+        "max-md:p-3.5 max-md:min-w-0",
         className,
       )}
     >
       {(title || action) && (
-        <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+        <div className="flex items-center justify-between mb-4 gap-3 flex-wrap max-md:mb-2">
           {title && (
-            <h3 className="text-[15px] font-bold text-slate-900 flex items-center gap-2.5">
+            <h3 className="text-[15px] font-bold text-slate-900 flex items-center gap-2.5 max-md:text-sm">
               <span className="block w-1 h-4 rounded-sm bg-gradient-to-b from-orange-500 to-amber-400" />
               {title}
             </h3>
@@ -235,9 +257,10 @@ interface FvKpiProps {
   variant?: "default" | "orange" | "green" | "red" | "navy";
   hint?: ReactNode;
   trend?: { dir: "up" | "down"; text: string };
+  className?: string;
 }
 
-export function FvKpi({ label, value, unit, variant = "default", hint, trend }: FvKpiProps) {
+export function FvKpi({ label, value, unit, variant = "default", hint, trend, className }: FvKpiProps) {
   const valueColor = {
     default: "text-slate-900",
     orange: "text-orange-600",
@@ -247,12 +270,12 @@ export function FvKpi({ label, value, unit, variant = "default", hint, trend }: 
   }[variant];
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-4 transition-all hover:-translate-y-0.5 hover:shadow-md hover:border-slate-300">
+    <div className={cn("bg-white border border-slate-200 rounded-xl p-4 transition-all hover:-translate-y-0.5 hover:shadow-md hover:border-slate-300 max-md:px-3 max-md:py-2.5", className)}>
       {/* Sprint 3 #20: su mobile (sm:) toglie uppercase aggressivo per leggibilità */}
-      <div className="text-[11px] text-slate-500 font-semibold tracking-wider mb-1.5 sm:uppercase">
+      <div className="text-[11px] text-slate-500 font-semibold tracking-wider mb-1.5 sm:uppercase max-md:mb-0.5">
         {label}
       </div>
-      <div className={cn("text-xl sm:text-2xl font-bold leading-tight tabular-nums", valueColor)}>
+      <div className={cn("text-xl sm:text-2xl font-bold leading-tight tabular-nums max-md:text-lg", valueColor)}>
         {value}
         {unit && <span className="text-sm text-slate-500 font-medium ml-1">{unit}</span>}
       </div>
@@ -266,7 +289,7 @@ export function FvKpi({ label, value, unit, variant = "default", hint, trend }: 
           {trend.dir === "up" ? "↑" : "↓"} {trend.text}
         </div>
       )}
-      {hint && !trend && <div className="text-[11px] text-slate-500 mt-1">{hint}</div>}
+      {hint && !trend && <div className="text-[11px] text-slate-500 mt-1 max-md:hidden">{hint}</div>}
     </div>
   );
 }
@@ -381,8 +404,9 @@ export function FvFooter({
   saving,
 }: FvFooterProps) {
   return (
-    <div className="sticky bottom-0 z-20 bg-white border-t border-slate-200 px-4 sm:px-8 py-3 flex items-center justify-between gap-3 flex-wrap shadow-[0_-4px_12px_rgba(15,23,42,0.04)]">
-      <div className="flex items-center gap-3 text-xs text-slate-500 min-w-0 flex-wrap">
+    <div className="sticky bottom-0 z-20 bg-white border-t border-slate-200 px-4 sm:px-8 py-3 flex items-center justify-between gap-3 flex-wrap shadow-[0_-4px_12px_rgba(15,23,42,0.04)] max-md:flex-nowrap max-md:px-3 max-md:py-2">
+      {/* Telefono: lo stato del salvataggio c'è già in testata; restano i tre bottoni. */}
+      <div className="flex items-center gap-3 text-xs text-slate-500 min-w-0 flex-wrap max-md:hidden">
         {autoSaveState === "saving" && (
           <span className="flex items-center gap-1.5 text-blue-600 font-medium">
             <Loader2 className="h-3 w-3 animate-spin" /> Salvataggio in corso…
@@ -407,18 +431,20 @@ export function FvFooter({
         {lastSaveText && <span>· {lastSaveText}</span>}
         {numero && <span>· <code className="font-mono text-[11px]">{numero}</code></span>}
       </div>
-      <div className="flex gap-2 items-center">
+      <div className="flex gap-2 items-center max-md:w-full">
         {showPrev && onPrev && (
           <button
             type="button"
             onClick={onPrev}
             disabled={prevDisabled || saving}
+            aria-label="Indietro"
             className={cn(
               "px-4 py-2 text-sm font-semibold rounded-lg border border-slate-300 bg-white text-slate-700",
               "transition-all hover:bg-slate-50 hover:-translate-y-px disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0",
+              "max-md:px-3.5",
             )}
           >
-            ← Indietro
+            ←<span className="max-md:hidden"> Indietro</span>
           </button>
         )}
         {onSaveDraft && (
@@ -429,9 +455,10 @@ export function FvFooter({
             className={cn(
               "px-4 py-2 text-sm font-semibold rounded-lg border border-slate-300 bg-white text-slate-700",
               "transition-all hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed",
+              "max-md:px-3",
             )}
           >
-            Salva bozza
+            Salva<span className="max-md:hidden"> bozza</span>
           </button>
         )}
         {showNext && onNext && (
@@ -444,6 +471,7 @@ export function FvFooter({
               "bg-gradient-to-br from-orange-500 to-amber-400 shadow-[0_4px_12px_rgba(249,115,22,0.3)]",
               "hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(249,115,22,0.4)]",
               "disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:shadow-none",
+              "max-md:flex-1",
             )}
           >
             {saving ? (

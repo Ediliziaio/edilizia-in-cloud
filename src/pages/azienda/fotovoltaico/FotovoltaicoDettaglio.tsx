@@ -50,6 +50,7 @@ import type { SendSignatureParams } from "@/hooks/useSignatureActions";
 import { toast } from "sonner";
 
 import { useIsMobile } from "@/hooks/use-mobile";
+import { FV_ARCHETIPI_LABEL, type FvArchetipo } from "@/lib/fotovoltaico/tipi";
 const STATI_LABEL = {
   bozza: { label: "Bozza", variant: "default" as const },
   configurato: { label: "Configurato", variant: "navy" as const },
@@ -245,40 +246,42 @@ export default function FotovoltaicoDettaglio() {
           }}
         />
         <div
-          className="absolute right-8 top-6 text-7xl opacity-10 select-none"
+          className="absolute right-8 top-6 text-7xl opacity-10 select-none max-sm:hidden"
           aria-hidden
         >
           ☀
         </div>
-        <div className="relative max-w-[1400px] mx-auto px-4 sm:px-8 py-6 space-y-3">
+        <div className="relative max-w-[1400px] mx-auto px-4 sm:px-8 py-6 space-y-3 max-sm:py-3">
           <Link
             to="/azienda/marketing/fotovoltaico"
-            className="inline-flex items-center gap-1.5 text-sm text-blue-100 hover:text-white"
+            className="inline-flex items-center gap-1.5 text-sm text-blue-100 hover:text-white max-sm:text-xs"
           >
-            <ArrowLeft className="h-4 w-4" /> Torna alla lista progetti
+            <ArrowLeft className="h-4 w-4" /> <span className="max-sm:hidden">Torna alla lista progetti</span><span className="sm:hidden">Progetti</span>
           </Link>
           <div className="flex items-start justify-between flex-wrap gap-3">
             <div className="min-w-0">
-              <div className="text-xs uppercase tracking-widest font-semibold mb-1 text-orange-200">
+              <div className="text-xs uppercase tracking-widest font-semibold mb-1 text-orange-200 max-sm:hidden">
                 ★ DETTAGLIO PROGETTO
               </div>
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center flex-wrap gap-3">
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center flex-wrap gap-3 max-sm:gap-2 max-sm:text-lg">
                 {progetto.titolo}
                 <FvChip variant={stato.variant}>{stato.label}</FvChip>
               </h1>
-              <p className="text-sm text-blue-100 mt-1.5 flex items-center gap-3 flex-wrap">
+              <p className="text-sm text-blue-100 mt-1.5 flex items-center gap-3 flex-wrap max-sm:mt-1 max-sm:gap-2 max-sm:text-xs">
                 <span className="font-mono bg-white/10 px-2 py-0.5 rounded text-xs">
                   {progetto.numero}
                 </span>
                 <span>· {progetto.indirizzo}</span>
               </p>
             </div>
-            <div className="flex gap-2">
+            {/* Telefono: la riga usciva dallo schermo («Richiedi firma» non si vedeva).
+                Niente scarico, Annulla solo icona, Modifica e firma si dividono la riga. */}
+            <div className="flex gap-2 max-sm:w-full">
               {progetto.pdf_vendita_url && (
                 <Button
                   onClick={() => handleScaricaPdf(progetto.pdf_vendita_url, "header-pdf")}
                   disabled={scaricando === "header-pdf"}
-                  className="bg-white text-blue-900 hover:bg-blue-50 shadow border-0"
+                  className="bg-white text-blue-900 hover:bg-blue-50 shadow border-0 max-sm:hidden"
                 >
                   {scaricando === "header-pdf" ? (
                     <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
@@ -291,7 +294,7 @@ export default function FotovoltaicoDettaglio() {
               {progetto.stato !== "firmato" && progetto.stato !== "annullato" && (
                 <Button
                   asChild
-                  className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 text-white shadow border-0"
+                  className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 text-white shadow border-0 max-sm:flex-1"
                 >
                   <Link to={`/azienda/marketing/fotovoltaico/${progetto.id}/modifica`}>
                     <Pencil className="h-4 w-4 mr-1.5" /> Modifica
@@ -302,15 +305,16 @@ export default function FotovoltaicoDettaglio() {
                 <Button
                   variant="outline"
                   onClick={handleElimina}
-                  className="border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+                  className="border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white max-sm:px-3"
+                  aria-label="Annulla progetto"
                 >
-                  <Trash2 className="h-4 w-4 mr-1.5" /> Annulla
+                  <Trash2 className="h-4 w-4 mr-1.5 max-sm:mr-0" /> <span className="max-sm:hidden">Annulla</span>
                 </Button>
               )}
               {progetto.stato === "emesso" && (
                 <Button
                   onClick={() => setFirmaOpen(true)}
-                  className="bg-white text-orange-700 hover:bg-orange-50 shadow border-0"
+                  className="bg-white text-orange-700 hover:bg-orange-50 shadow border-0 max-sm:flex-1"
                 >
                   <FileSignature className="h-4 w-4 mr-1.5" /> Richiedi firma
                 </Button>
@@ -346,9 +350,9 @@ export default function FotovoltaicoDettaglio() {
         )}
       </div>
 
-      <div className="max-w-[1400px] mx-auto px-4 sm:px-8 py-6 space-y-5">
+      <div className="max-w-[1400px] mx-auto px-4 sm:px-8 py-6 space-y-5 max-sm:space-y-3 max-sm:py-3">
         {/* KPI cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 max-sm:gap-2">
           <FvKpi
             label="Potenza"
             value={progetto.potenza_kwp != null ? Number(progetto.potenza_kwp).toFixed(2) : "—"}
@@ -399,18 +403,19 @@ export default function FotovoltaicoDettaglio() {
         )}
 
         <Tabs defaultValue="riepilogo">
-          <TabsList className="bg-white border border-slate-200 rounded-xl p-1">
-            <TabsTrigger value="riepilogo">Riepilogo</TabsTrigger>
-            <TabsTrigger value="componenti">Componenti ({componenti.length})</TabsTrigger>
-            <TabsTrigger value="calcolo">Calcolo finanziario</TabsTrigger>
-            <TabsTrigger value="allegati">Preventivo</TabsTrigger>
+          {/* Telefono: le quattro schede coi nomi corti stanno in una riga. */}
+          <TabsList className="bg-white border border-slate-200 rounded-xl p-1 max-sm:grid max-sm:w-full max-sm:grid-cols-4">
+            <TabsTrigger value="riepilogo" className="max-sm:px-1 max-sm:text-xs">Riepilogo</TabsTrigger>
+            <TabsTrigger value="componenti" className="max-sm:px-1 max-sm:text-xs">Componenti<span className="max-sm:hidden"> ({componenti.length})</span></TabsTrigger>
+            <TabsTrigger value="calcolo" className="max-sm:px-1 max-sm:text-xs">Calcolo<span className="max-sm:hidden"> finanziario</span></TabsTrigger>
+            <TabsTrigger value="allegati" className="max-sm:px-1 max-sm:text-xs">Preventivo</TabsTrigger>
           </TabsList>
 
           {/* TAB Riepilogo */}
           <TabsContent value="riepilogo" className="mt-4">
             <div className="grid md:grid-cols-2 gap-4">
               <FvCard title="Cliente e immobile">
-                <Row label="Archetipo" value={progetto.archetipo} />
+                <Row label="Archetipo" value={FV_ARCHETIPI_LABEL[progetto.archetipo as FvArchetipo] ?? progetto.archetipo} />
                 <Row label="Indirizzo" value={progetto.indirizzo} />
                 <Row
                   label="Comune"
@@ -460,9 +465,9 @@ export default function FotovoltaicoDettaglio() {
                 />
               </FvCard>
               <FvCard title="Tetto e impianto">
-                <Row label="Fonte dati tetto" value={progetto.fonte_dati_tetto ?? "—"} />
-                <Row label="Qualità dati" value={progetto.qualita_dati_tetto ?? "—"} />
-                <Row label="Imagery date" value={progetto.imagery_date ?? "—"} />
+                <Row label="Fonte dati tetto" value={progetto.fonte_dati_tetto ?? "—"} soloComputer />
+                <Row label="Qualità dati" value={progetto.qualita_dati_tetto ?? "—"} soloComputer />
+                <Row label="Imagery date" value={progetto.imagery_date ?? "—"} soloComputer />
                 <Row
                   label="Ore sole annue"
                   value={
@@ -707,26 +712,37 @@ export default function FotovoltaicoDettaglio() {
           <TabsContent value="allegati" className="mt-4">
             <FvCard title="Preventivo cliente professionale">
               {!progetto.pdf_vendita_url && (
-                <FvCallout
-                  variant="info"
-                  title="Anteprima non ancora generata"
-                  icon={<FileText className="h-4 w-4" />}
-                >
-                  Completa il wizard fino allo Step 8 e premi "Genera ed emetti preventivo".
-                  Verrà creato un documento HTML configurabile (cover, viste tetto, componenti,
-                  produzione, flussi energetici, risparmio, costi futuri, piano economico,
-                  cassa 25 anni, CO₂, garanzie, iter pratiche, FAQ, firma).
-                </FvCallout>
+                <>
+                  {/* Telefono: una riga al posto della spiegazione. */}
+                  <p className="text-[13px] text-muted-foreground sm:hidden">
+                    Il preventivo si genera all'ultimo passo del wizard.
+                  </p>
+                  <div className="max-sm:hidden">
+                    <FvCallout
+                      variant="info"
+                      title="Anteprima non ancora generata"
+                      icon={<FileText className="h-4 w-4" />}
+                    >
+                      Completa il wizard fino allo Step 8 e premi "Genera ed emetti preventivo".
+                      Verrà creato un documento HTML configurabile (cover, viste tetto, componenti,
+                      produzione, flussi energetici, risparmio, costi futuri, piano economico,
+                      cassa 25 anni, CO₂, garanzie, iter pratiche, FAQ, firma).
+                    </FvCallout>
+                  </div>
+                </>
               )}
               {progetto.pdf_vendita_url && (
                 <>
-                  <FvCallout variant="success" title="Preventivo pronto">
-                    <strong>Scarica PDF</strong> apre la stampa già pronta: scegli
-                    “Salva come PDF” e il file è identico all'anteprima. Oppure{" "}
-                    <strong>Apri preventivo</strong> per vederlo nel browser. Design
-                    print-ready A4 con tutti i grafici inline.
-                  </FvCallout>
-                  <div className="grid sm:grid-cols-2 gap-3 mt-4">
+                  {/* Telefono: la spiegazione parla di stampa e «Salva come PDF», che lì non ci sono. */}
+                  <div className="max-sm:hidden">
+                    <FvCallout variant="success" title="Preventivo pronto">
+                      <strong>Scarica PDF</strong> apre la stampa già pronta: scegli
+                      “Salva come PDF” e il file è identico all'anteprima. Oppure{" "}
+                      <strong>Apri preventivo</strong> per vederlo nel browser. Design
+                      print-ready A4 con tutti i grafici inline.
+                    </FvCallout>
+                  </div>
+                  <div className="grid sm:grid-cols-2 gap-3 mt-4 max-sm:mt-0">
                     <Button
                       onClick={() => handleScarica(progetto.pdf_vendita_url, "vendita")}
                       disabled={scaricando === "vendita"}
@@ -759,7 +775,7 @@ export default function FotovoltaicoDettaglio() {
                 </>
               )}
               {isAdmin && (progetto.pdf_tecnico_url || progetto.pdf_mobile_url) && (
-                <div className="mt-6 pt-4 border-t border-slate-200">
+                <div className={`mt-6 pt-4 border-t border-slate-200 ${progetto.pdf_mobile_url ? "" : "max-sm:hidden"}`}>
                   <h4 className="text-sm font-semibold text-slate-900 mb-2">Versioni alternative</h4>
                   <div className="space-y-2">
                     {isAdmin && progetto.pdf_tecnico_url && (
@@ -767,7 +783,7 @@ export default function FotovoltaicoDettaglio() {
                         variant="outline"
                         size="sm"
                         onClick={() => handleScarica(progetto.pdf_tecnico_url, "tecnico")}
-                        className="w-full justify-start"
+                        className="w-full justify-start max-sm:hidden"
                         disabled={scaricando === "tecnico"}
                       >
                         {scaricando === "tecnico" ? (
@@ -809,16 +825,19 @@ function Row({
   label,
   value,
   muted,
+  soloComputer,
 }: {
   label: string;
   value: string | number;
   muted?: boolean;
+  /** Dato tecnico (fonte e data delle immagini del tetto): sul telefono non serve. */
+  soloComputer?: boolean;
 }) {
   return (
     <div
-      className={`flex justify-between items-baseline text-sm py-1.5 border-b border-slate-100 last:border-0 ${
+      className={`flex justify-between items-baseline text-sm py-1.5 border-b border-slate-100 last:border-0 max-sm:gap-3 max-sm:py-1 max-sm:text-[13px] ${
         muted ? "text-slate-500" : ""
-      }`}
+      } ${soloComputer ? "max-sm:hidden" : ""}`}
     >
       <span className="text-slate-600">{label}</span>
       <span className={`font-semibold tabular-nums ${muted ? "" : "text-slate-900"}`}>
