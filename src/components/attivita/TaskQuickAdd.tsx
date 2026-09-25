@@ -120,7 +120,8 @@ export function TaskQuickAdd({ defaultAssignedTo, onAdvancedCreate }: TaskQuickA
         </SelectContent>
       </Select>
       <div className="flex items-center gap-2">
-        <Button className="h-9 gap-2" onClick={handleSubmit} disabled={!value.trim() || createMutation.isPending}>
+        {/* Contorno, non pieno: l'azione in evidenza della pagina è «Nuova attività». */}
+        <Button variant="outline" className="h-9 gap-2" onClick={handleSubmit} disabled={!value.trim() || createMutation.isPending}>
           <Plus className="h-4 w-4" />
           Aggiungi
         </Button>

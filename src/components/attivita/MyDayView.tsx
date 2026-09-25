@@ -17,9 +17,11 @@ import { useIsMobile } from "@/hooks/use-mobile";
 
 interface MyDayViewProps {
   onNewTask: () => void;
+  /** Dentro «Attività» il saluto è già nella testata della pagina. */
+  senzaSaluto?: boolean;
 }
 
-export function MyDayView({ onNewTask }: MyDayViewProps) {
+export function MyDayView({ onNewTask, senzaSaluto = false }: MyDayViewProps) {
   const { user, effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const userId = user?.id;
@@ -132,7 +134,7 @@ export function MyDayView({ onNewTask }: MyDayViewProps) {
     <div className="space-y-4 sm:space-y-6">
       {/* Su telefono il saluto c'e' gia' in cima alla pagina e i tre contatori
           ripetono i titoli delle sezioni qui sotto («Scadute 3», «Oggi 2»). */}
-      {!isMobile && <MyDayHeader estimatedHoursToday={estimatedHoursToday} />}
+      {!isMobile && <MyDayHeader estimatedHoursToday={estimatedHoursToday} senzaSaluto={senzaSaluto} />}
 
       {!hasAnyTasks ? (
         <MyDayEmptyState onNewTask={onNewTask} />

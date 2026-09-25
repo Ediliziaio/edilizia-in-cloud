@@ -170,8 +170,8 @@ export function SortableTaskRow({
       )}
       onClick={onSelect}
     >
-      {/* Drag handle */}
-      <TableCell className="w-6 px-1" onClick={ferma}>
+      {/* Drag handle: da 1280px (sotto la tabella deve stare nella pagina) */}
+      <TableCell className="hidden w-6 px-1 xl:table-cell" onClick={ferma}>
         <button
           {...attributes}
           {...listeners}
@@ -194,7 +194,7 @@ export function SortableTaskRow({
 
       {/* Title */}
       <TableCell className="font-medium">
-        <div className="min-w-[220px]">
+        <div className="min-w-[160px] xl:min-w-[220px]">
           <div className="flex items-center gap-1.5">
             <span className={cn("line-clamp-1", isCompleted && "line-through")}>{task.title}</span>
             {task.is_recurring && (
@@ -203,23 +203,23 @@ export function SortableTaskRow({
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-normal text-muted-foreground">
             {creatorName && <span>Creata da {creatorName}</span>}
-            {task.notes && <span className="hidden max-w-[260px] truncate md:inline">{task.notes}</span>}
+            {task.notes && <span className="hidden max-w-[200px] truncate md:inline xl:max-w-[260px]">{task.notes}</span>}
           </div>
         </div>
       </TableCell>
 
-      {/* Assignee */}
-      <TableCell className="text-muted-foreground">
+      {/* Assignee: su una riga (a 1024px «Florin / Andriciuc» andava a capo) */}
+      <TableCell className="max-w-[160px] truncate whitespace-nowrap text-muted-foreground">
         {task.assigned_profile
           ? `${task.assigned_profile.first_name} ${task.assigned_profile.last_name}`
           : "—"}
       </TableCell>
 
-      {/* Correlation */}
-      <TableCell>{renderCorrelation()}</TableCell>
+      {/* Correlation e categoria: da 1280px (vedi le intestazioni in UnifiedTasks) */}
+      <TableCell className="hidden max-w-[180px] truncate whitespace-nowrap xl:table-cell">{renderCorrelation()}</TableCell>
 
       {/* Category */}
-      <TableCell>
+      <TableCell className="hidden xl:table-cell">
         <span className="text-xs text-muted-foreground">
           {ALL_CATEGORY_LABELS[task.category] || task.category}
         </span>
@@ -257,7 +257,7 @@ export function SortableTaskRow({
 
       {/* Status: cerchio = azione rapida, badge = SCELTA dello stato */}
       <TableCell onClick={ferma}>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 whitespace-nowrap">
           <button
             type="button"
             className="rounded-md p-1 transition-colors hover:bg-muted"
