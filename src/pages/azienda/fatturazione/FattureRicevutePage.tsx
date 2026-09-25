@@ -595,11 +595,10 @@ export default function FattureRicevutePage() {
     <div className="space-y-6 max-sm:space-y-3">
       {/* Header — mobile: solo il titolo (importa XML e classificazione AI al desktop). */}
       <div className="flex items-center justify-between">
+        {/* Senza sottotitolo: «Fatture passive ricevute dal Sistema di
+            Interscambio» ripeteva il titolo con altre parole. */}
         <div>
           <h1 className="text-2xl font-bold text-foreground max-sm:text-lg">Fatture Ricevute</h1>
-          <p className="text-sm text-muted-foreground max-sm:hidden">
-            Fatture passive ricevute dal Sistema di Interscambio
-          </p>
         </div>
         <div className="flex items-center gap-3 max-sm:hidden">
           <input
@@ -732,17 +731,10 @@ export default function FattureRicevutePage() {
 
       {/* Testata navy di famiglia. Mobile: due numeri (vedi sotto). */}
       <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm max-sm:hidden">
+        {/* Senza il titoletto «Fatture ricevute — Quello che i fornitori ti
+            mandano»: ripeteva il titolo della pagina. */}
         <div className="bg-[#173b67] p-4 text-white sm:p-5">
-          <div className="flex items-start gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)] sm:h-11 sm:w-11">
-              <Inbox className="h-4 w-4 sm:h-5 sm:w-5" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-orange-100 sm:text-xs">Fatture ricevute</p>
-              <h2 className="mt-0.5 text-base font-semibold text-white sm:text-xl">Quello che i fornitori ti mandano</h2>
-            </div>
-          </div>
-          <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-5 sm:gap-3 xl:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
             <NavyStatCard
               label={annoFilter === "all" ? "Totale ricevute" : `Ricevute nel ${annoFilter}`}
               value={String(kpi.totale)}
