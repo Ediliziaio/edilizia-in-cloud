@@ -330,8 +330,8 @@ export default function TemplatesPage() {
   // ── Empty state: nessun numero collegato ──
   if (!numbersLoading && usableNumbers.length === 0) {
     return (
-      <div className="space-y-6 p-4 md:p-6">
-        <h1 className="text-2xl font-semibold">Template WhatsApp</h1>
+      <div className="space-y-6 p-4 md:p-0">
+        {/* Niente titolo: siamo nella scheda «Template» dell'hub WhatsApp. */}
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
             <AlertTriangle className="mx-auto mb-3 h-8 w-8 text-amber-500" />
@@ -346,14 +346,12 @@ export default function TemplatesPage() {
   }
 
   return (
-    <div className="space-y-6 p-4 md:p-6">
-      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">Template WhatsApp</h1>
-          <p className="text-sm text-muted-foreground">
-            Crea, modifica ed elimina i template. Solo gli <strong>APPROVED</strong> possono essere usati per broadcast e fuori dalla finestra 24h.
-          </p>
-        </div>
+    // Da 768 niente margine proprio: lo dà l'hub (prima si sommava a quello
+    // della card che conteneva la pagina).
+    <div className="space-y-6 p-4 md:p-0">
+      {/* Solo le azioni, a destra: il titolo ripeteva la scheda «Template» e la
+          frase («Solo gli APPROVED…») lo dice già lo stato di ogni modello. */}
+      <div className="flex justify-end">
         <div className="flex gap-2">
           <Button
             variant="outline"

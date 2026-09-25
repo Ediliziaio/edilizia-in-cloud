@@ -13,7 +13,6 @@ import NotificheConfigPage from "./NotificheConfigPage";
 import BroadcastListPage from "./BroadcastListPage";
 import OperationalControlPage from "./OperationalControlPage";
 import { useSearchParams } from "react-router-dom";
-import { Bell, Bot, Megaphone, MessageSquare } from "lucide-react";
 import { useWhatsAppBase } from "./useWhatsAppBase";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { AvvisoSoloDaComputer } from "@/components/mobile/SoloDaComputer";
@@ -50,65 +49,46 @@ export default function WhatsAppHubPage() {
     );
   }
 
+  // Testata come nelle altre pagine: titolo e schede. Via la card bianca che
+  // conteneva tutta la pagina (doppio margine), il bollino «WhatsApp Business»,
+  // le due righe di spiegazione e i tre riquadri «Marketing umano / Cantieri
+  // con AI / Notifiche e ticket», che sembravano bottoni ma non lo erano e a
+  // 1024 andavano a capo. Il nome è «WhatsApp», come nel menu e sul telefono.
   return (
-    <div className="min-h-screen bg-background">
-      <div className="border-b bg-card px-4 py-4 md:px-6">
-        <Tabs value={tab} onValueChange={onChangeTab} className="w-full">
-          <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <div className="mb-2 inline-flex items-center gap-2 rounded-full border bg-background px-3 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
-                <MessageSquare className="h-3.5 w-3.5" />
-                WhatsApp Business
-              </div>
-              <h1 className="text-2xl font-bold">{isAdminContext ? "WhatsApp Marketing" : "Centro WhatsApp"}</h1>
-              <p className="text-sm text-muted-foreground">
-                {isAdminContext
-                  ? "Numeri, template approvati Meta e broadcast per l'acquisizione clienti."
-                  : "Tre linee aziendali: commerciale, cantieri e amministrazione. Silvio usa ogni numero con regole diverse."}
-              </p>
-            </div>
-            {!isAdminContext && (
-              <div className="grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
-                <span className="rounded-lg border bg-background px-3 py-2"><Megaphone className="mr-1.5 inline h-3.5 w-3.5" />Marketing umano</span>
-                <span className="rounded-lg border bg-background px-3 py-2"><MessageSquare className="mr-1.5 inline h-3.5 w-3.5" />Cantieri con AI</span>
-                <span className="rounded-lg border bg-background px-3 py-2"><Bell className="mr-1.5 inline h-3.5 w-3.5" />Notifiche e ticket</span>
-              </div>
-            )}
-          </div>
-          <TabsList className={`grid w-full ${isAdminContext ? "max-w-md grid-cols-3" : "max-w-3xl grid-cols-2 sm:grid-cols-5"}`}>
-            <TabsTrigger value="numeri" aria-label="Tab Numeri">Numeri</TabsTrigger>
-            {!isAdminContext && (
-              <TabsTrigger value="regia" aria-label="Tab Regia operativa">
-                <Bot className="mr-1.5 h-3.5 w-3.5" />
-                Regia
-              </TabsTrigger>
-            )}
-            <TabsTrigger value="template" aria-label="Tab Template">Template</TabsTrigger>
-            <TabsTrigger value="broadcast" aria-label="Tab Broadcast">Broadcast</TabsTrigger>
-            {!isAdminContext && <TabsTrigger value="notifiche" aria-label="Tab Notifiche">Notifiche</TabsTrigger>}
-          </TabsList>
+    <div>
+      <Tabs value={tab} onValueChange={onChangeTab} className="w-full">
+        <h1 className="mb-4 text-2xl font-bold">{isAdminContext ? "WhatsApp Marketing" : "WhatsApp"}</h1>
+        {/* Schede larghe quanto il testo (erano colonne uguali su 768px). */}
+        <TabsList className="mb-4">
+          <TabsTrigger value="numeri" aria-label="Tab Numeri">Numeri</TabsTrigger>
+          {!isAdminContext && (
+            <TabsTrigger value="regia" aria-label="Tab Regia operativa">Regia</TabsTrigger>
+          )}
+          <TabsTrigger value="template" aria-label="Tab Template">Template</TabsTrigger>
+          <TabsTrigger value="broadcast" aria-label="Tab Broadcast">Broadcast</TabsTrigger>
+          {!isAdminContext && <TabsTrigger value="notifiche" aria-label="Tab Notifiche">Notifiche</TabsTrigger>}
+        </TabsList>
 
-          <TabsContent value="numeri" className="mt-0">
-            <WhatsAppMultiNumeroTab />
+        <TabsContent value="numeri" className="mt-0">
+          <WhatsAppMultiNumeroTab />
+        </TabsContent>
+        {!isAdminContext && (
+          <TabsContent value="regia" className="mt-0">
+            <OperationalControlPage />
           </TabsContent>
-          {!isAdminContext && (
-            <TabsContent value="regia" className="mt-0">
-              <OperationalControlPage />
-            </TabsContent>
-          )}
-          <TabsContent value="template" className="mt-0">
-            <TemplatesPage />
+        )}
+        <TabsContent value="template" className="mt-0">
+          <TemplatesPage />
+        </TabsContent>
+        <TabsContent value="broadcast" className="mt-0">
+          <BroadcastListPage nelHub />
+        </TabsContent>
+        {!isAdminContext && (
+          <TabsContent value="notifiche" className="mt-0">
+            <NotificheConfigPage />
           </TabsContent>
-          <TabsContent value="broadcast" className="mt-0">
-            <BroadcastListPage />
-          </TabsContent>
-          {!isAdminContext && (
-            <TabsContent value="notifiche" className="mt-0">
-              <NotificheConfigPage />
-            </TabsContent>
-          )}
-        </Tabs>
-      </div>
+        )}
+      </Tabs>
     </div>
   );
 }
