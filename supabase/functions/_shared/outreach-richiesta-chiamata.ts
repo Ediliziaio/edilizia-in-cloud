@@ -138,9 +138,11 @@ export function richiestaDiChiamata(testo: string | null | undefined, adesso: Da
   if (!giornoDetto && !detta && rispostaPiuAvanti(t)) return null;
   let ora: number | null = null;
   let fascia = { ...GIORNATA };
-  if (detta && "min" in detta) { ora = detta.min; pezzi.push(detta.frase); }
-  else if (detta) { fascia = { da: detta.da, a: detta.a }; pezzi.push(detta.frase); }
-  else {
+  if (detta) {
+    if ("min" in detta) ora = detta.min;
+    else fascia = { da: detta.da, a: detta.a };
+    pezzi.push(detta.frase);
+  } else {
     const f = FASCE.find((x) => x.re.test(t));
     if (f) { fascia = { da: f.da, a: f.a }; pezzi.push((t.match(f.re) ?? [""])[0]); }
   }
