@@ -23,7 +23,6 @@ import {
   CheckCircle2,
   Clock,
   DoorOpen,
-  Filter,
   GalleryHorizontalEnd,
   Grid3X3,
   Hammer,
@@ -34,12 +33,10 @@ import {
   Search,
   ShieldCheck,
   Sofa,
-  Sparkles,
   Sun,
   TreePine,
   UserRound,
   Waves,
-  Zap,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { toast } from "sonner";
@@ -369,23 +366,18 @@ export default function RenderCategoryHub() {
     // ultimi render a griglia 2×; niente catalogo (impostazione), spiegazioni e
     // filtro CRM.
     <div className="space-y-8 max-md:space-y-3">
-      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/50 p-5 shadow-sm max-md:rounded-none max-md:border-0 max-md:bg-none max-md:p-0 max-md:shadow-none">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between max-md:flex-row max-md:items-center max-md:justify-between max-md:gap-2">
+      {/* Da 768 come sul telefono: titolo a sinistra, crediti e «Catalogo
+          render» in riga a destra. Via il riquadro sfumato, l'icona, la
+          scritta «Render AI» sopra il titolo e la frase sotto; titolo a 24px
+          (era 30, più grande di ogni altra pagina). */}
+      <div>
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between max-md:flex-row max-md:items-center max-md:justify-between max-md:gap-2">
           <div className="flex items-start gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200 max-md:hidden">
-              <Sparkles className="h-5 w-5" />
-            </div>
             <div>
-              <div className="mb-1 text-sm font-medium uppercase tracking-wider text-orange-700 max-md:hidden">
-                Render AI
-              </div>
-              <h1 className="text-2xl font-bold text-slate-950 sm:text-3xl max-md:text-lg">Centro render</h1>
-              <p className="mt-1 max-w-2xl text-sm text-slate-600 max-md:hidden">
-                Scegli il modulo giusto, filtra per categoria e ritrova subito i render collegati a utenti, contatti e opportunità.
-              </p>
+              <h1 className="text-2xl font-bold text-slate-950 max-md:text-lg">Centro render</h1>
             </div>
           </div>
-          <div className="flex shrink-0 flex-col items-stretch gap-2 lg:items-end">
+          <div className="flex shrink-0 flex-col items-stretch gap-2 md:flex-row md:items-center">
             <RenderCreditsWidget />
             {/* Il catalogo foto dei prodotti: prima stava tra le impostazioni dei preventivi. */}
             {(permessi.isAdmin || permessi.canViewSettingsCustomization) && (
@@ -402,9 +394,10 @@ export default function RenderCategoryHub() {
 
       {/* Statistiche render: vetrina → nascoste su mobile (impilavano 4 card =
           4 schermate prima dei moduli operativi). L'alert "da verificare" sotto
-          è azionabile e resta. */}
+          è azionabile e resta. Niente effetto «sollevati al passaggio del
+          mouse»: le card non si cliccano. */}
       <div className="hidden md:grid gap-3 md:grid-cols-4">
-        <Card className="border-slate-200 bg-gradient-to-br from-white to-slate-50/80 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
+        <Card className="border-slate-200 bg-gradient-to-br from-white to-slate-50/80 shadow-sm">
           <CardContent className="p-4 flex items-center gap-3">
             <GalleryHorizontalEnd className="h-5 w-5 text-orange-500" />
             <div>
@@ -413,7 +406,7 @@ export default function RenderCategoryHub() {
             </div>
           </CardContent>
         </Card>
-        <Card className="border-slate-200 bg-gradient-to-br from-white to-slate-50/80 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
+        <Card className="border-slate-200 bg-gradient-to-br from-white to-slate-50/80 shadow-sm">
           <CardContent className="p-4 flex items-center gap-3">
             <CheckCircle2 className="h-5 w-5 text-green-600" />
             <div>
@@ -422,7 +415,7 @@ export default function RenderCategoryHub() {
             </div>
           </CardContent>
         </Card>
-        <Card className="border-slate-200 bg-gradient-to-br from-white to-slate-50/80 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
+        <Card className="border-slate-200 bg-gradient-to-br from-white to-slate-50/80 shadow-sm">
           <CardContent className="p-4 flex items-center gap-3">
             <Clock className="h-5 w-5 text-amber-600" />
             <div>
@@ -431,7 +424,7 @@ export default function RenderCategoryHub() {
             </div>
           </CardContent>
         </Card>
-        <Card className="border-slate-200 bg-gradient-to-br from-white to-slate-50/80 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
+        <Card className="border-slate-200 bg-gradient-to-br from-white to-slate-50/80 shadow-sm">
           <CardContent className="p-4 flex items-center gap-3">
             <Link2 className="h-5 w-5 text-blue-600" />
             <div>
@@ -463,34 +456,21 @@ export default function RenderCategoryHub() {
         </Card>
       )}
 
-      {/* Banner "Controllo costi": informativo, duplica il widget crediti in
-          header → nascosto su mobile. */}
-      <Card className="hidden md:block border-blue-100 bg-blue-50/50">
-        <CardContent className="grid gap-3 p-4 md:grid-cols-[auto_1fr_auto] md:items-center">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-blue-700">
-            <Zap className="h-5 w-5" />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-blue-950">Controllo costi e generazioni</p>
-            <p className="text-sm text-blue-800">
-              Saldo crediti visibile, stati in lavorazione monitorati e render bloccati evidenziati prima di rigenerare.
-            </p>
-          </div>
-          <div className="rounded-lg border border-blue-100 bg-white px-3 py-2 text-xs text-blue-900">
-            {stats.processing} in corso · {stats.stale} da verificare
-          </div>
-        </CardContent>
-      </Card>
+      {/* Via il banner «Controllo costi e generazioni» (c'era solo da 768): era
+          una frase promozionale e «N in corso · N da verificare» ripeteva i
+          numeri qui sopra e l'avviso arancione. */}
 
       <section className="space-y-4 max-md:space-y-2">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between max-md:gap-2">
+        {/* Da 768 titolo e ricerca in una riga, senza la frase e senza la card
+            attorno alla ricerca; il menu categoria sparisce da 640 perché lì ci
+            sono già le pillole qui sotto (erano entrambi visibili). */}
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between max-md:gap-2">
           <div>
             <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider max-md:text-[13px] max-md:normal-case max-md:tracking-normal max-md:text-foreground">
               Moduli render
             </h2>
-            <p className="text-sm text-muted-foreground max-md:hidden">Filtra per area di intervento o cerca materiale, ambiente e sistema.</p>
           </div>
-          <div className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm sm:flex-row lg:min-w-[520px] max-md:flex-row max-md:border-0 max-md:bg-transparent max-md:p-0 max-md:shadow-none">
+          <div className="flex flex-col gap-2 sm:flex-row md:w-[360px] max-md:flex-row">
             <div className="relative flex-1 max-md:min-w-0">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -501,7 +481,7 @@ export default function RenderCategoryHub() {
               />
             </div>
             <Select value={groupFilter} onValueChange={(value) => setGroupFilter(value as CategoryGroup)}>
-              <SelectTrigger className="sm:w-[180px] max-md:w-[130px] max-md:shrink-0">
+              <SelectTrigger className="sm:hidden max-md:w-[130px] max-md:shrink-0">
                 <SelectValue placeholder="Categoria" />
               </SelectTrigger>
               <SelectContent>
@@ -523,9 +503,9 @@ export default function RenderCategoryHub() {
               variant={groupFilter === group ? "default" : "outline"}
               size="sm"
               onClick={() => setGroupFilter(group)}
-              className={`gap-2 ${groupFilter === group ? "bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:from-orange-600 hover:to-amber-600" : ""}`}
             >
-              <Filter className="h-3.5 w-3.5" />
+              {/* Senza l'imbuto ripetuto su ogni pillola e il gradiente arancione:
+                  la pillola scelta è già piena. */}
               {groupLabels[group]}
             </Button>
           ))}
@@ -583,16 +563,15 @@ export default function RenderCategoryHub() {
       </section>
 
       <section className="space-y-4 max-md:space-y-2">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between max-md:gap-2">
+        {/* Come per i moduli: da 768 titolo e filtri in una riga, senza la
+            frase e senza la card attorno ai tre menu. */}
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between max-md:gap-2">
           <div>
             <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider max-md:text-[13px] max-md:normal-case max-md:tracking-normal max-md:text-foreground">
               Ultimi render
             </h2>
-            <p className="text-sm text-muted-foreground max-md:hidden">
-              Vista unica di tutti i moduli, con stato, autore e collegamento CRM.
-            </p>
           </div>
-          <div className="grid gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm sm:grid-cols-3 lg:min-w-[560px] max-md:grid-cols-2 max-md:border-0 max-md:bg-transparent max-md:p-0 max-md:shadow-none">
+          <div className="grid gap-2 sm:grid-cols-3 md:w-[480px] max-md:grid-cols-2">
             <Select value={recentTypeFilter} onValueChange={setRecentTypeFilter}>
               <SelectTrigger>
                 <SelectValue placeholder="Tipo render" />
@@ -673,7 +652,8 @@ export default function RenderCategoryHub() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 max-md:grid-cols-2 max-md:gap-2">
+          // Tre per riga da 1024 (erano due: sedici render, otto righe).
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 max-md:grid-cols-2 max-md:gap-2">
             {filteredRecent.slice(0, 16).map((item) => {
               const typeColor = categories.find((cat) => cat.id === item.render_type)?.color ?? "bg-muted text-foreground";
               const status = normalizeRenderStatus(item.status);
