@@ -225,6 +225,7 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
       cc_emails: [], bcc_emails: [],
       subject: s2, body_text: b2, body_html: html,
       attachments: [], status: "sent", sent_at: new Date().toISOString(),
+      origine: "conversazioni",
     });
   };
 
@@ -252,6 +253,9 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
           user_id: user.id,
           company_id: effectiveCompany.id,
           oauth_connection_id: fromId,
+          // Resta in Conversazioni anche se parte dalla casella personale:
+          // il resto della posta privata lì non compare (migrazione 20280926021000).
+          origine: "conversazioni",
           to_emails: [email],
           cc_emails: [],
           bcc_emails: [],
