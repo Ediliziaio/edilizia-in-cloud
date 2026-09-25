@@ -366,12 +366,17 @@ export default function MarketingCalendar() {
   // 2026-05-27: toggle "Mostra anche lavori operativi" — per il caso
   // single-titolare che fa vendite + pose, vuole vedere tutto in un
   // unico calendario. Persistito in localStorage per coerenza UX.
-  const [showOperativi, setShowOperativi] = useState<boolean>(() => {
+  const [preferenzaOperativi, setShowOperativi] = useState<boolean>(() => {
     try { return localStorage.getItem("mkt-cal-show-operativi") === "1"; } catch { return false; }
   });
   useEffect(() => {
-    try { localStorage.setItem("mkt-cal-show-operativi", showOperativi ? "1" : "0"); } catch {/* ignore */}
-  }, [showOperativi]);
+    try { localStorage.setItem("mkt-cal-show-operativi", preferenzaOperativi ? "1" : "0"); } catch {/* ignore */}
+  }, [preferenzaOperativi]);
+  // I lavori operativi (pose, cantieri) sono il Calendario Lavori: chi non ha
+  // quel permesso non li vede nemmeno da qui (25/09/2026: il venditore, di
+  // serie, vede solo marketing e vendite).
+  const puoVedereOperativi = permissions.isAdmin || permissions.canViewCalendar;
+  const showOperativi = preferenzaOperativi && puoVedereOperativi;
 
   // Fetch appointments with date range filter
   const { data: rawAppointments = [], error: appointmentsError, refetch: refetchAppointments } = useQuery({
@@ -1516,22 +1521,24 @@ export default function MarketingCalendar() {
                   senza calendar_id marketing) nel calendario marketing.
                   Pensato per il caso single-titolare vendite+pose: 1 vista
                   per tutto. Persistito in localStorage. */}
-              <button
-                type="button"
-                onClick={() => setShowOperativi((v) => !v)}
-                className={cn(
-                  "inline-flex h-9 items-center gap-1.5 rounded-md border px-3 text-xs font-medium transition-colors md:text-sm",
-                  showOperativi
-                    ? "border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100"
-                    : "bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
-                )}
-                title={showOperativi
-                  ? "Stai vedendo anche i lavori operativi. Clicca per nasconderli."
-                  : "Mostra anche i lavori operativi (cantieri, pose) di questo periodo"}
-              >
-                <Clock className="h-3.5 w-3.5" />
-                <span className="hidden md:inline">{showOperativi ? "Operativi visibili" : "Mostra operativi"}</span>
-              </button>
+              {puoVedereOperativi && (
+                <button
+                  type="button"
+                  onClick={() => setShowOperativi((v) => !v)}
+                  className={cn(
+                    "inline-flex h-9 items-center gap-1.5 rounded-md border px-3 text-xs font-medium transition-colors md:text-sm",
+                    showOperativi
+                      ? "border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100"
+                      : "bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
+                  )}
+                  title={showOperativi
+                    ? "Stai vedendo anche i lavori operativi. Clicca per nasconderli."
+                    : "Mostra anche i lavori operativi (cantieri, pose) di questo periodo"}
+                >
+                  <Clock className="h-3.5 w-3.5" />
+                  <span className="hidden md:inline">{showOperativi ? "Operativi visibili" : "Mostra operativi"}</span>
+                </button>
+              )}
             </div>
 
             {!hasCalendars ? (

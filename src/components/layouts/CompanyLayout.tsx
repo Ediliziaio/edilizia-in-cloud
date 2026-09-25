@@ -790,10 +790,11 @@ function buildSettingsGroups(isAdmin: boolean, permissions: Permissions, piano: 
     {
       // v8.6.72 — Nuovo gruppo "AI & Notifiche" — voci precedentemente
       // raggiungibili solo da Cmd+K o dall'hub mobile (/azienda/impostazioni).
-      // Visibili a tutti gli utenti (la pagina interna gestisce permessi fini).
+      // Stesso permesso delle rotte (companyRoutes.tsx): le Notifiche sono di
+      // tutti, AI Personas vuole Branding & Template.
       label: "AI & Notifiche",
       items: [
-        { to: "/azienda/impostazioni/ai-memoria", label: "AI Personas (chat + memoria)", icon: <Brain className="h-4 w-4" />, visible: true },
+        { to: "/azienda/impostazioni/ai-memoria", label: "AI Personas (chat + memoria)", icon: <Brain className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsCustomization },
         { to: "/azienda/impostazioni/notifiche",  label: "Notifiche",           icon: <Bell className="h-4 w-4" />,  visible: true },
         { to: "/azienda/impostazioni/catalogo-render", label: "Catalogo render", icon: <ImagePlus className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsCustomization },
       ],
@@ -848,15 +849,15 @@ function buildSettingsGroups(isAdmin: boolean, permissions: Permissions, piano: 
       label: "Persone & Accessi",
       items: [
         // IMP3: voce unica → pagina con 4 tab (utenti/venditori/staff/team)
-        { to: "/azienda/impostazioni/persone", label: "Persone & Accessi", icon: <Users className="h-4 w-4" />, visible: isAdmin || permissions.canViewUsers || permissions.canViewSettingsPeople },
+        { to: "/azienda/impostazioni/persone", label: "Persone & Accessi", icon: <Users className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsPeople },
       ],
     },
     {
       label: "Sicurezza & Privacy",
       items: [
         // IMP4: voce unica → pagina con 4 tab (password/privacy/dashboard/attivita)
-        { to: "/azienda/impostazioni/sicurezza-privacy", label: "Sicurezza & Privacy", icon: <Shield className="h-4 w-4" />, visible: true },
-        { to: "/azienda/impostazioni/esporta-dati", label: "Esporta i dati", icon: <Shield className="h-4 w-4" />, visible: true },
+        { to: "/azienda/impostazioni/sicurezza-privacy", label: "Sicurezza & Privacy", icon: <Shield className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsSecurity },
+        { to: "/azienda/impostazioni/esporta-dati", label: "Esporta i dati", icon: <Shield className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsSecurity },
       ],
     },
     {
@@ -876,7 +877,7 @@ function buildSettingsGroups(isAdmin: boolean, permissions: Permissions, piano: 
       // con tabs interni (modalità esterna provider vs nativa).
       label: "Fatturazione",
       items: [
-        { to: "/azienda/impostazioni/fatturazione", label: "Fatturazione", icon: <FileText className="h-4 w-4" />, visible: isAdmin },
+        { to: "/azienda/impostazioni/fatturazione", label: "Fatturazione", icon: <FileText className="h-4 w-4" />, visible: isAdmin || permissions.canViewBilling },
       ],
     },
   ].map((gruppo) => ({
@@ -1068,7 +1069,11 @@ const CompanySidebar = memo(function CompanySidebar() {
     [commercialistaSearch],
   );
   const isSettingsRoute = location.pathname.startsWith("/azienda/impostazioni");
-  const isAdmin = role === "company_admin" || role === "super_admin";
+  // Amministratore dell'azienda su cui si lavora (anche via accesso
+  // multi-azienda) o super admin: lo decide usePermissions. Il ruolo grezzo
+  // sbagliava in due sensi: toglieva le voci a chi è admin solo nell'azienda
+  // scelta, e le dava a chi è admin nella propria ma staff in quella scelta.
+  const isAdmin = permissions.isAdmin;
   const showDriveLink =
     !isCommercialistaMode &&
     (permissions.isLoading || gatingLoading || canAccessMediaLibrary(permissions));

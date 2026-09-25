@@ -209,7 +209,7 @@ export function computeBreakdown(
  */
 export function useMargineBreakdown(quoteId: string | null | undefined) {
   const { data: perms } = useUserPermissions();
-  const canView = perms?.can_view_margins ?? false;
+  const canView = perms.can_view_margins || perms.can_view_costs;
 
   return useQuery<MargineBreakdown | null>({
     queryKey: ["margine-breakdown", quoteId, canView],

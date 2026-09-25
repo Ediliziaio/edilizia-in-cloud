@@ -263,7 +263,7 @@ function TariffaVariantiSection({
   tariffaId, costoDefault, tariffaSquadraId,
 }: { tariffaId: string; costoDefault: number | null; tariffaSquadraId?: string | null }) {
   const { data: perms } = useUserPermissions();
-  if (!perms?.can_view_costs) return null;
+  if (!perms.can_view_costs) return null;
   return (
     <TariffaVariantiEditor
       tariffaId={tariffaId}

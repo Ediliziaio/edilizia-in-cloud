@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { DEFAULT_PERMISSIONS } from "@/components/users/permissionsDefaults";
+import { DEFAULT_PERMISSIONS, ROLE_PRESETS } from "@/components/users/permissionsDefaults";
 import {
   STAFF_PERMISSION_DEFAULTS,
+  STAFF_ROLE_PRESETS,
   buildStaffPermissionsRecord,
 } from "../../../supabase/functions/_shared/staffPermissionsDefaults";
 
@@ -23,6 +24,16 @@ describe("staff_permissions: parità edge ↔ client", () => {
     // Stesse chiavi ma valori diversi = un utente creato dal client nasce
     // diverso da uno creato dall'edge (era il caso di can_view_formazione).
     expect(STAFF_PERMISSION_DEFAULTS).toEqual(DEFAULT_PERMISSIONS);
+  });
+
+  it("i preset per ruolo del server sono quelli del client (25/09/2026)", () => {
+    // Chi riceve un accesso da una funzione del server (company-access-manage)
+    // nasce col preset del suo ruolo, lo stesso della creazione dall'app.
+    expect(STAFF_ROLE_PRESETS).toEqual(ROLE_PRESETS);
+    // Il venditore, di serie, solo Marketing & Vendita.
+    for (const k of ["can_view_orders", "can_view_calendar", "can_view_dashboard", "can_view_customers", "can_view_users"]) {
+      expect(STAFF_ROLE_PRESETS.salesperson[k], k).toBeUndefined();
+    }
   });
 
   it("i valori rispecchiano i default DB (niente cambi per chi non passa permissions)", () => {

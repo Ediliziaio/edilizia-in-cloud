@@ -24,6 +24,19 @@ Deno.serve(async (req) => {
     // 2. Accesso all'azienda del preventivo (anche multi-azienda e super admin)
     await requireCompanyAccess(supabaseAdmin, userId, quote.company_id, getCorsHeaders(req));
 
+    // 2a. Si crea una commessa: serve la stessa regola della creazione
+    // nell'app, amministratore o «Ordini e Commesse» con la modifica (che il
+    // trigger spegne in «Sola lettura»). Prima bastava un profilo
+    // nell'azienda, anche da cliente del portale (25/09/2026).
+    const { data: puoCreare } = await supabaseAdmin.rpc("has_permission_for_company", {
+      _user_id: userId,
+      _permission: "can_edit_orders",
+      _company_id: quote.company_id,
+    });
+    if (puoCreare !== true) {
+      return errorResponse("Non hai il permesso di creare commesse (chiedi all'amministratore).", 403);
+    }
+
     // 2b. La copia di firma di un preventivo di modulo (source «modulo:…») non ha
     // righe: le voci stanno nella tabella del modulo. Convertirla creava una
     // commessa col solo totale; la commessa si fa dal preventivo del modulo.

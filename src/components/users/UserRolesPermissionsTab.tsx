@@ -87,9 +87,12 @@ const CATEGORY_DEFS: { id: string; label: string; icon: PermissionCategory["icon
 ];
 
 // Moduli che aprono anche pagine con un nome diverso: aiutano la ricerca.
+// (Prima: Previsionale «include Ordini Acquisto» e Opportunità «include Sales
+// OS», entrambi falsi: gli ordini d'acquisto seguono le Commesse, Sales OS ha
+// il suo permesso.)
 const MODULE_INCLUDES: Partial<Record<BooleanPermissionKey, string[]>> = {
-  can_view_forecast: ["Ordini Acquisto"],
-  can_view_marketing_opportunities: ["Sales OS"],
+  can_view_orders: ["Ordini d'acquisto", "Sopralluoghi (scheda)"],
+  can_view_marketing_opportunities: ["Simulatore", "Serramenti", "Bagni", "Tetti", "Fotovoltaico"],
 };
 
 export const PERMISSION_CATEGORIES: PermissionCategory[] = CATEGORY_DEFS.map((c) => ({
@@ -295,6 +298,7 @@ export function UserRolesPermissionsTab({
         ? {
             ...DEFAULT_PERMISSIONS,
             only_assigned: permissions.only_assigned,
+            only_my_warehouse: permissions.only_my_warehouse,
             sola_lettura: permissions.sola_lettura,
             pipeline_visibili: permissions.pipeline_visibili,
             ...preset,
@@ -376,7 +380,8 @@ export function UserRolesPermissionsTab({
 
   const handleSelectAll = () => {
     setPermissions((prev) => {
-      const allTrue: StaffPermissions = { ...DEFAULT_PERMISSIONS, only_assigned: prev.only_assigned, sola_lettura: prev.sola_lettura, pipeline_visibili: prev.pipeline_visibili };
+      // Le restrizioni e le aree visibili non sono moduli: «Tutti» non le tocca.
+      const allTrue: StaffPermissions = { ...DEFAULT_PERMISSIONS, only_assigned: prev.only_assigned, only_my_warehouse: prev.only_my_warehouse, sola_lettura: prev.sola_lettura, pipeline_visibili: prev.pipeline_visibili, visible_areas: prev.visible_areas };
       const allModules = PERMISSION_CATEGORIES.flatMap((c) => c.modules);
       const bloccato = (k: BooleanPermissionKey) => !!prev.sola_lettura && isBlockedBySolaLettura(k);
       allModules.forEach((mod) => {
@@ -390,7 +395,7 @@ export function UserRolesPermissionsTab({
   };
 
   const handleDeselectAll = () => {
-    setPermissions((prev) => ({ ...DEFAULT_PERMISSIONS, only_assigned: prev.only_assigned, sola_lettura: prev.sola_lettura, pipeline_visibili: prev.pipeline_visibili }));
+    setPermissions((prev) => ({ ...DEFAULT_PERMISSIONS, only_assigned: prev.only_assigned, only_my_warehouse: prev.only_my_warehouse, sola_lettura: prev.sola_lettura, pipeline_visibili: prev.pipeline_visibili, visible_areas: prev.visible_areas }));
   };
 
   const handleApplyRolePreset = () => {
@@ -399,6 +404,7 @@ export function UserRolesPermissionsTab({
     setPermissions((prev) => ({
       ...DEFAULT_PERMISSIONS,
       only_assigned: prev.only_assigned,
+      only_my_warehouse: prev.only_my_warehouse,
       sola_lettura: prev.sola_lettura,
       pipeline_visibili: prev.pipeline_visibili,
       ...preset,

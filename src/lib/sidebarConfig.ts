@@ -88,14 +88,18 @@ export const macroAreas: MacroArea[] = [
     icon: LayoutGrid,
     items: [
       { title: "Attività", url: "/azienda/attivita", icon: CheckSquare },
-      { title: "Email", url: "/azienda/email", icon: Mail, featureKey: "email_client", isBeta: true },
+      { title: "Email", url: "/azienda/email", icon: Mail, permissionKey: "canViewMarketingEmail", featureKey: "email_client", isBeta: true },
       // Una sola voce. Prima erano due — "Come stiamo andando" e "Cruscotto" —
       // e siccome /azienda/cruscotto/aziendale sta sotto /azienda/cruscotto,
       // risultavano attive entrambe insieme. Porta alla pagina che contiene
       // tutto; le dashboard personalizzate si raggiungono dal selettore in
       // cima a quella pagina, e da li' si torna indietro.
       { title: "Cruscotto", url: "/azienda/cruscotto/aziendale", icon: Gauge, permissionKey: "canViewCruscotto" },
-      { title: "Chat Team", url: "/azienda/chat", icon: MessagesSquare }, // no gate — accessible to all authenticated users
+      // Chat Team e Silvio sono di tutto lo staff: la chat la apre anche il
+      // pulsante in testata su mobile, e le conversazioni con Silvio sono
+      // canali della chat interna («espandi» porta lì). Cosa legge Silvio lo
+      // decidono i permessi dei suoi strumenti (silvioToolExecution).
+      { title: "Chat Team", url: "/azienda/chat", icon: MessagesSquare },
       { title: "Silvio AI", url: "/azienda/silvio-ai", icon: Sparkles, isBeta: true }, // nuova interfaccia multi-conversazione
     ],
   },
@@ -126,8 +130,9 @@ export const macroAreas: MacroArea[] = [
     icon: HardHat,
     items: [
       // ─── Operativo ───
-      // NB: Sopralluoghi non è più voce separata sidebar — è un tab dentro Commesse
-      // (OrdersList.tsx). Visibile a Demo Azienda via feature flag surveys_module.
+      // NB: qui Sopralluoghi è un tab dentro Commesse (OrdersList.tsx), con la
+      // funzione di piano surveys_module. Chi non vede le Commesse (il venditore,
+      // di serie) li trova in Marketing & Vendita, col permesso «Sopralluoghi».
       { title: "Commesse", url: "/azienda/ordini", icon: ClipboardList, permissionKey: "canViewOrders", moduleKey: "orders" },
       // Voce dedicata: gli ODA vivono in un tab dentro Commesse e prima non
       // erano raggiungibili da NESSUN menu — si scoprivano solo per caso.
@@ -222,7 +227,12 @@ export const macroAreas: MacroArea[] = [
       { title: "Contatti CRM", url: "/azienda/marketing/contatti", icon: ContactRound, permissionKey: "canViewMarketingContacts", featureKey: "crm_modulo", groupLabel: "CRM & Vendita" },
       { title: "Opportunità", url: "/azienda/marketing/opportunita", icon: Target, permissionKey: "canViewMarketingOpportunities", featureKey: "crm_modulo" },
       // Flag dedicato (non crm_modulo): il Piano Marketing tiene il CRM ma spegne i preventivi.
-      { title: "Preventivi CRM", url: "/azienda/marketing/preventivi", icon: FileSignature, permissionKey: "canViewMarketingOpportunities", featureKey: "preventivi_crm" },
+      // Stesso permesso della rotta (canViewPreventivi): prima usava le
+      // Opportunità, e chi le aveva senza «Preventivi» trovava la pagina negata.
+      { title: "Preventivi CRM", url: "/azienda/marketing/preventivi", icon: FileSignature, permissionKey: "canViewPreventivi", featureKey: "preventivi_crm" },
+      // Sopralluoghi pre-vendita: la pagina c'era (canViewSopralluoghi) ma nessuna
+      // voce ci portava, e 28 persone avevano un permesso senza porta.
+      { title: "Sopralluoghi", url: "/azienda/sopralluoghi", icon: ClipboardList, permissionKey: "canViewSopralluoghi", featureKey: "surveys_module" },
       { title: "Simulatore", url: "/azienda/marketing/simulatore", icon: Calculator, permissionKey: "canViewMarketingOpportunities", featureKey: "simulatore" },
       // 2026-07-12: voce "Firma Elettronica" rimossa da qui — l'hub vive solo in
       // "Cantieri & Lavori". Il commerciale invia comunque preventivi/contratti in firma
