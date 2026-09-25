@@ -20,6 +20,7 @@ import { ArrowLeft, Download, Mail, Loader2, RefreshCw, ExternalLink, Link2, Bri
 import { formatCurrency } from "@/lib/formatters";
 
 import { useIsMobile } from "@/hooks/use-mobile";
+import { KpiMobili } from "@/components/mobile/FiltriMobile";
 const STATUS_CONFIG: Record<string, { label: string; color: string; emoji: string }> = {
   draft:     { label: "Bozza",       color: "bg-muted text-muted-foreground",       emoji: "📝" },
   issued:    { label: "Emessa",      color: "bg-blue-100 text-blue-800",            emoji: "📤" },
@@ -219,16 +220,18 @@ export default function InvoiceDetail() {
   const cfg = STATUS_CONFIG[invoice.status] || STATUS_CONFIG.draft;
 
   return (
-    <div className="space-y-6 max-w-5xl">
-      {/* Header */}
-      <div className="flex items-center gap-3 flex-wrap">
+    <div className="space-y-6 max-w-5xl max-sm:space-y-3">
+      {/* Header — mobile: titolo 18px, stato e «Invia» sulla stessa riga */}
+      <div className="flex items-center gap-3 flex-wrap max-sm:gap-2">
         <Button variant="ghost" size="icon" className="hidden md:inline-flex" onClick={() => navigate("/azienda/fatturazione")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <h1 className="text-2xl font-bold">
+        <h1 className="text-2xl font-bold max-sm:text-lg">
           Fattura {invoice.invoice_number || "—"}
         </h1>
-        <Badge variant="secondary" className={cfg.color}>{cfg.emoji} {cfg.label}</Badge>
+        <Badge variant="secondary" className={`${cfg.color} max-sm:text-[11px]`}>
+          {isMobile ? cfg.label : `${cfg.emoji} ${cfg.label}`}
+        </Badge>
         <div className="flex items-center gap-2 ml-auto">
           {/* Niente export su telefono. */}
           {!isMobile && (
@@ -238,16 +241,16 @@ export default function InvoiceDetail() {
           )}
           <Dialog open={emailOpen} onOpenChange={setEmailOpen}>
             <DialogTrigger asChild>
-              <Button variant="outline" size="sm">
-                <Mail className="h-4 w-4 mr-2" /> Invia via Email
+              <Button variant="outline" size="sm" className="tap-compact max-sm:h-8 max-sm:px-2.5 max-sm:text-xs">
+                <Mail className="h-4 w-4 mr-2 max-sm:mr-1" /> <span className="max-sm:hidden">Invia via Email</span><span className="sm:hidden">Invia</span>
               </Button>
             </DialogTrigger>
             <DialogContent className="max-h-[90vh] overflow-y-auto max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Invia fattura via email</DialogTitle>
-                <DialogDescription>Il cliente riceverà un'email con i dettagli della fattura.</DialogDescription>
+                <DialogDescription className="max-sm:sr-only">Il cliente riceverà un'email con i dettagli della fattura.</DialogDescription>
               </DialogHeader>
-              <div className="space-y-4 py-2">
+              <div className="space-y-4 py-2 max-sm:space-y-3 max-sm:py-0">
                 <div>
                   <Label>Email destinatario *</Label>
                   <Input type="email" value={emailTo} onChange={(e) => setEmailTo(e.target.value)} placeholder="cliente@esempio.it" />
@@ -257,13 +260,13 @@ export default function InvoiceDetail() {
                   <Input value={emailSubject} onChange={(e) => setEmailSubject(e.target.value)} placeholder={`Fattura N° ${invoice.invoice_number || "—"}`} />
                 </div>
                 <div>
-                  <Label>Messaggio (template precompilato, modificabile)</Label>
-                  <Textarea value={emailMessage} onChange={(e) => setEmailMessage(e.target.value)} placeholder="Aggiungi un messaggio..." rows={9} className="resize-y" />
-                  <p className="text-xs text-muted-foreground mt-1">Il riepilogo della fattura (righe e totali) viene aggiunto automaticamente sotto il messaggio.</p>
+                  <Label>Messaggio<span className="max-sm:hidden"> (template precompilato, modificabile)</span></Label>
+                  <Textarea value={emailMessage} onChange={(e) => setEmailMessage(e.target.value)} placeholder="Aggiungi un messaggio..." rows={isMobile ? 6 : 9} className="resize-y" />
+                  <p className="text-xs text-muted-foreground mt-1 max-sm:hidden">Il riepilogo della fattura (righe e totali) viene aggiunto automaticamente sotto il messaggio.</p>
                 </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setEmailOpen(false)}>Annulla</Button>
+                <Button variant="outline" onClick={() => setEmailOpen(false)} className="max-sm:hidden">Annulla</Button>
                 <Button onClick={sendInvoiceEmail} disabled={sendingEmail || !emailTo}>
                   {sendingEmail ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Mail className="h-4 w-4 mr-2" />}
                   Invia
@@ -274,12 +277,34 @@ export default function InvoiceDetail() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Mobile: totale e residuo al posto del riepilogo laterale (un doppione
+          di cliente, righe e totali già in pagina). */}
+      <div className="space-y-1.5 sm:hidden">
+        <KpiMobili
+          voci={[
+            { label: "Totale", valore: `${invoice.document_type === "credit_note" ? "−" : ""}${fmtEur(Number(invoice.total || totals.total))}` },
+            // Una nota di credito è uno storno: niente «da incassare».
+            invoice.document_type === "credit_note"
+              ? { label: "Pagato", valore: fmtEur(Number(invoice.paid_amount || 0)) }
+              : {
+                label: "Da incassare",
+                valore: fmtEur(Math.max(0, Number(invoice.total || 0) - Number(invoice.paid_amount || 0))),
+                tono: invoice.status !== "paid" && Number(invoice.total || 0) - Number(invoice.paid_amount || 0) > 0.005 ? "text-rose-600" : undefined,
+              },
+          ]}
+        />
+        <p className="px-0.5 text-[11px] text-muted-foreground">
+          Emessa {invoice.issue_date ? format(new Date(invoice.issue_date), "dd/MM/yyyy", { locale: it }) : "—"}
+          {invoice.due_date ? ` · scade ${format(new Date(invoice.due_date), "dd/MM/yyyy", { locale: it })}` : ""}
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-sm:gap-3">
         {/* Main content */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Sync status */}
+        <div className="lg:col-span-2 space-y-6 max-sm:space-y-3">
+          {/* Sync status — mobile no: dati tecnici (ID esterno, ultimo sync). */}
           {invoice.external_provider && (
-            <Card className="border-primary/20 bg-primary/5">
+            <Card className="border-primary/20 bg-primary/5 max-sm:hidden">
               <CardContent className="pt-4 pb-4">
                 <div className="flex items-center gap-3">
                   <RefreshCw className="h-4 w-4 text-primary" />
@@ -301,10 +326,20 @@ export default function InvoiceDetail() {
           )}
 
           {/* Client info */}
-          <Card>
-            <CardHeader><CardTitle className="text-base">Cliente</CardTitle></CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 gap-4 text-sm">
+          {/* Mobile: nome, P.IVA e indirizzo; codice fiscale, SDI e PEC restano al desktop.
+              !mt-0: il riquadro sincronizzazione nascosto sopra gli lasciava il margine. */}
+          <Card className="max-sm:!mt-0">
+            <CardHeader className="max-sm:p-3 max-sm:pb-2"><CardTitle className="text-base max-sm:text-sm">Cliente</CardTitle></CardHeader>
+            <CardContent className="max-sm:px-3 max-sm:pb-3">
+              {/* Mobile: nome, poi P.IVA e indirizzo in piccolo, senza etichette. */}
+              <div className="space-y-0.5 sm:hidden">
+                <p className="text-[13px] font-semibold leading-tight">{invoice.client_company_name || "—"}</p>
+                {invoice.client_vat_number && <p className="text-[11px] text-muted-foreground">P.IVA {invoice.client_vat_number}</p>}
+                {(invoice.client_address || invoice.client_city) && (
+                  <p className="text-[11px] text-muted-foreground">{[invoice.client_address, invoice.client_city, invoice.client_zip].filter(Boolean).join(", ")}</p>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-4 text-sm max-sm:hidden">
                 <div className="col-span-2">
                   <p className="text-muted-foreground text-xs">Ragione sociale</p>
                   <p className="font-medium">{invoice.client_company_name || "—"}</p>
@@ -335,9 +370,24 @@ export default function InvoiceDetail() {
 
           {/* Lines */}
           <Card>
-            <CardHeader><CardTitle className="text-base">Righe fattura</CardTitle></CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
+            <CardHeader className="max-sm:p-3 max-sm:pb-1"><CardTitle className="text-base max-sm:text-sm">Righe fattura</CardTitle></CardHeader>
+            <CardContent className="max-sm:px-3 max-sm:pb-3">
+              {/* Mobile: una riga per voce (descrizione, quantità × prezzo · IVA, totale)
+                  al posto della tabella a cinque colonne che scorreva di lato. */}
+              <div className="divide-y sm:hidden">
+                {lines.map((l, i) => (
+                  <div key={l.id ?? `${l.description}-${i}`} className="flex items-center gap-2 py-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[13px] font-medium leading-tight">{l.description}</p>
+                      <p className="mt-0.5 text-[11px] leading-tight text-muted-foreground">
+                        {l.quantity} {l.unit} × {fmtEur(Number(l.unit_price))} · IVA {l.tax_rate}%
+                      </p>
+                    </div>
+                    <span className="shrink-0 text-[13px] font-semibold tabular-nums">{fmtEur(Number(l.line_gross))}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="overflow-x-auto max-sm:hidden">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b">
@@ -361,12 +411,12 @@ export default function InvoiceDetail() {
                   </tbody>
                 </table>
               </div>
-              <Separator className="my-4" />
-              <div className="flex flex-col items-end gap-1 text-sm">
+              <Separator className="my-4 max-sm:my-2" />
+              <div className="flex flex-col items-end gap-1 text-sm max-sm:text-[13px]">
                 <div className="flex gap-8"><span className="text-muted-foreground">Imponibile:</span> <span className="font-medium w-24 text-right">{fmtEur(totals.subtotal)}</span></div>
                 <div className="flex gap-8"><span className="text-muted-foreground">IVA:</span> <span className="font-medium w-24 text-right">{fmtEur(totals.tax)}</span></div>
                 <Separator className="w-48 my-1" />
-                <div className="flex gap-8 text-base"><span className="font-semibold">TOTALE:</span> <span className="font-bold w-24 text-right">{fmtEur(totals.total)}</span></div>
+                <div className="flex gap-8 text-base max-sm:text-sm"><span className="font-semibold">TOTALE:</span> <span className="font-bold w-24 text-right">{fmtEur(totals.total)}</span></div>
               </div>
             </CardContent>
           </Card>
@@ -374,26 +424,26 @@ export default function InvoiceDetail() {
           {/* Linked bank transactions */}
           {linkedTransactions && linkedTransactions.length > 0 && (
             <Card className="border-green-200 dark:border-green-800">
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
+              <CardHeader className="max-sm:p-3 max-sm:pb-2">
+                <CardTitle className="text-base flex items-center gap-2 max-sm:text-sm">
                   <Link2 className="h-4 w-4 text-green-600" /> Pagamenti bancari collegati
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="max-sm:px-3 max-sm:pb-3">
                 <div className="space-y-2">
                   {linkedTransactions.map((rec: any) => {
                     const tx = rec.bank_transactions;
                     return (
-                      <div key={rec.id} className="flex items-center justify-between border rounded-lg p-3 text-sm">
-                        <div>
-                          <p className="font-medium">{tx?.description || "Transazione"}</p>
+                      <div key={rec.id} className="flex items-center justify-between border rounded-lg p-3 text-sm max-sm:gap-2 max-sm:p-2 max-sm:text-[13px]">
+                        <div className="min-w-0">
+                          <p className="font-medium max-sm:truncate">{tx?.description || "Transazione"}</p>
                           <p className="text-xs text-muted-foreground">
                             {tx?.booking_date} · {tx?.creditor_name || tx?.debtor_name || ""} · {(tx?.bank_accounts as any)?.display_name || ""}
                           </p>
                         </div>
                         <div className="text-right">
                           <p className="font-semibold text-green-600">{fmtEur(Number(rec.matched_amount))}</p>
-                          <Badge variant="outline" className="text-[10px]">
+                          <Badge variant="outline" className="text-[10px] max-sm:hidden">
                             {rec.match_type === "auto" ? "Auto" : "Manuale"}
                           </Badge>
                         </div>
@@ -406,15 +456,16 @@ export default function InvoiceDetail() {
           )}
 
           {/* Payment & Notes */}
-          <Card>
-            <CardHeader><CardTitle className="text-base">Pagamento e note</CardTitle></CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 gap-4 text-sm">
+          {/* Mobile: solo se c'è qualcosa da leggere (prima tre «—» in un riquadro). */}
+          <Card className={!invoice.payment_method && !invoice.payment_terms && !invoice.notes ? "max-sm:hidden" : undefined}>
+            <CardHeader className="max-sm:p-3 max-sm:pb-2"><CardTitle className="text-base max-sm:text-sm">Pagamento e note</CardTitle></CardHeader>
+            <CardContent className="max-sm:px-3 max-sm:pb-3">
+              <div className="grid grid-cols-2 gap-4 text-sm max-sm:gap-2 max-sm:text-[13px]">
                 <div>
                   <p className="text-muted-foreground text-xs">Metodo di pagamento</p>
                   <p>{invoice.payment_method || "—"}</p>
                 </div>
-                <div>
+                <div className="max-sm:hidden">
                   <p className="text-muted-foreground text-xs">IBAN</p>
                   <p className="font-mono text-xs">{invoice.bank_iban || "—"}</p>
                 </div>
@@ -435,10 +486,10 @@ export default function InvoiceDetail() {
           {/* Commessa — collega la fattura a una commessa (manuale + auto-suggerimento per cliente).
               Utile soprattutto per le fatture importate da gestionali esterni, prive di commessa. */}
           <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2"><Briefcase className="h-4 w-4" /> Commessa</CardTitle>
+            <CardHeader className="max-sm:p-3 max-sm:pb-2">
+              <CardTitle className="text-base flex items-center gap-2 max-sm:text-sm"><Briefcase className="h-4 w-4 max-sm:hidden" /> Commessa</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-3 max-sm:space-y-2 max-sm:px-3 max-sm:pb-3">
               {invoice.order_id ? (
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
@@ -468,7 +519,7 @@ export default function InvoiceDetail() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-[11px] text-muted-foreground max-sm:hidden">
                     Le fatture da gestionali esterni non hanno una commessa: collegala qui, oppure scrivi il codice commessa nell'oggetto della fattura sul gestionale per il collegamento automatico all'import.
                   </p>
                 </>
@@ -477,8 +528,8 @@ export default function InvoiceDetail() {
           </Card>
         </div>
 
-        {/* Sidebar - preview */}
-        <div>
+        {/* Sidebar - preview. Mobile no: doppione (i numeri stanno in cima). */}
+        <div className="max-sm:hidden">
           <Card className="sticky top-6">
             <CardHeader><CardTitle className="text-base">Riepilogo</CardTitle></CardHeader>
             <CardContent className="text-xs space-y-4">

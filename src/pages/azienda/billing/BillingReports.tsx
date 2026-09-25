@@ -14,12 +14,17 @@ import { useIsMobile } from "@/hooks/use-mobile";
 const MONTHS_IT = ["Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"];
 const PIE_COLORS = ["hsl(var(--primary))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))"];
 
-export default function BillingReports({ embedded = false }: { embedded?: boolean }) {
+/**
+ * `anno`: su telefono la pagina Fatture passa l'anno della sua testata, così
+ * il report non ha un secondo selettore ("all" = anno in corso).
+ */
+export default function BillingReports({ embedded = false, anno }: { embedded?: boolean; anno?: string }) {
   const isMobile = useIsMobile();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const currentYear = new Date().getFullYear();
-  const [year, setYear] = useState(String(currentYear));
+  const [annoScelto, setYear] = useState(String(currentYear));
+  const year = anno !== undefined ? (anno === "all" ? String(currentYear) : anno) : annoScelto;
 
   const { data: invoices = [], isLoading } = useQuery({
     queryKey: ["billing_reports", companyId, year],
@@ -133,7 +138,7 @@ export default function BillingReports({ embedded = false }: { embedded?: boolea
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-sm:space-y-3">
       {/* Header */}
       {!embedded && (
         <div className="flex items-center justify-between">
@@ -159,7 +164,7 @@ export default function BillingReports({ embedded = false }: { embedded?: boolea
           </div>
         </div>
       )}
-      {embedded && (
+      {embedded && anno === undefined && (
         <div className="flex items-center justify-end gap-3">
           <Select value={year} onValueChange={setYear}>
             <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
@@ -182,51 +187,52 @@ export default function BillingReports({ embedded = false }: { embedded?: boolea
       ) : (
         <>
           {/* KPIs */}
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+          {/* Mobile: quattro numeri stretti (via la media fattura, che resterebbe sola su una riga). */}
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 max-sm:gap-2">
             <Card>
-              <CardContent className="pt-4 pb-3">
-                <p className="text-xs text-muted-foreground">Fatturato netto</p>
-                <p className="text-xl font-bold">{fmtEur(kpis.totalRevenue)}</p>
+              <CardContent className="pt-4 pb-3 max-sm:px-3 max-sm:py-2">
+                <p className="text-xs text-muted-foreground max-sm:text-[11px]">Fatturato netto</p>
+                <p className="text-xl font-bold max-sm:text-base">{fmtEur(kpis.totalRevenue)}</p>
               </CardContent>
             </Card>
             <Card>
-              <CardContent className="pt-4 pb-3">
-                <p className="text-xs text-muted-foreground">IVA totale</p>
-                <p className="text-xl font-bold">{fmtEur(kpis.totalVat)}</p>
+              <CardContent className="pt-4 pb-3 max-sm:px-3 max-sm:py-2">
+                <p className="text-xs text-muted-foreground max-sm:text-[11px]">IVA totale</p>
+                <p className="text-xl font-bold max-sm:text-base">{fmtEur(kpis.totalVat)}</p>
               </CardContent>
             </Card>
             <Card>
-              <CardContent className="pt-4 pb-3">
-                <p className="text-xs text-muted-foreground">Incassato</p>
-                <p className="text-xl font-bold">{fmtEur(kpis.totalCollected)}</p>
+              <CardContent className="pt-4 pb-3 max-sm:px-3 max-sm:py-2">
+                <p className="text-xs text-muted-foreground max-sm:text-[11px]">Incassato</p>
+                <p className="text-xl font-bold max-sm:text-base">{fmtEur(kpis.totalCollected)}</p>
               </CardContent>
             </Card>
             <Card>
-              <CardContent className="pt-4 pb-3">
-                <p className="text-xs text-muted-foreground">Fatture emesse</p>
-                <p className="text-xl font-bold">{kpis.count}</p>
+              <CardContent className="pt-4 pb-3 max-sm:px-3 max-sm:py-2">
+                <p className="text-xs text-muted-foreground max-sm:text-[11px]">Fatture emesse</p>
+                <p className="text-xl font-bold max-sm:text-base">{kpis.count}</p>
               </CardContent>
             </Card>
-            <Card>
-              <CardContent className="pt-4 pb-3">
-                <p className="text-xs text-muted-foreground">Media fattura</p>
-                <p className="text-xl font-bold">{fmtEur(kpis.avgInvoice)}</p>
+            <Card className="max-sm:hidden">
+              <CardContent className="pt-4 pb-3 max-sm:px-3 max-sm:py-2">
+                <p className="text-xs text-muted-foreground max-sm:text-[11px]">Media fattura</p>
+                <p className="text-xl font-bold max-sm:text-base">{fmtEur(kpis.avgInvoice)}</p>
               </CardContent>
             </Card>
           </div>
 
           {/* Charts */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-sm:gap-3">
             {/* Monthly bar chart */}
             <Card className="lg:col-span-2">
-              <CardHeader className="pb-2">
+              <CardHeader className="pb-2 max-sm:p-3 max-sm:pb-1">
                 <div className="flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5 text-muted-foreground" />
-                  <CardTitle className="text-base">Fatturato mensile {year}</CardTitle>
+                  <TrendingUp className="h-5 w-5 text-muted-foreground max-sm:hidden" />
+                  <CardTitle className="text-base max-sm:text-sm">Fatturato mensile {year}</CardTitle>
                 </div>
               </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
+              <CardContent className="max-sm:px-1 max-sm:pb-2">
+                <ResponsiveContainer width="100%" height={isMobile ? 190 : 300}>
                   <BarChart data={monthlyData}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                     <XAxis dataKey="name" tick={{ fontSize: 12 }} className="fill-muted-foreground" />
@@ -245,18 +251,19 @@ export default function BillingReports({ embedded = false }: { embedded?: boolea
 
             {/* Status pie chart */}
             <Card>
-              <CardHeader className="pb-2">
+              <CardHeader className="pb-2 max-sm:p-3 max-sm:pb-1">
                 <div className="flex items-center gap-2">
-                  <PieChart className="h-5 w-5 text-muted-foreground" />
-                  <CardTitle className="text-base">Ripartizione stato</CardTitle>
+                  <PieChart className="h-5 w-5 text-muted-foreground max-sm:hidden" />
+                  <CardTitle className="text-base max-sm:text-sm">Ripartizione stato</CardTitle>
                 </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="max-sm:px-3 max-sm:pb-3">
                 {vatBreakdown.length === 0 ? (
                   <p className="text-center text-muted-foreground py-8 text-sm">Nessun dato</p>
                 ) : (
                   <>
-                    <ResponsiveContainer width="100%" height={200}>
+                    {/* Mobile: basta la legenda con le cifre, senza la ciambella. */}
+                    {!isMobile && <ResponsiveContainer width="100%" height={200}>
                       <RechartsPie>
                         <Pie
                           data={vatBreakdown}
@@ -273,9 +280,9 @@ export default function BillingReports({ embedded = false }: { embedded?: boolea
                         </Pie>
                         <Tooltip formatter={(value: number) => fmtEur(value)} />
                       </RechartsPie>
-                    </ResponsiveContainer>
+                    </ResponsiveContainer>}
                     {/* Legenda pulita (niente etichette esterne che si tagliano) */}
-                    <div className="mt-3 space-y-1.5">
+                    <div className="mt-3 space-y-1.5 max-sm:mt-0">
                       {(() => {
                         const tot = vatBreakdown.reduce((s, d) => s + d.value, 0) || 1;
                         return vatBreakdown.map((d, i) => (
@@ -300,38 +307,41 @@ export default function BillingReports({ embedded = false }: { embedded?: boolea
 
           {/* Aging report */}
           <Card>
-            <CardHeader className="pb-2">
+            <CardHeader className="pb-2 max-sm:p-3 max-sm:pb-1">
               <div className="flex items-center gap-2">
-                <CalendarClock className="h-5 w-5 text-muted-foreground" />
-                <CardTitle className="text-base">Aging Report — Crediti scaduti</CardTitle>
+                <CalendarClock className="h-5 w-5 text-muted-foreground max-sm:hidden" />
+                <CardTitle className="text-base max-sm:text-sm">
+                  <span className="max-sm:hidden">Aging Report — Crediti scaduti</span>
+                  <span className="sm:hidden">Crediti scaduti</span>
+                </CardTitle>
               </div>
             </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-4 gap-4">
+            <CardContent className="max-sm:px-3 max-sm:pb-3">
+              <div className="grid grid-cols-4 gap-4 max-sm:grid-cols-2 max-sm:gap-2">
                 {aging.map((bucket) => (
-                  <div key={bucket.name} className="text-center p-4 rounded-lg border">
-                    <p className="text-sm text-muted-foreground mb-1">{bucket.name}</p>
-                    <p className={`text-xl font-bold ${bucket.value > 0 ? "text-destructive" : ""}`}>
+                  <div key={bucket.name} className="text-center p-4 rounded-lg border max-sm:px-3 max-sm:py-2 max-sm:text-left">
+                    <p className="text-sm text-muted-foreground mb-1 max-sm:mb-0 max-sm:text-[11px]">{bucket.name}</p>
+                    <p className={`text-xl font-bold max-sm:text-base ${bucket.value > 0 ? "text-destructive" : ""}`}>
                       {fmtEur(bucket.value)}
                     </p>
                   </div>
                 ))}
               </div>
               {aging.every((b) => b.value === 0) && (
-                <p className="text-center text-muted-foreground mt-4 text-sm">🎉 Nessun credito scaduto!</p>
+                <p className="text-center text-muted-foreground mt-4 text-sm max-sm:hidden">🎉 Nessun credito scaduto!</p>
               )}
             </CardContent>
           </Card>
 
           {/* Collection rate */}
           <Card>
-            <CardContent className="pt-4 pb-3">
+            <CardContent className="pt-4 pb-3 max-sm:px-3 max-sm:py-2">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Tasso di incasso {year}</p>
-                  <p className="text-3xl font-bold">{kpis.collectionRate.toFixed(1)}%</p>
+                  <p className="text-sm text-muted-foreground max-sm:text-[11px]">Tasso di incasso {year}</p>
+                  <p className="text-3xl font-bold max-sm:text-base">{kpis.collectionRate.toFixed(1)}%</p>
                 </div>
-                <div className="w-48 h-3 bg-muted rounded-full overflow-hidden">
+                <div className="w-48 h-3 bg-muted rounded-full overflow-hidden max-sm:h-2 max-sm:w-28">
                   <div
                     className="h-full bg-primary rounded-full transition-all"
                     style={{ width: `${Math.min(100, kpis.collectionRate)}%` }}
