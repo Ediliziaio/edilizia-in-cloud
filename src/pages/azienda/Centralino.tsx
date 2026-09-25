@@ -99,19 +99,21 @@ export default function Centralino() {
   };
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
+    // Telefono: il centralino si usa (disponibilità, tastierino, storico);
+    // numeri e agenti si impostano da computer o tablet.
+    <div className="mx-auto max-w-5xl space-y-6 max-md:space-y-3">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="flex items-center gap-2 text-xl font-bold">
-            <PhoneCall className="h-5 w-5 text-primary" />
+          <h1 className="flex items-center gap-2 text-xl font-bold max-md:text-lg">
+            <PhoneCall className="h-5 w-5 text-primary max-md:hidden" />
             Centralino
           </h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground max-md:hidden">
             Chiama e parla direttamente dal gestionale, col numero aziendale. Storico chiamate incluso.
           </p>
         </div>
-        <Button asChild variant="outline" size="sm" className="gap-1.5">
+        <Button asChild variant="outline" size="sm" className="gap-1.5 max-md:hidden">
           <Link to="/azienda/agenti-ai?tab=telefonia">
             <Settings2 className="h-4 w-4" /> Numeri & agenti
           </Link>
@@ -127,7 +129,7 @@ export default function Centralino() {
       )}
 
       {/* Statistiche */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 max-md:gap-1.5">
         {[
           { label: "Chiamate", value: String(stats.total) },
           { label: "Oggi", value: String(stats.todayCount) },
@@ -135,25 +137,25 @@ export default function Centralino() {
           { label: "Tempo totale", value: fmtDur(stats.totalSec) },
         ].map((s) => (
           <Card key={s.label}>
-            <CardContent className="py-3">
-              <p className="text-2xl font-bold tabular-nums">{s.value}</p>
-              <p className="text-xs text-muted-foreground">{s.label}</p>
+            <CardContent className="py-3 max-md:px-2 max-md:py-1.5">
+              <p className="text-2xl font-bold tabular-nums max-md:text-base">{s.value}</p>
+              <p className="text-xs text-muted-foreground max-md:truncate max-md:text-[11px]">{s.label}</p>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      <div className="grid gap-6 md:grid-cols-[320px_1fr]">
-        <div className="space-y-6">
+      <div className="grid gap-6 md:grid-cols-[320px_1fr] max-md:grid-cols-1 max-md:gap-3">
+        <div className="space-y-6 max-md:space-y-3">
         {/* Disponibilità: decide se l'assistente può passare una chiamata a una persona */}
         <DisponibilitaOperatore />
 
         {/* Dialer */}
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Tastierino</CardTitle>
+          <CardHeader className="pb-2 max-md:p-3 max-md:pb-1">
+            <CardTitle className="text-base max-md:text-sm">Tastierino</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 max-md:space-y-2.5 max-md:p-3 max-md:pt-0">
             <div className="flex items-center gap-2">
               <Input
                 value={number}
@@ -173,7 +175,7 @@ export default function Centralino() {
                 <Button
                   key={d}
                   variant="outline"
-                  className="h-12 text-lg font-medium"
+                  className="h-12 text-lg font-medium max-md:h-11"
                   onClick={() => press(d)}
                 >
                   {d}
@@ -191,23 +193,23 @@ export default function Centralino() {
 
         {/* Storico */}
         <Card>
-          <CardHeader className="pb-2">
+          <CardHeader className="pb-2 max-md:p-3 max-md:pb-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <History className="h-4 w-4 text-muted-foreground" /> Storico chiamate
+              <CardTitle className="flex items-center gap-2 text-base max-md:text-sm">
+                <History className="h-4 w-4 text-muted-foreground max-md:hidden" /> Storico chiamate
               </CardTitle>
-              <div className="flex items-center gap-2">
-                <div className="relative">
+              <div className="flex items-center gap-2 max-md:w-full">
+                <div className="relative max-md:min-w-0 max-md:flex-1">
                   <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     placeholder="Cerca numero, contatto, operatore…"
-                    className="h-8 w-48 pl-8 text-xs"
+                    className="h-8 w-48 pl-8 text-xs max-md:h-9 max-md:w-full"
                   />
                 </div>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="h-8 w-32 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-8 w-32 text-xs max-md:h-9 max-md:shrink-0"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Tutti gli esiti</SelectItem>
                     <SelectItem value="completed">Completate</SelectItem>
@@ -233,9 +235,9 @@ export default function Centralino() {
                 ))}
               </ul>
             ) : filtered.length === 0 ? (
-              <div className="px-6 py-12 text-center text-sm text-muted-foreground">
+              <div className="px-6 py-12 text-center text-sm text-muted-foreground max-md:px-3 max-md:py-4 max-md:text-[13px]">
                 {logs.length === 0
-                  ? "Nessuna chiamata ancora. Le chiamate effettuate dal Centralino compaiono qui."
+                  ? <>Nessuna chiamata ancora.<span className="max-md:hidden"> Le chiamate effettuate dal Centralino compaiono qui.</span></>
                   : "Nessun risultato per i filtri selezionati."}
               </div>
             ) : (
@@ -245,9 +247,9 @@ export default function Centralino() {
                   const num = outbound ? l.to_number : l.from_number;
                   const title = l.contact_name || num || "—";
                   return (
-                    <li key={l.id} className="flex items-center gap-3 px-4 py-2.5">
+                    <li key={l.id} className="flex items-center gap-3 px-4 py-2.5 max-md:gap-2 max-md:px-3">
                       <div className={cn(
-                        "flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
+                        "flex h-8 w-8 shrink-0 items-center justify-center rounded-full max-md:h-7 max-md:w-7",
                         outbound ? "bg-blue-50 text-blue-600" : "bg-emerald-50 text-emerald-600"
                       )}>
                         {outbound ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownLeft className="h-4 w-4" />}
@@ -263,7 +265,7 @@ export default function Centralino() {
                         </p>
                       </div>
                       {l.recording_url && (
-                        <audio controls preload="none" src={l.recording_url} className="h-8 w-36 shrink-0" />
+                        <audio controls preload="none" src={l.recording_url} className="h-8 w-36 shrink-0 max-md:w-28" />
                       )}
                       <div className="shrink-0 text-right">
                         <Badge
