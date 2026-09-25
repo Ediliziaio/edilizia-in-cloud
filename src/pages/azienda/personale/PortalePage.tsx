@@ -1775,9 +1775,12 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
           utente e le metriche di gestione (corsi pubblicati, iscrizioni team…)
           non c'entrano con l'esperienza di fruizione. */}
       {mode !== "library" && (
+      // Da 640: titolo e azioni su una riga, i quattro numeri in fila sotto.
+      // Prima i numeri erano un 2×2 a destra e tra titolo e bottoni restava
+      // un vuoto alto quanto loro (testata di 260px).
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="grid gap-6 bg-gradient-to-br from-white via-blue-50/50 to-orange-50/70 p-5 lg:grid-cols-[1.4fr_0.8fr] lg:p-6">
-          <div className="flex flex-col justify-between gap-5">
+        <div className="grid gap-6 bg-gradient-to-br from-white via-blue-50/50 to-orange-50/70 p-5 lg:p-6 sm:gap-4">
+          <div className="flex flex-col justify-between gap-5 sm:flex-row sm:flex-wrap sm:items-center">
             {!isAdminContext && (
               <div className="flex items-start gap-4">
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-sm shadow-blue-200">
@@ -1785,26 +1788,26 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
                 </div>
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h1 className="text-2xl font-bold tracking-tight text-slate-950">Portale</h1>
+                    {/* Il titolo segue la voce di menu: in «Crea corsi» diceva «Portale». */}
+                    <h1 className="text-2xl font-bold tracking-tight text-slate-950">{mode === "builder" ? "Crea corsi" : "Portale"}</h1>
                     <Badge className="border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-50">Beta operativa</Badge>
-                    <Badge
-                      variant="outline"
-                      className={cn(
-                        "capitalize",
-                        syncStatus === "sincronizzato"
-                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                          : syncStatus === "caricamento"
+                    {/* Lo stato si vede solo quando c'è qualcosa da sapere (caricamento,
+                        salvataggio locale…): da sincronizzato mostrava «Sync Supabase»,
+                        il nome del nostro fornitore, che al cliente non dice nulla. */}
+                    {syncStatus !== "sincronizzato" && (
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "capitalize",
+                          syncStatus === "caricamento"
                             ? "border-blue-200 bg-blue-50 text-blue-700"
                             : "border-slate-200 bg-slate-50 text-slate-600",
-                      )}
-                    >
-                      {syncStatus === "sincronizzato" ? "Sync Supabase" : syncStatus}
-                    </Badge>
+                        )}
+                      >
+                        {syncStatus}
+                      </Badge>
+                    )}
                   </div>
-                  <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
-                    Area formazione e know-how aziendale: corsi interni, procedure, manuali, onboarding, formazione
-                    commerciale e materiali riservati per team e cantieri.
-                  </p>
                 </div>
               </div>
             )}
@@ -2109,7 +2112,7 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             <StatCard label="Corsi pubblicati" value={String(stats.published)} icon={BookMarked} tone="blue" />
             <StatCard label="Iscrizioni team" value={String(stats.totalEnrolled)} icon={Users} tone="orange" />
             <StatCard label="Completamento" value={`${stats.avgCompletion}%`} icon={CheckCircle2} tone="green" />
