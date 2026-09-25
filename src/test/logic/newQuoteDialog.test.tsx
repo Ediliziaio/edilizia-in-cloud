@@ -94,11 +94,12 @@ describe("popup unico di creazione preventivi", () => {
     expect(screen.getAllByRole("link")).toHaveLength(1);
     expect(screen.getByRole("link", { name: "Apri preventivatore Persiane e scuri" })).toHaveAttribute("href", "/azienda/serramenti/nuovo?modello=persiane");
   });
-  it("non sostituisce un modello non collegato con il generale", () => {
-    // Serramenti: finestre, persiane e combinato sono collegati, gli altri quattro no.
+  it("apre ogni intervento Serramenti col suo modello, e resta il preventivo generale", () => {
+    // Dal 25/09/2026 anche avvolgibili, zanzariere e porte (prima solo tre su sette).
     mount("area=serramenti");
-    expect(screen.getAllByRole("link", { name: /^Apri preventivatore/ })).toHaveLength(3);
-    expect(screen.getAllByLabelText(/^Intervento non disponibile/)).toHaveLength(4);
+    expect(screen.getAllByRole("link", { name: /^Apri preventivatore/ })).toHaveLength(7);
+    expect(screen.queryByLabelText(/^Intervento non disponibile/)).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /^Apri preventivatore Zanzariere/ })).toHaveAttribute("href", "/azienda/serramenti/nuovo?modello=zanzariere");
     expect(screen.getByRole("link", { name: /^Preventivo Serramenti generale/ })).toHaveAttribute("href", "/azienda/serramenti/nuovo");
   });
   it("porta ogni intervento Bagni al suo preventivatore col modello scelto", () => {

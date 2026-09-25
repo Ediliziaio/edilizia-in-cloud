@@ -363,9 +363,8 @@ export default function ModuleTemplateLibrary({
         <p>
           <strong>Modelli dell&apos;azienda.</strong> Le personalizzazioni si
           salvano online e le vedono tutti i colleghi. Quando crei un preventivo
-          da un intervento, il PDF usa il suo modello. Per ora fanno eccezione
-          Facciate (non ha ancora un preventivatore) e quattro modelli Serramenti
-          (avvolgibili, zanzariere, porte): lì vale il template aziendale, che
+          da un intervento, il PDF usa il suo modello. Fanno eccezione solo le
+          Facciate, che non hanno ancora un preventivatore. Il template aziendale
           resta invariato.
         </p>
       </div>

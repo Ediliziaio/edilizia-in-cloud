@@ -203,8 +203,8 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Preventivo fatto con un modello della libreria (finestre, persiane,
-    // combinato): il modello è congelato nel preventivo (modello_snapshot, forma
+    // Preventivo fatto con un modello della libreria (finestre, persiane, porte,
+    // zanzariere…): il modello è congelato nel preventivo (modello_snapshot, forma
     // garantita dal vincolo sr_quote_model_snapshot_valid). La pagina di firma usa
     // quello al posto del modello generale dell'azienda, così il cliente firma gli
     // stessi testi del PDF A4. Prima qui si rispondeva 409 e la firma era spenta.

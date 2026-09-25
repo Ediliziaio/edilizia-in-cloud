@@ -60,7 +60,7 @@ function Workspace({ companyId, base }: { companyId: string; base: Partial<SrTem
     else { next.delete("modello"); next.delete("section"); }
     setParams(next);
   };
-  const notice = <div className="flex gap-2 rounded-lg border border-sky-200 bg-sky-50 p-3 text-xs leading-relaxed text-sky-950"><Monitor className="h-4 w-4 shrink-0" /><p><strong>Modelli dell'azienda.</strong> Si salvano online e li vedono tutti i colleghi. Finestre, persiane e intervento combinato si usano già quando si crea un preventivo Serramenti; gli altri interventi non sono ancora collegati al preventivatore. Il template aziendale resta invariato.</p></div>;
+  const notice = <div className="flex gap-2 rounded-lg border border-sky-200 bg-sky-50 p-3 text-xs leading-relaxed text-sky-950"><Monitor className="h-4 w-4 shrink-0" /><p><strong>Modelli dell'azienda.</strong> Si salvano online e li vedono tutti i colleghi. Quando crei un preventivo Serramenti con uno di questi interventi, il PDF usa il suo modello; i prodotti restano quelli di tutto il listino, porte e zanzariere comprese. Il template aziendale resta invariato.</p></div>;
   if (selected) return <div className="space-y-4">
     <Button variant="outline" size="sm" onClick={() => open(null)}><ArrowLeft className="mr-2 h-4 w-4" />Tutti i moduli Serramenti</Button>
     {selected === "generale" ? <><p className="rounded-lg border p-3 text-sm">Template generale esistente: il suo salvataggio aggiorna il modello aziendale online.</p>{canEdit && <SerramentiTemplateEditor embedded />}</>
