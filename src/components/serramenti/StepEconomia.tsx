@@ -5,7 +5,7 @@
  *  - Riepilogo BOM (auto-calcolato)
  *  - Sconto / totale documento
  *  - Configurazione finanziamento (anticipo % + piani)
- *  - Detrazione fiscale (50/65%)
+ *  - Detrazione fiscale (50% prima casa / 36% altre abitazioni, da incentivi.ts)
  *  - Calcolo risparmio energetico
  *  - Grafico recupero economico 10 anni
  */
@@ -46,6 +46,7 @@ import {
 import { calcolaTotale, IVA_MISTA_SENTINEL } from "@/lib/serramenti/calcoli";
 import {
   calcolaEcobonus, calcolaCashflow, calcolaPianoFinanziamento,
+  ALIQUOTE_DETRAZIONE_SERRAMENTI, aliquotaDetrazioneSerramenti,
 } from "@/lib/serramenti/ecobonus";
 import {
   calcolaRisparmio, zonaDaCap, bollettaMediaRiscaldamento,
@@ -478,7 +479,7 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
   const formDetrazioneAliquotaKey = String(form.detrazione_aliquota ?? "");
   useEffect(() => {
     setBonusAttivo((form.detrazione_aliquota ?? 50) > 0);
-    setAliquota(form.detrazione_aliquota === 65 ? 65 : 50);
+    setAliquota(aliquotaDetrazioneSerramenti(form.detrazione_aliquota));
   }, [formDetrazioneAliquotaKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const formRisparmioCalcolatoKey = String(form.risparmio_calcolato ?? "");
@@ -509,7 +510,7 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
 
   // ─── Ecobonus ─────────────────────────────────────────────────────────────
   const [bonusAttivo, setBonusAttivo] = useState((form.detrazione_aliquota ?? 50) > 0);
-  const [aliquota, setAliquota] = useState<50 | 65>((form.detrazione_aliquota === 65 ? 65 : 50));
+  const [aliquota, setAliquota] = useState<number>(() => aliquotaDetrazioneSerramenti(form.detrazione_aliquota));
 
   const ecobonusCalc = useMemo(() =>
     bonusAttivo
@@ -1418,7 +1419,7 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
           <div className="flex items-center justify-between border rounded-md p-2.5 bg-muted/20">
             <div>
               <p className="text-sm font-medium">Includi nel preventivo</p>
-              <p className="text-[10px] text-muted-foreground">Aliquota Ecobonus 50% (Bonus Casa) o 65%</p>
+              <p className="text-[10px] text-muted-foreground">Aliquote 2026: 50% sull'abitazione principale, 36% sulle altre</p>
             </div>
             <Switch checked={bonusAttivo} onCheckedChange={setBonusAttivo} />
           </div>
@@ -1427,18 +1428,19 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
               <div className="grid grid-cols-12 gap-2">
                 <div className="col-span-12 md:col-span-4">
                   <Label className="text-xs">Aliquota</Label>
-                  <Select value={String(aliquota)} onValueChange={(v) => setAliquota(Number(v) as 50 | 65)}>
+                  <Select value={String(aliquota)} onValueChange={(v) => setAliquota(Number(v))}>
                     <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="50">50% Bonus Casa</SelectItem>
-                      <SelectItem value="65">65% Ecobonus</SelectItem>
+                      {ALIQUOTE_DETRAZIONE_SERRAMENTI.map((i) => (
+                        <SelectItem key={i.key} value={String(i.pct)} title={i.hint}>{i.label}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
               </div>
               {ecobonusCalc && (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                  <SrKpi label="Base detraibile" value={formatEuro(ecobonusCalc.base_calcolo)} hint="Max 60.000 €" />
+                  <SrKpi label="Base detraibile" value={formatEuro(ecobonusCalc.base_calcolo)} hint="Max 96.000 €" />
                   <SrKpi label="Aliquota" value={formatPct(ecobonusCalc.aliquota)} />
                   <SrKpi label="Detrazione totale" value={formatEuro(ecobonusCalc.detrazione_totale)} variant="success" />
                   <SrKpi label="Rata annuale × 10 anni" value={formatEuro(ecobonusCalc.rata_annuale)} variant="success" />
