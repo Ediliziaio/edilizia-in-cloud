@@ -9,7 +9,7 @@ import { loadTemplateWithBlocks, attachLinkedBlocks, applyMergeTagsToTemplate, b
 import { condizioniStandard, MODULO_RECESSO } from "../_shared/condizioniStandard.ts";
 import { testoPerPdf } from "../_shared/testoPerPdf.ts";
 import { formatoImmagine, leggiLogo, logoDiRiserva } from "../_shared/logoAzienda.ts";
-import { COLORE_ACCENTO_DI_FABBRICA, coloreCopertina, coloreDelBlocco, contattiImpresa } from "../_shared/blocchiModelloPreventivo.ts";
+import { COLORE_ACCENTO_DI_FABBRICA, coloreCopertina, coloreDelBlocco, contattiImpresa, titoliMarkdown } from "../_shared/blocchiModelloPreventivo.ts";
 
 // ─── Helpers ───
 function hexToRgb(hex: string) {
@@ -1841,8 +1841,9 @@ Deno.serve(async (req) => {
     // pagine separate). Il vecchio campo legal_terms_text, se ancora presente,
     // viene stampato di seguito nella stessa sezione.
     const scritteDallAzienda = [
-      t.show_contractual_terms && opzione("pdf_mostra_condizioni") ? normalizeTemplateText(t.contractual_terms_text) : "",
-      t.show_legal_terms && opzione("pdf_mostra_condizioni") ? normalizeTemplateText(t.legal_terms_text) : "",
+      // I titoli HTML restano titoli (e il riquadro dell'art. 1341 li trova): vedi titoliMarkdown.
+      t.show_contractual_terms && opzione("pdf_mostra_condizioni") ? normalizeTemplateText(titoliMarkdown(t.contractual_terms_text)) : "",
+      t.show_legal_terms && opzione("pdf_mostra_condizioni") ? normalizeTemplateText(titoliMarkdown(t.legal_terms_text)) : "",
     ].filter(Boolean).join("\n\n");
     // Nessuna delle venti aziende aveva scritto una riga di condizioni: il
     // preventivo si firmava senza niente su tempi, varianti, garanzie e recesso.

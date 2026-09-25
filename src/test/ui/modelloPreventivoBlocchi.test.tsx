@@ -18,6 +18,7 @@ import {
   coloreCopertina,
   coloreDelBlocco,
   contattiImpresa,
+  titoliMarkdown,
 } from "../../../supabase/functions/_shared/blocchiModelloPreventivo";
 import { resolveQuoteTemplatePreview } from "@/lib/quoteTemplatePreview";
 import { QuoteTemplatePreview } from "@/components/quotes/QuoteTemplatePreview";
@@ -149,6 +150,21 @@ describe("il PDF (generate-quote-pdf)", () => {
     expect(pdf).toContain("const accentoScheda = coloreDelBlocco(product.accent_color, COLORE_ACCENTO_DI_FABBRICA);");
     expect(pdf).toContain("color: fondoSchedaC,");
     expect(pdf).toContain("borderColor: schedaC,");
+  });
+});
+
+describe("le condizioni scritte in HTML tengono i titoli", () => {
+  it("i titoli <h1-4> diventano titoli markdown; il markdown resta com'è", () => {
+    expect(titoliMarkdown("<h2>Garanzie</h2><p>Dieci anni.</p>")).toBe("\n## Garanzie</h2><p>Dieci anni.</p>");
+    expect(titoliMarkdown('<h1 class="titolo">Condizioni</h1>')).toBe("\n# Condizioni</h1>");
+    expect(titoliMarkdown("## Clausole da approvare specificamente (art. 1341 c.c.)")).toBe("## Clausole da approvare specificamente (art. 1341 c.c.)");
+    expect(titoliMarkdown(null)).toBe("");
+  });
+
+  it("il PDF li converte prima di normalizzare, per condizioni e legali (serve anche alla seconda firma)", () => {
+    const pdf = leggi("supabase/functions/generate-quote-pdf/index.ts");
+    expect(pdf).toContain("normalizeTemplateText(titoliMarkdown(t.contractual_terms_text))");
+    expect(pdf).toContain("normalizeTemplateText(titoliMarkdown(t.legal_terms_text))");
   });
 });
 

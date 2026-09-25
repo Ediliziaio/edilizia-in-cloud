@@ -44,6 +44,17 @@ export function coloreCopertina(
     ?? COLORE_PRIMARIO_DI_FABBRICA;
 }
 
+/**
+ * I titoli <h1-4> dell'editor diventano titoli markdown («## …»), da fare prima
+ * di togliere i tag. Le condizioni si normalizzavano prima di arrivare al
+ * disegno: scritte in HTML perdevano i titoli e, col titolo «approvare
+ * specificamente», il riquadro della seconda firma (art. 1341 c.c.). Oggi le
+ * condizioni salvate sono tutte in markdown: per quelle non cambia niente.
+ */
+export function titoliMarkdown(testo: unknown): string {
+  return String(testo ?? "").replace(/<h([1-4])[^>]*>/gi, (_tag, livello: string) => `\n${"#".repeat(Number(livello))} `);
+}
+
 /** Mail e telefono dell'impresa stampati nel preventivo: quelli scritti nel modello, se ci sono. */
 export function contattiImpresa(
   modello: { email_impresa?: unknown; telefono_impresa?: unknown } | null | undefined,
