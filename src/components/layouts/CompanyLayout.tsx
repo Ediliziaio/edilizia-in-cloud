@@ -393,8 +393,9 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
     if (label in openGroups) return openGroups[label];
     return true; // default open
   };
-  const { state } = useSidebar();
-  const collapsed = state === "collapsed";
+  const { state, isMobile: sidebarAPannello } = useSidebar();
+  // Nel pannello a scomparsa (tablet) le voci sono sempre per esteso.
+  const collapsed = state === "collapsed" && !sidebarAPannello;
 
   const isActive = (url: string) => {
     if (url === "/azienda") return pathname === "/azienda";
@@ -1262,8 +1263,8 @@ const CompanySidebar = memo(function CompanySidebar() {
     return () => window.clearTimeout(timer);
   }, [gatingLoading]);
 
-  const { state: sidebarState, toggleSidebar } = useSidebar();
-  const isCollapsed = sidebarState === "collapsed";
+  const { state: sidebarState, toggleSidebar, isMobile: sidebarAPannello } = useSidebar();
+  const isCollapsed = sidebarState === "collapsed" && !sidebarAPannello;
   const showMenuSkeleton = gatingLoading && !menuLoadingFallback;
 
   // Su mobile la navigazione è gestita dalla bottom nav + App Grid — niente sidebar
@@ -1455,8 +1456,8 @@ const CompanySidebar = memo(function CompanySidebar() {
                         type="button"
                         onClick={toggleSidebar}
                         className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-sidebar-accent hover:text-foreground transition-colors"
-                        aria-label="Comprimi menu a icone"
-                        title="Comprimi a icone"
+                        aria-label={sidebarAPannello ? "Chiudi menu" : "Comprimi menu a icone"}
+                        title={sidebarAPannello ? "Chiudi menu" : "Comprimi a icone"}
                       >
                         <PanelLeftClose className="h-4 w-4" />
                       </button>
@@ -1745,7 +1746,9 @@ export function CompanyLayout() {
   
   return (
     <>
-    <SidebarProvider>
+    {/* Sotto i 1024px (tablet in verticale) la barra fissa da 240px lasciava
+        alle pagine 480px su 768: diventa un pannello che si apre dal ☰. */}
+    <SidebarProvider pannelloSotto={1024}>
       <div className={`md:min-h-screen flex w-full ${altezzaBloccata ? "md:h-dvh" : "md:h-auto"} h-[calc(100dvh-env(safe-area-inset-top))] overflow-hidden`}>
         <CompanySidebar />
         {/* NIENTE pt-safe qui: il top safe-area è già riservato UNA volta dal
@@ -1880,8 +1883,10 @@ export function CompanyLayout() {
                 <NotificationsBellPopover />
               </>
             )}
+            {/* Da 768px: tra 640 e 767 la testata è quella del telefono, dove
+                il bottone verde da 150px spingeva fuori le icone. */}
             {showSupport && (
-              <Button variant="outline" size="sm" className="relative hidden sm:flex bg-emerald-500 hover:bg-emerald-600 text-white border-emerald-500 hover:border-emerald-600 shadow-md hover:shadow-lg transition-shadow" onClick={() => setChannelDialogOpen(true)}>
+              <Button variant="outline" size="sm" className="relative hidden md:flex bg-emerald-500 hover:bg-emerald-600 text-white border-emerald-500 hover:border-emerald-600 shadow-md hover:shadow-lg transition-shadow" onClick={() => setChannelDialogOpen(true)}>
                 <HeadphonesIcon className="h-4 w-4 sm:mr-2" />
                 <span className="hidden sm:inline">Assistenza</span>
                 {unreadCount > 0 && (
