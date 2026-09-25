@@ -72,12 +72,15 @@ export function useQuoteTemplates() {
   const deleteTemplate = useMutation({
     mutationFn: async (id: string) => {
       if (!companyId) throw new Error('Azienda non disponibile');
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('quote_templates')
         .update({ is_active: false })
         .eq('id', id)
-        .eq('company_id', companyId);
+        .eq('company_id', companyId)
+        .select('id');
       if (error) throw error;
+      // Una UPDATE che la RLS filtra non dà errore: senza righe non si è tolto nulla.
+      if (!data || data.length === 0) throw new Error('I modelli li cambia chi può modificare il listino');
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.quoteTemplates.all }),
   });

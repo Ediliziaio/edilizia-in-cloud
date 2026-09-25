@@ -107,9 +107,9 @@ function MarginiPdfTab({
 }: {
   companyId: string;
   categorie: Categoria[];
-  /** Il margine per categoria sta nel listino: lo cambia chi può modificare il
-   *  listino. Per gli altri il database non aggiorna nulla e non dà errore
-   *  (dal 26/09/2026): il campo resta in sola lettura, niente falso «aggiornato». */
+  /** Margini, PDF, numerazione e margine per categoria li cambia chi può
+   *  modificare il listino: è la regola del database dal 26/09/2026. Per gli
+   *  altri la scheda resta in sola lettura (niente falso «aggiornato»). */
   puoModificareListino: boolean;
 }) {
   const queryClient = useQueryClient();
@@ -221,15 +221,17 @@ function MarginiPdfTab({
   }, []);
 
   const triggerAutoSave = useCallback(() => {
+    if (!puoModificareListino) return;
     setDirty(true);
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       // buildPayload reads from stateRef which is always up-to-date
       saveMutation.mutate(buildPayload());
     }, 600);
-  }, [buildPayload, saveMutation]);
+  }, [buildPayload, saveMutation, puoModificareListino]);
 
   const handleManualSave = () => {
+    if (!puoModificareListino) return;
     clearTimeout(debounceRef.current);
     saveMutation.mutate(buildPayload());
   };
@@ -246,6 +248,15 @@ function MarginiPdfTab({
           <AlertDescription>Errore nel caricamento. Ricarica la pagina.</AlertDescription>
         </Alert>
       )}
+      {!puoModificareListino && (
+        <Alert>
+          <AlertDescription>
+            Stai consultando le impostazioni: le cambia chi ha il permesso «Listino &amp; Prezzi» in modifica.
+          </AlertDescription>
+        </Alert>
+      )}
+      {/* disabled su un fieldset spegne ogni campo e pulsante che contiene. */}
+      <fieldset disabled={!puoModificareListino} className="m-0 min-w-0 space-y-6 border-0 p-0">
       <div className="flex justify-end">
         <Button
           size="sm"
@@ -433,6 +444,7 @@ function MarginiPdfTab({
           </CardContent>
         </Card>
       )}
+      </fieldset>
     </div>
   );
 }

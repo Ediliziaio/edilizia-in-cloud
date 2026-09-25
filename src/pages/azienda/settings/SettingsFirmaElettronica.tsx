@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { FEABannerEsVsFea } from "@/components/fea/FEABannerEsVsFea";
 import { useBeforeUnload } from "@/hooks/useBeforeUnload";
+import { usePermissions } from "@/hooks/usePermissions";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -36,6 +37,9 @@ export default function SettingsFirmaElettronica() {
   const queryClient = useQueryClient();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
+  // La firma dei preventivi e il testo del recesso li cambia chi ha le
+  // integrazioni in modifica: è la regola del database dal 26/09/2026.
+  const puoModificare = usePermissions().canEditSettingsIntegrations;
 
   const [firmaPreventivi, setFirmaPreventivi] = useState(true);
   const [testoRecessoB2c, setTestoRecessoB2c] = useState(DEFAULT_RECESSO_B2C);
@@ -278,7 +282,7 @@ export default function SettingsFirmaElettronica() {
               <Switch
                 id="firma-preventivi"
                 checked={firmaPreventivi}
-                disabled={isLoading}
+                disabled={isLoading || !puoModificare}
                 onCheckedChange={setFirmaPreventivi}
               />
             </div>
@@ -325,7 +329,7 @@ export default function SettingsFirmaElettronica() {
             value={testoRecessoB2c}
             onChange={(event) => setTestoRecessoB2c(event.target.value)}
             rows={5}
-            disabled={isLoading}
+            disabled={isLoading || !puoModificare}
             placeholder={DEFAULT_RECESSO_B2C}
           />
           <p className="text-xs text-muted-foreground">
@@ -336,16 +340,22 @@ export default function SettingsFirmaElettronica() {
 
       <FEABannerEsVsFea dismissible={false} />
 
-      <div className="sticky bottom-4 z-10 flex justify-end">
-        <Button
-          className="gap-2 shadow-lg"
-          onClick={() => saveMutation.mutate()}
-          disabled={isLoading || saveMutation.isPending || !isDirty}
-        >
-          <Save className="h-4 w-4" />
-          {saveMutation.isPending ? "Salvataggio..." : isDirty ? "Salva impostazioni" : "Impostazioni salvate"}
-        </Button>
-      </div>
+      {puoModificare ? (
+        <div className="sticky bottom-4 z-10 flex justify-end">
+          <Button
+            className="gap-2 shadow-lg"
+            onClick={() => saveMutation.mutate()}
+            disabled={isLoading || saveMutation.isPending || !isDirty}
+          >
+            <Save className="h-4 w-4" />
+            {saveMutation.isPending ? "Salvataggio..." : isDirty ? "Salva impostazioni" : "Impostazioni salvate"}
+          </Button>
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          Queste impostazioni le cambia chi ha il permesso «Integrazioni» in modifica.
+        </p>
+      )}
     </div>
   );
 }
