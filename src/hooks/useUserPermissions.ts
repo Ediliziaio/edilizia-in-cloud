@@ -1,87 +1,39 @@
 /**
- * Hook che risolve i permessi granulari dell'utente corrente.
+ * Permessi su costi e margini dell'utente corrente, dai permessi veri
+ * dell'app (usePermissions → staff_permissions).
  *
- * Ordine di risoluzione (identico alla function DB `has_cost_permission`):
- *   1. override esplicito in `user_permissions` (granted: bool)
- *   2. default role-based: i ruoli `super_admin` / `company_admin` hanno
- *      TUTTI i permessi cost/margin/variant abilitati
- *   3. altri ruoli → false
+ * Prima (fino al 25/09/2026) si leggevano da un secondo sistema: la tabella
+ * `user_permissions` più il ruolo grezzo, come la funzione DB
+ * `has_cost_permission`. La tabella era vuota e nessuna policy usava la
+ * funzione: lo staff con «Visualizza Margini» o «Costi» vedeva il link ai
+ * margini del preventivo e trovava «Accesso riservato» (12 persone su 12), e
+ * l'amministratore di un'azienda solo via accesso multi-azienda non era
+ * riconosciuto. I dati della pagina li protegge la RLS di quotes, quote_items
+ * e tariffe_aziendali.
  *
  * Usato da:
- *   · QuoteBuilder.tsx per mostrare/nascondere la badge "Margini & Pianificazione"
- *   · QuoteMargini.tsx come route guard
- *   · TariffaVariantiEditor per disabilitare CUD
+ *   · QuoteMargini.tsx come guardia della pagina
+ *   · useMargineBreakdown.ts per non caricare il calcolo a chi non lo vede
+ *   · SettingsTariffe.tsx per la sezione costi
  */
-import { useQuery } from "@tanstack/react-query";
-import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { usePermissions } from "@/hooks/usePermissions";
 import type { UserPermissions, PermissionKey } from "@/types/costVariants";
 
-const PERMISSION_KEYS: PermissionKey[] = [
-  "can_view_costs",
-  "can_view_margins",
-  "can_choose_variant",
-  "can_view_assegnazioni",
-  "can_edit_assegnazioni",
-];
-
-const ALL_FALSE: UserPermissions = {
-  can_view_costs: false,
-  can_view_margins: false,
-  can_choose_variant: false,
-  can_view_assegnazioni: false,
-  can_edit_assegnazioni: false,
-};
-
-const ALL_TRUE: UserPermissions = {
-  can_view_costs: true,
-  can_view_margins: true,
-  can_choose_variant: true,
-  can_view_assegnazioni: true,
-  can_edit_assegnazioni: true,
-};
-
-interface UserPermissionRow {
-  permission: string;
-  granted: boolean;
-}
-
-export function useUserPermissions() {
-  const { user, role } = useAuth();
-
-  return useQuery<UserPermissions>({
-    queryKey: ["user-permissions", user?.id, role],
-    enabled: !!user,
-    queryFn: async () => {
-      const isAdmin = role === "company_admin" || role === "super_admin";
-      const base: UserPermissions = isAdmin ? { ...ALL_TRUE } : { ...ALL_FALSE };
-
-      // Override da user_permissions (se presenti). I non-admin potrebbero
-      // avere granted=true per specifici permessi (es. commerciale senior
-      // a cui è stato assegnato can_view_margins eccezionalmente).
-      const { data, error } = await supabase
-        .from("user_permissions")
-        .select("permission, granted")
-        .eq("user_id", user!.id);
-
-      if (error) {
-        // Se l'utente non ha ancora la tabella nel set di permission reader
-        // (es. salesperson puro) restituiamo il default role-based senza crash.
-        return base;
-      }
-
-      for (const row of (data ?? []) as UserPermissionRow[]) {
-        if ((PERMISSION_KEYS as string[]).includes(row.permission)) {
-          base[row.permission as PermissionKey] = row.granted;
-        }
-      }
-      return base;
-    },
-    staleTime: 5 * 60 * 1000,
-  });
+export function useUserPermissions(): { data: UserPermissions; isLoading: boolean } {
+  const p = usePermissions();
+  const data: UserPermissions = {
+    can_view_costs: p.isAdmin || p.canViewCosts,
+    can_view_margins: p.isAdmin || p.canViewMargins,
+    // Scegliere le varianti di costo e gestire le assegnazioni delle tariffe è
+    // configurazione del listino.
+    can_choose_variant: p.isAdmin || p.canEditSettingsPricing,
+    can_view_assegnazioni: p.isAdmin || p.canViewSettingsPricing,
+    can_edit_assegnazioni: p.isAdmin || p.canEditSettingsPricing,
+  };
+  return { data, isLoading: p.isLoading };
 }
 
 export function useHasPermission(permission: PermissionKey): boolean {
   const { data } = useUserPermissions();
-  return data?.[permission] ?? false;
+  return data[permission];
 }

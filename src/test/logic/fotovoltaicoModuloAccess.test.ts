@@ -19,8 +19,9 @@ describe("la pagina del Fotovoltaico decide solo col piano", () => {
   const rotte = leggi("src/routes/companyRoutes.tsx");
 
   it("l'accesso lo decide la rotta, con la funzione di piano", () => {
+    // Permesso del ruolo, come gli altri moduli di vendita, e funzione di piano.
     expect(rotte).toMatch(
-      /path="marketing\/fotovoltaico" element=\{\s*<FeatureRoute featureKey="modulo_fotovoltaico_attivo">/,
+      /path="marketing\/fotovoltaico" element=\{\s*withCompanyPermission\(\s*"canViewMarketingOpportunities",\s*<FeatureRoute featureKey="modulo_fotovoltaico_attivo">/,
     );
   });
 

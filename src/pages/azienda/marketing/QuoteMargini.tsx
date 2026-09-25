@@ -140,7 +140,8 @@ export default function QuoteMargini() {
   const navigate = useNavigate();
 
   const { data: perms, isLoading: permsLoading } = useUserPermissions();
-  const canView = perms?.can_view_margins ?? false;
+  // Come il link che porta qui (QuoteBuilder): margini oppure costi.
+  const canView = perms.can_view_margins || perms.can_view_costs;
 
   const { data: quote } = useQuery({
     queryKey: ["quote-header", id],
@@ -185,7 +186,7 @@ export default function QuoteMargini() {
             <AlertTriangle className="h-10 w-10 mx-auto text-amber-500" />
             <h2 className="text-lg font-semibold">Accesso riservato</h2>
             <p className="text-sm text-muted-foreground">
-              Questa vista è disponibile solo ai ruoli amministrativi (company_admin, super_admin).
+              Per vedere i margini del preventivo serve il permesso «Visualizza Margini» o «Costi»: chiedilo all'amministratore.
             </p>
             <Button onClick={() => navigate(`/azienda/marketing/preventivi/${id}`)}>
               Torna al preventivo

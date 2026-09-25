@@ -65,7 +65,7 @@ const GESTIONE_ITEMS: BottomNavItem[] = [
   { label: "Commesse", icon: ClipboardList, href: "/azienda/ordini", permissionKey: "canViewOrders" },
   // Email prima di Magazzino (richiesta utente 2026-06): la posta è l'azione
   // mobile più frequente; il Magazzino resta raggiungibile dall'App grid.
-  { label: "Email", icon: Mail, href: "/azienda/email" },
+  { label: "Email", icon: Mail, href: "/azienda/email", permissionKey: "canViewMarketingEmail" },
   { label: "Magazzino", icon: Package, href: "/azienda/magazzino", permissionKey: "canViewWarehouse" },
   { label: "Finanza", icon: Euro, href: "/azienda/documenti", permissionKey: "canViewBilling" },
   // Niente doppione "Cantieri": puntava allo STESSO url di "Commesse" e la
@@ -263,13 +263,16 @@ export function MobileBottomNav() {
 
   // Home link: per la sezione gestione punta ad ATTIVITÀ (richiesta utente 2026-06:
   // "quando apro l'app deve finire in attività") — coerente col logo header.
+  // La dashboard marketing vuole il suo permesso: senza (tipico del call
+  // center) la Home porta ad Attività invece che a una pagina negata.
+  const homeMarketing = permissions.isAdmin || permissions.canViewMarketingDashboard;
   const homeHref = section === "marketing"
-    ? "/azienda/marketing"
+    ? (homeMarketing ? "/azienda/marketing" : "/azienda/attivita")
     : section === "cruscotto"
       ? (permissions.isLoading ? "/azienda/cruscotto" : getSmartCruscottoPath(permissions, role))
       : "/azienda/attivita";
 
-  const isHomeActive = section === "marketing"
+  const isHomeActive = section === "marketing" && homeMarketing
     ? location.pathname === "/azienda/marketing" || location.pathname === "/azienda/marketing/"
     : section === "cruscotto"
       ? location.pathname.startsWith("/azienda/cruscotto")

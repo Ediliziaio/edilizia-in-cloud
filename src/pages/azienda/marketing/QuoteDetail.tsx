@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -46,6 +47,12 @@ export default function QuoteDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
+  // Creare o aprire la commessa è la parte Cantieri: chi lavora solo in
+  // Marketing & Vendita (il venditore, di serie) non vede questi pulsanti,
+  // che lo porterebbero su pagine negate (25/09/2026).
+  const permessi = usePermissions();
+  const puoCreareCommessa = permessi.isAdmin || permessi.canEditOrders;
+  const puoVedereCommessa = permessi.isAdmin || permessi.canViewOrders;
   const queryClient = useQueryClient();
   const [generating, setGenerating] = useState(false);
   const [sendDialogOpen, setSendDialogOpen] = useState(false);
@@ -384,7 +391,7 @@ export default function QuoteDetail() {
               </button>
             )}
 
-            {quote.status === "accettata" && !rigaDiModulo && (
+            {quote.status === "accettata" && !rigaDiModulo && puoCreareCommessa && (
               <button
                 type="button"
                 onClick={handleConvertToCantiere}
@@ -398,7 +405,7 @@ export default function QuoteDetail() {
               </button>
             )}
 
-            {quote.status === "accettata" && !rigaDiModulo && (
+            {quote.status === "accettata" && !rigaDiModulo && puoCreareCommessa && (
               <Button
                 variant="outline"
                 onClick={() => navigate(`/azienda/ordini/nuovo?quote_id=${id}`)}
@@ -411,7 +418,7 @@ export default function QuoteDetail() {
             )}
 
             {/* Back-link: commessa già generata da questo preventivo (qualsiasi stato) */}
-            {linkedOrder && (
+            {linkedOrder && puoVedereCommessa && (
               <Button
                 variant="outline"
                 onClick={() => navigate(`/azienda/ordini/${linkedOrder.id}`)}

@@ -7,6 +7,7 @@ import { Route, Navigate, useLocation, useParams } from "react-router-dom";
 // meta' file, altrimenti la regola no-use-before-define (che tiene lontani i
 // "Cannot access before initialization" nei componenti) segnala un falso positivo.
 import { COMPANY_ROLES, withCompanyPermission } from "./company/_shared";
+import { canAccessMediaLibrary } from "@/lib/mediaLibrary";
 import { useAuth, COMPANY_CHOSEN_KEY } from "@/contexts/AuthContext";
 
 /** Redirect /azienda/interventi/:id → /azienda/assistenza/:id (unificazione) */
@@ -591,11 +592,14 @@ export default function CompanyRoutesContainer() {
         <Route path="upgrade" element={isIOSNativePlatform ? <IosBillingBlocked /> : <UpgradePage />} />
         {/* v8.6.63 — Showcase Feature Preview Mode (per QA / demo commerciale) */}
         <Route path="preview-demo" element={<DemoPreviewShowcase />} />
-        {/* Dashboard Builder v1 — custom dashboards (gated: dashboard_builder_v1) */}
-        <Route path="dashboards" element={<FeatureRoute featureKey="dashboard_builder_v1"><ErrorBoundary title="Errore dashboards"><DashboardsList /></ErrorBoundary></FeatureRoute>} />
-        <Route path="dashboards/nuova" element={<FeatureRoute featureKey="dashboard_builder_v1"><ErrorBoundary title="Errore builder"><DashboardBuilder /></ErrorBoundary></FeatureRoute>} />
-        <Route path="dashboards/:id" element={<FeatureRoute featureKey="dashboard_builder_v1"><ErrorBoundary title="Errore dashboard"><DashboardView /></ErrorBoundary></FeatureRoute>} />
-        <Route path="dashboards/:id/modifica" element={<FeatureRoute featureKey="dashboard_builder_v1"><ErrorBoundary title="Errore builder"><DashboardBuilder /></ErrorBoundary></FeatureRoute>} />
+        {/* Dashboard Builder v1 — custom dashboards (gated: dashboard_builder_v1).
+            Sono il Cruscotto: stesso permesso di /cruscotto/gestisci. Prima
+            bastava il flag, acceso di serie, e chiunque metteva in un widget
+            cassa, fatturato e crediti scaduti (25/09/2026). */}
+        <Route path="dashboards" element={withCompanyPermission("canViewCruscotto", <FeatureRoute featureKey="dashboard_builder_v1"><ErrorBoundary title="Errore dashboards"><DashboardsList /></ErrorBoundary></FeatureRoute>)} />
+        <Route path="dashboards/nuova" element={withCompanyPermission("canViewCruscotto", <FeatureRoute featureKey="dashboard_builder_v1"><ErrorBoundary title="Errore builder"><DashboardBuilder /></ErrorBoundary></FeatureRoute>)} />
+        <Route path="dashboards/:id" element={withCompanyPermission("canViewCruscotto", <FeatureRoute featureKey="dashboard_builder_v1"><ErrorBoundary title="Errore dashboard"><DashboardView /></ErrorBoundary></FeatureRoute>)} />
+        <Route path="dashboards/:id/modifica" element={withCompanyPermission("canViewCruscotto", <FeatureRoute featureKey="dashboard_builder_v1"><ErrorBoundary title="Errore builder"><DashboardBuilder /></ErrorBoundary></FeatureRoute>)} />
         <Route path="commesse" element={<Navigate to="/azienda/ordini" replace />} />
         <Route path="commesse/:id" element={<LegacyCommessaRedirect />} />
         <Route path="commesse/:id/diario" element={<LegacyCommessaDiaryRedirect />} />
@@ -645,9 +649,17 @@ export default function CompanyRoutesContainer() {
         <Route path="cedolini-personali" element={<Navigate to="/azienda/attivita?tab=cedolini" replace />} />
         <Route path="errori" element={<Navigate to="/azienda/ordini?tab=anomalie" replace />} />
         {/* MP-CLEANUP: rotta messaggistica-beta rimossa — dominio eliminato. */}
-        <Route path="chat" element={withCompanyPermission("canViewPersone", <ChatHub />)} />
-        <Route path="silvio-ai" element={withCompanyPermission("canViewPersone", <SilvioAIPage />)} />
-        <Route path="contenuti-multimediali" element={withCompanyPermission("canViewMarketing", <ContenutiMultimediali />)} />
+        {/* Chat e Silvio sono di tutto lo staff (25/09/2026). Chiedevano
+            «Personale»: 86 persone su 91 trovavano «Accesso negato» dal pulsante
+            della chat in testata su mobile, da quello centrale di Silvio e da
+            «espandi» della chat di Silvio, che vive nella chat interna. Cosa
+            legge Silvio lo decidono i permessi dei suoi strumenti. */}
+        <Route path="chat" element={<ChatHub />} />
+        <Route path="silvio-ai" element={<SilvioAIPage />} />
+        {/* EiC Drive: la stessa regola del menu e della pagina (canAccessMediaLibrary,
+            che mette in OR i permessi delle aree che hanno file). Prima la rotta
+            chiedeva il marketing: 20 persone vedevano la voce e trovavano «Accesso negato». */}
+        <Route path="contenuti-multimediali" element={withCompanyPermission("canViewMarketing", <ContenutiMultimediali />, canAccessMediaLibrary)} />
         {/* MP-AIE-03: Azioni proposte AI (yellow/red da Silvio + 18 personas).
             2026-05-27 (audit role-based): gated dietro canViewMarketing — le
             proposte mostrano CRM/lead/preventivi quindi commerciale/admin sì,
@@ -885,32 +897,50 @@ export default function CompanyRoutesContainer() {
         <Route path="sms-marketing/template" element={<Navigate to="/azienda/sms?tab=template" replace />} />
         <Route path="marketing/analisi-preventivi" element={<Navigate to="/azienda/marketing/preventivi?tab=analisi" replace />} />
         <Route path="marketing/sales-os" element={withCompanyPermission("canViewSalesOs", <FeatureRoute featureKey="sales_os"><SalesOSDashboard /></FeatureRoute>)} />
-        {/* Modulo Fotovoltaico — gated da feature flag modulo_fotovoltaico_attivo */}
+        {/* Modulo Fotovoltaico — permesso del ruolo, come gli altri moduli di
+            vendita (prima solo il flag: elenco e dettaglio dei preventivi FV,
+            con clienti e importi, erano aperti a tutto lo staff), più la
+            funzione di piano modulo_fotovoltaico_attivo. */}
         <Route path="marketing/fotovoltaico" element={
-          <FeatureRoute featureKey="modulo_fotovoltaico_attivo">
-            <ErrorBoundary title="Errore modulo Fotovoltaico"><FotovoltaicoIndex /></ErrorBoundary>
-          </FeatureRoute>
+          withCompanyPermission(
+            "canViewMarketingOpportunities",
+            <FeatureRoute featureKey="modulo_fotovoltaico_attivo">
+              <ErrorBoundary title="Errore modulo Fotovoltaico"><FotovoltaicoIndex /></ErrorBoundary>
+            </FeatureRoute>,
+          )
         } />
         <Route path="marketing/fotovoltaico/nuovo" element={
-          <FeatureRoute featureKey="modulo_fotovoltaico_attivo">
-            <ErrorBoundary title="Errore wizard Fotovoltaico"><FotovoltaicoWizard /></ErrorBoundary>
-          </FeatureRoute>
+          withCompanyPermission(
+            "canEditMarketingOpportunities",
+            <FeatureRoute featureKey="modulo_fotovoltaico_attivo">
+              <ErrorBoundary title="Errore wizard Fotovoltaico"><FotovoltaicoWizard /></ErrorBoundary>
+            </FeatureRoute>,
+          )
         } />
         {/* /componenti PRIMA di /:id per non essere catturata dal match dinamico */}
         <Route path="marketing/fotovoltaico/componenti" element={
-          <FeatureRoute featureKey="modulo_fotovoltaico_attivo">
-            <ErrorBoundary title="Errore Componenti FV"><ComponentiFv /></ErrorBoundary>
-          </FeatureRoute>
+          withCompanyPermission(
+            "canViewMarketingOpportunities",
+            <FeatureRoute featureKey="modulo_fotovoltaico_attivo">
+              <ErrorBoundary title="Errore Componenti FV"><ComponentiFv /></ErrorBoundary>
+            </FeatureRoute>,
+          )
         } />
         <Route path="marketing/fotovoltaico/:id" element={
-          <FeatureRoute featureKey="modulo_fotovoltaico_attivo">
-            <ErrorBoundary title="Errore dettaglio Fotovoltaico"><FotovoltaicoDettaglio /></ErrorBoundary>
-          </FeatureRoute>
+          withCompanyPermission(
+            "canViewMarketingOpportunities",
+            <FeatureRoute featureKey="modulo_fotovoltaico_attivo">
+              <ErrorBoundary title="Errore dettaglio Fotovoltaico"><FotovoltaicoDettaglio /></ErrorBoundary>
+            </FeatureRoute>,
+          )
         } />
         <Route path="marketing/fotovoltaico/:id/modifica" element={
-          <FeatureRoute featureKey="modulo_fotovoltaico_attivo">
-            <ErrorBoundary title="Errore wizard Fotovoltaico"><FotovoltaicoWizard /></ErrorBoundary>
-          </FeatureRoute>
+          withCompanyPermission(
+            "canEditMarketingOpportunities",
+            <FeatureRoute featureKey="modulo_fotovoltaico_attivo">
+              <ErrorBoundary title="Errore wizard Fotovoltaico"><FotovoltaicoWizard /></ErrorBoundary>
+            </FeatureRoute>,
+          )
         } />
         {/* Moduli di vendita: permesso del ruolo + modulo nel piano (FeatureRoute),
             come il Fotovoltaico. Senza il modulo nel piano si vede l'anteprima. */}
@@ -1144,7 +1174,8 @@ export default function CompanyRoutesContainer() {
             Redirect per non rompere vecchi link/segnalibri. */}
         <Route path="marketing/firma-elettronica" element={<Navigate to="/azienda/firma-elettronica" replace />} />
         {/* Sprint B — Varianti Costo Manodopera: vista admin-only gated da can_view_margins */}
-        <Route path="marketing/preventivi/:id/margini" element={withCompanyPermission("canViewCosts", <FeatureRoute featureKey="preventivi_crm"><QuoteMargini /></FeatureRoute>)} />
+        {/* Margini del preventivo: margini oppure costi, come il link nel preventivo. */}
+        <Route path="marketing/preventivi/:id/margini" element={withCompanyPermission("canViewCosts", <FeatureRoute featureKey="preventivi_crm"><QuoteMargini /></FeatureRoute>, (p) => p.isAdmin || p.canViewMargins || p.canViewCosts)} />
         
         <Route path="impostazioni" element={<SettingsLayout />}>
           {/* v8.6.70 — Mobile: hub griglia icone; Desktop: redirect a mio-profilo */}
@@ -1261,7 +1292,7 @@ export default function CompanyRoutesContainer() {
           <Route path="ai-test-lab" element={<AITestLab />} />
           <Route path="firma-elettronica" element={withCompanyPermission("canViewSettingsIntegrations", <SettingsFirmaElettronica />)} />
           {/* v8.6.71 — Sopralluoghi spostato qui dentro SettingsLayout */}
-          <Route path="sopralluoghi" element={<SettingsSopralluoghi />} />
+          <Route path="sopralluoghi" element={withCompanyPermission("canViewSettingsCustomization", <SettingsSopralluoghi />)} />
           {/* v8.6.57 — Unico endpoint con tab interni (provider esterni + nativa).
               Il legacy path /fatturazione-nativa redirige a /fatturazione?tab=nativa
               per backward-compat (link diretti, bookmark utenti). */}
@@ -1273,7 +1304,9 @@ export default function CompanyRoutesContainer() {
             element={
               isIOSNativePlatform
                 ? <IosBillingBlocked />
-                : withCompanyPermission("canViewBilling", <SettingsSubscriptionBilling />)
+                // L'abbonamento a EiC lo gestisce l'amministratore, come il menu
+                // (visibile solo a lui) e il portale Stripe (customer-portal).
+                : withCompanyPermission("canViewBilling", <SettingsSubscriptionBilling />, (p) => p.isAdmin)
             }
           />
           <Route path="form-builder" element={withCompanyPermission("canViewSettingsCustomization", <SettingsFormBuilder />)} />

@@ -16,9 +16,13 @@ export type CompanyPermissionKey = Exclude<keyof Permissions, NonPermissionKeys>
 interface RequireCompanyPermissionProps {
   permission: CompanyPermissionKey;
   children: ReactNode;
+  /** Regola composta, quando la pagina non dipende da una chiave sola (es.
+   *  EiC Drive: canAccessMediaLibrary). Se c'è decide lei; `permission` resta
+   *  il nome che compare nei log. */
+  consenti?: (permissions: Permissions) => boolean;
 }
 
-export function RequireCompanyPermission({ permission, children }: RequireCompanyPermissionProps) {
+export function RequireCompanyPermission({ permission, children, consenti }: RequireCompanyPermissionProps) {
   const permissions = usePermissions();
   const { refreshAuth } = useAuth();
   const navigate = useNavigate();
@@ -94,7 +98,7 @@ export function RequireCompanyPermission({ permission, children }: RequireCompan
     );
   }
 
-  if (!permissions[permission]) {
+  if (!(consenti ? consenti(permissions) : permissions[permission])) {
     return (
       <div className="flex min-h-[420px] items-center justify-center p-6">
         <Card className="max-w-md">

@@ -102,6 +102,7 @@ import { ArticoliCSVImportDialog } from "@/components/warehouse/ArticoliCSVImpor
 import { Calculator } from "lucide-react";
 
 import { STATUS_CONFIG } from "@/types/warehouse";
+import { usePermissions } from "@/hooks/usePermissions";
 import type { WarehouseItem } from "@/types/warehouse";
 import { useWarehouseData } from "@/hooks/useWarehouseData";
 import { useLowStockAlerts } from "@/hooks/useMagazzinoLive";
@@ -200,6 +201,9 @@ const INVENTORY_METRIC_LABELS: Record<WarehouseInventoryMetricKey, string> = {
 
 export default function Warehouse() {
   const navigate = useNavigate();
+  // «Gestisci magazzini» (creare, zone, magazzinieri assegnati) è
+  // dell'amministratore, come la pagina: agli altri portava ad «Accesso riservato».
+  const { isAdmin: gestisceMagazzini } = usePermissions();
   const [searchParams] = useSearchParams();
   const isCommercialistaMode = searchParams.get("commercialistaMode") === "1";
   const {
@@ -730,10 +734,10 @@ export default function Warehouse() {
                     <ArrowLeftRight className="h-4 w-4 sm:mr-2" aria-hidden="true" />
                     <span className="hidden sm:inline">Trasferisci</span>
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => navigate("/azienda/magazzino/gestione")}>
+                  {gestisceMagazzini && <Button variant="outline" size="sm" onClick={() => navigate("/azienda/magazzino/gestione")}>
                     <SettingsIcon className="h-4 w-4 sm:mr-2" aria-hidden="true" />
                     <span className="hidden sm:inline">Gestisci magazzini</span>
-                  </Button>
+                  </Button>}
                 </>
               )}
               <DropdownMenu>

@@ -64,7 +64,9 @@ describe("la copia di firma di un preventivo di modulo", () => {
     const dettaglio = leggi("src/pages/azienda/marketing/QuoteDetail.tsx");
     expect(dettaglio).toContain("const rigaDiModulo = eRigaDiModulo(quote.source);");
     expect(dettaglio).toContain('{quote.status === "bozza" && !rigaDiModulo && (');
-    expect(dettaglio.match(/\{quote\.status === "accettata" && !rigaDiModulo && \(/g) ?? []).toHaveLength(2);
+    // Converti in Cantiere e Crea commessa: niente per le righe di modulo, e
+    // solo per chi può creare commesse (il venditore di serie no, 25/09/2026).
+    expect(dettaglio.match(/\{quote\.status === "accettata" && !rigaDiModulo && puoCreareCommessa && \(/g) ?? []).toHaveLength(2);
     expect(dettaglio).toContain("{!rigaDiModulo && (");
     expect(dettaglio).toContain("Apri il preventivo {moduloDellaRiga.nome}");
   });
