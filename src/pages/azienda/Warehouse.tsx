@@ -109,6 +109,9 @@ import { useWarehouseSections } from "@/hooks/useWarehouseSections";
 import { useWarehouses } from "@/hooks/useWarehouses";
 import { WarehouseTransferPanel } from "@/components/warehouse/WarehouseTransferPanel";
 import type { ViewMode, GroupBy } from "@/hooks/useWarehouseData";
+import { useIsMobile } from "@/hooks/use-mobile";
+
+const VISTE_MOBILE: ViewMode[] = ["list", "purchase_list", "stock"];
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
 import { formatCurrency } from "@/lib/formatters";
@@ -216,7 +219,7 @@ export default function Warehouse() {
     setPage,
     totalPages,
     totalCount,
-    viewMode,
+    viewMode: viewModeScelto,
     setViewMode,
     searchQuery,
     setSearchQuery,
@@ -252,6 +255,12 @@ export default function Warehouse() {
     refetch,
     effectiveCompany,
   } = useWarehouseData();
+  // Mobile: tre viste su undici (commesse, acquisti, inventario). Pipeline,
+  // calendario, lotti, DDT, uscite, valore, scadenze e movimenti sono da
+  // scrivania; un indirizzo diretto a una di queste apre le commesse.
+  const isMobile = useIsMobile();
+  const viewMode: ViewMode =
+    isMobile && !VISTE_MOBILE.includes(viewModeScelto) ? "list" : viewModeScelto;
 
   const { sections } = useWarehouseSections();
   const {
@@ -648,15 +657,41 @@ export default function Warehouse() {
   return (
     <div className="space-y-3 sm:space-y-4 print:space-y-4">
       {/* Header */}
-      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-3 sm:px-6 py-3 sm:py-5 shadow-sm flex flex-col gap-3 sm:gap-4 xl:flex-row xl:items-start xl:justify-between print:hidden">
+      {/* Mobile: senza riquadro né icona; il magazzino si sceglie accanto al
+          titolo, le azioni stanno su una riga (arrivo, uscita, trasferisci).
+          Gestione magazzini ed esportazioni restano al desktop. */}
+      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-3 sm:px-6 py-3 sm:py-5 shadow-sm flex flex-col gap-3 sm:gap-4 xl:flex-row xl:items-start xl:justify-between print:hidden max-sm:gap-2 max-sm:rounded-none max-sm:border-0 max-sm:bg-none max-sm:p-0 max-sm:shadow-none">
         <div className="flex items-start gap-2.5 sm:gap-3 min-w-0">
-          <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white flex items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
+          <div className="hidden sm:flex h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
             <WarehouseIcon className="h-4 w-4 sm:h-5 sm:w-5" />
           </div>
           <div className="min-w-0">
             <h1 className="text-lg sm:text-2xl font-bold text-slate-900 tracking-tight leading-tight">
               Magazzino
             </h1>
+            {/* Mobile: il magazzino si sceglie da una riga piccola sotto il
+                titolo, e solo se ce n'è più di uno (in alto a destra si
+                sovrapponeva alla testata). */}
+            {warehouses.length > 1 && (
+              <Select
+                value={warehouseFilter ?? "__all__"}
+                onValueChange={(value) => setWarehouseFilter(value === "__all__" ? null : value)}
+                disabled={warehousesLoading}
+              >
+                <SelectTrigger
+                  className="tap-compact mt-0.5 h-auto w-auto gap-1 border-0 bg-transparent p-0 text-xs text-slate-500 shadow-none focus:ring-0 sm:hidden"
+                  aria-label="Scegli magazzino"
+                >
+                  <span className="truncate">{activeWarehouse?.name ?? "Tutti i magazzini"}</span>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">Tutti i magazzini</SelectItem>
+                  {warehouses.map((warehouse) => (
+                    <SelectItem key={warehouse.id} value={warehouse.id}>{warehouse.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             <p className="hidden sm:block text-sm text-slate-500 mt-0.5">
               Materiali, acquisti, DDT, lotti e inventario in un'unica vista operativa.
             </p>
@@ -665,10 +700,7 @@ export default function Warehouse() {
 
         <div className="flex w-full flex-col gap-2 xl:w-auto xl:items-end">
           <div className="flex w-full flex-col gap-2 md:flex-row md:flex-wrap md:items-center md:justify-end">
-            <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center md:w-auto">
-              <span className="text-sm font-semibold text-muted-foreground sm:hidden">
-                Magazzino
-              </span>
+            <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center md:w-auto max-sm:hidden">
               <Select
                 value={warehouseFilter ?? "__all__"}
                 onValueChange={(value) => setWarehouseFilter(value === "__all__" ? null : value)}
@@ -693,7 +725,7 @@ export default function Warehouse() {
               </Select>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 max-sm:flex-nowrap">
               {/* Arrivo e uscita merce stanno qui: erano una scheda a parte con
                   titolo e spiegazione, cento pixel prima della tabella. */}
               {isCommercialistaMode ? (
@@ -705,13 +737,13 @@ export default function Warehouse() {
                   <Button
                     size="sm"
                     onClick={apriArrivoMerce}
-                    className="gap-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600"
+                    className="tap-compact gap-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-9 max-sm:flex-1"
                   >
                     <ArrowDownToLine className="h-4 w-4" aria-hidden="true" />
                     <span className="hidden sm:inline">Registra arrivo merce</span>
                     <span className="sm:hidden">Arrivo</span>
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => openStockAction("ship")} className="gap-2">
+                  <Button size="sm" variant="outline" onClick={() => openStockAction("ship")} className="tap-compact gap-2 max-sm:h-9 max-sm:flex-1">
                     <ArrowUpFromLine className="h-4 w-4" aria-hidden="true" />
                     <span className="hidden sm:inline">Uscita merce</span>
                     <span className="sm:hidden">Uscita</span>
@@ -719,18 +751,18 @@ export default function Warehouse() {
                 </>
               )}
               {activeWarehouse?.is_default && (
-                <Badge variant="outline" className="h-9 gap-1 bg-amber-50 px-3 text-amber-700 border-amber-200">
+                <Badge variant="outline" className="h-9 gap-1 bg-amber-50 px-3 text-amber-700 border-amber-200 max-sm:hidden">
                   <Star className="h-3 w-3 fill-amber-500 text-amber-500" aria-hidden="true" />
                   Predefinito
                 </Badge>
               )}
               {!isCommercialistaMode && (
                 <>
-                  <Button variant="outline" size="sm" onClick={() => setTransferOpen(true)}>
+                  <Button variant="outline" size="sm" onClick={() => setTransferOpen(true)} className="tap-compact max-sm:h-9 max-sm:w-9 max-sm:shrink-0 max-sm:p-0" aria-label="Trasferisci tra magazzini">
                     <ArrowLeftRight className="h-4 w-4 sm:mr-2" aria-hidden="true" />
                     <span className="hidden sm:inline">Trasferisci</span>
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => navigate("/azienda/magazzino/gestione")}>
+                  <Button variant="outline" size="sm" onClick={() => navigate("/azienda/magazzino/gestione")} className="max-sm:hidden">
                     <SettingsIcon className="h-4 w-4 sm:mr-2" aria-hidden="true" />
                     <span className="hidden sm:inline">Gestisci magazzini</span>
                   </Button>
@@ -742,6 +774,7 @@ export default function Warehouse() {
                     variant="outline"
                     size="sm"
                     aria-label="Apri menu esportazione magazzino"
+                    className="max-sm:hidden"
                   >
                     <Download className="h-4 w-4 sm:mr-2" />
                     <span className="hidden sm:inline">Esporta</span>
@@ -1009,8 +1042,8 @@ export default function Warehouse() {
           fornitore. Una riga sola: prima erano titolo, spiegazione e bottone
           su tre righe. */}
       {!isCommercialistaMode && lowStockAlerts.length > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-300 bg-amber-50/70 px-3 py-2 print:hidden">
-          <p className="flex items-center gap-2 text-sm text-amber-900">
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-300 bg-amber-50/70 px-3 py-2 print:hidden max-sm:flex-nowrap max-sm:py-1.5">
+          <p className="flex items-center gap-2 text-sm text-amber-900 max-sm:text-[13px]">
             <TrendingDown className="h-4 w-4 shrink-0 text-amber-600" />
             <span>
               <span className="font-medium">
@@ -1021,7 +1054,7 @@ export default function Warehouse() {
           </p>
           <Button
             size="sm"
-            className="h-8 w-fit gap-1.5 bg-amber-600 text-white hover:bg-amber-700"
+            className="tap-compact h-8 w-fit gap-1.5 bg-amber-600 text-white hover:bg-amber-700 max-sm:h-7 max-sm:px-2.5 max-sm:text-xs"
             onClick={() => setReorderOpen(true)}
           >
             <ShoppingCart className="h-3.5 w-3.5" />
@@ -1030,14 +1063,14 @@ export default function Warehouse() {
         </div>
       )}
 
-      <Card className="print:hidden">
+      <Card className="print:hidden max-sm:border-0 max-sm:bg-transparent max-sm:shadow-none">
         {/* Riquadro dei filtri più stretto: erano 24px sopra e 16 tra le righe,
             e la lista cominciava sotto la piega. */}
-        <CardContent className="p-3 sm:p-4">
-          <div className="flex flex-col gap-3">
+        <CardContent className="p-3 sm:p-4 max-sm:p-0">
+          <div className="flex flex-col gap-3 max-sm:gap-2">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <Tabs value={viewMode} onValueChange={handleViewModeChange} className="min-w-0">
-                <TabsList className="flex h-auto w-full max-w-full justify-start gap-1 overflow-x-auto rounded-xl p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <TabsList className="flex h-auto w-full max-w-full justify-start gap-1 overflow-x-auto rounded-xl p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden max-sm:grid max-sm:grid-cols-3">
                   <TabsTrigger value="list" className="shrink-0 gap-1.5 px-2.5" aria-label="Vista lista commesse">
                     <List className="h-4 w-4" />
                     <span className="text-[11px] sm:text-sm">Commesse</span>
@@ -1050,35 +1083,35 @@ export default function Warehouse() {
                     <PackageOpen className="h-4 w-4" />
                     <span className="text-[11px] sm:text-sm">Inventario</span>
                   </TabsTrigger>
-                  <TabsTrigger value="kanban" className="shrink-0 gap-1.5 px-2.5" aria-label="Vista pipeline">
+                  <TabsTrigger value="kanban" className="shrink-0 gap-1.5 px-2.5 max-sm:hidden" aria-label="Vista pipeline">
                     <LayoutGrid className="h-4 w-4" />
                     <span className="text-[11px] sm:text-sm">Pipeline</span>
                   </TabsTrigger>
-                  <TabsTrigger value="calendar" className="shrink-0 gap-1.5 px-2.5" aria-label="Vista calendario">
+                  <TabsTrigger value="calendar" className="shrink-0 gap-1.5 px-2.5 max-sm:hidden" aria-label="Vista calendario">
                     <CalendarIcon className="h-4 w-4" />
                     <span className="text-[11px] sm:text-sm">Calendario</span>
                   </TabsTrigger>
-                  <TabsTrigger value="lotti" className="shrink-0 gap-1.5 px-2.5" aria-label="Vista lotti">
+                  <TabsTrigger value="lotti" className="shrink-0 gap-1.5 px-2.5 max-sm:hidden" aria-label="Vista lotti">
                     <Package className="h-4 w-4" />
                     <span className="text-[11px] sm:text-sm">Lotti</span>
                   </TabsTrigger>
-                  <TabsTrigger value="ddt" className="shrink-0 gap-1.5 px-2.5" aria-label="Vista DDT">
+                  <TabsTrigger value="ddt" className="shrink-0 gap-1.5 px-2.5 max-sm:hidden" aria-label="Vista DDT">
                     <FileText className="h-4 w-4" />
                     <span className="text-[11px] sm:text-sm">DDT</span>
                   </TabsTrigger>
-                  <TabsTrigger value="uscite" className="shrink-0 gap-1.5 px-2.5" aria-label="Vista uscite merce">
+                  <TabsTrigger value="uscite" className="shrink-0 gap-1.5 px-2.5 max-sm:hidden" aria-label="Vista uscite merce">
                     <ArrowUpFromLine className="h-4 w-4" />
                     <span className="text-[11px] sm:text-sm">Uscite</span>
                   </TabsTrigger>
-                  <TabsTrigger value="valuation" className="shrink-0 gap-1.5 px-2.5" aria-label="Vista valorizzazione magazzino">
+                  <TabsTrigger value="valuation" className="shrink-0 gap-1.5 px-2.5 max-sm:hidden" aria-label="Vista valorizzazione magazzino">
                     <Calculator className="h-4 w-4" />
                     <span className="text-[11px] sm:text-sm">Valore</span>
                   </TabsTrigger>
-                  <TabsTrigger value="scadenze" className="shrink-0 gap-1.5 px-2.5" aria-label="Vista scadenze lotti">
+                  <TabsTrigger value="scadenze" className="shrink-0 gap-1.5 px-2.5 max-sm:hidden" aria-label="Vista scadenze lotti">
                     <Clock className="h-4 w-4" />
                     <span className="text-[11px] sm:text-sm">Scadenze</span>
                   </TabsTrigger>
-                  <TabsTrigger value="movements" className="shrink-0 gap-1.5 px-2.5" aria-label="Vista registro movimenti">
+                  <TabsTrigger value="movements" className="shrink-0 gap-1.5 px-2.5 max-sm:hidden" aria-label="Vista registro movimenti">
                     <History className="h-4 w-4" />
                     <span className="text-[11px] sm:text-sm">Movimenti</span>
                   </TabsTrigger>
@@ -1087,7 +1120,7 @@ export default function Warehouse() {
 
               {viewMode === "list" && (
                 <Select value={groupBy} onValueChange={(v) => setGroupBy(v as GroupBy)}>
-                  <SelectTrigger className="w-full sm:w-[180px]">
+                  <SelectTrigger className="w-full sm:w-[180px] max-sm:hidden">
                     <SelectValue placeholder="Raggruppa per" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1104,12 +1137,12 @@ export default function Warehouse() {
                 Da Lavorare, Urgenti, In Ritardo, Questa/Prox. sett. di lavori). Su
                 Inventario sono inerti e occupano spazio inutilmente. */}
             {isOrderView && (
-            <div className="flex gap-2 overflow-x-auto scrollbar-none pb-1 sm:flex-wrap sm:pb-0">
+            <div className="flex gap-2 overflow-x-auto scrollbar-none pb-1 sm:flex-wrap sm:pb-0 max-sm:gap-1.5 max-sm:pb-0 [&>button]:max-sm:h-8 [&>button]:max-sm:rounded-full [&>button]:max-sm:px-3 [&>button]:max-sm:text-xs">
               <Button
                 variant={quickFilter === "all" ? "default" : "outline"}
                 size="sm"
                 onClick={() => setQuickFilter("all")}
-                className="shrink-0"
+                className="tap-compact shrink-0"
               >
                 Tutti
               </Button>
@@ -1117,7 +1150,7 @@ export default function Warehouse() {
                 variant={quickFilter === "active" ? "secondary" : "outline"}
                 size="sm"
                 onClick={() => setQuickFilter("active")}
-                className="gap-1 shrink-0"
+                className="tap-compact gap-1 shrink-0"
               >
                 <WarehouseIcon className="h-4 w-4" />
                 Da Lavorare
@@ -1131,7 +1164,7 @@ export default function Warehouse() {
                 variant={quickFilter === "urgent" ? "destructive" : "outline"}
                 size="sm"
                 onClick={() => setQuickFilter("urgent")}
-                className="gap-1 shrink-0"
+                className="tap-compact gap-1 shrink-0"
               >
                 <AlertTriangle className="h-4 w-4" />
                 Urgenti
@@ -1146,7 +1179,7 @@ export default function Warehouse() {
                 variant={quickFilter === "thisWeek" ? "secondary" : "outline"}
                 size="sm"
                 onClick={() => setQuickFilter("thisWeek")}
-                className="gap-1 shrink-0"
+                className="tap-compact gap-1 shrink-0"
                 title="Articoli con lavori entro 7 giorni"
               >
                 <Clock className="h-4 w-4" />
@@ -1156,7 +1189,7 @@ export default function Warehouse() {
                 variant={quickFilter === "nextWeek" ? "secondary" : "outline"}
                 size="sm"
                 onClick={() => setQuickFilter("nextWeek")}
-                className="gap-1 shrink-0"
+                className="gap-1 shrink-0 max-sm:hidden"
                 title="Articoli con lavori entro 14 giorni"
               >
                 <Clock className="h-4 w-4" />
@@ -1177,13 +1210,13 @@ export default function Warehouse() {
                   placeholder="Cerca articolo..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9"
+                  className="pl-9 max-sm:h-9"
                 />
               </div>
               <Button
                 variant="outline"
                 size="icon"
-                className="sm:hidden shrink-0"
+                className="tap-compact sm:hidden shrink-0 max-sm:h-9 max-sm:w-9"
                 onClick={() => setScannerOpen(true)}
                 title="Scansiona barcode"
               >
@@ -1192,7 +1225,7 @@ export default function Warehouse() {
               <Button
                 variant="outline"
                 onClick={() => setFiltersSheetOpen(true)}
-                className="shrink-0 gap-2"
+                className="tap-compact shrink-0 gap-2 max-sm:h-9 max-sm:px-2.5"
                 title="Apri filtri avanzati"
               >
                 <SlidersHorizontal className="h-4 w-4" />
@@ -1212,7 +1245,7 @@ export default function Warehouse() {
               <Button
                 variant="outline"
                 onClick={() => setSerialsSheetOpen(true)}
-                className="shrink-0 gap-2"
+                className="shrink-0 gap-2 max-sm:hidden"
                 title="Cerca tra tutti i seriali del magazzino"
               >
                 <Package className="h-4 w-4" />

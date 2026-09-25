@@ -67,7 +67,7 @@ export default function WarehouseStats({ items, activeFilter, onCardClick, visib
   );
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
       {/* In Ritardo */}
       {visible.has("overdue") && (
         <ClickableCard

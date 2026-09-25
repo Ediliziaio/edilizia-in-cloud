@@ -16,6 +16,7 @@ import { isItemUrgent, isItemCritical, getDaysUntilPosa, getUrgencyLabel } from 
 import type { OrderItemStatus, WarehouseItem, OrderWithItems } from "@/types/warehouse";
 import WarehouseItemDetailDialog from "./WarehouseItemDetailDialog";
 import WarehouseItemRow from "./WarehouseItemRow";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface WarehouseListViewProps {
   orderGroups: OrderWithItems[];
@@ -60,6 +61,7 @@ function WarehouseListView({
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const parentRef = useRef<HTMLDivElement>(null);
+  const isMobile = useIsMobile();
 
   // Always resolve the FRESH item from orderGroups so that after a workflow
   // mutation (e.g. goods receipt) the dialog re-renders with the updated
@@ -170,10 +172,14 @@ function WarehouseListView({
       )}
 
       {/* Virtualized order groups */}
+      {/* Mobile: niente riquadro con scroll suo dentro la pagina che scorre
+          (due scroll uno dentro l'altro, col pollice non si sa quale si
+          muove, e alla lista restavano ~250px sotto i controlli). Scorre la
+          pagina; i gruppi sono chiusi di default e pesano poco. */}
       <div
         ref={parentRef}
-        className="overflow-auto"
-        style={{ maxHeight: "calc(100vh - 280px)" }}
+        className="overflow-auto max-sm:overflow-visible"
+        style={isMobile ? undefined : { maxHeight: "calc(100vh - 280px)" }}
       >
         <div
           style={{
@@ -225,7 +231,9 @@ function WarehouseListView({
                   {/* Group header */}
                   <div
                     className={cn(
-                      "flex flex-col gap-3 p-3 cursor-pointer hover:bg-muted/50 transition-colors sm:flex-row sm:items-center sm:justify-between",
+                      // Mobile: due righe (commessa · data/articoli e «x/y pronti»),
+                      // non tre con quattro badge.
+                      "flex flex-col gap-3 p-3 cursor-pointer hover:bg-muted/50 transition-colors sm:flex-row sm:items-center sm:justify-between max-sm:gap-1 max-sm:py-2",
                       isExpanded && "border-b"
                     )}
                     onClick={() => toggleOrder(group.orderId)}
@@ -233,7 +241,7 @@ function WarehouseListView({
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-semibold truncate">
+                          <span className="font-semibold truncate max-sm:text-sm">
                             {isSupplierGroup
                               ? group.orderCode
                               : `${group.orderCode || "Ordine"} - ${group.customerName}`}
@@ -242,7 +250,7 @@ function WarehouseListView({
                             <Badge
                               variant="outline"
                               className={cn(
-                                "text-xs shrink-0",
+                                "text-xs shrink-0 max-sm:hidden",
                                 indicators.toOrder > 0 && "border-amber-300 bg-amber-50 text-amber-700",
                                 indicators.toOrder === 0 && indicators.ordered > 0 && "border-blue-300 bg-blue-50 text-blue-700",
                                 indicators.toOrder === 0 && indicators.ordered === 0 && "border-emerald-300 bg-emerald-50 text-emerald-700",
@@ -272,21 +280,21 @@ function WarehouseListView({
                     <div className="flex items-center justify-between gap-3 sm:justify-end">
                       <div className="flex flex-wrap items-center gap-1.5">
                         {indicators.ready > 0 && (
-                          <Badge variant="outline" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 text-xs">
+                          <Badge variant="outline" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 text-xs max-sm:hidden">
                             {indicators.ready} pronti
                           </Badge>
                         )}
                         {indicators.ordered > 0 && (
-                          <Badge variant="outline" className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 text-xs">
+                          <Badge variant="outline" className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 text-xs max-sm:hidden">
                             {indicators.ordered} in arrivo
                           </Badge>
                         )}
                         {indicators.toOrder > 0 && (
-                          <Badge variant="outline" className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 text-xs">
+                          <Badge variant="outline" className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 text-xs max-sm:hidden">
                             {indicators.toOrder} da ordinare
                           </Badge>
                         )}
-                        <Badge variant="secondary" className="text-xs">
+                        <Badge variant="secondary" className="text-xs max-sm:px-1.5 max-sm:text-[11px]">
                           {indicators.ready}/{totalActiveItems || group.items.length} pronti
                         </Badge>
                       </div>
