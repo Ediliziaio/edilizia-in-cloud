@@ -271,6 +271,9 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   // Su mobile la tabella a 11 colonne è inservibile → parti dalla vista card.
   const [viewMode, setViewMode] = useState<"list" | "grid">(isMobile ? "grid" : "list");
+  // Telefono: le automazioni si guardano, non si modificano (regola dell'utente,
+  // 25/09/2026): sempre a schede, senza aprire il builder, senza cestino né selezione.
+  const vista = isMobile ? "grid" : viewMode;
 
   // Use internal filter chips (ignore external sub-tab status)
   const activeStatusFilter = externalStatus && externalStatus !== "all" ? externalStatus : (internalStatusFilter === "all" ? "all" : internalStatusFilter);
@@ -816,9 +819,10 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
     return (
       <div className="text-center py-16">
         <Zap className="h-12 w-12 mx-auto text-muted-foreground/40 mb-4" />
-        <h3 className="text-lg font-medium mb-1">Nessuna automazione</h3>
-        <p className="text-sm text-muted-foreground mb-4">Crea la tua prima automazione visuale.</p>
-        <div className="flex items-center justify-center gap-2">
+        <h3 className="text-lg font-medium mb-1 max-md:text-sm">Nessuna automazione</h3>
+        <p className="text-sm text-muted-foreground mb-4 max-md:hidden">Crea la tua prima automazione visuale.</p>
+        {isMobile && <p className="text-[11px] text-muted-foreground">si crea da computer o tablet</p>}
+        <div className="flex items-center justify-center gap-2 max-md:hidden">
           <Button onClick={() => navigate(`${routePrefix}/automazioni/nuova`)}>
             <Plus className="h-4 w-4 mr-2" /> Crea Automazione
           </Button>
@@ -945,8 +949,11 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
     return (
       <div
         key={flow.id}
-        onClick={() => navigate(`${routePrefix}/automazioni/${flow.id}`)}
-        className="cursor-pointer rounded-lg border bg-card p-3 transition-all hover:border-primary/30 hover:shadow-md"
+        onClick={isMobile ? undefined : () => navigate(`${routePrefix}/automazioni/${flow.id}`)}
+        className={cn(
+          "rounded-lg border bg-card p-3 transition-all",
+          !isMobile && "cursor-pointer hover:border-primary/30 hover:shadow-md",
+        )}
       >
         <div className="mb-1.5 flex items-start justify-between gap-2">
           <h3 className="line-clamp-2 flex items-start gap-1.5 text-sm font-medium">
@@ -1028,7 +1035,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
           })}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 max-md:hidden">
         <Button variant="ghost" size="sm" className="h-8 text-xs text-muted-foreground" onClick={() => setCestinoOpen(true)}>
           <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Cestino
         </Button>
@@ -1067,7 +1074,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
       )}
 
       {/* TABLE VIEW */}
-      {viewMode === "list" && (
+      {vista === "list" && (
         <div className="border rounded-lg overflow-hidden">
           <div className="overflow-x-auto">
             <Table>
@@ -1183,7 +1190,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
       )}
 
       {/* GRID VIEW */}
-      {viewMode === "grid" && (
+      {vista === "grid" && (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3">
           {filtered.map(flow => renderFlowCard(flow))}
           {filtered.length === 0 && (
