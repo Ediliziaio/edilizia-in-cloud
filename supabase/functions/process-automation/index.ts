@@ -25,6 +25,7 @@ import { campiPersonalizzatiDelModello, valoriDelModello } from "../_shared/vari
 import { conLinkCliccabili, fusoDelFlusso, invioEmailDaRimandare, MINUTI_RINVIO_EMAIL, mittenteDiRiserva, mittenteRifiutatoDalProvider, numeroWhatsApp, schedaAndataAvanti, senzaSpazioPrimaDellaVirgola, soloIndirizzo } from "../_shared/sequenzaContatto.ts";
 import { mittenteDelPasso, dominiAmmessi, soloDominiDellAzienda } from "../_shared/mittenteAutomazione.ts";
 import { calendarioDelGiorno, giornoAmmesso, leggiSettimane } from "../_shared/attesaCalendario.ts";
+import { confrontoConOggi } from "../_shared/condizioniData.ts";
 import { romaVersoUtc, urlGestione } from "../_shared/appuntamentiPubblici.ts";
 import { isInternalRequest, isSuperAdminEmailAllowed, requireAuth, requireCompanyAccess, requireInternalSecret, resolveUserEmail } from "../_shared/auth.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
@@ -1147,6 +1148,10 @@ async function executeCondition(supabase: any, cfg: Record<string, any>, entityI
       case "minore": case "lt": return Number(actual) < Number(value);
       case "maggiore_uguale": case "gte": return Number(actual) >= Number(value);
       case "minore_uguale": case "lte": return Number(actual) <= Number(value);
+      // Date (25/09/2026): «ha un appuntamento da oggi in poi?». Un appuntamento
+      // passato resta «confermato», quindi lo stato da solo non basta.
+      case "da_oggi": return confrontoConOggi(actual, "da_oggi");
+      case "prima_di_oggi": return confrontoConOggi(actual, "prima_di_oggi");
       default: return false;
     }
   };
