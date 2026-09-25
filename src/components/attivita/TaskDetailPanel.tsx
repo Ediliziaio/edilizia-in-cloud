@@ -31,6 +31,7 @@ import { TaskDependencySection } from "./TaskDependencySection";
 import { ChipIcona, SezioneCard } from "./SezioneCard";
 import { describeTaskChanges, logTaskActivity, TASK_FIELD_LABELS } from "@/lib/taskActivityLog";
 import { TaskStatusBadge } from "@/components/tasks/TaskStatusBadge";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useTaskStatuses } from "@/hooks/useTaskStatuses";
 import {
   type TaskStatusDefinition,
@@ -95,7 +96,7 @@ function EditableField({
 
   return (
     <div className="flex items-start gap-3">
-      <ChipIcona icon={Icon} tono="blu" className="mt-0.5" />
+      <ChipIcona icon={Icon} tono="blu" className="mt-0.5 hidden sm:inline-flex" />
       <div className="flex-1 min-w-0">
         <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">
           {label}
@@ -298,6 +299,10 @@ function TaskActivityLog({
 
 export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
   const queryClient = useQueryClient();
+  // Mobile: restano i campi e le sezioni che servono sul posto (chi, quando,
+  // collegamenti, allegati, checklist, commenti); dipendenze, cronologia,
+  // stima ore ed etichette vuote sono lavoro da scrivania.
+  const isMobile = useIsMobile();
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id ?? "";
   const { statuses: statusOptions } = useTaskStatuses(companyId, [task?.status].filter(Boolean));
@@ -537,7 +542,8 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
               </SelectContent>
             </Select>
 
-            <TaskStatusBadge status={task.status} statuses={statusOptions} />
+            {/* Mobile: lo stato lo dice gia' il menu qui accanto. */}
+            <TaskStatusBadge status={task.status} statuses={statusOptions} className="hidden sm:inline-flex" />
             {isTaskReviewStatus(task.status, statusOptions) && (
               <Badge variant="outline" className="border-amber-200 bg-amber-50 text-xs text-amber-800">
                 Controllo responsabile
@@ -547,7 +553,7 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
               <Badge variant="secondary" className="text-xs">Chiusa</Badge>
             )}
           </div>
-          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <div className="hidden sm:flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <User className="h-3.5 w-3.5" />
             <span>Creata da <span className="font-medium text-foreground">{creatorName}</span></span>
             {task.created_at && (
@@ -562,16 +568,16 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
         <div className="flex-1 overflow-y-auto bg-slate-50 p-3 space-y-3 dark:bg-slate-950/40">
           {/* Dettagli */}
           <SezioneCard titolo="Dettagli" icon={FileText} tono="blu">
-            <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
+            <div className="grid grid-cols-2 gap-x-3 gap-y-3 sm:gap-x-6 sm:gap-y-4">
               {/* Assignee: si cambia da qui */}
               <div className="flex items-start gap-3">
-                <ChipIcona icon={User} tono="blu" className="mt-0.5" />
+                <ChipIcona icon={User} tono="blu" className="mt-0.5 hidden sm:inline-flex" />
                 <div className="min-w-0 flex-1">
                   <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">
                     Assegnato a
                   </div>
                   <div className="flex items-center gap-2">
-                    <Avatar className="w-6 h-6">
+                    <Avatar className="hidden sm:flex w-6 h-6">
                       <AvatarFallback className="text-[10px] bg-orange-500/15 text-orange-700 dark:text-orange-300">
                         {(task.assigned_profile
                           ? (task.assigned_profile.first_name?.[0] ?? "?")
@@ -607,13 +613,15 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
               />
 
               {/* Stima ore */}
-              <EditableField
-                label="Stima (ore)"
-                icon={Clock}
-                value={task.estimated_hours != null ? String(task.estimated_hours) : null}
-                type="number"
-                onSave={(val) => updateMutation.mutate({ estimated_hours: val ? parseFloat(val) : null })}
-              />
+              {!isMobile && (
+                <EditableField
+                  label="Stima (ore)"
+                  icon={Clock}
+                  value={task.estimated_hours != null ? String(task.estimated_hours) : null}
+                  type="number"
+                  onSave={(val) => updateMutation.mutate({ estimated_hours: val ? parseFloat(val) : null })}
+                />
+              )}
 
               <EditableField
                 label="Ore effettive"
@@ -625,8 +633,8 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
 
               {/* Category */}
               <div className="flex items-start gap-3">
-                <ChipIcona icon={Tag} tono="blu" className="mt-0.5" />
-                <div className="flex-1">
+                <ChipIcona icon={Tag} tono="blu" className="mt-0.5 hidden sm:inline-flex" />
+                <div className="flex-1 min-w-0">
                   <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">
                     Categoria
                   </div>
@@ -647,7 +655,7 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
               </div>
 
               {/* Notes */}
-              <div className="sm:col-span-2">
+              <div className="col-span-2">
                 <EditableField
                   label="Note"
                   icon={FileText}
@@ -712,6 +720,7 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
           {/* Etichette */}
           <TaskAllegati taskId={task.id} companyId={companyId} />
 
+          {(!isMobile || assignedTags.length > 0) && (
           <SezioneCard titolo="Etichette" icon={Tag} tono="blu">
             <div className="flex flex-wrap gap-1.5">
               {assignedTags.map((tag) => (
@@ -729,11 +738,14 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
               />
             </div>
           </SezioneCard>
+          )}
 
           {/* Dipendenze */}
-          <SezioneCard tono="arancio">
-            <TaskDependencySection taskId={task.id} companyId={companyId} />
-          </SezioneCard>
+          {!isMobile && (
+            <SezioneCard tono="arancio">
+              <TaskDependencySection taskId={task.id} companyId={companyId} />
+            </SezioneCard>
+          )}
 
           {/* Checklist */}
           <SezioneCard tono="blu">
@@ -746,9 +758,11 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
           </SezioneCard>
 
           {/* Cronologia */}
-          <SezioneCard tono="neutro">
-            <TaskActivityLog task={task} companyId={companyId} creatorName={creatorName} statusOptions={statusOptions} />
-          </SezioneCard>
+          {!isMobile && (
+            <SezioneCard tono="neutro">
+              <TaskActivityLog task={task} companyId={companyId} creatorName={creatorName} statusOptions={statusOptions} />
+            </SezioneCard>
+          )}
 
           {/* Meta */}
           <div className="px-1 pb-1 text-[11px] text-muted-foreground space-y-0.5">
@@ -760,7 +774,7 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
                 })}
               </p>
             )}
-            {task.updated_at && (
+            {task.updated_at && !isMobile && (
               <p>
                 Ultima modifica:{" "}
                 {format(new Date(task.updated_at), "d MMM yyyy 'alle' HH:mm", {

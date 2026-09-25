@@ -1960,12 +1960,12 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
         <DialogContent className="max-w-[calc(100vw-1.5rem)] max-h-[90vh] overflow-y-auto sm:max-w-[480px]">
           <DialogHeader>
             <DialogTitle>{editingTask ? "Modifica attività" : "Nuova attività"}</DialogTitle>
-            <DialogDescription>{editingTask ? "Modifica i dettagli dell'attività." : "Crea una nuova attività."}</DialogDescription>
+            <DialogDescription className="max-sm:sr-only">{editingTask ? "Modifica i dettagli dell'attività." : "Crea una nuova attività."}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
               <Label htmlFor="task-title">Titolo *</Label>
-              <Input id="task-title" placeholder="Cosa devi fare?" value={formTitle} onChange={e => setFormTitle(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && formTitle.trim()) handleSave(); }} autoFocus />
+              <Input id="task-title" placeholder="Cosa devi fare?" value={formTitle} onChange={e => setFormTitle(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && formTitle.trim()) handleSave(); }} autoFocus={!isMobile || !editingTask} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="task-notes">Descrizione</Label>
@@ -1989,8 +1989,12 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
                 </Link>
               )}
             </div>
+            {/* Mobile: i campi brevi in una griglia sola a due colonne (a tre
+                colonne «Categoria» e la data si troncavano); la categoria resta
+                al desktop. */}
+            <div className="grid grid-cols-2 gap-3 sm:block sm:space-y-4">
             {/* Assegna a (admin) + Priorità */}
-            <div className={`grid gap-3 ${isAdmin ? "grid-cols-2" : "grid-cols-2"}`}>
+            <div className="grid grid-cols-2 gap-3 max-sm:contents">
               {isAdmin && (
                 <div className="space-y-1.5">
                   <Label>Assegna a</Label>
@@ -2020,7 +2024,7 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
                 </Select>
               </div>
               {!isAdmin && (
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 max-sm:hidden">
                   <Label>Categoria</Label>
                   <Select value={formCategory} onValueChange={setFormCategory}>
                     <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
@@ -2030,9 +2034,9 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
               )}
             </div>
             {/* Categoria (admin) + Scadenza + Stato */}
-            <div className={`grid gap-3 ${editingTask ? "grid-cols-3" : "grid-cols-2"}`}>
+            <div className={`grid gap-3 max-sm:contents ${editingTask ? "grid-cols-3" : "grid-cols-2"}`}>
               {isAdmin && (
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 max-sm:hidden">
                   <Label>Categoria</Label>
                   <Select value={formCategory} onValueChange={setFormCategory}>
                     <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
@@ -2054,9 +2058,11 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
                 </div>
               )}
             </div>
+            </div>
           </div>
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Annulla</Button>
+            {/* Mobile: chiude la X in alto, resta un bottone solo. */}
+            <Button variant="outline" className="max-sm:hidden" onClick={() => setDialogOpen(false)}>Annulla</Button>
             <Button onClick={handleSave} disabled={!formTitle.trim() || createTask.isPending || updateTask.isPending}>
               {(createTask.isPending || updateTask.isPending) && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
               {editingTask ? "Salva" : "Crea"}

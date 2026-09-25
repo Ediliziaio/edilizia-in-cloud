@@ -139,7 +139,7 @@ export function TaskAllegati({ taskId, companyId }: Props) {
         <p className="text-xs text-muted-foreground">Caricamento…</p>
       ) : allegati.length === 0 ? (
         <p className="text-xs text-muted-foreground">
-          Nessun file. Foto di cantiere, bolle e verbali si allegano qui (fino a 20 MB l'uno).
+          Nessun file<span className="hidden sm:inline">. Foto di cantiere, bolle e verbali si allegano qui (fino a 20 MB l'uno)</span>.
         </p>
       ) : (
         <ul className="divide-y">

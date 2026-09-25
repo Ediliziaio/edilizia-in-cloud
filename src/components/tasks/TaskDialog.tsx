@@ -24,6 +24,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { queryKeys } from "@/lib/queryKeys";
 import { EntityCustomFieldsSection } from "@/components/shared/EntityCustomFieldsSection";
 import { describeTaskChanges, logTaskActivity } from "@/lib/taskActivityLog";
@@ -160,6 +161,10 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
   const companyId = effectiveCompany?.id;
   const isEditing = !!task?.id;
   const { onlyAssigned } = usePermissions();
+  // Mobile: titolo, note, a chi, priorità, scadenza, stato (in modifica) e i
+  // collegamenti. Modelli, assistente AI, checklist iniziale, categoria e
+  // stima ore restano al desktop: si aggiungono anche dopo, dal dettaglio.
+  const isMobile = useIsMobile();
 
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
@@ -549,11 +554,11 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
           <div className="flex items-start justify-between gap-2">
             <div>
               <DialogTitle>{isEditing ? "Modifica Attività" : "Nuova Attività"}</DialogTitle>
-              <DialogDescription>
+              <DialogDescription className="max-sm:sr-only">
                 {isEditing ? "Modifica i dettagli dell'attività" : "Compila i campi per creare una nuova attività"}
               </DialogDescription>
             </div>
-            {!isEditing && (
+            {!isEditing && !isMobile && (
               <TaskTemplatePicker
                 currentTitle={title}
                 currentNotes={notes}
@@ -577,8 +582,8 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
           </div>
         </DialogHeader>
 
-        <div className="grid gap-4 py-2">
-          {!isEditing && (
+        <div className="grid gap-4 py-2 max-sm:gap-3 max-sm:py-0">
+          {!isEditing && !isMobile && (
             <div className="rounded-lg border bg-primary/5 p-3">
               <div className="mb-2 flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-primary" />
@@ -604,15 +609,15 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
 
           <div className="space-y-2">
             <Label htmlFor="title">Titolo *</Label>
-            <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Es. Ordinare prodotto X" maxLength={200} />
+            <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Es. Ordinare prodotto X" maxLength={200} autoFocus={isMobile && !isEditing} />
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="notes">Note</Label>
-            <Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Dettagli aggiuntivi..." rows={3} maxLength={1000} />
+            <Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Dettagli aggiuntivi..." rows={isMobile ? 2 : 3} maxLength={1000} className="max-sm:min-h-[60px]" />
           </div>
 
-          {!isEditing && (
+          {!isEditing && !isMobile && (
             <div className="space-y-2">
               <Label className="flex items-center gap-1.5">
                 <ListChecks className="h-3.5 w-3.5 text-muted-foreground" />
@@ -678,7 +683,8 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
 
           <div className="space-y-2">
             <Label>Assegna a</Label>
-            <div className="grid grid-cols-3 gap-2">
+            {/* Mobile: basta il menu qui sotto (dentro ci sono «Nessuno», te e il team). */}
+            <div className="hidden sm:grid grid-cols-3 gap-2">
               <Button
                 type="button"
                 variant={assignMode === "me" ? "default" : "outline"}
@@ -721,7 +727,8 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
             </Select>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-3 sm:block sm:space-y-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 max-sm:contents">
             <div className="space-y-2">
               <Label>Priorità</Label>
               <Select value={priority} onValueChange={setPriority}>
@@ -734,7 +741,7 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
               </Select>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2 max-sm:hidden">
               <Label>Categoria</Label>
               <Select value={category} onValueChange={(v) => { setCategory(v); setOrderId(""); setStockItemId(""); setCostId(""); setContactId(""); setOpportunityId(""); }}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -746,7 +753,7 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
               </Select>
             </div>
 
-            <div className="space-y-2">
+            <div className={cn("space-y-2", !isEditing && "max-sm:hidden", "max-sm:order-last")}>
               <Label>{isEditing ? "Stato" : "Stato iniziale"}</Label>
               <Select value={status} onValueChange={setStatus}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -759,14 +766,14 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 max-sm:contents">
             <div className="space-y-2">
               <Label>Scadenza</Label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !dueDate && "text-muted-foreground")}>
                     <CalendarDays className="mr-2 h-4 w-4" />
-                    {dueDate ? format(dueDate, "dd/MM/yyyy") : "Seleziona data"}
+                    {dueDate ? format(dueDate, "dd/MM/yyyy") : isMobile ? "Data" : "Seleziona data"}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
@@ -775,7 +782,7 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
               </Popover>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2 max-sm:hidden">
               <Label htmlFor="estimated-hours" className="flex items-center gap-1.5">
                 <Clock className="h-3.5 w-3.5 text-muted-foreground" />
                 Stima ore
@@ -792,6 +799,7 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
               />
             </div>
 
+          </div>
           </div>
 
           <div className="rounded-md border bg-muted/20">
@@ -982,18 +990,18 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
           )}
         </div>
 
-        <DialogFooter className="flex-col sm:flex-row gap-2">
+        <DialogFooter className="gap-2">
           {isEditing && (
             <Button variant="destructive" onClick={handleDelete} disabled={saving} className="sm:mr-auto">
               <Trash2 className="h-4 w-4 mr-2" />
               Elimina
             </Button>
           )}
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+          <Button variant="outline" className="max-sm:hidden" onClick={() => onOpenChange(false)} disabled={saving}>
             Annulla
           </Button>
           <Button onClick={handleSave} disabled={saving}>
-            {saving ? "Salvataggio..." : isEditing ? "Salva modifiche" : "Crea attività"}
+            {saving ? "Salvataggio..." : isEditing ? (isMobile ? "Salva" : "Salva modifiche") : "Crea attività"}
           </Button>
         </DialogFooter>
       </DialogContent>
