@@ -32,14 +32,20 @@ Leggi prima il `CLAUDE.md` della radice: le sue regole valgono anche per te.
 - `git fetch origin`, poi `git status --short --untracked-files=all -- <file…>`
   (così compaiono anche i file nuovi) e `git log --oneline origin/main..HEAD -- <file…>`
   (i commit locali che li toccano).
+- Scrivi i percorsi uno per uno nel comando, dalla radice del repository. In
+  zsh un elenco messo in una variabile non si divide: `git status -- $FILE`
+  guarda un solo percorso inesistente ed esce vuoto, come se fosse tutto a
+  posto. Se ti serve un elenco, usa un array (`FILE=(a b); git status -- "${FILE[@]}"`).
 - Se non ti hanno dato l'elenco, ricostruiscilo dalla descrizione della
   modifica e dichiaralo nel resoconto come «da confermare».
 - Se un file contiene anche modifiche che non sono della sessione, fermati e
   dillo: non si pubblica il lavoro di un altro dentro il proprio commit.
 
 ### 2. Rilettura
-Leggi `git diff origin/main -- <file>` per i file modificati e **per intero**
-i file nuovi (il diff non li mostra). Cerca:
+Leggi le modifiche dal commit, non dalla cartella condivisa, dove possono
+esserci lavori a metà di altre sessioni: `git show <sha del commit locale> -- <file…>`,
+e alla fine del passo 3 `git show <sha costruito>`, che è esattamente quello
+che andrà su main. Un file nuovo leggilo per intero. Cerca:
 - logica sbagliata, casi dimenticati (valori vuoti, `null`, zero, date UTC),
   effetti su altre parti che usano lo stesso codice;
 - testi dell'interfaccia non in italiano o poco chiari per chi usa l'app;
@@ -64,16 +70,20 @@ da solo se non te l'hanno chiesto.
   (`-F <file>` per un messaggio diverso da quello dell'ultimo `-c`). Lo
   script costruisce il commit sopra `origin/main` con i soli file indicati e
   si ferma in questi casi:
-  - una cartella o un percorso che non esiste;
+  - una cartella, un percorso fuori dal repository o che non esiste;
   - un file non committato;
   - un file toccato da un altro commit locale non ancora pubblicato;
   - un file cambiato su origin/main nel frattempo.
+
+  I percorsi vanno dalla radice, oppure assoluti ma dentro il repository.
 
   In quest'ultimo caso serve `git merge origin/main`, ma solo se è pulito:
   `git merge-tree --write-tree HEAD origin/main` esce con 0. Poi rifai
   commit e test.
 - Controlla che il `--stat` stampato elenchi **esattamente** i file della
-  sessione.
+  sessione, e guarda anche i numeri: un file con sole righe tolte vuol dire
+  che il commit lo **cancella** (lo script lo scrive in chiaro con
+  «ATTENZIONE: … CANCELLA»). Deve essere voluto.
 
 ### 4. Verifica nella copia a parte
 Test e typecheck girano sul commit da pubblicare, non sulla cartella
@@ -81,13 +91,20 @@ condivisa: lì ci sono i lavori a metà degli altri, che darebbero rossi non
 tuoi (è successo).
 - `git worktree add --detach <scratchpad>/wt-revisore <sha costruito>` e
   `ln -s "<radice del repository>/node_modules" <scratchpad>/wt-revisore/node_modules`.
-- **Test** (nella copia): quelli legati ai file toccati
-  (`grep -rl "<nome del file senza estensione>" src/test`), poi
-  `npm run test:critical`, che è quello che esegue la CI. Se un test è rosso,
-  nella copia `git checkout -q --detach origin/main` e rilancia gli stessi
-  file: se è rosso anche lì è «già rosso», non colpa della modifica. Per uno
-  script senza test, provalo a mano sui casi limite (cartella, percorso
-  sbagliato, valori vuoti).
+- **Test** (nella copia): quelli legati ai file toccati, cercati col
+  percorso (`grep -rl "components/users/PermissionsDialog" src/test`): il solo
+  nome trova test che non c'entrano. Poi `npm run test:critical`, che è
+  quello che esegue la CI. Se un test è rosso, nella copia
+  `git checkout -q --detach origin/main` e rilancia gli stessi file: se è
+  rosso anche lì è «già rosso», non colpa della modifica.
+- **Casi limite di uno script senza test** (cartella, percorso sbagliato,
+  valori vuoti): nella copia a parte. Per quelli che richiedono un
+  `origin/main` diverso (un file cambiato da un altro, due pubblicazioni in
+  fila) usa un clone con un origin finto (`git clone --bare` in una
+  cartella dello scratchpad e `git remote set-url origin` nel clone), **mai**
+  spostando `origin/main` nel repository condiviso: i riferimenti sono gli
+  stessi per tutte le sessioni. E ricorda che la copia di un commit non
+  contiene i file di un altro commit non ancora pubblicato.
 - **Typecheck**, solo se il commit tocca `src/` o `supabase/functions/_shared/`.
   Il cricchetto (`tsconfig.app.json`) guarda `src` e quello che i suoi test
   importano: `scripts/`, `.claude/` e le migrazioni non li guarda.
@@ -120,14 +137,16 @@ tuoi (è successo).
 
 ### 5. Migrazioni e registro (sempre)
 - `node scripts/pubblica/registro-migrazioni.mjs --ref <sha costruito>` stampa
-  numero e impronta dei file e le query da lanciare con `execute_sql`:
+  numero e impronta dei file e le query da lanciare con `execute_sql`. La
+  prima riga deve dire «Su <sha costruito>»:
   - la query 1 dà numero e impronta del registro: se tornano, il controllo
     Supabase Preview sarà verde;
   - se non tornano, la query 2 dice quali mesi sono diversi;
-  - rilancia lo script con `--mese <aaaamm>` e la query 3 elenca le versioni
-    del registro senza file e i file senza riga, col nome della migrazione.
-    Una riga non riallineata ha la versione col timestamp vero (2026…), nel
-    mese in cui è stata applicata.
+  - rilancia lo script con `--mese <aaaamm>`, **una volta per ogni mese**
+    uscito dalla query 2, e la query 3 elenca le versioni del registro senza
+    file e i file senza riga, col nome della migrazione. Una riga non
+    riallineata sposta due mesi: il suo (2026…, quando è stata applicata) e
+    quello del file (2028…).
 - Una versione nel registro senza file va segnalata, col nome, dicendo se è
   della sessione o no. Mai inventarne il file.
 - Se tra i file c'è una migrazione:
@@ -159,10 +178,13 @@ sessione, dillo e di' di chi sono (passo 5).
 2. File della sessione (elenco) e file lasciati fuori.
 3. Controlli:
    - test: quali, e l'esito;
-   - typecheck: completo o mirato, oppure «non serve» se il commit non tocca `src/`;
+   - typecheck: completo o mirato, oppure «non serve» se il commit non tocca
+     né `src/` né `supabase/functions/_shared/`;
    - registro uguale ai file: sì o no, e di chi sono le differenze.
 4. Problemi trovati: `file:riga`, cosa, gravità.
 5. Commit pronto:
    - lo sha e il comando `git push origin <sha>:main`;
-   - il comando per ricostruirlo (`commit-solo-miei.sh -c …`), perché se
-     main si muove lo sha non serve più.
+   - il comando per ricostruirlo, quello stampato dallo script (con gli
+     stessi `-c` e `-F`), perché se main si muove lo sha non serve più. Se le
+     pubblicazioni sono più d'una in fila, dopo ogni push va ricostruita la
+     successiva sopra il nuovo origin/main.

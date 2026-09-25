@@ -24,11 +24,27 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readdirSync } from "node:fs";
+import { join } from "node:path";
 
 const argomenti = process.argv.slice(2);
+const noti = new Set(["--ref", "--mese"]);
+for (const a of argomenti) {
+  if (a.startsWith("--") && !noti.has(a)) {
+    console.error(`Opzione sconosciuta: ${a} (valide: ${[...noti].join(", ")}).`);
+    process.exit(2);
+  }
+}
+// Un'opzione senza valore (in fondo, o seguita da un'altra opzione) non va
+// ignorata in silenzio: senza --ref si leggerebbe la cartella condivisa.
 const valore = (nome) => {
   const i = argomenti.indexOf(nome);
-  return i >= 0 ? argomenti[i + 1] : undefined;
+  if (i < 0) return undefined;
+  const v = argomenti[i + 1];
+  if (v === undefined || v.startsWith("--")) {
+    console.error(`${nome} vuole un valore.`);
+    process.exit(2);
+  }
+  return v;
 };
 const ref = valore("--ref");
 const mese = valore("--mese");
@@ -37,11 +53,13 @@ if (mese !== undefined && !/^\d{6}$/.test(mese)) {
   process.exit(2);
 }
 
+// Dalla radice del repository, da qualunque cartella lo si lanci.
+const radice = execFileSync("git", ["rev-parse", "--show-toplevel"], { encoding: "utf8" }).trim();
 const nomi = ref
-  ? execFileSync("git", ["ls-tree", "--name-only", ref, "supabase/migrations/"], { encoding: "utf8" })
+  ? execFileSync("git", ["ls-tree", "--name-only", ref, "supabase/migrations/"], { cwd: radice, encoding: "utf8" })
       .split("\n")
       .map((percorso) => percorso.replace(/^.*\//, ""))
-  : readdirSync("supabase/migrations");
+  : readdirSync(join(radice, "supabase/migrations"));
 
 // L'ordine è quello dei caratteri, come `order by version` sul registro
 // (le versioni sono solo cifre).
@@ -49,6 +67,10 @@ const versioni = nomi
   .filter((nome) => nome.endsWith(".sql"))
   .map((nome) => nome.split("_")[0])
   .sort();
+if (versioni.length === 0) {
+  console.error(`Nessuna migrazione trovata${ref ? ` su ${ref}` : ""}: il riferimento è giusto?`);
+  process.exit(2);
+}
 const strane = versioni.filter((v) => !/^\d+$/.test(v));
 if (strane.length > 0) {
   console.error(`File con una versione che non è fatta di sole cifre: ${strane.join(", ")}`);
