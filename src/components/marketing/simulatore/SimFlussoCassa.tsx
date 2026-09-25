@@ -135,14 +135,14 @@ export function SimFlussoCassa({
 
   return (
     <Card className="rounded-xl">
-      <CardContent className="space-y-4 p-4">
+      <CardContent className="space-y-4 p-4 max-sm:space-y-3 max-sm:p-3">
         {/* Toolbar */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary max-sm:hidden">
               <Wallet className="h-4 w-4" />
             </span>
-            <h3 className="text-sm font-semibold">Flusso di cassa nel tempo (SAL)</h3>
+            <h3 className="text-sm font-semibold">Flusso di cassa<span className="max-sm:hidden"> nel tempo (SAL)</span></h3>
           </div>
           {inputs}
         </div>
@@ -159,6 +159,8 @@ export function SimFlussoCassa({
           <>
             {/* Grafico netto cumulato per settimana — area con gradiente verde
                 (sopra zero) / rosso (sotto zero) e punto di massima esposizione. */}
+            {/* Telefono: il grafico settimanale resta al computer; restano i tre numeri. */}
+            <div className="max-sm:hidden">
             <ResponsiveContainer width="100%" height={260}>
               <AreaChart
                 data={cassa.serie}
@@ -235,45 +237,46 @@ export function SimFlussoCassa({
                 ) : null}
               </AreaChart>
             </ResponsiveContainer>
+            </div>
 
             {/* Metriche */}
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 max-sm:grid-cols-3 max-sm:gap-2">
               {/* Esposizione: box semantico rosso (chart-5), tinta tenue inline. */}
               <div
-                className="rounded-xl border p-3"
+                className="rounded-xl border p-3 max-sm:p-2"
                 style={{
                   borderColor: "hsl(var(--chart-5) / 0.30)",
                   backgroundColor: "hsl(var(--chart-5) / 0.06)",
                 }}
               >
                 <div className="flex items-center gap-1.5 text-[11px] font-medium" style={{ color: CASSA_NEGATIVO }}>
-                  <TrendingDown className="h-3.5 w-3.5" />
-                  Esposizione massima
+                  <TrendingDown className="h-3.5 w-3.5 max-sm:hidden" />
+                  <span className="max-sm:hidden">Esposizione massima</span><span className="sm:hidden">Esposizione</span>
                 </div>
-                <p className="mt-1 text-lg font-semibold tabular-nums" style={{ color: CASSA_NEGATIVO }}>
+                <p className="mt-1 text-lg font-semibold tabular-nums max-sm:text-[13px]" style={{ color: CASSA_NEGATIVO }}>
                   {formatCurrency(esposizione)}
                 </p>
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-[11px] text-muted-foreground max-sm:hidden">
                   alla settimana {cassa.settimana_max_esposizione}
                 </p>
               </div>
-              <div className="rounded-xl border bg-card p-3">
+              <div className="rounded-xl border bg-card p-3 max-sm:p-2">
                 <div className="text-[11px] font-medium text-muted-foreground">
                   Acconto ({sal.acconto_pct.toLocaleString("it-IT")}%)
                 </div>
-                <p className="mt-1 text-lg font-semibold tabular-nums text-primary">
+                <p className="mt-1 text-lg font-semibold tabular-nums text-primary max-sm:text-[13px]">
                   {formatCurrency(acconto)}
                 </p>
-                <p className="text-[11px] text-muted-foreground">alla firma</p>
+                <p className="text-[11px] text-muted-foreground max-sm:hidden">alla firma</p>
               </div>
-              <div className="rounded-xl border bg-card p-3">
+              <div className="rounded-xl border bg-card p-3 max-sm:p-2">
                 <div className="text-[11px] font-medium text-muted-foreground">
                   Saldo ({sal.saldo_pct.toLocaleString("it-IT")}%)
                 </div>
-                <p className="mt-1 text-lg font-semibold tabular-nums" style={{ color: CASSA_POSITIVO }}>
+                <p className="mt-1 text-lg font-semibold tabular-nums max-sm:text-[13px]" style={{ color: CASSA_POSITIVO }}>
                   {formatCurrency(saldo)}
                 </p>
-                <p className="text-[11px] text-muted-foreground">a fine lavori</p>
+                <p className="text-[11px] text-muted-foreground max-sm:hidden">a fine lavori</p>
               </div>
             </div>
           </>

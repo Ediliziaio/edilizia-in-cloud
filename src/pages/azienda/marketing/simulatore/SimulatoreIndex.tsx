@@ -57,6 +57,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { RigaMobile } from "@/components/mobile/FiltriMobile";
 import {
   useSimulazioni,
   useSimulazioniMutations,
@@ -159,29 +160,30 @@ export default function SimulatoreIndex() {
   const hasNessunRisultatoFiltro = !isLoading && simulazioni.length > 0 && filtrate.length === 0;
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <div className="p-6 space-y-6 max-sm:space-y-3 max-sm:p-0">
+      {/* Header — telefono: titolo e «Nuova» su una riga, senza icona né descrizione */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between max-sm:flex-row max-sm:items-center max-sm:justify-between max-sm:gap-2">
         <div className="space-y-1">
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Calculator className="h-6 w-6 text-primary" />
+          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2 max-sm:text-lg">
+            <Calculator className="h-6 w-6 text-primary max-sm:hidden" />
             Simulatore
           </h1>
-          <p className="text-muted-foreground text-sm max-w-2xl">
+          <p className="text-muted-foreground text-sm max-w-2xl max-sm:hidden">
             Simula contratti: margine, IVA, finanziamenti — il tuo Excel, potenziato.
           </p>
         </div>
-        <Button onClick={() => setNuovaOpen(true)} className="gap-2 shrink-0">
+        <Button onClick={() => setNuovaOpen(true)} className="gap-2 shrink-0 max-sm:h-9 max-sm:px-3">
           <Plus className="h-4 w-4" />
-          Nuova simulazione
+          <span className="max-sm:hidden">Nuova simulazione</span>
+          <span className="sm:hidden">Nuova</span>
         </Button>
       </div>
 
       {/* Filtri */}
       {!hasNessunaSimulazione && (
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between max-sm:flex-row max-sm:items-center">
           <Select value={statoFilter} onValueChange={setStatoFilter}>
-            <SelectTrigger className="w-full sm:w-[200px]">
+            <SelectTrigger className="w-full sm:w-[200px] max-sm:h-9 max-sm:flex-1">
               <SelectValue placeholder="Filtra per stato" />
             </SelectTrigger>
             <SelectContent>
@@ -192,11 +194,11 @@ export default function SimulatoreIndex() {
             </SelectContent>
           </Select>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 max-sm:shrink-0">
             <Switch id="solo-template" checked={soloTemplate} onCheckedChange={setSoloTemplate} />
-            <Label htmlFor="solo-template" className="text-sm font-normal cursor-pointer flex items-center gap-1.5">
-              <FileStack className="h-4 w-4 text-muted-foreground" />
-              Solo template
+            <Label htmlFor="solo-template" className="text-sm font-normal cursor-pointer flex items-center gap-1.5 max-sm:text-[13px]">
+              <FileStack className="h-4 w-4 text-muted-foreground max-sm:hidden" />
+              <span className="max-sm:hidden">Solo template</span><span className="sm:hidden">Template</span>
             </Label>
           </div>
         </div>
@@ -257,9 +259,33 @@ export default function SimulatoreIndex() {
         </Card>
       )}
 
+      {/* Telefono: righe (nome, cliente · aggiornata, prezzo, stato); le azioni dentro la simulazione. */}
+      {!isLoading && filtrate.length > 0 && (
+        <div className="divide-y divide-border overflow-hidden rounded-xl border bg-card sm:hidden">
+          {filtrate.map((sim) => (
+            <RigaMobile
+              key={sim.id}
+              onClick={() => apri(sim.id)}
+              titolo={sim.nome}
+              sottotitolo={[
+                sim.contact_id ? contattiMap[sim.contact_id] : null,
+                sim.is_template ? "Template" : null,
+                `aggiornata ${formatRelativeTime(sim.updated_at)}`,
+              ].filter(Boolean).join(" · ")}
+              valore={formatCurrency(sim.prezzo_cliente)}
+              stato={
+                <Badge variant={STATO_BADGE[sim.stato] ?? "secondary"} className="text-[10px]">
+                  {STATO_LABELS[sim.stato] ?? sim.stato}
+                </Badge>
+              }
+            />
+          ))}
+        </div>
+      )}
+
       {/* Griglia card */}
       {!isLoading && filtrate.length > 0 && (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 max-sm:hidden">
           {filtrate.map((sim) => (
             <Card
               key={sim.id}

@@ -245,10 +245,10 @@ export default function SimulatoreEditor() {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex items-start gap-3 min-w-0">
+    <div className="p-6 space-y-6 max-sm:space-y-3 max-sm:p-0">
+      {/* Header — telefono: nome e «Trasforma» sulla stessa riga */}
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between max-sm:flex-row max-sm:items-start max-sm:gap-2">
+        <div className="flex items-start gap-3 min-w-0 max-sm:flex-1 max-sm:gap-1">
           <Button
             variant="ghost"
             size="icon"
@@ -263,7 +263,7 @@ export default function SimulatoreEditor() {
               value={nome}
               onChange={(e) => setNome(e.target.value)}
               placeholder="Nome simulazione"
-              className="h-10 w-full max-w-md border-transparent bg-transparent px-2 text-xl font-bold shadow-none hover:border-input focus-visible:border-input"
+              className="h-10 w-full max-w-md border-transparent bg-transparent px-2 text-xl font-bold shadow-none hover:border-input focus-visible:border-input max-sm:h-9 max-sm:text-lg"
             />
             {/* Contatto CRM collegato — chip compatto (riuso del picker). */}
             <div className="px-2">
@@ -278,7 +278,7 @@ export default function SimulatoreEditor() {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <span className="flex items-center gap-1.5 text-xs text-muted-foreground min-w-[110px] justify-end">
+          <span className="flex items-center gap-1.5 text-xs text-muted-foreground min-w-[110px] justify-end max-sm:hidden">
             {update.isPending ? (
               <>
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -324,7 +324,7 @@ export default function SimulatoreEditor() {
               </DropdownMenuContent>
             </DropdownMenu>
           )}
-          <Button onClick={() => setTrasformaOpen(true)} className="gap-2">
+          <Button onClick={() => setTrasformaOpen(true)} className="gap-2 max-sm:h-9">
             <Wand2 className="h-4 w-4" />
             Trasforma
           </Button>
@@ -334,8 +334,9 @@ export default function SimulatoreEditor() {
       {/* KPI */}
       <SimKpiBar risultato={risultatoConRata} ivaRate={doc.scenari.iva_rate_singola} />
 
-      {/* Incidenza & composizione costi — riepilogo analitico sotto i KPI */}
-      <SimIncidenzaCosti voci={doc.voci} risultato={risultatoConRata} />
+      {/* Incidenza & composizione costi — riepilogo analitico sotto i KPI.
+          Telefono: le due barre di ripartizione sono analisi da computer. */}
+      {!isMobile && <SimIncidenzaCosti voci={doc.voci} risultato={risultatoConRata} />}
 
       {/* Voci — griglia editabile (listino, prezzari, righe libere) */}
       <SimVociGrid
