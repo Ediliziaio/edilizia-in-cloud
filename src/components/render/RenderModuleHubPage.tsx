@@ -206,29 +206,36 @@ export function RenderModuleHubPage({
   ];
 
   return (
-    <div className="space-y-8">
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+    // Telefono: nome del modulo e crediti su una riga, «Nuovo render» che riempie
+    // la riga con la galleria a icona, anteprime 2 per riga e sessioni a righe.
+    // Niente slogan, spiegazioni, riquadro statistiche e filtro CRM.
+    <div className="space-y-8 max-md:space-y-3">
+      <div className="flex items-center gap-2 text-sm text-muted-foreground max-md:hidden">
         <Link to="/azienda/render" className="hover:text-foreground">Render AI</Link>
         <span>/</span>
         <span className="text-foreground">{breadcrumbLabel}</span>
       </div>
 
-      <section className="overflow-hidden rounded-2xl border bg-[linear-gradient(135deg,#f8fbff_0%,#eef6ff_48%,#f7fbf4_100%)] p-5 shadow-sm sm:p-7">
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-center">
+      <section className="overflow-hidden rounded-2xl border bg-[linear-gradient(135deg,#f8fbff_0%,#eef6ff_48%,#f7fbf4_100%)] p-5 shadow-sm sm:p-7 max-md:rounded-none max-md:border-0 max-md:bg-none max-md:p-0 max-md:shadow-none">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-center max-md:gap-0">
           <div>
-            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-primary/15 bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-primary shadow-sm">
+            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-primary/15 bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-primary shadow-sm max-md:hidden">
               <ModuleIcon className={`h-3.5 w-3.5 ${accentClassName}`} />
               {badgeLabel}
             </div>
-            <h1 className="max-w-3xl text-3xl font-bold leading-tight text-slate-950 sm:text-4xl">
+            <h1 className="max-w-3xl text-3xl font-bold leading-tight text-slate-950 sm:text-4xl max-md:hidden">
               {title}
             </h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
+            <div className="hidden items-center justify-between gap-2 max-md:flex">
+              <h1 className="truncate text-lg font-bold text-slate-950">{moduleName}</h1>
+              <RenderCreditsWidget />
+            </div>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600 max-md:hidden">
               {description}
             </p>
-            <div className="mt-5 flex flex-wrap gap-2">
+            <div className="mt-5 flex flex-wrap gap-2 max-md:mt-2 max-md:flex-nowrap">
               {newPath ? (
-                <Button size="lg" className="gap-2 shadow-sm" onClick={() => navigate(newPath)}>
+                <Button size="lg" className="gap-2 shadow-sm max-md:h-10 max-md:flex-1" onClick={() => navigate(newPath)}>
                   <Plus className="h-4 w-4" />
                   {newButtonLabel}
                 </Button>
@@ -238,20 +245,26 @@ export function RenderModuleHubPage({
                 </Badge>
               )}
               {galleryPath && (
-                <Button variant="outline" size="lg" className="gap-2 bg-white/80" onClick={() => navigate(galleryPath)}>
+                <Button
+                  variant="outline"
+                  size="lg"
+                  aria-label={galleryButtonLabel}
+                  className="gap-2 bg-white/80 max-md:h-10 max-md:w-10 max-md:shrink-0 max-md:px-0"
+                  onClick={() => navigate(galleryPath)}
+                >
                   <GalleryHorizontalEnd className="h-4 w-4" />
-                  {galleryButtonLabel}
+                  <span className="max-md:hidden">{galleryButtonLabel}</span>
                 </Button>
               )}
             </div>
             {!newPath && (
-              <p className="mt-3 max-w-2xl text-xs leading-5 text-slate-500">
+              <p className="mt-3 max-w-2xl text-xs leading-5 text-slate-500 max-md:hidden">
                 {unavailableDescription}
               </p>
             )}
           </div>
 
-          <div className="rounded-2xl border bg-white/90 p-4 shadow-sm">
+          <div className="rounded-2xl border bg-white/90 p-4 shadow-sm max-md:hidden">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-sm font-semibold">Credito render</p>
@@ -310,16 +323,16 @@ export function RenderModuleHubPage({
       </section>
 
       {(completedPreviews.length > 0 || isLoading) && (
-        <section className="space-y-3">
+        <section className="space-y-3 max-md:space-y-2">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground max-md:text-[13px] max-md:normal-case max-md:tracking-normal max-md:text-foreground">
                 Render recenti
               </h2>
-              <p className="text-xs text-muted-foreground">{recentDescription}</p>
+              <p className="text-xs text-muted-foreground max-md:hidden">{recentDescription}</p>
             </div>
             {galleryPath && completedPreviews.length > 0 && (
-              <Button variant="ghost" size="sm" className="gap-1" onClick={() => navigate(galleryPath)}>
+              <Button variant="ghost" size="sm" className="gap-1 max-md:h-8 max-md:px-2 max-md:text-xs" onClick={() => navigate(galleryPath)}>
                 Vedi tutti
                 <ArrowRight className="h-3.5 w-3.5" />
               </Button>
@@ -330,7 +343,7 @@ export function RenderModuleHubPage({
               {[1, 2, 3].map((item) => <Skeleton key={item} className="aspect-[16/10] rounded-xl" />)}
             </div>
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 max-md:grid-cols-2 max-md:gap-2">
               {completedPreviews.map((item) => {
                 const path = detailPath(item.id);
                 // 2026-05-27 (UX audit): fallback su result_urls[0] per render
@@ -354,9 +367,9 @@ export function RenderModuleHubPage({
                       loading="lazy"
                       decoding="async"
                     />
-                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-3">
-                      <p className="text-xs font-medium text-white">{getRenderDate(item.created_at)}</p>
-                      <Badge className="mt-1 border-0 bg-white/90 text-[10px] text-slate-900">
+                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-3 max-md:p-2">
+                      <p className="text-xs font-medium text-white max-md:text-[11px]">{getRenderDate(item.created_at)}</p>
+                      <Badge className="mt-1 border-0 bg-white/90 text-[10px] text-slate-900 max-md:hidden">
                         {moduleName}
                       </Badge>
                     </div>
@@ -370,28 +383,29 @@ export function RenderModuleHubPage({
 
       {staleSessions.length > 0 && (
         <Card className="border-orange-200 bg-orange-50/75">
-          <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-orange-700" />
-              <div>
-                <p className="text-sm font-semibold text-orange-950">Render da controllare</p>
-                <p className="text-sm text-orange-800">
+          <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between max-md:flex-row max-md:items-center max-md:gap-2 max-md:px-3 max-md:py-2">
+            <div className="flex items-start gap-3 max-md:min-w-0 max-md:gap-2">
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-orange-700 max-md:h-4 max-md:w-4" />
+              <div className="max-md:min-w-0">
+                <p className="text-sm font-semibold text-orange-950 max-md:text-[13px]">Render da controllare</p>
+                <p className="text-sm text-orange-800 max-md:text-[11px]">
                   {staleSessions.length} session{staleSessions.length === 1 ? "e" : "i"} in coda o elaborazione da oltre 30 minuti.
                   Ultimo avvio {formatRenderAge(staleSessions[0]?.created_at)}.
                 </p>
               </div>
             </div>
-            <Button variant="outline" size="sm" className="border-orange-200 bg-white/80" onClick={() => setStatusFilter("processing")}>
-              Mostra da verificare
+            <Button variant="outline" size="sm" className="border-orange-200 bg-white/80 max-md:h-8 max-md:shrink-0 max-md:px-2.5 max-md:text-xs" onClick={() => setStatusFilter("processing")}>
+              <span className="max-md:hidden">Mostra da verificare</span>
+              <span className="hidden max-md:inline">Mostrali</span>
             </Button>
           </CardContent>
         </Card>
       )}
 
-      <section className="space-y-3">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+      <section className="space-y-3 max-md:space-y-2">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between max-md:gap-2">
           <div>
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground max-md:text-[13px] max-md:normal-case max-md:tracking-normal max-md:text-foreground">
               {sessionTitle}
               {hasProcessing && (
                 <span className={`ml-2 inline-flex items-center gap-1 ${accentClassName}`}>
@@ -400,10 +414,10 @@ export function RenderModuleHubPage({
                 </span>
               )}
             </h2>
-            <p className="mt-1 text-xs text-muted-foreground">{sessionDescription}</p>
+            <p className="mt-1 text-xs text-muted-foreground max-md:hidden">{sessionDescription}</p>
           </div>
           {sessions.length > 0 && (
-            <div className="grid gap-2 sm:grid-cols-[minmax(220px,1fr)_150px_160px] lg:w-[680px]">
+            <div className="grid gap-2 sm:grid-cols-[minmax(220px,1fr)_150px_160px] lg:w-[680px] max-sm:grid-cols-[minmax(0,1fr)_130px]">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
@@ -424,7 +438,7 @@ export function RenderModuleHubPage({
                 </SelectContent>
               </Select>
               <Select value={crmFilter} onValueChange={setCrmFilter}>
-                <SelectTrigger><SelectValue placeholder="CRM" /></SelectTrigger>
+                <SelectTrigger className="max-sm:hidden"><SelectValue placeholder="CRM" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Tutti CRM</SelectItem>
                   <SelectItem value="linked">Collegati</SelectItem>
@@ -441,16 +455,16 @@ export function RenderModuleHubPage({
           </div>
         ) : sessions.length === 0 ? (
           <Card>
-            <CardContent className="flex flex-col items-center gap-4 py-14 text-center">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+            <CardContent className="flex flex-col items-center gap-4 py-14 text-center max-md:gap-0 max-md:py-4">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted max-md:hidden">
                 <ModuleIcon className="h-8 w-8 text-muted-foreground/40" />
               </div>
               <div>
-                <p className="font-medium">{emptyTitle}</p>
-                <p className="mt-1 text-sm text-muted-foreground">{emptyDescription}</p>
+                <p className="font-medium max-md:text-[13px]">{emptyTitle}</p>
+                <p className="mt-1 text-sm text-muted-foreground max-md:hidden">{emptyDescription}</p>
               </div>
               {newPath && (
-                <Button onClick={() => navigate(newPath)}>
+                <Button onClick={() => navigate(newPath)} className="max-md:hidden">
                   <Plus className="mr-2 h-4 w-4" />
                   Crea il primo render
                 </Button>
@@ -466,7 +480,7 @@ export function RenderModuleHubPage({
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-3">
+          <div className="grid gap-3 max-md:gap-2">
             {filteredSessions.map((session) => {
               const status = normalizeRenderStatus(session.status);
               const cfg = STATUS_CONFIG[status];
@@ -479,8 +493,8 @@ export function RenderModuleHubPage({
                   className="cursor-pointer transition-colors hover:border-primary/40 hover:bg-muted/20"
                   onClick={() => path && navigate(path)}
                 >
-                  <CardContent className="grid gap-3 p-3 sm:grid-cols-[96px_minmax(0,1fr)_auto] sm:items-center">
-                    <div className="h-20 overflow-hidden rounded-xl bg-muted sm:h-16">
+                  <CardContent className="grid gap-3 p-3 sm:grid-cols-[96px_minmax(0,1fr)_auto] sm:items-center max-sm:grid-cols-[64px_minmax(0,1fr)] max-sm:items-center max-sm:gap-2.5 max-sm:p-2">
+                    <div className="h-20 overflow-hidden rounded-xl bg-muted sm:h-16 max-sm:h-12 max-sm:rounded-lg">
                       {resultUrl ? (
                         <img
                           src={resultUrl}
@@ -502,7 +516,7 @@ export function RenderModuleHubPage({
                           <Icon className="h-2.5 w-2.5" />
                           {cfg.label}
                         </Badge>
-                        <Badge variant="outline" className="h-5 text-xs">
+                        <Badge variant="outline" className="h-5 text-xs max-md:hidden">
                           {moduleName}
                         </Badge>
                         {(session.contact_id || session.opportunity_id) && (
@@ -512,10 +526,10 @@ export function RenderModuleHubPage({
                           </Badge>
                         )}
                       </div>
-                      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground max-md:mt-1 max-md:gap-x-2 max-md:text-[11px]">
                         <span>{getRenderDate(session.created_at)}</span>
                         {session.meta.createdByName && (
-                          <span className="inline-flex items-center gap-1">
+                          <span className="inline-flex items-center gap-1 max-md:hidden">
                             <UserRound className="h-3 w-3" />
                             {session.meta.createdByName}
                           </span>
