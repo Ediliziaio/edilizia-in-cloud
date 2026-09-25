@@ -79,15 +79,19 @@ export function WorkAssignmentRow({ assignment: a, employees, externalTeams, pha
     finally { setBusy(false); }
   };
 
-  return <div className="rounded-xl border bg-background p-3 sm:p-4">
-    <div className="flex flex-wrap items-start justify-between gap-3">
-      <div className="flex min-w-0 flex-1 items-start gap-3">
+  return <div className="rounded-xl border bg-background p-3 sm:p-4 max-sm:px-3 max-sm:py-2.5">
+    <div className="flex flex-wrap items-start justify-between gap-3 max-sm:flex-nowrap max-sm:items-center">
+      <div className="flex min-w-0 flex-1 items-start gap-3 max-sm:items-center">
         <div className={`rounded-lg p-2 ${internal ? "bg-blue-50 text-blue-700" : "bg-violet-50 text-violet-700"}`}>
           {internal ? <UserRound className="h-4 w-4" /> : <Building2 className="h-4 w-4" />}
         </div>
-        <div className="min-w-0 space-y-1">
+        <div className="min-w-0 space-y-1 max-sm:space-y-0">
           <p className="break-words text-sm font-semibold">{name}</p>
-          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          {/* Mobile: tipo e ore in una riga di testo (badge e ore andavano a capo). */}
+          <p className="text-xs text-muted-foreground sm:hidden">
+            {internal ? `Dipendente · ${a.hours ?? 0} h registrate` : "Squadra esterna · affidamento"}
+          </p>
+          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground max-sm:hidden">
             <Badge variant="secondary">{internal ? "Dipendente" : "Squadra esterna"}</Badge>
             {internal && <span className="inline-flex items-center gap-1"><Clock3 className="h-3 w-3" />{a.hours ?? 0} h registrate</span>}
             {!internal && <span>Affidamento esterno</span>}
@@ -95,11 +99,12 @@ export function WorkAssignmentRow({ assignment: a, employees, externalTeams, pha
           {a.notes && <p className="whitespace-pre-wrap break-words text-xs text-muted-foreground">{a.notes}</p>}
         </div>
       </div>
-      {canEditOrders && <Button size="sm" variant="outline" onClick={startEditing} aria-label={`Gestisci ${name}`}>
-        <Pencil className="mr-1.5 h-3.5 w-3.5" />Gestisci
+      {/* Mobile: la sola matita (il nome resta nell'etichetta per lo screen reader). */}
+      {canEditOrders && <Button size="sm" variant="outline" onClick={startEditing} aria-label={`Gestisci ${name}`} className="tap-compact max-sm:h-8 max-sm:w-8 max-sm:p-0">
+        <Pencil className="mr-1.5 h-3.5 w-3.5 max-sm:mr-0" /><span className="max-sm:hidden">Gestisci</span>
       </Button>}
     </div>
-    {canViewCosts && <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 border-t pt-2 text-xs text-muted-foreground">
+    {canViewCosts && <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 border-t pt-2 text-xs text-muted-foreground max-sm:hidden">
       <span>Budget <strong className="font-medium text-foreground">{eur.format(a.cost_preventivo)}</strong></span>
       <span>Costo registrato <strong className="font-medium text-foreground">{eur.format(a.cost_consuntivo)}</strong></span>
       {!internal && <span>{a.is_paid ? "Pagamento registrato" : "Pagamento da registrare"}</span>}

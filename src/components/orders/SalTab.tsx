@@ -323,7 +323,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
 
       {/* Il punto che vale tutto il capitolo: il SAL è una misura del lavoro
           eseguito, non una scadenza sul calendario. */}
-      <p className="text-xs text-muted-foreground">
+      <p className="text-xs text-muted-foreground max-sm:hidden">
         Il SAL non è una data: è una misura del lavoro eseguito. Se il cantiere non avanza la
         cassa si ferma — gli stipendi no.
       </p>
@@ -424,7 +424,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
           <CardContent className="py-3 flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs text-muted-foreground flex items-center gap-2 min-w-0">
               <FileBarChart2 className="h-4 w-4 shrink-0 text-muted-foreground/60" aria-hidden="true" />
-              Nessun verbale. I verbali SAL certificano l'avanzamento lavori: servono per bonus edilizi, erogazioni bancarie e appalti.
+              <span>Nessun verbale.<span className="max-sm:hidden"> I verbali SAL certificano l'avanzamento lavori: servono per bonus edilizi, erogazioni bancarie e appalti.</span></span>
             </p>
             <Button size="sm" variant="outline" onClick={() => setDialogOpen(true)}>
               <Plus className="h-4 w-4 mr-1" aria-hidden="true" /> Crea verbale
