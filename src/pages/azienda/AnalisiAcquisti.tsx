@@ -82,14 +82,15 @@ export default function AnalisiAcquisti() {
   const eur0 = (v: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(v);
 
   return (
-    <div className="container mx-auto p-4 sm:p-6 space-y-6 max-sm:space-y-3 max-sm:p-0">
+    // Da 640 niente container con margini propri: il margine lo dà il layout
+    // (la pagina partiva 24px più in là delle altre).
+    <div className="container mx-auto p-0 space-y-6 max-sm:space-y-3 sm:max-w-none">
       {/* Mobile: solo il titolo (via spiegazione ed etichetta «Sola lettura»). */}
       {isMobile ? (
         <h1 className="text-lg font-bold leading-6">Analisi Acquisti</h1>
       ) : (
         <PageHeader
           title="Analisi Acquisti"
-          description="Spesa per fornitore, concentrazione e benchmark dei prezzi per individuare opportunità di risparmio."
           badge={<Badge variant="secondary" className="font-normal">Sola lettura</Badge>}
         />
       )}
@@ -97,17 +98,11 @@ export default function AnalisiAcquisti() {
       {/* Testata navy di famiglia: la spesa acquisti in cinque card in vetro.
           Mobile: due numeri, nome e cifra. */}
       <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm max-sm:hidden">
+        {/* Senza titoletto («Analisi acquisti — Da chi compri, a che prezzo»,
+            ripeteva la pagina) e tre per riga da 768: a due per riga il quinto
+            restava da solo su una terza riga. */}
         <div className="bg-[#173b67] p-4 text-white sm:p-5">
-          <div className="flex items-start gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)] sm:h-11 sm:w-11">
-              <ShoppingCart className="h-4 w-4 sm:h-5 sm:w-5" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-orange-100 sm:text-xs">Analisi acquisti</p>
-              <h2 className="mt-0.5 text-base font-semibold text-white sm:text-xl">Da chi compri, a che prezzo</h2>
-            </div>
-          </div>
-          <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-5 sm:gap-3 xl:grid-cols-5">
+          <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-3 xl:grid-cols-5">
             {isLoading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <div key={i} className="h-20 animate-pulse rounded-xl border border-white/12 bg-white/9" />
@@ -217,13 +212,15 @@ export default function AnalisiAcquisti() {
               ))}
             </div>
           ) : (
-            <Table>
+            // Celle più strette sotto 1280 (anche nelle altre due tabelle): a
+            // 1024 la tabella dei fornitori usciva di 24px.
+            <Table className="[&_td]:px-3 [&_th]:px-3 xl:[&_td]:px-4 xl:[&_th]:px-4">
               <TableHeader>
                 <TableRow>
                   <TableHead>Fornitore</TableHead>
                   <TableHead className="text-right">Ordini</TableHead>
                   <TableHead className="text-right">Spesa</TableHead>
-                  <TableHead className="w-[180px]">Quota</TableHead>
+                  <TableHead className="w-[140px] xl:w-[180px]">Quota</TableHead>
                   <TableHead className="text-right">Scaduto</TableHead>
                   <TableHead className="text-right">Ultimo ordine</TableHead>
                 </TableRow>
@@ -300,7 +297,7 @@ export default function AnalisiAcquisti() {
               ))}
             </div>
           ) : (
-            <Table>
+            <Table className="[&_td]:px-3 [&_th]:px-3 xl:[&_td]:px-4 xl:[&_th]:px-4">
               <TableHeader>
                 <TableRow>
                   <TableHead>Articolo</TableHead>
@@ -364,13 +361,13 @@ export default function AnalisiAcquisti() {
                 ))}
               </div>
             ) : (
-            <Table>
+            <Table className="[&_td]:px-3 [&_th]:px-3 xl:[&_td]:px-4 xl:[&_th]:px-4">
               <TableHeader>
                 <TableRow>
                   <TableHead>Fornitore</TableHead>
                   <TableHead className="text-right">Fatture</TableHead>
                   <TableHead className="text-right">Imponibile</TableHead>
-                  <TableHead className="w-[160px]">Quota</TableHead>
+                  <TableHead className="w-[130px] xl:w-[160px]">Quota</TableHead>
                   <TableHead className="text-right">Ultima fattura</TableHead>
                 </TableRow>
               </TableHeader>
