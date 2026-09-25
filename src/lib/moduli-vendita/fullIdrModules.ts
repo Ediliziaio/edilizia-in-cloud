@@ -6,11 +6,12 @@ import { CAPITOLI_EDILI } from "@/components/preventivi/pdf/ordineCapitoli";
 import { IDR_REMAINING_EDITORIAL } from "./idrRemainingEditorial";
 import { IDR_PHOTO_CORRECTIONS } from "./idrPhotoCorrections";
 import { DATI_CONTO_TERMICO_DIMOSTRATIVI } from "@/lib/contoTermico/anteprima";
+import { DATI_FULL_ELECTRIC_DIMOSTRATIVI } from "@/lib/fullElectric/anteprima";
 
-export const FULL_IDR_MODULES = ["caldaia", "pompa-calore", "ibrido", "radiante", "terminali", "idrico", "acqua-calda", "manutenzione", "conto-termico"] as const;
+export const FULL_IDR_MODULES = ["caldaia", "pompa-calore", "ibrido", "radiante", "terminali", "idrico", "acqua-calda", "manutenzione", "conto-termico", "full-electric"] as const;
 export type FullIdrModuleId = typeof FULL_IDR_MODULES[number];
 export const isFullIdrModuleId = (id: string): id is FullIdrModuleId => FULL_IDR_MODULES.some(v => v === id);
-export const IDR_MODULE_TITLES = { caldaia: "Sostituzione caldaia", "pompa-calore": "Pompa di calore", ibrido: "Sistema ibrido", radiante: "Riscaldamento a pavimento", terminali: "Radiatori e terminali", idrico: "Impianto idrico-sanitario", "acqua-calda": "Acqua calda sanitaria", manutenzione: "Riparazione e manutenzione", "conto-termico": "Conto Termico 3.0" };
+export const IDR_MODULE_TITLES = { caldaia: "Sostituzione caldaia", "pompa-calore": "Pompa di calore", ibrido: "Sistema ibrido", radiante: "Riscaldamento a pavimento", terminali: "Radiatori e terminali", idrico: "Impianto idrico-sanitario", "acqua-calda": "Acqua calda sanitaria", manutenzione: "Riparazione e manutenzione", "conto-termico": "Conto Termico 3.0", "full-electric": "Casa Full Electric" };
 export const IDR_EDITORIAL = {
   ...IDR_REMAINING_EDITORIAL,
   ibrido: {
@@ -99,10 +100,12 @@ export function buildIdrModulePreview(companyId: string, template: IdrTemplatePd
     cliente_nome: "Cliente", cliente_cognome: "dimostrativo", cliente_email: null, cliente_telefono: null,
     cantiere_indirizzo: null, cantiere_citta: null, cantiere_cap: null, cantiere_provincia: null,
     immobile_tipo: null, immobile_superficie_mq: null, immobile_anno: null, immobile_piani: null, massimale_detrazione: null,
-    opportunita_id: null, cliente_id: null, template_id: null, sconto_pct: 0, iva_pct: id === "conto-termico" ? 10 : 22, detrazione_pct: 0, totale_imponibile: 0, totale: 0,
+    opportunita_id: null, cliente_id: null, template_id: null, sconto_pct: 0, iva_pct: id === "conto-termico" || id === "full-electric" ? 10 : 22, detrazione_pct: 0, totale_imponibile: 0, totale: 0,
     note: "ANTEPRIMA DIMOSTRATIVA: prodotti, prezzi e IVA sono esempi da definire. Non è un'offerta da inviare.",
-    // Il Conto Termico ha i suoi numeri: senza, l'anteprima mostrerebbe un contributo di 0 €.
-    ...(id === "conto-termico" ? { conto_termico: DATI_CONTO_TERMICO_DIMOSTRATIVI } : {}) };
+    // Conto Termico e Casa Full Electric hanno i loro numeri: senza, l'anteprima
+    // mostrerebbe contributo, energia e bollette a 0.
+    ...(id === "conto-termico" ? { conto_termico: DATI_CONTO_TERMICO_DIMOSTRATIVI } : {}),
+    ...(id === "full-electric" ? { full_electric: DATI_FULL_ELECTRIC_DIMOSTRATIVI } : {}) };
   const computo: IdrComputoVoce[] = c.rows.map(([capitolo_nome, descrizione, price], i): IdrComputoVoce => ({ id: `demo-${i}`, progetto_id: "preview", company_id: companyId, ordine: i, capitolo_nome, descrizione, unita_misura: "corpo", quantita: 1, prezzo_unitario: price, costo_materiali: 0, costo_manodopera: 0, sconto_pct: 0, importo: price, margine_eur: price, margine_pct: 100, listino_voce_id: null }));
   return { progetto, computo, media: [] as IdrProgettoMedia[], template };
 }

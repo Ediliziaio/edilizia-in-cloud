@@ -35,12 +35,14 @@ import { PrezzoPreventivoAMano } from "@/components/preventivi/PrezzoPreventivoA
 import { useIdrTemplatePdf } from "@/hooks/useTermoidraulicoProgetto";
 import { ContoTermicoEconomia } from "@/components/termoidraulico/contoTermico/ContoTermicoEconomia";
 import { leggiDatiContoTermico } from "@/lib/contoTermico/dati";
+import { FullElectricEconomia } from "@/components/termoidraulico/fullElectric/FullElectricEconomia";
+import { leggiDatiFullElectric } from "@/lib/fullElectric/dati";
 
 interface Props {
   form: Partial<IdrProgetto>;
   onChange: <K extends keyof IdrFormPatch>(key: K, value: IdrFormPatch[K]) => void;
   computo: IdrComputoVoce[];
-  /** L'intervento della libreria: col Conto Termico la detrazione lascia il posto al contributo. */
+  /** L'intervento della libreria: col Conto Termico e la Casa Full Electric la detrazione generica lascia il posto ai loro incentivi. */
   model?: { id: string } | null;
 }
 
@@ -55,6 +57,9 @@ const toPct = (raw: string): number => {
 
 export default function StepEconomia({ form, onChange, computo, model }: Props) {
   const contoTermico = model?.id === "conto-termico";
+  const fullElectric = model?.id === "full-electric";
+  // Prezzo scritto a mano e incentivi propri: la detrazione generica non serve.
+  const incentiviPropri = contoTermico || fullElectric;
   // Template del modulo (cached): serve a mostrare la rata solo se la promo è attiva.
   const { data: template } = useIdrTemplatePdf();
   const scontoPct = Number(form.sconto_pct ?? 0);
@@ -166,12 +171,22 @@ export default function StepEconomia({ form, onChange, computo, model }: Props) 
             </CardContent>
           </Card>
 
-          {/* Il Conto Termico sta nella colonna larga: nella stretta i campi si tagliavano. */}
+          {/* Conto Termico e Full Electric stanno nella colonna larga: nella stretta i campi si tagliavano. */}
           {contoTermico && (
             <div className="order-3">
               <ContoTermicoEconomia
                 dati={leggiDatiContoTermico(form.conto_termico)}
                 onChange={(dati) => onChange("conto_termico", dati)}
+                prezzoIvaInclusa={totali.totale}
+                ivaPct={ivaPct}
+              />
+            </div>
+          )}
+          {fullElectric && (
+            <div className="order-3">
+              <FullElectricEconomia
+                dati={leggiDatiFullElectric(form.full_electric)}
+                onChange={(dati) => onChange("full_electric", dati)}
                 prezzoIvaInclusa={totali.totale}
                 ivaPct={ivaPct}
               />
@@ -195,7 +210,7 @@ export default function StepEconomia({ form, onChange, computo, model }: Props) 
                 value={form.prezzo_manuale}
                 sommaVoci={totali.sommaVoci}
                 onCommit={(v) => onChange("prezzo_manuale", v)}
-                sempre={contoTermico}
+                sempre={incentiviPropri}
               />
               <ScontoGlobaleField
                 id="idr-sconto"
@@ -211,7 +226,7 @@ export default function StepEconomia({ form, onChange, computo, model }: Props) 
                 onCommit={(v) => onChange("iva_pct", v)}
                 hint="In edilizia spesso 10% (termoidraulico) o 4% (prima casa)."
               />
-              {!contoTermico && <PctField
+              {!incentiviPropri && <PctField
                 id="idr-detrazione"
                 label="Detrazione / bonus"
                 value={form.detrazione_pct ?? 0}
@@ -228,7 +243,7 @@ export default function StepEconomia({ form, onChange, computo, model }: Props) 
                 onChange={(v) => onChange("mostra_finanziamento", v)}
               />
               {/* Preset incentivi termoidraulico: 1-click → imposta detrazione + massimale di spesa */}
-              {!contoTermico && <div>
+              {!incentiviPropri && <div>
                 <p className="mb-1 text-[10px] text-muted-foreground">Incentivi rapidi (termoidraulico):</p>
                 <div className="flex flex-wrap gap-1.5">
                   {INCENTIVI_TERMOIDRAULICO.map((inc) => {

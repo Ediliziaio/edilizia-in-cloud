@@ -1,5 +1,6 @@
 import type { TetEditorialPair } from "./fullTettiFactory";
 import { FAQ_CONTO_TERMICO } from "@/lib/contoTermico/testi";
+import { FAQ_FULL_ELECTRIC } from "@/lib/fullElectric/testi";
 
 interface IdrEditorial {
   hero: string; subtitle: string; cover: string; detail: string; context: string; scope: string;
@@ -88,5 +89,18 @@ export const IDR_REMAINING_EDITORIAL = {
     // prima dell'ordine» spiegata col modo di ricevere il contributo).
     usp: [["Il contributo, messo in chiaro", "Nel preventivo trovi il contributo stimato, quanto resta a te e quando arriva: i numeri sono gli stessi in ogni pagina."], ["Un generatore scelto sui requisiti", "Potenza ed efficienza stagionale (SCOP) sono i dati con cui il GSE calcola il contributo: li verifichiamo sulla scheda tecnica prima dell'ordine."], ["I documenti, raccolti durante i lavori", "Foto prima e dopo, fatture, schede e certificato di smaltimento: quello che serve alla domanda al GSE non si ricostruisce dopo."]],
     garanzie: [["Garanzia del produttore", "Sul generatore vale la garanzia del produttore, alle condizioni della sua documentazione."], ["Impianto a regola d'arte", "A fine lavori rilasciamo la dichiarazione di conformità prevista per le opere eseguite."], ["Documenti per il GSE", "Foto, fatture, schede tecniche e certificato di smaltimento restano a te, pronti per la domanda e per eventuali controlli."], ["Assistenza definita", "Contatti e documenti restano a te; manutenzione e servizi aggiuntivi sono quelli concordati."]],
+  },
+  "full-electric": {
+    hero: "La casa senza gas.\nTutta elettrica, dal tuo tetto.",
+    subtitle: "Pompa di calore, induzione, fotovoltaico e batteria: un solo progetto e una sola bolletta.",
+    cover: "/pdf-stock/fotovoltaico/villa-tetto-coppi.jpg", detail: "/pdf-stock/fotovoltaico/tecnica-percorso-energia.jpg", context: "/pdf-stock/fotovoltaico/sopralluogo.jpg",
+    scope: "La proposta riguarda i componenti, i collegamenti e le attività elencate. Produzione, consumi e risparmi sono stime; gli incentivi dipendono dai requisiti e dalle regole in vigore. Opere murarie, adeguamenti della rete e aumenti di potenza non sono compresi se non elencati.",
+    specs: [["Consumi e bollette di oggi", "Gas e luce di un anno: da qui si misura quanto cambia con la casa tutta elettrica."], ["Il sistema proposto", "Potenza del fotovoltaico, capacità della batteria e pompa di calore risultano dalle schede dei modelli proposti."], ["Energia e bollette di domani", "Produzione, quota consumata in casa e bolletta rimasta sono stime scritte nel preventivo."], ["Incentivi e rientro", "Detrazione e Conto Termico valgono su componenti diversi; il rientro tiene conto di entrambi."]],
+    stages: [["Sopralluogo e consumi", "Guardiamo tetto, locale tecnico e impianto di oggi, e leggiamo con te le bollette di gas e luce."], ["Progetto e pratiche", "Dimensioniamo impianto e batteria sui tuoi consumi e prepariamo connessione alla rete e pratiche per gli incentivi."], ["Installazione coordinata", "Fotovoltaico, batteria, pompa di calore e induzione in giorni concordati, un lavoro alla volta."], ["Attivazione e addio al gas", "Colleghiamo l'impianto, avviamo la pompa di calore e ti spieghiamo l'app; poi il contratto del gas si chiude."]],
+    // Le stesse domande del documento: una sola fonte, src/lib/fullElectric/testi.ts.
+    faq: FAQ_FULL_ELECTRIC.map(({ domanda, risposta }) => [domanda, risposta] as TetEditorialPair),
+    rows: [["Fotovoltaico e batteria", "Impianto fotovoltaico con batteria di accumulo della configurazione dimostrativa", 14200], ["Pompa di calore", "Pompa di calore aria-acqua per riscaldamento e acqua calda, installazione compresa", 10300], ["Cucina e impianto elettrico", "Piano a induzione e adeguamento della linea elettrica", 1500]],
+    usp: [["Un solo progetto", "Fotovoltaico, batteria, pompa di calore e induzione dimensionati insieme sui tuoi consumi, non quattro preventivi da mettere d'accordo."], ["I numeri, messi in chiaro", "Produzione, bollette prima e dopo, incentivi e rientro: stime scritte, pagina per pagina, sugli stessi dati."], ["Dalla pratica all'app", "Connessione alla rete, pratiche per gli incentivi e l'app per seguire l'energia di casa."]],
+    garanzie: [["Garanzia del produttore", "Su moduli, inverter, batteria e pompa di calore valgono le garanzie dei produttori, alle condizioni della loro documentazione."], ["Impianto a regola d'arte", "A fine lavori rilasciamo le dichiarazioni di conformità previste per le opere eseguite."], ["Pratiche seguite", "Connessione alla rete e pratiche per gli incentivi compresi nella proposta: le seguiamo noi, con i tuoi documenti."], ["Assistenza definita", "Contatti e documenti restano a te; manutenzione e servizi aggiuntivi sono quelli concordati."]],
   },
 } satisfies Record<string, IdrEditorial>;

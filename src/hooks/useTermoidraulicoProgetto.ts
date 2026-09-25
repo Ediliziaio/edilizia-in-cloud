@@ -325,6 +325,7 @@ export function useClonaProgetto() {
           prezzo_manuale: src.prezzo_manuale ?? null,
           detrazione_pct: src.detrazione_pct,
           ...(src.conto_termico ? { conto_termico: src.conto_termico } : {}),
+          ...(src.full_electric ? { full_electric: src.full_electric } : {}),
           note: src.note,
           template_id: src.template_id,
           ...(src.modello_snapshot ? { modello_snapshot: leggiModelloPreventivo("termoidraulico", src.modello_snapshot, companyId) } : {}),

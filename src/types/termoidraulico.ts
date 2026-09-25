@@ -40,6 +40,8 @@ export interface IdrProgetto {
   prezzo_manuale?: number | null;
   /** Dati del Conto Termico 3.0 (modello «conto-termico»): si leggono con leggiDatiContoTermico. */
   conto_termico?: Partial<import("@/lib/contoTermico/dati").DatiContoTermico> | null;
+  /** Dati del modello Casa Full Electric (idr_progetti.full_electric); null per gli altri. */
+  full_electric?: Partial<import("@/lib/fullElectric/dati").DatiFullElectric> | null;
   totale_imponibile: number; totale: number; note: string | null;
 }
 export interface IdrProgettoMedia { id: string; progetto_id: string; company_id: string; tipo: string; url: string; caption: string | null; ordine: number; }
