@@ -8,6 +8,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   AlertTriangle,
   ArrowRight,
@@ -571,12 +572,13 @@ function PlatformStatusRibbon({
   const pagine = stato.pagine;
   if (pagine.length === 0) {
     return (
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50/40 px-4 py-3 shadow-sm">
-        <span className="text-xs font-medium text-amber-800">
-          Nessuna pagina collegata: collega Facebook e Instagram per pubblicare da qui.
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50/40 px-4 py-3 shadow-sm max-sm:rounded-lg max-sm:px-3 max-sm:py-2 max-sm:shadow-none">
+        <span className="text-xs font-medium text-amber-800 max-sm:text-[13px]">
+          Nessuna pagina collegata<span className="max-sm:hidden">: collega Facebook e Instagram per pubblicare da qui.</span>
+          <span className="block text-[11px] font-normal text-amber-800/80 sm:hidden">si collega da computer o tablet</span>
         </span>
         <Button size="sm" variant="outline" onClick={onGoToSettings}
-          className="shrink-0 gap-1.5 border-amber-300 bg-white text-amber-800 hover:bg-amber-50">
+          className="shrink-0 gap-1.5 border-amber-300 bg-white text-amber-800 hover:bg-amber-50 max-sm:hidden">
           <Settings className="h-3.5 w-3.5" /> Collega Meta
           <ArrowRight className="h-3 w-3" />
         </Button>
@@ -601,15 +603,20 @@ function PlatformStatusRibbon({
       : `${pronte} ${pronte === 1 ? "pagina" : "pagine"} su ${pagine.length} ${pronte === 1 ? "pronta" : "pronte"} a pubblicare`;
 
   return (
+    // Telefono: una riga (quante pagine possono pubblicare); pagine, motivi e
+    // «Ricollega Meta» restano al computer, dove si rifà il collegamento.
     <div className={cn(
-      "space-y-2 rounded-2xl border px-4 py-2.5 shadow-sm",
+      "space-y-2 rounded-2xl border px-4 py-2.5 shadow-sm max-sm:space-y-0 max-sm:rounded-lg max-sm:px-3 max-sm:py-2 max-sm:shadow-none",
       tutteOk ? "border-emerald-100 bg-gradient-to-r from-emerald-50 to-white" : "border-amber-200 bg-amber-50/70",
     )}>
       <div className="flex flex-wrap items-center gap-2">
-        <span className={cn("flex items-center gap-1.5 text-xs font-semibold", tutteOk ? "text-emerald-700" : "text-amber-800")}>
+        <span className={cn("flex items-center gap-1.5 text-xs font-semibold max-sm:text-[13px]", tutteOk ? "text-emerald-700" : "text-amber-800")}>
           {tutteOk ? <Check className="h-3.5 w-3.5" /> : <AlertTriangle className="h-3.5 w-3.5" />}
           {titolo}
         </span>
+        {!tutteOk && (
+          <span className="block w-full pl-5 text-[11px] text-amber-800/80 sm:hidden">si ricollega da computer o tablet</span>
+        )}
         {pagine.map((pagina) => {
           const piattaforma = PLATFORMS.find((p) => p.id === pagina.piattaforma);
           const spiegazione = spiegaMotivo(pagina.motivo, { verificaNonRiuscita });
@@ -619,7 +626,7 @@ function PlatformStatusRibbon({
               key={pagina.id || `${pagina.piattaforma}-${pagina.pageId}`}
               title={`${piattaforma?.name ?? pagina.piattaforma} · ${pagina.nome}: ${spiegazione.lungo}`}
               className={cn(
-                "flex max-w-full items-center gap-1.5 rounded-full border bg-white px-2.5 py-1 text-[11px] font-medium",
+                "flex max-w-full items-center gap-1.5 rounded-full border bg-white px-2.5 py-1 text-[11px] font-medium max-sm:hidden",
                 pagina.puoPubblicare ? "border-slate-100 text-slate-700 shadow-sm" : "border-amber-200 text-slate-600",
               )}
             >
@@ -638,12 +645,12 @@ function PlatformStatusRibbon({
             </span>
           );
         })}
-        <button type="button" onClick={onGoToSettings} className="ml-auto flex items-center gap-1 text-[11px] text-slate-500 hover:text-slate-700">
+        <button type="button" onClick={onGoToSettings} className="ml-auto flex items-center gap-1 text-[11px] text-slate-500 hover:text-slate-700 max-sm:hidden">
           <Settings className="h-3 w-3" /> Gestisci
         </button>
       </div>
       {!tutteOk && spiegazioni.length > 0 && (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 max-sm:hidden">
           <div className="min-w-0 flex-1 space-y-0.5">
             {spiegazioni.map((s) => (
               <p key={`${s.nome ?? ""}-${s.lungo}`} className="text-[11px] text-amber-800">
@@ -1265,7 +1272,8 @@ function CalendarioTab({
               )}
             </div>
           ) : nessunPost ? (
-            <div className="rounded-2xl border-2 border-dashed border-slate-200 p-6 text-center">
+            // Telefono: lo dice già l'elenco dei giorni, con lo stesso «Crea post».
+            <div className="rounded-2xl border-2 border-dashed border-slate-200 p-6 text-center max-sm:hidden">
               <Calendar className="mx-auto mb-2 h-6 w-6 text-slate-300" />
               <p className="text-sm font-medium text-slate-600">Nessun post ancora</p>
               <p className="mt-1 text-xs text-slate-400">Clicca un giorno del calendario o crea il primo post.</p>
@@ -1627,22 +1635,23 @@ function PassoComposer({
   children: React.ReactNode;
 }) {
   return (
-    <Card className="overflow-hidden">
-      <CardHeader className="pb-3">
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-orange-500 text-xs font-bold text-white">
+    // Telefono: numero e titolo piccoli su una riga, senza sottotitolo; margini stretti.
+    <Card className="overflow-hidden max-sm:rounded-lg">
+      <CardHeader className="pb-3 max-sm:p-3 max-sm:pb-2">
+        <div className="flex flex-wrap items-start justify-between gap-2 max-sm:items-center">
+          <div className="flex items-center gap-2.5 max-sm:gap-2">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-orange-500 text-xs font-bold text-white max-sm:h-5 max-sm:w-5 max-sm:text-[11px]">
               {numero}
             </span>
             <div>
-              <CardTitle className="text-base">{titolo}</CardTitle>
-              {descrizione && <CardDescription className="text-[11px]">{descrizione}</CardDescription>}
+              <CardTitle className="text-base max-sm:text-sm">{titolo}</CardTitle>
+              {descrizione && <CardDescription className="text-[11px] max-sm:hidden">{descrizione}</CardDescription>}
             </div>
           </div>
           {azione}
         </div>
       </CardHeader>
-      <CardContent className="space-y-3">{children}</CardContent>
+      <CardContent className="space-y-3 max-sm:p-3 max-sm:pt-0">{children}</CardContent>
     </Card>
   );
 }
@@ -2315,6 +2324,7 @@ function ContentStudioTab({
                   onClick={() => togglePlatform(p.id)}
                   className={cn(
                     "flex items-center gap-2 rounded-xl border-2 px-3 py-2 text-sm font-semibold transition",
+                    "tap-compact max-sm:gap-1.5 max-sm:rounded-lg max-sm:px-2 max-sm:py-1.5 max-sm:text-[13px]",
                     isSelected ? `border-transparent text-white bg-gradient-to-r ${p.gradient}` : "border-slate-200 bg-white text-slate-600 hover:border-slate-300",
                   )}
                 >
@@ -2360,7 +2370,8 @@ function ContentStudioTab({
           })}
 
           {selectedPlatforms.length === 0 && stato && (
-            <p className="text-[11px] text-slate-500">
+            // Telefono: il «nessuna pagina può pubblicare» lo dice già la riga in alto.
+            <p className={cn("text-[11px] text-slate-500", piattaformeOk.length === 0 && "max-sm:hidden")}>
               {piattaformeOk.length > 0
                 ? "Scegli almeno una piattaforma."
                 : "Nessuna pagina può pubblicare adesso: scegli dove andrà il post e salvalo come bozza."}
@@ -2377,7 +2388,7 @@ function ContentStudioTab({
               ))}
               {motiviScelte.some((riga) => riga.ricollega) && (
                 <Button size="sm" variant="outline" onClick={onGoToSettings}
-                  className="h-7 gap-1.5 border-amber-300 bg-white text-[11px] text-amber-800 hover:bg-amber-100">
+                  className="h-7 gap-1.5 border-amber-300 bg-white text-[11px] text-amber-800 hover:bg-amber-100 max-sm:hidden">
                   <Settings className="h-3 w-3" /> Ricollega Meta
                 </Button>
               )}
@@ -2649,7 +2660,7 @@ function ContentStudioTab({
               <ChevronDown className={cn("h-4 w-4 text-slate-400 transition-transform", opzioniAperte ? "rotate-180" : "")} />
               <span className="text-xs font-semibold text-slate-700">Opzioni avanzate</span>
               {!opzioniAperte && (
-                <span className="text-[11px] text-slate-400">
+                <span className={cn("text-[11px] text-slate-400", riepilogoAvanzate.length === 0 && "max-sm:hidden")}>
                   {riepilogoAvanzate.length > 0 ? riepilogoAvanzate.join(" · ") : "Formato, argomento, testo per piattaforma, primo commento"}
                 </span>
               )}
@@ -2780,7 +2791,7 @@ function ContentStudioTab({
                 </Field>
               </div>
               {selectedPlatforms.length > 0 && (
-                <p className="text-[11px] text-slate-500">
+                <p className="text-[11px] text-slate-500 max-sm:hidden">
                   Di solito funzionano bene:{" "}
                   {selectedPlatforms.map((id) => {
                     const p = PLATFORMS.find((pl) => pl.id === id);
@@ -2820,9 +2831,10 @@ function ContentStudioTab({
               </Button>
             </div>
           ) : (<>
-          <div className="flex flex-col gap-2 sm:flex-row">
+          {/* Telefono: i due pulsanti affiancati, «Pubblica/Programma» prende lo spazio che resta. */}
+          <div className="flex flex-col gap-2 sm:flex-row max-sm:flex-row">
             <Button onClick={() => void onSchedulePost()} disabled={isSubmitting || nessunaPronta || !SOCIAL_LIVE_PUBLISHING_ENABLED}
-              className={cn("flex-1 text-white shadow-sm",
+              className={cn("flex-1 text-white shadow-sm max-sm:min-w-0 max-sm:px-3 max-sm:text-[13px]",
                 publishNow ? "bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600"
                   : "bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600")}>
               {!SOCIAL_LIVE_PUBLISHING_ENABLED
@@ -2834,7 +2846,7 @@ function ContentStudioTab({
                     : <><Calendar className="mr-2 h-4 w-4" />{doveEsce ? `Programma su ${doveEsce}` : "Programma"}</>}
             </Button>
             <Button type="button" variant="outline" onClick={() => void salvaBozza("draft")} disabled={isSubmitting}
-              className="border-slate-200 text-slate-700 sm:w-auto">
+              className="border-slate-200 text-slate-700 sm:w-auto max-sm:shrink-0 max-sm:px-3 max-sm:text-[13px]">
               <Pencil className="mr-2 h-4 w-4" />
               Salva bozza
             </Button>
@@ -2855,7 +2867,8 @@ function ContentStudioTab({
       </div>
 
       {/* ── ANTEPRIMA ──────────────────────────────────────────────────── */}
-      <div className="min-w-0">
+      {/* Telefono: niente anteprima in fondo alla pagina, il post si vede già mentre lo scrivi. */}
+      <div className="min-w-0 max-sm:hidden">
         <Card className="overflow-hidden xl:sticky xl:top-4">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between gap-2">
@@ -3741,7 +3754,8 @@ function InboxTab({ onUnreadChange, demoMode = false }: { onUnreadChange?: (n: n
       )}
 
       {/* ── HEADER STATS ─────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      {/* Telefono: niente riquadri di conteggio, i «da leggere» sono già sulla scheda. */}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 max-sm:hidden">
         {[
           { label: "Da leggere",  value: items.filter((i) => i.status === "unread").length,   color: "text-orange-600", bg: "bg-orange-50"  },
           { label: "Commenti",    value: items.filter((i) => i.type === "comment").length,     color: "text-blue-600",   bg: "bg-blue-50"    },
@@ -3756,9 +3770,10 @@ function InboxTab({ onUnreadChange, demoMode = false }: { onUnreadChange?: (n: n
       </div>
 
       {/* ── FILTERS ──────────────────────────────────────────────────────── */}
+      {/* Telefono: resta solo lo stato (Tutti, Da leggere, Risposti, Archivio). */}
       <div className="flex flex-wrap items-center gap-2">
         {/* Type */}
-        <div className="flex items-center gap-1 rounded-xl border bg-white p-1">
+        <div className="flex items-center gap-1 rounded-xl border bg-white p-1 max-sm:hidden">
           {([
             { id: "all",      label: "Tutti"     },
             { id: "comment",  label: "💬 Comm."  },
@@ -3775,7 +3790,7 @@ function InboxTab({ onUnreadChange, demoMode = false }: { onUnreadChange?: (n: n
         </div>
 
         {/* Status */}
-        <div className="flex items-center gap-1 rounded-xl border bg-white p-1">
+        <div className="flex items-center gap-1 rounded-xl border bg-white p-1 max-sm:w-full">
           {([
             { id: "all",      label: "Tutti"      },
             { id: "unread",   label: "Da leggere" },
@@ -3783,7 +3798,7 @@ function InboxTab({ onUnreadChange, demoMode = false }: { onUnreadChange?: (n: n
             { id: "archived", label: "Archivio"   },
           ] as const).map(({ id, label }) => (
             <button key={id} type="button" onClick={() => setFilterStatus(id)}
-              className={cn("rounded-lg px-2.5 py-1 text-xs font-semibold transition",
+              className={cn("rounded-lg px-2.5 py-1 text-xs font-semibold transition max-sm:flex-1 max-sm:px-1 max-sm:text-[13px]",
                 filterStatus === id ? "bg-slate-700 text-white" : "text-slate-500 hover:bg-slate-50")}>
               {label}
             </button>
@@ -3793,7 +3808,7 @@ function InboxTab({ onUnreadChange, demoMode = false }: { onUnreadChange?: (n: n
         {/* Platform */}
         {PLATFORMS.map((p) => (
           <button key={p.id} type="button" onClick={() => setFilterPlatform(p.id === filterPlatform ? null : p.id)}
-            className={cn("flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition",
+            className={cn("flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition max-sm:hidden",
               filterPlatform === p.id
                 ? `border-transparent text-white bg-gradient-to-r ${p.gradient}`
                 : "border-slate-200 bg-white text-slate-500 hover:border-slate-300")}>
@@ -3801,7 +3816,7 @@ function InboxTab({ onUnreadChange, demoMode = false }: { onUnreadChange?: (n: n
           </button>
         ))}
 
-        <div className="ml-auto text-[11px] text-slate-400">
+        <div className="ml-auto text-[11px] text-slate-400 max-sm:hidden">
           {filteredItems.length} messaggi{unreadCount > 0 && <span className="ml-1 rounded-full bg-orange-500 px-1.5 py-0.5 text-[10px] font-bold text-white">{unreadCount} nuovi</span>}
         </div>
       </div>
@@ -3809,8 +3824,8 @@ function InboxTab({ onUnreadChange, demoMode = false }: { onUnreadChange?: (n: n
       {/* ── LIST + DETAIL PANE ───────────────────────────────────────────── */}
       <div className="flex gap-4">
 
-        {/* List */}
-        <div className={cn("flex-1 space-y-2 overflow-y-auto", selectedItem ? "max-h-[600px]" : "")}>
+        {/* List — telefono: col messaggio aperto l'elenco lascia il posto al dettaglio */}
+        <div className={cn("flex-1 space-y-2 overflow-y-auto", selectedItem ? "max-h-[600px] max-sm:hidden" : "")}>
           {filteredItems.length === 0 ? (
             <div className="flex flex-col items-center gap-3 py-12 text-slate-400">
               <MessageSquare className="h-10 w-10 opacity-30" />
@@ -3890,7 +3905,7 @@ function InboxTab({ onUnreadChange, demoMode = false }: { onUnreadChange?: (n: n
           const platform = PLATFORMS.find((p) => p.id === selectedItem.platform);
 
           return (
-            <div className="w-80 shrink-0 space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="w-80 shrink-0 space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm max-sm:w-full max-sm:rounded-xl max-sm:p-3 max-sm:shadow-none">
               {/* Close */}
               <div className="flex items-center justify-between">
                 <p className="text-sm font-bold text-slate-800">Dettaglio</p>
@@ -3948,7 +3963,8 @@ function InboxTab({ onUnreadChange, demoMode = false }: { onUnreadChange?: (n: n
                     placeholder={selectedItem.type === "dm" ? "Scrivi la tua risposta..." : selectedItem.type === "review" ? "Ringrazia o rispondi alla recensione..." : "Rispondi al commento..."}
                     value={replyText}
                     onChange={(e) => setReplyText(e.target.value)}
-                    className="resize-none rounded-xl text-xs"
+                    // Telefono: 16px, sotto iOS ingrandisce la pagina mentre scrivi.
+                    className="resize-none rounded-xl text-xs max-sm:text-base"
                   />
                   <button type="button" onClick={() => sendReply(selectedItem.id)} disabled={!replyText.trim()}
                     className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 py-2 text-xs font-bold text-white shadow-sm transition hover:from-orange-600 hover:to-amber-600 disabled:opacity-40">
@@ -4199,6 +4215,8 @@ function BulkScheduleModal({
 // MAIN PAGE
 // ═══════════════════════════════════════════════════════════════════════════════
 
+const SCHEDE_TELEFONO = ["crea-post", "calendario", "inbox"];
+
 export default function SocialManagerBeta() {
   const { effectiveCompany } = useAuthCompany();
   const { isLoading: authInCaricamento } = useAuthUser();
@@ -4240,7 +4258,11 @@ function GestioneSocial({
 }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const activeTab = searchParams.get("tab") ?? "crea-post";
+  // Telefono: tre schede (Crea post, Calendario, Messaggi). Griglia, statistiche
+  // e galleria restano al computer: se il link apre una di queste, si vede Crea post.
+  const isMobile = useIsMobile();
+  const schedaRichiesta = searchParams.get("tab") ?? "crea-post";
+  const activeTab = isMobile && !SCHEDE_TELEFONO.includes(schedaRichiesta) ? "crea-post" : schedaRichiesta;
   // I contenuti demo (media, inbox, celle grid) si mostrano SOLO alla Demo
   // Azienda: un'azienda reale deve vedere esclusivamente i propri dati, non
   // 12 media finti e 4 messaggi mai ricevuti.
@@ -4528,7 +4550,8 @@ function GestioneSocial({
 
   const tabs = [
     { id: "crea-post",  label: "Crea post",  icon: Edit3          },
-    { id: "calendario", label: "Calendario", icon: Calendar,       badge: reviewCount > 0 ? `${reviewCount} da approvare` : (scheduledCount > 0 ? scheduledCount : undefined) },
+    // Sul telefono il badge è solo il numero: «2 da approvare» non sta in un terzo di schermo.
+    { id: "calendario", label: "Calendario", icon: Calendar,       badge: reviewCount > 0 ? `${reviewCount} da approvare` : (scheduledCount > 0 ? scheduledCount : undefined), badgeBreve: reviewCount > 0 ? reviewCount : undefined },
     { id: "grid",       label: "Griglia",    icon: Smartphone      },
     { id: "inbox",      label: "Messaggi",   icon: MessageSquare,  badge: inboxUnread > 0 ? inboxUnread : undefined },
     { id: "analitiche", label: "Statistiche", icon: TrendingUp     },
@@ -4537,18 +4560,20 @@ function GestioneSocial({
 
   return (
     <div className="min-h-screen bg-slate-50/50">
-      <div className="mx-auto max-w-7xl space-y-5 p-4 md:p-6">
+      <div className="mx-auto max-w-7xl space-y-5 p-4 md:p-6 max-sm:space-y-3 max-sm:p-0">
 
         {/* ─── PAGE HEADER ─────────────────────────────────────────────── */}
+        {/* Telefono: solo il titolo. Collegamenti e import CSV restano al computer;
+            «Crea post» è già la prima scheda. */}
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-2xl font-bold text-slate-900">Gestione social</h1>
-              <Badge className="border-0 bg-gradient-to-r from-orange-500 to-amber-500 text-white">Beta</Badge>
+              <h1 className="text-2xl font-bold text-slate-900 max-sm:text-lg">Gestione social</h1>
+              <Badge className="border-0 bg-gradient-to-r from-orange-500 to-amber-500 text-white max-sm:px-1.5 max-sm:py-0 max-sm:text-[10px]">Beta</Badge>
             </div>
-            <p className="mt-1 text-sm text-slate-500">Scrivi, programma e pubblica i post delle tue pagine Facebook e Instagram.</p>
+            <p className="mt-1 text-sm text-slate-500 max-sm:hidden">Scrivi, programma e pubblica i post delle tue pagine Facebook e Instagram.</p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 max-sm:hidden">
             <Button variant="outline" size="sm" onClick={goToIntegrations} className="gap-1.5">
               <Settings className="h-3.5 w-3.5" /> Collegamenti
             </Button>
@@ -4608,22 +4633,30 @@ function GestioneSocial({
         )}
 
         {/* ─── TABS ────────────────────────────────────────────────────── */}
-        <div className="rounded-2xl border bg-white shadow-sm">
+        {/* Telefono: schede a filo pagina, tre su tre terzi, senza icone. */}
+        <div className="rounded-2xl border bg-white shadow-sm max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:shadow-none">
           <div className="flex overflow-x-auto border-b scrollbar-none">
-            {tabs.map(({ id, label, icon: Icon, badge }) => (
+            {tabs.map(({ id, label, icon: Icon, badge, badgeBreve }) => (
               <button key={id} type="button" onClick={() => setTab(id)}
                 className={cn("flex shrink-0 items-center gap-2 border-b-2 px-4 py-3.5 text-sm font-semibold transition-colors md:px-5 md:py-4",
+                  "max-sm:flex-1 max-sm:justify-center max-sm:gap-1 max-sm:px-1 max-sm:py-2.5 max-sm:text-[13px]",
+                  !SCHEDE_TELEFONO.includes(id) && "max-sm:hidden",
                   activeTab === id ? "border-orange-500 text-orange-700" : "border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-700")}>
-                <Icon className="h-4 w-4" />
+                <Icon className="h-4 w-4 max-sm:hidden" />
                 {label}
                 {badge != null && (
                   <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-bold",
+                    typeof badge === "string" && "max-sm:hidden",
                     activeTab === id ? "bg-orange-100 text-orange-700" : "bg-slate-100 text-slate-600")}>{badge}</span>
+                )}
+                {typeof badge === "string" && badgeBreve != null && (
+                  <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-bold sm:hidden",
+                    activeTab === id ? "bg-orange-100 text-orange-700" : "bg-slate-100 text-slate-600")}>{badgeBreve}</span>
                 )}
               </button>
             ))}
           </div>
-          <div className="p-3 sm:p-4 md:p-6">
+          <div className="p-3 sm:p-4 md:p-6 max-sm:px-0 max-sm:pb-0">
             {activeTab === "crea-post" && (
               <ContentStudioTab
                 key={versioneComposer}
