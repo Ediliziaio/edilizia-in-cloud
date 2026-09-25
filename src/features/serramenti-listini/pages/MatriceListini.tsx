@@ -37,6 +37,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useFamilies } from "@/hooks/useFamilies";
+import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { MatriceEditor } from "../components/MatriceEditor";
 import { useListiniFeature } from "../hooks/useListiniFeature";
 import { useSupplierCatalogs } from "../hooks/useSupplierCatalogs";
@@ -46,6 +48,11 @@ const SENTINEL_UNSELECTED = "";
 
 export default function MatriceListiniPage() {
   const { enabled, isLoading: flagLoading } = useListiniFeature();
+  const { role } = useAuth();
+  const permessi = usePermissions();
+  // La pagina si apre col permesso di vedere il listino; le celle le salva chi
+  // può modificarlo, come nel resto del listino.
+  const puoModificare = role === "company_admin" || role === "super_admin" || permessi.canEditSettingsPricing;
 
   // Caricamento dati in parallelo (TanStack gestisce dedup)
   const {
@@ -286,6 +293,7 @@ export default function MatriceListiniPage() {
           productLine={selectedProductLine}
           asseXLabel={selectedFamily.griglia_asse_x_label || "Larghezza (mm)"}
           asseYLabel={selectedFamily.griglia_asse_y_label || "Altezza (mm)"}
+          solaLettura={!puoModificare}
         />
       ) : (
         <Card>

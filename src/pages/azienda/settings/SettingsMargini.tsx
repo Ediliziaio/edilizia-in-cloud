@@ -103,9 +103,14 @@ function PrezzoFinaleAManoCard({ companyId }: { companyId: string }) {
 function MarginiPdfTab({
   companyId,
   categorie,
+  puoModificareListino,
 }: {
   companyId: string;
   categorie: Categoria[];
+  /** Il margine per categoria sta nel listino: lo cambia chi può modificare il
+   *  listino. Per gli altri il database non aggiorna nulla e non dà errore
+   *  (dal 26/09/2026): il campo resta in sola lettura, niente falso «aggiornato». */
+  puoModificareListino: boolean;
 }) {
   const queryClient = useQueryClient();
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
@@ -407,7 +412,9 @@ function MarginiPdfTab({
                   defaultValue={cat.margine_target_percentuale ?? ""}
                   className="w-24"
                   min="0" max="100"
+                  disabled={!puoModificareListino}
                   onBlur={async (e) => {
+                    if (!puoModificareListino) return;
                     const val = e.target.value.trim() === "" ? null : parseFloat(e.target.value);
                     // Niente write/toast se il valore non è cambiato o non è valido (apri/chiudi senza modifiche).
                     if (val !== null && !Number.isFinite(val)) return;
@@ -524,7 +531,7 @@ export default function SettingsMargini() {
           <TabsTrigger value="governance">Governance</TabsTrigger>
         </TabsList>
         <TabsContent value="margini" className="mt-6">
-          <MarginiPdfTab companyId={companyId} categorie={categorie} />
+          <MarginiPdfTab companyId={companyId} categorie={categorie} puoModificareListino={isAdmin} />
         </TabsContent>
         <TabsContent value="governance" className="mt-6">
           <GovernanceThresholdsCard companyId={companyId} isAdmin={isAdmin} />

@@ -67,6 +67,8 @@ import {
   type CategoriaFvListino,
   type MacroListinoFv,
 } from "@/lib/fotovoltaico/collegaListino";
+import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 
 const eur = (n: number | null | undefined) =>
   new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(n ?? 0);
@@ -140,6 +142,15 @@ const EMPTY_FORM: FormState = {
 };
 
 export default function ComponentiFv() {
+  const { role } = useAuth();
+  const permessi = usePermissions();
+  // I componenti li modifica chi può modificare le opportunità o il listino, o
+  // chi fattura: è la regola del database dal 26/09/2026. Le macrocategorie del
+  // listino le collega solo l'amministratore, come ogni tipologia. Gli altri
+  // consultano il catalogo.
+  const gestore = role === "company_admin" || role === "super_admin";
+  const puoModificare =
+    gestore || permessi.canEditMarketingOpportunities || permessi.canEditSettingsPricing || permessi.canViewBilling;
   const { data: componenti = [], isLoading } = useArticoliFvCatalogo();
   const upsert = useUpsertArticoloFv();
   const toggle = useToggleArticoloFv();
@@ -307,23 +318,27 @@ export default function ComponentiFv() {
       </div>
 
       <div className="max-w-[1200px] mx-auto px-4 sm:px-8 py-6 space-y-6">
-        <div className="flex flex-wrap justify-end gap-2">
-          <Button
-            variant="outline"
-            onClick={handleSyncNow}
-            disabled={syncListino.isPending}
-            className="gap-2"
-          >
-            <RefreshCw className={`h-4 w-4 ${syncListino.isPending ? "animate-spin" : ""}`} />
-            {syncListino.isPending ? "Sincronizzazione…" : "Sincronizza ora"}
-          </Button>
-          <Button variant="outline" onClick={() => setCollegaOpen(true)} className="gap-2">
-            <Link2 className="h-4 w-4" /> Collega dal listino
-          </Button>
-          <Button onClick={openNew} className="gap-2">
-            <Plus className="h-4 w-4" /> Aggiungi componente
-          </Button>
-        </div>
+        {puoModificare && (
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={handleSyncNow}
+              disabled={syncListino.isPending}
+              className="gap-2"
+            >
+              <RefreshCw className={`h-4 w-4 ${syncListino.isPending ? "animate-spin" : ""}`} />
+              {syncListino.isPending ? "Sincronizzazione…" : "Sincronizza ora"}
+            </Button>
+            {gestore && (
+              <Button variant="outline" onClick={() => setCollegaOpen(true)} className="gap-2">
+                <Link2 className="h-4 w-4" /> Collega dal listino
+              </Button>
+            )}
+            <Button onClick={openNew} className="gap-2">
+              <Plus className="h-4 w-4" /> Aggiungi componente
+            </Button>
+          </div>
+        )}
 
         {isLoading ? (
           <p className="text-sm text-slate-500">Caricamento…</p>
@@ -339,7 +354,7 @@ export default function ComponentiFv() {
                 </div>
                 {items.length === 0 ? (
                   <Card className="p-4 text-sm text-slate-500 border-dashed">
-                    Nessun {tipo.label.toLowerCase()} nel catalogo. Aggiungine uno per renderlo selezionabile nel wizard.
+                    Nessun {tipo.label.toLowerCase()} nel catalogo.{puoModificare && " Aggiungine uno per renderlo selezionabile nel wizard."}
                   </Card>
                 ) : (
                   <div className="space-y-2">
@@ -364,10 +379,12 @@ export default function ComponentiFv() {
                             {a.codice && <span className="text-slate-400">cod. {a.codice}</span>}
                           </div>
                         </div>
-                        <Switch checked={a.attivo} onCheckedChange={() => onToggle(a)} aria-label="Attivo" />
-                        <Button variant="ghost" size="icon" onClick={() => openEdit(a)} aria-label="Modifica">
-                          <Pencil className="h-4 w-4" />
-                        </Button>
+                        <Switch checked={a.attivo} disabled={!puoModificare} onCheckedChange={() => onToggle(a)} aria-label="Attivo" />
+                        {puoModificare && (
+                          <Button variant="ghost" size="icon" onClick={() => openEdit(a)} aria-label="Modifica">
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        )}
                       </Card>
                     ))}
                   </div>

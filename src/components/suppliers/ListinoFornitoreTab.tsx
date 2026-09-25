@@ -15,6 +15,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { usePermissions } from "@/hooks/usePermissions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -119,6 +120,10 @@ function ListinoEditor({
 }) {
   const companyId = useEffectiveCompanyId();
   const queryClient = useQueryClient();
+  const permessi = usePermissions();
+  // Il listino del fornitore lo modifica chi gestisce i fornitori o il listino:
+  // è la regola del database dal 26/09/2026. Gli altri lo consultano.
+  const puoModificare = permessi.canEditSettingsSuppliers || permessi.canManageSuppliers || permessi.canEditSettingsPricing;
 
   const [voci, setVoci] = useState<RigaVoce[]>(() => esistente.voci);
   const [incollaAperto, setIncollaAperto] = useState(false);
@@ -239,32 +244,36 @@ function ListinoEditor({
           className="h-9 max-w-xs"
         />
         <div className="flex-1" />
-        <Button variant="outline" size="sm" onClick={() => setIncollaAperto(true)}>
-          <ClipboardPaste className="h-4 w-4 mr-1" />Incolla da Excel
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() =>
-            setVoci((r) => [
-              ...r,
-              { id: crypto.randomUUID(), codice: "", descrizione: "", unita: "", prezzo: 0, sconto_pct: 0 },
-            ])
-          }
-        >
-          <Plus className="h-4 w-4 mr-1" />Voce
-        </Button>
-        <Button size="sm" disabled={salvaMutation.isPending} onClick={() => salvaMutation.mutate()}>
-          {salvaMutation.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-          Salva listino
-        </Button>
+        {puoModificare && (
+          <>
+            <Button variant="outline" size="sm" onClick={() => setIncollaAperto(true)}>
+              <ClipboardPaste className="h-4 w-4 mr-1" />Incolla da Excel
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() =>
+                setVoci((r) => [
+                  ...r,
+                  { id: crypto.randomUUID(), codice: "", descrizione: "", unita: "", prezzo: 0, sconto_pct: 0 },
+                ])
+              }
+            >
+              <Plus className="h-4 w-4 mr-1" />Voce
+            </Button>
+            <Button size="sm" disabled={salvaMutation.isPending} onClick={() => salvaMutation.mutate()}>
+              {salvaMutation.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              Salva listino
+            </Button>
+          </>
+        )}
       </div>
 
       {voci.length === 0 ? (
         <p className="text-sm text-muted-foreground py-6 text-center">
-          Nessuna voce. Incolla il listino dal foglio Excel del fornitore, o
-          aggiungi le voci una per una. Codice e descrizione contano: sono la
-          chiave con cui il prezzo viene suggerito sugli ordini.
+          {puoModificare
+            ? "Nessuna voce. Incolla il listino dal foglio Excel del fornitore, o aggiungi le voci una per una. Codice e descrizione contano: sono la chiave con cui il prezzo viene suggerito sugli ordini."
+            : "Nessuna voce in questo listino."}
         </p>
       ) : (
         <div className="overflow-x-auto rounded-md border">
@@ -284,7 +293,7 @@ function ListinoEditor({
               {visibili.map((v) => (
                 <tr key={v.id} className="border-b last:border-0">
                   <td className="p-1">
-                    <Input value={v.codice} onChange={(e) => aggiorna(v.id, { codice: e.target.value })} className="h-8 text-sm" />
+                    <Input value={v.codice} onChange={(e) => aggiorna(v.id, { codice: e.target.value })} readOnly={!puoModificare} className="h-8 text-sm" />
                   </td>
                   <td className="p-1">
                     <div className="flex items-center gap-2">
@@ -296,16 +305,17 @@ function ListinoEditor({
                           className="h-9 w-9 shrink-0 rounded border bg-white object-contain"
                         />
                       )}
-                      <Input value={v.descrizione} onChange={(e) => aggiorna(v.id, { descrizione: e.target.value })} className="h-8 text-sm" />
+                      <Input value={v.descrizione} onChange={(e) => aggiorna(v.id, { descrizione: e.target.value })} readOnly={!puoModificare} className="h-8 text-sm" />
                     </div>
                   </td>
                   <td className="p-1">
-                    <Input value={v.unita} onChange={(e) => aggiorna(v.id, { unita: e.target.value })} className="h-8 text-sm" />
+                    <Input value={v.unita} onChange={(e) => aggiorna(v.id, { unita: e.target.value })} readOnly={!puoModificare} className="h-8 text-sm" />
                   </td>
                   <td className="p-1">
                     <Input
                       type="number" min={0} step="0.01"
                       value={Number.isFinite(v.prezzo) ? v.prezzo : 0}
+                      readOnly={!puoModificare}
                       onChange={(e) => aggiorna(v.id, { prezzo: parseFloat(e.target.value) || 0 })}
                       className="h-8 text-sm text-right"
                     />
@@ -314,6 +324,7 @@ function ListinoEditor({
                     <Input
                       type="number" min={0} max={100} step="0.5"
                       value={Number.isFinite(v.sconto_pct) ? v.sconto_pct : 0}
+                      readOnly={!puoModificare}
                       onChange={(e) => aggiorna(v.id, { sconto_pct: parseFloat(e.target.value) || 0 })}
                       className="h-8 text-sm text-right"
                     />
@@ -322,13 +333,15 @@ function ListinoEditor({
                     {formatCurrency(prezzoNetto(v.prezzo, v.sconto_pct))}
                   </td>
                   <td className="p-1 text-center">
-                    <Button
-                      variant="ghost" size="icon" className="h-8 w-8"
-                      onClick={() => setVoci((r) => r.filter((x) => x.id !== v.id))}
-                      aria-label="Rimuovi voce"
-                    >
-                      <Trash2 className="h-4 w-4 text-muted-foreground" />
-                    </Button>
+                    {puoModificare && (
+                      <Button
+                        variant="ghost" size="icon" className="h-8 w-8"
+                        onClick={() => setVoci((r) => r.filter((x) => x.id !== v.id))}
+                        aria-label="Rimuovi voce"
+                      >
+                        <Trash2 className="h-4 w-4 text-muted-foreground" />
+                      </Button>
+                    )}
                   </td>
                 </tr>
               ))}
