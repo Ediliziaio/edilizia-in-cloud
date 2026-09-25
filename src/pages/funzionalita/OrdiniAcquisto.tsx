@@ -411,7 +411,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Quanto costa? Ci sono limiti su numero ordini?",
-      a: "Ordini Acquisto è incluso nei piani Professional e Business di Edilizia in Cloud. PO illimitati, fornitori illimitati, firma eIDAS inclusa, conservazione decennale inclusa. Riconciliazione automatica con cassetto SDI inclusa.",
+      a: "Ordini Acquisto è incluso nei piani Professionista e Impresa AI di Edilizia in Cloud. PO illimitati, fornitori illimitati, firma eIDAS inclusa, conservazione decennale inclusa. Riconciliazione automatica con cassetto SDI inclusa.",
     },
   ],
 
@@ -428,7 +428,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/scadenzario", title: "Scadenzario", text: "Scadenze pagamento fornitori popolate da PO e fatture passive." },
     { to: "/funzionalita/gestione-subappalti", title: "Gestione Subappalti", text: "Ordini di subappalto con SAL e reverse charge art. 17 ter." },
     { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
-    { to: "/prezzi", title: "Prezzi e Piani", text: "Ordini Acquisto inclusi nei piani Professional e Business." },
+    { to: "/prezzi", title: "Prezzi e Piani", text: "Ordini Acquisto inclusi nei piani Professionista e Impresa AI." },
   ],
 
   finalCtaH2: "Smetti di ordinare via WhatsApp. Inizia a controllare i prezzi e i tempi cantiere.",

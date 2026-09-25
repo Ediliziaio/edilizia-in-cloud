@@ -404,7 +404,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Quanto costa il modulo e ci sono limiti di movimenti?",
-      a: "Il modulo Contabilità Fiscale è incluso nel piano Business di Edilizia in Cloud con movimenti illimitati, accesso commercialista incluso, esportazione XBRL inclusa. Setup in 48 ore con import storico 3 anni, formazione 1-a-1, cancelli quando vuoi.",
+      a: "Il modulo Contabilità Fiscale è incluso nel piano Impresa AI di Edilizia in Cloud con movimenti illimitati, accesso commercialista incluso, esportazione XBRL inclusa. Setup in 48 ore con import storico 3 anni, formazione 1-a-1, cancelli quando vuoi.",
     },
   ],
 
@@ -421,7 +421,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/prima-nota", title: "Prima Nota", text: "Tutte le registrazioni centralizzate in un unico modulo." },
     { to: "/funzionalita/conserva-digitale", title: "Conservazione Digitale", text: "Bilanci e libri contabili a norma CAD per 10 anni." },
     { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
-    { to: "/prezzi", title: "Prezzi e Piani", text: "Contabilità Fiscale inclusa nel piano Business." },
+    { to: "/prezzi", title: "Prezzi e Piani", text: "Contabilità Fiscale inclusa nel piano Impresa AI." },
   ],
 
   finalCtaH2: "Smetti di aspettare il bilancio a giugno. Inizia a vedere la marginalità a fine mese.",

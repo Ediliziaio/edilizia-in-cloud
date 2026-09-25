@@ -210,7 +210,7 @@ const config: FunzionalitaPageConfig = {
   commercialKicker: "Perché conviene davvero",
   commercialH2: "Un agente AI sostituisce 0,5 FTE di segreteria al costo di un caffè al giorno.",
   commercialBody:
-    "Una segreteria part-time a tempo determinato costa 18.000-22.000€/anno. Un agente AI custom Edilizia in Cloud è incluso nei piani Business. Il calcolo non è solo economico: è operativo. L'AI non si ammala, non va in ferie, non fa errori di battitura, non dimentica risposte.",
+    "Una segreteria part-time a tempo determinato costa 18.000-22.000€/anno. Un agente AI custom Edilizia in Cloud è compreso nel piano Impresa AI. Il calcolo non è solo economico: è operativo. L'AI non si ammala, non va in ferie, non fa errori di battitura, non dimentica risposte.",
   commercialLevers: [
     {
       icon: Bot,
@@ -408,7 +408,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Quanto costa? Ci sono vincoli contrattuali?",
-      a: "Il modulo Agenti AI è incluso nel piano Business di Edilizia in Cloud (a partire da 199€/mese), con un agente AI configurato. Agenti aggiuntivi disponibili a 49€/mese ciascuno. Nessun vincolo di durata, cancelli quando vuoi.",
+      a: "Il modulo Agenti AI è compreso nel piano Impresa AI di Edilizia in Cloud, con un agente AI configurato. Gli agenti in più si definiscono su misura, come il piano, in una consulenza gratuita. Nessun vincolo di durata, cancelli quando vuoi.",
     },
   ],
 
@@ -425,7 +425,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/email-marketing", title: "Email Marketing", text: "Generazione contenuti email con agenti AI dedicati." },
     { to: "/funzionalita/cruscotto-aziendale", title: "Cruscotto Aziendale", text: "Dashboard con insight AI sulle performance dell'impresa." },
     { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
-    { to: "/prezzi", title: "Prezzi e Piani", text: "Modulo Agenti AI incluso nel piano Business da 199€/mese." },
+    { to: "/prezzi", title: "Prezzi e Piani", text: "Modulo Agenti AI compreso nel piano Impresa AI, su misura." },
   ],
 
   finalCtaH2: "Smetti di perdere lead fuori orario. Inizia ad avere un'AI che lavora con te.",

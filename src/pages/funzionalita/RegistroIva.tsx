@@ -400,7 +400,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Quanto costa il modulo e ci sono limiti di fatture?",
-      a: "Il modulo Registro IVA è incluso nei piani Business di Edilizia in Cloud con fatture illimitate, conservazione decennale inclusa, accesso commercialista incluso. Setup in 48 ore, formazione 1-a-1, cancelli quando vuoi.",
+      a: "Il modulo Registro IVA è incluso nei piani Professionista e Impresa AI di Edilizia in Cloud con fatture illimitate, conservazione decennale inclusa, accesso commercialista incluso. Setup in 48 ore, formazione 1-a-1, cancelli quando vuoi.",
     },
   ],
 
@@ -417,7 +417,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/prima-nota", title: "Prima Nota", text: "Movimenti IVA registrati con causali edilizia preimpostate." },
     { to: "/funzionalita/ritenute-garanzia", title: "Ritenute Garanzia", text: "Gestione ritenute d'acconto e ritenute di garanzia in subappalti." },
     { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
-    { to: "/prezzi", title: "Prezzi e Piani", text: "Registro IVA incluso nel piano Business con fatture illimitate." },
+    { to: "/prezzi", title: "Prezzi e Piani", text: "Registro IVA incluso nei piani Professionista e Impresa AI con fatture illimitate." },
   ],
 
   finalCtaH2: "Smetti di registrare 500 fatture all'anno a mano. Inizia con SDI che alimenta tutto.",

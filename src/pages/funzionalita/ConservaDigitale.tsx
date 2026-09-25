@@ -412,7 +412,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Quanto costa? Ci sono limiti sul numero di documenti?",
-      a: "La Conservazione Digitale è inclusa nei piani Professional e Business di Edilizia in Cloud. Numero di documenti illimitato fino a 50.000/anno, marca temporale e responsabile delegato compresi, migrazione storico inclusa nei primi 30 giorni.",
+      a: "La Conservazione Digitale è inclusa nel piano Impresa AI di Edilizia in Cloud. Numero di documenti illimitato fino a 50.000/anno, marca temporale e responsabile delegato compresi, migrazione storico inclusa nei primi 30 giorni.",
     },
   ],
 
@@ -429,7 +429,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/foto-cantiere", title: "Foto Cantiere", text: "Foto cantiere geolocalizzate conservate con valore probatorio." },
     { to: "/funzionalita/ordini-acquisto", title: "Ordini Acquisto", text: "DDT cantiere e ordini fornitore conservati 10 anni a norma." },
     { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
-    { to: "/prezzi", title: "Prezzi e Piani", text: "Conservazione Digitale inclusa nei piani Professional e Business." },
+    { to: "/prezzi", title: "Prezzi e Piani", text: "Conservazione Digitale inclusa nel piano Impresa AI." },
   ],
 
   finalCtaH2:

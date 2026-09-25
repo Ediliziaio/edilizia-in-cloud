@@ -411,7 +411,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Quanto costa? Ci sono limiti sul numero di fatture?",
-      a: "Il modulo Cassetto SDI è incluso nei piani Professional e Business di Edilizia in Cloud. Numero di fatture passive illimitato, conservazione decennale inclusa, nessun costo extra per export commercialista.",
+      a: "Il modulo Cassetto SDI è incluso nei piani Gestionale, Professionista e Impresa AI di Edilizia in Cloud. Numero di fatture passive illimitato, conservazione decennale inclusa, nessun costo extra per export commercialista.",
     },
   ],
 
@@ -428,7 +428,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/margini-cantiere", title: "Margini Cantiere", text: "Costi reali imputati al cantiere dal cassetto fiscale." },
     { to: "/funzionalita/tesoreria", title: "Tesoreria", text: "Pagamenti fornitori da fatture passive sincronizzate dal cassetto." },
     { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
-    { to: "/prezzi", title: "Prezzi e Piani", text: "Cassetto SDI incluso nei piani Professional e Business." },
+    { to: "/prezzi", title: "Prezzi e Piani", text: "Cassetto SDI incluso nei piani Gestionale, Professionista e Impresa AI." },
   ],
 
   finalCtaH2: "Smetti di entrare nel portale Entratel ogni 2 giorni. Inizia a ricevere le fatture nel gestionale.",

@@ -13,6 +13,7 @@ vi.mock("@/lib/moduli-vendita", () => ({ useModuliVendita: () => ({ moduli: stat
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => state.permissions }));
 vi.mock("@/hooks/useSerramentiModelSupport", () => ({ useSerramentiModelSupport: () => state.support }));
 vi.mock("@/hooks/useTettiModelSupport", () => ({ useTettiModelSupport: () => state.support }));
+vi.mock("@/hooks/useSupportoModelliPreventivo", () => ({ useSupportoModelliPreventivo: () => ({ supportato: () => state.support.supported, isLoading: state.support.isLoading, isError: state.support.isError }) }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "A" } }) }));
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
 vi.mock("@tanstack/react-query", () => ({ useQuery: () => ({ data: 0 }) }));
@@ -94,10 +95,22 @@ describe("popup unico di creazione preventivi", () => {
     expect(screen.getByRole("link", { name: "Apri preventivatore Persiane e scuri" })).toHaveAttribute("href", "/azienda/serramenti/nuovo?modello=persiane");
   });
   it("non sostituisce un modello non collegato con il generale", () => {
-    mount("area=bagni");
-    expect(screen.queryByRole("link", { name: /^Apri preventivatore/ })).not.toBeInTheDocument();
-    expect(screen.getAllByLabelText(/^Intervento non disponibile/)).toHaveLength(6);
-    expect(screen.getByRole("link", { name: /^Preventivo Bagni generale/ })).toHaveAttribute("href", "/azienda/bagni/nuovo");
+    // Serramenti: finestre, persiane e combinato sono collegati, gli altri quattro no.
+    mount("area=serramenti");
+    expect(screen.getAllByRole("link", { name: /^Apri preventivatore/ })).toHaveLength(3);
+    expect(screen.getAllByLabelText(/^Intervento non disponibile/)).toHaveLength(4);
+    expect(screen.getByRole("link", { name: /^Preventivo Serramenti generale/ })).toHaveAttribute("href", "/azienda/serramenti/nuovo");
+  });
+  it("porta ogni intervento Bagni al suo preventivatore col modello scelto", () => {
+    mount("area=bagni&contact_id=c1");
+    expect(screen.getAllByRole("link", { name: /^Apri preventivatore/ })).toHaveLength(6);
+    expect(screen.queryByLabelText(/^Intervento non disponibile/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("link", { name: "Apri preventivatore Da vasca a doccia" }));
+    expect(screen.getByTestId("route")).toHaveTextContent("/azienda/bagni/nuovo?modello=vasca-doccia&contact_id=c1");
+  });
+  it.each([["termoidraulica", 8], ["elettrico", 7], ["ristrutturazioni", 5]] as const)("apre i preventivatori %s coi loro %i interventi", (area, quanti) => {
+    mount(`area=${area}`);
+    expect(screen.getAllByRole("link", { name: /^Apri preventivatore/ })).toHaveLength(quanti);
   });
   it("distingue accesso all'area da disponibilità del salvataggio", () => {
     state.support.supported = false; mount("area=tetti");

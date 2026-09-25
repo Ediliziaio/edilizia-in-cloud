@@ -411,7 +411,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Quanto costa il modulo? Ci sono costi per lead processato?",
-      a: "Il modulo Lead Form Facebook è incluso nei piani Professional e Business. Lead illimitati, campagne illimitate, qualificazione AI illimitata, sync Business Manager illimitata. Nessun costo per lead processato, nessun vincolo pluriennale. Cancelli quando vuoi.",
+      a: "Il modulo Lead Form Facebook è incluso nei piani Professionista e Impresa AI. Lead illimitati, campagne illimitate, qualificazione AI illimitata, sync Business Manager illimitata. Nessun costo per lead processato, nessun vincolo pluriennale. Cancelli quando vuoi.",
     },
   ],
 
@@ -463,7 +463,7 @@ const config: FunzionalitaPageConfig = {
     {
       to: "/prezzi",
       title: "Prezzi e Piani",
-      text: "Modulo Lead Facebook incluso nei piani Professional e Business.",
+      text: "Modulo Lead Facebook incluso nei piani Professionista e Impresa AI.",
     },
   ],
 

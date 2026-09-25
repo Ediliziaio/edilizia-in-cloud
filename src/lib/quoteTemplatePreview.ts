@@ -1,8 +1,15 @@
 import type { QuoteTemplate } from "@/types/quoteTemplate";
 import { substituteMergeTags, type MergeContext } from "../../supabase/functions/_shared/quoteTemplateComposer";
+import { coloreCopertina } from "../../supabase/functions/_shared/blocchiModelloPreventivo";
 
-/** Stessa precedenza della copertina collegata usata dal generatore PDF. */
-export function resolveQuoteTemplatePreview(template: Partial<QuoteTemplate>, library: QuoteTemplate[]): Partial<QuoteTemplate> {
+/** Il modello pronto per le anteprime, coi blocchi collegati già al loro posto. */
+export type AnteprimaModello = Partial<QuoteTemplate> & {
+  /** Il fondo della copertina: quello della copertina collegata, se scelto. Solo per le anteprime, non si salva. */
+  colore_copertina?: string;
+};
+
+/** Stessa precedenza della copertina collegata usata dal generatore PDF (anche per il colore). */
+export function resolveQuoteTemplatePreview(template: Partial<QuoteTemplate>, library: QuoteTemplate[]): AnteprimaModello {
   const cover = library.find((item) => item.id === template.linked_cover_id && item.is_active !== false);
   const terms = library.find((item) => item.id === template.linked_terms_id && item.is_active !== false);
   const legal = library.find((item) => item.id === template.linked_legal_id && item.is_active !== false);
@@ -13,6 +20,7 @@ export function resolveQuoteTemplatePreview(template: Partial<QuoteTemplate>, li
       cover_subtitle: cover.cover_subtitle || template.cover_subtitle,
       cover_image_url: cover.cover_image_url || template.cover_image_url,
       show_cover_image: true,
+      colore_copertina: coloreCopertina(template.primary_color, cover),
     } : {}),
     ...(terms?.body_html ? { contractual_terms_text: terms.body_html, show_contractual_terms: true } : {}),
     ...(legal?.body_html ? { legal_terms_text: legal.body_html, show_legal_terms: true } : {}),

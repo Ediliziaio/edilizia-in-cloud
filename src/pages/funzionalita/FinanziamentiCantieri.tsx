@@ -413,7 +413,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Quanto costa? È compreso o è add-on?",
-      a: "Il modulo Finanziamenti Cantieri è incluso nei piani Professional e Business. Numero di dossier illimitato, banche/factor partner illimitati, integrazione commercialista inclusa. ROI tipicamente alla prima cessione completata grazie al risparmio sullo sconto applicato.",
+      a: "Il modulo Finanziamenti Cantieri è incluso nei piani Professionista e Impresa AI. Numero di dossier illimitato, banche/factor partner illimitati, integrazione commercialista inclusa. ROI tipicamente alla prima cessione completata grazie al risparmio sullo sconto applicato.",
     },
   ],
 
@@ -465,7 +465,7 @@ const config: FunzionalitaPageConfig = {
     {
       to: "/prezzi",
       title: "Prezzi e Piani",
-      text: "Modulo Finanziamenti incluso nei piani Professional e Business.",
+      text: "Modulo Finanziamenti incluso nei piani Professionista e Impresa AI.",
     },
   ],
 

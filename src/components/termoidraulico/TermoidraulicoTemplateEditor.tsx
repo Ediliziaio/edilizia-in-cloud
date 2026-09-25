@@ -462,7 +462,7 @@ export function TermoidraulicoTemplateEditor({ embedded = false, localModule }: 
       } else await upsert.mutateAsync(patch);
       setDirty(false);
       toast.success(localModule ? "Modello salvato" : "Template salvato", {
-        description: localModule ? "Salvato per l'azienda, lo vedono i colleghi. Il preventivatore usa ancora il template aziendale." : "Verrà applicato ai nuovi preventivi termoidraulico.",
+        description: localModule ? "Salvato per l'azienda: lo usano i nuovi preventivi con questo intervento." : "Verrà applicato ai nuovi preventivi termoidraulico.",
       });
     } catch (e) {
       toast.error("Salvataggio non riuscito", {

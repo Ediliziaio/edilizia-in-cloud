@@ -422,7 +422,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Quanto costa il modulo WhatsApp Marketing?",
-      a: "Il modulo è incluso nei piani Professional e Business di Edilizia in Cloud. Paghi a parte solo i messaggi inviati a Meta (0,05-0,07 euro l'uno). Niente vincoli, cancelli quando vuoi.",
+      a: "Il modulo è incluso nei piani Professionista e Impresa AI di Edilizia in Cloud. Paghi a parte solo i messaggi inviati a Meta (0,05-0,07 euro l'uno). Niente vincoli, cancelli quando vuoi.",
     },
   ],
 

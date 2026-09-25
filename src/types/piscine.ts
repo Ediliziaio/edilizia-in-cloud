@@ -20,6 +20,8 @@ export interface PisComputoVoce {
   fonte?: string | null;
 }
 export interface PisProgetto {
+  /** Il modello della libreria congelato nel preventivo (lib/moduli/modelloPreventivo). */
+  modello_snapshot?: import("@/lib/moduli/modelloPreventivo").ModelloPreventivo<PisTemplatePdf> | null;
   id: string; company_id: string; code: string | null; stato: PisStato; tipo_intervento: string | null;
   tipo_piscina: string | null; tipo_costruzione: string | null;
   cliente_nome: string | null; cliente_cognome: string | null; cliente_email: string | null; cliente_telefono: string | null;

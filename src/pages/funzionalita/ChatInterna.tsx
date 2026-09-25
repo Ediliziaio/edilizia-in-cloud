@@ -402,7 +402,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Quanto costa il modulo e ci sono limiti di utenti?",
-      a: "Il modulo Chat Interna è incluso nei piani Professional e Business di Edilizia in Cloud con utenti illimitati e archiviazione decennale inclusa. Setup in 48 ore, app mobile e desktop incluse, formazione 1-a-1, cancelli quando vuoi.",
+      a: "Il modulo Chat Interna è incluso nei piani Professionista e Impresa AI di Edilizia in Cloud con utenti illimitati e archiviazione decennale inclusa. Setup in 48 ore, app mobile e desktop incluse, formazione 1-a-1, cancelli quando vuoi.",
     },
   ],
 
@@ -419,7 +419,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/hr-personale", title: "HR Personale", text: "Canali ferie, formazione, comunicazioni aziendali tracciate." },
     { to: "/funzionalita/whatsapp-marketing", title: "WhatsApp Marketing", text: "Comunicazione clienti finali separata e con DPA." },
     { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
-    { to: "/prezzi", title: "Prezzi e Piani", text: "Chat Interna inclusa nei piani Professional e Business." },
+    { to: "/prezzi", title: "Prezzi e Piani", text: "Chat Interna inclusa nei piani Professionista e Impresa AI." },
   ],
 
   finalCtaH2: "Smetti di mescolare lavoro e vita privata su WhatsApp. Inizia con una chat aziendale.",

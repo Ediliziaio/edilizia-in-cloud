@@ -418,7 +418,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Il CRM è incluso nel piano base?",
-      a: "Sì. Il CRM Edilizia è incluso in tutti i piani Edilizia in Cloud (Starter, Professional, Business). Differenze tra piani: numero utenti, automazioni, integrazioni avanzate. Niente costi extra per CRM.",
+      a: "Sì. Il CRM Edilizia è incluso nei piani Professionista e Impresa AI di Edilizia in Cloud. Differenze tra piani: numero utenti, automazioni, integrazioni avanzate. Niente costi extra per CRM.",
     },
     {
       q: "Funziona da mobile?",

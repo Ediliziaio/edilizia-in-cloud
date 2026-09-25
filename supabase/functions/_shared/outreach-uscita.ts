@@ -53,8 +53,24 @@ export function componiCorpo(opz: {
     const frase = (opz.frase ?? "").trim() || FRASE_USCITA_DEFAULT;
     uscita = `<br><br>${frase.replace(/&/g, "&amp;").replace(/</g, "&lt;")}`;
   }
+  // Il P.S. va sotto la firma, come in una mail vera (25/09/2026): prima la
+  // firma finiva in coda al corpo e il P.S. restava sopra il nome.
+  const ps = firma || uscita ? inizioPostScriptum(opz.corpo) : -1;
+  const [testo, coda] = ps >= 0 ? [opz.corpo.slice(0, ps), opz.corpo.slice(ps)] : [opz.corpo, ""];
   return {
-    html: `${opz.corpo}${uscita}${firma}`,
+    html: `${testo}${uscita}${firma}${coda}`,
     htmlDaControllare: `${opz.corpo}${firma}`,
   };
+}
+
+/**
+ * Dove comincia il P.S. finale del corpo HTML (gli a capo che lo precedono
+ * compresi), o -1. Conta solo un P.S. che chiude il messaggio: l'ultimo
+ * paragrafo che comincia con «P.S.» / «PS:» dopo un doppio a capo.
+ */
+export function inizioPostScriptum(corpoHtml: string): number {
+  const re = /(?:<br\s*\/?>\s*){2,}(?=P\.?\s?S\.?[:\s])/gi;
+  let ultimo = -1;
+  for (const m of corpoHtml.matchAll(re)) ultimo = m.index ?? -1;
+  return ultimo;
 }

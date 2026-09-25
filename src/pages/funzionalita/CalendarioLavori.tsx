@@ -404,7 +404,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Quanto costa il modulo e ci sono limiti di cantieri?",
-      a: "Il modulo Calendario Lavori è incluso nei piani Professional e Business di Edilizia in Cloud con cantieri illimitati e utenti illimitati. Setup in 48 ore, app mobile inclusa, sincronizzazione Google/Outlook inclusa, formazione 1-a-1, cancelli quando vuoi.",
+      a: "Il modulo Calendario Lavori è incluso nei piani Professionista e Impresa AI di Edilizia in Cloud con cantieri illimitati e utenti illimitati. Setup in 48 ore, app mobile inclusa, sincronizzazione Google/Outlook inclusa, formazione 1-a-1, cancelli quando vuoi.",
     },
   ],
 
@@ -421,7 +421,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/portale-clienti", title: "Portale Clienti", text: "Cliente vede milestone e date sul calendario condiviso." },
     { to: "/funzionalita/cruscotto-aziendale", title: "Cruscotto Aziendale", text: "KPI di puntualità cantiere e produttività squadre." },
     { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
-    { to: "/prezzi", title: "Prezzi e Piani", text: "Calendario Lavori incluso nei piani Professional e Business." },
+    { to: "/prezzi", title: "Prezzi e Piani", text: "Calendario Lavori incluso nei piani Professionista e Impresa AI." },
   ],
 
   finalCtaH2: "Smetti di pianificare su Excel obsoleto. Inizia con un gantt che vive.",

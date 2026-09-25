@@ -19,10 +19,14 @@ import {
 import { Flame, MapPin } from "lucide-react";
 import type { IdrProgetto } from "@/types/termoidraulico";
 import type { IdrFormPatch } from "./types";
+import type { SalesIntervention } from "@/lib/moduli-vendita/areas";
+import { InterventoScelto } from "@/components/moduli/InterventoScelto";
 
 interface Props {
   form: Partial<IdrProgetto>;
   onChange: <K extends keyof IdrFormPatch>(key: K, value: IdrFormPatch[K]) => void;
+  /** L'intervento della libreria, se il preventivo nasce da un modello. */
+  model?: SalesIntervention;
 }
 
 /** Tipi di intervento tipici per un impianto termoidraulico. */
@@ -69,7 +73,7 @@ const toInt = (raw: string): number | null => {
   return v == null ? null : Math.trunc(v);
 };
 
-export default function StepImmobile({ form, onChange }: Props) {
+export default function StepImmobile({ form, onChange, model }: Props) {
   return (
     <Card>
       <CardContent className="p-4 sm:p-5 space-y-4">
@@ -89,7 +93,7 @@ export default function StepImmobile({ form, onChange }: Props) {
         <div className="grid grid-cols-12 gap-3">
           <div className="col-span-12 sm:col-span-6">
             <Label className="text-xs">Tipo di intervento</Label>
-            <Select
+            {model ? <InterventoScelto intervento={model} /> : <Select
               value={form.tipo_intervento ?? ""}
               onValueChange={(v) => onChange("tipo_intervento", v)}
             >
@@ -101,7 +105,7 @@ export default function StepImmobile({ form, onChange }: Props) {
                   <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
                 ))}
               </SelectContent>
-            </Select>
+            </Select>}
           </div>
           <div className="col-span-12 sm:col-span-6">
             <Label className="text-xs">Tipo di generatore</Label>

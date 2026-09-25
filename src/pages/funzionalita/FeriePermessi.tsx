@@ -402,7 +402,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Quanto costa il modulo e ci sono limiti di dipendenti?",
-      a: "Il modulo Ferie e Permessi è incluso nei piani Professional e Business di Edilizia in Cloud con dipendenti illimitati. Setup in 48 ore, app self-service inclusa, formazione 1-a-1, cancelli quando vuoi.",
+      a: "Il modulo Ferie e Permessi è incluso nei piani Professionista e Impresa AI di Edilizia in Cloud con dipendenti illimitati. Setup in 48 ore, app self-service inclusa, formazione 1-a-1, cancelli quando vuoi.",
     },
   ],
 
@@ -419,7 +419,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/app-cantiere-mobile", title: "App Cantiere Mobile", text: "Capocantiere approva ferie dallo stesso telefono del giornale lavori." },
     { to: "/funzionalita/chat-interna", title: "Chat Interna", text: "Comunicazione tra operai e capocantiere su sostituzioni e copertura turni." },
     { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
-    { to: "/prezzi", title: "Prezzi e Piani", text: "Ferie e Permessi incluso nei piani Professional e Business." },
+    { to: "/prezzi", title: "Prezzi e Piani", text: "Ferie e Permessi incluso nei piani Professionista e Impresa AI." },
   ],
 
   finalCtaH2: "Smetti di tenere foglietti ferie. Inizia a far decidere l'app.",

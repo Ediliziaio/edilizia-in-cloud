@@ -402,7 +402,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Quanto costa il modulo e ci sono limiti di report o utenti?",
-      a: "Il modulo Report Fatturazione è incluso nei piani Professional e Business di Edilizia in Cloud con utenti illimitati, report illimitati, esportazione PDF firmati inclusa. Setup in 48 ore con import storico 3 anni, dashboard personalizzate, formazione 1-a-1, cancelli quando vuoi.",
+      a: "Il modulo Report Fatturazione è incluso nei piani Professionista e Impresa AI di Edilizia in Cloud con utenti illimitati, report illimitati, esportazione PDF firmati inclusa. Setup in 48 ore con import storico 3 anni, dashboard personalizzate, formazione 1-a-1, cancelli quando vuoi.",
     },
   ],
 
@@ -419,7 +419,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/scadenzario", title: "Scadenzario", text: "Scadenze fatture e versamenti nel calendario aziendale." },
     { to: "/funzionalita/portale-clienti", title: "Portale Clienti", text: "Cliente vede stato fatture e scadenze del proprio cantiere." },
     { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
-    { to: "/prezzi", title: "Prezzi e Piani", text: "Report Fatturazione incluso nei piani Professional e Business." },
+    { to: "/prezzi", title: "Prezzi e Piani", text: "Report Fatturazione incluso nei piani Professionista e Impresa AI." },
   ],
 
   finalCtaH2: "Smetti di passare il lunedì in Excel. Inizia con una dashboard che vive.",

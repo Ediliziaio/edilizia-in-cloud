@@ -1881,6 +1881,38 @@ export default function SettingsQuoteTemplates() {
                     <Label>{el.label}</Label>
                   </div>
                 ))}
+                {/* Contatti dell'impresa stampati nel preventivo (25/09/2026): prima usciva
+                    sempre la mail del profilo aziendale, che può essere di una persona. */}
+                {form.show_company_details !== false && (
+                  <div className="border-t pt-3 space-y-2">
+                    <Label className="text-sm font-medium">Contatti dell'impresa nel preventivo</Label>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <div className="space-y-1">
+                        <Label htmlFor="email_impresa" className="text-xs text-muted-foreground">Email</Label>
+                        <Input
+                          id="email_impresa"
+                          type="email"
+                          value={form.email_impresa ?? ''}
+                          onChange={e => updateForm({ email_impresa: e.target.value })}
+                          placeholder={effectiveCompany?.email || 'info@azienda.it'}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="telefono_impresa" className="text-xs text-muted-foreground">Telefono</Label>
+                        <Input
+                          id="telefono_impresa"
+                          type="tel"
+                          value={form.telefono_impresa ?? ''}
+                          onChange={e => updateForm({ telefono_impresa: e.target.value })}
+                          placeholder={effectiveCompany?.phone || '0123 456789'}
+                        />
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">
+                      Escono sotto «L'impresa» e nel modulo di recesso. Vuoti: si usano quelli del profilo aziendale.
+                    </p>
+                  </div>
+                )}
                 <div className="border-t pt-3 space-y-3">
                   <div className="flex items-center gap-3">
                     <Switch checked={form.show_watermark ?? false} onCheckedChange={v => updateForm({ show_watermark: v })} />

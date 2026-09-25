@@ -391,7 +391,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Posso eseguire bonifici dalla dashboard Tesoreria?",
-      a: "Sì, tramite PISP (Payment Initiation Service Provider): autorizzi il pagamento con SCA della tua banca, il bonifico parte dal tuo conto. Operazione cifrata, conforme PSD2, audit trail completo. Funzionalità disponibile nei piani Business.",
+      a: "Sì, tramite PISP (Payment Initiation Service Provider): autorizzi il pagamento con SCA della tua banca, il bonifico parte dal tuo conto. Operazione cifrata, conforme PSD2, audit trail completo. Funzionalità disponibile nel piano Impresa AI.",
     },
     {
       q: "Come funziona il previsionale 30/60/90 giorni?",
@@ -407,7 +407,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Quanto costa? Ci sono limiti sui conti collegati?",
-      a: "La Tesoreria è inclusa nei piani Professional e Business di Edilizia in Cloud. Conti bancari illimitati, sync PSD2 illimitato, previsionale 90 giorni incluso. Funzionalità PISP (bonifici da dashboard) disponibile nel piano Business.",
+      a: "La Tesoreria è inclusa nei piani Professionista e Impresa AI di Edilizia in Cloud. Conti bancari illimitati, sync PSD2 illimitato, previsionale 90 giorni incluso. Funzionalità PISP (bonifici da dashboard) disponibile nel piano Impresa AI.",
     },
   ],
 
@@ -424,7 +424,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/cruscotto-aziendale", title: "Cruscotto Aziendale", text: "Cassa, fatturato, margini nel dashboard direzionale." },
     { to: "/funzionalita/margini-cantiere", title: "Margini Cantiere", text: "Costi e ricavi cantiere imputati per analisi margine real-time." },
     { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
-    { to: "/prezzi", title: "Prezzi e Piani", text: "Tesoreria inclusa nei piani Professional e Business." },
+    { to: "/prezzi", title: "Prezzi e Piani", text: "Tesoreria inclusa nei piani Professionista e Impresa AI." },
   ],
 
   finalCtaH2: "Smetti di scoprire lo sconfinamento dall'estratto conto. Inizia a pianificare la cassa come una banca privata.",

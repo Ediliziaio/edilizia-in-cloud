@@ -400,7 +400,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Si integra con il mio gestionale fornitori esistente?",
-      a: "Sì se è il gestionale Edilizia in Cloud (Ordini Acquisto, Cassetto SDI, Margini Cantiere). Per gestionali esterni, API REST disponibili nel piano Business per integrazione bidirezionale (DDT in arrivo, riordini automatici).",
+      a: "Sì se è il gestionale Edilizia in Cloud (Ordini Acquisto, Cassetto SDI, Margini Cantiere). Per gestionali esterni, API REST disponibili nel piano Impresa AI per integrazione bidirezionale (DDT in arrivo, riordini automatici).",
     },
     {
       q: "La valorizzazione FIFO è davvero auditabile?",
@@ -412,7 +412,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Quanto costa? Ci sono limiti su numero cantieri o articoli?",
-      a: "Magazzino Cantiere è incluso nei piani Professional e Business di Edilizia in Cloud. Cantieri illimitati, articoli illimitati, app scanner inclusa. Etichette codici a barre e formazione iniziale incluse nei primi 30 giorni.",
+      a: "Magazzino Cantiere è incluso nei piani Professionista e Impresa AI di Edilizia in Cloud. Cantieri illimitati, articoli illimitati, app scanner inclusa. Etichette codici a barre e formazione iniziale incluse nei primi 30 giorni.",
     },
   ],
 
@@ -429,7 +429,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/giornale-lavori", title: "Giornale Lavori", text: "Materiali utilizzati al giorno tracciati nel giornale di cantiere." },
     { to: "/funzionalita/gestione-subappalti", title: "Gestione Subappalti", text: "Materiali forniti a subappaltatori tracciati con prelievi." },
     { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
-    { to: "/prezzi", title: "Prezzi e Piani", text: "Magazzino Cantiere incluso nei piani Professional e Business." },
+    { to: "/prezzi", title: "Prezzi e Piani", text: "Magazzino Cantiere incluso nei piani Professionista e Impresa AI." },
   ],
 
   finalCtaH2: "Smetti di ricomprare materiali che hai già. Inizia a sapere dove sono e quanto valgono.",

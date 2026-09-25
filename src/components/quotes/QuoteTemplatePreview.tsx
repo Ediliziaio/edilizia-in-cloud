@@ -1,9 +1,10 @@
 import React from 'react';
 import type { QuoteTemplate, TextAlignment } from '@/types/quoteTemplate';
-import { quoteTemplateSampleData } from '@/lib/quoteTemplatePreview';
+import { quoteTemplateSampleData, type AnteprimaModello } from '@/lib/quoteTemplatePreview';
 
 interface Props {
-  template: Partial<QuoteTemplate>;
+  /** Il modello, anche già risolto coi blocchi collegati (colore della copertina compreso). */
+  template: AnteprimaModello;
   companyName?: string;
   page?: 'cover' | 'detail';
   scale?: number;
@@ -101,7 +102,7 @@ export function QuoteTemplatePreview({
           color: textColor,
         }}
       >
-        {hasCover && <OfferCover template={t} companyName={companyName} primary={primary} logoSrc={logoSrc} coverSrc={coverSrc} />}
+        {hasCover && <OfferCover template={t} companyName={companyName} primary={template.colore_copertina ?? primary} logoSrc={logoSrc} coverSrc={coverSrc} />}
         {!hasCover && layout === 'classic' && (
           <ClassicLayout
             primary={primary} secondary={secondary} accent={accent}
@@ -451,7 +452,9 @@ function CoverBody({
               EMESSA DA
             </div>
             <div style={{ fontSize: type.body, fontWeight: 600 }}>{companyName}</div>
-            <div style={{ fontSize: type.small, color: '#6B7280' }}>info@azienda.it</div>
+            {/* Mail e telefono scritti nel modello, come nel PDF; se no un esempio. */}
+            <div style={{ fontSize: type.small, color: '#6B7280' }}>{t.email_impresa?.trim() || 'info@azienda.it'}</div>
+            {t.telefono_impresa?.trim() && <div style={{ fontSize: type.small, color: '#6B7280' }}>Tel. {t.telefono_impresa.trim()}</div>}
             <div style={{ fontSize: type.small, color: '#6B7280' }}>Via Roma 1, Milano</div>
           </div>
         )}

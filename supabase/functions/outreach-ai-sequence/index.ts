@@ -1,6 +1,7 @@
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireRole } from "../_shared/auth.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { giornoDelPassoLineare } from "../_shared/outreach-cadenza.ts";
 
 /**
  * outreach-ai-sequence — il SUPER_ADMIN genera una CADENZA cold B2B edilizia
@@ -24,7 +25,7 @@ Scrivi una CADENZA (sequenza) di ${n} email a freddo da inviare in successione a
 
 REGOLE FERREE:
 - Italiano, tono professionale ma umano e diretto. Niente "Spettabile" né formule da circolare; niente piaggeria.
-- ${n} step totali. delay_days CRESCENTI a partire da 0: il primo step ha delay_days 0, i successivi distanziati di 2-4 giorni l'uno dall'altro (es. 0, 3, 6, 9...).
+- ${n} step totali. Un follow-up ogni 4 giorni: delay_days è il giorno dall'inizio, 0 per il primo step e poi 4, 8, 12… (sempre 4 giorni fra uno step e il successivo).
 - Ogni step ha un oggetto (subject) di 3-6 parole e un corpo (body) di 45-85 parole. Brevissimi.
 - Arco narrativo tra gli step: 1) apertura/aggancio, gli intermedi aggiungono valore o prova sociale, l'ultimo è una chiusura gentile ("breakup") che lascia la porta aperta senza insistere.
 - UNA sola call-to-action soft per email, una domanda che invita a rispondere (es. "ha senso sentirci 10 minuti questa settimana?"). Niente link, niente allegati.
@@ -76,7 +77,7 @@ function extractJsonObject(text: string): unknown | undefined {
   return undefined;
 }
 
-/** Normalizza l'output del modello in una sequenza valida (delay crescenti, campi puliti). */
+/** Normalizza l'output del modello in una sequenza valida (un follow-up ogni 4 giorni, campi puliti). */
 function normalizeSequence(parsed: unknown, fallbackSteps: number): AiSequence | null {
   if (!parsed || typeof parsed !== "object") return null;
   const o = parsed as Record<string, unknown>;
@@ -84,26 +85,17 @@ function normalizeSequence(parsed: unknown, fallbackSteps: number): AiSequence |
   if (rawSteps.length === 0) return null;
 
   const steps: AiStep[] = rawSteps
-    .map((s, i) => {
+    .map((s) => {
       const st = (s && typeof s === "object") ? s as Record<string, unknown> : {};
       const subject = String(st.subject ?? "").trim();
       const body = String(st.body ?? "").trim();
-      const delayRaw = Number(st.delay_days);
-      const delay_days = Number.isFinite(delayRaw) && delayRaw >= 0 ? Math.round(delayRaw) : i * 3;
-      return { delay_days, subject, body };
+      return { delay_days: 0, subject, body };
     })
-    .filter((s) => s.body.length > 0);
+    .filter((s) => s.body.length > 0)
+    // I giorni non li decide il modello: un follow-up ogni 4 giorni (0, 4, 8…).
+    .map((s, i) => ({ ...s, delay_days: giornoDelPassoLineare(i) }));
 
   if (steps.length === 0) return null;
-
-  // Garantisce delay_days monotòni crescenti (il primo a 0). Se il modello li
-  // ha sbagliati/uguali, li ricostruiamo distanziati di 3 giorni.
-  let prev = -1;
-  for (let i = 0; i < steps.length; i++) {
-    if (i === 0) steps[i].delay_days = 0;
-    else if (steps[i].delay_days <= prev) steps[i].delay_days = prev + 3;
-    prev = steps[i].delay_days;
-  }
 
   const name = String(o.name ?? "").trim() || `Cadenza AI ${steps.length} step`;
   return { name: name.slice(0, 120), steps };

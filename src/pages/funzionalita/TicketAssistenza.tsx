@@ -404,7 +404,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Quanto costa il modulo e ci sono limiti di ticket?",
-      a: "Il modulo Ticket Assistenza è incluso nei piani Professional e Business di Edilizia in Cloud con ticket illimitati e tecnici illimitati. Setup in 48 ore, app tecnico inclusa, formazione 1-a-1, cancelli quando vuoi.",
+      a: "Il modulo Ticket Assistenza è incluso nei piani Professionista e Impresa AI di Edilizia in Cloud con ticket illimitati e tecnici illimitati. Setup in 48 ore, app tecnico inclusa, formazione 1-a-1, cancelli quando vuoi.",
     },
   ],
 
@@ -421,7 +421,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/foto-cantiere", title: "Foto Cantiere", text: "Foto datate del cantiere alimentano il dossier 1669 c.c." },
     { to: "/funzionalita/conserva-digitale", title: "Conservazione Digitale", text: "Archivio decennale a norma CAD per dossier garanzia." },
     { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
-    { to: "/prezzi", title: "Prezzi e Piani", text: "Ticket Assistenza incluso nei piani Professional e Business." },
+    { to: "/prezzi", title: "Prezzi e Piani", text: "Ticket Assistenza incluso nei piani Professionista e Impresa AI." },
   ],
 
   finalCtaH2: "Smetti di gestire la garanzia decennale a memoria. Inizia a difenderti con un dossier.",

@@ -390,3 +390,34 @@ export function chiusuraEsclusione(motivo: Esclusione): { status: string; stop_r
       return { status: "bounced", stop_reason: "indirizzo impossibile", last_error: "indirizzo impossibile" };
   }
 }
+
+/**
+ * Casella fissa per un'iscrizione che non ha ancora spedito niente, presa dalla
+ * storia del contatto con lo STESSO brand. Serve alle riprese (25/09/2026): la
+ * ripresa è un'iscrizione nuova, e senza questa regola partiva da una casella
+ * qualsiasi — «ti avevo scritto diverse settimane fa» firmato da un'altra
+ * persona. Vince l'invio più recente; gli altri brand non contano.
+ *
+ * `storico` = invii riusciti (qualsiasi ordine); `righe` = righe in coda senza
+ * casella fissa. Restituisce enrollment_id → casella.
+ */
+export function stickyDaStorico(
+  righe: Array<{ enrollment_id: string | null; contact_id: string | null; brand_id: string | null }>,
+  storico: Array<{ contact_id: string | null; brand_id: string | null; sender_account_id: string | null; sent_at: string | null }>,
+): Map<string, string> {
+  const ultimo = new Map<string, { sender: string; quando: number }>();
+  for (const s of storico) {
+    if (!s.contact_id || !s.brand_id || !s.sender_account_id || !s.sent_at) continue;
+    const k = `${s.contact_id}:${s.brand_id}`;
+    const quando = Date.parse(s.sent_at);
+    const prima = ultimo.get(k);
+    if (!prima || quando > prima.quando) ultimo.set(k, { sender: s.sender_account_id, quando });
+  }
+  const esito = new Map<string, string>();
+  for (const r of righe) {
+    if (!r.enrollment_id || !r.contact_id || !r.brand_id) continue;
+    const u = ultimo.get(`${r.contact_id}:${r.brand_id}`);
+    if (u) esito.set(r.enrollment_id, u.sender);
+  }
+  return esito;
+}

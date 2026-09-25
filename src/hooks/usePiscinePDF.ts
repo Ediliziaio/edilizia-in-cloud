@@ -19,6 +19,7 @@
  * via `toDataUrl` perché react-pdf supporta solo JPG/PNG e alcune foto possono
  * essere WEBP: la conversione canvas le rende sicure per il renderer.
  */
+import { templateDelPreventivo } from "@/lib/moduli/modelloPreventivo";
 import { useState, type ReactElement } from "react";
 import type { DocumentProps } from "@react-pdf/renderer";
 import { toast } from "sonner";
@@ -142,7 +143,8 @@ export async function enrichPiscinePdf(opts: PisPdfPayload): Promise<PisPdfEnric
 
   // 1) Template: fresco da DB se non passato (riflette l'ultimo salvataggio).
   if (opts.localOnly && !opts.template) throw new Error("Il modello locale deve essere fornito per generare il PDF.");
-  const template = opts.template ?? (await getPisTemplatePdf(companyId));
+  // Il modello dell'intervento congelato nel preventivo, se c'è (lib/moduli/modelloPreventivo).
+  const template = await templateDelPreventivo("piscine", progetto, opts.template, getPisTemplatePdf);
 
   // 2) Company (anagrafica per intestazione/contatti). Best-effort.
   let company: PisPdfCompany | null = opts.company ?? null;

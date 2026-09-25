@@ -399,7 +399,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Si integra con il software del consulente del lavoro?",
-      a: "Sì. Esportazione nei formati Zucchetti, TeamSystem, Buffetti e altri principali consulenti italiani. Se il tuo consulente usa un sistema custom, configuriamo export CSV/Excel su misura nel piano Business.",
+      a: "Sì. Esportazione nei formati Zucchetti, TeamSystem, Buffetti e altri principali consulenti italiani. Se il tuo consulente usa un sistema custom, configuriamo export CSV/Excel su misura nel piano Impresa AI.",
     },
     {
       q: "Cosa succede se l'operaio lascia il telefono in cantiere e se ne va?",
@@ -407,7 +407,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Quanto costa? Ci sono limiti su numero di operai o cantieri?",
-      a: "Timbrature GPS è inclusa nei piani Professional e Business di Edilizia in Cloud. Operai illimitati, cantieri illimitati, app iOS/Android incluse. Costo aggiuntivo solo se vuoi face matching avanzato (piano Business).",
+      a: "Timbrature GPS è inclusa nei piani Professionista e Impresa AI di Edilizia in Cloud. Operai illimitati, cantieri illimitati, app iOS/Android incluse. Costo aggiuntivo solo se vuoi face matching avanzato (piano Impresa AI).",
     },
   ],
 
@@ -424,7 +424,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/cassa-cantiere", title: "Cassa Cantiere", text: "Ore lavorate alimentano fatturazione SAL clienti." },
     { to: "/funzionalita/gestione-subappalti", title: "Gestione Subappalti", text: "Timbrature GPS anche per ditte subappaltatrici." },
     { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
-    { to: "/prezzi", title: "Prezzi e Piani", text: "Timbrature GPS incluse nei piani Professional e Business." },
+    { to: "/prezzi", title: "Prezzi e Piani", text: "Timbrature GPS incluse nei piani Professionista e Impresa AI." },
   ],
 
   finalCtaH2: "Smetti di pagare ore non lavorate. Inizia a sapere chi era in cantiere e quando.",
