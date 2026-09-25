@@ -1,5 +1,6 @@
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { verificaPermessoAzienda } from "../_shared/permessoAzienda.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -30,6 +31,13 @@ Deno.serve(async (req) => {
       return errorResponse("Preventivo non trovato", 404);
     }
     await requireCompanyAccess(supabaseAdmin, userId, quote.company_id, corsH);
+    // Salvare una versione è modificare il preventivo: serve il permesso dei
+    // Preventivi. Fino al 26/09/2026 bastava essere dell'azienda.
+    try {
+      await verificaPermessoAzienda(supabaseAdmin, userId, quote.company_id, ["can_edit_preventivi"], "modificare i preventivi");
+    } catch (e) {
+      return errorResponse(e instanceof Error ? e.message : "Non autorizzato", 403);
+    }
     const companyId: string = quote.company_id;
 
     // Load all quote items
