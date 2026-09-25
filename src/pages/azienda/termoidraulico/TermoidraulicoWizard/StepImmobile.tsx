@@ -187,7 +187,7 @@ export default function StepImmobile({ form, onChange }: Props) {
             </Select>
           </div>
           <div className="col-span-6 sm:col-span-3">
-            <Label className="text-xs">N. terminali (radiatori/fan coil)</Label>
+            <Label className="text-xs">N. terminali<span className="max-sm:hidden"> (radiatori/fan coil)</span></Label>
             <Input
               type="number"
               step={1}

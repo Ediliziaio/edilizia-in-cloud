@@ -235,7 +235,7 @@ export default function StepImmobile({ form, onChange }: Props) {
               />
             </div>
             <div className="col-span-6 sm:col-span-3">
-              <Label className="text-xs">Altezza rivestimento (m)</Label>
+              <Label className="text-xs">Altezza<span className="max-sm:hidden"> rivestimento</span> (m)</Label>
               <Input
                 type="number" inputMode="decimal" min={0}
                 value={form.altezza_rivestimento_m ?? ""}

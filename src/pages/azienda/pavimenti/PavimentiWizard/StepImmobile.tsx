@@ -190,7 +190,7 @@ export default function StepImmobile({ form, onChange }: Props) {
             </Select>
           </div>
           <div className="col-span-6 sm:col-span-3">
-            <Label className="text-xs">Superficie da posare (m²)</Label>
+            <Label className="text-xs">Superficie<span className="max-sm:hidden"> da posare</span> (m²)</Label>
             <Input
               type="number"
               inputMode="decimal"

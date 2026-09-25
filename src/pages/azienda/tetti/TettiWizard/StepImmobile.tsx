@@ -187,7 +187,7 @@ export default function StepImmobile({ form, onChange, model }: Props) {
             />
           </div>
           <div className="col-span-6 sm:col-span-3">
-            <Label className="text-xs">Superficie copertura (m²)</Label>
+            <Label className="text-xs">Superficie<span className="max-sm:hidden"> copertura</span> (m²)</Label>
             <Input
               type="number"
               inputMode="decimal"
@@ -236,7 +236,7 @@ export default function StepImmobile({ form, onChange, model }: Props) {
           {/* Calcolatore falde: pianta + pendenza → superficie reale */}
           <div className="grid grid-cols-12 gap-3 items-end">
             <div className="col-span-6 sm:col-span-3">
-              <Label className="text-xs">Superficie in pianta (m²)</Label>
+              <Label className="text-xs"><span className="max-sm:hidden">Superficie in pianta</span><span className="sm:hidden">In pianta</span> (m²)</Label>
               <Input
                 type="number" inputMode="decimal" min={0}
                 value={form.superficie_pianta_mq ?? ""}
