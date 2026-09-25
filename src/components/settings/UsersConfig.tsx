@@ -1246,9 +1246,12 @@ export function UsersConfig() {
       {/* ── Main Card ─────────────────────────────────────────────── */}
       <Card className="max-sm:overflow-hidden">
         <CardHeader className="pb-3 max-sm:hidden">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          {/* Da 1024: ricerca e azioni sulla prima riga, i tre filtri sotto.
+              Tutto in una riga non ci stava: la ricerca si riduceva alla sola
+              lente e i tre menu finivano uno sotto l'altro. */}
+          <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center">
             {/* Search */}
-            <div className="relative flex-1 max-w-sm">
+            <div className="relative flex-1 max-w-sm lg:order-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Cerca per nome o email..."
@@ -1258,7 +1261,7 @@ export function UsersConfig() {
               />
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 lg:order-3 lg:basis-full">
               <Select value={roleFilter} onValueChange={setRoleFilter}>
                 <SelectTrigger className="h-9 w-[150px]">
                   <SelectValue placeholder="Ruolo" />
@@ -1313,7 +1316,7 @@ export function UsersConfig() {
               )}
             </div>
 
-            <div className="flex items-center gap-2 ml-auto">
+            <div className="flex items-center gap-2 ml-auto lg:order-2">
               {canManageUsers && (
                 <Button onClick={() => setCreateDialogOpen(true)} size="sm">
                   <Plus className="h-4 w-4 mr-1.5" />
