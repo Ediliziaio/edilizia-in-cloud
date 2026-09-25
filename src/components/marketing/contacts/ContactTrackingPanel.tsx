@@ -188,7 +188,7 @@ export function ContactTrackingPanel({ contactId }: { contactId: string }) {
           </div>
         </div>
         {c.attr_medium && (
-          <Badge variant="secondary" className="text-[10px]">{c.attr_medium}</Badge>
+          <Badge variant="secondary" className="text-[10px] max-md:text-[11px]">{c.attr_medium}</Badge>
         )}
       </div>
 
@@ -202,21 +202,21 @@ export function ContactTrackingPanel({ contactId }: { contactId: string }) {
             <div className="flex items-start gap-2">
               <Megaphone className="h-3.5 w-3.5 mt-0.5 text-muted-foreground shrink-0" />
               <div className="min-w-0">
-                <p className="text-[10px] text-muted-foreground">Campagna</p>
+                <p className="text-[10px] text-muted-foreground max-md:text-[11px]">Campagna</p>
                 <p className="text-xs font-medium break-words">{metaCampaign || "—"}</p>
               </div>
             </div>
             <div className="flex items-start gap-2">
               <Layers className="h-3.5 w-3.5 mt-0.5 text-muted-foreground shrink-0" />
               <div className="min-w-0">
-                <p className="text-[10px] text-muted-foreground">Gruppo di inserzioni</p>
+                <p className="text-[10px] text-muted-foreground max-md:text-[11px]">Gruppo di inserzioni</p>
                 <p className="text-xs font-medium break-words">{metaAdset || "—"}</p>
               </div>
             </div>
             <div className="flex items-start gap-2">
               <ImageIcon className="h-3.5 w-3.5 mt-0.5 text-muted-foreground shrink-0" />
               <div className="min-w-0">
-                <p className="text-[10px] text-muted-foreground">Inserzione</p>
+                <p className="text-[10px] text-muted-foreground max-md:text-[11px]">Inserzione</p>
                 <p className="text-xs font-medium break-words">{metaAd || "—"}</p>
               </div>
             </div>
@@ -270,15 +270,15 @@ export function ContactTrackingPanel({ contactId }: { contactId: string }) {
                 <span className="text-[11px] font-medium">
                   Richiesta #{submissions.length - i}
                 </span>
-                <span className="text-[10px] text-muted-foreground">
+                <span className="text-[10px] text-muted-foreground max-md:text-[11px]">
                   {fmtDateTime(s.created_time || s.received_at)}
                 </span>
               </div>
               {(s.campaign_name || s.adset_name || s.ad_name) && (
                 <div className="flex flex-wrap gap-1">
-                  {s.campaign_name && <Badge variant="outline" className="text-[10px]">📣 {s.campaign_name}</Badge>}
-                  {s.adset_name && <Badge variant="outline" className="text-[10px]">🗂 {s.adset_name}</Badge>}
-                  {s.ad_name && <Badge variant="outline" className="text-[10px]">🖼 {s.ad_name}</Badge>}
+                  {s.campaign_name && <Badge variant="outline" className="text-[10px] max-md:text-[11px]">📣 {s.campaign_name}</Badge>}
+                  {s.adset_name && <Badge variant="outline" className="text-[10px] max-md:text-[11px]">🗂 {s.adset_name}</Badge>}
+                  {s.ad_name && <Badge variant="outline" className="text-[10px] max-md:text-[11px]">🖼 {s.ad_name}</Badge>}
                 </div>
               )}
               {s.fields?.length > 0 && (
@@ -308,7 +308,7 @@ export function ContactTrackingPanel({ contactId }: { contactId: string }) {
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="text-[11px] font-medium leading-tight break-words">{activityLabel(e)}</p>
-                  <p className="text-[10px] text-muted-foreground">{fmtDateTime(e.created_at)}</p>
+                  <p className="text-[10px] text-muted-foreground max-md:text-[11px]">{fmtDateTime(e.created_at)}</p>
                 </div>
               </div>
             ))}

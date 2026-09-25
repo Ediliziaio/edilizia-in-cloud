@@ -61,15 +61,15 @@ export function ContactInvoicesPanel({ contactId, companyId }: Props) {
       {invoices.length > 0 && (
         <div className="grid grid-cols-3 gap-1.5">
           <div className="rounded-md bg-muted/50 p-2 text-center">
-            <p className="text-[9px] text-muted-foreground">Fatturato</p>
+            <p className="text-[9px] text-muted-foreground max-md:text-[11px]">Fatturato</p>
             <p className="text-xs font-semibold">€{totalInvoiced.toLocaleString("it-IT", { minimumFractionDigits: 0, useGrouping: true })}</p>
           </div>
           <div className="rounded-md bg-muted/50 p-2 text-center">
-            <p className="text-[9px] text-muted-foreground">Incassato</p>
+            <p className="text-[9px] text-muted-foreground max-md:text-[11px]">Incassato</p>
             <p className="text-xs font-semibold text-emerald-600">€{totalPaid.toLocaleString("it-IT", { minimumFractionDigits: 0, useGrouping: true })}</p>
           </div>
           <div className="rounded-md bg-muted/50 p-2 text-center">
-            <p className="text-[9px] text-muted-foreground">Da incassare</p>
+            <p className="text-[9px] text-muted-foreground max-md:text-[11px]">Da incassare</p>
             <p className="text-xs font-semibold text-amber-600">€{totalOutstanding.toLocaleString("it-IT", { minimumFractionDigits: 0, useGrouping: true })}</p>
           </div>
         </div>
@@ -98,7 +98,7 @@ export function ContactInvoicesPanel({ contactId, companyId }: Props) {
                 </Badge>
               </div>
               <div className="flex items-center justify-between mt-1">
-                <span className="text-[10px] text-muted-foreground">
+                <span className="text-[10px] text-muted-foreground max-md:text-[11px]">
                   {inv.issue_date ? format(new Date(inv.issue_date), "dd MMM yyyy", { locale: it }) : "—"}
                 </span>
                 <div className="flex items-center gap-1">
@@ -107,7 +107,7 @@ export function ContactInvoicesPanel({ contactId, companyId }: Props) {
                     {(inv.total || 0).toLocaleString("it-IT", { minimumFractionDigits: 2, useGrouping: true })}
                   </span>
                   {remaining > 0 && inv.status !== "paid" && (
-                    <span className="text-[9px] text-amber-600 ml-1">
+                    <span className="text-[9px] text-amber-600 ml-1 max-md:text-[11px]">
                       (res. €{remaining.toLocaleString("it-IT", { minimumFractionDigits: 0, useGrouping: true })})
                     </span>
                   )}

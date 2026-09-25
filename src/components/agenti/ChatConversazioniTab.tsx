@@ -104,7 +104,7 @@ export function ChatConversazioniTab() {
             <h3 className="text-sm font-semibold">
               Chat con {selectedSessionData.agent_nome || "Agente"}
             </h3>
-            <p className="text-[10px] text-muted-foreground">
+            <p className="text-[10px] text-muted-foreground max-md:text-[11px]">
               {format(new Date(selectedSessionData.iniziata_il), "d MMM yyyy HH:mm", { locale: it })}
               {" · "}{selectedSessionData.messaggi_totali} messaggi
             </p>
@@ -145,7 +145,7 @@ export function ChatConversazioniTab() {
                         <div className="flex items-center gap-1.5 mb-1">
                           {msg.ruolo === "assistant" && <Bot className="h-3 w-3 text-primary" />}
                           {msg.ruolo === "user" && <User className="h-3 w-3" />}
-                          <span className="text-[9px] opacity-70">
+                          <span className="text-[9px] opacity-70 max-md:text-[11px]">
                             {format(new Date(msg.creato_il), "HH:mm")}
                           </span>
                         </div>
@@ -223,19 +223,19 @@ export function ChatConversazioniTab() {
                     <p className="text-sm font-medium truncate">
                       {s.agent_nome || "Agente"}
                     </p>
-                    <Badge variant={s.stato === "attiva" ? "default" : "secondary"} className="text-[9px]">
+                    <Badge variant={s.stato === "attiva" ? "default" : "secondary"} className="text-[9px] max-md:text-[11px]">
                       {s.stato}
                     </Badge>
-                    <Badge variant="outline" className="text-[9px]">{s.canale}</Badge>
+                    <Badge variant="outline" className="text-[9px] max-md:text-[11px]">{s.canale}</Badge>
                   </div>
                   <div className="flex items-center gap-3 mt-0.5">
-                    <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+                    <span className="text-[10px] text-muted-foreground flex items-center gap-0.5 max-md:text-[11px]">
                       <MessageSquare className="h-2.5 w-2.5" /> {s.messaggi_totali} msg
                     </span>
-                    <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+                    <span className="text-[10px] text-muted-foreground flex items-center gap-0.5 max-md:text-[11px]">
                       <Clock className="h-2.5 w-2.5" /> {Math.round(s.durata_secondi / 60)}m
                     </span>
-                    <span className="text-[10px] text-muted-foreground">
+                    <span className="text-[10px] text-muted-foreground max-md:text-[11px]">
                       {format(new Date(s.iniziata_il), "d MMM HH:mm", { locale: it })}
                     </span>
                   </div>

@@ -534,13 +534,14 @@ export function UnifiedContactTimeline({
             variant={filter === opt.key ? "default" : "ghost"}
             size="sm"
             // tap-compact: su telefono la regola dei 44px li gonfiava in blocchi.
-            className="tap-compact h-6 text-[10px] gap-1 shrink-0"
+            // Telefono: 11px (a 10px, con i numeri a 9, non si leggevano).
+            className="tap-compact h-6 text-[10px] gap-1 shrink-0 max-sm:h-7 max-sm:text-[11px]"
             onClick={() => setFilter(opt.key)}
           >
             {opt.icon}
             {opt.label}
             {opt.key !== "all" && (
-              <span className="text-[9px] opacity-70">
+              <span className="text-[9px] opacity-70 max-sm:text-[11px]">
                 ({allEvents.filter((e) => e.category === opt.key).length})
               </span>
             )}
@@ -581,7 +582,7 @@ export function UnifiedContactTimeline({
               <div key={group.label} className="space-y-2">
                 {/* Separatore data */}
                 <div className="flex justify-center">
-                  <span className="text-[10px] font-medium text-muted-foreground bg-muted/60 rounded-full px-2 py-0.5">
+                  <span className="text-[10px] font-medium text-muted-foreground bg-muted/60 rounded-full px-2 py-0.5 max-sm:text-[11px]">
                     {group.label}
                   </span>
                 </div>
@@ -603,7 +604,7 @@ export function UnifiedContactTimeline({
                           <p>{event.description || "(vuoto)"}</p>
                           <div
                             className={cn(
-                              "mt-0.5 flex items-center justify-end gap-1 text-[10px]",
+                              "mt-0.5 flex items-center justify-end gap-1 text-[10px] max-sm:text-[11px]",
                               out ? "text-emerald-100" : "text-muted-foreground",
                             )}
                           >
@@ -620,7 +621,7 @@ export function UnifiedContactTimeline({
                   // ── Evento di sistema (nota / appuntamento / chiamata / attività) → riga piccola centrata ──
                   return (
                     <div key={event.id} className="flex justify-center">
-                      <div className="flex items-center gap-1.5 max-w-[90%] rounded-full bg-muted/40 px-2.5 py-1 text-[10px] text-muted-foreground">
+                      <div className="flex items-center gap-1.5 max-w-[90%] rounded-full bg-muted/40 px-2.5 py-1 text-[10px] text-muted-foreground max-sm:text-[11px]">
                         <span className={cn("h-4 w-4 rounded-full flex items-center justify-center shrink-0", event.color)}>
                           {event.icon}
                         </span>

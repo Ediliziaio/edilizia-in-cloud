@@ -436,7 +436,7 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
             <h4 className="text-xs font-semibold text-orange-700 uppercase tracking-wide">
               Preventivi Serramenti
             </h4>
-            <span className="text-[10px] text-muted-foreground">
+            <span className="text-[10px] text-muted-foreground max-md:text-[11px]">
               ({srLoading ? "…" : srProgetti.length})
             </span>
           </div>
@@ -455,11 +455,11 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="font-mono text-xs font-semibold text-orange-700">{p.code}</span>
-                      <Badge className="text-[10px] px-1.5 py-0 bg-orange-100 text-orange-700 border-0">
+                      <Badge className="text-[10px] px-1.5 py-0 bg-orange-100 text-orange-700 border-0 max-md:text-[11px]">
                         {SR_STATO_LABELS[p.stato] ?? p.stato}
                       </Badge>
                       {!p.opportunita_id && opportunityId && (
-                        <span className="text-[9px] text-muted-foreground" title="Collegato solo per contatto, non a questa opportunità">
+                        <span className="text-[9px] text-muted-foreground max-md:text-[11px]" title="Collegato solo per contatto, non a questa opportunità">
                           via contatto
                         </span>
                       )}
@@ -474,7 +474,7 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
                         ? `${formatCurrency(Number(p.totale_min))} – ${formatCurrency(Number(p.totale_max))}`
                         : "—"}
                     </p>
-                    <p className="text-[10px] text-muted-foreground">
+                    <p className="text-[10px] text-muted-foreground max-md:text-[11px]">
                       {format(new Date(p.created_at), "dd MMM yyyy", { locale: it })}
                     </p>
                   </div>
@@ -493,7 +493,7 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
             <h4 className="text-xs font-semibold text-amber-700 uppercase tracking-wide">
               Preventivi Fotovoltaico
             </h4>
-            <span className="text-[10px] text-muted-foreground">
+            <span className="text-[10px] text-muted-foreground max-md:text-[11px]">
               ({fvLoading ? "…" : fvProgetti.length})
             </span>
           </div>
@@ -512,11 +512,11 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="font-mono text-xs font-semibold text-amber-700">{p.numero ?? "—"}</span>
-                      <Badge className="text-[10px] px-1.5 py-0 bg-amber-100 text-amber-700 border-0">
+                      <Badge className="text-[10px] px-1.5 py-0 bg-amber-100 text-amber-700 border-0 max-md:text-[11px]">
                         {FV_STATO_LABELS[p.stato] ?? p.stato}
                       </Badge>
                       {!p.opportunita_crm_id && opportunityId && (
-                        <span className="text-[9px] text-muted-foreground" title="Collegato solo per contatto, non a questa opportunità">
+                        <span className="text-[9px] text-muted-foreground max-md:text-[11px]" title="Collegato solo per contatto, non a questa opportunità">
                           via contatto
                         </span>
                       )}
@@ -528,7 +528,7 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
                         ? formatCurrency(Number(p.prezzo_vendita_iva_inclusa))
                         : "—"}
                     </p>
-                    <p className="text-[10px] text-muted-foreground">
+                    <p className="text-[10px] text-muted-foreground max-md:text-[11px]">
                       {format(new Date(p.created_at), "dd MMM yyyy", { locale: it })}
                     </p>
                   </div>
@@ -611,7 +611,7 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
                   {/* Row 2: Qty, Price, IVA, Sconto, UM */}
                   <div className="grid grid-cols-5 gap-2">
                     <div className="space-y-1">
-                      <Label className="text-[10px] text-muted-foreground">Qtà</Label>
+                      <Label className="text-[10px] text-muted-foreground max-md:text-[11px]">Qtà</Label>
                       <Input
                         type="number"
                         value={item.quantity}
@@ -621,7 +621,7 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-[10px] text-muted-foreground">Prezzo €</Label>
+                      <Label className="text-[10px] text-muted-foreground max-md:text-[11px]">Prezzo €</Label>
                       <Input
                         type="number"
                         value={item.unit_price}
@@ -632,7 +632,7 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-[10px] text-muted-foreground">IVA %</Label>
+                      <Label className="text-[10px] text-muted-foreground max-md:text-[11px]">IVA %</Label>
                       <Input
                         type="number"
                         value={item.vat_rate}
@@ -642,7 +642,7 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-[10px] text-muted-foreground">Sconto %</Label>
+                      <Label className="text-[10px] text-muted-foreground max-md:text-[11px]">Sconto %</Label>
                       <Input
                         type="number"
                         value={item.discount_percent}
@@ -653,7 +653,7 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-[10px] text-muted-foreground">UM</Label>
+                      <Label className="text-[10px] text-muted-foreground max-md:text-[11px]">UM</Label>
                       <Select value={item.unit_of_measure} onValueChange={(v) => updateItem(idx, "unit_of_measure", v)}>
                         <SelectTrigger className="h-8 text-xs">
                           <SelectValue />
@@ -801,7 +801,7 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
                       ? formatCurrency(Number(q.total))
                       : "—"}
                   </p>
-                  <p className="text-[10px] text-muted-foreground">
+                  <p className="text-[10px] text-muted-foreground max-md:text-[11px]">
                     {format(new Date(q.created_at), "dd MMM yyyy", { locale: it })}
                   </p>
                 </div>

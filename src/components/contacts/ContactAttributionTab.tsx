@@ -54,22 +54,22 @@ function TouchCard({ label, icon, source, medium, campaign, content, term, landi
 
   return (
     <div className="border rounded-md p-2 space-y-1">
-      <div className="flex items-center gap-1.5 text-[10px] font-semibold text-muted-foreground">
+      <div className="flex items-center gap-1.5 text-[10px] font-semibold text-muted-foreground max-md:text-[11px]">
         {icon} {label}
       </div>
       <div className="flex items-center gap-1 flex-wrap">
         <SourceBadge source={source} />
-        {medium && <Badge variant="secondary" className="text-[10px]">{medium}</Badge>}
-        {campaign && <Badge variant="secondary" className="text-[10px]">{campaign}</Badge>}
-        {content && <Badge variant="secondary" className="text-[10px]">{content}</Badge>}
+        {medium && <Badge variant="secondary" className="text-[10px] max-md:text-[11px]">{medium}</Badge>}
+        {campaign && <Badge variant="secondary" className="text-[10px] max-md:text-[11px]">{campaign}</Badge>}
+        {content && <Badge variant="secondary" className="text-[10px] max-md:text-[11px]">{content}</Badge>}
       </div>
       {term && (
-        <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+        <div className="flex items-center gap-1 text-[10px] text-muted-foreground max-md:text-[11px]">
           <Search className="h-2.5 w-2.5" /> <span className="italic">{term}</span>
         </div>
       )}
       {landingUrl && (
-        <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+        <div className="flex items-center gap-1 text-[10px] text-muted-foreground max-md:text-[11px]">
           <ExternalLink className="h-2.5 w-2.5" />
           <span className="truncate max-w-[180px]" title={landingUrl}>{landingUrl}</span>
         </div>
@@ -77,12 +77,12 @@ function TouchCard({ label, icon, source, medium, campaign, content, term, landi
       {clickIds.length > 0 && (
         <div className="flex items-center gap-1 flex-wrap">
           {clickIds.map((cid) => (
-            <Badge key={cid} variant="outline" className="text-[9px] font-mono bg-muted">{cid}</Badge>
+            <Badge key={cid} variant="outline" className="text-[9px] font-mono bg-muted max-md:text-[11px]">{cid}</Badge>
           ))}
         </div>
       )}
       {touchAt && (
-        <p className="text-[10px] text-muted-foreground">
+        <p className="text-[10px] text-muted-foreground max-md:text-[11px]">
           {format(new Date(touchAt), "dd MMM yyyy, HH:mm", { locale: it })}
         </p>
       )}
@@ -104,7 +104,7 @@ export function ContactAttributionTab({ contactId, companyId }: Props) {
 
   if (!attribution && sessions.length === 0) {
     return (
-      <p className="text-[10px] text-muted-foreground px-1 py-2">
+      <p className="text-[10px] text-muted-foreground px-1 py-2 max-md:text-[11px]">
         Nessun dato di attribuzione disponibile per questo contatto.
       </p>
     );
@@ -150,7 +150,7 @@ export function ContactAttributionTab({ contactId, companyId }: Props) {
 
       {/* Sessions count */}
       {attribution?.total_sessions && attribution.total_sessions > 0 && (
-        <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground px-1">
+        <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground px-1 max-md:text-[11px]">
           <Hash className="h-3 w-3" />
           {attribution.total_sessions} session{attribution.total_sessions > 1 ? "i" : "e"} tracciate
         </div>
@@ -159,11 +159,11 @@ export function ContactAttributionTab({ contactId, companyId }: Props) {
       {/* Session history */}
       {sessions.length > 0 && (
         <div className="space-y-1">
-          <p className="text-[10px] font-semibold text-muted-foreground flex items-center gap-1">
+          <p className="text-[10px] font-semibold text-muted-foreground flex items-center gap-1 max-md:text-[11px]">
             <Clock className="h-3 w-3" /> Ultime sessioni
           </p>
           {sessions.slice(0, 5).map((s) => (
-            <div key={s.id} className="text-[10px] border rounded px-2 py-1 space-y-0.5">
+            <div key={s.id} className="text-[10px] border rounded px-2 py-1 space-y-0.5 max-md:text-[11px]">
               <div className="flex items-center gap-1 flex-wrap">
                 <SourceBadge source={s.utm_source} />
                 {s.utm_medium && <span className="text-muted-foreground">/ {s.utm_medium}</span>}
@@ -186,16 +186,16 @@ export function ContactAttributionTab({ contactId, companyId }: Props) {
           entrato e cosa ha guardato prima di scrivere. */}
       {pageviews.length > 0 && (
         <div className="space-y-1">
-          <p className="text-[10px] font-semibold text-muted-foreground flex items-center gap-1">
+          <p className="text-[10px] font-semibold text-muted-foreground flex items-center gap-1 max-md:text-[11px]">
             <Route className="h-3 w-3" /> Pagine visitate ({pageviews.length})
           </p>
           <div className="border rounded divide-y max-h-64 overflow-y-auto">
             {pageviews.map((p, i) => {
               const nuovaVisita = i === 0 || pageviews[i - 1].session_id !== p.session_id;
               return (
-                <div key={p.id} className="px-2 py-1 text-[10px]">
+                <div key={p.id} className="px-2 py-1 text-[10px] max-md:text-[11px]">
                   {nuovaVisita && (
-                    <p className="text-[9px] uppercase tracking-wide text-muted-foreground pb-0.5">
+                    <p className="text-[9px] uppercase tracking-wide text-muted-foreground pb-0.5 max-md:text-[11px]">
                       Visita del {format(new Date(p.viewed_at), "dd/MM/yy", { locale: it })}
                     </p>
                   )}

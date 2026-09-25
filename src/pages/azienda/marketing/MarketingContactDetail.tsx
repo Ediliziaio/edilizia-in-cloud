@@ -113,6 +113,29 @@ function useSchedaCompatta() {
   return compatta;
 }
 
+// La fonte arriva come codice («google_ads», «meta_lead»): prima si leggeva così.
+const FONTI_NOTE: Record<string, string> = {
+  google_ads: "Google Ads",
+  meta_ads: "Meta Ads",
+  meta_lead: "Modulo Meta",
+  facebook: "Facebook",
+  facebook_ads: "Facebook Ads",
+  instagram: "Instagram",
+  whatsapp: "WhatsApp",
+  website: "Sito web",
+  sito: "Sito web",
+  sito_web: "Sito web",
+  referral: "Passaparola",
+  manual: "Inserito a mano",
+  manuale: "Inserito a mano",
+  import: "Importato",
+  cold_import: "Importato",
+};
+function etichettaFonte(fonte: string): string {
+  const chiave = fonte.trim().toLowerCase();
+  return FONTI_NOTE[chiave] ?? fonte.replace(/_/g, " ");
+}
+
 const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingContactDetail(_props, _ref) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -953,10 +976,10 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                 <div className="flex items-center gap-2 flex-wrap">
                   <h1 className="text-lg sm:text-xl font-bold tracking-tight text-foreground truncate">{fullName || "Senza nome"}</h1>
                   {contact.contact_type && (
-                    <Badge variant="outline" className="text-[10px] h-5 px-1.5 capitalize">{contact.contact_type}</Badge>
+                    <Badge variant="outline" className="text-[10px] h-5 px-1.5 capitalize max-md:text-[11px]">{contact.contact_type}</Badge>
                   )}
                   {aiScore != null && (
-                    <Badge className="bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white border-0 text-[10px] h-5 px-1.5 gap-1">
+                    <Badge className="bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white border-0 text-[10px] h-5 px-1.5 gap-1 max-md:text-[11px]">
                       <Sparkles className="h-2.5 w-2.5" /> AI {aiScore}/100{aiTier ? ` · ${aiTier}` : ""}
                     </Badge>
                   )}
@@ -1037,23 +1060,23 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
           {/* KPI strip 4 col desktop */}
           <div className="mt-3 grid grid-cols-4 gap-2">
             <div className="rounded-lg border bg-card px-3 py-2">
-              <div className="flex items-center justify-between"><span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Lead Score</span><Star className="h-3 w-3 text-amber-500" /></div>
-              <div className="flex items-baseline gap-1.5 mt-1"><span className="text-xl font-bold tabular-nums">{leadScore}</span><span className="text-[10px] text-muted-foreground">/ 100</span></div>
+              <div className="flex items-center justify-between"><span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold max-md:text-[11px]">Lead Score</span><Star className="h-3 w-3 text-amber-500" /></div>
+              <div className="flex items-baseline gap-1.5 mt-1"><span className="text-xl font-bold tabular-nums">{leadScore}</span><span className="text-[10px] text-muted-foreground max-md:text-[11px]">/ 100</span></div>
               <Progress value={leadScore} className="h-1 mt-1" />
             </div>
             <div className="rounded-lg border bg-card px-3 py-2">
-              <div className="flex items-center justify-between"><span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Opp. aperte</span><span className="text-[10px] text-emerald-600 font-bold">●</span></div>
-              <div className="flex items-baseline gap-1.5 mt-1"><span className="text-xl font-bold tabular-nums">{kpis?.openOppsCount ?? 0}</span>{kpis && kpis.totalOpps > 0 && <span className="text-[10px] text-muted-foreground">/ {kpis.totalOpps} tot</span>}</div>
-              <p className="text-[10px] text-muted-foreground mt-1 truncate">{fmtMoney(kpis?.openValue ?? 0)}</p>
+              <div className="flex items-center justify-between"><span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold max-md:text-[11px]">Opp. aperte</span><span className="text-[10px] text-emerald-600 font-bold max-md:text-[11px]">●</span></div>
+              <div className="flex items-baseline gap-1.5 mt-1"><span className="text-xl font-bold tabular-nums">{kpis?.openOppsCount ?? 0}</span>{kpis && kpis.totalOpps > 0 && <span className="text-[10px] text-muted-foreground max-md:text-[11px]">/ {kpis.totalOpps} tot</span>}</div>
+              <p className="text-[10px] text-muted-foreground mt-1 truncate max-md:text-[11px]">{fmtMoney(kpis?.openValue ?? 0)}</p>
             </div>
             <div className="rounded-lg border bg-card px-3 py-2">
-              <div className="flex items-center justify-between"><span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Appuntam.</span><CalendarDays className="h-3 w-3 text-blue-500" /></div>
-              <div className="flex items-baseline gap-1.5 mt-1"><span className="text-xl font-bold tabular-nums">{kpis?.apptsCount ?? 0}</span><span className="text-[10px] text-muted-foreground">totali</span></div>
+              <div className="flex items-center justify-between"><span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold max-md:text-[11px]">Appuntam.</span><CalendarDays className="h-3 w-3 text-blue-500" /></div>
+              <div className="flex items-baseline gap-1.5 mt-1"><span className="text-xl font-bold tabular-nums">{kpis?.apptsCount ?? 0}</span><span className="text-[10px] text-muted-foreground max-md:text-[11px]">totali</span></div>
             </div>
             <div className="rounded-lg border bg-card px-3 py-2">
-              <div className="flex items-center justify-between"><span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Ultima att.</span><Bell className="h-3 w-3 text-rose-500" /></div>
+              <div className="flex items-center justify-between"><span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold max-md:text-[11px]">Ultima att.</span><Bell className="h-3 w-3 text-rose-500" /></div>
               <div className="flex items-baseline gap-1.5 mt-1"><span className="text-sm font-bold leading-tight">{lastActivityLabel}</span></div>
-              <p className="text-[10px] text-muted-foreground mt-1 truncate">{activities.length} attività totali</p>
+              <p className="text-[10px] text-muted-foreground mt-1 truncate max-md:text-[11px]">{activities.length} attività totali</p>
             </div>
           </div>
 
@@ -1491,9 +1514,9 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                 </Collapsible>
 
                 {/* Created info */}
-                <div className="pt-2 text-[10px] text-muted-foreground px-1">
+                <div className="pt-2 text-[10px] text-muted-foreground px-1 max-md:text-[11px]">
                   <p>Creato il: {format(new Date(contact.created_at), "dd MMM yyyy, HH:mm", { locale: it })}</p>
-                  {contact.source && <p>Fonte: {contact.source}</p>}
+                  {contact.source && <p>Fonte: {etichettaFonte(contact.source)}</p>}
                 </div>
               </TabsContent>
 
@@ -1587,7 +1610,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                   className="border-0 bg-muted/50 shadow-none h-7 text-xs flex-1"
                 />
                 {/* Mobile no: copia e copia nascosta sono da scrivania. */}
-                <div className="flex items-center gap-1.5 text-[10px] shrink-0 max-md:hidden">
+                <div className="flex items-center gap-1.5 text-[10px] shrink-0 max-md:hidden max-md:text-[11px]">
                   {!emailCcVisible && (
                     <button
                       type="button"
@@ -1611,7 +1634,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
               {/* Cc input (visible only on toggle) */}
               {emailCcVisible && (
                 <div className="flex items-center gap-1">
-                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground w-8 shrink-0">Cc</Label>
+                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground w-8 shrink-0 max-md:text-[11px]">Cc</Label>
                   <Input
                     placeholder="email1@esempio.it, email2@esempio.it"
                     value={emailCc}
@@ -1620,7 +1643,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                   />
                   <button
                     type="button"
-                    className="text-[10px] text-muted-foreground hover:text-foreground shrink-0"
+                    className="text-[10px] text-muted-foreground hover:text-foreground shrink-0 max-md:text-[11px]"
                     onClick={() => { setEmailCcVisible(false); setEmailCc(""); }}
                   >
                     Rimuovi
@@ -1630,7 +1653,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
               {/* Ccn (Bcc) input (visible only on toggle) */}
               {emailBccVisible && (
                 <div className="flex items-center gap-1">
-                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground w-8 shrink-0">Ccn</Label>
+                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground w-8 shrink-0 max-md:text-[11px]">Ccn</Label>
                   <Input
                     placeholder="nascosti@esempio.it (gli altri non vedono questi)"
                     value={emailBcc}
@@ -1639,7 +1662,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                   />
                   <button
                     type="button"
-                    className="text-[10px] text-muted-foreground hover:text-foreground shrink-0"
+                    className="text-[10px] text-muted-foreground hover:text-foreground shrink-0 max-md:text-[11px]"
                     onClick={() => { setEmailBccVisible(false); setEmailBcc(""); }}
                   >
                     Rimuovi
@@ -1783,7 +1806,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                 {compatta && rightTab === "appointments" ? "Appuntamenti" : RIGHT_TABS.find(t => t.key === rightTab)?.label}
               </span>
               {rightTab === "documents" && (
-                <Button variant="ghost" size="sm" className="h-6 text-[10px] text-primary">
+                <Button variant="ghost" size="sm" className="h-6 text-[10px] text-primary max-md:text-[11px]">
                   <Plus className="h-3 w-3 mr-0.5" /> Aggiungi
                 </Button>
               )}
@@ -1990,7 +2013,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                       />
                     </div>
                     {(contact as any).unsubscribed && (
-                      <div className="text-[10px] text-destructive flex items-center gap-1 mt-1">
+                      <div className="text-[10px] text-destructive flex items-center gap-1 mt-1 max-md:text-[11px]">
                         <AlertCircle className="h-3 w-3" />
                         Disiscritto il {(contact as any).unsubscribed_at ? format(new Date((contact as any).unsubscribed_at), "dd/MM/yyyy", { locale: it }) : "data sconosciuta"}
                       </div>
@@ -2069,11 +2092,11 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
           </DialogHeader>
           <div className="space-y-3">
             <div className="space-y-1">
-              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Ragione sociale</Label>
+              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground max-md:text-[11px]">Ragione sociale</Label>
               <Input value={enrichName} onChange={(e) => setEnrichName(e.target.value)} placeholder="Es. Rossi Costruzioni SRL" className="h-8 text-xs" />
             </div>
             <div className="space-y-1">
-              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Sito web</Label>
+              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground max-md:text-[11px]">Sito web</Label>
               <div className="flex gap-1.5">
                 <Input value={enrichWebsite} onChange={(e) => setEnrichWebsite(e.target.value)} placeholder="https://…" className="h-8 text-xs flex-1" />
                 {enrichWebsite.trim() && (
@@ -2103,7 +2126,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                         <span className="text-muted-foreground truncate flex-1">{c.title}</span>
                         <a
                           href={c.url} target="_blank" rel="noreferrer"
-                          className="text-[10px] text-primary underline shrink-0"
+                          className="text-[10px] text-primary underline shrink-0 max-md:text-[11px]"
                           onClick={(e) => e.stopPropagation()}
                         >
                           apri
@@ -2117,10 +2140,10 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
               )}
             </div>
             <div className="space-y-1">
-              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">P.IVA</Label>
+              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground max-md:text-[11px]">P.IVA</Label>
               <Input value={enrichPiva} onChange={(e) => setEnrichPiva(e.target.value)} placeholder="11 cifre (per VIES e registro imprese)" className="h-8 text-xs" />
             </div>
-            <p className="text-[10px] text-muted-foreground pt-1">Basta uno dei tre campi; più ne dai, meglio incrocia.</p>
+            <p className="text-[10px] text-muted-foreground pt-1 max-md:text-[11px]">Basta uno dei tre campi; più ne dai, meglio incrocia.</p>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1">
               <Button size="sm" className="flex-1 gap-1.5 bg-orange-600 hover:bg-orange-700" disabled={enriching || (!enrichWebsite.trim() && !enrichPiva.trim() && !enrichName.trim())} onClick={runEnrich}>
                 {enriching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Radar className="h-3.5 w-3.5" />} Avvia arricchimento
@@ -2198,7 +2221,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                         <span className="text-xs font-semibold">Segnale d'acquisto</span>
                         <Badge className={cn("h-4 px-1.5 text-[10px]", scoreColor)}>{scoreLabel} · {score}/100</Badge>
                       </div>
-                      {activeSignals.length > 0 && <p className="text-[10px] text-muted-foreground mt-0.5">{activeSignals.join(" · ")}</p>}
+                      {activeSignals.length > 0 && <p className="text-[10px] text-muted-foreground mt-0.5 max-md:text-[11px]">{activeSignals.join(" · ")}</p>}
                     </div>
                   </div>
                 )}
@@ -2225,7 +2248,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                 )}
                 {(r.vies || r.partita_iva) && (
                   <div>
-                    <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 flex items-center gap-1"><Building2 className="h-3 w-3" /> Anagrafica ufficiale (VIES)</p>
+                    <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 flex items-center gap-1 max-md:text-[11px]"><Building2 className="h-3 w-3" /> Anagrafica ufficiale (VIES)</p>
                     {r.partita_iva && row("P.IVA", <>{r.partita_iva} {r.vies?.valid === true ? <Badge className="ml-1 h-4 px-1 text-[9px] bg-emerald-100 text-emerald-700 hover:bg-emerald-100">valida</Badge> : r.vies?.valid === false ? <Badge variant="destructive" className="ml-1 h-4 px-1 text-[9px]">non valida</Badge> : null}</>)}
                     {r.vies?.name && row("Ragione sociale", r.vies.name)}
                     {r.vies?.address && row("Sede legale", r.vies.address)}
@@ -2256,7 +2279,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                   if (rows.length === 0 && soci.length === 0 && amm.length === 0) return null;
                   return (
                     <div>
-                      <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 flex items-center gap-1"><Building2 className="h-3 w-3" /> Visura camerale (registro imprese)</p>
+                      <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 flex items-center gap-1 max-md:text-[11px]"><Building2 className="h-3 w-3" /> Visura camerale (registro imprese)</p>
                       {rows}
                       {amm.length > 0 && row("Amministratori", <span className="flex flex-col gap-0.5">{amm.map((p, i) => <span key={i}>{p.nome}{p.ruolo ? ` — ${p.ruolo}` : ""}</span>)}</span>)}
                       {soci.length > 0 && row("Soci", <span className="flex flex-col gap-0.5">{soci.map((p, i) => <span key={i}>{p.nome}{p.ruolo ? ` — ${p.ruolo}` : ""}</span>)}</span>)}
@@ -2277,8 +2300,8 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                   const landlines = classified.filter((p) => p.type === "landline");
                   return (
                     <div>
-                      <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 flex items-center gap-1"><AtSign className="h-3 w-3" /> Recapiti trovati sul sito</p>
-                      <p className="text-[10px] text-muted-foreground mb-1.5 italic">Numeri normalizzati e filtrati (esclusi P.IVA e sequenze non valide). Verifica sempre prima di contattare.</p>
+                      <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 flex items-center gap-1 max-md:text-[11px]"><AtSign className="h-3 w-3" /> Recapiti trovati sul sito</p>
+                      <p className="text-[10px] text-muted-foreground mb-1.5 italic max-md:text-[11px]">Numeri normalizzati e filtrati (esclusi P.IVA e sequenze non valide). Verifica sempre prima di contattare.</p>
                       {r.emails?.map((e) => <div key={e}>{row("Email", <a href={`mailto:${e}`} className="text-primary underline">{e}</a>)}</div>)}
                       {mobiles.map((p) => (
                         <div key={p.e164}>{row(
@@ -2303,7 +2326,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                 })()}
                 {(r.facebook_url || r.instagram_url || r.linkedin_url) && (
                   <div>
-                    <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 flex items-center gap-1"><Globe className="h-3 w-3" /> Social</p>
+                    <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 flex items-center gap-1 max-md:text-[11px]"><Globe className="h-3 w-3" /> Social</p>
                     {r.linkedin_url && row("LinkedIn", <a href={r.linkedin_url} target="_blank" rel="noreferrer" className="text-primary underline">{r.linkedin_url}</a>)}
                     {r.facebook_url && row("Facebook", <a href={r.facebook_url} target="_blank" rel="noreferrer" className="text-primary underline">{r.facebook_url}</a>)}
                     {r.instagram_url && row("Instagram", <a href={r.instagram_url} target="_blank" rel="noreferrer" className="text-primary underline">{r.instagram_url}</a>)}
@@ -2311,8 +2334,8 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                 )}
                 {(r.intent_signals?.length ?? 0) > 0 && (
                   <div>
-                    <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1">Segnali dal sito</p>
-                    <div className="flex flex-wrap gap-1">{r.intent_signals!.map((s: any) => <Badge key={s} variant="secondary" className="text-[10px]">{s}</Badge>)}</div>
+                    <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 max-md:text-[11px]">Segnali dal sito</p>
+                    <div className="flex flex-wrap gap-1">{r.intent_signals!.map((s: any) => <Badge key={s} variant="secondary" className="text-[10px] max-md:text-[11px]">{s}</Badge>)}</div>
                   </div>
                 )}
                 {!r.vies && !r.firmografici && (r.emails?.length ?? 0) === 0 && (r.phones?.length ?? 0) === 0 && !r.facebook_url && !r.instagram_url && !r.linkedin_url && (

@@ -374,7 +374,7 @@ export function QuickContactSendDialog({
                       {smsSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Invia SMS
                     </Button>
                   </div>
-                  <p className="text-right text-[10px] text-muted-foreground">⌘+Invio per inviare</p>
+                  <p className="text-right text-[10px] text-muted-foreground max-md:text-[11px]">⌘+Invio per inviare</p>
                 </div>
                 <aside className="space-y-3">
                   <AiAssistRow
@@ -489,20 +489,20 @@ export function QuickContactSendDialog({
                 <div className="space-y-2.5">
                   <div className="grid gap-2 sm:grid-cols-2">
                     <div className="space-y-0.5">
-                      <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Da</Label>
+                      <Label className="text-[10px] uppercase tracking-wider text-muted-foreground max-md:text-[11px]">Da</Label>
                       <Select value={emailFrom} onValueChange={setEmailFrom}>
                         <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Scegli mittente" /></SelectTrigger>
                         <SelectContent>
                           {emailAccounts.map((a) => (
                             <SelectItem key={a.id} value={a.id} className="text-xs">
-                              {a.email_address ?? a.id}{a.provider && <span className="ml-2 text-[10px] text-muted-foreground capitalize">({a.provider})</span>}
+                              {a.email_address ?? a.id}{a.provider && <span className="ml-2 text-[10px] text-muted-foreground capitalize max-md:text-[11px]">({a.provider})</span>}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-0.5">
-                      <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">A</Label>
+                      <Label className="text-[10px] uppercase tracking-wider text-muted-foreground max-md:text-[11px]">A</Label>
                       <div className="flex h-9 items-center rounded-md border bg-muted/40 px-3 text-xs text-muted-foreground truncate">{email}</div>
                     </div>
                   </div>
@@ -555,7 +555,7 @@ export function QuickContactSendDialog({
                       {sendEmail.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Invia Email
                     </Button>
                   </div>
-                  <p className="text-right text-[10px] text-muted-foreground">⌘+Invio per inviare</p>
+                  <p className="text-right text-[10px] text-muted-foreground max-md:text-[11px]">⌘+Invio per inviare</p>
                 </div>
 
                 {/* Colonna strumenti: AI, template, firma, documenti commessa */}
@@ -584,7 +584,7 @@ export function QuickContactSendDialog({
                     <div className="flex items-center justify-between">
                       <Label className="text-[11px] font-medium flex items-center gap-1.5"><PenLine className="h-3.5 w-3.5 text-violet-600" /> Firma</Label>
                       <div className="flex items-center gap-2">
-                        <button type="button" className="text-[10px] text-blue-600 hover:underline" onClick={() => setSigEdit((v) => !v)}>
+                        <button type="button" className="text-[10px] text-blue-600 hover:underline max-md:text-[11px]" onClick={() => setSigEdit((v) => !v)}>
                           {sigEdit ? "Nascondi" : "Modifica"}
                         </button>
                         <Switch checked={sigEnabled} onCheckedChange={setSigEnabled} aria-label="Includi firma" />
@@ -594,9 +594,9 @@ export function QuickContactSendDialog({
                       <Textarea placeholder="La tua firma (es. Nome Cognome · Azienda · tel)…" value={sigText} onChange={(e) => setSigText(e.target.value.slice(0, 1000))} rows={3} className="text-xs resize-y" />
                     )}
                     {sigEnabled && !sigEdit && (
-                      <p className="text-[10px] text-muted-foreground whitespace-pre-wrap line-clamp-2">{sigText || "Nessuna firma impostata sull'account — clicca «Modifica» per scriverla."}</p>
+                      <p className="text-[10px] text-muted-foreground whitespace-pre-wrap line-clamp-2 max-md:text-[11px]">{sigText || "Nessuna firma impostata sull'account — clicca «Modifica» per scriverla."}</p>
                     )}
-                    {!sigEnabled && <p className="text-[10px] text-muted-foreground">Firma disattivata per questa email.</p>}
+                    {!sigEnabled && <p className="text-[10px] text-muted-foreground max-md:text-[11px]">Firma disattivata per questa email.</p>}
                   </div>
 
                   {/* Documenti commessa */}
@@ -660,7 +660,7 @@ function AiAssistRow({
             key={p}
             type="button"
             onClick={() => setInstruction(p)}
-            className="rounded-full border border-orange-200 bg-white px-2 py-0.5 text-[10px] text-orange-700 hover:bg-orange-100"
+            className="rounded-full border border-orange-200 bg-white px-2 py-0.5 text-[10px] text-orange-700 hover:bg-orange-100 max-md:text-[11px]"
           >
             {p}
           </button>
@@ -688,14 +688,14 @@ function AiAssistRow({
       {/* Rielabora il testo già scritto */}
       {hasText && (
         <div className="flex flex-wrap items-center gap-1 pt-0.5">
-          <span className="text-[10px] text-muted-foreground">Sul testo:</span>
+          <span className="text-[10px] text-muted-foreground max-md:text-[11px]">Sul testo:</span>
           {[["Migliora", "migliora il testo rendendolo più chiaro e professionale"], ["Accorcia", "accorcia il testo mantenendo il messaggio"], ["Allunga", "espandi il testo con qualche dettaglio utile"], ["Più formale", "rendi il testo più formale"]].map(([label, act]) => (
             <button
               key={label}
               type="button"
               disabled={pending}
               onClick={() => onRefine(act)}
-              className="rounded-md border bg-white px-1.5 py-0.5 text-[10px] hover:bg-muted disabled:opacity-50"
+              className="rounded-md border bg-white px-1.5 py-0.5 text-[10px] hover:bg-muted disabled:opacity-50 max-md:text-[11px]"
             >
               {label}
             </button>
