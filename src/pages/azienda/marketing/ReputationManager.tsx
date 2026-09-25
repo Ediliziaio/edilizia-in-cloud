@@ -40,6 +40,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { RigaMobile } from "@/components/mobile/FiltriMobile";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -129,12 +131,13 @@ interface ReputationEvent {
   tone: "info" | "success" | "warning";
 }
 
-const tabs: Array<{ value: ReputationTab; label: string; icon: ComponentType<{ className?: string }> }> = [
+// Automazioni e integrazioni si impostano dal computer o dal tablet: sul telefono le schede sono tre.
+const tabs: Array<{ value: ReputationTab; label: string; icon: ComponentType<{ className?: string }>; soloComputer?: boolean }> = [
   { value: "dashboard", label: "Dashboard", icon: TrendingUp },
   { value: "richieste", label: "Richieste", icon: Send },
   { value: "recensioni", label: "Recensioni", icon: Star },
-  { value: "automazioni", label: "Automazioni", icon: Wand2 },
-  { value: "integrazioni", label: "Integrazioni", icon: Link2 },
+  { value: "automazioni", label: "Automazioni", icon: Wand2, soloComputer: true },
+  { value: "integrazioni", label: "Integrazioni", icon: Link2, soloComputer: true },
 ];
 
 const seedReviews: ReputationReview[] = [
@@ -274,6 +277,11 @@ const channelIcon: Record<Channel, ComponentType<{ className?: string }>> = {
   sms: MessageSquare,
   email: Mail,
 };
+
+// Telefono: i quattro numeri 2×2, nome e cifra senza icona.
+const KPI_CONTENUTO = "flex items-center gap-3 p-4 max-sm:px-2.5 max-sm:py-2";
+const KPI_NOME = "text-xs text-muted-foreground max-sm:truncate max-sm:text-[11px]";
+const KPI_CIFRA = "text-2xl font-semibold max-sm:text-base";
 
 function isReputationTab(value: string | null): value is ReputationTab {
   return value === "dashboard" || value === "richieste" || value === "recensioni" || value === "automazioni" || value === "integrazioni";
@@ -548,6 +556,9 @@ export default function ReputationManager() {
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get("tab");
   const [activeTab, setActiveTab] = useState<ReputationTab>(isReputationTab(requestedTab) ? requestedTab : "dashboard");
+  const isMobile = useIsMobile();
+  const schedaVisibile: ReputationTab =
+    isMobile && tabs.find((tab) => tab.value === activeTab)?.soloComputer ? "dashboard" : activeTab;
   const [reviewFilter, setReviewFilter] = useState<"tutte" | "da_rispondere" | "critiche">("tutte");
   const [reviews, setReviews] = useState<ReputationReview[]>(seedReviews);
   const [campaigns, setCampaigns] = useState<ReviewCampaign[]>(seedCampaigns);
@@ -1230,17 +1241,18 @@ export default function ReputationManager() {
   ];
 
   return (
-    <div className="space-y-5">
-      <div className="rounded-lg border bg-white p-4 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+    <div className="space-y-5 max-sm:space-y-3">
+      {/* Telefono: titolo e «Chiedi recensioni» su una riga, senza riquadro, icona né spiegazione. */}
+      <div className="rounded-lg border bg-white p-4 shadow-sm max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between max-sm:flex-row max-sm:items-center max-sm:justify-between max-sm:gap-2">
           <div className="flex items-start gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-700">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-700 max-sm:hidden">
               <Star className="h-5 w-5" />
             </div>
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-2xl font-bold text-slate-950">Reputazione</h1>
-                <Badge className="border-0 bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
+                <h1 className="text-2xl font-bold text-slate-950 max-sm:text-lg">Reputazione</h1>
+                <Badge className="border-0 bg-emerald-100 text-emerald-800 hover:bg-emerald-100 max-sm:hidden">
                   Presidio attivo
                 </Badge>
                 {isHydrating && (
@@ -1250,17 +1262,17 @@ export default function ReputationManager() {
                   </Badge>
                 )}
               </div>
-              <p className="mt-1 text-sm text-slate-600">
+              <p className="mt-1 text-sm text-slate-600 max-sm:hidden">
                 Recensioni, richieste automatiche e risposte per {companyNameForCopy}.
               </p>
             </div>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row">
-            <Button variant="outline" onClick={() => navigate("/azienda/impostazioni/integrazioni")}>
+            <Button variant="outline" onClick={() => navigate("/azienda/impostazioni/integrazioni")} className="max-sm:hidden">
               <Settings className="mr-2 h-4 w-4" />
               Integrazioni
             </Button>
-            <Button onClick={() => handleTabChange("richieste")}>
+            <Button onClick={() => handleTabChange("richieste")} className="max-sm:h-9 max-sm:px-3 max-sm:text-[13px]">
               <Send className="mr-2 h-4 w-4" />
               Chiedi recensioni
             </Button>
@@ -1268,71 +1280,78 @@ export default function ReputationManager() {
         </div>
       </div>
 
-      <Alert className="border-amber-200 bg-amber-50">
-        <ShieldCheck className="h-4 w-4 text-amber-700" />
-        <AlertTitle>Reputazione in configurazione</AlertTitle>
-        <AlertDescription>
+      <Alert className="border-amber-200 bg-amber-50 max-sm:px-3 max-sm:py-2 max-sm:[&>svg~*]:pl-0">
+        <ShieldCheck className="h-4 w-4 text-amber-700 max-sm:hidden" />
+        <AlertTitle className="max-sm:mb-0 max-sm:text-[13px]">Reputazione in configurazione</AlertTitle>
+        <AlertDescription className="max-sm:hidden">
           Google e Facebook restano in setup finche non vengono collegati i permessi recensioni. Il link sito invece e gia testabile e salva feedback locale.
         </AlertDescription>
       </Alert>
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 max-sm:grid-cols-2 max-sm:gap-2">
         <Card>
-          <CardContent className="flex items-center gap-3 p-4">
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-amber-700">
+          <CardContent className={KPI_CONTENUTO}>
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-amber-700 max-sm:hidden">
               <Star className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Rating medio</p>
+              <p className={KPI_NOME}>Rating medio</p>
               <div className="flex items-center gap-2">
-                <p className="text-2xl font-semibold">{stats.avgRating.toFixed(1)}</p>
-                <StarRating value={Math.round(stats.avgRating)} />
+                <p className={KPI_CIFRA}>{stats.avgRating.toFixed(1)}</p>
+                <span className="max-sm:hidden"><StarRating value={Math.round(stats.avgRating)} /></span>
               </div>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="flex items-center gap-3 p-4">
-            <div className="rounded-lg border border-sky-200 bg-sky-50 p-2 text-sky-700">
+          <CardContent className={KPI_CONTENUTO}>
+            <div className="rounded-lg border border-sky-200 bg-sky-50 p-2 text-sky-700 max-sm:hidden">
               <MessageSquare className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Recensioni recenti</p>
-              <p className="text-2xl font-semibold">{stats.totalReviews}</p>
+              <p className={KPI_NOME}>Recensioni recenti</p>
+              <p className={KPI_CIFRA}>{stats.totalReviews}</p>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="flex items-center gap-3 p-4">
-            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-2 text-emerald-700">
+          <CardContent className={KPI_CONTENUTO}>
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-2 text-emerald-700 max-sm:hidden">
               <TrendingUp className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Conversione richieste</p>
-              <p className="text-2xl font-semibold">{stats.conversionRate}%</p>
+              <p className={KPI_NOME}>Conversione richieste</p>
+              <p className={KPI_CIFRA}>{stats.conversionRate}%</p>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="flex items-center gap-3 p-4">
-            <div className="rounded-lg border border-rose-200 bg-rose-50 p-2 text-rose-700">
+          <CardContent className={KPI_CONTENUTO}>
+            <div className="rounded-lg border border-rose-200 bg-rose-50 p-2 text-rose-700 max-sm:hidden">
               <AlertTriangle className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Da gestire</p>
-              <p className="text-2xl font-semibold">{stats.unanswered}</p>
+              <p className={KPI_NOME}>Da gestire</p>
+              <p className={KPI_CIFRA}>{stats.unanswered}</p>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
-        <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto rounded-lg border bg-white p-1.5 shadow-sm">
+      <Tabs value={schedaVisibile} onValueChange={handleTabChange} className="space-y-4 max-sm:space-y-3">
+        <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto rounded-lg border bg-white p-1.5 shadow-sm max-sm:p-1 max-sm:shadow-none">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             return (
-              <TabsTrigger key={tab.value} value={tab.value} className="shrink-0 gap-1.5 data-[state=active]:bg-amber-50 data-[state=active]:text-amber-800">
-                <Icon className="h-4 w-4" />
+              <TabsTrigger
+                key={tab.value}
+                value={tab.value}
+                className={cn(
+                  "shrink-0 gap-1.5 data-[state=active]:bg-amber-50 data-[state=active]:text-amber-800 max-sm:flex-1 max-sm:text-[13px]",
+                  tab.soloComputer && "max-sm:hidden",
+                )}
+              >
+                <Icon className="h-4 w-4 max-sm:hidden" />
                 {tab.label}
               </TabsTrigger>
             );
@@ -1340,26 +1359,27 @@ export default function ReputationManager() {
         </TabsList>
 
         <TabsContent value="dashboard" className="space-y-4">
-          <div className="grid gap-4 xl:grid-cols-[1.5fr_1fr]">
+          <div className="grid gap-4 xl:grid-cols-[1.5fr_1fr] max-sm:grid-cols-1 max-sm:gap-3">
+            {/* Telefono: fonti su due righe (nome e stato, recensioni e voto), niente spiegazioni. */}
             <Card>
-              <CardHeader>
-                <CardTitle>Stato reputazione</CardTitle>
-                <CardDescription>Andamento sintetico da recensioni pubbliche, feedback privati e campagne.</CardDescription>
+              <CardHeader className="max-sm:p-3 max-sm:pb-2">
+                <CardTitle className="max-sm:text-sm">Stato reputazione</CardTitle>
+                <CardDescription className="max-sm:hidden">Andamento sintetico da recensioni pubbliche, feedback privati e campagne.</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-5">
-                <div className="grid gap-3 md:grid-cols-3">
+              <CardContent className="space-y-5 max-sm:space-y-2 max-sm:p-3 max-sm:pt-0">
+                <div className="grid gap-3 md:grid-cols-3 max-sm:gap-2">
                   {reputationSources.map((source) => {
                     const Icon = source.icon;
                     return (
-                      <div key={source.name} className="rounded-lg border bg-slate-50/60 p-3">
-                        <div className="flex items-center justify-between gap-2">
-                          <Icon className={cn("h-5 w-5", source.color)} />
-                          <Badge variant={source.connected ? "default" : "outline"} className={source.connected ? "bg-emerald-600 hover:bg-emerald-600" : ""}>
+                      <div key={source.name} className="rounded-lg border bg-slate-50/60 p-3 max-sm:flex max-sm:flex-wrap max-sm:items-center max-sm:justify-between max-sm:gap-x-2 max-sm:px-2.5 max-sm:py-2">
+                        <div className="flex items-center justify-between gap-2 max-sm:order-2">
+                          <Icon className={cn("h-5 w-5 max-sm:hidden", source.color)} />
+                          <Badge variant={source.connected ? "default" : "outline"} className={cn(source.connected ? "bg-emerald-600 hover:bg-emerald-600" : "", "max-sm:px-1.5 max-sm:py-0 max-sm:text-[10px]")}>
                             {source.status}
                           </Badge>
                         </div>
-                        <p className="mt-3 text-sm font-semibold text-slate-900">{source.name}</p>
-                        <div className="mt-2 flex items-center justify-between text-sm">
+                        <p className="mt-3 text-sm font-semibold text-slate-900 max-sm:order-1 max-sm:mt-0 max-sm:min-w-0 max-sm:flex-1 max-sm:truncate max-sm:text-[13px]">{source.name}</p>
+                        <div className="mt-2 flex items-center justify-between text-sm max-sm:order-3 max-sm:mt-0.5 max-sm:basis-full max-sm:text-[11px]">
                           <span className="text-muted-foreground">
                             {source.connected ? `${source.reviews} recensioni` : "Non collegato"}
                           </span>
@@ -1378,28 +1398,29 @@ export default function ReputationManager() {
                   })}
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-3 rounded-lg border p-4">
+                <div className="grid gap-4 md:grid-cols-2 max-sm:gap-2">
+                  <div className="space-y-3 rounded-lg border p-4 max-sm:space-y-1.5 max-sm:px-2.5 max-sm:py-2">
                     <div className="flex items-center justify-between">
-                      <p className="text-sm font-semibold">Sentiment positivo</p>
+                      <p className="text-sm font-semibold max-sm:text-[13px]">Sentiment positivo</p>
                       <span className="text-sm font-semibold">{stats.positiveShare}%</span>
                     </div>
                     <Progress value={stats.positiveShare} className="h-2" indicatorClassName="bg-emerald-500" />
-                    <p className="text-xs text-muted-foreground">Le recensioni critiche generano alert operativo e bozza risposta AI.</p>
+                    <p className="text-xs text-muted-foreground max-sm:hidden">Le recensioni critiche generano alert operativo e bozza risposta AI.</p>
                   </div>
-                  <div className="space-y-3 rounded-lg border p-4">
+                  <div className="space-y-3 rounded-lg border p-4 max-sm:space-y-1.5 max-sm:px-2.5 max-sm:py-2">
                     <div className="flex items-center justify-between">
-                      <p className="text-sm font-semibold">Click sulle richieste</p>
+                      <p className="text-sm font-semibold max-sm:text-[13px]">Click sulle richieste</p>
                       <span className="text-sm font-semibold">{stats.clickRate}%</span>
                     </div>
                     <Progress value={stats.clickRate} className="h-2" indicatorClassName="bg-sky-500" />
-                    <p className="text-xs text-muted-foreground">Il link recensione migliore viene scelto in base al canale collegato.</p>
+                    <p className="text-xs text-muted-foreground max-sm:hidden">Il link recensione migliore viene scelto in base al canale collegato.</p>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            <Card>
+            {/* Telefono: il piano AI si prepara dal computer. */}
+            <Card className="max-sm:hidden">
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <Bot className="h-5 w-5 text-violet-700" />
@@ -1435,23 +1456,24 @@ export default function ReputationManager() {
         </TabsContent>
 
         <TabsContent value="richieste" className="space-y-4">
-          <div className="grid gap-4 xl:grid-cols-[0.95fr_1.25fr]">
+          <div className="grid gap-4 xl:grid-cols-[0.95fr_1.25fr] max-sm:grid-cols-1 max-sm:gap-3">
+          {/* Telefono: il modulo senza anteprima, avviso AI e link ripetuto; le campagne a righe. */}
           <Card>
-            <CardHeader>
+            <CardHeader className="max-sm:p-3 max-sm:pb-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <CardTitle>Nuova richiesta recensioni</CardTitle>
-                  <Badge variant={persistenceMode === "database" ? "default" : "outline"} className={persistenceMode === "database" ? "bg-emerald-600 hover:bg-emerald-600" : ""}>
+                  <CardTitle className="max-sm:text-sm">Nuova richiesta recensioni</CardTitle>
+                  <Badge variant={persistenceMode === "database" ? "default" : "outline"} className={cn(persistenceMode === "database" ? "bg-emerald-600 hover:bg-emerald-600" : "", "max-sm:hidden")}>
                     {persistenceMode === "database" ? "Database attivo" : "Cache locale"}
                   </Badge>
                 </div>
-                <CardDescription>Segmento, canale, commessa e messaggio con campi dinamici CRM.</CardDescription>
+                <CardDescription className="max-sm:hidden">Segmento, canale, commessa e messaggio con campi dinamici CRM.</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-4 max-sm:space-y-3 max-sm:p-3 max-sm:pt-0">
                 <div className="space-y-2">
                   <Label htmlFor="request-name">Nome</Label>
                   <Input id="request-name" value={requestName} onChange={(event) => setRequestName(event.target.value)} />
                 </div>
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-3 sm:grid-cols-2 max-sm:grid-cols-2 max-sm:gap-2">
                   <div className="space-y-2">
                     <Label>Segmento</Label>
                     <Select value={requestSegment} onValueChange={setRequestSegment}>
@@ -1494,7 +1516,7 @@ export default function ReputationManager() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-muted-foreground max-sm:hidden">
                     Selezionando una commessa, il feedback rientra gia agganciato al lavoro e al cliente.
                   </p>
                 </div>
@@ -1520,20 +1542,20 @@ export default function ReputationManager() {
                   const sampleName = linkedOrders[0]?.customerName?.split(" ")[0] || "Marco";
                   const preview = messageTemplate.replace(/\{\{\s*nome\s*\}\}/gi, sampleName);
                   return (
-                    <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-3">
+                    <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-3 max-sm:hidden">
                       <p className="text-xs font-semibold uppercase tracking-wider text-blue-700">Anteprima · destinatario "{sampleName}"</p>
                       <p className="mt-2 whitespace-pre-wrap text-sm text-slate-800">{preview || <span className="text-slate-400 italic">Scrivi un messaggio per vedere l'anteprima…</span>}</p>
                     </div>
                   );
                 })()}
-                <Alert>
+                <Alert className="max-sm:hidden">
                   <Sparkles className="h-4 w-4" />
                   <AlertTitle>AI anti-recensione forzata</AlertTitle>
                   <AlertDescription>
                     Prima chiede feedback privato ai clienti a rischio; invita alla recensione pubblica solo quando il sentiment e positivo.
                   </AlertDescription>
                 </Alert>
-                <div className="rounded-lg border bg-slate-50 p-3">
+                <div className="rounded-lg border bg-slate-50 p-3 max-sm:hidden">
                   <p className="text-xs font-semibold uppercase text-muted-foreground">Link inserito nel messaggio</p>
                   <p className="mt-1 break-all text-sm text-slate-700">{activeReviewLink}</p>
                 </div>
@@ -1545,12 +1567,33 @@ export default function ReputationManager() {
             </Card>
 
             <Card>
-              <CardHeader>
-                <CardTitle>Campagne recensioni</CardTitle>
-                <CardDescription>Richieste attive, performance e conversione in recensioni pubblicate.</CardDescription>
+              <CardHeader className="max-sm:p-3 max-sm:pb-2">
+                <CardTitle className="max-sm:text-sm">Campagne recensioni</CardTitle>
+                <CardDescription className="max-sm:hidden">Richieste attive, performance e conversione in recensioni pubblicate.</CardDescription>
               </CardHeader>
-              <CardContent>
-                <Table>
+              <CardContent className="max-sm:p-0">
+                <div className="divide-y border-t sm:hidden">
+                  {campaigns.map((campaign) => (
+                    <div key={campaign.id} className="flex items-center gap-2 pr-3">
+                      <RigaMobile
+                        className="min-w-0 flex-1"
+                        titolo={campaign.name}
+                        sottotitolo={`${channelLabel[campaign.channel]} · ${campaign.sent} invii · ${pct(campaign.clicked, campaign.sent)}% click · ${campaign.reviews} recensioni`}
+                        stato={statusBadge(campaign.status)}
+                      />
+                      {campaign.status === "attiva" ? (
+                        <Button size="sm" variant="outline" className="tap-compact h-8 shrink-0 px-2.5 text-xs" onClick={() => pauseCampaign(campaign.id)}>
+                          Pausa
+                        </Button>
+                      ) : (
+                        <Button size="sm" variant={campaign.status === "bozza" ? "default" : "outline"} className="tap-compact h-8 shrink-0 px-2.5 text-xs" onClick={() => startCampaign(campaign.id)}>
+                          {campaign.status === "bozza" ? "Avvia" : "Rilancia"}
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <Table className="max-sm:hidden">
                   <TableHeader>
                     <TableRow>
                       <TableHead>Campagna</TableHead>
@@ -1612,31 +1655,33 @@ export default function ReputationManager() {
 
         <TabsContent value="recensioni" className="space-y-4">
           <Card>
-            <CardHeader className="gap-3 lg:flex-row lg:items-center lg:justify-between">
+            {/* Telefono: tre filtri senza icone e «Aggiorna» a icona; su ogni recensione
+                «Rispondi» prende la riga, Apri e Silvio restano a icona. */}
+            <CardHeader className="gap-3 lg:flex-row lg:items-center lg:justify-between max-sm:gap-2 max-sm:p-3 max-sm:pb-2">
               <div>
-                <CardTitle>Recensioni pubblicate</CardTitle>
-                <CardDescription>Vista unica da Google, Facebook e moduli proprietari.</CardDescription>
+                <CardTitle className="max-sm:text-sm">Recensioni pubblicate</CardTitle>
+                <CardDescription className="max-sm:hidden">Vista unica da Google, Facebook e moduli proprietari.</CardDescription>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <Button variant={reviewFilter === "tutte" ? "default" : "outline"} size="sm" onClick={() => setReviewFilter("tutte")}>
-                  <Filter className="mr-1.5 h-3.5 w-3.5" />
+              <div className="flex flex-wrap gap-2 max-sm:flex-nowrap max-sm:gap-1.5">
+                <Button variant={reviewFilter === "tutte" ? "default" : "outline"} size="sm" className="max-sm:flex-1 max-sm:px-1 max-sm:text-[13px]" onClick={() => setReviewFilter("tutte")}>
+                  <Filter className="mr-1.5 h-3.5 w-3.5 max-sm:hidden" />
                   Tutte
                 </Button>
-                <Button variant={reviewFilter === "da_rispondere" ? "default" : "outline"} size="sm" onClick={() => setReviewFilter("da_rispondere")}>
-                  <Reply className="mr-1.5 h-3.5 w-3.5" />
+                <Button variant={reviewFilter === "da_rispondere" ? "default" : "outline"} size="sm" className="max-sm:flex-1 max-sm:px-1 max-sm:text-[13px]" onClick={() => setReviewFilter("da_rispondere")}>
+                  <Reply className="mr-1.5 h-3.5 w-3.5 max-sm:hidden" />
                   Da rispondere
                 </Button>
-                <Button variant={reviewFilter === "critiche" ? "default" : "outline"} size="sm" onClick={() => setReviewFilter("critiche")}>
-                  <AlertTriangle className="mr-1.5 h-3.5 w-3.5" />
+                <Button variant={reviewFilter === "critiche" ? "default" : "outline"} size="sm" className="max-sm:flex-1 max-sm:px-1 max-sm:text-[13px]" onClick={() => setReviewFilter("critiche")}>
+                  <AlertTriangle className="mr-1.5 h-3.5 w-3.5 max-sm:hidden" />
                   Critiche
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => void hydrateReputationState()}>
-                  <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-                  Aggiorna
+                <Button variant="outline" size="sm" aria-label="Aggiorna" className="max-sm:w-9 max-sm:shrink-0 max-sm:px-0" onClick={() => void hydrateReputationState()}>
+                  <RefreshCw className="mr-1.5 h-3.5 w-3.5 max-sm:mr-0" />
+                  <span className="max-sm:hidden">Aggiorna</span>
                 </Button>
               </div>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-3 max-sm:space-y-2 max-sm:p-3 max-sm:pt-0">
               {filteredReviews.length === 0 ? (
                 <div className="rounded-lg border border-dashed bg-slate-50 p-6 text-center">
                   <Star className="mx-auto h-8 w-8 text-slate-300" />
@@ -1648,11 +1693,11 @@ export default function ReputationManager() {
                 </div>
               ) : (
                 filteredReviews.map((review) => (
-                  <div key={review.id} className="rounded-lg border p-4">
-                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div key={review.id} className="rounded-lg border p-4 max-sm:p-3">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between max-sm:gap-2">
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <p className="font-semibold text-slate-950">{review.author}</p>
+                          <p className="font-semibold text-slate-950 max-sm:text-sm">{review.author}</p>
                           <Badge variant="outline">{review.source}</Badge>
                           {statusBadge(review.status)}
                         </div>
@@ -1662,9 +1707,9 @@ export default function ReputationManager() {
                           <span>{review.project}</span>
                           {review.customerName && <span>Cliente: {review.customerName}</span>}
                         </div>
-                        <p className="mt-3 text-sm text-slate-700">{review.text}</p>
+                        <p className="mt-3 text-sm text-slate-700 max-sm:mt-1.5 max-sm:text-[13px]">{review.text}</p>
                         {(review.status === "da_rispondere" || review.status === "critica") && (
-                          <div className="mt-3 rounded-lg border border-violet-200 bg-violet-50/60 p-3">
+                          <div className="mt-3 rounded-lg border border-violet-200 bg-violet-50/60 p-3 max-sm:mt-2 max-sm:p-2.5">
                             <div className="flex items-center gap-2 text-sm font-semibold text-violet-900">
                               <Bot className="h-4 w-4" />
                               Bozza risposta AI
@@ -1673,10 +1718,10 @@ export default function ReputationManager() {
                           </div>
                         )}
                       </div>
-                      <div className="flex shrink-0 flex-wrap items-center gap-2">
-                        <Button variant="outline" size="sm" onClick={() => openReviewSource(review)}>
-                          <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
-                          Apri
+                      <div className="flex shrink-0 flex-wrap items-center gap-2 max-sm:flex-nowrap">
+                        <Button variant="outline" size="sm" aria-label="Apri" className="max-sm:w-9 max-sm:px-0" onClick={() => openReviewSource(review)}>
+                          <ExternalLink className="mr-1.5 h-3.5 w-3.5 max-sm:mr-0" />
+                          <span className="max-sm:hidden">Apri</span>
                         </Button>
                         <Button
                           variant="outline"
@@ -1692,18 +1737,19 @@ export default function ReputationManager() {
                               `Recensione: "${review.text}"`;
                             window.dispatchEvent(new CustomEvent("silvio:open-chat", { detail: { draft } }));
                           }}
-                          className="border-orange-200 bg-orange-50 text-orange-900 hover:bg-orange-100"
+                          aria-label="Risposta con Silvio"
+                          className="border-orange-200 bg-orange-50 text-orange-900 hover:bg-orange-100 max-sm:w-9 max-sm:px-0"
                         >
-                          <Sparkles className="mr-1.5 h-3.5 w-3.5" />
-                          Risposta con Silvio
+                          <Sparkles className="mr-1.5 h-3.5 w-3.5 max-sm:mr-0" />
+                          <span className="max-sm:hidden">Risposta con Silvio</span>
                         </Button>
                         {(review.status === "da_rispondere" || review.status === "critica") ? (
-                          <Button size="sm" onClick={() => replyToReview(review)}>
+                          <Button size="sm" className="max-sm:flex-1" onClick={() => replyToReview(review)}>
                             <Reply className="mr-1.5 h-3.5 w-3.5" />
                             Rispondi
                           </Button>
                         ) : (
-                          <Button size="sm" variant="outline" disabled>
+                          <Button size="sm" variant="outline" disabled className="max-sm:flex-1">
                             <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
                             Gestita
                           </Button>
