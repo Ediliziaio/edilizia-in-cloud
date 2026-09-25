@@ -56,11 +56,13 @@ import {
 
 const BUCKET = "company-exports";
 
-// Il contenuto lo decide il catalogo: admin_tabelle_da_esportare elenca ogni
-// tabella con una company_id, meno telemetria e log, e admin_esporta_azienda
-// costruisce il dump dentro il database. Le otto tabelle scelte a mano il 4
-// settembre lasciavano fuori listini, famiglie di articoli, tariffe, fornitori
-// e ticket — cioè il lavoro dell'azienda.
+// Il contenuto lo decide il catalogo (admin_catalogo_backup): tutto ciò che la
+// purga cancella, anche le tabelle figlie senza company_id prese attraverso la
+// madre, meno le esclusioni scritte in admin_backup_esclusioni(). Il dump lo
+// costruisce admin_esporta_azienda dentro il database. Le otto tabelle scelte a
+// mano il 4 settembre lasciavano fuori listini, famiglie di articoli, tariffe,
+// fornitori e ticket; il filtro su company_id, fino al 25/09, righe di fattura,
+// voci e rate delle commesse, campi e liste dei contatti.
 
 /**
  * Un blocco come TESTO, senza mai trasformarlo in oggetti. Il primo giro
