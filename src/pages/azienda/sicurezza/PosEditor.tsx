@@ -263,16 +263,18 @@ function EditorPos({ pos, datiApp, puoScrivere }: EditorProps) {
 
   return (
     <div className="mx-auto max-w-6xl space-y-4 pb-28">
-      {/* Intestazione */}
-      <div className="rounded-2xl border bg-card p-4 shadow-sm">
-        <Link to="/azienda/sicurezza-cantiere" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+      {/* Intestazione. Mobile: senza riquadro e senza il secondo «indietro»
+          (c'è la freccia della barra in alto); stampa e riallineo coi dati
+          dell'app restano al computer, «Approva» resta. */}
+      <div className="rounded-2xl border bg-card p-4 shadow-sm max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
+        <Link to="/azienda/sicurezza-cantiere" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground max-sm:hidden">
           <ArrowLeft className="h-3.5 w-3.5" />Sicurezza cantiere
         </Link>
-        <div className="mt-2 flex flex-wrap items-start justify-between gap-3">
+        <div className="mt-2 flex flex-wrap items-start justify-between gap-3 max-sm:mt-0 max-sm:flex-nowrap max-sm:items-center max-sm:gap-2">
           <div className="min-w-0">
-            <h1 className="text-lg font-bold sm:text-xl">Piano Operativo di Sicurezza</h1>
-            <p className="truncate text-sm text-muted-foreground">{titoloCommessa}</p>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
+            <h1 className="text-lg font-bold sm:text-xl max-sm:leading-tight"><span className="max-sm:hidden">Piano Operativo di Sicurezza</span><span className="sm:hidden">POS</span></h1>
+            <p className="truncate text-sm text-muted-foreground max-sm:text-xs">{titoloCommessa}</p>
+            <div className="mt-2 flex flex-wrap items-center gap-2 max-sm:hidden">
               <Badge variant="outline" className={approvato ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-slate-50"}>
                 {approvato ? "Approvato" : "Bozza"}
               </Badge>
@@ -282,33 +284,33 @@ function EditorPos({ pos, datiApp, puoScrivere }: EditorProps) {
               )}
             </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => setStampa(costruisciHtmlPos({
+          <div className="flex flex-wrap gap-2 max-sm:shrink-0">
+            <Button variant="outline" className="max-sm:hidden" onClick={() => setStampa(costruisciHtmlPos({
               contenuto: bozza, stato: pos.status, revisione: pos.revisione, revisioni: pos.revisioni,
               approvatoDa: pos.approvato_da_nome, approvatoIl: pos.approvato_il, codiceCommessa: pos.commessa?.order_code,
             }))}>
               <FileDown className="mr-1 h-4 w-4" />Anteprima e stampa
             </Button>
             {!ro && (
-              <Button variant="outline" onClick={() => setAggiornaAperto(true)}>
+              <Button variant="outline" className="max-sm:hidden" onClick={() => setAggiornaAperto(true)}>
                 <RefreshCw className="mr-1 h-4 w-4" />Aggiorna dai dati dell'app
               </Button>
             )}
             {puoScrivere && !approvato && (
-              <Button onClick={approvaOra} disabled={approva.isPending || salva.isPending}>
+              <Button onClick={approvaOra} disabled={approva.isPending || salva.isPending} className="tap-compact max-sm:h-8 max-sm:px-3 max-sm:text-xs">
                 {approva.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-1 h-4 w-4" />}
                 Approva
               </Button>
             )}
             {puoScrivere && approvato && (
-              <Button variant="outline" onClick={() => { setDescrRevisione(""); setRevisioneAperta(true); }}>
+              <Button variant="outline" className="tap-compact max-sm:h-8 max-sm:px-3 max-sm:text-xs" onClick={() => { setDescrRevisione(""); setRevisioneAperta(true); }}>
                 <RotateCcw className="mr-1 h-4 w-4" />Nuova revisione
               </Button>
             )}
           </div>
         </div>
 
-        <div className="mt-4 space-y-1.5">
+        <div className="mt-4 space-y-1.5 max-sm:mt-2">
           <div className="flex items-center justify-between text-xs">
             <span className="font-medium">Contenuti minimi dell'Allegato XV</span>
             {mancanti.length ? (
@@ -323,7 +325,7 @@ function EditorPos({ pos, datiApp, puoScrivere }: EditorProps) {
         </div>
 
         {approvato && (
-          <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+          <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-800 max-sm:hidden">
             Il POS approvato si legge soltanto. Per cambiarlo apri una nuova revisione: torna in bozza e va riapprovato. L'approvazione nell'app non sostituisce le firme sul documento.
           </p>
         )}

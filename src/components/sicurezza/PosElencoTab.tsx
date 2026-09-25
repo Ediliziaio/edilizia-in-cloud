@@ -66,8 +66,9 @@ export function PosElencoTab({ orders }: Props) {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+    <div className="space-y-4 max-sm:space-y-2">
+      {/* Mobile no: il POS si compila al computer (editor del modello ministeriale). */}
+      <div className="flex flex-wrap items-center justify-between gap-2 max-sm:hidden">
         <p className="text-sm text-muted-foreground">
           Piano Operativo di Sicurezza sul modello ufficiale (D.I. 9 settembre 2014), con il controllo dei contenuti minimi dell'Allegato XV.
         </p>
@@ -86,10 +87,10 @@ export function PosElencoTab({ orders }: Props) {
           <button type="button" className="font-semibold underline" onClick={() => refetch()}>Riprova</button>
         </div>
       ) : elenco.length === 0 ? (
-        <div className="rounded-xl border border-dashed py-12 text-center">
-          <HardHat className="mx-auto mb-2 h-10 w-10 text-muted-foreground/40" />
-          <p className="font-medium">Nessun POS</p>
-          <p className="mt-1 text-sm text-muted-foreground">Crea il primo dalla commessa: l'app riprende committente, cantiere, impresa, figure e lavoratori.</p>
+        <div className="rounded-xl border border-dashed py-12 text-center max-sm:py-5">
+          <HardHat className="mx-auto mb-2 h-10 w-10 text-muted-foreground/40 max-sm:hidden" />
+          <p className="font-medium max-sm:text-sm">Nessun POS</p>
+          <p className="mt-1 text-sm text-muted-foreground max-sm:hidden">Crea il primo dalla commessa: l'app riprende committente, cantiere, impresa, figure e lavoratori.</p>
         </div>
       ) : (
         <ul className="space-y-2">
@@ -101,27 +102,27 @@ export function PosElencoTab({ orders }: Props) {
             return (
               <li key={p.id} className="rounded-xl border bg-card">
                 <button type="button" onClick={() => navigate(`/azienda/sicurezza-cantiere/pos/${p.id}`)}
-                  className="flex w-full items-start gap-3 p-4 text-left hover:bg-muted/30">
+                  className="flex w-full items-start gap-3 p-4 text-left hover:bg-muted/30 max-sm:gap-2 max-sm:px-3 max-sm:py-2.5">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="truncate font-medium">{titolo}</span>
+                      <span className="truncate font-medium max-sm:text-[13px]">{titolo}</span>
                       <Badge variant="outline" className={approvato ? "border-emerald-200 bg-emerald-50 text-emerald-700" : ""}>
                         {approvato ? "Approvato" : "Bozza"}
                       </Badge>
-                      <Badge variant="outline">Rev. {p.revisione}</Badge>
+                      <Badge variant="outline" className="max-sm:hidden">Rev. {p.revisione}</Badge>
                       {p.daCompilare && (
                         <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-900">Da rifare sul modello ufficiale</Badge>
                       )}
                     </div>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
+                    <p className="mt-0.5 text-xs text-muted-foreground max-sm:text-[11px]">
                       {approvato && p.approvato_da_nome
                         ? `Approvato da ${p.approvato_da_nome}${p.approvato_il ? ` il ${dataIt(p.approvato_il)}` : ""}`
                         : `Creato il ${dataIt(p.created_at)}`}
                     </p>
                     {!p.daCompilare && !approvato && (
-                      <div className="mt-2 flex items-center gap-2">
-                        <Progress value={percento} className="h-1.5 max-w-xs" aria-label={`Completezza ${percento}%`} />
-                        <span className="text-xs text-muted-foreground">
+                      <div className="mt-2 flex items-center gap-2 max-sm:mt-0.5">
+                        <Progress value={percento} className="h-1.5 max-w-xs max-sm:hidden" aria-label={`Completezza ${percento}%`} />
+                        <span className="text-xs text-muted-foreground max-sm:text-[11px]">
                           {mancanti ? `${mancanti} ${mancanti === 1 ? "voce" : "voci"} da completare` : "Pronto da approvare"}
                         </span>
                       </div>
@@ -129,7 +130,8 @@ export function PosElencoTab({ orders }: Props) {
                   </div>
                   <ChevronRight className="mt-1 h-5 w-5 shrink-0 text-muted-foreground" aria-hidden="true" />
                 </button>
-                <div className="flex gap-1 border-t px-3 py-1.5">
+                {/* Mobile no: PDF (niente export da telefono) ed eliminazione. */}
+                <div className="flex gap-1 border-t px-3 py-1.5 max-sm:hidden">
                   {!p.daCompilare && (
                     <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setStampa({
                       html: costruisciHtmlPos({
@@ -157,7 +159,7 @@ export function PosElencoTab({ orders }: Props) {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Nuovo POS</DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="max-sm:sr-only">
               L'app compila il modello ufficiale con i dati che ha: committente e indirizzo del cantiere, impresa, figure della sicurezza, lavoratori della commessa e la loro formazione. Il resto lo completi tu.
             </DialogDescription>
           </DialogHeader>
@@ -192,7 +194,7 @@ export function PosElencoTab({ orders }: Props) {
             </div>
           </div>
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setNuovoAperto(false)}>Annulla</Button>
+            <Button variant="outline" className="max-sm:hidden" onClick={() => setNuovoAperto(false)}>Annulla</Button>
             <Button onClick={creaPos} disabled={!orderId || crea.isPending}>
               {crea.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}Crea il POS
             </Button>
