@@ -10,6 +10,7 @@
  *  5. Cedolini     — lista cedolini con download PDF
  */
 import { lazy, Suspense, useState, useMemo, useRef, useEffect, Fragment } from "react";
+import { flushSync } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import {
@@ -174,6 +175,9 @@ function AttivitaHeader() {
   const ora = new Date().getHours();
   const saluto = ora < 12 ? "Buongiorno" : ora < 18 ? "Buon pomeriggio" : "Buonasera";
 
+  const isMobile = useIsMobile();
+  // Su telefono niente data e saluto: la pagina parte dalle linguette.
+  if (isMobile) return null;
   return (
     <div>
       <p className="text-muted-foreground text-xs sm:text-sm capitalize">{oggi}</p>
@@ -1116,6 +1120,15 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
   const [editingTask, setEditingTask] = useState<any>(null);
   const [quickAddTitle, setQuickAddTitle] = useState("");
   const quickAddRef = useRef<HTMLInputElement>(null);
+  const isMobile = useIsMobile();
+  // Mobile: la riga «Aggiungi attività…» non sta fissa sopra la lista, la apre
+  // «Nuova» in testata e si richiude quando resta vuota.
+  const [aggiuntaAperta, setAggiuntaAperta] = useState(false);
+  const apriAggiunta = () => {
+    // flushSync: il focus deve partire dentro il tocco, se no iOS non apre la tastiera.
+    flushSync(() => setAggiuntaAperta(true));
+    quickAddRef.current?.focus();
+  };
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
@@ -1547,7 +1560,7 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
             <button
               onClick={() => !isDone && canManage && markDone(t)}
               disabled={isDone || !canManage}
-              className={`transition-colors ${isDone ? "text-green-500" : canManage ? "text-muted-foreground/30 hover:text-green-500" : "text-muted-foreground/20"}`}
+              className={`tap-compact -m-1 p-1 transition-colors ${isDone ? "text-green-500" : canManage ? "text-muted-foreground/30 hover:text-green-500" : "text-muted-foreground/20"}`}
               title={isDone ? "Completata" : canManage ? "Segna come fatta" : "Attività di un collega (sola lettura)"}
             >
               {isDone ? <CheckCircle className="h-5 w-5" /> : <Circle className="h-5 w-5" />}
@@ -1647,7 +1660,7 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
   return (
     <>
       <Card>
-        <CardHeader className="pb-3">
+        <CardHeader className="p-3 sm:p-6 sm:pb-3">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2 flex-wrap min-w-0">
               <CardTitle className="flex items-center gap-2 text-lg shrink-0">
@@ -1675,10 +1688,14 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
                 <Sparkles className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">Silvio</span>
               </button>
-              {/* Su mobile il «+» in alto doppiava la riga «Aggiungi attività…» qui sotto:
-                  un solo modo per aggiungere. Silvio ha già il bottone centrale in basso. */}
+              {/* Desktop: «Nuova» apre la scheda completa. Mobile: apre la riga
+                  di aggiunta veloce (titolo e invio). Silvio ha già il bottone
+                  centrale in basso. */}
               <Button size="sm" className="hidden sm:inline-flex h-8 gap-1.5" disabled={solaLettura} title={creaTitle} onClick={() => openCreate()}>
                 <Plus className="h-3.5 w-3.5" /><span className="hidden sm:inline">Nuova</span>
+              </Button>
+              <Button size="sm" className="tap-compact sm:hidden h-8 gap-1 px-3" disabled={solaLettura} title={creaTitle} onClick={apriAggiunta}>
+                <Plus className="h-4 w-4" />Nuova
               </Button>
             </div>
           </div>
@@ -1795,7 +1812,7 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
           </div>
         </CardHeader>
 
-        <CardContent>
+        <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
           {/* Bulk action bar — visibile in modalità selezione o quando c'è già
               una selezione; su mobile wrap, su desktop 1 riga */}
           {(hasSelection || selectionMode) && (
@@ -1837,20 +1854,23 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
             <div className="space-y-2">{[1, 2, 3].map(i => <Skeleton key={i} className="h-16 w-full" />)}</div>
           ) : (
             <div className="space-y-4">
-              {/* Quick add */}
+              {/* Quick add (su mobile solo dopo «Nuova») */}
+              {(!isMobile || aggiuntaAperta) && (
               <div className="flex items-center gap-2">
                 <div className="flex-1 relative">
                   <Input ref={quickAddRef} placeholder={solaLettura ? "Sei in sola lettura" : "Aggiungi attività…"} value={quickAddTitle}
                     disabled={solaLettura}
+                    onBlur={() => { if (isMobile && !quickAddTitle.trim()) setAggiuntaAperta(false); }}
                     onChange={e => setQuickAddTitle(e.target.value)}
                     onKeyDown={e => { if (e.key === "Enter" && !createTask.isPending) handleQuickAdd(); if (e.key === "Escape") { setQuickAddTitle(""); quickAddRef.current?.blur(); } }}
                     className="h-9 text-base md:text-sm pr-8" />
                   {quickAddTitle && <button onClick={() => setQuickAddTitle("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /></button>}
                 </div>
-                <Button variant="outline" size="sm" className="h-9 shrink-0" onClick={handleQuickAdd} disabled={solaLettura || !quickAddTitle.trim() || createTask.isPending} title={creaTitle}>
+                <Button variant="outline" size="sm" className="h-9 shrink-0" onClick={() => { handleQuickAdd(); if (isMobile) setAggiuntaAperta(false); }} disabled={solaLettura || !quickAddTitle.trim() || createTask.isPending} title={creaTitle}>
                   {createTask.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                 </Button>
               </div>
+              )}
 
               {/* Grouped view */}
               {groupBy !== "none" && groupedTasks ? (
@@ -1866,6 +1886,11 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
                 )
               ) : showDefaultSections ? (
                 <>
+                  {/* Mobile: una sezione vuota non si mostra; se lo sono tutte e due, una riga. */}
+                  {isMobile && taskOggi.length === 0 && taskFuture.length === 0 && (
+                    <p className="text-sm text-muted-foreground">Niente in programma</p>
+                  )}
+                  {(!isMobile || taskOggi.length > 0) && (
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
                       <div className="w-2 h-2 rounded-full bg-amber-500" />
@@ -1875,7 +1900,9 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
                       <div className="rounded-lg border border-dashed bg-muted/20 p-3 text-center"><CheckCircle className="h-5 w-5 mx-auto mb-1 text-green-500 opacity-60" /><p className="text-xs text-muted-foreground">Nessuna attività per oggi</p></div>
                     ) : <div className={compact ? "space-y-1" : "space-y-2"}>{taskOggi.map(renderTask)}</div>}
                   </div>
-                  <div className="border-t" />
+                  )}
+                  {(!isMobile || (taskOggi.length > 0 && taskFuture.length > 0)) && <div className="border-t" />}
+                  {(!isMobile || taskFuture.length > 0) && (
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
                       <div className="w-2 h-2 rounded-full bg-blue-500" />
@@ -1885,6 +1912,7 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
                       <div className="rounded-lg border border-dashed bg-muted/20 p-3 text-center"><CalendarDays className="h-5 w-5 mx-auto mb-1 text-blue-400 opacity-60" /><p className="text-xs text-muted-foreground">Nessuna attività in programma</p></div>
                     ) : <div className={compact ? "space-y-1" : "space-y-2"}>{taskFuture.map(renderTask)}</div>}
                   </div>
+                  )}
                 </>
               ) : filteredTasks.length === 0 ? (
                 <div className="rounded-lg border border-dashed bg-muted/20 p-6 text-center">
@@ -2169,13 +2197,8 @@ function TabAttivita() {
           tap dal tab Regia. "Il troppo non va bene" sul telefono. */}
       {isAdmin && !isMobile && <TeamTaskPulse />}
       {isAdmin && !isMobile && <TaskTeam />}
-      {isAdmin && isMobile && (
-        <Button variant="outline" className="w-full gap-2" asChild>
-          <Link to="/azienda/attivita?tab=regia">
-            <ArrowUpCircle className="h-4 w-4" /> Apri regia team
-          </Link>
-        </Button>
-      )}
+      {/* Su mobile qui c'era un bottone «Apri regia team»: faceva la stessa
+          cosa del tab «Regia» in cima alla pagina. Un modo solo. */}
     </div>
   );
 }
@@ -2478,13 +2501,14 @@ export default function AttivitaStaff() {
   };
 
   return (
-    <div className="space-y-4 sm:space-y-6 p-3 sm:p-6">
+    // Su mobile il margine lo da' gia' <main>: il p-3 qui lo raddoppiava.
+    <div className="space-y-4 sm:space-y-6 sm:p-6">
       <AttivitaHeader />
       <Tabs value={activeTab} onValueChange={handleTabChange}>
         {isAdmin ? (
           <TabsList className="grid w-full max-w-full sm:max-w-md grid-cols-2 h-auto">
-            <TabsTrigger value="attivita" className="gap-1.5 text-xs sm:text-sm py-2"><ClipboardCheck className="h-4 w-4" /><span>Dashboard</span></TabsTrigger>
-            <TabsTrigger value="regia" className="gap-1.5 text-xs sm:text-sm py-2"><Users className="h-4 w-4" /><span className="truncate">Regia<span className="hidden sm:inline"> attività</span></span></TabsTrigger>
+            <TabsTrigger value="attivita" className="gap-1.5 text-xs sm:text-sm py-1.5 sm:py-2"><ClipboardCheck className="h-4 w-4" /><span>Dashboard</span></TabsTrigger>
+            <TabsTrigger value="regia" className="gap-1.5 text-xs sm:text-sm py-1.5 sm:py-2"><Users className="h-4 w-4" /><span className="truncate">Regia<span className="hidden sm:inline"> attività</span></span></TabsTrigger>
           </TabsList>
         ) : (
           <TabsList className={cn("grid w-full h-auto", seesRegia ? "grid-cols-5 max-w-2xl" : "grid-cols-4 max-w-xl")}>
@@ -2497,9 +2521,9 @@ export default function AttivitaStaff() {
             <TabsTrigger value="cedolini" className="gap-1 sm:gap-1.5 text-[11px] sm:text-sm py-2 px-1 sm:px-3"><Receipt className="h-4 w-4" /><span className="truncate">Cedolini</span></TabsTrigger>
           </TabsList>
         )}
-        <TabsContent value="attivita" className="mt-4 sm:mt-6"><TabAttivita /></TabsContent>
+        <TabsContent value="attivita" className="mt-3 sm:mt-6"><TabAttivita /></TabsContent>
         {seesRegia && (
-          <TabsContent value="regia" className="mt-6">
+          <TabsContent value="regia" className="mt-3 sm:mt-6">
             <Suspense fallback={<TabFallback />}>
               <UnifiedTasks embedded initialTab="all" />
             </Suspense>
@@ -2507,9 +2531,9 @@ export default function AttivitaStaff() {
         )}
         {!isAdmin && (
           <>
-            <TabsContent value="timbrature" className="mt-6"><Suspense fallback={<TabFallback />}><TimbraturePersonali /></Suspense></TabsContent>
-            <TabsContent value="ferie" className="mt-6"><Suspense fallback={<TabFallback />}><FeriePersonali /></Suspense></TabsContent>
-            <TabsContent value="cedolini" className="mt-6"><Suspense fallback={<TabFallback />}><CedoliniPersonali /></Suspense></TabsContent>
+            <TabsContent value="timbrature" className="mt-3 sm:mt-6"><Suspense fallback={<TabFallback />}><TimbraturePersonali /></Suspense></TabsContent>
+            <TabsContent value="ferie" className="mt-3 sm:mt-6"><Suspense fallback={<TabFallback />}><FeriePersonali /></Suspense></TabsContent>
+            <TabsContent value="cedolini" className="mt-3 sm:mt-6"><Suspense fallback={<TabFallback />}><CedoliniPersonali /></Suspense></TabsContent>
           </>
         )}
       </Tabs>

@@ -13,6 +13,7 @@ import { startOfDay, endOfDay, addDays } from "date-fns";
 import { AlertCircle } from "lucide-react";
 import { useTaskStatuses } from "@/hooks/useTaskStatuses";
 import { isTaskDoneStatus } from "@/lib/taskStatuses";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface MyDayViewProps {
   onNewTask: () => void;
@@ -23,6 +24,7 @@ export function MyDayView({ onNewTask }: MyDayViewProps) {
   const companyId = effectiveCompany?.id;
   const userId = user?.id;
   const queryClient = useQueryClient();
+  const isMobile = useIsMobile();
 
   const [editingTask, setEditingTask] = useState<any>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -127,13 +129,15 @@ export function MyDayView({ onNewTask }: MyDayViewProps) {
   const hasAnyTasks = overdue.length > 0 || today.length > 0 || tomorrow.length > 0 || thisWeek.length > 0 || noDate.length > 0;
 
   return (
-    <div className="space-y-6">
-      <MyDayHeader estimatedHoursToday={estimatedHoursToday} />
+    <div className="space-y-4 sm:space-y-6">
+      {/* Su telefono il saluto c'e' gia' in cima alla pagina e i tre contatori
+          ripetono i titoli delle sezioni qui sotto («Scadute 3», «Oggi 2»). */}
+      {!isMobile && <MyDayHeader estimatedHoursToday={estimatedHoursToday} />}
 
       {!hasAnyTasks ? (
         <MyDayEmptyState onNewTask={onNewTask} />
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
           {overdue.length > 0 && (
             <MyDayTimeline title="Scadute" tasks={overdue} variant="overdue" onTaskSelect={handleTaskSelect} />
           )}
