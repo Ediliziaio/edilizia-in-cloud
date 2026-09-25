@@ -11,6 +11,7 @@ import { testoPerPdf } from "../_shared/testoPerPdf.ts";
 import { formatoImmagine, leggiLogo, logoDiRiserva } from "../_shared/logoAzienda.ts";
 import { COLORE_ACCENTO_DI_FABBRICA, coloreCopertina, coloreDelBlocco, colorePreventivo, contattiImpresa, titoliMarkdown } from "../_shared/blocchiModelloPreventivo.ts";
 import { componiRighe, nomeLeggibile, paroleDelTitolo, pezziConGrassetto, senzaSezioneClausole, sezioneClausole, titoloGenerico, type ParolaTitolo, type Pezzo } from "../_shared/impaginaPreventivo.ts";
+import { agevolazioniPreventivo, riepilogoPrezzi } from "../_shared/prezziPreventivo.ts";
 
 // ─── Helpers ───
 function hexToRgb(hex: string) {
@@ -1846,12 +1847,81 @@ Deno.serve(async (req) => {
       const totBoxW = 220;
       const totX = itemLeftX + itemWidth - totBoxW;
       const totValX = itemLeftX + itemWidth - (classicPremium ? 10 : 6);
-      newPageIfNeeded(150, "RIEPILOGO DELL'OFFERTA");
+      // ── Il riepilogo economico del classico (25/09/2026) ──
+      // Oltre a subtotale e IVA dice quanto costava a listino, quanto si è
+      // scontato e quanto risparmia il cliente IVA inclusa (scheda a sinistra e
+      // prezzo pieno barrato nella fascia del totale). Si mostra solo se i conti
+      // tornano con i totali salvati e se l'azienda non nasconde gli sconti.
+      const prezzi = riepilogoPrezzi(items, { subtotal: quote.subtotal, total: quote.total });
+      const scontiInVista = classicPremium && !prezzoManualeAttivo && prezzi.coerente
+        && opzione("pdf_mostra_sconti", pdfImp.pdf_mostra_sconti !== false);
+      const conListino = scontiInVista && prezzi.scontiVoci >= 0.01;
+      // Il risparmio nasce da uno sconto vero (sulle voci o sul totale), non dai
+      // centesimi di arrotondamento dell'IVA: senza sconti usciva «0,01 €».
+      const conRisparmio = scontiInVista && (conListino || Number(quote.discount_amount || 0) >= 0.01) && prezzi.risparmio >= 0.5;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const aliquoteIva = new Set(items.filter((i: any) => !i.is_optional && !["nota", "subtotale"].includes(i.item_category || "prodotto")).map((i: any) => Number(i.vat_rate ?? 22))).size;
+      const righeAttese = (conListino ? 2 : 1) + (Number(quote.discount_percent || 0) > 0 ? 1 : 0)
+        + (conListino || Number(quote.discount_percent || 0) > 0 ? 1 : 0) + Math.max(1, aliquoteIva);
+      newPageIfNeeded(classicPremium ? Math.max(150, righeAttese * 15 + 110) : 150, "RIEPILOGO DELL'OFFERTA");
       page.drawLine({ start: { x: totX, y: y + 14 }, end: { x: itemLeftX + itemWidth, y: y + 14 }, thickness: 0.6, color: lightGrayC });
 
+      // Nel classico le righe si raccolgono e si disegnano col totale: accanto a
+      // loro sta la scheda del risparmio (o della validità), alta quanto loro.
+      const righeRiepilogo: Array<[string, string]> = [];
+      const disegnaRiepilogoClassico = () => {
+        const top = y + 14;
+        for (const [label, value] of righeRiepilogo) {
+          const eSconto = /^sconto|^sconti/i.test(label);
+          page.drawText(label, { x: totX + 8, y, size: 9, font, color: eSconto ? inkMarcaC : grigioEdC });
+          drawRight(page, value, totValX, y, 9, fontBold, eSconto ? inkMarcaC : inchiostroC);
+          page.drawLine({ start: { x: totX, y: y - 5 }, end: { x: itemLeftX + itemWidth, y: y - 5 }, thickness: 0.5, color: filettoC });
+          y -= 15;
+        }
+        let fondo = y + 10;
+        const xScheda = itemLeftX;
+        const wScheda = totX - itemLeftX - 24;
+        const scadenza = t.show_validity_date && quote.expires_at
+          ? new Date(quote.expires_at).toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" })
+          : "";
+        if (conRisparmio || scadenza) {
+          const pad = 14;
+          // Senza sconti la scheda dice solo fino a quando valgono i prezzi: corta, per
+          // non spingere firme e note alla pagina dopo.
+          const righeSpiega = conRisparmio
+            ? righeDi([{
+                testo: `pari al ${prezzi.risparmioPct.toLocaleString("it-IT", { maximumFractionDigits: 1 })}% del prezzo pieno di ${fmtEur(prezzi.pieno)}, IVA inclusa.`,
+                stile: { f: font, size: 7.8, c: grigioEdC },
+              }], wScheda - pad * 2 - 3).slice(0, 2)
+            : [];
+          const hScheda = Math.max(top - fondo, conRisparmio ? 12 + 28 + righeSpiega.length * 10 + (scadenza ? 16 : 0) + 12 : 48);
+          fondo = Math.min(fondo, top - hScheda);
+          page.drawRectangle({ x: xScheda, y: fondo, width: wScheda, height: top - fondo, color: tintaLeggeraC });
+          page.drawRectangle({ x: xScheda, y: fondo, width: 3, height: top - fondo, color: fondoEdC });
+          let yy = top - pad - 4;
+          spaziatoSu(page, conRisparmio ? "IL TUO RISPARMIO" : "OFFERTA VALIDA FINO AL", xScheda + pad + 3, yy, 6.5, fontBold, inkMarcaC, 1.4);
+          yy -= 22;
+          page.drawText(conRisparmio ? fmtEur(prezzi.risparmio) : scadenza, {
+            x: xScheda + pad + 3, y: yy, size: conRisparmio ? 20 : 15, font: fontBold, color: conRisparmio ? inkMarcaC : inchiostroC,
+          });
+          yy -= 14;
+          for (const r of righeSpiega) { disegnaRiga(page, r, xScheda + pad + 3, yy); yy -= 10; }
+          if (conRisparmio && scadenza) {
+            yy -= 4;
+            page.drawText(`Prezzi garantiti fino al ${scadenza}.`, { x: xScheda + pad + 3, y: yy, size: 7.8, font: fontBold, color: inchiostroC });
+          }
+        }
+        y = fondo - 10;
+      };
+
       const drawTotal = (label: string, value: string, bold = false) => {
+        if (!bold && classicPremium) {
+          righeRiepilogo.push([label, value]);
+          return;
+        }
         if (bold) {
           if (classicPremium) {
+            disegnaRiepilogoClassico();
             // La fascia del prezzo a tutta pagina, come nel documento edile: il
             // numero che il cliente cerca, grande, nel colore dell'azienda.
             // Stacco sufficiente: la fascia comincia sotto l'ultima riga (l'IVA), non sopra.
@@ -1861,11 +1931,23 @@ Deno.serve(async (req) => {
             spaziatoSu(page, "TOTALE PREVENTIVO", margin, y + 2, 7.5, fontBold, rgb(1, 1, 1), 1.6);
             page.drawText("IVA inclusa", { x: margin, y: y - 10, size: 8, font, color: rgb(1, 1, 1), opacity: 0.85 });
             drawRight(page, value, pageWidth - margin - 3, y - 8, 22, fontBold, rgb(1, 1, 1));
+            if (conRisparmio) {
+              // Il prezzo pieno barrato accanto al totale: lo sconto si vede dove si guarda.
+              const xFine = pageWidth - margin - 3 - textW(value, 22, fontBold) - 16;
+              const pieno = fmtEur(prezzi.pieno);
+              const wPieno = textW(pieno, 10, fontBold);
+              page.drawText(pieno, { x: xFine - wPieno, y: y - 7, size: 10, font: fontBold, color: rgb(1, 1, 1), opacity: 0.7 });
+              page.drawLine({ start: { x: xFine - wPieno - 1, y: y - 3.6 }, end: { x: xFine + 1, y: y - 3.6 }, thickness: 1, color: rgb(1, 1, 1), opacity: 0.8 });
+              drawRight(page, "anziché", xFine - wPieno - 5, y - 7, 7.5, font, rgb(1, 1, 1));
+            }
             y -= h;
-            // Le voci opzionali stanno in tabella ma non nel totale: si dice qui, sotto il numero.
+            // Le voci opzionali stanno in tabella ma non nel totale: si dice qui, sotto il numero, con quanto valgono.
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             if (!soloTotale && items.some((i: any) => i.is_optional === true && !["nota", "subtotale"].includes(i.item_category || "prodotto"))) {
-              drawRight(page, "Le voci opzionali non sono comprese nel totale.", pageWidth - margin - 3, y + 6, 7.2, fontItalic, grigioEdC);
+              const nota = prezzi.opzionali > 0 && !prezzoManualeAttivo
+                ? `Voci opzionali, non comprese nel totale: + ${fmtEur(prezzi.opzionali)} IVA inclusa.`
+                : "Le voci opzionali non sono comprese nel totale.";
+              drawRight(page, nota, pageWidth - margin - 3, y + 6, 7.2, fontItalic, grigioEdC);
               y -= 10;
             }
             return;
@@ -1901,9 +1983,18 @@ Deno.serve(async (req) => {
         ivaToShow = 0;
       }
 
-      drawTotal("SUBTOTALE", `${fmtEur(subTotShown)}`);
+      if (conListino) {
+        // Il subtotale spiegato: a listino, meno gli sconti scritti sulle voci.
+        drawTotal("Totale a listino", fmtEur(prezzi.listino));
+        drawTotal("Sconti sulle voci", `- ${fmtEur(prezzi.scontiVoci)}`);
+      } else {
+        drawTotal(classicPremium ? "Subtotale" : "SUBTOTALE", `${fmtEur(subTotShown)}`);
+      }
       if (Number(quote.discount_percent || 0) > 0) {
-        drawTotal(`Sconto ${quote.discount_percent}%`, `- ${fmtEur(scontoShown)}`);
+        drawTotal(classicPremium ? `Sconto riservato ${quote.discount_percent}%` : `Sconto ${quote.discount_percent}%`, `- ${fmtEur(scontoShown)}`);
+      }
+      if (classicPremium && (conListino || Number(quote.discount_percent || 0) > 0)) {
+        drawTotal("Imponibile", fmtEur(round2q(subTotShown - scontoShown)));
       }
 
       if (prezzoManualeAttivo) {
@@ -1951,6 +2042,50 @@ Deno.serve(async (req) => {
       }
 
       drawTotal("TOTALE", `${fmtEur(totShown)}`, true);
+
+      // ── Le agevolazioni fiscali scelte nel costruttore (25/09/2026) ──
+      // Si salvavano sul preventivo (quotes.bonus_lines) e il PDF non le stampava:
+      // il cliente firmava senza vedere quanto recupera né che deve pagare con
+      // il bonifico parlante. Conti come la scheda «Bonus edilizi» del costruttore.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const agevolazioni = classicPremium ? agevolazioniPreventivo((quote as any).bonus_lines, { imponibile: round2q(subTotShown - scontoShown), totale: totShown }) : null;
+      if (agevolazioni) {
+        const avvertenze = [
+          ...(agevolazioni.bonificoParlante ? ["Per non perdere la detrazione, i pagamenti vanno fatti con bonifico parlante (causale, codice fiscale di chi detrae, partita IVA dell'impresa)."] : []),
+          "Stima indicativa sulla spesa IVA inclusa, entro i tetti per unità immobiliare: la detrazione effettiva dipende dai requisiti di chi la richiede. Non è consulenza fiscale.",
+        ];
+        const righeAvvertenze = avvertenze.flatMap((a) => righeDi([{ testo: a, stile: { f: fontItalic, size: 7.4, c: grigioEdC } }], contentWidth));
+        const altezza = 24 + agevolazioni.voci.length * 17 + 40 + righeAvvertenze.length * 9.6 + 8;
+        newPageIfNeeded(altezza + 60, "RIEPILOGO DELL'OFFERTA");
+        y -= 14;
+        titolinoSu(page, "AGEVOLAZIONI FISCALI", margin, y, contentWidth);
+        y -= 22;
+        const xDetr = margin + contentWidth;
+        const xSpesa = xDetr - 118;
+        for (const v of agevolazioni.voci) {
+          const titoloVoce = `${v.etichetta}${v.aliquota > 0 ? ` · detrazione ${v.aliquota.toLocaleString("it-IT")}%` : ""}`;
+          let tv = winAnsiSafe(titoloVoce);
+          while (tv.length > 3 && textW(tv, 8.8, fontBold) > xSpesa - margin - 90) tv = tv.slice(0, -2);
+          if (tv !== winAnsiSafe(titoloVoce)) tv = tv.trimEnd() + "…";
+          page.drawText(tv, { x: margin, y, size: 8.8, font: fontBold, color: inchiostroC });
+          drawRight(page, `spesa ${fmtEur(v.spesa)}${v.oltreTetto ? " (oltre il tetto)" : ""}`, xSpesa, y, 8, font, grigioEdC);
+          drawRight(page, fmtEur(v.detrazione), xDetr, y, 9, fontBold, inkMarcaC);
+          page.drawLine({ start: { x: margin, y: y - 6 }, end: { x: xDetr, y: y - 6 }, thickness: 0.5, color: filettoC });
+          y -= 17;
+        }
+        y -= 4;
+        page.drawText("Detrazione stimata", { x: margin, y, size: 9, font, color: grigioEdC });
+        drawRight(page, fmtEur(agevolazioni.detrazione), xDetr, y, 9.5, fontBold, inkMarcaC);
+        y -= 18;
+        // Il numero che il cliente ricorda: quanto gli costa davvero, detrazione tolta.
+        page.drawRectangle({ x: margin, y: y - 8, width: contentWidth, height: 22, color: tintaLeggeraC });
+        page.drawRectangle({ x: margin, y: y - 8, width: 3, height: 22, color: fondoEdC });
+        spaziatoSu(page, "COSTO DOPO LA DETRAZIONE", margin + 12, y - 1, 6.8, fontBold, inkMarcaC, 1.3);
+        drawRight(page, fmtEur(agevolazioni.costoDopo), xDetr - 8, y - 2, 11.5, fontBold, inchiostroC);
+        y -= 24;
+        for (const r of righeAvvertenze) { disegnaRiga(page, r, margin, y); y -= 9.6; }
+        y -= 4;
+      }
 
       // ── Box Finanziamento (se presente nel preventivo) ─────────────
       // I 6 campi quotes.financing_* vengono popolati dal QuoteBuilder
@@ -2098,9 +2233,9 @@ Deno.serve(async (req) => {
         const gapQr = fasiPag.length > 0 && conFirmaOnline ? 22 : 0;
         const wPiano = contentWidth - wQr - gapQr;
         const hPiano = fasiPag.length > 0 ? 24 + (metodoPag ? 14 : 0) + fasiPag.length * 20 : 0;
-        const hQr = conFirmaOnline ? 84 : 0;
+        const hQr = conFirmaOnline ? 76 : 0;
         newPageIfNeeded(Math.max(hPiano, hQr) + 60);
-        y -= 16;
+        y -= 14;
         const top = y;
         let fondoPiano = top;
         if (fasiPag.length > 0) {
@@ -2135,17 +2270,17 @@ Deno.serve(async (req) => {
         if (conFirmaOnline) {
           try {
             const xQr = margin + contentWidth - wQr;
-            const hScheda = 78;
+            const hScheda = 70;
             page.drawRectangle({ x: xQr, y: top - hScheda + 8, width: wQr, height: hScheda, color: tintaLeggeraC });
             page.drawRectangle({ x: xQr, y: top - hScheda + 8, width: 3, height: hScheda, color: fondoEdC });
-            const lato = 58;
+            const lato = 54;
             const qr = qrcode(0, "M");
             qr.addData(signUrl);
             qr.make();
             const count = qr.getModuleCount();
             const cella = lato / count;
             const qx = xQr + 14;
-            const qy = top - 2;
+            const qy = top;
             page.drawRectangle({ x: qx - 3, y: qy - lato - 3, width: lato + 6, height: lato + 6, color: rgb(1, 1, 1) });
             for (let r = 0; r < count; r++) {
               for (let c = 0; c < count; c++) {
@@ -2165,7 +2300,7 @@ Deno.serve(async (req) => {
             console.warn("QR generation failed:", qrErr);
           }
         }
-        y = Math.min(fondoPiano, fondoQr) - 20;
+        y = Math.min(fondoPiano, fondoQr) - 18;
       }
 
       // ── Sezioni finali classic: condizioni/tempi/note + firme ──
