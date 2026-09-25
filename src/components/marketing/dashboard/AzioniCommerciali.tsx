@@ -10,6 +10,7 @@ import {
   PhoneOff, CheckCircle2, ChevronRight, Zap
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
 
 interface UrgentAction {
   id: string;
@@ -34,7 +35,9 @@ interface Props {
   closeRate: number;
 }
 
-function buildActions(p: Props): UrgentAction[] {
+// Le rotte erano «/azienda/contatti-crm», «/azienda/opportunita» e
+// «/azienda/calendario-crm», che non esistono: il tocco finiva sulla home.
+function buildActions(p: Props, base: string): UrgentAction[] {
   const actions: UrgentAction[] = [];
 
   // 1. Lead urgenti (< 2h)
@@ -45,7 +48,7 @@ function buildActions(p: Props): UrgentAction[] {
       label: `${p.staleLeads2h} lead da richiamare subito`,
       detail: "Non contattati da oltre 2 ore — ogni minuto conta",
       severity: "critical",
-      route: "/azienda/contatti-crm",
+      route: `${base}/contatti?filter=stale_2h`,
     });
   }
 
@@ -57,7 +60,7 @@ function buildActions(p: Props): UrgentAction[] {
       label: `${p.staleLeads} lead non contattati da 48h+`,
       detail: "Rischio di perderli — assegna un follow-up immediato",
       severity: "critical",
-      route: "/azienda/contatti-crm",
+      route: `${base}/contatti?filter=stale`,
     });
   }
 
@@ -69,7 +72,7 @@ function buildActions(p: Props): UrgentAction[] {
       label: `Show rate al ${p.showRate.toFixed(0)}%`,
       detail: "Troppi appuntamenti saltati — migliora la conferma",
       severity: "warning",
-      route: "/azienda/marketing",
+      route: `${base}/calendario`,
     });
   }
 
@@ -81,7 +84,7 @@ function buildActions(p: Props): UrgentAction[] {
       label: "Pipeline in calo",
       detail: "Il valore delle opportunità sta diminuendo vs periodo precedente",
       severity: "warning",
-      route: "/azienda/opportunita",
+      route: `${base}/opportunita`,
     });
   }
 
@@ -93,7 +96,7 @@ function buildActions(p: Props): UrgentAction[] {
       label: `${p.staleOpportunities} opportunità ferme da 7+ giorni`,
       detail: "Nessuna attività — rischio stallo nella pipeline",
       severity: "warning",
-      route: "/azienda/opportunita",
+      route: `${base}/opportunita`,
     });
   }
 
@@ -105,7 +108,7 @@ function buildActions(p: Props): UrgentAction[] {
       label: `${p.pendingAppointments} appuntament${p.pendingAppointments === 1 ? "o" : "i"} da completare`,
       detail: "Data passata ma non segnati come svolti",
       severity: "info",
-      route: "/azienda/calendario-crm",
+      route: `${base}/calendario`,
     });
   }
 
@@ -117,7 +120,7 @@ function buildActions(p: Props): UrgentAction[] {
       label: `Close rate solo ${p.closeRate.toFixed(0)}%`,
       detail: `${p.contractsLost} contratt${p.contractsLost === 1 ? "o perso" : "i persi"} — analizza le cause`,
       severity: "info",
-      route: "/azienda/opportunita",
+      route: `${base}/opportunita`,
     });
   }
 
@@ -147,7 +150,7 @@ const severityStyles = {
 
 export function AzioniCommerciali(props: Props) {
   const navigate = useNavigate();
-  const allActions = buildActions(props);
+  const allActions = buildActions(props, useMarketingRoutePrefix());
   const topActions = allActions.slice(0, 3);
 
   if (topActions.length === 0) {
@@ -167,13 +170,14 @@ export function AzioniCommerciali(props: Props) {
   }
 
   return (
-    <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+    <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm max-sm:space-y-2 max-sm:p-3">
       <div className="flex items-start gap-3">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-orange-100 text-orange-700">
+        {/* Telefono: il titolo basta; righe senza la spiegazione sotto. */}
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-orange-100 text-orange-700 max-sm:hidden">
           <Zap className="h-4 w-4" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Priorità operative</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500 max-sm:hidden">Priorità operative</p>
           <h3 className="text-sm font-bold text-foreground">Cosa muovere ora</h3>
         </div>
         {allActions.length > 3 && (
@@ -192,7 +196,7 @@ export function AzioniCommerciali(props: Props) {
               key={action.id}
               onClick={() => action.route && navigate(action.route)}
               className={cn(
-                "w-full flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md",
+                "tap-compact w-full flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md max-sm:gap-2",
                 styles.bg, styles.border,
                 action.route && "cursor-pointer"
               )}
@@ -200,10 +204,10 @@ export function AzioniCommerciali(props: Props) {
               <span className={cn("flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold flex-shrink-0", styles.badge)}>
                 {i + 1}
               </span>
-              <Icon className={cn("h-4 w-4 flex-shrink-0", styles.icon)} />
+              <Icon className={cn("h-4 w-4 flex-shrink-0 max-sm:hidden", styles.icon)} />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-foreground truncate">{action.label}</p>
-                <p className="text-[11px] text-muted-foreground truncate">{action.detail}</p>
+                <p className="text-sm font-medium text-foreground truncate max-sm:text-[13px]">{action.label}</p>
+                <p className="text-[11px] text-muted-foreground truncate max-sm:hidden">{action.detail}</p>
               </div>
               {action.route && <ChevronRight className="h-4 w-4 text-muted-foreground/50 flex-shrink-0" />}
             </button>

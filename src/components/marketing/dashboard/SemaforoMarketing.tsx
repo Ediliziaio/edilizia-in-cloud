@@ -105,26 +105,27 @@ export function SemaforoMarketing(props: Props) {
   ];
 
   return (
-    <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+    // Telefono: tre tasselli in riga, nome e cifra (senza icona né riga sotto).
+    <div className="grid grid-cols-1 gap-3 md:grid-cols-3 max-sm:grid-cols-3 max-sm:gap-2">
       {items.map((item) => {
         const c = colorMap[item.color];
         const Icon = item.icon;
         return (
           <div
             key={item.label}
-            className={`group rounded-2xl border px-4 py-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${c.bg} ${c.border}`}
+            className={`group rounded-2xl border px-4 py-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md max-sm:rounded-xl max-sm:px-2.5 max-sm:py-2 ${c.bg} ${c.border}`}
           >
             <div className="flex items-start gap-3">
-              <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${c.iconBg}`}>
+              <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl max-sm:hidden ${c.iconBg}`}>
                 <Icon className="h-5 w-5" />
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-2">
-                  <p className={`text-[11px] font-bold uppercase tracking-[0.16em] ${c.label}`}>{item.label}</p>
+                  <p className={`text-[11px] font-bold uppercase tracking-[0.16em] max-sm:text-[10px] max-sm:tracking-wide ${c.label}`}>{item.label}</p>
                   <span className={`h-2.5 w-2.5 rounded-full ${c.dot} ${item.color === "red" ? "animate-pulse" : ""}`} />
                 </div>
-                <p className={`mt-2 truncate text-xl font-bold ${c.text}`}>{item.value}</p>
-                <p className="mt-1 truncate text-xs font-medium text-slate-500 dark:text-slate-400">{item.detail}</p>
+                <p className={`mt-2 truncate text-xl font-bold max-sm:mt-0.5 max-sm:text-[15px] ${c.text}`}>{item.value}</p>
+                <p className="mt-1 truncate text-xs font-medium text-slate-500 dark:text-slate-400 max-sm:hidden">{item.detail}</p>
               </div>
             </div>
           </div>

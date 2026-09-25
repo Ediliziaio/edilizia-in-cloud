@@ -324,7 +324,10 @@ export default function MarketingDashboard() {
   };
 
   // Ensure activeTab is in visibleTabs
-  const effectiveTab = visibleTabs.some((t) => t.id === activeTab) ? activeTab : visibleTabs[0]?.id || "panoramica";
+  // Telefono: tre schede (panoramica, pipeline, attività); team, fonti, trend e
+  // commerciale sono analisi da computer.
+  const schede = isMobile ? visibleTabs.filter((t) => ["panoramica", "pipeline", "attivita"].includes(t.id)) : visibleTabs;
+  const effectiveTab = schede.some((t) => t.id === activeTab) ? activeTab : schede[0]?.id || "panoramica";
 
   const todayStr = new Date().toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   const todayCap = todayStr.charAt(0).toUpperCase() + todayStr.slice(1);
@@ -414,16 +417,17 @@ export default function MarketingDashboard() {
       {data?.kpi && (
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="grid gap-0 xl:grid-cols-[minmax(340px,0.58fr)_minmax(540px,1fr)]">
-            <div className="bg-[#173b67] p-5 text-white sm:p-6">
-              <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            {/* Telefono: titolo, bottone e quattro numeri 2×2; via icona, occhiello e spiegazione. */}
+            <div className="bg-[#173b67] p-5 text-white sm:p-6 max-sm:p-4">
+              <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between max-sm:gap-3">
                 <div className="flex min-w-0 gap-3">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)]">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)] max-sm:hidden">
                     {executiveState.tone === "green" ? <ShieldCheck className="h-5 w-5" /> : <AlertTriangle className="h-5 w-5" />}
                   </div>
                   <div className="min-w-0">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-orange-100">Quadro commerciale</p>
-                    <h2 className="mt-1 text-xl font-semibold text-white">{executiveState.title}</h2>
-                    <p className="mt-1 max-w-2xl text-sm leading-6 text-blue-50/85">{executiveState.detail}</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-orange-100 max-sm:hidden">Quadro commerciale</p>
+                    <h2 className="mt-1 text-xl font-semibold text-white max-sm:mt-0 max-sm:text-base">{executiveState.title}</h2>
+                    <p className="mt-1 max-w-2xl text-sm leading-6 text-blue-50/85 max-sm:hidden">{executiveState.detail}</p>
                   </div>
                 </div>
                 <Button
@@ -438,15 +442,15 @@ export default function MarketingDashboard() {
                 </Button>
               </div>
 
-              <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              <div className="mt-6 grid gap-3 sm:grid-cols-2 max-sm:mt-3 max-sm:grid-cols-2 max-sm:gap-2">
                 {executiveKpis.map((item) => {
                   const Icon = item.icon;
                   return (
-                    <div key={item.label} className="rounded-xl border border-white/12 bg-white/9 p-4">
+                    <div key={item.label} className="rounded-xl border border-white/12 bg-white/9 p-4 max-sm:px-3 max-sm:py-2">
                       <div className="flex items-center gap-3">
                         <span
                           className={cn(
-                            "flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-white/10",
+                            "flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-white/10 max-sm:hidden",
                             item.tone === "green" && "text-emerald-100",
                             item.tone === "red" && "text-red-100",
                             item.tone === "orange" && "text-orange-100",
@@ -456,9 +460,9 @@ export default function MarketingDashboard() {
                           <Icon className="h-4 w-4" />
                         </span>
                         <span className="min-w-0">
-                          <span className="block text-[11px] font-semibold uppercase tracking-wide text-blue-100">{item.label}</span>
-                          <span className="block truncate text-xl font-bold text-white">{item.value}</span>
-                          <span className="mt-0.5 block truncate text-xs text-blue-50/70">{item.hint}</span>
+                          <span className="block truncate text-[11px] font-semibold uppercase tracking-wide text-blue-100 max-sm:text-[10px]">{item.label}</span>
+                          <span className="block truncate text-xl font-bold text-white max-sm:text-base">{item.value}</span>
+                          <span className="mt-0.5 block truncate text-xs text-blue-50/70 max-sm:hidden">{item.hint}</span>
                         </span>
                       </div>
                     </div>
@@ -595,7 +599,8 @@ export default function MarketingDashboard() {
       {/* Aree di controllo — stesso wrapper del Cruscotto */}
       {data?.kpi && (
         <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
-          <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          {/* Telefono: niente intestazione di sezione, parlano i tre tasselli. */}
+          <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between max-sm:hidden">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Aree di controllo</p>
               <h2 className="text-lg font-semibold text-slate-950">Approfondisci solo quello che ti serve ora</h2>
@@ -655,10 +660,10 @@ export default function MarketingDashboard() {
             {/* Mobile: riga unica scorrevole invece della griglia a 2 col (7 tab =
                 4 file troppo alte). Da sm resta a griglia (4 → 7 colonne). */}
             <TabsList className="flex h-auto w-full items-center justify-start gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:grid sm:grid-cols-4 lg:grid-cols-7">
-              {visibleTabs.map((tab) => {
+              {schede.map((tab) => {
                 const Icon = TAB_ICONS[tab.id];
                 return (
-                  <TabsTrigger key={tab.id} value={tab.id} className="shrink-0 rounded-lg gap-1.5 text-xs">
+                  <TabsTrigger key={tab.id} value={tab.id} className="shrink-0 rounded-lg gap-1.5 text-xs max-sm:flex-1">
                     <Icon className="h-3.5 w-3.5" />
                     <span>{tab.label}</span>
                   </TabsTrigger>

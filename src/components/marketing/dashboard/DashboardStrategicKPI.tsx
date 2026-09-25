@@ -63,15 +63,16 @@ export const DashboardStrategicKPI = memo(function DashboardStrategicKPI({ kpi, 
           return (
             <Tooltip key={c.key}>
               <TooltipTrigger asChild>
-                <Card className={cn("cursor-default overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-3 sm:p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md", c.borderClass)}>
-                  <div className="mb-2 flex items-start justify-between gap-2">
+                {/* Telefono: nome, cifra e variazione; via icona e barra dell'obiettivo. */}
+                <Card className={cn("cursor-default overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-3 sm:p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md max-sm:rounded-xl max-sm:px-3 max-sm:py-2", c.borderClass)}>
+                  <div className="mb-2 flex items-start justify-between gap-2 max-sm:mb-0.5">
                     <span className="truncate text-[10px] font-bold uppercase tracking-wider sm:tracking-[0.16em] text-slate-500">{c.label}</span>
-                    <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
+                    <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl bg-white shadow-sm ring-1 ring-slate-200 max-sm:hidden">
                       <Icon className={cn("h-4 w-4", c.accentClass)} />
                     </span>
                   </div>
-                  <div className="mb-1 truncate text-xl sm:text-2xl font-black tracking-tight text-slate-950">{formatValue(value, c.format)}</div>
-                  <div className={cn("mb-2 flex items-center gap-1 text-xs font-semibold",
+                  <div className="mb-1 truncate text-xl sm:text-2xl font-black tracking-tight text-slate-950 max-sm:mb-0 max-sm:text-base">{formatValue(value, c.format)}</div>
+                  <div className={cn("mb-2 flex items-center gap-1 text-xs font-semibold max-sm:mb-0 max-sm:text-[11px]",
                     delta.direction === "up" && "text-emerald-600 dark:text-emerald-400",
                     delta.direction === "down" && "text-red-600 dark:text-red-400",
                     delta.direction === "flat" && "text-muted-foreground"
@@ -82,7 +83,7 @@ export const DashboardStrategicKPI = memo(function DashboardStrategicKPI({ kpi, 
                     <span className="truncate">{delta.value}% vs prec.</span>
                   </div>
                   {targetPct !== null && (
-                    <div className="space-y-1">
+                    <div className="space-y-1 max-sm:hidden">
                       <div className="flex justify-between gap-1 text-[10px] text-muted-foreground">
                         <span className="truncate">Target: {formatValue(c.target!, c.format)}</span>
                         <span className="flex-shrink-0">{Math.round(targetPct)}%</span>

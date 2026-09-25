@@ -108,7 +108,8 @@ export const TabPanoramica = memo(function TabPanoramica({ data, isLoading }: Pr
             <DashboardFunnel funnel={data?.funnel} isLoading={isLoading} compact />
           </CardContent>
         </Card>
-        <Card>
+        {/* Telefono: la tabella del team resta al computer (come la scheda Team). */}
+        <Card className="max-sm:hidden">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm">Team</CardTitle>
           </CardHeader>
