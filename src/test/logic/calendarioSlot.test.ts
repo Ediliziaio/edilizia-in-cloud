@@ -39,7 +39,7 @@ describe("slotLiberi", () => {
   });
 
   it("la data specifica vince sul giorno della settimana", () => {
-    const regole = [
+    const regole: InputSlot["regole"] = [
       { day_of_week: 5, specific_date: null, start_time: "09:00", end_time: "12:00" },
       { day_of_week: null, specific_date: OTTOBRE, start_time: "15:00", end_time: "16:00" },
     ];
@@ -109,7 +109,7 @@ describe("slotLiberi", () => {
   });
 
   it("due fasce nello stesso giorno danno orari ordinati e senza doppioni", () => {
-    const regole = [
+    const regole: InputSlot["regole"] = [
       { day_of_week: 5, specific_date: null, start_time: "14:00", end_time: "15:00" },
       { day_of_week: 5, specific_date: null, start_time: "09:00", end_time: "10:00" },
       { day_of_week: 5, specific_date: null, start_time: "09:30", end_time: "10:00" },
