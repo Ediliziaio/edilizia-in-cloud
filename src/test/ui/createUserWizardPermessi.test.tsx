@@ -1,6 +1,10 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup, within, waitFor } from "@testing-library/react";
-import { CreateUserWizard } from "@/components/users/CreateUserWizard";
+import { CreateUserWizard, type WizardUserFormData } from "@/components/users/CreateUserWizard";
+
+type RisultatoCreazione = { temporaryPassword?: string };
+const creaUtente = (esito: RisultatoCreazione = {}) =>
+  vi.fn(async (_dati: WizardUserFormData): Promise<RisultatoCreazione> => esito);
 
 /**
  * Nuovo utente (ridisegnato il 25/09/2026): nome, email e ruolo su un passo
@@ -8,7 +12,7 @@ import { CreateUserWizard } from "@/components/users/CreateUserWizard";
  * permessi (importi, solo i suoi dati, sola lettura in cima; moduli in gruppi
  * chiusi che la ricerca apre; avanzate). Qui si percorre davvero il flusso.
  */
-function renderWizard(onSubmit = vi.fn(async () => ({}))) {
+function renderWizard(onSubmit = creaUtente()) {
   render(
     <CreateUserWizard
       open
@@ -73,9 +77,9 @@ describe("CreateUserWizard — nuovo utente", () => {
   });
 
   it("alla fine mostra le credenziali e le copia in un messaggio pronto", async () => {
-    const writeText = vi.fn(async () => {});
+    const writeText = vi.fn(async (_testo: string) => {});
     Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
-    renderWizard(vi.fn(async () => ({ temporaryPassword: "Abc-123-xyz" })));
+    renderWizard(creaUtente({ temporaryPassword: "Abc-123-xyz" }));
     fireEvent.click(screen.getByText("Operaio / Tecnico"));
     compilaDati();
     fireEvent.click(screen.getByRole("button", { name: /crea utente/i }));

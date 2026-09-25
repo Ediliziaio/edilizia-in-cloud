@@ -27,7 +27,14 @@ import {
   X,
   Sparkles,
   Lock,
+  MoreHorizontal,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { StaffPermissions } from "@/components/users/PermissionsDialog";
@@ -226,9 +233,10 @@ export function UserRolesPermissionsTab({
 }: UserRolesPermissionsTabProps) {
   const [permissions, setPermissions] = useState<StaffPermissions>(user.permissions || DEFAULT_PERMISSIONS);
   const [searchQuery, setSearchQuery] = useState("");
-  const [expandedCategories, setExpandedCategories] = useState<string[]>(
-    PERMISSION_CATEGORIES.map((c) => c.id)
-  );
+  // Gruppi chiusi all'apertura (25/09/2026): aperti tutti erano una pagina
+  // di ~90 interruttori; il conteggio sul gruppo basta, la ricerca li apre.
+  const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
+  const [avanzateAperte, setAvanzateAperte] = useState(false);
   const [selectedRole, setSelectedRole] = useState<CompanyRole>(user.role || "company_staff");
   const [pendingRoleChange, setPendingRoleChange] = useState<CompanyRole | null>(null);
 
@@ -408,84 +416,31 @@ export function UserRolesPermissionsTab({
   const economicLevel = detectEconomicLevel(permissions);
   const isAdmin = selectedRole === "company_admin";
   const roleMeta = ROLE_CONFIG[selectedRole];
-  const PrimaryIcon = roleMeta.icon;
 
   // Sticky save bar when dirty
   const saveBarRef = useRef<HTMLDivElement>(null);
 
   return (
     <TooltipProvider delayDuration={200}>
-      <div className="space-y-5 pb-24">
-        {/* Hero Summary */}
-        <Card className="overflow-hidden">
-          <div className={cn("h-1", isAdmin ? "bg-primary" : "bg-primary/30")} aria-hidden />
-          <CardContent className="p-5">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <div className="flex items-center gap-3 min-w-0">
-                <div
-                  className={cn(
-                    "h-11 w-11 rounded-xl flex items-center justify-center shrink-0",
-                    isAdmin ? "bg-primary/10" : "bg-muted"
-                  )}
-                >
-                  <PrimaryIcon className={cn("h-5 w-5", roleMeta.color)} />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Ruolo attuale</p>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="text-base font-semibold">{roleMeta.label}</p>
-                    {additionalRoles.map((r) => {
-                      const m = ROLE_CONFIG[r];
-                      if (!m) return null;
-                      const Icon = m.icon;
-                      return (
-                        <Badge
-                          key={r}
-                          variant="outline"
-                          className={cn("gap-1 border-dashed text-xs", m.color)}
-                        >
-                          <Icon className="h-3 w-3" />
-                          anche {m.label}
-                        </Badge>
-                      );
-                    })}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
-                    {roleMeta.description}
-                  </p>
-                </div>
-              </div>
-
-              {/* KPI permessi */}
-              {!isAdmin && (
-                <div className="flex items-center gap-4 shrink-0">
-                  <div className="text-right">
-                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Permessi attivi</p>
-                    <p className="text-lg font-bold tabular-nums">
-                      <span className="text-primary">{totalPermissionsCount.active}</span>
-                      <span className="text-muted-foreground">/{totalPermissionsCount.total}</span>
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
+      <div className="space-y-5 pb-24 max-md:space-y-3 max-md:pb-40">
+        {/* Il riquadro «Ruolo attuale» è stato tolto (25/09/2026): ripeteva il
+            ruolo del menu qui sotto e il conteggio dei permessi, che ora sta
+            accanto a «Cosa vede». */}
         {/* Role selector + additional roles */}
         <Card>
-          <CardHeader className="pb-3">
+          {/* Mobile: il titolo ripeteva «Ruolo primario» qui sotto. */}
+          <CardHeader className="pb-3 max-sm:hidden">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <CardTitle className="text-base">Ruolo Utente</CardTitle>
-                <CardDescription className="text-xs">
+                <CardDescription className="text-xs max-sm:hidden">
                   Il ruolo <strong>primario</strong> determina come l'utente accede al sistema.
                 </CardDescription>
               </div>
               {isChangingRole && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
             </div>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 max-sm:space-y-3 max-sm:p-4">
             {/* Primary role picker */}
             <div>
               <Label className="text-xs text-muted-foreground uppercase tracking-wide mb-1.5 block">
@@ -582,7 +537,7 @@ export function UserRolesPermissionsTab({
                   <Label className="text-xs text-muted-foreground uppercase tracking-wide mb-2 block">
                     Ruoli aggiuntivi
                   </Label>
-                  <p className="text-xs text-muted-foreground mb-3 flex items-start gap-1.5">
+                  <p className="text-xs text-muted-foreground mb-3 flex items-start gap-1.5 max-sm:hidden">
                     <Info className="h-3.5 w-3.5 shrink-0 mt-0.5 text-blue-500" />
                     Se questa persona fa <strong>anche</strong> altro, attivalo qui: tiene il suo ruolo
                     e in più compare dove serve.
@@ -597,7 +552,7 @@ export function UserRolesPermissionsTab({
                           key={r}
                           htmlFor={`add-role-${r}`}
                           className={cn(
-                            "flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all",
+                            "flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all max-sm:items-center max-sm:px-3 max-sm:py-2",
                             active
                               ? "border-primary bg-primary/5"
                               : "hover:bg-muted/50 border-border"
@@ -618,7 +573,7 @@ export function UserRolesPermissionsTab({
                                 Anche {cfg.label}
                               </span>
                             </div>
-                            <p className="text-[11px] text-muted-foreground mt-0.5">
+                            <p className="text-[11px] text-muted-foreground mt-0.5 max-sm:hidden">
                               {TESTI_RUOLO_AGGIUNTIVO[r].cosaFa}
                             </p>
                           </div>
@@ -630,33 +585,6 @@ export function UserRolesPermissionsTab({
               </>
             )}
 
-            {/* Preset apply button — nascosto mentre si sta cambiando ruolo:
-                parla del ruolo di adesso, e accanto alla conferma confonde. */}
-            {!isAdmin && !pendingRoleChange && ROLE_PRESETS[selectedRole] && Object.keys(ROLE_PRESETS[selectedRole]).length > 0 && (
-              <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/50">
-                <div className="flex items-start gap-2">
-                  <Sparkles className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-xs font-medium text-blue-900 dark:text-blue-200">
-                      Preset disponibile per {roleMeta.label}
-                    </p>
-                    <p className="text-[11px] text-blue-700/80 dark:text-blue-300/80">
-                      Applica i permessi tipici per questo ruolo come punto di partenza.
-                    </p>
-                  </div>
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="shrink-0 h-8 bg-white dark:bg-background hover:bg-blue-100 dark:hover:bg-blue-950/40"
-                  onClick={handleApplyRolePreset}
-                >
-                  <Sparkles className="h-3.5 w-3.5 mr-1" />
-                  Applica preset
-                </Button>
-              </div>
-            )}
           </CardContent>
         </Card>
 
@@ -685,11 +613,12 @@ export function UserRolesPermissionsTab({
           </Card>
         ) : (
           <Card>
-            <CardHeader className="pb-3">
+            {/* Mobile: la scheda si chiama già «Permessi». */}
+            <CardHeader className="pb-3 max-sm:hidden">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <CardTitle className="text-base">Autorizzazioni moduli</CardTitle>
-                  <CardDescription className="text-xs">
+                  <CardDescription className="text-xs max-sm:hidden">
                     Configura cosa può vedere e modificare questo utente
                   </CardDescription>
                 </div>
@@ -702,69 +631,50 @@ export function UserRolesPermissionsTab({
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="space-y-4">
-              {/* ── Visibilità dati economici (modello a 3 livelli) ─────────── */}
-              <div className="rounded-lg border bg-gradient-to-br from-emerald-50/60 to-transparent dark:from-emerald-950/20 p-3 space-y-3">
-                <div className="flex items-center gap-2">
-                  <Euro className="h-4 w-4 text-emerald-600 shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold leading-tight">Visibilità dati economici</p>
-                    <p className="text-xs text-muted-foreground">Cosa vede su commesse, lista, preventivi e PDF.</p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <CardContent className="space-y-4 max-sm:space-y-3 max-sm:p-4">
+              {/* ── Importi (modello a 3 livelli) ─────────────────────────────
+                  Tre segmenti come nella creazione dell'utente; i tre
+                  interruttori uno per uno stanno in «Avanzate». */}
+              <div className="space-y-1.5">
+                <p className="flex items-center gap-2 text-sm font-semibold">
+                  <Euro className="h-4 w-4 shrink-0 text-emerald-600" /> Importi
+                </p>
+                <div role="radiogroup" aria-label="Importi" className="grid grid-cols-3 gap-1 rounded-lg bg-muted p-1 sm:max-w-md">
                   {ECONOMIC_LEVELS.map((lvl) => {
                     const active = economicLevel === lvl.id;
                     return (
                       <button
                         key={lvl.id}
                         type="button"
+                        role="radio"
+                        aria-checked={active}
                         onClick={() => setPermissions((prev) => ({ ...prev, ...lvl.values }))}
                         className={cn(
-                          "text-left rounded-lg border p-2.5 transition-all",
-                          active
-                            ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 ring-1 ring-emerald-500/40"
-                            : "hover:bg-muted/50 border-border"
+                          "tap-compact rounded-md px-2 py-1.5 text-sm font-medium transition-colors",
+                          active ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
                         )}
                       >
-                        <div className="flex items-center gap-1.5">
-                          {active && <Check className="h-3.5 w-3.5 text-emerald-600 shrink-0" />}
-                          <span className="text-sm font-medium">{lvl.label}</span>
-                        </div>
-                        <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">{lvl.desc}</p>
+                        {lvl.label}
                       </button>
                     );
                   })}
                 </div>
-                {economicLevel === "custom" && (
-                  <p className="text-[11px] text-amber-600 flex items-center gap-1">
-                    <Info className="h-3 w-3 shrink-0" /> Combinazione personalizzata — regola i singoli interruttori qui sotto.
-                  </p>
-                )}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  {([
-                    { key: "can_view_order_amounts" as const, label: "Importi di vendita" },
-                    { key: "can_view_costs" as const, label: "Costi" },
-                    { key: "can_view_margins" as const, label: "Margini" },
-                  ]).map((t) => (
-                    <label key={t.key} className="flex items-center gap-2 rounded-md border bg-background/60 px-2.5 py-2 cursor-pointer">
-                      <Switch checked={!!permissions[t.key]} onCheckedChange={(c) => handleToggle(t.key, c)} />
-                      <span className="text-xs font-medium">{t.label}</span>
-                    </label>
-                  ))}
-                </div>
+                <p className="text-[11px] leading-snug text-muted-foreground">
+                  {ECONOMIC_LEVELS.find((l) => l.id === economicLevel)?.desc ??
+                    "Combinazione personalizzata: la regoli in «Avanzate»."}
+                </p>
               </div>
 
               <Separator />
 
               {/* Limitazione visibilità */}
-              <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
+              <div className="flex items-center justify-between gap-3 p-3 rounded-lg border bg-muted/30 max-sm:py-2">
                 <div className="space-y-0.5 min-w-0">
                   <Label className="font-medium flex items-center gap-2 text-sm">
-                    <EyeOff className="h-4 w-4" />
+                    <EyeOff className="h-4 w-4 shrink-0" />
                     Limita visibilità ai dati assegnati
                   </Label>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-muted-foreground max-sm:hidden">
                     Se attivo, l'utente vedrà solo ordini, attività e appuntamenti assegnati a lui
                   </p>
                 </div>
@@ -795,39 +705,6 @@ export function UserRolesPermissionsTab({
                   })
                 }
               />
-
-              {/* Visibilità sul team — trasversale (attività e calendario riguardano
-                  tutta l'azienda, non un modulo): vive qui accanto a only_assigned. */}
-              <div className="rounded-lg border bg-muted/30 p-3 space-y-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="space-y-0.5 min-w-0">
-                    <Label className="font-medium text-sm">Attività del team</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Vede le attività (task) di tutto il team nella pagina Attività; spento vede solo le proprie
-                    </p>
-                  </div>
-                  <Switch
-                    checked={permissions.can_view_team_tasks || false}
-                    onCheckedChange={(checked) =>
-                      setPermissions((prev) => ({ ...prev, can_view_team_tasks: checked }))
-                    }
-                  />
-                </div>
-                <div className="flex items-center justify-between gap-3">
-                  <div className="space-y-0.5 min-w-0">
-                    <Label className="font-medium text-sm">Calendario del team</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Vede appuntamenti ed eventi di tutti nel calendario; spento vede solo i propri
-                    </p>
-                  </div>
-                  <Switch
-                    checked={permissions.can_view_all_team_calendar || false}
-                    onCheckedChange={(checked) =>
-                      setPermissions((prev) => ({ ...prev, can_view_all_team_calendar: checked }))
-                    }
-                  />
-                </div>
-              </div>
 
               {/* Pipeline visibili — come «Aree visibili»: nessuna spuntata =
                   tutte. La applica il database (policy pipeline_visibili_utente),
@@ -862,8 +739,8 @@ export function UserRolesPermissionsTab({
               <Separator />
 
               {/* Toolbar: search + bulk */}
-              <div className="flex items-center gap-2 flex-wrap">
-                <div className="relative flex-1 min-w-[200px]">
+              <div className="flex items-center gap-2 flex-wrap max-sm:flex-nowrap">
+                <div className="relative flex-1 min-w-[200px] max-sm:min-w-0">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     placeholder="Cerca modulo..."
@@ -872,7 +749,28 @@ export function UserRolesPermissionsTab({
                     className="pl-9 h-9"
                   />
                 </div>
-                <div className="flex items-center gap-1">
+                {/* Mobile: le tre azioni in blocco stanno in un menu accanto alla ricerca. */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button type="button" variant="outline" size="icon" className="tap-compact h-9 w-9 shrink-0 sm:hidden" aria-label="Azioni sui permessi">
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={handleSelectAll}>
+                      <Check className="mr-2 h-4 w-4" /> Attiva tutti
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleDeselectAll}>
+                      <X className="mr-2 h-4 w-4" /> Disattiva tutti
+                    </DropdownMenuItem>
+                    {ROLE_PRESETS[selectedRole] && Object.keys(ROLE_PRESETS[selectedRole]).length > 0 && !pendingRoleChange && (
+                      <DropdownMenuItem onClick={handleApplyRolePreset}>
+                        <Sparkles className="mr-2 h-4 w-4" /> Come {roleMeta.label}
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <div className="flex items-center gap-1 max-sm:hidden">
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button type="button" variant="outline" size="sm" className="h-9" onClick={handleSelectAll}>
@@ -891,13 +789,23 @@ export function UserRolesPermissionsTab({
                     </TooltipTrigger>
                     <TooltipContent>Disabilita tutti i permessi</TooltipContent>
                   </Tooltip>
+                  {ROLE_PRESETS[selectedRole] && Object.keys(ROLE_PRESETS[selectedRole]).length > 0 && !pendingRoleChange && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button type="button" variant="outline" size="sm" className="h-9" onClick={handleApplyRolePreset}>
+                          Come {roleMeta.label}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Riparti dai permessi tipici del ruolo</TooltipContent>
+                    </Tooltip>
+                  )}
                 </div>
               </div>
 
               {/* Categories */}
               <div className="space-y-2">
                 {filteredCategories.map((category) => {
-                  const isExpanded = expandedCategories.includes(category.id);
+                  const isExpanded = searchQuery.trim() !== "" || expandedCategories.includes(category.id);
                   const { active, total } = getCategoryPermCount(category);
                   const CatIcon = category.icon;
                   const allActive = active === total && total > 0;
@@ -905,7 +813,7 @@ export function UserRolesPermissionsTab({
                     <Collapsible key={category.id} open={isExpanded} onOpenChange={() => toggleCategory(category.id)}>
                       <div
                         className={cn(
-                          "flex items-center gap-2 p-3 rounded-lg border transition-colors",
+                          "flex items-center gap-2 p-3 rounded-lg border transition-colors max-sm:py-0 max-sm:pl-3 max-sm:pr-1",
                           active > 0 ? "bg-card" : "bg-muted/20"
                         )}
                       >
@@ -960,7 +868,7 @@ export function UserRolesPermissionsTab({
                         </Tooltip>
                       </div>
                       <CollapsibleContent>
-                        <div className="mt-1 ml-3 border-l-2 border-muted pl-3 space-y-0.5">
+                        <div className="mt-1 ml-3 border-l-2 border-muted pl-3 space-y-0.5 max-sm:ml-2 max-sm:pl-1.5">
                           {category.modules.map((mod) => {
                             const viewEnabled = permissions[mod.viewKey] as boolean;
                             const viewBloccato = !!permissions.sola_lettura && isBlockedBySolaLettura(mod.viewKey);
@@ -983,14 +891,14 @@ export function UserRolesPermissionsTab({
                                     />
                                     <div className="min-w-0">
                                       <p className="text-sm font-medium leading-tight">{mod.label}</p>
-                                      <p className="text-xs text-muted-foreground mt-0.5">
+                                      <p className="text-xs text-muted-foreground mt-0.5 max-sm:hidden">
                                         {mod.description}
                                       </p>
                                       {viewBloccato && (
                                         <p className="text-[11px] text-amber-600 mt-0.5">{SOLA_LETTURA_BLOCKED_NOTE}</p>
                                       )}
                                       {mod.includes && mod.includes.length > 0 && (
-                                        <p className="text-[10px] text-muted-foreground/70 mt-1 flex items-center gap-1">
+                                        <p className="text-[10px] text-muted-foreground/70 mt-1 flex items-center gap-1 max-sm:hidden">
                                           <span className="inline-block h-1 w-1 rounded-full bg-muted-foreground/40" />
                                           Include: {mod.includes.join(", ")}
                                         </p>
@@ -999,13 +907,9 @@ export function UserRolesPermissionsTab({
                                   </div>
                                 </div>
                                 {viewEnabled && mod.editKey && (
-                                  <div className="mt-2 ml-12 flex items-center gap-4">
-                                    <div className="flex items-center gap-2 opacity-60">
-                                      <Checkbox id={`${mod.id}-view`} checked disabled />
-                                      <Label htmlFor={`${mod.id}-view`} className="text-xs text-muted-foreground">
-                                        Visualizza
-                                      </Label>
-                                    </div>
+                                  // La casella «Visualizza» sempre spuntata e spenta era rumore:
+                                  // resta solo «Modifica».
+                                  <div className="mt-2 ml-12 flex items-center gap-4 max-sm:mt-1.5">
                                     <div className="flex items-center gap-2">
                                       <Checkbox
                                         id={`${mod.id}-edit`}
@@ -1033,12 +937,69 @@ export function UserRolesPermissionsTab({
                   );
                 })}
                 {filteredCategories.length === 0 && (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Search className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                  <div className="text-center py-8 text-muted-foreground max-sm:py-4">
+                    <Search className="h-8 w-8 mx-auto mb-2 opacity-40 max-sm:hidden" />
                     <p className="text-sm">Nessun modulo trovato per "{searchQuery}"</p>
                   </div>
                 )}
               </div>
+
+              {/* Avanzate: importi uno per uno e visibilità sul team. */}
+              <Collapsible open={avanzateAperte} onOpenChange={setAvanzateAperte}>
+                <CollapsibleTrigger asChild>
+                  <button type="button" className="tap-compact flex w-full items-center justify-between rounded-lg border border-border px-3 py-2.5 text-sm font-medium">
+                    Avanzate
+                    <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", avanzateAperte && "rotate-180")} />
+                  </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="space-y-3 pt-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {([
+                      { key: "can_view_order_amounts" as const, label: "Importi di vendita" },
+                      { key: "can_view_costs" as const, label: "Costi" },
+                      { key: "can_view_margins" as const, label: "Margini" },
+                    ]).map((t) => (
+                      <label key={t.key} className="flex items-center gap-2 rounded-md border bg-background/60 px-2.5 py-2 cursor-pointer">
+                        <Switch checked={!!permissions[t.key]} onCheckedChange={(c) => handleToggle(t.key, c)} />
+                        <span className="text-xs font-medium">{t.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                  {/* Visibilità sul team — trasversale (attività e calendario riguardano
+                  tutta l'azienda, non un modulo): vive qui accanto a only_assigned. */}
+              <div className="rounded-lg border bg-muted/30 p-3 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="space-y-0.5 min-w-0">
+                    <Label className="font-medium text-sm">Attività del team</Label>
+                    <p className="text-xs text-muted-foreground max-sm:hidden">
+                      Vede le attività (task) di tutto il team nella pagina Attività; spento vede solo le proprie
+                    </p>
+                  </div>
+                  <Switch
+                    checked={permissions.can_view_team_tasks || false}
+                    onCheckedChange={(checked) =>
+                      setPermissions((prev) => ({ ...prev, can_view_team_tasks: checked }))
+                    }
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="space-y-0.5 min-w-0">
+                    <Label className="font-medium text-sm">Calendario del team</Label>
+                    <p className="text-xs text-muted-foreground max-sm:hidden">
+                      Vede appuntamenti ed eventi di tutti nel calendario; spento vede solo i propri
+                    </p>
+                  </div>
+                  <Switch
+                    checked={permissions.can_view_all_team_calendar || false}
+                    onCheckedChange={(checked) =>
+                      setPermissions((prev) => ({ ...prev, can_view_all_team_calendar: checked }))
+                    }
+                  />
+                </div>
+              </div>
+
+                </CollapsibleContent>
+              </Collapsible>
             </CardContent>
           </Card>
         )}
@@ -1049,14 +1010,18 @@ export function UserRolesPermissionsTab({
             ref={saveBarRef}
             className={cn(
               "fixed bottom-0 left-0 right-0 lg:left-[280px] z-30 transition-transform duration-200",
-              isDirty ? "translate-y-0" : "translate-y-full"
+              // Mobile: sopra la barra di navigazione in basso (che sta davanti,
+              // z-40), come un riquadro sospeso; senza modifiche non c'è (spostarla
+              // in giù la lasciava sporgere sopra la barra di navigazione).
+              "max-md:bottom-[calc(5.5rem+env(safe-area-inset-bottom))] max-md:left-3 max-md:right-3 max-md:z-50",
+              isDirty ? "translate-y-0" : "translate-y-full max-md:invisible max-md:translate-y-0 max-md:opacity-0"
             )}
           >
-            <div className="bg-background/95 backdrop-blur-md border-t shadow-lg">
-              <div className="max-w-[1600px] mx-auto px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
+            <div className="bg-background/95 backdrop-blur-md border-t shadow-lg max-md:rounded-xl max-md:border">
+              <div className="max-w-[1600px] mx-auto px-4 py-3 flex items-center justify-between gap-3 flex-wrap max-md:flex-nowrap max-md:px-3 max-md:py-2">
                 <div className="flex items-center gap-2 text-sm">
                   <span className="inline-block h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
-                  <span className="font-medium">Modifiche non salvate</span>
+                  <span className="font-medium max-md:text-xs">Modifiche non salvate</span>
                   <span className="text-muted-foreground hidden sm:inline">
                     · {totalPermissionsCount.active} permessi attivi
                   </span>

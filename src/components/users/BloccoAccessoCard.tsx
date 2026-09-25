@@ -64,7 +64,7 @@ export function BloccoAccessoCard({ userId, isBlocked, blockedAt, blockReason, p
 
   return (
     <div
-      className={`flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-3 ${
+      className={`flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-3 max-sm:px-3 max-sm:py-2 ${
         isBlocked ? "border-destructive/50 bg-destructive/5" : "bg-card"
       }`}
     >
@@ -73,10 +73,11 @@ export function BloccoAccessoCard({ userId, isBlocked, blockedAt, blockReason, p
           ? <ShieldOff className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
           : <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-green-600" />}
         <div className="min-w-0">
-          <p className={`text-sm font-medium ${isBlocked ? "text-destructive" : ""}`}>
-            {isBlocked ? "Accesso bloccato" : "Accesso all'app consentito"}
+          <p className={`text-sm font-medium max-sm:text-xs ${isBlocked ? "text-destructive" : ""}`}>
+            {isBlocked ? "Accesso bloccato" : <>Accesso<span className="max-sm:hidden"> all'app</span> consentito</>}
           </p>
-          <p className="text-xs text-muted-foreground">
+          {/* Mobile: la spiegazione resta solo nella conferma. */}
+          <p className={`text-xs text-muted-foreground ${isBlocked ? "" : "max-sm:hidden"}`}>
             {isBlocked
               ? [blockedAt && `Dal ${format(new Date(blockedAt), "dd/MM/yyyy HH:mm", { locale: it })}`, blockReason].filter(Boolean).join(" · ") || "Non può entrare."
               : "Per chi non lavora più qui: blocca l'accesso invece di eliminare, dati e storico restano."}

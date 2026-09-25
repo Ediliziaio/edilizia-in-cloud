@@ -113,7 +113,7 @@ export function UserSecurityTab({ userId, user, passwordExpiryDays = 0, isAdmin,
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-sm:space-y-3">
       <BloccoAccessoCard
         userId={userId}
         isBlocked={!!user.is_blocked}
@@ -124,13 +124,46 @@ export function UserSecurityTab({ userId, user, passwordExpiryDays = 0, isAdmin,
 
       {/* Account Status */}
       <Card>
-        <CardHeader>
+        <CardHeader className="max-sm:p-4 max-sm:pb-1">
           <CardTitle className="text-base flex items-center gap-2">
             <Shield className="h-4 w-4" /> Stato Account
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <CardContent className="space-y-4 max-sm:p-4 max-sm:pt-0">
+          {/* Mobile: tre righe etichetta/valore al posto dei quattro riquadri;
+              il blocco per tentativi falliti compare solo quando c'è. */}
+          <dl className="divide-y divide-border text-sm sm:hidden">
+            {isLocked && (
+              <div className="flex items-center justify-between gap-2 py-2">
+                <dt className="flex items-center gap-1.5 text-destructive">
+                  <Lock className="h-3.5 w-3.5 shrink-0" />
+                  Bloccato fino al {format(new Date(user.locked_until!), "dd/MM HH:mm")}
+                </dt>
+                <dd>
+                  <Button variant="outline" size="sm" className="tap-compact h-8" onClick={() => unlockMutation.mutate()} disabled={unlockMutation.isPending}>
+                    Sblocca
+                  </Button>
+                </dd>
+              </div>
+            )}
+            <div className="flex items-center justify-between gap-2 py-2">
+              <dt className="text-muted-foreground">Tentativi falliti</dt>
+              <dd className={failedAttempts > 0 ? "font-medium text-orange-600" : ""}>{failedAttempts}</dd>
+            </div>
+            <div className="flex items-center justify-between gap-2 py-2">
+              <dt className="text-muted-foreground">Ultimo accesso</dt>
+              <dd>
+                {user.last_login_at
+                  ? format(new Date(user.last_login_at), "dd/MM/yyyy HH:mm", { locale: it })
+                  : "Mai"}
+              </dd>
+            </div>
+            <div className="flex items-center justify-between gap-2 py-2">
+              <dt className="text-muted-foreground">Ultimo IP</dt>
+              <dd className="truncate font-mono text-xs">{user.last_login_ip || "—"}</dd>
+            </div>
+          </dl>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-sm:hidden">
             {/* Lock status */}
             <div className="flex items-center justify-between p-3 rounded-lg border">
               <div className="flex items-center gap-2">
@@ -194,14 +227,15 @@ export function UserSecurityTab({ userId, user, passwordExpiryDays = 0, isAdmin,
       </Card>
 
       {/* Password */}
+      {/* Mobile: niente titoli su Password e 2FA, la riga dice già cosa sono. */}
       <Card>
-        <CardHeader>
+        <CardHeader className="max-sm:hidden">
           <CardTitle className="text-base flex items-center gap-2">
             <Key className="h-4 w-4" /> Password
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
+        <CardContent className="space-y-4 max-sm:p-4">
+          <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-sm font-medium">Ultimo cambio password</p>
               <p className="text-xs text-muted-foreground">
@@ -217,8 +251,9 @@ export function UserSecurityTab({ userId, user, passwordExpiryDays = 0, isAdmin,
             </div>
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant="outline" size="sm">
-                  Forza Reset Password
+                <Button variant="outline" size="sm" className="shrink-0">
+                  <span className="max-sm:hidden">Forza Reset Password</span>
+                  <span className="sm:hidden">Forza reset</span>
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
@@ -242,16 +277,16 @@ export function UserSecurityTab({ userId, user, passwordExpiryDays = 0, isAdmin,
 
       {/* 2FA */}
       <Card>
-        <CardHeader>
+        <CardHeader className="max-sm:hidden">
           <CardTitle className="text-base flex items-center gap-2">
             <Shield className="h-4 w-4" /> Autenticazione a Due Fattori
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between">
+        <CardContent className="max-sm:p-4">
+          <div className="flex items-center justify-between gap-3">
             <div>
-              <Label htmlFor="require-2fa" className="text-sm font-medium">Richiedi 2FA per questo utente</Label>
-              <p className="text-xs text-muted-foreground">Al prossimo login verrà richiesta la configurazione 2FA.</p>
+              <Label htmlFor="require-2fa" className="text-sm font-medium">Richiedi 2FA<span className="max-sm:hidden"> per questo utente</span></Label>
+              <p className="text-xs text-muted-foreground max-sm:hidden">Al prossimo login verrà richiesta la configurazione 2FA.</p>
             </div>
             <Switch
               id="require-2fa"

@@ -114,12 +114,16 @@ export function SettingsLayout() {
   // v8.6.71 — Sull'hub (/azienda/impostazioni senza sub-segmento) non mostriamo
   // il back arrow (è la pagina root). Su tutte le sotto-pagine sì.
   const isHubRoot = pathname === "/azienda/impostazioni" || pathname === "/azienda/impostazioni/";
+  // La scheda di un utente ha già il suo titolo (il nome) con la freccia che
+  // torna alla lista: su telefono la testata «Utenti» sopra era un doppione,
+  // con una seconda freccia che portava altrove (all'elenco impostazioni).
+  const haTestataPropria = pathname.startsWith("/azienda/impostazioni/utenti/");
 
   return (
     <div className="flex flex-col min-h-full">
       {/* Header contestuale — titolo + descrizione derivati dall'URL corrente.
           Mobile: senza riquadro e senza margini propri (<main> ha già p-3). */}
-      <div className="border-b bg-background px-4 py-4 md:px-6 md:py-5 max-sm:border-0 max-sm:bg-transparent max-sm:px-0 max-sm:pb-2 max-sm:pt-0">
+      <div className={cn("border-b bg-background px-4 py-4 md:px-6 md:py-5 max-sm:border-0 max-sm:bg-transparent max-sm:px-0 max-sm:pb-2 max-sm:pt-0", haTestataPropria && "max-sm:hidden")}>
         <div className="flex items-start gap-3">
           {/* v8.6.71 — Back arrow mobile: porta all'hub griglia impostazioni.
               Nascosto su desktop (sidebar laterale è la navigazione primaria)

@@ -112,9 +112,8 @@ describe("Scheda utente — ruoli aggiuntivi", () => {
     expect(screen.getByText("Ruoli aggiuntivi")).toBeTruthy();
     expect(screen.getByLabelText(/Anche Venditore/)).toBeTruthy();
     expect(screen.getByLabelText(/Anche Call Center/)).toBeTruthy();
-    // Il call center c'è già: la casella è spuntata, e il ruolo si vede in testa.
+    // Il call center c'è già: la casella è spuntata.
     expect(screen.getByLabelText(/Anche Call Center/).getAttribute("data-state")).toBe("checked");
-    expect(screen.getByText(/anche Call Center/)).toBeTruthy();
 
     fireEvent.click(screen.getByLabelText(/Anche Operaio \/ Tecnico/));
     expect(onToggle).toHaveBeenCalledWith("employee", true);

@@ -122,7 +122,8 @@ async function scegli(ruolo: RegExp) {
 
 describe("Scheda utente — il menu del ruolo", () => {
   it("la scelta si vede subito nel menu, e la conferma sta sulla stessa riga", async () => {
-    render(<UserRolesPermissionsTab user={elena()} onSave={vi.fn()} onChangeRole={vi.fn()} />);
+    const onChangeRole = vi.fn();
+    render(<UserRolesPermissionsTab user={elena()} onSave={vi.fn()} onChangeRole={onChangeRole} />);
     await scegli(/Amministratore/);
 
     // Il menu dice la scelta, non il ruolo vecchio: era questo a far riaprire il menu.
@@ -133,8 +134,8 @@ describe("Scheda utente — il menu del ruolo", () => {
     expect(screen.getByText(/Non è ancora salvato/)).toBeInTheDocument();
     // Il vecchio riquadro con tre scelte non c'è più.
     expect(screen.queryByText(/Cambiare il ruolo in/)).toBeNull();
-    // Il ruolo attuale resta quello salvato finché il database non conferma.
-    expect(screen.getByText("Ruolo attuale").nextElementSibling).toHaveTextContent("Call Center");
+    // Finché non si conferma non parte niente: il ruolo salvato resta quello di prima.
+    expect(onChangeRole).not.toHaveBeenCalled();
   }, TIMEOUT);
 
   it("Amministratore: una sola conferma, senza permessi (vede tutto)", async () => {

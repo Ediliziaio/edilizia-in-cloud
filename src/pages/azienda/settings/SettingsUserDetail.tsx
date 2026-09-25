@@ -28,6 +28,7 @@ import { StaffPermissions } from "@/components/users/PermissionsDialog";
 import { salvaPermessiUtente } from "@/lib/permessi/salvaPermessiUtente";
 import { ruoloPrincipale, ruoliAggiuntivi, TESTI_RUOLO_AGGIUNTIVO, type RuoloAggiuntivo } from "@/lib/permessi/ruoliUtente";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { normalizeCompanyAccessRole } from "@/lib/auth/multiCompany";
 import { isNetworkError, isTransientTimeoutError, sembraErrorePostgresGrezzo, userErrorMessage } from "@/lib/userErrorMessage";
 import type { Database } from "@/integrations/supabase/types";
@@ -63,6 +64,11 @@ interface UserDetail {
   additionalRoles: RuoloAggiuntivo[];
   permissions: StaffPermissions | null;
 }
+
+// Mobile: dati, permessi e sicurezza (bloccare, sbloccare, reimpostare);
+// sessioni, log, disponibilità, calendario e notifiche al computer.
+const SCHEDE_MOBILE = new Set<string>(["profile", "permissions", "security"]);
+const ETICHETTA_MOBILE: Record<string, string> = { profile: "Dati", permissions: "Permessi", security: "Sicurezza" };
 
 const SIDEBAR_TABS = [
   { id: "profile", label: "Informazioni Utente", icon: User },
@@ -123,13 +129,17 @@ export default function SettingsUserDetail() {
     }
   }, [authLoading, permissions.isLoading, canManagePeople, navigate, toast]);
 
+  const isMobile = useIsMobile();
   const [activeTab, setActiveTab] = useState<TabId>(() => {
     const tabParam = searchParams.get("tab");
     if (tabParam && SIDEBAR_TABS.some(t => t.id === tabParam)) {
+      // Su telefono un indirizzo verso una scheda da computer apre i dati.
+      if (window.innerWidth < 768 && !SCHEDE_MOBILE.has(tabParam)) return "profile";
       return tabParam as TabId;
     }
     return "profile";
   });
+  const schedaVisibile: TabId = isMobile && !SCHEDE_MOBILE.has(activeTab) ? "profile" : activeTab;
 
   const { data: userData, isLoading } = useQuery<UserDetail>({
     queryKey: [...queryKeys.users.detail(userId), effectiveCompany?.id],
@@ -452,14 +462,14 @@ export default function SettingsUserDetail() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/azienda/impostazioni/utenti")}>
+    <div className="space-y-4 max-md:space-y-3">
+      <div className="flex items-center gap-3 max-md:gap-1.5">
+        <Button variant="ghost" size="icon" className="max-md:-ml-2 max-md:h-8 max-md:w-8" onClick={() => navigate("/azienda/impostazioni/utenti")} aria-label="Torna agli utenti">
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div>
+        <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <h2 className="text-lg font-semibold">{userData.first_name} {userData.last_name}</h2>
+            <h2 className="truncate text-lg font-semibold max-md:text-base">{userData.first_name} {userData.last_name}</h2>
             {userData.e_il_titolare && (
               <Badge variant="secondary" className="gap-1 text-xs">
                 <ShieldCheck className="h-3 w-3" /> Titolare
@@ -471,7 +481,7 @@ export default function SettingsUserDetail() {
               </Badge>
             )}
           </div>
-          <p className="text-sm text-muted-foreground">{userData.email}</p>
+          <p className="truncate text-sm text-muted-foreground max-md:text-xs">{userData.email}</p>
         </div>
       </div>
 
@@ -479,8 +489,8 @@ export default function SettingsUserDetail() {
         <div className="flex items-start gap-3 rounded-lg border bg-muted/40 p-3 text-sm">
           <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
           <div>
-            <p className="font-medium">È il titolare dell'azienda</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">
+            <p className="font-medium max-md:text-xs">È il titolare dell'azienda<span className="md:hidden">: il ruolo di amministratore non si toglie.</span></p>
+            <p className="mt-0.5 text-xs text-muted-foreground max-md:hidden">
               Il suo ruolo di Amministratore non si può togliere, nemmeno da un altro amministratore: serve
               prima indicare un altro titolare. Ed è l'unico che può cambiare il ruolo agli altri amministratori.
             </p>
@@ -493,8 +503,8 @@ export default function SettingsUserDetail() {
         <div className="flex items-start gap-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
           <HardHat className="h-4 w-4 shrink-0 mt-0.5 text-amber-600" />
           <div>
-            <p className="font-medium">Utente Area Campo</p>
-            <p className="text-amber-700 text-xs mt-0.5">
+            <p className="font-medium max-md:text-xs">Utente Area Campo<span className="md:hidden">: entra da lavori.ediliziaincloud.com.</span></p>
+            <p className="text-amber-700 text-xs mt-0.5 max-md:hidden">
               Questo utente accede tramite{" "}
               <a href="https://lavori.ediliziaincloud.com" target="_blank" rel="noreferrer" className="underline font-medium">
                 lavori.ediliziaincloud.com
@@ -505,30 +515,27 @@ export default function SettingsUserDetail() {
         </div>
       )}
 
-      {/* Mobile: horizontal scrollable tabs */}
-      <div className="md:hidden overflow-x-auto -mx-1 px-1">
-        <div className="flex gap-1 min-w-max pb-2">
-          {SIDEBAR_TABS.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={cn(
-                  "flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors whitespace-nowrap",
-                  isActive ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                )}
-              >
-                <Icon className="h-3.5 w-3.5 shrink-0" />
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
+      {/* Mobile: tre schede su tutta la larghezza (erano otto in una fila che
+          scorreva di lato). */}
+      <div className="md:hidden grid grid-cols-3 gap-1 rounded-lg bg-muted p-1">
+        {SIDEBAR_TABS.filter((tab) => SCHEDE_MOBILE.has(tab.id)).map((tab) => {
+          const isActive = schedaVisibile === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                "tap-compact rounded-md px-2 py-1.5 text-xs font-medium transition-colors",
+                isActive ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {ETICHETTA_MOBILE[tab.id]}
+            </button>
+          );
+        })}
       </div>
 
-      <div className="flex gap-6 min-h-[600px]">
+      <div className="flex gap-6 min-h-[600px] max-md:min-h-0">
         {/* Desktop: vertical sidebar */}
         <div className="hidden md:block w-64 shrink-0">
           <nav className="space-y-1 sticky top-4">
@@ -553,7 +560,7 @@ export default function SettingsUserDetail() {
         </div>
 
         <div className="flex-1 min-w-0">
-          {activeTab === "profile" && (
+          {schedaVisibile === "profile" && (
             <UserProfileTab
               key={`profile-${userData.id}-${userData.role}`}
               user={userData}
@@ -563,16 +570,17 @@ export default function SettingsUserDetail() {
               isLoading={saveProfileMutation.isPending}
             />
           )}
-          {activeTab === "permissions" && (
+          {schedaVisibile === "permissions" && (
             <div className="space-y-4">
-            {/* Chi toglie i permessi a chi se ne va cerca qui come chiuderle l'accesso. */}
-            <BloccoAccessoCard
+            {/* Chi toglie i permessi a chi se ne va cerca qui come chiuderle l'accesso.
+                Mobile: sta solo in «Sicurezza», niente doppione tra le schede. */}
+            {!isMobile && <BloccoAccessoCard
               userId={userId!}
               isBlocked={userData.is_blocked}
               blockedAt={userData.blocked_at}
               blockReason={userData.block_reason}
               puoBloccare={canManagePeople && userId !== currentUser?.id && userData.role !== "company_admin"}
-            />
+            />}
             <UserRolesPermissionsTab
               key={`perms-${userData.id}-${userData.role}-${userData.additionalRoles.join(",")}`}
               user={{
@@ -598,9 +606,9 @@ export default function SettingsUserDetail() {
             />
             </div>
           )}
-          {activeTab === "sessions" && <UserSessionsTab userId={userId!} />}
-          {activeTab === "activity" && <UserActivityLogTab userId={userId!} />}
-          {activeTab === "security" && (
+          {schedaVisibile === "sessions" && <UserSessionsTab userId={userId!} />}
+          {schedaVisibile === "activity" && <UserActivityLogTab userId={userId!} />}
+          {schedaVisibile === "security" && (
             <UserSecurityTab
               userId={userId!}
               user={{
@@ -619,9 +627,9 @@ export default function SettingsUserDetail() {
               isTargetAdmin={userData.role === "company_admin"}
             />
           )}
-          {activeTab === "availability" && <UserAvailabilityTab />}
-          {activeTab === "calendar" && <UserCalendarTab />}
-          {activeTab === "notifications" && <UserNotificationsTab />}
+          {schedaVisibile === "availability" && <UserAvailabilityTab />}
+          {schedaVisibile === "calendar" && <UserCalendarTab />}
+          {schedaVisibile === "notifications" && <UserNotificationsTab />}
         </div>
       </div>
 
