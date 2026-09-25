@@ -184,7 +184,8 @@ describe("modulo di recesso e pagina della firma in tutti i documenti", () => {
   it("i quattro motori allegano il modulo solo quando l'azienda lo accende", () => {
     expect(leggi("src/components/preventivi/pdf/DocumentoEdilePDF.tsx")).toContain("MODULO_RECESSO.dichiarazione(dati.codice)");
     expect(leggi("src/components/preventivi/pdf/adattatoreEdile.ts")).toContain("conRecesso: t.modulo_recesso_attivo === true,");
-    expect(leggi("supabase/functions/_shared/fvHtmlTemplate.ts")).toContain("if (haModuloRecesso(d)) pages.push(pageModuloRecesso(d, ++pageN, TOTAL));");
+    // Le pagine del fotovoltaico si aggiungono con append(nome, html) dal 25/09/2026.
+    expect(leggi("supabase/functions/_shared/fvHtmlTemplate.ts")).toContain('if (haModuloRecesso(d)) append("recesso", pageModuloRecesso(d, ++pageN, TOTAL));');
     expect(leggi("supabase/functions/_shared/fvHtmlTemplate.ts")).toContain("return haPaginaCondizioni(d) && d.template?.modulo_recesso_attivo === true;");
     expect(leggi("supabase/functions/fv-genera-pdf/index.ts")).toContain("modulo_recesso_attivo: template.modulo_recesso_attivo === true,");
     expect(leggi("supabase/functions/generate-quote-pdf/index.ts")).toContain("if (t.modulo_recesso_attivo === true) {");

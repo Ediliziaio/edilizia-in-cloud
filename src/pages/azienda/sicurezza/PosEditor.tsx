@@ -272,7 +272,7 @@ function EditorPos({ pos, datiApp, puoScrivere }: EditorProps) {
         </Link>
         <div className="mt-2 flex flex-wrap items-start justify-between gap-3 max-sm:mt-0 max-sm:flex-nowrap max-sm:items-center max-sm:gap-2">
           <div className="min-w-0">
-            <h1 className="text-lg font-bold sm:text-xl max-sm:leading-tight"><span className="max-sm:hidden">Piano Operativo di Sicurezza</span><span className="sm:hidden">POS</span></h1>
+            <h1 aria-label="Piano Operativo di Sicurezza" className="text-lg font-bold sm:text-xl max-sm:leading-tight"><span aria-hidden="true" className="max-sm:hidden">Piano Operativo di Sicurezza</span><span aria-hidden="true" className="sm:hidden">POS</span></h1>
             <p className="truncate text-sm text-muted-foreground max-sm:text-xs">{titoloCommessa}</p>
             <div className="mt-2 flex flex-wrap items-center gap-2 max-sm:hidden">
               <Badge variant="outline" className={approvato ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-slate-50"}>

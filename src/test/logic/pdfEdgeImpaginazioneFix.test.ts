@@ -110,11 +110,16 @@ describe("fix impaginazione/encoding PDF edge (audit)", () => {
   });
 
   describe("genera-pdf-rapportino", () => {
-    const source = read("supabase/functions/genera-pdf-rapportino/index.ts");
+    // Dal 25/09/2026 il disegno sta in render.ts (index.ts legge e salva): la
+    // tabella rifà l'intestazione a ogni pagina nuova, anche dentro una riga
+    // spezzata perché più alta di una pagina.
+    const source = read("supabase/functions/genera-pdf-rapportino/render.ts");
 
     it("ridisegna l'intestazione della tabella materiali al salto pagina", () => {
-      expect(source).toContain("drawTableHeader");
-      expect(source).toContain("if (ensureSpace(16)) drawTableHeader()");
+      expect(source).toContain("const header = () => {");
+      expect(source).toContain("if (rowHeight <= H - 68 - bottom - 23 && y - rowHeight < bottom) { nextPage(); header(); }");
+      expect(source).toContain("if (y - 25 < bottom) { nextPage(); header(); }");
+      expect(source).toContain("if (offset < count) { nextPage(); header(); }");
     });
   });
 });

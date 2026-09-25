@@ -53,7 +53,8 @@ describe("editor: la foto delle pagine", () => {
     expect(screen.getByText("di serie")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /Togli la foto/ }));
     expect(salvato()).toEqual({ pagina_percorso: { foto: [], senzaFoto: true } });
-    fireEvent.click(screen.getByRole("button", { name: /Torna alla foto di serie/ }));
+    // Dal 25/09/2026 testi e immagini si ripristinano separatamente.
+    fireEvent.click(screen.getByRole("button", { name: /Ripristina immagine standard/ }));
     expect(salvato()).toEqual({});
   });
 

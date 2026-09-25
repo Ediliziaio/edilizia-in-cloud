@@ -66,7 +66,10 @@ describe("StepMedia salva il riferimento nel bucket privato", () => {
 describe("il PDF firma le foto del progetto prima di convertirle", () => {
   it.each(MODULI)("%s", (_modulo, Nome) => {
     const sorgente = leggi(`src/hooks/use${Nome}PDF.ts`);
-    const firma = sorgente.indexOf("const linkMedia = await linkFileRiservati(imageMedia.map((m) => m.url));");
+    // L'anteprima locale dei moduli (localOnly) usa le foto d'esempio del modello;
+    // quelle del progetto passano sempre dal link firmato.
+    const firma = sorgente.indexOf("await linkFileRiservati(imageMedia.map((m) => m.url));");
+    expect(sorgente).toMatch(/const linkMedia = [\s\S]{0,300}?await linkFileRiservati\(imageMedia\.map\(\(m\) => m\.url\)\)/);
     expect(firma).toBeGreaterThan(-1);
     expect(sorgente.indexOf("toDataUrl(linkMedia[i])")).toBeGreaterThan(firma);
     expect(sorgente).not.toContain("toDataUrl(m.url)");
