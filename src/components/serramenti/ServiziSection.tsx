@@ -130,7 +130,7 @@ export function ServiziSection({ progettoId, detail }: Props) {
         position: righe.length,
       });
       toast.success(`${servizio.label} aggiunto`, {
-        description: `Prezzo €${Number(t.prezzo_vendita ?? 0).toLocaleString("it-IT", { minimumFractionDigits: 2 })} dal listino tariffe.`,
+        description: `Prezzo €${Number(t.prezzo_vendita ?? 0).toLocaleString("it-IT", { minimumFractionDigits: 2, useGrouping: true })} dal listino tariffe.`,
       });
       return;
     }
@@ -179,7 +179,7 @@ export function ServiziSection({ progettoId, detail }: Props) {
     // prezzo è stato impostato e da dove proviene.
     toast.success(`${t.nome} aggiunto`, {
       description: t.prezzo_vendita != null
-        ? `Prezzo €${Number(t.prezzo_vendita).toLocaleString("it-IT", { minimumFractionDigits: 2 })} dal listino tariffe.`
+        ? `Prezzo €${Number(t.prezzo_vendita).toLocaleString("it-IT", { minimumFractionDigits: 2, useGrouping: true })} dal listino tariffe.`
         : "Voce creata. Inserisci il prezzo nella riga.",
     });
   };
@@ -550,7 +550,7 @@ function TariffaPickerDialog({
                       <div className="text-right shrink-0">
                         {t.prezzo_vendita != null && (
                           <p className="text-sm font-bold text-orange-600 tabular-nums">
-                            € {Number(t.prezzo_vendita).toLocaleString("it-IT", { minimumFractionDigits: 2 })}
+                            € {Number(t.prezzo_vendita).toLocaleString("it-IT", { minimumFractionDigits: 2, useGrouping: true })}
                           </p>
                         )}
                       </div>

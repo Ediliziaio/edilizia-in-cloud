@@ -62,15 +62,15 @@ export function ContactInvoicesPanel({ contactId, companyId }: Props) {
         <div className="grid grid-cols-3 gap-1.5">
           <div className="rounded-md bg-muted/50 p-2 text-center">
             <p className="text-[9px] text-muted-foreground">Fatturato</p>
-            <p className="text-xs font-semibold">€{totalInvoiced.toLocaleString("it-IT", { minimumFractionDigits: 0 })}</p>
+            <p className="text-xs font-semibold">€{totalInvoiced.toLocaleString("it-IT", { minimumFractionDigits: 0, useGrouping: true })}</p>
           </div>
           <div className="rounded-md bg-muted/50 p-2 text-center">
             <p className="text-[9px] text-muted-foreground">Incassato</p>
-            <p className="text-xs font-semibold text-emerald-600">€{totalPaid.toLocaleString("it-IT", { minimumFractionDigits: 0 })}</p>
+            <p className="text-xs font-semibold text-emerald-600">€{totalPaid.toLocaleString("it-IT", { minimumFractionDigits: 0, useGrouping: true })}</p>
           </div>
           <div className="rounded-md bg-muted/50 p-2 text-center">
             <p className="text-[9px] text-muted-foreground">Da incassare</p>
-            <p className="text-xs font-semibold text-amber-600">€{totalOutstanding.toLocaleString("it-IT", { minimumFractionDigits: 0 })}</p>
+            <p className="text-xs font-semibold text-amber-600">€{totalOutstanding.toLocaleString("it-IT", { minimumFractionDigits: 0, useGrouping: true })}</p>
           </div>
         </div>
       )}
@@ -104,11 +104,11 @@ export function ContactInvoicesPanel({ contactId, companyId }: Props) {
                 <div className="flex items-center gap-1">
                   <Euro className="h-3 w-3 text-muted-foreground" />
                   <span className="text-[11px] font-medium">
-                    {(inv.total || 0).toLocaleString("it-IT", { minimumFractionDigits: 2 })}
+                    {(inv.total || 0).toLocaleString("it-IT", { minimumFractionDigits: 2, useGrouping: true })}
                   </span>
                   {remaining > 0 && inv.status !== "paid" && (
                     <span className="text-[9px] text-amber-600 ml-1">
-                      (res. €{remaining.toLocaleString("it-IT", { minimumFractionDigits: 0 })})
+                      (res. €{remaining.toLocaleString("it-IT", { minimumFractionDigits: 0, useGrouping: true })})
                     </span>
                   )}
                 </div>

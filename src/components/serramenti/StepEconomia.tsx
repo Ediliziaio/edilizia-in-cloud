@@ -1732,7 +1732,7 @@ function RoiChart({
             />
             <YAxis
               tick={{ fontSize: 11, fill: "#64748b" }}
-              tickFormatter={(v) => `${Math.round(v).toLocaleString("it-IT")} €`}
+              tickFormatter={(v) => `${Math.round(v).toLocaleString("it-IT", { useGrouping: true })} €`}
               domain={[0, maxY]}
               width={70}
             />
@@ -1751,21 +1751,21 @@ function RoiChart({
                     <div className="space-y-0.5 text-[11px]">
                       <p className="flex justify-between gap-3">
                         <span className="text-muted-foreground">Risparmio bolletta</span>
-                        <span className="tabular-nums font-medium">€ {d.risparmio_bolletta.toLocaleString("it-IT")}</span>
+                        <span className="tabular-nums font-medium">€ {d.risparmio_bolletta.toLocaleString("it-IT", { useGrouping: true })}</span>
                       </p>
                       <p className="flex justify-between gap-3">
                         <span className="text-muted-foreground">Detrazione fiscale</span>
-                        <span className="tabular-nums font-medium">€ {d.detrazione.toLocaleString("it-IT")}</span>
+                        <span className="tabular-nums font-medium">€ {d.detrazione.toLocaleString("it-IT", { useGrouping: true })}</span>
                       </p>
                       <div className="border-t border-slate-100 my-1" />
                       <p className="flex justify-between gap-3">
                         <span className="text-muted-foreground">Cumulato</span>
-                        <span className="tabular-nums font-bold text-emerald-700">€ {d.cumulato.toLocaleString("it-IT")}</span>
+                        <span className="tabular-nums font-bold text-emerald-700">€ {d.cumulato.toLocaleString("it-IT", { useGrouping: true })}</span>
                       </p>
                       <p className="flex justify-between gap-3">
                         <span className="text-muted-foreground">Netto vs totale</span>
                         <span className={`tabular-nums font-semibold ${netto >= 0 ? "text-emerald-700" : "text-rose-600"}`}>
-                          {netto >= 0 ? "+" : ""}€ {netto.toLocaleString("it-IT")}
+                          {netto >= 0 ? "+" : ""}€ {netto.toLocaleString("it-IT", { useGrouping: true })}
                         </span>
                       </p>
                     </div>
@@ -1792,7 +1792,7 @@ function RoiChart({
               strokeDasharray="6 4"
               strokeWidth={1.5}
               label={{
-                value: `Totale € ${costoIniziale.toLocaleString("it-IT")}`,
+                value: `Totale € ${costoIniziale.toLocaleString("it-IT", { useGrouping: true })}`,
                 position: "insideTopRight",
                 fill: "#ef4444",
                 fontSize: 11,
