@@ -63,13 +63,49 @@ for (const [nome, cambia] of Object.entries(varianti)) {
 // Dal preventivatore: il modello di libreria, l'arricchimento vero e la scelta del documento.
 const { createFullIdrTemplate, buildIdrModulePreview } = await import("../src/lib/moduli-vendita/fullIdrModules");
 const { enrichTermoidraulicoPdf, elementoPdf } = await import("../src/hooks/useTermoidraulicoPDF");
-const modello = createFullIdrTemplate({
+const base = {
   id: "qa", company_id: "qa-company", logo_url: null, cover_logo_url: null,
   ragione_sociale: "Impresa esempio", email: "info@example.invalid", font_family: "helvetica",
   color_primary: "#563e32", color_accent: "#b66b42", default_iva_pct: 22, condizioni_legali_attivo: false,
-} as IdrTemplatePdf, "conto-termico");
-const preventivo = buildIdrModulePreview("qa-company", modello, "conto-termico");
-Object.assign(preventivo.progetto, { cliente_nome: "Anna", cliente_cognome: "Bianchi", cantiere_citta: "Milano" });
-const arricchito = await enrichTermoidraulicoPdf({ ...preventivo, company: { name: "Impresa esempio", ragione_sociale: "Impresa esempio", email: "info@example.invalid" } });
-// 12.500 € di righe più IVA al 10%: 13.750 €, meno i 4.800 € del contributo.
-await stampa("dal-preventivatore", await elementoPdf(arricchito), ["Anna Bianchi", "13.750", "4.800", "8.950", "Impresa esempio"]);
+  chi_siamo: "<p>Siamo termotecnici dal 2008: installiamo pompe di calore e sistemi ibridi con squadre nostre.</p><p>Per ogni cantiere hai <strong>un solo referente</strong>, dal sopralluogo alla domanda al GSE.</p>",
+  payment_terms_text: "<ul><li>30% alla firma del contratto</li><li>70% a fine lavori</li></ul>",
+} as unknown as IdrTemplatePdf;
+
+async function dalPreventivatore(nome: string, modello: IdrTemplatePdf, extra: { media?: boolean } = {}, attesi: string[] = [], vietatiInCopertina: string[] = []) {
+  const preventivo = buildIdrModulePreview("qa-company", modello, "conto-termico");
+  Object.assign(preventivo.progetto, { cliente_nome: "Anna", cliente_cognome: "Bianchi", cantiere_citta: "Milano", immobile_tipo: "casa_indipendente", immobile_anno: 1985, tipo_generatore: "pompa_calore" });
+  const media = extra.media ? [
+    { id: "m1", progetto_id: "preview", company_id: "qa-company", url: "/module-art/termoidraulica-caldaia.jpg", caption: "La caldaia di oggi, al sopralluogo", ordine: 0 },
+    { id: "m2", progetto_id: "preview", company_id: "qa-company", url: "/pdf-stock/termoidraulico/pompa-di-calore.jpg", caption: "Dove andrà l'unità esterna", ordine: 1 },
+    { id: "m3", progetto_id: "preview", company_id: "qa-company", url: "/module-art/termoidraulica.jpg", caption: "Il locale tecnico", ordine: 2 },
+  ] : [];
+  const arricchito = await enrichTermoidraulicoPdf({ ...preventivo, media: media as never, company: { name: "Impresa esempio", ragione_sociale: "Impresa esempio", email: "info@example.invalid" } });
+  await stampa(nome, await elementoPdf(arricchito), attesi);
+  const file = path.join(output, `conto-termico-${nome}.pdf`);
+  const copertina = execFileSync("pdftotext", ["-f", "1", "-l", "1", file, "-"], { encoding: "utf8" });
+  const trovati = vietatiInCopertina.filter((t) => copertina.includes(t));
+  if (trovati.length) { console.log(nome, "in copertina non ci deve essere:", trovati.join(", ")); process.exitCode = 1; }
+}
+
+// Il modello così come lo crea la libreria.
+await dalPreventivatore("dal-preventivatore", createFullIdrTemplate(base, "conto-termico"), {},
+  // 12.500 € di righe più IVA al 10%: 13.750 €, meno i 4.800 € del contributo.
+  ["Anna Bianchi", "13.750", "4.800", "8.950", "Impresa esempio", "Chi c'è dietro", "voce per voce", "IL MODELLO PROPOSTO", "Perché sceglierci", "Garanzia del produttore", "Modalità di pagamento", "Casa indipendente"],
+  ["€", "CONTRIBUTO", "RESTA A TE"]);
+
+// Il modello personalizzato dall'azienda nell'editor: recensioni, lavori, condizioni, recesso, foto del preventivo.
+const personalizzato = {
+  ...createFullIdrTemplate(base, "conto-termico"),
+  condizioni_legali_attivo: true, modulo_recesso_attivo: true,
+  testimonianze: [
+    { autore: "Giulia S.", ruolo: "Monza", testo: "Pratica GSE seguita dall'inizio alla fine, contributo arrivato come previsto.", voto: 5 },
+    { autore: "Marco T.", ruolo: "Sesto San Giovanni", testo: "Casa calda e bollette dimezzate già dal primo inverno." },
+  ],
+  gallery_lavori: [
+    { id: "l1", url: "/module-art/termoidraulica-pompa-calore-cover.jpg", didascalia: "Pompa di calore 10 kW", luogo: "Monza" },
+    { id: "l2", url: "/pdf-stock/termoidraulico/risultato.jpg", didascalia: "Locale tecnico rifatto", luogo: "Milano" },
+  ],
+} as unknown as IdrTemplatePdf;
+await dalPreventivatore("personalizzato", personalizzato, { media: true },
+  ["GIULIA S.", "Pompa di calore 10 kW", "La caldaia di oggi, al sopralluogo", "Condizioni contrattuali", "approva specificamente", "Firma del contratto", "Modulo di recesso"],
+  ["€"]);

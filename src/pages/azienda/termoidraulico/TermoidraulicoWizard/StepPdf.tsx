@@ -131,8 +131,8 @@ export default function StepPdf({ progetto, computo, media }: Props) {
   const clienteLabel =
     [progetto.cliente_nome, progetto.cliente_cognome].filter(Boolean).join(" ") || "Cliente da definire";
   const ivaPct = Number(progetto.iva_pct ?? 10);
-  // Il Conto Termico ha il suo documento: niente tabella del computo, ma il
-  // contributo e le spese annue, senza i quali le pagine dei conti restano vuote.
+  // Il Conto Termico ha il suo documento: oltre alle pagine di ogni preventivo
+  // servono il contributo e le spese annue, senza i quali i conti restano vuoti.
   const contoTermico = progetto.modello_snapshot?.modelId === MODELLO_CONTO_TERMICO;
   const datiCt = contoTermico ? leggiDatiContoTermico(progetto.conto_termico) : null;
 
@@ -169,18 +169,17 @@ export default function StepPdf({ progetto, computo, media }: Props) {
         label: "Spese annue di oggi e di domani",
         hint: datiCt.spesa_annua_attuale > datiCt.spesa_annua_nuova ? undefined : "Senza, il PDF non mostra il risparmio negli anni",
       },
-    ] : [
-      {
-        ok: Boolean((template?.chi_siamo ?? "").trim()) || (template?.usp ?? []).some((u) => (u.titolo ?? "").trim()),
-        label: "Presentazione impresa (chi siamo / USP)",
-        hint: "Configurala nel template per un PDF più convincente",
-      },
-      {
-        ok: media.length > 0,
-        label: "Foto o render del progetto",
-        hint: media.length === 0 ? "Opzionale: aggiungi foto nello step Foto" : undefined,
-      },
-    ]),
+    ] : []),
+    {
+      ok: Boolean((template?.chi_siamo ?? "").trim()) || (template?.usp ?? []).some((u) => (u.titolo ?? "").trim()),
+      label: "Presentazione impresa (chi siamo / USP)",
+      hint: "Configurala nel template per un PDF più convincente",
+    },
+    {
+      ok: media.length > 0,
+      label: "Foto o render del progetto",
+      hint: media.length === 0 ? "Opzionale: aggiungi foto nello step Foto" : undefined,
+    },
   ];
   const erroriCount = checks.filter((c) => !c.ok).length;
 
@@ -308,8 +307,8 @@ export default function StepPdf({ progetto, computo, media }: Props) {
       </Card>
 
       {/* Come mostrare il computo nel PDF — scelta PER QUESTO PREVENTIVO (non template).
-          Il documento del Conto Termico elenca le voci senza prezzi: la scelta non serve. */}
-      {!computoVuoto && !contoTermico && (
+          Vale anche per la pagina «voce per voce» del Conto Termico. */}
+      {!computoVuoto && (
         <Card>
           <CardContent className="space-y-3 p-4">
             <div className="flex items-center gap-2">
@@ -401,7 +400,7 @@ export default function StepPdf({ progetto, computo, media }: Props) {
           </div>
           <p className="text-[11px] text-muted-foreground">
             {contoTermico
-              ? "PDF A4 pronto da allegare via email o stampare: copertina, cosa vuol dire il Conto Termico, contributo, risparmio e beneficio negli anni, passaggi e firma."
+              ? "PDF A4 pronto da allegare via email o stampare: copertina, chi siamo e garanzie, cosa vuol dire il Conto Termico, cosa installiamo voce per voce, foto, contributo, risparmio e beneficio negli anni, recensioni, passaggi, condizioni e firma."
               : "PDF A4 brandizzato pronto da allegare via email o stampare: copertina, presentazione impresa, computo per capitoli, foto, cronoprogramma e condizioni."}
           </p>
 

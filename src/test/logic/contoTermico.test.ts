@@ -7,6 +7,8 @@ import { datiPdfContoTermico, eContoTermico, fotoDelPreventivo, MODELLO_CONTO_TE
 import { buildIdrModulePreview, createFullIdrTemplate } from "@/lib/moduli-vendita/fullIdrModules";
 import type { IdrPdfEnriched } from "@/hooks/useTermoidraulicoPDF";
 import type { IdrTemplatePdf } from "@/types/termoidraulico";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 const base: ContoTermicoEconomia = {
   prezzoIvaInclusa: 12900,
@@ -157,10 +159,35 @@ describe("Conto Termico: il modello nel preventivatore Termoidraulico", () => {
     expect(d.testi.faq).toHaveLength(8);
     expect(d.testi.passaggi).toHaveLength(4);
     expect(d.foto.domani).toContain("pompa-calore");
+    // Le pagine di ogni preventivo: gli stessi dati del documento degli altri interventi.
+    expect(d.standard?.capitoli.map((c) => c.nome)).toEqual(["Sistema"]);
+    expect(d.standard?.modello.usp[0]?.titolo).toBe("Il contributo, messo in chiaro");
+    expect(d.standard?.modello.garanzie.map((g) => g.titolo)).toContain("Garanzia del produttore");
+    // I modelli nascono senza condizioni: le accende l'azienda nell'editor.
+    expect(d.standard?.modello.condizioniLegali).toEqual([]);
+  });
+
+  it("il modello Conto Termico ha garanzie e «perché sceglierci» scritti per lui", () => {
+    const testi = [...(template.usp ?? []), ...(template.garanzie ?? [])].map((x) => `${x.titolo} ${x.descrizione}`).join(" ");
+    // Composti dai testi degli altri modelli uscivano frasi fuori posto.
+    expect(testi).not.toContain("Compatibilità prima dell'ordine");
+    expect(template.garanzie).toHaveLength(4);
+    expect(template.usp).toHaveLength(3);
   });
 
   it("per solare termico e biomassa la scheda «domani» resta senza una foto sbagliata", () => {
     expect(fotoDelPreventivo("solare_termico").domani).toBeUndefined();
     expect(fotoDelPreventivo("biomassa").domani).toBeUndefined();
+  });
+});
+
+describe("Conto Termico: il documento si genera anche da solo", () => {
+  it("nel browser prepara Buffer prima delle foto e non spezza le parole", () => {
+    // Il documento degli altri preventivi lo fa al caricamento; il Conto Termico
+    // si genera senza caricarlo, e senza Buffer le foto perdevano la chiave di cache.
+    const src = readFileSync(resolve("src/components/termoidraulico/contoTermico/ContoTermicoPDF.tsx"), "utf8");
+    expect(src).toContain('import { ensurePdfBufferCompatibility } from "@/lib/pdf/ensurePdfBufferCompatibility"');
+    expect(src).toContain("\nensurePdfBufferCompatibility();");
+    expect(src).toContain("Font.registerHyphenationCallback((word) => [word]);");
   });
 });

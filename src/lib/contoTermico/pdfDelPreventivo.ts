@@ -5,6 +5,9 @@
  */
 import type { ContoTermicoPdfData, FotoContoTermico } from "@/components/termoidraulico/contoTermico/ContoTermicoPDF";
 import type { IdrPdfEnriched } from "@/hooks/useTermoidraulicoPDF";
+import { costruisciDatiEdile } from "@/components/preventivi/pdf/adattatoreEdile";
+import { MODULI_EDILI } from "@/components/preventivi/pdf/moduliEdili";
+import { GENERATORI, parolaDelCodice } from "@/components/preventivi/pdf/paroleDeiCodici";
 import { economiaContoTermico, leggiDatiContoTermico } from "./dati";
 import { FOTO_CONTO_TERMICO_DI_SERIE, FOTO_DOMANI_PER_TIPO } from "./anteprima";
 import { PASSAGGI_CONTO_TERMICO } from "./testi";
@@ -36,6 +39,20 @@ export function datiPdfContoTermico(e: IdrPdfEnriched, foto: Partial<Record<Foto
     .map((v) => ({ descrizione: v.descrizione, quantita: Number(v.quantita) || null, unita: v.unita_misura === "corpo" || v.unita_misura === "a corpo" ? null : v.unita_misura }));
   const creato = (p as unknown as { created_at?: string | null }).created_at ?? new Date().toISOString();
   const azienda = e.company;
+  // Le pagine che ogni preventivo ha (chi siamo, voce per voce, foto, recensioni,
+  // garanzie, condizioni e firma): gli stessi dati del documento degli altri
+  // interventi, letti dallo stesso adattatore, disegnati nello stile del Conto Termico.
+  const standard = costruisciDatiEdile({
+    modulo: MODULI_EDILI.termoidraulico,
+    progetto: p,
+    template: t as unknown as Record<string, unknown>,
+    azienda,
+    capitoli: e.capitoli,
+    totali: e.totali,
+    media: e.media,
+    opzioniComputo: e.computoOptions,
+    schedaModulo: [{ etichetta: "Generatore", valore: parolaDelCodice(p.tipo_generatore, GENERATORI) }],
+  });
   return {
     azienda: {
       nome: azienda?.ragione_sociale || azienda?.name || "La tua azienda",
@@ -57,10 +74,12 @@ export function datiPdfContoTermico(e: IdrPdfEnriched, foto: Partial<Record<Foto
     economia: economiaContoTermico(dati, e.totali.totale, e.totali.ivaPct),
     testi: {
       titoloCopertina: (t as unknown as { cover_title?: string | null }).cover_title ?? null,
+      sottotitoloCopertina: (t as unknown as { cover_subtitle?: string | null }).cover_subtitle ?? null,
       faq: faq.length ? faq : null,
       passaggi: passaggi.length ? passaggi : PASSAGGI_CONTO_TERMICO,
     },
     foto,
     colorePrimario: azienda?.colore_marca ?? null,
+    standard,
   };
 }

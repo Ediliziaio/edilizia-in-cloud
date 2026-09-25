@@ -11,8 +11,9 @@
  * cifra e la successiva un'altra.
  */
 import {
-  Circle, Defs, Document, G, Image, Line, LinearGradient, Page, Path, RadialGradient, Rect, Stop, Svg, Text, View,
+  Circle, Defs, Document, Font, G, Image, Line, LinearGradient, Page, Path, RadialGradient, Rect, Stop, Svg, Text, View,
 } from "@react-pdf/renderer";
+import { ensurePdfBufferCompatibility } from "@/lib/pdf/ensurePdfBufferCompatibility";
 import { IconaPdf } from "@/components/preventivi/pdf/IconaPdf";
 import type { NomeIcona } from "../../../../supabase/functions/_shared/iconePreventivo";
 import { mescola, normalizzaHex, scurisci } from "../../../../supabase/functions/_shared/temaColori";
@@ -22,6 +23,12 @@ import {
   DOCUMENTI_CONTO_TERMICO, FAQ_CONTO_TERMICO, PASSAGGI_CONTO_TERMICO, VANTAGGI_CONTO_TERMICO,
   type DomandaRisposta, type Passaggio, type Vantaggio,
 } from "@/lib/contoTermico/testi";
+import type { DocEdileCapitolo, DocEdileDati, DocEdileFoto } from "@/components/preventivi/pdf/documentoEdileTipi";
+import { creaTema, type TemaDocumento } from "@/components/preventivi/pdf/temaDocumento";
+import { ParoleDeiClienti, SchedeGaranzie, VotiOnline } from "@/components/preventivi/pdf/provaSocialePdf";
+import { perArticoli } from "@/components/preventivi/pdf/testoDocumento";
+import { htmlToRichBlocks } from "@/lib/ristrutturazione/richTextPdf";
+import { MODULO_RECESSO } from "../../../../supabase/functions/_shared/condizioniStandard";
 
 /** Le foto del documento: una per posto. Senza foto, il posto si chiude. */
 export type FotoContoTermico =
@@ -59,7 +66,21 @@ export interface ContoTermicoPdfData {
   foto?: Partial<Record<FotoContoTermico, string | null>>;
   /** Il colore dell'azienda al posto del blu, se c'è. */
   colorePrimario?: string | null;
+  /**
+   * Le pagine che ogni preventivo ha — chi siamo, voce per voce, foto, garanzie,
+   * recensioni, condizioni e firma — con i dati del documento degli altri
+   * interventi (adattatoreEdile). Senza (l'anteprima d'esempio) quelle pagine non escono.
+   */
+  standard?: DocEdileDati | null;
 }
+
+// Prima che react-pdf legga una foto: nel browser senza Buffer le immagini si
+// caricano ma perdono la chiave di cache (vedi ensurePdfBufferCompatibility). Il
+// documento degli altri preventivi lo fa già; questo si genera anche da solo.
+ensurePdfBufferCompatibility();
+// Le parole italiane spezzate dal sillabatore inglese («confi-gurazione»): mai a
+// capo dentro la parola, come nel documento degli altri preventivi.
+Font.registerHyphenationCallback((word) => [word]);
 
 // ─── Colori: quelli del preventivo fotovoltaico ─────────────────────────────
 const BASE = {
@@ -96,6 +117,7 @@ const LARGHEZZA = W - MARGINE * 2;
  */
 const PDF_EURO = "€\u00A0";
 const soldi = (n: number) => euro(n).replace(/€$/, PDF_EURO);
+const soldiCent = (n: number) => euro(n, 2).replace(/€$/, PDF_EURO);
 const conEuro = (testo: string) => testo.replace(/€(?!\u00A0)/g, PDF_EURO);
 
 const dataLunga = (iso: string) => {
@@ -144,13 +166,19 @@ function Pagina({ d, c, children }: { d: ContoTermicoPdfData; c: Palette; childr
   );
 }
 
-/** Occhiello, titolo con la parte in arancio, sottotitolo. */
-function Intestazione({ c, occhiello, titolo, evidenza, sottotitolo }: { c: Palette; occhiello: string; titolo: string; evidenza?: string; sottotitolo?: string }) {
+/**
+ * Occhiello, titolo con la parte in arancio, sottotitolo. La parte in arancio è
+ * `evidenza`, oppure le parole fra asterischi del titolo («Le parole di chi
+ * *ci ha scelto*.»), come nei titoli delle pagine scritti dall'azienda.
+ */
+function Intestazione({ c, occhiello, titolo, evidenza, sottotitolo }: { c: Palette; occhiello: string; titolo: string; evidenza?: string; sottotitolo?: string | null }) {
+  const pezzi = titolo.split("*");
   return (
     <View style={{ marginBottom: 16 }}>
       <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 7, letterSpacing: 1.4, color: BASE.arancio, marginBottom: 7 }}>{occhiello.toUpperCase()}</Text>
       <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 27, lineHeight: 1.1, letterSpacing: -0.9, color: c.navy }}>
-        {titolo}{evidenza ? <Text style={{ color: BASE.arancio }}>{evidenza}</Text> : null}
+        {pezzi.map((p, i) => (i % 2 === 1 ? <Text key={i} style={{ color: BASE.arancio }}>{p}</Text> : p))}
+        {evidenza ? <Text style={{ color: BASE.arancio }}>{evidenza}</Text> : null}
       </Text>
       {sottotitolo ? <Text style={{ fontSize: 9.5, lineHeight: 1.45, color: BASE.grigio, marginTop: 8, maxWidth: 440 }}>{sottotitolo}</Text> : null}
     </View>
@@ -362,12 +390,13 @@ function Legenda({ voci }: { voci: { colore: string; testo: string; tratteggio?:
 }
 
 // ─── Pagine ─────────────────────────────────────────────────────────────────
-function Copertina({ d, r, c }: { d: ContoTermicoPdfData; r: ContoTermicoRisultato; c: Palette }) {
+function Copertina({ d, c }: { d: ContoTermicoPdfData; c: Palette }) {
   const titolo = d.testi?.titoloCopertina?.trim() || "Il calore di casa.\nCon l'aiuto\ndello Stato.";
   const foto = d.foto?.copertina;
   const FASCIA = 395;
+  // In copertina nessun prezzo: il nuovo impianto e per chi è. I numeri vengono dopo.
   const sottotitolo = d.testi?.sottotitoloCopertina?.trim()
-    || `${d.intervento.titolo} al posto di: ${d.intervento.impiantoAttuale.toLowerCase()}${d.cliente.indirizzo ? `, per ${d.cliente.indirizzo}` : ""}.`;
+    || "Il nuovo impianto, il contributo del GSE e quanto risparmi negli anni: tutto in queste pagine.";
   return (
     // Niente wrap={false}: con gli elementi posizionati a mano il PDF bloccava
     // l'anteprima di macOS (Anteprima, Quick Look). Lo sfondo è alto un punto
@@ -435,22 +464,16 @@ function Copertina({ d, r, c }: { d: ContoTermicoPdfData; r: ContoTermicoRisulta
         <Text style={{ fontSize: 10.5, lineHeight: 1.45, color: "#FFFFFF", opacity: 0.82, marginTop: 12, maxWidth: 420 }}>{sottotitolo}</Text>
 
         <View style={{ flexDirection: "row", marginTop: foto ? 18 : 26 }}>
-          <View style={{ flex: 1, backgroundColor: c.vetro, borderWidth: 1, borderColor: c.vetroBordo, borderRadius: 10, padding: foto ? 11 : 14, marginRight: 10 }}>
-            <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 6.5, letterSpacing: 1.2, color: BASE.ambra }}>CONTRIBUTO GSE STIMATO</Text>
-            <Text style={{ fontFamily: "Helvetica-Bold", fontSize: foto ? 22 : 26, letterSpacing: -0.8, color: BASE.ambra, marginTop: 6 }}>{soldi(r.contributo)}</Text>
-            <Text style={{ fontSize: 7, color: "#FFFFFF", opacity: 0.72, marginTop: 3 }}>{`il ${r.coperturaPct}% del prezzo chiavi in mano`}</Text>
+          <View style={{ flex: 1.2, backgroundColor: c.vetro, borderWidth: 1, borderColor: c.vetroBordo, borderRadius: 10, padding: foto ? 12 : 14, marginRight: 10 }}>
+            <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 6.5, letterSpacing: 1.2, color: BASE.ambra }}>IL NUOVO IMPIANTO</Text>
+            <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 13, lineHeight: 1.25, color: "#FFFFFF", marginTop: 5 }}>{d.intervento.titolo}</Text>
+            <Text style={{ fontSize: 8, color: "#FFFFFF", opacity: 0.72, marginTop: 3 }}>{`al posto di: ${d.intervento.impiantoAttuale.toLowerCase()}`}</Text>
           </View>
-          <View style={{ flex: 1, backgroundColor: c.vetro, borderWidth: 1, borderColor: c.vetroBordo, borderRadius: 10, padding: foto ? 11 : 14 }}>
-            <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 6.5, letterSpacing: 1.2, color: "#FFFFFF", opacity: 0.8 }}>RESTA A TE</Text>
-            <Text style={{ fontFamily: "Helvetica-Bold", fontSize: foto ? 22 : 26, letterSpacing: -0.8, color: "#FFFFFF", marginTop: 6 }}>{soldi(r.restaATe)}</Text>
-            <Text style={{ fontSize: 7, color: "#FFFFFF", opacity: 0.72, marginTop: 3 }}>{`su ${soldi(r.prezzo)} IVA inclusa`}</Text>
+          <View style={{ flex: 1, backgroundColor: c.vetro, borderWidth: 1, borderColor: c.vetroBordo, borderRadius: 10, padding: foto ? 12 : 14 }}>
+            <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 6.5, letterSpacing: 1.2, color: BASE.ambra }}>PREPARATO PER</Text>
+            <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 13, lineHeight: 1.25, color: "#FFFFFF", marginTop: 5 }}>{d.cliente.nome}</Text>
+            {d.cliente.indirizzo ? <Text style={{ fontSize: 8, color: "#FFFFFF", opacity: 0.72, marginTop: 3 }}>{d.cliente.indirizzo}</Text> : null}
           </View>
-        </View>
-
-        <View style={{ backgroundColor: c.vetro, borderWidth: 1, borderColor: c.vetroBordo, borderRadius: 10, paddingVertical: foto ? 9 : 12, paddingHorizontal: 14, marginTop: 8 }}>
-          <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 6.5, letterSpacing: 1.2, color: BASE.ambra }}>PREPARATO PER</Text>
-          <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 13, color: "#FFFFFF", marginTop: 5 }}>{d.cliente.nome}</Text>
-          {d.cliente.indirizzo ? <Text style={{ fontSize: 8, color: "#FFFFFF", opacity: 0.72, marginTop: 2 }}>{d.cliente.indirizzo}</Text> : null}
         </View>
       </View>
 
@@ -529,13 +552,14 @@ function CosaVuolDire({ d, c }: { d: ContoTermicoPdfData; c: Palette }) {
 
 function Intervento({ d, c }: { d: ContoTermicoPdfData; c: Palette }) {
   const tipo = INTERVENTI_CONTO_TERMICO[d.intervento.tipo] ?? "Il nuovo impianto";
-  const voci = d.intervento.voci.slice(0, 12);
+  // I dati della casa dal preventivo (immobile, anno, generatore): l'intervento è già nel titolo.
+  const casa = (d.standard?.scheda ?? []).filter((x) => x.etichetta !== "Intervento").slice(0, 4);
   return (
     <Pagina d={d} c={c}>
       <Intestazione c={c} occhiello="Il tuo intervento" titolo={"Cosa cambia\n"} evidenza="in casa tua." sottotitolo="Togliamo il generatore che hai oggi e installiamo quello nuovo: è la sostituzione che dà diritto al contributo." />
       <View style={{ flexDirection: "row", alignItems: "stretch" }}>
         <View style={{ flex: 1, backgroundColor: BASE.rossoTenue, borderWidth: 1, borderColor: BASE.rossoBordo, borderRadius: 10, padding: 12 }}>
-          {d.foto?.oggi ? <Image src={d.foto.oggi} style={{ width: "100%", height: 112, objectFit: "cover", borderRadius: 6, marginBottom: 10 }} /> : null}
+          {d.foto?.oggi ? <Image src={d.foto.oggi} style={{ width: "100%", height: 160, objectFit: "cover", borderRadius: 6, marginBottom: 10 }} /> : null}
           <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 6.5, letterSpacing: 1.2, color: BASE.rosso }}>OGGI</Text>
           <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 13, color: BASE.ink, marginTop: 6, lineHeight: 1.25 }}>{d.intervento.impiantoAttuale}</Text>
           <Text style={{ fontSize: 7.5, color: BASE.testo, marginTop: 5, lineHeight: 1.4 }}>Viene smontato e smaltito, e se ne conserva il certificato per la pratica.</Text>
@@ -546,7 +570,7 @@ function Intervento({ d, c }: { d: ContoTermicoPdfData; c: Palette }) {
           </Svg>
         </View>
         <View style={{ flex: 1, backgroundColor: BASE.verdeTenue, borderWidth: 1, borderColor: BASE.verdeBordo, borderRadius: 10, padding: 12 }}>
-          {d.foto?.domani ? <Image src={d.foto.domani} style={{ width: "100%", height: 112, objectFit: "cover", borderRadius: 6, marginBottom: 10 }} /> : null}
+          {d.foto?.domani ? <Image src={d.foto.domani} style={{ width: "100%", height: 160, objectFit: "cover", borderRadius: 6, marginBottom: 10 }} /> : null}
           <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 6.5, letterSpacing: 1.2, color: BASE.verdeScuro }}>{`DOMANI · ${tipo.toUpperCase()}`}</Text>
           <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 13, color: BASE.ink, marginTop: 6, lineHeight: 1.25 }}>{d.intervento.titolo}</Text>
           <Text style={{ fontSize: 7.5, color: BASE.testo, marginTop: 5, lineHeight: 1.4 }}>Energia rinnovabile dall'aria, dall'acqua o dal sole: il requisito del Conto Termico.</Text>
@@ -554,20 +578,29 @@ function Intervento({ d, c }: { d: ContoTermicoPdfData; c: Palette }) {
       </View>
 
       {d.foto?.oggi || d.foto?.domani ? <Text style={{ fontSize: 6, color: BASE.grigioChiaro, marginTop: 4 }}>Immagini illustrative.</Text> : null}
-      <View style={{ marginTop: 14 }}>
-        <TitoletoSezione>Cosa comprende la proposta</TitoletoSezione>
-        <View style={{ borderWidth: 1, borderColor: BASE.linea, borderRadius: 8 }}>
-          {voci.map((v, i) => (
-            <View key={i} style={{ flexDirection: "row", alignItems: "center", paddingVertical: 7, paddingHorizontal: 11, borderTopWidth: i === 0 ? 0 : 1, borderTopColor: BASE.linea }}>
-              <View style={{ marginRight: 8 }}><IconaPdf nome="verifica" colore={BASE.verde} lato={9} /></View>
-              <Text style={{ flex: 1, fontSize: 8.2, color: BASE.ink, lineHeight: 1.35 }}>{v.descrizione}</Text>
-              {v.quantita != null && v.quantita !== 1 ? <Text style={{ fontSize: 8, color: BASE.grigio, marginLeft: 8 }}>{`${String(v.quantita).replace(".", ",")} ${v.unita ?? ""}`.trim()}</Text> : null}
-            </View>
-          ))}
+
+      {casa.length ? (
+        <View style={{ marginTop: 16 }}>
+          <TitoletoSezione>La tua casa</TitoletoSezione>
+          <View style={{ flexDirection: "row" }}>
+            {casa.map((x, i) => (
+              <View key={x.etichetta} style={{ flex: 1, marginRight: i < casa.length - 1 ? 8 : 0, backgroundColor: BASE.fondo, borderWidth: 1, borderColor: BASE.linea, borderRadius: 8, paddingVertical: 9, paddingHorizontal: 10 }}>
+                <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 6.3, letterSpacing: 0.9, color: BASE.grigio }}>{x.etichetta.toUpperCase()}</Text>
+                <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 9.5, color: BASE.ink, marginTop: 4 }}>{x.valore}</Text>
+              </View>
+            ))}
+          </View>
         </View>
+      ) : null}
+
+      <View style={{ marginTop: 16 }}>
+        <TitoletoSezione>Cosa cambia, in pratica</TitoletoSezione>
+        <Spunta testo="Il vecchio generatore viene smontato e smaltito, con il certificato che serve alla domanda al GSE." />
+        <Spunta testo="Il nuovo impianto usa energia rinnovabile: è il requisito del Conto Termico." />
+        <Spunta testo="Cosa installiamo, voce per voce, è nella pagina che segue; il contributo e il risparmio subito dopo." />
       </View>
       <Spinta />
-      <Nota tono="verde" icona="garanzia" titolo="Il prezzo è chiavi in mano." testo="Comprende quello che è elencato qui sopra. Lavori o materiali non elencati non sono compresi e si concordano prima." />
+      <Nota tono="blu" icona="documenti" titolo="Una sostituzione, non un'aggiunta." testo="Il Conto Termico chiede di sostituire un impianto di riscaldamento funzionante. Fanno eccezione il solare termico e la pompa di calore affiancata a una caldaia a condensazione con meno di 5 anni." />
     </Pagina>
   );
 }
@@ -943,8 +976,333 @@ function Decisione({ d, r, c }: { d: ContoTermicoPdfData; r: ContoTermicoRisulta
   );
 }
 
+// ─── Le pagine di ogni preventivo, nello stile del Conto Termico ─────────────
+/** Testo scritto dall'azienda nell'editor (chi siamo, modalità di pagamento). */
+function TestoRicco({ html, stile }: { html: string | null | undefined; stile: Record<string, unknown> }) {
+  const blocchi = htmlToRichBlocks(html);
+  if (!blocchi.length) return null;
+  return (
+    <View>
+      {blocchi.map((b, i) => {
+        const righe = b.runs.map((r, j) => (
+          <Text key={j} style={r.bold ? { fontFamily: r.italic ? "Helvetica-BoldOblique" : "Helvetica-Bold" } : r.italic ? { fontFamily: "Helvetica-Oblique" } : {}}>{r.text}</Text>
+        ));
+        return b.type === "bullet" ? (
+          <View key={i} style={{ flexDirection: "row", marginBottom: 3 }}>
+            <Text style={[stile, { width: 10 }]}>•</Text>
+            <Text style={[stile, { flex: 1 }]}>{righe}</Text>
+          </View>
+        ) : (
+          <Text key={i} style={[stile, { marginBottom: 6 }]}>{righe}</Text>
+        );
+      })}
+    </View>
+  );
+}
+
+const ICONE_USP: NomeIcona[] = ["verifica", "documenti", "pratiche", "garanzia", "sopralluogo", "pagamento"];
+
+/**
+ * Chi siamo, perché sceglierci e le garanzie: prima del prezzo, come negli altri
+ * preventivi. Esce solo con quello che l'azienda ha scritto nel suo modello.
+ */
+function ChiSiamo({ d, c, tema }: { d: ContoTermicoPdfData; c: Palette; tema: TemaDocumento }) {
+  const s = d.standard;
+  if (!s) return null;
+  const m = s.modello;
+  const testo = m.mostraChiSiamo ? m.chiSiamoHtml : null;
+  const usp = m.usp.slice(0, 6);
+  const garanzie = m.mostraGaranzie ? m.garanzie.slice(0, 6) : [];
+  if (!testo && !usp.length && !garanzie.length) return null;
+  const colonne = usp.length % 3 === 0 ? 3 : 2;
+  const colonneGaranzie: 2 | 3 = garanzie.length === 2 || garanzie.length === 4 ? 2 : 3;
+  const tG = m.testate.garanzie;
+  return (
+    <Pagina d={d} c={c}>
+      <Intestazione c={c} occhiello="Chi siamo" titolo={"Chi c'è dietro\n"} evidenza="questa proposta." />
+      {testo ? (
+        <View style={{ flexDirection: "row", marginBottom: 14 }}>
+          <View style={{ flex: 1, paddingRight: m.chiSiamoFotoUrl ? 16 : 40 }}>
+            <TestoRicco html={testo} stile={{ fontSize: 9, lineHeight: 1.55, color: BASE.testo }} />
+          </View>
+          {m.chiSiamoFotoUrl ? <Image src={m.chiSiamoFotoUrl} style={{ width: 180, height: 200, objectFit: "cover", borderRadius: 8 }} /> : null}
+        </View>
+      ) : null}
+      {usp.length ? (
+        <View wrap={false} style={{ marginBottom: 6 }}>
+          <TitoletoSezione>Perché sceglierci</TitoletoSezione>
+          <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+            {usp.map((u, i) => (
+              <View key={u.titolo} style={{ width: (LARGHEZZA - 8 * (colonne - 1)) / colonne, marginRight: i % colonne === colonne - 1 ? 0 : 8, marginBottom: 8, backgroundColor: BASE.fondo, borderWidth: 1, borderColor: BASE.linea, borderRadius: 8, padding: 10 }}>
+                <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: BASE.arancioTenue, alignItems: "center", justifyContent: "center", marginBottom: 6 }}>
+                  <IconaPdf nome={ICONE_USP[i] ?? "verifica"} colore={BASE.arancioScuro} lato={11} />
+                </View>
+                <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 8.5, color: c.navy }}>{u.titolo}</Text>
+                {u.descrizione ? <Text style={{ fontSize: 7.4, color: BASE.testo, marginTop: 3, lineHeight: 1.4 }}>{conEuro(u.descrizione)}</Text> : null}
+              </View>
+            ))}
+          </View>
+        </View>
+      ) : null}
+      {garanzie.length ? (
+        <View style={{ marginTop: 8 }}>
+          <View wrap={false}>
+            <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 7, letterSpacing: 1.4, color: BASE.arancio, marginBottom: 5 }}>{tG.occhiello.toUpperCase()}</Text>
+            {tG.titolo ? <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 15, color: c.navy, marginBottom: tG.intro ? 4 : 10 }}>{tG.titolo.replace(/\*/g, "")}</Text> : null}
+            {tG.intro ? <Text style={{ fontSize: 8.5, color: BASE.grigio, lineHeight: 1.45, marginBottom: 10 }}>{tG.intro}</Text> : null}
+          </View>
+          <SchedeGaranzie tema={tema} voci={garanzie} colonne={colonneGaranzie} larghezza={LARGHEZZA} />
+        </View>
+      ) : null}
+    </Pagina>
+  );
+}
+
+/** «a corpo», oppure la quantità con l'unità: «6 pz». */
+function quantitaTesto(v: DocEdileCapitolo["voci"][number]): string {
+  if (/corpo/i.test(v.unitaMisura ?? "")) return "a corpo";
+  const q = Number.isInteger(v.quantita) ? String(v.quantita) : String(v.quantita).replace(".", ",");
+  return `${q} ${v.unitaMisura ?? ""}`.trim();
+}
+
+function CapitoloFornitura({ cap, indice, c, soloCapitolo, mostraQta, mostraPrezzi, mostraImporti, mostraSubtotale }: {
+  cap: DocEdileCapitolo; indice: number; c: Palette;
+  soloCapitolo: boolean; mostraQta: boolean; mostraPrezzi: boolean; mostraImporti: boolean; mostraSubtotale: boolean;
+}) {
+  const colonne = !soloCapitolo && (mostraQta || mostraPrezzi || mostraImporti);
+  const testa = { fontFamily: "Helvetica-Bold", fontSize: 6, letterSpacing: 0.9, color: BASE.grigioChiaro } as const;
+  const riga = (v: DocEdileCapitolo["voci"][number]) => (
+    <View key={v.id} wrap={false} style={{ flexDirection: "row", alignItems: "flex-start", paddingVertical: 6.5, paddingHorizontal: 10, borderTopWidth: 1, borderTopColor: BASE.linea }}>
+      <View style={{ marginRight: 7, marginTop: 1.5 }}><IconaPdf nome="verifica" colore={BASE.verde} lato={8.5} /></View>
+      <Text style={{ flex: 1, fontSize: 8.2, lineHeight: 1.4, color: BASE.ink }}>{v.descrizione}</Text>
+      {mostraQta ? <Text style={{ width: 58, fontSize: 8, color: BASE.grigio, textAlign: "right" }}>{quantitaTesto(v)}</Text> : null}
+      {mostraPrezzi ? <Text style={{ width: 66, fontSize: 8, color: BASE.grigio, textAlign: "right" }}>{soldiCent(v.prezzoUnitario)}</Text> : null}
+      {mostraImporti ? <Text style={{ width: 70, fontSize: 8.2, fontFamily: "Helvetica-Bold", color: BASE.ink, textAlign: "right" }}>{soldiCent(v.importo)}</Text> : null}
+    </View>
+  );
+  return (
+    <View style={{ marginBottom: 10, borderWidth: 1, borderColor: BASE.linea, borderRadius: 8 }}>
+      {/* Il titolo del capitolo viaggia con la prima voce. */}
+      <View wrap={false}>
+        <View style={{ flexDirection: "row", alignItems: "center", paddingVertical: 8, paddingHorizontal: 10, backgroundColor: BASE.fondo, borderTopLeftRadius: 8, borderTopRightRadius: 8 }}>
+          <View style={{ width: 19, height: 19, borderRadius: 10, backgroundColor: c.navy, alignItems: "center", justifyContent: "center", marginRight: 8 }}>
+            <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 7.5, color: "#FFFFFF" }}>{String(indice)}</Text>
+          </View>
+          <Text style={{ flex: 1, fontFamily: "Helvetica-Bold", fontSize: 10, color: c.navy }}>{cap.nome}</Text>
+          {mostraSubtotale
+            ? <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 9.5, color: BASE.ink }}>{soldiCent(cap.subtotale)}</Text>
+            : <Text style={{ fontSize: 7.5, color: BASE.grigio }}>{`${cap.voci.length} ${cap.voci.length === 1 ? "voce" : "voci"}`}</Text>}
+        </View>
+        {colonne ? (
+          <View style={{ flexDirection: "row", paddingTop: 5, paddingBottom: 3, paddingHorizontal: 10 }}>
+            <Text style={[testa, { flex: 1, paddingLeft: 15 }]}>DESCRIZIONE</Text>
+            {mostraQta ? <Text style={[testa, { width: 58, textAlign: "right" }]}>QUANTITÀ</Text> : null}
+            {mostraPrezzi ? <Text style={[testa, { width: 66, textAlign: "right" }]}>PREZZO</Text> : null}
+            {mostraImporti ? <Text style={[testa, { width: 70, textAlign: "right" }]}>IMPORTO</Text> : null}
+          </View>
+        ) : null}
+        {!soloCapitolo && cap.voci[0] ? riga(cap.voci[0]) : null}
+      </View>
+      {soloCapitolo ? null : cap.voci.slice(1).map(riga)}
+    </View>
+  );
+}
+
+/**
+ * I prodotti installati, voce per voce: il modello con la sua foto, poi le voci
+ * del preventivo per capitolo (fornitura, manodopera, pratica). Quanto mostrare
+ * lo si sceglie nel passo PDF, come negli altri preventivi; col prezzo scritto a
+ * mano le righe non hanno importi.
+ */
+function Fornitura({ d, c }: { d: ContoTermicoPdfData; c: Palette }) {
+  const s = d.standard;
+  const capitoli: DocEdileCapitolo[] = s?.capitoli.filter((k) => k.voci.length > 0).length
+    ? s.capitoli.filter((k) => k.voci.length > 0)
+    : [{
+        nome: "La fornitura", subtotale: 0,
+        voci: d.intervento.voci.map((v, i) => ({ id: `v${i}`, descrizione: v.descrizione, unitaMisura: v.unita ?? null, quantita: v.quantita ?? 1, prezzoUnitario: 0, importo: 0 })),
+      }];
+  if (!capitoli[0].voci.length) return null;
+  const oc = s?.opzioniComputo;
+  const livello = oc?.livello ?? "dettagliato";
+  const manuale = s ? Boolean(s.totali.prezzoManuale) : true;
+  const dettaglio = livello === "dettagliato";
+  const fotoModello = d.foto?.domani ?? d.foto?.copertina ?? null;
+  const scheda = (d.intervento.caratteristiche ?? []).filter((x) => x.etichetta?.trim() && x.valore?.trim()).slice(0, 4);
+  return (
+    <Pagina d={d} c={c}>
+      <Intestazione c={c} occhiello="La fornitura" titolo={"Cosa installiamo,\n"} evidenza="voce per voce." sottotitolo="Il modello proposto, i materiali e la manodopera compresi nel prezzo chiavi in mano." />
+      <View wrap={false} style={{ flexDirection: "row", marginBottom: 14, borderWidth: 1, borderColor: BASE.linea, borderRadius: 10, overflow: "hidden" }}>
+        {fotoModello ? <Image src={fotoModello} style={{ width: 188, height: scheda.length > 2 ? 150 : 128, objectFit: "cover" }} /> : null}
+        <View style={{ flex: 1, paddingVertical: 11, paddingHorizontal: 13, backgroundColor: BASE.fondo }}>
+          <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 6.5, letterSpacing: 1.2, color: BASE.arancio }}>IL MODELLO PROPOSTO</Text>
+          <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 12.5, lineHeight: 1.25, color: c.navy, marginTop: 4 }}>{d.intervento.titolo}</Text>
+          <Text style={{ fontSize: 7.5, color: BASE.grigio, marginTop: 2 }}>{`al posto di: ${d.intervento.impiantoAttuale.toLowerCase()}`}</Text>
+          {scheda.map((x) => (
+            <View key={x.etichetta} style={{ flexDirection: "row", marginTop: 4 }}>
+              <Text style={{ flex: 1.2, fontSize: 7.3, color: BASE.grigio }}>{x.etichetta}</Text>
+              <Text style={{ flex: 1, fontSize: 7.6, fontFamily: "Helvetica-Bold", color: BASE.ink, textAlign: "right" }}>{x.valore}</Text>
+            </View>
+          ))}
+          {fotoModello ? <Text style={{ fontSize: 5.8, color: BASE.grigioChiaro, marginTop: 6 }}>Immagine illustrativa: il modello è quello indicato.</Text> : null}
+        </View>
+      </View>
+      {capitoli.map((cap, i) => (
+        <CapitoloFornitura
+          key={`${cap.nome}-${i}`} cap={cap} indice={i + 1} c={c}
+          soloCapitolo={livello === "sintetico"}
+          mostraQta={dettaglio && oc?.mostraQta !== false}
+          mostraPrezzi={dettaglio && oc?.mostraPrezzi !== false && !manuale}
+          mostraImporti={dettaglio && !manuale}
+          mostraSubtotale={livello !== "corpo" && oc?.mostraSubtotali !== false && !manuale}
+        />
+      ))}
+      <View style={{ marginTop: 4 }}>
+        <Nota tono="verde" icona="garanzia" titolo="Il prezzo è chiavi in mano." testo="Comprende quello che è elencato qui sopra. Lavori o materiali non elencati non sono compresi e si concordano prima." />
+      </View>
+    </Pagina>
+  );
+}
+
+function FotoConDidascalia({ f, altezza, larghezza, stile }: { f: DocEdileFoto; altezza: number; larghezza: number; stile?: Record<string, unknown> }) {
+  const testo = [f.didascalia, f.luogo].filter(Boolean).join(" · ");
+  return (
+    <View wrap={false} style={{ width: larghezza, ...(stile ?? {}) }}>
+      <Image src={f.url} style={{ width: "100%", height: altezza, objectFit: "cover", borderRadius: 8 }} />
+      {testo ? <Text style={{ fontSize: 7, color: BASE.grigio, marginTop: 3, lineHeight: 1.35 }}>{testo}</Text> : null}
+    </View>
+  );
+}
+
+/** Una foto grande, le altre a coppie. */
+function Galleria({ foto, altezzaPrima }: { foto: DocEdileFoto[]; altezzaPrima: number }) {
+  const [prima, ...altre] = foto;
+  if (!prima) return null;
+  const mezza = (LARGHEZZA - 10) / 2;
+  return (
+    <View>
+      <FotoConDidascalia f={prima} altezza={altezzaPrima} larghezza={LARGHEZZA} stile={{ marginBottom: 10 }} />
+      <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+        {altre.map((f, i) => <FotoConDidascalia key={f.id} f={f} altezza={150} larghezza={mezza} stile={{ marginRight: i % 2 === 0 ? 10 : 0, marginBottom: 10 }} />)}
+      </View>
+    </View>
+  );
+}
+
+/** Le foto caricate nel preventivo (passo Foto): il sopralluogo, i render. */
+function FotoProgetto({ d, c }: { d: ContoTermicoPdfData; c: Palette }) {
+  const foto = d.standard?.fotoProgetto ?? [];
+  if (!foto.length) return null;
+  return (
+    <Pagina d={d} c={c}>
+      <Intestazione c={c} occhiello="Foto e render" titolo={"Il tuo impianto,\n"} evidenza="da vedere." sottotitolo="Lo stato di oggi, dal sopralluogo, e come diventerà." />
+      <Galleria foto={foto} altezzaPrima={foto.length > 1 ? 250 : 420} />
+    </Pagina>
+  );
+}
+
+/** Recensioni e lavori già fatti, se l'azienda li ha nel suo modello. */
+function Referenze({ d, c, tema }: { d: ContoTermicoPdfData; c: Palette; tema: TemaDocumento }) {
+  const s = d.standard;
+  if (!s) return null;
+  const voti = s.azienda.votiOnline;
+  const parole = s.modello.testimonianze;
+  const lavori = s.modello.galleriaLavori;
+  if (!voti.length && !parole.length && !lavori.length) return null;
+  const tR = s.modello.testate.recensioni;
+  const tL = s.modello.testate.lavori;
+  return (
+    <Pagina d={d} c={c}>
+      {voti.length || parole.length ? (
+        <ParoleDeiClienti tema={tema} voci={parole} larghezza={LARGHEZZA} testa={<>
+          <Intestazione c={c} occhiello={tR.occhiello} titolo={tR.titolo || "Le parole di chi *ci ha scelto*."} sottotitolo={tR.intro} />
+          {voti.length ? <View style={{ marginBottom: 14 }}><VotiOnline tema={tema} voti={voti} larghezza={LARGHEZZA} /></View> : null}
+        </>} />
+      ) : null}
+      {lavori.length ? (
+        <View style={{ marginTop: voti.length || parole.length ? 10 : 0 }}>
+          <Intestazione c={c} occhiello={tL.occhiello} titolo={tL.titolo || "Lavori *già fatti*."} sottotitolo={tL.intro} />
+          <Galleria foto={lavori.slice(0, 7)} altezzaPrima={lavori.length > 1 ? 230 : 360} />
+        </View>
+      ) : null}
+    </Pagina>
+  );
+}
+
+/** Le condizioni generali, articolo per articolo: le stesse degli altri preventivi. */
+function Condizioni({ d, c }: { d: ContoTermicoPdfData; c: Palette }) {
+  const m = d.standard?.modello;
+  if (!m?.condizioniLegali.length) return null;
+  return (
+    <Pagina d={d} c={c}>
+      <Intestazione c={c} occhiello="Allegato" titolo="Condizioni " evidenza="contrattuali." />
+      {perArticoli(m.condizioniLegali, { senzaClausoleDaFirmare: m.clausoleDaApprovare.length > 0 }).map((gruppo, g) => (
+        <View key={g} wrap={gruppo.length > 14} minPresenceAhead={36}>
+          {gruppo.map((r, i) =>
+            r.tipo === "h1" ? <Text key={i} style={{ fontFamily: "Helvetica-Bold", fontSize: 10.5, color: c.navy, marginTop: g === 0 ? 0 : 12, marginBottom: 5 }}>{r.testo}</Text>
+            : r.tipo === "h2" ? <Text key={i} style={{ fontFamily: "Helvetica-Bold", fontSize: 9, color: BASE.ink, marginTop: g === 0 ? 0 : 9, marginBottom: 3 }}>{r.testo}</Text>
+            : r.tipo === "li" ? <Text key={i} style={{ fontSize: 8.2, color: BASE.testo, lineHeight: 1.5, marginLeft: 10, marginBottom: 2 }}>{`- ${conEuro(r.testo)}`}</Text>
+            : <Text key={i} style={{ fontSize: 8.2, color: BASE.testo, lineHeight: 1.5, marginBottom: 5 }}>{conEuro(r.testo)}</Text>,
+          )}
+        </View>
+      ))}
+    </Pagina>
+  );
+}
+
+/** Il modulo di recesso, quando l'azienda lo accende nel modello (spento di serie). */
+function Recesso({ d, c }: { d: ContoTermicoPdfData; c: Palette }) {
+  const s = d.standard;
+  if (!s?.modello.condizioniLegali.length || !s.modello.conRecesso) return null;
+  return (
+    <Pagina d={d} c={c}>
+      <Intestazione c={c} occhiello="Allegato" titolo="Modulo di " evidenza="recesso." />
+      <Text style={{ fontSize: 8.5, color: BASE.testo, lineHeight: 1.55 }}>{MODULO_RECESSO.istruzioni}</Text>
+      <View style={{ marginTop: 14, borderWidth: 1, borderColor: BASE.linea, borderRadius: 8, padding: 16 }}>
+        <Text style={{ fontSize: 8.5, color: BASE.ink, lineHeight: 1.6 }}>
+          {"Destinatario: "}<Text style={{ fontFamily: "Helvetica-Bold" }}>{s.azienda.nome}</Text>
+          {s.azienda.indirizzo ? `, ${s.azienda.indirizzo}` : ""}{s.azienda.email ? ` - ${s.azienda.email}` : ""}
+        </Text>
+        <Text style={{ fontSize: 8.5, color: BASE.ink, lineHeight: 1.6, marginTop: 10 }}>{MODULO_RECESSO.dichiarazione(s.codice)}</Text>
+        <View style={{ marginTop: 14 }}>
+          {MODULO_RECESSO.campi.map((e) => (
+            <View key={e} style={{ marginBottom: 16 }}>
+              <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 6.5, letterSpacing: 0.8, color: BASE.grigio, marginBottom: 14 }}>{e.toUpperCase()}</Text>
+              <View style={{ borderTopWidth: 1, borderTopColor: BASE.grigioChiaro }} />
+            </View>
+          ))}
+        </View>
+        <View style={{ flexDirection: "row", marginTop: 6 }}>
+          {MODULO_RECESSO.firme.map((t, i) => (
+            <View key={t} style={{ flex: i === 0 ? 0.6 : 1, marginRight: i === 0 ? 14 : 0, borderTopWidth: 1, borderTopColor: BASE.grigioChiaro, paddingTop: 5, marginTop: 28 }}>
+              <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 6.5, letterSpacing: 0.8, color: BASE.grigio }}>{t.toUpperCase()}</Text>
+            </View>
+          ))}
+        </View>
+      </View>
+    </Pagina>
+  );
+}
+
+function LineaFirma({ testo, flex = 1, ultima = false, alto = 34 }: { testo: string; flex?: number; ultima?: boolean; alto?: number }) {
+  return (
+    <View style={{ flex, marginRight: ultima ? 0 : 14, borderTopWidth: 1, borderTopColor: BASE.grigioChiaro, paddingTop: 5, marginTop: alto }}>
+      <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 6.5, letterSpacing: 0.8, color: BASE.grigio }}>{testo.toUpperCase()}</Text>
+    </View>
+  );
+}
+
+/**
+ * La firma: il preventivo firmato è il contratto. Riepilogo, modalità di
+ * pagamento, dichiarazione, firme e — quando le condizioni le elencano —
+ * l'approvazione specifica delle clausole (artt. 1341 e 1342 c.c.) con una
+ * seconda firma, come negli altri preventivi.
+ */
 function Firma({ d, r, c }: { d: ContoTermicoPdfData; r: ContoTermicoRisultato; c: Palette }) {
   const sconto = d.economia.modalita === "sconto_in_fattura";
+  const m = d.standard?.modello;
+  const conCondizioni = Boolean(m?.condizioniLegali.length);
+  const clausole = m?.clausoleDaApprovare ?? [];
   const righe: [string, string][] = [
     ["Impresa", [d.azienda.nome, d.azienda.piva ? `P.IVA ${d.azienda.piva}` : null].filter(Boolean).join(" · ")],
     ["Committente", d.cliente.nome],
@@ -955,27 +1313,47 @@ function Firma({ d, r, c }: { d: ContoTermicoPdfData; r: ContoTermicoRisultato; 
     ["Contributo GSE", `${soldi(r.contributo)} stimato · ${sconto ? "scontato in fattura con mandato all'incasso" : "versato dal GSE al committente"}`],
     ["Validità", `${d.preventivo.validitaGiorni} giorni dalla data del documento`],
   ];
+  const dichiarazione = conCondizioni
+    ? "Il committente dichiara di aver ricevuto, letto e accettato il presente documento in ogni sua parte: l'impianto, l'importo, il modo in cui riceve il contributo e le condizioni generali di contratto che lo accompagnano, e ne sottoscrive il contenuto. Sa che il contributo è stimato e che l'importo definitivo lo stabilisce il GSE."
+    : "Il committente dichiara di aver ricevuto, letto e accettato il presente documento in ogni sua parte: l'impianto, l'importo e il modo in cui riceve il contributo. Sa che il contributo è stimato e che l'importo definitivo lo stabilisce il GSE.";
   return (
     <Pagina d={d} c={c}>
-      <Intestazione c={c} occhiello="Per accettazione" titolo={"Firma della\n"} evidenza="proposta." />
+      <Intestazione c={c} occhiello="Per accettazione" titolo={conCondizioni ? "Firma del\n" : "Firma della\n"} evidenza={conCondizioni ? "contratto." : "proposta."} />
       <View style={{ borderWidth: 1, borderColor: BASE.linea, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 4 }}>
         {righe.map(([k, v], i) => (
-          <View key={k} style={{ flexDirection: "row", paddingVertical: 7, borderTopWidth: i === 0 ? 0 : 1, borderTopColor: BASE.linea }}>
+          <View key={k} style={{ flexDirection: "row", paddingVertical: 6.5, borderTopWidth: i === 0 ? 0 : 1, borderTopColor: BASE.linea }}>
             <Text style={{ width: 110, fontFamily: "Helvetica-Bold", fontSize: 6.5, letterSpacing: 0.9, color: BASE.grigio, marginTop: 1 }}>{k.toUpperCase()}</Text>
             <Text style={{ flex: 1, fontSize: 8.5, color: BASE.ink, fontFamily: k === "Importo" ? "Helvetica-Bold" : "Helvetica" }}>{v}</Text>
           </View>
         ))}
       </View>
-      <View style={{ marginTop: 16, borderWidth: 1.2, borderColor: c.navy, borderStyle: "dashed", borderRadius: 10, padding: 16 }}>
-        <Text style={{ fontSize: 8, color: BASE.testo, lineHeight: 1.45 }}>Il committente dichiara di aver ricevuto, letto e accettato la presente proposta in ogni sua parte: l'impianto, l'importo, il modo in cui riceve il contributo e le condizioni allegate. Sa che il contributo è stimato e che l'importo definitivo lo stabilisce il GSE.</Text>
-        <View style={{ flexDirection: "row", marginTop: 34 }}>
-          {["Luogo e data", `Per l'impresa · ${d.azienda.nome}`, `Firma del committente · ${d.cliente.nome}`].map((t, i) => (
-            <View key={t} style={{ flex: 1, marginRight: i < 2 ? 14 : 0, borderTopWidth: 1, borderTopColor: BASE.grigioChiaro, paddingTop: 5 }}>
-              <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 6.5, letterSpacing: 0.8, color: BASE.grigio }}>{t.toUpperCase()}</Text>
-            </View>
-          ))}
+      {m?.pagamentoHtml ? (
+        <View wrap={false} style={{ marginTop: 12 }}>
+          <TitoletoSezione>Modalità di pagamento</TitoletoSezione>
+          <TestoRicco html={m.pagamentoHtml} stile={{ fontSize: 8.2, lineHeight: 1.45, color: BASE.testo }} />
+        </View>
+      ) : null}
+      <View wrap={false} style={{ marginTop: 12, borderWidth: 1.2, borderColor: c.navy, borderStyle: "dashed", borderRadius: 10, padding: 16 }}>
+        <Text style={{ fontSize: 8, color: BASE.testo, lineHeight: 1.45 }}>{dichiarazione}</Text>
+        <View style={{ flexDirection: "row" }}>
+          <LineaFirma testo="Luogo e data" flex={0.7} />
+          <LineaFirma testo={`Per l'impresa · ${d.azienda.nome}`} />
+          <LineaFirma testo={`Firma del committente · ${d.cliente.nome}`} ultima />
         </View>
       </View>
+      {clausole.length ? (
+        <View wrap={false} style={{ marginTop: 14, borderWidth: 1, borderColor: BASE.ink, borderRadius: 8, padding: 14 }}>
+          <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 6.8, letterSpacing: 1.1, color: BASE.ink, marginBottom: 6 }}>APPROVAZIONE SPECIFICA (ARTT. 1341 E 1342 C.C.)</Text>
+          <Text style={{ fontSize: 8, color: BASE.testo, lineHeight: 1.45, marginBottom: 5 }}>Il committente, dopo averle rilette, approva specificamente le clausole seguenti:</Text>
+          {clausole.map((x, i) => (
+            <Text key={i} style={{ fontSize: 8, color: BASE.ink, lineHeight: 1.45, marginBottom: 2 }}>{`- ${x}`}</Text>
+          ))}
+          <View style={{ flexDirection: "row" }}>
+            <LineaFirma testo="Luogo e data" flex={0.7} alto={28} />
+            <LineaFirma testo="Seconda firma del committente" ultima alto={28} />
+          </View>
+        </View>
+      ) : null}
     </Pagina>
   );
 }
@@ -983,20 +1361,29 @@ function Firma({ d, r, c }: { d: ContoTermicoPdfData; r: ContoTermicoRisultato; 
 export function ContoTermicoPDF({ data }: { data: ContoTermicoPdfData }) {
   const c = palette(data.colorePrimario);
   const r = calcolaContoTermico(data.economia);
+  // I pezzi presi dal documento degli altri preventivi (sigilli delle garanzie,
+  // recensioni, voto online) nei colori di questo.
+  const tema = creaTema({ primario: c.navy, accento: BASE.arancio });
   return (
     <Document title={`Preventivo ${data.preventivo.codice} · Conto Termico 3.0`} author={data.azienda.nome} subject="Preventivo Conto Termico 3.0" language="it-IT">
-      <Copertina d={data} r={r} c={c} />
+      <Copertina d={data} c={c} />
+      <ChiSiamo d={data} c={c} tema={tema} />
       <CosaVuolDire d={data} c={c} />
       <Intervento d={data} c={c} />
+      <Fornitura d={data} c={c} />
       <Caratteristiche d={data} c={c} />
+      <FotoProgetto d={data} c={c} />
       <Incentivo d={data} r={r} c={c} />
       <Risparmio d={data} r={r} c={c} />
       <Beneficio d={data} r={r} c={c} />
       {r.detrazione ? <Confronto d={data} r={r} c={c} /> : null}
+      <Referenze d={data} c={c} tema={tema} />
       <Passaggi d={data} c={c} />
       <Domande d={data} c={c} />
       <Decisione d={data} r={r} c={c} />
+      <Condizioni d={data} c={c} />
       <Firma d={data} r={r} c={c} />
+      <Recesso d={data} c={c} />
     </Document>
   );
 }
