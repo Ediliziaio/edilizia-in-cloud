@@ -142,7 +142,7 @@ async function spedisci(r: Record<string, unknown>, titolo: string, corsH: Heade
       ${riga("Commesse create", String(r?.commesse_create ?? 0), "dai clienti")}
       ${riga("Preventivi creati", String(r?.preventivi_creati ?? 0), "dai clienti")}
       ${riga("AI — costo / fatturato", `${eur(r?.ai_costo_eur)} / ${eur(r?.ai_fatturato_eur)}`,
-             Number(r?.ai_costo_eur ?? 0) > Number(r?.ai_fatturato_eur ?? 0) ? "⚠️ in perdita" : "")}
+             Number(r?.ai_costo_eur ?? 0) > Number(r?.ai_fatturato_eur ?? 0) ? "in perdita" : "")}
       ${Number(r?.wa_inviati ?? 0) > 0
         ? riga("WhatsApp a freddo", `${r?.wa_inviati} inviati · ${r?.wa_risposte} risposte`,
                Number(r?.wa_inviati) > 0 ? `${Math.round((Number(r?.wa_risposte) / Number(r?.wa_inviati)) * 100)}% di risposta` : "")

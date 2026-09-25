@@ -145,7 +145,7 @@ export function componiRiepilogo(d: DatiRiepilogo): { titolo: string; righe: Rig
   const righe: RigaAvviso[] = [];
   // In cima le due cose che fanno agire: cosa è fermo, e chi va richiamato.
   if (urgenze.length) {
-    righe.push({ etichetta: "⚠ Urgenze", valore: urgenze.join(" · ") });
+    righe.push({ etichetta: "Urgenze", valore: urgenze.join(" · ") });
   }
   righe.push({
     etichetta: "Da chiamare oggi",
@@ -203,7 +203,8 @@ export function componiRiepilogo(d: DatiRiepilogo): { titolo: string; righe: Rig
   const coda = daChiamare.length
     ? `${nf(daChiamare.length)} da chiamare`
     : plurale(tot.risposte, "risposta", "risposte", "nessuna risposta");
-  const titolo = `${urgenze.length ? "⚠ " : ""}Outreach ${d.giorno}: ${nf(tot.inviate)} email, ${coda}`;
+  // Niente icone negli oggetti (founder, 25/09/2026): l'urgenza la dicono le parole.
+  const titolo = `${urgenze.length ? "Da guardare — " : ""}Outreach ${d.giorno}: ${nf(tot.inviate)} email, ${coda}`;
   return { titolo, righe, testo };
 }
 

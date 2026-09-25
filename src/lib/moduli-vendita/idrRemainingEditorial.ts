@@ -5,6 +5,9 @@ interface IdrEditorial {
   hero: string; subtitle: string; cover: string; detail: string; context: string; scope: string;
   specs: TetEditorialPair[]; stages: TetEditorialPair[]; faq: TetEditorialPair[];
   rows: [string, string, number][];
+  /** «Perché sceglierci» e garanzie scritti per l'intervento; senza, si compongono da specs e stages. */
+  usp?: TetEditorialPair[];
+  garanzie?: TetEditorialPair[];
 }
 
 /** One editorial brief per intervention, not a renamed whole-house installation. */
@@ -81,5 +84,9 @@ export const IDR_REMAINING_EDITORIAL = {
     // Le stesse domande del documento: una sola fonte, src/lib/contoTermico/testi.ts.
     faq: FAQ_CONTO_TERMICO.map(({ domanda, risposta }) => [domanda, risposta] as TetEditorialPair),
     rows: [["Sistema", "Pompa di calore aria-acqua con modulo idronico e bollitore della configurazione dimostrativa", 9800], ["Installazione", "Smontaggio e smaltimento del vecchio generatore, collegamenti e messa in funzione", 2300], ["Pratica GSE", "Raccolta dei documenti e invio della domanda al GSE", 400]],
+    // Composti da specs e stages, qui uscivano frasi fuori posto («Compatibilità
+    // prima dell'ordine» spiegata col modo di ricevere il contributo).
+    usp: [["Il contributo, messo in chiaro", "Nel preventivo trovi il contributo stimato, quanto resta a te e quando arriva: i numeri sono gli stessi in ogni pagina."], ["Un generatore scelto sui requisiti", "Potenza ed efficienza stagionale (SCOP) sono i dati con cui il GSE calcola il contributo: li verifichiamo sulla scheda tecnica prima dell'ordine."], ["I documenti, raccolti durante i lavori", "Foto prima e dopo, fatture, schede e certificato di smaltimento: quello che serve alla domanda al GSE non si ricostruisce dopo."]],
+    garanzie: [["Garanzia del produttore", "Sul generatore vale la garanzia del produttore, alle condizioni della sua documentazione."], ["Impianto a regola d'arte", "A fine lavori rilasciamo la dichiarazione di conformità prevista per le opere eseguite."], ["Documenti per il GSE", "Foto, fatture, schede tecniche e certificato di smaltimento restano a te, pronti per la domanda e per eventuali controlli."], ["Assistenza definita", "Contatti e documenti restano a te; manutenzione e servizi aggiuntivi sono quelli concordati."]],
   },
 } satisfies Record<string, IdrEditorial>;

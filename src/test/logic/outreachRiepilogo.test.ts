@@ -125,8 +125,8 @@ describe("da chiamare oggi e urgenze", () => {
       urgenze: ["WhatsApp Numero appuntamenti +39 350 178 2744: staccato", "la casella info@x.it non spedisce"],
       daChiamare: [{ chi: "Rossi Serramenti", canale: "email", motivo: "interessato", quando: "ieri", telefono: "348 123 4567" }],
     });
-    expect(titolo.startsWith("⚠ Outreach")).toBe(true);
-    expect(righe[0].etichetta).toBe("⚠ Urgenze");
+    expect(titolo.startsWith("Da guardare — Outreach")).toBe(true);
+    expect(righe[0].etichetta).toBe("Urgenze");
     expect(testo.startsWith("URGENZE\n• WhatsApp Numero appuntamenti")).toBe(true);
     expect(testo.indexOf("URGENZE")).toBeLessThan(testo.indexOf("DA CHIAMARE OGGI"));
   });

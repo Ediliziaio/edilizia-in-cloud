@@ -91,7 +91,7 @@ Deno.serve(async (req) => {
 
   const { data: contatto } = await admin
     .from("marketing_contacts")
-    .select("id, company_id, first_name, last_name, phone, qualificazione_json, optout_whatsapp, opt_out")
+    .select("id, company_id, first_name, last_name, phone, source, qualificazione_json, optout_whatsapp, opt_out")
     .eq("id", body.contact_id).eq("company_id", companyId).maybeSingle();
   if (!contatto) return json({ ok: true, skipped: "contatto_non_trovato" });
   if (contatto.optout_whatsapp || contatto.opt_out) return json({ ok: true, skipped: "opt_out" });
@@ -168,6 +168,7 @@ async function unGiro(admin: Admin, g: {
     nomeAzienda: String(azienda?.name ?? "l'azienda"),
     adesso,
     contatto: { nome: g.contatto.first_name, cognome: g.contatto.last_name },
+    origine: g.contatto.source ?? null,
     qualificazione: (qualifica?.qualificazione_json ?? {}) as Record<string, unknown>,
     faseAttuale,
     calendarioNome: String(calendario?.name ?? "calendario delle chiamate"),

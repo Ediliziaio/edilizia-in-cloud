@@ -53,9 +53,10 @@ export function createFullIdrTemplate(base: IdrTemplatePdf, id: FullIdrModuleId)
     condizioni_legali_attivo: false, condizioni_legali_testo: null, modulo_recesso_attivo: false,
     default_iva_pct: 22, default_detrazione_pct: 0, default_validita_giorni: 30,
     show_chi_siamo: !!base.chi_siamo?.trim(), show_margine: false, show_garanzie: true, show_percorso: true, show_cronoprogramma: true,
-    esigenze: items(c.specs.slice(0, 3)), soluzione: items(c.specs.slice(1)), usp: items([["Scelte documentate", c.specs[1][1]], ["Perimetro chiaro", c.scope], ["Consegna accompagnata", c.stages[3][1]]]),
+    esigenze: items(c.specs.slice(0, 3)), soluzione: items(c.specs.slice(1)),
+    usp: items("usp" in c && c.usp ? c.usp : [["Scelte documentate", c.specs[1][1]], ["Perimetro chiaro", c.scope], ["Consegna accompagnata", c.stages[3][1]]]),
     percorso: items(c.stages), cronoprogramma: c.stages.map(([fase, descrizione]) => ({ fase, descrizione, durata: "Da concordare" })),
-    garanzie: items([["Prodotti riconoscibili", "Modelli e dotazioni elencati con documenti e condizioni applicabili."], ["Compatibilità prima dell'ordine", c.specs[2][1]], ["Verifica della fornitura", c.stages[3][1]], ["Assistenza definita", "Conserva contatti e documenti; manutenzione e servizi aggiuntivi sono quelli concordati."]]),
+    garanzie: items("garanzie" in c && c.garanzie ? c.garanzie : [["Prodotti riconoscibili", "Modelli e dotazioni elencati con documenti e condizioni applicabili."], ["Compatibilità prima dell'ordine", c.specs[2][1]], ["Verifica della fornitura", c.stages[3][1]], ["Assistenza definita", "Conserva contatti e documenti; manutenzione e servizi aggiuntivi sono quelli concordati."]]),
     faq: c.faq.map(([domanda, risposta]) => ({ domanda, risposta })), testimonianze: [], gallery_lavori: [], finanziamento_promo: null, pdf_pagine_libere: [],
     pdf_ordine_capitoli: CAPITOLI_EDILI.map(p => ({ chiave: p.chiave, visibile: true })),
     pdf_blocchi: {

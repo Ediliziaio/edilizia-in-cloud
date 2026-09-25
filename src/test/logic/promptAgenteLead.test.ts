@@ -30,6 +30,18 @@ describe("promptAgenteLead", () => {
     expect(p.indexOf("assistente automatico")).toBeGreaterThan(p.indexOf(BASE.promptAzienda));
   });
 
+  it("si presenta come assistente virtuale anche se l'azienda gli dà un nome di persona", () => {
+    const p = promptAgenteLead(BASE);
+    expect(p).toContain("sono l'assistente virtuale di Il Bagno Group");
+    expect(p.indexOf("assistente virtuale")).toBeGreaterThan(p.indexOf(BASE.promptAzienda));
+  });
+
+  it("non inventa da dove arriva il contatto", () => {
+    expect(promptAgenteLead(BASE)).toContain("L'origine del contatto non è indicata nel CRM.");
+    expect(promptAgenteLead({ ...BASE, origine: "Meta Lead Ads" })).toContain("Origine del contatto nel CRM: «Meta Lead Ads».");
+    expect(promptAgenteLead(BASE)).toMatch(/Non dire che il contatto ha compilato un modulo/);
+  });
+
   it("orari e prenotazioni solo dagli strumenti", () => {
     const p = promptAgenteLead(BASE);
     expect(p).toContain("orari_liberi");

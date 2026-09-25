@@ -14,9 +14,10 @@
  *   - CAC = spesa lead generation del mese ÷ contratti vinti nel mese;
  *   - ROAS = valore dei contratti vinti nel mese ÷ spesa lead generation del mese;
  *   - tasso di chiusura = contratti vinti ÷ sopralluoghi, sugli ultimi 30 giorni;
- *   - colore del brand: 🔴 se ha un allarme grave aperto o se Meta manca o è
- *     scaduto; 🟠 se ha altri allarmi aperti, la spesa non leggibile, il CPL
- *     sopra il target o nessun contratto nel mese; 🟢 altrimenti. Il semaforo
+ *   - stato del brand (una parola colorata, niente icone): CRITICO se ha un
+ *     allarme grave aperto o se Meta manca o è scaduto; DA GUARDARE se ha altri
+ *     allarmi aperti, la spesa non leggibile, il CPL sopra il target o nessun
+ *     contratto nel mese; OK altrimenti. Il semaforo
  *     del motore non serve a questo: basta un componente rosso, e il 21/09
  *     l'esecuzione lo era per tutti;
  *   - un dato che manca si scrive «non disponibile» col motivo, mai un trattino.
@@ -230,7 +231,12 @@ export function coloreBrand(c: ClienteRapporto): Colore {
   return "verde";
 }
 
-const PALLINO: Record<Colore, string> = { rosso: "🔴", arancione: "🟠", verde: "🟢", pausa: "⚪" };
+// Niente icone nelle email (founder, 25/09/2026): lo stato è una parola colorata.
+const ETICHETTA_STATO: Record<Colore, [string, string]> = {
+  rosso: ["CRITICO", "#b91c1c"], arancione: ["DA GUARDARE", "#c2410c"], verde: ["OK", "#047857"], pausa: ["IN PAUSA", "#6b7280"],
+};
+const etichettaStato = (c: Colore) =>
+  `<span style="color:${ETICHETTA_STATO[c][1]};font-size:12px;letter-spacing:0.04em;">${ETICHETTA_STATO[c][0]}</span>`;
 const ORDINE: Record<Colore, number> = { rosso: 0, arancione: 1, verde: 2, pausa: 3 };
 
 /** Lavorazione commerciale insufficiente: tanti lead fermi o indice di esecuzione basso. */
@@ -632,12 +638,12 @@ function schedaBrand(c: ClienteRapporto): string {
   if (colore === "verde") {
     const ind = indicatori(c);
     return `<div>
-      <p style="margin:0;font-size:15px;"><strong>${PALLINO.verde} ${nome}</strong></p>${contratto}
+      <p style="margin:0;font-size:15px;"><strong>${nome}</strong> ${etichettaStato("verde")}</p>${contratto}
       <p style="margin:4px 0 0;">Lead ieri <strong>${intero(num(c.lead_grezzi_giorno))}</strong> · CPL <strong>${ind.cpl != null ? euro(ind.cpl, 2) : "n.d."}</strong>${haValore(c.cpl_target) ? ` (target ${euro(num(c.cpl_target), 2)})` : ""} · Contratti nel mese <strong>${intero(num(c.vendite_mese))}</strong></p>
     </div>`;
   }
   return `<div>
-    <p style="margin:0;font-size:15px;"><strong>${PALLINO[colore]} ${nome}</strong></p>${contratto}
+    <p style="margin:0;font-size:15px;"><strong>${nome}</strong> ${etichettaStato(colore)}</p>${contratto}
     <p style="margin:4px 0 0;"><em>Sintesi:</em> ${esc(sintesi(c))}</p>
     ${sezioneCampagne(c)}
     ${sezioneAwareness(c)}
@@ -697,7 +703,9 @@ export function costruisciRapporto(r: DatiRapporto, urlConsole: string): Rapport
 
   const bloccoIeri = ieri.length
     ? titoletto("Le priorità di ieri") + elenco(ieri.map((p) =>
-      `<li style="margin:2px 0;">${p.risolta ? "✅" : "⏳"} <strong>${esc(p.cliente.toUpperCase())}</strong> — ${esc(p.titolo)}: ${esc(p.stato)}</li>`))
+      `<li style="margin:2px 0;"><strong>${esc(p.cliente.toUpperCase())}</strong> — ${esc(p.titolo)}: ${esc(p.stato)} ${p.risolta
+        ? `<span style="color:#047857;">(risolta)</span>`
+        : `<span style="color:#c2410c;">(ancora aperta)</span>`}</li>`))
     : "";
 
   const bloccoPriorita = priorita.length
@@ -710,7 +718,7 @@ export function costruisciRapporto(r: DatiRapporto, urlConsole: string): Rapport
     : `<p style="margin:0;color:#047857;">Nessuna priorità: non ci sono allarmi aperti sui brand attivi.</p>`;
 
   const bloccoPausa = inPausa.length
-    ? separatore + `<p style="margin:0;font-size:15px;"><strong>${PALLINO.pausa} CLIENTI IN PAUSA</strong></p>` +
+    ? separatore + `<p style="margin:0;font-size:15px;"><strong>CLIENTI IN PAUSA</strong></p>` +
       inPausa.map((c) => `<p style="margin:8px 0 0;"><strong>${esc(c.cliente_nome.toUpperCase())}</strong></p>` + elenco([
         riga("Stato", "in pausa"),
         riga("Lead ieri", intero(num(c.lead_grezzi_giorno))),
