@@ -33,6 +33,8 @@ import { avvisaSuperAdmin } from "./avvisaSuperAdmin.ts";
 import { testoSenzaCitazione } from "./avvisoEmail.ts";
 import { iscrizioniDaFermare } from "./outreachRispostaBrand.ts";
 import { shouldCreateOpportunity, triggerOpportunityFromSignal } from "./outreach-opportunity-trigger.ts";
+import { richiestaDiChiamata } from "./outreach-richiesta-chiamata.ts";
+import { fissaChiamataConoscitiva, portaInDiscovery, type ChiamataFissata } from "./appuntamentoChiamata.ts";
 
 /** Dopo quanti giorni si richiama chi ha risposto «più avanti». */
 export const GIORNI_PIU_AVANTI = 75;
@@ -471,6 +473,12 @@ export async function handleInboundReply(admin: any, r: InboundReply): Promise<v
     tutte: intent === "unsubscribe",
   });
 
+  // «Chiamami oggi alle 15», «sentiamoci lunedì mattina»: quando vuole essere
+  // chiamato. Se c'è, sotto si fissa la chiamata conoscitiva (25/09/2026).
+  const richiesta = r.contactId && brandId && intent !== "unsubscribe" && intent !== "not_interested"
+    ? richiestaDiChiamata(r.text ?? "")
+    : null;
+
   // 4-bis. TRIGGER: una risposta interessata o una domanda diventa un task di
   // chiamata entro domani (pending in outreach_call_tasks, visibile in "Oggi"):
   // il valore di un cold sta tutto nei minuti dopo la risposta.
@@ -509,7 +517,7 @@ export async function handleInboundReply(admin: any, r: InboundReply): Promise<v
   // promessa la mantiene un promemoria di chiamata fra circa due mesi e mezzo,
   // che compare in «Oggi» quando scade (25/09/2026). Chi è interessato o fa una
   // domanda ha già il suo promemoria per domani, qui sopra.
-  if (r.contactId && intent !== "unsubscribe" && intent !== "interested" && intent !== "question"
+  if (r.contactId && !richiesta && intent !== "unsubscribe" && intent !== "interested" && intent !== "question"
       && rispostaPiuAvanti(r.text ?? "")) {
     try {
       const { data: giaAperto } = await admin.from("outreach_call_tasks").select("id")
@@ -540,6 +548,26 @@ export async function handleInboundReply(admin: any, r: InboundReply): Promise<v
     }
   }
 
+  // 4-bis-1b. CHIAMATA CONOSCITIVA (Discovery): «chiamami oggi alle 15» diventa
+  // un appuntamento nel calendario del brand, anche se l'ora è occupata; con
+  // solo una fascia («oggi pomeriggio») il primo slot libero (25/09/2026).
+  // PRIMA della scheda: il flusso appuntamenti che la scheda fa partire deve
+  // trovare la chiamata già fissata e dire «ti chiamiamo alle 15», non
+  // mandare il link per scegliere l'orario.
+  let fissata: ChiamataFissata | null = null;
+  if (richiesta && r.contactId && brandId) {
+    try {
+      fissata = await fissaChiamataConoscitiva(admin, {
+        brandId, contactId: r.contactId, richiesta, risposta: r.text ?? "", email: fromEmail,
+      });
+      if (fissata && !fissata.esistente) {
+        console.log(`[outreach-reply-handler] chiamata fissata ${fissata.giorno} ${fissata.ora} (${fissata.calendario})${fissata.sovrapposta ? ", sovrapposta" : ""}`);
+      }
+    } catch (e) {
+      console.warn("[outreach-reply-handler] chiamata non fissata:", e instanceof Error ? e.message : e);
+    }
+  }
+
   // 4-bis-2. TRIGGER OPPORTUNITÀ: "interessato" e "domanda" creano l'opportunità
   // in automatico (contatto tiepido → scheda in pipeline). La politica sta tutta
   // in shouldCreateOpportunity. Best-effort: un errore qui non deve mai far
@@ -554,6 +582,12 @@ export async function handleInboundReply(admin: any, r: InboundReply): Promise<v
       brandId, // pipeline OMONIMA del brand a cui ha risposto
       label: intent, // "interested" | "question" → registro attività
     });
+  }
+
+  // 4-bis-3. La chiamata fissata qui sopra porta la scheda appena nata in Discovery.
+  if (fissata && r.contactId) {
+    try { await portaInDiscovery(admin, r.contactId, PLATFORM_COMPANY, fissata.giorno); }
+    catch (e) { console.warn("[outreach-reply-handler] scheda non spostata in Discovery:", e instanceof Error ? e.message : e); }
   }
 
   // 4-ter. "Non interessato": il cooldown lo tiene il lock del BRAND qui sotto
