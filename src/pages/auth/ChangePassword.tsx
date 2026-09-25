@@ -9,6 +9,7 @@ import { logger } from "@/utils/logger";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { motivoPasswordRifiutata } from "@/lib/auth/cambioPassword";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -84,7 +85,9 @@ export default function ChangePassword() {
       });
 
       if (updateError) {
-        toast.error("Errore durante il cambio password");
+        // Il motivo vero (password comune o uguale a prima): con «Errore
+        // durante il cambio password» si riprovava la stessa all'infinito.
+        toast.error(motivoPasswordRifiutata(updateError), { duration: 10000 });
         setIsLoading(false);
         return;
       }

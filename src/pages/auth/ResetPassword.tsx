@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, Lock, Eye, EyeOff, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { motivoPasswordRifiutata } from "@/lib/auth/cambioPassword";
+import { logger } from "@/utils/logger";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
 
 function getLoginPathForCurrentDomain() {
@@ -79,10 +81,15 @@ export default function ResetPassword() {
       if (error) {
         toast({
           variant: "destructive",
-          title: "Errore",
-          description: "Impossibile aggiornare la password. Riprova.",
+          title: "Password non cambiata",
+          description: motivoPasswordRifiutata(error),
         });
       } else {
+        // La password l'ha scelta lui: non c'è più una password provvisoria da
+        // cambiare. Senza, dopo il recupero l'app lo mandava di nuovo a «Cambia
+        // Password» (Andrea Urban e Kevin Ortolan di Renova, 23-24/09/2026).
+        const { error: erroreObbligo } = await supabase.rpc("staff_update_own_password_flag", { _must_change: false });
+        if (erroreObbligo) logger.error("[password] obbligo di cambio non tolto dopo il recupero:", erroreObbligo);
         setIsSuccess(true);
         const redirectPath = getLoginPathForCurrentDomain();
         redirectTimerRef.current = setTimeout(() => navigate(redirectPath, { replace: true }), 3000);
