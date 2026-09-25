@@ -255,15 +255,16 @@ export function CalendarMonthView({
   };
 
   return (
-    <Card className="p-3 sm:p-4">
-      <div className="flex items-center justify-between mb-4">
-        <Button variant="ghost" size="icon" onClick={() => onDateChange(subMonths(currentDate, 1))}>
+    // Mobile: niente riquadro attorno (dentro ce ne sono già due: mese e agenda).
+    <Card className="p-3 sm:p-4 max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
+      <div className="flex items-center justify-between mb-4 max-sm:mb-2">
+        <Button variant="ghost" size="icon" className="max-sm:h-8 max-sm:w-8" onClick={() => onDateChange(subMonths(currentDate, 1))}>
           <ChevronLeft className="h-4 w-4" />
         </Button>
-        <h2 className="text-lg font-semibold capitalize">
+        <h2 className="text-lg font-semibold capitalize max-sm:text-base">
           {format(currentDate, "MMMM yyyy", { locale: it })}
         </h2>
-        <Button variant="ghost" size="icon" onClick={() => onDateChange(addMonths(currentDate, 1))}>
+        <Button variant="ghost" size="icon" className="max-sm:h-8 max-sm:w-8" onClick={() => onDateChange(addMonths(currentDate, 1))}>
           <ChevronRight className="h-4 w-4" />
         </Button>
       </div>
@@ -275,7 +276,7 @@ export function CalendarMonthView({
           return (
             <div className="flex flex-col gap-2">
               {/* Griglia mese a pallini */}
-              <div className="overflow-hidden rounded-lg border">
+              <div className="overflow-hidden rounded-lg border bg-card">
                 <div className="grid grid-cols-7 border-b bg-muted/30">
                   {weekDays.map((day) => (
                     <div key={day} className="py-1.5 text-center text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -315,19 +316,19 @@ export function CalendarMonthView({
               </div>
 
               {/* Agenda del giorno selezionato */}
-              <div className="overflow-hidden rounded-lg border">
+              <div className="overflow-hidden rounded-lg border bg-card">
                 <div className="flex items-center justify-between border-b px-3 py-2">
                   <p className="text-sm font-semibold capitalize">{format(selectedDate, "EEEE d MMMM", { locale: it })}</p>
                   <button
                     type="button"
                     onClick={() => { setEditingAppointment(null); setNewAppointmentDate(selKey); setAppointmentDialogOpen(true); }}
-                    className="inline-flex h-7 items-center gap-1 rounded-md border px-2 text-xs font-medium text-muted-foreground hover:bg-muted"
+                    className="tap-compact inline-flex h-7 items-center gap-1 rounded-md border px-2 text-xs font-medium text-muted-foreground hover:bg-muted"
                   >
                     + Nuovo
                   </button>
                 </div>
                 {selEvents.length === 0 ? (
-                  <p className="px-3 py-6 text-center text-sm text-muted-foreground">Nessun impegno</p>
+                  <p className="px-3 py-4 text-center text-sm text-muted-foreground">Nessun impegno</p>
                 ) : (
                   <div className="divide-y">
                     {selEvents.map((event, i) => {
