@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Crown, Medal, Award, Users } from "lucide-react";
 import { useTableSort } from "@/hooks/useTableSort";
 import { formatCurrency } from "@/lib/formatters";
+import { RigaMobile } from "@/components/mobile/FiltriMobile";
 import type { VendorKPI } from "@/hooks/useVendorReport";
 import {
   aggregateTeamKPI,
@@ -112,10 +113,25 @@ export function VenditoriRanking({
   const obiettivoTeam = sortedItems.reduce((a, k) => a + (obiettivi?.get(k.agent_id)?.fatturato ?? 0), 0);
   const conObiettivi = obiettivoTeam > 0;
 
+  // Telefono: una riga per venditore (fatturato, vinte su chiuse, chiusura) che
+  // apre le sue opportunità; tabella a 11 colonne e legenda restano al computer.
   return (
-    <Card>
+    <Card className="max-sm:overflow-hidden">
       <CardContent className="p-0">
-        <Table>
+        <div className="divide-y sm:hidden">
+          {sortedItems.map((k, idx) => (
+            <RigaMobile
+              key={k.agent_id}
+              onClick={onApriVenditore ? () => onApriVenditore(k.agent_id) : undefined}
+              sinistra={<span className="w-5 shrink-0 text-center text-[11px] font-semibold text-muted-foreground">{idx + 1}</span>}
+              titolo={k.nome_agente}
+              sottotitolo={`${k.opp_vinte} vinte su ${k.opp_vinte + k.opp_perse} chiuse · pipeline ${formatCurrency(k.pipeline_valore)}`}
+              valore={formatCurrency(k.fatturato_generato)}
+              stato={kpiBadge(k.tasso_chiusura, "tasso_chiusura")}
+            />
+          ))}
+        </div>
+        <Table className="max-sm:hidden">
           <TableHeader>
             <TableRow>
               <SortableTableHead column="" label="#" sortConfig={null} onSort={() => {}} className="w-10 text-center" />
@@ -201,7 +217,7 @@ export function VenditoriRanking({
         </Table>
       </CardContent>
 
-      <div className="flex flex-wrap items-center gap-4 px-6 pb-4 text-xs text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-4 px-6 pb-4 text-xs text-muted-foreground max-sm:hidden">
         <span><Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs">val</Badge> Ottimo</span>
         <span><Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-xs">val</Badge> Da migliorare</span>
         <span><Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 text-xs">val</Badge> Critico</span>

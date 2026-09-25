@@ -43,9 +43,9 @@ interface Props {
 export function KPISection({ kpi, isLoading, precedente, etichettaPrecedente }: Props) {
   if (!kpi && !isLoading) {
     return (
-      <div className="text-center py-10">
+      <div className="text-center py-10 max-sm:py-4">
         <p className="text-muted-foreground">Nessun dato disponibile per il periodo selezionato.</p>
-        <p className="text-sm text-muted-foreground/70 mt-1">Verifica che le Opportunità abbiano l'agente assegnato.</p>
+        <p className="text-sm text-muted-foreground/70 mt-1 max-sm:hidden">Verifica che le Opportunità abbiano l'agente assegnato.</p>
       </div>
     );
   }
@@ -123,13 +123,13 @@ export function KPISection({ kpi, isLoading, precedente, etichettaPrecedente }: 
 
   return (
     <div className="space-y-2">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-sm:grid-cols-2 max-sm:gap-2">
         {cards.map(card => (
           <KPICard key={card.title} {...card} isLoading={isLoading} />
         ))}
       </div>
       {p && etichettaPrecedente && !isLoading && (
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-muted-foreground max-sm:hidden">
           Le frecce confrontano con {etichettaPrecedente}.
         </p>
       )}

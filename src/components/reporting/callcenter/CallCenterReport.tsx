@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Phone, GitCompareArrows } from "lucide-react";
@@ -61,6 +62,9 @@ export default function CallCenterReport() {
   const [periodo, setPeriodo] = useState<PeriodoVendor>("mese");
   const [operatoreId, setOperatoreId] = useState<string>("tutti");
   const [subTab, setSubTab] = useState("panoramica");
+  // Telefono: due sotto-schede (Panoramica e Operatori); grafici, fonti e confronto restano al computer.
+  const isMobile = useIsMobile();
+  const schedaAttiva = isMobile && subTab !== "panoramica" && subTab !== "ranking" ? "panoramica" : subTab;
 
   const effectiveOpId = operatoreId === "tutti" ? undefined : operatoreId;
   const daysBack = DAYS_BY_PERIODO[periodo] ?? 180;
@@ -69,10 +73,10 @@ export default function CallCenterReport() {
   const { data: kpiList, isLoading: kpiLoading } = useCallCenterKPI(periodo);
 
   // Lazy load — only when tab is active
-  const { data: speedData, isLoading: speedLoading } = useSpeedToLeadDistribuzione(periodo, effectiveOpId, subTab === "speed");
-  const { data: trendData, isLoading: trendLoading } = useTrendGiornaliero(periodo, effectiveOpId, subTab === "trend");
-  const { data: fonteData, isLoading: fonteLoading } = useFonteLeadPerformance(periodo, subTab === "fonti");
-  const { data: leadHandling, isLoading: lhLoading } = useCallCenterLeadHandling(periodo, effectiveOpId, subTab === "panoramica");
+  const { data: speedData, isLoading: speedLoading } = useSpeedToLeadDistribuzione(periodo, effectiveOpId, schedaAttiva === "speed");
+  const { data: trendData, isLoading: trendLoading } = useTrendGiornaliero(periodo, effectiveOpId, schedaAttiva === "trend");
+  const { data: fonteData, isLoading: fonteLoading } = useFonteLeadPerformance(periodo, schedaAttiva === "fonti");
+  const { data: leadHandling, isLoading: lhLoading } = useCallCenterLeadHandling(periodo, effectiveOpId, schedaAttiva === "panoramica");
 
   // Aggregate team or find individual — all client-side from kpiList
   const currentKpi = useMemo(() => {
@@ -136,13 +140,13 @@ export default function CallCenterReport() {
   );
 
   return (
-    <div className="space-y-6">
-      {/* Header with filters */}
+    <div className="space-y-6 max-sm:space-y-3">
+      {/* Header with filters — telefono: solo periodo e operatore, niente titolo (lo dice la scheda) né export */}
       <div className="flex flex-wrap items-center gap-3">
-        <Phone className="h-5 w-5 text-primary" />
-        <h2 className="text-lg font-semibold">Report Call Center</h2>
+        <Phone className="h-5 w-5 text-primary max-sm:hidden" />
+        <h2 className="text-lg font-semibold max-sm:hidden">Report Call Center</h2>
 
-        <div className="ml-auto flex flex-wrap items-center gap-2">
+        <div className="ml-auto flex flex-wrap items-center gap-2 max-sm:ml-0 max-sm:w-full max-sm:flex-nowrap">
           <ReportExportMenu
             rows={exportRows}
             columns={EXPORT_COLUMNS}
@@ -150,7 +154,7 @@ export default function CallCenterReport() {
             disabled={kpiLoading}
           />
           <Select value={periodo} onValueChange={(v) => setPeriodo(v as PeriodoVendor)}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-[180px] max-sm:w-auto max-sm:min-w-0 max-sm:flex-1">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -161,7 +165,7 @@ export default function CallCenterReport() {
           </Select>
 
           <Select value={operatoreId} onValueChange={setOperatoreId}>
-            <SelectTrigger className="w-[200px]">
+            <SelectTrigger className="w-[200px] max-sm:w-auto max-sm:min-w-0 max-sm:flex-1">
               <SelectValue placeholder="Operatore" />
             </SelectTrigger>
             <SelectContent>
@@ -177,29 +181,33 @@ export default function CallCenterReport() {
       </div>
 
       {/* Sub-tabs */}
-      <Tabs value={subTab} onValueChange={setSubTab}>
-        <TabsList>
-          <TabsTrigger value="panoramica">Panoramica</TabsTrigger>
-          <TabsTrigger value="ranking">Ranking Operatori</TabsTrigger>
-          <TabsTrigger value="speed">Speed to Lead</TabsTrigger>
-          <TabsTrigger value="trend">Trend Giornaliero</TabsTrigger>
-          <TabsTrigger value="fonti">Fonti Lead</TabsTrigger>
-          <TabsTrigger value="confronto" className="gap-1.5">
+      <Tabs value={schedaAttiva} onValueChange={setSubTab}>
+        <TabsList className="max-sm:w-full">
+          <TabsTrigger value="panoramica" className="max-sm:flex-1">Panoramica</TabsTrigger>
+          <TabsTrigger value="ranking" className="max-sm:flex-1">
+            <span className="max-sm:hidden">Ranking Operatori</span>
+            <span className="sm:hidden">Operatori</span>
+          </TabsTrigger>
+          <TabsTrigger value="speed" className="max-sm:hidden">Speed to Lead</TabsTrigger>
+          <TabsTrigger value="trend" className="max-sm:hidden">Trend Giornaliero</TabsTrigger>
+          <TabsTrigger value="fonti" className="max-sm:hidden">Fonti Lead</TabsTrigger>
+          <TabsTrigger value="confronto" className="gap-1.5 max-sm:hidden">
             <GitCompareArrows className="h-4 w-4" /> Confronto
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="panoramica" className="mt-4 space-y-6">
+        <TabsContent value="panoramica" className="mt-4 space-y-6 max-sm:mt-3 max-sm:space-y-3">
           <CallCenterKPISection kpi={currentKpi} isLoading={kpiLoading} />
           <CallCenterOperationalDiagnosis kpi={currentKpi} isLoading={kpiLoading} />
           <LavorazioneLeadPanel data={leadHandling} isLoading={lhLoading} />
-          <section aria-label="Lead ads e chiamate">
+          {/* Telefono: il report delle campagne e gli insight testuali restano al computer. */}
+          <section aria-label="Lead ads e chiamate" className="max-sm:hidden">
             <AdsCallCenterReportPanel provider="all" daysBack={daysBack} />
           </section>
           <CallCenterInsights kpi={currentKpi} />
         </TabsContent>
 
-        <TabsContent value="ranking" className="mt-4">
+        <TabsContent value="ranking" className="mt-4 max-sm:mt-3">
           <OperatoriRanking kpiList={kpiList ?? []} isLoading={kpiLoading} />
         </TabsContent>
 

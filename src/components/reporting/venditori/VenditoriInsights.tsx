@@ -103,8 +103,9 @@ export function VenditoriInsights({ kpi, trend, kpiList }: Props) {
   const insights = generateInsights(kpi, trend, kpiList);
   if (!insights.length) return null;
 
+  // Telefono: gli insight testuali restano al computer.
   return (
-    <Card>
+    <Card className="max-sm:hidden">
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2">
           <Lightbulb className="h-4 w-4" />

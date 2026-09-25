@@ -78,6 +78,9 @@ type PriorityAction = {
 
 type AdsSalesTotals = ReturnType<typeof useAdsSalesReport>["totals"];
 
+// Telefono: le sezioni stanno a filo pagina, senza riquadro.
+const SEZIONE_SENZA_RIQUADRO_TELEFONO = "max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none";
+
 export function CrmSalesReportPanel({
   daysBack: initialDaysBack = 180,
 }: {
@@ -195,12 +198,13 @@ export function CrmSalesReportPanel({
   };
 
   return (
-    <div className="space-y-5">
-      <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+    <div className="space-y-5 max-sm:space-y-3">
+      {/* Telefono: solo il periodo, senza barra fissa né riquadro. */}
+      <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm max-sm:static max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
         <div className="flex flex-wrap items-center gap-2">
-          <Calendar className="h-4 w-4 text-slate-400" />
+          <Calendar className="h-4 w-4 text-slate-400 max-sm:hidden" />
           <Select value={periodKey} onValueChange={setPeriodKey}>
-            <SelectTrigger className="h-9 w-[200px]"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-9 w-[200px] max-sm:w-[180px]"><SelectValue /></SelectTrigger>
             <SelectContent>
               {PERIOD_OPTIONS.map((o) => (
                 <SelectItem key={o.key} value={o.key}>{o.label}</SelectItem>
@@ -238,9 +242,10 @@ export function CrmSalesReportPanel({
         )}
       </div>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      {/* Telefono: i quattro numeri 2×2, senza titolo, periodo e spiegazione (li dice già la pagina). */}
+      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-          <div className="max-w-2xl">
+          <div className="max-w-2xl max-sm:hidden">
             <Badge variant="outline" className="mb-3 border-orange-200 bg-orange-50 text-orange-700">
               {periodLabel}
             </Badge>
@@ -250,7 +255,7 @@ export function CrmSalesReportPanel({
             </p>
           </div>
 
-          <div className="grid w-full gap-3 sm:grid-cols-2 xl:max-w-3xl">
+          <div className="grid w-full gap-3 sm:grid-cols-2 xl:max-w-3xl max-sm:grid-cols-2 max-sm:gap-2">
             <ExecutiveKpi
               icon={CircleDollarSign}
               label="Fatturato attribuito"
@@ -292,22 +297,23 @@ export function CrmSalesReportPanel({
         )}
       </section>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <section className={cn("rounded-xl border border-slate-200 bg-white p-4 shadow-sm", SEZIONE_SENZA_RIQUADRO_TELEFONO)}>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <SectionHeader
             icon={TrendingUp}
-            title="Confronto periodo"
+            title={isMobile ? "Vs periodo precedente" : "Confronto periodo"}
             description={compareMode === "yoy" ? "Vs stesso periodo dell'anno scorso." : "Vs periodo precedente di pari durata."}
           />
+          {/* Telefono: il confronto resta sul periodo precedente. */}
           <Select value={compareMode} onValueChange={(v) => setCompareMode(v as "prev" | "yoy")}>
-            <SelectTrigger className="h-9 w-[200px]"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-9 w-[200px] max-sm:hidden"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="prev">Vs periodo precedente</SelectItem>
               <SelectItem value="yoy">Vs anno scorso</SelectItem>
             </SelectContent>
           </Select>
         </div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 max-sm:mt-1.5 max-sm:grid-cols-2 max-sm:gap-2">
           {periodCompare.map((m) => (
             <ComparisonCard
               key={m.key}
@@ -319,29 +325,30 @@ export function CrmSalesReportPanel({
         </div>
       </section>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <section className={cn("rounded-xl border border-slate-200 bg-white p-4 shadow-sm", SEZIONE_SENZA_RIQUADRO_TELEFONO)}>
         <SectionHeader icon={TrendingUp} title="Funnel commerciale" description="Dal lead alla vendita: barre proporzionali e % di conversione tra gli stadi (sui primi appuntamenti)." />
-        <div className="mt-4 grid gap-5 lg:grid-cols-[1.5fr_1fr]">
+        <div className="mt-4 grid gap-5 lg:grid-cols-[1.5fr_1fr] max-sm:mt-1.5 max-sm:gap-2">
           {commercial.isLoading ? (
             <Skeleton className="h-40 w-full rounded-lg" />
           ) : (
             <CommercialFunnel conv={funnelConv} />
           )}
-          <div className="grid grid-cols-2 gap-3 self-start">
+          <div className="grid grid-cols-2 gap-3 self-start max-sm:grid-cols-3 max-sm:gap-2">
             <MiniMetric label="Fatturato comm." value={formatMoney(fatturatoCommCents)} loading={commercial.isLoading} tone="green" />
             <MiniMetric label="Ticket medio" value={formatMoney(report.quotes.averageValueCents)} loading={commercial.isLoading} />
             <MiniMetric label="Sales velocity" value={`${formatMoney(salesEff.velocityCentsPerDay)}/g`} loading={commercial.isLoading} />
           </div>
         </div>
         {!commercial.isLoading && (
-          <p className="mt-2 text-[11px] leading-snug text-slate-500">
+          <p className="mt-2 text-[11px] leading-snug text-slate-500 max-sm:hidden">
             Conversioni sui <strong>primi appuntamenti</strong> del calendario marketing: {funnelConv.appuntamenti} primi su{" "}
             {funnelConv.appuntamentiTotali} totali ({Math.max(funnelConv.appuntamentiTotali - funnelConv.appuntamenti, 0)} follow-up).
           </p>
         )}
       </section>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      {/* Telefono: il grafico dell'andamento, il dettaglio operativo e i canali paid restano al computer. */}
+      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm max-sm:hidden">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <SectionHeader icon={TrendingUp} title="Andamento nel tempo" description={`Aggregato per ${effectiveGranularity === "month" ? "mese" : effectiveGranularity === "week" ? "settimana" : "giorno"}.`} />
           <div className="flex flex-wrap items-center gap-2">
@@ -384,7 +391,7 @@ export function CrmSalesReportPanel({
         </div>
       </section>
 
-      <CollapsibleSection icon={BarChart3} title="Dettaglio operativo" description="Apri per i numeri di dettaglio: preventivi, forecast, qualità lead, perdite, fonti." defaultOpen={false}>
+      <CollapsibleSection icon={BarChart3} title="Dettaglio operativo" description="Apri per i numeri di dettaglio: preventivi, forecast, qualità lead, perdite, fonti." defaultOpen={false} className="max-sm:hidden">
         <div className="grid gap-4 xl:grid-cols-2">
           <DetailPanel title="Preventivi e tempi" icon={FileSignature}>
             <div className="grid gap-3 sm:grid-cols-3">
@@ -442,7 +449,8 @@ export function CrmSalesReportPanel({
       </CollapsibleSection>
 
       <section className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        {/* Telefono: le tre letture ripetono i numeri in alto; resta solo «Da fare adesso». */}
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm max-sm:hidden">
           <SectionHeader icon={Target} title="Cosa guardare" description="Le tre letture chiave di salute commerciale." />
           <div className="mt-4 grid gap-3">
             <FocusCard
@@ -472,9 +480,9 @@ export function CrmSalesReportPanel({
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className={cn("rounded-xl border border-slate-200 bg-white p-4 shadow-sm", SEZIONE_SENZA_RIQUADRO_TELEFONO)}>
           <SectionHeader icon={ListIcon} title="Da fare adesso" description="Priorità ordinate per impatto commerciale." />
-          <div className="mt-4 space-y-3">
+          <div className="mt-4 space-y-3 max-sm:mt-1.5 max-sm:space-y-2">
             {loading ? (
               <>
                 <Skeleton className="h-20 w-full rounded-lg" />
@@ -483,12 +491,12 @@ export function CrmSalesReportPanel({
               </>
             ) : (
               priorities.map((action) => (
-                <div key={action.title} className={cn("rounded-lg border p-3", priorityClassName(action.tone))}>
-                  <div className="flex items-start gap-3">
+                <div key={action.title} className={cn("rounded-lg border p-3 max-sm:px-3 max-sm:py-2", priorityClassName(action.tone))}>
+                  <div className="flex items-start gap-3 max-sm:gap-2">
                     {action.tone === "good" ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" /> : <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />}
                     <div>
-                      <p className="text-sm font-semibold">{action.title}</p>
-                      <p className="mt-1 text-sm leading-5 opacity-85">{action.detail}</p>
+                      <p className="text-sm font-semibold max-sm:text-[13px]">{action.title}</p>
+                      <p className="mt-1 text-sm leading-5 opacity-85 max-sm:mt-0.5 max-sm:text-[11px] max-sm:leading-4">{action.detail}</p>
                     </div>
                   </div>
                 </div>
@@ -498,7 +506,7 @@ export function CrmSalesReportPanel({
         </div>
       </section>
 
-      <CollapsibleSection icon={Trophy} title="Canali paid che generano vendite" description="Meta e Google: lead, appuntamenti, vendite e fatturato (tenuti separati)." defaultOpen={false}>
+      <CollapsibleSection icon={Trophy} title="Canali paid che generano vendite" description="Meta e Google: lead, appuntamenti, vendite e fatturato (tenuti separati)." defaultOpen={false} className="max-sm:hidden">
         <AdsSalesReportPanel provider="all" daysBack={adsDaysBack} compact className="border-slate-200 bg-white shadow-sm" />
       </CollapsibleSection>
     </div>
@@ -583,20 +591,21 @@ function ExecutiveKpi({
   tone?: "default" | "green" | "amber" | "red";
 }) {
   return (
-    <div className={cn("rounded-lg border bg-white p-3", toneClassName(tone))}>
-      <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase text-slate-500">
-        <Icon className="h-4 w-4" />
+    // Telefono: nome e cifra; senza icona né riga di dettaglio.
+    <div className={cn("rounded-lg border bg-white p-3 max-sm:min-w-0 max-sm:px-2.5 max-sm:py-2", toneClassName(tone))}>
+      <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase text-slate-500 max-sm:mb-0.5 max-sm:truncate max-sm:text-[11px] max-sm:font-medium max-sm:normal-case">
+        <Icon className="h-4 w-4 max-sm:hidden" />
         {label}
       </div>
       {loading ? (
         <>
-          <Skeleton className="h-8 w-28" />
-          <Skeleton className="mt-2 h-4 w-44" />
+          <Skeleton className="h-8 w-28 max-sm:h-6 max-sm:w-20" />
+          <Skeleton className="mt-2 h-4 w-44 max-sm:hidden" />
         </>
       ) : (
         <>
-          <p className="text-2xl font-semibold tracking-tight text-slate-950">{value}</p>
-          <p className="mt-1 text-xs leading-5 text-slate-500">{detail}</p>
+          <p className="text-2xl font-semibold tracking-tight text-slate-950 max-sm:truncate max-sm:text-base">{value}</p>
+          <p className="mt-1 text-xs leading-5 text-slate-500 max-sm:hidden">{detail}</p>
         </>
       )}
     </div>
@@ -650,7 +659,7 @@ function CommercialFunnel({ conv }: { conv: FunnelConversion }) {
     { label: "Vendite", value: conv.vinti, conv: conv.convQuoteWon },
   ];
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 max-sm:space-y-1.5">
       {stages.map((s) => {
         const width = s.value > 0 ? Math.max((s.value / max) * 100, 5) : 0;
         return (
@@ -659,10 +668,14 @@ function CommercialFunnel({ conv }: { conv: FunnelConversion }) {
               <span className="font-medium text-slate-700">{s.label}</span>
               <span className="tabular-nums text-slate-500">
                 <span className="font-semibold text-slate-900">{s.value}</span>
-                {s.conv != null && <span className="ml-2 text-slate-400">{s.conv}% dal precedente</span>}
+                {s.conv != null && (
+                  <span className="ml-2 text-slate-400">
+                    {s.conv}%<span className="max-sm:hidden"> dal precedente</span>
+                  </span>
+                )}
               </span>
             </div>
-            <div className="h-7 w-full overflow-hidden rounded-md bg-slate-100">
+            <div className="h-7 w-full overflow-hidden rounded-md bg-slate-100 max-sm:h-4">
               <div className="h-full rounded-md bg-gradient-to-r from-orange-400 to-orange-500 transition-all" style={{ width: `${width}%` }} />
             </div>
           </div>
@@ -688,17 +701,19 @@ function CollapsibleSection({
   title,
   description,
   defaultOpen = true,
+  className,
   children,
 }: {
   icon: ComponentType<{ className?: string }>;
   title: string;
   description: string;
   defaultOpen?: boolean;
+  className?: string;
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <section className="space-y-4">
+    <section className={cn("space-y-4", className)}>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -751,10 +766,10 @@ function SectionHeader({
   return (
     <div>
       <div className="flex items-center gap-2">
-        <Icon className="h-4 w-4 text-orange-600" />
-        <h3 className="text-base font-semibold text-slate-950">{title}</h3>
+        <Icon className="h-4 w-4 text-orange-600 max-sm:hidden" />
+        <h3 className="text-base font-semibold text-slate-950 max-sm:text-[13px]">{title}</h3>
       </div>
-      <p className="mt-1 text-sm text-slate-600">{description}</p>
+      <p className="mt-1 text-sm text-slate-600 max-sm:hidden">{description}</p>
     </div>
   );
 }
@@ -783,24 +798,25 @@ function ComparisonCard({ metric, loading, spark }: { metric: PeriodComparisonMe
   const delta = metric.deltaPct;
   const up = delta != null && delta >= 0;
   return (
-    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+    // Telefono: nome, cifra e variazione sulla stessa riga; senza minigrafico.
+    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 max-sm:min-w-0 max-sm:px-2.5 max-sm:py-2">
       <div className="flex items-start justify-between gap-2">
-        <p className="text-xs font-medium uppercase text-slate-500">{metric.label}</p>
+        <p className="text-xs font-medium uppercase text-slate-500 max-sm:truncate max-sm:text-[11px] max-sm:normal-case">{metric.label}</p>
         {!loading && spark && spark.length >= 2 && (
-          <Sparkline values={spark} className={cn("mt-0.5 shrink-0", up ? "text-emerald-500/70" : "text-rose-500/70")} />
+          <Sparkline values={spark} className={cn("mt-0.5 shrink-0 max-sm:hidden", up ? "text-emerald-500/70" : "text-rose-500/70")} />
         )}
       </div>
       {loading ? (
-        <Skeleton className="mt-2 h-6 w-24" />
+        <Skeleton className="mt-2 h-6 w-24 max-sm:mt-1 max-sm:h-5 max-sm:w-16" />
       ) : (
-        <>
-          <p className="mt-1 text-lg font-semibold text-slate-950">{value}</p>
+        <div className="max-sm:flex max-sm:items-baseline max-sm:justify-between max-sm:gap-1">
+          <p className="mt-1 text-lg font-semibold text-slate-950 max-sm:mt-0 max-sm:truncate max-sm:text-base">{value}</p>
           {delta === null ? (
-            <p className="mt-1 text-xs text-slate-400">nessun confronto</p>
+            <p className="mt-1 text-xs text-slate-400 max-sm:hidden">nessun confronto</p>
           ) : (
             <p
               className={cn(
-                "mt-1 inline-flex items-center gap-1 text-xs font-medium",
+                "mt-1 inline-flex items-center gap-1 text-xs font-medium max-sm:mt-0 max-sm:shrink-0 max-sm:text-[11px]",
                 up ? "text-emerald-700" : "text-rose-700",
               )}
             >
@@ -808,7 +824,7 @@ function ComparisonCard({ metric, loading, spark }: { metric: PeriodComparisonMe
               {Math.abs(delta)}%
             </p>
           )}
-        </>
+        </div>
       )}
     </div>
   );
@@ -826,9 +842,13 @@ function MiniMetric({
   tone?: "default" | "green" | "amber" | "red";
 }) {
   return (
-    <div className={cn("rounded-lg border bg-slate-50 p-3", toneClassName(tone))}>
-      <p className="text-xs font-medium uppercase text-slate-500">{label}</p>
-      {loading ? <Skeleton className="mt-2 h-6 w-20" /> : <p className="mt-2 text-lg font-semibold text-slate-950">{value}</p>}
+    <div className={cn("rounded-lg border bg-slate-50 p-3 max-sm:min-w-0 max-sm:px-2 max-sm:py-1.5", toneClassName(tone))}>
+      <p className="text-xs font-medium uppercase text-slate-500 max-sm:truncate max-sm:text-[11px] max-sm:normal-case">{label}</p>
+      {loading ? (
+        <Skeleton className="mt-2 h-6 w-20 max-sm:mt-1 max-sm:h-5 max-sm:w-14" />
+      ) : (
+        <p className="mt-2 text-lg font-semibold text-slate-950 max-sm:mt-0 max-sm:truncate max-sm:text-[13px]">{value}</p>
+      )}
     </div>
   );
 }

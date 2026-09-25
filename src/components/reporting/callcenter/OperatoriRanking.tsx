@@ -6,6 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChevronUp, ChevronDown, Crown, Medal, Award, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { RigaMobile } from "@/components/mobile/FiltriMobile";
 import type { CallCenterKPI } from "@/hooks/useCallCenterReport";
 
 type SortField =
@@ -91,18 +92,20 @@ export function OperatoriRanking({ kpiList, isLoading }: Props) {
   const teamAvg = (field: keyof CallCenterKPI) =>
     Math.round(sorted.reduce((a, k) => a + ((k[field] as number) ?? 0), 0) / len * 10) / 10;
 
+  // Telefono: niente tabella a 13 colonne; una riga per operatore (appuntamenti,
+  // lead, contatto, velocità) ordinata come scelto, senza titolo né legenda.
   return (
-    <Card>
-      <CardHeader>
+    <Card className="max-sm:border-0 max-sm:bg-transparent max-sm:shadow-none">
+      <CardHeader className="max-sm:p-0 max-sm:pb-2">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <CardTitle className="text-base flex items-center gap-2">
+          <CardTitle className="text-base flex items-center gap-2 max-sm:hidden">
             <Trophy className="h-4 w-4 text-primary" />
             Classifica Operatori
           </CardTitle>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">Ordina per:</span>
+          <div className="flex items-center gap-2 max-sm:w-full">
+            <span className="text-sm text-muted-foreground max-sm:hidden">Ordina per:</span>
             <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortField)}>
-              <SelectTrigger className="w-[220px] h-8 text-xs">
+              <SelectTrigger className="w-[220px] h-8 text-xs max-sm:h-9 max-sm:w-auto max-sm:min-w-0 max-sm:flex-1 max-sm:text-[13px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -114,7 +117,7 @@ export function OperatoriRanking({ kpiList, isLoading }: Props) {
             <Button
               variant="outline"
               size="sm"
-              className="h-8 px-2"
+              className="h-8 px-2 max-sm:h-9"
               onClick={() => setAscending(!ascending)}
             >
               {ascending ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
@@ -123,8 +126,26 @@ export function OperatoriRanking({ kpiList, isLoading }: Props) {
           </div>
         </div>
       </CardHeader>
-      <CardContent>
-        <div className="overflow-auto">
+      <CardContent className="max-sm:p-0">
+        <div className="divide-y overflow-hidden rounded-lg border bg-card sm:hidden">
+          {sorted.map((k, idx) => {
+            // I lead senza operatore arrivano con nome e tassi vuoti.
+            const stl = k.avg_speed_to_lead_min ?? 0;
+            return (
+              <RigaMobile
+                key={k.operatore_id ?? `senza-${idx}`}
+                sinistra={<span className="w-5 shrink-0 text-center text-[11px] font-semibold text-muted-foreground">{idx + 1}</span>}
+                titolo={k.nome_operatore || k.email_operatore || "Senza operatore"}
+                sottotitolo={`${k.lead_assegnati ?? 0} lead · contatto ${k.tasso_contatto ?? 0}% · ${
+                  stl < 60 ? `${stl} min` : `${Math.round((stl / 60) * 10) / 10} h`
+                }`}
+                valore={`${k.appuntamenti_fissati ?? 0} app.`}
+                stato={<CellBadge val={k.tasso_app_su_contattati ?? 0} field="tasso_app_su_contattati" suffix="%" />}
+              />
+            );
+          })}
+        </div>
+        <div className="overflow-auto max-sm:hidden">
           <Table>
             <TableHeader>
               <TableRow>
@@ -212,7 +233,7 @@ export function OperatoriRanking({ kpiList, isLoading }: Props) {
         </div>
 
         {/* Legend */}
-        <div className="flex gap-4 mt-4 text-xs text-muted-foreground">
+        <div className="flex gap-4 mt-4 text-xs text-muted-foreground max-sm:hidden">
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500" /> Ottimo</span>
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500" /> Da migliorare</span>
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500" /> Critico</span>

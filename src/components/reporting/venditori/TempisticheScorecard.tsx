@@ -41,8 +41,9 @@ export function TempisticheScorecard({ kpi, isLoading }: Props) {
     { label: "Media opp. PERSE", value: giorniTesto(avgPersi, perse > 0), color: "text-muted-foreground" },
   ];
 
+  // Telefono: il ciclo medio è già nei numeri in alto; il dettaglio resta al computer.
   return (
-    <Card>
+    <Card className="max-sm:hidden">
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2">
           <Timer className="h-4 w-4" />

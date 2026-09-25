@@ -16,10 +16,11 @@ interface ReportExportMenuProps {
 }
 
 export function ReportExportMenu({ rows, columns, filenameBase, disabled }: ReportExportMenuProps) {
+  // Niente export sul telefono.
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" disabled={disabled || !rows.length}>
+        <Button variant="outline" size="sm" disabled={disabled || !rows.length} className="max-sm:hidden">
           <Download className="h-4 w-4 mr-1.5" />
           Esporta
         </Button>
