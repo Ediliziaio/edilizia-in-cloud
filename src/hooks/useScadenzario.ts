@@ -71,6 +71,12 @@ export interface ScadenzarioFilters {
   /** Testo cercato: filtra sulla descrizione LATO SERVER, cosi' la ricerca
    *  guarda tutte le scadenze e non solo quelle della pagina caricata. */
   search?: string | null;
+  /** Solo le scadute: aperte (da pagare o parziali) con scadenza passata. Prima
+   *  la linguetta «Scadute» non passava nessun filtro e mostrava tutte. */
+  soloScadute?: boolean;
+  /** Tipo di scadenza (incasso_cliente, pagamento_fornitore…): il filtro
+   *  «Tipo» della pagina esisteva ma non arrivava alla query. */
+  tipo?: string | null;
 }
 
 export function useScadenzario(page: number = 1, pageSize: number = 50, filters: ScadenzarioFilters = {}) {
@@ -78,10 +84,10 @@ export function useScadenzario(page: number = 1, pageSize: number = 50, filters:
   const queryClient = useQueryClient();
   const companyId = effectiveCompany?.id;
 
-  const { direction, status, dateFrom, dateTo, search } = filters;
+  const { direction, status, dateFrom, dateTo, search, soloScadute, tipo } = filters;
 
   const scadenzeQuery = useQuery({
-    queryKey: [...queryKeys.scadenzario.list(companyId), page, pageSize, direction, status, dateFrom, dateTo, search],
+    queryKey: [...queryKeys.scadenzario.list(companyId), page, pageSize, direction, status, dateFrom, dateTo, search, soloScadute ?? false, tipo ?? null],
     queryFn: async () => {
       let query = supabase
         .from("scadenze")
@@ -102,6 +108,12 @@ export function useScadenzario(page: number = 1, pageSize: number = 50, filters:
       if (status) query = query.eq("status", status);
       if (dateFrom) query = query.gte("due_date", dateFrom);
       if (dateTo) query = query.lte("due_date", dateTo);
+      if (soloScadute) {
+        query = query
+          .in("status", ["da_pagare", "parziale"])
+          .lt("due_date", new Date().toLocaleDateString("en-CA"));
+      }
+      if (tipo) query = query.eq("tipo", tipo);
 
       const { data, error, count } = await query
         .range((page - 1) * pageSize, page * pageSize - 1);

@@ -1,6 +1,7 @@
 import { AlertTriangle, CalendarClock, CalendarDays, Clock, TrendingDown, TrendingUp } from "lucide-react";
 import type { ScadenzarioSummary } from "@/hooks/useScadenzario";
 import { NavyStatCard } from "@/components/costi/KpiCard";
+import { cn } from "@/lib/utils";
 
 // Nei KPI di testata niente centesimi: piu' leggibili, mai troncati
 // (stessa scelta del riepilogo Commesse e dei Costi).
@@ -10,9 +11,11 @@ const fmtEur = (n: number) =>
 interface Props {
   summary: ScadenzarioSummary | undefined;
   isLoading: boolean;
+  /** Es. "max-sm:hidden": su telefono la pagina mostra due numeri suoi. */
+  className?: string;
 }
 
-export default function ScadenzarioKPIs({ summary, isLoading }: Props) {
+export default function ScadenzarioKPIs({ summary, isLoading, className }: Props) {
   // I due versi separati arrivano dalla RPC. Se una risposta vecchia non li
   // porta ancora, si ricade sul totale: meglio il numero di prima che nessuno.
   const scadutoEntrata = summary?.scadute_entrata_amount ?? summary?.scadute_amount ?? 0;
@@ -21,7 +24,7 @@ export default function ScadenzarioKPIs({ summary, isLoading }: Props) {
 
   if (isLoading || !summary) {
     return (
-      <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
+      <div className={cn("overflow-hidden rounded-2xl border border-slate-200 shadow-sm", className)}>
         <div className="bg-[#173b67] p-4 sm:p-5">
           <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
             {[...Array(4)].map((_, i) => (
@@ -36,7 +39,7 @@ export default function ScadenzarioKPIs({ summary, isLoading }: Props) {
   const saldoNetto = summary.entrate_previste - summary.uscite_previste;
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
+    <div className={cn("overflow-hidden rounded-2xl border border-slate-200 shadow-sm", className)}>
       <div className="bg-[#173b67] p-4 text-white sm:p-5">
         <div className="flex items-start gap-3">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)] sm:h-11 sm:w-11">
