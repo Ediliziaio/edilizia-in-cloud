@@ -71,6 +71,33 @@ async function apriDocumento(evento: { preventDefault: () => void }, url: string
   }
 }
 
+/**
+ * Cornice della pagina di firma. Sta FUORI dal componente: definita dentro,
+ * a ogni render era un componente nuovo e React rimontava tutta la pagina.
+ * Col timer dell'OTP che aggiorna ogni secondo, i sei campi perdevano il
+ * fuoco ogni secondo (e l'autofocus riportava alla prima cifra); su iPhone la
+ * tastiera si chiudeva a ogni cifra; il motivo del rifiuto perdeva il fuoco a
+ * ogni lettera.
+ */
+function Wrapper({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="min-h-screen bg-gray-50 flex items-start justify-center p-4 pt-10">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-lg overflow-hidden">
+        <div className="bg-gradient-to-r from-slate-800 to-slate-700 p-6">
+          <div className="flex items-center gap-3">
+            <Shield className="h-7 w-7 text-orange-400" />
+            <div>
+              <p className="text-white font-bold text-lg leading-none">Firma Elettronica</p>
+              <p className="text-slate-400 text-xs mt-0.5">Edilizia in Cloud</p>
+            </div>
+          </div>
+        </div>
+        <div className="p-6">{children}</div>
+      </div>
+    </div>
+  );
+}
+
 export default function FirmaDocumento() {
   const { token } = useParams<{ token: string }>();
   const [step, setStep] = useState<Step>('loading');
@@ -304,23 +331,6 @@ export default function FirmaDocumento() {
   };
 
   // ── RENDER ──────────────────────────────────────────────────────────────
-  const Wrapper = ({ children }: { children: React.ReactNode }) => (
-    <div className="min-h-screen bg-gray-50 flex items-start justify-center p-4 pt-10">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-lg overflow-hidden">
-        <div className="bg-gradient-to-r from-slate-800 to-slate-700 p-6">
-          <div className="flex items-center gap-3">
-            <Shield className="h-7 w-7 text-orange-400" />
-            <div>
-              <p className="text-white font-bold text-lg leading-none">Firma Elettronica</p>
-              <p className="text-slate-400 text-xs mt-0.5">Edilizia in Cloud</p>
-            </div>
-          </div>
-        </div>
-        <div className="p-6">{children}</div>
-      </div>
-    </div>
-  );
-
   if (step === 'loading') return (
     <Wrapper>
       <div className="flex flex-col items-center gap-3 py-8">
