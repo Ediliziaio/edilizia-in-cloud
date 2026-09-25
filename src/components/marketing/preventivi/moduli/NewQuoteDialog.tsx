@@ -9,7 +9,7 @@ import { useModuliVendita, useModuliVisibilita } from "@/lib/moduli-vendita";
 import { useSerramentiModelSupport } from "@/hooks/useSerramentiModelSupport";
 import { useTettiModelSupport } from "@/hooks/useTettiModelSupport";
 import { useSupportoModelliPreventivo } from "@/hooks/useSupportoModelliPreventivo";
-import { eModuloConModelli } from "@/lib/moduli/modelloPreventivo";
+import { MODULI_CON_MODELLI, eModuloConModelloPreventivo } from "@/lib/moduli/modelloPreventivo";
 import { SALES_AREAS, type SalesArea } from "@/lib/moduli-vendita/areas";
 import { hasAreaAccess, matchesIntervention, pilotHref, quoteCreationHref } from "./salesSelector";
 
@@ -19,6 +19,9 @@ interface Props {
   params: URLSearchParams;
   trigger: ReactNode;
 }
+
+/** I preventivatori che salvano il modello dell'intervento, Fotovoltaico compreso. */
+const MODULI_CON_MODELLI_E_FV = [...MODULI_CON_MODELLI, "fotovoltaico"] as const;
 
 /** One entry point, on top of the quote list. No template-editing destinations. */
 export function NewQuoteDialog({ open, onOpenChange, params, trigger }: Props) {
@@ -47,7 +50,7 @@ function QuoteChooser({ params, onSelect }: { params: URLSearchParams; onSelect:
   const { isModuloVisibile, isLoading: visibilityLoading } = useModuliVisibilita();
   const srSupport = useSerramentiModelSupport();
   const tetSupport = useTettiModelSupport();
-  const modelliSupport = useSupportoModelliPreventivo();
+  const modelliSupport = useSupportoModelliPreventivo(MODULI_CON_MODELLI_E_FV);
   const [areaId, setAreaId] = useState(params.get("area") ?? "");
   const [query, setQuery] = useState("");
   const heading = useRef<HTMLHeadingElement>(null);
@@ -97,7 +100,7 @@ function QuoteChooser({ params, onSelect }: { params: URLSearchParams; onSelect:
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{results.map(({ area: item, intervention }) => {
             const href = pilotHref(item, intervention, params);
             const support = item.sourceModule === "tetti" ? tetSupport
-              : eModuloConModelli(item.sourceModule)
+              : eModuloConModelloPreventivo(item.sourceModule)
                 ? { supported: modelliSupport.supportato(item.sourceModule), isLoading: modelliSupport.isLoading, isError: modelliSupport.isError }
                 : srSupport;
             const ready = href && support.supported && !support.isLoading && !support.isError;

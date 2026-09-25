@@ -1,7 +1,7 @@
 import { SALES_AREAS, type SalesArea, type SalesIntervention } from "./areas";
 import { MODULI_VENDITA } from "./config";
 import { isSrQuoteModelId } from "@/lib/serramenti/quoteModel";
-import { eModuloConModelli, interventoDelModulo } from "@/lib/moduli/modelloPreventivo";
+import { eModuloConModelloPreventivo, interventoDelModulo } from "@/lib/moduli/modelloPreventivo";
 
 /** One operational registry. A PDF editor is never a quote-creation destination. */
 export function quoteBuilder(area: SalesArea, item: SalesIntervention) {
@@ -11,8 +11,8 @@ export function quoteBuilder(area: SalesArea, item: SalesIntervention) {
   if (!engine || engine.availability !== "available") return null;
   const connected = registered.sourceModule === "tetti" ||
     (registered.sourceModule === "serramenti" && isSrQuoteModelId(item.id)) ||
-    // Bagni, Climatizzazione, Elettrico… (lib/moduli/modelloPreventivo, 25/09/2026)
-    (eModuloConModelli(registered.sourceModule) && !!interventoDelModulo(registered.sourceModule, item.id));
+    // Bagni, Climatizzazione, Elettrico… e Fotovoltaico (lib/moduli/modelloPreventivo, 25/09/2026)
+    (eModuloConModelloPreventivo(registered.sourceModule) && !!interventoDelModulo(registered.sourceModule, item.id));
   return { areaId: registered.id, modelId: item.id, engine: registered.sourceModule,
     path: `${engine.href}/nuovo`, connected };
 }

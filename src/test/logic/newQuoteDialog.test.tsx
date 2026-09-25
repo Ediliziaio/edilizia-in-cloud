@@ -108,7 +108,7 @@ describe("popup unico di creazione preventivi", () => {
     fireEvent.click(screen.getByRole("link", { name: "Apri preventivatore Da vasca a doccia" }));
     expect(screen.getByTestId("route")).toHaveTextContent("/azienda/bagni/nuovo?modello=vasca-doccia&contact_id=c1");
   });
-  it.each([["termoidraulica", 8], ["elettrico", 7], ["ristrutturazioni", 5]] as const)("apre i preventivatori %s coi loro %i interventi", (area, quanti) => {
+  it.each([["termoidraulica", 8], ["elettrico", 7], ["ristrutturazioni", 5], ["fotovoltaico", 5]] as const)("apre i preventivatori %s coi loro %i interventi", (area, quanti) => {
     mount(`area=${area}`);
     expect(screen.getAllByRole("link", { name: /^Apri preventivatore/ })).toHaveLength(quanti);
   });
