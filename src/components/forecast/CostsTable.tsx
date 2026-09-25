@@ -468,29 +468,36 @@ export function CostsTable({
         </div>
         <div className="hidden rounded-md border overflow-x-auto sm:block">
           {/* min-w: con table-fixed + w-full la tabella si comprimeva alla larghezza dello
-              schermo (a 375px colonne da 11-30px illeggibili) invece di scrollare in orizzontale */}
-          <Table className="min-w-[900px] table-fixed [&_td]:py-2.5 [&_th]:h-9">
+              schermo (a 375px colonne da 11-30px illeggibili) invece di scrollare in orizzontale.
+              Da 768 niente minimo: con le colonne di serie ci sta, e a 900px la tabella
+              scorreva di lato per 216px a 1024 (sotto 1280 via anche l'icona «Task
+              collegate», che resta nel menu «⋯»). */}
+          <Table className="min-w-[900px] table-fixed [&_td]:py-2.5 [&_th]:h-9 md:min-w-0 md:max-xl:[&_td]:px-3 md:max-xl:[&_th]:px-3">
               <TableHeader>
               <TableRow>
-                <TableHead className="w-[3%]">
+                {/* Al 3% la casella (32px) usciva dalla colonna a 1024; percentuali
+                    riviste perché a 1024 ci stiano anche data con icona e stato. */}
+                <TableHead className="w-[5%]">
                   {!soloLettura && (
                     <Checkbox checked={allSelected} onCheckedChange={() => onToggleSelectAll(allSelectableIds)} aria-label="Seleziona tutti" />
                   )}
                 </TableHead>
-                <SortableTableHead column="name" label="Costo" sortConfig={costSort} onSort={toggleCostSort} className="w-[26%]" />
+                <SortableTableHead column="name" label="Costo" sortConfig={costSort} onSort={toggleCostSort} className="w-[24%]" />
                 {isColVisible("origin") && <SortableTableHead column="origin" label="Origine" sortConfig={costSort} onSort={toggleCostSort} className="w-[6%]" />}
                 {type === "all" && isColVisible("costType") && <SortableTableHead column="costType" label="Tipo" sortConfig={costSort} onSort={toggleCostSort} className="w-[6%]" />}
-                {isColVisible("supplier") && <SortableTableHead column="supplier" label="Fornitore" sortConfig={costSort} onSort={toggleCostSort} className="w-[14%]" />}
+                {isColVisible("supplier") && <SortableTableHead column="supplier" label="Fornitore" sortConfig={costSort} onSort={toggleCostSort} className="w-[13%] md:max-xl:w-[10%]" />}
                 {isColVisible("category") && <SortableTableHead column="category" label="Categoria" sortConfig={costSort} onSort={toggleCostSort} className="w-[7%]" />}
                 {isColVisible("amount") && <SortableTableHead column="amount" label="Imponibile" sortConfig={costSort} onSort={toggleCostSort} className="text-right w-[8%]" />}
                 {isColVisible("vatRate") && <SortableTableHead column="vatRate" label="IVA" sortConfig={costSort} onSort={toggleCostSort} className="w-[5%]" />}
-                {isColVisible("gross") && <SortableTableHead column="gross" label="Totale" sortConfig={costSort} onSort={toggleCostSort} className="text-right w-[11%]" />}
+                {isColVisible("gross") && <SortableTableHead column="gross" label="Totale" sortConfig={costSort} onSort={toggleCostSort} className="text-right w-[12%]" />}
                 {isColVisible("recurrence") && <SortableTableHead column="recurrence" label="Ricorrenza" sortConfig={costSort} onSort={toggleCostSort} className="w-[7%]" />}
-                {isColVisible("dueDate") && <SortableTableHead column="dueDate" label="Scadenza" sortConfig={costSort} onSort={toggleCostSort} className="w-[11%]" />}
-                {isColVisible("status") && <SortableTableHead column="status" label="Stato" sortConfig={costSort} onSort={toggleCostSort} className="w-[14%]" />}
+                {isColVisible("dueDate") && <SortableTableHead column="dueDate" label="Scadenza" sortConfig={costSort} onSort={toggleCostSort} className="w-[13%]" />}
+                {isColVisible("status") && <SortableTableHead column="status" label="Stato" sortConfig={costSort} onSort={toggleCostSort} className="w-[13%]" />}
                 {isColVisible("delay") && <SortableTableHead column="delay" label="Ritardo" sortConfig={costSort} onSort={toggleCostSort} className="w-[5%]" />}
                 {hasOrderCol && <SortableTableHead column="order" label="Ordine" sortConfig={costSort} onSort={toggleCostSort} className="w-[10%]" />}
-                <TableHead className="text-right w-[11%]">Azioni</TableHead>
+                {/* Tra 768 e 1280 un po' di Fornitore passa ad Azioni: tre icone da
+                    28px non stavano in 81px e si schiacciavano una sull'altra. */}
+                <TableHead className="text-right w-[11%] md:max-xl:w-[15%]">Azioni</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -665,7 +672,7 @@ export function CostsTable({
                             )}
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onOpenTasks(cost.id)} aria-label="Task collegate">
+                                <Button variant="ghost" size="icon" className="hidden h-7 w-7 xl:inline-flex" onClick={() => onOpenTasks(cost.id)} aria-label="Task collegate">
                                   <AlertCircle className="h-3.5 w-3.5" />
                                 </Button>
                               </TooltipTrigger>
@@ -681,6 +688,9 @@ export function CostsTable({
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
+                                <DropdownMenuItem className="xl:hidden" onClick={() => onOpenTasks(cost.id)}>
+                                  <AlertCircle className="h-4 w-4 mr-2" /> Task collegate
+                                </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => onOpenDuplicate(cost)}>
                                   <Copy className="h-4 w-4 mr-2" /> Duplica (+1 mese)
                                 </DropdownMenuItem>

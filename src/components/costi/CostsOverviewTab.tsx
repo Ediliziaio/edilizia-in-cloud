@@ -322,17 +322,11 @@ export function CostsOverviewTab({
       {/* Testata navy di famiglia: il periodo scelto in tre card in vetro.
           Mobile: due numeri, nome e cifra (vedi sotto). */}
       <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm max-sm:hidden">
+        {/* Senza il titoletto «Panoramica — Dove vanno i soldi · settembre»:
+            il periodo è nel selettore sopra e «Dove vanno i soldi» è il titolo
+            del riquadro subito sotto. */}
         <div className="bg-[#173b67] p-4 text-white sm:p-5">
-          <div className="flex items-start gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)] sm:h-11 sm:w-11">
-              <Wallet className="h-4 w-4 sm:h-5 sm:w-5" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-orange-100 sm:text-xs">Panoramica</p>
-              <h2 className="mt-0.5 text-base font-semibold text-white sm:text-xl">Dove vanno i soldi · {labelPeriodo}</h2>
-            </div>
-          </div>
-          <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-5 sm:grid-cols-3 sm:gap-3">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">
             <NavyStatCard
               label={`Totale ${labelPeriodo}`}
               value={formatCurrency(totalePeriodo)}

@@ -148,7 +148,9 @@ function RigaDipendente({ d }: { d: DipendenteMese }) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="grid w-full grid-cols-2 items-center gap-x-3 gap-y-2 px-4 py-3 text-left sm:grid-cols-[minmax(160px,1.4fr)_90px_110px_minmax(140px,1fr)_120px_110px_24px]"
+        // Tra 640 e 1280 senza la colonna Commesse (resta nel dettaglio che si
+        // apre): con sette colonne la riga era 858px e a 1024 usciva di lato.
+        className="grid w-full grid-cols-2 items-center gap-x-3 gap-y-2 px-4 py-3 text-left sm:grid-cols-[minmax(140px,1fr)_84px_100px_110px_100px_20px] xl:grid-cols-[minmax(160px,1.4fr)_90px_110px_minmax(140px,1fr)_120px_110px_24px]"
       >
         {/* Nome + qualifica */}
         <div className="col-span-2 flex min-w-0 items-center gap-2.5 sm:col-span-1">
@@ -197,7 +199,7 @@ function RigaDipendente({ d }: { d: DipendenteMese }) {
         </div>
 
         {/* Commesse */}
-        <div className="col-span-2 sm:col-span-1">
+        <div className="col-span-2 sm:col-span-1 sm:max-xl:hidden">
           <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground sm:hidden">
             Commesse
           </p>
@@ -260,6 +262,10 @@ function RigaDipendente({ d }: { d: DipendenteMese }) {
                 Straordinari stimati a costo orario base (esclusa maggiorazione CCNL)
               </span>
             )}
+          </div>
+          {/* Tra 640 e 1280 la colonna Commesse non c'è: le commesse stanno qui. */}
+          <div className="mb-3 hidden sm:block xl:hidden">
+            <CommesseChips commesse={d.commesse} />
           </div>
           <DettaglioRapportini rapportini={d.rapportini} />
         </div>
@@ -514,7 +520,9 @@ export function PersonnelCostsTab({
       {/* Testata navy di famiglia (stessa delle Spese fisse/variabili). */}
       <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
         <div className="bg-[#173b67] p-4 text-white sm:p-5">
-          <div className="flex items-start gap-3">
+          {/* Da 640 niente titoletto «Personale — Le persone: ore vere, costo
+              vero»: la linguetta aperta dice già dove sei. */}
+          <div className="flex items-start gap-3 sm:hidden">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)] sm:h-11 sm:w-11">
               <HardHat className="h-4 w-4 sm:h-5 sm:w-5" />
             </div>
@@ -523,7 +531,7 @@ export function PersonnelCostsTab({
               <h2 className="mt-0.5 text-base font-semibold text-white sm:text-xl">Le persone: ore vere, costo vero</h2>
             </div>
           </div>
-          <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-5 sm:gap-3 xl:grid-cols-4">
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-0 sm:gap-3 xl:grid-cols-4">
             <NavyStatCard
               label="Costo personale"
               value={formatCurrency(totali.costoTotale)}
@@ -579,11 +587,11 @@ export function PersonnelCostsTab({
       ) : (
         <div className="space-y-2">
           {/* Intestazione colonne (solo desktop) */}
-          <div className="hidden grid-cols-[minmax(160px,1.4fr)_90px_110px_minmax(140px,1fr)_120px_110px_24px] gap-x-3 px-4 text-[11px] font-medium uppercase tracking-wide text-muted-foreground sm:grid">
+          <div className="hidden gap-x-3 px-4 text-[11px] font-medium uppercase tracking-wide text-muted-foreground sm:grid sm:grid-cols-[minmax(140px,1fr)_84px_100px_110px_100px_20px] xl:grid-cols-[minmax(160px,1.4fr)_90px_110px_minmax(140px,1fr)_120px_110px_24px]">
             <span>Dipendente</span>
             <span>Costo orario</span>
             <span>Ore mese</span>
-            <span>Commesse</span>
+            <span className="max-xl:hidden">Commesse</span>
             <span>Costo mese</span>
             <span className="flex items-center gap-1">
               Saturazione

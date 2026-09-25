@@ -3,8 +3,9 @@ import { Link, useSearchParams } from "react-router-dom";
 import { format, addMonths, endOfMonth, startOfMonth } from "date-fns";
 import { it } from "date-fns/locale";
 import {
-  AlertTriangle, ArrowRight, CalendarIcon, CheckCircle2, ChevronLeft, ChevronRight, Download, FilterX, Landmark, Link2, ListChecks, Plus, ReceiptText, Repeat, Search, Settings2, Upload, Users, WalletCards,
+  AlertTriangle, ArrowRight, CalendarIcon, CheckCircle2, ChevronLeft, ChevronRight, Download, FilterX, Landmark, Link2, ListChecks, MoreHorizontal, Plus, Repeat, Search, Settings2, Upload, Users, WalletCards,
 } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -740,20 +741,9 @@ export default function CompanyCostsManager({
             card cliccabile filtra (anello arancio quando attiva). Le azioni
             vivono nella riga dei filtri, sotto. */}
         <div className="bg-[#173b67] p-4 text-white sm:p-5 max-sm:hidden">
-          <div className="flex items-start gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)] sm:h-11 sm:w-11">
-              {typeLock === "fixed" ? <Landmark className="h-4 w-4 sm:h-5 sm:w-5" /> : <ReceiptText className="h-4 w-4 sm:h-5 sm:w-5" />}
-            </div>
-            <div className="min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-orange-100 sm:text-xs">
-                {typeLock === "fixed" ? "Spese fisse" : "Spese variabili"}
-              </p>
-              <h2 className="mt-0.5 text-base font-semibold text-white sm:text-xl">
-                {typeLock === "fixed" ? "La struttura: li paghi comunque" : "I cantieri: nascono col lavoro"}
-              </h2>
-            </div>
-          </div>
-          <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-5 sm:gap-3 xl:grid-cols-4">
+          {/* Senza il titoletto con lo slogan («La struttura: li paghi
+              comunque»): la linguetta aperta dice già quali spese sono. */}
+          <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
             <NavyStatCard
               label="Totale"
               value={eur0(sommaVoci(vociTipo))}
@@ -964,14 +954,25 @@ export default function CompanyCostsManager({
                   <Landmark className="h-4 w-4" /> Riconcilia banca
                 </Button>
               )}
-              {!soloLettura && (
-                <Button variant="outline" size="sm" onClick={() => setImportOpen(true)} className="h-9 gap-1">
-                  <Upload className="h-4 w-4" /> Importa
-                </Button>
-              )}
-              <Button variant="outline" size="sm" onClick={() => { data.exportCostsCSV(); toast({ title: "CSV esportato" }); }} className="h-9 gap-1">
-                <Download className="h-4 w-4" /> Esporta
-              </Button>
+              {/* Importa ed Esporta nel menu «⋯»: con Riconcilia e Nuovo erano
+                  quattro bottoni e a 768 la riga andava a capo. */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="icon" className="h-9 w-9" aria-label="Altre azioni" title="Altre azioni">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {!soloLettura && (
+                    <DropdownMenuItem className="gap-2" onSelect={() => setImportOpen(true)}>
+                      <Upload className="h-4 w-4" /> Importa
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem className="gap-2" onSelect={() => { data.exportCostsCSV(); toast({ title: "CSV esportato" }); }}>
+                    <Download className="h-4 w-4" /> Esporta CSV
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               {!soloLettura && (
                 <Button size="sm" onClick={() => openCreate(typeLock)} className="h-9 gap-1 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
                   <Plus className="h-4 w-4" /> {typeLock === "fixed" ? "Nuovo costo fisso" : "Nuovo costo variabile"}
