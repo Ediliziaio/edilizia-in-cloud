@@ -129,17 +129,28 @@ export default function Centralino() {
       )}
 
       {/* Statistiche */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 max-md:gap-1.5">
+      {/* Telefono: i quattro numeri su una riga sola, con «Durata» al posto di
+          «Tempo totale» che nella casella stretta verrebbe tagliato. */}
+      <div className="grid grid-cols-4 gap-3 max-md:gap-1.5">
         {[
           { label: "Chiamate", value: String(stats.total) },
           { label: "Oggi", value: String(stats.todayCount) },
           { label: "Completate", value: String(stats.completed) },
-          { label: "Tempo totale", value: fmtDur(stats.totalSec) },
+          { label: "Tempo totale", breve: "Durata", value: fmtDur(stats.totalSec) },
         ].map((s) => (
           <Card key={s.label}>
             <CardContent className="py-3 max-md:px-2 max-md:py-1.5">
               <p className="text-2xl font-bold tabular-nums max-md:text-base">{s.value}</p>
-              <p className="text-xs text-muted-foreground max-md:truncate max-md:text-[11px]">{s.label}</p>
+              <p className="text-xs text-muted-foreground max-md:truncate max-md:text-[11px]">
+                {s.breve ? (
+                  <>
+                    <span className="max-md:hidden">{s.label}</span>
+                    <span className="md:hidden">{s.breve}</span>
+                  </>
+                ) : (
+                  s.label
+                )}
+              </p>
             </CardContent>
           </Card>
         ))}
@@ -198,7 +209,8 @@ export default function Centralino() {
               <CardTitle className="flex items-center gap-2 text-base max-md:text-sm">
                 <History className="h-4 w-4 text-muted-foreground max-md:hidden" /> Storico chiamate
               </CardTitle>
-              <div className="flex items-center gap-2 max-md:w-full">
+              {/* Senza nessuna chiamata, ricerca e filtro da telefono non servono. */}
+              <div className={cn("flex items-center gap-2 max-md:w-full", logs.length === 0 && "max-md:hidden")}>
                 <div className="relative max-md:min-w-0 max-md:flex-1">
                   <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                   <Input
