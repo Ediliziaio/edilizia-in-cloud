@@ -1,76 +1,43 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { getCompanyBillingConfig } from "../_shared/billingConfig.ts";
-import { resolveWhatsAppSender } from "../_shared/resolveWhatsAppSender.ts";
-import { getWhatsAppWindowStatus, buildTemplatePayload } from "../_shared/whatsappWindow.ts";
+import { numeroWhatsApp } from "../_shared/sequenzaContatto.ts";
 import { getErrorMessage } from "../_shared/metaAuth.ts";
+import { erroreInvioWhatsApp, richiestaWhatsAppSend } from "./invioWhatsApp.ts";
+import type { EsitoWhatsAppSend } from "./invioWhatsApp.ts";
 
 import { getCorsHeaders } from "../_shared/headers.ts";
 
-
-/** Send WhatsApp message via Cloud API */
-async function sendWhatsApp(
-  phoneNumberId: string,
-  accessToken: string,
-  toPhone: string,
-  text: string,
-  contentType: string = "text",
-  mediaUrl: string | null = null
-): Promise<{ ok: boolean; status: number; body: unknown }> {
-  // Normalize phone number
-  const cleanPhone = toPhone.replace(/[^0-9]/g, "");
-  const url = `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`;
-
-  let bodyPayload: Record<string, unknown>;
-
-  switch (contentType) {
-    case "image":
-      bodyPayload = {
-        messaging_product: "whatsapp",
-        to: cleanPhone,
-        type: "image",
-        image: mediaUrl
-          ? { link: mediaUrl, caption: text || undefined }
-          : { id: text },
-      };
-      break;
-    case "document":
-      bodyPayload = {
-        messaging_product: "whatsapp",
-        to: cleanPhone,
-        type: "document",
-        document: mediaUrl
-          ? { link: mediaUrl, caption: text || undefined, filename: "documento.pdf" }
-          : { id: text },
-      };
-      break;
-    case "audio":
-      bodyPayload = {
-        messaging_product: "whatsapp",
-        to: cleanPhone,
-        type: "audio",
-        audio: mediaUrl ? { link: mediaUrl } : { id: text },
-      };
-      break;
-    default:
-      bodyPayload = {
-        messaging_product: "whatsapp",
-        to: cleanPhone,
-        type: "text",
-        text: { body: text },
-      };
+/**
+ * Il numero da cui parte il WhatsApp, con la regola di resolveWhatsAppSender:
+ * quello scelto nel composer se è ancora dell'azienda e ha il token,
+ * altrimenti il più recente attivo e verificato. null = il vecchio numero
+ * unico (messaging_whatsapp_config), che whatsapp-send cerca da sé.
+ */
+async function numeroMittente(
+  admin: ReturnType<typeof createClient>,
+  companyId: string,
+  scelto: unknown,
+): Promise<string | null> {
+  const numeri = () =>
+    admin
+      .from("ai_whatsapp_numbers")
+      .select("id")
+      .eq("company_id", companyId)
+      .not("phone_number_id", "is", null)
+      .not("access_token_encrypted", "is", null)
+      .is("deleted_at", null);
+  if (typeof scelto === "string" && scelto) {
+    const { data } = await numeri().eq("id", scelto).maybeSingle();
+    if (data?.id) return data.id as string;
   }
-
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(bodyPayload),
-  });
-  const json = await res.json().catch(() => ({}));
-  return { ok: res.ok, status: res.status, body: json };
+  const { data } = await numeri()
+    .eq("stato", "active")
+    .eq("webhook_verified", true)
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return (data?.id as string | undefined) ?? null;
 }
 
 Deno.serve(async (req) => {
@@ -152,10 +119,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Per i template WhatsApp (senza testo libero) salviamo una descrizione
-    // leggibile nello storico messaggi.
-    const logContent: string = content || (waTemplate ? `📋 Template: ${waTemplate.name}` : "");
-
     const adminClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
@@ -208,6 +171,101 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ error: "Non autorizzato per questo contatto" }),
         { status: 403, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
+      );
+    }
+
+    // Un utente bloccato non scrive più ai contatti (25/09/2026). Qui tutto
+    // gira col service role, e il WhatsApp va a whatsapp-send con la chiave di
+    // servizio: senza questa domanda il blocco valeva solo alla scadenza del
+    // suo accesso. È la stessa che whatsapp-send fa a chi arriva dall'app.
+    const { data: bloccato, error: erroreBlocco } = await supabase.rpc("utente_bloccato");
+    if (erroreBlocco || bloccato === true) {
+      return new Response(
+        JSON.stringify({
+          error: erroreBlocco
+            ? "Non riesco a verificare il tuo accesso in questo momento: riprova tra poco."
+            : "Il tuo accesso è bloccato: non puoi inviare messaggi.",
+        }),
+        { status: erroreBlocco ? 503 : 403, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
+      );
+    }
+
+    // ── WhatsApp: passa da whatsapp-send (25/09/2026) ──
+    // Come Conversazioni, l'invio rapido e le automazioni: carta, add-on,
+    // finestra delle 24 ore, credito (con gli omaggi di
+    // company_billing_overrides) e il messaggio registrato in whatsapp_messages
+    // col suo contatto, dove il webhook scrive l'esito della consegna. Qui non
+    // si scrive più contact_messages: Conversazioni e la scheda leggono già
+    // whatsapp_messages, e il messaggio comparirebbe due volte.
+    if (channel === "whatsapp") {
+      if (!contact.phone) {
+        return new Response(
+          JSON.stringify({ error: "Il contatto non ha un numero di telefono" }),
+          { status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
+        );
+      }
+      const to = numeroWhatsApp(contact.phone);
+      if (!to) {
+        return new Response(
+          JSON.stringify({ error: `Il numero ${contact.phone} non è valido per WhatsApp` }),
+          { status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
+        );
+      }
+
+      const invio = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/whatsapp-send`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+        },
+        body: JSON.stringify(richiestaWhatsAppSend({
+          companyId: contact.company_id,
+          waNumberId: await numeroMittente(adminClient, contact.company_id, wa_number_id),
+          to,
+          contactId: contact.id,
+          testo: content ?? "",
+          modello: waTemplate,
+        })),
+      });
+      const esito = (await invio.json().catch(() => ({}))) as EsitoWhatsAppSend;
+      const inviato = invio.ok && esito.success === true;
+      const errore = inviato ? null : erroreInvioWhatsApp(invio.status, esito);
+
+      // Nelle attività del contatto, come prima: il messaggio partito e quello
+      // che Meta ha rifiutato (502). Finestra, credito e carta fermano l'invio
+      // prima che parta, e come prima non lasciano traccia.
+      if (inviato || invio.status === 502) {
+        await adminClient.from("marketing_contact_activities").insert({
+          contact_id,
+          company_id: contact.company_id,
+          activity_type: "message_sent",
+          description: `Messaggio whatsapp inviato${inviato ? "" : " (fallito)"}`,
+          metadata: {
+            channel,
+            status: inviato ? "sent" : "failed",
+            error: errore?.error ?? null,
+            meta_message_id: esito.meta_message_id ?? null,
+            modello: waTemplate?.name ?? null,
+          },
+          created_by: userId,
+        });
+      }
+
+      if (errore) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            status: "failed",
+            error: errore.error,
+            code: errore.code,
+            ...(typeof esito.saldo_eur === "number" ? { saldo_eur: esito.saldo_eur } : {}),
+          }),
+          { status: errore.status, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
+        );
+      }
+      return new Response(
+        JSON.stringify({ success: true, status: "sent", error: null, meta_message_id: esito.meta_message_id ?? null }),
+        { status: 200, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
       );
     }
 
@@ -297,75 +355,6 @@ Deno.serve(async (req) => {
           }
         }
       }
-    } else if (channel === "whatsapp") {
-      // Check billing override for whatsapp
-      const waBilling = await getCompanyBillingConfig(adminClient, contact.company_id, "whatsapp");
-      if (!waBilling.isEnabled) {
-        return new Response(
-          JSON.stringify({ error: "Servizio WhatsApp disabilitato per questa azienda" }),
-          { status: 403, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
-        );
-      }
-
-      if (!contact.phone) {
-        return new Response(
-          JSON.stringify({ error: "Il contatto non ha un numero di telefono" }),
-          { status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
-        );
-      }
-
-      // Mittente: numero scelto in UI (wa_number_id) oppure default attivo+verificato,
-      // fallback al legacy. Token già decifrato dall'helper.
-      const sender = await resolveWhatsAppSender(adminClient, contact.company_id, wa_number_id);
-      if (!sender) {
-        return new Response(
-          JSON.stringify({ error: "WhatsApp non configurato per questa azienda" }),
-          { status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
-        );
-      }
-
-      // Conformità Customer Service Window (24h):
-      //  - TEMPLATE approvato → sempre permesso (dentro e fuori finestra).
-      //  - TESTO LIBERO → solo se la finestra 24h è APERTA, altrimenti Meta rifiuta
-      //    (errore 131047) e degrada la quality del numero → blocchiamo prima.
-      let waPayload: Record<string, unknown>;
-      if (waTemplate) {
-        waPayload = buildTemplatePayload(contact.phone, waTemplate);
-      } else {
-        const win = await getWhatsAppWindowStatus(adminClient, contact.company_id, contact.phone);
-        if (!win.open) {
-          return new Response(
-            JSON.stringify({
-              error: "Finestra 24h chiusa: per scrivere a questo contatto serve un template approvato.",
-              code: "window_closed",
-            }),
-            { status: 422, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
-          );
-        }
-        waPayload = {
-          messaging_product: "whatsapp",
-          to: contact.phone.replace(/[^0-9]/g, ""),
-          type: "text",
-          text: { body: content },
-        };
-      }
-
-      const waRes = await fetch(
-        `https://graph.facebook.com/v21.0/${sender.phoneNumberId}/messages`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${sender.accessToken}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(waPayload),
-        }
-      );
-      const waJson = await waRes.json().catch(() => ({}));
-      if (!waRes.ok || (waJson as { error?: unknown })?.error) {
-        status = "failed";
-        errorDetail = JSON.stringify(waJson);
-      }
     } else if (channel === "sms") {
       if (!contact.phone) {
         return new Response(
@@ -405,14 +394,14 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Insert message record
+    // Insert message record (email e SMS: il WhatsApp è registrato da whatsapp-send)
     const { error: insertError } = await adminClient
       .from("contact_messages")
       .insert({
         contact_id,
         company_id: contact.company_id,
         channel,
-        content: logContent,
+        content,
         subject: channel === "email" ? (subject || "Messaggio") : null,
         status,
         sent_by: userId,
