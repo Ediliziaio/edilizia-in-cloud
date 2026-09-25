@@ -53,6 +53,16 @@ Deno.serve(async (req) => {
     return json({ error: "missing_fields" }, 400);
   }
 
+  // Fino al 25/09/2026 questo bot non rispondeva mai (leggeva colonne del
+  // contatto che non esistono). Corretto quello, parte solo sui numeri dove il
+  // bot è stato acceso apposta: nessuno si ritrova risposte automatiche col
+  // prompt fisso senza averlo scelto.
+  const { data: numeroBot } = await supabase
+    .from("ai_whatsapp_numbers").select("operational_settings").eq("id", body.wa_number_id).maybeSingle();
+  if ((numeroBot?.operational_settings as { bot_enabled?: boolean } | null)?.bot_enabled !== true) {
+    return json({ ok: true, skipped: "bot_non_attivato" }, 200);
+  }
+
   // Load contact
   const { data: contact } = await supabase
     .from("marketing_contacts")

@@ -96,6 +96,14 @@ describe("slotLiberi", () => {
     expect(out).toEqual([]);
   });
 
+  it("il tempo bloccato toglie gli orari ma non conta nel tetto del giorno", () => {
+    const out = slotLiberi(base({
+      appuntamenti: [{ inizio: "09:00", fine: "09:30", blocco: true }],
+      maxAlGiorno: 1,
+    }));
+    expect(out).toEqual(["09:30", "10:00"]);
+  });
+
   it("un appuntamento senza fine dura quanto il calendario", () => {
     expect(slotLiberi(base({ appuntamenti: [{ inizio: "09:00", fine: null }] }))).toEqual(["09:30", "10:00"]);
   });

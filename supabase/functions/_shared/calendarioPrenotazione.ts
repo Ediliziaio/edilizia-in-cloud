@@ -7,16 +7,24 @@
  * inserivano appuntamenti senza calendario, senza titolare e senza token,
  * quindi niente promemoria, niente Google Calendar e niente link «sposta».
  *
- * Doppie prenotazioni: il controllo prima dell'insert non basta se due lead
- * scelgono lo stesso orario nello stesso secondo. Dopo l'insert si ricontrolla:
- * se c'è un appuntamento sovrapposto creato prima, il proprio si cancella e si
- * risponde «non più libero».
+ * Doppie prenotazioni: l'insert passa dalla RPC prenota_su_calendario_con_blocco
+ * (migrazione 20280925235600), che controlla e inserisce nella stessa
+ * transazione sotto un advisory lock per calendario e giorno. Un orario preso
+ * da un altro nel frattempo non viene inserito affatto: niente conferme, eventi
+ * Google o CAPI partiti per un appuntamento che poi sparisce.
+ *
+ * Una lettura che fallisce ferma tutto: con zero appuntamenti letti per un
+ * errore, ogni orario sembrerebbe libero.
  */
 
 // deno-lint-ignore-file no-explicit-any
 
 import { dataEstesa, minutiDa, nuovoToken, orarioDa, sincronizzaCalendariEsterni } from "./appuntamentiPubblici.ts";
 import { slotLiberi } from "./calendarioSlot.ts";
+
+/** Gli stati di un appuntamento che non occupa più l'orario (come notificheAppuntamento.ts). */
+export const STATI_CHE_LIBERANO = ["annullato", "cancellato", "cancelled", "disdetto"];
+const FILTRO_ANNULLATI = `(${STATI_CHE_LIBERANO.map((s) => `"${s}"`).join(",")})`;
 
 export interface CalendarioBase {
   id: string;
@@ -36,7 +44,8 @@ const COLONNE_CALENDARIO =
 async function leggiCalendario(admin: any, calendarId: string, companyId?: string): Promise<CalendarioBase | null> {
   let q = admin.from("marketing_calendars").select(COLONNE_CALENDARIO).eq("id", calendarId).eq("is_active", true);
   if (companyId) q = q.eq("company_id", companyId);
-  const { data } = await q.maybeSingle();
+  const { data, error } = await q.maybeSingle();
+  if (error) throw new Error(`calendario: ${error.message}`);
   return (data as CalendarioBase | null) ?? null;
 }
 
@@ -48,16 +57,18 @@ export function dataRoma(adesso: Date, giorni = 0): string {
 }
 
 async function slotDelGiorno(admin: any, cal: CalendarioBase, dataIso: string, adesso: Date): Promise<string[]> {
-  const [{ data: regole }, { data: presi }] = await Promise.all([
+  const [{ data: regole, error: eRegole }, { data: presi, error: ePresi }] = await Promise.all([
     admin.from("marketing_calendar_availability")
       .select("day_of_week, start_time, end_time, specific_date")
       .eq("calendar_id", cal.id).eq("is_enabled", true),
+    // Anche il tempo bloccato dal titolare occupa l'orario (conta a parte nel tetto).
     admin.from("appointments")
-      .select("appointment_time, appointment_end_time")
+      .select("appointment_time, appointment_end_time, is_blocked_slot")
       .eq("calendar_id", cal.id).eq("appointment_date", dataIso)
-      .not("status", "in", '("annullato","cancelled","disdetto")')
-      .or("is_blocked_slot.is.null,is_blocked_slot.eq.false"),
+      .not("status", "in", FILTRO_ANNULLATI),
   ]);
+  if (eRegole) throw new Error(`disponibilità: ${eRegole.message}`);
+  if (ePresi) throw new Error(`appuntamenti: ${ePresi.message}`);
 
   let impegni: Array<{ start_at: string; end_at: string }> = [];
   if (cal.owner_id) {
@@ -65,12 +76,13 @@ async function slotDelGiorno(admin: any, cal: CalendarioBase, dataIso: string, a
       .from("user_calendar_preferences").select("block_busy_slots").eq("user_id", cal.owner_id).maybeSingle();
     if (pref?.block_busy_slots !== false) {
       // Un giorno di margine ai lati: gli impegni sono in UTC.
-      const { data: busy } = await admin
+      const { data: busy, error: eBusy } = await admin
         .from("unified_calendar_busy_slots")
         .select("start_at, end_at")
         .eq("user_id", cal.owner_id)
         .lt("start_at", `${dataIso}T23:59:59.999Z`)
         .gt("end_at", `${dataIso}T00:00:00.000Z`);
+      if (eBusy) throw new Error(`impegni esterni: ${eBusy.message}`);
       impegni = (busy ?? []) as typeof impegni;
     }
   }
@@ -86,6 +98,7 @@ async function slotDelGiorno(admin: any, cal: CalendarioBase, dataIso: string, a
     appuntamenti: (presi ?? []).map((a: any) => ({
       inizio: String(a.appointment_time ?? "00:00").slice(0, 5),
       fine: a.appointment_end_time ? String(a.appointment_end_time).slice(0, 5) : null,
+      blocco: a.is_blocked_slot === true,
     })),
     impegni,
     adesso,
@@ -150,47 +163,31 @@ export async function prenotaSuCalendario(admin: any, a: {
 
   const durata = cal.duration_minutes || 30;
   const fine = orarioDa(minutiDa(ora) + durata);
-  const { data: creato, error } = await admin.from("appointments").insert({
-    calendar_id: cal.id,
-    company_id: cal.company_id,
-    contact_id: a.contactId,
-    opportunity_id: a.opportunityId,
-    appointment_date: a.dataIso,
-    appointment_time: `${ora}:00`,
-    appointment_end_time: `${fine}:00`,
-    title: a.titolo,
-    description: a.descrizione,
-    appointment_type: a.tipo ?? "agente_ai",
-    status: "confermato",
-    assigned_to: cal.owner_id,
-    created_by: "00000000-0000-0000-0000-000000000000",
-    manage_token: nuovoToken(),
-    // Conferma e promemoria li manda l'automazione dell'azienda sul trigger
-    // «Appuntamento prenotato»: il giro dei promemoria non la ripete.
-    conferma_inviata_at: new Date().toISOString(),
-  }).select("id, created_at").single();
-  if (error || !creato) {
-    console.error("[calendarioPrenotazione] insert:", error?.message);
+  const { data: idCreato, error } = await admin.rpc("prenota_su_calendario_con_blocco", {
+    p_calendar_id: cal.id,
+    p_company_id: cal.company_id,
+    p_data: a.dataIso,
+    p_inizio: `${ora}:00`,
+    p_fine: `${fine}:00`,
+    p_buffer_prima: Number(cal.buffer_before_min ?? 0),
+    p_buffer_dopo: Number(cal.buffer_after_min ?? 0),
+    p_durata_min: durata,
+    p_riga: {
+      contact_id: a.contactId,
+      opportunity_id: a.opportunityId,
+      title: a.titolo,
+      description: a.descrizione,
+      appointment_type: a.tipo ?? "agente_ai",
+      assigned_to: cal.owner_id,
+      manage_token: nuovoToken(),
+    },
+  });
+  if (error) {
+    console.error("[calendarioPrenotazione] prenotazione:", error.message);
     return { ok: false, motivo: "errore", messaggio: "Non sono riuscito a salvare l'appuntamento." };
   }
-
-  // Ricontrollo: un altro appuntamento sovrapposto creato prima vince.
-  const { data: stessoGiorno } = await admin
-    .from("appointments")
-    .select("id, appointment_time, appointment_end_time, created_at")
-    .eq("calendar_id", cal.id).eq("appointment_date", a.dataIso)
-    .not("status", "in", '("annullato","cancelled","disdetto")')
-    .neq("id", creato.id);
-  const s = minutiDa(ora), e = s + durata;
-  const conflitto = (stessoGiorno ?? []).some((x: any) => {
-    const xs = minutiDa(String(x.appointment_time ?? "00:00").slice(0, 5));
-    const xe = x.appointment_end_time ? minutiDa(String(x.appointment_end_time).slice(0, 5)) : xs + durata;
-    return s < xe && e > xs && String(x.created_at) <= String(creato.created_at);
-  });
-  if (conflitto) {
-    await admin.from("appointments").delete().eq("id", creato.id);
-    return { ok: false, motivo: "non_libero", messaggio: "Questo orario è stato appena preso da un altro cliente." };
-  }
+  if (!idCreato) return { ok: false, motivo: "non_libero", messaggio: "Questo orario è stato appena preso da un altro cliente." };
+  const creato = { id: String(idCreato) };
 
   await sincronizzaCalendariEsterni({ azione: "push-event", appointmentId: creato.id, companyId: cal.company_id, userId: cal.owner_id });
   if (a.contactId) {

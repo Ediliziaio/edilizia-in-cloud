@@ -25,6 +25,14 @@ describe("turniPerLlm", () => {
     ]);
   });
 
+  it("ordina per tempo anche con i millesimi nel formato di PostgREST", () => {
+    const righe: RigaMessaggio[] = [
+      { direction: "outbound", message_type: "text", content_text: "dopo", created_at: "2026-09-25T10:00:00.5+00:00" },
+      { direction: "inbound", message_type: "text", content_text: "prima", created_at: "2026-09-25T10:00:00+00:00" },
+    ];
+    expect(turniPerLlm(righe).map((t) => t.content)).toEqual(["prima", "dopo"]);
+  });
+
   it("unisce i messaggi di fila dello stesso lato", () => {
     const righe = [riga("inbound", "Buongiorno", 1), riga("inbound", "Sono di Monza", 2)];
     expect(turniPerLlm(righe)).toEqual([{ role: "user", content: "Buongiorno\nSono di Monza" }]);

@@ -413,7 +413,7 @@ export default function AgentDetailPage() {
               <Textarea value={editPrimoMsg} onChange={(e) => setEditPrimoMsg(e.target.value)} rows={3} />
             </div>
             {agent.tipo === "whatsapp" && companyId && (
-              <AgenteWhatsAppLeadPanel agentId={agent.id} companyId={companyId} toolsConfig={agent.tools_config} />
+              <AgenteWhatsAppLeadPanel agentId={agent.id} companyId={companyId} toolsConfig={agent.tools_config} stato={agent.stato ?? null} />
             )}
             {isVoice && (
               <Card>

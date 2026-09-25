@@ -64,7 +64,7 @@ export async function handleLead(
     const chiamata = fetch(`${baseUrl}/functions/v1/lead-agente-whatsapp`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
-      body: JSON.stringify({ message_id: messageId, contact_id: contact.id, wa_number_id: waNumber.id }),
+      body: JSON.stringify({ message_id: messageId, contact_id: contact.id, wa_number_id: waNumber.id, from_phone: senderPhone }),
     }).catch((err) =>
       console.error(JSON.stringify({ level: "error", fn: "handleLead", msg: "lead-agente-whatsapp non chiamato", error: String(err) }))
     );

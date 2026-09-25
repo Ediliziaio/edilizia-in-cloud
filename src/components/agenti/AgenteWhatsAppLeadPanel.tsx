@@ -22,6 +22,8 @@ interface Props {
   agentId: string;
   companyId: string;
   toolsConfig: unknown;
+  /** Stato dell'agente: finché non è «attivo» chi scrive al numero non riceve risposta. */
+  stato: string | null;
 }
 
 interface LeadWhatsAppCfg {
@@ -33,16 +35,18 @@ interface LeadWhatsAppCfg {
   utenti_da_avvisare?: string[];
   giorni_proposta?: number;
   tag_prenotato?: string;
+  solo_feriali?: boolean;
 }
 
 const NESSUNA = "__nessuna__";
+const SCOLLEGA = "__scollega__";
 
 function leggiCfg(toolsConfig: unknown): LeadWhatsAppCfg {
   const r = toolsConfig && typeof toolsConfig === "object" ? (toolsConfig as Record<string, unknown>) : {};
   return r.lead_whatsapp && typeof r.lead_whatsapp === "object" ? (r.lead_whatsapp as LeadWhatsAppCfg) : {};
 }
 
-export function AgenteWhatsAppLeadPanel({ agentId, companyId, toolsConfig }: Props) {
+export function AgenteWhatsAppLeadPanel({ agentId, companyId, toolsConfig, stato }: Props) {
   const qc = useQueryClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any;
@@ -79,16 +83,34 @@ export function AgenteWhatsAppLeadPanel({ agentId, companyId, toolsConfig }: Pro
   const [utenti, setUtenti] = useState<string[]>(iniziale.utenti_da_avvisare ?? []);
   const [giorni, setGiorni] = useState<number>(iniziale.giorni_proposta ?? 7);
   const [tag, setTag] = useState<string>(iniziale.tag_prenotato ?? "");
+  const [soloFeriali, setSoloFeriali] = useState<boolean>(iniziale.solo_feriali === true);
 
-  const numeroId = numeroScritto || dati?.numeri.find((n) => n.agent_id === agentId)?.id || "";
+  const numeroCollegato = dati?.numeri.find((n) => n.agent_id === agentId)?.id || "";
+  // SCOLLEGA = l'utente ha scelto di togliere il numero dall'agente.
+  const numeroId = numeroScritto === SCOLLEGA ? "" : (numeroScritto || numeroCollegato);
 
   const fasiPipeline = (dati?.fasi ?? []).filter((f) => f.pipeline_id === pipelineId);
   const numeroScelto = dati?.numeri.find((n) => n.id === numeroId);
 
+  const attiva = useMutation({
+    mutationFn: async () => {
+      const { data: agg, error } = await db.from("ai_agents_v2").update({ stato: "attivo" })
+        .eq("id", agentId).eq("company_id", companyId).select("id");
+      if (error) throw new Error(error.message);
+      if (!agg?.length) throw new Error("Non hai il permesso di attivare questo agente.");
+    },
+    onSuccess: () => {
+      toast.success("Agente attivo: risponde ai messaggi WhatsApp");
+      qc.invalidateQueries({ queryKey: ["agent-detail", companyId, agentId] });
+      qc.invalidateQueries({ queryKey: ["unified-ai-agents"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const salva = useMutation({
     mutationFn: async () => {
-      if (!numeroId) throw new Error("Scegli il numero WhatsApp su cui risponde l'agente.");
-      if (!calendarioId) throw new Error("Scegli il calendario su cui l'agente fissa le chiamate.");
+      if (!numeroId && numeroScritto !== SCOLLEGA) throw new Error("Scegli il numero WhatsApp su cui risponde l'agente.");
+      if (numeroId && !calendarioId) throw new Error("Scegli il calendario su cui l'agente fissa le chiamate.");
       if (numeroScelto?.agent_id && numeroScelto.agent_id !== agentId) {
         throw new Error("Questo numero è già collegato a un altro agente: scollegalo prima da quello.");
       }
@@ -104,19 +126,28 @@ export function AgenteWhatsAppLeadPanel({ agentId, companyId, toolsConfig }: Pro
         utenti_da_avvisare: utenti,
         giorni_proposta: Math.min(21, Math.max(1, Math.round(giorni || 7))),
         tag_prenotato: tag.trim() || undefined,
+        solo_feriali: soloFeriali,
       };
-      const { error: e2 } = await db.from("ai_agents_v2")
+      // .select("id"): senza permesso l'update non dà errore ma non tocca righe,
+      // e il messaggio «salvato» sarebbe falso.
+      const { data: agg, error: e2 } = await db.from("ai_agents_v2")
         .update({ tools_config: { ...(attuale?.tools_config ?? {}), lead_whatsapp } })
-        .eq("id", agentId).eq("company_id", companyId);
+        .eq("id", agentId).eq("company_id", companyId).select("id");
       if (e2) throw new Error(e2.message);
+      if (!agg?.length) throw new Error("Non hai il permesso di modificare questo agente.");
 
       // Un agente, un numero: si scollega da eventuali altri numeri e si collega a quello scelto.
-      const { error: e3 } = await db.from("ai_whatsapp_numbers").update({ agent_id: null })
-        .eq("company_id", companyId).eq("agent_id", agentId).neq("id", numeroId);
+      let scollega = db.from("ai_whatsapp_numbers").update({ agent_id: null })
+        .eq("company_id", companyId).eq("agent_id", agentId);
+      if (numeroId) scollega = scollega.neq("id", numeroId);
+      const { error: e3 } = await scollega;
       if (e3) throw new Error(e3.message);
-      const { error: e4 } = await db.from("ai_whatsapp_numbers").update({ agent_id: agentId })
-        .eq("company_id", companyId).eq("id", numeroId);
-      if (e4) throw new Error(e4.message);
+      if (numeroId) {
+        const { data: collegati, error: e4 } = await db.from("ai_whatsapp_numbers").update({ agent_id: agentId })
+          .eq("company_id", companyId).eq("id", numeroId).select("id");
+        if (e4) throw new Error(e4.message);
+        if (!collegati?.length) throw new Error("Numero non collegato: serve il permesso di gestire i numeri WhatsApp.");
+      }
     },
     onSuccess: () => {
       toast.success("Agente WhatsApp configurato");
@@ -151,16 +182,25 @@ export function AgenteWhatsAppLeadPanel({ agentId, companyId, toolsConfig }: Pro
         </p>
       </CardHeader>
       <CardContent className="space-y-3">
+        {stato !== "attivo" && (
+          <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 flex items-center justify-between gap-3">
+            <span>L'agente è in bozza: finché non lo attivi, chi scrive al numero collegato non riceve risposta.</span>
+            <Button size="sm" variant="outline" onClick={() => attiva.mutate()} disabled={attiva.isPending}>
+              {attiva.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Attiva l'agente"}
+            </Button>
+          </div>
+        )}
         {isLoading ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Caricamento…</div>
         ) : (
           <>
             <div>
               <label className="text-xs font-medium mb-1 block">Numero WhatsApp</label>
-              <Select value={numeroId || NESSUNA} onValueChange={(v) => setNumeroId(v === NESSUNA ? "" : v)}>
+              <Select value={numeroScritto === SCOLLEGA ? SCOLLEGA : (numeroId || NESSUNA)} onValueChange={(v) => setNumeroId(v === NESSUNA ? "" : v)}>
                 <SelectTrigger className="h-9"><SelectValue placeholder="Scegli il numero" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value={NESSUNA}>Scegli il numero</SelectItem>
+                  {numeroCollegato && <SelectItem value={SCOLLEGA}>Nessun numero (scollega l'agente)</SelectItem>}
                   {(dati?.numeri ?? []).map((n) => (
                     <SelectItem key={n.id} value={n.id}>
                       {(n.display_name || "Numero").trim()} · {n.numero ?? ""}{n.agent_id && n.agent_id !== agentId ? " (collegato a un altro agente)" : ""}
@@ -210,6 +250,10 @@ export function AgenteWhatsAppLeadPanel({ agentId, companyId, toolsConfig }: Pro
                 <Input type="number" min={1} max={21} value={giorni} onChange={(e) => setGiorni(Number(e.target.value))} className="h-9 w-24" />
               </div>
             </div>
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <Checkbox checked={soloFeriali} onCheckedChange={(v) => setSoloFeriali(v === true)} />
+              Proponi solo orari dal lunedì al venerdì
+            </label>
             <div>
               <label className="text-xs font-medium mb-1 block">Chi avvisare quando passa la mano</label>
               <div className="max-h-40 overflow-y-auto rounded-md border p-2 space-y-1">

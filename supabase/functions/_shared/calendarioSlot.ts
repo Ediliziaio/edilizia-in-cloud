@@ -27,6 +27,8 @@ export interface RegolaDisponibilita {
 export interface AppuntamentoOccupato {
   inizio: string;
   fine: string | null;
+  /** Tempo bloccato dal titolare: occupa l'orario, ma non è un appuntamento del tetto giornaliero. */
+  blocco?: boolean;
 }
 
 /** Un impegno del titolare su un calendario esterno, in UTC. */
@@ -67,7 +69,8 @@ export function slotLiberi(input: InputSlot): string[] {
   const bufPrima = Math.max(0, Math.floor(input.bufferPrimaMin || 0));
   const bufDopo = Math.max(0, Math.floor(input.bufferDopoMin || 0));
 
-  if (input.maxAlGiorno && input.appuntamenti.length >= input.maxAlGiorno) return [];
+  const presi = input.appuntamenti.filter((a) => !a.blocco).length;
+  if (input.maxAlGiorno && presi >= input.maxAlGiorno) return [];
 
   const fasce = fasceDelGiorno(input.dataIso, input.regole);
   if (!fasce.length) return [];

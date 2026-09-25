@@ -33,7 +33,9 @@ export function testoDelMessaggio(tipo: string | null, testo: string | null): st
 }
 
 export function turniPerLlm(righe: RigaMessaggio[], max = 24): Turno[] {
-  const ordinate = [...righe].sort((a, b) => a.created_at.localeCompare(b.created_at));
+  // Per tempo, non per testo: "…:00+00:00" e "…:00.5+00:00" come stringhe
+  // si ordinano al contrario.
+  const ordinate = [...righe].sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at));
   const turni: Turno[] = [];
   for (const r of ordinate) {
     const role: Turno["role"] = r.direction === "inbound" ? "user" : "assistant";
