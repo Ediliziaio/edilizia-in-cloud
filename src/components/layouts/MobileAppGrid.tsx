@@ -59,6 +59,10 @@ const MOBILE_HIDDEN_URLS = new Set<string>([
   "/azienda/marketing/simulatore",
   "/azienda/marketing/sales-os",
   "/azienda/marketing/reportistica",
+  // 2026-09-25: il Portale formazione è la gestione dei corsi, che da
+  // telefono non si imposta; i corsi si vedono da «La mia formazione» (le
+  // due voci mostravano gli stessi corsi, con avanzamenti diversi).
+  "/azienda/personale/portale",
 ]);
 
 /**

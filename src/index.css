@@ -98,6 +98,17 @@
   .overflow-auto, .overflow-y-auto, .overflow-x-auto {
     -webkit-overflow-scrolling: touch;
   }
+
+  /* Il CSS critico di index.html (pensato per la testata della landing)
+     dà `min-height: 64px` a ogni <header> e <nav>. Dentro le pagine dell'app
+     vuol dire testate di sezione e barre alte 64px anche con una riga sola:
+     in «La mia formazione» 36px vuoti sotto il titolo. Da telefono,
+     dentro il contenuto della pagina, l'altezza la decide il componente.
+     Barra dell'app in alto e barra in basso stanno fuori da <main>. */
+  .group\/sidebar-wrapper main header,
+  .group\/sidebar-wrapper main nav {
+    min-height: 0;
+  }
 }
 
 /* ── Bordi dei <button>: la causa vera del "sembra tutto bianco" ──────────────
