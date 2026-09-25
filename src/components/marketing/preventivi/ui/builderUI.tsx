@@ -39,6 +39,8 @@ interface QuotePageHeaderProps {
   lastModified?: ReactNode;
   /** Tailwind extra */
   className?: string;
+  /** Telefono: azioni sulla riga del titolo (per una o due icone), non su una riga loro. */
+  azioniInRiga?: boolean;
 }
 
 export function QuotePageHeader({
@@ -51,6 +53,7 @@ export function QuotePageHeader({
   chips,
   lastModified,
   className,
+  azioniInRiga,
 }: QuotePageHeaderProps) {
   return (
     <div
@@ -71,7 +74,7 @@ export function QuotePageHeader({
           {lastModified && <span>· {lastModified}</span>}
         </div>
       )}
-      <div className="flex items-start justify-between gap-3 sm:gap-4 flex-wrap">
+      <div className={cn("flex items-start justify-between gap-3 sm:gap-4 flex-wrap", azioniInRiga && "max-sm:flex-nowrap max-sm:items-center")}>
         <div className="flex items-start gap-2.5 sm:gap-3 min-w-0 flex-1">
           {icon && (
             <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white flex items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
@@ -90,7 +93,7 @@ export function QuotePageHeader({
           </div>
         </div>
         {actions && (
-          <div className="flex w-full sm:w-auto shrink-0 flex-wrap items-center justify-end gap-1.5 sm:gap-2">{actions}</div>
+          <div className={cn("flex w-full sm:w-auto shrink-0 flex-wrap items-center justify-end gap-1.5 sm:gap-2", azioniInRiga && "max-sm:w-auto")}>{actions}</div>
         )}
       </div>
     </div>

@@ -275,6 +275,7 @@ export default function QuoteDetail() {
           cliente va accanto a numero e stato (il sottotitolo lì è nascosto). */}
       <QuotePageHeader
         className="testata-pagina"
+        azioniInRiga
         numero={quote.quote_number}
         title={quote.title || "Preventivo"}
         subtitle={quote.client_name || undefined}
@@ -282,7 +283,10 @@ export default function QuoteDetail() {
         stato={
           <span className="inline-flex items-center gap-1.5">
             <Badge variant="outline" className={`whitespace-nowrap ${sc.className}`}>{sc.label}</Badge>
-            {quote.client_name && <span className="truncate font-medium text-slate-700 sm:hidden">{quote.client_name}</span>}
+            {/* Telefono: il cliente accanto allo stato, se non è già nel titolo. */}
+            {quote.client_name && !(quote.title ?? "").includes(quote.client_name) && (
+              <span className="truncate font-medium text-slate-700 sm:hidden">{quote.client_name}</span>
+            )}
             {Number((quote as Record<string, unknown>).revision_number ?? 0) > 0 && (
               <Badge variant="secondary" className="whitespace-nowrap">
                 Rev. {Number((quote as Record<string, unknown>).revision_number)}
