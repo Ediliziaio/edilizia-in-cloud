@@ -702,30 +702,8 @@ export function EmailViewer({ threadId, onBack, onClose, onReply, onAiDraftReady
         >
           <Archive className="h-4 w-4" />
         </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => summarizeMutation.mutate()}
-          disabled={summarizeMutation.isPending}
-          title="Riassumi thread con AI"
-          className="hidden md:flex text-violet-600 hover:text-violet-700"
-        >
-          {summarizeMutation.isPending
-            ? <Loader2 className="h-4 w-4 animate-spin" />
-            : <Wand2 className="h-4 w-4" />}
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => analyzeMutation.mutate()}
-          disabled={analyzeMutation.isPending || !messages || messages.length === 0}
-          title="Analizza email con AI"
-          className="hidden md:flex text-violet-600 hover:text-violet-700"
-        >
-          {analyzeMutation.isPending
-            ? <Loader2 className="h-4 w-4 animate-spin" />
-            : <Sparkles className="h-4 w-4" />}
-        </Button>
+        {/* «Riassumi» e «Analizza» erano due icone viola qui e un bottone in
+            fondo: stanno nel menu «Silvio» accanto a Rispondi. */}
         <Button
           variant="ghost"
           size="icon"
@@ -905,169 +883,108 @@ export function EmailViewer({ threadId, onBack, onClose, onReply, onAiDraftReady
         </div>
       )}
 
-      {/* Azioni contestuali — sul modello del mockup "Demo casella email operativa":
-          3 azioni primarie derivate dalla categoria (Aggiorna ODA / Crea task logistica /
-          Scrivi risposta). Visibili solo se conosciamo la categoria, sopra la action bar
-          desktop. Su mobile resta la bottom action bar nativa. */}
-      {headerCategoryRaw && (
-        <div className="hidden md:grid border-t bg-blue-50/40 gap-2 p-3 sm:grid-cols-3">
-          {getContextualEmailActions(headerCategoryRaw).map((action) => {
-            const Icon = action.icon;
-            const isReply = action.kind === "reply";
-            const isOperative = action.kind === "operative";
-            return (
-              <button
-                key={action.id}
-                type="button"
-                className="flex items-center gap-2 rounded-xl border border-blue-100 bg-white px-3 py-2 text-left text-xs font-semibold text-blue-700 shadow-sm transition-colors hover:border-blue-300 hover:bg-blue-50 disabled:opacity-60"
-                disabled={!messages || messages.length === 0 || (isOperative && operationProposalsMutation.isPending)}
-                onClick={() => {
-                  if (!messages || messages.length === 0) return;
-                  if (isReply) {
-                    if (!onReply) {
-                      toast.info(action.label, { description: "Funzione di risposta non disponibile in questo contesto." });
-                      return;
-                    }
-                    const last = messages[messages.length - 1];
-                    onReply(
-                      {
-                        id: last.id,
-                        thread_id: last.thread_id,
-                        from_email: last.from_email,
-                        from_name: last.from_name,
-                        to_email: last.to_email,
-                        cc_emails: last.cc_emails ?? null,
-                        subject: last.subject,
-                        received_at: last.received_at,
-                        raw_text: last.raw_text,
-                        raw_html: last.raw_html,
-                      },
-                      "reply",
-                    );
-                  } else if (isOperative) {
-                    operationProposalsMutation.mutate();
-                  } else if (action.kind === "navigate" && action.to) {
-                    navigate(action.to);
-                  } else {
-                    toast.info(action.label, {
-                      description: "Funzione in arrivo: la collegheremo a Silvio per generare la proposta operativa.",
-                    });
-                  }
-                }}
-              >
-                <Icon className="h-3.5 w-3.5 shrink-0" />
-                <span className="truncate">{action.label}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Action bar bottom: Reply/ReplyAll/Forward (desktop only — mobile usa la mobile-bottom-bar sotto) */}
-      <div className="hidden md:flex border-t p-3 bg-muted/20 flex-wrap gap-2">
-        {/* MP-EMAIL-AI-01: pulsante "Rispondi con AI" (L4 Sonnet) */}
-        {onAiDraftReady && messages && messages.length > 0 && (
-          <AiDraftButton
-            email_id={messages[messages.length - 1].id}
-            onDraftChosen={(oggetto, corpo) => {
-              if (!messages || messages.length === 0) return;
-              const last = messages[messages.length - 1];
-              onAiDraftReady(
-                {
-                  id: last.id,
-                  thread_id: last.thread_id,
-                  from_email: last.from_email,
-                  from_name: last.from_name,
-                  to_email: last.to_email,
-                  cc_emails: last.cc_emails ?? null,
-                  subject: last.subject,
-                  received_at: last.received_at,
-                  raw_text: last.raw_text,
-                  raw_html: last.raw_html,
-                },
-                { oggetto, corpo },
-              );
-            }}
-          />
-        )}
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-1.5 border-violet-200 text-violet-700 hover:bg-violet-50"
-          onClick={() => analyzeMutation.mutate()}
-          disabled={analyzeMutation.isPending || !messages || messages.length === 0}
-        >
-          {analyzeMutation.isPending ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <Wand2 className="h-3.5 w-3.5" />
-          )}
-          Analizza email
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-1.5 border-blue-200 text-blue-700 hover:bg-blue-50"
-          onClick={() => operationProposalsMutation.mutate()}
-          disabled={operationProposalsMutation.isPending || !messages || messages.length === 0}
-        >
-          {operationProposalsMutation.isPending ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <Truck className="h-3.5 w-3.5" />
-          )}
-          Operativo
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-1.5 border-violet-200 text-violet-700 hover:bg-violet-50"
-          onClick={() => suggestRepliesMutation.mutate()}
-          disabled={suggestRepliesMutation.isPending || !messages || messages.length === 0}
-        >
-          {suggestRepliesMutation.isPending ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <Sparkles className="h-3.5 w-3.5" />
-          )}
-          Suggerisci risposte
-        </Button>
-        {(["reply", "replyAll", "forward"] as const).map((mode) => {
-          const Icon = mode === "reply" ? Reply : mode === "replyAll" ? ReplyAll : Forward;
-          const label = mode === "reply" ? "Rispondi" : mode === "replyAll" ? "A tutti" : "Inoltra";
-          return (
-            <Button
-              key={mode}
-              variant="outline"
-              size="sm"
-              className="gap-1.5"
-              disabled={!messages || messages.length === 0}
-              onClick={() => {
-                if (!onReply || !messages || messages.length === 0) return;
-                const last = messages[messages.length - 1];
-                onReply(
-                  {
-                    id: last.id,
-                    thread_id: last.thread_id,
-                    from_email: last.from_email,
-                    from_name: last.from_name,
-                    to_email: last.to_email,
-                    cc_emails: last.cc_emails ?? null,
-                    subject: last.subject,
-                    received_at: last.received_at,
-                    raw_text: last.raw_text,
-                    raw_html: last.raw_html,
-                  },
-                  mode,
-                );
-              }}
-            >
-              <Icon className="h-3.5 w-3.5" />
-              {label}
-            </Button>
+      {/* Da tablet una barra sola. Prima erano dieci bottoni su due righe, e la
+          riga «Aggiorna ODA · Crea task · Scrivi risposta» rifaceva «Operativo»
+          (due volte) e «Rispondi». Ora: Rispondi in evidenza, Rispondi con AI,
+          «A tutti» e «Inoltra» come icone, le azioni di Silvio nel menu. Su
+          mobile resta la barra in basso qui sotto. */}
+      {(() => {
+        const ultima = messages && messages.length > 0 ? messages[messages.length - 1] : null;
+        const rispondi = (mode: "reply" | "replyAll" | "forward") => {
+          if (!onReply || !ultima) return;
+          onReply(
+            {
+              id: ultima.id,
+              thread_id: ultima.thread_id,
+              from_email: ultima.from_email,
+              from_name: ultima.from_name,
+              to_email: ultima.to_email,
+              cc_emails: ultima.cc_emails ?? null,
+              subject: ultima.subject,
+              received_at: ultima.received_at,
+              raw_text: ultima.raw_text,
+              raw_html: ultima.raw_html,
+            },
+            mode,
           );
-        })}
-      </div>
+        };
+        // Cosa propone «Operativo» per questa categoria (es. «Aggiorna ODA · Crea
+        // task logistica»): era la riga di bottoni, ora è la riga sotto la voce.
+        const esempiOperativi = headerCategoryRaw
+          ? getContextualEmailActions(headerCategoryRaw).filter((a) => a.kind === "operative").map((a) => a.label).join(" · ")
+          : "";
+        const silvioAlLavoro = summarizeMutation.isPending || analyzeMutation.isPending || operationProposalsMutation.isPending || suggestRepliesMutation.isPending;
+        return (
+          // pr-20: in basso a destra c'è il tondo di Silvio, che copriva l'ultimo bottone.
+          <div className="hidden md:flex items-center gap-2 border-t p-3 pr-20 bg-muted/20">
+            <Button size="sm" className="gap-1.5" disabled={!ultima} onClick={() => rispondi("reply")}>
+              <Reply className="h-3.5 w-3.5" />
+              Rispondi
+            </Button>
+            {/* MP-EMAIL-AI-01: pulsante "Rispondi con AI" (L4 Sonnet) */}
+            {onAiDraftReady && ultima && (
+              <AiDraftButton
+                email_id={ultima.id}
+                // Sotto i 1280px la lettura è larga 460px: la scritta sparisce
+                // (resta l'icona di Silvio e il nome per i lettori di schermo).
+                className="[&>span]:hidden xl:[&>span]:inline"
+                onDraftChosen={(oggetto, corpo) => {
+                  onAiDraftReady(
+                    {
+                      id: ultima.id,
+                      thread_id: ultima.thread_id,
+                      from_email: ultima.from_email,
+                      from_name: ultima.from_name,
+                      to_email: ultima.to_email,
+                      cc_emails: ultima.cc_emails ?? null,
+                      subject: ultima.subject,
+                      received_at: ultima.received_at,
+                      raw_text: ultima.raw_text,
+                      raw_html: ultima.raw_html,
+                    },
+                    { oggetto, corpo },
+                  );
+                }}
+              />
+            )}
+            <Button variant="outline" size="icon" className="h-9 w-9" disabled={!ultima} onClick={() => rispondi("replyAll")} aria-label="Rispondi a tutti" title="Rispondi a tutti">
+              <ReplyAll className="h-4 w-4" />
+            </Button>
+            <Button variant="outline" size="icon" className="h-9 w-9" disabled={!ultima} onClick={() => rispondi("forward")} aria-label="Inoltra" title="Inoltra">
+              <Forward className="h-4 w-4" />
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                {/* Non in fondo a destra: lì sopra c'è il tondo di Silvio che lo copriva. */}
+                <Button variant="outline" size="sm" className="gap-1.5 border-violet-200 text-violet-700 hover:bg-violet-50" disabled={!ultima}>
+                  {silvioAlLavoro ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                  <span className="hidden xl:inline">Silvio</span>
+                  <span className="sr-only xl:hidden">Silvio</span>
+                  <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-64">
+                <DropdownMenuItem disabled={summarizeMutation.isPending} onSelect={() => summarizeMutation.mutate()}>
+                  <ListChecks className="mr-2 h-4 w-4 text-violet-600" />Riassumi il thread
+                </DropdownMenuItem>
+                <DropdownMenuItem disabled={analyzeMutation.isPending} onSelect={() => analyzeMutation.mutate()}>
+                  <Wand2 className="mr-2 h-4 w-4 text-violet-600" />Analizza email
+                </DropdownMenuItem>
+                <DropdownMenuItem disabled={operationProposalsMutation.isPending} onSelect={() => operationProposalsMutation.mutate()} className="items-start">
+                  <Truck className="mr-2 mt-0.5 h-4 w-4 text-blue-600" />
+                  <span className="min-w-0">
+                    <span className="block">Proposte operative</span>
+                    {esempiOperativi && <span className="block truncate text-xs text-muted-foreground">{esempiOperativi}</span>}
+                  </span>
+                </DropdownMenuItem>
+                <DropdownMenuItem disabled={suggestRepliesMutation.isPending} onSelect={() => suggestRepliesMutation.mutate()}>
+                  <Sparkles className="mr-2 h-4 w-4 text-violet-600" />Suggerisci risposte
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        );
+      })()}
 
       {/* MOBILE-only bottom action bar — stile Spark, 5 azioni primarie + menu "Altro", rispetta safe area iOS */}
       <div

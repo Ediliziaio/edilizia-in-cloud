@@ -26,6 +26,7 @@ import { EmailViewer } from "./components/EmailViewer";
 import { EmailComposeDialog, type ComposeContext } from "./components/EmailComposeDialog";
 import { EmailSearchBar, type SearchQuery } from "./components/EmailSearchBar";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 // NOTA 2026-05-26: react-resizable-panels v4 ha rinominato gli export (PanelGroup→Group,
 // PanelResizeHandle→Separator). Il wrapper shadcn `@/components/ui/resizable` usa la
 // vecchia API e quindi rende componenti `undefined` → React crash "Element type is invalid"
@@ -382,7 +383,13 @@ export function EmailLayout({
 
       {/* Desktop header — titolo bold grande + Sync badge + sottotitolo casella, sul modello del mockup demo */}
       <div className="hidden md:flex items-start justify-between gap-3 p-4 border-b border-blue-100 bg-white">
-        <div className="min-w-0">
+        {/* Sotto i 1280px, con un'email aperta, le caselle sono nascoste: il ☰ le apre. */}
+        {selectedThreadId && (
+          <Button variant="ghost" size="icon" className="-ml-2 h-9 w-9 shrink-0 xl:hidden" onClick={() => setSidebarOpen(true)} aria-label="Apri caselle">
+            <Menu className="h-4 w-4" />
+          </Button>
+        )}
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <p className="truncate text-lg font-bold text-slate-950">
               <FolderTitle filter={filter.folder} />
@@ -415,9 +422,11 @@ export function EmailLayout({
           className="shrink-0 rounded-xl"
         >
           {forceSync.isPending
-            ? <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-            : <RefreshCw className="h-4 w-4 mr-1" />}
-          <span className="hidden lg:inline">Aggiorna</span>
+            ? <Loader2 className="h-4 w-4 animate-spin 2xl:mr-1" />
+            : <RefreshCw className="h-4 w-4 2xl:mr-1" />}
+          {/* La scritta solo sugli schermi larghi: nella colonna da 320px
+              accanto all'email tagliava il nome della cartella («Casell…»). */}
+          <span className="hidden 2xl:inline">Aggiorna</span>
         </Button>
       </div>
 
@@ -453,13 +462,15 @@ export function EmailLayout({
   return (
     // Sotto i 768px <main> ha già il margine per la barra in basso: con
     // 100vh-4rem la barra di risposta finiva sotto la navigazione dell'app.
-    <div className="flex h-[calc(100vh-4rem)] max-md:h-full overflow-hidden bg-slate-50">
+    // Da tablet <main> è ad altezza bloccata e senza margine (CompanyLayout):
+    // h-full lo riempie, i bottoni di risposta restano sopra la piega.
+    <div className="flex h-full overflow-hidden bg-slate-50">
       {/* Backdrop mobile — chiude sidebar al click esterno */}
       {sidebarOpen && (
         <button
           type="button"
           aria-label="Chiudi sidebar"
-          className="fixed inset-0 z-40 bg-black/40 md:hidden"
+          className="fixed inset-0 z-40 bg-black/40 xl:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
@@ -467,10 +478,13 @@ export function EmailLayout({
       <aside
         className={cn(
           "border-r border-blue-100 bg-white flex-shrink-0 flex flex-col transition-all",
-          // Desktop
-          "hidden md:flex md:w-72 lg:w-80",
-          // Mobile sheet
-          sidebarOpen && "fixed inset-y-0 left-0 z-50 w-[85vw] max-w-xs flex shadow-xl bg-white",
+          // Desktop: 224/256px (erano 288/320, un terzo di un tablet). Sotto i
+          // 1280px, con un'email aperta, lascia il posto a lista e lettura: a
+          // 1024 le tre colonne davano 220px alla lista e 330 all'email.
+          "hidden md:flex md:w-56 xl:w-64",
+          selectedThreadId && !sidebarOpen && "md:hidden xl:flex",
+          // Mobile sheet (e da tablet, aperta dal ☰ sopra la lista)
+          sidebarOpen && "fixed inset-y-0 left-0 z-50 w-[85vw] max-w-xs flex shadow-xl bg-white xl:static xl:z-auto xl:w-64 xl:max-w-none xl:shadow-none",
         )}
       >
         <div className="md:hidden p-2 flex justify-end border-b">
@@ -502,7 +516,9 @@ export function EmailLayout({
           <section
             className={cn(
               "bg-white border-r border-blue-100 flex flex-col min-w-0",
-              "md:w-[38%] md:max-w-[640px]",
+              // Larghezza fissa: al 38% a 1440 restava più stretta della
+              // colonna caselle e il riquadro di Silvio andava su sei righe.
+              "md:w-[300px] md:shrink-0 lg:w-[320px] xl:w-[340px] 2xl:w-[400px]",
               mobilePane === "list" ? "flex-1" : "hidden md:flex",
             )}
           >
@@ -600,12 +616,28 @@ function EmailMailboxToolbar({
   return (
     // Mobile: una riga sola che scorre (filtri rapidi e poi categorie), senza
     // l'etichetta «Filtri rapidi».
-    <div className="space-y-2 border-b border-blue-100 bg-gradient-to-r from-white via-blue-50/40 to-orange-50/30 px-3 py-2 sm:px-4 sm:py-3 max-sm:flex max-sm:gap-1.5 max-sm:space-y-0 max-sm:overflow-x-auto max-sm:[scrollbar-width:none] max-sm:[&::-webkit-scrollbar]:hidden">
+    // Da tablet una riga sola: la categoria in una tendina (dieci pillole in
+    // una colonna da 340px ne mostravano tre, le altre da scorrere di lato
+    // senza barra) e accanto «Non lette» e «Prioritarie».
+    <div className="space-y-2 border-b border-blue-100 bg-gradient-to-r from-white via-blue-50/40 to-orange-50/30 px-3 py-2 sm:px-4 max-sm:flex max-sm:gap-1.5 max-sm:space-y-0 max-sm:overflow-x-auto max-sm:[scrollbar-width:none] max-sm:[&::-webkit-scrollbar]:hidden">
       {/* Filtri rapidi — toggle indipendenti, combinabili con le categorie */}
       <div className="flex items-center gap-1.5 max-sm:contents">
-        <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-400 max-sm:hidden">
-          Filtri rapidi
-        </span>
+        <Select
+          value={filter.category ?? "all"}
+          onValueChange={(v) => onFilterChange((current) => ({
+            ...current,
+            category: v === "all" ? undefined : (v as EmailSmartCategory),
+          }))}
+        >
+          <SelectTrigger className="hidden h-7 w-auto shrink-0 gap-1.5 rounded-full border-blue-200 bg-white px-2.5 text-xs font-medium text-blue-700 sm:flex" aria-label="Categoria">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {CATEGORY_FILTERS.map((category) => (
+              <SelectItem key={category.key} value={category.key}>{category.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <button
           type="button"
           aria-pressed={!!filter.unreadOnly}
@@ -659,8 +691,8 @@ function EmailMailboxToolbar({
         )}
       </div>
 
-      {/* Categorie (invariata) */}
-      <div className="flex gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden max-sm:contents">
+      {/* Categorie: pillole su telefono (nella riga che scorre); da tablet la tendina qui sopra */}
+      <div className="flex gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden max-sm:contents sm:hidden">
         {CATEGORY_FILTERS.map((category) => {
           const active = category.key === "all" ? !filter.category : filter.category === category.key;
           const Icon = category.icon;

@@ -233,97 +233,75 @@ export function EmailAiCommandCenter({
   // chip nell'header e come badge nella sidebar principale.
   const [expanded, setExpanded] = useState(false);
   const showBody = expanded;
-  // Pillole compatte mostrate nell'header (sempre visibili anche da chiuso)
-  // per dare un'occhiata immediata ai numeri senza dover espandere.
-  const summaryChips = [
-    { label: "Urgenti", value: metrics.priority, tone: "orange" as const },
-    { label: "Vendita", value: metrics.commercial, tone: "blue" as const },
-    { label: "Forn.", value: metrics.supplier, tone: "emerald" as const },
-    { label: "Amm.", value: metrics.admin, tone: "slate" as const },
-  ];
+  const totale = metrics.priority + metrics.commercial + metrics.supplier + metrics.admin;
 
   return (
-    <div className="hidden md:block border-b border-orange-100 bg-white px-3 py-2">
-      <div className="rounded-2xl border border-orange-100 bg-gradient-to-br from-orange-50 via-white to-orange-50/40 shadow-sm">
-        {/* Header sempre visibile, clickable per toggle. Smista + refresh stoppano la propagazione. */}
-        <div
-          role="button"
-          tabIndex={0}
-          onClick={() => setExpanded((current) => !current)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              setExpanded((current) => !current);
-            }
-          }}
-          className="flex w-full cursor-pointer items-center justify-between gap-3 px-3 py-2 text-left"
-          aria-expanded={showBody}
-          aria-controls="email-ai-command-body"
+    // Una riga sola sopra la lista. Prima era un riquadro dentro il riquadro:
+    // nella colonna da 340px «Silvio ha trovato 14 priorità operative» andava
+    // su quattro righe e le quattro pillole su tre, 140px prima della prima
+    // email. I numeri per tipo stanno nel pannello che si apre con la freccia.
+    <div className="hidden md:block border-b border-orange-100 bg-orange-50/50">
+      {/* Riga sempre visibile, cliccabile per aprire. Smista e aggiorna non propagano. */}
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => setExpanded((current) => !current)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setExpanded((current) => !current);
+          }
+        }}
+        className="flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-left"
+        aria-expanded={showBody}
+        aria-controls="email-ai-command-body"
+        title="Priorità trovate da Silvio"
+      >
+        <Sparkles className="h-3.5 w-3.5 shrink-0 text-orange-600" />
+        <p className="min-w-0 flex-1 truncate text-xs text-orange-950">
+          {totale > 0 ? (
+            <>
+              <span className="font-semibold tabular-nums">{totale} priorità</span>
+              {metrics.priority > 0 && <span className="tabular-nums text-orange-700"> · {metrics.priority} urgenti</span>}
+            </>
+          ) : (
+            <span className="font-semibold">Regia email</span>
+          )}
+        </p>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-7 shrink-0 gap-1 px-2 text-xs text-orange-700 hover:bg-orange-100"
+          onClick={(e) => { e.stopPropagation(); triageInbox.mutate(); }}
+          disabled={triageInbox.isPending}
+          title="Smista le email recenti con AI"
         >
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-orange-600 text-white">
-              <Sparkles className="h-3.5 w-3.5" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-bold text-orange-950 leading-tight">
-                {metrics.priority + metrics.commercial + metrics.supplier + metrics.admin > 0
-                  ? `Silvio ha trovato ${metrics.priority + metrics.commercial + metrics.supplier + metrics.admin} priorità operative`
-                  : "Regia Email AI"}
-              </p>
-              <div className="mt-0.5 flex flex-wrap items-center gap-1">
-                {summaryChips.map((chip) => (
-                  <span
-                    key={chip.label}
-                    className={cn(
-                      "rounded-full px-1.5 py-0.5 text-[10px] font-medium",
-                      chip.tone === "orange" && chip.value > 0 && "bg-orange-100 text-orange-700",
-                      chip.tone === "blue" && chip.value > 0 && "bg-orange-100 text-orange-700",
-                      chip.tone === "emerald" && chip.value > 0 && "bg-emerald-100 text-emerald-700",
-                      chip.tone === "slate" && chip.value > 0 && "bg-slate-100 text-slate-700",
-                      chip.value === 0 && "text-slate-400",
-                    )}
-                  >
-                    {chip.label} {chip.value}
-                  </span>
-                ))}
-              </div>
-            </div>
-          </div>
-          <div className="flex shrink-0 items-center gap-1">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-7 gap-1.5 border-orange-200 bg-white text-xs text-orange-700 hover:bg-orange-50"
-              onClick={(e) => { e.stopPropagation(); triageInbox.mutate(); }}
-              disabled={triageInbox.isPending}
-              title="Smista le email recenti con AI"
-            >
-              {triageInbox.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-              <span className="hidden lg:inline">Smista</span>
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-orange-700"
-              onClick={(e) => { e.stopPropagation(); void refetch(); }}
-              disabled={isFetching}
-              title="Aggiorna regia email"
-            >
-              {isFetching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-            </Button>
-            <ChevronDown
-              className={cn(
-                "h-4 w-4 text-orange-700 transition-transform",
-                showBody && "rotate-180",
-              )}
-            />
-          </div>
-        </div>
+          {triageInbox.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+          Smista
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 shrink-0 text-orange-700 hover:bg-orange-100"
+          onClick={(e) => { e.stopPropagation(); void refetch(); }}
+          disabled={isFetching}
+          title="Aggiorna regia email"
+          aria-label="Aggiorna regia email"
+        >
+          {isFetching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+        </Button>
+        <ChevronDown
+          className={cn(
+            "h-4 w-4 shrink-0 text-orange-700 transition-transform",
+            showBody && "rotate-180",
+          )}
+        />
+      </div>
 
         {showBody && (
-          <div id="email-ai-command-body" className="border-t border-orange-100 p-3">
+          <div id="email-ai-command-body" className="border-t border-orange-100 bg-white p-3">
             <div className="grid grid-cols-4 gap-1.5">
           <MetricPill
             label="Urgenti"
@@ -428,7 +406,6 @@ export function EmailAiCommandCenter({
             </div>
           </div>
         )}
-      </div>
     </div>
   );
 }

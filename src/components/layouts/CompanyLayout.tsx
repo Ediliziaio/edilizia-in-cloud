@@ -1730,8 +1730,12 @@ export function CompanyLayout() {
   // Silvio AI: come la chat, e su mobile da bordo a bordo con il campo di
   // scrittura appena sopra la barra flottante (80px + area sicura), non 112px.
   const isSilvioSchermoIntero = /^\/azienda\/silvio-ai/.test(location.pathname);
-  const altezzaBloccata = isViewportEditor || isChatSchermoIntero || isSilvioSchermoIntero;
-  const paddingMain = isChatSchermoIntero
+  // Email: da tablet come la chat, a tutta pagina e ad altezza bloccata. Col
+  // margine di 24px e l'altezza fissa di 100vh-4rem i bottoni di risposta
+  // finivano sotto la piega e scorreva la pagina insieme ai riquadri.
+  const isEmailSchermoIntero = /^\/azienda\/email\/?$/.test(location.pathname);
+  const altezzaBloccata = isViewportEditor || isChatSchermoIntero || isSilvioSchermoIntero || isEmailSchermoIntero;
+  const paddingMain = isChatSchermoIntero || isEmailSchermoIntero
     ? "p-3 md:p-0 pb-28 md:pb-0"
     : isSilvioSchermoIntero
       ? "p-0 pb-[calc(env(safe-area-inset-bottom)+5rem)] md:pb-0"
