@@ -9,6 +9,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { QUOTE_STATUS_CONFIG } from "@/lib/quoteStatus";
 import { useSignatureActions } from "@/hooks/useSignatureActions";
 import { duplicaPreventivo } from "@/lib/quotes/duplicaPreventivo";
+import { eRigaDiModulo, preventivoDelModulo } from "@/lib/moduli/quoteBridge";
 import { fetchQuotePdf, downloadQuotePdf } from "@/lib/preventivi/quotePdfDownload";
 import {
   DropdownMenu,
@@ -268,6 +269,11 @@ export default function QuoteDetail() {
   }
 
   const sc = QUOTE_STATUS_CONFIG[quote.status as keyof typeof QUOTE_STATUS_CONFIG] || QUOTE_STATUS_CONFIG.bozza;
+  // Documento di firma di un preventivo di modulo (Tetti, Bagni…): voci, prezzi e
+  // commessa stanno nel modulo. Modificarlo, duplicarlo o convertirlo da qui
+  // lavorava su un preventivo classico vuoto (commessa senza righe).
+  const rigaDiModulo = eRigaDiModulo(quote.source);
+  const moduloDellaRiga = preventivoDelModulo(quote.source);
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -309,12 +315,16 @@ export default function QuoteDetail() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => eseguiCopia(false)}>
-                  <Copy className="h-4 w-4 mr-2" /> Duplica preventivo
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => eseguiCopia(true)}>
-                  <GitBranch className="h-4 w-4 mr-2" /> Nuova revisione
-                </DropdownMenuItem>
+                {!rigaDiModulo && (
+                  <>
+                    <DropdownMenuItem onClick={() => eseguiCopia(false)}>
+                      <Copy className="h-4 w-4 mr-2" /> Duplica preventivo
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => eseguiCopia(true)}>
+                      <GitBranch className="h-4 w-4 mr-2" /> Nuova revisione
+                    </DropdownMenuItem>
+                  </>
+                )}
                 <DropdownMenuItem
                   disabled={!quote.client_email || inviandoPdf}
                   onClick={() => inviaPdfSemplice(quote.client_email, quote.validity_days)}
@@ -326,7 +336,7 @@ export default function QuoteDetail() {
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   className="text-destructive focus:text-destructive"
-                  disabled={cestinando}
+                  disabled={cestinando || rigaDiModulo}
                   onClick={() => setConfermaCestino(true)}
                 >
                   <Trash2 className="h-4 w-4 mr-2" /> Sposta nel cestino
@@ -351,7 +361,7 @@ export default function QuoteDetail() {
               </AlertDialogContent>
             </AlertDialog>
 
-            {quote.status === "bozza" && (
+            {quote.status === "bozza" && !rigaDiModulo && (
               <Button
                 variant="outline"
                 onClick={() => navigate(`/azienda/marketing/preventivi/${id}/modifica`)}
@@ -374,7 +384,7 @@ export default function QuoteDetail() {
               </button>
             )}
 
-            {quote.status === "accettata" && (
+            {quote.status === "accettata" && !rigaDiModulo && (
               <button
                 type="button"
                 onClick={handleConvertToCantiere}
@@ -388,7 +398,7 @@ export default function QuoteDetail() {
               </button>
             )}
 
-            {quote.status === "accettata" && (
+            {quote.status === "accettata" && !rigaDiModulo && (
               <Button
                 variant="outline"
                 onClick={() => navigate(`/azienda/ordini/nuovo?quote_id=${id}`)}
@@ -439,6 +449,20 @@ export default function QuoteDetail() {
           </>
         }
       />
+
+      {rigaDiModulo && (
+        <div role="status" className="flex flex-col gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950 sm:flex-row sm:items-center sm:justify-between">
+          <p>
+            Questa è la copia di firma di un preventivo {moduloDellaRiga ? <strong>{moduloDellaRiga.nome}</strong> : "di un modulo"}:
+            voci, prezzi e commessa si gestiscono dal preventivo del modulo.
+          </p>
+          {moduloDellaRiga && (
+            <Button variant="outline" className="h-9 shrink-0 bg-white" onClick={() => navigate(moduloDellaRiga.href)}>
+              Apri il preventivo {moduloDellaRiga.nome}
+            </Button>
+          )}
+        </div>
+      )}
 
       <Tabs defaultValue="offerta">
         <TabsList className="bg-slate-100 max-w-full justify-start overflow-x-auto">

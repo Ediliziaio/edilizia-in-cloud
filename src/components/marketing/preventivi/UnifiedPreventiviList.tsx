@@ -64,6 +64,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useTableSelection } from "@/hooks/useTableSelection";
 import { UnifiedBulkToolbar } from "./UnifiedBulkToolbar";
 import { PreventiviCestinoDialog } from "./PreventiviCestinoDialog";
+import { eRigaDiModulo } from "@/lib/moduli/quoteBridge";
 
 export type PreventivoTipo = "classico" | "serramenti" | "fotovoltaico" | "ristrutturazione" | "bagni" | "tetti" | "climatizzazione" | "elettrico" | "termoidraulico" | "pavimenti" | "piscine";
 export type { UnifiedStato };
@@ -207,18 +208,21 @@ export function UnifiedPreventiviList() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("quotes")
-        .select("id, quote_number, client_name, status, total, salesperson_id, created_at, updated_at, revision_number")
+        .select("id, quote_number, client_name, status, total, salesperson_id, created_at, updated_at, revision_number, source")
         .eq("company_id", companyId!)
         .is("deleted_at", null)
         .order("updated_at", { ascending: false, nullsFirst: false })
         .limit(1000);
       if (error) throw error;
-      return data as Array<{
+      // Le righe «modulo:…» sono il documento di firma di un preventivo di
+      // modulo, che l'elenco mostra già dalla sua tabella: contarle qui lo
+      // faceva comparire due volte, una come «Classico» vuoto.
+      return (data as Array<{
         id: string; quote_number: string; client_name: string | null;
         status: string; total: number | null; salesperson_id: string | null;
         created_at: string; updated_at: string | null;
-        revision_number: number | null;
-      }>;
+        revision_number: number | null; source: string | null;
+      }>).filter((q) => !eRigaDiModulo(q.source));
     },
   });
 

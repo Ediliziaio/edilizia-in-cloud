@@ -203,9 +203,17 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Until the public HTML renderer supports native model snapshots, never
-    // publish a different (general-template) document for the same quote.
-    if (prog.modello_snapshot) return errorResponse("Modello specifico: usa il PDF A4. Pagina firma non ancora collegata.", 409, corsHeaders);
+    // Preventivo fatto con un modello della libreria (finestre, persiane,
+    // combinato): il modello è congelato nel preventivo (modello_snapshot, forma
+    // garantita dal vincolo sr_quote_model_snapshot_valid). La pagina di firma usa
+    // quello al posto del modello generale dell'azienda, così il cliente firma gli
+    // stessi testi del PDF A4. Prima qui si rispondeva 409 e la firma era spenta.
+    const modelloDelPreventivo =
+      prog.modello_snapshot && typeof prog.modello_snapshot === "object" &&
+        (prog.modello_snapshot as { template?: unknown }).template &&
+        typeof (prog.modello_snapshot as { template?: unknown }).template === "object"
+        ? (prog.modello_snapshot as { template: Record<string, unknown> }).template
+        : null;
 
     // 2. Load BOM
     const [{ data: serramenti }, { data: accessori }, { data: media }, { data: template }, { data: company }] =
@@ -484,7 +492,7 @@ Deno.serve(async (req: Request) => {
     // cartella di questa azienda. L'HTML generato resta salvato e si riapre nei
     // mesi: la firma vale un anno, come i vecchi link, ma riparte a ogni generazione.
     const tplFirmato = await firmaImmaginiModello(
-      template ?? {},
+      modelloDelPreventivo ?? template ?? {},
       CAMPI_IMMAGINE_SERRAMENTI,
       firmatarioStorage(supabaseAdmin, 60 * 60 * 24 * 365),
       prog.company_id,

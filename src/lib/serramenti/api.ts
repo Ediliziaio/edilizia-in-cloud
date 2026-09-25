@@ -1313,13 +1313,8 @@ export async function deleteMedia(id: string): Promise<void> {
 export async function generaPdf(
   progetto_id: string,
 ): Promise<{ html_url: string; public_url: string | null; duration_ms: number; pages_count: number | null }> {
-  // The public-signature renderer does not yet support model snapshots.
-  // Read * to remain compatible with databases without the optional column.
-  const { data: project, error: projectError } = await supabase.from("sr_progetti").select("*").eq("id", progetto_id).maybeSingle();
-  if (projectError || !project) throw new Error("Impossibile verificare il preventivo prima della generazione.");
-  if ((project as unknown as SrProgettoRow).modello_snapshot) {
-    throw new Error("Per questo modello usa il PDF A4. La pagina di firma non è ancora collegata.");
-  }
+  // La pagina di firma usa il modello congelato nel preventivo quando c'è
+  // (sr-genera-pdf): niente più blocco per i preventivi fatti con un modello.
   const { data, error } = await supabase.functions.invoke("sr-genera-pdf", {
     body: { progetto_id },
   });

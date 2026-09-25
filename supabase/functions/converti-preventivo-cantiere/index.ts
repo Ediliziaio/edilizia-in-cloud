@@ -24,6 +24,16 @@ Deno.serve(async (req) => {
     // 2. Accesso all'azienda del preventivo (anche multi-azienda e super admin)
     await requireCompanyAccess(supabaseAdmin, userId, quote.company_id, getCorsHeaders(req));
 
+    // 2b. La copia di firma di un preventivo di modulo (source «modulo:…») non ha
+    // righe: le voci stanno nella tabella del modulo. Convertirla creava una
+    // commessa col solo totale; la commessa si fa dal preventivo del modulo.
+    if (typeof quote.source === "string" && quote.source.startsWith("modulo:")) {
+      return errorResponse(
+        "Questo preventivo appartiene a un modulo (Tetti, Bagni…): la commessa si crea dal preventivo del modulo, non da qui.",
+        409,
+      );
+    }
+
     // 3. Verifica stato preventivo
     if (quote.status !== "accettata") {
       return errorResponse(
