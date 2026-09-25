@@ -11,7 +11,9 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   BookOpen, Plus, Loader2, Search, Download, ArrowDownLeft, ArrowUpRight,
   TrendingUp, TrendingDown, Wallet, Bot, Trash2, FileText, ExternalLink, RefreshCw,
+  ChevronLeft, ChevronRight,
 } from "lucide-react";
+import { CercaConFiltri, KpiMobili, PannelloFiltri, PilloleFiltro } from "@/components/mobile/FiltriMobile";
 import { PrimaNotaXBRL } from "@/components/contabilita/PrimaNotaXBRL";
 import { BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { usePrimaNota } from "@/hooks/usePrimaNota";
@@ -103,6 +105,19 @@ function PrimaNotaInner() {
 
   const isAutoFilter = autoView === "auto" ? true : autoView === "manuali" ? false : null;
 
+  // Mobile: direzione, tipo di registrazione e periodo in un pannello dal basso
+  // (prima tre righe di controlli, con le date che uscivano dallo schermo).
+  const [filtriMobileAperti, setFiltriMobileAperti] = useState(false);
+  const meseCorrente = { da: format(startOfMonth(new Date()), "yyyy-MM-dd"), a: format(endOfMonth(new Date()), "yyyy-MM-dd") };
+  const periodiRapidi = [
+    { value: "mese", label: "Questo mese", ...meseCorrente },
+    { value: "scorso", label: "Mese scorso", da: format(startOfMonth(subMonths(new Date(), 1)), "yyyy-MM-dd"), a: format(endOfMonth(subMonths(new Date(), 1)), "yyyy-MM-dd") },
+    { value: "tre", label: "Ultimi 3 mesi", da: format(startOfMonth(subMonths(new Date(), 2)), "yyyy-MM-dd"), a: meseCorrente.a },
+    { value: "anno", label: `Anno ${new Date().getFullYear()}`, da: `${new Date().getFullYear()}-01-01`, a: `${new Date().getFullYear()}-12-31` },
+  ];
+  const periodoScelto = periodiRapidi.find((p) => p.da === fromDate && p.a === toDate)?.value ?? "altro";
+  const nFiltriMobile = [direction !== "", autoView !== "tutte", periodoScelto !== "mese"].filter(Boolean).length;
+
   const { entries, isLoading, totalCount, totalPages, saldo, isSaldoLoading, monthlyChart, create, remove, fetchAllForExport } = usePrimaNota({
     fromDate,
     toDate,
@@ -177,7 +192,7 @@ function PrimaNotaInner() {
   // come nel pannello navy delle Commesse.
   const eurTondo = (v: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(v);
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-sm:space-y-3">
       {/* Header */}
       <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -191,6 +206,8 @@ function PrimaNotaInner() {
             </div>
           </div>
         <div className="flex gap-2 flex-wrap">
+          {/* Mobile: solo «Nuova»; CSV, XBRL e importa automatico al desktop. */}
+          <div className="contents max-sm:hidden">
           <Button variant="outline" size="sm" onClick={exportCSV} disabled={isExporting}>
             {isExporting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Download className="h-4 w-4 mr-1" />} CSV
           </Button>
@@ -224,10 +241,11 @@ function PrimaNotaInner() {
             <span className="hidden sm:inline">Importa Auto</span>
             <span className="sm:hidden">Importa</span>
           </Button>
-          <Button onClick={() => setNewOpen(true)} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
+          </div>
+          <Button onClick={() => setNewOpen(true)} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-8 max-sm:px-3 max-sm:text-xs">
             <Plus className="h-4 w-4 mr-1" />
             <span className="hidden sm:inline">Nuova Registrazione</span>
-            <span className="sm:hidden">Aggiungi</span>
+            <span className="sm:hidden">Nuova</span>
           </Button>
         </div>
         </div>
@@ -235,7 +253,7 @@ function PrimaNotaInner() {
 
       {/* Testata navy di famiglia (stessa dei Costi e delle Commesse):
           i tre numeri della cassa in card di vetro, senza troncamenti. */}
-      <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
+      <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm max-sm:hidden">
         <div className="bg-[#173b67] p-4 text-white sm:p-5">
           <div className="flex items-start gap-3">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)] sm:h-11 sm:w-11">
@@ -310,8 +328,27 @@ function PrimaNotaInner() {
         </div>
       )}
 
+      {/* Mobile: entrate e uscite del periodo, nome e cifra (al posto del
+          riquadro blu con tre numeri, icone e spiegazioni). */}
+      <KpiMobili
+        className="sm:hidden"
+        voci={[
+          { label: "Entrate", valore: isSaldoLoading ? "…" : eurTondo(saldo?.entrate || 0), tono: "text-green-700" },
+          { label: "Uscite", valore: isSaldoLoading ? "…" : eurTondo(saldo?.uscite || 0), tono: "text-destructive" },
+        ]}
+      />
+
+      {/* Mobile: ricerca e bottone dei filtri. */}
+      <CercaConFiltri
+        className="sm:hidden"
+        valore={search}
+        onCambia={(v) => { setSearch(v); setPage(1); }}
+        filtriAttivi={nFiltriMobile}
+        onApriFiltri={() => setFiltriMobileAperti(true)}
+      />
+
       {/* Filters */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm sm:flex sm:flex-wrap sm:items-center sm:gap-3">
+      <div className="rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm sm:flex sm:flex-wrap sm:items-center sm:gap-3 max-sm:hidden">
         {/* Search — full width on mobile, flexible on desktop */}
         <div className="relative flex-1 min-w-0">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -365,60 +402,35 @@ function PrimaNotaInner() {
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
       ) : entriesWithBalance.length === 0 ? (
-        <div className="rounded-lg border">
-          <div className="flex flex-col items-center justify-center py-12 text-center px-4">
-            <BookOpen className="h-12 w-12 text-muted-foreground/40 mb-3" />
-            <p className="font-medium text-muted-foreground">Nessun movimento trovato</p>
-            <p className="text-sm text-muted-foreground/70 mt-1">Prova a modificare i filtri o aggiungi la prima registrazione</p>
-            <Button className="mt-4" onClick={() => setNewOpen(true)}>
+        // Mobile: una riga di testo (c'è «Nuova» in testata).
+        <div className="rounded-lg border max-sm:border-0">
+          <div className="flex flex-col items-center justify-center py-12 text-center px-4 max-sm:py-4">
+            <BookOpen className="h-12 w-12 text-muted-foreground/40 mb-3 max-sm:hidden" />
+            <p className="font-medium text-muted-foreground max-sm:text-xs max-sm:font-normal">Nessun movimento trovato</p>
+            <p className="text-sm text-muted-foreground/70 mt-1 max-sm:hidden">Prova a modificare i filtri o aggiungi la prima registrazione</p>
+            <Button className="mt-4 max-sm:hidden" onClick={() => setNewOpen(true)}>
               <Plus className="h-4 w-4 mr-2" /> Nuova Registrazione
             </Button>
           </div>
         </div>
       ) : (
         <div className="rounded-lg border overflow-hidden">
-          {/* Mobile card list */}
+          {/* Mobile: una riga da ~52px per movimento (descrizione; data,
+              categoria e metodo; importo colorato). Via freccia e cestino. */}
           <div className="sm:hidden divide-y">
             {entriesWithBalance.map((e) => (
-              <div key={e.id} className="flex items-start gap-3 px-4 py-3">
-                <div className={`mt-0.5 shrink-0 ${e.direction === "entrata" ? "text-green-700" : "text-destructive"}`}>
-                  {e.direction === "entrata"
-                    ? <ArrowDownLeft className="h-4 w-4" />
-                    : <ArrowUpRight className="h-4 w-4" />}
-                </div>
-                <div className="flex-1 min-w-0 space-y-0.5">
-                  <p className="text-sm font-medium truncate">{e.description}</p>
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <span>{format(new Date(e.entry_date), "dd/MM/yyyy", { locale: it })}</span>
-                    {e.category && <span>· {CATEGORY_LABELS[e.category] || e.category}</span>}
-                    {e.payment_method && <span>· {e.payment_method}</span>}
-                  </div>
-                </div>
-                <div className="text-right shrink-0">
-                  <p className={`font-mono font-medium text-sm ${e.direction === "entrata" ? "text-green-700" : "text-destructive"}`}>
-                    {e.direction === "uscita" ? "-" : "+"}{formatCurrency(e.amount)}
+              <div key={e.id} className="flex items-center gap-2.5 px-3 py-2.5">
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] font-semibold leading-tight truncate">{e.description}</p>
+                  <p className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground">
+                    {format(new Date(e.entry_date), "dd/MM", { locale: it })}
+                    {e.category && ` · ${CATEGORY_LABELS[e.category] || e.category}`}
+                    {e.payment_method && ` · ${e.payment_method}`}
                   </p>
-                  {!e.is_auto && (
-                    <button
-                      className="text-muted-foreground hover:text-destructive mt-1"
-                      aria-label="Elimina movimento di prima nota"
-                      onClick={async () => {
-                        if (
-                          await confirm({
-                            title: "Eliminare il movimento?",
-                            description: `Il movimento da ${formatCurrency(e.amount)} verrà rimosso definitivamente dalla prima nota. L'operazione non può essere annullata.`,
-                            confirmLabel: "Elimina",
-                            variant: "destructive",
-                          })
-                        ) {
-                          remove.mutate(e.id);
-                        }
-                      }}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  )}
                 </div>
+                <p className={`shrink-0 text-[13px] font-semibold tabular-nums ${e.direction === "entrata" ? "text-green-700" : "text-destructive"}`}>
+                  {e.direction === "uscita" ? "−" : "+"}{formatCurrency(e.amount)}
+                </p>
               </div>
             ))}
           </div>
@@ -528,17 +540,74 @@ function PrimaNotaInner() {
         </div>
       )}
 
-      {/* Pagination */}
-      {!isLoading && (
-        <TablePagination
-          currentPage={page}
-          totalPages={totalPages}
-          pageSize={pageSize}
-          totalItems={totalCount}
-          onPageChange={setPage}
-          onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
-        />
+      {/* Pagination — mobile: solo precedente/successiva. Il contenitore c'è
+          solo quando la paginazione compare (niente margine vuoto sul desktop). */}
+      {!isLoading && totalCount > 25 && (
+        <div className="max-sm:hidden">
+          <TablePagination
+            currentPage={page}
+            totalPages={totalPages}
+            pageSize={pageSize}
+            totalItems={totalCount}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
+          />
+        </div>
       )}
+      {!isLoading && totalPages > 1 && (
+        <div className="flex items-center justify-between sm:hidden">
+          <Button variant="outline" size="icon" className="tap-compact h-8 w-8" disabled={page <= 1} onClick={() => setPage(page - 1)} aria-label="Pagina precedente">
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <span className="text-xs tabular-nums text-muted-foreground">{page} di {totalPages}</span>
+          <Button variant="outline" size="icon" className="tap-compact h-8 w-8" disabled={page >= totalPages} onClick={() => setPage(page + 1)} aria-label="Pagina successiva">
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+
+      {/* Mobile: direzione, registrazioni e periodo. */}
+      <PannelloFiltri
+        aperto={filtriMobileAperti}
+        onAperto={setFiltriMobileAperti}
+        attivi={nFiltriMobile}
+        onAzzera={() => { setDirection(""); setAutoView("tutte"); setFromDate(meseCorrente.da); setToDate(meseCorrente.a); setPage(1); }}
+        risultati={isLoading ? undefined : totalCount}
+      >
+        <PilloleFiltro
+          titolo="Periodo"
+          valore={periodoScelto}
+          onScegli={(v) => {
+            const p = periodiRapidi.find((x) => x.value === v);
+            if (p) { setFromDate(p.da); setToDate(p.a); setPage(1); }
+          }}
+          scelte={periodiRapidi.map((p) => ({ value: p.value, label: p.label }))}
+        />
+        <div className="grid grid-cols-2 gap-2">
+          <Input type="date" aria-label="Dal" value={fromDate} onChange={(e) => { setFromDate(e.target.value); setPage(1); }} className="h-9 text-xs" />
+          <Input type="date" aria-label="Al" value={toDate} onChange={(e) => { setToDate(e.target.value); setPage(1); }} className="h-9 text-xs" />
+        </div>
+        <PilloleFiltro
+          titolo="Movimenti"
+          valore={direction || "all"}
+          onScegli={(v) => { setDirection(v === "all" ? "" : (v as "entrata" | "uscita")); setPage(1); }}
+          scelte={[
+            { value: "all", label: "Tutti" },
+            { value: "entrata", label: "Entrate" },
+            { value: "uscita", label: "Uscite" },
+          ]}
+        />
+        <PilloleFiltro
+          titolo="Registrazioni"
+          valore={autoView}
+          onScegli={(v) => { setAutoView(v); setPage(1); }}
+          scelte={[
+            { value: "tutte" as const, label: "Tutte" },
+            { value: "auto" as const, label: "Automatiche" },
+            { value: "manuali" as const, label: "Manuali" },
+          ]}
+        />
+      </PannelloFiltri>
 
       {/* Dialog */}
       <NewEntryDialog

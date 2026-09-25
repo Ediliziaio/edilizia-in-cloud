@@ -188,8 +188,9 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
         <DialogHeader>
           <DialogTitle>Nuova Registrazione</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+        {/* Mobile: via riferimento e note; metodo accanto al conto. */}
+        <div className="space-y-4 max-sm:space-y-3">
+          <div className="grid grid-cols-2 gap-3 max-sm:gap-2">
             <div className="space-y-2">
               <Label>Direzione</Label>
               <Select value={direction} onValueChange={(v) => setDirection(v as "entrata" | "uscita")}>
@@ -282,7 +283,7 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
           </div>
 
           {/* 2 colonne su mobile: con 3 i campi scendevano a ~98px (data clippata) */}
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 max-sm:gap-2">
             <div className="space-y-2">
               <Label>Importo (€)</Label>
               <Input type="number" inputMode="decimal" step="0.01" min="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} />
@@ -291,7 +292,7 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
               <Label>Data</Label>
               <Input type="date" value={entryDate} onChange={(e) => setEntryDate(e.target.value)} />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2 max-sm:hidden">
               <Label>Metodo</Label>
               <Select value={method} onValueChange={setMethod}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -307,10 +308,26 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-3 max-sm:gap-2">
+            <div className="space-y-2 max-sm:hidden">
               <Label>Riferimento (opzionale)</Label>
               <Input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="es. Fatt. 2025/001" />
+            </div>
+            {/* Mobile: il metodo sta qui, accanto al conto (sopra resterebbe
+                da solo su mezza riga). */}
+            <div className="space-y-2 sm:hidden">
+              <Label>Metodo</Label>
+              <Select value={method} onValueChange={setMethod}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="bonifico">Bonifico</SelectItem>
+                  <SelectItem value="contanti">Contanti</SelectItem>
+                  <SelectItem value="carta">Carta</SelectItem>
+                  <SelectItem value="assegno">Assegno</SelectItem>
+                  <SelectItem value="ri.ba">Ri.Ba.</SelectItem>
+                  <SelectItem value="altro">Altro</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label>Conto</Label>
@@ -326,7 +343,7 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
 
           {/* Attachment */}
           <div className="space-y-2">
-            <Label>Allegato (opzionale)</Label>
+            <Label>Allegato<span className="max-sm:hidden"> (opzionale)</span></Label>
             {attachmentFile ? (
               <div className="flex items-center gap-2 p-2 rounded-lg border bg-muted/30">
                 <Paperclip className="h-4 w-4 text-muted-foreground" />
@@ -356,14 +373,14 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
             )}
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-2 max-sm:hidden">
             <Label>Note (opzionale)</Label>
             <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
           </div>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Annulla</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="max-sm:hidden">Annulla</Button>
           <Button
             disabled={isPending || isUploading || !isValid}
             onClick={handleConfirm}
