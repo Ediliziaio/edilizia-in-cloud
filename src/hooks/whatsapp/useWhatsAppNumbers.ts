@@ -8,7 +8,23 @@ import { readInvokeErrorConDettagli } from "@/lib/readInvokeError";
 import { toast } from "sonner";
 import type { Database, Json } from "@/integrations/supabase/types";
 
-export type WANumber = Database["public"]["Tables"]["ai_whatsapp_numbers"]["Row"];
+// Il token di Meta e il PIN della verifica in due passaggi non arrivano mai al
+// browser: il database non li dà al ruolo authenticated (GRANT per colonna,
+// migrazione whatsapp_numeri_segreti_e_permessi) e il PIN sta nel Vault.
+export type WANumber = Omit<
+  Database["public"]["Tables"]["ai_whatsapp_numbers"]["Row"],
+  "access_token_encrypted" | "cloud_api_pin"
+>;
+
+// Le colonne che il browser legge. Una colonna nuova va aggiunta qui E al GRANT
+// SELECT della migrazione: senza, la lettura fallisce con «permission denied».
+export const WA_NUMBER_COLUMNS =
+  "id, company_id, purpose, display_name, nome_account, numero, phone_number_id, waba_id, agent_id, stato, webhook_verified, quality_rating, messaging_limit_tier, messaggio_benvenuto, messaggio_fuori_orario, orario_attivo, operational_settings, daily_budget_eur, current_day_spend_eur, creato_il, updated_at" as const;
+
+// Modificare o togliere un numero spetta a chi amministra l'azienda. Per gli
+// altri il database non aggiorna niente e non dà errore: zero righe.
+export const SOLO_AMMINISTRATORI_WA =
+  "Solo gli amministratori dell'azienda possono modificare i numeri WhatsApp.";
 
 export type WAPurpose =
   | "bot_operativo"
@@ -226,9 +242,7 @@ export function useWhatsAppNumbers() {
       const { data, error } = await withClientTimeout(
         supabase
         .from("ai_whatsapp_numbers")
-        .select(
-          "id, company_id, purpose, display_name, nome_account, numero, phone_number_id, waba_id, agent_id, stato, webhook_verified, quality_rating, messaging_limit_tier, messaggio_benvenuto, messaggio_fuori_orario, orario_attivo, operational_settings, daily_budget_eur, current_day_spend_eur, creato_il, updated_at",
-        )
+        .select(WA_NUMBER_COLUMNS)
         .eq("company_id", companyId!)
         .is("deleted_at", null)
         .order("creato_il", { ascending: true }),
@@ -248,13 +262,13 @@ export function useWhatsAppNumber(id: string | undefined) {
       const { data, error } = await withClientTimeout(
         supabase
         .from("ai_whatsapp_numbers")
-        .select("*")
+        .select(WA_NUMBER_COLUMNS)
         .eq("id", id!)
         .single(),
         "Caricamento numero WhatsApp",
       );
       if (error) throw error;
-      return data;
+      return data as WANumber;
     },
   });
 }
@@ -277,11 +291,13 @@ export function useDeleteWANumber() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("ai_whatsapp_numbers")
         .update({ deleted_at: new Date().toISOString(), stato: "removed" })
-        .eq("id", id);
+        .eq("id", id)
+        .select("id");
       if (error) throw error;
+      if (!data?.length) throw new Error(SOLO_AMMINISTRATORI_WA);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: WA_NUMBERS_KEY });
@@ -350,11 +366,13 @@ export function useUpdateWANumberSettings() {
   return useMutation({
     mutationFn: async (payload: WANumberUpdate) => {
       const { id, ...updates } = payload;
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("ai_whatsapp_numbers")
         .update(updates)
-        .eq("id", id);
+        .eq("id", id)
+        .select("id");
       if (error) throw error;
+      if (!data?.length) throw new Error(SOLO_AMMINISTRATORI_WA);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: WA_NUMBERS_KEY });

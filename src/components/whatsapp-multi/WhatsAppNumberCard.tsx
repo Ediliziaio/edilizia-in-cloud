@@ -211,36 +211,39 @@ export function WhatsAppNumberCard({ number, onOpenSettings }: Props) {
             </Button>
           )}
 
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-destructive hover:text-destructive"
-                aria-label="Rimuovi numero"
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Rimuovere questo numero?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Il numero {number.numero} verrà disattivato (soft delete).
-                  Lo storico messaggi resta consultabile. Puoi riconnetterlo in futuro.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Annulla</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={() => del.mutate(number.id)}
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          {/* Togliere il numero spetta a chi amministra: il database lo nega agli altri. */}
+          {isAdmin && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-destructive hover:text-destructive"
+                  aria-label="Rimuovi numero"
                 >
-                  Rimuovi
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Rimuovere questo numero?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Il numero {number.numero} verrà disattivato (soft delete).
+                    Lo storico messaggi resta consultabile. Puoi riconnetterlo in futuro.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Annulla</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => del.mutate(number.id)}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    Rimuovi
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
         </div>
       </CardContent>
 

@@ -12,6 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertTriangle, ArrowLeft, Camera, Clock3, FileCheck2, Loader2, RefreshCw, Save, ShieldCheck } from "lucide-react";
 import { useWhatsAppBase } from "./useWhatsAppBase";
+import { usePermissions } from "@/hooks/usePermissions";
 import {
   PURPOSE_AUTONOMY,
   PURPOSE_DESCRIPTIONS,
@@ -20,6 +21,7 @@ import {
   PURPOSE_GROUPS,
   PURPOSE_LABELS,
   normalizeWAOperationalSettings,
+  SOLO_AMMINISTRATORI_WA,
   useUpdateWANumberSettings,
   useWhatsAppNumber,
   type WAOperationalSettings,
@@ -32,6 +34,8 @@ export default function WANumberDetailPage() {
   const { base: waBase } = useWhatsAppBase();
   const { data: number, isLoading, isError, error, refetch, isFetching } = useWhatsAppNumber(id);
   const update = useUpdateWANumberSettings();
+  // Le impostazioni del numero le salva chi amministra l'azienda (come nel database).
+  const { isAdmin } = usePermissions();
 
   const [displayName, setDisplayName] = useState("");
   const [msgBenvenuto, setMsgBenvenuto] = useState("");
@@ -382,8 +386,9 @@ export default function WANumberDetailPage() {
         </CardContent>
       </Card>
 
-      <div className="flex justify-end">
-        <Button onClick={save} disabled={update.isPending}>
+      <div className="flex flex-wrap items-center justify-end gap-3">
+        {!isAdmin && <p className="text-sm text-muted-foreground">{SOLO_AMMINISTRATORI_WA}</p>}
+        <Button onClick={save} disabled={!isAdmin || update.isPending}>
           {update.isPending ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           ) : (
