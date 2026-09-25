@@ -640,9 +640,10 @@ export default function SicurezzaCantiere() {
 
         {/* ───── VERBALI TAB ───── */}
         <TabsContent value="verbali" className="space-y-4 mt-4 max-sm:mt-3 max-sm:space-y-2">
-          <div className="flex items-center justify-between max-sm:justify-end">
+          {/* Telefono: «Aggiungi» a tutta riga, non da solo in fondo a destra. */}
+          <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground max-sm:hidden">Verbali ispezioni e sopralluoghi D.Lgs 81/08</p>
-            <Button size="sm" onClick={nuovoVerbale} className="max-sm:h-8 max-sm:text-xs bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
+            <Button size="sm" onClick={nuovoVerbale} className="max-sm:h-9 max-sm:w-full max-sm:text-xs bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
               <Plus className="h-4 w-4 mr-1" /> Nuovo verbale
             </Button>
           </div>
@@ -803,9 +804,10 @@ export default function SicurezzaCantiere() {
 
         {/* ───── SCADENZARIO TAB ───── */}
         <TabsContent value="scadenzario" className="space-y-4 mt-4 max-sm:mt-3 max-sm:space-y-2">
-          <div className="flex items-center justify-between max-sm:justify-end">
+          {/* Telefono: «Aggiungi» a tutta riga, non da solo in fondo a destra. */}
+          <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground max-sm:hidden">Adempimenti obbligatori D.Lgs 81/08</p>
-            <Button size="sm" onClick={nuovoAdempimento} className="max-sm:h-8 max-sm:text-xs bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
+            <Button size="sm" onClick={nuovoAdempimento} className="max-sm:h-9 max-sm:w-full max-sm:text-xs bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
               <Plus className="h-4 w-4 mr-1" /> Aggiungi
             </Button>
           </div>
