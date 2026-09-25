@@ -705,9 +705,7 @@ export function costruisciRapporto(r: DatiRapporto, urlConsole: string): Rapport
 
   const bloccoIeri = ieri.length
     ? titoletto("Le priorità di ieri") + elenco(ieri.map((p) =>
-      `<li style="margin:2px 0;"><strong>${esc(p.cliente.toUpperCase())}</strong> — ${esc(p.titolo)}: ${esc(p.stato)} ${p.risolta
-        ? `<span style="color:#047857;">(risolta)</span>`
-        : `<span style="color:#c2410c;">(ancora aperta)</span>`}</li>`))
+      `<li style="margin:2px 0;"><strong>${esc(p.cliente.toUpperCase())}</strong> — ${esc(p.titolo)}: <span style="color:${p.risolta ? "#047857" : "#c2410c"};">${esc(p.stato)}</span></li>`))
     : "";
 
   const bloccoPriorita = priorita.length

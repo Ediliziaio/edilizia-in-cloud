@@ -68,6 +68,11 @@ export interface DatiMattino {
   prova?: boolean;
 }
 
+/** Il testo delle risposte arriva a volte con i codici HTML dentro («&nbsp;», «&lt;»): prima si decodifica, poi si protegge. */
+export const decodifica = (s: unknown) =>
+  String(s ?? "").replace(/&nbsp;/g, " ").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&");
+
 export const esc = (s: unknown) =>
   String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
@@ -105,8 +110,8 @@ function bloccoChiamate(chiamate: DaChiamare[], errore?: string | null): string 
   if (errore) return titoletto("Chiamate da fare") + avvisoSezione(errore) + `<div style="height:12px;"></div>`;
   if (!chiamate.length) return titoletto("Chiamate da fare") + vuoto("Nessuna: nessuna risposta positiva da richiamare.");
   return titoletto(`Chiamate da fare (${chiamate.length})`) + lista(chiamate.map((c) => {
-    const cosa = String(c.cosa ?? "").replace(/\s+/g, " ").trim();
-    return `<li style="margin:0 0 8px;"><strong>${esc(c.chi)}</strong> — ${esc(c.motivo)} (${c.canale === "whatsapp" ? "WhatsApp" : "email"}, ${esc(c.quando)})<br>` +
+    const cosa = decodifica(c.cosa).replace(/\s+/g, " ").trim();
+    return `<li style="margin:0 0 8px;"><strong>${esc(decodifica(c.chi))}</strong> — ${esc(c.motivo)} (${c.canale === "whatsapp" ? "WhatsApp" : "email"}, ${esc(c.quando)})<br>` +
       `${telefonoLink(c.telefono)}` +
       (cosa ? `<br><span style="color:#4b5563;">«${esc(cosa.length > 140 ? `${cosa.slice(0, 139)}…` : cosa)}»</span>` : "") +
       `</li>`;

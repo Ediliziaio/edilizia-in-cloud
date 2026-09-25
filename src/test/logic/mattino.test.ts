@@ -66,6 +66,11 @@ describe("componiMattino", () => {
     expect(html).not.toContain("Nessuna: nessuna risposta positiva");
     expect(html).toContain("non si è potuta leggere: timeout");
   });
+  it("i codici HTML dentro le risposte si leggono come testo", () => {
+    const { html } = componiMattino(base({ chiamate: [{ chi: "Cantoni", canale: "email", motivo: "interessato", quando: "martedì", cosa: "Ok 351 7881465&nbsp;&nbsp;Il 22 Set &lt;info@x.eu&gt; ha scritto" }] }));
+    expect(html).not.toContain("&amp;nbsp;");
+    expect(html).toContain("Ok 351 7881465 Il 22 Set &lt;info@x.eu&gt; ha scritto");
+  });
   it("il testo che arriva dai dati non diventa HTML", () => {
     const { html } = componiMattino(base({ chiamate: [{ chi: "<script>x</script>", canale: "email", motivo: "interessato", quando: "ieri" }] }));
     expect(html).not.toContain("<script>");
