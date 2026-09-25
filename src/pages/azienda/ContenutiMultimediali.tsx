@@ -3,7 +3,8 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState, type RefObject } 
 const PdfToolkitDialog = lazy(() =>
   import("@/components/documenti/PdfToolkitDialog").then((m) => ({ default: m.PdfToolkitDialog })),
 );
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { linkContatto, linkOpportunita } from "@/lib/marketing/linkCrm";
 import { useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
@@ -415,6 +416,25 @@ function entityLabel(table: string | null | undefined): string | null {
     documenti_subappaltatore: "Documento subappaltatore",
   };
   return labels[table] ?? table.replace(/_/g, " ");
+}
+
+/** Dove si apre il record a cui è collegato il documento (se ha una pagina). */
+function percorsoRecordCollegato(tabella: string | null, id: string | null): string | null {
+  if (!tabella || !id) return null;
+  switch (tabella) {
+    case "orders":
+      return `/azienda/ordini/${encodeURIComponent(id)}`;
+    case "customers":
+      return `/azienda/clienti/${encodeURIComponent(id)}`;
+    case "quotes":
+      return `/azienda/marketing/preventivi/${encodeURIComponent(id)}`;
+    case "marketing_contacts":
+      return linkContatto("/azienda/marketing", id);
+    case "marketing_opportunities":
+      return linkOpportunita("/azienda/marketing", id);
+    default:
+      return null;
+  }
 }
 
 function formatDate(value: string | null): string {
@@ -1866,7 +1886,21 @@ export default function ContenutiMultimediali() {
               <AnteprimaImmagine key={dettaglioMobile.id} item={dettaglioMobile} className="mt-3 max-h-[45dvh]" />
               <p className="mt-3 text-xs text-muted-foreground">
                 {statusLabel(dettaglioMobile)}
-                {dettaglioMobile.linkedEntityLabel ? ` · collegato a ${dettaglioMobile.linkedEntityLabel}` : ""}
+                {dettaglioMobile.linkedEntityLabel ? (
+                  percorsoRecordCollegato(dettaglioMobile.linkedEntityTable, dettaglioMobile.linkedEntityId) ? (
+                    <>
+                      {" · collegato a "}
+                      <Link
+                        to={percorsoRecordCollegato(dettaglioMobile.linkedEntityTable, dettaglioMobile.linkedEntityId)!}
+                        className="font-medium text-primary underline underline-offset-2"
+                      >
+                        {dettaglioMobile.linkedEntityLabel}
+                      </Link>
+                    </>
+                  ) : (
+                    ` · collegato a ${dettaglioMobile.linkedEntityLabel}`
+                  )
+                ) : ""}
                 {dettaglioMobile.actorLabel ? ` · ${dettaglioMobile.actorLabel}` : ""}
               </p>
               {dettaglioMobile.errorMessage ? (
@@ -2439,27 +2473,21 @@ function MediaDetailPanel({
         <div className="rounded-md border bg-muted/20 p-3 text-sm">
           <div className="mb-3 flex items-center gap-2 font-medium">
             <DatabaseIcon className="h-4 w-4 text-orange-500" />
-            Carta identita documento
+            Carta d'identità del documento
           </div>
           <div className="space-y-3">
+            {/* Il record collegato si apre da qui; nome della tabella e uuid
+                (che erano scritti accanto) non dicevano niente a chi legge. */}
             <DetailLine
               icon={Link2}
               label="Collegato a"
-              value={
-                item.linkedEntityLabel
-                  ? `${item.linkedEntityLabel}${item.linkedEntityTable ? ` (${item.linkedEntityTable})` : ""}`
-                  : "Da collegare a cliente, preventivo, commessa o record operativo."
-              }
+              value={item.linkedEntityLabel ?? "Da collegare a cliente, preventivo, commessa o record operativo."}
+              to={item.linkedEntityLabel ? percorsoRecordCollegato(item.linkedEntityTable, item.linkedEntityId) : null}
             />
             <DetailLine icon={UserRound} label="Caricato da" value={item.actorLabel ?? item.actorId ?? "Autore non registrato"} />
             <DetailLine icon={Sparkles} label="Azione" value={item.actionLabel} />
             <DetailLine icon={CalendarClock} label="Quando" value={formatDate(item.lastActivityAt)} />
           </div>
-          {item.linkedEntityId ? (
-            <div className="mt-3 rounded-md bg-background px-2 py-1.5 text-[11px] text-muted-foreground">
-              ID collegato: <span className="font-mono">{item.linkedEntityId}</span>
-            </div>
-          ) : null}
         </div>
 
         <div className="rounded-md border p-3 text-sm">
@@ -2671,13 +2699,19 @@ function DetailStat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function DetailLine({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) {
+function DetailLine({ icon: Icon, label, value, to }: { icon: LucideIcon; label: string; value: string; to?: string | null }) {
   return (
     <div className="flex items-start gap-2">
       <Icon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
       <div className="min-w-0">
         <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</div>
-        <div className="break-words font-medium">{value}</div>
+        {to ? (
+          <Link to={to} className="break-words font-medium text-primary underline-offset-2 hover:underline">
+            {value}
+          </Link>
+        ) : (
+          <div className="break-words font-medium">{value}</div>
+        )}
       </div>
     </div>
   );
