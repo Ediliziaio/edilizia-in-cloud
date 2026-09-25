@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   HardHat,
   Plus,
@@ -14,6 +14,8 @@ import {
   ListPlus,
   ChevronDown,
   Split,
+  Search,
+  CalendarDays,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
@@ -21,6 +23,9 @@ import { differenceInCalendarDays, format, isValid, parseISO } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
+import { matchesWorkFilter, summarizeWork, parseWorkAmount, validWorkDates, wouldDuplicateAssignment, type WorkFilter } from "@/lib/orders/workPlanning";
+import { WorkAssignmentRow as AssignmentRow, type AssignmentPatch } from "./WorkAssignmentRow";
 
 import {
   useOrderWorkPhases,
@@ -49,7 +54,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -79,8 +83,9 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { EmptyRow } from "./EmptyRow";
+import { InternalTeamShifts } from "./InternalTeamShifts";
 
-const eur = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" });
+const eur = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: true });
 
 const STATUS_OPTIONS: { value: PhaseStatus; label: string; dot: string; badge: string }[] = [
   {
@@ -110,9 +115,11 @@ function statusMeta(status: PhaseStatus) {
 interface OrderWorkPhasesProps {
   orderId: string;
   orderCode?: string | null;
+  onOpenReports?: () => void;
 }
 
-export function OrderWorkPhases({ orderId, orderCode }: OrderWorkPhasesProps) {
+export function OrderWorkPhases({ orderId, orderCode, onOpenReports }: OrderWorkPhasesProps) {
+  const { canEditOrders, canViewCosts } = usePermissions();
   const {
     phases,
     unassigned,
@@ -144,6 +151,14 @@ export function OrderWorkPhases({ orderId, orderCode }: OrderWorkPhasesProps) {
   }, [scheduleHealth]);
 
   const [newPhaseOpen, setNewPhaseOpen] = useState(false);
+  const [filter, setFilter] = useState<WorkFilter>("all");
+  const [search, setSearch] = useState("");
+  const accessDetails = useRef<HTMLDetailsElement>(null);
+  const phaseList = useRef<HTMLDivElement>(null);
+  const today = format(new Date(), "yyyy-MM-dd");
+  const summary = summarizeWork(phases, unassigned, today);
+  const phaseOptions = phases.map(p => ({ id: p.id, name: p.name }));
+  const visiblePhases = phases.filter(p => matchesWorkFilter(p, filter, today) && p.name.toLocaleLowerCase("it").includes(search.trim().toLocaleLowerCase("it")));
   const [newPhaseName, setNewPhaseName] = useState("");
   const [selectedTemplateKey, setSelectedTemplateKey] = useState<string | null>(null);
   const selectedTemplate = PHASE_TEMPLATES.find((t) => t.key === selectedTemplateKey) ?? null;
@@ -179,17 +194,30 @@ export function OrderWorkPhases({ orderId, orderCode }: OrderWorkPhasesProps) {
   };
 
   const scostamentoClass = totals.scostamento > 0 ? "text-rose-600" : "text-emerald-600";
+  const saveAssignment = async (id: string, source: AssignmentSource, patch: AssignmentPatch) => {
+    const all = [...unassigned, ...phases.flatMap(p => p.assignments)];
+    const current = all.find(a => a.id === id && a.source === source);
+    if (current && patch.phase_id !== undefined && wouldDuplicateAssignment(all, current, patch.phase_id)) {
+      const message = "Questa persona o squadra è già assegnata alla lavorazione scelta. Gestisci la riga esistente.";
+      toast.error(message);
+      throw new Error(message);
+    }
+    return updateAssignment.mutateAsync({ id, source, patch });
+  };
 
   return (
     <Card>
-      <CardHeader className="gap-4">
+      <CardHeader className="gap-4 p-3 sm:p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-1">
           <CardTitle className="flex items-center gap-2 text-lg">
             <HardHat className="h-5 w-5 text-primary" />
-            Lavorazioni / Manodopera
+            Lavori e squadra
           </CardTitle>
+          <p className="text-sm text-muted-foreground">Chi interviene, su quale lavoro e con quali tempi.</p>
+          </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          {canEditOrders && <div className="flex flex-wrap items-center gap-2">
             {/* La via semplice viene PRIMA: chi lavora e quanto costa, anche a
                 corpo, senza dover creare fasi. Le fasi restano per i cantieri
                 che ne hanno bisogno. */}
@@ -197,7 +225,9 @@ export function OrderWorkPhases({ orderId, orderCode }: OrderWorkPhasesProps) {
               phaseId={null}
               employees={employees}
               externalTeams={externalTeams}
-              triggerLabel="Aggiungi manodopera"
+              phases={phaseOptions}
+              existingAssignments={[...unassigned, ...phases.flatMap(p => p.assignments)]}
+              triggerLabel="Assegna persona o squadra"
               triggerVariant="default"
               onAdd={(payload, opts) => addAssignment.mutate(payload, opts)}
             />
@@ -208,9 +238,10 @@ export function OrderWorkPhases({ orderId, orderCode }: OrderWorkPhasesProps) {
                   Aggiungi lavorazioni
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-lg">
+              <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
                 <DialogHeader>
                   <DialogTitle>Aggiungi lavorazioni</DialogTitle>
+                  <DialogDescription>Crea una lavorazione oppure usa un modello. Le assegnazioni già presenti vengono conservate.</DialogDescription>
                 </DialogHeader>
 
                 <div className="space-y-4">
@@ -300,6 +331,7 @@ export function OrderWorkPhases({ orderId, orderCode }: OrderWorkPhasesProps) {
                         }}
                       />
                       <Button
+                        aria-label="Aggiungi fase"
                         onClick={handleAddPhase}
                         disabled={addPhase.isPending || !newPhaseName.trim()}
                       >
@@ -314,26 +346,57 @@ export function OrderWorkPhases({ orderId, orderCode }: OrderWorkPhasesProps) {
                 </div>
               </DialogContent>
             </Dialog>
-          </div>
+          </div>}
         </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" aria-label="Accessi e referenti Campo" onClick={() => {
+            if (!accessDetails.current) return;
+            accessDetails.current.open = true;
+            accessDetails.current.querySelector("summary")?.focus();
+            accessDetails.current.scrollIntoView({ behavior: "smooth", block: "start" });
+          }}>Accessi Campo</Button>
+          {onOpenReports && <Button variant="outline" size="sm" aria-label="Vai ai rapportini" onClick={onOpenReports}>Rapportini</Button>}
+          {!isLoading && !isError && summary.attention > 0 && <Button variant="ghost" size="sm" className="text-amber-700" onClick={() => {
+            setFilter("attention"); setSearch(""); phaseList.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+          }}><AlertTriangle className="mr-1.5 h-4 w-4" />Verifica {summary.attention} lavorazioni</Button>}
+        </div>
+
+        {!isLoading && !isError && <div className={cn("grid grid-cols-2 gap-2", phases.length > 0 && "lg:grid-cols-4")}>
+          {[
+            ...(phases.length ? [["Lavorazioni", phases.length, `${summary.active} in corso · ${summary.completed} completate`]] : []),
+            ["Dipendenti", summary.employees, "Persone nelle assegnazioni"],
+            ["Squadre esterne", summary.teams, "Imprese nelle assegnazioni"],
+            ...(phases.length ? [["Lavorazioni da verificare", summary.attention, "Date, esecutori o scadenze"]] : []),
+          ].map(([label, value, hint]) => <div key={label} className="rounded-xl border bg-muted/20 p-3">
+            <p className="text-xs font-medium text-muted-foreground">{label}</p>
+            <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
+            <p className="mt-1 hidden text-[11px] text-muted-foreground sm:block">{hint}</p>
+          </div>)}
+        </div>}
+
+        {!isLoading && !isError && <InternalTeamShifts key={orderId} orderId={orderId} teams={externalTeams} phases={phaseOptions} canPlan={canEditOrders} />}
 
         {/* Totals strip — solo quando c'e' qualcosa da sommare: tre "0,00 €"
             sopra lo stato vuoto erano rumore che spingeva in basso il resto. */}
-        {(phases.length > 0 || unassigned.length > 0) && (
-        <div className="grid grid-cols-3 gap-2 rounded-lg border bg-muted/40 p-3 text-center">
-          <div>
-            <p className="text-xs text-muted-foreground">Preventivo</p>
+        {canViewCosts && !isLoading && !isError && (phases.length > 0 || unassigned.length > 0) && (
+        <details className="rounded-lg border p-3">
+        <summary className="cursor-pointer text-sm font-medium">Riepilogo costi della manodopera</summary>
+        <p className="my-2 text-xs text-muted-foreground">Somma delle assegnazioni. Il costo registrato non indica da solo lavoro approvato o pagamento eseguito.</p>
+        <div className="grid grid-cols-1 gap-2 rounded-lg border bg-muted/40 p-3 text-center sm:grid-cols-3">
+          <div className="flex items-center justify-between gap-2 sm:block">
+            <p className="text-xs text-muted-foreground">Budget manodopera</p>
             <p className="text-sm font-semibold tabular-nums sm:text-base">
               {eur.format(totals.preventivo)}
             </p>
           </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Consuntivo</p>
+          <div className="flex items-center justify-between gap-2 sm:block">
+            <p className="text-xs text-muted-foreground">Costo registrato</p>
             <p className="text-sm font-semibold tabular-nums sm:text-base">
               {eur.format(totals.consuntivo)}
             </p>
           </div>
-          <div>
+          <div className="flex items-center justify-between gap-2 sm:block">
             <p className="text-xs text-muted-foreground">Scostamento</p>
             <p className={`text-sm font-semibold tabular-nums sm:text-base ${scostamentoClass}`}>
               {eur.format(totals.scostamento)}
@@ -343,7 +406,7 @@ export function OrderWorkPhases({ orderId, orderCode }: OrderWorkPhasesProps) {
           {/* Barra consuntivo vs preventivo: colpo d'occhio su quanto budget
               manodopera è stato consumato (verde entro budget, rosso oltre). */}
           {totals.preventivo > 0 && (
-            <div className="col-span-3 pt-1">
+            <div className="pt-1 sm:col-span-3">
               <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
                 <div
                   className={`h-full rounded-full transition-all ${
@@ -361,10 +424,12 @@ export function OrderWorkPhases({ orderId, orderCode }: OrderWorkPhasesProps) {
             </div>
           )}
         </div>
+        </details>
         )}
       </CardHeader>
 
-      <CardContent className="space-y-3">
+      <CardContent className="space-y-3 px-3 pb-3 sm:px-6 sm:pb-6">
+        <div ref={phaseList} className="scroll-mt-24" />
         {isLoading ? (
           <div className="flex items-center justify-center gap-2 py-10 text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin" />
@@ -383,12 +448,19 @@ export function OrderWorkPhases({ orderId, orderCode }: OrderWorkPhasesProps) {
           // Riga compatta: a commessa senza lavorazioni questo blocco occupava
           // 663px. L'azione resta, sulla stessa riga.
           <EmptyRow icon={HardHat}>
-            Nessuna manodopera: aggiungila qui sopra — anche a corpo, senza fasi.
-            Le lavorazioni a fasi servono solo per i cantieri lunghi.
+            Nessuna lavorazione o persona assegnata. Per un intervento semplice puoi assegnare direttamente la squadra; per organizzare più attività, crea le lavorazioni.
           </EmptyRow>
         ) : (
           <>
-            {phases.map((phase) => (
+            {phases.length > 0 && <div className="space-y-3 pb-1">
+              <div className="flex flex-wrap gap-1.5" aria-label="Filtra lavorazioni">
+                {([["all", "Tutte"], ["in_corso", "In corso"], ["da_iniziare", "Da iniziare"], ["attention", "Da organizzare"], ["completata", "Completate"]] as const).map(([value, label]) =>
+                  <Button key={value} size="sm" variant={filter === value ? "secondary" : "ghost"} aria-pressed={filter === value} onClick={() => setFilter(value)}>{label}</Button>)}
+              </div>
+              <div className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input className="pl-9" aria-label="Cerca lavorazione" placeholder="Cerca una lavorazione…" value={search} onChange={e => setSearch(e.target.value)} /></div>
+              {visiblePhases.length === 0 && <p role="status" className="py-3 text-sm text-muted-foreground">Nessuna lavorazione corrisponde ai filtri.</p>}
+            </div>}
+            {visiblePhases.map((phase) => (
               <PhaseCard
                 key={phase.id}
                 phase={phase}
@@ -398,6 +470,7 @@ export function OrderWorkPhases({ orderId, orderCode }: OrderWorkPhasesProps) {
                 materials={materialsByPhase.get(phase.id) ?? []}
                 unassignedMaterials={unassignedMaterials}
                 allPhases={phases.map((p) => ({ id: p.id, name: p.name }))}
+                allAssignments={[...unassigned, ...phases.flatMap(p => p.assignments)]}
                 orderId={orderId}
                 orderCode={orderCode}
                 onAssignMaterial={(itemId, phaseId) => setMaterialPhase.mutate({ itemId, phaseId })}
@@ -408,9 +481,9 @@ export function OrderWorkPhases({ orderId, orderCode }: OrderWorkPhasesProps) {
                 onDeletePhase={() => deletePhase.mutate(phase.id)}
                 onAddAssignment={(payload, opts) => addAssignment.mutate(payload, opts)}
                 onUpdateAssignment={(id, source, patch) =>
-                  updateAssignment.mutate({ id, source, patch })
+                  saveAssignment(id, source, patch)
                 }
-                onDeleteAssignment={(id, source) => deleteAssignment.mutate({ id, source })}
+                onDeleteAssignment={(id, source) => deleteAssignment.mutateAsync({ id, source })}
               />
             ))}
 
@@ -420,26 +493,24 @@ export function OrderWorkPhases({ orderId, orderCode }: OrderWorkPhasesProps) {
                 assignments={unassigned}
                 employees={employees}
                 externalTeams={externalTeams}
+                phases={phaseOptions}
                 onUpdateAssignment={(id, source, patch) =>
-                  updateAssignment.mutate({ id, source, patch })
+                  saveAssignment(id, source, patch)
                 }
-                onDeleteAssignment={(id, source) => deleteAssignment.mutate({ id, source })}
+                onDeleteAssignment={(id, source) => deleteAssignment.mutateAsync({ id, source })}
               />
             )}
           </>
         )}
 
         {/* ── Capocantiere, operai, subappalti e cantiere (sistema operativo) ── */}
-        <div className="pt-2">
-          <Separator className="mb-3" />
-          <div className="flex items-center gap-2 mb-3">
-            <Users className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-semibold text-muted-foreground">
-              Capocantiere, squadra e subappalti
-            </span>
+        <details ref={accessDetails} className="scroll-mt-24 rounded-lg border">
+          <summary className="cursor-pointer p-3 text-sm font-semibold">App Campo e affidamenti <span className="ml-1 font-normal text-muted-foreground">· accessi, capocantiere, DURC e SAL</span></summary>
+          <div className="border-t p-3">
+          <p className="mb-3 text-xs text-muted-foreground">Qui gestisci chi usa l'app e i referenti dei subappalti. Persone e squadre che eseguono il lavoro si assegnano nelle lavorazioni qui sopra.</p>
+          <OrderLaborCosts orderId={orderId} editable={canEditOrders} embedded />
           </div>
-          <OrderLaborCosts orderId={orderId} editable embedded />
-        </div>
+        </details>
       </CardContent>
     </Card>
   );
@@ -448,13 +519,6 @@ export function OrderWorkPhases({ orderId, orderCode }: OrderWorkPhasesProps) {
 /* ------------------------------------------------------------------ */
 /* Phase card                                                          */
 /* ------------------------------------------------------------------ */
-
-type AssignmentPatch = Partial<
-  Pick<
-    PhaseAssignment,
-    "cost_preventivo" | "cost_consuntivo" | "hours" | "is_paid" | "paid_date" | "phase_id" | "notes"
-  >
->;
 
 interface PhaseCardProps {
   phase: WorkPhase;
@@ -465,6 +529,7 @@ interface PhaseCardProps {
   materials: PhaseMaterial[];
   unassignedMaterials: PhaseMaterial[];
   allPhases: { id: string; name: string }[];
+  allAssignments: PhaseAssignment[];
   orderId: string;
   orderCode?: string | null;
   onAssignMaterial: (itemId: string, phaseId: string | null) => void;
@@ -485,8 +550,8 @@ interface PhaseCardProps {
     payload: AddAssignmentPayload,
     opts?: { onSuccess?: () => void; onError?: () => void }
   ) => void;
-  onUpdateAssignment: (id: string, source: AssignmentSource, patch: AssignmentPatch) => void;
-  onDeleteAssignment: (id: string, source: AssignmentSource) => void;
+  onUpdateAssignment: (id: string, source: AssignmentSource, patch: AssignmentPatch) => Promise<unknown>;
+  onDeleteAssignment: (id: string, source: AssignmentSource) => Promise<unknown>;
 }
 
 function PhaseCard({
@@ -497,6 +562,7 @@ function PhaseCard({
   materials,
   unassignedMaterials,
   allPhases,
+  allAssignments,
   orderId,
   orderCode,
   onAssignMaterial,
@@ -507,8 +573,11 @@ function PhaseCard({
   onUpdateAssignment,
   onDeleteAssignment,
 }: PhaseCardProps) {
+  const { canEditOrders, canViewCosts } = usePermissions();
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(phase.name);
+  const [progressOpen, setProgressOpen] = useState(false);
+  const [progressDraft, setProgressDraft] = useState("");
   // Aperta di default solo se i lavori sono in corso: è la fase su cui si opera
   const [open, setOpen] = useState(() => phase.status === "in_corso");
 
@@ -576,25 +645,12 @@ function PhaseCard({
             : "border-l-slate-200",
       )}
     >
-      <CardHeader className="gap-3 py-3">
+      <CardHeader className="gap-3 p-3 sm:p-4">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           {/* Zona cliccabile: apre/chiude la fase (accordion fatto a mano:
               i controlli interattivi restano fuori, a destra) */}
-          <div
-            role="button"
-            tabIndex={0}
-            aria-expanded={open}
-            className="flex min-w-0 flex-1 cursor-pointer flex-wrap items-center gap-2"
-            onClick={() => setOpen((o) => !o)}
-            onKeyDown={(e) => {
-              // Solo Enter/Spazio sulla zona stessa: non intercetta l'Input del nome
-              if (e.target !== e.currentTarget) return;
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                setOpen((o) => !o);
-              }
-            }}
-          >
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" aria-label={`Dettagli ${phase.name}`} aria-expanded={open} aria-controls={`phase-body-${phase.id}`} onClick={() => setOpen(o => !o)}>
             <motion.span
               animate={{ rotate: open ? 0 : -90 }}
               transition={{ duration: 0.2, ease: "easeOut" }}
@@ -602,6 +658,7 @@ function PhaseCard({
             >
               <ChevronDown className="h-4 w-4" />
             </motion.span>
+            </Button>
 
             <span
               className={cn(
@@ -630,7 +687,7 @@ function PhaseCard({
                 className="h-8 max-w-xs"
               />
             ) : (
-              <span className="truncate font-semibold">{phase.name}</span>
+              <button type="button" className="min-w-0 break-words text-left font-semibold hover:underline" aria-expanded={open} aria-controls={`phase-body-${phase.id}`} onClick={() => setOpen(o => !o)}>{phase.name}</button>
             )}
 
             <Badge variant="outline" className={`gap-1 ${meta.badge}`}>
@@ -659,21 +716,14 @@ function PhaseCard({
                       sbagliata (prima non c'era rimedio se non SQL). */}
                   <button
                     type="button"
+                    disabled={!canEditOrders}
+                    aria-label={`Avanzamento ${phase.name}: ${actualPct}%`}
                     className="rounded px-0.5 text-[11px] tabular-nums text-muted-foreground underline-offset-2 hover:underline"
                     title="Correggi l'avanzamento della fase"
                     onClick={(e) => {
                       e.stopPropagation();
-                      const risposta = window.prompt(
-                        `Avanzamento di "${phase.name}" (0-100):`,
-                        String(actualPct),
-                      );
-                      if (risposta === null) return;
-                      const val = Math.min(100, Math.max(0, Math.round(Number(risposta.replace(",", ".")))));
-                      if (Number.isNaN(val)) return;
-                      onUpdatePhase({
-                        percentuale: val,
-                        status: val >= 100 ? "completata" : val > 0 ? "in_corso" : "da_iniziare",
-                      });
+                      setProgressDraft(String(actualPct));
+                      setProgressOpen(true);
                     }}
                   >
                     {actualPct}%
@@ -688,17 +738,22 @@ function PhaseCard({
             })()}
 
             {/* Riepilogo compatto: leggibile anche a fase chiusa */}
-            <span className="whitespace-nowrap text-xs text-muted-foreground tabular-nums">
+            <span className="basis-full text-xs text-muted-foreground tabular-nums">
               {phase.assignments.length} esecutori
-              {materials.length > 0 ? ` · ${materials.length} materiali` : ""} · Prev{" "}
-              {eur.format(phaseTotals.prev)} · Cons {eur.format(phaseTotals.cons)}
+              {materials.length > 0 ? ` · ${materials.length} materiali` : ""}
+              {canViewCosts ? ` · Budget ${eur.format(phaseTotals.prev)} · Costo ${eur.format(phaseTotals.cons)}` : ""}
               {plannedDates.start ? ` · dal ${plannedDates.start}` : ""}
               {plannedDates.end ? ` al ${plannedDates.end}` : ""}
             </span>
+            {phase.status !== "completata" && <div className="flex basis-full flex-wrap gap-2 text-xs">
+              {phase.assignments.length === 0 && <span className="text-amber-700">Da assegnare</span>}
+              {(!phase.start_date || !phase.end_date) && <span className="inline-flex items-center gap-1 text-muted-foreground"><CalendarDays className="h-3 w-3" />Date da completare</span>}
+              {phase.end_date && phase.end_date < format(new Date(), "yyyy-MM-dd") && <span className="text-rose-600">Scadenza superata</span>}
+            </div>}
           </div>
 
           {/* Controlli a destra: fuori dalla zona cliccabile */}
-          <div
+          {canEditOrders && <div
             className="flex flex-wrap items-center gap-2"
             onClick={(e) => e.stopPropagation()}
           >
@@ -746,8 +801,7 @@ function PhaseCard({
                 <AlertDialogHeader>
                   <AlertDialogTitle>Eliminare la fase?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Eliminare la fase «{phase.name}» e i suoi esecutori? L'operazione non è
-                    reversibile.
+                    Eliminare la fase «{phase.name}»? Le assegnazioni e i materiali collegati restano nella commessa, senza fase. La fase eliminata non è recuperabile.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -761,7 +815,7 @@ function PhaseCard({
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
-          </div>
+          </div>}
         </div>
       </CardHeader>
 
@@ -776,7 +830,7 @@ function PhaseCard({
             transition={{ duration: 0.22, ease: "easeOut" }}
             className="overflow-hidden"
           >
-            <CardContent className="space-y-2 pt-0">
+            <CardContent id={`phase-body-${phase.id}`} className="space-y-4 px-3 pb-4 pt-0 sm:px-4">
               {/* ── Date previste della fase (start_date / end_date) ── */}
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -786,9 +840,14 @@ function PhaseCard({
                   Inizio
                   <Input
                     type="date"
+                    disabled={!canEditOrders}
                     key={`${phase.id}-start-${phase.start_date ?? ""}`}
                     defaultValue={phase.start_date ?? ""}
-                    onChange={(e) => onUpdatePhase({ start_date: e.target.value || null })}
+                    onChange={(e) => {
+                      const value = e.target.value || null;
+                      if (!validWorkDates(value, phase.end_date)) { toast.error("L'inizio non può essere successivo alla fine."); e.target.value = phase.start_date ?? ""; return; }
+                      onUpdatePhase({ start_date: value });
+                    }}
                     className="h-8 w-auto text-xs"
                     aria-label="Data inizio prevista"
                   />
@@ -797,9 +856,14 @@ function PhaseCard({
                   Fine
                   <Input
                     type="date"
+                    disabled={!canEditOrders}
                     key={`${phase.id}-end-${phase.end_date ?? ""}`}
                     defaultValue={phase.end_date ?? ""}
-                    onChange={(e) => onUpdatePhase({ end_date: e.target.value || null })}
+                    onChange={(e) => {
+                      const value = e.target.value || null;
+                      if (!validWorkDates(phase.start_date, value)) { toast.error("La fine non può precedere l'inizio."); e.target.value = phase.end_date ?? ""; return; }
+                      onUpdatePhase({ end_date: value });
+                    }}
                     className="h-8 w-auto text-xs"
                     aria-label="Data fine prevista"
                   />
@@ -815,10 +879,11 @@ function PhaseCard({
                 <div className="space-y-2">
                   {phase.assignments.map((a) => (
                     <AssignmentRow
-                      key={a.id}
+                      key={`${a.source}-${a.id}`}
                       assignment={a}
                       employees={employees}
                       externalTeams={externalTeams}
+                      phases={allPhases}
                       onUpdate={(patch) => onUpdateAssignment(a.id, a.source, patch)}
                       onDelete={() => onDeleteAssignment(a.id, a.source)}
                     />
@@ -826,12 +891,14 @@ function PhaseCard({
                 </div>
               )}
 
-              <AddAssignmentDialog
+              {canEditOrders && <AddAssignmentDialog
                 phaseId={phase.id}
                 employees={employees}
                 externalTeams={externalTeams}
+                phases={allPhases}
+                existingAssignments={allAssignments}
                 onAdd={onAddAssignment}
-              />
+              />}
 
               {/* ── Materiali della fase (order_items.phase_id) ── */}
               {(materials.length > 0 || unassignedMaterials.length > 0) && (
@@ -847,14 +914,14 @@ function PhaseCard({
                           prontiCount === materials.length ? "text-emerald-600" : "text-amber-600"
                         )}
                       >
-                        {prontiCount}/{materials.length} pronti
+                        {prontiCount}/{materials.length} coperti da giacenza o OdA
                       </span>
                     )}
                   </div>
 
                   {materials.map((m) => (
-                    <div key={m.id} className="flex items-center justify-between gap-2">
-                      <span className="min-w-0 flex-1 truncate text-sm">
+                    <div key={m.id} className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="min-w-0 flex-1 break-words text-sm">
                         {m.name}{" "}
                         <span className="text-xs text-muted-foreground">(x{m.quantity})</span>
                       </span>
@@ -887,7 +954,7 @@ function PhaseCard({
                         {/* Dividi su più fasi: solo con quantità > 1 e non ancora coperto
                             da un OdA — una volta ordinato, la ripartizione è vincolata
                             all'ordine di acquisto e non si può più spezzare. */}
-                        {m.quantity > 1 && m.readiness !== "ordinato" && (
+                        {canEditOrders && m.quantity > 1 && m.readiness !== "ordinato" && (
                           <SplitMaterialDialog
                             material={m}
                             phases={allPhases}
@@ -895,7 +962,7 @@ function PhaseCard({
                             onSplit={(parts, opts) => onSplitMaterial(m.id, parts, opts)}
                           />
                         )}
-                        <Button
+                        {canEditOrders && <Button
                           variant="ghost"
                           size="icon"
                           className="h-6 w-6 text-muted-foreground hover:text-rose-600"
@@ -903,12 +970,12 @@ function PhaseCard({
                           aria-label="Togli dalla fase"
                         >
                           <X className="h-3.5 w-3.5" />
-                        </Button>
+                        </Button>}
                       </div>
                     </div>
                   ))}
 
-                  <div className="flex flex-wrap items-center gap-2">
+                  {canEditOrders && <div className="flex flex-wrap items-center gap-2">
                     <Popover>
                       <PopoverTrigger asChild>
                         <Button variant="outline" size="sm">
@@ -950,7 +1017,7 @@ function PhaseCard({
                         }))}
                       />
                     )}
-                  </div>
+                  </div>}
 
                   {startWarning && (
                     <p className="flex items-center gap-1 text-xs text-amber-600">
@@ -964,6 +1031,17 @@ function PhaseCard({
           </motion.div>
         )}
       </AnimatePresence>
+      <Dialog open={progressOpen} onOpenChange={setProgressOpen}>
+        <DialogContent className="sm:max-w-md"><DialogHeader><DialogTitle>Rettifica avanzamento</DialogTitle><DialogDescription>{phase.name}. Correzione manuale dell'ufficio; non modifica i rapportini già registrati.</DialogDescription></DialogHeader>
+          <Label htmlFor={`progress-${phase.id}`}>Avanzamento %</Label>
+          <Input id={`progress-${phase.id}`} type="number" min="0" max="100" step="1" value={progressDraft} onChange={e => setProgressDraft(e.target.value)} />
+          <DialogFooter><Button variant="outline" onClick={() => setProgressOpen(false)}>Annulla</Button><Button disabled={!canEditOrders || !progressDraft.trim() || parseWorkAmount(progressDraft) === null || Number(progressDraft) > 100} onClick={() => {
+            const value = Math.round(parseWorkAmount(progressDraft)!);
+            onUpdatePhase({ percentuale: value, status: value >= 100 ? "completata" : value > 0 ? "in_corso" : "da_iniziare" });
+            setProgressOpen(false);
+          }}>Salva avanzamento</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
@@ -982,8 +1060,9 @@ interface UnassignedCardProps {
   assignments: PhaseAssignment[];
   employees: ExecutorOption[];
   externalTeams: ExecutorOption[];
-  onUpdateAssignment: (id: string, source: AssignmentSource, patch: AssignmentPatch) => void;
-  onDeleteAssignment: (id: string, source: AssignmentSource) => void;
+  phases: { id: string; name: string }[];
+  onUpdateAssignment: (id: string, source: AssignmentSource, patch: AssignmentPatch) => Promise<unknown>;
+  onDeleteAssignment: (id: string, source: AssignmentSource) => Promise<unknown>;
 }
 
 function UnassignedCard({
@@ -991,9 +1070,11 @@ function UnassignedCard({
   assignments,
   employees,
   externalTeams,
+  phases,
   onUpdateAssignment,
   onDeleteAssignment,
 }: UnassignedCardProps) {
+  const { canViewCosts } = usePermissions();
   const subtotals = useMemo(() => {
     return assignments.reduce(
       (acc, a) => {
@@ -1007,32 +1088,34 @@ function UnassignedCard({
 
   return (
     <Card className="border-dashed bg-muted/30">
-      <CardHeader className="gap-3 pb-3">
+      <CardHeader className="gap-3 p-3 sm:p-6 sm:pb-3">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="flex min-w-0 items-center gap-2">
             <span className="truncate font-semibold text-muted-foreground">
-              {hasPhases ? "Senza fase" : "Manodopera"}
+              {hasPhases ? "Assegnazioni all'intera commessa" : "Squadra della commessa"}
             </span>
             {hasPhases && (
               <Badge variant="outline" className="border-slate-300 bg-slate-100 text-slate-700">
-                Manodopera non assegnata
+                Senza fase
               </Badge>
             )}
           </div>
-          <span className="whitespace-nowrap text-xs text-muted-foreground tabular-nums">
-            Prev: {eur.format(subtotals.prev)} · Cons: {eur.format(subtotals.cons)}
-          </span>
+          {canViewCosts && <span className="text-xs text-muted-foreground tabular-nums">
+            Budget {eur.format(subtotals.prev)} · Costo {eur.format(subtotals.cons)}
+          </span>}
         </div>
+        <p className="text-xs text-muted-foreground">{hasPhases ? "Queste assegnazioni non appartengono a una lavorazione specifica. Usa Gestisci per collegarle a una fase." : "Dipendenti e squadre esterne assegnati al lavoro, anche senza suddivisione in fasi."}</p>
       </CardHeader>
 
-      <CardContent className="space-y-2 pt-0">
+      <CardContent className="space-y-2 px-3 pb-3 pt-0 sm:px-6 sm:pb-6">
         <div className="space-y-2">
           {assignments.map((a) => (
             <AssignmentRow
-              key={a.id}
+              key={`${a.source}-${a.id}`}
               assignment={a}
               employees={employees}
               externalTeams={externalTeams}
+              phases={phases}
               onUpdate={(patch) => onUpdateAssignment(a.id, a.source, patch)}
               onDelete={() => onDeleteAssignment(a.id, a.source)}
             />
@@ -1047,123 +1130,6 @@ function UnassignedCard({
 /* Assignment row                                                      */
 /* ------------------------------------------------------------------ */
 
-function resolveExecutorLabel(
-  a: PhaseAssignment,
-  employees: ExecutorOption[],
-  externalTeams: ExecutorOption[]
-): string {
-  if (a.executor_type === "interno") {
-    return employees.find((e) => e.id === a.employee_id)?.label ?? "—";
-  }
-  return externalTeams.find((t) => t.id === a.external_team_id)?.label ?? "—";
-}
-
-interface AssignmentRowProps {
-  assignment: PhaseAssignment;
-  employees: ExecutorOption[];
-  externalTeams: ExecutorOption[];
-  onUpdate: (patch: AssignmentPatch) => void;
-  onDelete: () => void;
-}
-
-function AssignmentRow({
-  assignment,
-  employees,
-  externalTeams,
-  onUpdate,
-  onDelete,
-}: AssignmentRowProps) {
-  const isInterno = assignment.executor_type === "interno";
-  const label = resolveExecutorLabel(assignment, employees, externalTeams);
-
-  const [prevDraft, setPrevDraft] = useState(String(assignment.cost_preventivo ?? 0));
-  const [consDraft, setConsDraft] = useState(String(assignment.cost_consuntivo ?? 0));
-
-  const commit = (field: "cost_preventivo" | "cost_consuntivo", raw: string) => {
-    const parsed = parseFloat(raw);
-    const value = Number.isNaN(parsed) ? 0 : parsed;
-    if (field === "cost_preventivo") setPrevDraft(String(value));
-    else setConsDraft(String(value));
-    if (value !== Number(assignment[field])) {
-      onUpdate({ [field]: value });
-    }
-  };
-
-  return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md border bg-background p-2.5">
-      {/* Executor */}
-      <div className="flex min-w-0 flex-1 items-center gap-2">
-        {isInterno ? (
-          <User className="h-4 w-4 shrink-0 text-blue-600" />
-        ) : (
-          <Users className="h-4 w-4 shrink-0 text-violet-600" />
-        )}
-        <span className="truncate text-sm font-medium">{label}</span>
-        <Badge
-          variant="outline"
-          className={
-            isInterno
-              ? "border-blue-300 bg-blue-100 text-blue-700"
-              : "border-violet-300 bg-violet-100 text-violet-700"
-          }
-        >
-          {isInterno ? "Interno" : "Subappalto"}
-        </Badge>
-      </div>
-
-      {/* Costs */}
-      <div className="flex items-center gap-3">
-        <label className="flex items-center gap-1 text-xs text-muted-foreground">
-          Prev
-          <Input
-            type="number"
-            step="0.01"
-            value={prevDraft}
-            onChange={(e) => setPrevDraft(e.target.value)}
-            onBlur={(e) => commit("cost_preventivo", e.target.value)}
-            className="h-8 w-24 tabular-nums"
-          />
-        </label>
-        <label className="flex items-center gap-1 text-xs text-muted-foreground">
-          Cons
-          <Input
-            type="number"
-            step="0.01"
-            value={consDraft}
-            onChange={(e) => setConsDraft(e.target.value)}
-            onBlur={(e) => commit("cost_consuntivo", e.target.value)}
-            className="h-8 w-24 tabular-nums"
-          />
-        </label>
-      </div>
-
-      {/* Paid + delete */}
-      <div className="flex items-center gap-2">
-        <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Switch
-            checked={assignment.is_paid}
-            onCheckedChange={(checked) =>
-              onUpdate({
-                is_paid: checked,
-                paid_date: checked ? new Date().toISOString().slice(0, 10) : null,
-              })
-            }
-          />
-          Pagato
-        </label>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 text-muted-foreground hover:text-rose-600"
-          onClick={onDelete}
-          aria-label="Rimuovi esecutore"
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      </div>
-    </div>
-  );
-}
 
 /* ------------------------------------------------------------------ */
 /* Add assignment dialog                                               */
@@ -1177,6 +1143,8 @@ interface AddAssignmentDialogProps {
   phaseId: string | null;
   employees: ExecutorOption[];
   externalTeams: ExecutorOption[];
+  phases: { id: string; name: string }[];
+  existingAssignments?: PhaseAssignment[];
   /** Etichetta del bottone che apre il dialog (default "Aggiungi esecutore"). */
   triggerLabel?: string;
   /** Variante del bottone trigger (default "outline"). */
@@ -1205,16 +1173,20 @@ function AddAssignmentDialog({
   phaseId,
   employees,
   externalTeams,
-  triggerLabel = "Aggiungi esecutore",
+  phases,
+  existingAssignments = [],
+  triggerLabel = "Assegna a questa lavorazione",
   triggerVariant = "outline",
   onAdd,
 }: AddAssignmentDialogProps) {
+  const { canViewCosts, canViewMargins, canEditOrders } = usePermissions();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
   const [open, setOpen] = useState(false);
   const [tipo, setTipo] = useState<ExecutorType>("interno");
   const [executorId, setExecutorId] = useState<string>("");
+  const [selectedPhase, setSelectedPhase] = useState(phaseId ?? "");
   const [prev, setPrev] = useState("0");
   const [cons, setCons] = useState("0");
   const [hours, setHours] = useState("");
@@ -1227,7 +1199,7 @@ function AddAssignmentDialog({
   // Listino manodopera aziendale — caricato solo a dialog aperto.
   const { data: tariffe = [] } = useQuery({
     queryKey: ["tariffe-manodopera", companyId],
-    enabled: open && !!companyId,
+    enabled: open && canViewCosts && !!companyId,
     staleTime: 5 * 60 * 1000,
     queryFn: async (): Promise<TariffaManodopera[]> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1249,7 +1221,7 @@ function AddAssignmentDialog({
       squadra, costa X". Una sola query per company: la tabella e' piccola. */
   const { data: varianti = [] } = useQuery({
     queryKey: ["tariffa-costi-varianti", companyId],
-    enabled: open && !!companyId,
+    enabled: open && canViewCosts && !!companyId,
     staleTime: 5 * 60 * 1000,
     queryFn: async (): Promise<Array<{ id: string; tariffa_id: string; external_team_id: string | null; nome: string; costo: number | null; is_default: boolean | null; attivo: boolean | null; sort_order: number | null }>> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1298,7 +1270,7 @@ function AddAssignmentDialog({
     );
   };
 
-  const options = tipo === "interno" ? employees : externalTeams;
+  const options = tipo === "interno" ? employees : externalTeams.filter(t => t.kind !== "interna");
 
   const reset = () => {
     setTipo("interno");
@@ -1310,6 +1282,8 @@ function AddAssignmentDialog({
     setSubmitting(false);
     setTariffaId("");
     setTariffaQty("1");
+    setVarianteId("");
+    setSelectedPhase(phaseId ?? "");
   };
 
   const num = (raw: string) => {
@@ -1318,18 +1292,34 @@ function AddAssignmentDialog({
   };
 
   const handleSubmit = () => {
+    if (!canEditOrders || submitting) return;
     if (!executorId) {
       toast.error("Seleziona un esecutore");
       return;
     }
-    const hoursNum = hours.trim() === "" ? null : num(hours);
+    if (!options.some(option => option.id === executorId)) {
+      toast.error("Esecutore non più disponibile. Ricontrolla la selezione.");
+      return;
+    }
+    if (existingAssignments.some(a => a.phase_id === (selectedPhase || null) &&
+      (tipo === "interno" ? a.employee_id === executorId : a.external_team_id === executorId))) {
+      toast.error("Esecutore già assegnato a questa lavorazione. Modifica la riga esistente.");
+      return;
+    }
+    const budget = canViewCosts ? parseWorkAmount(prev) : 0;
+    const cost = canViewCosts ? parseWorkAmount(cons) : 0;
+    const hoursNum = tipo === "interno" && hours.trim() ? parseWorkAmount(hours) : null;
+    if (budget === null || cost === null || (tipo === "interno" && hours.trim() && hoursNum === null)) {
+      toast.error("Importi e ore devono essere numeri validi, maggiori o uguali a zero.");
+      return;
+    }
     const payload: AddAssignmentPayload = {
-      phase_id: phaseId,
+      phase_id: selectedPhase || null,
       executor_type: tipo,
       employee_id: tipo === "interno" ? executorId : null,
       external_team_id: tipo === "esterno" ? executorId : null,
-      cost_preventivo: num(prev),
-      cost_consuntivo: num(cons),
+      cost_preventivo: budget,
+      cost_consuntivo: cost,
       hours: hoursNum,
       is_paid: false,
       paid_date: null,
@@ -1350,6 +1340,7 @@ function AddAssignmentDialog({
     <Dialog
       open={open}
       onOpenChange={(o) => {
+        if (submitting) return;
         setOpen(o);
         if (!o) reset();
       }}
@@ -1360,16 +1351,111 @@ function AddAssignmentDialog({
           {triggerLabel}
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>Aggiungi esecutore</DialogTitle>
+          <DialogTitle className="pr-6">Assegna persona o squadra</DialogTitle>
+          <DialogDescription>Scegli chi esegue il lavoro. Budget e costi sono facoltativi e possono essere compilati in seguito.</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <fieldset disabled={submitting} className="min-w-0 space-y-4">
+          <label className="block space-y-1.5 text-sm font-medium">Lavorazione
+            <select aria-label="Lavorazione da assegnare" value={selectedPhase} onChange={e => setSelectedPhase(e.target.value)} className="h-10 w-full rounded-md border bg-background px-3 text-sm">
+              <option value="">Intera commessa · senza fase</option>
+              {phases.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </label>
+          {/* Tipo toggle */}
+          <div className="space-y-1.5">
+            <Label>Tipo esecutore</Label>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                type="button"
+                variant={tipo === "interno" ? "default" : "outline"}
+                aria-pressed={tipo === "interno"}
+                onClick={() => {
+                  setTipo("interno");
+                  setExecutorId("");
+                  setTariffaId(""); setVarianteId(""); setPrev("0"); setCons("0"); setHours("");
+                }}
+                className="h-auto min-h-11 justify-start whitespace-normal px-2 py-2 text-left text-xs sm:text-sm"
+              >
+                <User className="mr-1.5 h-4 w-4" />
+                Dipendente
+              </Button>
+              <Button
+                type="button"
+                variant={tipo === "esterno" ? "default" : "outline"}
+                aria-pressed={tipo === "esterno"}
+                onClick={() => {
+                  setTipo("esterno");
+                  setExecutorId("");
+                  setTariffaId(""); setVarianteId(""); setPrev("0"); setCons("0"); setHours("");
+                }}
+                className="h-auto min-h-11 justify-start whitespace-normal px-2 py-2 text-left text-xs sm:text-sm"
+              >
+                <Users className="mr-1.5 h-4 w-4" />
+                Squadra esterna
+              </Button>
+            </div>
+          </div>
+
+          {/* Executor picker */}
+          {tipo === "interno" && <p className="text-xs text-muted-foreground">Per organizzare i dipendenti in squadre, usa <a className="underline underline-offset-2" href="/azienda/impostazioni/calendari-lavori?tab=squadre">Squadre operative</a>. Qui resta disponibile l'assegnazione individuale.</p>}
+          <div className="space-y-1.5">
+            <Label>{tipo === "interno" ? "Dipendente" : "Squadra / subappaltatore"}</Label>
+            <Select value={executorId} onValueChange={(v) => {
+              setExecutorId(v);
+              setVarianteId("");
+              if (tariffaSel) {
+                if (tariffaSel.external_team_id && tariffaSel.external_team_id !== v) {
+                  setTariffaId(""); setPrev("0");
+                  setNotes(n => /^Listino: /.test(n) ? "" : n);
+                  return;
+                }
+                const squadra = tipo === "esterno" ? v : "";
+                const vs = squadra
+                  ? varianti.filter((x) => x.tariffa_id === tariffaSel.id && x.external_team_id === squadra && x.attivo !== false)
+                      .sort((a, b) => Number(b.is_default ?? false) - Number(a.is_default ?? false) || (a.sort_order ?? 0) - (b.sort_order ?? 0))
+                  : [];
+                applyTariffa(tariffaSel, tariffaQty, vs[0]?.costo ?? tariffaSel.prezzo_costo ?? null);
+              }
+            }}>
+              <SelectTrigger aria-label="Seleziona esecutore">
+                <SelectValue
+                  placeholder={
+                    options.length === 0
+                      ? tipo === "interno"
+                        ? "Nessun operaio disponibile"
+                        : "Nessuna squadra disponibile"
+                      : "Seleziona…"
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {options.map((o) => (
+                  <SelectItem key={o.id} value={o.id}>
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <p className="rounded-lg bg-muted/40 p-3 text-xs text-muted-foreground">{tipo === "interno"
+            ? employees.find(e => e.id === executorId)?.campoUserId === null
+              ? "Account Campo non collegato. Puoi assegnare il lavoro, ma per i rapportini dall'app occorre collegare un account alla scheda dipendente."
+              : employees.find(e => e.id === executorId)?.campoUserId
+                ? "Account Campo collegato. Al salvataggio viene verificata anche l'assegnazione dell'accesso al cantiere."
+                : "L'assegnazione può collegare il dipendente all'app Campo se dispone di un account. Verifica gli accessi nella sezione App Campo."
+            : "L'affidamento alla squadra non abilita automaticamente un account: assegna anche il referente nella sezione App Campo per i rapportini."}</p>
+
+          {canViewCosts && <details className="rounded-lg border p-3">
+            <summary className="cursor-pointer text-sm font-medium">Budget, costi e listino (facoltativo)</summary>
+            <div className="mt-3 space-y-3">
           {/* Da listino manodopera: prefill costo sostenuto + ricarico visibile.
               L'azienda può importare il prezziario regionale o caricare il
               proprio listino in Impostazioni → Tariffe. */}
-          {tariffeAttive.length > 0 && (
+          {canViewCosts && tariffeAttive.length > 0 && (
             <div className="space-y-1.5 rounded-lg border bg-muted/20 p-2.5">
               <Label className="text-xs text-muted-foreground">
                 Parti dal listino manodopera — costo compilato da solo
@@ -1446,7 +1532,7 @@ function AddAssignmentDialog({
                   Costo {eur.format(Number(costoUnitarioEffettivo) || 0)}
                   {tariffaSel.unita ? `/${tariffaSel.unita}` : ""} → preventivo{" "}
                   <strong className="text-foreground">{eur.format(num(prev))}</strong>
-                  {Number(tariffaSel.prezzo_vendita) > 0 && (
+                  {canViewMargins && Number(tariffaSel.prezzo_vendita) > 0 && (
                     <>
                       {" "}· vendita consigliata{" "}
                       {eur.format(
@@ -1472,109 +1558,52 @@ function AddAssignmentDialog({
             </div>
           )}
 
-          {/* Tipo toggle */}
-          <div className="space-y-1.5">
-            <Label>Tipo esecutore</Label>
-            <div className="grid grid-cols-2 gap-2">
-              <Button
-                type="button"
-                variant={tipo === "interno" ? "default" : "outline"}
-                onClick={() => {
-                  setTipo("interno");
-                  setExecutorId("");
-                }}
-                className="justify-start"
-              >
-                <User className="mr-1.5 h-4 w-4" />
-                Operaio interno
-              </Button>
-              <Button
-                type="button"
-                variant={tipo === "esterno" ? "default" : "outline"}
-                onClick={() => {
-                  setTipo("esterno");
-                  setExecutorId("");
-                }}
-                className="justify-start"
-              >
-                <Users className="mr-1.5 h-4 w-4" />
-                Subappalto / squadra
-              </Button>
-            </div>
-          </div>
-
-          {/* Executor picker */}
-          <div className="space-y-1.5">
-            <Label>{tipo === "interno" ? "Operaio" : "Squadra / subappalto"}</Label>
-            <Select value={executorId} onValueChange={(v) => {
-              setExecutorId(v);
-              setVarianteId("");
-              if (tariffaSel) {
-                const squadra = tipo === "esterno" ? v : "";
-                const vs = squadra
-                  ? varianti.filter((x) => x.tariffa_id === tariffaSel.id && x.external_team_id === squadra && x.attivo !== false)
-                      .sort((a, b) => Number(b.is_default ?? false) - Number(a.is_default ?? false) || (a.sort_order ?? 0) - (b.sort_order ?? 0))
-                  : [];
-                applyTariffa(tariffaSel, tariffaQty, vs[0]?.costo ?? tariffaSel.prezzo_costo ?? null);
-              }
-            }}>
-              <SelectTrigger>
-                <SelectValue
-                  placeholder={
-                    options.length === 0
-                      ? tipo === "interno"
-                        ? "Nessun operaio disponibile"
-                        : "Nessuna squadra disponibile"
-                      : "Seleziona…"
-                  }
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {options.map((o) => (
-                  <SelectItem key={o.id} value={o.id}>
-                    {o.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
           {/* Costs */}
-          <div className="grid grid-cols-2 gap-3">
+          {canViewCosts && <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="assign-prev">Costo preventivo €</Label>
+              <Label htmlFor="assign-prev">Budget manodopera €</Label>
               <Input
                 id="assign-prev"
                 type="number"
+                min="0"
                 step="0.01"
                 value={prev}
                 onChange={(e) => setPrev(e.target.value)}
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="assign-cons">Costo consuntivo €</Label>
+              <Label htmlFor="assign-cons">Costo già registrato €</Label>
               <Input
                 id="assign-cons"
                 type="number"
+                min="0"
                 step="0.01"
                 value={cons}
                 onChange={(e) => setCons(e.target.value)}
               />
             </div>
-          </div>
+          </div>}
+
+            </div>
+          </details>}
 
           {/* Hours */}
-          <div className="space-y-1.5">
-            <Label htmlFor="assign-hours">Ore (facoltativo)</Label>
+          {tipo === "interno" && <details className="rounded-lg border p-3">
+            <summary className="cursor-pointer text-sm font-medium">Consuntivo iniziale (facoltativo)</summary>
+            <div className="mt-3 space-y-1.5">
+            <Label htmlFor="assign-hours">Ore già registrate (facoltativo)</Label>
             <Input
               id="assign-hours"
               type="number"
+              min="0"
               step="0.5"
               value={hours}
               placeholder="Es. 8"
               onChange={(e) => setHours(e.target.value)}
             />
-          </div>
+            <p className="text-xs text-muted-foreground">Non sono ore pianificate. Compila solo per recuperare lavoro pregresso non già registrato nei rapportini, altrimenti lascia vuoto.</p>
+            </div>
+          </details>}
 
           {/* Notes */}
           <div className="space-y-1.5">
@@ -1587,19 +1616,19 @@ function AddAssignmentDialog({
               onChange={(e) => setNotes(e.target.value)}
             />
           </div>
-        </div>
+        </fieldset>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)}>
+          <Button variant="outline" disabled={submitting} onClick={() => { reset(); setOpen(false); }}>
             Annulla
           </Button>
-          <Button onClick={handleSubmit} disabled={submitting}>
+          <Button onClick={handleSubmit} disabled={submitting || !executorId}>
             {submitting ? (
               <Loader2 className="mr-1 h-4 w-4 animate-spin" />
             ) : (
               <Check className="mr-1 h-4 w-4" />
             )}
-            Aggiungi
+            Conferma assegnazione
           </Button>
         </DialogFooter>
       </DialogContent>

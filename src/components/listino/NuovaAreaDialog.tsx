@@ -55,11 +55,11 @@ export function NuovaAreaDialog({ aree, macrocategorie, inCorso, onChiudi, onCre
         if (!open && !inCorso) onChiudi();
       }}
     >
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="flex max-h-[90dvh] flex-col sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>Aggiungi un&apos;area</DialogTitle>
           <DialogDescription>
-            L&apos;area raccoglie le tipologie di un settore e decide in quale preventivatore arrivano i loro prodotti.
+            Prepara le tipologie del tuo listino. Poi aggiungi le linee, importa i prodotti e imposta i tuoi prezzi.
           </DialogDescription>
         </DialogHeader>
 
@@ -69,7 +69,7 @@ export function NuovaAreaDialog({ aree, macrocategorie, inCorso, onChiudi, onCre
             verticale.
           </p>
         ) : (
-          <div className="space-y-4">
+          <div className="min-h-0 space-y-4 overflow-y-auto pr-1">
             <div role="radiogroup" aria-label="Area da aggiungere" className="grid gap-2 sm:grid-cols-2">
               {disponibili.map((a) => {
                 const Icona = ICONE[a.chiave] ?? Layers3;
@@ -80,6 +80,7 @@ export function NuovaAreaDialog({ aree, macrocategorie, inCorso, onChiudi, onCre
                     type="button"
                     role="radio"
                     aria-checked={attiva}
+                    disabled={inCorso}
                     onClick={() => scegli(a)}
                     className={cn(
                       "flex items-start gap-2.5 rounded-lg border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
@@ -99,7 +100,7 @@ export function NuovaAreaDialog({ aree, macrocategorie, inCorso, onChiudi, onCre
                       <span className="block text-xs text-muted-foreground">
                         {a.preventivatore
                           ? `Collegata al ${a.preventivatore.toLowerCase()}`
-                          : "Senza un preventivatore dedicato"}
+                          : `${a.tipologie.length} tipologie standard`}
                       </span>
                     </span>
                     {attiva && <Check className="ml-auto h-4 w-4 shrink-0 text-primary" aria-hidden="true" />}
@@ -114,6 +115,11 @@ export function NuovaAreaDialog({ aree, macrocategorie, inCorso, onChiudi, onCre
                 <p className="text-xs text-muted-foreground">
                   Quelle che togli restano fra le standard da aggiungere, nella colonna delle tipologie.
                 </p>
+                <p className="rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
+                  Questa operazione crea la struttura, non articoli pronti né prezzi. Gli esempi qui sotto indicano
+                  cosa inserire. Le lavorazioni vanno in Manodopera e Servizi, non tra i prodotti.
+                  {scelta.chiave === "ristrutturazione" && " Per una ristrutturazione completa usa anche i prodotti delle aree Bagni, Serramenti, Pavimenti e Impianti: non occorre ricopiarli qui."}
+                </p>
                 <ul className="grid gap-1.5 sm:grid-cols-2">
                   {scelta.tipologie.map((t) => {
                     const id = `nuova-area-${scelta.chiave}-${t.nome}`;
@@ -124,11 +130,13 @@ export function NuovaAreaDialog({ aree, macrocategorie, inCorso, onChiudi, onCre
                           id={id}
                           className="mt-0.5"
                           checked={!escluse.has(t.nome)}
+                          disabled={inCorso}
                           onCheckedChange={(v) => alterna(t.nome, v === true)}
                         />
                         <label htmlFor={id} className="text-sm leading-snug">
                           {nomeFinale}
                           {t.accessorio && <span className="ml-1.5 text-xs text-muted-foreground">accessorio</span>}
+                          {t.esempi && <span className="mt-1 block text-xs text-muted-foreground">{t.esempi.join(" · ")}</span>}
                         </label>
                       </li>
                     );

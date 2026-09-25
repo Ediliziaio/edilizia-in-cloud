@@ -157,6 +157,7 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
       queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
       // I numeri di appuntamenti e attività sulle schede delle opportunità.
       if (opportunityId || contactId) aggiornaAgendaSchede(queryClient);
+      if (orderId) queryClient.invalidateQueries({ queryKey: ["order-next-task", orderId] });
     },
   });
 
@@ -342,6 +343,7 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
           queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
           // I numeri di appuntamenti e attività sulle schede delle opportunità.
           if (opportunityId || contactId) aggiornaAgendaSchede(queryClient);
+          if (orderId) queryClient.invalidateQueries({ queryKey: ["order-next-task", orderId] });
         }}
         defaultCategory={category}
         defaultOrderId={orderId}

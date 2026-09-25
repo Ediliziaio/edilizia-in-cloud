@@ -8,7 +8,7 @@
  *
  * Funzioni:
  *  - Auto-scroll: cambiando pagina a sinistra scrolla dentro l'iframe alla sezione
- *    corrispondente (match per testo nel contentDocument) — best-effort.
+ *    identificata dai metadati data-fv-section, anche dopo riordino o rinomina.
  *  - Zoom (CSS zoom) + adatta.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -25,6 +25,8 @@ import {
 import { useFitScale, LARGHEZZA_A4_PX } from "@/components/shared/livePreview/useFitScale";
 import { useFileRiservato, useImmaginiModelloFirmate } from "@/hooks/useFileRiservati";
 import { CAMPI_IMMAGINE_FOTOVOLTAICO } from "@/lib/storage/immaginiModelloPdf";
+import { buildFvPreviewBase } from "@/lib/moduli-vendita/fvPreviewData";
+import { fvEditorPreviewSection, fvPreviewTarget } from "./fvSemanticPreview";
 
 interface Props {
   /** Stato corrente del template FV in editing. */
@@ -37,37 +39,7 @@ interface Props {
 }
 
 // Dati cliente/impianto DEMO per le pagine dato-dipendenti (parità col dialog).
-function demoBase(): FvPdfTemplateData {
-  return {
-    azienda: { name: "La tua azienda", tagline: "Fotovoltaico chiavi in mano", phone: "+39 02 000 000", email: "info@azienda.it", website: "https://azienda.it", vat_number: "IT00000000000" },
-    cliente: { nome: "Mario", cognome: "Rossi", indirizzo: "Via Roma 1", comune: "Milano", cap: "20100", provincia: "MI", tipologia_immobile: "Villa singola" },
-    progetto: { numero: "FV-ANTEPRIMA", titolo: "Mario Rossi", creato_il: "2026-01-01T10:00:00Z", valido_giorni: 30, venditore: "Consulente", potenza_kwp: 6, numero_pannelli: 12, has_accumulo: true, capacita_accumulo_kwh: 10, consumo_annuo_kwh: 4200, costo_kwh_attuale: 0.32, profilo_consumo: "misto", ore_sole_annue: 1450, superficie_tetto_disponibile_mq: 55 },
-    costi: { prezzo_vendita_iva_inclusa: 18000, iva_perc: 10, detrazione_eur: 9000, detrazione_perc: 50, costo_netto_dopo_detrazione: 9000 },
-    finanziamento: { finanziaria: "Finanziaria", durata_mesi: 84, rata_mensile: 230, tan_perc: 4, taeg_perc: 5, importo_finanziato: 18000 },
-    scenario: { risparmio_mensile_eur: 150, risparmio_anno1_eur: 1800, risparmio_25_anni_eur: 46000, payback_anni: 8, npv_25_anni: 24000, cassa_anno_per_anno: [{ anno: 0, cumulato: -18000 }, { anno: 8, cumulato: 0 }, { anno: 25, cumulato: 46000 }] },
-    flows: { produzione_kwh: 7400, autoconsumo_kwh: 4200, ceduto_rete_kwh: 3200, prelievo_rete_kwh: 900, autoconsumo_pct: 0.57, autosufficienza_pct: 0.78, consumo_da_rete_pct: 0.22, consumo_da_fv_pct: 0.78 },
-    // Gli stessi dati senza batteria (profilo misto: 35% della produzione).
-    flows_senza_accumulo: { produzione_kwh: 7400, autoconsumo_kwh: 2590, ceduto_rete_kwh: 4810, prelievo_rete_kwh: 2510, autoconsumo_pct: 0.35, autosufficienza_pct: 0.51, consumo_da_rete_pct: 0.49, consumo_da_fv_pct: 0.51 },
-    // Le foto di serie del documento, dal sito stesso: come le vedrà il cliente.
-    foto_di_serie: typeof window !== "undefined" ? fotoDiSerieDalSito(window.location.origin) : null,
-    componenti: [
-      { categoria: "pannello", descrizione: "Pannello 500 W", marca: "—", modello: "PV500", quantita: 12, potenza_w: 500, garanzia_anni: 25 },
-      { categoria: "inverter", descrizione: "Inverter ibrido 6 kW", marca: "—", modello: "INV6", quantita: 1, garanzia_anni: 10 },
-      { categoria: "accumulo", descrizione: "Batteria 10 kWh", marca: "—", modello: "BAT10", quantita: 1, capacita_kwh: 10, garanzia_anni: 10 },
-    ],
-  };
-}
-
-// Sezione editor → parole-chiave (nel testo HTML) per l'auto-scroll. Best-effort:
-// le sezioni certe (recensioni, cta) matchano; le altre, se non trovate, non scrollano.
-const SECTION_KEYWORDS: Record<string, string[]> = {
-  page_chi_siamo: ["chi siamo"],
-  page_percorso: ["come lavoriamo", "il tuo percorso"],
-  page_consulente: ["per parlarne ancora", "la tua consulenza", "il tuo referente"],
-  page_recensioni: ["cosa dicono i clienti", "recensioni", "testimonianze"],
-  page_render: ["i nostri cantieri", "render", "simulazione"],
-  page_cta: ["per accettare la proposta", "il prossimo passo", "cosa fare adesso"],
-};
+// Shared intervention-aware demonstration data.
 
 // Il documento FV è una pagina A4 (`width: 210mm` in fvHtmlTemplate). Il
 // pannello laterale è più stretto: senza adattamento si vedeva metà foglio
@@ -80,6 +52,7 @@ export function FvLivePreviewPanel({ form: formSalvato, companyName, logoUrl: lo
   const form = useImmaginiModelloFirmate(formSalvato, CAMPI_IMMAGINE_FOTOVOLTAICO);
   const logoUrl = useFileRiservato(logoSalvato) || null;
   const [html, setHtml] = useState("");
+  const [sectionNotice, setSectionNotice] = useState<{ section: string; text: string } | null>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const savedScrollRef = useRef(0);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -91,7 +64,7 @@ export function FvLivePreviewPanel({ form: formSalvato, companyName, logoUrl: lo
 
   const buildHtml = useMemo(() => {
     return () => {
-      const base = demoBase();
+      const base = buildFvPreviewBase(form as FvPdfTemplateData["template"]);
       const f = form ?? {};
       const str = (k: string) => {
         const v = f[k];
@@ -146,41 +119,36 @@ export function FvLivePreviewPanel({ form: formSalvato, companyName, logoUrl: lo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formKey]);
 
-  // Al reload dell'iframe (srcDoc cambiato) ripristina lo scroll.
-  const handleIframeLoad = () => {
-    try { iframeRef.current?.contentWindow?.scrollTo(0, savedScrollRef.current); } catch { /* noop */ }
+  const syncSection = () => {
+    const doc = iframeRef.current?.contentDocument;
+    const win = iframeRef.current?.contentWindow;
+    if (!activeSection || !doc || !fvEditorPreviewSection(activeSection)) return;
+    const target = fvPreviewTarget(doc, activeSection);
+    const pages = Array.from(doc.querySelectorAll(".page"));
+    // srcDoc may still be loading. Do not declare a section absent from an empty document.
+    if (!pages.length) return;
+    const page = target ? pages.indexOf(target) + 1 : 0;
+    setSectionNotice({ section: activeSection, text: page > 0 ? `Sezione selezionata · pagina ${page} di ${pages.length} (anteprima HTML)` : "Sezione non presente in questa anteprima: vista mantenuta." });
+    // Scroll only the iframe, never its parent editor/window.
+    if (target && win) win.scrollTo({ top: target.offsetTop, behavior: "smooth" });
   };
 
-  // Auto-scroll alla sezione attiva (match per testo nel contentDocument).
+  // srcDoc loads asynchronously: sync the new document, not the preceding DOM.
+  const handleIframeLoad = () => {
+    try { iframeRef.current?.contentWindow?.scrollTo(0, savedScrollRef.current); } catch { /* noop */ }
+    syncSection();
+  };
+
+  // Navigation within an already loaded document uses the same semantic anchor.
   useEffect(() => {
-    if (!activeSection) return;
+    syncSection();
     const iframe = iframeRef.current;
-    const win = iframe?.contentWindow;
-    const doc = iframe?.contentDocument;
-    if (!win || !doc) return;
-
-    if (activeSection === "page_cover") {
-      win.scrollTo({ top: 0, behavior: "smooth" });
-      return;
-    }
-    const keywords = SECTION_KEYWORDS[activeSection];
-    if (!keywords) return;
-
-    // Trova l'elemento "foglia" (testo più corto) che contiene una keyword.
-    let best: HTMLElement | null = null;
-    let bestLen = Infinity;
-    const all = doc.body ? Array.from(doc.body.querySelectorAll<HTMLElement>("h1,h2,h3,h4,h5,td,th,strong,b,p,div,span")) : [];
-    for (const el of all) {
-      const txt = (el.textContent ?? "").trim().toLowerCase();
-      if (!txt || txt.length > 120) continue;
-      if (keywords.some((k) => txt.includes(k)) && txt.length < bestLen) {
-        best = el;
-        bestLen = txt.length;
-      }
-    }
-    if (best) best.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (!iframe) return;
+    const observer = new ResizeObserver(() => { if (iframe.clientWidth > 0) syncSection(); });
+    observer.observe(iframe);
+    return () => observer.disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSection, html]);
+  }, [activeSection]);
 
   useEffect(() => {
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
@@ -197,7 +165,7 @@ export function FvLivePreviewPanel({ form: formSalvato, companyName, logoUrl: lo
         <div className="flex items-center gap-1.5 min-w-0">
           <Eye className="h-3.5 w-3.5 text-sky-500 shrink-0" />
           <span className="text-[11px] font-semibold uppercase tracking-wide text-sky-600 truncate">
-            Anteprima live preventivo
+            Anteprima live HTML
           </span>
         </div>
         <div className="flex items-center gap-1 shrink-0">
@@ -222,6 +190,10 @@ export function FvLivePreviewPanel({ form: formSalvato, companyName, logoUrl: lo
           </Button>
         </div>
       </div>
+      <p className="px-3 py-1.5 text-[10px] text-muted-foreground border-b shrink-0">
+        Vista HTML del modello. Verifica l'impaginazione nel PDF esportato.
+      </p>
+      {sectionNotice?.section === activeSection && <p role="status" className="shrink-0 border-b px-3 py-1 text-[10px] text-muted-foreground">{sectionNotice.text}</p>}
       <div ref={fit.ref} className="flex-1 overflow-auto bg-muted/40">
         {/* DUE livelli, e servono entrambi:
             - quello esterno RISERVA lo spazio già ridotto (794 × scala), così

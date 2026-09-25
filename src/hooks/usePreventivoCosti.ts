@@ -68,7 +68,9 @@ export interface PreventivoImpostazioni {
  * Usa Math.round(v * 100) / 100 invece di toFixed per evitare drift cumulativi.
  */
 export function round2(v: number): number {
-  return Math.round(v * 100) / 100;
+  // PostgreSQL numeric arrotonda i mezzi centesimi lontano dallo zero.
+  const absolute = Math.abs(v);
+  return Math.sign(v) * Math.round((absolute + Number.EPSILON * Math.max(1, absolute)) * 100) / 100;
 }
 
 export function calcolaMargine(
@@ -139,8 +141,9 @@ export function calcolaTotaliPreventivo(
   const iva_breakdown: Record<string, number> = {};
 
   for (const it of activeItems) {
-    const imponibile =
-      it.quantity * it.unit_price * (1 - (it.discount_percent || 0) / 100);
+    // line_total nel database è numeric(..., 2): sommare le righe già arrotondate.
+    const imponibile = round2(
+      it.quantity * it.unit_price * (1 - (it.discount_percent || 0) / 100));
     sommaVociRaw += imponibile;
 
     const vatKey = String(it.vat_rate ?? 22);
@@ -558,16 +561,14 @@ export function usePreventivoCosti(companyId: string | undefined) {
     queryKey: ["article-templates-pro", companyId],
     enabled: !!companyId,
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("article_templates")
         .select(
-          "id, name, description, unit_price, standard_cost, unit_of_measure, vat_rate, " +
-          "sku, marca, immagine_url, categoria_id, " +
-          "modalita_prezzo, prezzo_vendita, prezzo_acquisto_netto, " +
-          "ha_montaggio, montaggio_tipo, montaggio_tariffa_id"
+          "id, name, description, unit_price, standard_cost, unit_of_measure, vat_rate, sku, marca, immagine_url, categoria_id, modalita_prezzo, prezzo_vendita, prezzo_acquisto_netto, ha_montaggio, montaggio_tipo, montaggio_tariffa_id"
         )
         .eq("company_id", companyId!)
         .order("name");
+      if (error) throw error;
       if (!data) return [] as ArticlePro[];
       return data.map((d) => ({
         ...d,

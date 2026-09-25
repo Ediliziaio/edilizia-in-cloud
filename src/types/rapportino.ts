@@ -10,6 +10,8 @@ export interface MaterialeUsato {
   unita: string;
   da_furgone: boolean;
   scorta_id?: string;
+  /** Articolo della commessa dichiarato; non implica scarico di magazzino. */
+  order_item_id?: string;
 }
 
 export interface CampoRapportino {

@@ -32,6 +32,7 @@ import type {
 } from "@/types/catalogItem";
 
 interface ArticleConfiguratorProps {
+  confirmLabel?: string;
   item: CatalogItemArticle;
   tariffe: TariffaPro[];
   currentSortOrder: number;
@@ -52,6 +53,7 @@ function needsMisureXY(modalita: ModalitaPrezzoUnified): boolean {
 }
 
 export function ArticleConfigurator({
+  confirmLabel = "Aggiungi al preventivo",
   item,
   tariffe,
   currentSortOrder,
@@ -316,7 +318,7 @@ export function ArticleConfigurator({
         </Button>
         <Button disabled={!canConfirm} onClick={handleConfirm}>
           <Check className="mr-1 h-4 w-4" />
-          Aggiungi al preventivo
+          {confirmLabel}
         </Button>
       </div>
     </div>

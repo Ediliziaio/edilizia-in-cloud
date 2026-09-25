@@ -40,6 +40,8 @@ export interface Tariffa {
   incidenza_manodopera_pct?: number | null;
   /** Listino della singola squadra/subappaltatore. NULL = listino aziendale generico. */
   external_team_id?: string | null;
+  /** Configurazione del costo e gruppo di lavorazione, senza nuove colonne DB. */
+  custom_field_values?: unknown;
 }
 
 export interface TipoDef {

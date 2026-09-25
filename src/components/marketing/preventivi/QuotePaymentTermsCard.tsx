@@ -23,6 +23,7 @@ import {
   recalcPhaseAmounts,
   phasesPercentTotal,
   defaultQuotePaymentPhases,
+  paymentPlanError,
 } from "@/lib/preventivi/paymentTerms";
 
 interface Props {
@@ -45,7 +46,8 @@ export function QuotePaymentTermsCard({
   // Importi visualizzati: sempre ricalcolati dal totale corrente.
   const computed = useMemo(() => recalcPhaseAmounts(phases, total), [phases, total]);
   const percentSum = useMemo(() => phasesPercentTotal(phases), [phases]);
-  const percentOk = Math.abs(percentSum - 100) < 0.01;
+  const planError = paymentPlanError(phases);
+  const percentOk = planError === null;
 
   const push = (next: QuotePaymentPhase[]) => onPhasesChange(recalcPhaseAmounts(next, total));
 
@@ -108,20 +110,21 @@ export function QuotePaymentTermsCard({
           </div>
 
           {computed.map((p, idx) => (
-            <div key={idx} className="flex items-end gap-2 rounded-lg border bg-slate-50/60 p-2">
-              <div className="flex-1 space-y-1">
+            <div key={idx} className="grid grid-cols-[1fr_1fr_auto] items-end gap-2 rounded-lg border bg-slate-50/60 p-3 xl:grid-cols-[minmax(0,1fr)_7rem_5rem_7rem_auto]">
+              <div className="col-span-3 min-w-0 space-y-1 xl:col-span-1">
                 <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Descrizione</span>
                 <Input
                   value={p.label}
+                  aria-label={`Descrizione fase ${idx + 1}`}
                   onChange={(e) => updatePhase(idx, { label: e.target.value })}
                   placeholder="Es. Acconto alla firma"
                   className="h-8"
                 />
               </div>
-              <div className="w-28 space-y-1">
+              <div className="min-w-0 space-y-1">
                 <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Tipo</span>
                 <Select value={p.type} onValueChange={(v) => updatePhase(idx, { type: v as QuotePaymentPhaseType })}>
-                  <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-8" aria-label={`Tipo fase ${idx + 1}`}><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="deposit">{TYPE_LABEL.deposit}</SelectItem>
                     <SelectItem value="balance">{TYPE_LABEL.balance}</SelectItem>
@@ -129,16 +132,17 @@ export function QuotePaymentTermsCard({
                   </SelectContent>
                 </Select>
               </div>
-              <div className="w-20 space-y-1">
+              <div className="min-w-0 space-y-1">
                 <span className="text-[10px] uppercase tracking-wide text-muted-foreground">%</span>
                 <Input
-                  type="number" min={0} max={100} step={1}
+                  type="number" min={0} max={100} step={0.01}
+                  aria-label={`Percentuale fase ${idx + 1}`}
                   value={p.percent}
-                  onChange={(e) => updatePhase(idx, { percent: Math.max(0, Number(e.target.value) || 0) })}
+                  onChange={(e) => updatePhase(idx, { percent: Math.min(100, Math.max(0, Number(e.target.value) || 0)) })}
                   className="h-8 text-right"
                 />
               </div>
-              <div className="w-28 space-y-1 text-right">
+              <div className="col-span-2 min-w-0 space-y-1 text-right xl:col-span-1">
                 <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Importo</span>
                 <div className="flex h-8 items-center justify-end rounded-md border bg-white px-2 text-sm font-medium tabular-nums">
                   {formatCurrency(p.amount)}
@@ -148,7 +152,7 @@ export function QuotePaymentTermsCard({
                 type="button" variant="ghost" size="icon"
                 className="h-8 w-8 shrink-0 text-muted-foreground hover:text-red-600"
                 onClick={() => removePhase(idx)}
-                aria-label="Rimuovi fase"
+                aria-label={`Rimuovi fase ${idx + 1}`}
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
@@ -156,13 +160,21 @@ export function QuotePaymentTermsCard({
           ))}
 
           {phases.length > 0 && (
-            <div className="flex items-center justify-between pt-1">
+            <div className="flex flex-wrap items-center gap-3 pt-1">
               <Button type="button" variant="outline" size="sm" className="h-7 gap-1" onClick={addPhase}>
                 <Plus className="h-3.5 w-3.5" /> Aggiungi fase
               </Button>
+              {percentSum < 100 && phases.every((p) => Number.isFinite(p.percent) && p.percent >= 0 && p.percent <= 100) && (
+                <Button type="button" variant="outline" size="sm" className="h-7" onClick={() => push([...phases, {
+                  label: "Saldo a fine lavori", type: "balance",
+                  percent: Math.round((100 - percentSum) * 100) / 100, amount: 0,
+                }])}>
+                  Completa con saldo {Math.round((100 - percentSum) * 100) / 100}%
+                </Button>
+              )}
               {!percentOk && (
-                <span className="text-xs text-amber-700">
-                  Le percentuali sommano {percentSum}% (non 100%): l'ultima fase compensa la differenza.
+                <span role="alert" className="w-full text-xs text-amber-700">
+                  {planError} Gli importi mostrati seguono le percentuali inserite, senza compensazioni nascoste.
                 </span>
               )}
             </div>

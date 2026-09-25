@@ -1,5 +1,6 @@
 import React from 'react';
 import type { QuoteTemplate, TextAlignment } from '@/types/quoteTemplate';
+import { quoteTemplateSampleData } from '@/lib/quoteTemplatePreview';
 
 interface Props {
   template: Partial<QuoteTemplate>;
@@ -7,6 +8,7 @@ interface Props {
   page?: 'cover' | 'detail';
   scale?: number;
   logoSrc?: string;
+  coverSrc?: string;
 }
 
 /**
@@ -36,13 +38,30 @@ function rowPadding(density: QuoteTemplate['row_density'] | undefined): number {
   return 7;
 }
 
+/**
+ * Testi neutri per l'anteprima del template base.
+ * L'anteprima deve descrivere una proposta generica: il verticale (serramenti,
+ * bagni, fotovoltaico, ecc.) viene scelto nel preventivo reale, non qui.
+ */
+function previewCopy(t: Partial<QuoteTemplate>) {
+  return {
+    eyebrow: 'PROPOSTA COMMERCIALE',
+    title: t.cover_title?.trim().replace(/\*/g, '') || 'Proposta personalizzata',
+    subtitle: t.cover_subtitle?.trim() || 'Soluzione, tempi e investimento in un unico documento.',
+    tagline: t.cover_tagline?.trim() || 'Una proposta chiara, pensata per il tuo progetto.',
+    serviceLine: 'Progetti su misura · qualità, tempi e assistenza',
+  };
+}
+
 export function QuoteTemplatePreview({
-  template: t,
+  template,
   companyName = 'La Tua Azienda Srl',
   page = 'cover',
   scale = 0.4,
   logoSrc,
+  coverSrc,
 }: Props) {
+  const t = quoteTemplateSampleData(template, companyName);
   const primary = t.primary_color ?? '#1E40AF';
   const secondary = t.secondary_color ?? '#3B82F6';
   const accent = t.accent_color ?? '#DBEAFE';
@@ -61,6 +80,7 @@ export function QuoteTemplatePreview({
 
   const sheetW = 595;
   const sheetH = 842;
+  const hasCover = page === 'cover' && !!(t.cover_title?.trim() || t.cover_subtitle?.trim() || (t.show_cover_image && t.cover_image_url));
 
   return (
     <div style={{ width: sheetW * scale, height: sheetH * scale, overflow: 'hidden' }}>
@@ -81,7 +101,8 @@ export function QuoteTemplatePreview({
           color: textColor,
         }}
       >
-        {layout === 'classic' && (
+        {hasCover && <OfferCover template={t} companyName={companyName} primary={primary} logoSrc={logoSrc} coverSrc={coverSrc} />}
+        {!hasCover && layout === 'classic' && (
           <ClassicLayout
             primary={primary} secondary={secondary} accent={accent}
             headerText={headerText} textColor={textColor}
@@ -89,7 +110,7 @@ export function QuoteTemplatePreview({
             marginPx={marginPx} type={type} alignment={alignment}
           />
         )}
-        {layout === 'modern' && (
+        {!hasCover && layout === 'modern' && (
           <ModernLayout
             primary={primary} secondary={secondary} accent={accent}
             headerText={headerText} textColor={textColor}
@@ -97,7 +118,7 @@ export function QuoteTemplatePreview({
             marginPx={marginPx} type={type} alignment={alignment}
           />
         )}
-        {layout === 'minimal' && (
+        {!hasCover && layout === 'minimal' && (
           <MinimalLayout
             primary={primary} secondary={secondary} accent={accent}
             headerText={headerText} textColor={textColor}
@@ -105,7 +126,7 @@ export function QuoteTemplatePreview({
             marginPx={marginPx} type={type} alignment={alignment}
           />
         )}
-        {layout === 'bold' && (
+        {!hasCover && layout === 'bold' && (
           <BoldLayout
             primary={primary} secondary={secondary} accent={accent}
             headerText={headerText} textColor={textColor}
@@ -127,7 +148,7 @@ export function QuoteTemplatePreview({
         )}
 
         {/* Footer */}
-        {t.footer_text && (
+        {!hasCover && t.footer_text && (
           <div style={{
             position: 'absolute', bottom: 16, left: marginPx, right: marginPx,
             fontSize: type.small, color: '#9CA3AF', textAlign: 'center',
@@ -135,6 +156,39 @@ export function QuoteTemplatePreview({
             {t.footer_text}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+/** Copertina dedicata del generatore PDF, con dati dimostrativi. */
+function OfferCover({ template: t, companyName, primary, logoSrc, coverSrc }: {
+  template: Partial<QuoteTemplate>; companyName: string; primary: string; logoSrc?: string; coverSrc?: string;
+}) {
+  const [failedPhoto, setFailedPhoto] = React.useState<string | null>(null);
+  const photo = t.show_cover_image && coverSrc !== failedPhoto ? coverSrc : undefined;
+  const title = t.cover_title?.trim() || 'La nostra *offerta* per voi.';
+  return (
+    <div style={{ position: 'absolute', inset: 0, background: primary, color: '#fff', padding: 48, display: 'flex', flexDirection: 'column' }}>
+      {photo && <img src={photo} alt="" onError={() => setFailedPhoto(photo)} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
+      <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(5,15,35,.25), rgba(5,15,35,.78))' }} />
+      {!photo && <div style={{ position: 'absolute', inset: 0, backgroundImage: 'linear-gradient(rgba(255,255,255,.07) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.07) 1px, transparent 1px)', backgroundSize: '35px 35px' }} />}
+      {!photo && <div style={{ position: 'absolute', width: 380, height: 380, top: 60, right: -65, border: '1px solid rgba(255,255,255,.18)', borderRadius: '50%' }} />}
+      <div style={{ position: 'relative' }}>
+        {logoSrc && t.show_logo !== false ? <img src={logoSrc} alt="" style={{ maxWidth: 175, height: 56, objectFit: 'contain', padding: '8px 12px', background: '#fff' }} /> : <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', overflowWrap: 'anywhere' }}>{companyName}</div>}
+      </div>
+      <div style={{ position: 'relative', marginTop: 'auto', marginBottom: 40 }}>
+        <div style={{ fontSize: 9, letterSpacing: 3, marginBottom: 20, color: '#dbeafe' }}>PROPOSTA COMMERCIALE</div>
+        <div style={{ fontSize: title.length > 90 ? 30 : 40, lineHeight: 1.16, fontWeight: 700, maxWidth: 460, overflowWrap: 'anywhere' }}>
+          {title.split('*').map((part, index) => index % 2 ? <em key={index} style={{ fontFamily: 'Georgia, serif', fontWeight: 400, color: '#dbeafe' }}>{part}</em> : <React.Fragment key={index}>{part}</React.Fragment>)}
+        </div>
+        {t.cover_subtitle && <p style={{ fontSize: 13, lineHeight: 1.5, marginTop: 20, maxWidth: 420, color: '#e2e8f0' }}>{t.cover_subtitle}</p>}
+      </div>
+      <div style={{ position: 'relative', display: 'flex', gap: 3, marginBottom: 16 }}>
+        {[1, .72, .48, .28, .14].map((opacity) => <span key={opacity} style={{ height: 2, background: '#fff', opacity, flex: 1 }} />)}
+      </div>
+      <div style={{ position: 'relative', display: 'grid', gridTemplateColumns: '1fr 1.5fr 1fr 1fr', gap: 12, marginBottom: 24 }}>
+        {[["PREPARATO PER", "Mario Rossi"], ["INDIRIZZO", "Via Garibaldi 10, Roma"], ["RIFERIMENTO", "OFF-2026-001"], ["DATA", "9 marzo 2026"]].map(([label, value]) => <div key={label}><div style={{ fontSize: 6.5, letterSpacing: 1, color: '#dbeafe', marginBottom: 8 }}>{label}</div><div style={{ fontSize: 9.5, fontWeight: 700 }}>{value}</div></div>)}
       </div>
     </div>
   );
@@ -223,6 +277,7 @@ function PreviewLogo({
 }
 
 function ClassicLayout({ primary, accent, textColor, companyName, t, page, logoSrc, marginPx, type, alignment }: LayoutProps) {
+  const copy = previewCopy(t);
   return (
     <>
       <div style={{ height: 8, backgroundColor: primary }} />
@@ -244,7 +299,7 @@ function ClassicLayout({ primary, accent, textColor, companyName, t, page, logoS
           <PreviewLogo t={t} logoSrc={logoSrc} primary={primary} />
           <div>
             <div style={{ fontSize: type.h2, fontWeight: 760, color: textColor }}>{companyName}</div>
-            <div style={{ fontSize: type.small, color: '#6B7280', marginTop: 2 }}>Serramenti · ristrutturazioni · posa certificata</div>
+            <div style={{ fontSize: type.small, color: '#6B7280', marginTop: 2 }}>{copy.serviceLine}</div>
           </div>
         </div>
         {t.show_quote_number !== false && (
@@ -253,7 +308,7 @@ function ClassicLayout({ primary, accent, textColor, companyName, t, page, logoS
       </div>
       <div style={{ margin: `12px ${marginPx}px`, height: 1, backgroundColor: '#E5E7EB' }} />
       {page === 'cover' ? (
-        <CoverBody primary={primary} textColor={textColor} t={t} marginPx={marginPx} type={type} />
+        <CoverBody primary={primary} textColor={textColor} companyName={companyName} t={t} marginPx={marginPx} type={type} />
       ) : (
         <DetailBody primary={primary} accent={accent} textColor={textColor} t={t} marginPx={marginPx} type={type} />
       )}
@@ -262,6 +317,7 @@ function ClassicLayout({ primary, accent, textColor, companyName, t, page, logoS
 }
 
 function ModernLayout({ primary, accent, headerText, textColor, companyName, t, page, logoSrc, marginPx, type, alignment }: LayoutProps) {
+  const copy = previewCopy(t);
   return (
     <>
       <div style={{
@@ -275,14 +331,13 @@ function ModernLayout({ primary, accent, headerText, textColor, companyName, t, 
         </div>
         <div style={{ fontSize: type.body + 2, fontWeight: 650, marginBottom: 6 }}>{companyName}</div>
         {t.show_quote_number !== false && <div style={{ fontSize: type.small, opacity: 0.8, marginBottom: 14 }}>OFFERTA N. OFF-2026-001 · 09/03/2026</div>}
-        <div style={{ fontSize: type.h1, fontWeight: 700 }}>OFFERTA COMMERCIALE</div>
-        <div style={{ fontSize: type.body, marginTop: 6, opacity: 0.9 }}>Offerta serramenti Villa Rossi</div>
-        {t.cover_tagline && (
-          <div style={{ fontSize: type.small, marginTop: 10, fontStyle: 'italic', opacity: 0.85 }}>{t.cover_tagline}</div>
-        )}
+        <div style={{ fontSize: type.small, letterSpacing: 1.2, fontWeight: 700, opacity: 0.82 }}>{copy.eyebrow}</div>
+        <div style={{ fontSize: type.h1, fontWeight: 700, marginTop: 4 }}>{copy.title}</div>
+        <div style={{ fontSize: type.body, marginTop: 6, opacity: 0.9 }}>{copy.subtitle}</div>
+        <div style={{ fontSize: type.small, marginTop: 10, fontStyle: 'italic', opacity: 0.85 }}>{copy.tagline}</div>
       </div>
       {page === 'cover' ? (
-        <CoverBody primary={primary} textColor={textColor} t={t} marginPx={marginPx} type={type} />
+        <CoverBody primary={primary} textColor={textColor} companyName={companyName} t={t} marginPx={marginPx} type={type} inline />
       ) : (
         <DetailBody primary={primary} accent={accent} textColor={textColor} t={t} marginPx={marginPx} type={type} />
       )}
@@ -291,6 +346,7 @@ function ModernLayout({ primary, accent, headerText, textColor, companyName, t, 
 }
 
 function MinimalLayout({ primary, accent, textColor, companyName, t, page, logoSrc, marginPx, type, alignment }: LayoutProps) {
+  const copy = previewCopy(t);
   return (
     <div style={{ padding: `${marginPx}px ${marginPx}px 0`, textAlign: alignment }}>
       <div style={{ borderBottom: `2px solid ${primary}`, paddingBottom: 20, marginBottom: 30 }}>
@@ -304,13 +360,12 @@ function MinimalLayout({ primary, accent, textColor, companyName, t, page, logoS
           )}
         </div>
       </div>
-      <div style={{ fontSize: type.h1, fontWeight: 700, color: textColor, marginBottom: 8 }}>OFFERTA COMMERCIALE</div>
-      <div style={{ fontSize: type.body, color: '#6B7280', marginBottom: 6 }}>Offerta serramenti Villa Rossi</div>
-      {t.cover_tagline && (
-        <div style={{ fontSize: type.small, color: primary, fontStyle: 'italic', marginBottom: 20 }}>{t.cover_tagline}</div>
-      )}
+      <div style={{ fontSize: type.small, letterSpacing: 1.2, fontWeight: 700, color: primary, marginBottom: 6 }}>{copy.eyebrow}</div>
+      <div style={{ fontSize: type.h1, fontWeight: 700, color: textColor, marginBottom: 8 }}>{copy.title}</div>
+      <div style={{ fontSize: type.body, color: '#6B7280', marginBottom: 6 }}>{copy.subtitle}</div>
+      <div style={{ fontSize: type.small, color: primary, fontStyle: 'italic', marginBottom: 20 }}>{copy.tagline}</div>
       {page === 'cover' ? (
-        <CoverBody primary={primary} textColor={textColor} t={t} marginPx={0} type={type} inline />
+        <CoverBody primary={primary} textColor={textColor} companyName={companyName} t={t} marginPx={0} type={type} inline />
       ) : (
         <DetailBody primary={primary} accent={accent} textColor={textColor} t={t} marginPx={0} type={type} inline />
       )}
@@ -319,6 +374,7 @@ function MinimalLayout({ primary, accent, textColor, companyName, t, page, logoS
 }
 
 function BoldLayout({ primary, accent, headerText, textColor, companyName, t, page, logoSrc, marginPx, type, alignment }: LayoutProps) {
+  const copy = previewCopy(t);
   return (
     <div style={{ display: 'flex', height: '100%' }}>
       <div style={{
@@ -344,14 +400,12 @@ function BoldLayout({ primary, accent, headerText, textColor, companyName, t, pa
           fontSize: type.h1 * 1.4, fontWeight: 800, lineHeight: 1.1,
           color: textColor, marginBottom: 12,
         }}>
-          OFFERTA<br />COMMERCIALE
+          {copy.eyebrow}<br />{copy.title}
         </div>
-        <div style={{ fontSize: type.body, color: '#6B7280', marginBottom: 8 }}>Offerta serramenti Villa Rossi</div>
-        {t.cover_tagline && (
-          <div style={{ fontSize: type.small, color: primary, fontStyle: 'italic', marginBottom: 20 }}>{t.cover_tagline}</div>
-        )}
+        <div style={{ fontSize: type.body, color: '#6B7280', marginBottom: 8 }}>{copy.subtitle}</div>
+        <div style={{ fontSize: type.small, color: primary, fontStyle: 'italic', marginBottom: 20 }}>{copy.tagline}</div>
         {page === 'cover' ? (
-          <CoverBody primary={primary} textColor={textColor} t={t} marginPx={0} type={type} inline />
+          <CoverBody primary={primary} textColor={textColor} companyName={companyName} t={t} marginPx={0} type={type} inline />
         ) : (
           <DetailBody primary={primary} accent={accent} textColor={textColor} t={t} marginPx={0} type={type} inline />
         )}
@@ -361,15 +415,17 @@ function BoldLayout({ primary, accent, headerText, textColor, companyName, t, pa
 }
 
 function CoverBody({
-  primary, textColor, t, marginPx, type, inline,
+  primary, textColor, companyName, t, marginPx, type, inline,
 }: {
   primary: string;
   textColor: string;
+  companyName: string;
   t: Partial<QuoteTemplate>;
   marginPx: number;
   type: ReturnType<typeof buildTypographyScale>;
   inline?: boolean;
 }) {
+  const copy = previewCopy(t);
   const wrapperStyle: React.CSSProperties = inline
     ? {}
     : { padding: `20px ${marginPx}px` };
@@ -378,16 +434,14 @@ function CoverBody({
       {!inline && (
         <>
           <div style={{ fontSize: type.h2, fontWeight: 700, color: textColor, marginBottom: 4 }}>
-            OFFERTA COMMERCIALE
+            {copy.eyebrow}
           </div>
           <div style={{ fontSize: type.small, color: '#6B7280', marginBottom: 6 }}>
-            Offerta serramenti Villa Rossi
+            {copy.title} · {copy.subtitle}
           </div>
-          {t.cover_tagline && (
-            <div style={{ fontSize: type.small, color: primary, fontStyle: 'italic', marginBottom: 16 }}>
-              {t.cover_tagline}
-            </div>
-          )}
+          <div style={{ fontSize: type.small, color: primary, fontStyle: 'italic', marginBottom: 16 }}>
+            {copy.tagline}
+          </div>
         </>
       )}
       <div style={{ marginTop: inline ? 30 : 20, display: 'flex', gap: 60, textAlign: 'left' }}>
@@ -396,7 +450,7 @@ function CoverBody({
             <div style={{ fontSize: type.label - 2, fontWeight: 700, color: '#9CA3AF', marginBottom: 6, letterSpacing: 1 }}>
               EMESSA DA
             </div>
-            <div style={{ fontSize: type.body, fontWeight: 600 }}>Azienda Demo Srl</div>
+            <div style={{ fontSize: type.body, fontWeight: 600 }}>{companyName}</div>
             <div style={{ fontSize: type.small, color: '#6B7280' }}>info@azienda.it</div>
             <div style={{ fontSize: type.small, color: '#6B7280' }}>Via Roma 1, Milano</div>
           </div>
@@ -455,8 +509,8 @@ function DetailBody({
   inline?: boolean;
 }) {
   const rows = [
-    { name: 'Finestre doppio vetro 100x140', qty: 3, price: '€ 890,00', total: '€ 2.670,00' },
-    { name: 'Porta finestra 90x210', qty: 2, price: '€ 1.200,00', total: '€ 2.400,00' },
+    { name: 'Fornitura principale su misura', qty: 3, price: '€ 890,00', total: '€ 2.670,00' },
+    { name: 'Dotazioni e finiture concordate', qty: 2, price: '€ 1.200,00', total: '€ 2.400,00' },
     { name: 'Installazione e posa', qty: 1, price: '€ 800,00', total: '€ 800,00' },
   ];
   const density = t.row_density ?? 'normal';
@@ -482,7 +536,7 @@ function DetailBody({
         <thead>
           <tr style={{ backgroundColor: primary, color: '#FFFFFF' }}>
             <th style={{ padding: `${padding}px 8px`, textAlign: 'left', fontWeight: 600 }}>Descrizione</th>
-            <th style={{ padding: `${padding}px 8px`, textAlign: 'center', fontWeight: 600 }}>Qty</th>
+            <th style={{ padding: `${padding}px 8px`, textAlign: 'center', fontWeight: 600 }}>Qtà</th>
             <th style={{ padding: `${padding}px 8px`, textAlign: 'right', fontWeight: 600 }}>Prezzo</th>
             <th style={{ padding: `${padding}px 8px`, textAlign: 'right', fontWeight: 600 }}>Totale</th>
           </tr>

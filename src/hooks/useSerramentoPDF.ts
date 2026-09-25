@@ -18,6 +18,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { getTemplatePdf } from "@/lib/serramenti/api";
+import { resolveSrDocumentTemplate } from "@/lib/serramenti/quoteModel";
 import { toDataUrl } from "@/lib/serramenti/pdfImageUtils";
 import { blocchiAccesi, fotoDeiBlocchi, fotoDellePagine } from "@/lib/pdf/fotoBlocchi";
 import { normalizePdfPagesOrder } from "@/types/serramenti";
@@ -340,9 +341,7 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
   const { detail } = opts;
   // Il modello dell'azienda del preventivo: senza filtro il super admin (che
   // vede tutte le righe) riceveva null e il PDF usciva con i testi di serie.
-  const templateSalvato = opts.useFreshTemplate
-    ? await getTemplatePdf(detail.progetto.company_id)
-    : opts.template ?? null;
+  const templateSalvato = await resolveSrDocumentTemplate(detail.progetto, opts.template, opts.useFreshTemplate, getTemplatePdf) as SrTemplatePdfRow | null;
   // Le immagini del modello sono percorsi nel bucket privato: si firmano qui,
   // per il tempo della generazione. Anche il logo dato come logo dell'azienda,
   // che nell'anteprima dell'editor è quello del modello.

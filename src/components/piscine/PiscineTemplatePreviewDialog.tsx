@@ -1,3 +1,4 @@
+import { buildPscModulePreview, type FullPscModuleId } from "@/lib/moduli-vendita/fullPscModules";
 /**
  * PiscineTemplatePreviewDialog — anteprima LIVE del PDF cliente in un
  * dialog. Rigenera il PDF (debounced ~450ms) ad ogni modifica del template e lo
@@ -39,7 +40,7 @@ function buildMockComputo(companyId: string): PisComputoVoce[] {
 function buildMockProgetto(companyId: string): PisProgetto {
   return {
     id: "preview", company_id: companyId, code: "ANTEPRIMA", stato: "bozza",
-    tipo_intervento: "Nuova piscina interrata",
+    tipo_intervento: "Nuova piscina interrata", tipo_piscina: null, tipo_costruzione: null, massimale_detrazione: null,
     cliente_nome: "Mario", cliente_cognome: "Rossi", cliente_email: null, cliente_telefono: null,
     cantiere_indirizzo: "Via Roma 1", cantiere_citta: "Milano", cantiere_provincia: "MI", cantiere_cap: "20100",
     immobile_tipo: "Appartamento", immobile_superficie_mq: 90, immobile_anno: 1975, immobile_piani: 1,
@@ -54,12 +55,13 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   template: PisTemplatePdf | null;
   companyId: string | null;
+  moduleId?: FullPscModuleId;
   /** Apertura del PDF in una scheda separata (riusa l'handler dell'editor). */
   onOpenInTab?: () => void;
 }
 
 export function PiscineTemplatePreviewDialog({
-  open, onOpenChange, template, companyId, onOpenInTab,
+  open, onOpenChange, template, companyId, moduleId, onOpenInTab,
 }: Props) {
   const [url, setUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -74,7 +76,7 @@ export function PiscineTemplatePreviewDialog({
         setLoading(true);
         setError(null);
         try {
-          const blobUrl = await renderPisPreviewBlobUrl({
+          const blobUrl = await renderPisPreviewBlobUrl(moduleId ? buildPscModulePreview(companyId, template, moduleId) : {
             progetto: buildMockProgetto(companyId),
             computo: buildMockComputo(companyId),
             media: [],
@@ -92,7 +94,7 @@ export function PiscineTemplatePreviewDialog({
       })();
     }, 450);
     return () => { cancelled = true; window.clearTimeout(timer); };
-  }, [open, template, companyId]);
+  }, [open, template, companyId, moduleId]);
 
   // Revoca l'ultimo blob al unmount.
   useEffect(() => () => {

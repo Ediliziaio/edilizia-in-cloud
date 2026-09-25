@@ -68,6 +68,7 @@ interface SalTabProps {
   vatRate?: number;
   /** Costo finanziaria già "gated" dal chiamante (0 se non financing). */
   financingCost?: number;
+  showPaymentProgress?: boolean;
 }
 
 interface VoceForm {
@@ -84,7 +85,7 @@ const emptyVoce = (): VoceForm => ({
   note: "",
 });
 
-export function SalTab({ orderId, companyId, orderTotalAmount, installments, vatRate = 22, financingCost = 0 }: SalTabProps) {
+export function SalTab({ orderId, companyId, orderTotalAmount, installments, vatRate = 22, financingCost = 0, showPaymentProgress = true }: SalTabProps) {
   const queryClient = useQueryClient();
   const confirm = useConfirm();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -330,7 +331,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
       {/* Avanzamento incassi: riporta qui il piano rate della commessa (lo
           stesso Riepilogo Finanziario di creazione/modifica) così lo stato
           finanziario è visibile direttamente nella sezione SAL. */}
-      {recapRows.length > 0 && (
+      {showPaymentProgress && recapRows.length > 0 && (
         <Card>
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between gap-2">

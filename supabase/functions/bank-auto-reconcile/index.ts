@@ -4,8 +4,10 @@ import { requireCompanyAccess } from "../_shared/auth.ts";
 
 /**
  * bank-auto-reconcile: Riconciliazione automatica batch
- * Matcha transazioni credit non riconciliate con fatture non pagate.
- * Usa scoring (importo 50pt, IBAN 30pt, nome 20pt). Soglia auto: score >= 80.
+ * Matcha transazioni credit non riconciliate con fatture non pagate — dei
+ * gestionali esterni (invoices) e della fatturazione interna (documenti_fiscali,
+ * via riconcilia_bonifico_fattura) — e transazioni debit con scadenze fornitori.
+ * Usa scoring (n° fattura 60pt, importo 50pt, IBAN 30pt, nome 20pt). Soglia auto: score >= 80.
  */
 
 // Data "di oggi" nel fuso italiano: le edge girano in UTC e a mezzanotte
@@ -41,12 +43,15 @@ function invoiceNumberInCausale(description: string | null, invoiceNumber: strin
 
 function computeMatchScore(
   tx: { amount: number; creditor_iban: string | null; debtor_iban: string | null; creditor_name: string | null; debtor_name: string | null; description: string | null },
-  inv: { remaining: number; client_iban: string | null; client_company_name: string | null; invoice_number: string | null },
+  inv: { remaining: number; client_iban: string | null; client_company_name: string | null; invoice_number: string | null; invoice_number_breve?: string | null },
 ): number {
   let score = 0;
 
   // N° fattura nella causale: segnale più forte (la banca cita la fattura).
-  if (invoiceNumberInCausale(tx.description, inv.invoice_number)) {
+  // Le fatture interne anche nella forma breve «37/2026»: chi paga scrive più
+  // spesso quella che «FT-2026-0037».
+  if (invoiceNumberInCausale(tx.description, inv.invoice_number)
+      || invoiceNumberInCausale(tx.description, inv.invoice_number_breve ?? null)) {
     score += 60;
   }
 
@@ -78,6 +83,28 @@ function computeMatchScore(
   }
 
   return score;
+}
+
+// Fatture della fatturazione interna che si incassano con un bonifico: emesse,
+// non saldate, non note di credito/DDT/proforma (come src/lib/finance/fattureInterneBanca.ts).
+const TIPI_INCASSABILI_DA_BANCA = [
+  "fattura", "fattura_pa", "parcella", "fattura_accompagnatoria", "acconto_fattura",
+  "acconto_parcella", "fattura_differita_b", "fattura_riepilogativa", "nota_debito",
+];
+const STATI_INCASSABILI_DA_BANCA = [
+  "emessa", "inviata_sdi", "consegnata", "accettata", "scaduta", "parzialmente_pagata",
+];
+
+function residuoFatturaInterna(doc: { totale_da_pagare: number | string | null; importo_pagato: number | string | null }): number {
+  const residuo = Math.round((Number(doc.totale_da_pagare || 0) - Number(doc.importo_pagato || 0)) * 100) / 100;
+  return residuo > 0.005 ? residuo : 0;
+}
+
+function nomeClienteSnapshot(snapshot: { ragione_sociale?: string | null; nome?: string | null; cognome?: string | null } | null): string | null {
+  if (!snapshot) return null;
+  const ragioneSociale = (snapshot.ragione_sociale ?? "").trim();
+  if (ragioneSociale) return ragioneSociale;
+  return [snapshot.nome, snapshot.cognome].filter(Boolean).join(" ").trim() || null;
 }
 
 // Scoring per le USCITE: transazione debit → scadenza fornitore (stesso schema).
@@ -180,6 +207,78 @@ Deno.serve(async (req) => {
 
     for (const cId of companyIds) {
       try {
+        // ── USCITE: transazioni debit → scadenze fornitori (uscita, da_pagare) ──
+        // Prima delle entrate: i «continue» del ramo entrate (nessun accredito
+        // libero, nessuna fattura aperta) saltavano anche questo ramo, e gli
+        // addebiti di chi non aveva fatture da incassare non si abbinavano mai.
+        const ninetyDaysAgo2 = new Date(); ninetyDaysAgo2.setDate(ninetyDaysAgo2.getDate() - 90);
+        const { data: debitTxs } = await supabase
+          .from("bank_transactions")
+          .select("id, amount, creditor_iban, debtor_iban, creditor_name, debtor_name, description, external_transaction_id, booking_date")
+          .eq("company_id", cId)
+          .eq("transaction_type", "debit")
+          .eq("status", "booked")
+          .is("linked_scadenza_id", null)
+          .is("linked_cost_id", null)
+          .gte("booking_date", localDateIT(ninetyDaysAgo2))
+          .limit(2000);
+
+        if (debitTxs && debitTxs.length > 0) {
+          const { data: openScadenze } = await supabase
+            .from("scadenze")
+            .select("id, amount, paid_amount, description, due_date, supplier_id, suppliers(name, iban)")
+            .eq("company_id", cId)
+            .eq("direction", "uscita")
+            .eq("status", "da_pagare")
+            .limit(2000);
+
+          for (const tx of debitTxs as any[]) {
+            let best: { sc: any; score: number } | null = null;
+            let second = 0;
+            for (const sc of (openScadenze || []) as any[]) {
+              const remaining = (sc.amount || 0) - (sc.paid_amount || 0);
+              if (remaining <= 0) continue;
+              const sup = (sc.suppliers || {}) as any;
+              const score = computeScadenzaScore(tx, { remaining, supplier_iban: sup.iban ?? null, supplier_name: sup.name ?? null, description: sc.description });
+              if (score < 50) continue;
+              if (!best || score > best.score) { if (best) second = Math.max(second, best.score); best = { sc, score }; }
+              else if (score > second) second = score;
+            }
+            const ambiguoSc = best != null && second >= best.score - 15;
+            if (best && best.score >= 80 && !ambiguoSc) {
+              const matchedAmount = Math.min(Math.abs(tx.amount), (best.sc.amount || 0) - (best.sc.paid_amount || 0));
+              // Prima il registro: se non si riesce a tracciare, NON si paga.
+              // (Questo insert falliva DA SEMPRE in silenzio: invoice_id era
+              // NOT NULL — la migration 20280214 l'ha reso nullable — e la
+              // scadenza veniva marcata pagata senza alcuna traccia.)
+              const { error: recScErr } = await supabase.from("bank_reconciliations").insert({
+                company_id: cId, transaction_id: tx.id, scadenza_id: best.sc.id,
+                matched_amount: matchedAmount, match_type: "auto", match_score: best.score, matched_at: new Date().toISOString(),
+              });
+              if (recScErr) {
+                console.error("bank_reconciliations insert (scadenza) failed:", recScErr.message);
+                continue;
+              }
+              const { error: linkErr } = await supabase.from("bank_transactions").update({
+                linked_scadenza_id: best.sc.id,
+                reconciliation_status: "reconciled",
+                reconciled_at: new Date().toISOString(),
+              }).eq("id", tx.id).eq("company_id", cId);
+              if (linkErr) console.error("bank_transactions link (scadenza) failed:", linkErr.message);
+              const newPaid = (best.sc.paid_amount || 0) + matchedAmount;
+              const { error: scErr } = await supabase.from("scadenze").update({
+                paid_amount: newPaid,
+                status: newPaid >= (best.sc.amount || 0) ? "pagata" : "da_pagare",
+                paid_date: tx.booking_date ?? localDateIT(new Date()),
+              }).eq("id", best.sc.id).eq("company_id", cId);
+              if (scErr) console.error("scadenze update failed:", scErr.message);
+              best.sc.paid_amount = newPaid;
+              totalCostsMatched++;
+            }
+          }
+        }
+
+        // ── ENTRATE: transazioni credit → fatture (esterne e interne) ──
         // Transazioni credit booked non riconciliate degli ultimi 90 giorni.
         // I filtri linked_* sono la differenza tra "riconciliare" e "pagare
         // due volte": un bonifico già abbinato a una rata di commessa (flusso
@@ -190,7 +289,7 @@ Deno.serve(async (req) => {
 
         const { data: unreconciledTxs } = await supabase
           .from("bank_transactions")
-          .select("id, amount, creditor_iban, debtor_iban, creditor_name, debtor_name, description, external_transaction_id")
+          .select("id, amount, booking_date, creditor_iban, debtor_iban, creditor_name, debtor_name, description, external_transaction_id")
           .eq("company_id", cId)
           .eq("transaction_type", "credit")
           .eq("status", "booked")
@@ -224,14 +323,32 @@ Deno.serve(async (req) => {
           .not("status", "in", '("paid","cancelled","draft")')
           .limit(2000);
 
-        if (!unpaidInvoices || unpaidInvoices.length === 0) continue;
+        // Fatture della fatturazione interna (documenti_fiscali): prima qui si
+        // guardavano solo quelle dei gestionali esterni (invoices), e una fattura
+        // interna pagata con un bonifico restava «da incassare» insieme alla rata
+        // della commessa. Abbinata, diventa il suo incasso vero:
+        // riconcilia_bonifico_fattura registra movimento, prima nota, scadenza,
+        // stato e rata in una transazione.
+        const { data: fattureInterne, error: fiErr } = await supabase
+          .from("documenti_fiscali")
+          .select("id, numero, numero_progressivo, anno, cliente_snapshot, totale_da_pagare, importo_pagato")
+          .eq("company_id", cId)
+          .is("deleted_at", null)
+          .in("tipo", TIPI_INCASSABILI_DA_BANCA)
+          .in("stato", STATI_INCASSABILI_DA_BANCA)
+          .limit(2000);
+        if (fiErr) console.error("documenti_fiscali fetch failed:", fiErr.message);
+
+        const esterne = unpaidInvoices || [];
+        const interne = fattureInterne || [];
+        if (esterne.length === 0 && interne.length === 0) continue;
 
         // Matching
         for (const tx of txsToMatch) {
-          let bestMatch: { invoice: any; score: number } | null = null;
-          let secondScore = 0; // per il guard anti-ambiguità
-
-          for (const inv of unpaidInvoices) {
+          // Candidati sopra soglia, esterne e interne insieme: il guard
+          // anti-ambiguità le confronta tra loro, dal migliore in giù.
+          const candidati: { esterna: any; interna: any; score: number }[] = [];
+          for (const inv of esterne) {
             const remaining = (inv.total || 0) - (inv.paid_amount || 0);
             if (remaining <= 0) continue;
 
@@ -241,20 +358,57 @@ Deno.serve(async (req) => {
               client_company_name: inv.client_company_name,
               invoice_number: inv.invoice_number,
             });
-
-            if (score < 50) continue;
-            if (!bestMatch || score > bestMatch.score) {
-              if (bestMatch) secondScore = Math.max(secondScore, bestMatch.score);
-              bestMatch = { invoice: inv, score };
-            } else if (score > secondScore) {
-              secondScore = score;
-            }
+            if (score >= 50) candidati.push({ esterna: inv, interna: null, score });
           }
+          for (const doc of interne) {
+            const remaining = residuoFatturaInterna(doc);
+            if (remaining <= 0) continue;
+
+            const score = computeMatchScore(tx, {
+              remaining,
+              client_iban: null, // l'IBAN del cliente la fattura interna non lo conosce
+              client_company_name: nomeClienteSnapshot(doc.cliente_snapshot),
+              invoice_number: doc.numero,
+              invoice_number_breve: doc.numero_progressivo && doc.anno ? `${doc.numero_progressivo}/${doc.anno}` : null,
+            });
+            if (score >= 50) candidati.push({ esterna: null, interna: doc, score });
+          }
+          candidati.sort((a, b) => b.score - a.score);
+          const migliore = candidati[0];
+          const secondScore = candidati[1]?.score ?? 0; // per il guard anti-ambiguità
 
           // Guard anti-ambiguità (come pickAutoMatch lato UI): se un secondo
           // candidato è a ≤15 punti dal migliore, NON auto-applicare (rischio di
           // pagare la fattura sbagliata) → declassa a proposta a media confidenza.
-          const ambiguo = bestMatch != null && secondScore >= bestMatch.score - 15;
+          const ambiguo = migliore != null && secondScore >= migliore.score - 15;
+
+          if (migliore?.interna) {
+            if (migliore.score >= 80 && !ambiguo) {
+              const doc = migliore.interna;
+              const residuo = residuoFatturaInterna(doc);
+              const { error: rbErr } = await supabase.rpc("riconcilia_bonifico_fattura", {
+                p_transaction_id: tx.id,
+                p_documento_id: doc.id,
+                p_match_type: "auto",
+                p_match_score: migliore.score,
+              });
+              if (rbErr) {
+                console.error(`riconcilia_bonifico_fattura failed for tx ${tx.id}:`, rbErr.message);
+                continue;
+              }
+              // Il residuo locale scende: nello stesso giro la fattura non si riusa.
+              doc.importo_pagato = Number(doc.importo_pagato || 0) + Math.min(Math.abs(tx.amount), residuo);
+              totalAutoMatched++;
+            } else {
+              // Media confidenza: la proposta in chat conosce solo le fatture
+              // esterne. La fattura interna compare come suggerimento sul
+              // movimento in Tesoreria e si abbina con un clic.
+              totalPendingReview++;
+            }
+            continue;
+          }
+
+          const bestMatch = migliore ? { invoice: migliore.esterna, score: migliore.score } : null;
 
           if (bestMatch && bestMatch.score >= 80 && !ambiguo) {
             // Auto-match
@@ -396,73 +550,6 @@ Deno.serve(async (req) => {
             } catch (propE) {
               // Non bloccare il run principale per errori di proposta
               console.warn(`[bank-auto-reconcile] proposal creation failed for tx ${tx.id}:`, propE);
-            }
-          }
-        }
-        // ── USCITE: transazioni debit → scadenze fornitori (uscita, da_pagare) ──
-        const ninetyDaysAgo2 = new Date(); ninetyDaysAgo2.setDate(ninetyDaysAgo2.getDate() - 90);
-        const { data: debitTxs } = await supabase
-          .from("bank_transactions")
-          .select("id, amount, creditor_iban, debtor_iban, creditor_name, debtor_name, description, external_transaction_id, booking_date")
-          .eq("company_id", cId)
-          .eq("transaction_type", "debit")
-          .eq("status", "booked")
-          .is("linked_scadenza_id", null)
-          .is("linked_cost_id", null)
-          .gte("booking_date", localDateIT(ninetyDaysAgo2))
-          .limit(2000);
-
-        if (debitTxs && debitTxs.length > 0) {
-          const { data: openScadenze } = await supabase
-            .from("scadenze")
-            .select("id, amount, paid_amount, description, due_date, supplier_id, suppliers(name, iban)")
-            .eq("company_id", cId)
-            .eq("direction", "uscita")
-            .eq("status", "da_pagare")
-            .limit(2000);
-
-          for (const tx of debitTxs as any[]) {
-            let best: { sc: any; score: number } | null = null;
-            let second = 0;
-            for (const sc of (openScadenze || []) as any[]) {
-              const remaining = (sc.amount || 0) - (sc.paid_amount || 0);
-              if (remaining <= 0) continue;
-              const sup = (sc.suppliers || {}) as any;
-              const score = computeScadenzaScore(tx, { remaining, supplier_iban: sup.iban ?? null, supplier_name: sup.name ?? null, description: sc.description });
-              if (score < 50) continue;
-              if (!best || score > best.score) { if (best) second = Math.max(second, best.score); best = { sc, score }; }
-              else if (score > second) second = score;
-            }
-            const ambiguoSc = best != null && second >= best.score - 15;
-            if (best && best.score >= 80 && !ambiguoSc) {
-              const matchedAmount = Math.min(Math.abs(tx.amount), (best.sc.amount || 0) - (best.sc.paid_amount || 0));
-              // Prima il registro: se non si riesce a tracciare, NON si paga.
-              // (Questo insert falliva DA SEMPRE in silenzio: invoice_id era
-              // NOT NULL — la migration 20280214 l'ha reso nullable — e la
-              // scadenza veniva marcata pagata senza alcuna traccia.)
-              const { error: recScErr } = await supabase.from("bank_reconciliations").insert({
-                company_id: cId, transaction_id: tx.id, scadenza_id: best.sc.id,
-                matched_amount: matchedAmount, match_type: "auto", match_score: best.score, matched_at: new Date().toISOString(),
-              });
-              if (recScErr) {
-                console.error("bank_reconciliations insert (scadenza) failed:", recScErr.message);
-                continue;
-              }
-              const { error: linkErr } = await supabase.from("bank_transactions").update({
-                linked_scadenza_id: best.sc.id,
-                reconciliation_status: "reconciled",
-                reconciled_at: new Date().toISOString(),
-              }).eq("id", tx.id).eq("company_id", cId);
-              if (linkErr) console.error("bank_transactions link (scadenza) failed:", linkErr.message);
-              const newPaid = (best.sc.paid_amount || 0) + matchedAmount;
-              const { error: scErr } = await supabase.from("scadenze").update({
-                paid_amount: newPaid,
-                status: newPaid >= (best.sc.amount || 0) ? "pagata" : "da_pagare",
-                paid_date: tx.booking_date ?? localDateIT(new Date()),
-              }).eq("id", best.sc.id).eq("company_id", cId);
-              if (scErr) console.error("scadenze update failed:", scErr.message);
-              best.sc.paid_amount = newPaid;
-              totalCostsMatched++;
             }
           }
         }

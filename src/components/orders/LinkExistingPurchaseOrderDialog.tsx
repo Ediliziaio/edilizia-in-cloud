@@ -11,6 +11,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { logger } from "@/utils/logger";
 import { formatCurrency } from "@/lib/formatters";
+import { refreshMaterialQueries } from "@/lib/orders/refreshMaterialQueries";
 
 // Mappa unica: la copia locale precedente aveva solo 3 stati su 6 — un OdA
 // "parziale" compariva nel picker senza etichetta ne' colore.
@@ -95,6 +96,7 @@ export function LinkExistingPurchaseOrderDialog({
       if (diaryErr) logger.error("[LinkExistingPurchaseOrderDialog] evento diario non registrato:", diaryErr);
     },
     onSuccess: () => {
+      refreshMaterialQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: ["linked-purchase-orders", orderId] });
       queryClient.invalidateQueries({ queryKey: ["unlinked-purchase-orders", companyId] });
       // Il Conto economico legge gli OdA con ["oes-oda"]: senza questa

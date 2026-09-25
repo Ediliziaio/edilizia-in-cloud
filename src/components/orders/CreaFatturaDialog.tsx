@@ -408,6 +408,19 @@ export function CreaFatturaDialog({
       },
       {
         onSuccess: async (doc) => {
+          // La rata scelta resta legata alla fattura (25/09/2026): pagata
+          // l'una, pagata l'altra (collega_rata_fattura e i trigger allinea_*).
+          // Prima l'id della rata si buttava dopo aver costruito la fattura.
+          const rataId = selectedInstallment?.id;
+          if (rataId) {
+            const { error: rataErr } = await supabase.rpc("collega_rata_fattura" as never, {
+              p_rata_id: rataId,
+              p_documento_id: doc.id,
+            } as never);
+            if (rataErr) {
+              toast.warning("Fattura creata, ma non collegata alla rata", { description: rataErr.message });
+            }
+          }
           // Crea il collegamento documento↔commessa in modo atomico prima di
           // navigare. Se il link fallisce non lasciamo la fattura "orfana"
           // senza avvisare l'utente (stesso pattern di CreaDDTDialog).

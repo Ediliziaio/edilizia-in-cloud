@@ -45,10 +45,15 @@ import {
 import type { TetFormPatch } from "./TettiWizard/types";
 import StepCliente from "./TettiWizard/StepCliente";
 import StepImmobile from "./TettiWizard/StepImmobile";
+import { TET_INTERVENTION_TYPES } from "@/lib/tetti/intervention";
 import StepComputo from "./TettiWizard/StepComputo";
 import StepMedia from "./TettiWizard/StepMedia";
 import StepEconomia from "./TettiWizard/StepEconomia";
 import StepPdf from "./TettiWizard/StepPdf";
+import { useTettiModelSupport } from "@/hooks/useTettiModelSupport";
+import { findTettiTemplateModule } from "@/lib/moduli-vendita/tettiTemplateModules";
+import { makeTetQuoteModel, readTetQuoteModel } from "@/lib/tetti/quoteModel";
+import { getTetTemplatePdf } from "@/hooks/useTettiProgetto";
 
 const STEP_ICONS: Record<TetWizardStepKey, React.FC<React.SVGProps<SVGSVGElement>>> = {
   cliente: User,
@@ -64,6 +69,8 @@ export default function TettiWizard() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const isNew = !id;
+  const requestedModel = searchParams.get("modello");
+  const modelSupport = useTettiModelSupport();
   const { user, effectiveCompany } = useAuth();
   const [resumeDismissed, setResumeDismissed] = useState(false);
   const [exitDialogOpen, setExitDialogOpen] = useState(false);
@@ -103,9 +110,25 @@ export default function TettiWizard() {
 
   const { data: detail, isLoading, isError, refetch } = useTettiProgetto(id);
   const upsertMut = useUpsertProgetto();
+  const savedModel = useMemo<{ snapshot: ReturnType<typeof readTetQuoteModel>; error: string | null }>(() => {
+    try { return { snapshot: detail ? readTetQuoteModel(detail.progetto.modello_snapshot, detail.progetto.company_id) : null, error: null }; }
+    catch (error) { return { snapshot: null, error: error instanceof Error ? error.message : "Modello non valido" }; }
+  }, [detail]);
+  const model = findTettiTemplateModule(isNew ? requestedModel : savedModel.snapshot?.modelId);
 
   // Local form state (campi del progetto).
-  const [form, setForm] = useState<TetFormPatch>({});
+  const [form, setForm] = useState<TetFormPatch>(() => model ? { tipo_intervento: TET_INTERVENTION_TYPES[model.id] } : {});
+  const createInput = async (): Promise<TetFormPatch> => {
+    if (!requestedModel) return form;
+    if (!model || !modelSupport.supported || !effectiveCompany?.id) throw new Error("Il salvataggio di questo intervento deve essere attivato nel database. Nessuna offerta generica è stata creata.");
+    const companyId = effectiveCompany.id;
+    const [{ createFullTettiTemplate }, { loadLocalTettiTemplate }] = await Promise.all([
+      import("@/lib/moduli-vendita/fullTettiModules"), import("@/lib/moduli-vendita/localTettiTemplates"),
+    ]);
+    const base = await getTetTemplatePdf(companyId);
+    const source = loadLocalTettiTemplate(companyId, model.id)?.template ?? createFullTettiTemplate(base, model.id);
+    return { ...form, tipo_intervento: TET_INTERVENTION_TYPES[model.id], modello_snapshot: makeTetQuoteModel(companyId, model.id, source) };
+  };
   // L'ultimo form a video. Quando un salvataggio torna, «salvato» vale solo se
   // nel frattempo non si è scritto altro: azzerare «dirty» comunque perdeva le
   // modifiche fatte durante la richiesta, perché l'autosave non ripartiva.
@@ -239,17 +262,14 @@ export default function TettiWizard() {
     () => Math.round(((currentStepIndex + 1) / TET_WIZARD_STEPS.length) * 100),
     [currentStepIndex],
   );
-  const completion = useMemo(
-    () => stepCompletion(form, detail?.computo),
-    [form, detail?.computo],
-  );
+  const completion = stepCompletion(model ? { ...form, tipo_intervento: null } : form, detail?.computo);
 
   const handleSaveAndContinue = async () => {
     // Nuovo progetto: crea passando tutto il form, poi naviga al record creato.
     if (isNew) {
       setCreating(true);
       try {
-        const created = await upsertMut.mutateAsync({ ...form });
+        const created = await upsertMut.mutateAsync(await createInput());
         navigate(`/azienda/tetti/${created.id}/modifica`, { replace: true });
       } catch (e) {
         toast.error("Creazione progetto fallita", {
@@ -317,11 +337,16 @@ export default function TettiWizard() {
 
   const statoMeta = TET_STATI_LABEL[(detail?.progetto.stato as TetProgetto["stato"]) ?? "bozza"];
 
+  if (savedModel.error || (isNew && requestedModel && !model)) return <div role="alert" className="space-y-3 p-6"><h1 className="text-xl font-semibold">Intervento non disponibile</h1><p>{savedModel.error ?? "Il tipo di intervento richiesto non è riconosciuto."}</p><Button onClick={() => navigate("/azienda/marketing/preventivi?tab=moduli&area=tetti")}>Scegli un intervento</Button></div>;
+
   return (
     <div className="pb-28 md:pb-20">
+      {model && <section className="mx-auto max-w-6xl space-y-2 p-4"><h1 className="text-xl font-semibold">Preventivo · {model.title}</h1><p className="text-sm text-muted-foreground">{model.summary}</p><p className="text-xs">Cliente → Immobile → Lavorazioni e prodotti → Prezzi e sconti → PDF dell'intervento</p>
+        {isNew && !modelSupport.supported && <p role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm">{modelSupport.isLoading ? "Verifica del salvataggio…" : "Percorso predisposto: il salvataggio richiede ancora l'attivazione del database. Non inserire dati finché il collegamento non è attivo."}</p>}
+      </section>}
       {/* Sticky header */}
       {/* ── Riprendi bozza: su "nuovo", se esiste una bozza propria ── */}
-      <AlertDialog open={Boolean(isNew && ultimaBozza && !resumeDismissed)}>
+      <AlertDialog open={Boolean(isNew && !requestedModel && ultimaBozza && !resumeDismissed)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Hai un preventivo in bozza</AlertDialogTitle>
@@ -371,7 +396,7 @@ export default function TettiWizard() {
             <AlertDialogAction
               onClick={async () => {
                 try {
-                  await upsertMut.mutateAsync({ ...form });
+                  await upsertMut.mutateAsync(isNew ? await createInput() : { ...form, id });
                   toast.success("Bozza salvata — la ritrovi nella lista");
                 } catch (e) {
                   toast.error("Salvataggio bozza fallito", { description: e instanceof Error ? e.message : undefined });
@@ -395,7 +420,7 @@ export default function TettiWizard() {
             <div className="flex items-center gap-2 flex-wrap">
               <Hammer className="h-4 w-4 text-orange-600" />
               <span className="font-semibold text-sm">
-                {isNew ? "Nuovo progetto" : detail?.progetto.code ?? "Progetto"}
+                {isNew ? model?.title ?? "Nuovo preventivo Tetti" : detail?.progetto.code ?? "Progetto"}
               </span>
               {!isNew && compactText(detail?.progetto.cliente_nome, detail?.progetto.cliente_cognome) && (
                 <Badge variant="outline" className="text-[10px]">
@@ -524,10 +549,12 @@ export default function TettiWizard() {
           {/* Step content */}
           <main className="col-span-12 space-y-4 md:col-span-9 lg:col-span-10">
             {currentStep === "cliente" && (
-              <StepCliente form={form} onChange={onChange} />
+              <fieldset disabled={Boolean(isNew && requestedModel && !modelSupport.supported)} className="min-w-0">
+                <StepCliente form={form} onChange={onChange} />
+              </fieldset>
             )}
             {currentStep === "immobile" && (
-              <StepImmobile form={form} onChange={onChange} />
+              <StepImmobile form={form} onChange={onChange} model={model} />
             )}
             {currentStep === "computo" && id && detail && (
               // key = id stabile del progetto: monta una volta col computo iniziale
@@ -537,6 +564,7 @@ export default function TettiWizard() {
                 key={detail.progetto.id}
                 progettoId={id}
                 initialComputo={detail.computo}
+                model={model}
                 scontoPct={Number(form.sconto_pct ?? detail.progetto.sconto_pct ?? 0)}
                 ivaPct={Number(form.iva_pct ?? detail.progetto.iva_pct ?? 10)}
                 prezzoManuale={form.prezzo_manuale !== undefined ? form.prezzo_manuale : detail.progetto.prezzo_manuale ?? null}
@@ -574,7 +602,7 @@ export default function TettiWizard() {
               </Button>
               <Button
                 onClick={handleSaveAndContinue}
-                disabled={upsertMut.isPending || creating}
+                disabled={upsertMut.isPending || creating || Boolean(isNew && requestedModel && !modelSupport.supported)}
                 className="min-h-11 flex-1 bg-orange-500 hover:bg-orange-600 gap-1 sm:flex-none md:min-h-0"
               >
                 {(upsertMut.isPending || creating) ? (

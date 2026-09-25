@@ -13260,6 +13260,7 @@ export type Database = {
           matched_amount: number
           matched_at: string
           matched_by: string | null
+          movimento_id: string | null
           notes: string | null
           scadenza_id: string | null
           transaction_id: string
@@ -13276,6 +13277,7 @@ export type Database = {
           matched_amount?: number
           matched_at?: string
           matched_by?: string | null
+          movimento_id?: string | null
           notes?: string | null
           scadenza_id?: string | null
           transaction_id: string
@@ -13292,6 +13294,7 @@ export type Database = {
           matched_amount?: number
           matched_at?: string
           matched_by?: string | null
+          movimento_id?: string | null
           notes?: string | null
           scadenza_id?: string | null
           transaction_id?: string
@@ -13339,6 +13342,13 @@ export type Database = {
             columns: ["invoice_id"]
             isOneToOne: false
             referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_reconciliations_movimento_id_fkey"
+            columns: ["movimento_id"]
+            isOneToOne: false
+            referencedRelation: "movimenti_cassa_native"
             referencedColumns: ["id"]
           },
           {
@@ -56494,6 +56504,7 @@ export type Database = {
         Row: {
           amount: number
           created_at: string
+          documento_fiscale_id: string | null
           expected_date: string | null
           giorni_preavviso: number
           id: string
@@ -56511,6 +56522,7 @@ export type Database = {
         Insert: {
           amount?: number
           created_at?: string
+          documento_fiscale_id?: string | null
           expected_date?: string | null
           giorni_preavviso?: number
           id?: string
@@ -56528,6 +56540,7 @@ export type Database = {
         Update: {
           amount?: number
           created_at?: string
+          documento_fiscale_id?: string | null
           expected_date?: string | null
           giorni_preavviso?: number
           id?: string
@@ -56543,6 +56556,13 @@ export type Database = {
           type?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "order_installments_documento_fiscale_id_fkey"
+            columns: ["documento_fiscale_id"]
+            isOneToOne: false
+            referencedRelation: "documenti_fiscali"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "order_installments_invoice_id_fkey"
             columns: ["invoice_id"]

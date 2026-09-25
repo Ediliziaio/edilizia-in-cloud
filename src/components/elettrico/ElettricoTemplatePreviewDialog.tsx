@@ -13,6 +13,7 @@ import { useEffect, useRef, useState } from "react";
 import { Loader2, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { buildEltModulePreview, type FullEltModuleId } from "@/lib/moduli-vendita/fullEltModules";
 import { renderElePreviewBlobUrl } from "@/hooks/useElettricoPDF";
 import type { EleTemplatePdf, EleProgetto, EleComputoVoce } from "@/types/elettrico";
 
@@ -51,6 +52,7 @@ function buildMockProgetto(companyId: string): EleProgetto {
 }
 
 interface Props {
+  moduleId?: FullEltModuleId;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   template: EleTemplatePdf | null;
@@ -60,7 +62,7 @@ interface Props {
 }
 
 export function ElettricoTemplatePreviewDialog({
-  open, onOpenChange, template, companyId, onOpenInTab,
+  open, onOpenChange, template, companyId, onOpenInTab, moduleId,
 }: Props) {
   const [url, setUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -75,7 +77,7 @@ export function ElettricoTemplatePreviewDialog({
         setLoading(true);
         setError(null);
         try {
-          const blobUrl = await renderElePreviewBlobUrl({
+          const blobUrl = await renderElePreviewBlobUrl(moduleId ? buildEltModulePreview(companyId, template, moduleId) : {
             progetto: buildMockProgetto(companyId),
             computo: buildMockComputo(companyId),
             media: [],
@@ -93,7 +95,7 @@ export function ElettricoTemplatePreviewDialog({
       })();
     }, 450);
     return () => { cancelled = true; window.clearTimeout(timer); };
-  }, [open, template, companyId]);
+  }, [open, template, companyId, moduleId]);
 
   // Revoca l'ultimo blob al unmount.
   useEffect(() => () => {

@@ -17,6 +17,7 @@ import type { TariffaPro } from "@/hooks/usePreventivoCosti";
 import type { CatalogItem, ConfiguredItem } from "@/types/catalogItem";
 
 interface ProductConfiguratorProps {
+  confirmLabel?: string;
   item: CatalogItem;
   tariffe: TariffaPro[];
   currentSortOrder: number;
@@ -30,6 +31,7 @@ export function ProductConfigurator(props: ProductConfiguratorProps) {
   if (item.source === "family") {
     return (
       <FamilyConfigurator
+        confirmLabel={props.confirmLabel}
         item={item}
         tariffe={props.tariffe}
         currentSortOrder={props.currentSortOrder}
@@ -41,6 +43,7 @@ export function ProductConfigurator(props: ProductConfiguratorProps) {
 
   return (
     <ArticleConfigurator
+      confirmLabel={props.confirmLabel}
       item={item}
       tariffe={props.tariffe}
       currentSortOrder={props.currentSortOrder}

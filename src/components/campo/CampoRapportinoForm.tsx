@@ -22,6 +22,7 @@ import type {
   MaterialeUsato,
 } from "@/hooks/campo/useRapportinoVocale";
 import type { JSX } from "react";
+import { validWorkDay } from "@/lib/campo/workDay";
 
 interface CampoRapportinoFormProps {
   draft: RapportinoVocaleDraft;
@@ -42,6 +43,7 @@ export default function CampoRapportinoForm({
 }: CampoRapportinoFormProps): JSX.Element {
   const [showTranscript, setShowTranscript] = useState(false);
   const [local, setLocal] = useState<RapportinoVocaleDraft>(draft);
+  const workDay = draft.data_lavoro ?? draft.dati_estratti.data_lavoro;
 
   useEffect(() => {
     setLocal(draft);
@@ -112,6 +114,10 @@ export default function CampoRapportinoForm({
 
   return (
     <div className="space-y-4 pb-32">
+      <p className="rounded-xl border p-3 text-sm">
+        Giornata di lavoro: <strong>{workDay && validWorkDay(workDay) ? workDay.split("-").reverse().join("/") : "da verificare"}</strong>.
+        {" "}Invia entro il giorno successivo, ore 23:59 (ora italiana). Il vocale non sostituisce la timbratura di uscita.
+      </p>
       {/* Regia AI */}
       <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3">
         <div className="flex items-start gap-3">

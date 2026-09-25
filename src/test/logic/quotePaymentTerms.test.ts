@@ -5,6 +5,7 @@ import {
   phasesPercentTotal,
   phasesAmountTotal,
   parseQuotePaymentPhases,
+  paymentPlanError,
 } from "@/lib/preventivi/paymentTerms";
 
 describe("quote payment terms", () => {
@@ -33,7 +34,7 @@ describe("quote payment terms", () => {
     expect(phasesAmountTotal(phases)).toBe(100);
   });
 
-  it("recalc: total still balances even if percentages don't sum to 100", () => {
+  it("un piano 30/30 mostra 300/300 e viene segnalato come incompleto", () => {
     const phases = recalcPhaseAmounts(
       [
         { label: "a", type: "deposit", percent: 30, amount: 0 },
@@ -41,9 +42,9 @@ describe("quote payment terms", () => {
       ],
       1000,
     );
-    // l'ultima fase compensa: 300 + 700 = 1000
-    expect(phasesAmountTotal(phases)).toBe(1000);
-    expect(phases[1].amount).toBe(700);
+    expect(phasesAmountTotal(phases)).toBe(600);
+    expect(phases[1].amount).toBe(300);
+    expect(paymentPlanError(phases)).toContain("100%");
   });
 
   it("recalc: never produces a negative last amount", () => {
@@ -57,8 +58,7 @@ describe("quote payment terms", () => {
     expect(phases[1].amount).toBeGreaterThanOrEqual(0);
   });
 
-  it("recalc: percent sum > 100% with 3+ phases NEVER over-allocates (sum stays == total)", () => {
-    // Regression: prima [800,800,0] su 1000 = 1600 (over-allocazione).
+  it("un piano oltre il 100% non nasconde l'errore azzerando le ultime rate", () => {
     const phases = recalcPhaseAmounts(
       [
         { label: "a", type: "deposit", percent: 80, amount: 0 },
@@ -67,7 +67,8 @@ describe("quote payment terms", () => {
       ],
       1000,
     );
-    expect(phasesAmountTotal(phases)).toBe(1000);
+    expect(phasesAmountTotal(phases)).toBe(2400);
+    expect(paymentPlanError(phases)).toContain("100%");
     expect(phases.every((p) => p.amount >= 0 && p.amount <= 1000)).toBe(true);
   });
 
@@ -86,6 +87,25 @@ describe("quote payment terms", () => {
 
   it("percent total sums percentages", () => {
     expect(phasesPercentTotal(defaultQuotePaymentPhases())).toBe(100);
+  });
+
+  it("accetta nessuna fase e il piano standard, rifiuta valori e descrizioni invalidi", () => {
+    expect(paymentPlanError([])).toBeNull();
+    expect(paymentPlanError(defaultQuotePaymentPhases())).toBeNull();
+    for (const percent of [NaN, Infinity, -1, 101]) {
+      expect(paymentPlanError([{ label: "Saldo", type: "balance", percent, amount: 0 }])).not.toBeNull();
+    }
+    expect(paymentPlanError([{ label: " ", type: "balance", percent: 100, amount: 0 }])).toContain("descrizione");
+  });
+
+  it("compensa solo i centesimi, senza attribuire un importo alla fase a zero", () => {
+    const phases = [33.33, 33.33, 33.34, 0].map((percent) => ({
+      label: "Rata", type: "deposit" as const, percent, amount: 0,
+    }));
+    const result = recalcPhaseAmounts(phases, 10.01);
+    expect(phasesAmountTotal(result)).toBe(10.01);
+    expect(result[3].amount).toBe(0);
+    expect(result.every((p) => p.amount >= 0)).toBe(true);
   });
 
   it("parse is defensive against junk", () => {

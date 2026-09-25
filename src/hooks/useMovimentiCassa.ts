@@ -92,6 +92,8 @@ export function useCreateMovimento() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["movimenti-cassa"] });
       queryClient.invalidateQueries({ queryKey: queryKeys.documentiFiscali.all });
+      // La rata della commessa legata alla fattura si muove con lei.
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.all });
       toast.success("Incasso registrato");
     },
     onError: (err: Error) => {
@@ -120,6 +122,7 @@ export function useDeleteMovimento() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["movimenti-cassa"] });
       queryClient.invalidateQueries({ queryKey: queryKeys.documentiFiscali.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.all });
       toast.success("Movimento eliminato");
     },
     onError: (err: Error) => {
@@ -158,6 +161,7 @@ export function useSegnaPagata() {
       queryClient.invalidateQueries({ queryKey: queryKeys.primaNota.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.scadenzario.all });
       queryClient.invalidateQueries({ queryKey: ["cashflow"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.all });
       const r = descriviEsitoIncassi(esito);
       if (r.tutteRiuscite) toast.success(r.titolo);
       else if (esito.registrati.length > 0) toast.warning(r.titolo, { description: r.dettaglio, duration: 10000 });

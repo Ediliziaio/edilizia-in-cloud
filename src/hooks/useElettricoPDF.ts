@@ -19,7 +19,8 @@
  * via `toDataUrl` perché react-pdf supporta solo JPG/PNG e alcune foto possono
  * essere WEBP: la conversione canvas le rende sicure per il renderer.
  */
-import { useState } from "react";
+import { useState, type ReactElement } from "react";
+import type { DocumentProps } from "@react-pdf/renderer";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { getEleTemplatePdf } from "@/hooks/useElettricoProgetto";
@@ -28,6 +29,7 @@ import { immaginiDelModello } from "@/components/preventivi/pdf/immaginiDocument
 import { eRiferimentoNudo, linkFileRiservati } from "@/lib/storage/fileRiservati";
 import { calcTotaliComputo, type ComputoRigaInput } from "@/lib/elettrico/calcoli";
 import { calcDetraibile } from "@/lib/preventivi/incentivi";
+import { BLOCCHI, RIEMPIMENTI_EDILI, leggiBlocco, leggiFotoPagina } from "../../supabase/functions/_shared/blocchiPreventivo";
 import type {
   EleProgetto, EleComputoVoce, EleProgettoMedia, EleTemplatePdf,
 } from "@/types/elettrico";
@@ -101,6 +103,8 @@ export const DEFAULT_COMPUTO_OPTIONS: ElePdfComputoOptions = {
 };
 
 export interface ElePdfPayload {
+  /** Local module previews never read company reviews or sign storage URLs. */
+  localOnly?: boolean;
   progetto: EleProgetto;
   computo: EleComputoVoce[];
   media: EleProgettoMedia[];
@@ -132,17 +136,42 @@ async function mapWithConcurrency<T, R>(
   return out;
 }
 
+/** Same production image schema, without online company/review/storage reads. */
+async function localModuleImages(template: EleTemplatePdf): Promise<Record<string, unknown>> {
+  const raw = template as unknown as Record<string, unknown>;
+  const text = (v: unknown) => typeof v === "string" && v ? v : null;
+  const cover = await toDataUrl(text(raw.pdf_cover_image_url) ?? template.cover_image_url);
+  const coverLogo = await toDataUrl(text(raw.pdf_cover_logo_url) ?? template.cover_logo_url);
+  const blocks = await Promise.all(BLOCCHI.map(async ({ chiave }) => {
+    const photos = leggiBlocco(chiave, "elettrico", template.pdf_blocchi).foto.slice(0, 2);
+    const ready = await Promise.all(photos.map(async url => ({ src: await toDataUrl(url), diSerie: url.startsWith("/") })));
+    return [chiave, ready.filter(f => f.src)] as const;
+  }));
+  const pages = await Promise.all([...Object.values(RIEMPIMENTI_EDILI), "chiusura" as const].map(async key => [
+    key, await toDataUrl(leggiFotoPagina(key, "elettrico", template.pdf_blocchi)),
+  ] as const));
+  const gallery = await Promise.all((template.gallery_lavori ?? []).map(async photo => ({ ...photo, url: await toDataUrl(photo.url) })));
+  const freePages = await Promise.all((template.pdf_pagine_libere ?? []).map(async page => ({ ...page, fotoUrl: await toDataUrl(page.fotoUrl ?? null) })));
+  return {
+    cover_image_url: cover, pdf_cover_image_url: cover, cover_logo_url: coverLogo, pdf_cover_logo_url: coverLogo,
+    pdf_blocchi_foto: Object.fromEntries(blocks), pdf_pagine_foto: Object.fromEntries(pages),
+    gallery_lavori: gallery.filter(photo => photo.url), pdf_pagine_libere: freePages,
+    pdf_voti_online: [], logo_chiaro_url: null,
+  };
+}
+
 // ─── Enrich ──────────────────────────────────────────────────────────────────
-async function enrichForPdf(opts: ElePdfPayload): Promise<ElePdfEnriched> {
+export async function enrichElettricoPdf(opts: ElePdfPayload): Promise<ElePdfEnriched> {
   const { progetto, computo, media } = opts;
   const companyId = progetto.company_id;
 
   // 1) Template: fresco da DB se non passato (riflette l'ultimo salvataggio).
+  if (opts.localOnly && !opts.template) throw new Error("Il modello locale deve essere passato all'anteprima.");
   const template = opts.template ?? (await getEleTemplatePdf(companyId));
 
   // 2) Company (anagrafica per intestazione/contatti). Best-effort.
   let company: ElePdfCompany | null = opts.company ?? null;
-  if (!company && companyId) {
+  if (!opts.localOnly && !company && companyId) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data } = await (supabase as any)
       .from("companies")
@@ -240,7 +269,7 @@ async function enrichForPdf(opts: ElePdfPayload): Promise<ElePdfEnriched> {
     toDataUrl(template.logo_url ?? company?.logo_url ?? null),
     toDataUrl(template.chi_siamo_foto_url ?? null),
     // Copertina (in tinta col colore dell'azienda), logo di copertina e galleria dei lavori.
-    immaginiDelModello("elettrico", template as unknown as Record<string, unknown>, company?.logo_chiaro_url ?? null, companyId),
+    opts.localOnly ? localModuleImages(template) : immaginiDelModello("elettrico", template as unknown as Record<string, unknown>, company?.logo_chiaro_url ?? null, companyId),
   ]);
   const inlinedTemplate = {
     ...template,
@@ -258,7 +287,7 @@ async function enrichForPdf(opts: ElePdfPayload): Promise<ElePdfEnriched> {
   const imageMedia = [...media]
     .filter((m) => Boolean(m.url) && !/\.pdf($|\?)/i.test(m.url))
     .sort((a, b) => (a.ordine ?? 0) - (b.ordine ?? 0));
-  const linkMedia = await linkFileRiservati(imageMedia.map((m) => m.url));
+  const linkMedia = opts.localOnly ? imageMedia.map(m => m.url) : await linkFileRiservati(imageMedia.map((m) => m.url));
   const inlinedUrls = await mapWithConcurrency(imageMedia, 4, async (_m, i) => toDataUrl(linkMedia[i]));
   const inlinedMedia: EleProgettoMedia[] = imageMedia
     .map((m, i) => ({ ...m, url: inlinedUrls[i] ?? linkMedia[i] ?? "" }))
@@ -281,14 +310,14 @@ async function enrichForPdf(opts: ElePdfPayload): Promise<ElePdfEnriched> {
  * o al unmount. Non apre tab né scarica: serve solo la sorgente per l'iframe.
  */
 export async function renderElePreviewBlobUrl(opts: ElePdfPayload): Promise<string> {
-  const enriched = await enrichForPdf(opts);
+  const enriched = await enrichElettricoPdf(opts);
   const [{ pdf }, { ElettricoPDF }, React] = await Promise.all([
     import("@react-pdf/renderer"),
     import("@/components/elettrico/ElettricoPDF"),
     import("react"),
   ]);
   const element = React.createElement(ElettricoPDF, enriched);
-  const blob = await pdf(element).toBlob();
+  const blob = await pdf(element as unknown as ReactElement<DocumentProps>).toBlob();
   return URL.createObjectURL(blob);
 }
 
@@ -310,14 +339,14 @@ export function useElettricoPDF() {
         });
         return { ok: false };
       }
-      const enriched = await enrichForPdf(opts);
+      const enriched = await enrichElettricoPdf(opts);
       const [{ pdf }, { ElettricoPDF }, React] = await Promise.all([
         import("@react-pdf/renderer"),
         import("@/components/elettrico/ElettricoPDF"),
         import("react"),
       ]);
       const element = React.createElement(ElettricoPDF, enriched);
-      const blob = await pdf(element).toBlob();
+      const blob = await pdf(element as unknown as ReactElement<DocumentProps>).toBlob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       const filename = buildFilename(opts.progetto);
@@ -350,14 +379,14 @@ export function useElettricoPDF() {
         });
         return;
       }
-      const enriched = await enrichForPdf(opts);
+      const enriched = await enrichElettricoPdf(opts);
       const [{ pdf }, { ElettricoPDF }, React] = await Promise.all([
         import("@react-pdf/renderer"),
         import("@/components/elettrico/ElettricoPDF"),
         import("react"),
       ]);
       const element = React.createElement(ElettricoPDF, enriched);
-      const blob = await pdf(element).toBlob();
+      const blob = await pdf(element as unknown as ReactElement<DocumentProps>).toBlob();
       const url = URL.createObjectURL(blob);
       const win = window.open(url, "_blank");
       const revoke = () => { try { URL.revokeObjectURL(url); } catch { /* noop */ } };

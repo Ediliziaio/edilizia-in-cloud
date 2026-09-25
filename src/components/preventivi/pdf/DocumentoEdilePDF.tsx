@@ -27,8 +27,10 @@ import { parseFinanziamentoPromo, calcolaRataMensile } from "@/lib/preventivi/fi
 import { fraseValiditaChiusura } from "@/lib/preventivi/validitaOfferta";
 import { creaTema, coloriCopertina, copertinaInTinta, type TemaDocumento } from "./temaDocumento";
 import { chiaveLibera, ordineEffettivo } from "./ordineCapitoli";
+import { edileSectionDestination } from "./sectionDestinations";
 import { IconaPdf } from "./IconaPdf";
 import { eTavola } from "@/lib/pdf/proporzioniImmagine";
+import { ensurePdfBufferCompatibility } from "@/lib/pdf/ensurePdfBufferCompatibility";
 import {
   Domande, ParoleDeiClienti, SchedeGaranzie, VotiOnline,
   altezzeDomande, stimaParoleDeiClienti, stimaSchedeGaranzie, stimaVotiOnline,
@@ -41,6 +43,9 @@ import { altezzaTesto, righeDiTesto, testoDaHtml, type FamigliaPdf } from "./mis
 import type {
   DocEdileBlocco, DocEdileCapitolo, DocEdileDati, DocEdileFase, DocEdileFoto, DocEdileFotoBlocco, DocEdileVoceElenco,
 } from "./documentoEdileTipi";
+
+// Must run before react-pdf resolves any image, including the first PDF preview.
+ensurePdfBufferCompatibility();
 
 // Le parole italiane spezzate dal sillabatore inglese erano brutte: mai a capo dentro la parola.
 Font.registerHyphenationCallback((word) => [word]);
@@ -376,11 +381,11 @@ function PieDiPagina({ tema, dati }: { tema: TemaDocumento; dati: DocEdileDati }
 }
 
 // ─── Apertura di capitolo ────────────────────────────────────────────────────
-function Capitolo({ tema, numero, occhiello, titolo, sommario, staccoSopra = 0 }: {
-  tema: TemaDocumento; numero: number; occhiello: string; titolo: string; sommario?: string | null; staccoSopra?: number;
+function Capitolo({ tema, numero, occhiello, titolo, sommario, staccoSopra = 0, sectionKey }: {
+  tema: TemaDocumento; numero: number; occhiello: string; titolo: string; sommario?: string | null; staccoSopra?: number; sectionKey: string;
 }) {
   return (
-    <View style={{ flexDirection: "row", marginTop: staccoSopra, marginBottom: 18 }} minPresenceAhead={130} wrap={false}>
+    <View id={edileSectionDestination(sectionKey)} style={{ flexDirection: "row", marginTop: staccoSopra, marginBottom: 18 }} minPresenceAhead={130} wrap={false}>
       <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 46, color: tema.inchiostroMarca, width: 64, lineHeight: 1, letterSpacing: -1.5 }}>{dueCifre(numero)}</Text>
       <View style={{ flex: 1, paddingTop: 3 }}>
         <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 7, color: tema.inchiostroMarca, letterSpacing: 1.6, marginBottom: 5 }}>{occhiello.toUpperCase()}</Text>
@@ -554,17 +559,33 @@ function Tempi({ tema, fasi }: { tema: TemaDocumento; fasi: DocEdileFase[] }) {
 }
 
 // ─── Il piano dei lavori: capitoli e voci ────────────────────────────────────
-function TabellaCapitolo({ tema, cap, indice, mostraMargine, mostraPrezzi, mostraQta, mostraSubtotali, mostraImporti = true }: {
+function TabellaCapitolo({ tema, cap, indice, mostraMargine, mostraPrezzi, mostraQta, mostraSubtotali, mostraImporti = true, spazioDopo = 0 }: {
   tema: TemaDocumento; cap: DocEdileCapitolo; indice: number;
   mostraMargine: boolean; mostraPrezzi: boolean; mostraQta: boolean; mostraSubtotali: boolean;
   /** False col prezzo scritto a mano: le righe possono essere a 0 €, e «0,00 €» su ogni riga smentirebbe il prezzo. */
   mostraImporti?: boolean;
+  /** Keep the last chapter with the following economic summary, not on an empty page. */
+  spazioDopo?: number;
 }) {
   const testa = { fontFamily: tema.caratteri.forte, fontSize: 6.5, color: tema.grigioChiaro, letterSpacing: 0.9 } as const;
   const cella = { fontFamily: tema.caratteri.testo, fontSize: 9, color: tema.inchiostro } as const;
+  const riga = (v: DocEdileCapitolo["voci"][number]) => (
+    <View key={v.id} wrap={false} style={{ flexDirection: "row", paddingVertical: 6, borderTopWidth: 0.6, borderTopColor: tema.filetto }}>
+      <View style={{ flex: 1, paddingLeft: 28, paddingRight: 8 }}>
+        <Text style={[cella, { lineHeight: 1.35 }]}>{v.descrizione}</Text>
+        {v.fonte ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 7, color: tema.grigioChiaro, marginTop: 1.5 }}>{`Fonte: ${v.fonte}`}</Text> : null}
+      </View>
+      {mostraQta ? <Text style={[cella, { width: 40, textAlign: "center", color: tema.grigio }]}>{v.unitaMisura ?? ""}</Text> : null}
+      {mostraQta ? <Text style={[cella, { width: 44, textAlign: "right" }]}>{quantita(v.quantita)}</Text> : null}
+      {mostraPrezzi ? <Text style={[cella, { width: 66, textAlign: "right", color: tema.grigio }]}>{formatCurrency(v.prezzoUnitario)}</Text> : null}
+      {mostraImporti ? <Text style={[cella, { width: 74, textAlign: "right", fontFamily: tema.caratteri.forte }]}>{formatCurrency(v.importo)}</Text> : null}
+      {mostraMargine ? <Text style={[cella, { width: 58, textAlign: "right", color: "#15803D" }]}>{formatCurrency(v.margineEur ?? 0)}</Text> : null}
+    </View>
+  );
   return (
-    <View style={{ marginBottom: 16 }}>
-      <View wrap={false} minPresenceAhead={50}>
+    <View minPresenceAhead={spazioDopo} style={{ marginBottom: 16 }}>
+      {/* Il titolo deve viaggiare con la prima voce: una soglia fissa non basta con descrizioni lunghe. */}
+      <View wrap={false}>
         <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", paddingBottom: 6, borderBottomWidth: 1.2, borderBottomColor: tema.fondo }}>
           <View style={{ flexDirection: "row", alignItems: "flex-end", flex: 1 }}>
             <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 17, color: tema.inchiostroMarca, width: 28, lineHeight: 1 }}>{dueCifre(indice)}</Text>
@@ -580,20 +601,9 @@ function TabellaCapitolo({ tema, cap, indice, mostraMargine, mostraPrezzi, mostr
           {mostraImporti ? <Text style={[testa, { width: 74, textAlign: "right" }]}>IMPORTO</Text> : null}
           {mostraMargine ? <Text style={[testa, { width: 58, textAlign: "right" }]}>MARGINE</Text> : null}
         </View>
+        {cap.voci[0] ? riga(cap.voci[0]) : null}
       </View>
-      {cap.voci.map((v) => (
-        <View key={v.id} wrap={false} style={{ flexDirection: "row", paddingVertical: 6, borderTopWidth: 0.6, borderTopColor: tema.filetto }}>
-          <View style={{ flex: 1, paddingLeft: 28, paddingRight: 8 }}>
-            <Text style={[cella, { lineHeight: 1.35 }]}>{v.descrizione}</Text>
-            {v.fonte ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 7, color: tema.grigioChiaro, marginTop: 1.5 }}>{`Fonte: ${v.fonte}`}</Text> : null}
-          </View>
-          {mostraQta ? <Text style={[cella, { width: 40, textAlign: "center", color: tema.grigio }]}>{v.unitaMisura ?? ""}</Text> : null}
-          {mostraQta ? <Text style={[cella, { width: 44, textAlign: "right" }]}>{quantita(v.quantita)}</Text> : null}
-          {mostraPrezzi ? <Text style={[cella, { width: 66, textAlign: "right", color: tema.grigio }]}>{formatCurrency(v.prezzoUnitario)}</Text> : null}
-          {mostraImporti ? <Text style={[cella, { width: 74, textAlign: "right", fontFamily: tema.caratteri.forte }]}>{formatCurrency(v.importo)}</Text> : null}
-          {mostraMargine ? <Text style={[cella, { width: 58, textAlign: "right", color: "#15803D" }]}>{formatCurrency(v.margineEur ?? 0)}</Text> : null}
-        </View>
-      ))}
+      {cap.voci.slice(1).map(riga)}
     </View>
   );
 }
@@ -658,7 +668,22 @@ function RigaRiepilogo({ tema, etichetta, valore, forte = false }: {
 }
 
 // ─── Copertina ───────────────────────────────────────────────────────────────
-function Copertina({ tema, dati }: { tema: TemaDocumento; dati: DocEdileDati }) {
+export type DatiCopertinaDocumento = Pick<DocEdileDati, "cliente" | "cantiere" | "codice" | "tipoIntervento" | "localita"> & {
+  modello: Pick<DocEdileDati["modello"], "copertina">;
+  azienda: Pick<DocEdileDati["azienda"], "nome" | "logoUrl" | "logoChiaroUrl">;
+  modulo: Pick<DocEdileDati["modulo"], "titoloCopertina" | "sottotitoloCopertina">;
+};
+
+/** Shared composition: the same cover is used by the edile and serramenti PDFs. */
+export function CopertinaDocumento({ tema, dati, bookmark, data, nota, avviso, colori }: {
+  tema: TemaDocumento;
+  dati: DatiCopertinaDocumento;
+  bookmark?: string;
+  data?: string;
+  nota?: string;
+  avviso?: string;
+  colori?: { occhiello?: string; titolo?: string; sottotitolo?: string };
+}) {
   const c = dati.modello.copertina;
   const { fondo, testo, evidenza } = coloriCopertina(tema, { fondo: c.coloreFondo, testo: c.coloreTesto });
   const opacita = c.opacitaVelo ?? 0.6;
@@ -686,11 +711,11 @@ function Copertina({ tema, dati }: { tema: TemaDocumento; dati: DocEdileDati }) 
     { etichetta: "Preparato per", valore: dati.cliente },
     { etichetta: "Cantiere", valore: dati.cantiere || "—" },
     { etichetta: "Riferimento", valore: dati.codice ?? "—" },
-    { etichetta: "Data", valore: oggi() },
+    { etichetta: "Data", valore: data ?? oggi() },
   ];
 
   return (
-    <Page size="A4" style={{ backgroundColor: fondo, fontFamily: tema.caratteri.testo }}>
+    <Page id={edileSectionDestination("cover")} bookmark={bookmark} size="A4" style={{ backgroundColor: fondo, fontFamily: tema.caratteri.testo }}>
       {c.immagineUrl ? (
         <Image src={c.immagineUrl} style={{ position: "absolute", top: 0, left: 0, width: LARGHEZZA, height: ALTEZZA, objectFit: "cover" }} />
       ) : null}
@@ -756,7 +781,7 @@ function Copertina({ tema, dati }: { tema: TemaDocumento; dati: DocEdileDati }) 
       ) : null}
 
       <View style={{ position: "absolute", top: 0, left: 0, width: LARGHEZZA, height: ALTEZZA, paddingHorizontal: MARGINE, paddingTop: 46, paddingBottom: 44 }}>
-        <View style={{ height: 62, flexDirection: "row", justifyContent: giustificaLogo, alignItems: "flex-start" }}>
+        <View style={{ height: Math.max(62, 50 * c.scalaLogo), flexDirection: "row", justifyContent: giustificaLogo, alignItems: "flex-start" }}>
           {c.posizioneLogo === "hidden" ? null : logo ? (
             <Image src={logo} style={{ height: 50 * c.scalaLogo, maxWidth: 190 * c.scalaLogo, objectFit: "contain" }} />
           ) : (
@@ -768,11 +793,12 @@ function Copertina({ tema, dati }: { tema: TemaDocumento; dati: DocEdileDati }) 
         </View>
 
         <View style={{ flex: 1, justifyContent: giustificaTesto, alignItems: centro ? "center" : "flex-start", paddingTop: 30, paddingBottom: 34 }}>
-          <Text style={{ fontFamily: tema.caratteri.forte, fontSize: corpoOcchiello, color: evidenza, letterSpacing: 2.4, marginBottom: 14, textAlign: c.allineamento }}>{occhiello.toUpperCase()}</Text>
+          <Text style={{ fontFamily: tema.caratteri.forte, fontSize: corpoOcchiello, color: colori?.occhiello || evidenza, letterSpacing: 2.4, marginBottom: 14, textAlign: c.allineamento }}>{occhiello.toUpperCase()}</Text>
           <View style={{ maxWidth: 480 }}>
-            <TitoloAccento tema={tema} testo={titolo} corpo={corpoTitolo} colore={testo} coloreAccento={evidenza} allineamento={c.allineamento} interlinea={1.2} />
+            <TitoloAccento tema={tema} testo={titolo} corpo={corpoTitolo} colore={colori?.titolo || testo} coloreAccento={evidenza} allineamento={c.allineamento} interlinea={1.2} />
           </View>
-          <Text style={{ fontFamily: tema.caratteri.testo, fontSize: corpoSottotitolo, color: testo, opacity: 0.86, marginTop: 14, lineHeight: 1.4, maxWidth: 400, textAlign: c.allineamento }}>{sottotitolo}</Text>
+          <Text style={{ fontFamily: tema.caratteri.testo, fontSize: corpoSottotitolo, color: colori?.sottotitolo || testo, opacity: 0.86, marginTop: 14, lineHeight: 1.4, maxWidth: 400, textAlign: c.allineamento }}>{sottotitolo}</Text>
+          {avviso ? <Text style={{ fontSize: 10, color: testo, lineHeight: 1.4, marginTop: 16, maxWidth: 400 }}>{avviso}</Text> : null}
         </View>
 
         {c.mostraScheda ? (
@@ -788,10 +814,13 @@ function Copertina({ tema, dati }: { tema: TemaDocumento; dati: DocEdileDati }) 
             </View>
           </View>
         ) : null}
+        {nota ? <Text style={{ fontSize: 7.5, color: testo, opacity: 0.8, lineHeight: 1.4, marginTop: 12 }}>{nota}</Text> : null}
       </View>
     </Page>
   );
 }
+
+const Copertina = CopertinaDocumento;
 
 // ─── Il documento ────────────────────────────────────────────────────────────
 /**
@@ -972,7 +1001,7 @@ function CapitoloBlocco({ tema, numero, chiave, blocco, riempi = false, altezzaF
     // pagina sua, e la foto la riempie.
     return (
       <View wrap={false}>
-        <Capitolo tema={tema} numero={numero} occhiello={blocco.occhiello} titolo={blocco.titolo} sommario={blocco.intro} />
+        <Capitolo sectionKey={chiave} tema={tema} numero={numero} occhiello={blocco.occhiello} titolo={blocco.titolo} sommario={blocco.intro} />
         {riempi ? <FotoBlocco tema={tema} foto={blocco.foto} nota={blocco.nota} altezza={altezzaFoto ?? altezzaFotoPiena(tema, blocco, true)} /> : null}
         <TitolinoSezione tema={tema} testo="Compreso nel prezzo" />
         <VociBlocco tema={tema} voci={blocco.voci} />
@@ -988,7 +1017,7 @@ function CapitoloBlocco({ tema, numero, chiave, blocco, riempi = false, altezzaF
   const tavola = riempi ? tavolaDelBlocco(blocco) : null;
   return (
     <View>
-      <Capitolo tema={tema} numero={numero} occhiello={blocco.occhiello} titolo={blocco.titolo} sommario={blocco.intro} />
+      <Capitolo sectionKey={chiave} tema={tema} numero={numero} occhiello={blocco.occhiello} titolo={blocco.titolo} sommario={blocco.intro} />
       {tavola != null ? <TavolaBlocco tema={tema} blocco={blocco} proporzione={tavola} /> : (
         <>
           <FotoBlocco tema={tema} foto={blocco.foto} nota={blocco.nota} altezza={riempi ? altezzaFoto ?? altezzaFotoPiena(tema, blocco) : undefined} />
@@ -1066,6 +1095,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
     foto: "Foto e render", piano: modulo.titoloComputo.replace(/\*/g, ""), investimento: "Il tuo investimento",
     garanzie: tGaranzie.occhiello, tempi: "I tempi", recensioni: tRecensioni.occhiello, domande: tDomande.occhiello,
     ...Object.fromEntries(BLOCCHI.map((b) => [b.chiave, b.etichetta])),
+    protezione: "Protezione degli ambienti",
   };
   const sommario: Array<{ numero: number; titolo: string }> = [
     ...sequenza.map((v) => ({
@@ -1130,13 +1160,13 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
   // capitolo, e un capitolo che ci stava a filo, col margine, saltava intero alla pagina dopo.
   const chiusura = (altezzaFoto: number | null, inCoda = false) => (
     <View wrap={false} style={inCoda ? { marginTop: STACCO } : undefined}>
-      <Capitolo tema={tema} numero={numeroPassi} occhiello="I prossimi passi" titolo="Pronti a *partire*?" sommario={sommarioChiusura} />
+      <Capitolo sectionKey="chiusura" tema={tema} numero={numeroPassi} occhiello="I prossimi passi" titolo="Pronti a *partire*?" sommario={sommarioChiusura} />
       {fotoChiusura && altezzaFoto ? (
         <Image src={fotoChiusura.src} style={{ width: UTILE, height: altezzaFoto, objectFit: "cover", marginBottom: 18 }} />
       ) : null}
       <Passi tema={tema} voci={passiChiusura} />
-      <View wrap={false} style={{ flexDirection: "row", marginTop: 10 }}>
-        <View style={{ flex: 1, backgroundColor: tema.cartaCalda, padding: 14, marginRight: 12 }}>
+      <View wrap={false} style={{ flexDirection: "row", width: UTILE, marginTop: 10 }}>
+        <View style={{ width: (UTILE - 12) / 2.25, backgroundColor: tema.cartaCalda, padding: 14, marginRight: 12 }}>
           <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 7, color: tema.inchiostroMarca, letterSpacing: 1.4, marginBottom: 7 }}>I NOSTRI CONTATTI</Text>
           <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 10.5, color: tema.inchiostro, marginBottom: 4 }}>{dati.azienda.nome}</Text>
           {[dati.azienda.telefono, emailACapo(dati.azienda.email), dati.azienda.indirizzo].filter(Boolean).map((r, i) => (
@@ -1146,14 +1176,14 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
         {/* Senza condizioni non c'è la pagina della firma: allora si firma qui.
             Con le condizioni, la firma sta lì e due riquadri sarebbero uno di troppo. */}
         {modello.condizioniLegali.length > 0 ? (
-          <View style={{ flex: 1.25, backgroundColor: tema.cartaCalda, padding: 14, justifyContent: "center" }}>
+          <View style={{ width: (UTILE - 12) * 1.25 / 2.25, backgroundColor: tema.cartaCalda, padding: 14, justifyContent: "center" }}>
             <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 7, color: tema.inchiostroMarca, letterSpacing: 1.4, marginBottom: 6 }}>LA FIRMA</Text>
             <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 9, color: tema.grigio, lineHeight: 1.5 }}>
               Le condizioni generali e la pagina da firmare sono in fondo a questo documento.
             </Text>
           </View>
         ) : (
-        <View style={{ flex: 1.25, borderWidth: 0.8, borderColor: tema.inchiostro, padding: 14 }}>
+        <View style={{ width: (UTILE - 12) * 1.25 / 2.25, borderWidth: 0.8, borderColor: tema.inchiostro, padding: 14 }}>
           <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 7, color: tema.inchiostro, letterSpacing: 1.4 }}>PER ACCETTAZIONE</Text>
           <View style={{ flexDirection: "row", marginTop: 44 }}>
             <View style={{ width: 86, borderTopWidth: 0.6, borderTopColor: tema.grigioChiaro, paddingTop: 4, marginRight: 14 }}>
@@ -1297,8 +1327,20 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
   // Le domande si spezzano una per volta, come le righe del piano; il titolo resta
   // con la prima.
   const testaDomande = stimaTesta(tema, tDomande.titolo, tDomande.intro);
+  const alteDomande = altezzeDomande(tema, modello.faq, UTILE);
+  const altezzaDomandeIntere = testaDomande + alteDomande.reduce((sum, height) => sum + height, 0);
+  // A short FAQ belongs on one readable page. Do not leave its final answers
+  // alone on the next sheet just because a timeline preceded the chapter.
+  // Row estimates already include padding and borders. Keep the standard
+  // prediction margin: an additional 50pt reserve split fitting FAQs (Sanitari).
+  // Longer chapters still wrap freely, one complete question at a time.
+  const domandeIntere = altezzaDomandeIntere < ALTEZZA_UTILE - MARGINE_PREVISIONE;
   const codaDelleDomande = (inizio: number): { coda: number; aCapo: boolean } => {
-    const alte = altezzeDomande(tema, modello.faq, UTILE);
+    const alte = alteDomande;
+    if (domandeIntere) {
+      const aCapo = inizio > 0 && inizio + altezzaDomandeIntere > ALTEZZA_UTILE;
+      return { coda: (aCapo ? 0 : inizio) + altezzaDomandeIntere, aCapo };
+    }
     let usato = inizio;
     let aCapo = false;
     if (inizio > 0 && inizio + testaDomande + (alte[0] ?? 0) > ALTEZZA_UTILE) { usato = 0; aCapo = true; }
@@ -1469,7 +1511,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
     if (libera) {
       return (
         <>
-          <Capitolo tema={tema} numero={numero} occhiello={libera.occhiello ?? dati.azienda.nome} titolo={libera.titolo || "…"} />
+          <Capitolo sectionKey={chiave} tema={tema} numero={numero} occhiello={libera.occhiello ?? dati.azienda.nome} titolo={libera.titolo || "…"} />
           {libera.fotoUrl ? (
             <View wrap={false} style={{ marginBottom: 18 }}>
               <Image src={libera.fotoUrl} style={{ width: UTILE, height: 250, objectFit: "cover" }} />
@@ -1484,7 +1526,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
     if (blocco) return <CapitoloBlocco tema={tema} numero={numero} chiave={blocco.chiave} blocco={modello.blocchi[blocco.chiave]} riempi={riempi} altezzaFoto={altezzaFoto} />;
     switch (chiave) {
       case "chiSiamo": return (<>
-          <Capitolo tema={tema} numero={numero} occhiello="Chi siamo" titolo={`Chi c'è *dietro* questo progetto.`} />
+          <Capitolo sectionKey={chiave} tema={tema} numero={numero} occhiello="Chi siamo" titolo={`Chi c'è *dietro* questo progetto.`} />
           {haChiSiamo ? (
             <View style={{ flexDirection: "row", marginBottom: 22 }}>
               <View style={{ flex: 1, paddingRight: modello.chiSiamoFotoUrl ? 18 : 60 }}>
@@ -1503,7 +1545,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
           ) : null}
 </>);
       case "progetto": return (            <View style={{ marginBottom: 26 }}>
-              <Capitolo tema={tema} numero={numero} occhiello="Il progetto" titolo="Le tue *richieste*, in ordine." />
+              <Capitolo sectionKey={chiave} tema={tema} numero={numero} occhiello="Il progetto" titolo="Le tue *richieste*, in ordine." />
               {fotoApertura ? (
                 <View wrap={false} style={{ marginBottom: 18 }}>
                   <Image src={fotoApertura.url} style={{ width: UTILE, height: 230, objectFit: "cover" }} />
@@ -1526,25 +1568,25 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
               </View>
             </View>);
       case "percorso": return (            <View>
-              <Capitolo tema={tema} numero={numero} occhiello="Come lavoriamo" titolo="Dal primo incontro alla *consegna*." />
+              <Capitolo sectionKey={chiave} tema={tema} numero={numero} occhiello="Come lavoriamo" titolo="Dal primo incontro alla *consegna*." />
               <Passi tema={tema} voci={modello.percorso} />
             </View>);
       case "lavori": return (<>
-          <Capitolo tema={tema} numero={numero} occhiello={tLavori.occhiello} titolo={tLavori.titolo} sommario={tLavori.intro} />
+          <Capitolo sectionKey={chiave} tema={tema} numero={numero} occhiello={tLavori.occhiello} titolo={tLavori.titolo} sommario={tLavori.intro} />
           <Galleria tema={tema} foto={modello.galleriaLavori} />
 </>);
       case "recensioni": return (
           <ParoleDeiClienti tema={tema} voci={modello.testimonianze} larghezza={UTILE} testa={<>
-            <Capitolo tema={tema} numero={numero} occhiello={tRecensioni.occhiello} titolo={tRecensioni.titolo} sommario={sommarioRecensioni} />
+            <Capitolo sectionKey={chiave} tema={tema} numero={numero} occhiello={tRecensioni.occhiello} titolo={tRecensioni.titolo} sommario={sommarioRecensioni} />
             <VotiOnline tema={tema} voti={votiOnline} larghezza={UTILE} />
           </>} />
       );
       case "foto": return (<>
-          <Capitolo tema={tema} numero={numero} occhiello="Foto e render" titolo="Il tuo progetto, *da vedere*." sommario="Lo stato di oggi e come diventerà." />
+          <Capitolo sectionKey={chiave} tema={tema} numero={numero} occhiello="Foto e render" titolo="Il tuo progetto, *da vedere*." sommario="Lo stato di oggi e come diventerà." />
           <Galleria tema={tema} foto={fotoCapitolo} />
 </>);
       case "piano": return (<>
-        <Capitolo tema={tema} numero={numero} occhiello={modulo.titoloComputo.replace(/\*/g, "")} titolo="Che cosa *faremo*, voce per voce." sommario="Le lavorazioni previste, raccolte per capitolo." />
+        <Capitolo sectionKey={chiave} tema={tema} numero={numero} occhiello={modulo.titoloComputo.replace(/\*/g, "")} titolo="Che cosa *faremo*, voce per voce." sommario="Le lavorazioni previste, raccolte per capitolo." />
         {oc.livello === "corpo" ? (
           <View wrap={false} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", paddingBottom: 6, borderBottomWidth: 1.2, borderBottomColor: tema.fondo }}>
             <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 11.5, color: tema.inchiostro }}>Lavorazioni a corpo</Text>
@@ -1552,7 +1594,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
           </View>
         ) : oc.livello === "sintetico" ? (
           capitoli.map((cap, i) => (
-            <View key={cap.nome} wrap={false} style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", paddingVertical: 9, borderBottomWidth: 0.6, borderBottomColor: tema.filetto }}>
+            <View key={cap.nome} wrap={false} minPresenceAhead={i === capitoli.length - 1 ? 50 : 0} style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", paddingVertical: 9, borderBottomWidth: 0.6, borderBottomColor: tema.filetto }}>
               <View style={{ flexDirection: "row", alignItems: "flex-end", flex: 1 }}>
                 <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 17, color: tema.inchiostroMarca, width: 28, lineHeight: 1 }}>{dueCifre(i + 1)}</Text>
                 <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 11, color: tema.inchiostro, flex: 1 }}>{cap.nome}</Text>
@@ -1566,6 +1608,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
               key={cap.nome} tema={tema} cap={cap} indice={i + 1}
               mostraMargine={modello.mostraMargine} mostraPrezzi={oc.mostraPrezzi && !prezzoManuale} mostraQta={oc.mostraQta}
               mostraSubtotali={oc.mostraSubtotali && !prezzoManuale} mostraImporti={!prezzoManuale}
+              spazioDopo={i === capitoli.length - 1 ? 50 : 0}
             />
           ))
         )}
@@ -1575,7 +1618,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
         </View>
 </>);
       case "investimento": return (<>
-        <Capitolo tema={tema} numero={numero} occhiello="L'investimento" titolo="Il tuo *investimento*." sommario="Un prezzo chiaro: quanto costa e che cosa comprende, senza giri di parole." />
+        <Capitolo sectionKey={chiave} tema={tema} numero={numero} occhiello="L'investimento" titolo="Il tuo *investimento*." sommario="Un prezzo chiaro: quanto costa e che cosa comprende, senza giri di parole." />
 
         {oc.livello !== "corpo" && capitoli.length > 1 && !prezzoManuale ? (
           <View style={{ marginBottom: 14 }}>
@@ -1671,17 +1714,17 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
 
 </>);
       case "garanzie": return (<>
-          <Capitolo tema={tema} numero={numero} occhiello={tGaranzie.occhiello} titolo={tGaranzie.titolo} sommario={tGaranzie.intro} />
+          <Capitolo sectionKey={chiave} tema={tema} numero={numero} occhiello={tGaranzie.occhiello} titolo={tGaranzie.titolo} sommario={tGaranzie.intro} />
           <SchedeGaranzie tema={tema} voci={modello.garanzie} colonne={colonneGaranzie} larghezza={UTILE} />
 </>);
-      case "domande": return (<>
-          <Capitolo tema={tema} numero={numero} occhiello={tDomande.occhiello} titolo={tDomande.titolo} sommario={tDomande.intro} />
+      case "domande": return (<View wrap={!domandeIntere}>
+          <Capitolo sectionKey={chiave} tema={tema} numero={numero} occhiello={tDomande.occhiello} titolo={tDomande.titolo} sommario={tDomande.intro} />
           <Domande tema={tema} voci={modello.faq} />
-</>);
+      </View>);
       case "tempi": return (
           // Un cronoprogramma spezzato fra due pagine non si legge: fino a otto fasi resta intero.
           <View wrap={modello.cronoprogramma.length > 8} style={{ marginBottom: 30 }}>
-            <Capitolo tema={tema} numero={numero} occhiello="I tempi" titolo="Quanto *dura* il cantiere." />
+            <Capitolo sectionKey={chiave} tema={tema} numero={numero} occhiello="I tempi" titolo="Quanto *dura* il cantiere." />
             <Tempi tema={tema} fasi={modello.cronoprogramma} />
           </View>
       );
@@ -1701,7 +1744,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
       {visibile("apertura") ? (
         <Page size="A4" style={pagina}>
           {cornice}
-        <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 7, color: tema.inchiostroMarca, letterSpacing: 1.6, marginBottom: 8 }}>LA TUA PROPOSTA</Text>
+        <Text id={edileSectionDestination("apertura")} style={{ fontFamily: tema.caratteri.forte, fontSize: 7, color: tema.inchiostroMarca, letterSpacing: 1.6, marginBottom: 8 }}>LA TUA PROPOSTA</Text>
         <TitoloAccento tema={tema} testo={dati.clienteNome ? `Per *${dati.clienteNome}*,` : "Gentile *cliente*,"} corpo={34} colore={tema.inchiostro} coloreAccento={tema.inchiostroMarca} />
         <Text style={[corpoTesto, { fontSize: 11, marginTop: 14, maxWidth: 420, color: tema.grigio }]}>
           {`in queste pagine trovi il piano dei lavori che ${dati.azienda.nome} ha preparato per ${dati.cantiere ? `l'immobile di ${dati.cantiere}` : "il tuo immobile"}: che cosa faremo, in che ordine, e con quale investimento.`}
@@ -1830,7 +1873,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
       {modello.condizioniLegali.length > 0 ? (
         <Page size="A4" style={pagina}>
           {cornice}
-          <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 7, color: tema.inchiostroMarca, letterSpacing: 1.6, marginBottom: 6 }}>ALLEGATO</Text>
+          <Text id={edileSectionDestination("condizioni")} style={{ fontFamily: tema.caratteri.forte, fontSize: 7, color: tema.inchiostroMarca, letterSpacing: 1.6, marginBottom: 6 }}>ALLEGATO</Text>
           <TitoloAccento tema={tema} testo="Condizioni *contrattuali*." corpo={21} colore={tema.inchiostro} coloreAccento={tema.inchiostroMarca} />
           <View style={{ marginTop: 14 }}>
             {/* Un articolo per volta: il titolo non resta mai in fondo a una pagina
@@ -1857,7 +1900,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
       {modello.condizioniLegali.length > 0 ? (
         <Page size="A4" style={pagina}>
           {cornice}
-          <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 7, color: tema.inchiostroMarca, letterSpacing: 1.6, marginBottom: 6 }}>PER ACCETTAZIONE</Text>
+          <Text id={edileSectionDestination("firma")} style={{ fontFamily: tema.caratteri.forte, fontSize: 7, color: tema.inchiostroMarca, letterSpacing: 1.6, marginBottom: 6 }}>PER ACCETTAZIONE</Text>
           <TitoloAccento tema={tema} testo="Firma del *contratto*." corpo={21} colore={tema.inchiostro} coloreAccento={tema.inchiostroMarca} />
 
           <View style={{ marginTop: 16, backgroundColor: tema.cartaCalda, padding: 16 }}>
@@ -1912,7 +1955,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
       {modello.condizioniLegali.length > 0 && modello.conRecesso ? (
         <Page size="A4" style={pagina}>
           {cornice}
-          <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 7, color: tema.inchiostroMarca, letterSpacing: 1.6, marginBottom: 6 }}>ALLEGATO</Text>
+          <Text id={edileSectionDestination("recesso")} style={{ fontFamily: tema.caratteri.forte, fontSize: 7, color: tema.inchiostroMarca, letterSpacing: 1.6, marginBottom: 6 }}>ALLEGATO</Text>
           <TitoloAccento tema={tema} testo="Modulo di *recesso*." corpo={21} colore={tema.inchiostro} coloreAccento={tema.inchiostroMarca} />
           <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 9, color: tema.grigio, lineHeight: 1.55, marginTop: 12 }}>
             {MODULO_RECESSO.istruzioni}

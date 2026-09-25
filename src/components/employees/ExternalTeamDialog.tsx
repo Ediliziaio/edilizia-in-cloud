@@ -34,7 +34,7 @@ import { Switch } from "@/components/ui/switch";
 import { VAT_RATES } from "@/lib/vatUtils";
 
 const teamSchema = z.object({
-  name: z.string().min(1, "Nome ditta obbligatorio"),
+  name: z.string().trim().min(1, "Nome squadra obbligatorio"),
   contact_name: z.string().optional(),
   phone: z.string().optional(),
   email: z.string().email("Email non valida").optional().or(z.literal("")),
@@ -144,7 +144,7 @@ export function ExternalTeamDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>
             {team ? "Modifica squadra" : "Nuova squadra"}
@@ -165,7 +165,7 @@ export function ExternalTeamDialog({
                 <FormItem>
                   <FormLabel>Nome Ditta/Squadra *</FormLabel>
                   <FormControl>
-                    <Input placeholder="ABC Installazioni Srl" {...field} />
+                    <Input placeholder={kind === "interna" ? "Squadra ristrutturazioni" : "ABC Installazioni Srl"} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -251,7 +251,7 @@ export function ExternalTeamDialog({
                 name="leader_user_id"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Capocantiere</FormLabel>
+                    <FormLabel>Referente organizzativo</FormLabel>
                     <Select
                       value={field.value ?? "__nessuno__"}
                       onValueChange={(v) => field.onChange(v === "__nessuno__" ? null : v)}
@@ -268,12 +268,15 @@ export function ExternalTeamDialog({
                         ))}
                       </SelectContent>
                     </Select>
+                    <FormDescription>Questo riferimento non concede il ruolo di capocantiere nell'app Campo. La delega si gestisce sul singolo cantiere.</FormDescription>
                   </FormItem>
                 )}
               />
             )}
 
-            <FormField
+            {kind === "interna" && <p className="rounded-md bg-muted/40 p-3 text-sm text-muted-foreground">La squadra interna è composta da dipendenti. Dopo aver salvato l'anagrafica, apri «Dipendenti della squadra» in Calendari lavori per verificarne la composizione e la disponibilità del nuovo salvataggio.</p>}
+
+            {kind === "esterna" && <FormField
               control={form.control}
               name="vat_rate"
               render={({ field }) => (
@@ -302,7 +305,7 @@ export function ExternalTeamDialog({
                   <FormMessage />
                 </FormItem>
               )}
-            />
+            />}
 
             <FormField
               control={form.control}

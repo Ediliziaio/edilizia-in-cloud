@@ -82,7 +82,7 @@ describe("aree e tipologie nuove", () => {
 
   it("propone solo le aree standard che mancano", () => {
     const nomi = areeDaAggiungere(aree).map((a) => a.nome);
-    expect(nomi).toEqual(["Fotovoltaico", "Bagni"]);
+    expect(nomi).toEqual(["Fotovoltaico", "Bagni", "Tetti", "Ristrutturazioni", "Climatizzazione", "Termoidraulica e riscaldamento", "Elettrico e domotica", "Pavimenti e rivestimenti", "Piscine", "Facciate e isolamento"]);
   });
 
   it("«Accessori» in una seconda area prende il nome dell'area invece di dare errore", () => {

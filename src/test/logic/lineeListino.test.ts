@@ -202,7 +202,7 @@ describe("i listini costruiti in altri modi", () => {
     const vasche = tipologia(aree, "Vasche");
     expect(nomi(vasche.linee)).toEqual(["Linea vasca Tipo 1", "Linea vasca Tipo 2"]);
     expect(vasche.linee[0].righe.map((r) => r.famiglia.nome)).toEqual(["Vasca ovale 170×75", "Vasca quadrata 140×140"]);
-    expect(nomi(aree[0].mancanti)).toEqual(["Piatti doccia", "Sanitari", "Mobili bagno", "Rivestimenti", "Accessori"]);
+    expect(nomi(aree[0].mancanti)).toEqual(["Piatti doccia", "Sanitari", "Lavabi", "Mobili bagno", "Rivestimenti", "Pavimenti", "Sistemi doccia", "Specchi e illuminazione", "Termoarredi", "Materiali di posa", "Accessori"]);
   });
 
   it("fotovoltaico per componente: area dai dati, orfani in Senza tipologia, macrocategoria vuota di prova nascosta", () => {

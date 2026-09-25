@@ -235,6 +235,7 @@ export function OrderCommissions({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.orderSalespeople.byOrder(orderId) });
+      queryClient.invalidateQueries({ queryKey: ["oes-salespeople", orderId] });
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.commissionLedger(orderId) });
       toast.success("Provvigione aggiornata", { description: "Le modifiche sono state salvate." });
     },
@@ -266,6 +267,7 @@ export function OrderCommissions({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.orderSalespeople.byOrder(orderId) });
+      queryClient.invalidateQueries({ queryKey: ["oes-salespeople", orderId] });
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.commissionLedger(orderId) });
       toast.success("Commerciale aggiunto");
       setAddDialogOpen(false);
@@ -282,6 +284,7 @@ export function OrderCommissions({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.orderSalespeople.byOrder(orderId) });
+      queryClient.invalidateQueries({ queryKey: ["oes-salespeople", orderId] });
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.commissionLedger(orderId) });
       toast.success("Commerciale rimosso");
     },

@@ -20,7 +20,6 @@ import {
   FileText, Download, Eye, Loader2, Check, AlertCircle, AlertTriangle,
   ClipboardList, Settings2,
 } from "lucide-react";
-import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -50,9 +49,6 @@ interface ChecklistItem {
   label: string;
   hint?: string;
 }
-
-const TEMPLATE_SETTINGS_HREF =
-  "/azienda/impostazioni/template-preventivi?tab=moduli-vendita&modulo=tetti";
 
 export default function StepPdf({ progetto, computo, media }: Props) {
   const isMobile = useIsMobile();
@@ -198,8 +194,8 @@ export default function StepPdf({ progetto, computo, media }: Props) {
           vatAmount={totali.iva}
           total={totali.totale}
           validityDays={template?.default_validita_giorni ?? undefined}
-          disabled={computoVuoto}
-          disabledReason="Aggiungi voci al computo prima di inviare il preventivo."
+          disabled={computoVuoto || Boolean(progetto.modello_snapshot)}
+          disabledReason={progetto.modello_snapshot ? "Per questo intervento usa il PDF A4: il collegamento alla firma è da completare." : "Aggiungi voci al computo prima di inviare il preventivo."}
           generaPdfBlob={async () => {
             const url = await renderTetPreviewBlobUrl(payload);
             const blob = await (await fetch(url)).blob();
@@ -440,9 +436,6 @@ export default function StepPdf({ progetto, computo, media }: Props) {
             <span className="inline-flex items-center gap-1">
               <ClipboardList className="h-3 w-3" /> Generato nel browser, senza attese server
             </span>
-            <Link to={TEMPLATE_SETTINGS_HREF} className="inline-flex items-center gap-1 text-orange-700 underline-offset-2 hover:underline">
-              <Settings2 className="h-3 w-3" /> Personalizza il template
-            </Link>
           </div>
         </CardContent>
       </Card>

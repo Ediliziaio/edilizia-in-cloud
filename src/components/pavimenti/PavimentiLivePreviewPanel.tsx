@@ -6,6 +6,7 @@
 import { useCallback, useMemo } from "react";
 import { PdfBlobLivePreviewPanel } from "@/components/shared/PdfBlobLivePreviewPanel";
 import { renderPavPreviewBlobUrl } from "@/hooks/usePavimentiPDF";
+import { buildPavModulePreview, type FullPavModuleId } from "@/lib/moduli-vendita/fullPavModules";
 import type { PavTemplatePdf, PavProgetto, PavComputoVoce } from "@/types/pavimenti";
 
 function buildMockComputo(companyId: string): PavComputoVoce[] {
@@ -32,6 +33,7 @@ function buildMockProgetto(companyId: string): PavProgetto {
   return {
     id: "preview", company_id: companyId, code: "ANTEPRIMA", stato: "bozza",
     tipo_intervento: "Nuovo pavimento in gres",
+    numero_ambienti: 4, tipo_materiale: "gres", massimale_detrazione: null,
     cliente_nome: "Mario", cliente_cognome: "Rossi", cliente_email: null, cliente_telefono: null,
     cantiere_indirizzo: "Via Roma 1", cantiere_citta: "Milano", cantiere_provincia: "MI", cantiere_cap: "20100",
     immobile_tipo: "Appartamento", immobile_superficie_mq: 90, immobile_anno: 1975, immobile_piani: 1,
@@ -42,27 +44,31 @@ function buildMockProgetto(companyId: string): PavProgetto {
 }
 
 export function PavimentiLivePreviewPanel({
-  template, companyId,
+  template, companyId, moduleId, activeSection,
 }: {
+  activeSection?: string | null;
+  moduleId?: FullPavModuleId;
   template: PavTemplatePdf | null;
   companyId: string | null;
 }) {
   const depsKey = useMemo(
-    () => (companyId ?? "") + "|" + JSON.stringify(template ?? {}),
-    [template, companyId],
+    () => (companyId ?? "") + "|" + (moduleId ?? "") + "|" + JSON.stringify(template ?? {}),
+    [template, companyId, moduleId],
   );
   const renderBlobUrl = useCallback(() => {
     if (!companyId || !template) return Promise.reject(new Error("Template non pronto"));
+    if (moduleId) return renderPavPreviewBlobUrl(buildPavModulePreview(companyId, template, moduleId));
     return renderPavPreviewBlobUrl({
       progetto: buildMockProgetto(companyId),
       computo: buildMockComputo(companyId),
       media: [],
       template,
     });
-  }, [template, companyId]);
+  }, [template, companyId, moduleId]);
 
   return (
     <PdfBlobLivePreviewPanel
+      activeSection={activeSection}
       renderBlobUrl={renderBlobUrl}
       depsKey={depsKey}
       enabled={!!companyId && !!template}

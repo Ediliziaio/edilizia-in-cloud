@@ -24,125 +24,12 @@ import {
 } from "../../../supabase/functions/_shared/fvHtmlTemplate";
 import { useFileRiservato, useImmaginiModelloFirmate } from "@/hooks/useFileRiservati";
 import { CAMPI_IMMAGINE_FOTOVOLTAICO } from "@/lib/storage/immaginiModelloPdf";
+import { buildFvPreviewBase } from "@/lib/moduli-vendita/fvPreviewData";
 
 /** Dati cliente/impianto di esempio: riempiono le pagine "dato-dipendenti"
  *  (investimento, scenario, flussi). Le pagine template-dipendenti (cover, chi
  *  siamo, recensioni, garanzie, condizioni) riflettono il template in editing. */
-function demoBase(): FvPdfTemplateData {
-  return {
-    azienda: {
-      name: "La tua azienda",
-      tagline: "Fotovoltaico chiavi in mano",
-      phone: "+39 02 000 000",
-      email: "info@azienda.it",
-      website: "https://azienda.it",
-      vat_number: "IT00000000000",
-    },
-    cliente: {
-      nome: "Mario",
-      cognome: "Rossi",
-      indirizzo: "Via Roma 1",
-      comune: "Milano",
-      cap: "20100",
-      provincia: "MI",
-      tipologia_immobile: "Villa singola",
-    },
-    progetto: {
-      numero: "FV-ANTEPRIMA",
-      titolo: "Mario Rossi",
-      creato_il: "2026-01-01T10:00:00Z",
-      valido_giorni: 30,
-      venditore: "Consulente",
-      potenza_kwp: 6,
-      numero_pannelli: 12,
-      has_accumulo: true,
-      capacita_accumulo_kwh: 10,
-      consumo_annuo_kwh: 4200,
-      costo_kwh_attuale: 0.32,
-      profilo_consumo: "misto",
-      ore_sole_annue: 1450,
-      superficie_tetto_disponibile_mq: 55,
-    },
-    costi: {
-      prezzo_vendita_iva_inclusa: 18000,
-      iva_perc: 10,
-      detrazione_eur: 9000,
-      detrazione_perc: 50,
-      costo_netto_dopo_detrazione: 9000,
-    },
-    finanziamento: {
-      finanziaria: "Finanziaria",
-      durata_mesi: 84,
-      rata_mensile: 230,
-      tan_perc: 4,
-      taeg_perc: 5,
-      importo_finanziato: 18000,
-    },
-    scenario: {
-      risparmio_mensile_eur: 150,
-      risparmio_anno1_eur: 1800,
-      risparmio_25_anni_eur: 46000,
-      payback_anni: 8,
-      npv_25_anni: 24000,
-      cassa_anno_per_anno: [
-        { anno: 0, cumulato: -18000 },
-        { anno: 8, cumulato: 0 },
-        { anno: 25, cumulato: 46000 },
-      ],
-    },
-    flows: {
-      produzione_kwh: 7400,
-      autoconsumo_kwh: 4200,
-      ceduto_rete_kwh: 3200,
-      prelievo_rete_kwh: 900,
-      autoconsumo_pct: 0.57,
-      autosufficienza_pct: 0.78,
-      consumo_da_rete_pct: 0.22,
-      consumo_da_fv_pct: 0.78,
-    },
-    // Gli stessi dati senza batteria (profilo misto: 35% della produzione).
-    flows_senza_accumulo: {
-      produzione_kwh: 7400,
-      autoconsumo_kwh: 2590,
-      ceduto_rete_kwh: 4810,
-      prelievo_rete_kwh: 2510,
-      autoconsumo_pct: 0.35,
-      autosufficienza_pct: 0.51,
-      consumo_da_rete_pct: 0.49,
-      consumo_da_fv_pct: 0.51,
-    },
-    // Le foto di serie del documento, dal sito stesso: come le vedrà il cliente.
-    foto_di_serie: typeof window !== "undefined" ? fotoDiSerieDalSito(window.location.origin) : null,
-    componenti: [
-      {
-        categoria: "pannello",
-        descrizione: "Pannello 500 W",
-        marca: "—",
-        modello: "PV500",
-        quantita: 12,
-        potenza_w: 500,
-        garanzia_anni: 25,
-      },
-      {
-        categoria: "inverter",
-        descrizione: "Inverter ibrido 6 kW",
-        marca: "—",
-        modello: "INV6",
-        quantita: 1,
-        garanzia_anni: 10,
-      },
-      {
-        categoria: "accumulo",
-        descrizione: "Batteria 10 kWh",
-        marca: "—",
-        modello: "BAT10",
-        quantita: 1,
-        capacita_kwh: 10,
-        garanzia_anni: 10,
-      },
-    ],
-  };
-}
+// Shared intervention-aware demonstration data.
 
 export default function FvTemplatePreviewDialog({
   open,
@@ -164,7 +51,7 @@ export default function FvTemplatePreviewDialog({
   const logoUrl = useFileRiservato(open ? logoSalvato : null) || null;
   const html = useMemo(() => {
     if (!open) return "";
-    const base = demoBase();
+    const base = buildFvPreviewBase(form as FvPdfTemplateData["template"]);
     const f = form ?? {};
     const str = (k: string) => {
       const v = f[k];

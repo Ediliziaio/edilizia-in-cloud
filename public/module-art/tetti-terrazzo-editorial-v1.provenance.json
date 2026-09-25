@@ -1,0 +1,16 @@
+{
+  "created": "2026-09-24",
+  "generator": "Built-in ImageGen",
+  "purpose": "Immagini illustrative per protezione e controlli delle coperture piane; non documentazione di un lavoro aziendale o dettaglio esecutivo.",
+  "assets": [
+    {
+      "file": "tetti-terrazzo-protezioni-v1.jpg",
+      "prompt": "Use case: photorealistic-natural. Asset type: editorial illustrative photograph for an Italian building quotation PDF, section protection of spaces for flat roof and terrace waterproofing. Create a premium but realistic wide landscape architectural photograph, 1536x1024. A modest modern Italian residential roof terrace under careful preparation: flat horizontal terrace, pale stucco parapet enclosing it, doorway threshold protected with masking tape, neat non-slip protective floor covering leading from the terrace doorway to the work zone. Rolled protection sheet and a small tidy tool bag well clear of the walkway. Natural soft morning daylight, muted limestone and sage palette, crisp material texture, uncluttered tasteful editorial composition. Camera at waist height looking diagonally across the terrace, important elements central with generous margins safe for a wide crop. No people, no pitched roof, no roof tiles, no safety certification claims, no logos, no text, no watermark. Clearly an illustrative generic scene, not proof of a real company project."
+    },
+    {
+      "file": "tetti-terrazzo-raccordi-v1.jpg",
+      "prompt": "Use case: photorealistic-natural. Asset type: illustrative editorial photo for flat-roof waterproofing quotation PDF, quality checks section. Generate one realistic landscape 1536x1024 photograph, premium architectural material photography. Close angled view of a clean flat roof with grey waterproof membrane running continuously up a pale parapet wall, neat visible membrane lap seams and a small round drain with a simple grate in the horizontal surface. Material texture subtly visible. A folded measuring tape and pencil resting well away from drain, no people. Natural diffuse daylight, calm neutral grey limestone palette. Main detail centred with generous margins to survive wide cropping, do not cut off drain or floor-wall junction. No pitched roof, no tiles, no diagrams, no text, no brands, no watermark, no claim of certified test or completed real company job. Generic illustrative scene, not a construction specification."
+    }
+  ],
+  "encoding": "JPEG quality 85, original composition and dimensions preserved. Originals retained in Codex generated_images."
+}

@@ -1,0 +1,14 @@
+{
+  "method": "built-in image_gen",
+  "purpose": "Illustrazioni dei moduli, non lavori aziendali o dettagli esecutivi",
+  "assets": [
+    {
+      "file": "public/module-art/tetti-impermeabilizzazione-cover.jpg",
+      "prompt": "Use case: photorealistic-natural. Asset type: portrait 2:3 editorial cover photograph for an Italian flat-roof and terrace waterproofing quotation PDF. Show a modest contemporary Italian flat roof with a clean grey waterproof membrane surface, plausible understated seam lines, membrane upstands around a low parapet with simple metal coping, a visible appropriate rainwater drain in the foreground. Rooftop perspective from accessible eye level, straight believable geometry, soft daylight, neutral grey and warm plaster colours, distant urban roofs subtle at top. No pitched tiles, no swimming pool, no extravagant lifestyle furniture, no people, tools, brands, words, labels, watermark or technical annotations. Main surface and perimeter junctions in upper two thirds, quiet darker foreground for eventual white title overlay. Illustrative architecture only, not a certified installation detail."
+    },
+    {
+      "file": "public/module-art/tetti-lattoneria-cover.jpg",
+      "prompt": "Use case: photorealistic-natural. Asset type: portrait 2:3 editorial photograph for an Italian rain gutter and metal flashing quotation PDF. Main subject a clearly visible realistic half-round zinc rain gutter along a modest Italian terracotta tiled eave, meeting a circular vertical zinc downpipe through a plausible elbow and outlet. Frame the building corner closely, pale warm plaster wall, a short roof edge at top, natural patinated silver zinc details and believable brackets. Straight vertical lines, premium architectural product photography, soft cloudy daylight, muted neutrals. Keep gutter and downpipe identifiable, quiet plaster in lower part for later title. No exposed interior, no people, no text, logos, labels or watermarks. No dramatic rain, no engineering diagram, no invented certification. Illustrative image, not actual company work."
+    }
+  ]
+}

@@ -14,52 +14,23 @@ import { Loader2, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { renderBgnPreviewBlobUrl } from "@/hooks/useBagniPDF";
-import type { BgnTemplatePdf, BgnProgetto, BgnComputoVoce } from "@/types/bagni";
+import type { BgnTemplatePdf } from "@/types/bagni";
+import { buildBgnModulePreview, type FullBgnModuleId } from "@/lib/moduli-vendita/fullBgnModules";
 
-function buildMockComputo(companyId: string): BgnComputoVoce[] {
-  const row = (
-    i: number, cap: string, descrizione: string,
-    um: BgnComputoVoce["unita_misura"], q: number, p: number, cm: number, cl: number,
-  ): BgnComputoVoce => ({
-    id: String(i), progetto_id: "preview", company_id: companyId, capitolo_nome: cap, descrizione,
-    unita_misura: um, quantita: q, prezzo_unitario: p, costo_materiali: cm, costo_manodopera: cl,
-    sconto_pct: 0, importo: q * p, margine_eur: q * (p - cm - cl),
-    margine_pct: p > 0 ? ((p - cm - cl) / p) * 100 : 0, listino_voce_id: null, ordine: i,
-  });
-  return [
-    row(0, "Demolizioni e rimozioni", "Demolizione tramezzi interni", "mq", 25, 18, 2, 10),
-    row(1, "Demolizioni e rimozioni", "Rimozione pavimenti esistenti", "mq", 90, 12, 1, 6),
-    row(2, "Opere edili", "Nuove pareti divisorie in cartongesso", "mq", 40, 28, 8, 12),
-    row(3, "Impianti", "Rifacimento impianto elettrico certificato", "corpo", 1, 6500, 2000, 2500),
-    row(4, "Impianti", "Rifacimento impianto idraulico", "corpo", 1, 4200, 1500, 1500),
-    row(5, "Finiture", "Posa pavimento gres porcellanato", "mq", 90, 42, 22, 14),
-  ];
-}
 
-function buildMockProgetto(companyId: string): BgnProgetto {
-  return {
-    id: "preview", company_id: companyId, code: "ANTEPRIMA", stato: "bozza",
-    tipo_intervento: "Rifacimento bagno completo",
-    cliente_nome: "Mario", cliente_cognome: "Rossi", cliente_email: null, cliente_telefono: null,
-    cantiere_indirizzo: "Via Roma 1", cantiere_citta: "Milano", cantiere_provincia: "MI", cantiere_cap: "20100",
-    immobile_tipo: "Appartamento", immobile_superficie_mq: 90, immobile_anno: 1975, immobile_piani: 1,
-    opportunita_id: null, cliente_id: null, template_id: null,
-    sconto_pct: 0, iva_pct: 10, detrazione_pct: 50,
-    totale_imponibile: 0, totale: 0, note: null,
-  };
-}
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   template: BgnTemplatePdf | null;
   companyId: string | null;
+  moduleId?: FullBgnModuleId;
   /** Apertura del PDF in una scheda separata (riusa l'handler dell'editor). */
   onOpenInTab?: () => void;
 }
 
 export function BagniTemplatePreviewDialog({
-  open, onOpenChange, template, companyId, onOpenInTab,
+  open, onOpenChange, template, companyId, moduleId, onOpenInTab,
 }: Props) {
   const [url, setUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -74,12 +45,7 @@ export function BagniTemplatePreviewDialog({
         setLoading(true);
         setError(null);
         try {
-          const blobUrl = await renderBgnPreviewBlobUrl({
-            progetto: buildMockProgetto(companyId),
-            computo: buildMockComputo(companyId),
-            media: [],
-            template,
-          });
+          const blobUrl = await renderBgnPreviewBlobUrl(buildBgnModulePreview(companyId, template, moduleId));
           if (cancelled) { URL.revokeObjectURL(blobUrl); return; }
           if (urlRef.current) URL.revokeObjectURL(urlRef.current);
           urlRef.current = blobUrl;
@@ -92,7 +58,7 @@ export function BagniTemplatePreviewDialog({
       })();
     }, 450);
     return () => { cancelled = true; window.clearTimeout(timer); };
-  }, [open, template, companyId]);
+  }, [open, template, companyId, moduleId]);
 
   // Revoca l'ultimo blob al unmount.
   useEffect(() => () => {

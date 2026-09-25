@@ -16,10 +16,12 @@ export interface CoverStockImage {
 }
 
 const BASE = "/cover-stock/ristrutturazione";
-const COUNT = 3;
+// La terza immagine storica era una piscina: fuori tema per una galleria
+// generica di ristrutturazione. La teniamo fuori dalla selezione finché non
+// viene sostituita con una foto coerente di cantiere o di risultato finale.
+const FILES = [1, 2] as const;
 
-export const COVER_STOCK_IMAGES: CoverStockImage[] = Array.from({ length: COUNT }, (_, i) => {
-  const n = i + 1;
+export const COVER_STOCK_IMAGES: CoverStockImage[] = FILES.map((n) => {
   return {
     id: `rst-cover-${n}`,
     url: `${BASE}/${n}.jpg`,

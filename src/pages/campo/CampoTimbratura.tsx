@@ -3,20 +3,26 @@
  * Flusso: Entrata → Pausa inizio → Pausa fine → Uscita
  * Storico ultimi 14 giorni.
  */
-import { useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { format, differenceInMinutes, parseISO } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import {
-  LogIn, LogOut, Coffee,
-  CheckCircle, Loader2, AlertCircle, Navigation, PauseCircle, HardHat, MapPin,
+  LogIn, LogOut,
+  Loader2, Navigation, HardHat, MapPin,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGPS } from "@/hooks/useGPS";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useCampoDayTime } from "@/hooks/campo/useCampoDayTime";
+import { campoDayWindow, campoReportHours, campoPunchOrderId, canRecordCampoPunch, summarizeCampoTime } from "@/lib/campo/timeSummary";
+import { refreshCampoTimeQueries } from "@/lib/campo/refreshTimeQueries";
+import { useCampoAssignments } from "@/hooks/campo/useCampoAssignments";
+import { CampoPunchActions } from "@/components/campo/CampoPunchActions";
+import { campoWorkDay, reportDayAllowed } from "@/lib/campo/workDay";
 
 type TipoTimbratura = "entrata" | "uscita" | "pausa_inizio" | "pausa_fine";
 
@@ -24,7 +30,7 @@ interface Timbratura {
   id: string;
   tipo: TipoTimbratura;
   timestamp_evento: string;
-  order_id?: string | null;
+  order_id: string | null;
   lat?: number;
   lng?: number;
   indirizzo?: string;
@@ -33,10 +39,25 @@ interface Timbratura {
 
 export default function CampoTimbratura() {
   const { user, profile } = useAuth();
+  const [params] = useSearchParams();
+  return <CampoTimbraturaEditor key={`${profile?.company_id}:${user?.id}:${params.get("order_id")}`} />;
+}
+
+function CampoTimbraturaEditor() {
+  const { user, profile } = useAuth();
   const qc = useQueryClient();
+  const navigate = useNavigate();
+  const [lastExit, setLastExit] = useState<{ orderId: string; day: string } | null>(null);
   const [searchParams] = useSearchParams();
   const companyId = profile?.company_id ?? null;
-  const selectedOrderId = searchParams.get("order_id");
+  const dayTime = useCampoDayTime(user?.id, companyId);
+  const assignments = useCampoAssignments();
+  const [entryChoice, setEntryChoice] = useState<string | null>(null);
+  const hasOpenSession = dayTime.summary.state === "working" || dayTime.summary.state === "paused";
+  const choice = entryChoice ?? searchParams.get("order_id") ?? (hasOpenSession ? dayTime.summary.activeOrderId ?? "__unassigned__" : "");
+  const selectedOrderId = choice && choice !== "__unassigned__" ? choice : null;
+  const selectedAssignment = assignments.data?.find(a => a.order_id === selectedOrderId);
+  const canStartHere = choice === "__unassigned__" || (assignments.isSuccess && !!selectedAssignment);
   const fallbackOrderCode = searchParams.get("order_code");
   const fallbackOrderTitle = searchParams.get("order_title");
   const fallbackOrderAddress = searchParams.get("order_address");
@@ -51,7 +72,7 @@ export default function CampoTimbratura() {
   }, [companyId]);
 
   // Today's timbrature
-  const today = format(new Date(), "yyyy-MM-dd");
+  const today = campoWorkDay(dayTime.now);
 
   const { data: selectedOrder, isLoading: selectedOrderLoading } = useQuery({
     queryKey: ["campo-timbratura-order", selectedOrderId, companyId],
@@ -61,6 +82,7 @@ export default function CampoTimbratura() {
           .from("orders")
           .select("id, order_code, description, indirizzo_lavori")
           .eq("id", selectedOrderId!)
+          .eq("company_id", companyId!)
           .maybeSingle()
           .then(({ data, error }) => {
             if (error) throw error;
@@ -69,11 +91,11 @@ export default function CampoTimbratura() {
         new Promise<null>((resolve) => window.setTimeout(() => resolve(null), 3500)),
       ]);
     },
-    enabled: !!selectedOrderId,
+    enabled: !!selectedOrderId && !!companyId,
     staleTime: 60_000,
   });
 
-  const fallbackSelectedOrder = selectedOrderId && (fallbackOrderCode || fallbackOrderTitle || fallbackOrderAddress)
+  const fallbackSelectedOrder = selectedOrderId && selectedOrderId === searchParams.get("order_id") && (fallbackOrderCode || fallbackOrderTitle || fallbackOrderAddress)
     ? {
         id: selectedOrderId,
         order_code: fallbackOrderCode ?? "Cantiere selezionato",
@@ -81,25 +103,9 @@ export default function CampoTimbratura() {
         indirizzo_lavori: fallbackOrderAddress,
       }
     : null;
-  const selectedOrderContext = selectedOrder ?? fallbackSelectedOrder;
+  const selectedOrderContext = selectedAssignment?.order ?? selectedOrder ?? fallbackSelectedOrder;
 
-  const { data: timbratureOggi = [] } = useQuery({
-    queryKey: ["campo-timbrature-oggi", companyId, user?.id, today],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("campo_timbrature")
-        .select("*")
-        .eq("user_id", user!.id)
-        .eq("company_id", companyId!)
-        .gte("timestamp_evento", `${today}T00:00:00`)
-        .lte("timestamp_evento", `${today}T23:59:59`)
-        .order("timestamp_evento", { ascending: true });
-      if (error) throw error;
-      return (data ?? []) as Timbratura[];
-    },
-    enabled: !!user?.id && !!companyId,
-  });
-
+  const timbratureOggi = dayTime.todayPunches;
   // Storico 14 giorni
   const { data: storico = [] } = useQuery({
     queryKey: ["campo-timbrature-storico", companyId, user?.id],
@@ -119,62 +125,28 @@ export default function CampoTimbratura() {
     enabled: !!user?.id && !!companyId,
   });
 
-  // Determine current state
-  const lastTimbro = timbratureOggi[timbratureOggi.length - 1];
-  const isInPausa = lastTimbro?.tipo === "pausa_inizio";
-  const isActive = lastTimbro?.tipo === "entrata" || lastTimbro?.tipo === "pausa_fine";
-  const isUscito = lastTimbro?.tipo === "uscita";
-
-  // Compute ore lavorate: supporta piu sessioni entrata/uscita nella stessa giornata.
-  let minutiLavorati = 0;
-  let minutiPausa = 0;
-  let inizioLavoro: Date | null = null;
-  let inizioPausa: Date | null = null;
-
-  for (const timbro of timbratureOggi) {
-    const ts = parseISO(timbro.timestamp_evento);
-    if (timbro.tipo === "entrata" || timbro.tipo === "pausa_fine") {
-      if (timbro.tipo === "pausa_fine" && inizioPausa) {
-        minutiPausa += Math.max(0, differenceInMinutes(ts, inizioPausa));
-        inizioPausa = null;
-      }
-      inizioLavoro = ts;
-    } else if (timbro.tipo === "pausa_inizio") {
-      if (inizioLavoro) {
-        minutiLavorati += Math.max(0, differenceInMinutes(ts, inizioLavoro));
-        inizioLavoro = null;
-      }
-      inizioPausa = ts;
-    } else if (timbro.tipo === "uscita") {
-      if (inizioLavoro) {
-        minutiLavorati += Math.max(0, differenceInMinutes(ts, inizioLavoro));
-        inizioLavoro = null;
-      }
-      inizioPausa = null;
-    }
-  }
-  if (inizioLavoro) {
-    minutiLavorati += Math.max(0, differenceInMinutes(new Date(), inizioLavoro));
-  }
-  if (inizioPausa) {
-    minutiPausa += Math.max(0, differenceInMinutes(new Date(), inizioPausa));
-  }
-
-  const oreLavorate = minutiLavorati / 60;
-
+  const isInPausa = dayTime.summary.state === "paused";
+  const isActive = dayTime.summary.state === "working";
+  const minutiPausa = Math.round(dayTime.summary.pauseMinutes);
+  const oreLavorate = campoReportHours(dayTime.summary.workMinutes);
+  const activeElsewhere = (isActive || isInPausa) && selectedOrderId !== dayTime.summary.activeOrderId;
+  const selectedSiteMinutes = selectedOrderId ? dayTime.summary.byOrder.get(selectedOrderId)?.workMinutes ?? 0 : null;
   const timbraMutation = useMutation({
     mutationFn: async (tipo: TipoTimbratura) => {
-      if (!companyId) throw new Error("Azienda non disponibile, ricarica la pagina");
+      if (!companyId || !user || !dayTime.isSuccess) throw new Error("Timbrature non disponibili, ricarica la pagina");
+      if (!canRecordCampoPunch(dayTime.summary.state, tipo)) throw new Error("Sequenza non valida: aggiorna le timbrature");
+      if (tipo === "entrata" && !canStartHere) throw new Error("Scegli un cantiere assegnato oppure ore da attribuire");
+      const orderId = campoPunchOrderId(tipo, dayTime.summary.activeOrderId, selectedOrderId);
       const gpsReady = gpsStatus === "success";
       const now = new Date().toISOString();
       const note = [
-        selectedOrderContext ? `Cantiere: ${selectedOrderContext.order_code ?? selectedOrderContext.id}` : null,
+        orderId ? `Cantiere: ${orderId === selectedOrderId ? selectedOrderContext?.order_code ?? orderId : orderId}` : null,
         address ? `GPS: ${address}` : null,
       ].filter(Boolean).join(" · ") || null;
       const { error } = await supabase.from("campo_timbrature").insert({
         user_id: user!.id,
         company_id: companyId,
-        order_id: selectedOrderContext?.id ?? selectedOrderId ?? null,
+        order_id: orderId,
         tipo,
         timestamp_evento: now,
         gps_lat: gpsReady ? lat : null,
@@ -184,12 +156,13 @@ export default function CampoTimbratura() {
         fonte: "app",
       });
       if (error) throw error;
+      return { orderId, day: campoWorkDay(new Date(now)) };
       // La copia sul registro HR la fa il trigger DB trg_mirror_campo_timbratura,
       // dentro questa stessa transazione: prima erano due insert separati che
       // potevano lasciare la timbratura fuori dal registro (e quindi fuori dalle
       // ore del cedolino) senza che nessuno se ne accorgesse.
     },
-    onSuccess: (_, tipo) => {
+    onSuccess: async (result, tipo) => {
       const labels: Record<TipoTimbratura, string> = {
         entrata: "Entrata registrata",
         uscita: "Uscita registrata",
@@ -197,8 +170,8 @@ export default function CampoTimbratura() {
         pausa_fine: "Pausa terminata",
       };
       toast.success(labels[tipo]);
-      qc.invalidateQueries({ queryKey: ["campo-timbrature-oggi"] });
-      qc.invalidateQueries({ queryKey: ["campo-timbrature-storico"] });
+      if (tipo === "uscita" && result?.orderId) setLastExit(result);
+      await refreshCampoTimeQueries(qc);
       // La timbratura è appena entrata anche nel registro HR: le viste
       // dell'ufficio e le presenze devono rileggerle, non restare indietro.
       qc.invalidateQueries({ queryKey: ["hr-timbrature"] });
@@ -206,29 +179,13 @@ export default function CampoTimbratura() {
       qc.invalidateQueries({ queryKey: ["hr-live-status"] });
       qc.invalidateQueries({ queryKey: ["hr-giornate"] });
     },
-    onError: () => toast.error("Errore durante la timbratura"),
+    onError: error => toast.error(error instanceof Error ? error.message : "Errore durante la timbratura"),
   });
-
-  const getNextAction = (): { tipo: TipoTimbratura; label: string; icon: typeof LogIn; color: string } | null => {
-    if (!lastTimbro || lastTimbro.tipo === "uscita") {
-      return { tipo: "entrata", label: lastTimbro ? "NUOVA ENTRATA" : "TIMBRA ENTRATA", icon: LogIn, color: "bg-green-500" };
-    }
-    if (lastTimbro.tipo === "entrata" || lastTimbro.tipo === "pausa_fine") {
-      return { tipo: "pausa_inizio", label: "INIZIA PAUSA", icon: Coffee, color: "bg-primary" };
-    }
-    if (lastTimbro.tipo === "pausa_inizio") {
-      return { tipo: "pausa_fine", label: "FINE PAUSA", icon: PauseCircle, color: "bg-primary" };
-    }
-    return null;
-  };
-
-  const nextAction = getNextAction();
-  const canExit = (isActive || isInPausa) && !isUscito;
 
   // Group storico by day
   const storicoByDay: Record<string, Timbratura[]> = {};
   storico.forEach(t => {
-    const day = format(parseISO(t.timestamp_evento), "yyyy-MM-dd");
+    const day = campoWorkDay(parseISO(t.timestamp_evento));
     if (!storicoByDay[day]) storicoByDay[day] = [];
     storicoByDay[day].push(t);
   });
@@ -254,6 +211,38 @@ export default function CampoTimbratura() {
       </div>
 
       <div className="px-4 py-4 space-y-4">
+        {dayTime.summary.state === "out" && <div className="space-y-2 rounded-2xl border bg-background p-4">
+          <label htmlFor="campo-punch-site" className="text-sm font-semibold">Dove inizi a lavorare?</label>
+          <select id="campo-punch-site" value={choice} disabled={timbraMutation.isPending}
+            onChange={e => setEntryChoice(e.target.value)}
+            className="min-h-12 w-full min-w-0 rounded-xl border bg-background px-3 text-base">
+            <option value="" disabled>Scegli il cantiere</option>
+            {selectedOrderId && !selectedAssignment && <option value={selectedOrderId} disabled>Cantiere da verificare</option>}
+            {(assignments.data ?? []).map(a => <option key={a.order_id} value={a.order_id}>
+              {a.order.order_code || "Cantiere"} · {a.order.description || a.order.indirizzo_lavori || "Lavoro assegnato"}
+            </option>)}
+            <option value="__unassigned__">Nessun cantiere — ore da attribuire</option>
+          </select>
+          {assignments.isLoading && <p role="status" className="text-xs text-muted-foreground">Caricamento cantieri assegnati…</p>}
+          {assignments.isError && <div role="alert" className="text-sm text-amber-700">
+            Non riesco a verificare i cantieri assegnati.
+            <button type="button" className="ml-2 min-h-11 text-primary underline" onClick={() => assignments.refetch()}>Riprova cantieri</button>
+          </div>}
+          {assignments.isSuccess && selectedOrderId && !selectedAssignment && <p role="alert" className="text-sm text-amber-700">Questo cantiere non risulta tra quelli assegnati e aperti. Scegline uno disponibile.</p>}
+          {assignments.isSuccess && !assignments.data.length && <p className="text-xs text-muted-foreground">Non hai cantieri assegnati disponibili.</p>}
+        </div>}
+        {dayTime.isError && (
+          <div role="alert" className="rounded-xl border border-destructive/30 p-4 text-sm">
+            <p>Non riesco a leggere le timbrature. Le azioni restano sospese per evitare una nuova entrata errata.</p>
+            <button type="button" onClick={() => dayTime.refetch()} className="mt-2 min-h-11 text-primary underline">Riprova</button>
+          </div>
+        )}
+        {activeElsewhere && (
+          <div role="status" className="rounded-xl border bg-muted/40 p-4 text-sm">
+            Hai una sessione aperta {dayTime.summary.activeOrderId ? "su un altro cantiere" : "senza cantiere"}. Pausa e uscita restano collegate a quella sessione.
+            Per iniziare qui, registra prima l'uscita e poi una nuova entrata.
+          </div>
+        )}
         {selectedOrderId && selectedOrderLoading && !selectedOrderContext && (
           <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
             <div className="flex items-center gap-3 text-sm font-semibold text-primary">
@@ -271,7 +260,7 @@ export default function CampoTimbratura() {
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-bold uppercase tracking-wide text-primary">
-                  Timbratura collegata
+                  {activeElsewhere ? "Cantiere aperto nella schermata" : "Timbratura collegata"}
                 </p>
                 <p className="truncate text-base font-bold text-foreground">
                   {selectedOrderContext.order_code}
@@ -298,28 +287,53 @@ export default function CampoTimbratura() {
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-bold uppercase tracking-wide text-amber-800">
-                  Timbratura collegata
+                  {activeElsewhere ? "Cantiere aperto nella schermata" : "Timbratura collegata"}
                 </p>
                 <p className="text-sm font-semibold text-amber-900">
                   Cantiere selezionato
                 </p>
                 <p className="mt-1 text-xs text-amber-800">
-                  Le ore saranno associate al lavoro aperto. Se il nome non appare, ricarica dai lavori assegnati.
+                  {activeElsewhere
+                    ? "Pausa e uscita restano sulla sessione già aperta, non su questo cantiere."
+                    : "La nuova entrata sarà associata al lavoro aperto. Se il nome non appare, ricarica dai lavori assegnati."}
                 </p>
               </div>
             </div>
           </div>
         )}
 
+        {choice === "__unassigned__" && dayTime.summary.state === "out" && (
+          <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            Nessun cantiere selezionato: questa entrata registrerà ore da attribuire.
+            Puoi collegarle subito scegliendo un cantiere qui sopra.
+          </div>
+        )}
+
+        <CampoPunchActions state={dayTime.summary.state}
+          busy={timbraMutation.isPending || !dayTime.isSuccess} canEnter={canStartHere}
+          onPunch={tipo => timbraMutation.mutate(tipo)} />
+        {lastExit && reportDayAllowed(lastExit.day, dayTime.now) && <div role="status" className="space-y-2 rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-900">
+          <p className="font-semibold">Uscita registrata. Il rapportino è separato.</p>
+          <p>Puoi compilarlo ora o entro il giorno successivo al lavoro. Puoi già timbrare su un altro cantiere.</p>
+          <button type="button" className="min-h-12 w-full rounded-lg border border-green-300 bg-background px-3 font-semibold"
+            onClick={() => navigate(`/campo/lavoro/${lastExit.orderId}/rapportino?data=${lastExit.day}`)}>Compila il rapportino</button>
+        </div>}
+
         {/* Ore lavorate oggi */}
         <div className="bg-muted border border-border rounded-2xl p-5">
           <p className="text-xs text-muted-foreground mb-1">Oggi — {format(new Date(), "EEEE d MMMM", { locale: it })}</p>
           <div className="flex items-end gap-2">
-            <span className="text-4xl font-bold text-foreground">{oreLavorate.toFixed(1)}</span>
-            <span className="text-lg text-muted-foreground mb-1">h lavorate</span>
+            <span className="text-4xl font-bold text-foreground">{dayTime.isError || dayTime.isLoading ? "—" : oreLavorate.toFixed(1)}</span>
+            <span className="text-lg text-muted-foreground mb-1">h nella giornata</span>
           </div>
           {minutiPausa > 0 && (
             <p className="text-xs text-muted-foreground mt-1">{minutiPausa} min pausa</p>
+          )}
+          {selectedSiteMinutes != null && dayTime.isSuccess && (
+            <p className="mt-2 text-sm">Su questo cantiere: {campoReportHours(selectedSiteMinutes)} h · pause escluse</p>
+          )}
+          {dayTime.summary.issues.some(issue => issue.kind !== "open_session") && (
+            <p role="status" className="mt-2 text-sm text-amber-700">Sequenza di timbrature da verificare prima del rapportino.</p>
           )}
 
           {/* Timeline oggi */}
@@ -347,55 +361,6 @@ export default function CampoTimbratura() {
           )}
         </div>
 
-        {/* Azioni principali */}
-        <div className="space-y-3">
-          {/* Azione principale (entrata / pausa) */}
-          {nextAction && (
-            <button
-              onClick={() => timbraMutation.mutate(nextAction.tipo)}
-              disabled={timbraMutation.isPending}
-              className={cn(
-                "w-full py-5 rounded-2xl font-bold text-lg flex items-center justify-center gap-3 active:scale-[0.98] transition-transform",
-                nextAction.color,
-                nextAction.tipo === "entrata" ? "text-white" : "text-primary-foreground"
-              )}
-            >
-              {timbraMutation.isPending ? (
-                <Loader2 className="w-6 h-6 animate-spin" />
-              ) : (
-                <nextAction.icon className="w-6 h-6" />
-              )}
-              {nextAction.label}
-            </button>
-          )}
-
-          {/* Uscita */}
-          {canExit && (
-            <button
-              onClick={() => timbraMutation.mutate("uscita")}
-              disabled={timbraMutation.isPending}
-              className="w-full py-4 rounded-2xl font-bold text-base bg-red-600 text-white flex items-center justify-center gap-3 active:scale-[0.98] transition-transform"
-            >
-              <LogOut className="w-5 h-5" />
-              TIMBRA USCITA
-            </button>
-          )}
-
-          {isUscito && (
-            <div className="flex items-center justify-center gap-2 py-4 bg-muted border border-border rounded-2xl">
-              <CheckCircle className="w-5 h-5 text-green-600" />
-              <p className="text-green-600 font-semibold">Fuori servizio</p>
-            </div>
-          )}
-
-          {!lastTimbro && (
-            <div className="flex items-center gap-2 p-3 bg-primary/10 border border-primary/20 rounded-xl">
-              <AlertCircle className="w-4 h-4 text-primary shrink-0" />
-              <p className="text-xs text-primary">Timbra l'entrata per iniziare la giornata</p>
-            </div>
-          )}
-        </div>
-
         {/* Storico */}
         <div>
           <p className="text-xs text-muted-foreground mb-3 uppercase tracking-wide">Storico ultimi 14 giorni</p>
@@ -408,38 +373,11 @@ export default function CampoTimbratura() {
             {Object.entries(storicoByDay)
               .filter(([day]) => day !== today)
               .map(([day, items]) => {
-                // Lo storico arriva DESC (giorni più recenti in alto), ma il
-                // conteggio di pause e sessioni ha senso solo in ordine
-                // cronologico: prima si calcolava su array rovesciato →
-                // pause mai riconosciute e, con più sessioni, entrata/uscita
-                // sbagliate. Ordiniamo una copia ASC e sommiamo OGNI coppia
-                // entrata→uscita della giornata.
-                const asc = [...items].sort((a, b) =>
-                  a.timestamp_evento.localeCompare(b.timestamp_evento)
-                );
-                let mins = 0;
-                let pauseMins = 0;
-                for (let i = 0; i < asc.length - 1; i++) {
-                  if (asc[i].tipo === "pausa_inizio" && asc[i + 1].tipo === "pausa_fine") {
-                    pauseMins += differenceInMinutes(
-                      parseISO(asc[i + 1].timestamp_evento),
-                      parseISO(asc[i].timestamp_evento)
-                    );
-                  }
-                }
-                let entrataAperta: string | null = null;
-                for (const t of asc) {
-                  if (t.tipo === "entrata") entrataAperta = t.timestamp_evento;
-                  else if (t.tipo === "uscita" && entrataAperta) {
-                    mins += Math.max(0, differenceInMinutes(parseISO(t.timestamp_evento), parseISO(entrataAperta)));
-                    entrataAperta = null;
-                  }
-                }
-                mins = Math.max(0, mins - pauseMins);
+                const asc = [...items].sort((a, b) => a.timestamp_evento.localeCompare(b.timestamp_evento));
+                const historical = summarizeCampoTime(storico, { ...campoDayWindow(day), now: dayTime.now });
                 const ent = asc.find(t => t.tipo === "entrata");
                 const usc = [...asc].reverse().find(t => t.tipo === "uscita");
-                const ore = (mins / 60).toFixed(1);
-
+                const ore = (historical.workMinutes / 60).toFixed(1);
                 return (
                   <div key={day} className="bg-muted border border-border rounded-xl p-3">
                     <div className="flex items-center justify-between mb-2">

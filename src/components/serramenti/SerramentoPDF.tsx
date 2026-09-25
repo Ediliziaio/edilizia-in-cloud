@@ -19,6 +19,8 @@
  * fallisce (CORS, network) il renderer fa fallback automatico a Helvetica.
  */
 import * as React from "react";
+import { ensurePdfBufferCompatibility } from "@/lib/pdf/ensurePdfBufferCompatibility";
+import { srSectionAnchor, withSrSectionAnchor } from "./srSemanticPreview";
 import { Document, Page, Text, View, StyleSheet, Image, Link, Svg, Path, Rect, Circle, G, Font, Defs, LinearGradient, RadialGradient, Stop } from "@react-pdf/renderer";
 import type {
   SrProgettoDetail, SrSerramentoRow, SrPagamentoMilestone,
@@ -31,6 +33,8 @@ import type {
   SrGaranzia, SrConfrontoRiga, SrCertificazione, SrBonus, SrFaq,
 } from "@/types/serramenti";
 import { calcolaTotale } from "@/lib/serramenti/calcoli";
+import { serramentiModuleExclusions } from "@/lib/moduli-vendita/serramentiOfferScope";
+import { serramentiRoomSummary } from "@/lib/moduli-vendita/serramentiRoomSummary";
 import { applicaMergeTagModulo } from "@/lib/mergeTagsModuli";
 import { generateInterventoSintesi } from "@/lib/serramenti/sintesiIntervento";
 import { testoScelta } from "@/lib/listino/scelteVariante";
@@ -43,6 +47,8 @@ import { leggiBlocco, PAGINE_BLOCCO, type ContenutoBlocco, type PaginaBlocco } f
 import { IconaPdf } from "@/components/preventivi/pdf/IconaPdf";
 import { ParoleDeiClienti, VotiOnline } from "@/components/preventivi/pdf/provaSocialePdf";
 import { creaTema } from "@/components/preventivi/pdf/temaDocumento";
+import { CopertinaDocumento } from "@/components/preventivi/pdf/DocumentoEdilePDF";
+import { serramentiCoverLayout } from "@/lib/moduli-vendita/serramentiCoverLayout";
 import { leggiVotiOnline } from "../../../supabase/functions/_shared/recensioniOnline";
 import { leggiTestata } from "../../../supabase/functions/_shared/testatePagine";
 import { spezzaAccento } from "@/components/preventivi/pdf/testoDocumento";
@@ -58,6 +64,9 @@ import type {
   SerramentoPdfMacroField, SerramentoPdfMacroPagina,
   SerramentoPdfSupplierLine, SerramentoPdfLineaPagina,
 } from "@/hooks/useSerramentoPDF";
+
+// Direct Serramenti previews must not depend on another PDF entry having loaded.
+ensurePdfBufferCompatibility();
 
 // Il PDF usa Helvetica, incluso in react-pdf: nessun font da scaricare.
 const FF = "Helvetica";
@@ -1537,7 +1546,7 @@ function CashflowSvg({ years, primary, breakEvenColor = "#15803D", altezza = 180
  * capo. `fixed` perché react-pdf non apra un foglio nuovo solo per lei.
  * `mostra` riceve quanti fogli ha davvero la sezione e decide se la foto serve.
  */
-function FotoInFondo({ src, mostra }: { src: string; mostra: (fogli: number) => boolean }) {
+function FotoInFondo({ src, mostra, posizioneY = "50%" }: { src: string; mostra: (fogli: number) => boolean; posizioneY?: string }) {
   return (
     <View
       fixed
@@ -1546,7 +1555,7 @@ function FotoInFondo({ src, mostra }: { src: string; mostra: (fogli: number) => 
         // react-pdf passa anche subPageTotalPages (layout, resolvePageIndices), ma i suoi tipi non lo dicono.
         const { subPageNumber, subPageTotalPages } = fogli as { subPageNumber?: number; subPageTotalPages?: number };
         return subPageNumber != null && subPageTotalPages != null && subPageNumber === subPageTotalPages && mostra(subPageTotalPages)
-          ? <Image src={src} style={{ flexGrow: 1, flexBasis: 0, marginTop: 18, width: "100%", objectFit: "cover", borderRadius: 6 }} />
+          ? <Image src={src} style={{ flexGrow: 1, flexBasis: 0, marginTop: 18, width: "100%", objectFit: "cover", objectPositionY: posizioneY, borderRadius: 6 }} />
           : null;
       }}
     />
@@ -1681,7 +1690,23 @@ function fotoChiSiamo(src: string, titolo: string, testo: string | null, certifi
  * Niente flexGrow: accanto a un elemento che si allarga il motore misura male i
  * titoli su più righe. Due foto affiancate restano più basse (sennò sarebbero strette e alte).
  */
-function altezzaFotoBlocco(blocco: ContenutoBlocco, quanteFoto: number): number {
+function altezzaFotoBlocco(blocco: ContenutoBlocco, quanteFoto: number, moduloLocale = false): number {
+  if (moduloLocale) {
+    // Budget against the actual header/footer and text-column widths. Leave
+    // safety for font/layout rounding; never push the final two checks away.
+    const colonne = blocco.voci.some(v => v.testo) ? 2 : 3;
+    const testoLargo = (UTILE_PAGINA - 14 * (colonne - 1)) / colonne - 35;
+    const testa = 17 + altezzaTesto(blocco.titolo.replace(/\*/g, ""), UTILE_PAGINA, "Helvetica-Bold", 26, 1.05) + 6
+      + (blocco.intro ? altezzaTesto(blocco.intro, UTILE_PAGINA, "Helvetica", 10.5, 1.45) + 14 : 0);
+    let voci = 0;
+    for (let i = 0; i < blocco.voci.length; i += colonne) {
+      voci += Math.max(...blocco.voci.slice(i, i + colonne).map(v => Math.max(26,
+        (v.testo ? 1 : 7) + altezzaTesto(v.titolo, testoLargo, "Helvetica-Bold", 10.5, 1.3)
+        + (v.testo ? 2 + altezzaTesto(v.testo, testoLargo, "Helvetica", 9.2, 1.45) : 0)))) + (colonne === 2 ? 16 : 11);
+    }
+    const nota = blocco.nota ? 5 + altezzaTesto(blocco.nota, UTILE_PAGINA, "Helvetica", 7, 1.2) : 0;
+    return Math.max(100, Math.min(300, Math.floor(ALTEZZA_UTILE - testa - voci - nota - 16 - 32)));
+  }
   const righe = (testo: string, perRiga: number) => Math.max(1, Math.ceil(testo.length / perRiga));
   const titolo = righe(blocco.titolo.replace(/\*/g, ""), 32) * 26 * 1.05 + 6;
   const intro = blocco.intro ? righe(blocco.intro, 84) * 10.5 * 1.45 + 14 : 0;
@@ -1725,11 +1750,12 @@ function misuraTavolaSr(blocco: ContenutoBlocco, proporzione: number, conNota: b
   return { larghezza, altezza: Math.floor(larghezza / proporzione), colonna: UTILE_PAGINA - STACCO_TAVOLA_SR - larghezza };
 }
 
-function SezioneBlocco({ blocco, foto, C, styles }: {
+function SezioneBlocco({ blocco, foto, C, styles, moduloLocale = false }: {
   blocco: ContenutoBlocco;
   foto: FotoBloccoPronta[];
   C: ReturnType<typeof makePalette>;
   styles: ReturnType<typeof makeStyles>;
+  moduloLocale?: boolean;
 }) {
   const due = foto.length > 1;
   const mezza = (UTILE_PAGINA - 10) / 2;
@@ -1782,7 +1808,7 @@ function SezioneBlocco({ blocco, foto, C, styles }: {
           <View style={{ flexDirection: "row" }}>
             {foto.slice(0, 2).map((f, i) => (
               // In Serramenti un blocco ha di solito la pagina per sé: foto grandi, niente mezza pagina bianca.
-              <Image key={i} src={f.src} style={{ width: due ? mezza : UTILE_PAGINA, height: altezzaFotoBlocco(blocco, foto.length), objectFit: "cover", borderRadius: 6, marginLeft: i === 0 ? 0 : 10 }} />
+              <Image key={i} src={f.src} style={{ width: due ? mezza : UTILE_PAGINA, height: altezzaFotoBlocco(blocco, foto.length, moduloLocale), objectFit: "cover", borderRadius: 6, marginLeft: i === 0 ? 0 : 10 }} />
             ))}
           </View>
           {blocco.nota && foto.some((f) => f.diSerie) ? (
@@ -1790,7 +1816,17 @@ function SezioneBlocco({ blocco, foto, C, styles }: {
           ) : null}
         </View>
       ) : null}
-      {tavola != null ? null : righe.map((riga, r) => (
+      {moduloLocale && foto.length === 0 && blocco.voci.length <= 4 ? blocco.voci.map((x, i) => (
+        <View key={i} wrap={false} style={{ flexDirection: "row", minHeight: 94, padding: 16, marginBottom: 12, borderRadius: 8, backgroundColor: C.gray50 }}>
+          <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: C.primaryLight, alignItems: "center", justifyContent: "center", marginRight: 14 }}>
+            {x.icona ? <IconaPdf nome={x.icona} colore={C.ink} lato={17} /> : null}
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 13, fontWeight: 700, color: C.gray900, lineHeight: 1.3 }}>{x.titolo}</Text>
+            {x.testo ? <Text style={{ fontSize: 10.5, color: C.gray700, marginTop: 6, lineHeight: 1.45 }}>{x.testo}</Text> : null}
+          </View>
+        </View>
+      )) : tavola != null ? null : righe.map((riga, r) => (
         <View key={r} wrap={false} style={{ flexDirection: "row", marginBottom: colonne === 2 ? 16 : 11 }}>
           {riga.map((x, i) => (
             <View key={i} style={{ width: larghezza, marginLeft: i === 0 ? 0 : spazio, flexDirection: "row" }}>
@@ -2102,7 +2138,21 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
   const coverLogoUrl = template?.pdf_cover_logo_url ?? company?.brand_logo_dark_url ?? logoUrl;
   const primaryColor = coloreDelDocumento(template?.colore_primario, company?.brand_primary_color, DEFAULT_PRIMARY) ?? DEFAULT_PRIMARY;
   const C = makePalette(primaryColor);
-  const styles = makeStyles(C);
+  // Local intervention models have a compact, neutral layout. Existing company
+  // templates keep their current typography and commercial presentation.
+  const isLocalModule = template?.id?.startsWith("local-serramenti-") === true;
+  const showProductPhotos = !isLocalModule || detail.serramenti.some(row => row.family_id && familiesById[row.family_id]?.immagine_url);
+  const moduleExclusions = serramentiModuleExclusions(template);
+  const baseStyles = makeStyles(C);
+  const styles = isLocalModule ? { ...baseStyles,
+    sectionTitle: { ...baseStyles.sectionTitle, marginTop: 10, marginBottom: 5 },
+    bulletItem: { ...baseStyles.bulletItem, marginBottom: 4 },
+    bulletTitle: { ...baseStyles.bulletTitle, fontSize: 10.5 },
+    bulletText: { ...baseStyles.bulletText, fontSize: 9.5, lineHeight: 1.4 },
+    pageSubtitle: { ...baseStyles.pageSubtitle, marginBottom: 14 },
+    faqItem: { ...baseStyles.faqItem, marginBottom: 8, paddingBottom: 5 },
+    percorsoFaseLabel: { ...baseStyles.percorsoFaseLabel, color: "#CBD5E1" },
+  } : baseStyles;
 
   const clienteNome = [p.cliente_nome, p.cliente_cognome].filter(Boolean).join(" ") || "Cliente";
   const sintesi = p.intervento_sintesi?.trim()
@@ -2362,9 +2412,11 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
   const imponibileFallback = p.iva_inclusa && ivaPctFallback > 0
     ? totaleFallback / (1 + ivaPctFallback / 100)
     : totaleFallback;
-  const totaleDocumento = roundMoney(totaleCalcolato.totale_iva_inclusa || totaleFallback);
-  const totaleImponibile = roundMoney(totaleCalcolato.imponibile_netto || imponibileFallback);
-  const totaleIva = roundMoney(totaleCalcolato.iva_importo || Math.max(0, totaleDocumento - totaleImponibile));
+  // Zero is a valid total (e.g. a 100% discount), not a missing calculation.
+  const haBaseEconomica = totaleCalcolato.prezzo_manuale || detail.serramenti.length > 0 || detail.accessori.length > 0 || (detail.servizi?.length ?? 0) > 0;
+  const totaleDocumento = roundMoney(haBaseEconomica ? totaleCalcolato.totale_iva_inclusa : totaleFallback);
+  const totaleImponibile = roundMoney(haBaseEconomica ? totaleCalcolato.imponibile_netto : imponibileFallback);
+  const totaleIva = roundMoney(haBaseEconomica ? totaleCalcolato.iva_importo : Math.max(0, totaleDocumento - totaleImponibile));
   const totaleMedia = totaleDocumento;
   // Merge tag dei blocchi importati dalla libreria ({{cliente.nome_completo}}, {{azienda.ragione_sociale}}…)
   // Senza condizioni scritte dall'azienda valgono quelle di base del settore.
@@ -2372,10 +2424,10 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
     String(tpl.condizioni_legali_testo ?? "").trim() || condizioniStandard("serramenti"),
     {
     companyName,
-    companyVat: tpl.partita_iva ?? company?.vat_number ?? null,
+    companyVat: tpl.partita_iva ?? company?.partita_iva ?? null,
     companyAddress: tpl.indirizzo_completo ?? null,
     companyEmail: tpl.email ?? company?.email ?? null,
-    companyPhone: tpl.telefono ?? company?.phone ?? null,
+    companyPhone: tpl.telefono ?? company?.telefono ?? null,
     clienteNome: p.cliente_nome, clienteCognome: p.cliente_cognome,
     clienteEmail: p.cliente_email, clienteTelefono: p.cliente_telefono, clienteIndirizzo: p.cliente_indirizzo,
     cantiereCitta: p.cantiere_citta ?? p.cliente_citta ?? null,
@@ -2510,7 +2562,8 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
     schemaCfg?.hasFinanziamento && piani.length > 0 && Number(p.risparmio_eur_anno ?? 0) > 0
   );
   const hasTaxDeduction = Boolean(p.detrazione_aliquota && (p.detrazione_eur_totale ?? 0) > 0);
-  const hasInvestmentDetails = Boolean(
+  const inlineModuleInclusions = isLocalModule && !hasTaxDeduction && cashflowYears.length === 0 && !hasMonthlyRateBalance && bonus.length === 0;
+  const hasInvestmentDetails = !inlineModuleInclusions && Boolean(
     hasTaxDeduction || cashflowYears.length > 0 || hasMonthlyRateBalance || incluso.length > 0 || bonus.length > 0
   );
 
@@ -2631,14 +2684,14 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
     // Senza un contenitore in mezzo: vedi REACT_PDF_GRUPPO_IN_TESTA in provaSocialePdf.
     faq: faqItems.length > 0 ? (
       <>
-                {faqItems.slice(0, 8).map((f, i) => (
+                {(isLocalModule ? faqItems : faqItems.slice(0, 8)).map((f, i) => (
                   <View key={i} style={i === 0 ? undefined : styles.faqItem} wrap={false}>
                     {i === 0 ? (
                       <>
                         <Text style={styles.pageEyebrow}>{tDomande.occhiello}</Text>
                         <Text style={styles.pageTitle}>{tDomande.titolo}</Text>
                         {tDomande.intro ? <Text style={styles.pageSubtitle}>{tDomande.intro}</Text> : null}
-                        <View style={[styles.faqItem, { marginTop: 14 }]}>
+                        <View style={[styles.faqItem, { marginTop: isLocalModule ? 8 : 14 }]}>
                           <Text style={styles.faqDomanda}>{i + 1}. {f.domanda}</Text>
                           <Text style={styles.faqRisposta}>{f.risposta}</Text>
                         </View>
@@ -2709,7 +2762,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
     const blocco = leggiBlocco(chiave, "serramenti", tpl.pdf_blocchi);
     const foto = fotoPerIlPdf(tpl.pdf_blocchi_foto, chiave, blocco.foto);
     scorrevoli[id] = blocco.voci.length > 0 || foto.length > 0
-      ? <SezioneBlocco blocco={blocco} foto={foto} C={C} styles={styles} />
+      ? <SezioneBlocco blocco={blocco} foto={foto} C={C} styles={styles} moduloLocale={isLocalModule} />
       : null;
   }
   const SCORREVOLI = new Set(Object.keys(scorrevoli));
@@ -2820,7 +2873,45 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
           le immagini full-page alte 842pt superano di poco l'A4 reale
           (841.89pt) e react-pdf le spezza. Usiamo 841pt + layer assoluti:
           sfondo, contenuto e footer restano dentro una sola pagina. */}
-      <Page
+      {serramentiCoverLayout(template?.pdf_blocchi) === "editoriale-v1" ? (
+        <CopertinaDocumento
+          tema={temaProve}
+          bookmark={srSectionAnchor("cover")}
+          data={fmtDate(p.created_at)}
+          nota={[
+            !coverShowClientCard ? `Preventivo ${p.code} · ${fmtDate(p.created_at)}` : null,
+            `Validità dell’offerta: ${p.valido_fino_giorni ?? 15} giorni`,
+            consulente?.nome ? `A cura di ${consulente.nome}` : null,
+          ].filter(Boolean).join(" · ")}
+          avviso={urgenzaAttiva ? [
+            `Offerta valida fino al ${scadenzaPreventivo}`,
+            earlyBirdAttivo && scadenzaEarlyBird ? `Sconto -${earlyBirdPct}% extra se firmi entro il ${scadenzaEarlyBird}` : null,
+          ].filter(Boolean).join("\n") : undefined}
+          colori={{
+            occhiello: normalizeHexColor(tpl.pdf_cover_eyebrow_color, null) ?? undefined,
+            titolo: normalizeHexColor(tpl.pdf_cover_title_color, null) ?? undefined,
+            sottotitolo: normalizeHexColor(tpl.pdf_cover_subtitle_color, null) ?? undefined,
+          }}
+          dati={{
+            cliente: clienteNome, cantiere: luogoLavori, codice: p.code,
+            tipoIntervento: null, localita: null,
+            azienda: { nome: companyName, logoUrl, logoChiaroUrl: company?.brand_logo_dark_url ?? null },
+            modulo: { titoloCopertina: coverHero, sottotitoloCopertina: coverSubhero },
+            modello: { copertina: {
+              occhiello: coverEyebrow, titolo: coverHero, sottotitolo: coverSubhero,
+              immagineUrl: coverImageUrl, logoUrl: coverLogoUrl,
+              coloreFondo: coverBgColor, coloreTesto: coverTextColor,
+              opacitaVelo: coverOverlayOpacity, stileVelo: coverOverlayStyle,
+              allineamento: coverTextAlign, verticale: coverTextVertical,
+              posizioneLogo: coverLogoPosition, scalaLogo: coverLogoScale,
+              decorazione: coverDecorationStyle, mostraDecorazione: coverShowDecoration,
+              mostraScheda: coverShowClientCard, corpoOcchiello: coverEyebrowSize,
+              corpoTitolo: coverTitleSize, corpoSottotitolo: coverSubtitleSize,
+            } },
+          }}
+        />
+      ) : <Page
+        bookmark={srSectionAnchor("cover")}
         size="A4"
         style={[
           styles.cover,
@@ -2891,7 +2982,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                   </LinearGradient>
                 )}
                 {coverOverlayStyle === "vignette" && (
-                  <RadialGradient id="cover-overlay-grad" cx="0.5" cy="0.5" rx="0.7" ry="0.85" fx="0.5" fy="0.5">
+                  <RadialGradient id="cover-overlay-grad" cx="0.5" cy="0.5" r="0.85" fx="0.5" fy="0.5">
                     <Stop offset="0" stopColor="#000000" stopOpacity={coverOverlayOpacity * 0.1} />
                     <Stop offset="0.7" stopColor="#000000" stopOpacity={coverOverlayOpacity * 0.5} />
                     <Stop offset="1" stopColor="#000000" stopOpacity={coverOverlayOpacity * 0.95} />
@@ -2943,7 +3034,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
             <View style={[styles.coverCard, { borderLeft: `3pt solid ${coverAccento}` }]}>
               <Text style={[styles.coverLabel, { color: coverAccento }]}>Preparato per</Text>
               <Text style={[styles.coverClientName, { color: coverTextColor }]}>{clienteNome}</Text>
-              <Text style={styles.coverClientAddr}>
+              <Text style={[styles.coverClientAddr, isLocalModule ? { color: coverTextColor } : {}]}>
                 {[p.cliente_indirizzo, p.cantiere_citta || p.cliente_citta].filter(Boolean).join(", ")}
               </Text>
             </View>
@@ -2984,7 +3075,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
             </View>
           )}
         </View>
-      </Page>
+      </Page>}
 
       {/* ───────────────────────────────────────────────────────────────────
           Pagine PDF in ordine configurato dal template.
@@ -3068,7 +3159,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
               <Text style={styles.pageEyebrow}>Proposta di intervento</Text>
               <Text style={styles.pageTitle}>Per {p.cliente_nome ?? clienteNome}</Text>
               <Text style={styles.pageSubtitle}>
-                {[p.cantiere_citta || p.cliente_citta, `${numSerr} serramenti`, p.tipo_intervento].filter(Boolean).join(" · ")}
+                {[p.cantiere_citta || p.cliente_citta, isLocalModule ? `${numSerr} ${numSerr === 1 ? "prodotto" : "prodotti"}` : `${numSerr} serramenti`, p.tipo_intervento].filter(Boolean).join(" · ")}
               </Text>
 
               <Text style={styles.sectionTitle}>Anagrafica cliente</Text>
@@ -3135,7 +3226,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
 
               {(percheNoi.length > 0 || percheNoiMetriche.length > 0) && (
                 <>
-                  <Text style={styles.sectionTitle}>Perché {companyName}</Text>
+                  <Text style={styles.sectionTitle} minPresenceAhead={30}>Perché {companyName}</Text>
 
                   {/* Milestone 10: row di big-number metriche sopra la lista USP.
                       Mostrate solo se almeno una è configurata. */}
@@ -3176,7 +3267,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                   delle foto dei prodotti. Il consulente è SEMPRE l'utente che ha
                   fatto il preventivo (hook fa fallback a auth.user), mai il nome
                   dell'azienda. Titolo e riquadro restano insieme. */}
-              <View wrap={false}>
+              {(!isLocalModule || consulente?.nome) && <View wrap={false}>
               <Text style={styles.sectionTitle}>La tua consulenza</Text>
               <View style={styles.consBox}>
                 {consulente?.foto_url ? (
@@ -3210,6 +3301,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
               </View>
               </View>
 
+              }
               {fotoProposta ? <FotoInFondo src={fotoProposta} mostra={(fogli) => spazioInFondo(pezziDellaProposta, fogli) >= FOTO_IN_FONDO_MINIMA} /> : null}
 
               <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
@@ -3224,16 +3316,28 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
 
               <Text style={styles.pageEyebrow}>Allegato tecnico</Text>
               <Text style={styles.pageTitle}>Cosa installeremo{"\n"}in cantiere.</Text>
-              <Text style={styles.pageSubtitle}>Composizione dettagliata di serramenti, accessori e scelte tecniche previste.</Text>
+              <Text style={styles.pageSubtitle}>{isLocalModule ? "Prodotti, quantità e caratteristiche della fornitura prevista." : "Composizione dettagliata di serramenti, accessori e scelte tecniche previste."}</Text>
 
-              <Text style={styles.sectionTitle}>Composizione serramenti · {numSerr} pezzi</Text>
+              {tpl.pdf_blocchi?.modulo_intervento === "combinato" && <View style={{ marginBottom: 18 }}>
+                <Text style={styles.sectionTitle} minPresenceAhead={70}>La fornitura, ambiente per ambiente</Text>
+                {serramentiRoomSummary(detail.serramenti).map((room, index) => <View key={room.name} style={{ marginBottom: 8, borderLeftWidth: 3, borderLeftColor: primaryColor, backgroundColor: C.gray50, padding: 12 }}>
+                  <Text minPresenceAhead={28} style={{ fontSize: 12, fontWeight: 700, marginBottom: 6 }}>{String(index + 1).padStart(2, "0")} · {room.name}</Text>
+                  {room.products.map((product, i) => <View key={i} wrap={false} style={{ flexDirection: "row", marginBottom: 4 }}>
+                    <Text style={{ flex: 1, fontSize: 10, lineHeight: 1.4 }}>{product.label}</Text>
+                    <Text style={{ width: 45, textAlign: "right", fontSize: 10 }}>× {product.quantity}</Text>
+                  </View>)}
+                </View>)}
+                <Text style={{ fontSize: 8, color: C.gray500, lineHeight: 1.4 }}>Raggruppamento per ambiente indicato in offerta. Misure, aperture e abbinamenti per singolo vano sono da verificare nel dettaglio tecnico.</Text>
+              </View>}
+
+              <Text style={styles.sectionTitle}>{isLocalModule ? "Composizione della fornitura" : "Composizione serramenti"} · {numSerr} {numSerr === 1 ? "pezzo" : "pezzi"}</Text>
               <View style={styles.table}>
                 {/* fixed: l'header colonne si ripete sulle pagine successive SOLO
                     finché la tabella composizione continua (react-pdf lo propaga
                     col frammento della View tabella, non su Accessori/Consulenza). */}
                 <View style={styles.tableHeader} fixed>
                   <View style={{ width: 28 }}><Text style={styles.tableHeaderText}>#</Text></View>
-                  <View style={{ width: 70 }}><Text style={styles.tableHeaderText}>Foto</Text></View>
+                  {showProductPhotos && <View style={{ width: 70 }}><Text style={styles.tableHeaderText}>Foto</Text></View>}
                   <View style={{ flex: 1, paddingRight: 6 }}><Text style={styles.tableHeaderText}>Descrizione &amp; Specifiche tecniche</Text></View>
                   <View style={{ width: 50, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Q.tà</Text></View>
                 </View>
@@ -3330,19 +3434,27 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                         <Text style={styles.tableRowNumberText}>{idx + 1}</Text>
                       </View>
                       {/* Foto reale */}
-                      <View style={{ width: 70 }}>
+                      {showProductPhotos && <View style={{ width: 70 }}>
                         {prodottoImageUrl ? (
                           <Image src={prodottoImageUrl} style={styles.tableThumb} />
                         ) : (
                           <View style={styles.tableThumbPh}>
                             <Svg viewBox="0 0 24 24" style={{ width: 24, height: 24 } as never}>
                               <Rect x={3} y={3} width={18} height={18} rx={1.5} stroke={C.gray500} strokeWidth={1.5} fill="none" />
-                              <Path d="M 12 4 L 12 20" stroke={C.gray500} strokeWidth={1} />
-                              <Path d="M 4 12 L 20 12" stroke={C.gray500} strokeWidth={1} />
+                              {isLocalModule ? (
+                                <Path d="M 4 17 L 9 11 L 13 15 L 16 12 L 20 17 M 15 7 L 17 7" stroke={C.gray500} strokeWidth={1} fill="none" />
+                              ) : (
+                                <>
+                                  <Path d="M 12 4 L 12 20" stroke={C.gray500} strokeWidth={1} />
+                                  <Path d="M 4 12 L 20 12" stroke={C.gray500} strokeWidth={1} />
+                                </>
+                              )}
                             </Svg>
+                            {isLocalModule && <Text style={{ fontSize: 6, color: C.gray500, marginTop: 3 }}>Foto non fornita</Text>}
                           </View>
                         )}
                       </View>
+                      }
                       {/* Descrizione + dimensioni + descrizione tecnica + specs */}
                       <View style={{ flex: 1, paddingRight: 6 }}>
                         {/* Breadcrumb macrocategoria sopra al nome articolo:
@@ -3765,7 +3877,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                       la comprende il totale stampato: `totaleDocumento` è sempre il totale
                       con l'IVA. Un preventivo da 12.590 + 10% usciva «€ 13.849,00 IVA
                       esclusa»: il cliente poteva aspettarsi un'altra fattura. */}
-                  <Text style={styles.priceSuffix}>{"  "}{totaleIva > 0 ? "IVA inclusa" : "IVA non applicata"}</Text>
+                  <Text style={styles.priceSuffix}>{"  "}{totaleIva > 0 || (isLocalModule && (p.iva_percentuale > 0 || p.iva_percentuale === -1)) ? "IVA inclusa" : "IVA non applicata"}</Text>
                 </Text>
                 {/* Prezzo pieno e sconto: «nell'offerta viene prezzo + sconto».
                     Trattino ASCII e non il segno meno U+2212, che in Helvetica
@@ -3909,6 +4021,19 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                   </Text>
                 </View>
               )}
+
+              {inlineModuleInclusions && incluso.length > 0 && <View style={styles.investmentBlock}>
+                <Text style={styles.investmentSectionTitle}>Cosa è incluso</Text>
+                {incluso.map((item, i) => <View key={i} style={styles.bulletItem} wrap={false}>
+                  <View style={styles.bulletDot} />
+                  <Text style={styles.bulletText}>{typeof item === "string" ? item : [item.titolo, item.descrizione].filter(Boolean).join(" · ")}</Text>
+                </View>)}
+              </View>}
+
+              {moduleExclusions.trim() && <View style={styles.investmentBlock}>
+                <Text style={styles.investmentSectionTitle} minPresenceAhead={30}>Esclusioni e opere da confermare</Text>
+                <Text style={styles.bulletText}>{moduleExclusions}</Text>
+              </View>}
 
               <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
             </Page>
@@ -4069,7 +4194,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                   const elencoIncluso = incluso.length > 0 ? (
                     <>
                       <Text style={styles.investmentSectionTitle}>Cosa è incluso</Text>
-                      {incluso.slice(0, 6).map((it, i) => {
+                      {(isLocalModule ? incluso : incluso.slice(0, 6)).map((it, i) => {
                         const titolo = typeof it === "string" ? it : it.titolo;
                         const descrizione = typeof it === "string" ? null : it.descrizione;
                         return (
@@ -4519,7 +4644,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
               {/* La foto finale riempie il fondo della pagina, alta quanto il posto
                   che lasciano note e recensioni. Prima era alta 150 o 210 punti fissi,
                   e con le note o più di una recensione non usciva. */}
-              {fotoCta ? <FotoInFondo src={fotoCta} mostra={(fogli) => spazioInFondo(pezziDellaCta, fogli) >= FOTO_IN_FONDO_MINIMA} /> : null}
+              {fotoCta ? <FotoInFondo src={fotoCta} posizioneY={isLocalModule && tpl.pdf_blocchi?.modulo_intervento === "avvolgibili" ? "0%" : "50%"} mostra={(fogli) => spazioInFondo(pezziDellaCta, fogli) >= FOTO_IN_FONDO_MINIMA} /> : null}
 
               <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
             </Page>
@@ -4734,10 +4859,15 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
         // che scorre; tutte le altre restano come sono, una o più pagine ciascuna.
         const visibili = pdfPagesOrder.filter((pg) => pg.visible);
         const blocchi: SrPdfPageId[][] = [];
+        // Local illustrated chapters are full editorial pages, not short flow
+        // sections. Grouping them in one unbreakable flow caused empty pages
+        // and stranded checks/document rows when a photo consumed the budget.
+        const scorreInGruppo = (id: SrPdfPageId) => SCORREVOLI.has(id) && Boolean(scorrevoli[id])
+          && !(isLocalModule && PAGINE_DEI_BLOCCHI.includes(id as PaginaBlocco));
         for (const pg of visibili) {
-          const scorre = SCORREVOLI.has(pg.id) && Boolean(scorrevoli[pg.id]);
+          const scorre = scorreInGruppo(pg.id);
           const ultimo = blocchi[blocchi.length - 1];
-          const ultimoScorre = ultimo ? ultimo.every((id) => SCORREVOLI.has(id) && Boolean(scorrevoli[id])) : false;
+          const ultimoScorre = ultimo ? ultimo.every(scorreInGruppo) : false;
           if (scorre && ultimo && ultimoScorre) ultimo.push(pg.id);
           else blocchi.push([pg.id]);
         }
@@ -4749,12 +4879,12 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                   mai una domanda spezzata a metà o un titolo solo in fondo. La
                   galleria può scorrere su più pagine, le altre stanno in una. */}
               {ids.map((id, i) => (
-                <View key={id} wrap={id === "gallery_lavori" || id === "recensioni" || id === "faq"} style={i > 0 ? { marginTop: 30 } : undefined}>{scorrevoli[id]}</View>
+                <View key={id} bookmark={srSectionAnchor(id)} wrap={id === "gallery_lavori" || id === "recensioni" || id === "faq"} style={i > 0 ? { marginTop: 30 } : undefined}>{scorrevoli[id]}</View>
               ))}
               <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
             </Page>
           ) : (
-            <React.Fragment key={ids[0]}>{pageEls[ids[0]]}</React.Fragment>
+            <React.Fragment key={ids[0]}>{withSrSectionAnchor(pageEls[ids[0]], ids[0])}</React.Fragment>
           )
         ));
       })()}

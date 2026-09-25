@@ -1,11 +1,14 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { Plus, Trash2, Pencil, Package, Warehouse, CheckCircle, Clock, Copy, Link2, Tag, Truck, Wallet, Paperclip, Upload, FileText, X, ChevronsUpDown, Check, PackageCheck, ExternalLink, AlertTriangle, ChevronUp, ChevronDown,
 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { ODA_STATI_EMESSI } from "@/lib/odaStatus";
+import { ODA_STATUS_LABELS } from "@/lib/odaStatus";
+import { useMaterialProcurement } from "@/hooks/useMaterialProcurement";
+import { planMaterial, type ProcurementCoverage } from "@/lib/orders/materialProcurement";
+import { refreshMaterialQueries } from "@/lib/orders/refreshMaterialQueries";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -233,6 +236,7 @@ export function OrderItemsList({
   fallbackCompanyId,
   onAddLabor,
 }: OrderItemsListProps) {
+  const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   /** Sezione "Altri dettagli" del form articolo. Chiusa di default: su 328
@@ -467,56 +471,22 @@ export function OrderItemsList({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items]);
 
-  // Fetch PO item coverage (which order items have linked purchase_order_items)
-  const orderItemIds = useMemo(() => items.filter(i => i.id).map(i => i.id!), [items]);
-  const { data: poItemCoverage = [] } = useQuery({
-    queryKey: ["po-item-coverage", orderItemIds],
-    queryFn: async () => {
-      if (orderItemIds.length === 0) return [];
-      const { data, error } = await supabase
-        .from("purchase_order_items")
-        .select("order_item_id, quantity, purchase_orders!inner(oda_number, status)")
-        .in("order_item_id", orderItemIds);
-      if (error) throw error;
-      return (data ?? []) as unknown as Array<{
-        order_item_id: string;
-        quantity: number;
-        purchase_orders: { oda_number: string; status: string };
-      }>;
-    },
-    enabled: showOdaCoverage && orderItemIds.length > 0,
-    staleTime: 30000,
-  });
-
-  // Map: order_item_id → PO info. DEDUPLICATA per numero OdA: con la distinta
-  // un articolo genera N righe nello STESSO ordine (una per posizione) e il
-  // chip mostrava "ODA-2026-0040, ODA-2026-0040, …" cinque volte.
+  // One quantity source for the supplier panel, row badges and both OdA actions.
+  const coverage = useMaterialProcurement(items, showOdaCoverage, companyId);
+  const poItemCoverage = coverage.data ?? [];
   const poItemMap = useMemo(() => {
-    const map = new Map<string, { oda_number: string; status: string }[]>();
+    const map = new Map<string, ProcurementCoverage["purchase_orders"][]>();
     for (const row of poItemCoverage) {
-      if (!row.order_item_id) continue;
-      const existing = map.get(row.order_item_id) || [];
-      if (!existing.some((p) => p.oda_number === row.purchase_orders.oda_number)) {
-        existing.push(row.purchase_orders);
-      }
+      if (!row.order_item_id || row.purchase_orders.status === "annullato") continue;
+      const existing = map.get(row.order_item_id) ?? [];
+      if (!existing.some(p => p.id === row.purchase_orders.id)) existing.push(row.purchase_orders);
       map.set(row.order_item_id, existing);
     }
     return map;
   }, [poItemCoverage]);
-
-  // Quantita' ORDINATA per riga: somma degli OdA emessi (le bozze non
-  // impegnano nessuno). E' il controllo "260 su 200": ordinare piu' del
-  // previsto e' l'errore d'acquisto che mangia il margine, e finora non
-  // c'era un solo posto che lo dicesse.
-  const qtaOrdinataMap = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const row of poItemCoverage) {
-      if (!row.order_item_id) continue;
-      if (!(ODA_STATI_EMESSI as readonly string[]).includes(row.purchase_orders.status)) continue;
-      map.set(row.order_item_id, (map.get(row.order_item_id) ?? 0) + Number(row.quantity || 0));
-    }
-    return map;
-  }, [poItemCoverage]);
+  const qtaOrdinataMap = useMemo(() => new Map(items.flatMap(item =>
+    item.id ? [[item.id, planMaterial(item, poItemCoverage).issued] as const] : [],
+  )), [items, poItemCoverage]);
 
   const getSupplierName = (supplierId?: string) => {
     if (!supplierId) return null;
@@ -821,6 +791,8 @@ export function OrderItemsList({
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       toast({ variant: "destructive", title: "Collegamento ODA fallito", description: msg });
+    } finally {
+      refreshMaterialQueries(queryClient);
     }
   };
 
@@ -1602,7 +1574,7 @@ export function OrderItemsList({
                     {showOdaCoverage && item.id && poItemMap.has(item.id) && (
                       <Badge className="text-xs bg-violet-100 text-violet-700 border-violet-300 dark:bg-violet-950 dark:text-violet-400 dark:border-violet-700 gap-1">
                         <Link2 className="h-3 w-3" />
-                        OdA {poItemMap.get(item.id)!.map(p => p.oda_number).join(", ")}
+                        {poItemMap.get(item.id)!.map(p => `${p.oda_number} · ${ODA_STATUS_LABELS[p.status] ?? p.status}`).join(", ")}
                       </Badge>
                     )}
                     {/* Il controllo "260 su 200": quantita' ordinata ai fornitori
@@ -1629,12 +1601,20 @@ export function OrderItemsList({
                         </Badge>
                       );
                     })()}
-                    {showOdaCoverage && item.id && !poItemMap.has(item.id) && !item.stock_item_id && (
+                    {showOdaCoverage && item.id && !coverage.isPending && !coverage.isError && !poItemMap.has(item.id) && !item.stock_item_id && (
                       <Badge variant="outline" className="text-xs text-muted-foreground gap-1 border-dashed">
                         <Link2 className="h-3 w-3" />
                         Senza OdA
                       </Badge>
                     )}
+                    {showOdaCoverage && item.id && !coverage.isPending && !coverage.isError && (() => {
+                      const plan = planMaterial(item, poItemCoverage);
+                      if (plan.covered === 0) return null;
+                      return <span className="text-xs text-muted-foreground">
+                        {plan.drafted > 0 && `In bozza ${plan.drafted.toLocaleString("it-IT")} · `}
+                        Ricevuto {plan.received.toLocaleString("it-IT")} · Residuo da acquistare {plan.remaining.toLocaleString("it-IT")}
+                      </span>;
+                    })()}
                     {/* v8.6.35 — Badge data arrivo prevista */}
                     {item.delivery_date && (() => {
                       const arr = new Date(item.delivery_date);

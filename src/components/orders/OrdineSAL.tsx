@@ -11,9 +11,19 @@ interface OrdineSALProps {
   vatRate?: number;
   /** Costo finanziaria già "gated" dal chiamante (0 se pagamento non financing). */
   financingCost?: number;
+  /** La vista commessa tiene gli incassi in Economia, senza scollegare le rate dai SAL. */
+  showPaymentProgress?: boolean;
 }
 
-export function OrdineSAL({ orderId, companyId, orderTotalAmount, installments, vatRate, financingCost }: OrdineSALProps) {
+export function OrdineSAL({
+  orderId,
+  companyId,
+  orderTotalAmount,
+  installments,
+  vatRate,
+  financingCost,
+  showPaymentProgress,
+}: OrdineSALProps) {
   return (
     <SalTab
       orderId={orderId}
@@ -22,6 +32,7 @@ export function OrdineSAL({ orderId, companyId, orderTotalAmount, installments, 
       installments={installments}
       vatRate={vatRate}
       financingCost={financingCost}
+      showPaymentProgress={showPaymentProgress}
     />
   );
 }

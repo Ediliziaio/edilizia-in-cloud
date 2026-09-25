@@ -24,6 +24,8 @@
  * commerciale (UX policy).
  */
 import { useState, useEffect, useMemo } from "react";
+import type { SrQuoteModelId } from "@/lib/serramenti/quoteModel";
+import { modelCatalogTypes, suggestedModelTypes } from "@/lib/serramenti/modelCatalog";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -115,6 +117,7 @@ export interface PartenzaPicker {
 }
 
 interface Props {
+  modelId?: SrQuoteModelId;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSelect: (item: ListinoPickResult) => void;
@@ -147,8 +150,9 @@ function fotoDellaTipologia(t: TipologiaListino): string | null {
 
 export function ListinoPickerDialog({
   open, onOpenChange, onSelect, tipo = "principale", preferenzeAssi, partenza,
-  testoConferma = "Aggiungi al preventivo",
+  testoConferma = "Aggiungi al preventivo", modelId,
 }: Props) {
+  const [showAllTypes, setShowAllTypes] = useState(false);
   const [step, setStep] = useState<Step>("tipologia");
   const [search, setSearch] = useState("");
   const [debounced, setDebounced] = useState("");
@@ -175,6 +179,7 @@ export function ListinoPickerDialog({
 
   useEffect(() => {
     if (!open) {
+      setShowAllTypes(false);
       setStep("tipologia");
       setSearch(""); setDebounced("");
       setTipologiaChiave(null); setLineaChiave(null); setRiga(null);
@@ -199,7 +204,9 @@ export function ListinoPickerDialog({
     () => areaDelPreventivatore(families, macrocategorie, categorie, tipo),
     [families, macrocategorie, categorie, tipo],
   );
-  const proposte = useMemo(() => tipologieProposte(area), [area]);
+  const allTypes = useMemo(() => tipologieProposte(area), [area]);
+  const suggested = useMemo(() => suggestedModelTypes(allTypes, modelId), [allTypes, modelId]);
+  const proposte = useMemo(() => modelCatalogTypes(allTypes, modelId, showAllTypes || !!partenza), [allTypes, modelId, showAllTypes, partenza]);
   const daCompletare = useMemo(
     () => tipologieDaCompletare(families, macrocategorie, categorie, area),
     [families, macrocategorie, categorie, area],
@@ -493,6 +500,13 @@ export function ListinoPickerDialog({
             <span className="flex-1">{titolo}</span>
           </DialogTitle>
           <DialogDescription className="text-xs">{sottotitolo}</DialogDescription>
+          {modelId && step === "tipologia" && !partenza && <div className="space-y-2">
+            <div className="flex flex-wrap gap-2" role="group" aria-label="Prodotti per il modello">
+              <Button type="button" size="sm" variant={!showAllTypes && suggested.length > 0 ? "default" : "outline"} disabled={suggested.length === 0} aria-pressed={!showAllTypes && suggested.length > 0} onClick={() => { setShowAllTypes(false); setSearch(""); }}>Suggeriti per il modello ({suggested.length})</Button>
+              <Button type="button" size="sm" variant={showAllTypes || suggested.length === 0 ? "default" : "outline"} aria-pressed={showAllTypes || suggested.length === 0} onClick={() => setShowAllTypes(true)}>Tutto il listino dell'area</Button>
+            </div>
+            <p className="text-xs text-muted-foreground">{suggested.length === 0 ? "Nessuna tipologia suggerita associata: puoi scegliere dal listino dell'area o aggiungere una voce manuale nel preventivo." : "Categorie suggerite dal modello. La ricerca trova sempre tutti i prodotti dell'area, senza modificare il listino."}</p>
+          </div>}
           {partenza?.contesto && (
             <p className="text-[11px] font-medium text-orange-700">{partenza.contesto}</p>
           )}

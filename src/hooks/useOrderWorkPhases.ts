@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { logger } from "@/utils/logger";
+import { refreshWorkQueries } from "@/lib/orders/refreshWorkQueries";
 
 export type PhaseStatus = "da_iniziare" | "in_corso" | "completata";
 export type ExecutorType = "interno" | "esterno";
@@ -41,6 +42,8 @@ export interface WorkPhase {
 export interface ExecutorOption {
   id: string;
   label: string;
+  campoUserId?: string | null;
+  kind?: "interna" | "esterna";
 }
 
 // Stato di approvvigionamento di un articolo/materiale della commessa:
@@ -83,6 +86,12 @@ export interface PhaseTemplate {
 }
 
 export const PHASE_TEMPLATES: PhaseTemplate[] = [
+  {
+    key: "fotovoltaico",
+    label: "Fotovoltaico",
+    hint: "Dalla preparazione alla consegna dell'impianto",
+    phases: ["Sopralluogo e preparazione", "Strutture e moduli", "Collegamenti e inverter", "Verifiche, collaudo e consegna"],
+  },
   {
     key: "ristrutturazione_completa",
     label: "Ristrutturazione completa",
@@ -197,25 +206,7 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const qc = useQueryClient();
-  const invalidate = () => {
-    qc.invalidateQueries({ queryKey: ["order_work_phases", orderId] });
-    // Riga "Cantiere: N/M fasi" sotto lo stepper in OrderDetail
-    qc.invalidateQueries({ queryKey: ["order-phases-progress", orderId] });
-    // La manodopera vive in order_employees/order_external_teams: invalida anche
-    // le cache di margine/labor che le leggono, così i numeri si aggiornano ovunque:
-    // dettaglio commessa (Conto economico), lista commesse (colonne costi/margine),
-    // dashboard (statistiche manodopera). Prefix-match perché le chiavi includono
-    // orderIds/companyId variabili.
-    qc.invalidateQueries({ queryKey: ["order-employees", orderId] });
-    qc.invalidateQueries({ queryKey: ["order-external-teams", orderId] });
-    qc.invalidateQueries({ queryKey: ["oes-employees", orderId] });
-    qc.invalidateQueries({ queryKey: ["oes-external-teams", orderId] });
-    qc.invalidateQueries({ queryKey: ["order-employees-costs"] });
-    qc.invalidateQueries({ queryKey: ["order-external-teams-costs"] });
-    qc.invalidateQueries({ queryKey: ["laborStats"] });
-    // Materiali per fase (order_items.phase_id): eliminare una fase li rimanda "Senza fase"
-    qc.invalidateQueries({ queryKey: ["order-items-materials", orderId] });
-  };
+  const invalidate = () => refreshWorkQueries(qc, orderId);
 
   // Ogni mutation fallita mostra un toast (prima: fallimenti silenziosi → spinner
   // infinito nel dialog "Aggiungi esecutore" e input che tornano indietro senza avviso).
@@ -235,7 +226,7 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
       if (empRes.error) throw empRes.error;
       if (teamRes.error) throw teamRes.error;
 
-      const empAssignments: PhaseAssignment[] = (empRes.data ?? []).map((e: Record<string, unknown>) => ({
+      const empAssignments: PhaseAssignment[] = (empRes.data ?? []).map((e: Record<string, unknown>): PhaseAssignment => ({
         id: e.id as string,
         source: "employee",
         phase_id: (e.phase_id as string) ?? null,
@@ -250,7 +241,7 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
         notes: (e.notes as string) ?? null,
       }));
 
-      const teamAssignments: PhaseAssignment[] = (teamRes.data ?? []).map((t: Record<string, unknown>) => ({
+      const teamAssignments: PhaseAssignment[] = (teamRes.data ?? []).map((t: Record<string, unknown>): PhaseAssignment => ({
         id: t.id as string,
         source: "team",
         phase_id: (t.phase_id as string) ?? null,
@@ -290,14 +281,15 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
     queryFn: async () => {
       const { data, error } = await db
         .from("employees")
-        .select("id, first_name, last_name")
+        .select("id, first_name, last_name, user_id")
         .eq("company_id", companyId!)
         .eq("is_active", true)
         .order("last_name");
       if (error) throw error;
-      return (data ?? []).map((e: { id: string; first_name: string; last_name: string }) => ({
+      return (data ?? []).map((e: { id: string; first_name: string; last_name: string; user_id: string | null }) => ({
         id: e.id,
         label: `${e.first_name} ${e.last_name}`.trim(),
+        campoUserId: e.user_id,
       })) as ExecutorOption[];
     },
   });
@@ -308,12 +300,16 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
     queryFn: async () => {
       const { data, error } = await db
         .from("external_teams")
-        .select("id, name")
+        .select("id, name, kind")
         .eq("company_id", companyId!)
         .eq("is_active", true)
         .order("name");
       if (error) throw error;
-      return (data ?? []).map((t: { id: string; name: string }) => ({ id: t.id, label: t.name })) as ExecutorOption[];
+      // Manteniamo anche le interne per risolvere le etichette storiche.
+      // Solo il selettore di NUOVI subappalti le esclude.
+      return (data ?? []).map((t: { id: string; name: string; kind?: "interna" | "esterna" }) => ({
+        id: t.id, label: t.name, kind: t.kind,
+      })) as ExecutorOption[];
     },
   });
 
@@ -462,33 +458,52 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
         // scheda ha l'account collegato, si crea l'assegnazione cantiere
         // mancante. Best-effort: un intoppo qui non annulla l'esecutore.
         try {
-          const { data: emp } = await db
+          const { data: emp, error: empError } = await db
             .from("employees")
             .select("user_id")
             .eq("id", a.employee_id)
             .maybeSingle();
+          if (empError) throw empError;
           if (emp?.user_id && companyId) {
-            const { data: giaAssegnato } = await db
+            const { data: giaAssegnato, error: assignmentError } = await db
               .from("order_campo_assignments")
               .select("id")
               .eq("order_id", orderId)
               .eq("user_id", emp.user_id)
               .limit(1)
               .maybeSingle();
+            if (assignmentError) throw assignmentError;
             if (!giaAssegnato) {
-              await db.from("order_campo_assignments").insert({
+              const { error: campoError } = await db.from("order_campo_assignments").insert({
                 company_id: companyId,
                 order_id: orderId,
                 user_id: emp.user_id,
                 role_type: "employee",
                 is_capocantiere: false,
               });
+              if (campoError) throw campoError;
             }
+          } else if (!emp?.user_id) {
+            toast.warning("Dipendente assegnato senza account Campo", {
+              description: "Il lavoro è assegnato. Collega un account alla scheda dipendente per consentirgli di inviare rapportini dall'app.",
+            });
           }
         } catch (e) {
           logger.error("[addAssignment] assegnazione campo non creata:", e);
+          toast.warning("Manodopera assegnata, ma accesso app Campo da verificare", {
+            description: "La riga è stata salvata. Controlla la sezione App Campo senza ripetere l'assegnazione.",
+          });
         }
       } else {
+        const { data: team, error: teamError } = await db.from("external_teams")
+          .select("id, kind, is_active")
+          .eq("id", a.external_team_id)
+          .eq("company_id", companyId)
+          .maybeSingle();
+        if (teamError) throw teamError;
+        if (!team || !team.is_active || team.kind === "interna") {
+          throw new Error("Seleziona una ditta esterna attiva. I dipendenti delle squadre interne si assegnano come manodopera interna.");
+        }
         const { error } = await db.from("order_external_teams").insert({
           order_id: orderId,
           external_team_id: a.external_team_id,

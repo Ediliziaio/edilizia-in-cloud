@@ -9,6 +9,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { QUOTE_STATUS_CONFIG } from "@/lib/quoteStatus";
 import { useSignatureActions } from "@/hooks/useSignatureActions";
 import { duplicaPreventivo } from "@/lib/quotes/duplicaPreventivo";
+import { fetchQuotePdf, downloadQuotePdf } from "@/lib/preventivi/quotePdfDownload";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -53,27 +54,15 @@ export default function QuoteDetail() {
   const { sendForSignature, openWhatsApp, copySignatureLink } = useSignatureActions(id);
 
   const handleGeneratePdf = async () => {
+    if (generating) return;
     setGenerating(true);
     try {
       const { data, error } = await supabase.functions.invoke("generate-quote-pdf", {
         body: { quote_id: id },
       });
       if (error) throw error;
-      if (data?.signed_url) {
-        // Scarica direttamente in Download: l'attributo download non funziona
-        // cross-origin, quindi passiamo da un blob locale.
-        const fileName = (data.pdf_path as string | undefined)?.split("/").pop() ?? "preventivo.pdf";
-        const resp = await fetch(data.signed_url);
-        const blob = await resp.blob();
-        const blobUrl = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = blobUrl;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(blobUrl);
-      }
+      const blob = await fetchQuotePdf(data?.signed_url);
+      downloadQuotePdf(blob, data?.pdf_path);
       // Preventivo già firmato: l'edge restituisce il PDF firmato senza rigenerarlo.
       toast.success(data?.gia_firmato ? "PDF firmato scaricato (non rigenerato: è il documento firmato dal cliente)" : "PDF scaricato nei Download");
       queryClient.invalidateQueries({ queryKey: queryKeys.quotes.detail(id) });

@@ -53,60 +53,32 @@ export function ContactMergeDialog({ open, onOpenChange, sourceContact, companyI
       const keepId = masterId === "source" ? sourceContact.id : targetId;
       const removeId = masterId === "source" ? targetId : sourceContact.id;
 
-      // Move opportunities
-      const { error: opportunitiesError } = await supabase
-        .from("marketing_opportunities")
-        .update({ contact_id: keepId })
-        .eq("contact_id", removeId)
-        .eq("company_id", companyId);
-      if (opportunitiesError) throw opportunitiesError;
+      // Tutto nel database, in una transazione (unisci_contatti_marketing):
+      // ogni riga che punta al doppione — opportunità, note, WhatsApp, email,
+      // preventivi, fatture, attività... — passa al contatto che resta, poi il
+      // doppione si cancella. Prima il browser spostava cinque tabelle: il
+      // resto si cancellava col doppione o restava legato a un contatto che
+      // non c'era più (i WhatsApp sparivano dalla scheda e da Conversazioni).
+      const { data, error } = await supabase.rpc("unisci_contatti_marketing" as never, {
+        p_tieni: keepId,
+        p_togli: removeId,
+      } as never);
+      if (error) throw error;
+      const esito = data as { totale?: number } | null;
 
-      // Move notes
-      const { error: notesError } = await supabase
-        .from("marketing_contact_notes")
-        .update({ contact_id: keepId })
-        .eq("contact_id", removeId)
-        .eq("company_id", companyId);
-      if (notesError) throw notesError;
-
-      // Move activities
-      const { error: activitiesError } = await supabase
-        .from("marketing_contact_activities")
-        .update({ contact_id: keepId })
-        .eq("contact_id", removeId)
-        .eq("company_id", companyId);
-      if (activitiesError) throw activitiesError;
-
-      // Move appointments
-      const { error: appointmentsError } = await supabase
-        .from("appointments")
-        .update({ contact_id: keepId })
-        .eq("contact_id", removeId)
-        .eq("company_id", companyId);
-      if (appointmentsError) throw appointmentsError;
-
-      // Move messages
-      const { error: messagesError } = await supabase
-        .from("contact_messages")
-        .update({ contact_id: keepId })
-        .eq("contact_id", removeId)
-        .eq("company_id", companyId);
-      if (messagesError) throw messagesError;
-
-      // Delete the merged-away contact
-      const { error: deleteError } = await supabase
-        .from("marketing_contacts")
-        .delete()
-        .eq("id", removeId)
-        .eq("company_id", companyId);
-      if (deleteError) throw deleteError;
-
-      return { keepId, removeId };
+      return { keepId, removeId, spostati: Number(esito?.totale ?? 0) };
     },
     onSuccess: (result) => {
-      toast.success("Contatti uniti con successo");
+      toast.success("Contatti uniti", {
+        description: result.spostati > 0
+          ? `${result.spostati} ${result.spostati === 1 ? "elemento spostato" : "elementi spostati"} sul contatto che resta`
+          : undefined,
+      });
       queryClient.invalidateQueries({ queryKey: ["marketing-contacts"] });
       queryClient.invalidateQueries({ queryKey: ["marketing_contact"] });
+      // Cronologia, WhatsApp, opportunità del contatto che resta: ogni query
+      // con il suo id nella chiave.
+      queryClient.invalidateQueries({ predicate: (q) => q.queryKey.includes(result.keepId) });
       onOpenChange(false);
       setSearch("");
       setTargetId(null);
@@ -116,7 +88,7 @@ export function ContactMergeDialog({ open, onOpenChange, sourceContact, companyI
       onMerged?.(result.keepId);
     },
     onError: (err: any) => {
-      toast.error("Errore durante il merge: " + err.message);
+      toast.error("Unione non riuscita: " + err.message);
     },
   });
 
@@ -130,7 +102,7 @@ export function ContactMergeDialog({ open, onOpenChange, sourceContact, companyI
             <Merge className="h-4 w-4" /> Unisci contatti
           </DialogTitle>
           <DialogDescription>
-            Unisci un contatto duplicato in quello principale. Opportunità, note, attività e messaggi verranno spostati.
+            Unisci un contatto duplicato in quello principale. Tutto quello che è legato al doppione (opportunità, note, messaggi anche WhatsApp, email, preventivi, fatture, appuntamenti) passa al contatto che resta.
           </DialogDescription>
         </DialogHeader>
 

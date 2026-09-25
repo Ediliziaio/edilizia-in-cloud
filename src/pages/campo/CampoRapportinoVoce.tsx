@@ -15,6 +15,7 @@ import {
 } from "@/hooks/campo/useRapportinoVocale";
 import { supabase } from "@/integrations/supabase/client";
 import type { JSX } from "react";
+import { isOnline } from "@/lib/campo/network-status";
 
 export default function CampoRapportinoVoce(): JSX.Element {
   const navigate = useNavigate();
@@ -88,7 +89,8 @@ export default function CampoRapportinoVoce(): JSX.Element {
     const ok = await confirmRapportino(localDraft, orderId ?? null);
     setSaving(false);
     if (ok) {
-      toast.success(orderId ? "Rapportino salvato e commessa aggiornata" : "Rapportino salvato", { duration: 2500 });
+      if (isOnline()) toast.success(orderId ? "Rapportino salvato e commessa aggiornata" : "Rapportino salvato", { duration: 2500 });
+      else toast.info("Nota vocale in coda locale: il rapportino di commessa non è ancora inviato. Riconnettiti entro il giorno successivo al lavoro.", { duration: 6000 });
       setTimeout(() => navigate("/campo"), 800);
     } else {
       toast.error(error ?? "Errore salvataggio rapportino");

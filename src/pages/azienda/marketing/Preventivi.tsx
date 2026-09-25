@@ -5,7 +5,7 @@
  *  - "lista"        → vista unificata cross-modulo (UnifiedPreventiviList)
  *                     Classico + Serramenti + Fotovoltaico in unica tabella
  *                     con KPI hero, grafici, filtri Sheet, export Excel.
- *  - "moduli"       → card dei preventivatori verticali (ModuliVendutaTab)
+ *  - "moduli"       → compatibilità: apre il popup Nuovo preventivo sopra la lista
  *  - "approvazioni" → richieste sconto pending/storico (solo admin)
  *  - "analisi"      → analisi AI dei preventivi (solo admin)
  *
@@ -37,13 +37,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   FileSignature,
-  ShoppingBag,
   Percent,
   BrainCircuit,
   ChevronDown,
   Sparkles,
   FileUp,
   Inbox,
+  Plus,
 } from "lucide-react";
 
 import {
@@ -55,14 +55,13 @@ import { ComputoUploadModal } from "@/components/computo/ComputoUploadModal";
 import { QuoteFromCaptureDialog } from "@/components/quotes/QuoteFromCaptureDialog";
 import { SmartDocumentInboxDialog } from "@/components/documenti/SmartDocumentInboxDialog";
 import { SmartDocumentImportModal } from "@/components/documenti/SmartDocumentImportModal";
-import { ModuliVendutaTab } from "@/components/marketing/preventivi/moduli/ModuliVendutaTab";
-import { NewPreventivoMenu } from "@/components/marketing/preventivi/NewPreventivoMenu";
+import { NewQuoteDialog } from "@/components/marketing/preventivi/moduli/NewQuoteDialog";
 import { UnifiedPreventiviList } from "@/components/marketing/preventivi/UnifiedPreventiviList";
 
 import AnalisiPreventivi from "./AnalisiPreventivi";
 import QuoteApprovals from "./QuoteApprovals";
 
-const ALLOWED_USER_TABS = new Set(["lista", "moduli"]);
+const ALLOWED_USER_TABS = new Set(["lista"]);
 
 export default function Preventivi() {
   const { effectiveCompany } = useAuth();
@@ -70,6 +69,17 @@ export default function Preventivi() {
   const companyId = effectiveCompany?.id;
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [showNewQuote, setShowNewQuote] = useState(false);
+  // Old selector links now open the popup above the same unified list.
+  const quoteDialogOpen = showNewQuote || searchParams.get("tab") === "moduli";
+  const handleQuoteDialog = (open: boolean) => {
+    setShowNewQuote(open);
+    if (!open && searchParams.get("tab") === "moduli") {
+      const next = new URLSearchParams(searchParams);
+      for (const key of ["tab", "area", "intervento", "q_moduli", "stato_moduli", "vista_moduli"]) next.delete(key);
+      setSearchParams(next, { replace: true });
+    }
+  };
 
   // Gate PER-AZIENDA (prima usava il ruolo GLOBALE → leak cross-azienda per utenti
   // multi-azienda). "Approvazioni sconto" richiede can_approve_discounts; "Analisi
@@ -152,12 +162,10 @@ export default function Preventivi() {
   }, [searchParams]);
 
   // ─── Tab navigation config ───────────────────────────────────────────────
-  // Moduli Vendita e Analisi AI sono lavoro da scrivania: su mobile restano
-  // Lista e (per chi approva) Approvazioni sconto.
+  // I moduli sono accessibili anche da telefono; l'analisi resta desktop.
   const isMobile = useIsMobile();
   const hubTabs: HubTab[] = [
     { key: "lista", label: "Lista Preventivi", icon: <FileSignature className="h-4 w-4" /> },
-    ...(isMobile ? [] : [{ key: "moduli", label: "Moduli Vendita", icon: <ShoppingBag className="h-4 w-4" /> }]),
     ...(canSeeApprovazioni
       ? [
           {
@@ -191,7 +199,7 @@ export default function Preventivi() {
         <>
           <QuotePageHeader
             title="Preventivi"
-            subtitle="Vista unificata cross-modulo · classici + serramenti + fotovoltaico"
+            subtitle="Tutte le offerte della tua azienda, dal primo contatto alla conferma."
             icon={<FileSignature className="h-5 w-5" />}
             actions={
               <>
@@ -231,10 +239,8 @@ export default function Preventivi() {
                   </DropdownMenuContent>
                 </DropdownMenu>
 
-                {/* "Nuovo preventivo" — dropdown con moduli sbloccati dal super admin
-                    via feature flag. Se nessun modulo è attivo, è un bottone diretto.
-                    onCreaConAI apre il dialog foto/vocale/testo montato qui sotto. */}
-                <NewPreventivoMenu size="sm" onCreaConAI={() => setShowFotoModal(true)} />
+                {(permissions.canEditPreventivi || permissions.canEditMarketingOpportunities) && <NewQuoteDialog open={quoteDialogOpen} onOpenChange={handleQuoteDialog} params={searchParams}
+                  trigger={<Button size="sm" className="h-11 sm:h-10"><Plus className="mr-1.5 h-4 w-4" />Nuovo preventivo</Button>} />}
               </>
             }
           />
@@ -243,7 +249,6 @@ export default function Preventivi() {
         </>
       )}
 
-      {activeTab === "moduli" && <ModuliVendutaTab />}
       {activeTab === "approvazioni" && canSeeApprovazioni && <QuoteApprovals />}
       {activeTab === "analisi" && canSeeAnalisi && <AnalisiPreventivi />}
 

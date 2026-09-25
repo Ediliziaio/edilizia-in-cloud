@@ -22,6 +22,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { queryKeys } from "@/lib/queryKeys";
+import { refreshMaterialQueries } from "@/lib/orders/refreshMaterialQueries";
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -336,6 +337,7 @@ export function useDDTRicezioneMutations(poId?: string | null) {
   const companyId = effectiveCompany?.id;
 
   const invalidateAll = () => {
+    refreshMaterialQueries(queryClient);
     // Performance: invalidazioni minimali e mirate.
     // Prima: 8 invalidateQueries con duplicati (`ddtRicezione.all` == `["ddt-ricezione"]`)
     // e prefix troppo broad (`["warehouse"]` matcha 20+ query del magazzino,

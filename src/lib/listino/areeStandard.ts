@@ -18,6 +18,8 @@ export type SlotFotovoltaico = "pannello" | "inverter" | "accumulo" | "ottimizza
 
 export interface TipologiaStandard {
   nome: string;
+  /** Esempi di prodotti da configurare: non sono articoli o prezzi già importati. */
+  esempi?: string[];
   /** Altri nomi con cui le aziende la chiamano. */
   sinonimi: string[];
   /**
@@ -90,11 +92,115 @@ export const AREE_STANDARD: AreaStandard[] = [
       tipologia("Vasche", { sinonimi: ["vasca"] }),
       tipologia("Box doccia", { sinonimi: ["docce", "doccia"] }),
       tipologia("Piatti doccia", { sinonimi: ["piatto doccia"] }),
-      tipologia("Sanitari", { sinonimi: ["vasi", "bidet"] }),
+      tipologia("Sanitari", { sinonimi: ["vasi", "bidet"], esempi: ["WC sospeso", "WC a terra", "Bidet", "Cassette e telai"] }),
+      tipologia("Lavabi", { sinonimi: ["lavabo"], esempi: ["Da appoggio", "Sospeso", "Da incasso", "Lavatoio"] }),
       tipologia("Mobili bagno", { sinonimi: ["arredo bagno", "mobili"] }),
       tipologia("Rubinetteria", { sinonimi: ["rubinetti", "miscelatori"] }),
-      tipologia("Rivestimenti", { sinonimi: ["piastrelle"] }),
+      tipologia("Rivestimenti", { sinonimi: ["piastrelle"], esempi: ["Ceramica", "Gres porcellanato", "Mosaico", "Grandi lastre"] }),
+      tipologia("Pavimenti", { esempi: ["Gres", "Pietra", "SPC", "Laminato idoneo all'ambiente"] }),
+      tipologia("Sistemi doccia", { esempi: ["Colonne", "Soffioni", "Canaline", "Scarichi e sifoni"] }),
+      tipologia("Specchi e illuminazione", { esempi: ["Specchi", "Specchiere", "Applique", "Luci integrate"] }),
+      tipologia("Termoarredi", { sinonimi: ["scaldasalviette"], esempi: ["Idraulici", "Elettrici", "Misti"] }),
+      tipologia("Materiali di posa", { esempi: ["Collanti", "Stucchi", "Impermeabilizzanti", "Profili"] }),
       tipologia("Accessori", { accessorio: true }),
+    ],
+  },
+  {
+    chiave: "tetti", nome: "Tetti", verticale: "tetti", sinonimi: ["tetti", "tetto"], preventivatore: null,
+    tipologie: [
+      tipologia("Manti di copertura", { esempi: ["Coppi", "Tegole", "Lastre", "Pannelli sandwich"] }),
+      tipologia("Isolanti per coperture", { esempi: ["Lana minerale", "Fibra di legno", "Pannelli sintetici"] }),
+      tipologia("Membrane e teli", { esempi: ["Impermeabilizzanti", "Freni al vapore", "Teli traspiranti"] }),
+      tipologia("Orditure e supporti", { esempi: ["Travi", "Tavolati", "Listelli", "Pannelli di supporto"] }),
+      tipologia("Lattoneria", { esempi: ["Canali di gronda", "Pluviali", "Scossaline", "Raccordi"] }),
+      tipologia("Finestre da tetto", { esempi: ["Finestre", "Lucernari", "Raccordi di posa", "Oscuranti"] }),
+      tipologia("Sicurezza in copertura", { esempi: ["Linee vita", "Ancoraggi", "Accessi"] }),
+      tipologia("Accessori copertura", { accessorio: true, esempi: ["Colmi", "Fermaneve", "Aeratori", "Fissaggi"] }),
+    ],
+  },
+  {
+    chiave: "ristrutturazione", nome: "Ristrutturazioni", verticale: "ristrutturazione", sinonimi: ["ristrutturazione", "ristrutturazioni"], preventivatore: null,
+    // Le forniture specialistiche restano nei loro listini: non duplicare gli articoli.
+    tipologie: [
+      tipologia("Murature e divisori", { esempi: ["Laterizi", "Blocchi", "Elementi per tramezzi"] }),
+      tipologia("Sistemi a secco", { esempi: ["Lastre", "Profili", "Controsoffitti", "Isolanti per pareti"] }),
+      tipologia("Leganti e sottofondi", { esempi: ["Malte", "Massetti", "Autolivellanti", "Aggregati"] }),
+      tipologia("Intonaci e rasanti", { esempi: ["Intonaci di fondo", "Rasanti", "Reti", "Paraspigoli"] }),
+      tipologia("Pitture e finiture", { esempi: ["Primer", "Idropitture", "Smalti", "Finiture decorative"] }),
+      tipologia("Materiali di protezione", { esempi: ["Teli", "Nastri", "Protezioni per pavimenti"] }),
+    ],
+  },
+  {
+    chiave: "climatizzazione", nome: "Climatizzazione", verticale: "climatizzazione", sinonimi: ["climatizzazione", "clima"], preventivatore: null,
+    tipologie: [
+      tipologia("Climatizzatori monosplit", { esempi: ["Unità interna ed esterna abbinate"] }),
+      tipologia("Sistemi multisplit", { esempi: ["Unità esterne", "Unità interne", "Combinazioni compatibili"] }),
+      tipologia("Sistemi canalizzati", { esempi: ["Unità canalizzate", "Plenum", "Bocchette", "Canali"] }),
+      tipologia("Ventilazione meccanica", { esempi: ["VMC puntuale", "VMC centralizzata", "Recuperatori", "Filtri"] }),
+      tipologia("Linee e scarichi", { esempi: ["Tubazioni frigorifere", "Coibentazioni", "Scarichi condensa", "Pompe condensa"] }),
+      tipologia("Regolazione clima", { esempi: ["Comandi", "Sonde", "Gateway"] }),
+      tipologia("Accessori climatizzazione", { accessorio: true, esempi: ["Staffe", "Supporti", "Antivibranti", "Canaline"] }),
+    ],
+  },
+  {
+    chiave: "termoidraulico", nome: "Termoidraulica e riscaldamento", verticale: "termoidraulico", sinonimi: ["termoidraulico", "termoidraulica", "caldaie", "pompe_calore"], preventivatore: null,
+    tipologie: [
+      tipologia("Caldaie", { esempi: ["Murali", "A basamento", "Accessori fumi"] }),
+      tipologia("Pompe di calore", { esempi: ["Monoblocco", "Split", "Componenti idraulici"] }),
+      tipologia("Sistemi ibridi", { esempi: ["Generatori abbinati", "Moduli idraulici", "Regolazione coordinata"] }),
+      tipologia("Acqua calda sanitaria", { esempi: ["Scaldacqua", "Bollitori", "Accumuli", "Ricircolo"] }),
+      tipologia("Sistemi radianti", { esempi: ["Pannelli", "Tubazioni", "Collettori", "Testine"] }),
+      tipologia("Radiatori e terminali", { esempi: ["Radiatori", "Termoarredi", "Ventilconvettori", "Valvole"] }),
+      tipologia("Reti idrico-sanitarie", { esempi: ["Tubi", "Raccordi", "Scarichi", "Collettori"] }),
+      tipologia("Trattamento acqua", { esempi: ["Filtri", "Addolcitori", "Dosatori"] }),
+      tipologia("Regolazione e sicurezza", { esempi: ["Cronotermostati", "Circolatori", "Vasi di espansione", "Valvole di sicurezza"] }),
+    ],
+  },
+  {
+    chiave: "elettrico", nome: "Elettrico e domotica", verticale: "elettrico", sinonimi: ["elettrico", "domotica"], preventivatore: null,
+    tipologie: [
+      tipologia("Serie civili", { esempi: ["Prese", "Interruttori", "Placche", "Supporti"] }),
+      tipologia("Cavi e canalizzazioni", { esempi: ["Cavi", "Corrugati", "Canaline", "Scatole"] }),
+      tipologia("Quadri e protezioni", { esempi: ["Centralini", "Interruttori", "Scaricatori", "Accessori quadro"] }),
+      tipologia("Illuminazione", { esempi: ["Apparecchi LED", "Alimentatori", "Luci di emergenza"] }),
+      tipologia("Domotica e automazioni", { esempi: ["Attuatori", "Sensori", "Gateway", "Motorizzazioni"] }),
+      tipologia("Videocitofonia", { esempi: ["Postazioni esterne", "Monitor", "Alimentatori"] }),
+      tipologia("Ricarica veicoli", { esempi: ["Wallbox", "Colonnine", "Gestione carichi"] }),
+      tipologia("Reti dati e sicurezza", { esempi: ["Prese dati", "Armadi rete", "Allarmi", "Telecamere"] }),
+    ],
+  },
+  {
+    chiave: "pavimenti", nome: "Pavimenti e rivestimenti", verticale: "pavimenti", sinonimi: ["pavimenti"], preventivatore: null,
+    tipologie: [
+      tipologia("Ceramica e gres", { esempi: ["Piastrelle", "Mosaici", "Grandi lastre"] }),
+      tipologia("Parquet", { esempi: ["Massello", "Prefinito", "Finiture di recupero"] }),
+      tipologia("Laminati e vinilici", { esempi: ["Laminato", "LVT", "SPC"] }),
+      tipologia("Resine e microcementi", { esempi: ["Primer", "Strati di fondo", "Finiture", "Protettivi"] }),
+      tipologia("Pietre e pavimenti esterni", { esempi: ["Pietra naturale", "Masselli", "Gres da esterno", "Decking"] }),
+      tipologia("Sottofondi e posa", { esempi: ["Massetti", "Autolivellanti", "Materassini", "Collanti"] }),
+      tipologia("Profili e finiture", { accessorio: true, esempi: ["Battiscopa", "Soglie", "Giunti", "Stucchi"] }),
+    ],
+  },
+  {
+    chiave: "piscine", nome: "Piscine", verticale: "piscine", sinonimi: ["piscine", "piscina"], preventivatore: null,
+    tipologie: [
+      tipologia("Strutture piscina", { esempi: ["Vasche", "Pannelli", "Casseri"] }),
+      tipologia("Rivestimenti piscina", { esempi: ["Liner", "Membrane", "Mosaici", "Impermeabilizzanti"] }),
+      tipologia("Filtrazione e circolazione", { esempi: ["Pompe", "Filtri", "Skimmer", "Bocchette"] }),
+      tipologia("Trattamento acqua piscina", { esempi: ["Dosatori", "Elettrolisi", "Centraline", "Prodotti trattamento"] }),
+      tipologia("Riscaldamento piscina", { esempi: ["Pompe di calore", "Scambiatori"] }),
+      tipologia("Coperture piscina", { esempi: ["Coperture estive", "Invernali", "Automatiche"] }),
+      tipologia("Bordi e dotazioni", { esempi: ["Bordi", "Scale", "Illuminazione", "Robot pulitori"] }),
+    ],
+  },
+  {
+    chiave: "cappotto", nome: "Facciate e isolamento", verticale: "cappotto", sinonimi: ["cappotto", "facciate"], preventivatore: null,
+    tipologie: [
+      tipologia("Sistemi a cappotto", { esempi: ["Pannelli isolanti", "Collanti di sistema", "Tasselli", "Reti e rasanti compatibili"] }),
+      tipologia("Isolamento interno", { esempi: ["Pannelli", "Contropareti", "Membrane", "Componenti del sistema"] }),
+      tipologia("Finiture per facciate", { esempi: ["Primer", "Rivestimenti", "Pitture per esterni"] }),
+      tipologia("Ripristini e balconi", { esempi: ["Malte da ripristino", "Passivanti", "Impermeabilizzanti"] }),
+      tipologia("Profili e raccordi facciata", { accessorio: true, esempi: ["Profili di partenza", "Gocciolatoi", "Angolari", "Giunti"] }),
     ],
   },
 ];

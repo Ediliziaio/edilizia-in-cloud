@@ -1,3 +1,4 @@
+import { detectCoverStyle } from "@/lib/preventivi/templateCoverStyle";
 /**
  * coverPresets.ts (Fotovoltaico) — Preset layout cover PDF.
  *
@@ -9,6 +10,8 @@
  * overlay_style,title_size,subtitle_size,eyebrow_size} sono aggiunti a
  * fv_template_pdf dalla migration 20271109000000_fv_cover_parity.sql.
  */
+
+import { COVER_STOCK_IMAGES } from "./coverStockImages";
 
 export type CoverPresetCategory = "solid" | "photo";
 
@@ -45,9 +48,9 @@ export interface CoverPreset {
   patch: CoverPresetPatch;
 }
 
-// Stock image suggerita per i preset photo (l'utente la cambia poi).
-const STOCK_FALLBACK_SOLAR =
-  "https://images.unsplash.com/photo-1509391366360-2e959784a276?w=1600&q=80&auto=format&fit=crop";
+// Immagine locale curata per i preset foto: il PDF resta riproducibile anche
+// senza rete e la galleria usa la stessa libreria proprietaria dell'editor.
+const STOCK_FALLBACK_SOLAR = COVER_STOCK_IMAGES[0].url;
 
 export const COVER_PRESETS: CoverPreset[] = [
   // ═══ SOLID — Solo colore di sfondo, no immagine ════════════════════════
@@ -284,17 +287,4 @@ export const COVER_PRESETS: CoverPreset[] = [
  */
 export function detectActiveCoverPreset(
   form: CoverPresetPatch,
-): string | null {
-  for (const preset of COVER_PRESETS) {
-    const patch = preset.patch;
-    const allMatch = (Object.keys(patch) as (keyof CoverPresetPatch)[]).every((k) => {
-      if (preset.category === "photo" && k === "pdf_cover_image_url") return true;
-      const expected = patch[k];
-      const actual = form[k];
-      if (expected == null && actual == null) return true;
-      return expected === actual;
-    });
-    if (allMatch) return preset.id;
-  }
-  return null;
-}
+): string | null { return detectCoverStyle(form, COVER_PRESETS); }

@@ -24,6 +24,7 @@ import {
   type PredefinitiAzienda,
 } from "@/lib/moduli/salvataggioProgetto";
 import type { GalleryLavoroItem } from "@/types/gallery";
+import { readTetQuoteModel } from "@/lib/tetti/quoteModel";
 import type {
   TetProgetto,
   TetComputoVoce,
@@ -219,6 +220,7 @@ export function useUpsertProgetto() {
         // Il wizard rimanda la riga intera: totali, stato, commessa, codice e
         // date restano quelli del server (vedi lib/moduli/salvataggioProgetto).
         const campi = soloCampiDelForm(patch);
+        delete campi.modello_snapshot;
         return inFila(id, async () => {
           // Sconto o IVA cambiati: i totali salvati si ricalcolano qui, come nel
           // salvataggio del computo. Senza, restavano quelli col vecchio sconto.
@@ -239,6 +241,7 @@ export function useUpsertProgetto() {
       // Insert: assicura code + company_id + stato di default. IVA e detrazione
       // partono da quelle predefinite nel template dell'azienda, se chi crea non
       // le ha già scelte: prima valevano solo i default della tabella.
+      readTetQuoteModel(patch.modello_snapshot, companyId);
       const [code, predefiniti] = await Promise.all([
         (patch.code as string | null | undefined) ?? generateProgettoCode(companyId),
         predefinitiAzienda(companyId),
@@ -322,6 +325,7 @@ export function useClonaProgetto() {
           detrazione_pct: src.detrazione_pct,
           note: src.note,
           template_id: src.template_id,
+          ...(src.modello_snapshot ? { modello_snapshot: readTetQuoteModel(src.modello_snapshot, companyId) } : {}),
           totale_imponibile: src.totale_imponibile,
           totale: src.totale,
         })

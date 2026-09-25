@@ -1,0 +1,20 @@
+[
+  {
+    "module": "bagni/sanitari",
+    "workspacePath": "/Users/agenteai/Documents/Codex/2026-09-22/agg/work/edilizia-in-cloud/public/module-art/bagni-sanitari-cover.jpg",
+    "source": "/Users/agenteai/.codex/generated_images/01a0c971-7f8c-79f3-b076-73f23be195be/exec-5a24a1a3-6d33-4980-9a37-117e052045d1.png",
+    "prompt": "Use case: photorealistic-natural. Asset type: portrait 2:3 editorial cover for Italian bathroom sanitaryware and tap replacement quotation. An ordinary tasteful compact Italian bathroom with clean white ceramic floor-standing toilet with closed seat, separate floor-standing bidet with one chrome mixer, and wall-hung white ceramic washbasin with a single chrome mixer. Pale warm neutral tiles already in place, soft natural side light, restrained architectural photography. Frame the three fixtures clearly with plausible spacing and straight geometry; not a luxury complete renovation, no shower or bathtub. Leave quiet flooring in lower part for editorial title added later. No people, no lettering, no logos, no watermark, no before-after, no technical cutaway. Illustrative concept rather than a real company project; no claim these products are included.",
+    "method": "Built-in Imagegen, JPEG format conversion only",
+    "usage": "Illustrazione, non lavoro aziendale o prodotto incluso implicitamente",
+    "date": "2026-09-24"
+  },
+  {
+    "module": "bagni/sanitari",
+    "workspacePath": "/Users/agenteai/Documents/Codex/2026-09-22/agg/work/edilizia-in-cloud/public/module-art/bagni-rubinetteria-detail.jpg",
+    "source": "/Users/agenteai/.codex/generated_images/01a0c971-7f8c-79f3-b076-73f23be195be/exec-1691f072-1855-418c-8e9f-8ce4fa2715c9.png",
+    "prompt": "Use case: product-mockup. Asset type: landscape 3:2 editorial supporting photograph for an Italian sanitaryware and tap replacement quotation. Close view of a simple polished chrome single-lever mixer correctly mounted on the rear ledge of a clean white ceramic washbasin, visible spout above bowl and a simple circular drain, neutral warm tile background. Restrained architectural product photography, soft natural light, accurate plausible geometry and realistic reflections, clear functional object without luxury extras. No running water, no hands, no tools, no people, no lettering, no brand, no watermark, no technical cutaway. An illustrative product category, not a specific advertised model or a promised included product.",
+    "method": "Built-in Imagegen, JPEG format conversion only",
+    "usage": "Illustrazione, non lavoro aziendale o prodotto incluso implicitamente",
+    "date": "2026-09-24"
+  }
+]

@@ -1,3 +1,4 @@
+import { detectCoverStyle } from "@/lib/preventivi/templateCoverStyle";
 /**
  * coverPresets.ts (Elettrico) — Preset layout cover PDF.
  *
@@ -88,8 +89,7 @@ export interface CoverPreset {
 
 // URL di una stock image usata come "suggested image" per i preset photo
 // che non hanno una propria foto specifica (l'utente la cambierà poi).
-const STOCK_FALLBACK_HOUSE =
-  "https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=1600&q=80&auto=format&fit=crop";
+const STOCK_FALLBACK_HOUSE = "/cover-stock/elettrico/1.jpg";
 
 export const COVER_PRESETS: CoverPreset[] = [
   // ═══ SOLID — Solo colore di sfondo, no immagine ════════════════════════
@@ -331,18 +331,4 @@ export const COVER_PRESETS: CoverPreset[] = [
  */
 export function detectActiveCoverPreset(
   form: Partial<EleCoverFields>,
-): string | null {
-  for (const preset of COVER_PRESETS) {
-    const patch = preset.patch;
-    const allMatch = (Object.keys(patch) as (keyof CoverPresetPatch)[]).every((k) => {
-      // Per preset photo, skippiamo image_url (vedi commento sopra).
-      if (preset.category === "photo" && k === "pdf_cover_image_url") return true;
-      const expected = patch[k];
-      const actual = form[k];
-      if (expected == null && actual == null) return true;
-      return expected === actual;
-    });
-    if (allMatch) return preset.id;
-  }
-  return null;
-}
+): string | null { return detectCoverStyle(form, COVER_PRESETS); }

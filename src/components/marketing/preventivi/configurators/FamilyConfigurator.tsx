@@ -35,6 +35,7 @@ import type { QuoteItemPro } from "@/types/quoteItem";
 import type { CatalogItemFamily, ConfiguredItem } from "@/types/catalogItem";
 
 interface FamilyConfiguratorProps {
+  confirmLabel?: string;
   item: CatalogItemFamily;
   tariffe: TariffaPro[];
   currentSortOrder: number;
@@ -69,6 +70,7 @@ function uuid(): string {
 }
 
 export function FamilyConfigurator({
+  confirmLabel = "Aggiungi al preventivo",
   item,
   tariffe,
   currentSortOrder,
@@ -404,7 +406,7 @@ export function FamilyConfigurator({
         </Button>
         <Button variant="brand" disabled={!canConfirm} onClick={handleConfirm}>
           <Check className="mr-1 h-4 w-4" />
-          Aggiungi al preventivo
+          {confirmLabel}
         </Button>
       </div>
     </div>

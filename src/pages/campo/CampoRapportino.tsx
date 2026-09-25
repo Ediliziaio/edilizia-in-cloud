@@ -7,10 +7,10 @@
  *    firmato da chi lo compila.
  * 3. SOLO se "lavoro completato": firma del cliente (obbligatoria).
  *
- * Nessun campo del giornaliero è obbligatorio (firma inclusa).
+ * Le ore vanno confermate: 0 per sole foto/note; nessuna presenza implicita.
  */
 import { useState, useEffect, useRef } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -19,12 +19,22 @@ import {
   Camera, X, Minus, Plus, Loader2, Send,
 } from "lucide-react";
 import { toast } from "sonner";
+import { notifyRapportinoPdf } from "@/lib/campo/rapportinoPdf";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsCampo } from "@/hooks/useIsCampo";
 import { useGPS } from "@/hooks/useGPS";
 import { FirmaPad } from "@/components/campo/FirmaPad";
 import { useWeatherForecast } from "@/hooks/useWeatherForecast";
+import { hasRapportinoAssignment } from "@/lib/campo/rapportinoAssignment";
+import { buildRapportinoMaterials, rapportinoArticleKind, rapportinoMaterialUnit, rapportinoUnitOptions, type RapportinoArticle, type RapportinoMaterialDraft } from "@/lib/campo/rapportinoMaterials";
+import { loadRapportinoArticles } from "@/lib/campo/loadRapportinoArticles";
+import { RapportinoSiteContext } from "@/components/campo/RapportinoSiteContext";
+import { useCampoDayTime } from "@/hooks/campo/useCampoDayTime";
+import { campoReportHours } from "@/lib/campo/timeSummary";
+import { validateRapportinoHours, type CampoHoursDraft } from "@/lib/campo/rapportinoHours";
+import { useCampoWorkDay } from "@/hooks/campo/useCampoWorkDay";
+import { assertReportDay, campoWorkDay, reportDayAllowed, REPORT_DEADLINE_MESSAGE, shiftWorkDay, validWorkDay } from "@/lib/campo/workDay";
 
 const TOTAL_STEPS = 2;
 
@@ -73,12 +83,27 @@ async function compressImage(file: File, maxWidth = 1280, quality = 0.75): Promi
 
 export default function CampoRapportino() {
   const { orderId } = useParams<{ orderId: string }>();
+  const { user, profile } = useAuth();
+  const [params] = useSearchParams();
+  // Freeze the chosen day: leaving the form open overnight must not re-date it.
+  const [openedDay] = useState(() => campoWorkDay());
+  const workDay = params.get("data") ?? openedDay;
+  return <CampoRapportinoEditor key={`${profile?.company_id}:${user?.id}:${orderId}:${workDay}`} workDay={workDay} />;
+}
+
+function CampoRapportinoEditor({ workDay }: { workDay: string }) {
+  const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
   const { user, profile } = useAuth();
   const { isSubappaltatore } = useIsCampo();
   const queryClient = useQueryClient();
   const { lat, lng, accuracy, requestPosition } = useGPS(profile?.company_id ?? null);
   const companyId = profile?.company_id ?? null;
+  const [params, setParams] = useSearchParams();
+  const today = useCampoWorkDay();
+  const yesterday = shiftWorkDay(today, -1);
+  const dayAllowed = validWorkDay(workDay) && (workDay === today || workDay === yesterday);
+  const dayLabel = validWorkDay(workDay) ? format(new Date(`${workDay}T12:00:00`), "d MMMM yyyy", { locale: it }) : "Data non valida";
 
   const [step, setStep] = useState(1);
 
@@ -87,13 +112,16 @@ export default function CampoRapportino() {
   const [meteo, setMeteo] = useState<string>("");
 
   // Step 2
-  const [oreLavorate, setOreLavorate] = useState(8);
+  const [oreLavorate, setOreLavorate] = useState<CampoHoursDraft>("");
+  const oreModificate = useRef(false);
+  const meteoModificato = useRef(false);
+  const modificaOre = (value: CampoHoursDraft) => { oreModificate.current = true; setOreLavorate(value); };
   const [oreStraordinario, setOreStraordinario] = useState(0);
   const [percentuale, setPercentuale] = useState(0);
   // Fasi dichiarate: phase_id → nuovo avanzamento raggiunto (0-100)
   const [fasiDichiarate, setFasiDichiarate] = useState<Record<string, number>>({});
   // Materiali usati oggi: key (order_item id o "libero_<n>") → nome+quantità
-  const [materialiSel, setMaterialiSel] = useState<Record<string, { nome: string; quantita: number }>>({});
+  const [materialiSel, setMaterialiSel] = useState<Record<string, RapportinoMaterialDraft>>({});
   const [materialeLibero, setMaterialeLibero] = useState("");
   const [fotoPreviews, setFotoPreviews] = useState<string[]>([]);
   const [fotoUrls, setFotoUrls] = useState<string[]>([]);
@@ -154,11 +182,12 @@ export default function CampoRapportino() {
     enabled: !!orderId && !!user?.id && !!companyId,
     staleTime: 300_000,
     queryFn: async (): Promise<{ isCapocantiere: boolean; esisteCapo: boolean }> => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("order_campo_assignments")
         .select("user_id, is_capocantiere")
         .eq("order_id", orderId!)
         .eq("company_id", companyId!);
+      if (error) throw error;
       const righe = (data ?? []) as Array<{ user_id: string; is_capocantiere: boolean | null }>;
       return {
         isCapocantiere: righe.some(r => r.user_id === user!.id && !!r.is_capocantiere),
@@ -170,7 +199,7 @@ export default function CampoRapportino() {
   // FALLBACK di adozione: finché la commessa non ha un capocantiere nominato
   // vale il comportamento storico (chiunque dichiara le %) — le commesse
   // esistenti non si bloccano; il rigore scatta con la nomina.
-  const puoDichiararePercentuali = isCapocantiere || !(ruoloCampo?.esisteCapo ?? false);
+  const puoDichiararePercentuali = !!ruoloCampo && (isCapocantiere || !ruoloCampo.esisteCapo);
 
   // ── Squadra del giorno ────────────────────────────────────────────────
   // Il flusso reale: il rapportino lo fa UNO (capocantiere), e dentro c'è
@@ -182,7 +211,7 @@ export default function CampoRapportino() {
     subappaltatore_id?: string;
     nome: string;
   };
-  const [presenzeSel, setPresenzeSel] = useState<Record<string, number>>({});
+  const [presenzeSel, setPresenzeSel] = useState<Record<string, CampoHoursDraft>>({});
   const { data: squadra = [] } = useQuery({
     queryKey: ["campo-squadra", orderId],
     enabled: !!orderId && isCapocantiere,
@@ -235,17 +264,16 @@ export default function CampoRapportino() {
     setPresenzeSel(prev => {
       const next = { ...prev };
       if (m.key in next) delete next[m.key];
-      else next[m.key] = 8;
+      else next[m.key] = "";
       return next;
     });
   };
 
-  // Rapportino già inviato oggi su questo cantiere? Avvisiamo (non blocchiamo:
-  // due squadre o una correzione sono casi legittimi), così niente doppioni
-  // per sbaglio da tap ripetuto o da "non ricordavo di averlo mandato".
+  // The existing DB unique key is author + site + workday. Never promise a
+  // second report or overwrite an approved one; corrections go to the office.
   const { data: rapportinoGiaOggi } = useQuery({
-    queryKey: ["campo-rapportino-gia-oggi", orderId, user?.id],
-    enabled: !!orderId && !!user?.id,
+    queryKey: ["campo-rapportino-gia-oggi", companyId, orderId, user?.id, workDay],
+    enabled: !!companyId && !!orderId && !!user?.id && validWorkDay(workDay),
     staleTime: 30_000,
     queryFn: async (): Promise<{ id: string; created_at: string } | null> => {
       const { data, error } = await supabase
@@ -253,7 +281,8 @@ export default function CampoRapportino() {
         .select("id, created_at")
         .eq("order_id", orderId!)
         .eq("user_id", user!.id)
-        .eq("data_lavoro", format(new Date(), "yyyy-MM-dd"))
+        .eq("company_id", companyId!)
+        .eq("data_lavoro", workDay)
         .order("created_at", { ascending: false })
         .limit(1);
       if (error) throw error;
@@ -261,26 +290,20 @@ export default function CampoRapportino() {
     },
   });
 
-  // ── Precompilazione: ore dalle timbrature di oggi, meteo dalle previsioni ──
-  // Chi arriva dal promemoria delle 18:30 trova già ore e meteo compilati: resta
-  // da scrivere cosa ha fatto. Si applica UNA volta e solo se i campi sono ancora
-  // ai valori di partenza (8 h, meteo vuoto): non sovrascrive quello che l'operaio
-  // ha già toccato.
-  const { data: timbratureOggi = [] } = useQuery({
-    queryKey: ["campo-timbrature-oggi-rapportino", user?.id, format(new Date(), "yyyy-MM-dd")],
-    enabled: !!user?.id,
-    staleTime: 60_000,
-    queryFn: async () => {
-      const inizio = new Date(); inizio.setHours(0, 0, 0, 0);
-      const { data } = await supabase
-        .from("campo_timbrature")
-        .select("tipo, timestamp_evento, order_id")
-        .eq("user_id", user!.id)
-        .gte("timestamp_evento", inizio.toISOString())
-        .order("timestamp_evento", { ascending: true });
-      return (data ?? []) as Array<{ tipo: string; timestamp_evento: string; order_id: string | null }>;
-    },
-  });
+  const dayTime = useCampoDayTime(user?.id, companyId, workDay);
+  const siteTime = dayTime.summary.byOrder.get(orderId ?? "");
+  const oreRilevate = siteTime ? campoReportHours(siteTime.workMinutes) : null;
+  const anomalieTimbrature = dayTime.summary.issues.some(issue => issue.kind !== "open_session");
+  const sessioneDaChiudere = dayTime.isSuccess && dayTime.summary.state !== "out" && dayTime.summary.activeOrderId === orderId && workDay === today;
+  useEffect(() => {
+    if (oreModificate.current || rapportinoGiaOggi || !dayTime.isSuccess || oreRilevate == null || anomalieTimbrature) return;
+    let cancelled = false;
+    void Promise.resolve().then(() => {
+      if (cancelled || oreModificate.current) return;
+      setOreLavorate(oreRilevate);
+    });
+    return () => { cancelled = true; };
+  }, [dayTime.isSuccess, oreRilevate, anomalieTimbrature, rapportinoGiaOggi]);
   const { data: coordCantiere } = useQuery({
     queryKey: ["campo-cantiere-coord", orderId],
     enabled: !!orderId,
@@ -291,70 +314,53 @@ export default function CampoRapportino() {
     },
   });
   const { data: meteoMap } = useWeatherForecast(coordCantiere?.lat ?? 45.4654, coordCantiere?.lng ?? 9.1859, 1);
-  const precompilatoRef = useRef(false);
   useEffect(() => {
-    if (precompilatoRef.current || rapportinoGiaOggi) return;
-    let fatto = false;
-    // I setter partono al tick successivo: l'effetto non deve fare setState sincrono
-    // (regola del compilatore React), e qui un frame di ritardo non cambia nulla.
-    const applica = (fn: () => void) => { void Promise.resolve().then(fn); };
-    // Ore: coppie entrata→uscita di oggi (un'entrata aperta conta fino ad adesso), arrotondate al mezzo.
-    if (timbratureOggi.length > 0 && oreLavorate === 8) {
-      let secondi = 0; let apertura: number | null = null;
-      for (const t of timbratureOggi) {
-        const ts = new Date(t.timestamp_evento).getTime();
-        if (t.tipo === "entrata") apertura = ts;
-        else if (t.tipo === "uscita" && apertura != null) { secondi += (ts - apertura) / 1000; apertura = null; }
-      }
-      if (apertura != null) secondi += (Date.now() - apertura) / 1000;
-      const ore = Math.round((secondi / 3600) * 2) / 2;
-      if (ore >= 0.5 && ore <= 14) { applica(() => setOreLavorate(ore)); fatto = true; }
-    }
-    // Meteo: codice WMO di oggi sul cantiere → le cinque opzioni del rapportino.
-    if (meteoMap && coordCantiere && !meteo) {
-      const oggi = meteoMap.get(format(new Date(), "yyyy-MM-dd"));
-      if (oggi) {
-        const c = oggi.code;
-        // Valori identici a METEO_OPTIONS (soleggiato/nuvoloso/pioggia/neve/vento).
-        const scelta = c <= 1 ? "soleggiato" : c <= 48 ? "nuvoloso" : (c >= 71 && c <= 77) || c === 85 || c === 86 ? "neve" : c >= 51 ? "pioggia" : "nuvoloso";
-        applica(() => setMeteo(scelta)); fatto = true;
-      }
-    }
-    if (fatto) precompilatoRef.current = true;
-    // Le funzioni di stato sono stabili; le dipendenze sono i dati che arrivano.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timbratureOggi, meteoMap, coordCantiere, rapportinoGiaOggi]);
-
+    if (meteoModificato.current || rapportinoGiaOggi || !meteoMap || !coordCantiere) return;
+    const weather = meteoMap.get(workDay);
+    if (!weather) return;
+    let cancelled = false;
+    void Promise.resolve().then(() => {
+      if (cancelled || meteoModificato.current) return;
+      const c = weather.code;
+      setMeteo(c <= 1 ? "soleggiato" : c <= 48 ? "nuvoloso" : (c >= 71 && c <= 77) || c === 85 || c === 86 ? "neve" : "pioggia");
+      meteoModificato.current = true;
+    });
+    return () => { cancelled = true; };
+  }, [meteoMap, coordCantiere, rapportinoGiaOggi, workDay]);
   // Solo le fasi non completate sono dichiarabili
   const fasiDichiarabili = fasiCommessa.filter(f => f.status !== "completata");
 
   // ── Articoli/materiali della commessa (order_items) ─────────────────
   // L'operaio può confermare quali ha usato oggi (facoltativo). Se la
   // commessa non ha articoli resta solo l'aggiunta libera.
-  const { data: articoliCommessa = [] } = useQuery({
-    queryKey: ["campo-articoli-commessa-rapportino", orderId],
-    enabled: !!orderId,
+  const { data: articoliCommessa = [], isLoading: articoliLoading, isError: articoliError, refetch: refetchArticoli } = useQuery({
+    queryKey: ["campo-articoli-commessa-rapportino", orderId, companyId],
+    enabled: !!orderId && !!companyId,
     staleTime: 60_000,
-    queryFn: async (): Promise<{ id: string; name: string }[]> => {
-      const { data, error } = await supabase
-        .from("order_items")
-        .select("id, name")
-        .eq("order_id", orderId!)
-        .order("position", { ascending: true })
-        .limit(50);
-      if (error) throw error;
-      return (data ?? []).map(i => ({ id: i.id, name: i.name }));
-    },
+    queryFn: () => loadRapportinoArticles(orderId!, companyId!),
   });
+  const materialiCommessa = articoliCommessa.filter(item => rapportinoArticleKind(item) === "material");
+  const articoliDaVerificare = articoliCommessa.filter(item => rapportinoArticleKind(item) === "unknown");
+  const prestazioniCommessa = articoliCommessa.filter(item => rapportinoArticleKind(item) === "service");
 
-  const toggleMateriale = (id: string, nome: string) => {
+  const toggleMateriale = (item: RapportinoArticle) => {
     setMaterialiSel(prev => {
       const next = { ...prev };
-      if (id in next) delete next[id];
-      else next[id] = { nome, quantita: 1 };
+      if (item.id in next) delete next[item.id];
+      else next[item.id] = { nome: item.name, quantita: 1, unita: rapportinoMaterialUnit(item.template?.unit_of_measure) };
       return next;
     });
   };
+
+  const renderMateriale = (item: RapportinoArticle) => (
+    <button key={item.id} type="button" aria-pressed={item.id in materialiSel}
+      onClick={() => toggleMateriale(item)}
+      className={`max-w-full min-h-11 rounded-xl border px-3 py-2 text-left text-sm break-words transition-colors ${
+        item.id in materialiSel ? "border-primary bg-primary/10 font-semibold text-primary" : "border-border bg-muted text-muted-foreground"
+      }`}>
+      {item.name}
+    </button>
+  );
 
   const aggiungiMaterialeLibero = () => {
     const nome = materialeLibero.trim();
@@ -362,13 +368,6 @@ export default function CampoRapportino() {
     setMaterialiSel(prev => ({ ...prev, [`libero_${Date.now()}`]: { nome, quantita: 1 } }));
     setMaterialeLibero("");
   };
-
-  const materialiPayload = Object.values(materialiSel).map(m => ({
-    nome: m.nome,
-    quantita: m.quantita,
-    unita: "pz",
-    da_furgone: false,
-  }));
 
   const toggleFase = (fase: FaseCommessa) => {
     setFasiDichiarate(prev => {
@@ -382,6 +381,7 @@ export default function CampoRapportino() {
   // ── Upload foto ──────────────────────────────────────────────────────
   const handleFotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files?.length) return;
+    if (!reportDayAllowed(workDay)) { toast.error(REPORT_DEADLINE_MESSAGE); return; }
     if (!profile?.company_id || !orderId) {
       toast.error("Sessione non pronta, riprova");
       return;
@@ -404,7 +404,8 @@ export default function CampoRapportino() {
 
       try {
         // Comprimi: se il browser fallisce qualsiasi step, carica il file originale
-        const compressed = await compressImage(file).catch(() => null);
+        const compressed = await compressImage(file).catch((): null => null);
+        assertReportDay(workDay);
         const payload: Blob = compressed ?? file;
 
         const path = `${profile.company_id}/${orderId}/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
@@ -443,45 +444,19 @@ export default function CampoRapportino() {
   // ── Salvataggio ──────────────────────────────────────────────────────
   const { mutate: salva, isPending: saving } = useMutation({
     mutationFn: async () => {
+      assertReportDay(workDay);
+      if (sessioneDaChiudere) throw new Error("Timbra prima l’uscita da questo cantiere, poi conferma le ore del rapportino.");
+      if (rapportinoGiaOggi) throw new Error("Esiste già un rapportino per questo cantiere e questa giornata. Per correggerlo contatta l’ufficio.");
       if (!companyId || !orderId || !user?.id) {
         throw new Error("Sessione non pronta, ricarica la pagina");
       }
 
-      const { data: directAssignment, error: directAssignmentError } = await supabase
-        .from("order_campo_assignments")
-        .select("id")
-        .eq("order_id", orderId)
-        .eq("user_id", user.id)
-        .eq("company_id", companyId)
-        .maybeSingle();
-      if (directAssignmentError) throw directAssignmentError;
-
-      let hasAssignment = !!directAssignment;
-      if (!hasAssignment) {
-        const { data: employee, error: employeeError } = await supabase
-          .from("employees")
-          .select("id")
-          .eq("user_id", user.id)
-          .eq("company_id", companyId)
-          .maybeSingle();
-        if (employeeError) throw employeeError;
-
-        if (employee?.id) {
-          const { data: employeeAssignment, error: employeeAssignmentError } = await supabase
-            .from("order_employees")
-            .select("id")
-            .eq("order_id", orderId)
-            .eq("employee_id", employee.id)
-            .limit(1)
-            .maybeSingle();
-          if (employeeAssignmentError) throw employeeAssignmentError;
-          hasAssignment = !!employeeAssignment;
-        }
-      }
-
+      const hasAssignment = await hasRapportinoAssignment(orderId, user.id, companyId);
       if (!hasAssignment) {
         throw new Error("Non puoi inviare rapportini per un lavoro non assegnato");
       }
+      const materialiPayload = buildRapportinoMaterials(materialiSel);
+      const orePayload = validateRapportinoHours(oreLavorate, oreStraordinario, isCapocantiere ? presenzeSel : {});
 
       // Fasi dichiarate dall'operaio: [{phase_id, percentuale}] (Fase C)
       const fasiLavorate = Object.entries(fasiDichiarate).map(([phase_id, percentuale]) => ({
@@ -496,6 +471,7 @@ export default function CampoRapportino() {
       let firmaOperaioUrl: string | null = null;
       const ts = Date.now();
       const uploadFirma = async (dataUrl: string, suffix: string): Promise<string> => {
+        assertReportDay(workDay);
         const blob = await (await fetch(dataUrl)).blob();
         const path = `${companyId}/${orderId}/firme/${ts}_${suffix}.png`;
         const { data: up, error: upErr } = await supabase.storage
@@ -508,7 +484,7 @@ export default function CampoRapportino() {
       };
       if (firmaOperaio) {
         // Opzionale: se fallisce non blocca l'invio del rapportino
-        firmaOperaioUrl = await uploadFirma(firmaOperaio, "operaio").catch((err) => {
+        firmaOperaioUrl = await uploadFirma(firmaOperaio, "operaio").catch((err): null => {
           console.warn("[CampoRapportino] upload firma operaio fallito:", err);
           return null;
         });
@@ -519,6 +495,7 @@ export default function CampoRapportino() {
       }
 
       // Inserisci rapportino
+      assertReportDay(workDay); // Recheck after permission lookup / slow uploads.
       const { data: inserted, error } = await supabase
         .from("campo_rapportini")
         .insert({
@@ -526,8 +503,8 @@ export default function CampoRapportino() {
           order_id: orderId,
           user_id: user.id,
           role_type: isSubappaltatore ? "subcontractor" : "employee",
-          data_lavoro: format(new Date(), "yyyy-MM-dd"),
-          ore_lavorate: oreLavorate,
+          data_lavoro: workDay,
+          ore_lavorate: orePayload,
           ore_straordinario: oreStraordinario > 0 ? oreStraordinario : 0,
           descrizione_lavori: descrizione || null,
           foto_urls: fotoUrls,
@@ -569,6 +546,7 @@ export default function CampoRapportino() {
         .select("id")
         .single();
 
+      if (error?.code === "23505") throw new Error("Rapportino già presente per questa giornata. Apri lo storico del cantiere; non è stato creato un doppione.");
       if (error) throw error;
 
       // Le fasi dichiarate NON si applicano qui: l'avanzamento si muove
@@ -588,8 +566,8 @@ export default function CampoRapportino() {
             actor_name: actorName,
             payload: {
               rapportino_id: inserted.id,
-              data_lavoro: format(new Date(), "yyyy-MM-dd"),
-              ore_lavorate: oreLavorate,
+              data_lavoro: workDay,
+              ore_lavorate: orePayload,
               ore_straordinario: oreStraordinario > 0 ? oreStraordinario : 0,
               percentuale_avanzamento: percentuale,
               lavoro_completato,
@@ -625,11 +603,9 @@ export default function CampoRapportino() {
           .eq("company_id", companyId);
       }
 
-      // Genera PDF in background (fire-and-forget)
+      // Separate PDF feedback: a failure must never suggest resubmitting the report.
       if (inserted?.id) {
-        supabase.functions
-          .invoke("genera-pdf-rapportino", { body: { rapportino_id: inserted.id } })
-          .catch(() => {});
+        void notifyRapportinoPdf(inserted.id, orderId, queryClient);
       }
 
       // Notifica al responsabile (assigned_to, fallback created_by).
@@ -657,7 +633,7 @@ export default function CampoRapportino() {
                 : `Nuovo rapportino da approvare — ${orderCode}`,
               p_body: lavoro_completato
                 ? `${firmaClienteNome.trim() || "Il cliente"} ha firmato il rapporto di fine lavori inviato da ${actorLabel}.`
-                : `${actorLabel} ha inviato un rapportino di ${oreLavorate}h${oreStraordinario > 0 ? ` (+${oreStraordinario}h straordinario)` : ""}.`,
+                : `${actorLabel} ha inviato un rapportino di ${orePayload}h${oreStraordinario > 0 ? ` (+${oreStraordinario}h straordinario)` : ""}.`,
               p_entity_type: "campo_rapportino",
               p_entity_id: inserted.id,
               p_action_url: `/azienda/ordini/${orderId}?tab=campo`,
@@ -677,6 +653,7 @@ export default function CampoRapportino() {
       queryClient.invalidateQueries({ queryKey: ["campo-lavoro", orderId] });
       // Card "rapportini da compilare" in home + indicatore "già fatto oggi" nel dettaglio
       queryClient.invalidateQueries({ queryKey: ["campo-rapportini-da-compilare"] });
+      queryClient.invalidateQueries({ queryKey: ["campo-rapportino-gia-oggi"] });
       queryClient.invalidateQueries({ queryKey: ["campo-lavoro-rapportino-oggi", orderId] });
       queryClient.invalidateQueries({ queryKey: ["campo-rapportini-sospesi"] });
       // Lista rapportini lato azienda (stessa sessione admin+campo)
@@ -703,6 +680,7 @@ export default function CampoRapportino() {
   const isUltimoStep = step >= totalSteps;
 
   const goNext = () => {
+    if (!reportDayAllowed(workDay)) { toast.error(REPORT_DEADLINE_MESSAGE); return; }
     if (step < totalSteps) setStep(s => s + 1);
     else salva();
   };
@@ -710,7 +688,7 @@ export default function CampoRapportino() {
   // Dati "sudati" nel form: uscire per sbaglio (freccia indietro col pollice)
   // non deve buttare via la giornata scritta senza nemmeno chiedere.
   const datiInseriti =
-    descrizione.trim().length > 0 ||
+    descrizione.trim().length > 0 || oreLavorate !== "" || oreStraordinario > 0 ||
     fotoUrls.length > 0 ||
     Object.keys(fasiDichiarate).length > 0 ||
     Object.keys(presenzeSel).length > 0 ||
@@ -744,15 +722,18 @@ export default function CampoRapportino() {
   return (
     <div className="mx-auto w-full max-w-3xl flex flex-col bg-background">
       {/* Header */}
-      <div className="flex items-center gap-3 border-b border-border bg-background px-3 py-3 shadow-sm md:px-4">
+      <div className="sticky top-0 z-10 flex items-center gap-3 border-b border-border bg-background px-3 py-3 shadow-sm md:px-4">
         <button
           onClick={goBack}
+          aria-label="Indietro nel rapportino"
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted active:bg-muted"
         >
           <ArrowLeft className="w-5 h-5 text-foreground" />
         </button>
         <div className="flex-1 min-w-0">
           <p className="text-xs font-semibold text-muted-foreground">Rapportino — Passo {step} di {totalSteps}</p>
+          <RapportinoSiteContext orderId={orderId} companyId={companyId} />
+          <p className="mt-1 text-xs font-semibold">Giornata del {dayLabel}</p>
           <div className="mt-2 h-1.5 w-full rounded-full bg-muted">
             <div
               className="h-1.5 rounded-full bg-primary transition-all duration-300"
@@ -764,19 +745,28 @@ export default function CampoRapportino() {
 
       {/* Contenuto — spacing denso su mobile (regola no-spazio-vuoto) */}
       <div className="space-y-3 px-3 py-3 md:space-y-4 md:px-4 md:py-5">
+        {!dayAllowed && <p role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm">{REPORT_DEADLINE_MESSAGE} I dati compilati restano visibili, ma non vengono spostati a oggi.</p>}
+        {rapportinoGiaOggi && <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          Esiste già un rapportino per questa giornata. Non ne viene creato un altro: per integrazioni o correzioni contatta l’ufficio.
+        </p>}
 
         {/* ── Step 1: Descrizione ── */}
         {step === 1 && (
           <>
-            <h2 className="text-lg font-black text-foreground md:text-xl">Cosa hai fatto oggi?</h2>
-            {rapportinoGiaOggi && (
-              <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                Hai già inviato un rapportino oggi
-                {" alle "}
-                {new Date(rapportinoGiaOggi.created_at).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
-                . Se continui ne crei un altro.
-              </p>
-            )}
+            <div className="space-y-2 rounded-xl border bg-muted/40 p-3">
+              <label htmlFor="rapportino-giornata" className="text-sm font-semibold">Giornata di lavoro</label>
+              <select id="rapportino-giornata" value={workDay} disabled={saving || uploadingFoto}
+                onChange={e => {
+                  if (datiInseriti && !window.confirm("Cambiare giornata cancella i dati di questo modulo. Vuoi continuare?")) return;
+                  const next = new URLSearchParams(params); next.set("data", e.target.value); setParams(next, { replace: true });
+                }} className="h-12 w-full min-w-0 rounded-lg border bg-background px-3 text-base">
+                {!dayAllowed && <option value={workDay}>{dayLabel} — non inviabile</option>}
+                <option value={today}>Oggi · {format(new Date(`${today}T12:00:00`), "dd/MM/yyyy")}</option>
+                <option value={yesterday}>Ieri · {format(new Date(`${yesterday}T12:00:00`), "dd/MM/yyyy")}</option>
+              </select>
+              <p className="text-xs text-muted-foreground">{dayAllowed ? workDay === yesterday ? "Da inviare entro oggi alle 23:59." : "Da inviare entro domani alle 23:59." : "Giornata fuori termine."} Ora italiana. Un rapportino per autore, cantiere e giornata.</p>
+            </div>
+            <h2 className="text-lg font-black text-foreground md:text-xl">{workDay === today ? "Cosa hai fatto oggi?" : "Cosa hai fatto in questa giornata?"}</h2>
             <textarea
               className="w-full resize-none rounded-2xl border border-border bg-muted/60 px-4 py-3 text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
               rows={5}
@@ -790,7 +780,7 @@ export default function CampoRapportino() {
                 {METEO_OPTIONS.map(m => (
                   <button
                     key={m.value}
-                    onClick={() => setMeteo(meteo === m.value ? "" : m.value)}
+                    onClick={() => { meteoModificato.current = true; setMeteo(meteo === m.value ? "" : m.value); }}
                     className={`flex min-h-12 flex-col items-center justify-center rounded-xl border p-2 transition-all ${
                       meteo === m.value
                         ? "bg-primary/10 border-primary/40"
@@ -803,39 +793,44 @@ export default function CampoRapportino() {
                 ))}
               </div>
             </div>
-            {/* Ore lavorate + straordinario in un'unica card (meno scroll su mobile) */}
+            {/* Ore del solo cantiere: proposta verificabile, mai 8 ore implicite. */}
+            {sessioneDaChiudere && <div role="status" className="space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              <p>La timbratura è ancora aperta su questo cantiere. Prima dell’invio registra l’uscita: le ore non sono ancora definitive.</p>
+              <button type="button" className="min-h-11 underline" onClick={() => {
+                if (datiInseriti && !window.confirm("Aprire la timbratura lascia questo modulo. I dati non inviati andranno persi. Continuare?")) return;
+                navigate(`/campo/timbratura?order_id=${orderId}`);
+              }}>Vai a timbrare l’uscita</button>
+            </div>}
             <div className="space-y-3 rounded-2xl border bg-background p-4 shadow-sm">
               <div>
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm text-muted-foreground">Ore lavorate</p>
-                  <span className="text-primary font-bold">{oreLavorate}h</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => setOreLavorate(o => Math.max(0.5, o - 0.5))}
-                    className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center"
-                  >
-                    <Minus className="w-4 h-4 text-foreground" />
+                <label htmlFor="ore-cantiere" className="text-sm font-semibold">Ore ordinarie su questo cantiere</label>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {dayTime.isError ? "Timbrature non disponibili: inserisci le ore oppure riprova." :
+                    anomalieTimbrature ? "Ci sono timbrature da verificare: indica le ore effettive." :
+                    oreRilevate != null ? `Rilevate ${oreRilevate} h, pause escluse${siteTime?.provisional ? " · sessione ancora aperta" : ""}. Verifica prima di inviare.` :
+                    "Nessuna ora attribuita da proporre. Per sole foto o note, indica 0."}
+                </p>
+                {dayTime.isError && <button type="button" className="mt-2 min-h-11 text-sm text-primary underline" onClick={() => dayTime.refetch()}>Riprova timbrature</button>}
+                <div className="mt-3 flex items-center gap-3">
+                  <button type="button" aria-label="Riduci ore ordinarie"
+                    onClick={() => modificaOre(Math.max(0, Math.round(((oreLavorate === "" ? 0 : oreLavorate) - 0.5) * 10) / 10))}
+                    className="h-11 w-11 shrink-0 rounded-xl bg-muted flex items-center justify-center">
+                    <Minus className="w-4 h-4" />
                   </button>
-                  <input
-                    type="range"
-                    min={0.5}
-                    max={12}
-                    step={0.5}
-                    value={oreLavorate}
-                    onChange={e => setOreLavorate(Number(e.target.value))}
-                    className="flex-1 accent-primary"
-                  />
-                  <button
-                    onClick={() => setOreLavorate(o => Math.min(12, o + 0.5))}
-                    className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center"
-                  >
-                    <Plus className="w-4 h-4 text-primary-foreground" />
+                  <input id="ore-cantiere" type="number" min={0} max={24} step={0.1} inputMode="decimal"
+                    value={oreLavorate} placeholder="Da indicare"
+                    onChange={e => modificaOre(e.target.value === "" ? "" : Number(e.target.value))}
+                    className="min-w-0 w-full h-11 rounded-xl border bg-background px-3 text-center text-base" />
+                  <span className="text-sm text-muted-foreground">h</span>
+                  <button type="button" aria-label="Aumenta ore ordinarie"
+                    onClick={() => modificaOre(Math.min(24, Math.round(((oreLavorate === "" ? 0 : oreLavorate) + 0.5) * 10) / 10))}
+                    className="h-11 w-11 shrink-0 rounded-xl bg-primary text-primary-foreground flex items-center justify-center">
+                    <Plus className="w-4 h-4" />
                   </button>
                 </div>
               </div>
-
               <div className="border-t border-border pt-3">
+                <p className="mb-2 text-xs text-muted-foreground">Sono ore aggiuntive: se incluse nelle ore rilevate, sottraile dalle ordinarie qui sopra.</p>
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-sm text-muted-foreground">Ore straordinario</p>
                   <span className="text-primary font-bold">{oreStraordinario}h</span>
@@ -876,7 +871,7 @@ export default function CampoRapportino() {
                   multiple
                   className="hidden"
                   onChange={handleFotoChange}
-                  disabled={uploadingFoto}
+                  disabled={uploadingFoto || !dayAllowed || !!rapportinoGiaOggi}
                 />
                 <div className="flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-border bg-muted/60 p-6 transition-colors active:border-primary">
                   {uploadingFoto ? (
@@ -944,7 +939,7 @@ export default function CampoRapportino() {
             {/* ── Squadra del giorno (solo capocantiere): chi c'era oggi ── */}
             {isCapocantiere && squadra.length > 0 && (
               <div className="rounded-2xl border bg-background p-4 shadow-sm">
-                <p className="text-sm font-semibold text-foreground">Chi ha lavorato oggi?</p>
+                <p className="text-sm font-semibold text-foreground">{workDay === today ? "Chi ha lavorato oggi?" : "Chi ha lavorato in questa giornata?"}</p>
                 <p className="mb-3 text-xs text-muted-foreground">
                   Tocca chi era in cantiere: le ore dei dipendenti diventano costo
                   di commessa all'approvazione. I subappaltatori sono registrati
@@ -958,7 +953,7 @@ export default function CampoRapportino() {
                         key={m.key}
                         type="button"
                         onClick={() => togglePresenza(m)}
-                        className={`rounded-full border px-3 py-2 text-sm transition-colors ${
+                        className={`min-h-11 rounded-full border px-3 py-2 text-sm transition-colors ${
                           selected
                             ? "border-primary bg-primary/10 font-semibold text-primary"
                             : "border-border bg-muted text-muted-foreground"
@@ -970,6 +965,12 @@ export default function CampoRapportino() {
                     );
                   })}
                 </div>
+                {Object.keys(presenzeSel).length > 0 && (
+                  <p role="status" className="mt-3 rounded-lg bg-primary/5 p-3 text-xs text-muted-foreground">
+                    Il costo della squadra usa le presenze selezionate, non le ore personali del passo 1.
+                    Se hai lavorato anche tu, seleziona anche il tuo nome.
+                  </p>
+                )}
                 {squadra.filter(m => m.key in presenzeSel).map(m => (
                   <div key={m.key} className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-border bg-muted/40 p-3">
                     <p className="min-w-0 truncate text-sm font-medium text-foreground">
@@ -981,15 +982,15 @@ export default function CampoRapportino() {
                     <div className="flex shrink-0 items-center gap-1.5">
                       <input
                         type="number"
-                        min={0.5}
-                        max={16}
-                        step={0.5}
+                        min={0.1}
+                        max={24}
+                        step={0.1}
                         inputMode="decimal"
                         value={presenzeSel[m.key]}
                         onChange={e =>
-                          setPresenzeSel(prev => ({ ...prev, [m.key]: Number(e.target.value) || 0 }))
+                          setPresenzeSel(prev => ({ ...prev, [m.key]: e.target.value === "" ? "" : Number(e.target.value) }))
                         }
-                        className="w-16 rounded-lg border border-border bg-background px-2 py-1.5 text-right text-sm"
+                        className="h-11 w-16 rounded-lg border border-border bg-background px-2 py-1.5 text-right text-base"
                         aria-label={`Ore di ${m.nome}`}
                       />
                       <span className="text-xs text-muted-foreground">ore</span>
@@ -1002,9 +1003,11 @@ export default function CampoRapportino() {
             {/* ── Fasi lavorate (solo se la commessa ha fasi non completate) ── */}
             {fasiDichiarabili.length > 0 && (
               <div className="rounded-2xl border bg-background p-4 shadow-sm">
-                <p className="text-sm font-semibold text-foreground">Su cosa hai lavorato oggi?</p>
+                <p className="text-sm font-semibold text-foreground">{workDay === today ? "Su cosa hai lavorato oggi?" : "Su cosa hai lavorato in questa giornata?"}</p>
                 <p className="mb-3 text-xs text-muted-foreground">
-                  {puoDichiararePercentuali
+                  {!ruoloCampo
+                    ? "Ruolo Campo non ancora verificato. Puoi indicare le fasi lavorate; la modifica delle percentuali resta disabilitata."
+                    : puoDichiararePercentuali
                     ? "Tocca le fasi e indica l'avanzamento raggiunto (facoltativo)"
                     : "Tocca le fasi su cui hai lavorato: servono ad attribuire le tue ore. L'avanzamento lo dichiara il capocantiere."}
                 </p>
@@ -1075,62 +1078,68 @@ export default function CampoRapportino() {
 
             {/* ── Materiali usati oggi (facoltativo) ── */}
             <div className="rounded-2xl border bg-background p-4 shadow-sm">
-              <p className="text-sm font-semibold text-foreground">Materiali usati oggi</p>
+              <p className="text-sm font-semibold text-foreground">{workDay === today ? "Materiali usati oggi" : "Materiali usati nella giornata"}</p>
               <p className="mb-3 text-xs text-muted-foreground">
-                Tocca i materiali della commessa che hai usato (facoltativo)
+                Tocca i materiali usati e verifica quantità e unità (facoltativo). La dichiarazione non scarica automaticamente il magazzino.
               </p>
-              {articoliCommessa.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {articoliCommessa.map(item => {
-                    const selected = item.id in materialiSel;
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => toggleMateriale(item.id, item.name)}
-                        className={`max-w-full truncate rounded-full border px-3 py-2 text-sm transition-colors ${
-                          selected
-                            ? "border-primary bg-primary/10 font-semibold text-primary"
-                            : "border-border bg-muted text-muted-foreground"
-                        }`}
-                      >
-                        {item.name}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+              {articoliLoading && <p role="status" className="text-sm text-muted-foreground">Caricamento materiali…</p>}
+              {articoliError && <div role="alert" className="mb-3 rounded-xl border border-amber-200 p-3 text-sm">
+                Non riesco a caricare gli articoli. I materiali già scelti restano nel rapportino.
+                <button type="button" className="block min-h-11 text-primary underline" onClick={() => refetchArticoli()}>Riprova materiali</button>
+              </div>}
+              {materialiCommessa.length > 0 && <div className="flex flex-wrap gap-2">{materialiCommessa.map(renderMateriale)}</div>}
+              {articoliDaVerificare.length > 0 && <details className="mt-3 rounded-xl border p-3">
+                <summary className="min-h-11 cursor-pointer text-sm font-semibold">Articoli da verificare ({articoliDaVerificare.length})</summary>
+                <p className="mb-3 text-xs text-muted-foreground">Queste voci non sono classificate. Seleziona solo materiali effettivamente usati; descrivi manodopera e servizi nelle lavorazioni.</p>
+                <div className="flex flex-wrap gap-2">{articoliDaVerificare.map(renderMateriale)}</div>
+              </details>}
+              {prestazioniCommessa.length > 0 && <p className="mt-3 text-xs text-muted-foreground">
+                {prestazioniCommessa.length} voci di manodopera o servizi escluse dai materiali: descrivile nelle lavorazioni.
+              </p>}
 
               {Object.entries(materialiSel).map(([key, m]) => (
-                <div key={key} className="mt-3 flex items-center gap-2 rounded-xl border border-border bg-muted/40 p-3">
-                  <p className="min-w-0 flex-1 text-sm font-medium leading-tight text-foreground line-clamp-2">{m.nome}</p>
+                <div key={key} className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-muted/40 p-3">
+                  <p className="w-full text-sm font-medium leading-tight text-foreground">{m.nome}</p>
                   <button
                     type="button"
+                    aria-label={`Riduci quantità ${m.nome}`}
                     onClick={() =>
                       setMaterialiSel(prev => ({
                         ...prev,
-                        [key]: { ...m, quantita: Math.max(1, m.quantita - 1) },
+                        [key]: { ...m, quantita: Math.max(0.01, m.quantita - 1) },
                       }))
                     }
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-muted"
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-muted"
                   >
                     <Minus className="w-4 h-4 text-foreground" />
                   </button>
-                  <span className="w-8 shrink-0 text-center font-bold text-primary">{m.quantita}</span>
+                  <input type="number" min="0.01" step="any" inputMode="decimal"
+                    aria-label={`Quantità ${m.nome}`} value={m.quantita}
+                    onChange={e => setMaterialiSel(prev => ({ ...prev, [key]: { ...m, quantita: Number(e.target.value) } }))}
+                    className="h-11 min-w-0 w-20 rounded-lg border bg-background px-2 text-center text-base" />
+                  <select aria-label={`Unità ${m.nome}`} value={m.unita || ""}
+                    onChange={e => setMaterialiSel(prev => ({ ...prev, [key]: { ...m, unita: e.target.value } }))}
+                    className="h-11 min-w-0 max-w-full rounded-lg border bg-background px-2 text-base">
+                    <option value="" disabled>Scegli unità</option>
+                    {rapportinoUnitOptions(m.unita).map(unit => <option key={unit} value={unit}>{unit}</option>)}
+                  </select>
+                  {!m.unita && <p className="w-full text-xs text-amber-700">Unità non disponibile: scegli come hai misurato il materiale.</p>}
                   <button
                     type="button"
+                    aria-label={`Aumenta quantità ${m.nome}`}
                     onClick={() =>
                       setMaterialiSel(prev => ({
                         ...prev,
                         [key]: { ...m, quantita: m.quantita + 1 },
                       }))
                     }
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary"
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary"
                   >
                     <Plus className="w-4 h-4 text-primary-foreground" />
                   </button>
                   <button
                     type="button"
+                    aria-label={`Rimuovi materiale ${m.nome}`}
                     onClick={() =>
                       setMaterialiSel(prev => {
                         const next = { ...prev };
@@ -1138,7 +1147,7 @@ export default function CampoRapportino() {
                         return next;
                       })
                     }
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-500/10"
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-red-500/10"
                   >
                     <X className="w-4 h-4 text-red-500" />
                   </button>
@@ -1177,12 +1186,23 @@ export default function CampoRapportino() {
             <div className="space-y-3 rounded-2xl border border-border bg-muted/60 p-4">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Data</span>
-                <span className="text-foreground">{format(new Date(), "d MMMM yyyy", { locale: it })}</span>
+                <span className="text-foreground">{dayLabel}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Ore lavorate</span>
-                <span className="text-primary font-bold">{oreLavorate}h</span>
+                <span className="text-muted-foreground">Ore personali ordinarie</span>
+                <span className="text-primary font-bold">{oreLavorate === "" ? (Object.keys(presenzeSel).length ? "Vedi presenze squadra" : "Da indicare") : `${oreLavorate}h`}</span>
               </div>
+              {Object.keys(presenzeSel).length > 0 && (
+                <div className="space-y-1 border-t border-border pt-2">
+                  <p className="text-xs font-medium text-muted-foreground">Presenze squadra</p>
+                  {squadra.filter(m => m.key in presenzeSel).map(m => (
+                    <div key={m.key} className="flex items-start justify-between gap-3 text-sm">
+                      <span className="min-w-0 break-words">{m.nome}{m.subappaltatore_id ? " · sub" : ""}</span>
+                      <span className="shrink-0 font-semibold">{presenzeSel[m.key] === "" ? "Da indicare" : `${presenzeSel[m.key]} h`}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
               {oreStraordinario > 0 && (
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Ore straordinario</span>
@@ -1199,24 +1219,24 @@ export default function CampoRapportino() {
                 <span className="text-muted-foreground">Foto</span>
                 <span className="text-foreground">{fotoUrls.length} foto</span>
               </div>
-              {materialiPayload.length > 0 && (
+              {Object.keys(materialiSel).length > 0 && (
                 <div className="pt-2 border-t border-border">
                   <p className="text-xs text-muted-foreground mb-1">Materiali usati</p>
-                  {materialiPayload.map((m, i) => (
+                  {Object.values(materialiSel).map((m, i) => (
                     <p key={i} className="text-sm text-foreground">
-                      {m.nome} <span className="font-semibold text-primary">× {m.quantita}</span>
+                      {m.nome} <span className="font-semibold text-primary">× {m.quantita} {m.unita || "· unità da scegliere"}</span>
                     </p>
                   ))}
                 </div>
               )}
               {Object.keys(fasiDichiarate).length > 0 && (
                 <div className="pt-2 border-t border-border">
-                  <p className="text-xs text-muted-foreground mb-1">Fasi dichiarate</p>
+                  <p className="text-xs text-muted-foreground mb-1">{puoDichiararePercentuali ? "Avanzamento dichiarato delle fasi" : workDay === today ? "Lavorazioni svolte oggi" : "Lavorazioni svolte nella giornata"}</p>
                   {fasiCommessa.filter(f => f.id in fasiDichiarate).map(f => (
                     <p key={f.id} className="text-sm text-foreground">
                       {f.name}{" "}
                       <span className="font-semibold text-primary">
-                        {fasiDichiarate[f.id] === 100 ? "✓ completata" : `→ ${fasiDichiarate[f.id]}%`}
+                        {!puoDichiararePercentuali ? workDay === today ? "· lavorata oggi" : "· lavorata nella giornata" : fasiDichiarate[f.id] === 100 ? "✓ completata" : `→ ${fasiDichiarate[f.id]}%`}
                       </span>
                     </p>
                   ))}
@@ -1306,13 +1326,14 @@ export default function CampoRapportino() {
         <div className="flex gap-3">
           <button
             onClick={goBack}
+            aria-label="Passo precedente"
             className="bg-muted border border-border text-foreground font-semibold py-3.5 px-6 rounded-xl active:bg-muted transition-colors"
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
           <button
             onClick={goNext}
-            disabled={saving || (isUltimoStep && firmeMancanti)}
+            disabled={saving || uploadingFoto || !dayAllowed || !!rapportinoGiaOggi || (isUltimoStep && (firmeMancanti || sessioneDaChiudere))}
             className="flex-1 bg-primary text-white font-bold py-3.5 rounded-xl text-base active:scale-[0.98] transition-transform flex items-center justify-center gap-2 disabled:opacity-60"
           >
             {saving ? (

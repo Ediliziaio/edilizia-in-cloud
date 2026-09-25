@@ -1,0 +1,6 @@
+{
+  "fileProgetto": "public/module-art/ristrutturazioni-parziale-cover.jpg",
+  "prompt": "Use case: photorealistic-natural. Asset type: portrait cover image for an Italian partial home renovation quotation PDF. Create a sophisticated but realistic photograph of a modest Italian apartment living room with a renewed warm off-white wall, clean oak floor, a preserved traditional interior doorway and a small alcove finished in muted sage. One quiet chair, no elaborate luxury kitchen or whole-house reconstruction. A focused renewal of a single room, not a before/after collage. Natural lateral daylight, convincing plaster and wood textures, restrained editorial architectural photography, vertical 2:3 composition with a calm lower third for a title added later in code. No people, no text, no logos, no watermark, no exaggerated construction claims. Illustrative inspiration, not a real completed company project.",
+  "originale": "/Users/agenteai/.codex/generated_images/01a0c971-7f8c-79f3-b076-73f23be195be/exec-e7396f16-87ea-4141-a6a9-0aa4fc37d0db.png",
+  "metodo": "Strumento integrato image_gen; JPEG nel progetto locale."
+}

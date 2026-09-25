@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { calculateNetFromGross } from "@/lib/vatUtils";
+import { useOrderEconomicsBase } from "@/hooks/useOrderEconomicsBase";
 import { calculateStoredCommissionNet } from "@/lib/commissions";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -82,61 +82,7 @@ export function OrderEconomicsSummary({
 }: OrderEconomicsSummaryProps) {
   void vatRate; // tenuto per parità d'interfaccia col conto economico esistente
 
-  const { data: employees = [], isPending: empPending } = useQuery({
-    queryKey: ["oes-employees", orderId], // chiave DEDICATA: non condividere la cache di OrderLaborCosts/OrderEconomics (select diversi → dati incompleti → crash)
-    enabled: !!orderId,
-    staleTime: 2 * 60 * 1000,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("order_employees")
-        .select("total_cost")
-        .eq("order_id", orderId);
-      if (error) throw error;
-      return (data ?? []) as { total_cost: number }[];
-    },
-  });
-
-  const { data: teams = [], isPending: teamsPending } = useQuery({
-    queryKey: ["oes-external-teams", orderId], // chiave DEDICATA (vedi sopra)
-    enabled: !!orderId,
-    staleTime: 2 * 60 * 1000,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("order_external_teams")
-        .select("total_cost, vat_rate")
-        .eq("order_id", orderId);
-      if (error) throw error;
-      return (data ?? []) as { total_cost: number; vat_rate: number | null }[];
-    },
-  });
-
-  const { data: salespeople = [], isPending: spPending } = useQuery({
-    queryKey: ["oes-salespeople", orderId], // chiave DEDICATA: non condividere la cache di OrderCommissions/OrderEconomics
-    enabled: !!orderId,
-    staleTime: 2 * 60 * 1000,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("order_salespeople")
-        .select("commission_amount, deduction_amount")
-        .eq("order_id", orderId);
-      if (error) throw error;
-      return (data ?? []) as { commission_amount: number; deduction_amount: number }[];
-    },
-  });
-
-  const { data: errors = [], isPending: errPending } = useQuery({
-    queryKey: ["oes-errors", orderId], // chiave DEDICATA (vedi sopra)
-    enabled: !!orderId,
-    staleTime: 2 * 60 * 1000,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("order_errors")
-        .select("amount")
-        .eq("order_id", orderId);
-      if (error) throw error;
-      return (data ?? []) as { amount: number }[];
-    },
-  });
+  const { econ, employees, teams, salespeople, errors, isPending: basePending, isError: baseError } = useOrderEconomicsBase(orderId, totalAmount, items);
 
   // CONSUNTIVO materiali = somma degli ordini fornitore (ODA) realmente emessi.
   const { data: oda = [], isPending: odaPending } = useQuery({
@@ -172,37 +118,6 @@ export function OrderEconomicsSummary({
     },
   });
 
-  const econ = useMemo(() => {
-    const itemsNet = (items ?? [])
-      .filter((i) => i.purchase_price && i.purchase_price > 0)
-      .reduce((sum, i) => {
-        const gross = (i.purchase_price || 0) * (i.quantity || 0);
-        const { netAmount } = calculateNetFromGross(gross, i.vat_rate ?? 22);
-        return sum + netAmount;
-      }, 0);
-
-    const employeesNet = employees.reduce((s, e) => s + (e.total_cost || 0), 0);
-    const teamsNet = teams.reduce((s, t) => {
-      const { netAmount } = calculateNetFromGross(t.total_cost || 0, t.vat_rate ?? 22);
-      return s + netAmount;
-    }, 0);
-    const laborNet = employeesNet + teamsNet;
-
-    const commissions = salespeople.reduce(
-      (s, sp) => s + calculateStoredCommissionNet(sp.commission_amount, sp.deduction_amount),
-      0,
-    );
-    const errorsTot = errors.reduce((s, e) => s + (e.amount || 0), 0);
-
-    const costsTot = itemsNet + laborNet + commissions + errorsTot;
-    const margin = totalAmount - costsTot;
-    const marginPct = totalAmount > 0 ? (margin / totalAmount) * 100 : 0;
-    // Margine "atteso" coi soli materiali (prima di manodopera/provvigioni/errori):
-    // mostra quanto i costi operativi erodono il margine di partenza.
-    const attesoMaterialiPct = totalAmount > 0 ? ((totalAmount - itemsNet) / totalAmount) * 100 : 0;
-
-    return { itemsNet, laborNet, commissions, errorsTot, costsTot, margin, marginPct, attesoMaterialiPct };
-  }, [items, employees, teams, salespeople, errors, totalAmount]);
 
   // ── PREVISIONALE vs CONSUNTIVO (costi materiali) ────────────────────────────
   // Previsionale = costo materiali PIANIFICATO (order_items.purchase_price × qty,
@@ -295,10 +210,11 @@ export function OrderEconomicsSummary({
   // o dipendenti/squadre/provvigioni/errori), i costi sarebbero parziali → il
   // margine apparirebbe gonfiato (es. "100%"). Mostriamo uno skeleton: la card
   // di testata non deve MAI lampeggiare numeri sbagliati.
-  const costsLoading = itemsLoading || empPending || teamsPending || spPending || errPending || odaPending;
+  const costsLoading = itemsLoading || basePending || odaPending;
+  if (baseError) return <Card id="section-conto-economico" className="scroll-mt-24"><CardContent className="p-4 text-sm text-muted-foreground">Conto economico non disponibile: impossibile caricare tutti i costi.</CardContent></Card>;
   if (costsLoading) {
     return (
-      <Card className="border-l-4 border-l-orange-400">
+      <Card id="section-conto-economico" className="scroll-mt-24 border-l-4 border-l-orange-400">
         <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
@@ -326,7 +242,7 @@ export function OrderEconomicsSummary({
   }
 
   return (
-    <Card className="border-l-4 border-l-orange-400">
+    <Card id="section-conto-economico" className="scroll-mt-24 border-l-4 border-l-orange-400">
       <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
           {econ.margin >= 0 ? (

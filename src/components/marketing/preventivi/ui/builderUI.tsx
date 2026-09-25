@@ -379,6 +379,7 @@ export interface QuoteStep {
 }
 
 interface QuoteStepperProps {
+  completedSteps?: boolean[];
   steps: QuoteStep[];
   current: number;
   onSelect?: (idx: number) => void;
@@ -388,13 +389,15 @@ interface QuoteStepperProps {
 }
 
 export function QuoteStepper({
+  completedSteps,
   steps,
   current,
   onSelect,
   allowJumpForward,
   className,
 }: QuoteStepperProps) {
-  const pct = Math.round(((current + 1) / steps.length) * 100);
+  const completedCount = completedSteps?.filter(Boolean).length;
+  const pct = Math.round(((completedCount ?? (current + 1)) / steps.length) * 100);
   return (
     <div
       className={cn(
@@ -405,9 +408,9 @@ export function QuoteStepper({
       <div className="flex gap-0 overflow-x-auto">
         {steps.map((s, i) => {
           const isActive = i === current;
-          const isCompleted = i < current;
+          const isCompleted = completedSteps ? !!completedSteps[i] : i < current;
           const isClickable =
-            isCompleted || isActive || allowJumpForward || i === current + 1;
+            i < current || isActive || allowJumpForward || i === current + 1;
           return (
             <button
               key={s.key}
@@ -462,7 +465,7 @@ export function QuoteStepper({
             style={{ width: `${pct}%` }}
           />
         </div>
-        <span className="hidden sm:inline">{pct}% completato</span>
+        <span className="hidden sm:inline">{completedCount == null ? `${pct}% completato` : `${completedCount} di ${steps.length} sezioni compilate`}</span>
       </div>
     </div>
   );

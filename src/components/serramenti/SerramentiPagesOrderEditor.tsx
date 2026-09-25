@@ -46,6 +46,8 @@ const FOTO_DELLE_PAGINE: Record<string, ChiaveFotoPagina> = {
 
 
 interface Props {
+  defaults?: SrPdfPageOrderItem[];
+  intervention?: boolean;
   value: SrPdfPageOrderItem[] | null;
   onChange: (next: SrPdfPageOrderItem[]) => void;
   /** Le scelte dell'azienda sui blocchi (`pdf_blocchi`): con `onBlocchi`, i blocchi si modificano qui. */
@@ -57,11 +59,11 @@ interface Props {
   apriSezione?: (sezione: string) => void;
 }
 
-function SerramentiPagesOrderEditorImpl({ value, onChange, blocchi, onBlocchi, campoFoto, apriSezione }: Props) {
+function SerramentiPagesOrderEditorImpl({ value, onChange, blocchi, onBlocchi, campoFoto, apriSezione, defaults, intervention }: Props) {
   // Normalizziamo sempre: garantisce che tutte le pagine canoniche siano
   // presenti e che le obbligatorie abbiano visible=true.
   const items = normalizePdfPagesOrder(value);
-  const metaById = new Map<string, SrPdfPageMeta>(SR_PDF_PAGES_META.map((m) => [m.id, m]));
+  const metaById = new Map<string, SrPdfPageMeta>(SR_PDF_PAGES_META.map((m) => [m.id, intervention && m.id === "come_funziona" ? { ...m, label: "Come scegliere il prodotto", descrizione: "Caratteristiche specifiche dell'intervento." } : m]));
 
   // Highlight ephemero dell'item appena mosso: serve come conferma visiva
   // (oltre al toast). Si auto-resetta dopo 800ms.
@@ -128,7 +130,7 @@ function SerramentiPagesOrderEditorImpl({ value, onChange, blocchi, onBlocchi, c
   };
 
   const resetDefault = () => {
-    onChange(SR_PDF_PAGES_DEFAULT);
+    onChange(defaults ?? SR_PDF_PAGES_DEFAULT);
     toast.success("Ordine pagine ripristinato al default", { duration: 2000 });
   };
 

@@ -5,7 +5,8 @@
  *    fornitori": il pannello raggruppa da solo gli articoli ancora da ordinare
  *    per fornitore e crea l'OdA con un click, righe collegate
  *    (purchase_order_items.order_item_id: e' il filo che alla ricezione genera
- *    il costo in automatico), stato degli articoli portato a "ordinato".
+ *    il costo in automatico). La creazione prepara una bozza: non cambia
+ *    lo stato dell'articolo in "ordinato" prima dell'effettiva emissione.
  *    Prima: dialog cieco in fondo al tab, articoli senza fornitore infilati in
  *    OGNI OdA, gia'-ordinati riproposti, stato da girare a mano riga per riga.
  *
@@ -27,21 +28,15 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Package, Loader2, AlertTriangle, HardHat, ArrowRight, FileQuestion } from "lucide-react";
+import { useMaterialProcurement, useUnmappedPurchaseOrders } from "@/hooks/useMaterialProcurement";
+import { refreshMaterialQueries } from "@/lib/orders/refreshMaterialQueries";
+import { pendingMaterials, planMaterial, type ProcurementItem } from "@/lib/orders/materialProcurement";
+import { createMaterialPurchaseOrder, IncompletePurchaseOrderError } from "@/lib/orders/createMaterialPurchaseOrder";
+import { usePermissions } from "@/hooks/usePermissions";
 
-const eur = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" });
+const eur = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: true });
 
-interface PanelItem {
-  id?: string;
-  name: string;
-  quantity: number;
-  /** Distinta: se presente, ogni posizione diventa una riga OdA/RDO. */
-  posizioni?: Array<{ descrizione: string; misure?: string | null; quantita: number }> | null;
-  purchase_price?: number;
-  supplier_id?: string;
-  vat_rate?: number;
-  status?: string;
-  stock_item_id?: string | null;
-}
+type PanelItem = ProcurementItem;
 
 interface PanelProps {
   orderId: string;
@@ -49,33 +44,15 @@ interface PanelProps {
   items: PanelItem[];
 }
 
-/** Copertura OdA per articolo: quali righe sono gia' dentro un ordine (non annullato). */
-function useOdaCoverage(items: PanelItem[]) {
-  const ids = items.filter((i) => i.id).map((i) => i.id!) as string[];
-  return useQuery({
-    queryKey: ["po-item-coverage-panel", ids.sort().join("|")],
-    enabled: ids.length > 0,
-    staleTime: 30_000,
-    queryFn: async (): Promise<Set<string>> => {
-      const { data, error } = await supabase
-        .from("purchase_order_items")
-        .select("order_item_id, purchase_orders!inner(status)")
-        .in("order_item_id", ids)
-        .neq("purchase_orders.status", "annullato");
-      if (error) return new Set();
-      const linked = new Set<string>();
-      (data ?? []).forEach((r) => { if (r.order_item_id) linked.add(r.order_item_id); });
-      return linked;
-    },
-  });
-}
-
 export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user, effectiveCompany } = useAuth();
   const { suppliers } = useOperationalSuppliers();
-  const { data: linked = new Set<string>() } = useOdaCoverage(items);
+  const coverage = useMaterialProcurement(items);
+  const unmapped = useUnmappedPurchaseOrders(orderId);
+  const blockedSuppliers = new Set((unmapped.data ?? []).map(o => o.supplier_id));
+  const { canEditOrders, canViewCosts } = usePermissions();
   const [creatingFor, setCreatingFor] = useState<string | null>(null);
   const [creatingAll, setCreatingAll] = useState(false);
   /** Fornitore per cui e' aperto il dialog di scelta Preventivo/Ordine. */
@@ -88,10 +65,10 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
 
   const supplierName = (id: string) => suppliers.find((s) => s.id === id)?.name ?? "Fornitore";
 
-  // Da ordinare = ha un id, non viene dalla giacenza, non e' gia' in un OdA.
+  // Drafts reserve quantity; partial orders leave only their residual demand.
   const daOrdinare = useMemo(
-    () => items.filter((i) => i.id && !i.stock_item_id && !linked.has(i.id)),
-    [items, linked],
+    () => pendingMaterials(items, coverage.data ?? []),
+    [items, coverage.data],
   );
   const gruppi = useMemo(() => {
     const map = new Map<string, PanelItem[]>();
@@ -102,6 +79,7 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
     return [...map.entries()];
   }, [daOrdinare]);
   const senzaFornitore = daOrdinare.filter((i) => !i.supplier_id);
+  const daVerificare = items.map(i => planMaterial(i, coverage.data ?? [])).filter(p => p.review || p.overOrdered);
 
   const creaOda = useMutation({
     // soloSelezionati: true quando si arriva dal dialog (rispetta le spunte);
@@ -109,100 +87,44 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
     // tolta in un dialog precedente non puo' filtrare di nascosto il bulk.
     mutationFn: async ({ supplierId, soloSelezionati }: { supplierId: string; soloSelezionati?: boolean }) => {
       if (!effectiveCompany?.id) throw new Error("Azienda non disponibile");
+      if (!canEditOrders || !canViewCosts) throw new Error("Permessi insufficienti");
       let gruppo = gruppi.find(([sid]) => sid === supplierId)?.[1] ?? [];
       if (soloSelezionati) {
         gruppo = gruppo.filter((i) => selezione[i.id!] !== false);
       }
       if (gruppo.length === 0) throw new Error("Nessun articolo selezionato");
 
-      const { data: po, error: poErr } = await supabase
-        .from("purchase_orders")
-        .insert({
-          company_id: effectiveCompany.id,
-          supplier_id: supplierId,
-          order_id: orderId,
-          created_by: user?.id,
-          notes: `Generato da commessa ${orderCode || orderId}`,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } as any)
-        .select()
-        .single();
-      if (poErr) throw poErr;
-
-      // Con la distinta, il fornitore riceve UNA riga per posizione
-      // ("Serramenti — Finestra 2 ante 1000x1000" x1, ...): e' il motivo per
-      // cui la distinta esiste. Senza, una riga per articolo come sempre.
-      const righeOda = gruppo.flatMap((item) =>
-        item.posizioni && item.posizioni.length > 0
-          ? item.posizioni.map((po) => ({
-              order_item_id: item.id!,
-              description: `${item.name} — ${po.descrizione}${po.misure ? ` ${po.misure}` : ""}`,
-              quantity: po.quantita,
-              unit_price: item.purchase_price || 0,
-              vat_rate: item.vat_rate ?? 22,
-            }))
-          : [{
-              order_item_id: item.id!,
-              description: item.name,
-              quantity: item.quantity,
-              unit_price: item.purchase_price || 0,
-              vat_rate: item.vat_rate ?? 22,
-            }],
-      );
-      const { error: itemsErr } = await supabase.from("purchase_order_items").insert(
-        righeOda.map((r, idx) => ({
-          company_id: effectiveCompany.id,
-          purchase_order_id: po.id,
-          ...r,
-          discount_percent: 0,
-          unit_of_measure: "pz",
-          sort_order: idx,
-        })),
-      );
-      if (itemsErr) throw itemsErr;
-
-      // Lo stato segue l'azione: prima restava "Da ordinare" e andava girato a
-      // mano riga per riga (non tocca gli stati gia' avanzati, es. in_magazzino).
-      await supabase
-        .from("order_items")
-        .update({ status: "ordinato" })
-        .in("id", gruppo.map((i) => i.id!))
-        .eq("status", "da_ordinare");
-
-      void supabase.from("order_events" as never).insert({
-        company_id: effectiveCompany.id,
-        order_id: orderId,
-        event_type: "ordine_fornitore_creato",
-        payload: { po_id: po.id, supplier_id: supplierId, order_code: orderCode },
-      } as never);
-
-      return { poId: po.id as string, n: gruppo.length };
+      return createMaterialPurchaseOrder({ companyId: effectiveCompany.id, orderId, orderCode, supplierId, userId: user?.id, items: gruppo });
     },
     onSuccess: ({ poId, n }, { supplierId }) => {
       queryClient.invalidateQueries({ queryKey: ["order-items", orderId] });
       queryClient.invalidateQueries({ queryKey: ["linked-purchase-orders", orderId] });
-      queryClient.invalidateQueries({ queryKey: ["po-item-coverage-panel"] });
+      queryClient.invalidateQueries({ queryKey: ["material-procurement"] });
       // Dentro "Crea tutti" il riepilogo lo fa il chiamante: un toast per
       // fornitore sarebbe una raffica.
       if (!creatingAll) {
         // Si atterra DENTRO l'ordine appena creato: il vecchio flusso faceva
         // cosi', e senza questa navigazione il click sembrava non fare nulla
         // (la riga sparisce dal pannello, ma e' un feedback troppo sottile).
-        toast.success(`OdA creato per ${supplierName(supplierId)} (${n} articoli)`);
+        toast.success(`Bozza OdA creata per ${supplierName(supplierId)} (${n} articoli)`);
         navigate(`/azienda/ordini-acquisto/${poId}`);
       }
     },
     onError: (e) => toast.error("Errore nella creazione dell'OdA", {
       description: e instanceof Error ? e.message : String(e),
+      action: e instanceof IncompletePurchaseOrderError ? { label: "Verifica bozza", onClick: () => navigate(`/azienda/ordini-acquisto/${e.poId}`) } : undefined,
     }),
-    onSettled: () => setCreatingFor(null),
+    onSettled: () => {
+      setCreatingFor(null);
+      refreshMaterialQueries(queryClient);
+    },
   });
 
   /** Richiesta d'offerta al fornitore: testata + righe dagli articoli +
       fornitore invitato, poi si atterra nella RDO per completarla/inviarla.
       "Chiedere un preventivo e' un conto, fare l'ordine un altro". */
   const chiediPreventivo = async (supplierId: string) => {
-    if (!effectiveCompany?.id) return;
+    if (!effectiveCompany?.id || !canEditOrders || !canViewCosts) return;
     setRdoBusy(true);
     try {
       // Si arriva qui solo dal dialog: le spunte valgono sempre.
@@ -265,11 +187,18 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
     if (ko > 0) toast.error(`${ko} OdA non creati: riprova dai singoli fornitori`);
   };
 
-  if (gruppi.length === 0 && senzaFornitore.length === 0) return null;
+  if (!items.length) return null;
+  if (coverage.isPending || unmapped.isPending) return <p role="status" className="text-sm text-muted-foreground">Verifica ordini e quantità in corso…</p>;
+  if (coverage.isError || unmapped.isError) return <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg border border-destructive/30 p-4 text-sm">
+    Impossibile verificare gli acquisti già collegati. Creazione OdA sospesa per evitare duplicati.
+    <Button variant="outline" size="sm" onClick={() => { coverage.refetch(); unmapped.refetch(); }} disabled={coverage.isFetching || unmapped.isFetching}>Riprova</Button>
+  </div>;
+  if (gruppi.length === 0 && senzaFornitore.length === 0 && daVerificare.length === 0 && !unmapped.data?.length) return null;
 
-  const totale = gruppi.reduce((s2, [, g]) =>
+  const pronti = gruppi.filter(([sid]) => !blockedSuppliers.has(sid));
+  const totale = pronti.reduce((s2, [, g]) =>
     s2 + g.reduce((x, i) => x + (Number(i.purchase_price) || 0) * (Number(i.quantity) || 0), 0), 0);
-  const nArticoli = gruppi.reduce((s2, [, g]) => s2 + g.length, 0);
+  const nArticoli = pronti.reduce((s2, [, g]) => s2 + g.length, 0);
 
   return (
     <div className="overflow-hidden rounded-lg border">
@@ -279,15 +208,15 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
       <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/40 px-3 py-2">
         <div className="flex min-w-0 items-center gap-2 text-sm">
           <Package className="h-4 w-4 shrink-0 text-blue-600" />
-          <span className="font-semibold">Da ordinare ai fornitori</span>
+          <span className="font-semibold">Acquisti per fornitore</span>
           <span className="text-muted-foreground">
-            {nArticoli} {nArticoli === 1 ? "articolo" : "articoli"} · {gruppi.length} {gruppi.length === 1 ? "fornitore" : "fornitori"} · <span className="tabular-nums">{eur.format(totale)}</span>
+            {nArticoli} {nArticoli === 1 ? "articolo pronto" : "articoli pronti"} · {pronti.length} {pronti.length === 1 ? "fornitore" : "fornitori"}{canViewCosts && <> · <span className="tabular-nums">{eur.format(totale)} + IVA</span></>}
           </span>
         </div>
-        {gruppi.length > 1 && (
+        {gruppi.length > 1 && canEditOrders && canViewCosts && !gruppi.some(([sid]) => blockedSuppliers.has(sid)) && (
           <Button size="sm" className="shrink-0 gap-1.5" disabled={creatingAll || creaOda.isPending} onClick={creaTutti}>
             {creatingAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <Package className="h-4 w-4" />}
-            Crea tutti gli OdA ({gruppi.length})
+            Prepara tutte le bozze ({gruppi.length})
           </Button>
         )}
       </div>
@@ -296,6 +225,11 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
           azione secondaria a destra. Il dettaglio delle righe sta gia'
           nell'elenco articoli qui sotto: non va ripetuto due volte. */}
       <div className="divide-y">
+        {!!unmapped.data?.length && <div className="p-3 bg-amber-50/60 dark:bg-amber-950/20 space-y-2 text-sm">
+          <p className="font-medium">Ordini da riconciliare con gli articoli</p>
+          <p className="text-xs text-muted-foreground">Questi OdA contengono righe non collegate o sono vuoti. Verificali prima di creare altri ordini allo stesso fornitore: le quantità residue potrebbero essere già coperte.</p>
+          <div className="flex flex-wrap gap-2">{unmapped.data.map(o => <Button key={o.id} size="sm" variant="outline" onClick={() => navigate(`/azienda/ordini-acquisto/${o.id}`)}>Apri {o.oda_number}</Button>)}</div>
+        </div>}
         {gruppi.map(([sid, gruppo]) => {
           const tot = gruppo.reduce((s2, i) => s2 + (Number(i.purchase_price) || 0) * (Number(i.quantity) || 0), 0);
           const busy = (creaOda.isPending && creatingFor === sid) || creatingAll;
@@ -303,7 +237,7 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
             <div key={sid} className="flex items-center justify-between gap-3 px-3 py-2">
               <div className="min-w-0 flex-1 text-sm">
                 <span className="font-medium">{supplierName(sid)}</span>
-                <span className="text-muted-foreground"> · <span className="tabular-nums">{eur.format(tot)}</span></span>
+                {canViewCosts && <span className="text-muted-foreground"> · <span className="tabular-nums">{eur.format(tot)} + IVA</span></span>}
                 <span className="ml-2 hidden truncate text-xs text-muted-foreground sm:inline">
                   {gruppo.map((i) => i.name).join(" · ")}
                 </span>
@@ -312,7 +246,7 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
                 size="sm"
                 variant="outline"
                 className="h-7 shrink-0 gap-1.5 px-2.5 text-xs"
-                disabled={creaOda.isPending || creatingAll}
+                disabled={!canEditOrders || !canViewCosts || blockedSuppliers.has(sid) || creaOda.isPending || creatingAll}
                 onClick={() => {
                   const g = gruppi.find(([x]) => x === sid)?.[1] ?? [];
                   setSelezione(Object.fromEntries(g.map((i) => [i.id!, true])));
@@ -320,7 +254,7 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
                 }}
               >
                 {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Package className="h-3.5 w-3.5" />}
-                Ordina…
+                Prepara acquisto…
               </Button>
             </div>
           );
@@ -331,6 +265,10 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
             {senzaFornitore.length} {senzaFornitore.length === 1 ? "articolo senza fornitore" : "articoli senza fornitore"}: assegnalo (matita sulla riga) per poterli ordinare.
           </div>
         )}
+        {daVerificare.length > 0 && <div className="px-3 py-3 text-sm bg-amber-50/60 dark:bg-amber-950/20">
+          <p className="font-medium">Da verificare prima di acquistare</p>
+          <ul className="mt-1 space-y-1 text-xs text-muted-foreground">{daVerificare.map(p => <li key={p.item.id ?? p.item.name}>{p.item.name}: {p.review ?? "quantità in OdA superiore al previsto"}.</li>)}</ul>
+        </div>}
       </div>
 
       {/* La scelta che prima non c'era: chiedere un preventivo e' un conto,
@@ -347,7 +285,7 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
                 <DialogHeader>
                   <DialogTitle>{supplierName(sceltaPer)}</DialogTitle>
                   <DialogDescription>
-                    {scelti.length} di {gruppo.length} {gruppo.length === 1 ? "articolo" : "articoli"} · {eur.format(tot)}
+                    {scelti.length} di {gruppo.length} {gruppo.length === 1 ? "articolo" : "articoli"} · {eur.format(tot)} + IVA. Solo le quantità ancora da acquistare; le bozze esistenti sono già considerate. Nessun invio automatico al fornitore.
                   </DialogDescription>
                 </DialogHeader>
                 {/* Spunte per articolo: si puo' ordinare solo una parte del
@@ -390,7 +328,7 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
                     onClick={() => { setCreatingFor(sceltaPer); setSceltaPer(null); creaOda.mutate({ supplierId: sceltaPer, soloSelezionati: true }); }}
                   >
                     {creaOda.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Package className="h-4 w-4" />}
-                    Crea ordine (OdA)
+                    Crea bozza OdA
                   </Button>
                 </DialogFooter>
               </>

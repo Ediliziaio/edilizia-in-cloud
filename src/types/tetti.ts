@@ -20,6 +20,7 @@ export interface TetComputoVoce {
   fonte?: string | null;
 }
 export interface TetProgetto {
+  modello_snapshot?: import("@/lib/tetti/quoteModel").TetQuoteModelSnapshot | null;
   id: string; company_id: string; code: string | null; stato: TetStato; tipo_intervento: string | null; numero_falde: number | null;
   cliente_nome: string | null; cliente_cognome: string | null; cliente_email: string | null; cliente_telefono: string | null;
   cantiere_indirizzo: string | null; cantiere_citta: string | null; cantiere_provincia: string | null; cantiere_cap: string | null;

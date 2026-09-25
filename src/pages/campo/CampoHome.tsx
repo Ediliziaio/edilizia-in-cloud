@@ -10,7 +10,7 @@ import { format, parseISO, isToday, startOfMonth, endOfMonth, eachDayOfInterval,
 import { it } from "date-fns/locale";
 import {
   MapPin, AlertTriangle, ChevronRight, ChevronLeft,
-  CheckCircle, Loader2, Clock, PlayCircle, PauseCircle, LogOut,
+  CheckCircle, Clock,
   ShieldCheck, Mic, QrCode, MessageSquare, FileText,
   CalendarDays, Receipt, ClipboardCheck,
   ClipboardList,
@@ -22,6 +22,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGPS } from "@/hooks/useGPS";
 import { useIsCampo } from "@/hooks/useIsCampo";
+import { useCampoAssignments } from "@/hooks/campo/useCampoAssignments";
+import { CampoCrewAgenda } from "@/components/campo/CampoCrewAgenda";
+import { CampoPunchActions } from "@/components/campo/CampoPunchActions";
+import { useCampoDayTime } from "@/hooks/campo/useCampoDayTime";
+import { campoPunchOrderId, campoReportHours, canRecordCampoPunch } from "@/lib/campo/timeSummary";
+import { refreshCampoTimeQueries } from "@/lib/campo/refreshTimeQueries";
 // 🆕 GAP 5b: hook cantieri timbrati oggi senza rapportino
 import { useCampoRapportiniDaCompilare } from "@/hooks/useCampoRapportiniDaCompilare";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -149,6 +155,8 @@ export default function CampoHome() {
       {/* Timbratura — sempre in cima su mobile */}
       {isOperaio && <TimbraturaCampo />}
 
+      {isOperaio && <CampoCrewAgenda />}
+
       {/* Azioni rapide — griglia 4 colonne su mobile */}
       <AccesaoRapido isOperaio={isOperaio} isSubappaltatore={isSubappaltatore} />
 
@@ -183,59 +191,16 @@ export default function CampoHome() {
 function TimbraturaCampo() {
   const { user, profile } = useAuth();
   const queryClient = useQueryClient();
-  const today = format(new Date(), "yyyy-MM-dd");
   const companyId = profile?.company_id ?? null;
-
-  const { data: timbratureOggi = [], isLoading } = useQuery({
-    queryKey: ["campo-timbrature-oggi", companyId, user?.id, today],
-    queryFn: async () => {
-      if (!companyId) return [];
-      const { data, error } = await supabase
-        .from("campo_timbrature")
-        .select("*")
-        .eq("user_id", user!.id)
-        .eq("company_id", companyId)
-        .gte("timestamp_evento", `${today}T00:00:00`)
-        .order("timestamp_evento", { ascending: true });
-      if (error) throw error;
-      return data ?? [];
-    },
-    enabled: !!user?.id && !!companyId,
-    refetchInterval: 30000,
-    refetchIntervalInBackground: false,
-  });
-
-  // Tick al minuto: le ore della sessione aperta ticchettano invece di
-  // restare congelate fino al refetch (e Date.now() esce dal render, che il
-  // compiler vieta come funzione impura).
-  const [adesso, setAdesso] = useState(() => new Date().getTime());
-  useEffect(() => {
-    const id = setInterval(() => setAdesso(new Date().getTime()), 60_000);
-    return () => clearInterval(id);
-  }, []);
-
-  const oreLavorate = useMemo(() => {
-    let totaleMs = 0;
-    let ultimaEntrata: Date | null = null;
-    for (const t of timbratureOggi) {
-      const ts = new Date(t.timestamp_evento);
-      if (t.tipo === "entrata" || t.tipo === "pausa_fine") ultimaEntrata = ts;
-      else if ((t.tipo === "uscita" || t.tipo === "pausa_inizio") && ultimaEntrata) {
-        totaleMs += ts.getTime() - ultimaEntrata.getTime();
-        ultimaEntrata = null;
-      }
-    }
-    if (ultimaEntrata) totaleMs += Math.max(0, adesso - ultimaEntrata.getTime());
-    return Math.round((totaleMs / 3_600_000) * 10) / 10;
-  }, [timbratureOggi, adesso]);
-
-  const lastTimbro = timbratureOggi[timbratureOggi.length - 1] as any;
-  const isEntrato = lastTimbro?.tipo === "entrata" || lastTimbro?.tipo === "pausa_fine";
-  const isInPausa = lastTimbro?.tipo === "pausa_inizio";
-  const isUscito = lastTimbro?.tipo === "uscita";
-  const nonHaTimbrato = !lastTimbro;
-
-
+  const dayTime = useCampoDayTime(user?.id, companyId);
+  const timbratureOggi = dayTime.todayPunches;
+  const isLoading = dayTime.isLoading;
+  const oreLavorate = campoReportHours(dayTime.summary.workMinutes);
+  const lastTimbro = dayTime.summary.lastEvent;
+  const isEntrato = dayTime.summary.state === "working";
+  const isInPausa = dayTime.summary.state === "paused";
+  const isUscito = dayTime.summary.state === "out" && timbratureOggi.length > 0;
+  const nonHaTimbrato = dayTime.summary.state === "out" && timbratureOggi.length === 0;
   // GPS come nella pagina Timbratura dedicata: la posizione si chiede quando il
   // widget monta (non al tap, o l'operaio aspetterebbe il fix col dito a
   // mezz'aria) e si allega solo se è arrivata — la timbratura non aspetta mai
@@ -246,40 +211,18 @@ function TimbraturaCampo() {
     if (companyId) void requestPosition();
   }, [companyId, requestPosition]);
 
-  // Cantiere collegato SOLO se è certo: un'unica assegnazione attiva → quella.
-  // Con più cantieri non si indovina (la pagina Timbratura lo collega solo
-  // quando ci si arriva dal cantiere stesso — stessa filosofia).
-  const { data: cantiereUnico = null } = useQuery({
-    queryKey: ["campo-cantiere-unico", companyId, user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("order_campo_assignments")
-        .select("order_id, orders(order_code)")
-        .eq("company_id", companyId!)
-        .eq("user_id", user!.id);
-      if (error) throw error;
-      const distinct = [...new Map((data ?? [])
-        .filter((r) => r.order_id)
-        .map((r) => [r.order_id as string, r])).values()];
-      if (distinct.length !== 1) return null;
-      const unico = distinct[0] as { order_id: string; orders: { order_code: string | null } | null };
-      return { id: unico.order_id, code: unico.orders?.order_code ?? null };
-    },
-    enabled: !!user?.id && !!companyId,
-    staleTime: 5 * 60_000,
-  });
-
+  const { data: assignments = [], isLoading: loadingAssignments, isError: assignmentsError } = useCampoAssignments();
+  const [entrySite, setEntrySite] = useState("");
+  const selected = assignments.find(a => a.order_id === entrySite) ?? (entrySite === "" && assignments.length === 1 ? assignments[0] : null);
+  const active = assignments.find(a => a.order_id === dayTime.summary.activeOrderId);
+  const cantiereUnico = dayTime.summary.state !== "out"
+    ? (dayTime.summary.activeOrderId ? { id: dayTime.summary.activeOrderId, code: active?.order.order_code ?? "in corso" } : null)
+    : (selected ? { id: selected.order_id, code: selected.order.order_code } : null);
+  const canEnter = !loadingAssignments && !assignmentsError && (!!selected || entrySite === "__none__");
   const timbraMutation = useMutation({
     mutationFn: async (tipo: "entrata" | "uscita" | "pausa_inizio" | "pausa_fine") => {
-      if (!companyId) throw new Error("Azienda non disponibile, ricarica la pagina");
-      const lastTipo = lastTimbro?.tipo as string | undefined;
-      const allowedNext: Record<string, Array<string | undefined>> = {
-        entrata: ["uscita", undefined],
-        pausa_inizio: ["entrata", "pausa_fine"],
-        pausa_fine: ["pausa_inizio"],
-        uscita: ["entrata", "pausa_fine", "pausa_inizio"],
-      };
-      if (!allowedNext[tipo].includes(lastTipo)) {
+      if (!companyId || !user || !dayTime.isSuccess) throw new Error("Timbrature non disponibili, ricarica la pagina");
+      if (!canRecordCampoPunch(dayTime.summary.state, tipo) || (tipo === "entrata" && !canEnter)) {
         throw new Error("Sequenza timbratura non valida per lo stato attuale");
       }
       const now = new Date().toISOString();
@@ -291,7 +234,7 @@ function TimbraturaCampo() {
       const { error } = await supabase.from("campo_timbrature").insert({
         company_id: companyId,
         user_id: user!.id,
-        order_id: cantiereUnico?.id ?? null,
+        order_id: campoPunchOrderId(tipo, dayTime.summary.activeOrderId, selected?.order_id ?? null),
         tipo,
         timestamp_evento: now,
         gps_lat: gpsReady ? lat : null,
@@ -303,9 +246,9 @@ function TimbraturaCampo() {
       if (error) throw error;
       // Registro HR: ci pensa il trigger DB (vedi CampoTimbratura).
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success("Timbratura registrata");
-      queryClient.invalidateQueries({ queryKey: ["campo-timbrature-oggi", companyId, user?.id, today] });
+      await refreshCampoTimeQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: ["hr-timbrature"] });
       queryClient.invalidateQueries({ queryKey: ["hr-my-timbrature-today"] });
       queryClient.invalidateQueries({ queryKey: ["hr-live-status"] });
@@ -314,7 +257,7 @@ function TimbraturaCampo() {
     onError: (err: any) => toast.error("Errore: " + (err.message ?? "Riprovare")),
   });
 
-  const isMutating = timbraMutation.isPending;
+  const isMutating = timbraMutation.isPending || !dayTime.isSuccess;
 
   return (
     <Card>
@@ -335,6 +278,11 @@ function TimbraturaCampo() {
           <div className="space-y-2">
             <Skeleton className="h-10 w-full" />
             <Skeleton className="h-10 w-full" />
+          </div>
+        ) : dayTime.isError ? (
+          <div role="alert" className="space-y-2">
+            <p className="text-sm">Non riesco a leggere le timbrature. Riprova prima di registrare una nuova entrata.</p>
+            <Button variant="outline" onClick={() => dayTime.refetch()}>Riprova timbrature</Button>
           </div>
         ) : (
           <>
@@ -362,6 +310,13 @@ function TimbraturaCampo() {
               )}
             </div>
 
+            {(dayTime.summary.byOrder.get(null)?.workMinutes ?? 0) > 0 && (
+              <p role="status" className="text-sm text-amber-700">{campoReportHours(dayTime.summary.byOrder.get(null)!.workMinutes)} h senza cantiere: vanno attribuite prima del consuntivo.</p>
+            )}
+            {dayTime.summary.issues.some(issue => issue.kind !== "open_session") && (
+              <p role="status" className="text-sm text-amber-700">Ci sono timbrature da verificare: controlla le ore prima di inviare il rapportino.</p>
+            )}
+
             {/* Cosa verrà allegato alla timbratura: posizione e cantiere.
                 Stessi testi della pagina Timbratura — l'operaio sa PRIMA di
                 timbrare se la posizione c'è o no, niente sorprese dopo. */}
@@ -372,44 +327,22 @@ function TimbraturaCampo() {
               {cantiereUnico && <span> · Cantiere {cantiereUnico.code ?? ""}</span>}
             </p>
 
-            {/* Bottoni azione */}
-            <div className="flex flex-wrap gap-2">
-              {(nonHaTimbrato || isUscito) && (
-                <Button className="flex-1 min-w-[120px] gap-2 bg-green-600 hover:bg-green-700 text-white"
-                  disabled={isMutating} onClick={() => timbraMutation.mutate("entrata")}>
-                  {isMutating ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
-                  Entrata
-                </Button>
-              )}
-              {isEntrato && (
-                <>
-                  <Button variant="outline" className="flex-1 min-w-[120px] gap-2"
-                    disabled={isMutating} onClick={() => timbraMutation.mutate("pausa_inizio")}>
-                    {isMutating ? <Loader2 className="h-4 w-4 animate-spin" /> : <PauseCircle className="h-4 w-4" />}
-                    Pausa
-                  </Button>
-                  <Button variant="destructive" className="flex-1 min-w-[120px] gap-2"
-                    disabled={isMutating} onClick={() => timbraMutation.mutate("uscita")}>
-                    {isMutating ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
-                    Uscita
-                  </Button>
-                </>
-              )}
-              {isInPausa && (
-                <>
-                  <Button className="flex-1 min-w-[120px] gap-2 bg-amber-600 hover:bg-amber-700 text-white"
-                    disabled={isMutating} onClick={() => timbraMutation.mutate("pausa_fine")}>
-                    {isMutating ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
-                    Fine Pausa
-                  </Button>
-                  <Button variant="destructive" className="flex-1 min-w-[120px] gap-2"
-                    disabled={isMutating} onClick={() => timbraMutation.mutate("uscita")}>
-                    {isMutating ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
-                    Uscita
-                  </Button>
-                </>
-              )}
-            </div>
+            {(nonHaTimbrato || isUscito) && (
+              <div className="space-y-1.5">
+                <label htmlFor="campo-entry-site" className="text-sm font-medium">Dove inizi a lavorare?</label>
+                <select id="campo-entry-site" value={selected?.order_id ?? entrySite}
+                  onChange={e => setEntrySite(e.target.value)} disabled={loadingAssignments || assignmentsError}
+                  className="h-11 w-full min-w-0 rounded-lg border bg-background px-3 text-base">
+                  <option value="">Scegli il cantiere</option>
+                  {assignments.map(a => <option key={a.order_id} value={a.order_id}>{a.order.order_code} · {a.order.description}</option>)}
+                  <option value="__none__">Nessun cantiere — ore da attribuire</option>
+                </select>
+                {assignmentsError && <p role="alert" className="text-xs text-destructive">Elenco cantieri non disponibile: riprova dalla scheda cantieri.</p>}
+              </div>
+            )}
+
+            <CampoPunchActions state={dayTime.summary.state} busy={isMutating} canEnter={canEnter}
+              onPunch={tipo => timbraMutation.mutate(tipo)} />
 
             {/* Timeline timbrature di oggi */}
             {timbratureOggi.length > 0 && (
@@ -665,7 +598,7 @@ function AssistenteCampoOperaio() {
               type="button"
               variant="secondary"
               className="h-10 gap-2 bg-violet-100 text-violet-800 hover:bg-violet-200"
-              onClick={() => navigate(`/campo/lavoro/${focusRapportino.order_id}/rapportino-vocale`)}
+              onClick={() => navigate(`/campo/lavoro/${focusRapportino.order_id}/rapportino?data=${focusRapportino.data_lavoro}`)}
             >
               <Send className="h-4 w-4" />
               Invia
@@ -700,73 +633,7 @@ function AssistenteCampoOperaio() {
 // ─────────────────────────────────────────────────────────────────────────────
 function CantieriAssegnati() {
   const navigate = useNavigate();
-  const { user, profile } = useAuth();
-
-  // Cerca employee_id dal profilo
-  const { data: employeeId } = useQuery({
-    queryKey: ["campo-employee-id", user?.id, profile?.company_id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("employees")
-        .select("id")
-        .eq("user_id", user!.id)
-        .eq("company_id", profile!.company_id)
-        .maybeSingle();
-      if (error) throw error;
-      return data?.id ?? null;
-    },
-    enabled: !!user?.id && !!profile?.company_id,
-  });
-
-  const { data: lavori = [], isLoading } = useQuery({
-    queryKey: ["campo-lavori-assegnati", user?.id, employeeId ?? "no-employee"],
-    queryFn: async () => {
-      const orderSelect = `
-          id, order_id,
-          order:orders(
-            id, order_code, description, status,
-            indirizzo_lavori,
-            percentuale_avanzamento
-          )
-        `;
-      const rows: any[] = [];
-
-      // Fonte 1: assegnazioni campo dirette (order_campo_assignments) —
-      // è la fonte primaria dell'area campo (stessa usata dal dettaglio lavoro).
-      // is_capocantiere va chiesto SOLO qui: su order_employees la colonna non
-      // esiste (400) — col select condiviso il badge Capocantiere era morto.
-      const { data: campoAss, error: campoErr } = await supabase
-        .from("order_campo_assignments")
-        .select(`is_capocantiere, ${orderSelect}`)
-        .eq("user_id", user!.id);
-      if (campoErr) throw campoErr;
-      rows.push(...(campoAss ?? []));
-
-      // Fonte 2: manodopera (order_employees), se esiste la scheda dipendente
-      if (employeeId) {
-        const { data, error } = await supabase
-          .from("order_employees")
-          .select(orderSelect)
-          .eq("employee_id", employeeId);
-        if (error) throw error;
-        rows.push(...(data ?? []));
-      }
-
-      // Deduplica per order_id (possono esserci più righe per lo stesso ordine)
-      const seen = new Set<string>();
-      return rows.filter((a: any) => {
-        if (!a.order?.id || seen.has(a.order.id)) return false;
-        seen.add(a.order.id);
-        // Filtra ordini completati/annullati
-        const status = a.order.status?.toLowerCase();
-        if (status === 'annullato' || status === 'chiuso') return false;
-        return true;
-      });
-    },
-    // employeeId: undefined = ancora in caricamento, null = nessuna scheda
-    enabled: !!user?.id && employeeId !== undefined,
-  });
-
+  const { data: lavori = [], isLoading, isError, refetch, isFetching } = useCampoAssignments();
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -785,6 +652,11 @@ function CantieriAssegnati() {
             <Skeleton className="h-16 w-full" />
             <Skeleton className="h-16 w-full" />
           </div>
+        ) : isError ? (
+          <div role="alert" className="space-y-2 py-4 text-center">
+            <p className="text-sm">Non riesco a caricare i cantieri assegnati.</p>
+            <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>Riprova</Button>
+          </div>
         ) : lavori.length === 0 ? (
           <div className="flex flex-col items-center py-6 text-center">
             <CheckCircle className="w-8 h-8 text-muted-foreground/50 mb-2" />
@@ -792,7 +664,7 @@ function CantieriAssegnati() {
           </div>
         ) : (
           <div className="space-y-2">
-            {lavori.map((a: any) => (
+            {lavori.map(a => (
               <button
                 key={a.id}
                 onClick={() => navigate(`/campo/lavoro/${a.order?.id}`)}
@@ -854,52 +726,7 @@ function CantieriAssegnati() {
 // ─────────────────────────────────────────────────────────────────────────────
 function CantieriSub() {
   const navigate = useNavigate();
-  const { user, profile } = useAuth();
-
-  const { data: cantieri = [], isLoading, isError, refetch, isFetching } = useQuery({
-    queryKey: ["campo-cantieri-sub", user?.id, profile?.company_id],
-    queryFn: async () => {
-      // Prima prova order_campo_assignments (assegnazioni dirette)
-      const { data: ocaData, error: ocaErr } = await supabase
-        .from("order_campo_assignments")
-        .select(`
-          id, order_id, role_type, note,
-          order:orders(id, order_code, description, status, indirizzo_lavori, percentuale_avanzamento)
-        `)
-        .eq("user_id", user!.id);
-      if (ocaErr) throw ocaErr;
-
-      if (ocaData && ocaData.length > 0) {
-        // Deduplica per order_id e filtra completati
-        const seen = new Set<string>();
-        return ocaData.filter((a: any) => {
-          if (!a.order?.id || seen.has(a.order.id)) return false;
-          seen.add(a.order.id);
-          const status = a.order.status?.toLowerCase();
-          if (status === "annullato" || status === "chiuso") return false;
-          return true;
-        });
-      }
-
-      // Fallback: vecchia logica subappaltatori/contratti_subappalto
-      const { data: subData, error: subErr } = await supabase
-        .from("subappaltatori")
-        .select("id")
-        .eq("user_id", user!.id)
-        .maybeSingle();
-      if (subErr) throw subErr;
-      if (!subData?.id) return [];
-      const { data, error } = await supabase
-        .from("contratti_subappalto")
-        .select(`*, order:orders(id, order_code, description, status, indirizzo_lavori, percentuale_avanzamento)`)
-        .eq("subappaltatore_id", subData.id)
-        .eq("stato", "attivo");
-      if (error) throw error;
-      return data ?? [];
-    },
-    enabled: !!user?.id,
-  });
-
+  const { data: cantieri = [], isLoading, isError, refetch, isFetching } = useCampoAssignments();
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -931,7 +758,7 @@ function CantieriSub() {
           </div>
         ) : (
           <div className="space-y-2">
-            {cantieri.map((c: any) => (
+            {cantieri.map(c => (
               <button
                 key={c.id}
                 onClick={() => navigate(`/campo/lavoro/${c.order?.id}`)}
@@ -989,24 +816,22 @@ function RapportiniDaCompilareOggi() {
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2 text-violet-800 dark:text-violet-200">
           <ClipboardList className="h-4 w-4" />
-          {cantieri.length === 1
-            ? "Compila il rapportino di oggi"
-            : `Compila ${cantieri.length} rapportini di oggi`}
+          {cantieri.length === 1 ? "Rapportino da inviare" : `${cantieri.length} rapportini da inviare`}
         </CardTitle>
         <p className="text-xs text-violet-700 dark:text-violet-300 mt-1">
-          Hai timbrato in {cantieri.length === 1 ? "questo cantiere" : "questi cantieri"} ma non hai ancora chiuso la giornata.
+          Oggi e ieri: invia entro il giorno successivo al lavoro. La timbratura di uscita va fatta separatamente.
         </p>
       </CardHeader>
       <CardContent className="space-y-2">
         {cantieri.slice(0, 5).map((c) => (
           <button
-            key={c.order_id}
-            onClick={() => navigate(`/campo/lavoro/${c.order_id}`)}
-            className="w-full flex items-center justify-between text-left rounded-lg px-2 py-2 hover:bg-violet-100/60 dark:hover:bg-violet-900/40 transition-colors"
+            key={`${c.order_id}:${c.data_lavoro}`}
+            onClick={() => navigate(`/campo/lavoro/${c.order_id}/rapportino?data=${c.data_lavoro}`)}
+            className="min-h-14 w-full flex items-center justify-between text-left rounded-lg px-2 py-2 hover:bg-violet-100/60 dark:hover:bg-violet-900/40 transition-colors"
           >
             <div className="min-w-0 flex-1">
               <p className="text-sm text-foreground font-medium truncate">
-                {c.order_code ?? "—"}
+                {c.order_code ?? "—"} · {format(parseISO(c.data_lavoro), "dd/MM")}
               </p>
               <p className="text-xs text-muted-foreground truncate">
                 {c.description?.slice(0, 60) ?? "—"} · ~{c.ore_in_cantiere_stimate}h stimate

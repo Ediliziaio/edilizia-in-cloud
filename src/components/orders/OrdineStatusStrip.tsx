@@ -76,8 +76,12 @@ export function OrdineStatusStrip({
               {/* Step — title + hover ring: era cliccabile ma non lo sembrava
                   (nessuna affordance), gli utenti non sapevano di poter
                   avanzare lo stato da qui */}
-              <div
-                className="flex flex-col items-center gap-1 cursor-pointer group"
+              <button
+                type="button"
+                disabled={!onStatusChange || isCurrent}
+                aria-current={isCurrent ? "step" : undefined}
+                aria-label={isCurrent ? `Stato attuale: ${status.name}` : `Imposta stato "${status.name}"`}
+                className="group flex flex-col items-center gap-1 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-default"
                 onClick={() => onStatusChange?.(status.id)}
                 title={isCurrent ? `Stato attuale: ${status.name}` : `Imposta stato "${status.name}"`}
               >
@@ -102,7 +106,7 @@ export function OrdineStatusStrip({
                     {date}
                   </span>
                 )}
-              </div>
+              </button>
 
               {/* Connector */}
               {index < sorted.length - 1 && (

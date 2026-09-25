@@ -63,7 +63,7 @@ export const CAPITOLI_EDILI: CapitoloDescritto[] = [
   // foto tecniche restava da solo, su un foglio per tre quarti bianco.
   { chiave: "percorso", etichetta: "Come lavoriamo", descrizione: "Le fasi, dal primo incontro alla consegna · esce se compilato", spostabile: true, nascondibile: true, diSerie: true },
   { chiave: "comeFunziona", etichetta: "Come funziona", descrizione: "Le lavorazioni che non si vedono, spiegate con foto tecniche", spostabile: true, nascondibile: true, diSerie: true },
-  { chiave: "protezione", etichetta: "Protezione della casa", descrizione: "Come proteggete la casa durante i lavori", spostabile: true, nascondibile: true, diSerie: true, promessa: true },
+  { chiave: "protezione", etichetta: "Protezione degli ambienti", descrizione: "Come proteggete gli ambienti durante i lavori", spostabile: true, nascondibile: true, diSerie: true, promessa: true },
   { chiave: "controlli", etichetta: "Controlli di qualità", descrizione: "Cosa verificate prima della consegna", spostabile: true, nascondibile: true, diSerie: true, promessa: true },
   { chiave: "lavori", etichetta: "I nostri lavori", descrizione: "Galleria dei lavori consegnati · esce se ci sono foto", spostabile: true, nascondibile: true, diSerie: true },
   { chiave: "foto", etichetta: "Foto e render", descrizione: "Le foto e i render caricati nel preventivo · esce se ci sono", spostabile: true, nascondibile: true, diSerie: true },

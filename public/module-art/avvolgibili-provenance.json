@@ -1,0 +1,7 @@
+{
+  "asset": "serramenti-avvolgibili-cover.jpg",
+  "method": "built-in image_gen",
+  "source": "exec-fc480f83-f665-461a-8fbc-c7b8ea6e88c7.png",
+  "purpose": "Immagine illustrativa: non documenta lavori dell'azienda, non identifica un prodotto venduto.",
+  "prompt": "Use case: photorealistic-natural. Asset type: portrait A4 quotation PDF cover for an Italian installer, roller shutters and shutter boxes. Create a premium realistic architectural photograph, portrait 2:3. View from inside a calm contemporary Italian living room toward one large full-height glazed door to a garden. A light grey aluminium roller shutter is partially lowered across the upper third of the opening, with clearly visible narrow horizontal interlocking slats, straight side guides, and a clean white accessible shutter box above the door, correctly installed. Small discreet wall switch on the adjacent plastered wall. Soft daylight through the uncovered lower part, warm pale oak floor, natural linen chair at edge. Camera straight vertical lines, believable construction details, material texture, no distorted geometry. Product occupies upper and middle frame; leave lower floor area quieter and darker for an eventual white headline overlay, but generate NO text, no logo, no watermark, no people, no invented labels or technical diagrams. Elegant neutral stone, white, grey and muted garden green palette. No hinged shutters, no insect mesh, no Venetian blind."
+}

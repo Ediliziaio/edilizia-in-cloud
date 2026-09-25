@@ -1,6 +1,22 @@
 export type QuoteTemplatesTopTab = "documenti" | "moduli-vendita";
 
-const SALES_MODULE_SLUGS = new Set(["serramenti", "fotovoltaico"]);
+// Tutti i verticali che possono essere aperti nella griglia Moduli Vendita
+// devono essere validi anche nel deeplink. Prima qui erano ammessi soltanto
+// Serramenti e Fotovoltaico: Bagni e Ristrutturazione venivano quindi rimossi
+// dall'URL appena aperti, perdendo anche la sezione corrente al refresh.
+const SALES_MODULE_SLUGS = new Set([
+  "serramenti",
+  "fotovoltaico",
+  "ristrutturazione",
+  "bagni",
+  "tetti",
+  "climatizzazione",
+  "elettrico",
+  "termoidraulico",
+  "pavimenti",
+  "piscine",
+  "cappotto",
+]);
 
 export function isSalesModuleSlug(value: string | null | undefined): value is string {
   return typeof value === "string" && SALES_MODULE_SLUGS.has(value);
@@ -40,9 +56,11 @@ export function buildQuoteTemplatesTabParams(
   next.set("tab", tab);
 
   if (tab === "documenti") {
+    next.delete("modello");
     next.delete("modulo");
     next.delete("section");
   } else if (!isSalesModuleSlug(next.get("modulo"))) {
+    next.delete("modello");
     next.delete("modulo");
     next.delete("section");
   }
@@ -56,6 +74,10 @@ export function buildQuoteTemplatesModuleParams(
 ): URLSearchParams {
   const next = new URLSearchParams(params);
   next.set("tab", "moduli-vendita");
+  if (next.get("modulo") !== modulo) {
+    next.delete("modello");
+    next.delete("section");
+  }
 
   if (isSalesModuleSlug(modulo)) {
     next.set("modulo", modulo);

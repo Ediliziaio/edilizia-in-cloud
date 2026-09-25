@@ -25,6 +25,7 @@ import {
 import { EditorFotoPagina } from "@/components/preventivi/EditorFotoPagina";
 import { sezioneDellaPagina } from "@/components/preventivi/pagineEditor";
 import { BLOCCHI, RIEMPIMENTI_EDILI, type ChiaveFotoPagina, type SettoreBlocchi } from "../../../supabase/functions/_shared/blocchiPreventivo";
+import { edileChapterAllowed, type EdileVisibilitySettings } from "./edilePageVisibility";
 
 interface Props {
   /** Il valore salvato nel modello (`pdf_ordine_capitoli`): null = ordine di serie. */
@@ -42,6 +43,10 @@ interface Props {
   onBlocchi?: (v: Record<string, unknown>) => void;
   /** Apre la sezione dell'editor di una pagina (la matita accanto alla pagina). */
   apriSezione?: (sezione: string) => void;
+  /** Local intervention edition: reset to its own defaults, not to the entire area. */
+  ordineDiSerie?: VoceOrdine[] | null;
+  visibilitySettings?: EdileVisibilitySettings;
+  onVisibilityChange?: (chapter: string, visible: boolean) => void;
 }
 
 const BLOCCO = new Map(BLOCCHI.map((b) => [b.chiave as string, b]));
@@ -49,14 +54,18 @@ const BLOCCO = new Map(BLOCCHI.map((b) => [b.chiave as string, b]));
 const DESCRITTI = new Map(CAPITOLI_EDILI.map((c) => [c.chiave as string, c]));
 const senzaAsterischi = (t: string) => t.replace(/\*/g, "");
 
-export function OrdineCapitoli({ ordine, pagine, onOrdine, onPagine, campoFoto, settore, blocchi, onBlocchi, apriSezione }: Props) {
+export function OrdineCapitoli({ ordine, pagine, onOrdine, onPagine, campoFoto, settore, blocchi, onBlocchi, apriSezione, ordineDiSerie, visibilitySettings, onVisibilityChange }: Props) {
   const libere = useMemo(() => leggiPagineLibere(pagine, { ancheVuote: true }), [pagine]);
-  const elenco = useMemo(() => ordineEffettivo(leggiOrdine(ordine), libere), [ordine, libere]);
+  const elenco = useMemo(() => ordineEffettivo(leggiOrdine(ordine), libere).map(item => ({ ...item, visibile: item.visibile && edileChapterAllowed(visibilitySettings ?? {}, item.chiave) })), [ordine, libere, visibilitySettings]);
   const [aperta, setAperta] = useState<string | null>(null);
 
   const salvaOrdine = (nuovo: VoceOrdine[]) => onOrdine(nuovo);
   const muovi = (chiave: string, verso: -1 | 1) => salvaOrdine(sposta(elenco, chiave, verso));
-  const alterna = (chiave: string) => salvaOrdine(elenco.map((v) => (v.chiave === chiave ? { ...v, visibile: !v.visibile } : v)));
+  const alterna = (chiave: string) => {
+    const visible = !elenco.find(item => item.chiave === chiave)?.visibile;
+    if (onVisibilityChange) onVisibilityChange(chiave, visible);
+    else salvaOrdine(elenco.map(v => v.chiave === chiave ? { ...v, visibile: visible } : v));
+  };
 
   const aggiungiPagina = () => {
     const id = Math.random().toString(36).slice(2, 10);
@@ -86,7 +95,7 @@ export function OrdineCapitoli({ ordine, pagine, onOrdine, onPagine, campoFoto, 
           Il documento esce in quest'ordine: copertina, poi l'elenco qui sotto, poi «I prossimi passi», le condizioni e
           la firma. I numeri dei capitoli e l'indice seguono l'ordine scelto.
         </p>
-        <Button size="sm" variant="ghost" className="shrink-0" onClick={() => onOrdine(null)} title="Torna all'ordine di serie">
+        <Button size="sm" variant="ghost" className="shrink-0" onClick={() => onOrdine(ordineDiSerie ?? null)} title="Torna all'ordine di serie">
           <RotateCcw className="mr-1 h-3.5 w-3.5" /> Di serie
         </Button>
       </div>

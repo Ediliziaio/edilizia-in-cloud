@@ -85,7 +85,7 @@ export const bloccoDellaPagina = (id: string): ChiaveBlocco | null =>
 
 /** Le foto di serie stanno nel sito, in public/pdf-stock. */
 export const eFotoDiSerie = (url: string | null | undefined): boolean =>
-  typeof url === "string" && /(^|\/)(pdf|cover)-stock\//.test(url);
+  typeof url === "string" && /(^|\/)((pdf|cover)-stock|module-art)\//.test(url);
 
 // ─── I testi di serie ────────────────────────────────────────────────────────
 
@@ -617,7 +617,11 @@ export const FOTO_LIBRERIA: Record<string, string[]> = {
 };
 
 /** Le foto che l'editor propone per un settore: le sue, poi le comuni. */
-export function fotoDellaLibreria(settore: SettoreBlocchi): Array<{ url: string; nome: string }> {
+export function fotoDellaLibreria(settore: SettoreBlocchi, salvati?: unknown): Array<{ url: string; nome: string }> {
+  const modulo = salvati && typeof salvati === "object" ? (salvati as Record<string, unknown>).modulo_foto : null;
+  if (Array.isArray(modulo)) {
+    return modulo.filter((f): f is { url: string; nome: string } => Boolean(f) && typeof f === "object" && typeof f.url === "string" && /^\/(?:module-art|pdf-stock|cover-stock)\/[a-z0-9/_-]+\.(?:jpe?g|png|webp)$/i.test(f.url) && typeof f.nome === "string");
+  }
   const cartelle = [settore, "comune"];
   return cartelle.flatMap((c) => (FOTO_LIBRERIA[c] ?? []).map((f) => ({ url: `/pdf-stock/${c}/${f}.jpg`, nome: f.replace(/-/g, " ") })));
 }
@@ -641,9 +645,16 @@ function leggiVoci(grezze: unknown): VoceBlocco[] | null {
  * `senzaFoto`, per togliere l'intera pagina l'interruttore del blocco.
  */
 export function leggiBlocco(chiave: ChiaveBlocco, settore: SettoreBlocchi, salvati: unknown): ContenutoBlocco {
-  const serie = bloccoDiSerie(chiave, settore);
   const tutti = salvati && typeof salvati === "object" ? (salvati as Record<string, unknown>) : {};
+  const defaults = tutti.modulo_defaults && typeof tutti.modulo_defaults === "object" ? tutti.modulo_defaults as Record<string, unknown> : {};
+  const serie = applicaScelteBlocco(bloccoDiSerie(chiave, settore), defaults[chiave]);
   const s = tutti[chiave] && typeof tutti[chiave] === "object" ? (tutti[chiave] as Record<string, unknown>) : {};
+  return applicaScelteBlocco(serie, s);
+}
+
+/** Two layers: intervention defaults first, company overrides second. No recursion. */
+function applicaScelteBlocco(serie: ContenutoBlocco, salvati: unknown): ContenutoBlocco {
+  const s = salvati && typeof salvati === "object" ? salvati as Record<string, unknown> : {};
   const fotoSalvate = Array.isArray(s.foto) ? (s.foto as unknown[]).map(testo).filter((u): u is string => Boolean(u)) : [];
   const foto = s.senzaFoto === true ? [] : fotoSalvate.length > 0 ? fotoSalvate : serie.foto;
   return {
@@ -828,7 +839,8 @@ export function fotoPaginaDiSerie(chiave: ChiaveFotoPagina, settore: SettoreBloc
 /** La foto che esce in quella pagina: quella scelta dall'azienda, altrimenti quella di serie. */
 export function leggiFotoPagina(chiave: ChiaveFotoPagina, settore: SettoreBlocchi, salvati: unknown): string | null {
   const tutti = salvati && typeof salvati === "object" ? (salvati as Record<string, unknown>) : {};
-  const s = tutti[chiaveSalvataFotoPagina(chiave)];
+  const defaults = tutti.modulo_defaults && typeof tutti.modulo_defaults === "object" ? tutti.modulo_defaults as Record<string, unknown> : {};
+  const s = tutti[chiaveSalvataFotoPagina(chiave)] ?? defaults[chiaveSalvataFotoPagina(chiave)];
   const scelta = s && typeof s === "object" ? (s as Record<string, unknown>) : {};
   if (scelta.senzaFoto === true) return null;
   const propria = Array.isArray(scelta.foto) ? (scelta.foto as unknown[]).map(testo).find(Boolean) : null;

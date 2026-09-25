@@ -8,6 +8,8 @@ import { PdfBlobLivePreviewPanel } from "@/components/shared/PdfBlobLivePreviewP
 import { renderIdrPreviewBlobUrl } from "@/hooks/useTermoidraulicoPDF";
 import type { IdrTemplatePdf, IdrProgetto, IdrComputoVoce } from "@/types/termoidraulico";
 
+import { buildIdrModulePreview, type FullIdrModuleId } from "@/lib/moduli-vendita/fullIdrModules";
+
 function buildMockComputo(companyId: string): IdrComputoVoce[] {
   const row = (
     i: number, cap: string, descrizione: string,
@@ -31,7 +33,7 @@ function buildMockComputo(companyId: string): IdrComputoVoce[] {
 function buildMockProgetto(companyId: string): IdrProgetto {
   return {
     id: "preview", company_id: companyId, code: "ANTEPRIMA", stato: "bozza",
-    tipo_intervento: "Nuovo impianto termoidraulico",
+    tipo_intervento: "Nuovo impianto termoidraulico", tipo_generatore: null, numero_terminali: null, massimale_detrazione: null,
     cliente_nome: "Mario", cliente_cognome: "Rossi", cliente_email: null, cliente_telefono: null,
     cantiere_indirizzo: "Via Roma 1", cantiere_citta: "Milano", cantiere_provincia: "MI", cantiere_cap: "20100",
     immobile_tipo: "Appartamento", immobile_superficie_mq: 90, immobile_anno: 1975, immobile_piani: 1,
@@ -42,27 +44,31 @@ function buildMockProgetto(companyId: string): IdrProgetto {
 }
 
 export function TermoidraulicoLivePreviewPanel({
-  template, companyId,
+  template, companyId, moduleId, activeSection,
 }: {
+  activeSection?: string | null;
   template: IdrTemplatePdf | null;
   companyId: string | null;
+  moduleId?: FullIdrModuleId;
 }) {
   const depsKey = useMemo(
-    () => (companyId ?? "") + "|" + JSON.stringify(template ?? {}),
-    [template, companyId],
+    () => (companyId ?? "") + "|" + (moduleId ?? "") + "|" + JSON.stringify(template ?? {}),
+    [template, companyId, moduleId],
   );
   const renderBlobUrl = useCallback(() => {
     if (!companyId || !template) return Promise.reject(new Error("Template non pronto"));
+    if (moduleId) return renderIdrPreviewBlobUrl(buildIdrModulePreview(companyId, template, moduleId));
     return renderIdrPreviewBlobUrl({
       progetto: buildMockProgetto(companyId),
       computo: buildMockComputo(companyId),
       media: [],
       template,
     });
-  }, [template, companyId]);
+  }, [template, companyId, moduleId]);
 
   return (
     <PdfBlobLivePreviewPanel
+      activeSection={activeSection}
       renderBlobUrl={renderBlobUrl}
       depsKey={depsKey}
       enabled={!!companyId && !!template}

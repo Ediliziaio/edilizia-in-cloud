@@ -19,7 +19,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Phone, MessageSquare, Mail, FileText, CalendarPlus, Loader2, BellRing, UserCog, FolderOpen, StickyNote, PenLine, ChevronDown, Zap, type LucideIcon } from "lucide-react";
+import { Phone, MessageSquare, Mail, FileText, CalendarPlus, Loader2, BellRing, UserCog, FolderOpen, StickyNote, PenLine, ChevronDown, Zap, ListPlus, Sparkles, Settings2, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -61,9 +61,14 @@ interface Props {
   onOpenNotes?: () => void;
   /** Apre il popup "Firma digitale" (invio/gestione firma cliente). */
   onOpenFirma?: () => void;
+  onCreateTask?: () => void;
+  onApplyPlaybook?: () => void;
+  onManagePlaybook?: () => void;
+  applyingPlaybook?: boolean;
+  playbookLabel?: string;
 }
 
-const fmtEur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(n);
+const fmtEur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: true }).format(n);
 
 type Attachment = { name: string; size: number; mime: string; storage_path: string };
 
@@ -74,7 +79,7 @@ type QuickAction = {
   icon: LucideIcon;
   iconClass: string;
   onClick: () => void;
-  group: "comunica" | "gestisci";
+  group: "comunica" | "gestisci" | "pianifica";
   disabled?: boolean;
   /** Motivo dell'indisponibilità o suggerimento (title/tooltip). */
   hint?: string;
@@ -87,7 +92,8 @@ type QuickAction = {
 };
 
 export function OrderQuickActions({
-  orderId, orderCode, companyId, customer, workAddress, workCity, workProvince, getPdfBlob, paymentDue, onOpenOps, onOpenFiles, onOpenNotes, onOpenFirma, askSilvio, sollecitoRef,
+  orderId, orderCode, customer, workAddress, workCity, workProvince, getPdfBlob, paymentDue, onOpenOps, onOpenFiles, onOpenNotes, onOpenFirma, askSilvio, sollecitoRef,
+  onCreateTask, onApplyPlaybook, onManagePlaybook, applyingPlaybook = false, playbookLabel,
 }: Props) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -121,7 +127,7 @@ export function OrderQuickActions({
     });
   };
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- riempita a ogni render: openSollecito cambia identità
+  // Riempita a ogni render: openSollecito cambia identità.
   useEffect(() => {
     if (sollecitoRef) sollecitoRef.current = openSollecito;
     return () => {
@@ -163,6 +169,10 @@ export function OrderQuickActions({
 
   // ── Catalogo azioni (l'ordine è quello mostrato nel menu) ──────────────
   const actions: QuickAction[] = [
+    // Stessi callback e dialoghi della commessa, accessibili da tutte le tab.
+    ...(onCreateTask ? [{ id: "task", label: "Nuova attività", icon: ListPlus, iconClass: "text-primary", onClick: onCreateTask, group: "pianifica" as const, primary: true }] : []),
+    ...(onApplyPlaybook ? [{ id: "playbook", label: applyingPlaybook ? "Applico…" : "Applica flusso", icon: Sparkles, iconClass: "text-primary", onClick: onApplyPlaybook, group: "pianifica" as const, primary: true, disabled: applyingPlaybook, busy: applyingPlaybook, hint: `Crea le attività del flusso ${playbookLabel ?? "della commessa"}` }] : []),
+    ...(onManagePlaybook ? [{ id: "manage-playbook", label: "Gestisci flusso", icon: Settings2, iconClass: "text-slate-600", onClick: onManagePlaybook, group: "pianifica" as const }] : []),
     // Comunica col cliente
     { id: "call", label: "Chiama", icon: Phone, iconClass: "text-emerald-600", onClick: handleCall, group: "comunica", disabled: !hasPhone, hint: hasPhone ? `Chiama ${customer?.phone}` : "Telefono cliente mancante" },
     { id: "whatsapp", label: "WhatsApp", icon: MessageSquare, iconClass: "text-emerald-600", onClick: () => openContact("whatsapp"), group: "comunica", primary: true, disabled: !hasPhone, hint: hasPhone ? "Invia WhatsApp/SMS" : "Telefono cliente mancante" },
@@ -182,6 +192,7 @@ export function OrderQuickActions({
   const primaryActions = actions.filter((a) => a.primary);
   const comunica = actions.filter((a) => a.group === "comunica");
   const gestisci = actions.filter((a) => a.group === "gestisci");
+  const pianifica = actions.filter((a) => a.group === "pianifica");
 
   const renderMenuItem = (a: QuickAction) => {
     const Icon = a.icon;
@@ -201,14 +212,14 @@ export function OrderQuickActions({
   };
 
   return (
-    <div className="bg-white border-b border-gray-100 px-3 sm:px-6 py-2">
+    <div role="region" aria-label="Azioni rapide commessa" className="bg-white border-b border-gray-100 px-3 sm:px-6 py-2">
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground mr-1 hidden sm:inline">
           Azioni rapide
         </span>
 
         {/* Scorciatoie inline (solo desktop largo): le azioni più usate */}
-        <div className="hidden xl:flex items-center gap-1.5">
+        <div className="hidden xl:flex flex-wrap items-center gap-1.5">
           {primaryActions.map((a) => {
             const Icon = a.icon;
             return (
@@ -247,6 +258,13 @@ export function OrderQuickActions({
             collisionPadding={16}
             className="w-60 max-h-[min(60vh,26rem)] overflow-y-auto overscroll-contain"
           >
+            {pianifica.length > 0 && <>
+              <DropdownMenuLabel className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                Attività e flusso
+              </DropdownMenuLabel>
+              {pianifica.map(renderMenuItem)}
+              <DropdownMenuSeparator />
+            </>}
             <DropdownMenuLabel className="text-[11px] uppercase tracking-wider text-muted-foreground">
               Comunica col cliente
             </DropdownMenuLabel>

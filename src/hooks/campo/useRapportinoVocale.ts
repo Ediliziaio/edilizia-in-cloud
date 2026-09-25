@@ -5,6 +5,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useIsCampo } from "@/hooks/useIsCampo";
 import { useOfflineSync } from "@/hooks/campo/useOfflineSync";
 import { isOnline } from "@/lib/campo/network-status";
+import { assertReportDay, campoWorkDay } from "@/lib/campo/workDay";
+import { notifyRapportinoPdf } from "@/lib/campo/rapportinoPdf";
 
 const BUCKET = "campo-audio";
 const MAX_AUDIO_BYTES = 10 * 1024 * 1024; // 10MB
@@ -16,6 +18,7 @@ export interface MaterialeUsato {
 }
 
 export interface DatiEstratti {
+  data_lavoro?: string;
   ore_lavorate?: number;
   lavorazione?: string;
   materiali?: MaterialeUsato[];
@@ -33,6 +36,7 @@ export interface DatiEstratti {
 }
 
 export interface RapportinoVocaleDraft {
+  data_lavoro?: string;
   id?: string;
   trascrizione: string;
   dati_estratti: DatiEstratti;
@@ -95,6 +99,7 @@ export function useRapportinoVocale(): UseRapportinoVocaleState & {
 
       // 1. Upload audio su storage (se online)
       const now = new Date();
+      const dataLavoro = campoWorkDay(now);
       const y = now.getFullYear();
       const m = (now.getMonth() + 1).toString().padStart(2, "0");
       const d = now.getDate().toString().padStart(2, "0");
@@ -142,6 +147,7 @@ export function useRapportinoVocale(): UseRapportinoVocaleState & {
             rapportino_id?: string;
           };
           draft = {
+            data_lavoro: dataLavoro,
             id: parsed.rapportino_id,
             trascrizione: parsed.trascrizione ?? "",
             dati_estratti: parsed.dati_estratti ?? {},
@@ -152,6 +158,7 @@ export function useRapportinoVocale(): UseRapportinoVocaleState & {
           console.error("[useRapportinoVocale] trascrizione fallita", err);
           // Fallback: crea bozza vuota, l'utente compilerà a mano
           draft = {
+            data_lavoro: dataLavoro,
             trascrizione: "",
             dati_estratti: {},
             audio_url: audioUrl,
@@ -169,6 +176,7 @@ export function useRapportinoVocale(): UseRapportinoVocaleState & {
       } else {
         // Offline: metti audio in coda, bozza vuota
         draft = {
+          data_lavoro: dataLavoro,
           trascrizione: "",
           dati_estratti: {},
           audio_duration_sec: durationSec,
@@ -193,6 +201,11 @@ export function useRapportinoVocale(): UseRapportinoVocaleState & {
       orderId?: string | null,
     ): Promise<boolean> => {
       if (!user?.id || !profile?.company_id) return false;
+      const dataLavoro = draft.data_lavoro ?? draft.dati_estratti.data_lavoro ?? "";
+      try { assertReportDay(dataLavoro); } catch (err) {
+        setState(s => ({ ...s, error: err instanceof Error ? err.message : "Giornata non valida" }));
+        return false;
+      }
 
       const resolveOrderId = async (): Promise<string | null> => {
         if (orderId) return orderId;
@@ -237,10 +250,8 @@ export function useRapportinoVocale(): UseRapportinoVocaleState & {
       };
 
       const effectiveOrderId = await resolveOrderId();
-      // Data LOCALE (non UTC): la sera toISOString() scavalca al giorno dopo
-      // e rompe l'upsert onConflict(user_id,order_id,data_lavoro)
-      const dataLavoro = new Date().toLocaleDateString("en-CA");
-      const materiali = (draft.dati_estratti.materiali ?? []).filter((m) => m.nome?.trim());
+      const materiali = (draft.dati_estratti.materiali ?? []).filter((m) => m.nome?.trim())
+        .map(m => ({ nome: m.nome, quantita: m.quantita, unita: m.unita }));
       const oreLavorate = Number.isFinite(draft.dati_estratti.ore_lavorate)
         ? Math.min(24, Math.max(0, Number(draft.dati_estratti.ore_lavorate)))
         : null;
@@ -257,7 +268,7 @@ export function useRapportinoVocale(): UseRapportinoVocaleState & {
         audio_url: draft.audio_url ?? null,
         audio_duration_sec: draft.audio_duration_sec,
         trascrizione: draft.trascrizione,
-        dati_estratti: draft.dati_estratti,
+        dati_estratti: { ...draft.dati_estratti, data_lavoro: dataLavoro },
         ore_lavorate: oreLavorate,
         lavorazione: draft.dati_estratti.lavorazione ?? null,
         materiali_usati: materiali,
@@ -266,7 +277,16 @@ export function useRapportinoVocale(): UseRapportinoVocaleState & {
       };
 
       try {
+        assertReportDay(dataLavoro);
         if (isOnline()) {
+          if (effectiveOrderId) {
+            const { data: existing, error: lookupError } = await supabase.from("campo_rapportini")
+              .select("id").eq("company_id", profile.company_id).eq("user_id", user.id)
+              .eq("order_id", effectiveOrderId).eq("data_lavoro", dataLavoro).limit(1);
+            if (lookupError) throw lookupError;
+            if (existing?.length) throw new Error("Esiste già un rapportino per questo cantiere e questa giornata. Per correggerlo contatta l’ufficio.");
+          }
+          assertReportDay(dataLavoro);
           if (draft.id) {
             const { error } = await supabase
               .from("rapportini_vocali" as never)
@@ -281,9 +301,10 @@ export function useRapportinoVocale(): UseRapportinoVocaleState & {
           }
 
           if (effectiveOrderId) {
+            assertReportDay(dataLavoro);
             const { data: campoRapportino, error: campoError } = await supabase
               .from("campo_rapportini")
-              .upsert({
+              .insert({
                 company_id: profile.company_id,
                 order_id: effectiveOrderId,
                 user_id: user.id,
@@ -295,8 +316,6 @@ export function useRapportinoVocale(): UseRapportinoVocaleState & {
                 note: draft.dati_estratti.note ?? null,
                 source: "campo",
                 stato: "inviato",
-              }, {
-                onConflict: "user_id,order_id,data_lavoro",
               })
               .select("id")
               .single();
@@ -332,13 +351,12 @@ export function useRapportinoVocale(): UseRapportinoVocaleState & {
               });
 
             if (campoRapportino?.id) {
-              supabase.functions
-                .invoke("genera-pdf-rapportino", { body: { rapportino_id: campoRapportino.id } })
-                .catch(() => {});
+              void notifyRapportinoPdf(campoRapportino.id, effectiveOrderId, queryClient);
             }
 
             queryClient.invalidateQueries({ queryKey: ["campo-rapportini-ordine", effectiveOrderId] });
             queryClient.invalidateQueries({ queryKey: ["campo-rapportini-da-compilare"] });
+            queryClient.invalidateQueries({ queryKey: ["campo-rapportino-gia-oggi"] });
             queryClient.invalidateQueries({ queryKey: ["campo-lavoro-rapportino-oggi", effectiveOrderId] });
             queryClient.invalidateQueries({ queryKey: ["order-campo-rapportini", effectiveOrderId] });
             queryClient.invalidateQueries({ queryKey: ["order-events", profile.company_id, effectiveOrderId] });

@@ -1,0 +1,52 @@
+/** Editorial readiness only: none of these badges implies quote-flow integration. */
+import { CLM_EDITORIAL } from "./clmEditorialContent";
+import { ELT_EDITORIAL } from "./eltEditorialContent";
+import { PAV_EDITORIAL } from "./pavEditorialContent";
+import { PSC_EDITORIAL } from "./pscEditorialContent";
+import { FAC_EDITORIAL } from "./facEditorialContent";
+const covers = (area: string, models: Record<string, { cover: string }>) => Object.fromEntries(Object.entries(models).map(([id, model]) => [`${area}/${id}`, model.cover]));
+export const FULL_MODULE_COVERS: Readonly<Record<string, string>> = {
+  ...covers("climatizzazione", CLM_EDITORIAL),
+  ...covers("elettrico", ELT_EDITORIAL),
+  ...covers("pavimenti", PAV_EDITORIAL),
+  ...covers("piscine", PSC_EDITORIAL),
+  ...covers("facciate", FAC_EDITORIAL),
+  "termoidraulica/caldaia": "/module-art/termoidraulica-caldaia.jpg",
+  "termoidraulica/pompa-calore": "/module-art/termoidraulica-pompa-calore-cover.jpg",
+  "termoidraulica/radiante": "/module-art/termoidraulica-radiante-cover.jpg",
+  "termoidraulica/terminali": "/module-art/termoidraulica-terminali-cover.jpg",
+  "termoidraulica/idrico": "/module-art/termoidraulica-idrico-cover.jpg",
+  "termoidraulica/manutenzione": "/pdf-stock/termoidraulico/collaudo.jpg",
+  "termoidraulica/ibrido": "/module-art/termoidraulica-ibrido-cover-v2.jpg",
+  "termoidraulica/acqua-calda": "/module-art/termoidraulica-acqua-calda-cover-v2.jpg",
+  "bagni/completo": "/module-art/bagni.jpg",
+  "bagni/vasca-doccia": "/module-art/bagni-vasca-doccia-cover.jpg",
+  "bagni/doccia": "/module-art/bagni-doccia-cover.jpg",
+  "bagni/sanitari": "/module-art/bagni-sanitari-cover.jpg",
+  "bagni/accessibilita": "/module-art/bagni-accessibilita-cover.jpg",
+  "bagni/rinnovo": "/module-art/bagni-rinnovo-cover.jpg",
+  "ristrutturazioni/completa": "/module-art/ristrutturazioni.jpg",
+  "ristrutturazioni/parziale": "/module-art/ristrutturazioni-parziale-cover.jpg",
+  "ristrutturazioni/commerciale": "/module-art/ristrutturazioni-commerciale-cover.jpg",
+  "ristrutturazioni/spazi": "/module-art/ristrutturazioni-spazi-cover.jpg",
+  "ristrutturazioni/computo": "/pdf-stock/ristrutturazione/cantiere-ordinato.jpg",
+  "serramenti/finestre": "/module-art/serramenti.jpg",
+  "serramenti/persiane": "/module-art/serramenti-persiane-cover.jpg",
+  "serramenti/avvolgibili": "/module-art/serramenti-avvolgibili-cover.jpg",
+  "serramenti/zanzariere": "/module-art/serramenti-zanzariere-cover.jpg",
+  "serramenti/porte-ingresso": "/module-art/serramenti-porte-ingresso-cover.jpg",
+  "serramenti/porte-interne": "/module-art/serramenti-porte-interne-cover.jpg",
+  "serramenti/combinato": "/module-art/serramenti-combinato-cover-v3.jpg",
+  "tetti/ripasso": "/module-art/tetti.jpg",
+  "tetti/rifacimento": "/module-art/tetti.jpg",
+  "tetti/riparazioni": "/module-art/tetti-riparazioni-cover.jpg",
+  "tetti/isolamento": "/pdf-stock/tetti/isolamento.jpg",
+  "tetti/impermeabilizzazione": "/module-art/tetti-impermeabilizzazione-cover.jpg",
+  "tetti/lattoneria": "/module-art/tetti-lattoneria-cover.jpg",
+  "fotovoltaico/accumulo": "/module-art/fotovoltaico-accumulo-cover.jpg",
+  "fotovoltaico/nuovo": "/pdf-stock/fotovoltaico/villa-tetto-coppi.jpg",
+  "fotovoltaico/ampliamento": "/pdf-stock/fotovoltaico/dettaglio-celle.jpg",
+  "fotovoltaico/componenti": "/pdf-stock/fotovoltaico/inverter-monofase.jpg",
+  "fotovoltaico/manutenzione": "/pdf-stock/fotovoltaico/controllo-termografico.jpg",
+};
+export const fullModuleCover = (area: string, module: string): string | null => FULL_MODULE_COVERS[`${area}/${module}`] ?? null;

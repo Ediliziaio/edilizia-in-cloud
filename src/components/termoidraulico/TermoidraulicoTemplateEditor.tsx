@@ -1,3 +1,10 @@
+import { TemplateSectionNavigation } from "@/components/preventivi/TemplateSectionNavigation";
+import { edileSectionExcluded } from "@/components/preventivi/templateNavigationState";
+import { withEdilePageVisibility } from "@/components/preventivi/edilePageVisibility";
+import { TemplateCoverDesignControls, COVER_DESIGN_CHOICES } from "@/components/preventivi/TemplateCoverDesignControls";
+import { TemplateSectionCard as SectionCard, TemplateListItemsEditor as ListItemsEditor, TemplateTestimonianzeEditor as TestimonianzeEditor, TemplateFaqEditor as FaqEditor, TemplateCronoEditor as CronoEditor } from "@/components/preventivi/TemplateContentControls";
+import { TemplateImageFieldView } from "@/components/preventivi/TemplateImageFieldView";
+import { TemplateCoverStylePicker, TemplateCoverTextFields, coverStyleOnly } from "@/components/preventivi/TemplateCoverControls";
 /**
  * TermoidraulicoTemplateEditor — editor del template PDF del verticale
  * Termoidraulico (Task 20).
@@ -23,8 +30,8 @@
  * path `{company_id}/termoidraulico/template/{uuid}.{ext}` → URL pubblico
  * stabile salvato nel template (ideale per il PDF, niente signed URL scaduti).
  */
-import { useEffect, useMemo, useRef, useState } from "react";
-import { CopertinaAnteprima } from "@/components/preventivi/CopertinaAnteprima";
+import { templateEditorLayout, TemplateEditorSaveBar, TemplateEditorWorkspace, TemplateEditorNavigation } from "@/components/preventivi/TemplateEditorLayout";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CondizioniContratto } from "@/components/preventivi/CondizioniContratto";
 import { OrdineCapitoli } from "@/components/preventivi/OrdineCapitoli";
 import { SezionePaginaEdile } from "@/components/preventivi/SezionePaginaEdile";
@@ -55,6 +62,7 @@ import { useTermoidraulicoPDF } from "@/hooks/useTermoidraulicoPDF";
 import { TermoidraulicoTemplatePreviewDialog } from "@/components/termoidraulico/TermoidraulicoTemplatePreviewDialog";
 import { TermoidraulicoLivePreviewPanel } from "@/components/termoidraulico/TermoidraulicoLivePreviewPanel";
 import { AiTemplateReviewDialog } from "@/components/preventivi/AiTemplateReviewDialog";
+import { StandardTextTemplatePicker } from "@/components/preventivi/StandardTextTemplatePicker";
 import { AiSalesProfileForm } from "@/components/preventivi/AiSalesProfileForm";
 import { useCompanySalesProfile, EMPTY_SALES_PROFILE, type CompanySalesProfile } from "@/hooks/useCompanySalesProfile";
 import {
@@ -79,6 +87,11 @@ import {
   COVER_STOCK_IMAGES, COVER_STOCK_CATEGORIE, type CoverStockImage,
 } from "@/components/termoidraulico/coverStockImages";
 
+import { buildIdrModulePreview, createFullIdrTemplate, IDR_MODULE_TITLES, type FullIdrModuleId } from "@/lib/moduli-vendita/fullIdrModules";
+import { readLocalTemplateImage } from "@/lib/moduli-vendita/localTemplateImage";
+import { fotoDellaLibreria } from "../../../supabase/functions/_shared/blocchiPreventivo";
+import { InterventionTextPicker } from "@/components/preventivi/modules/InterventionTextPicker";
+import { idrCopyChoices } from "@/lib/moduli-vendita/idrInterventionCopy";
 const BUCKET = "company-photo-library";
 const MAX_FILE_BYTES = 8 * 1024 * 1024; // 8 MB
 const ALLOWED_MIMES = new Set(["image/png", "image/jpeg", "image/webp"]);
@@ -118,10 +131,14 @@ type FormState = Required<Pick<IdrTemplatePdf,
   | "garanzie" | "faq" | "percorso" | "show_garanzie" | "show_percorso"
   | "cover_title_size" | "cover_text_align"
   | "default_iva_pct" | "default_detrazione_pct" | "default_validita_giorni"
-  | "gallery_lavori"
+  | "gallery_lavori" | "finanziamento_promo"
 >> & IdrCoverFields & {
   /** Logo size cover (scala % 60–160). Non in IdrCoverFields perché opzionale. */
   pdf_cover_logo_size: number | null;
+  pdf_cover_hero: string | null;
+  pdf_cover_subhero: string | null;
+  pdf_cover_subhero_template: string | null;
+  pdf_cover_eyebrow: string | null;
 };
 
 function templateToForm(t: IdrTemplatePdf): FormState {
@@ -132,6 +149,7 @@ function templateToForm(t: IdrTemplatePdf): FormState {
     condizioni_legali_attivo: t.condizioni_legali_attivo ?? true,
     modulo_recesso_attivo: t.modulo_recesso_attivo === true,
     pdf_blocchi: t.pdf_blocchi ?? {},
+    finanziamento_promo: t.finanziamento_promo ?? null,
     logo_url: t.logo_url ?? null,
     cover_logo_url: t.cover_logo_url ?? null,
     color_primary: t.color_primary ?? "#1E3A5F",
@@ -179,6 +197,10 @@ function templateToForm(t: IdrTemplatePdf): FormState {
     // I campi non sono nel tipo IdrTemplatePdf (tabella non nei types generati):
     // letti dalla riga grezza via cast. Default coerenti con sr_template_pdf.
     ...readCoverStyle(t as unknown as Record<string, unknown>),
+    pdf_cover_hero: strOr((t as unknown as Record<string, unknown>).pdf_cover_hero, null),
+    pdf_cover_subhero: strOr((t as unknown as Record<string, unknown>).pdf_cover_subhero, null),
+    pdf_cover_subhero_template: strOr((t as unknown as Record<string, unknown>).pdf_cover_subhero_template, null),
+    pdf_cover_eyebrow: strOr((t as unknown as Record<string, unknown>).pdf_cover_eyebrow, null),
     gallery_lavori: t.gallery_lavori ?? [],
   };
 }
@@ -315,9 +337,10 @@ interface GeneratedTemplateTexts {
 interface Props {
   /** Render dentro la tab Impostazioni (no padding/header extra di pagina). */
   embedded?: boolean;
+  localModule?: { id: FullIdrModuleId; template: IdrTemplatePdf; saved: boolean; save: (template: IdrTemplatePdf) => void; onDirtyChange: (dirty: boolean) => void };
 }
 
-export function TermoidraulicoTemplateEditor({ embedded = false }: Props) {
+export function TermoidraulicoTemplateEditor({ embedded = false, localModule }: Props) {
   const companyId = useEffectiveCompanyId();
   // Profilo azienda (impostazioni/profilo): usato per mostrare i dati EREDITATI
   // come placeholder nell'anagrafica. Se un campo del template è vuoto, nel PDF
@@ -354,8 +377,12 @@ export function TermoidraulicoTemplateEditor({ embedded = false }: Props) {
   const { data: backendReady } = useIdrBackendReady();
   const { previewPDF, isGenerating: isPreviewing } = useTermoidraulicoPDF();
 
-  const [form, setForm] = useState<FormState | null>(null);
+  const [form, setForm] = useState<FormState | null>(() => localModule ? templateToForm(localModule.template) : null);
   const [dirty, setDirty] = useState(false);
+  const [localSaved, setLocalSaved] = useState(localModule?.saved ?? true);
+  const [moduleDefaults] = useState(() => localModule ? createFullIdrTemplate(localModule.template, localModule.id) : null);
+  const onDirtyChange = localModule?.onDirtyChange;
+  useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
   // Chiudere/ricaricare la scheda con modifiche non salvate ora chiede conferma
   // (il salvataggio qui è solo manuale: prima si perdeva tutto in silenzio).
   useBeforeUnload(dirty);
@@ -369,14 +396,28 @@ export function TermoidraulicoTemplateEditor({ embedded = false }: Props) {
   // ma NON sovrascriviamo se l'utente ha già iniziato a editare (dirty).
   const hydratedRef = useRef(false);
   useEffect(() => {
-    if (!template) return;
+    if (localModule || !template) return;
     if (hydratedRef.current) return;
     setForm(templateToForm(template));
     hydratedRef.current = true;
-  }, [template]);
+  }, [template, localModule]);
+
+  const setPageVisibility = (chapter: string, visible: boolean) => {
+    setForm(previous => previous ? withEdilePageVisibility(previous, chapter, visible) : previous);
+    setDirty(true);
+  };
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) => {
-    setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
+    setForm(prev => {
+      if (!prev) return prev;
+      const next = { ...prev, [key]: value };
+      if (localModule && key === "pdf_cover_image_url") next.cover_image_url = value as string | null;
+      if (localModule && key === "cover_title") next.pdf_cover_hero = value as string | null;
+      if (localModule && key === "cover_subtitle") next.pdf_cover_subhero = value as string | null;
+      if (localModule && key === "pdf_cover_hero") next.cover_title = value as string | null;
+      if (localModule && key === "pdf_cover_subhero") next.cover_subtitle = value as string | null;
+      return next;
+    });
     setDirty(true);
   };
 
@@ -385,19 +426,12 @@ export function TermoidraulicoTemplateEditor({ embedded = false }: Props) {
   // bg/immagine + posizione testo + overlay + decorazione + font). L'immagine
   // di sfondo del preset photo è una stock suggerita: NON sovrascrive una foto
   // già caricata dall'utente (detectActiveCoverPreset ignora image_url sui photo).
-  const applyCoverPreset = (presetId: string) => {
-    const preset = COVER_PRESETS.find((p) => p.id === presetId);
+  const applyCoverPreset = useCallback((presetId: string) => {
+    const preset = COVER_PRESETS.find(item => item.id === presetId);
     if (!preset) return;
-    setForm((prev) => {
-      if (!prev) return prev;
-      const next = { ...prev };
-      for (const [k, v] of Object.entries(preset.patch)) {
-        (next as Record<string, unknown>)[k] = v;
-      }
-      return next;
-    });
+    setForm(prev => prev ? { ...prev, ...coverStyleOnly(preset.patch) } : prev);
     setDirty(true);
-  };
+  }, []);
   const activeCoverPresetId = useMemo(
     () => (form ? detectActiveCoverPreset(form) : null),
     [form],
@@ -421,10 +455,14 @@ export function TermoidraulicoTemplateEditor({ embedded = false }: Props) {
     // dalla migration. Cast a IdrTemplatePatch via unknown per soddisfare TS.
     const patch = { ...form } as unknown as IdrTemplatePatch;
     try {
-      await upsert.mutateAsync(patch);
+      if (localModule) {
+        if (localModule.template.company_id !== companyId) throw new Error("L'azienda è cambiata. Riapri il modulo prima di salvare.");
+        localModule.save({ ...localModule.template, ...form });
+        setLocalSaved(true);
+      } else await upsert.mutateAsync(patch);
       setDirty(false);
-      toast.success("Template salvato", {
-        description: "Verrà applicato ai nuovi preventivi termoidraulico.",
+      toast.success(localModule ? "Modulo salvato in locale" : "Template salvato", {
+        description: localModule ? "Copia indipendente in questo browser. Collegamento al preventivatore in lavorazione." : "Verrà applicato ai nuovi preventivi termoidraulico.",
       });
     } catch (e) {
       toast.error("Salvataggio non riuscito", {
@@ -460,7 +498,7 @@ export function TermoidraulicoTemplateEditor({ embedded = false }: Props) {
   };
 
   const handleGenerateAi = async () => {
-    if (aiLoading) return;
+    if (localModule || aiLoading) return;
     if (!companyId) {
       toast.error("Azienda non disponibile");
       return;
@@ -511,6 +549,7 @@ export function TermoidraulicoTemplateEditor({ embedded = false }: Props) {
   const handlePreview = async () => {
     if (!form || !companyId) return;
     const template: IdrTemplatePdf = { id: "preview", company_id: companyId, ...form };
+    if (localModule) { await previewPDF(buildIdrModulePreview(companyId, template, localModule.id)); return; }
     const row = (
       i: number, cap: string, descrizione: string,
       um: IdrComputoVoce["unita_misura"], q: number, p: number, cm: number, cl: number,
@@ -522,7 +561,7 @@ export function TermoidraulicoTemplateEditor({ embedded = false }: Props) {
     });
     const progetto: IdrProgetto = {
       id: "preview", company_id: companyId, code: "ANTEPRIMA", stato: "bozza",
-      tipo_intervento: "Impianto termoidraulico completo",
+      tipo_intervento: "Impianto termoidraulico completo", tipo_generatore: null, numero_terminali: null, massimale_detrazione: null,
       cliente_nome: "Mario", cliente_cognome: "Rossi", cliente_email: null, cliente_telefono: null,
       cantiere_indirizzo: "Via Roma 1", cantiere_citta: "Milano", cantiere_provincia: "MI", cantiere_cap: "20100",
       immobile_tipo: "Appartamento", immobile_superficie_mq: 90, immobile_anno: 1975, immobile_piani: 1,
@@ -557,7 +596,7 @@ export function TermoidraulicoTemplateEditor({ embedded = false }: Props) {
     {
       label: "AZIENDA",
       items: [
-        { id: "brand", label: "Brand & azienda", emoji: "🏢", descr: "Logo e colori del PDF" },
+        { id: "brand", label: "Azienda e stile", emoji: "🏢", descr: "Logo e colori del PDF" },
       ],
     },
     {
@@ -576,7 +615,7 @@ export function TermoidraulicoTemplateEditor({ embedded = false }: Props) {
   ];
   const IDR_SECTIONS = IDR_SECTION_GROUPS.flatMap((g) => g.items);
   const [searchParams, setSearchParams] = useSearchParams();
-  const sectionFromUrl = (searchParams.get("section") ?? "brand") as IdrSection;
+  const sectionFromUrl = (searchParams.get("section") ?? (localModule ? "page_cover" : "brand")) as IdrSection;
   const activeSection: IdrSection = IDR_SECTIONS.some((s) => s.id === sectionFromUrl)
     ? sectionFromUrl
     : ("brand" as IdrSection);
@@ -588,7 +627,7 @@ export function TermoidraulicoTemplateEditor({ embedded = false }: Props) {
     }, { replace: true });
   };
 
-  if (isLoading || !form) {
+  if ((!localModule && isLoading) || !form) {
     return (
       <div className="space-y-3">
         <Skeleton className="h-32 w-full" />
@@ -620,7 +659,7 @@ export function TermoidraulicoTemplateEditor({ embedded = false }: Props) {
       />
     ),
     lavori: (
-      <GalleryLavoriEditor
+      <GalleryLavoriEditor localOnly={!!localModule}
         items={(form.gallery_lavori ?? []) as GalleryLavoroItem[]}
         onChange={(items) => set("gallery_lavori", items)}
         bucket={BUCKET}
@@ -631,7 +670,7 @@ export function TermoidraulicoTemplateEditor({ embedded = false }: Props) {
 
   return (
     <div className={cn("space-y-4", embedded ? "" : "mx-auto max-w-4xl p-4")}>
-      {backendReady === false && (
+      {!localModule && backendReady === false && (
         <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <div className="space-y-0.5">
@@ -653,58 +692,34 @@ export function TermoidraulicoTemplateEditor({ embedded = false }: Props) {
               <Wand2 className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-sm font-semibold">Scrivi il template con l&apos;AI</p>
+              <p className="text-sm font-semibold">{localModule ? "Testi pronti per questo intervento" : "Scrivi il template con l’AI"}</p>
               <p className="text-[12px] text-muted-foreground">
-                In un click generi una bozza professionale di tutti i testi — chi siamo, esigenze,
-                garanzie, FAQ, condizioni… Poi rifinisci e salvi.
+                {localModule ? "Personalizza testi e immagini delle singole pagine, poi verifica il PDF a destra." : "Genera una bozza dei testi, poi rifinisci e salva."}
               </p>
             </div>
           </div>
-          <Button
+          {!localModule && <Button
             type="button"
             onClick={() => setAiOpen(true)}
             className="shrink-0 gap-1.5 bg-orange-500 hover:bg-orange-600"
           >
             <Sparkles className="h-4 w-4" />
             Genera testi con AI
-          </Button>
+          </Button>}
+          {localModule && moduleDefaults ? <InterventionTextPicker title={IDR_MODULE_TITLES[localModule.id]} choices={idrCopyChoices(localModule.id, moduleDefaults)} onApply={patch => { setForm(prev => prev ? { ...prev, ...patch } : prev); setDirty(true); }} /> : <StandardTextTemplatePicker
+            module="termoidraulico"
+            onApply={(draft) => applyGenerated(draft as GeneratedTemplateTexts)}
+            snapshot={form as unknown as Record<string, unknown>}
+            className="shrink-0"
+          />}
         </div>
       </div>
 
-      <div className="grid grid-cols-12 gap-4">
+      <TemplateEditorWorkspace moduleId={localModule?.id}>
         {/* ── SIDEBAR ──────────────────────────────────────────────── */}
-        <aside className="col-span-12 md:col-span-3">
-          <nav className="sticky top-[68px] rounded-lg border bg-card p-2 max-h-[calc(100vh-90px)] overflow-y-auto">
-            {IDR_SECTION_GROUPS.map((group, gi) => (
-              <div key={group.label} className={gi > 0 ? "mt-3 pt-2 border-t" : ""}>
-                <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground px-2 py-1.5 mb-0.5">
-                  {group.label}
-                </div>
-                <div className="space-y-0.5">
-                  {group.items.map((s) => {
-                    const isActive = activeSection === s.id;
-                    return (
-                      <button
-                        key={s.id}
-                        type="button"
-                        onClick={() => setActiveSection(s.id)}
-                        className={cn(
-                          "w-full text-left rounded-md px-2 py-1.5 transition-all flex items-center gap-2",
-                          isActive
-                            ? "bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-sm"
-                            : "hover:bg-orange-50 text-foreground",
-                        )}
-                      >
-                        <span className="text-sm leading-none">{s.emoji}</span>
-                        <span className={cn("text-[12px] font-medium leading-tight flex-1 truncate", isActive ? "text-white" : "text-foreground")}>
-                          {s.label}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
+        <TemplateEditorNavigation>
+          <nav className={templateEditorLayout.navigationPanel}>
+            <TemplateSectionNavigation groups={IDR_SECTION_GROUPS} activeSection={activeSection} onSelect={setActiveSection} isExcluded={id => edileSectionExcluded(form, id)} />
             {/* Footer sidebar: anteprima live + apri in scheda */}
             <div className="mt-3 space-y-1.5 border-t pt-2">
               <Button
@@ -729,16 +744,16 @@ export function TermoidraulicoTemplateEditor({ embedded = false }: Props) {
               </Button>
             </div>
           </nav>
-        </aside>
+        </TemplateEditorNavigation>
 
         {/* ── CONTENT PANEL ────────────────────────────────────────── */}
-        <div className="col-span-12 md:col-span-9 xl:col-span-5 space-y-4 min-w-0">
+        <div data-template-content className={templateEditorLayout.content}>
           {/* Branding */}
           {activeSection === "brand" && (
             <>
             <SectionCard icon={Palette} title="Branding" description="Logo e colori usati nel PDF.">
               <div className="grid gap-4 sm:grid-cols-2">
-                <ImageUploadField
+                <ImageUploadField localOnly={!!localModule}
                   label="Logo azienda"
                   hint="PNG con sfondo trasparente consigliato."
                   value={form.logo_url}
@@ -911,7 +926,7 @@ export function TermoidraulicoTemplateEditor({ embedded = false }: Props) {
           {/* Ordine dei capitoli e pagine libere: stesso blocco degli otto moduli. */}
           {activeSection === "page_ordine" && (
             <SectionCard icon={ListOrdered} title="Ordine e pagine" description="In che ordine escono i capitoli, quali nascondere, e le pagine scritte da voi.">
-              <OrdineCapitoli
+              <OrdineCapitoli visibilitySettings={form} onVisibilityChange={setPageVisibility}
                 ordine={form.pdf_ordine_capitoli}
                 pagine={form.pdf_pagine_libere}
                 onOrdine={(v) => set("pdf_ordine_capitoli", v)}
@@ -921,7 +936,7 @@ export function TermoidraulicoTemplateEditor({ embedded = false }: Props) {
                 onBlocchi={(v) => set("pdf_blocchi", v)}
                 apriSezione={(sezione) => setActiveSection(sezione as IdrSection)}
                 campoFoto={(valore, onChange) => (
-                  <ImageUploadField label="Foto della pagina" value={valore} companyId={companyId} onChange={onChange} aspect="aspect-[16/9]" />
+                  <ImageUploadField localOnly={!!localModule} label="Foto della pagina" value={valore} companyId={companyId} onChange={onChange} aspect="aspect-[16/9]" />
                 )}
               />
             </SectionCard>
@@ -929,43 +944,22 @@ export function TermoidraulicoTemplateEditor({ embedded = false }: Props) {
 
           {activeSection === "page_cover" && (
             <SectionCard icon={FileText} title="Copertina" description="Titolo, sottotitolo, immagine e stile della prima pagina.">
-              {/* ── Contenuti cover: titolo + sottotitolo (testo mostrato nel PDF) ── */}
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Titolo</Label>
-                    <p className="text-[10px] leading-snug text-muted-foreground">
-                      Una parola fra asterischi esce in corsivo: <span className="font-mono">Il *progetto* per la tua casa.</span>
-                    </p>
-                    <Input
-                      value={form.cover_title ?? ""}
-                      onChange={(e) => set("cover_title", e.target.value)}
-                      placeholder="Il *comfort* di casa tua, senza pensieri."
-                    />
-                    <PlaceholderChips value={form.cover_title ?? ""} onChange={(v) => set("cover_title", v)} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Sottotitolo</Label>
-                    <Input
-                      value={form.cover_subtitle ?? ""}
-                      onChange={(e) => set("cover_subtitle", e.target.value)}
-                      placeholder="L'impianto termoidraulico, voce per voce"
-                    />
-                    <PlaceholderChips value={form.cover_subtitle ?? ""} onChange={(v) => set("cover_subtitle", v)} />
-                  </div>
-                </div>
-                <div>
-                  <ImageUploadField
+              <TemplateCoverStylePicker presets={COVER_PRESETS} activeId={activeCoverPresetId} onApply={applyCoverPreset} />
+              <TemplateCoverTextFields value={{ title: form.cover_title, subtitle: form.cover_subtitle, eyebrow: form.pdf_cover_eyebrow }} onChange={(field, value) => { if (field === "title") { set("cover_title", (value ?? "")); }
+if (field === "subtitle") { set("cover_subtitle", (value ?? "")); }
+if (field === "eyebrow") { set("pdf_cover_eyebrow", value); } }}   placeholders={(value, onChange) => <PlaceholderChips value={value} onChange={onChange}  />} />
+              <div data-cover-media className="space-y-4">
+<ImageUploadField localOnly={!!localModule}
                     label="Logo copertina — opzionale (default: logo principale)"
                     hint="Versione chiara/bianca del logo per la copertina con sfondo scuro. Se vuoto, usa il logo principale."
                     value={form.cover_logo_url}
                     companyId={companyId}
                     onChange={(url) => set("cover_logo_url", url)}
-                    aspect="aspect-square"
+                    aspect="aspect-[4/1]"
                   />
-                  <ImageUploadField
+<ImageUploadField localOnly={!!localModule}
                     label="Immagine copertina"
-                    hint="Foto orizzontale di un cantiere/render, oppure scegli dalla galleria stock."
+                    hint="Per la copertina scegli una foto verticale con il soggetto centrale. Controlla sempre il taglio nell'anteprima PDF."
                     value={form.pdf_cover_image_url ?? form.cover_image_url}
                     companyId={companyId}
                     onChange={(url) => {
@@ -977,496 +971,24 @@ export function TermoidraulicoTemplateEditor({ embedded = false }: Props) {
                     }}
                     aspect="aspect-[16/9]"
                   />
-                  <div className="mt-1.5 flex flex-wrap gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setStockDialogOpen(true)}
-                      className="h-8 text-xs border-orange-200 text-orange-700 hover:bg-orange-50"
-                    >
-                      📷 Galleria stock
-                    </Button>
-                  </div>
-                </div>
-              </div>
-
-              {/* ─── Preset stili cover — gallery 1-click (parità Serramenti) ─────
-                   8 preset di LAYOUT (no solo colore): ogni preset combina
-                   bg/immagine + posizione testo (top/center/bottom) + decorazione
-                   + overlay + dimensioni font. Divisi in 🎨 Solid (4) e 📷 Photo (4).
-                   Click → applica in batch su tutti i pdf_cover_*. */}
-              <div className="mt-4 rounded-lg border bg-gradient-to-br from-orange-50 to-amber-50/30 p-3 space-y-3">
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <div>
-                    <Label className="text-xs font-semibold uppercase tracking-wide text-orange-700">
-                      ✨ Preset stili — anteprima reale 1-click
-                    </Label>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">
-                      Configurazione completa (colori, font, layout) in un click.
-                      L'immagine di sfondo non viene modificata.
-                    </p>
-                  </div>
-                  {activeCoverPresetId && (
-                    <span className="inline-flex items-center gap-1 rounded border border-orange-300 bg-orange-100 px-2 py-0.5 text-[10px] font-medium text-orange-800">
-                      <span className="text-sm leading-none">{COVER_PRESETS.find((p) => p.id === activeCoverPresetId)?.emoji}</span>
-                      Attivo: {COVER_PRESETS.find((p) => p.id === activeCoverPresetId)?.nome}
-                    </span>
-                  )}
-                </div>
-                {(["solid", "photo"] as const).map((cat) => {
-                  const presetsInCat = COVER_PRESETS.filter((p) => p.category === cat);
-                  if (presetsInCat.length === 0) return null;
-                  const catLabel = cat === "solid"
-                    ? { emoji: "🎨", title: "Solo colore (no immagine)", subtitle: "Background solido con titolo e accent" }
-                    : { emoji: "📷", title: "Con immagine sfondo", subtitle: "Foto come sfondo + overlay scuro per leggibilità" };
-                  return (
-                    <div key={cat} className="space-y-2">
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-sm">{catLabel.emoji}</span>
-                        <span className="text-xs font-bold uppercase tracking-wide text-slate-700">{catLabel.title}</span>
-                        <span className="text-[10px] text-muted-foreground">{catLabel.subtitle}</span>
-                      </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
-                        {presetsInCat.map((p) => {
-                          const isActive = activeCoverPresetId === p.id;
-                          const tv = p.patch.pdf_cover_text_vertical ?? "bottom";
-                          const ta = p.patch.pdf_cover_text_align ?? "left";
-                          return (
-                            <button
-                              key={p.id}
-                              type="button"
-                              onClick={() => applyCoverPreset(p.id)}
-                              title={p.descrizione}
-                              className={cn(
-                                "group relative rounded-lg overflow-hidden transition-all text-left focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white border-2",
-                                isActive
-                                  ? "border-orange-500 shadow-md ring-2 ring-orange-300"
-                                  : "border-slate-200 hover:border-orange-300 hover:shadow-sm",
-                              )}
-                            >
-                              {/* Mini-anteprima A4 — aspect 210/297 */}
-                              <div
-                                className="relative w-full overflow-hidden flex flex-col p-2"
-                                style={{ aspectRatio: "210/297", backgroundColor: p.swatchBg, color: p.swatchText }}
-                              >
-                                {p.category === "photo" && (
-                                  <div
-                                    className="absolute inset-0 pointer-events-none opacity-40"
-                                    style={{ backgroundImage: "linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0) 50%, rgba(0,0,0,0.25) 100%)" }}
-                                  />
-                                )}
-                                <div
-                                  className="absolute top-1.5 left-1.5 text-[7px] font-bold uppercase tracking-wider px-1 py-px rounded-sm z-10"
-                                  style={{ backgroundColor: "rgba(255,255,255,0.92)", color: "#475569" }}
-                                >
-                                  {p.category === "solid" ? "● colore" : "📷 foto"}
-                                </div>
-                                <div
-                                  className="relative flex-1 flex flex-col z-[1]"
-                                  style={{ justifyContent: tv === "top" ? "flex-start" : tv === "center" ? "center" : "flex-end" }}
-                                >
-                                  {tv === "top" && (
-                                    <div
-                                      className="flex items-center gap-1 mb-2"
-                                      style={{
-                                        justifyContent: p.patch.pdf_cover_logo_position === "top_right" ? "flex-end"
-                                          : p.patch.pdf_cover_logo_position === "top_center" ? "center"
-                                          : "flex-start",
-                                      }}
-                                    >
-                                      <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: p.swatchAccent, opacity: 0.7 }} />
-                                      <div className="h-1 w-5 rounded-full opacity-30" style={{ backgroundColor: p.swatchText }} />
-                                    </div>
-                                  )}
-                                  <div style={{ textAlign: ta === "center" ? "center" : "left" }}>
-                                    <div className="font-bold uppercase tracking-wider mb-1" style={{ fontSize: 5, color: p.swatchAccent, opacity: 0.9 }}>
-                                      ★ Proposta
-                                    </div>
-                                    <div
-                                      className="font-bold leading-tight whitespace-pre-line"
-                                      style={{ fontSize: Math.max(7, (p.patch.pdf_cover_title_size ?? 40) * 0.16) }}
-                                    >
-                                      {p.sampleTitle}
-                                    </div>
-                                    {p.patch.pdf_cover_show_client_card !== false && (
-                                      <div className="mt-1 rounded-sm px-1 py-0.5 inline-block" style={{ backgroundColor: "rgba(255,255,255,0.12)" }}>
-                                        <div className="h-0.5 w-3 rounded-full opacity-50" style={{ backgroundColor: p.swatchText }} />
-                                        <div className="h-1 w-4 rounded-full mt-0.5" style={{ backgroundColor: p.swatchText }} />
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                              <div className="px-2 py-1.5 bg-white border-t border-slate-100">
-                                <div className="flex items-center gap-1">
-                                  <span className="text-sm leading-none">{p.emoji}</span>
-                                  <span className="text-[11px] font-semibold text-slate-900 truncate">{p.nome}</span>
-                                </div>
-                                <div className="flex items-center gap-1 mt-0.5">
-                                  <span className="text-[8px] uppercase tracking-wide bg-slate-100 text-slate-600 px-1 py-px rounded font-semibold">{p.tag}</span>
-                                </div>
-                              </div>
-                              {isActive && (
-                                <div className="absolute top-1.5 right-1.5 bg-orange-500 text-white rounded-full w-5 h-5 flex items-center justify-center shadow-md z-10">
-                                  <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
-                                    <path d="M2 6l3 3 5-6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                                  </svg>
-                                </div>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })}
-                {!activeCoverPresetId && (
-                  <p className="text-[10px] text-amber-700 bg-amber-100/60 rounded px-2 py-1 inline-block">
-                    💡 Configurazione personalizzata — non corrisponde a nessun preset. I tuoi valori vengono mantenuti.
-                  </p>
-                )}
-              </div>
-
-              {/* ─── Anteprima live A4 + controlli avanzati ──────────────────── */}
-              <div className="mt-4 grid grid-cols-12 gap-4">
-                {/* PREVIEW LIVE — formato A4 portrait scalato (fedele al PDF) */}
-                <div className="col-span-12 md:col-span-5">
-                  <Label className="text-xs mb-1.5 block">Anteprima cover</Label>
-                  <CopertinaAnteprima
-                    modulo="termoidraulico"
-                    form={form as unknown as Record<string, unknown>}
-                    maiSalvato={!template?.id}
-                    nomeAzienda={(form as unknown as { ragione_sociale?: string | null }).ragione_sociale ?? companyAnagrafica?.ragione_sociale ?? null}
-                    logoUrl={(form as unknown as { logo_url?: string | null }).logo_url ?? null}
-                  />
-                  <p className="text-[10px] text-muted-foreground mt-1.5">
-                    Anteprima approssimativa · il PDF finale può differire leggermente per tipografia.
-                  </p>
-                </div>
-
-                {/* CONTROLLI EDITOR */}
-                <div className="col-span-12 md:col-span-7 space-y-3">
-                  {/* Overlay opacity + stile (visibili solo con immagine) */}
-                  {form.pdf_cover_image_url && (
-                    <div className="space-y-2">
-                      <div>
-                        <Label className="text-xs flex items-center justify-between mb-1">
-                          <span>Opacità overlay scuro</span>
-                          <span className="font-mono text-muted-foreground">{form.pdf_cover_overlay_opacity ?? 65}%</span>
-                        </Label>
-                        <input
-                          type="range"
-                          min={0}
-                          max={100}
-                          step={5}
-                          value={form.pdf_cover_overlay_opacity ?? 65}
-                          onChange={(e) => set("pdf_cover_overlay_opacity", Number(e.target.value))}
-                          className="w-full accent-orange-500"
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs mb-1 block">Stile overlay</Label>
-                        <div className="grid grid-cols-4 gap-1">
-                          {([
-                            { v: "flat", label: "Piatto", hint: "Nero uniforme" },
-                            { v: "gradient", label: "Gradient ↓", hint: "Trasparente in alto, scuro in basso" },
-                            { v: "gradient_diag", label: "Gradient ↘", hint: "Diagonale alto-sx → basso-dx" },
-                            { v: "vignette", label: "Vignette", hint: "Centro chiaro, angoli scuri" },
-                          ] as const).map((opt) => {
-                            const isActive = (form.pdf_cover_overlay_style ?? "flat") === opt.v;
-                            return (
-                              <button
-                                key={opt.v}
-                                type="button"
-                                title={opt.hint}
-                                onClick={() => set("pdf_cover_overlay_style", opt.v)}
-                                className={cn(
-                                  "rounded border text-[10px] py-1 px-1 transition-all",
-                                  isActive ? "bg-orange-500 text-white border-orange-500 font-semibold" : "bg-white border-slate-200 hover:border-orange-300 text-slate-700",
-                                )}
-                              >
-                                {opt.label}
-                              </button>
-                            );
-                          })}
-                        </div>
-                        <p className="text-[10px] text-muted-foreground mt-0.5">
-                          Gradient migliora la leggibilità del testo su foto chiare.
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Colore di sfondo (solo senza immagine) */}
-                  {!form.pdf_cover_image_url && (
-                    <div>
-                      <Label className="text-xs mb-1 block">Colore di sfondo cover</Label>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="color"
-                          value={form.pdf_cover_bg_color || "#0F1B2A"}
-                          onChange={(e) => set("pdf_cover_bg_color", e.target.value)}
-                          className="h-8 w-12 rounded border cursor-pointer"
-                        />
-                        <Input
-                          value={form.pdf_cover_bg_color ?? ""}
-                          onChange={(e) => set("pdf_cover_bg_color", e.target.value || null)}
-                          placeholder="#0F1B2A"
-                          className="h-8 text-xs font-mono flex-1"
-                        />
-                        {form.pdf_cover_bg_color && (
-                          <Button size="sm" variant="ghost" onClick={() => set("pdf_cover_bg_color", null)} className="h-8 text-[11px]">
-                            Reset
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Tipografia & layout */}
-                  <div className="rounded-lg border bg-muted/20 p-3 space-y-3">
-                    <div className="text-[11px] font-semibold uppercase tracking-wide text-orange-600">Tipografia &amp; layout</div>
-                    <div className="grid grid-cols-12 gap-3">
-                      <div className="col-span-12 md:col-span-4">
-                        <Label className="text-[11px] flex items-center justify-between mb-1">
-                          <span>Eyebrow</span>
-                          <span className="font-mono text-muted-foreground">{form.pdf_cover_eyebrow_size ?? 11}pt</span>
-                        </Label>
-                        <input type="range" min={8} max={20} step={1} value={form.pdf_cover_eyebrow_size ?? 11} onChange={(e) => set("pdf_cover_eyebrow_size", Number(e.target.value))} className="w-full accent-orange-500" />
-                      </div>
-                      <div className="col-span-12 md:col-span-4">
-                        <Label className="text-[11px] flex items-center justify-between mb-1">
-                          <span>Titolo hero</span>
-                          <span className="font-mono text-muted-foreground">{form.pdf_cover_title_size ?? 30}pt</span>
-                        </Label>
-                        <input type="range" min={22} max={64} step={1} value={form.pdf_cover_title_size ?? 30} onChange={(e) => set("pdf_cover_title_size", Number(e.target.value))} className="w-full accent-orange-500" />
-                      </div>
-                      <div className="col-span-12 md:col-span-4">
-                        <Label className="text-[11px] flex items-center justify-between mb-1">
-                          <span>Sottotitolo</span>
-                          <span className="font-mono text-muted-foreground">{form.pdf_cover_subtitle_size ?? 13}pt</span>
-                        </Label>
-                        <input type="range" min={9} max={22} step={1} value={form.pdf_cover_subtitle_size ?? 13} onChange={(e) => set("pdf_cover_subtitle_size", Number(e.target.value))} className="w-full accent-orange-500" />
-                      </div>
-                      {(form.pdf_cover_logo_position ?? "top_left") !== "hidden" && (
-                        <div className="col-span-12 md:col-span-4">
-                          <Label className="text-[11px] flex items-center justify-between mb-1">
-                            <span>Dimensione logo</span>
-                            <span className="font-mono text-muted-foreground">{form.pdf_cover_logo_size ?? 100}%</span>
-                          </Label>
-                          <input type="range" min={60} max={160} step={5} value={form.pdf_cover_logo_size ?? 100} onChange={(e) => set("pdf_cover_logo_size", Number(e.target.value))} className="w-full accent-orange-500" />
-                        </div>
-                      )}
-                      {/* Allineamento testo */}
-                      <div className="col-span-12 md:col-span-4">
-                        <Label className="text-[11px] mb-1 block">Allineamento testo</Label>
-                        <div className="grid grid-cols-2 gap-1.5">
-                          <Button
-                            size="sm"
-                            variant={(form.pdf_cover_text_align ?? "left") === "left" ? "default" : "outline"}
-                            onClick={() => set("pdf_cover_text_align", "left")}
-                            className={cn("h-7 text-[11px]", (form.pdf_cover_text_align ?? "left") === "left" && "bg-orange-500 hover:bg-orange-600")}
-                          >
-                            Sinistra
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant={form.pdf_cover_text_align === "center" ? "default" : "outline"}
-                            onClick={() => set("pdf_cover_text_align", "center")}
-                            className={cn("h-7 text-[11px]", form.pdf_cover_text_align === "center" && "bg-orange-500 hover:bg-orange-600")}
-                          >
-                            Centro
-                          </Button>
-                        </div>
-                      </div>
-                      {/* Posizione logo */}
-                      <div className="col-span-12 md:col-span-4">
-                        <Label className="text-[11px] mb-1 block">Posizione logo</Label>
-                        <div className="grid grid-cols-4 gap-1">
-                          {([
-                            { v: "top_left", icon: "◰", title: "Alto sinistra" },
-                            { v: "top_center", icon: "◓", title: "Alto centro" },
-                            { v: "top_right", icon: "◳", title: "Alto destra" },
-                            { v: "hidden", icon: "✕", title: "Nascosto" },
-                          ] as const).map((opt) => {
-                            const isActive = (form.pdf_cover_logo_position ?? "top_left") === opt.v;
-                            return (
-                              <button
-                                key={opt.v}
-                                type="button"
-                                title={opt.title}
-                                onClick={() => set("pdf_cover_logo_position", opt.v)}
-                                className={cn(
-                                  "h-7 rounded border text-sm font-bold transition-all",
-                                  isActive ? "bg-orange-500 text-white border-orange-500" : "bg-white border-slate-200 hover:border-orange-300 text-slate-700",
-                                )}
-                              >
-                                {opt.icon}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                      {/* Posizione testo verticale */}
-                      <div className="col-span-12 md:col-span-4">
-                        <Label className="text-[11px] mb-1 block">Posizione testo (verticale)</Label>
-                        <div className="grid grid-cols-3 gap-1">
-                          {([
-                            { v: "top", label: "↑ Alto", title: "Testo subito sotto al logo" },
-                            { v: "center", label: "↕ Centro", title: "Testo centrato verticalmente" },
-                            { v: "bottom", label: "↓ Basso", title: "Testo in fondo, pre-footer (default)" },
-                          ] as const).map((opt) => {
-                            const isActive = (form.pdf_cover_text_vertical ?? "bottom") === opt.v;
-                            return (
-                              <button
-                                key={opt.v}
-                                type="button"
-                                title={opt.title}
-                                onClick={() => set("pdf_cover_text_vertical", opt.v)}
-                                className={cn(
-                                  "h-7 rounded border text-[10px] font-semibold transition-all",
-                                  isActive ? "bg-orange-500 text-white border-orange-500" : "bg-white border-slate-200 hover:border-orange-300 text-slate-700",
-                                )}
-                              >
-                                {opt.label}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                      {/* Colore testo + badge contrasto WCAG */}
-                      <div className="col-span-12 md:col-span-4">
-                        <Label className="text-[11px] mb-1 block flex items-center justify-between gap-1">
-                          <span>Colore testo</span>
-                          {(() => {
-                            const textColor = form.pdf_cover_text_color || "#FFFFFF";
-                            const bgColor = form.pdf_cover_image_url ? "#000000" : form.pdf_cover_bg_color || "#0F1B2A";
-                            const ratio = contrastRatio(textColor, bgColor);
-                            const level = wcagLevel(ratio, true);
-                            const badgeCls = level === "AAA"
-                              ? "bg-emerald-100 text-emerald-700 border-emerald-300"
-                              : level === "AA"
-                                ? "bg-amber-100 text-amber-700 border-amber-300"
-                                : "bg-rose-100 text-rose-700 border-rose-300";
-                            const emoji = level === "AAA" ? "✅" : level === "AA" ? "⚠️" : "❌";
-                            return (
-                              <span
-                                className={cn("text-[9px] px-1.5 py-0.5 rounded border font-mono font-semibold", badgeCls)}
-                                title={`Contrast ratio ${ratio.toFixed(1)}:1 · WCAG ${level} (large text). Suggerito ≥ 4.5:1 per leggibilità ottimale.`}
-                              >
-                                {emoji} {ratio.toFixed(1)}:1 · {level}
-                              </span>
-                            );
-                          })()}
-                        </Label>
-                        <div className="flex items-center gap-1.5">
-                          <input
-                            type="color"
-                            value={form.pdf_cover_text_color || "#FFFFFF"}
-                            onChange={(e) => set("pdf_cover_text_color", e.target.value)}
-                            className="h-7 w-9 rounded border cursor-pointer"
-                          />
-                          <Input
-                            value={form.pdf_cover_text_color ?? ""}
-                            onChange={(e) => set("pdf_cover_text_color", e.target.value || null)}
-                            placeholder="#FFFFFF"
-                            className="h-7 text-[11px] font-mono flex-1"
-                          />
-                        </div>
-                        {(() => {
-                          const textColor = form.pdf_cover_text_color || "#FFFFFF";
-                          const bgColor = form.pdf_cover_image_url ? "#000000" : form.pdf_cover_bg_color || "#0F1B2A";
-                          const ratio = contrastRatio(textColor, bgColor);
-                          if (wcagLevel(ratio, true) !== "FAIL") return null;
-                          const suggested = suggestBestTextColor(bgColor);
-                          return (
-                            <button
-                              type="button"
-                              onClick={() => set("pdf_cover_text_color", suggested)}
-                              className="mt-1 w-full text-[10px] py-1 px-2 rounded bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100 font-medium"
-                              title="Imposta automaticamente il colore con miglior contrasto su questo sfondo"
-                            >
-                              🔧 Fix automatico → {suggested === "#FFFFFF" ? "Bianco" : "Nero"}
-                            </button>
-                          );
-                        })()}
-                      </div>
-                      {/* Elementi visibili: decorazione + card cliente */}
-                      <div className="col-span-12 md:col-span-4 space-y-1.5">
-                        <Label className="text-[11px] mb-1 block">Elementi visibili</Label>
-                        <label className="flex items-center gap-2 cursor-pointer text-[11px]">
-                          <input
-                            type="checkbox"
-                            checked={form.pdf_cover_show_decoration !== false}
-                            onChange={(e) => set("pdf_cover_show_decoration", e.target.checked)}
-                            className="h-3.5 w-3.5 accent-orange-500"
-                          />
-                          Decorazione SVG (alto destra)
-                        </label>
-                        <label className="flex items-center gap-2 cursor-pointer text-[11px]">
-                          <input
-                            type="checkbox"
-                            checked={form.pdf_cover_show_client_card !== false}
-                            onChange={(e) => set("pdf_cover_show_client_card", e.target.checked)}
-                            className="h-3.5 w-3.5 accent-orange-500"
-                          />
-                          Card &quot;Preparato per&quot; (cliente)
-                        </label>
-                      </div>
-                      {/* Stile decorazione (solo se decoration ON) */}
-                      {form.pdf_cover_show_decoration !== false && (
-                        <div className="col-span-12 md:col-span-8">
-                          <Label className="text-[11px] mb-1 block">Stile decorazione</Label>
-                          <div className="grid grid-cols-5 gap-1">
-                            {([
-                              { v: "square", label: "⌖ Squadre", title: "Squadre e assi da tavola di progetto (di serie)" },
-                              { v: "circle", label: "◯ Cerchio", title: "Cerchi concentrici outline" },
-                              { v: "line", label: "│ Linea", title: "Linea verticale + tick" },
-                              { v: "pattern", label: "⋮⋮ Dots", title: "Pattern 5×5 dots geometrico" },
-                              { v: "none", label: "✕ None", title: "Nessuna decorazione" },
-                            ] as const).map((opt) => {
-                              const isActive = (form.pdf_cover_decoration_style ?? "square") === opt.v;
-                              return (
-                                <button
-                                  key={opt.v}
-                                  type="button"
-                                  title={opt.title}
-                                  onClick={() => set("pdf_cover_decoration_style", opt.v)}
-                                  className={cn(
-                                    "h-7 rounded border text-[10px] font-semibold transition-all",
-                                    isActive ? "bg-orange-500 text-white border-orange-500" : "bg-white border-slate-200 hover:border-orange-300 text-slate-700",
-                                  )}
-                                >
-                                  {opt.label}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-                      {/* Reset tipografia/layout cover */}
-                      <div className="col-span-12 flex justify-end">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => {
-                            set("pdf_cover_eyebrow_size", null);
-                            set("pdf_cover_title_size", null);
-                            set("pdf_cover_subtitle_size", null);
-                            set("pdf_cover_text_color", null);
-                            set("pdf_cover_text_align", null);
-                            set("pdf_cover_show_decoration", null);
-                            set("pdf_cover_show_client_card", null);
-                          }}
-                          className="h-7 text-[11px] text-muted-foreground"
-                        >
-                          Ripristina default tipografia
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+<Button type="button" size="sm" variant="outline" onClick={() => setStockDialogOpen(true)}>Scegli dalla libreria</Button>
+</div>
+              <TemplateCoverDesignControls hasImage={!!form.pdf_cover_image_url} fields={[
+{ id: "overlayOpacity", kind: "range", value: form.pdf_cover_overlay_opacity ?? 65, min: 0, max: 100, step: 5, unit: "%", onChange: value => set("pdf_cover_overlay_opacity", value) },
+{ id: "eyebrowSize", kind: "range", value: form.pdf_cover_eyebrow_size ?? 11, min: 8, max: 20, step: 1, unit: "pt", onChange: value => set("pdf_cover_eyebrow_size", value) },
+{ id: "titleSize", kind: "range", value: form.pdf_cover_title_size ?? 30, min: 22, max: 64, step: 1, unit: "pt", onChange: value => set("pdf_cover_title_size", value) },
+{ id: "subtitleSize", kind: "range", value: form.pdf_cover_subtitle_size ?? 13, min: 9, max: 22, step: 1, unit: "pt", onChange: value => set("pdf_cover_subtitle_size", value) },
+{ id: "logoSize", kind: "range", value: form.pdf_cover_logo_size ?? 100, min: 60, max: 160, step: 5, unit: "%", onChange: value => set("pdf_cover_logo_size", value) },
+{ id: "textAlign", kind: "choice", value: form.pdf_cover_text_align ?? "left", choices: COVER_DESIGN_CHOICES.textAlign, onChange: value => set("pdf_cover_text_align", value as typeof form.pdf_cover_text_align) },
+{ id: "textVertical", kind: "choice", value: form.pdf_cover_text_vertical ?? "bottom", choices: COVER_DESIGN_CHOICES.textVertical, onChange: value => set("pdf_cover_text_vertical", value as typeof form.pdf_cover_text_vertical) },
+{ id: "logoPosition", kind: "choice", value: form.pdf_cover_logo_position ?? "top_left", choices: COVER_DESIGN_CHOICES.logoPosition, onChange: value => set("pdf_cover_logo_position", value as typeof form.pdf_cover_logo_position) },
+{ id: "overlayStyle", kind: "choice", value: form.pdf_cover_overlay_style ?? "flat", choices: COVER_DESIGN_CHOICES.overlayStyle, onChange: value => set("pdf_cover_overlay_style", value as typeof form.pdf_cover_overlay_style) },
+{ id: "decorationStyle", kind: "choice", value: form.pdf_cover_decoration_style ?? "square", choices: COVER_DESIGN_CHOICES.decorationStyle, onChange: value => set("pdf_cover_decoration_style", value as typeof form.pdf_cover_decoration_style) },
+{ id: "textColor", kind: "color", value: form.pdf_cover_text_color, fallback: "#FFFFFF", onChange: value => set("pdf_cover_text_color", value) },
+{ id: "backgroundColor", kind: "color", value: form.pdf_cover_bg_color, fallback: "#0F1B2A", onChange: value => set("pdf_cover_bg_color", value) },
+{ id: "showDecoration", kind: "toggle", value: !!(form.pdf_cover_show_decoration !== false), onChange: value => set("pdf_cover_show_decoration", value) },
+{ id: "showClientCard", kind: "toggle", value: !!(form.pdf_cover_show_client_card !== false), onChange: value => set("pdf_cover_show_client_card", value) }
+]} />
             </SectionCard>
           )}
 
@@ -1476,7 +998,7 @@ export function TermoidraulicoTemplateEditor({ embedded = false }: Props) {
               icon={Building2}
               title="Chi siamo"
               description="Presentazione dell'impresa nel PDF."
-              toggle={{ value: form.show_chi_siamo, onChange: (v) => set("show_chi_siamo", v), label: "Mostra nel PDF" }}
+              toggle={{ value: !edileSectionExcluded(form, "page_chi_siamo"), onChange: (v) => setPageVisibility("chiSiamo", v), label: "Mostra nel PDF" }}
             >
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
@@ -1488,7 +1010,7 @@ export function TermoidraulicoTemplateEditor({ embedded = false }: Props) {
                     minHeight={160}
                   />
                 </div>
-                <ImageUploadField
+                <ImageUploadField localOnly={!!localModule}
                   label="Foto azienda / team"
                   value={form.chi_siamo_foto_url}
                   companyId={companyId}
@@ -1505,7 +1027,7 @@ export function TermoidraulicoTemplateEditor({ embedded = false }: Props) {
               icon={Route}
               title="Come lavoriamo"
               description="Le fasi del cantiere mostrate nel PDF."
-              toggle={{ value: form.show_percorso, onChange: (v) => set("show_percorso", v), label: "Mostra nel PDF" }}
+              toggle={{ value: !edileSectionExcluded(form, "page_percorso"), onChange: (v) => setPageVisibility("percorso", v), label: "Mostra nel PDF" }}
             >
               <ListItemsEditor
                 items={form.percorso}
@@ -1523,7 +1045,7 @@ export function TermoidraulicoTemplateEditor({ embedded = false }: Props) {
               icon={Clock}
               title="Cronoprogramma"
               description="Le fasi tipiche del cantiere con durata indicativa."
-              toggle={{ value: form.show_cronoprogramma, onChange: (v) => set("show_cronoprogramma", v), label: "Mostra nel PDF" }}
+              toggle={{ value: !edileSectionExcluded(form, "page_crono"), onChange: (v) => setPageVisibility("tempi", v), label: "Mostra nel PDF" }}
             >
               <CronoEditor
                 items={form.cronoprogramma}
@@ -1564,7 +1086,7 @@ export function TermoidraulicoTemplateEditor({ embedded = false }: Props) {
 
                 {/* Condizioni generali di contratto: il preventivo firmato è il contratto.
                     Stesso blocco di tutti i moduli (CondizioniContratto). */}
-                <CondizioniContratto
+                <CondizioniContratto localOnly={!!localModule}
                   companyId={companyId}
                   settore="termoidraulico"
                   attivo={form.condizioni_legali_attivo !== false}
@@ -1631,8 +1153,8 @@ export function TermoidraulicoTemplateEditor({ embedded = false }: Props) {
               {/* Promo finanziamento nel PDF: legge il jsonb dal template raw e scrive
                   via set con cast (campo fuori dal FormState tipato di questo editor). */}
               <FinanziamentoPromoField
-                rawValue={(template as unknown as Record<string, unknown> | null)?.finanziamento_promo}
-                onChange={(v) => (set as unknown as (k: string, val: unknown) => void)("finanziamento_promo", v)}
+                rawValue={form.finanziamento_promo}
+                onChange={(v) => set("finanziamento_promo", v ? { ...v } : null)}
               />
               </SectionCard>
               <SectionCard icon={Percent} title="Default economici" description="Valori precompilati sui nuovi preventivi termoidraulico.">
@@ -1668,16 +1190,16 @@ export function TermoidraulicoTemplateEditor({ embedded = false }: Props) {
             onMostraGaranzie={(v) => set("show_garanzie", v)}
             contenuti={contenutiPagine}
             campoFoto={(valore, onChange) => (
-              <ImageUploadField label="Foto della pagina" value={valore} companyId={companyId} onChange={onChange} aspect="aspect-[16/9]" />
+              <ImageUploadField localOnly={!!localModule} label="Foto della pagina" value={valore} companyId={companyId} onChange={onChange} aspect="aspect-[16/9]" />
             )}
           />
 
           {/* Barra salvataggio sticky */}
-          <div className="sticky bottom-0 z-10 -mx-1 flex items-center justify-between gap-3 rounded-xl border bg-background/95 px-3 py-2.5 shadow-sm backdrop-blur">
+          <TemplateEditorSaveBar>
             <span className={cn("text-[11px]", dirty ? "text-amber-600" : "text-muted-foreground")}>
-              {dirty ? "Modifiche non salvate" : "Tutto salvato"}
+              {dirty ? "Modifiche non salvate" : localSaved ? "Tutto salvato" : "Modello pronto · non ancora salvato"}
             </span>
-            <div className="flex items-center gap-2">
+            <div className="flex w-full flex-wrap items-center justify-end gap-2">
               <Button
                 type="button"
                 variant="outline"
@@ -1690,23 +1212,24 @@ export function TermoidraulicoTemplateEditor({ embedded = false }: Props) {
               </Button>
               <Button
                 onClick={() => void handleSave()}
-                disabled={!dirty || upsert.isPending}
+                disabled={(!dirty && localSaved) || upsert.isPending}
                 className="gap-1.5 bg-orange-500 hover:bg-orange-600"
               >
                 {upsert.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                Salva template
+                {localModule ? "Salva modulo in locale" : "Salva template"}
               </Button>
             </div>
-          </div>
+          </TemplateEditorSaveBar>
         </div>
 
-        <aside className="col-span-12 xl:col-span-4 min-w-0">
-          <div className="xl:sticky xl:top-[68px] xl:self-start xl:h-[calc(100vh-96px)] h-[75vh]">
-            <TermoidraulicoLivePreviewPanel template={previewTemplate} companyId={companyId} />
+        <aside data-template-preview className={templateEditorLayout.preview}>
+          <div className={templateEditorLayout.previewPanel}>
+            <TermoidraulicoLivePreviewPanel activeSection={activeSection} moduleId={localModule?.id} template={previewTemplate} companyId={companyId} />
           </div>
         </aside>
-      </div>
+      </TemplateEditorWorkspace>
       <TermoidraulicoTemplatePreviewDialog
+        moduleId={localModule?.id}
         open={livePreviewOpen}
         onOpenChange={setLivePreviewOpen}
         template={previewTemplate}
@@ -1773,11 +1296,10 @@ export function TermoidraulicoTemplateEditor({ embedded = false }: Props) {
           <DialogHeader className="p-4 pb-3 border-b">
             <DialogTitle className="text-base">📷 Galleria immagini stock</DialogTitle>
             <DialogDescription className="text-xs">
-              Click su un'immagine per usarla come sfondo cover. Tutte le immagini sono
-              libere da licenza (Unsplash) — uso commerciale incluso.
+              {localModule ? "Immagini illustrative dedicate: non documentano installazioni aziendali né identificano il prodotto venduto." : "Scegli una foto dalla libreria del modulo per la copertina."}
             </DialogDescription>
             <div className="flex flex-wrap gap-1 pt-2">
-              {COVER_STOCK_CATEGORIE.map((cat) => {
+              {COVER_STOCK_CATEGORIE.filter(cat => !localModule || cat.value === "all").map((cat) => {
                 const isActive = stockCategory === cat.value;
                 return (
                   <button
@@ -1798,7 +1320,7 @@ export function TermoidraulicoTemplateEditor({ embedded = false }: Props) {
           </DialogHeader>
           <div className="flex-1 overflow-y-auto p-4">
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-              {stockFiltered.map((img) => {
+              {(localModule && moduleDefaults ? fotoDellaLibreria("termoidraulico", moduleDefaults.pdf_blocchi).map((f, i) => ({ id: `modulo-${i}`, url: f.url, thumb: f.url, label: f.nome })) : stockFiltered).map((img) => {
                 const isActive = form?.pdf_cover_image_url === img.url;
                 return (
                   <button
@@ -1842,41 +1364,9 @@ export function TermoidraulicoTemplateEditor({ embedded = false }: Props) {
 }
 
 // ─── Section card ─────────────────────────────────────────────────────────────
-interface SectionCardProps {
-  icon: React.ComponentType<{ className?: string }>;
-  title: string;
-  description?: string;
-  toggle?: { value: boolean; onChange: (v: boolean) => void; label: string };
-  children: React.ReactNode;
-}
 
-function SectionCard({ icon: Icon, title, description, toggle, children }: SectionCardProps) {
-  return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-start gap-2.5">
-            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-orange-50 text-orange-600">
-              <Icon className="h-4 w-4" />
-            </div>
-            <div>
-              <CardTitle className="text-sm">{title}</CardTitle>
-              {description && <p className="mt-0.5 text-[11px] text-muted-foreground">{description}</p>}
-            </div>
-          </div>
-          {toggle && (
-            <label className="flex shrink-0 items-center gap-1.5 text-[11px] text-muted-foreground">
-              {toggle.value ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
-              <span className="hidden sm:inline">{toggle.label}</span>
-              <Switch checked={toggle.value} onCheckedChange={toggle.onChange} />
-            </label>
-          )}
-        </div>
-      </CardHeader>
-      <CardContent>{children}</CardContent>
-    </Card>
-  );
-}
+
+
 
 // ─── Color field ──────────────────────────────────────────────────────────────
 function ColorField({ label, value, onChange }: { label: string; value: string | null; onChange: (v: string) => void }) {
@@ -1905,6 +1395,7 @@ function ColorField({ label, value, onChange }: { label: string; value: string |
 
 // ─── Image upload field ───────────────────────────────────────────────────────
 interface ImageUploadFieldProps {
+  localOnly?: boolean;
   label: string;
   hint?: string;
   value: string | null;
@@ -1913,7 +1404,7 @@ interface ImageUploadFieldProps {
   aspect?: string;
 }
 
-function ImageUploadField({ label, hint, value, companyId, onChange, aspect = "aspect-[4/3]" }: ImageUploadFieldProps) {
+function ImageUploadField({ label, hint, value, companyId, onChange, aspect = "aspect-[4/3]", localOnly = false }: ImageUploadFieldProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [uploading, setUploading] = useState(false);
 
@@ -1933,6 +1424,7 @@ function ImageUploadField({ label, hint, value, companyId, onChange, aspect = "a
     }
     setUploading(true);
     try {
+      if (localOnly) { onChange(await readLocalTemplateImage(file)); toast.success("Immagine aggiunta in locale"); return; }
       const ext = file.name.includes(".") ? file.name.split(".").pop()!.toLowerCase() : "bin";
       // folder[1] DEVE essere company_id (policy storage company-scoped).
       const path = `${companyId}/termoidraulico/template/${crypto.randomUUID()}.${ext}`;
@@ -1946,276 +1438,27 @@ function ImageUploadField({ label, hint, value, companyId, onChange, aspect = "a
       const { data: pub } = supabase.storage.from(BUCKET).getPublicUrl(path);
       onChange(pub.publicUrl);
       toast.success("Immagine caricata");
-    } finally {
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Immagine non caricata"); } finally {
       setUploading(false);
       if (inputRef.current) inputRef.current.value = "";
     }
   };
 
-  return (
-    <div className="space-y-1.5">
-      <Label className="text-xs">{label}</Label>
-      <div className={cn("relative overflow-hidden rounded-lg border bg-muted/40", aspect)}>
-        {value ? (
-          <img src={value} alt={label} className="h-full w-full object-contain" />
-        ) : (
-          <div className="flex h-full w-full flex-col items-center justify-center gap-1 text-muted-foreground">
-            <ImageIcon className="h-7 w-7" />
-            <span className="text-[11px]">Nessuna immagine</span>
-          </div>
-        )}
-        {uploading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-background/60">
-            <Loader2 className="h-5 w-5 animate-spin text-orange-600" />
-          </div>
-        )}
-      </div>
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/png,image/jpeg,image/webp"
-        className="hidden"
-        onChange={(e) => void handleFile(e.target.files?.[0] ?? null)}
-      />
-      <div className="flex items-center gap-2">
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="h-8 gap-1.5"
-          disabled={uploading || !companyId}
-          onClick={() => inputRef.current?.click()}
-        >
-          {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-          {value ? "Sostituisci" : "Carica"}
-        </Button>
-        {value && (
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            className="h-8 gap-1.5 text-rose-500 hover:bg-rose-50 hover:text-rose-600"
-            onClick={() => onChange(null)}
-          >
-            <Trash2 className="h-3.5 w-3.5" /> Rimuovi
-          </Button>
-        )}
-      </div>
-      {hint && <p className="text-[10px] text-muted-foreground">{hint}</p>}
-    </div>
-  );
+  return <TemplateImageFieldView label={label} hint={hint} value={value} busy={uploading} disabled={!companyId} localOnly={localOnly} inputRef={inputRef} onFile={handleFile} onRemove={() => onChange(null)} aspect={aspect} />;
 }
 
 // ─── List items editor ({titolo, descrizione}) ───────────────────────────────
-interface ListItemsEditorProps {
-  items: IdrListItem[];
-  onChange: (items: IdrListItem[]) => void;
-  addLabel: string;
-  titlePlaceholder: string;
-  descPlaceholder: string;
-}
 
-function ListItemsEditor({ items, onChange, addLabel, titlePlaceholder, descPlaceholder }: ListItemsEditorProps) {
-  const update = (idx: number, patch: Partial<IdrListItem>) => {
-    onChange(items.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
-  };
-  const remove = (idx: number) => onChange(items.filter((_, i) => i !== idx));
-  const move = (idx: number, dir: -1 | 1) => {
-    const j = idx + dir;
-    if (j < 0 || j >= items.length) return;
-    const next = [...items];
-    [next[idx], next[j]] = [next[j], next[idx]];
-    onChange(next);
-  };
-  return (
-    <div className="space-y-2">
-      {items.length === 0 && (
-        <p className="rounded-lg border border-dashed py-4 text-center text-[11px] text-muted-foreground">
-          Nessuna voce. Aggiungine almeno una per arricchire il PDF.
-        </p>
-      )}
-      {items.map((it, idx) => (
-        <div key={idx} className="flex items-start gap-2 rounded-lg border p-2">
-          <div className="mt-1 flex flex-col">
-            <button type="button" onClick={() => move(idx, -1)} disabled={idx === 0} className="text-muted-foreground hover:text-foreground disabled:opacity-30">
-              <GripVertical className="h-3.5 w-3.5" />
-            </button>
-          </div>
-          <div className="flex-1 space-y-1.5">
-            <Input
-              value={it.titolo}
-              onChange={(e) => update(idx, { titolo: e.target.value })}
-              placeholder={titlePlaceholder}
-              className="h-8 text-sm font-medium"
-            />
-            <Input
-              value={it.descrizione ?? ""}
-              onChange={(e) => update(idx, { descrizione: e.target.value })}
-              placeholder={descPlaceholder}
-              className="h-8 text-xs"
-            />
-          </div>
-          <Button type="button" size="icon" variant="ghost" className="h-7 w-7 text-rose-500 hover:bg-rose-50 hover:text-rose-600" onClick={() => remove(idx)}>
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-      ))}
-      <Button type="button" size="sm" variant="outline" className="gap-1.5" onClick={() => onChange([...items, { titolo: "", descrizione: "" }])}>
-        <Plus className="h-3.5 w-3.5" /> {addLabel}
-      </Button>
-    </div>
-  );
-}
+
+
 
 // ─── Testimonianze editor ─────────────────────────────────────────────────────
-function TestimonianzeEditor({ items, onChange }: { items: IdrTestimonianza[]; onChange: (items: IdrTestimonianza[]) => void }) {
-  const update = (idx: number, patch: Partial<IdrTestimonianza>) => {
-    onChange(items.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
-  };
-  const remove = (idx: number) => onChange(items.filter((_, i) => i !== idx));
-  return (
-    <div className="space-y-2">
-      {items.length === 0 && (
-        <p className="rounded-lg border border-dashed py-4 text-center text-[11px] text-muted-foreground">
-          Nessuna testimonianza.
-        </p>
-      )}
-      {items.map((t, idx) => (
-        <div key={idx} className="space-y-2 rounded-lg border p-2.5">
-          <Textarea
-            value={t.testo}
-            onChange={(e) => update(idx, { testo: e.target.value })}
-            placeholder="«Lavoro impeccabile, tempi rispettati...»"
-            rows={2}
-            className="text-sm"
-          />
-          <div className="flex items-center gap-2">
-            <Input
-              value={t.autore}
-              onChange={(e) => update(idx, { autore: e.target.value })}
-              placeholder="Nome cliente"
-              className="h-8 text-xs"
-            />
-            <Input
-              value={t.ruolo ?? ""}
-              onChange={(e) => update(idx, { ruolo: e.target.value })}
-              placeholder="Città / tipo lavoro"
-              className="h-8 text-xs"
-            />
-            <Button type="button" size="icon" variant="ghost" className="h-7 w-7 shrink-0 text-rose-500 hover:bg-rose-50 hover:text-rose-600" onClick={() => remove(idx)}>
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-        </div>
-      ))}
-      <Button type="button" size="sm" variant="outline" className="gap-1.5" onClick={() => onChange([...items, { autore: "", ruolo: "", testo: "" }])}>
-        <Plus className="h-3.5 w-3.5" /> Aggiungi testimonianza
-      </Button>
-    </div>
-  );
-}
+
 
 // ─── FAQ editor ({domanda, risposta}) ─────────────────────────────────────────
-function FaqEditor({ items, onChange }: { items: IdrFaqItem[]; onChange: (items: IdrFaqItem[]) => void }) {
-  const update = (idx: number, patch: Partial<IdrFaqItem>) => {
-    onChange(items.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
-  };
-  const remove = (idx: number) => onChange(items.filter((_, i) => i !== idx));
-  return (
-    <div className="space-y-2">
-      {items.length === 0 && (
-        <p className="rounded-lg border border-dashed py-4 text-center text-[11px] text-muted-foreground">
-          Nessuna FAQ. Aggiungi le domande più frequenti dei tuoi clienti.
-        </p>
-      )}
-      {items.map((f, idx) => (
-        <div key={idx} className="space-y-2 rounded-lg border p-2.5">
-          <div className="flex items-center gap-2">
-            <Input
-              value={f.domanda}
-              onChange={(e) => update(idx, { domanda: e.target.value })}
-              placeholder="Domanda (es. Servono permessi per i lavori?)"
-              className="h-8 flex-1 text-sm font-medium"
-            />
-            <Button type="button" size="icon" variant="ghost" className="h-7 w-7 shrink-0 text-rose-500 hover:bg-rose-50 hover:text-rose-600" onClick={() => remove(idx)}>
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-          <Textarea
-            value={f.risposta}
-            onChange={(e) => update(idx, { risposta: e.target.value })}
-            placeholder="Risposta"
-            rows={2}
-            className="text-xs"
-          />
-        </div>
-      ))}
-      <Button type="button" size="sm" variant="outline" className="gap-1.5" onClick={() => onChange([...items, { domanda: "", risposta: "" }])}>
-        <Plus className="h-3.5 w-3.5" /> Aggiungi FAQ
-      </Button>
-    </div>
-  );
-}
+
 
 // ─── Cronoprogramma editor ────────────────────────────────────────────────────
-function CronoEditor({ items, onChange }: { items: IdrCronoFase[]; onChange: (items: IdrCronoFase[]) => void }) {
-  const update = (idx: number, patch: Partial<IdrCronoFase>) => {
-    onChange(items.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
-  };
-  const remove = (idx: number) => onChange(items.filter((_, i) => i !== idx));
-  const move = (idx: number, dir: -1 | 1) => {
-    const j = idx + dir;
-    if (j < 0 || j >= items.length) return;
-    const next = [...items];
-    [next[idx], next[j]] = [next[j], next[idx]];
-    onChange(next);
-  };
-  return (
-    <div className="space-y-2">
-      {items.length === 0 && (
-        <p className="rounded-lg border border-dashed py-4 text-center text-[11px] text-muted-foreground">
-          Nessuna fase. Aggiungi le tappe del cantiere (es. Demolizioni → Impianti → Finiture).
-        </p>
-      )}
-      {items.map((f, idx) => (
-        <div key={idx} className="flex items-start gap-2 rounded-lg border p-2">
-          <div className="mt-1 flex flex-col">
-            <button type="button" onClick={() => move(idx, -1)} disabled={idx === 0} className="text-muted-foreground hover:text-foreground disabled:opacity-30">
-              <GripVertical className="h-3.5 w-3.5" />
-            </button>
-          </div>
-          <div className="flex-1 space-y-1.5">
-            <div className="flex gap-2">
-              <Input
-                value={f.fase}
-                onChange={(e) => update(idx, { fase: e.target.value })}
-                placeholder="Fase (es. Demolizioni)"
-                className="h-8 flex-1 text-sm font-medium"
-              />
-              <Input
-                value={f.durata ?? ""}
-                onChange={(e) => update(idx, { durata: e.target.value })}
-                placeholder="Durata (es. 1 settimana)"
-                className="h-8 w-40 text-xs"
-              />
-            </div>
-            <Input
-              value={f.descrizione ?? ""}
-              onChange={(e) => update(idx, { descrizione: e.target.value })}
-              placeholder="Dettaglio (opzionale)"
-              className="h-8 text-xs"
-            />
-          </div>
-          <Button type="button" size="icon" variant="ghost" className="h-7 w-7 text-rose-500 hover:bg-rose-50 hover:text-rose-600" onClick={() => remove(idx)}>
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-      ))}
-      <Button type="button" size="sm" variant="outline" className="gap-1.5" onClick={() => onChange([...items, { fase: "", durata: "", descrizione: "" }])}>
-        <Plus className="h-3.5 w-3.5" /> Aggiungi fase
-      </Button>
-    </div>
-  );
-}
+
 
 export default TermoidraulicoTemplateEditor;

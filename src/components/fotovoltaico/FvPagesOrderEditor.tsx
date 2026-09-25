@@ -48,6 +48,9 @@ import { bloccoDellaPagina, descrizioneBlocco, type ChiaveFotoPagina } from "../
 const FOTO_DELLE_PAGINE: Record<string, ChiaveFotoPagina> = { garanzie: "garanzie", bollette_240: "bollette", decisione: "decisione", componenti: "componenti", costi_futuri: "costi", cassa_25: "cassa", piano_pagamento: "piano", faq: "faq", risparmio: "risparmio", produzione: "produzione", recensioni: "recensioni" };
 
 interface Props {
+  ordineDiSerie?: FvPdfPageOrderItem[] | null;
+  escluse?: ReadonlySet<string>;
+  labels?: Record<string, { label: string; descrizione: string }>;
   value: FvPdfPageOrderItem[] | null | undefined;
   onChange: (next: FvPdfPageOrderItem[]) => void;
   /** Le scelte dell'azienda sui blocchi (`pdf_blocchi`): con `onBlocchi`, i blocchi si modificano qui. */
@@ -59,9 +62,11 @@ interface Props {
   apriSezione?: (sezione: string) => void;
 }
 
-function FvPagesOrderEditorImpl({ value, onChange, blocchi, onBlocchi, campoFoto, apriSezione }: Props) {
-  const items = normalizeFvPdfPagesOrder(value);
-  const metaById = new Map(FV_PDF_PAGES_META.map((page) => [page.id, page]));
+function FvPagesOrderEditorImpl({ value, onChange, blocchi, onBlocchi, campoFoto, apriSezione, ordineDiSerie, escluse, labels }: Props) {
+  const items = normalizeFvPdfPagesOrder(value).filter(p => !escluse?.has(p.id));
+  // Keep excluded pages explicitly disabled when saving. Normalization would otherwise reintroduce them.
+  const change = (next: FvPdfPageOrderItem[]) => onChange([...next, ...normalizeFvPdfPagesOrder(value).filter(p => escluse?.has(p.id)).map(p => ({ ...p, visible: false }))]);
+  const metaById = new Map(FV_PDF_PAGES_META.map((page) => [page.id, { ...page, ...labels?.[page.id] }]));
   const [recentlyMovedId, setRecentlyMovedId] = useState<string | null>(null);
   const [aperta, setAperta] = useState<string | null>(null);
 
@@ -82,20 +87,20 @@ function FvPagesOrderEditorImpl({ value, onChange, blocchi, onBlocchi, campoFoto
     const newIndex = items.findIndex((item) => item.id === over.id);
     if (oldIndex < 0 || newIndex < 0) return;
     const meta = metaById.get(items[oldIndex].id);
-    onChange(arrayMove(items, oldIndex, newIndex));
+    change(arrayMove(items, oldIndex, newIndex));
     flash(String(active.id));
     toast.success(`Pagina "${meta?.label ?? String(active.id)}" spostata`);
   };
 
   const moveUp = (index: number) => {
     if (index <= 0) return;
-    onChange(arrayMove(items, index, index - 1));
+    change(arrayMove(items, index, index - 1));
     flash(items[index].id);
   };
 
   const moveDown = (index: number) => {
     if (index >= items.length - 1) return;
-    onChange(arrayMove(items, index, index + 1));
+    change(arrayMove(items, index, index + 1));
     flash(items[index].id);
   };
 
@@ -105,14 +110,14 @@ function FvPagesOrderEditorImpl({ value, onChange, blocchi, onBlocchi, campoFoto
       toast.warning(`"${meta.label}" e' obbligatoria e resta sempre visibile`);
       return;
     }
-    onChange(items.map((item, itemIndex) => (
+    change(items.map((item, itemIndex) => (
       itemIndex === index ? { ...item, visible: !item.visible } : item
     )));
     flash(items[index].id);
   };
 
   const resetDefault = () => {
-    onChange(FV_PDF_PAGES_DEFAULT);
+    onChange(normalizeFvPdfPagesOrder(ordineDiSerie ?? FV_PDF_PAGES_DEFAULT).map(p => escluse?.has(p.id) ? { ...p, visible: false } : p));
     toast.success("Ordine pagine FV ripristinato");
   };
 
@@ -121,6 +126,7 @@ function FvPagesOrderEditorImpl({ value, onChange, blocchi, onBlocchi, campoFoto
 
   return (
     <div className="space-y-3">
+      {escluse?.size ? <p className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-xs text-sky-950">Questo modulo riguarda l'integrazione dell'accumulo. I grafici di produzione e risparmio dell'intero impianto non sono applicabili e non vengono inseriti nel PDF.</p> : null}
       <div className={
         "flex items-start gap-2 rounded-md border px-3 py-2 text-xs " +
         (isCustomOrder

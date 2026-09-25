@@ -142,6 +142,7 @@ export function UnifiedPreventiviList() {
     sort: (searchParams.get("sort") as UnifiedFilters["sort"]) ?? "recent",
   }));
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [insightsOpen, setInsightsOpen] = useState(false);
   const [cestinoOpen, setCestinoOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [exporting, setExporting] = useState(false);
@@ -933,6 +934,9 @@ export function UnifiedPreventiviList() {
         <KpiCard label="Ricavo firmato" value={formatCurrency(kpi.ricavoVinte)} hint={kpi.vintaCount > 0 ? `ticket medio ${formatCurrency(kpi.ticketMedio)}` : "nessuna firmata"} icon={<Euro className="h-4 w-4" />} tone="orange" />
       </div>
 
+      {!isMobile && <details className="rounded-xl border bg-card" onToggle={event => setInsightsOpen(event.currentTarget.open)}>
+        <summary className="cursor-pointer rounded-xl px-4 py-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Andamento e statistiche dei preventivi</summary>
+        {insightsOpen && <div className="space-y-4 px-4 pb-4">
       {/* ─── Striscia navy avanzata: solo desktop. Su mobile è superflua — i 4 KPI
           sopra bastano e conversione/pipeline sono già nei loro hint. ─── */}
       {!isMobile && (
@@ -1027,6 +1031,9 @@ export function UnifiedPreventiviList() {
         </Card>
       </div>
       )}
+
+        </div>}
+      </details>}
 
       {/* ─── Toolbar: search + Filtra + Export + counter ─── */}
       <Card>

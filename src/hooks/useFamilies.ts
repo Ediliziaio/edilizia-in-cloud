@@ -13,6 +13,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { queryKeys } from "@/lib/queryKeys";
+import { loadCatalogPages } from "@/lib/listino/loadCatalogPages";
 import type {
   ArticleFamily,
   FamilyAxis,
@@ -41,31 +42,29 @@ export function useFamilies(options?: { includeInactive?: boolean }) {
       ? ([...queryKeys.articleFamilies.list(companyId ?? undefined), "with-inactive"] as const)
       : queryKeys.articleFamilies.list(companyId ?? undefined),
     enabled: !!companyId,
-    queryFn: async (): Promise<FamilyWithAxes[]> => {
-      const { data, error } = await supabase
-        .from("article_families" as never)
-        .select(
-          `*,
-           axes:article_family_axes(
-             *,
-             values:article_family_axis_values(*)
-           )`,
-        )
-        .eq("company_id", companyId!)
-        .in("attivo", includeInactive ? [true, false] : [true])
-        .is("deleted_at", null)
-        // Tie-breaker sul nome: quasi tutti gli articoli hanno sort_order=0
-        // (default) e senza secondo criterio Postgres non garantisce un
-        // ordine stabile tra refetch → gli articoli "saltellano" in lista.
-        .order("sort_order", { ascending: true })
-        .order("nome", { ascending: true });
-      if (error) throw new Error(error.message);
-
-      const rows = (data ?? []) as unknown as Array<
-        ArticleFamily & {
-          axes: Array<FamilyAxis & { values: AxisValue[] }>;
-        }
-      >;
+    queryFn: async ({ signal }): Promise<FamilyWithAxes[]> => {
+      type FamilyRow = ArticleFamily & { axes: Array<FamilyAxis & { values: AxisValue[] }> };
+      const rows = await loadCatalogPages<FamilyRow>(async (from, to) => {
+        const { data, error } = await supabase
+          .from("article_families" as never)
+          .select(
+            `*,
+             axes:article_family_axes(
+               *,
+               values:article_family_axis_values(*)
+             )`,
+          )
+          .eq("company_id", companyId!)
+          .in("attivo", includeInactive ? [true, false] : [true])
+          .is("deleted_at", null)
+          // ID come ultimo criterio: nomi e sort_order possono coincidere.
+          .order("sort_order", { ascending: true })
+          .order("nome", { ascending: true })
+          .order("id", { ascending: true })
+          .range(from, to)
+          .abortSignal(signal);
+        return { data: data as unknown as FamilyRow[] | null, error };
+      });
 
       // Ordina assi e valori lato client: Supabase non garantisce l'ordine
       // nei nested select.

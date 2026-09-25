@@ -5,6 +5,7 @@
  */
 import { useCallback, useMemo } from "react";
 import { PdfBlobLivePreviewPanel } from "@/components/shared/PdfBlobLivePreviewPanel";
+import { buildRstModulePreview, type FullRstModuleId } from "@/lib/moduli-vendita/fullRstModules";
 import { renderRstPreviewBlobUrl } from "@/hooks/useRistrutturazionePDF";
 import type { RstTemplatePdf, RstProgetto, RstComputoVoce } from "@/types/ristrutturazione";
 
@@ -35,6 +36,7 @@ function buildMockProgetto(companyId: string): RstProgetto {
     cliente_nome: "Mario", cliente_cognome: "Rossi", cliente_email: null, cliente_telefono: null,
     cantiere_indirizzo: "Via Roma 1", cantiere_citta: "Milano", cantiere_provincia: "MI", cantiere_cap: "20100",
     immobile_tipo: "Appartamento", immobile_superficie_mq: 90, immobile_anno: 1975, immobile_piani: 1,
+    massimale_detrazione: null, numero_vani: null, altezza_media_m: null,
     opportunita_id: null, cliente_id: null, template_id: null,
     sconto_pct: 0, iva_pct: 10, detrazione_pct: 50,
     totale_imponibile: 0, totale: 0, note: null,
@@ -42,27 +44,30 @@ function buildMockProgetto(companyId: string): RstProgetto {
 }
 
 export function RistrutturazioneLivePreviewPanel({
-  template, companyId,
+  template, companyId, moduleId, activeSection,
 }: {
+  activeSection?: string | null;
   template: RstTemplatePdf | null;
   companyId: string | null;
+  moduleId?: FullRstModuleId;
 }) {
   const depsKey = useMemo(
-    () => (companyId ?? "") + "|" + JSON.stringify(template ?? {}),
-    [template, companyId],
+    () => (companyId ?? "") + "|" + (moduleId ?? "") + "|" + JSON.stringify(template ?? {}),
+    [template, companyId, moduleId],
   );
   const renderBlobUrl = useCallback(() => {
     if (!companyId || !template) return Promise.reject(new Error("Template non pronto"));
-    return renderRstPreviewBlobUrl({
+    return renderRstPreviewBlobUrl(moduleId ? buildRstModulePreview(companyId, template, moduleId) : {
       progetto: buildMockProgetto(companyId),
       computo: buildMockComputo(companyId),
       media: [],
       template,
     });
-  }, [template, companyId]);
+  }, [template, companyId, moduleId]);
 
   return (
     <PdfBlobLivePreviewPanel
+      activeSection={activeSection}
       renderBlobUrl={renderBlobUrl}
       depsKey={depsKey}
       enabled={!!companyId && !!template}

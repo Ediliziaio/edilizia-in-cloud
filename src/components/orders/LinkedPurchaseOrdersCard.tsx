@@ -17,31 +17,26 @@ import { logger } from "@/utils/logger";
 import { CreatePurchaseOrderButton } from "./CreatePurchaseOrderButton";
 import { LinkExistingPurchaseOrderDialog } from "./LinkExistingPurchaseOrderDialog";
 import { useDDTCountsByPO } from "@/hooks/useDDTRicezione";
+import type { ProcurementItem } from "@/lib/orders/materialProcurement";
+import { usePermissions } from "@/hooks/usePermissions";
+import { refreshMaterialQueries } from "@/lib/orders/refreshMaterialQueries";
 
 import {
   ODA_STATUS_LABELS as STATUS_LABELS,
   ODA_STATUS_COLORS as STATUS_COLORS,
 } from "@/lib/odaStatus";
 
-interface OrderItem {
-  id: string;
-  name: string;
-  quantity: number;
-  purchase_price?: number;
-  supplier_id?: string;
-  vat_rate?: number;
-}
-
 interface LinkedPurchaseOrdersCardProps {
   orderId: string;
   orderCode?: string | null;
-  items: OrderItem[];
+  items: ProcurementItem[];
 }
 
 export function LinkedPurchaseOrdersCard({ orderId, orderCode, items }: LinkedPurchaseOrdersCardProps) {
   const { effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
   const companyId = effectiveCompany?.id;
+  const { canEditOrders } = usePermissions();
 
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
   const [unlinkTarget, setUnlinkTarget] = useState<{ id: string; oda_number: string } | null>(null);
@@ -49,10 +44,11 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items }: LinkedPu
   // Unlink mutation
   const unlinkMutation = useMutation({
     mutationFn: async (poId: string) => {
+      if (!canEditOrders || !companyId) throw new Error("Permessi insufficienti");
       const { error } = await supabase
         .from("purchase_orders")
-        .update({ order_id: null } as Record<string, unknown>)
-        .eq("id", poId);
+        .update({ order_id: null })
+        .eq("id", poId).eq("company_id", companyId).eq("order_id", orderId);
       if (error) throw error;
 
       // Diario: senza company_id (NOT NULL) l'insert falliva SEMPRE, e il
@@ -68,6 +64,7 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items }: LinkedPu
       if (diaryErr) logger.error("[LinkedPurchaseOrdersCard] evento diario non registrato:", diaryErr);
     },
     onSuccess: () => {
+      refreshMaterialQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: ["linked-purchase-orders", orderId] });
       queryClient.invalidateQueries({ queryKey: ["unlinked-purchase-orders", companyId] });
       queryClient.invalidateQueries({ queryKey: ["oes-oda", orderId] });
@@ -80,13 +77,13 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items }: LinkedPu
     },
   });
 
-  const { data: linkedPOs = [], isLoading } = useQuery({
-    queryKey: ["linked-purchase-orders", orderId],
+  const { data: linkedPOs = [], isLoading, isError, refetch, isFetching } = useQuery({
+    queryKey: ["linked-purchase-orders", orderId, companyId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("purchase_orders")
         .select("id, oda_number, status, total, suppliers(name)")
-        .eq("order_id", orderId)
+        .eq("order_id", orderId).eq("company_id", companyId!)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data as unknown as Array<{
@@ -97,7 +94,7 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items }: LinkedPu
         suppliers: { name: string } | null;
       }>;
     },
-    enabled: !!orderId,
+    enabled: !!orderId && !!companyId,
   });
 
   // DDT aggregato per ODA — evidenzia stato ricezione nei collegamenti
@@ -105,13 +102,13 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items }: LinkedPu
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
+      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-3">
         <CardTitle className="flex items-center gap-2 text-base min-w-0">
           <Package className="h-4 w-4 shrink-0" />
-          <span className="truncate">OdA Collegati</span>
+          <span className="truncate">Ordini ai fornitori</span>
         </CardTitle>
         <div className="flex items-center gap-2 shrink-0">
-          <Button variant="outline" size="sm" onClick={() => setLinkDialogOpen(true)}>
+          <Button variant="outline" size="sm" disabled={!canEditOrders} onClick={() => setLinkDialogOpen(true)}>
             <Link2 className="h-4 w-4 mr-1.5" />
             Collega OdA
           </Button>
@@ -121,6 +118,8 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items }: LinkedPu
       <CardContent>
         {isLoading ? (
           <p className="text-sm text-muted-foreground">Caricamento...</p>
+        ) : isError ? (
+          <div role="alert" className="flex flex-wrap gap-3 items-center text-sm">Impossibile caricare gli ordini collegati.<Button size="sm" variant="outline" disabled={isFetching} onClick={() => refetch()}>Riprova</Button></div>
         ) : linkedPOs.length === 0 ? (
           <p className="text-sm text-muted-foreground">Nessun ordine d'acquisto collegato.</p>
         ) : (
@@ -166,7 +165,8 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items }: LinkedPu
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="h-8 w-8 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                      disabled={!canEditOrders}
                       onClick={(e) => { e.stopPropagation(); setUnlinkTarget({ id: po.id, oda_number: po.oda_number }); }}
                       aria-label={`Scollega OdA ${po.oda_number}`}
                     >

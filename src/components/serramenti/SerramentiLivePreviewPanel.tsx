@@ -8,8 +8,8 @@
  *
  * Funzioni:
  *  - Auto-scroll: quando cambi pagina a sinistra (Chi siamo, Il percorso…),
- *    l'anteprima scrolla alla pagina PDF corrispondente e la evidenzia. Il match
- *    è per TESTO (via pdfjs getTextContent) → robusto all'ordine dinamico pagine.
+ *    l'anteprima risolve il segnalibro semantico del capitolo nei metadati PDF.
+ *    Titoli modificati, pagine nascoste e ordine dinamico non cambiano la chiave.
  *  - Zoom + adatta larghezza.
  *  - Refresh fluido: mantiene le pagine vecchie durante la rigenerazione + barra
  *    di avanzamento; niente sfarfallio.
@@ -17,15 +17,19 @@
  * Pipeline: @react-pdf/renderer → blob → pdfjs → render pagina-per-pagina su
  * <canvas> (niente iframe → nessun blocco browser).
  */
-import { useEffect, useState, useRef, useMemo } from "react";
+import { useEffect, useState, useRef, useMemo, type ReactElement } from "react";
+import type { DocumentProps } from "@react-pdf/renderer";
 import { Loader2, RefreshCw, Download, AlertCircle, ExternalLink, Eye, ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import type { SrTemplatePdfRow } from "@/types/serramenti";
 import { buildMockPdfData } from "@/lib/serramenti/mockPdfData";
+import type { SerramentiTemplateModuleId } from "@/lib/moduli-vendita/serramentiTemplateModules";
 
 import { useIsMobile } from "@/hooks/use-mobile";
+import { srEditorPreviewSection, srPreviewPage } from "./srSemanticPreview";
 interface Props {
+  moduleId?: SerramentiTemplateModuleId;
   /** Template corrente in edit (anche con modifiche non salvate). */
   template: Partial<SrTemplatePdfRow> | null;
   companyName?: string | null;
@@ -39,24 +43,12 @@ interface Props {
 
 type Status = "idle" | "loading" | "ready" | "error";
 
-// Sezione editor → parole-chiave da cercare nel testo delle pagine PDF.
-// La prima pagina che contiene una qualsiasi keyword (case-insensitive) è il target.
-// "cover" è speciale (sempre pagina 1). Le sezioni "Dati & contenuti" non hanno
-// una pagina propria → nessun auto-scroll.
-const SECTION_PAGE_KEYWORDS: Record<string, string[]> = {
-  "chi-siamo": ["chi siamo"],
-  percorso: ["il tuo percorso"],
-  consulente: ["la tua consulenza"],
-  recensioni: ["testimonianze", "dicono di noi", "recensioni"],
-  render: ["render ai", "anteprima visiva"],
-  cta: ["il prossimo passo", "cosa fare adesso"],
-};
-
 const ZOOM_MIN = 0.5;
 const ZOOM_MAX = 2.5;
 const ZOOM_STEP = 0.25;
 
 export function SerramentiLivePreviewPanel({
+  moduleId,
   template,
   companyName,
   companyLogoUrl,
@@ -68,9 +60,12 @@ export function SerramentiLivePreviewPanel({
   const isMobile = useIsMobile();
   const [status, setStatus] = useState<Status>("idle");
   const [pageCount, setPageCount] = useState(0);
+  const [sectionNotice, setSectionNotice] = useState<{ section: string; text: string } | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [renderNonce, setRenderNonce] = useState(0);
+  const [canvasRevision, setCanvasRevision] = useState(0);
+  const [containerWidth, setContainerWidth] = useState(0);
   const [zoom, setZoom] = useState(1);
   const [highlightedPage, setHighlightedPage] = useState<number | null>(null);
 
@@ -80,13 +75,12 @@ export function SerramentiLivePreviewPanel({
   const lastBlobUrlRef = useRef<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const genIdRef = useRef(0);
-  // Cache dei testi per pagina (per l'auto-scroll), valida per un dato renderNonce.
-  const pageTextsRef = useRef<{ nonce: number; texts: string[] } | null>(null);
+  const renderedDocRef = useRef<unknown>(null);
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const templateKey = useMemo(
-    () => JSON.stringify(template) + "|" + (companyName ?? "") + "|" + (companyLogoUrl ?? "") + "|" + (companyLogoDarkUrl ?? "") + "|" + (companyBrandColor ?? "") + "|" + (companyIndirizzo ?? ""),
-    [template, companyName, companyLogoUrl, companyLogoDarkUrl, companyBrandColor, companyIndirizzo],
+    () => JSON.stringify(template) + "|" + (moduleId ?? "") + "|" + (companyName ?? "") + "|" + (companyLogoUrl ?? "") + "|" + (companyLogoDarkUrl ?? "") + "|" + (companyBrandColor ?? "") + "|" + (companyIndirizzo ?? ""),
+    [template, moduleId, companyName, companyLogoUrl, companyLogoDarkUrl, companyBrandColor, companyIndirizzo],
   );
 
   const generate = async () => {
@@ -106,10 +100,10 @@ export function SerramentiLivePreviewPanel({
       pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
 
       const enriched = await buildMockPdfData({
-        template, companyName, companyLogoUrl, companyLogoDarkUrl, companyBrandColor, companyIndirizzo,
+        template, moduleId, companyName, companyLogoUrl, companyLogoDarkUrl, companyBrandColor, companyIndirizzo,
       });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const element = React.createElement(SerramentoPDF as any, enriched);
+      // SerramentoPDF returns a Document; react-pdf's API only types the root props.
+      const element = React.createElement(SerramentoPDF, enriched) as unknown as ReactElement<DocumentProps>;
       const blob = await Promise.race([
         pdf(element).toBlob(),
         new Promise<never>((_, reject) =>
@@ -128,7 +122,6 @@ export function SerramentiLivePreviewPanel({
       if (lastBlobUrlRef.current) URL.revokeObjectURL(lastBlobUrlRef.current);
       lastBlobUrlRef.current = URL.createObjectURL(blob);
       pdfDocRef.current = pdfDoc;
-      pageTextsRef.current = null; // invalida cache testi
       setPageCount(pdfDoc.numPages);
       setStatus("ready");
       setRenderNonce((n) => n + 1);
@@ -152,16 +145,28 @@ export function SerramentiLivePreviewPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [templateKey]);
 
+  // The compact workspace hides the preview without unmounting it. Wait for
+  // real width and rerender/resync when revealed, retaining the chosen zoom.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const measure = () => setContainerWidth(container.clientWidth);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [status]);
+
   // Render delle pagine su canvas dopo ogni generazione riuscita o cambio zoom.
   useEffect(() => {
     if (status !== "ready" || !pdfDocRef.current) return;
     const pdfDoc = pdfDocRef.current;
     const container = containerRef.current;
-    if (!container) return;
+    if (!container || containerWidth <= 0) return;
+    renderedDocRef.current = null;
 
     let cancelled = false;
     (async () => {
-      const containerWidth = container.clientWidth || 420;
       const A4_WIDTH_PT = 595;
       const fitScale = Math.min(1.6, Math.max(0.4, (containerWidth - 24) / A4_WIDTH_PT));
       const scale = fitScale * zoom;
@@ -180,17 +185,23 @@ export function SerramentiLivePreviewPanel({
         if (!ctx) continue;
         await page.render({ canvasContext: ctx, viewport, canvas }).promise;
       }
+      if (!cancelled) {
+        renderedDocRef.current = pdfDoc;
+        setCanvasRevision(n => n + 1);
+      }
     })().catch((e) => console.error("[live-preview] errore render pagine:", e));
 
     return () => { cancelled = true; };
-  }, [renderNonce, status, pageCount, zoom]);
+  }, [renderNonce, status, pageCount, zoom, containerWidth]);
 
-  // Auto-scroll alla pagina della sezione attiva (match per testo).
+  // Resolve metadata only after canvas sizes settle; no text or page-number guesses.
   useEffect(() => {
     if (status !== "ready" || !activeSection) return;
     const container = containerRef.current;
     const pdfDoc = pdfDocRef.current;
-    if (!container || !pdfDoc) return;
+    if (!container || !pdfDoc || containerWidth <= 0 || renderedDocRef.current !== pdfDoc) return;
+    const section = srEditorPreviewSection(activeSection);
+    if (!section) return;
 
     let cancelled = false;
     const scrollToPage = (pageNum: number) => {
@@ -203,39 +214,18 @@ export function SerramentiLivePreviewPanel({
       highlightTimerRef.current = setTimeout(() => setHighlightedPage(null), 1600);
     };
 
-    // Cover → sempre pagina 1.
-    if (activeSection === "cover") {
-      scrollToPage(1);
-      return;
-    }
-    const keywords = SECTION_PAGE_KEYWORDS[activeSection];
-    if (!keywords) return; // sezione senza pagina dedicata → niente scroll
-
     (async () => {
-      // Estrai (e cache) i testi di tutte le pagine per questo renderNonce.
-      if (!pageTextsRef.current || pageTextsRef.current.nonce !== renderNonce) {
-        const texts: string[] = [];
-        for (let i = 1; i <= pdfDoc.numPages; i++) {
-          if (cancelled) return;
-          try {
-            const page = await pdfDoc.getPage(i);
-            const tc = await page.getTextContent();
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            texts[i - 1] = (tc.items as any[]).map((it) => it.str ?? "").join(" ").toLowerCase();
-          } catch {
-            texts[i - 1] = "";
-          }
-        }
-        if (cancelled) return;
-        pageTextsRef.current = { nonce: renderNonce, texts };
-      }
-      const texts = pageTextsRef.current.texts;
-      const targetIdx = texts.findIndex((t) => keywords.some((k) => t.includes(k)));
-      if (targetIdx >= 0) scrollToPage(targetIdx + 1);
-    })();
+      const page = await srPreviewPage(pdfDoc, section);
+      if (cancelled || pdfDocRef.current !== pdfDoc) return;
+      const present = page !== null && Number.isInteger(page) && page >= 1 && page <= pdfDoc.numPages;
+      setSectionNotice({ section: activeSection, text: present ? `Sezione selezionata · pagina ${page} di ${pdfDoc.numPages}` : "Sezione non presente in questo PDF: vista mantenuta." });
+      if (present) scrollToPage(page);
+    })().catch(() => {
+      if (!cancelled && pdfDocRef.current === pdfDoc) setSectionNotice({ section: activeSection, text: "Posizione della sezione non disponibile: vista mantenuta." });
+    });
 
     return () => { cancelled = true; };
-  }, [activeSection, renderNonce, status]);
+  }, [activeSection, canvasRevision, status, containerWidth]);
 
   // Cleanup allo smontaggio.
   useEffect(() => {
@@ -249,7 +239,7 @@ export function SerramentiLivePreviewPanel({
     if (!lastBlobUrlRef.current) return;
     const a = document.createElement("a");
     a.href = lastBlobUrlRef.current;
-    a.download = "anteprima-template.pdf";
+    a.download = moduleId ? `anteprima-${moduleId}.pdf` : "anteprima-template.pdf";
     a.click();
     toast.success("Anteprima scaricata");
   };
@@ -309,6 +299,7 @@ export function SerramentiLivePreviewPanel({
         </div>
       </div>
 
+      {status === "ready" && sectionNotice?.section === activeSection && <p role="status" className="shrink-0 border-b px-3 py-1 text-[10px] text-muted-foreground">{sectionNotice.text}</p>}
       {/* Area scrollabile con le pagine */}
       <div className="flex-1 overflow-auto bg-muted/40 relative" ref={containerRef}>
         {status === "loading" && (

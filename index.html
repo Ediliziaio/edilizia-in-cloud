@@ -52,6 +52,14 @@
           return (tag === 'script' || tag === 'link') && /\/assets-v\d+\//.test(src);
         }
         function onError(msg, target) {
+          if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
+            // Keep a useful local diagnostic when a module fails before React
+            // mounts. Store no credentials, browser state or full signed URLs.
+            var source = target && (target.src || target.href);
+            var sourcePath = '';
+            try { sourcePath = source ? new URL(source, location.href).pathname : ''; } catch (e) {}
+            window.__EIC_LOCAL_BOOT_ERROR__ = msg || ('Modulo non caricato: ' + sourcePath);
+          }
           if (_recovered) return;
           var targetUrl = target && (target.src || target.href || '');
           var isLocalDevModule =
@@ -818,6 +826,9 @@
         }
 
         function showBootstrapFallback(reason) {
+          if (IS_LOCAL_DEV && window.__EIC_LOCAL_BOOT_ERROR__) {
+            reason = window.__EIC_LOCAL_BOOT_ERROR__;
+          }
           var root = document.getElementById('root');
           var bootGuard = document.getElementById('eic-boot-guard');
           var target = bootGuard || root;

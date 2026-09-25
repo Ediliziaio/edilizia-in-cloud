@@ -88,6 +88,7 @@ export function BulkPriceAdjustDialog({
           if (res.changedVendita) payload.prezzo_vendita = res.prezzo_vendita;
           if (res.changedCosto) {
             payload.costo_interno = res.costo_interno;
+            payload.costo_default = res.costo_interno;
             payload.prezzo_costo = res.costo_interno; // mirror legacy
           }
           const { error } = await supabase

@@ -23,9 +23,12 @@ export function fraseValiditaChiusura(testo: string | null | undefined, giorni: 
     // Il testo dell'editor è spesso già una frase completa («Offerta valida 30
     // giorni…»): incollarlo dopo «è valido» produceva doppioni sgrammaticati.
     const senzaPunto = libero.replace(/\.+$/, "");
-    return /^(offerta|valid|prevent|quest)/i.test(libero) || /valid/i.test(libero)
-      ? `${senzaPunto}.`
-      : `Questo preventivo è valido ${senzaPunto}.`;
+    // Only duration fragments need a prefix. Preserve any other full free-text
+    // statement, including demo notices, without turning it into a validity claim.
+    const frammentoDurata = /^(?:per\s+)?(?:\d+|un|una|due|tre|quattro|cinque|sette|dieci|quindici|trenta|sessanta)\s+(?:giorn|settiman|mes|ann)/i.test(libero)
+      || /^(?:fino|sino|entro)\s/i.test(libero);
+    const frase = frammentoDurata ? `Questo preventivo è valido ${senzaPunto}` : senzaPunto;
+    return /[!?]$/.test(frase) ? frase : `${frase}.`;
   }
   const n = giorniDiValidita(giorni);
   return n

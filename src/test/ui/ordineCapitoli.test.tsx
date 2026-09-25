@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { useState } from "react";
 
@@ -9,6 +10,7 @@ vi.mock("@/components/ui/rich-text-editor-safe", () => ({
 }));
 
 import { OrdineCapitoli } from "@/components/preventivi/OrdineCapitoli";
+import { withEdilePageVisibility, type EdileVisibilitySettings } from "@/components/preventivi/edilePageVisibility";
 
 /** «Ordine e pagine» nell'editor, usato come lo usa un'azienda. */
 afterEach(cleanup);
@@ -31,6 +33,19 @@ const salvato = () => JSON.parse(screen.getByTestId("salvato").textContent ?? "{
 const righe = () => screen.getAllByRole("listitem").map((li) => (li.querySelector("p")?.textContent ?? "").replace(/pagina vostra$/, "").trim());
 
 describe("editor: ordine e pagine", () => {
+  it("the eye reactivates a legacy-disabled page and does not activate its sibling", () => {
+    function LegacyEditor() {
+      const [settings, setSettings] = useState<EdileVisibilitySettings>({ show_percorso: false, show_garanzie: false });
+      return <OrdineCapitoli ordine={settings.pdf_ordine_capitoli} pagine={[]} visibilitySettings={settings} onVisibilityChange={(chapter, value) => setSettings(previous => withEdilePageVisibility(previous, chapter, value))} onOrdine={value => setSettings(previous => ({ ...previous, pdf_ordine_capitoli: value }))} onPagine={() => {}} campoFoto={() => null} />;
+    }
+    render(<LegacyEditor />);
+    fireEvent.click(screen.getByRole("button", { name: "Mostra Come lavoriamo" }));
+    expect(screen.getByRole("button", { name: "Nascondi Come lavoriamo" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Mostra Le garanzie" }));
+    expect(screen.getByRole("button", { name: "Nascondi Le garanzie" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Mostra Domande e risposte" })).toBeInTheDocument();
+  });
+
   it("mostra l'ordine di serie, con l'apertura in testa", () => {
     render(<Editor />);
     expect(righe().slice(0, 3)).toEqual(["Apertura", "Chi siamo", "Il progetto"]);
@@ -77,7 +92,7 @@ describe("editor: ordine e pagine", () => {
     const apri = vi.fn();
     render(<Editor apriSezione={apri} />);
     expect(screen.getAllByText(/Promette qualcosa al cliente: rileggila/).length).toBe(5);
-    for (const nome of ["Protezione della casa", "Dicono di noi", "Le garanzie", "Domande e risposte", "Chi siamo", "I prossimi passi"]) {
+    for (const nome of ["Protezione degli ambienti", "Dicono di noi", "Le garanzie", "Domande e risposte", "Chi siamo", "I prossimi passi"]) {
       fireEvent.click(screen.getByRole("button", { name: `Modifica ${nome}` }));
     }
     expect(apri.mock.calls.map((c) => c[0])).toEqual(["page_protezione", "page_testimonianze", "garanzie", "page_domande", "page_chi_siamo", "page_chiusura"]);
@@ -96,7 +111,7 @@ describe("editor: ordine e pagine", () => {
 
   it("senza chi apre le sezioni, niente matita sulle pagine: restano le pagine vostre", () => {
     render(<Editor />);
-    expect(screen.queryByRole("button", { name: "Modifica Protezione della casa" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Modifica Protezione degli ambienti" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Aggiungi una pagina vostra/ }));
     expect(screen.getByPlaceholderText("Le nostre *certificazioni*.")).toBeInTheDocument();
   });

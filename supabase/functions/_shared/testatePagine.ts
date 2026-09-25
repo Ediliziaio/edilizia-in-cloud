@@ -90,9 +90,15 @@ export function leggiTestata(pagina: PaginaConTestata, motore: MotoreTestate, sa
   const tutti = salvati && typeof salvati === "object" ? (salvati as Record<string, unknown>) : {};
   const s = tutti[chiaveTestata(pagina)];
   const propria = s && typeof s === "object" ? (s as Record<string, unknown>) : {};
+  // Un intervento conserva la propria testata anche dopo «Ripristina»: non
+  // deve tornare, per esempio, alla garanzia dei pannelli se vende accumulo.
+  const defaults = tutti.modulo_defaults;
+  const modello = defaults && typeof defaults === "object"
+    ? (defaults as Record<string, unknown>)[chiaveTestata(pagina)] : null;
+  const diModulo = modello && typeof modello === "object" ? modello as Record<string, unknown> : {};
   return {
-    occhiello: scritto(propria.occhiello, LUNGHEZZA_TESTATA.occhiello) ?? base.occhiello,
-    titolo: scritto(propria.titolo, LUNGHEZZA_TESTATA.titolo) ?? base.titolo,
-    intro: scritto(propria.intro, LUNGHEZZA_TESTATA.intro) ?? base.intro,
+    occhiello: scritto(propria.occhiello, LUNGHEZZA_TESTATA.occhiello) ?? scritto(diModulo.occhiello, LUNGHEZZA_TESTATA.occhiello) ?? base.occhiello,
+    titolo: scritto(propria.titolo, LUNGHEZZA_TESTATA.titolo) ?? scritto(diModulo.titolo, LUNGHEZZA_TESTATA.titolo) ?? base.titolo,
+    intro: scritto(propria.intro, LUNGHEZZA_TESTATA.intro) ?? scritto(diModulo.intro, LUNGHEZZA_TESTATA.intro) ?? base.intro,
   };
 }

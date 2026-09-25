@@ -1,0 +1,16 @@
+{
+  "method": "built-in image_gen",
+  "purpose": "Immagini illustrative, non foto di lavori realizzati o di prodotti effettivamente forniti.",
+  "images": [
+    {
+      "asset": "serramenti-porte-interne-cover.jpg",
+      "source": "exec-1b986edc-183d-4c25-b6b8-48ac17db666d.png",
+      "prompt": "Use case: photorealistic-natural. Asset type: portrait quotation PDF cover for interior doors. A calm, refined Italian apartment hallway, natural light, warm oak floor, soft off-white plaster. Main subject one elegant closed full-height interior hinged door in pale oak with a correctly proportioned matching frame, simple satin metal lever handle at realistic height; a second coordinated interior door visible deeper in the hallway. Architectural editorial photography, straight verticals, realistic seams and door construction. Portrait 2:3, show doors prominently in upper two-thirds and quiet floor below for a later title overlay. Warm understated contemporary home, no people, no logos, no words, no watermark, no front entrance security door. Natural believable materials, restrained styling, no excessive luxury."
+    },
+    {
+      "asset": "serramenti-porte-interne-dettaglio.jpg",
+      "source": "exec-1a2734d6-ad5d-40eb-b7a9-c27e22e8171a.png",
+      "prompt": "Use case: product-mockup. Asset type: landscape 3:2 editorial detail photograph for interior-door quote PDF, not a technical drawing. Close-up of a high-quality pale natural oak interior hinged door slightly ajar, showing the satin nickel lever handle and the clean latch edge, frame and matching trim. Correct plausible single lever handle construction, narrow shadow gap, crisp oak texture. Soft daylight in understated Italian home, warm white wall, small strip of oak flooring visible. Architectural product photography, quiet uncluttered background, refined muted neutrals. No text, labels, logos, certifications, watermark or people. Do not show entrance-door security mechanisms; ordinary interior door hardware. Subject centred with space around it for crop in PDF."
+    }
+  ]
+}

@@ -19,7 +19,8 @@
  * via `toDataUrl` perché react-pdf supporta solo JPG/PNG e alcune foto possono
  * essere WEBP: la conversione canvas le rende sicure per il renderer.
  */
-import { useState } from "react";
+import { useState, type ReactElement } from "react";
+import type { DocumentProps } from "@react-pdf/renderer";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { getClmTemplatePdf } from "@/hooks/useClimatizzazioneProgetto";
@@ -101,6 +102,8 @@ export const DEFAULT_COMPUTO_OPTIONS: ClmPdfComputoOptions = {
 };
 
 export interface ClmPdfPayload {
+  /** Local module preview: explicit template, no database reads or media signing. */
+  localOnly?: boolean;
   progetto: ClmProgetto;
   computo: ClmComputoVoce[];
   media: ClmProgettoMedia[];
@@ -133,16 +136,17 @@ async function mapWithConcurrency<T, R>(
 }
 
 // ─── Enrich ──────────────────────────────────────────────────────────────────
-async function enrichForPdf(opts: ClmPdfPayload): Promise<ClmPdfEnriched> {
+export async function enrichClimatizzazionePdf(opts: ClmPdfPayload): Promise<ClmPdfEnriched> {
   const { progetto, computo, media } = opts;
   const companyId = progetto.company_id;
 
   // 1) Template: fresco da DB se non passato (riflette l'ultimo salvataggio).
+  if (opts.localOnly && !opts.template) throw new Error("Il modello locale deve essere passato esplicitamente.");
   const template = opts.template ?? (await getClmTemplatePdf(companyId));
 
   // 2) Company (anagrafica per intestazione/contatti). Best-effort.
   let company: ClmPdfCompany | null = opts.company ?? null;
-  if (!company && companyId) {
+  if (!opts.localOnly && !company && companyId) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data } = await (supabase as any)
       .from("companies")
@@ -240,7 +244,7 @@ async function enrichForPdf(opts: ClmPdfPayload): Promise<ClmPdfEnriched> {
     toDataUrl(template.logo_url ?? company?.logo_url ?? null),
     toDataUrl(template.chi_siamo_foto_url ?? null),
     // Copertina (in tinta col colore dell'azienda), logo di copertina e galleria dei lavori.
-    immaginiDelModello("climatizzazione", template as unknown as Record<string, unknown>, company?.logo_chiaro_url ?? null, companyId),
+    immaginiDelModello("climatizzazione", { ...template, ...(opts.localOnly ? { company_id: null } : {}) } as unknown as Record<string, unknown>, company?.logo_chiaro_url ?? null, opts.localOnly ? null : companyId),
   ]);
   const inlinedTemplate = {
     ...template,
@@ -258,7 +262,7 @@ async function enrichForPdf(opts: ClmPdfPayload): Promise<ClmPdfEnriched> {
   const imageMedia = [...media]
     .filter((m) => Boolean(m.url) && !/\.pdf($|\?)/i.test(m.url))
     .sort((a, b) => (a.ordine ?? 0) - (b.ordine ?? 0));
-  const linkMedia = await linkFileRiservati(imageMedia.map((m) => m.url));
+  const linkMedia = opts.localOnly ? imageMedia.map(m => m.url.startsWith("data:image/") || (m.url.startsWith("/") && !m.url.startsWith("//")) ? m.url : null) : await linkFileRiservati(imageMedia.map((m) => m.url));
   const inlinedUrls = await mapWithConcurrency(imageMedia, 4, async (_m, i) => toDataUrl(linkMedia[i]));
   const inlinedMedia: ClmProgettoMedia[] = imageMedia
     .map((m, i) => ({ ...m, url: inlinedUrls[i] ?? linkMedia[i] ?? "" }))
@@ -281,14 +285,14 @@ async function enrichForPdf(opts: ClmPdfPayload): Promise<ClmPdfEnriched> {
  * o al unmount. Non apre tab né scarica: serve solo la sorgente per l'iframe.
  */
 export async function renderClmPreviewBlobUrl(opts: ClmPdfPayload): Promise<string> {
-  const enriched = await enrichForPdf(opts);
+  const enriched = await enrichClimatizzazionePdf(opts);
   const [{ pdf }, { ClimatizzazionePDF }, React] = await Promise.all([
     import("@react-pdf/renderer"),
     import("@/components/climatizzazione/ClimatizzazionePDF"),
     import("react"),
   ]);
   const element = React.createElement(ClimatizzazionePDF, enriched);
-  const blob = await pdf(element).toBlob();
+  const blob = await pdf(element as unknown as ReactElement<DocumentProps>).toBlob();
   return URL.createObjectURL(blob);
 }
 
@@ -310,14 +314,14 @@ export function useClimatizzazionePDF() {
         });
         return { ok: false };
       }
-      const enriched = await enrichForPdf(opts);
+      const enriched = await enrichClimatizzazionePdf(opts);
       const [{ pdf }, { ClimatizzazionePDF }, React] = await Promise.all([
         import("@react-pdf/renderer"),
         import("@/components/climatizzazione/ClimatizzazionePDF"),
         import("react"),
       ]);
       const element = React.createElement(ClimatizzazionePDF, enriched);
-      const blob = await pdf(element).toBlob();
+      const blob = await pdf(element as unknown as ReactElement<DocumentProps>).toBlob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       const filename = buildFilename(opts.progetto);
@@ -350,14 +354,14 @@ export function useClimatizzazionePDF() {
         });
         return;
       }
-      const enriched = await enrichForPdf(opts);
+      const enriched = await enrichClimatizzazionePdf(opts);
       const [{ pdf }, { ClimatizzazionePDF }, React] = await Promise.all([
         import("@react-pdf/renderer"),
         import("@/components/climatizzazione/ClimatizzazionePDF"),
         import("react"),
       ]);
       const element = React.createElement(ClimatizzazionePDF, enriched);
-      const blob = await pdf(element).toBlob();
+      const blob = await pdf(element as unknown as ReactElement<DocumentProps>).toBlob();
       const url = URL.createObjectURL(blob);
       const win = window.open(url, "_blank");
       const revoke = () => { try { URL.revokeObjectURL(url); } catch { /* noop */ } };

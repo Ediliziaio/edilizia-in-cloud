@@ -20,6 +20,13 @@ export interface Installment {
   trigger_numero?: number | null;
   /** Giorni di anticipo dell'avviso "non hai ancora incassato". */
   giorni_preavviso?: number | null;
+  /**
+   * Fattura della fatturazione interna che incassa questa rata (25/09/2026):
+   * pagata l'una, pagata l'altra, lo tiene il database. `fattura` è letta
+   * insieme alla rata, per mostrarla.
+   */
+  documento_fiscale_id?: string | null;
+  fattura?: { id: string; numero: string | null; stato: string | null } | null;
 }
 
 /**

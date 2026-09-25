@@ -12,8 +12,10 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { ImgRiservata } from "@/components/common/ImgRiservata";
 import { riferimentoImmagine } from "@/lib/storage/immaginiModelloPdf";
+import { readLocalTemplateImage } from "@/lib/moduli-vendita/localTemplateImage";
 
 interface Props {
+  localOnly?: boolean;
   valore: string | null;
   onChange: (valore: string | null) => void;
   bucket: "sr-progetti" | "fv-progetti";
@@ -21,7 +23,7 @@ interface Props {
   cartella: string | null;
 }
 
-export function CampoFotoModello({ valore, onChange, bucket, cartella }: Props) {
+export function CampoFotoModello({ valore, onChange, bucket, cartella, localOnly = false }: Props) {
   const input = useRef<HTMLInputElement>(null);
   const [carica, setCarica] = useState(false);
 
@@ -32,6 +34,11 @@ export function CampoFotoModello({ valore, onChange, bucket, cartella }: Props) 
     if (!cartella) { toast.error("Profilo senza azienda"); return; }
     setCarica(true);
     try {
+      if (localOnly) {
+        onChange(await readLocalTemplateImage(file));
+        toast.success("Foto caricata nella bozza locale. Salva per conservarla.");
+        return;
+      }
       const ext = file.name.includes(".") ? file.name.split(".").pop()!.toLowerCase() : "jpg";
       const percorso = `${cartella}/${crypto.randomUUID()}.${ext}`;
       const { error } = await supabase.storage.from(bucket).upload(percorso, file, { contentType: file.type, upsert: false });

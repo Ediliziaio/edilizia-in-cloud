@@ -21,9 +21,11 @@ import { Home, MapPin, Calculator, ShieldAlert, AlertTriangle, HardHat } from "l
 import { calcSuperficieFalda, stimaLattoneria } from "@/lib/tetti/calcoli";
 import type { TetProgetto } from "@/types/tetti";
 import type { TetFormPatch } from "./types";
+import type { TETTI_TEMPLATE_MODULES } from "@/lib/moduli-vendita/tettiTemplateModules";
 
 interface Props {
   form: Partial<TetProgetto>;
+  model?: typeof TETTI_TEMPLATE_MODULES[number];
   onChange: <K extends keyof TetFormPatch>(key: K, value: TetFormPatch[K]) => void;
 }
 
@@ -64,7 +66,7 @@ const toInt = (raw: string): number | null => {
   return v == null ? null : Math.trunc(v);
 };
 
-export default function StepImmobile({ form, onChange }: Props) {
+export default function StepImmobile({ form, onChange, model }: Props) {
   // Derivati roof-specific (puri, nessuno stato): superficie reale di falda + stima lattoneria.
   const piantaMq = form.superficie_pianta_mq;
   const faldaMq = piantaMq != null && piantaMq > 0 ? calcSuperficieFalda(piantaMq, form.pendenza_pct ?? 0) : null;
@@ -87,7 +89,11 @@ export default function StepImmobile({ form, onChange }: Props) {
         {/* Tipo intervento */}
         <div>
           <Label className="text-xs">Tipo di intervento</Label>
-          <Select
+          {model ? <div className="mt-1 rounded-lg border bg-muted/30 p-3">
+            <p className="font-medium">{model.title}</p>
+            <p className="mt-1 text-xs text-muted-foreground">Intervento scelto all'inizio del preventivo.</p>
+            <ul className="mt-2 space-y-1 text-sm">{model.needs.map(need => <li key={need}>• {need}</li>)}</ul>
+          </div> : <Select
             value={form.tipo_intervento ?? ""}
             onValueChange={(v) => onChange("tipo_intervento", v)}
           >
@@ -99,7 +105,7 @@ export default function StepImmobile({ form, onChange }: Props) {
                 <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
               ))}
             </SelectContent>
-          </Select>
+          </Select>}
         </div>
 
         {/* Indirizzo cantiere */}

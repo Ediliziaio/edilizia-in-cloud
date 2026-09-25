@@ -19,6 +19,9 @@ describe("validità dell'offerta", () => {
     expect(fraseValiditaChiusura("Offerta valida 15 giorni.", 30)).toBe("Offerta valida 15 giorni.");
     expect(fraseValiditaChiusura("fino al 31 ottobre", 30)).toBe("Questo preventivo è valido fino al 31 ottobre.");
     expect(testoValiditaCondizioni("Valida fino a fine mese", 30)).toBe("Valida fino a fine mese");
+    expect(fraseValiditaChiusura("Esempio dimostrativo, non utilizzabile come offerta.", 30)).toBe("Esempio dimostrativo, non utilizzabile come offerta.");
+    expect(fraseValiditaChiusura("30 giorni dalla data di emissione", 10)).toBe("Questo preventivo è valido 30 giorni dalla data di emissione.");
+    expect(fraseValiditaChiusura("Le condizioni scadono il 30 ottobre.", 10)).toBe("Le condizioni scadono il 30 ottobre.");
   });
 
   it("senza testo contano i giorni del template", () => {

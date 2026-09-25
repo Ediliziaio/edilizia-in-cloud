@@ -1,0 +1,68 @@
+[
+  {
+    "id": "tetti",
+    "asset": "/module-art/tetti.jpg",
+    "mode": "builtin imagegen",
+    "prompt": "Premium editorial photograph of a traditional terracotta tiled roof on an Italian home, warm natural light, landscape 3:2, no text, logos or people. Illustrative area image, not an actual completed project."
+  },
+  {
+    "id": "serramenti",
+    "asset": "/module-art/serramenti.jpg",
+    "mode": "builtin imagegen",
+    "prompt": "Use case: photorealistic-natural. Asset type: illustrative construction quotation area card and PDF cover. Single premium editorial architectural photograph, landscape 3:2. Subject: An Italian home facade at human scale with a modern tall glazed door, white window frames and sage green louvered shutters clearly visible, natural stone windowsill, refined hardware. Warm soft daylight, authentic materials, neutral natural palette, restrained architectural magazine look, physically plausible. Keep main subject central for banner cropping. No text, labels, brands, logos, watermark, people or collage. Illustration only, not proof of completed work."
+  },
+  {
+    "id": "bagni",
+    "asset": "/module-art/bagni.jpg",
+    "mode": "builtin imagegen",
+    "prompt": "Use case: photorealistic-natural. Asset type: illustrative construction quotation area card and PDF cover. Single premium editorial architectural photograph, landscape 3:2. Subject: A realistic contemporary Italian bathroom, walk-in glass shower with low threshold, wall hung toilet, warm oak vanity, large soft limestone tiles, chrome fittings. Wide accessible uncluttered circulation. Warm soft daylight, authentic materials, neutral natural palette, restrained architectural magazine look, physically plausible. Keep main subject central for banner cropping. No text, labels, brands, logos, watermark, people or collage. Illustration only, not proof of completed work."
+  },
+  {
+    "id": "fotovoltaico",
+    "asset": "/module-art/fotovoltaico.jpg",
+    "mode": "builtin imagegen",
+    "prompt": "Use case: photorealistic-natural. Asset type: illustrative construction quotation area card and PDF cover. Single premium editorial architectural photograph, landscape 3:2. Subject: A tidy small residential solar energy installation: rooftop photovoltaic panels in the background, white wall mounted inverter and floor-standing home battery inside an open adjacent utility alcove. No diagram, one believable architectural scene. Warm soft daylight, authentic materials, neutral natural palette, restrained architectural magazine look, physically plausible. Keep main subject central for banner cropping. No text, labels, brands, logos, watermark, people or collage. Illustration only, not proof of completed work."
+  },
+  {
+    "id": "climatizzazione",
+    "asset": "/module-art/climatizzazione.jpg",
+    "mode": "builtin imagegen",
+    "prompt": "Use case: photorealistic-natural. Asset type: illustrative construction quotation area card and PDF cover. Single premium editorial architectural photograph, landscape 3:2. Subject: A refined residential interior with one discreet wall mounted air conditioner clearly visible above a doorway, subtle ceiling air vent, warm neutral walls and open glass door to a terrace. No fake airflow graphics. Warm soft daylight, authentic materials, neutral natural palette, restrained architectural magazine look, physically plausible. Keep main subject central for banner cropping. No text, labels, brands, logos, watermark, people or collage. Illustration only, not proof of completed work."
+  },
+  {
+    "id": "termoidraulica",
+    "asset": "/module-art/termoidraulica.jpg",
+    "mode": "builtin imagegen",
+    "prompt": "Use case: photorealistic-natural. Asset type: illustrative construction quotation area card and PDF cover. Single premium editorial architectural photograph, landscape 3:2. Subject: A clean modern residential plant room with an unbranded white heat pump indoor unit, hot water cylinder, orderly copper pipes and a compact manifold. Realistic equipment scale and neat installation, no people. Warm soft daylight, authentic materials, neutral natural palette, restrained architectural magazine look, physically plausible. Keep main subject central for banner cropping. No text, labels, brands, logos, watermark, people or collage. Illustration only, not proof of completed work."
+  },
+  {
+    "id": "elettrico",
+    "asset": "/module-art/elettrico.jpg",
+    "mode": "builtin imagegen",
+    "prompt": "Use case: photorealistic-natural. Asset type: illustrative construction quotation area card and PDF cover. Single premium editorial architectural photograph, landscape 3:2. Subject: A modern Italian home's entrance hallway with a discreet closed white electrical distribution cabinet, wall switches and small unbranded home control screen in clear foreground, warm indirect lighting. Warm soft daylight, authentic materials, neutral natural palette, restrained architectural magazine look, physically plausible. Keep main subject central for banner cropping. No text, labels, brands, logos, watermark, people or collage. Illustration only, not proof of completed work."
+  },
+  {
+    "id": "pavimenti",
+    "asset": "/module-art/pavimenti.jpg",
+    "mode": "builtin imagegen",
+    "prompt": "Use case: photorealistic-natural. Asset type: illustrative construction quotation area card and PDF cover. Single premium editorial architectural photograph, landscape 3:2. Subject: A sunlit contemporary room showing immaculate natural oak parquet transitioning cleanly into pale stone floor tiles through an open doorway, emphasis on floor surface, material texture and clean skirting detail. Warm soft daylight, authentic materials, neutral natural palette, restrained architectural magazine look, physically plausible. Keep main subject central for banner cropping. No text, labels, brands, logos, watermark, people or collage. Illustration only, not proof of completed work."
+  },
+  {
+    "id": "piscine",
+    "asset": "/module-art/piscine.jpg",
+    "mode": "builtin imagegen",
+    "prompt": "Use case: photorealistic-natural. Asset type: illustrative construction quotation area card and PDF cover. Single premium editorial architectural photograph, landscape 3:2. Subject: A serene realistic contemporary residential swimming pool, pale stone coping and clear turquoise water, simple landscaped garden, unoccupied, human scale, no resort extravagance. Warm soft daylight, authentic materials, neutral natural palette, restrained architectural magazine look, physically plausible. Keep main subject central for banner cropping. No text, labels, brands, logos, watermark, people or collage. Illustration only, not proof of completed work."
+  },
+  {
+    "id": "facciate",
+    "asset": "/module-art/facciate.jpg",
+    "mode": "builtin imagegen",
+    "prompt": "Use case: photorealistic-natural. Asset type: illustrative construction quotation area card and PDF cover. Single premium editorial architectural photograph, landscape 3:2. Subject: An elegant renovated Italian residential building exterior, cream mineral plaster facade, clean window reveals and restrained architectural details, subtle contrast between plaster and natural stone plinth. No construction workers. Warm soft daylight, authentic materials, neutral natural palette, restrained architectural magazine look, physically plausible. Keep main subject central for banner cropping. No text, labels, brands, logos, watermark, people or collage. Illustration only, not proof of completed work."
+  },
+  {
+    "id": "ristrutturazioni",
+    "asset": "/module-art/ristrutturazioni.jpg",
+    "mode": "builtin imagegen",
+    "prompt": "Use case: photorealistic-natural. Asset type: illustrative construction quotation area card and PDF cover. Single premium editorial architectural photograph, landscape 3:2. Subject: A carefully renovated Italian apartment living room with open kitchen in background, natural oak floor, warm plaster walls, a clear well-proportioned doorway and integrated lighting, understated architectural photography. Warm soft daylight, authentic materials, neutral natural palette, restrained architectural magazine look, physically plausible. Keep main subject central for banner cropping. No text, labels, brands, logos, watermark, people or collage. Illustration only, not proof of completed work."
+  }
+]

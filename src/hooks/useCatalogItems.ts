@@ -76,8 +76,8 @@ function useArticleTemplatesLite() {
 
 export function useCatalogItems(params: UseCatalogItemsParams = {}) {
   const { categoriaId, search } = params;
-  const { families, isLoading: familiesLoading } = useFamilies();
-  const { data: articoli, isLoading: articoliLoading } = useArticleTemplatesLite();
+  const { families, isLoading: familiesLoading, error: familiesError } = useFamilies();
+  const { data: articoli, isLoading: articoliLoading, error: articlesError } = useArticleTemplatesLite();
 
   const items: CatalogItem[] = useMemo(() => {
     const famItems: CatalogItemFamily[] = (families ?? [])
@@ -160,6 +160,8 @@ export function useCatalogItems(params: UseCatalogItemsParams = {}) {
         if ((it.descrizione ?? "").toLowerCase().includes(q)) return true;
         if (it.source === "article" && (it.sku ?? "").toLowerCase().includes(q))
           return true;
+        if (it.source === "article" && [it.marca, it.article.modello].some((value) => (value ?? "").toLowerCase().includes(q)))
+          return true;
         return false;
       });
     }
@@ -175,6 +177,7 @@ export function useCatalogItems(params: UseCatalogItemsParams = {}) {
   return {
     items,
     isLoading: familiesLoading || articoliLoading,
+    error: familiesError || articlesError,
     queryKey: queryKeys.catalog.items(
       undefined,
       categoriaId ?? null,
