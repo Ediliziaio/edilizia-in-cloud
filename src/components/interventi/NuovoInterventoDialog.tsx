@@ -26,6 +26,12 @@ interface Props {
   onClose: () => void;
   /** Pre-selected customer id (es. from ImpiantoDetail) */
   defaultCustomerId?: string;
+  /**
+   * Nome del cliente pre-selezionato. Se il cliente non è nell'elenco del
+   * selettore (elenco non ancora caricato, o l'impianto è intestato a un
+   * profilo che non è tra i clienti) il campo restava vuoto e bloccato.
+   */
+  defaultCustomerLabel?: string;
   /** Pre-selected impianto id (es. from ImpiantoDetail) */
   defaultImpiantoId?: string;
   /** Called after successful creation (for cache invalidation) */
@@ -45,6 +51,7 @@ export function NuovoInterventoDialog({
   open,
   onClose,
   defaultCustomerId,
+  defaultCustomerLabel,
   defaultImpiantoId,
   onSuccess,
   noNavigate,
@@ -193,12 +200,12 @@ export function NuovoInterventoDialog({
       <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Wrench className="h-5 w-5 text-orange-500" />
+            <Wrench className="h-5 w-5 text-orange-500 max-sm:hidden" />
             Nuovo Intervento
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-4 max-sm:space-y-3">
           {/* Cliente */}
           <div className="space-y-1.5">
             <Label>Cliente *</Label>
@@ -211,6 +218,9 @@ export function NuovoInterventoDialog({
                 <SelectValue placeholder="Seleziona cliente..." />
               </SelectTrigger>
               <SelectContent>
+                {defaultCustomerId && !clienti.some((c) => c.id === defaultCustomerId) && (
+                  <SelectItem value={defaultCustomerId}>{defaultCustomerLabel || "Cliente dell'impianto"}</SelectItem>
+                )}
                 {clienti.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
                     {[c.first_name, c.last_name].filter(Boolean).join(" ")}
@@ -291,8 +301,8 @@ export function NuovoInterventoDialog({
             />
           </div>
 
-          {/* Data + Durata */}
-          <div className="grid grid-cols-2 gap-3">
+          {/* Data + Durata. Mobile: la durata stimata la mette chi pianifica al computer. */}
+          <div className="grid grid-cols-2 gap-3 max-sm:grid-cols-1">
             <div className="space-y-1.5">
               <Label>Data e ora prevista</Label>
               <Input
@@ -302,7 +312,7 @@ export function NuovoInterventoDialog({
                 disabled={mutation.isPending}
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 max-sm:hidden">
               <Label>Durata stimata (ore)</Label>
               <Input
                 type="number"
@@ -318,7 +328,8 @@ export function NuovoInterventoDialog({
 
           {/* Impianto */}
           {customerId && (impianti.length > 0 || defaultImpiantoId) && (
-            <div className="space-y-1.5">
+            // Mobile: se si parte dall'impianto, è già il contesto della pagina.
+            <div className={`space-y-1.5 ${defaultImpiantoId ? "max-sm:hidden" : ""}`}>
               <Label>Impianto collegato</Label>
               <Select
                 value={impiantoId || "none"}
@@ -346,7 +357,7 @@ export function NuovoInterventoDialog({
               tipo intervento del listino → prezzo da get_prezzo_intervento.
               Visibile solo se l'azienda ha configurato tipi a listino. */}
           {tipiImpianto.length > 0 && (
-            <div className="space-y-3 rounded-lg border bg-muted/20 p-3">
+            <div className="space-y-3 rounded-lg border bg-muted/20 p-3 max-sm:hidden">
               <div className="flex items-center gap-2">
                 <Tag className="h-4 w-4 text-teal-600" />
                 <Label className="font-medium">Tariffa di manutenzione (opzionale)</Label>
@@ -406,7 +417,7 @@ export function NuovoInterventoDialog({
 
           {/* Ordine */}
           {customerId && ordini.length > 0 && (
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 max-sm:hidden">
               <Label>Ordine collegato (opzionale)</Label>
               <Select value={orderId || "none"} onValueChange={(v) => setOrderId(v === "none" ? "" : v)}>
                 <SelectTrigger>
@@ -433,13 +444,14 @@ export function NuovoInterventoDialog({
               onChange={(e) => setNote(e.target.value)}
               placeholder="Descrivi il problema o istruzioni per il tecnico..."
               rows={3}
+              className="max-sm:min-h-[60px]"
               disabled={mutation.isPending}
             />
           </div>
         </div>
 
-        <DialogFooter className="flex justify-end gap-3 pt-2 border-t">
-          <Button variant="outline" onClick={handleClose} disabled={mutation.isPending}>
+        <DialogFooter className="flex justify-end gap-3 pt-2 border-t max-sm:border-t-0 max-sm:pt-0">
+          <Button variant="outline" className="max-sm:hidden" onClick={handleClose} disabled={mutation.isPending}>
             Annulla
           </Button>
           <Button

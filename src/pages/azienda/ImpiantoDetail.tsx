@@ -292,28 +292,30 @@ export default function ImpiantoDetail() {
   const garanziaGiorni = impianto.garanzia_scadenza ? differenceInDays(new Date(impianto.garanzia_scadenza), new Date()) : null;
 
   return (
-    <div className="p-6 space-y-6 max-w-4xl">
-      <div className="flex flex-wrap items-center gap-3">
-        <Button variant="ghost" size="sm" onClick={() => navigate("/azienda/manutenzione")} className="-ml-2">
+    <div className="p-6 space-y-6 max-w-4xl max-sm:space-y-3 max-sm:p-0">
+      {/* Mobile: titolo e due icone sulla stessa riga; la freccia indietro è
+          già nella barra in alto. */}
+      <div className="flex flex-wrap items-center gap-3 max-sm:flex-nowrap max-sm:gap-2">
+        <Button variant="ghost" size="sm" onClick={() => navigate("/azienda/manutenzione")} className="-ml-2 max-sm:hidden">
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="min-w-0 flex-1">
-          <h1 className="text-xl font-bold capitalize">{impianto.tipo_impianto?.replace("_", " ")} {impianto.marca && `— ${impianto.marca}`}</h1>
-          <p className="text-sm text-gray-500">{[(impianto.customer as any)?.first_name, (impianto.customer as any)?.last_name].filter(Boolean).join(" ") || ""}</p>
+          <h1 className="text-xl font-bold capitalize max-sm:text-lg max-sm:leading-tight">{impianto.tipo_impianto?.replace("_", " ")} {impianto.marca && `— ${impianto.marca}`}</h1>
+          <p className="text-sm text-gray-500 max-sm:text-xs">{[(impianto.customer as any)?.first_name, (impianto.customer as any)?.last_name].filter(Boolean).join(" ") || ""}</p>
         </div>
         {/* Barra azioni: secondaria icon-only, CTA che riempie su mobile. */}
-        <div className="flex w-full items-center gap-2 sm:w-auto">
+        <div className="flex w-full items-center gap-2 sm:w-auto max-sm:w-auto max-sm:shrink-0">
           <Button
             variant="outline"
             size="icon"
-            className="shrink-0"
+            className="shrink-0 tap-compact max-sm:h-8 max-sm:w-8"
             title={impianto.attivo === false ? "Ripristina impianto" : "Archivia impianto"}
             onClick={() => setArchiviaOpen(true)}
           >
             {impianto.attivo === false ? <ArchiveRestore className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
           </Button>
-          <Button className="flex-1 sm:flex-none gap-2" onClick={apriModificaImpianto}>
-            <Pencil className="h-4 w-4" /> Modifica
+          <Button className="flex-1 sm:flex-none gap-2 tap-compact max-sm:h-8 max-sm:w-8 max-sm:flex-none max-sm:p-0" aria-label="Modifica impianto" onClick={apriModificaImpianto}>
+            <Pencil className="h-4 w-4" /> <span className="max-sm:hidden">Modifica</span>
           </Button>
         </div>
       </div>
@@ -329,16 +331,18 @@ export default function ImpiantoDetail() {
       )}
 
       <Tabs defaultValue="scheda">
-        <TabsList>
-          <TabsTrigger value="scheda">Scheda Tecnica</TabsTrigger>
-          <TabsTrigger value="piano">Piano Manutenzione ({piani.length})</TabsTrigger>
-          <TabsTrigger value="interventi">Interventi ({interventiImpianto.length})</TabsTrigger>
-          <TabsTrigger value="contratto">Contratto</TabsTrigger>
+        {/* Mobile: scheda, piano e interventi (quel che serve sul posto); il
+            contratto si gestisce al computer. */}
+        <TabsList className="max-sm:grid max-sm:w-full max-sm:grid-cols-3">
+          <TabsTrigger value="scheda" className="max-sm:text-xs"><span className="max-sm:hidden">Scheda Tecnica</span><span className="sm:hidden">Scheda</span></TabsTrigger>
+          <TabsTrigger value="piano" className="max-sm:text-xs"><span className="max-sm:hidden">Piano Manutenzione ({piani.length})</span><span className="sm:hidden">Piano ({piani.length})</span></TabsTrigger>
+          <TabsTrigger value="interventi" className="max-sm:text-xs">Interventi ({interventiImpianto.length})</TabsTrigger>
+          <TabsTrigger value="contratto" className="max-sm:hidden">Contratto</TabsTrigger>
         </TabsList>
 
         {/* Scheda Tecnica */}
-        <TabsContent value="scheda" className="mt-4 space-y-4">
-          <div className="bg-white rounded-lg border p-4 grid grid-cols-2 gap-4 text-sm">
+        <TabsContent value="scheda" className="mt-4 space-y-4 max-sm:mt-3 max-sm:space-y-3">
+          <div className="bg-white rounded-lg border p-4 grid grid-cols-2 gap-4 text-sm max-sm:gap-3 max-sm:p-3 max-sm:text-[13px]">
             {[
               { label: "Tipo", value: impianto.tipo_impianto?.replace("_", " ") },
               { label: "Marca", value: impianto.marca },
@@ -364,18 +368,19 @@ export default function ImpiantoDetail() {
         </TabsContent>
 
         {/* Piano Manutenzione */}
-        <TabsContent value="piano" className="mt-4 space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="font-semibold">Piani di manutenzione</h3>
-            <Button size="sm" onClick={() => { setSelectedPianoId(piani[0]?.id ?? null); setEsecuzioneOpen(true); }} disabled={piani.length === 0} className="gap-2">
+        <TabsContent value="piano" className="mt-4 space-y-4 max-sm:mt-3 max-sm:space-y-3">
+          {/* Mobile: senza piani il bottone spento non serve; il titolo è la scheda. */}
+          <div className={`flex items-center justify-between max-sm:justify-end ${piani.length === 0 ? "max-sm:hidden" : ""}`}>
+            <h3 className="font-semibold max-sm:hidden">Piani di manutenzione</h3>
+            <Button size="sm" onClick={() => { setSelectedPianoId(piani[0]?.id ?? null); setEsecuzioneOpen(true); }} disabled={piani.length === 0} className="gap-2 max-sm:h-8 max-sm:text-xs">
               <Plus className="h-4 w-4" /> Registra Esecuzione
             </Button>
           </div>
 
           {piani.length === 0 ? (
-            <p className="text-center text-gray-500 py-8">Nessun piano configurato per questo impianto</p>
+            <p className="text-center text-gray-500 py-8 max-sm:py-5 max-sm:text-sm">Nessun piano configurato per questo impianto</p>
           ) : piani.map((piano: any) => (
-            <div key={piano.id} className="bg-white rounded-lg border p-4">
+            <div key={piano.id} className="bg-white rounded-lg border p-4 max-sm:p-3">
               <div className="flex items-start justify-between">
                 <div>
                   <span className="font-medium">{piano.titolo}</span>
@@ -416,16 +421,16 @@ export default function ImpiantoDetail() {
         </TabsContent>
 
         {/* Interventi collegati all'impianto */}
-        <TabsContent value="interventi" className="mt-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="font-semibold">Interventi su questo impianto</h3>
-            <Button size="sm" variant="outline" onClick={() => setNuovoInterventoOpen(true)} className="gap-2">
+        <TabsContent value="interventi" className="mt-4 space-y-3 max-sm:mt-3">
+          <div className="flex items-center justify-between max-sm:justify-end">
+            <h3 className="font-semibold max-sm:hidden">Interventi su questo impianto</h3>
+            <Button size="sm" variant="outline" onClick={() => setNuovoInterventoOpen(true)} className="gap-2 max-sm:h-8 max-sm:text-xs">
               <Plus className="h-4 w-4" /> Nuovo Intervento
             </Button>
           </div>
           {interventiImpianto.length === 0 ? (
-            <div className="text-center py-12 text-gray-400">
-              <Wrench className="h-10 w-10 mx-auto mb-3 opacity-30" />
+            <div className="text-center py-12 text-gray-400 max-sm:py-5 max-sm:text-sm">
+              <Wrench className="h-10 w-10 mx-auto mb-3 opacity-30 max-sm:hidden" />
               <p>Nessun intervento registrato per questo impianto</p>
             </div>
           ) : (
@@ -536,7 +541,7 @@ export default function ImpiantoDetail() {
             </div>
           </div>
           <DialogFooter className="flex-col gap-2 sm:flex-row">
-            <Button variant="outline" className="w-full sm:w-auto" onClick={() => setModificaOpen(false)}>Annulla</Button>
+            <Button variant="outline" className="w-full sm:w-auto max-sm:hidden" onClick={() => setModificaOpen(false)}>Annulla</Button>
             <Button className="w-full sm:w-auto" onClick={() => salvaImpianto.mutate()} disabled={salvaImpianto.isPending}>
               {salvaImpianto.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Salvataggio...</> : "Salva"}
             </Button>
@@ -597,7 +602,7 @@ export default function ImpiantoDetail() {
             </div>
           </div>
           <DialogFooter className="flex-col gap-2 sm:flex-row">
-            <Button variant="outline" className="w-full sm:w-auto" onClick={() => setModificaContrattoOpen(false)}>Annulla</Button>
+            <Button variant="outline" className="w-full sm:w-auto max-sm:hidden" onClick={() => setModificaContrattoOpen(false)}>Annulla</Button>
             <Button className="w-full sm:w-auto" onClick={() => salvaContratto.mutate()} disabled={salvaContratto.isPending}>
               {salvaContratto.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Salvataggio...</> : "Salva"}
             </Button>
@@ -635,6 +640,7 @@ export default function ImpiantoDetail() {
         open={nuovoInterventoOpen}
         onClose={() => setNuovoInterventoOpen(false)}
         defaultCustomerId={(impianto?.customer as any)?.id}
+        defaultCustomerLabel={[(impianto?.customer as any)?.first_name, (impianto?.customer as any)?.last_name].filter(Boolean).join(" ") || undefined}
         defaultImpiantoId={id}
         onSuccess={() => {
           queryClient.invalidateQueries({ queryKey: ["interventi-impianto", id] });
@@ -644,8 +650,8 @@ export default function ImpiantoDetail() {
       {/* Dialog esecuzione */}
       <Dialog open={esecuzioneOpen} onOpenChange={setEsecuzioneOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>Registra Esecuzione Manutenzione</DialogTitle></DialogHeader>
-          <div className="space-y-4">
+          <DialogHeader><DialogTitle><span className="max-sm:hidden">Registra Esecuzione Manutenzione</span><span className="sm:hidden">Registra esecuzione</span></DialogTitle></DialogHeader>
+          <div className="space-y-4 max-sm:space-y-3">
             {piani.length > 1 && (
               <div className="space-y-1.5">
                 <Label>Piano</Label>
@@ -657,8 +663,10 @@ export default function ImpiantoDetail() {
                 </Select>
               </div>
             )}
+            {/* Mobile: data ed esito affiancati. */}
+            <div className="space-y-4 max-sm:grid max-sm:grid-cols-2 max-sm:gap-3 max-sm:space-y-0">
             <div className="space-y-1.5">
-              <Label>Data esecuzione <span className="text-destructive">*</span></Label>
+              <Label>Data <span className="max-sm:hidden">esecuzione</span> <span className="text-destructive">*</span></Label>
               <Input
                 type="date"
                 value={esecuzioneForm.data}
@@ -677,13 +685,14 @@ export default function ImpiantoDetail() {
                 </SelectContent>
               </Select>
             </div>
+            </div>
             <div className="space-y-1.5">
               <Label>Note</Label>
               <Textarea value={esecuzioneForm.note} onChange={(e) => setEsecuzioneForm((f) => ({ ...f, note: e.target.value }))} rows={2} />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEsecuzioneOpen(false)}>Annulla</Button>
+            <Button variant="outline" className="max-sm:hidden" onClick={() => setEsecuzioneOpen(false)}>Annulla</Button>
             <Button onClick={() => registraEsecuzioneMutation.mutate()} disabled={registraEsecuzioneMutation.isPending}>
               {registraEsecuzioneMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Salva

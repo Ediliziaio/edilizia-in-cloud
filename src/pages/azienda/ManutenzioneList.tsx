@@ -29,6 +29,7 @@ import { toast } from "sonner";
 import { NuovoImpiantoWizard } from "@/components/manutenzione/NuovoImpiantoWizard";
 import { type StaffUser, useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
+import { KpiMobili } from "@/components/mobile/FiltriMobile";
 
 const KEEP_VALUE = "__keep__";
 const UNASSIGNED_VALUE = "__unassigned__";
@@ -325,7 +326,7 @@ export default function ManutenzioneList() {
     }, 0);
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 max-sm:space-y-3 max-sm:p-0">
       {/* Header */}
       <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -334,7 +335,7 @@ export default function ManutenzioneList() {
               <Settings className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">Manutenzione Programmata</h1>
+              <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">Manutenzione<span className="max-sm:hidden"> Programmata</span></h1>
               <p className="mt-0.5 text-sm text-slate-500">Impianti, contratti e piani manutenzione clienti.</p>
             </div>
           </div>
@@ -343,13 +344,24 @@ export default function ManutenzioneList() {
             className="self-start gap-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600 sm:self-auto"
           >
             <Plus className="h-4 w-4" />
-            Nuovo Impianto
+            <span className="max-sm:hidden">Nuovo Impianto</span>
+            <span className="sm:hidden">Nuovo</span>
           </Button>
         </div>
       </div>
 
+      {/* Mobile: le scadenze e i canoni; impianti e contratti hanno il numero
+          sulla loro scheda. */}
+      <KpiMobili
+        className="sm:hidden"
+        voci={[
+          { label: "In scadenza (14 gg)", valore: String(pianiInScadenza.length), tono: pianiInScadenza.length > 0 ? "text-orange-600" : undefined },
+          { label: "Canoni al mese", valore: `${mrr.toLocaleString("it-IT", { maximumFractionDigits: 0 })} €` },
+        ]}
+      />
+
       {/* Stats */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 max-sm:hidden">
         <OperationalKpiCard icon={Settings} label="Impianti" value={impianti.length} hint="installazioni censite" tone="blue" />
         <OperationalKpiCard icon={AlertCircle} label="In scadenza" value={pianiInScadenza.length} hint="prossimi 14 giorni" tone={pianiInScadenza.length > 0 ? "orange" : "green"} />
         <OperationalKpiCard icon={CheckCircle2} label="Contratti attivi" value={contratti.filter((c) => c.stato === "attivo").length} hint="canoni ricorrenti" tone="green" />
@@ -378,26 +390,27 @@ export default function ManutenzioneList() {
       )}
 
       <Tabs defaultValue="scadenza">
-        <TabsList>
-          <TabsTrigger value="scadenza">
-            In Scadenza {pianiInScadenza.length > 0 && <span className="ml-1 text-xs bg-orange-100 text-orange-700 rounded-full px-1.5">{pianiInScadenza.length}</span>}
+        <TabsList className="max-sm:grid max-sm:w-full max-sm:grid-cols-3">
+          <TabsTrigger value="scadenza" className="max-sm:text-xs">
+            <span className="max-sm:hidden">In Scadenza</span><span className="sm:hidden">Scadenze</span> {pianiInScadenza.length > 0 && <span className="ml-1 text-xs bg-orange-100 text-orange-700 rounded-full px-1.5">{pianiInScadenza.length}</span>}
           </TabsTrigger>
-          <TabsTrigger value="impianti">Impianti ({impianti.length})</TabsTrigger>
-          <TabsTrigger value="contratti">Contratti ({contratti.length})</TabsTrigger>
+          <TabsTrigger value="impianti" className="max-sm:text-xs">Impianti ({impianti.length})</TabsTrigger>
+          <TabsTrigger value="contratti" className="max-sm:text-xs">Contratti ({contratti.length})</TabsTrigger>
         </TabsList>
 
         {/* Tab: In Scadenza */}
-        <TabsContent value="scadenza" className="mt-4 space-y-3">
+        <TabsContent value="scadenza" className="mt-4 space-y-3 max-sm:mt-3 max-sm:space-y-2">
           {loadingPiani ? (
             <div className="space-y-3">{[1,2,3].map((n) => <Skeleton key={n} className="h-16 rounded-lg" />)}</div>
           ) : pianiInScadenza.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">
-              <CheckCircle2 className="h-10 w-10 text-gray-300 mx-auto mb-2" />
+            <div className="text-center py-12 text-gray-500 max-sm:py-6 max-sm:text-sm">
+              <CheckCircle2 className="h-10 w-10 text-gray-300 mx-auto mb-2 max-sm:hidden" />
               <p>Nessuna manutenzione in scadenza nei prossimi 14 giorni</p>
             </div>
           ) : (
             <>
-              <div className="flex items-center justify-between rounded-lg border bg-white px-4 py-2 text-sm">
+              {/* Mobile: niente selezione multipla (le azioni in blocco sono al computer). */}
+              <div className="flex items-center justify-between rounded-lg border bg-white px-4 py-2 text-sm max-sm:hidden">
                 <label className="flex items-center gap-2 font-medium">
                   <Checkbox checked={selectedAllDue} onCheckedChange={toggleAllDue} aria-label="Seleziona manutenzioni in scadenza" />
                   Seleziona manutenzioni visibili
@@ -407,18 +420,18 @@ export default function ManutenzioneList() {
               {pianiInScadenza.map((piano) => {
             const days = piano.prossima_scadenza ? differenceInDays(new Date(piano.prossima_scadenza), new Date()) : null;
             return (
-              <div key={piano.id} className="bg-white rounded-lg border p-4 flex items-start justify-between gap-4">
-                <Checkbox checked={selectedPianoIds.has(piano.id)} onCheckedChange={() => togglePianoSelection(piano.id)} aria-label={`Seleziona ${piano.titolo}`} className="mt-1" />
-                <div className="flex-1">
+              <div key={piano.id} className="bg-white rounded-lg border p-4 flex items-start justify-between gap-4 max-sm:flex-wrap max-sm:gap-2 max-sm:p-3">
+                <Checkbox checked={selectedPianoIds.has(piano.id)} onCheckedChange={() => togglePianoSelection(piano.id)} aria-label={`Seleziona ${piano.titolo}`} className="mt-1 max-sm:hidden" />
+                <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-semibold">{piano.titolo}</span>
+                    <span className="font-semibold max-sm:text-[13px]">{piano.titolo}</span>
                     {days !== null && (
                       <Badge className={days < 0 ? "bg-red-100 text-red-800 text-xs" : days <= 7 ? "bg-orange-100 text-orange-800 text-xs" : "bg-yellow-100 text-yellow-800 text-xs"}>
                         {days < 0 ? `Scaduto ${Math.abs(days)}gg fa` : days === 0 ? "Scade oggi" : `Scade tra ${days}gg`}
                       </Badge>
                     )}
                   </div>
-                  <div className="text-sm text-gray-500 mt-1 flex gap-3 flex-wrap">
+                  <div className="text-sm text-gray-500 mt-1 flex gap-3 flex-wrap max-sm:gap-2 max-sm:text-[11px]">
                     {(piano.contratto?.customer?.first_name || piano.contratto?.customer?.last_name) && (
                       <span className="flex items-center gap-1">
                         <User className="h-3 w-3" />
@@ -434,7 +447,7 @@ export default function ManutenzioneList() {
                       </span>
                     )}
                   </div>
-                  <div className="mt-3 max-w-xs">
+                  <div className="mt-3 max-w-xs max-sm:hidden">
                     <Select
                       value={piano.tecnico_preferito || UNASSIGNED_VALUE}
                       onValueChange={(value) => updatePianiTecnicoMutation.mutate({
@@ -457,10 +470,11 @@ export default function ManutenzioneList() {
                     </Select>
                   </div>
                 </div>
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-2 max-sm:w-full max-sm:flex-row">
                   <Button
                     size="sm"
                     variant="outline"
+                    className="max-sm:h-8 max-sm:flex-1 max-sm:text-xs"
                     disabled={pianificaMutation.isPending}
                     onClick={() => pianificaMutation.mutate(piano)}
                   >
@@ -468,6 +482,7 @@ export default function ManutenzioneList() {
                   </Button>
                   <Button
                     size="sm"
+                    className="max-sm:h-8 max-sm:flex-1 max-sm:text-xs"
                     disabled={completePianiMutation.isPending}
                     onClick={() => completePianiMutation.mutate([piano])}
                   >
@@ -482,12 +497,12 @@ export default function ManutenzioneList() {
         </TabsContent>
 
         {/* Tab: Impianti */}
-        <TabsContent value="impianti" className="mt-4 space-y-3">
+        <TabsContent value="impianti" className="mt-4 space-y-3 max-sm:mt-3 max-sm:space-y-2">
           {loadingImpianti ? (
             <div className="space-y-3">{[1,2,3].map((n) => <Skeleton key={n} className="h-16 rounded-lg" />)}</div>
           ) : impianti.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">
-              <Settings className="h-10 w-10 text-gray-300 mx-auto mb-2" />
+            <div className="text-center py-12 text-gray-500 max-sm:py-6 max-sm:text-sm">
+              <Settings className="h-10 w-10 text-gray-300 mx-auto mb-2 max-sm:hidden" />
               <p>Nessun impianto registrato</p>
               <Button className="mt-4 gap-2" size="sm" onClick={() => setWizardOpen(true)}>
                 <Plus className="h-4 w-4" /> Aggiungi Impianto
@@ -497,27 +512,29 @@ export default function ManutenzioneList() {
             const ImpiantoIcon = TIPO_ICONE[impianto.tipo_impianto] ?? Settings;
             return (
               <Link key={impianto.id} to={`/azienda/manutenzione/impianto/${impianto.id}`}
-                className="block bg-white rounded-lg border p-4 hover:shadow-md transition-shadow">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start gap-3">
-                    <div className="p-2 bg-blue-50 rounded-lg">
-                      <ImpiantoIcon className="h-5 w-5 text-blue-600" />
+                className="block bg-white rounded-lg border p-4 hover:shadow-md transition-shadow max-sm:px-3 max-sm:py-2.5">
+                <div className="flex items-start justify-between max-sm:items-center max-sm:gap-2">
+                  <div className="flex items-start gap-3 max-sm:min-w-0 max-sm:gap-2.5">
+                    <div className="p-2 bg-blue-50 rounded-lg max-sm:p-1.5">
+                      <ImpiantoIcon className="h-5 w-5 text-blue-600 max-sm:h-4 max-sm:w-4" />
                     </div>
-                    <div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-semibold capitalize">{impianto.tipo_impianto.replace('_', ' ')}</span>
-                        {impianto.marca && <span className="text-gray-500 text-sm">{impianto.marca} {impianto.modello}</span>}
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap max-sm:flex-nowrap">
+                        <span className="font-semibold capitalize max-sm:truncate max-sm:text-[13px]">{impianto.tipo_impianto.replace('_', ' ')}</span>
+                        {impianto.marca && <span className="text-gray-500 text-sm max-sm:hidden">{impianto.marca} {impianto.modello}</span>}
                       </div>
-                      <div className="text-sm text-gray-500 mt-0.5 flex items-center gap-1">
-                        <User className="h-3 w-3" />
+                      <div className="text-sm text-gray-500 mt-0.5 flex items-center gap-1 max-sm:block max-sm:truncate max-sm:text-[11px]">
+                        <User className="h-3 w-3 max-sm:hidden" />
+                        {/* Mobile: il tipo ha la riga tutta per sé, la marca scende qui. */}
+                        {impianto.marca && <span className="sm:hidden">{[impianto.marca, impianto.modello].filter(Boolean).join(" ")} · </span>}
                         {[impianto.customer?.first_name, impianto.customer?.last_name].filter(Boolean).join(" ") || "—"}
                       </div>
                     </div>
                   </div>
-                  <div className="text-right space-y-1">
+                  <div className="text-right space-y-1 shrink-0">
                     <GaranziaScadenzaBadge date={impianto.garanzia_scadenza} />
                     {impianto.data_installazione && (
-                      <div className="text-xs text-gray-400">
+                      <div className="text-xs text-gray-400 max-sm:hidden">
                         Installato: {format(new Date(impianto.data_installazione), "dd/MM/yyyy")}
                       </div>
                     )}
@@ -529,30 +546,31 @@ export default function ManutenzioneList() {
         </TabsContent>
 
         {/* Tab: Contratti */}
-        <TabsContent value="contratti" className="mt-4 space-y-3">
+        <TabsContent value="contratti" className="mt-4 space-y-3 max-sm:mt-3 max-sm:space-y-2">
           {loadingContratti ? (
             <div className="space-y-3">{[1,2].map((n) => <Skeleton key={n} className="h-16 rounded-lg" />)}</div>
           ) : contratti.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">
-              <TrendingUp className="h-10 w-10 text-gray-300 mx-auto mb-2" />
+            <div className="text-center py-12 text-gray-500 max-sm:py-6 max-sm:text-sm">
+              <TrendingUp className="h-10 w-10 text-gray-300 mx-auto mb-2 max-sm:hidden" />
               <p>Nessun contratto attivo</p>
             </div>
           ) : contratti.map((contratto) => (
-            <div key={contratto.id} className="bg-white rounded-lg border p-4">
-              <div className="flex items-start justify-between">
-                <div>
+            <div key={contratto.id} className="bg-white rounded-lg border p-4 max-sm:px-3 max-sm:py-2.5">
+              <div className="flex items-start justify-between max-sm:gap-2">
+                <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold">{contratto.nome_contratto}</span>
-                    <Badge className={contratto.stato === "attivo" ? "bg-green-100 text-green-800 text-xs" : contratto.stato === "sospeso" ? "bg-yellow-100 text-yellow-800 text-xs" : "bg-gray-100 text-gray-600 text-xs"}>
+                    <span className="font-semibold max-sm:truncate max-sm:text-[13px]">{contratto.nome_contratto}</span>
+                    {/* Mobile: lo stato si vede solo quando non è «attivo», il caso normale. */}
+                    <Badge className={contratto.stato === "attivo" ? "bg-green-100 text-green-800 text-xs max-sm:hidden" : contratto.stato === "sospeso" ? "bg-yellow-100 text-yellow-800 text-xs" : "bg-gray-100 text-gray-600 text-xs"}>
                       {contratto.stato}
                     </Badge>
                   </div>
-                  <div className="text-sm text-gray-500 mt-1">
+                  <div className="text-sm text-gray-500 mt-1 max-sm:mt-0.5 max-sm:truncate max-sm:text-[11px]">
                     {[contratto.customer?.first_name, contratto.customer?.last_name].filter(Boolean).join(" ") || "—"} · {contratto.impianto?.tipo_impianto?.replace('_', ' ')} {contratto.impianto?.marca}
                   </div>
                 </div>
-                <div className="text-right">
-                  <div className="font-bold text-purple-700">{Number(contratto.importo_canone).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</div>
+                <div className="text-right shrink-0">
+                  <div className="font-bold text-purple-700 max-sm:text-[13px]">{Number(contratto.importo_canone).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</div>
                   <div className="text-xs text-gray-400">{contratto.tipo_fatturazione}</div>
                 </div>
               </div>
