@@ -52,8 +52,11 @@ const CommandInput = React.forwardRef<
     <CommandPrimitive.Input
       ref={ref}
       className={cn(
-        // 14px anche su telefono: l'ingrandimento di iOS al tocco lo blocca il viewport (lib/mobile/zoomCampiIos.ts)
-        "flex h-11 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
+        // 14px anche su telefono: l'ingrandimento di iOS al tocco lo blocca il viewport (lib/mobile/zoomCampiIos.ts).
+        // border-0: l'input di cmdk ha role="combobox" e la regola globale che
+        // ridà il bordo ai trigger dei Select (index.css) gli disegnava un
+        // riquadro dentro la riga che ha già la sua linea sotto.
+        "flex h-11 w-full rounded-md border-0 bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
         className,
       )}
       {...props}

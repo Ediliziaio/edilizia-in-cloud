@@ -19,6 +19,7 @@
  */
 import { useState, useMemo } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import {
   Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem,
@@ -82,9 +83,9 @@ function ResultRow({
       </span>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-slate-800">{descrizione}</p>
-        {meta && <p className="truncate text-[11px] text-muted-foreground">{meta}</p>}
+        {meta && <p className={cn("truncate text-[11px] text-muted-foreground", source === "libera" && "max-sm:hidden")}>{meta}</p>}
       </div>
-      <div className="shrink-0 text-right">
+      <div className={cn("shrink-0 text-right", source === "libera" && "max-sm:hidden")}>
         <p className="text-sm font-semibold tabular-nums text-slate-900">{formatCurrency(prezzo)}</p>
         <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{prezzoLabel}</p>
       </div>
@@ -94,6 +95,7 @@ function ResultRow({
 
 export default function AddVocePicker({ open, onOpenChange, onPick, targetCapitolo }: Props) {
   const [term, setTerm] = useState("");
+  const isMobile = useIsMobile();
   const [mode, setMode] = useState<SearchMode>("azienda");
   const debounced = useDebounce(term, 250);
 
@@ -145,12 +147,17 @@ export default function AddVocePicker({ open, onOpenChange, onPick, targetCapito
         onOpenChange(v);
       }}
     >
-      <DialogContent className="overflow-hidden p-0 shadow-lg sm:max-w-2xl">
+      <DialogContent
+        className="overflow-hidden p-0 shadow-lg sm:max-w-2xl"
+        // Telefono: la tastiera non si apre da sola sopra l'elenco; si cerca toccando il campo.
+        onOpenAutoFocus={(e) => { if (isMobile) e.preventDefault(); }}
+      >
         <VisuallyHidden><DialogTitle>Aggiungi voce al computo</DialogTitle></VisuallyHidden>
         {/* shouldFilter=false: la ricerca è server-side (typeahead), cmdk gestisce
             solo navigazione tastiera e selezione, NON il filtro dei risultati. */}
         <Command shouldFilter={false} className="[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wide [&_[cmdk-group-heading]]:text-muted-foreground">
-      <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
+      {/* Telefono: posto per la X di chiusura (ci finiva sopra il capitolo), nomi corti. */}
+      <div className="flex items-center justify-between gap-2 border-b px-3 py-2 max-sm:pr-12">
         {/* Toggle sorgente: listino aziendale vs. prezzario regionale centrale. */}
         <ToggleGroup
           type="single"
@@ -161,14 +168,14 @@ export default function AddVocePicker({ open, onOpenChange, onPick, targetCapito
           className="justify-start gap-1"
         >
           <ToggleGroupItem value="azienda" className="h-7 gap-1.5 px-2.5 text-[11px] data-[state=on]:bg-orange-50 data-[state=on]:text-orange-700">
-            <Hammer className="h-3 w-3" /> Listino aziendale
+            <Hammer className="h-3 w-3" /> <span className="max-sm:hidden">Listino aziendale</span><span className="sm:hidden">Listino</span>
           </ToggleGroupItem>
           <ToggleGroupItem value="prezzario" className="h-7 gap-1.5 px-2.5 text-[11px] data-[state=on]:bg-emerald-50 data-[state=on]:text-emerald-700">
-            <Library className="h-3 w-3" /> Prezzario regionale
+            <Library className="h-3 w-3" /> <span className="max-sm:hidden">Prezzario regionale</span><span className="sm:hidden">Prezzario</span>
           </ToggleGroupItem>
         </ToggleGroup>
         {targetCapitolo && (
-          <Badge variant="outline" className="shrink-0 text-[10px] font-normal">
+          <Badge variant="outline" className="shrink-0 text-[10px] font-normal max-sm:hidden">
             in {targetCapitolo}
           </Badge>
         )}
