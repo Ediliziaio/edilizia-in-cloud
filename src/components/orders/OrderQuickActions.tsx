@@ -239,22 +239,25 @@ export function OrderQuickActions({
           })}
         </div>
 
-        {/* Mobile: le azioni da cantiere a portata di pollice, in pillole su
-            una riga che scorre; il resto sta in «Altro». */}
-        <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto [scrollbar-width:none] sm:hidden">
+        {/* Mobile: le azioni da cantiere a portata di pollice, tonde con la
+            sola icona (telefono, WhatsApp, appuntamento, cartella): con le
+            etichette non entravano e la terza restava tagliata («Do…»). Il
+            resto sta in «Altro». */}
+        <div className="flex min-w-0 flex-1 items-center gap-2 sm:hidden">
           {actions.filter((a) => ["call", "whatsapp", "appt", "files"].includes(a.id)).map((a) => {
             const Icon = a.icon;
             return (
               <Button
                 key={a.id}
                 variant="outline"
-                size="sm"
-                className="tap-compact h-8 shrink-0 gap-1 rounded-full px-2.5 text-xs"
+                size="icon"
+                className="tap-compact h-9 w-9 shrink-0 rounded-full"
                 onClick={a.onClick}
                 disabled={a.disabled}
+                aria-label={a.label}
+                title={a.hint ?? a.label}
               >
-                <Icon className={cn("h-3.5 w-3.5", a.iconClass)} />
-                {a.label}
+                <Icon className={cn("h-4 w-4", a.iconClass)} />
               </Button>
             );
           })}
