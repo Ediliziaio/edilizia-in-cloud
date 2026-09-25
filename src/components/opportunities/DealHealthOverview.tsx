@@ -76,7 +76,7 @@ export const DealHealthOverview = memo(function DealHealthOverview({ companyId, 
         <div key={item.label} className={`flex flex-col items-center p-3 rounded-lg max-sm:px-1 max-sm:py-2 ${item.bgClass}`}>
           <item.icon className={`h-4 w-4 ${item.iconClass} mb-1 max-sm:hidden`} />
           <span className={`text-xl font-bold max-sm:text-lg max-sm:leading-tight ${item.valueClass}`}>{item.count}</span>
-          <span className="text-[10px] text-muted-foreground max-sm:whitespace-nowrap">{item.label}</span>
+          <span className="text-[10px] text-muted-foreground max-sm:whitespace-nowrap max-sm:text-[11px]">{item.label}</span>
         </div>
       ))}
     </div>

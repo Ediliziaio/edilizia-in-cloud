@@ -1374,7 +1374,7 @@ export default function ReputationManager() {
                       <div key={source.name} className="rounded-lg border bg-slate-50/60 p-3 max-sm:flex max-sm:flex-wrap max-sm:items-center max-sm:justify-between max-sm:gap-x-2 max-sm:px-2.5 max-sm:py-2">
                         <div className="flex items-center justify-between gap-2 max-sm:order-2">
                           <Icon className={cn("h-5 w-5 max-sm:hidden", source.color)} />
-                          <Badge variant={source.connected ? "default" : "outline"} className={cn(source.connected ? "bg-emerald-600 hover:bg-emerald-600" : "", "max-sm:px-1.5 max-sm:py-0 max-sm:text-[10px]")}>
+                          <Badge variant={source.connected ? "default" : "outline"} className={cn(source.connected ? "bg-emerald-600 hover:bg-emerald-600" : "", "max-sm:px-1.5 max-sm:py-0 max-sm:text-[11px]")}>
                             {source.status}
                           </Badge>
                         </div>
@@ -1388,7 +1388,7 @@ export default function ReputationManager() {
                               {source.rating.toFixed(1)}
                             </span>
                           ) : (
-                            <Badge variant="outline" className="text-[10px]">
+                            <Badge variant="outline" className="text-[10px] max-md:text-[11px]">
                               dati non live
                             </Badge>
                           )}

@@ -107,7 +107,7 @@ export function DisponibilitaOperatore() {
         </div>
 
         <div className="border-t pt-3">
-          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground max-md:text-[11px] max-md:normal-case max-md:tracking-normal">
             Chi può rispondere adesso
           </p>
           {colleghi.length === 0 ? (
