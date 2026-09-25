@@ -24,6 +24,21 @@ const COMPANY_ACCESS_ROLES = new Set<AppRole>([
 // mergeProfileCompanyAccess, sloggandoli dal loro portale).
 const PORTAL_ONLY_ROLES = new Set<AppRole>(["produttore_admin", "customer"]);
 
+/**
+ * Un accesso multi-azienda conta solo se attivo e non scaduto: lo stesso
+ * criterio di user_can_access_company e delle policy (25/09/2026). Con un
+ * accesso sospeso, un invito non accettato o uno scaduto l'azienda non si legge
+ * più, e nel selettore comparirebbe una voce senza nome.
+ */
+export function accessoMultiAziendaValido(
+  access: Pick<MultiCompanyAccess, "status" | "expires_at">,
+  adesso: Date = new Date(),
+): boolean {
+  if (access.status != null && access.status !== "active") return false;
+  if (!access.expires_at) return true;
+  return new Date(access.expires_at).getTime() > adesso.getTime();
+}
+
 export function normalizeCompanyAccessRole(role: unknown): AppRole | null {
   return typeof role === "string" && COMPANY_ACCESS_ROLES.has(role as AppRole)
     ? (role as AppRole)
