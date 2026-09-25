@@ -18,7 +18,6 @@ import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useStatoPiano } from "@/hooks/useStatoPiano";
 import { impostazioneNelPiano } from "@/lib/impostazioni/pianoImpostazioni";
-import { Button } from "@/components/ui/button";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -26,7 +25,7 @@ import {
 import {
   UserCircle, ShieldCheck, Building2, MapPin, Paintbrush, Wallet, Receipt,
   Users, ListOrdered, FolderOpen, FileText, FileSignature, Truck, ScrollText,
-  Banknote, Plug, Calendar, Mail, Tag, Settings as SettingsIcon, LogOut,
+  Banknote, Plug, Calendar, Mail, Tag, LogOut, ChevronRight,
   Brain, Bell, Bot, Wrench, ImagePlus, HardHat } from "lucide-react";
 
 interface SectionItem {
@@ -122,6 +121,13 @@ const HIDDEN_ON_MOBILE = new Set<string>([
   "/azienda/impostazioni/lead-forms",         // Lead Facebook
   "/azienda/impostazioni/ai-memoria",         // AI Personas
   "/azienda/impostazioni/ai-automazioni",     // AI Automazioni
+  // Configurazioni da fare una volta, al computer (25/09/2026).
+  "/azienda/impostazioni/sedi",               // Sedi
+  "/azienda/impostazioni/fatturazione",       // Fatturazione (sistema e provider)
+  "/azienda/impostazioni/sopralluoghi",       // Modelli dei sopralluoghi
+  // I calendari su telefono si consultano, non si configurano (25/09/2026).
+  "/azienda/impostazioni/calendari-lavori",   // Calendari lavori
+  "/azienda/impostazioni/calendari",          // Calendari marketing
 ]);
 
 export default function SettingsMobileHub() {
@@ -141,27 +147,18 @@ export default function SettingsMobileHub() {
       .filter((i) => (q ? i.label.toLowerCase().includes(q) : true)),
   })).filter((s) => s.items.length > 0);
 
+  // A righe, come le Impostazioni del telefono: icona piccola, nome, freccia.
+  // Prima erano riquadri da 100px con l'icona grande, due per riga, e sopra un
+  // secondo titolo «Tutte le impostazioni» con la spiegazione.
   return (
-    <div className="space-y-6 pb-4">
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-          <SettingsIcon className="h-5 w-5 text-primary" />
-        </div>
-        <div className="min-w-0">
-          <h2 className="text-base font-semibold tracking-tight">Tutte le impostazioni</h2>
-          <p className="text-xs text-muted-foreground">
-            Scegli la sezione che vuoi configurare.
-          </p>
-        </div>
-      </div>
-
+    <div className="space-y-4 pb-4">
       <input
         type="text"
         value={filtro}
         onChange={(e) => setFiltro(e.target.value)}
         placeholder="Cerca un'impostazione…"
         aria-label="Cerca un'impostazione"
-        className="w-full h-10 rounded-xl border border-border/60 bg-muted/30 px-4 text-base placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+        className="w-full h-9 rounded-lg border border-border/60 bg-background px-3 text-base placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
       />
 
       {q && sezioniFiltrate.length === 0 && (
@@ -169,23 +166,24 @@ export default function SettingsMobileHub() {
       )}
 
       {sezioniFiltrate.map((section) => (
-        <section key={section.label} className="space-y-2">
+        <section key={section.label} className="space-y-1.5">
           <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-1">
             {section.label}
           </h3>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="divide-y overflow-hidden rounded-xl border bg-card">
             {section.items.map((item) => {
               const Icon = item.icon;
               return (
                 <Link
                   key={item.to}
                   to={item.to}
-                  className="group flex flex-col items-start gap-2 rounded-xl border bg-card p-3 shadow-sm transition-all hover:border-primary/40 hover:shadow-md active:scale-[0.98]"
+                  className="tap-compact flex min-h-[44px] items-center gap-3 px-3 py-2 active:bg-muted"
                 >
-                  <div className={`flex h-9 w-9 items-center justify-center rounded-lg bg-muted ${item.iconColor}`}>
+                  <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted ${item.iconColor}`}>
                     <Icon className="h-4 w-4" aria-hidden="true" />
-                  </div>
-                  <p className="text-sm font-medium leading-tight">{item.label}</p>
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-sm">{item.label}</span>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                 </Link>
               );
             })}
@@ -193,16 +191,15 @@ export default function SettingsMobileHub() {
         </section>
       ))}
 
-      {/* v8.6.76 — Card account + logout in fondo all'hub. Su mobile è
-          l'unico punto di accesso al logout (la sidebar laterale con menu
-          user è nascosta md+). */}
-      <section className="space-y-2 pt-2">
+      {/* v8.6.76 — Account + logout in fondo all'hub. Su mobile è l'unico
+          punto di accesso al logout (la sidebar con il menu utente è md+). */}
+      <section className="space-y-1.5">
         <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-1">
           Account corrente
         </h3>
-        <div className="rounded-xl border bg-card p-4 shadow-sm space-y-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-sm font-semibold text-primary">
+        <div className="divide-y overflow-hidden rounded-xl border bg-card">
+          <div className="flex items-center gap-3 px-3 py-2">
+            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-xs font-semibold text-primary">
               {(profile?.first_name?.[0] ?? "") + (profile?.last_name?.[0] ?? "") || user?.email?.[0]?.toUpperCase() || "?"}
             </div>
             <div className="min-w-0 flex-1">
@@ -212,22 +209,16 @@ export default function SettingsMobileHub() {
               <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
             </div>
           </div>
-          <Button
-            variant="outline"
-            className="w-full gap-2 text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+          <button
+            type="button"
             onClick={() => setLogoutOpen(true)}
+            className="tap-compact flex min-h-[44px] w-full items-center gap-3 px-3 py-2 text-left text-sm font-medium text-destructive active:bg-muted"
           >
-            <LogOut className="h-4 w-4" />
+            <LogOut className="h-4 w-4" aria-hidden="true" />
             Esci dall'account
-          </Button>
+          </button>
         </div>
       </section>
-
-      <div className="rounded-xl border border-dashed bg-muted/30 p-3 text-center">
-        <p className="text-xs text-muted-foreground">
-          Cerchi qualcosa di specifico? Usa la <strong>ricerca</strong> in alto (🔍 cerca impostazioni).
-        </p>
-      </div>
 
       {/* Dialog conferma logout */}
       <AlertDialog open={logoutOpen} onOpenChange={setLogoutOpen}>

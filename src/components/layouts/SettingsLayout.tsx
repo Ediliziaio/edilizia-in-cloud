@@ -117,8 +117,9 @@ export function SettingsLayout() {
 
   return (
     <div className="flex flex-col min-h-full">
-      {/* Header contestuale — titolo + descrizione derivati dall'URL corrente */}
-      <div className="border-b bg-background px-4 py-4 md:px-6 md:py-5">
+      {/* Header contestuale — titolo + descrizione derivati dall'URL corrente.
+          Mobile: senza riquadro e senza margini propri (<main> ha già p-3). */}
+      <div className="border-b bg-background px-4 py-4 md:px-6 md:py-5 max-sm:border-0 max-sm:bg-transparent max-sm:px-0 max-sm:pb-2 max-sm:pt-0">
         <div className="flex items-start gap-3">
           {/* v8.6.71 — Back arrow mobile: porta all'hub griglia impostazioni.
               Nascosto su desktop (sidebar laterale è la navigazione primaria)
@@ -127,14 +128,14 @@ export function SettingsLayout() {
             <Link
               to="/azienda/impostazioni"
               aria-label="Torna a tutte le impostazioni"
-              className="md:hidden flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border bg-background hover:bg-muted transition-colors -ml-1"
+              className="tap-compact md:hidden flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border bg-background hover:bg-muted transition-colors -ml-1 max-sm:ml-0 max-sm:h-8 max-sm:w-8 max-sm:border-0"
             >
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             </Link>
           )}
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 flex-1 min-w-0">
             <div className="min-w-0">
-              <h1 className="text-xl font-semibold tracking-tight truncate">{title}</h1>
+              <h1 className="text-xl font-semibold tracking-tight truncate max-sm:text-lg">{title}</h1>
               {/* Descrizione nascosta su mobile: su 375px occupava fino a 3 righe
                   prima del contenuto in ogni sotto-pagina impostazioni. */}
               <p className="mt-0.5 hidden text-sm text-muted-foreground sm:block">{description}</p>
@@ -148,7 +149,7 @@ export function SettingsLayout() {
         {schede.length > 1 && (
           <nav
             aria-label={`Schede di ${title}`}
-            className="-mb-4 mt-3 flex gap-1 overflow-x-auto md:-mb-5"
+            className="-mb-4 mt-3 flex gap-1 overflow-x-auto md:-mb-5 max-sm:mb-0 max-sm:mt-1 max-sm:border-b"
           >
             {schede.map((scheda) => {
               const attiva = scheda === schedaAttiva;
@@ -173,7 +174,7 @@ export function SettingsLayout() {
       </div>
 
       {/* Contenuto della pagina figlia — larghezza piena */}
-      <div className="flex-1 px-4 py-4 md:px-6 md:py-6">
+      <div className="flex-1 px-4 py-4 md:px-6 md:py-6 max-sm:px-0 max-sm:py-2">
         {nelPiano ? (
           <Outlet />
         ) : (

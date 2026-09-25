@@ -32,6 +32,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { EmailOAuthConnectionsCard } from "@/components/integrations/EmailOAuthConnectionsCard";
 import { TwoFactorSetup } from "@/components/auth/TwoFactorSetup";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { CompanySecuritySettings } from "@/components/settings/CompanySecuritySettings";
 import { useUserCalendarPrefs } from "@/hooks/useUserCalendarPrefs";
 import { useCalendariDiCasella } from "@/hooks/useCalendariEsterni";
@@ -107,7 +108,11 @@ export default function MioProfilo() {
   const companyId = effectiveCompany?.id;
   const canManageCompanySecurity = role === "company_admin" || role === "super_admin";
   const tabParam = searchParams.get("tab");
-  const activeTab: ProfileTab = isProfileTab(tabParam) ? tabParam : "profilo";
+  // Mobile: collegare calendari e caselle email è una configurazione da
+  // computer (25/09/2026); un indirizzo che punta lì apre il profilo.
+  const isMobile = useIsMobile();
+  const schedaSoloDesktop = tabParam === "calendari" || tabParam === "email";
+  const activeTab: ProfileTab = isProfileTab(tabParam) && !(isMobile && schedaSoloDesktop) ? tabParam : "profilo";
   const handleTabChange = (tab: string) => {
     const next = new URLSearchParams(searchParams);
     next.set("tab", tab);
@@ -628,9 +633,9 @@ export default function MioProfilo() {
       <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
 
       {/* ── Header con avatar ── */}
-      <div className="flex items-center gap-4 mb-6 sm:gap-5">
+      <div className="flex items-center gap-4 mb-6 sm:gap-5 max-sm:mb-3 max-sm:gap-3">
         <div className="relative group">
-          <Avatar className="h-20 w-20 ring-4 ring-primary/10">
+          <Avatar className="h-20 w-20 ring-4 ring-primary/10 max-sm:h-14 max-sm:w-14 max-sm:ring-2">
             <AvatarImage src={avatarUrl ?? undefined} />
             <AvatarFallback className="text-2xl bg-primary/10 text-primary font-bold">
               {initials || <User className="h-8 w-8" />}
@@ -639,7 +644,7 @@ export default function MioProfilo() {
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={isUploading}
-            className="absolute -bottom-1 -right-1 h-7 w-7 rounded-full bg-primary text-white flex items-center justify-center shadow-lg hover:bg-primary/90 transition-colors"
+            className="tap-compact absolute -bottom-1 -right-1 h-7 w-7 rounded-full bg-primary text-white flex items-center justify-center shadow-lg hover:bg-primary/90 transition-colors max-sm:h-6 max-sm:w-6"
           >
             {isUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
           </button>
@@ -650,8 +655,8 @@ export default function MioProfilo() {
           )}
         </div>
         <div>
-          <h2 className="text-lg font-semibold">{firstName} {lastName}</h2>
-          <p className="text-sm text-muted-foreground">{user?.email}</p>
+          <h2 className="text-lg font-semibold max-sm:text-base max-sm:leading-tight">{firstName} {lastName}</h2>
+          <p className="text-sm text-muted-foreground max-sm:text-xs">{user?.email}</p>
           <div className="flex items-center gap-2 mt-1">
             <Badge variant="secondary" className="text-[10px] h-5">
               {ROLE_LABELS[role ?? ""] ?? role}
@@ -661,7 +666,7 @@ export default function MioProfilo() {
                 type="button"
                 onClick={removeAvatar}
                 disabled={isRemovingAvatar}
-                className="text-xs text-destructive hover:underline disabled:opacity-50 disabled:no-underline disabled:cursor-not-allowed"
+                className="tap-compact text-xs text-destructive hover:underline disabled:opacity-50 disabled:no-underline disabled:cursor-not-allowed"
               >
                 {isRemovingAvatar ? "Rimozione…" : "Rimuovi foto"}
               </button>
@@ -675,19 +680,20 @@ export default function MioProfilo() {
         {/* v8.6.75 — Mobile-friendly scrolling tabs con fade gradient a destra
             che indica "scroll possibile". Padding ridotto px-2 sm:px-3 +
             gap-0.5 sm:gap-1 per far stare più tab a vista su 375px. */}
-        <div className="relative mb-6">
-          <div className="-mx-1 overflow-x-auto overscroll-x-contain px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <TabsList className="inline-flex h-auto min-w-max w-max justify-start gap-0.5 sm:gap-1 bg-muted/50 p-1">
+        {/* Mobile: profilo, sicurezza e notifiche su tutta la larghezza. */}
+        <div className="relative mb-6 max-sm:mb-3">
+          <div className="-mx-1 overflow-x-auto overscroll-x-contain px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden max-sm:mx-0 max-sm:px-0">
+            <TabsList className="inline-flex h-auto min-w-max w-max justify-start gap-0.5 sm:gap-1 bg-muted/50 p-1 max-sm:grid max-sm:w-full max-sm:min-w-0 max-sm:grid-cols-3">
               <TabsTrigger value="profilo" className="h-9 shrink-0 gap-1 sm:gap-1.5 whitespace-nowrap px-2 sm:px-3 text-xs sm:text-sm">
                 <User className="h-3.5 w-3.5" /> Profilo
               </TabsTrigger>
               <TabsTrigger value="sicurezza" className="h-9 shrink-0 gap-1 sm:gap-1.5 whitespace-nowrap px-2 sm:px-3 text-xs sm:text-sm">
                 <Shield className="h-3.5 w-3.5" /> Sicurezza
               </TabsTrigger>
-              <TabsTrigger value="calendari" className="h-9 shrink-0 gap-1 sm:gap-1.5 whitespace-nowrap px-2 sm:px-3 text-xs sm:text-sm">
+              <TabsTrigger value="calendari" className="h-9 shrink-0 gap-1 sm:gap-1.5 whitespace-nowrap px-2 sm:px-3 text-xs sm:text-sm max-sm:hidden">
                 <CalendarDays className="h-3.5 w-3.5" /> Calendari
               </TabsTrigger>
-              <TabsTrigger value="email" className="h-9 shrink-0 gap-1 sm:gap-1.5 whitespace-nowrap px-2 sm:px-3 text-xs sm:text-sm">
+              <TabsTrigger value="email" className="h-9 shrink-0 gap-1 sm:gap-1.5 whitespace-nowrap px-2 sm:px-3 text-xs sm:text-sm max-sm:hidden">
                 <Mail className="h-3.5 w-3.5" /> Email
               </TabsTrigger>
               <TabsTrigger value="notifiche" className="h-9 shrink-0 gap-1 sm:gap-1.5 whitespace-nowrap px-2 sm:px-3 text-xs sm:text-sm">
@@ -695,8 +701,7 @@ export default function MioProfilo() {
               </TabsTrigger>
             </TabsList>
           </div>
-          {/* Fade gradient: hint visivo "scrolla per vedere altre tab" */}
-          <div className="pointer-events-none absolute top-0 right-0 h-full w-8 bg-gradient-to-l from-background to-transparent sm:hidden" />
+
         </div>
 
         {/* ════════════ TAB PROFILO ════════════ */}
@@ -706,14 +711,14 @@ export default function MioProfilo() {
           <div className="grid gap-5 lg:grid-cols-3">
           <div className="lg:col-span-2 space-y-5">
           <Card>
-            <CardHeader className="pb-3">
+            <CardHeader className="pb-3 max-sm:p-4 max-sm:pb-2">
               <CardTitle className="text-base flex items-center gap-2">
                 <User className="h-4 w-4" /> Dati personali
               </CardTitle>
-              <CardDescription>Le informazioni che vengono mostrate nella chat, calendario e nel team.</CardDescription>
+              <CardDescription className="max-sm:hidden">Le informazioni che vengono mostrate nella chat, calendario e nel team.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-2">
+            <CardContent className="space-y-4 max-sm:space-y-3 max-sm:p-4 max-sm:pt-0">
+              <div className="grid gap-4 sm:grid-cols-2 max-sm:grid-cols-2 max-sm:gap-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="fn">Nome</Label>
                   <Input id="fn" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
@@ -750,7 +755,7 @@ export default function MioProfilo() {
               </div>
               {/* v8.6.39 M7 — nota separata in fondo: info su modifica email
                   che prima era sotto l'input email duplicato. */}
-              <p className="text-xs text-muted-foreground border-t pt-3">
+              <p className="text-xs text-muted-foreground border-t pt-3 max-sm:hidden">
                 {role === "super_admin"
                   ? "L'email di accesso del super admin si gestisce dal pannello Supabase (Auth → Users)."
                   : "Per modificare l'email contatta l'amministratore della tua azienda."}
@@ -759,8 +764,8 @@ export default function MioProfilo() {
           </Card>
           </div>
 
-          {/* Colonna laterale: cronologia account */}
-          <div className="space-y-5">
+          {/* Colonna laterale: cronologia account (mobile no: dato d'archivio) */}
+          <div className="space-y-5 max-sm:hidden">
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
@@ -803,7 +808,7 @@ export default function MioProfilo() {
               <CardTitle className="text-base flex items-center gap-2">
                 <Lock className="h-4 w-4" /> Cambia Password
               </CardTitle>
-              <CardDescription>Scegli una password sicura con almeno 8 caratteri.</CardDescription>
+              <CardDescription className="max-sm:hidden">Scegli una password sicura con almeno 8 caratteri.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-1.5">
@@ -872,8 +877,9 @@ export default function MioProfilo() {
           <TwoFactorSetup />
 
           {/* v8.6.36 — Card "Privacy" pulita: rimosso duplicato date
-              account (già nella tab Profilo). Focus su GDPR + sicurezza. */}
-          <Card>
+              account (già nella tab Profilo). Focus su GDPR + sicurezza.
+              Mobile no: è un testo informativo, non un'azione. */}
+          <Card className="max-sm:hidden">
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <Shield className="h-4 w-4" /> Privacy & dati personali
@@ -892,7 +898,8 @@ export default function MioProfilo() {
             </CardContent>
           </Card>
           {canManageCompanySecurity && (
-            <div className="lg:col-span-2">
+            // Mobile no: le regole di sicurezza dell'azienda si impostano al computer.
+            <div className="lg:col-span-2 max-sm:hidden">
               <CompanySecuritySettings />
             </div>
           )}
@@ -1127,7 +1134,7 @@ export default function MioProfilo() {
                   <CardTitle className="text-base flex items-center gap-2">
                     <Bell className="h-4 w-4" /> Preferenze notifiche
                   </CardTitle>
-                  <CardDescription>
+                  <CardDescription className="max-sm:hidden">
                     Oggi partono davvero solo gli avvisi sulle attività. Gli altri
                     eventi sono in elenco ma spenti: li vedi qui perché arriveranno,
                     non perché siano già attivi.
@@ -1190,7 +1197,9 @@ export default function MioProfilo() {
           <Card>
             <CardContent className="p-0">
               {/* Header colonne */}
-              <div className="hidden sm:grid grid-cols-[1fr_72px_72px] gap-2 px-4 pt-3 pb-2 border-b text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              {/* Anche su telefono: senza, ogni riga aveva due interruttori
+                  e non si capiva quale fosse l'email e quale il push. */}
+              <div className="grid grid-cols-[1fr_52px_52px] sm:grid-cols-[1fr_72px_72px] gap-2 px-3 sm:px-4 pt-3 pb-2 border-b text-xs font-medium text-muted-foreground uppercase tracking-wide max-sm:pt-2 max-sm:text-[10px]">
                 <div>Evento</div>
                 <div className="text-center flex items-center justify-center gap-1"><Mail className="h-3 w-3" /> Email</div>
                 <div className="text-center flex items-center justify-center gap-1"><BellRing className="h-3 w-3" /> Push</div>
@@ -1399,7 +1408,8 @@ function NotifRow({
                 non ancora
               </span>
             )}
-            {desc}
+            {/* Mobile: basta il nome dell'evento (e «non ancora» se è spento). */}
+            <span className="max-sm:hidden">{desc}</span>
           </p>
         </div>
       </div>
@@ -1434,11 +1444,11 @@ function NotifMatrixRow({
 }) {
   const inerte = !emailAttiva && !pushAttiva;
   return (
-    <div className={`grid grid-cols-[1fr_52px_52px] items-center gap-2 px-3 py-3 sm:grid-cols-[1fr_72px_72px] sm:px-4 ${!isLast ? "border-b" : ""} hover:bg-muted/30 transition-colors`}>
+    <div className={`grid grid-cols-[1fr_52px_52px] items-center gap-2 px-3 py-3 sm:grid-cols-[1fr_72px_72px] sm:px-4 max-sm:py-2 ${!isLast ? "border-b" : ""} hover:bg-muted/30 transition-colors`}>
       <div className="flex items-center gap-3 min-w-0">
-        <Icon className={`h-4 w-4 shrink-0 ${inerte ? "text-muted-foreground/50" : "text-muted-foreground"}`} />
+        <Icon className={`h-4 w-4 shrink-0 max-sm:hidden ${inerte ? "text-muted-foreground/50" : "text-muted-foreground"}`} />
         <div className="min-w-0">
-          <p className={`truncate text-sm font-medium ${inerte ? "text-muted-foreground" : ""}`}>{label}</p>
+          <p className={`truncate text-sm font-medium max-sm:text-[13px] ${inerte ? "text-muted-foreground" : ""}`}>{label}</p>
           {/* Il marcatore sta nella riga della descrizione, non accanto al nome:
               su schermo stretto accanto al nome lo riduceva a una lettera.
               La descrizione dell'evento resta anche quando la riga è spenta:
@@ -1449,7 +1459,8 @@ function NotifMatrixRow({
                 non ancora
               </span>
             )}
-            {desc}
+            {/* Mobile: basta il nome dell'evento (e «non ancora» se è spento). */}
+            <span className="max-sm:hidden">{desc}</span>
           </p>
         </div>
       </div>
