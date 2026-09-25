@@ -847,9 +847,10 @@ const ChatListItem = React.memo(function ChatListItem({
                 type="button"
                 onClick={(e) => { e.stopPropagation(); onTogglePin(); }}
                 className={cn(
-                  // tap-compact + visibile su mobile: senza hover il pin era invisibile e impinnabile da telefono
+                  // Mobile: un pin grigio su ogni riga era rumore. Si vede solo se
+                  // la chat è fissata; per fissarla c'è il menu ⋮ della conversazione.
                   "tap-compact p-1 rounded hover:bg-foreground/10 transition-opacity",
-                  isPinned ? "opacity-80 hover:opacity-100" : "max-md:opacity-60 opacity-0 group-hover/listitem:opacity-60 hover:!opacity-100",
+                  isPinned ? "opacity-80 hover:opacity-100" : "max-md:hidden opacity-0 group-hover/listitem:opacity-60 hover:!opacity-100",
                 )}
                 aria-label={isPinned ? "Rimuovi pin" : "Pinna chat"}
                 title={isPinned ? "Rimuovi pin" : "Pinna chat in alto"}
@@ -1021,7 +1022,8 @@ const MessageBubble = React.memo(function MessageBubble({
         </div>
       )}
 
-      <div className={cn("max-w-[75%] min-w-[80px] relative")}>
+      {/* Mobile più larga: al 75% le risposte lunghe di Silvio diventavano una colonna stretta. */}
+      <div className={cn("max-w-[88%] md:max-w-[75%] min-w-[80px] relative")}>
         {/* Bubble — v8.6.75 (LOOP-CHAT-ADMIN Round 9 / UNIFIED-BUBBLE +
             LUCIA-REMOVED). Pattern: bianco + border-l-4 colorato per
             identità del mittente.
@@ -2528,6 +2530,11 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                     <DropdownMenuItem onClick={() => setShowSearch(true)}>
                       <Search className="h-4 w-4 mr-2" /> Cerca nei messaggi
                     </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => toggleChannelPin(selectedChannel.id)}>
+                      {membershipByChannel.get(selectedChannel.id)?.is_pinned
+                        ? <><PinOff className="h-4 w-4 mr-2" /> Togli dall'alto</>
+                        : <><Pin className="h-4 w-4 mr-2" /> Fissa in alto</>}
+                    </DropdownMenuItem>
                     {!selectedChannel.is_dm && (
                       <DropdownMenuItem>
                         <Users className="h-4 w-4 mr-2" /> Info gruppo
@@ -2750,7 +2757,8 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
 
             {/* AI Test Lab — model selector bar (sopra compose, solo Silvio + demo) */}
             {isSilvioChannel && aiSelector.showSelector && aiSelector.availableModels.length > 0 && (
-              <div className="border-t bg-orange-50/30 px-3 py-1.5 flex items-center gap-2">
+              // Mobile no: è uno strumento di prova (modello e costo), non da telefono.
+              <div className="border-t bg-orange-50/30 px-3 py-1.5 flex items-center gap-2 max-md:hidden">
                 <span className="text-[10px] uppercase tracking-wide text-orange-700 font-semibold">AI Test Lab:</span>
                 <AIModelSelector
                   models={aiSelector.availableModels}
@@ -2852,7 +2860,8 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-10 w-10 rounded-full shrink-0 transition-colors text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/30"
+                    // Mobile no: la tastiera del telefono ha già le emoji.
+                    className="h-10 w-10 rounded-full shrink-0 transition-colors text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/30 max-md:hidden"
                     type="button"
                     aria-label="Inserisci emoji"
                   >

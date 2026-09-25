@@ -1722,6 +1722,11 @@ export function CompanyLayout() {
   const isClassicQuoteEditor = /^\/azienda\/marketing\/preventivi\/(nuovo|[^/]+\/modifica)\/?$/.test(location.pathname);
   // A bounded scrolling main keeps template navigation and PDF preview sticky.
   const isViewportEditor = isClassicQuoteEditor || /^\/azienda\/impostazioni\/template-preventivi\/?$/.test(location.pathname);
+  // Chat: altezza bloccata allo schermo e, da desktop, senza margini. Senza il
+  // blocco un filo lungo (Silvio) allungava <main> a 2.400px e il campo di
+  // scrittura finiva sotto la piega; il margine di 24px era spazio vuoto.
+  const isChatSchermoIntero = /^\/azienda\/chat\/?$/.test(location.pathname);
+  const altezzaBloccata = isViewportEditor || isChatSchermoIntero;
 
   const showSupport = permissions.canViewTickets && isModuleEnabled("tickets");
 
@@ -1733,7 +1738,7 @@ export function CompanyLayout() {
   return (
     <>
     <SidebarProvider>
-      <div className={`md:min-h-screen flex w-full ${isViewportEditor ? "md:h-dvh" : "md:h-auto"} h-[calc(100dvh-env(safe-area-inset-top))] overflow-hidden`}>
+      <div className={`md:min-h-screen flex w-full ${altezzaBloccata ? "md:h-dvh" : "md:h-auto"} h-[calc(100dvh-env(safe-area-inset-top))] overflow-hidden`}>
         <CompanySidebar />
         {/* NIENTE pt-safe qui: il top safe-area è già riservato UNA volta dal
             padding-top del body (html.capacitor body). Aggiungerlo qui lo
@@ -1884,7 +1889,7 @@ export function CompanyLayout() {
               "spazi vuoti ai lati quando scrollo") — le tabelle scrollano nei loro wrapper */}
           {/* pb mobile ≈ altezza pillola flottante + safe-area: l'ultimo
               elemento resta raggiungibile sopra il vetro della bottom-nav. */}
-          <main className={`flex-1 ${isViewportEditor ? "min-h-0" : ""} overflow-y-auto overflow-x-hidden p-3 md:p-6 bg-muted/30 pb-28 md:pb-6`} id="main-content" aria-label="Contenuto principale">
+          <main className={`flex-1 ${altezzaBloccata ? "min-h-0" : ""} overflow-y-auto overflow-x-hidden p-3 ${isChatSchermoIntero ? "md:p-0" : "md:p-6"} bg-muted/30 pb-28 ${isChatSchermoIntero ? "md:pb-0" : "md:pb-6"}`} id="main-content" aria-label="Contenuto principale">
             <ErrorBoundary title="Errore nel caricamento della pagina">
               {/* Skeleton (non spinner) al cambio pagina: percezione di velocità sul primo paint mobile */}
               <Suspense fallback={
