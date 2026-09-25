@@ -756,13 +756,16 @@ export default function MarketingCalendarsConfig() {
   }, [preferences]);
 
   return (
-    <div className="space-y-6">
-      <div>
+    // flex+gap invece di space-y: il titolo nascosto da 768 non lascia spazio.
+    <div className="flex flex-col gap-6">
+      {/* Da 768 il titolo è già nella testata delle Impostazioni. */}
+      <div className="md:hidden">
         <h1 className="text-2xl font-bold tracking-tight">Calendari Marketing</h1>
         <p className="text-muted-foreground">Gestisci i calendari del modulo Marketing e Vendita</p>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {/* Quattro in riga da 1024 (erano 2×2, alti). */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="border-l-4 border-l-primary">
           <CardContent className="p-4">
             <p className="text-xs font-medium uppercase text-muted-foreground">Calendari</p>
@@ -881,14 +884,16 @@ export default function MarketingCalendarsConfig() {
                   <TableRow>
                     <TableHead>Nome</TableHead>
                     <TableHead className="hidden sm:table-cell">Responsabile</TableHead>
-                    <TableHead className="hidden lg:table-cell">Sede base</TableHead>
+                    {/* Colonne spostate più in là: nelle Impostazioni a 1024 lo
+                        spazio è 686px e la tabella ne chiedeva 1157. */}
+                    <TableHead className="hidden 2xl:table-cell">Sede base</TableHead>
                     <TableHead>Durata</TableHead>
                     <TableHead>Tipo</TableHead>
-                    <TableHead className="hidden lg:table-cell">Link booking</TableHead>
+                    <TableHead className="hidden 2xl:table-cell">Link booking</TableHead>
                     <TableHead className="hidden xl:table-cell">Calendario esterno</TableHead>
-                    <TableHead className="hidden md:table-cell">App.</TableHead>
+                    <TableHead className="hidden xl:table-cell">App.</TableHead>
                     <TableHead>Stato</TableHead>
-                    <TableHead className="hidden md:table-cell">Aggiornato</TableHead>
+                    <TableHead className="hidden min-[1700px]:table-cell">Aggiornato</TableHead>
                     <TableHead className="text-right">Azioni</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -912,7 +917,7 @@ export default function MarketingCalendarsConfig() {
                         </div>
                       </TableCell>
                       <TableCell className="hidden sm:table-cell text-muted-foreground">{ownerName(cal.owner_id)}</TableCell>
-                      <TableCell className="hidden lg:table-cell text-muted-foreground">
+                      <TableCell className="hidden 2xl:table-cell text-muted-foreground">
                         {cal.base_formatted_address || [cal.base_address_city, cal.base_address_province].filter(Boolean).join(", ") || "—"}
                       </TableCell>
                       <TableCell>{cal.duration_minutes} min</TableCell>
@@ -922,7 +927,7 @@ export default function MarketingCalendarsConfig() {
                           return <Badge variant={meta.variant}>{meta.label}</Badge>;
                         })()}
                       </TableCell>
-                      <TableCell className="hidden lg:table-cell">
+                      <TableCell className="hidden 2xl:table-cell">
                         {cal.booking_slug ? (
                           <button
                             type="button"
@@ -965,11 +970,11 @@ export default function MarketingCalendarsConfig() {
                           </button>
                         )}
                       </TableCell>
-                      <TableCell className="hidden md:table-cell">{appointmentCountsByCalendar[cal.id] || 0}</TableCell>
+                      <TableCell className="hidden xl:table-cell">{appointmentCountsByCalendar[cal.id] || 0}</TableCell>
                       <TableCell>
                         <Switch checked={cal.is_active} disabled={!canManageCalendars || toggleActive.isPending} onCheckedChange={(v) => toggleActive.mutate({ id: cal.id, is_active: v })} />
                       </TableCell>
-                      <TableCell className="hidden md:table-cell text-muted-foreground text-sm">
+                      <TableCell className="hidden min-[1700px]:table-cell text-muted-foreground text-sm">
                         {/* 2026-05-27: guard contro updated_at null/invalid che
                             lanciava RangeError "Invalid time value" da date-fns
                             e crashava l'intera pagina via ErrorBoundary. */}

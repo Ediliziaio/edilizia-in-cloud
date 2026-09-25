@@ -1644,7 +1644,8 @@ export function CustomFieldsConfig() {
                 <TableHead className="text-xs uppercase tracking-wider font-semibold">Oggetto</TableHead>
                 <TableHead className="text-xs uppercase tracking-wider font-semibold">Cartella</TableHead>
                 <TableHead className="text-xs uppercase tracking-wider font-semibold">Chiave Univoca</TableHead>
-                <TableHead className="text-xs uppercase tracking-wider font-semibold">Creato Il</TableHead>
+                {/* «Creato il» da 1280: a 1024 la tabella sbordava di 76px. */}
+                <TableHead className="text-xs uppercase tracking-wider font-semibold md:max-xl:hidden">Creato Il</TableHead>
                 <TableHead className="w-10" />
               </TableRow>
             </TableHeader>
@@ -1696,7 +1697,7 @@ export function CustomFieldsConfig() {
                         </button>
                       </div>
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
+                    <TableCell className="text-sm text-muted-foreground md:max-xl:hidden">
                       {formatSafeDate(f.createdAt)}
                     </TableCell>
                     <TableCell>

@@ -413,10 +413,38 @@ export default function SettingsSuppliers() {
 
   if (!canView) return null;
 
+  const menuEsporta = (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="sm">
+          <Download className="h-4 w-4 mr-1.5" />
+          <span className="hidden sm:inline">Esporta</span>
+          <ChevronDown className="h-3.5 w-3.5 ml-1" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuLabel className="text-[11px]">Tutti i fornitori ({suppliers.length})</DropdownMenuLabel>
+        <DropdownMenuItem onClick={exportCSV}>
+          <FileText className="h-4 w-4 mr-2" /> CSV
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={exportXLSX}>
+          <FileSpreadsheet className="h-4 w-4 mr-2" /> Excel
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={exportPDF}>
+          <FileText className="h-4 w-4 mr-2" /> PDF
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
   return (
-    <div className="space-y-6">
-      {/* Header con pattern h-10 w-10 bg-primary/10 */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    // flex+gap invece di space-y: la testata nascosta da 768 lasciava lo
+    // spazio sopra i numeri (lo stesso 24px tra i blocchi sul telefono).
+    <div className="flex flex-col gap-6">
+      {/* Header con pattern h-10 w-10 bg-primary/10 — da 768 non c'è: titolo e
+          frase ripetevano la testata delle Impostazioni, e «Esporta» sale
+          nella riga delle schede. */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 md:hidden">
         <div className="flex items-start gap-3 min-w-0">
           <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
             <Truck className="h-5 w-5 text-primary" />
@@ -429,27 +457,7 @@ export default function SettingsSuppliers() {
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm">
-                <Download className="h-4 w-4 mr-1.5" />
-                <span className="hidden sm:inline">Esporta</span>
-                <ChevronDown className="h-3.5 w-3.5 ml-1" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel className="text-[11px]">Tutti i fornitori ({suppliers.length})</DropdownMenuLabel>
-              <DropdownMenuItem onClick={exportCSV}>
-                <FileText className="h-4 w-4 mr-2" /> CSV
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={exportXLSX}>
-                <FileSpreadsheet className="h-4 w-4 mr-2" /> Excel
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={exportPDF}>
-                <FileText className="h-4 w-4 mr-2" /> PDF
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {menuEsporta}
         </div>
       </div>
 
@@ -495,18 +503,23 @@ export default function SettingsSuppliers() {
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="flex h-auto flex-wrap">
-          <TabsTrigger value="anagrafica">Anagrafica</TabsTrigger>
-          <TabsTrigger value="operativo">Operativo</TabsTrigger>
-          <TabsTrigger value="report">
-            <BarChart3 className="mr-1.5 h-4 w-4" />
-            Report
-          </TabsTrigger>
-          <TabsTrigger value="audit">
-            <ShieldCheck className="mr-1.5 h-4 w-4" />
-            Audit
-          </TabsTrigger>
-        </TabsList>
+        {/* Da 768 le schede e «Esporta» nella stessa riga (sul telefono la
+            riga non è flex: le schede restano larghe come prima). */}
+        <div className="md:flex md:items-center md:justify-between md:gap-3">
+          <TabsList className="flex h-auto flex-wrap">
+            <TabsTrigger value="anagrafica">Anagrafica</TabsTrigger>
+            <TabsTrigger value="operativo">Operativo</TabsTrigger>
+            <TabsTrigger value="report">
+              <BarChart3 className="mr-1.5 h-4 w-4" />
+              Report
+            </TabsTrigger>
+            <TabsTrigger value="audit">
+              <ShieldCheck className="mr-1.5 h-4 w-4" />
+              Audit
+            </TabsTrigger>
+          </TabsList>
+          <div className="hidden md:block">{menuEsporta}</div>
+        </div>
         <TabsContent value="anagrafica" className="mt-4">
           <SuppliersConfig />
         </TabsContent>

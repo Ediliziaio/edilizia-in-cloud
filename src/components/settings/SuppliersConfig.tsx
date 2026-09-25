@@ -273,14 +273,17 @@ function SupplierTable({
     <Table>
       <TableHeader>
         <TableRow>
+          {/* Da 768 a 1536 meno colonne: a 1024 la tabella chiedeva 984px su
+              638. Pagamento e P.IVA tornano da 1280, IVA e prodotti da 1536.
+              Sul telefono restano tutte (la tabella scorre come prima). */}
           <TableHead>Nome Fornitore</TableHead>
           <TableHead>Categoria</TableHead>
-          <TableHead>Mod. Pagamento</TableHead>
+          <TableHead className="md:max-xl:hidden">Mod. Pagamento</TableHead>
           <TableHead>Città</TableHead>
           <TableHead>Stato</TableHead>
-          <TableHead>P.IVA</TableHead>
-          <TableHead>Aliquota IVA</TableHead>
-          <TableHead>Prodotti</TableHead>
+          <TableHead className="md:max-xl:hidden">P.IVA</TableHead>
+          <TableHead className="md:max-2xl:hidden">Aliquota IVA</TableHead>
+          <TableHead className="md:max-2xl:hidden">Prodotti</TableHead>
           <TableHead className="w-[100px]">Azioni</TableHead>
         </TableRow>
       </TableHeader>
@@ -295,16 +298,16 @@ function SupplierTable({
                 </span>
               ) : "—"}
             </TableCell>
-            <TableCell>{getPaymentMethodLabel(supplier.payment_method)}</TableCell>
+            <TableCell className="md:max-xl:hidden">{getPaymentMethodLabel(supplier.payment_method)}</TableCell>
             <TableCell>{supplier.city || "—"}</TableCell>
             <TableCell>
               <span className={`inline-flex rounded-full px-2 py-0.5 text-xs ${supplier.is_active ? "bg-emerald-50 text-emerald-700" : "bg-muted text-muted-foreground"}`}>
                 {supplier.is_active ? "Attivo" : "Inattivo"}
               </span>
             </TableCell>
-            <TableCell>{supplier.vat_number || "—"}</TableCell>
-            <TableCell>{getVatRateLabel(supplier.vat_rate || 22)}</TableCell>
-            <TableCell>
+            <TableCell className="md:max-xl:hidden">{supplier.vat_number || "—"}</TableCell>
+            <TableCell className="md:max-2xl:hidden">{getVatRateLabel(supplier.vat_rate || 22)}</TableCell>
+            <TableCell className="md:max-2xl:hidden">
               {(productCounts[supplier.id] ?? 0) > 0 ? (
                 <span className="inline-flex rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700" title="Prodotti del listino collegati a questo fornitore">
                   {productCounts[supplier.id]} prod.
@@ -708,8 +711,10 @@ export function SuppliersConfig() {
       <CardHeader>
         {/* v8.6.74 — flex-wrap su mobile: prima i 2 button (Merge duplicati +
             Nuovo Fornitore) tagliavano fuori dal viewport iPhone 375px. */}
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div className="min-w-0">
+        <div className="flex flex-wrap items-start justify-between gap-2 md:justify-end">
+          {/* Da 768 il titolo «Fornitori» è già due volte sopra (testata e
+              pagina): restano i bottoni, a destra. */}
+          <div className="min-w-0 md:hidden">
             <CardTitle className="flex items-center gap-2">
               <Truck className="h-5 w-5 shrink-0" />
               Fornitori
@@ -751,8 +756,11 @@ export function SuppliersConfig() {
           </Alert>
         ) : (
           <div className="space-y-4">
-            <div className="grid gap-3 lg:grid-cols-[minmax(220px,1fr)_160px_180px_140px_160px]">
-              <div className="relative">
+            {/* In una riga solo da 1536: prima da 1024 chiedeva 908px e il
+                quarto menu usciva dalla card. Sotto, ricerca e quattro menu su
+                due righe. */}
+            <div className="grid gap-3 md:grid-cols-4 2xl:grid-cols-[minmax(220px,1fr)_160px_180px_140px_160px]">
+              <div className="relative md:col-span-4 2xl:col-span-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Cerca nome, categoria, città, provincia o P.IVA..."
