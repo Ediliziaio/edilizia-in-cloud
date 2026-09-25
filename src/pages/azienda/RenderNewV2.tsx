@@ -9,12 +9,15 @@ import {
   CheckCircle2,
   Download,
   FileText,
+  History,
+  ImagePlus,
   Loader2,
   RefreshCw,
   ScanSearch,
   Sparkles,
   Upload,
   Wand2,
+  X,
   Zap,
 } from "lucide-react";
 
@@ -82,6 +85,7 @@ import type { WindowPhotoMeta, WindowRenderConfig, WindowSceneAnalysis } from "@
 import { preloadImage } from "@/lib/render/preloadImage";
 import { compressRenderPhoto } from "@/lib/render/compressRenderPhoto";
 import { RenderProcessingCard } from "@/components/render/RenderProcessingCard";
+import { MandaRenderMobile } from "@/components/render/MandaRenderMobile";
 
 import { useIsMobile } from "@/hooks/use-mobile";
 // v8.6.23 — Polling come SAFETY NET dietro al canale Realtime.
@@ -1074,8 +1078,20 @@ export default function RenderNewV2() {
 
   const progressValue = ((step - 1) / (STEP_LABELS.length - 1)) * 100;
 
+  // Cambiando passo si riparte dall'alto: prima il passo nuovo compariva con la
+  // pagina ancora scorsa in fondo (sul telefono si vedeva la fine del passo, o il vuoto).
+  const radiceRef = useRef<HTMLDivElement>(null);
+  const primoPassoRef = useRef(true);
+  useEffect(() => {
+    if (primoPassoRef.current) {
+      primoPassoRef.current = false;
+      return;
+    }
+    radiceRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+  }, [step]);
+
   return (
-    <div className={cn("mx-auto pb-8", isEmbed ? "max-w-5xl" : "max-w-5xl")}>
+    <div ref={radiceRef} className={cn("mx-auto pb-8 scroll-mt-3", isEmbed ? "max-w-5xl" : "max-w-5xl")}>
       {/* HEADER:
           - modalita' standalone: header completo con titolo + descrizione
             promozionale + step counter + progress bar
@@ -1096,8 +1112,9 @@ export default function RenderNewV2() {
           <Progress value={progressValue} className="h-1 bg-white/20" />
         </div>
       ) : (
-        <div className="mb-6 rounded-b-2xl bg-gradient-to-br from-slate-800 to-slate-700 px-5 py-5 text-white">
-          <div className="flex items-center justify-between">
+        // Telefono: una riga (titolo e «Passo · 3/7») e la barra sottile, come negli altri wizard render.
+        <div className="mb-6 rounded-b-2xl bg-gradient-to-br from-slate-800 to-slate-700 px-5 py-5 text-white max-md:mb-3 max-md:rounded-none max-md:bg-none max-md:bg-transparent max-md:p-0 max-md:text-foreground">
+          <div className="flex items-center justify-between max-md:hidden">
             <button
               onClick={() => navigate(-1)}
               className="flex items-center gap-1 text-xs opacity-70 transition hover:opacity-100"
@@ -1111,10 +1128,10 @@ export default function RenderNewV2() {
             </Badge>
           </div>
 
-          <div className="mt-3 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+          <div className="mt-3 flex flex-col gap-2 md:flex-row md:items-end md:justify-between max-md:mt-0 max-md:flex-row max-md:items-center max-md:justify-between">
             <div>
               {/* Mobile: titolo compatto. Desktop: kicker + claim + descrizione estesa. */}
-              <div className="text-xl font-bold md:hidden">Render Infissi</div>
+              <div className="text-xl font-bold md:hidden max-md:text-lg">Render Infissi</div>
               <div className="hidden md:block">
                 <div className="text-[11px] font-semibold uppercase tracking-widest opacity-70">
                   Sostituzione serramenti fotorealistica
@@ -1128,14 +1145,17 @@ export default function RenderNewV2() {
                 </div>
               </div>
             </div>
-            <div className="rounded-xl bg-white/10 px-3 py-2 text-xs text-white/80">
-              Step {step} / {STEP_LABELS.length}
+            <div className="rounded-xl bg-white/10 px-3 py-2 text-xs text-white/80 max-md:shrink-0 max-md:rounded-full max-md:bg-muted max-md:px-2.5 max-md:py-1 max-md:text-[11px] max-md:font-medium max-md:text-muted-foreground">
+              <span className="max-md:hidden">Step {step} / {STEP_LABELS.length}</span>
+              <span className="md:hidden">
+                {STEP_LABELS[step - 1]} · {step}/{STEP_LABELS.length}
+              </span>
             </div>
           </div>
 
-          <div className="mt-4">
-            <Progress value={progressValue} className="h-1.5 bg-white/20" />
-            <div className="mt-2 grid grid-cols-7 gap-2">
+          <div className="mt-4 max-md:mt-2">
+            <Progress value={progressValue} className="h-1.5 bg-white/20 max-md:h-1 max-md:bg-slate-200" />
+            <div className="mt-2 grid grid-cols-7 gap-2 max-md:hidden">
               {STEP_LABELS.map((label, index) => (
                 <div key={label} className="text-center">
                   <div
@@ -1154,24 +1174,16 @@ export default function RenderNewV2() {
         </div>
       )}
 
-      <div className="space-y-4 px-4">
+      <div className="space-y-4 px-4 max-md:space-y-3 max-md:px-0">
         <RenderCreditGate />
 
         {step === 1 && resumable && !photo && (
-          <Card className="border-orange-300 bg-orange-50">
-            <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="text-sm">
-                <div className="font-semibold">Hai un render lasciato a metà</div>
-                <div className="text-muted-foreground">
-                  Foto e scelte sono salvate (step {resumable.step} di 7). Vuoi riprendere da dove eri?
-                </div>
-              </div>
-              <div className="flex shrink-0 gap-2">
-                <Button size="sm" onClick={() => void resumeSession()}>Riprendi</Button>
-                <Button size="sm" variant="outline" onClick={discardResume}>Ricomincia</Button>
-              </div>
-            </CardContent>
-          </Card>
+          <RipresaRender
+            passo={resumable.step}
+            photoPath={resumable.photoPath}
+            onRiprendi={() => void resumeSession()}
+            onRicomincia={discardResume}
+          />
         )}
 
         {step === 1 && (
@@ -1285,6 +1297,86 @@ export default function RenderNewV2() {
   );
 }
 
+/**
+ * «Hai un render lasciato a metà». Telefono: una riga come un elemento di
+ * elenco — miniatura della foto, passo, «Riprendi» e una X per ricominciare
+ * (toglie solo il promemoria: la sessione resta nella galleria).
+ */
+function RipresaRender({
+  passo,
+  photoPath,
+  onRiprendi,
+  onRicomincia,
+}: {
+  passo: number;
+  photoPath: string;
+  onRiprendi: () => void;
+  onRicomincia: () => void;
+}) {
+  const isMobile = useIsMobile();
+  const [miniatura, setMiniatura] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isMobile || !photoPath) return;
+    let attivo = true;
+    void supabase.storage
+      .from("render-originals")
+      .createSignedUrl(photoPath, 600)
+      .then(({ data }) => {
+        if (attivo && data?.signedUrl) setMiniatura(data.signedUrl);
+      });
+    return () => {
+      attivo = false;
+    };
+  }, [isMobile, photoPath]);
+
+  return (
+    <Card className="border-orange-300 bg-orange-50 max-md:border-slate-200 max-md:bg-card">
+      <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between max-md:flex-row max-md:items-center max-md:gap-2.5 max-md:p-2">
+        {isMobile && (
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-orange-100 text-orange-600">
+            {miniatura ? (
+              <img src={miniatura} alt="" className="h-full w-full object-cover" />
+            ) : (
+              <History className="h-5 w-5" />
+            )}
+          </div>
+        )}
+        <div className="text-sm max-md:min-w-0 max-md:flex-1">
+          <div className="font-semibold max-md:truncate max-md:text-[13px]">
+            <span className="max-md:hidden">Hai un render lasciato a metà</span>
+            <span className="md:hidden">Render a metà</span>
+          </div>
+          <div className="text-muted-foreground max-md:text-[11px]">
+            <span className="max-md:hidden">Foto e scelte sono salvate (step {passo} di 7). Vuoi riprendere da dove eri?</span>
+            <span className="md:hidden">Passo {passo} di 7</span>
+          </div>
+        </div>
+        <div className="flex shrink-0 gap-2 max-md:items-center max-md:gap-0.5">
+          <Button
+            size="sm"
+            // Telefono: scuro come gli «Avanti» del wizard; l'arancio resta alla foto e al render.
+            className="max-md:h-9 max-md:bg-slate-800 max-md:px-3.5 max-md:text-[13px] max-md:hover:bg-slate-700"
+            onClick={onRiprendi}
+          >
+            Riprendi
+          </Button>
+          <Button
+            size="sm"
+            variant={isMobile ? "ghost" : "outline"}
+            className="max-md:h-9 max-md:w-9 max-md:px-0 max-md:text-muted-foreground"
+            onClick={onRicomincia}
+            aria-label="Ricomincia da capo"
+          >
+            <X className="hidden h-4 w-4 max-md:block" />
+            <span className="max-md:hidden">Ricomincia</span>
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function StepPhoto({
   preview,
   meta,
@@ -1300,25 +1392,28 @@ function StepPhoto({
   uploading: boolean;
   fileRef: React.RefObject<HTMLInputElement>;
 }) {
+  const isMobile = useIsMobile();
   return (
-    <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
-      <Card className="overflow-hidden">
+    <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr] max-md:gap-3">
+      <Card className={cn("overflow-hidden", !preview && "max-md:border-0 max-md:bg-transparent max-md:shadow-none")}>
         <CardContent className="p-0">
           {preview ? (
             <div className="relative">
               <img loading="lazy" src={preview} alt="Anteprima foto" className="block max-h-[520px] w-full object-contain bg-slate-100" />
+              {/* Telefono: una pastiglia leggera sulla foto invece del bottone pieno. */}
               <Button
                 type="button"
                 size="sm"
                 variant="secondary"
-                className="absolute right-3 top-3"
+                className="absolute right-3 top-3 max-md:right-2 max-md:top-2 max-md:h-8 max-md:gap-1.5 max-md:rounded-full max-md:bg-black/55 max-md:px-3 max-md:text-[13px] max-md:text-white max-md:backdrop-blur-sm max-md:hover:bg-black/65"
                 onClick={() => onFile(null)}
               >
+                <Camera className="hidden h-3.5 w-3.5 max-md:block" />
                 Cambia foto
               </Button>
               {meta && (
-                <div className="absolute bottom-3 left-3 rounded-lg bg-black/70 px-3 py-1.5 text-xs text-white">
-                  {meta.width}×{meta.height} · {meta.orientation}
+                <div className="absolute bottom-3 left-3 rounded-lg bg-black/70 px-3 py-1.5 text-xs text-white max-md:hidden">
+                  {meta.width}×{meta.height} · {ORIENTAMENTO_IT[meta.orientation] ?? meta.orientation}
                 </div>
               )}
             </div>
@@ -1326,22 +1421,31 @@ function StepPhoto({
             <button
               type="button"
               onClick={() => fileRef.current?.click()}
-              className="flex min-h-[360px] w-full flex-col items-center justify-center gap-4 border-2 border-dashed border-slate-300 bg-slate-50 px-6 py-12 transition hover:border-orange-400 hover:bg-orange-50"
+              // Telefono: tutta l'area è il pulsante (niente bottone finto dentro),
+              // alta quasi quanto la foto che la sostituirà, fino a sopra la
+              // barra in basso. Il tratteggio va forzato: una regola globale
+              // (index.css) rimette border-style: solid su ogni <button>.
+              className="flex min-h-[360px] w-full flex-col items-center justify-center gap-4 border-2 border-dashed border-slate-300 bg-slate-50 px-6 py-12 transition hover:border-orange-400 hover:bg-orange-50 max-md:h-[clamp(300px,calc(100dvh-20rem),460px)] max-md:min-h-0 max-md:gap-3 max-md:rounded-2xl max-md:!border-dashed max-md:border-orange-300 max-md:bg-orange-50/60 max-md:px-4 max-md:py-8 max-md:active:bg-orange-100/70"
             >
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-orange-500/15 text-orange-500">
-                <Camera className="h-7 w-7" />
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-orange-500/15 text-orange-500 max-md:h-14 max-md:w-14 max-md:bg-white max-md:shadow-sm">
+                <Camera className="h-7 w-7 max-md:h-6 max-md:w-6" />
               </div>
               <div className="space-y-1 text-center">
-                <div className="text-lg font-bold">Carica la foto reale dell'ambiente</div>
-                <div className="text-sm text-muted-foreground">
+                <div className="text-lg font-bold max-md:text-sm max-md:font-semibold">
+                  <span className="max-md:hidden">Carica la foto reale dell'ambiente</span>
+                  <span className="md:hidden">Scatta o scegli una foto</span>
+                </div>
+                {/* Telefono: niente spiegazione né limiti del file (se serve lo dice l'avviso). */}
+                <div className="text-sm text-muted-foreground max-md:hidden">
                   L'obiettivo è sostituire solo gli infissi visibili mantenendo identico tutto il resto.
                 </div>
+                <div className="text-[11px] text-muted-foreground md:hidden">Frontale, ben illuminata, con tutta la finestra</div>
                 {/* v8.6.33 — Hint preventivo formato/dimensione: evita di scoprire i limiti DOPO la selezione del file. */}
-                <div className="pt-2 text-xs text-muted-foreground">
+                <div className="pt-2 text-xs text-muted-foreground max-md:hidden">
                   JPG o PNG · max 20 MB · idealmente sotto i 5 MB per analisi più veloce
                 </div>
               </div>
-              <div className="rounded-lg bg-orange-500 px-5 py-2 text-sm font-semibold text-white">
+              <div className="rounded-lg bg-orange-500 px-5 py-2 text-sm font-semibold text-white max-md:hidden">
                 <Upload className="mr-2 inline h-4 w-4" />
                 Sfoglia file
               </div>
@@ -1352,29 +1456,38 @@ function StepPhoto({
             ref={fileRef}
             type="file"
             accept="image/*"
-            capture="environment"
+            // Niente capture="environment": sul telefono costringeva alla fotocamera
+            // (su Android non si poteva scegliere una foto già fatta); senza, il
+            // telefono chiede «Scatta foto» o «Galleria».
             className="hidden"
             onChange={(event) => onFile(event.target.files?.[0] ?? null)}
           />
         </CardContent>
       </Card>
 
-      <Card>
-        <CardContent className="space-y-4 p-5">
-          <div>
-            <div className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">Step 1</div>
-            <h2 className="mt-1 text-xl font-bold">Foto sorgente</h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Più la foto è chiara e leggibile, più il render finale sembrerà una sostituzione reale e non una reinterpretazione AI.
-            </p>
-          </div>
+      {/* Telefono: dei consigli resta solo il pulsante «Analizza ambiente»,
+          e solo quando la foto c'è (prima era un bottone grigio spento). */}
+      {(!isMobile || preview) && (
+      <Card className="max-md:border-0 max-md:bg-transparent max-md:shadow-none">
+        <CardContent className="space-y-4 p-5 max-md:p-0">
+          {!isMobile && (
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">Step 1</div>
+              <h2 className="mt-1 text-xl font-bold">Foto sorgente</h2>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Più la foto è chiara e leggibile, più il render finale sembrerà una sostituzione reale e non una reinterpretazione AI.
+              </p>
+            </div>
+          )}
 
-          <div className="space-y-2 text-sm text-muted-foreground">
-            <div>1. Inquadra bene le aperture da modificare.</div>
-            <div>2. Evita tagli eccessivi dei bordi del vano finestra.</div>
-            <div>3. Mantieni visibili elementi di contorno utili: tende, davanzale, radiatore, cassonetto.</div>
-            <div>4. Se la foto è verticale, il render resterà verticale.</div>
-          </div>
+          {!isMobile && (
+            <div className="space-y-2 text-sm text-muted-foreground">
+              <div>1. Inquadra bene le aperture da modificare.</div>
+              <div>2. Evita tagli eccessivi dei bordi del vano finestra.</div>
+              <div>3. Mantieni visibili elementi di contorno utili: tende, davanzale, radiatore, cassonetto.</div>
+              <div>4. Se la foto è verticale, il render resterà verticale.</div>
+            </div>
+          )}
 
           <Button
             size="lg"
@@ -1396,6 +1509,7 @@ function StepPhoto({
           </Button>
         </CardContent>
       </Card>
+      )}
     </div>
   );
 }
@@ -1429,12 +1543,13 @@ function StepAnalysis({
   return (
     <div className="space-y-4">
       <Card>
-        <CardContent className="p-5">
-          <div className="flex items-start justify-between gap-4">
+        <CardContent className="p-5 max-md:p-3">
+          {/* Telefono: titolo e badge li dice già la testata; «Rianalizza» sta accanto ai numeri. */}
+          <div className="flex items-start justify-between gap-4 max-md:hidden">
             <div>
-              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">Step 2</div>
-              <h2 className="mt-1 text-xl font-bold">Analisi ambiente esistente</h2>
-              <p className="mt-2 text-sm text-muted-foreground">
+              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600 max-md:hidden">Step 2</div>
+              <h2 className="mt-1 text-xl font-bold max-md:hidden">Analisi ambiente esistente</h2>
+              <p className="mt-2 text-sm text-muted-foreground max-md:hidden">
                 Leggiamo la scena per capire aperture visibili, accessori esistenti e punti da preservare.
               </p>
             </div>
@@ -1449,13 +1564,14 @@ function StepAnalysis({
                   onClick={onRetry}
                   variant="outline"
                   size="sm"
-                  className="gap-1 text-xs"
+                  aria-label="Rianalizza"
+                  className="gap-1 text-xs max-md:h-9 max-md:w-9 max-md:px-0"
                 >
                   <RefreshCw className="h-3.5 w-3.5" />
-                  Rianalizza
+                  <span className="max-md:hidden">Rianalizza</span>
                 </Button>
               )}
-              <Badge className="gap-1 bg-slate-900 text-white hover:bg-slate-900">
+              <Badge className="gap-1 bg-slate-900 text-white hover:bg-slate-900 max-md:hidden">
                 <ScanSearch className="h-3.5 w-3.5" />
                 Scene analysis
               </Badge>
@@ -1471,21 +1587,38 @@ function StepAnalysis({
               </div>
             </div>
           ) : analysis ? (
-            <div className="mt-5 space-y-4">
+            <div className="mt-5 space-y-4 max-md:mt-0 max-md:space-y-3">
               {error && (
                 <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                   Analisi AI parziale: abbiamo attivato una fallback analysis per non bloccarti. Dettaglio: {error}
                 </div>
               )}
 
-              <div className="grid gap-3 md:grid-cols-4">
-                <MetricCard label="Aperture visibili" value={String(analysis.estimatedOpeningsVisible)} />
-                <MetricCard label="Ambiente percepito" value={analysis.environmentType.replace(/_/g, " ")} />
-                <MetricCard label="Vista" value={analysis.viewMode} />
-                <MetricCard label="Luce" value={analysis.lightingDirection} />
+              {/* Telefono: aperture, ambiente e vista su una riga; la luce (testo libero
+                  dell'AI) e la lettura della scena restano al computer. */}
+              <div className={cn("grid gap-3 md:grid-cols-4 max-md:gap-2", onRetry ? "max-md:grid-cols-[1fr_1fr_1fr_auto]" : "max-md:grid-cols-3")}>
+                <MetricCard label="Aperture visibili" labelBreve="Aperture" value={String(analysis.estimatedOpeningsVisible)} />
+                <MetricCard
+                  label="Ambiente percepito"
+                  labelBreve="Ambiente"
+                  value={AMBIENTE_IT[analysis.environmentType] ?? analysis.environmentType.replace(/_/g, " ")}
+                />
+                <MetricCard label="Vista" value={VISTA_IT[analysis.viewMode] ?? analysis.viewMode} />
+                <MetricCard label="Luce" value={analysis.lightingDirection} className="max-md:hidden" />
+                {onRetry && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={onRetry}
+                    aria-label="Rianalizza la foto"
+                    className="hidden h-auto w-10 px-0 max-md:flex"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
 
-              <div className="rounded-2xl border bg-slate-50 p-4">
+              <div className="rounded-2xl border bg-slate-50 p-4 max-md:hidden">
                 <div className="text-sm font-semibold">Lettura scena</div>
                 <div className="mt-2 text-sm text-muted-foreground">{analysis.environmentSummary}</div>
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -1497,30 +1630,31 @@ function StepAnalysis({
                 </div>
               </div>
 
-              <div className="grid gap-3 lg:grid-cols-2">
+              <div className="grid gap-3 lg:grid-cols-2 max-md:gap-2">
                 {openings.map((opening) => (
                   <Card key={opening.id} className="border-slate-200">
-                    <CardContent className="space-y-3 p-4">
+                    <CardContent className="space-y-3 p-4 max-md:space-y-2 max-md:p-3">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-500/10 font-bold text-orange-600">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-500/10 font-bold text-orange-600 max-md:h-7 max-md:w-7 max-md:text-[13px]">
                             {opening.label}
                           </div>
                           <div>
-                            <div className="font-semibold">{opening.typeCurrent.replace(/_/g, " ")}</div>
-                            <div className="text-xs text-muted-foreground">{opening.approximatePlacement}</div>
+                            <div className="font-semibold max-md:text-[13px]">{opening.typeCurrent.replace(/_/g, " ")}</div>
+                            <div className="text-xs text-muted-foreground max-md:text-[11px]">{opening.approximatePlacement}</div>
                           </div>
                         </div>
-                        <Badge variant="outline">{opening.sashCount} ante</Badge>
+                        <Badge variant="outline" className="max-md:text-[11px]">{opening.sashCount} ante</Badge>
                       </div>
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         {/* v8.6.31 — cassonetto override: click sul badge per cambiare lo stile rilevato. */}
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <button
                               type="button"
                               className={cn(
-                                "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium transition hover:bg-muted/60",
+                                // tap-compact: sul telefono la regola dei 44px gonfiava la pastiglia (e con lei le altre della riga).
+                                "tap-compact inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium transition hover:bg-muted/60 max-md:py-1 max-md:text-[11px]",
                                 opening.cassonettoStyle === "internal_monoblocco"
                                   ? "border-blue-200 bg-blue-50 text-blue-700"
                                   : opening.hasCassonetto
@@ -1578,7 +1712,7 @@ function StepAnalysis({
                           <MiniBadge text="traverso orizzontale" intent="info" />
                         )}
                       </div>
-                      <div className="text-xs text-muted-foreground">
+                      <div className="text-xs text-muted-foreground max-md:text-[11px]">
                         {opening.materialPerceived} · {opening.colorPerceived}
                       </div>
 
@@ -1683,6 +1817,7 @@ function StepTargeting({
   onBack: () => void;
   onNext: () => void;
 }) {
+  const isMobile = useIsMobile();
   const allIds = analysis.openings.map((opening) => opening.id);
   const allSelected = selectedOpeningIds.length === allIds.length;
 
@@ -1704,30 +1839,35 @@ function StepTargeting({
   return (
     <div className="space-y-4">
       <Card>
-        <CardContent className="space-y-5 p-5">
-          <div>
-            <div className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">Step 3</div>
-            <h2 className="mt-1 text-xl font-bold">Quali aperture vuoi modificare?</h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Se nella foto ci sono più infissi, decidiamo con precisione quali sostituire e quali lasciare identici.
-            </p>
-          </div>
+        <CardContent className="space-y-5 p-5 max-md:space-y-3 max-md:p-3">
+          {!isMobile && (
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">Step 3</div>
+              <h2 className="mt-1 text-xl font-bold">Quali aperture vuoi modificare?</h2>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Se nella foto ci sono più infissi, decidiamo con precisione quali sostituire e quali lasciare identici.
+              </p>
+            </div>
+          )}
 
-          <div className="flex flex-wrap gap-2">
+          {/* Telefono: le due scelte affiancate, con le etichette corte. */}
+          <div className="flex flex-wrap gap-2 max-md:flex-nowrap">
             <Button
               type="button"
               variant={allSelected ? "default" : "outline"}
-              className={cn(allSelected && "bg-slate-800 hover:bg-slate-700")}
+              className={cn(allSelected && "bg-slate-800 hover:bg-slate-700", "max-md:flex-1 max-md:px-2 max-md:text-[13px]")}
               onClick={() => onChange(allIds)}
             >
-              Applica a tutte le aperture visibili
+              <span className="max-md:hidden">Applica a tutte le aperture visibili</span>
+              <span className="md:hidden">Tutte</span>
             </Button>
-            <Button type="button" variant="outline" onClick={() => onChange(allIds.slice(0, 1))}>
-              Solo apertura principale
+            <Button type="button" variant="outline" className="max-md:flex-1 max-md:px-2 max-md:text-[13px]" onClick={() => onChange(allIds.slice(0, 1))}>
+              <span className="max-md:hidden">Solo apertura principale</span>
+              <span className="md:hidden">Solo la principale</span>
             </Button>
           </div>
 
-          <div className="grid gap-3 lg:grid-cols-2">
+          <div className="grid gap-3 lg:grid-cols-2 max-md:gap-2">
             {analysis.openings.map((opening) => {
               const checked = selectedOpeningIds.includes(opening.id);
               return (
@@ -1737,23 +1877,23 @@ function StepTargeting({
                   aria-pressed={checked}
                   onClick={() => toggle(opening.id)}
                   className={cn(
-                    "rounded-2xl border p-4 text-left transition",
+                    "rounded-2xl border p-4 text-left transition max-md:rounded-xl max-md:p-3",
                     checked ? "border-orange-500 bg-orange-50" : "border-slate-300 bg-white shadow-sm hover:border-orange-400 hover:shadow",
                   )}
                 >
-                  <div className="flex items-start gap-3">
+                  <div className="flex items-start gap-3 max-md:gap-2">
                     <SelectionMark checked={checked} />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2">
-                        <div className="font-semibold">
+                        <div className="font-semibold max-md:text-[13px]">
                           Apertura {opening.label}
                         </div>
                         <Badge variant={checked ? "default" : "outline"}>{checked ? "Target" : "Intatta"}</Badge>
                       </div>
-                      <div className="mt-1 text-sm text-muted-foreground">
+                      <div className="mt-1 text-sm text-muted-foreground max-md:mt-0.5 max-md:text-[11px]">
                         {opening.typeCurrent.replace(/_/g, " ")} · {opening.sashCount} ante · {opening.approximatePlacement}
                       </div>
-                      <div className="mt-3 flex flex-wrap gap-2">
+                      <div className="mt-3 flex flex-wrap gap-2 max-md:mt-2 max-md:gap-1.5">
                         {opening.hasBelt && <MiniBadge text="cinghia da gestire" intent="warning" />}
                         {opening.hasCassonetto && (
                           <MiniBadge
@@ -1797,21 +1937,24 @@ function StepInfisso({
   onNext: () => void;
   nextDisabled: boolean;
 }) {
+  const isMobile = useIsMobile();
   return (
     <div className="space-y-4">
       <Card>
-        <CardContent className="space-y-5 p-5">
-          <div>
-            <div className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">Step 4</div>
-            <h2 className="mt-1 text-xl font-bold">Nuovo infisso</h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Definiamo tipologia, materiale e famiglia di profilo del serramento da installare.
-            </p>
-          </div>
+        <CardContent className="space-y-5 p-5 max-md:space-y-3 max-md:p-3">
+          {!isMobile && (
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">Step 4</div>
+              <h2 className="mt-1 text-xl font-bold">Nuovo infisso</h2>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Definiamo tipologia, materiale e famiglia di profilo del serramento da installare.
+              </p>
+            </div>
+          )}
 
           <div>
-            <SectionTitle>Tipologia apertura</SectionTitle>
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <SectionTitle primo>Tipologia apertura</SectionTitle>
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 max-md:grid-cols-2 max-md:gap-2">
               {WIZARD_TIPI.map((option) => (
                 <ChoiceCard
                   key={option.id}
@@ -1826,7 +1969,7 @@ function StepInfisso({
 
           <div>
             <SectionTitle>Famiglia profilo</SectionTitle>
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 max-md:grid-cols-2 max-md:gap-2">
               {WIZARD_PROFILI.map((option) => (
                 <ChoiceCard
                   key={option.id}
@@ -1842,7 +1985,7 @@ function StepInfisso({
           {state.profilo && (state.tipo === "F2A" || state.tipo === "PF2A") && (
             <div className="space-y-2">
               <SectionTitle>Configurazione nodo centrale (solo 2 ante)</SectionTitle>
-              <div className="grid gap-3 md:grid-cols-3">
+              <div className="grid gap-3 md:grid-cols-3 max-md:grid-cols-2 max-md:gap-2">
                 {WIZARD_NODO_OPTIONS.map((option) => {
                   const supportsAsymmetric = profileSupportsAsymmetricNode(state.profilo as WizardProfilo);
                   const disabled = option.id !== "simmetrico" && !supportsAsymmetric;
@@ -1886,6 +2029,7 @@ function StepFiniture({
   onNext: () => void;
   nextDisabled: boolean;
 }) {
+  const isMobile = useIsMobile();
   const [tab, setTab] = useState<"ral" | "legno">("ral");
   // v8.3 — colorList rimosso: la griglia colori ora usa getRalsByFamily / WIZARD_LEGNO direttamente.
   const handleOptions = useMemo(
@@ -1907,17 +2051,19 @@ function StepFiniture({
   return (
     <div className="space-y-4">
       <Card>
-        <CardContent className="space-y-5 p-5">
-          <div>
-            <div className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">Step 5</div>
-            <h2 className="mt-1 text-xl font-bold">Finiture e ferramenta</h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Colore telaio, effetto legno e finitura maniglie devono essere coerenti con il posizionamento premium del render.
-            </p>
-          </div>
+        <CardContent className="space-y-5 p-5 max-md:space-y-3 max-md:p-3">
+          {!isMobile && (
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">Step 5</div>
+              <h2 className="mt-1 text-xl font-bold">Finiture e ferramenta</h2>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Colore telaio, effetto legno e finitura maniglie devono essere coerenti con il posizionamento premium del render.
+              </p>
+            </div>
+          )}
 
           <div>
-            <SectionTitle>Finitura telaio</SectionTitle>
+            <SectionTitle primo>Finitura telaio</SectionTitle>
             <div className="mb-3 flex overflow-hidden rounded-lg border">
               {(["ral", "legno"] as const).map((item, index) => (
                 <button
@@ -1951,10 +2097,11 @@ function StepFiniture({
                   if (!colors.length) return null;
                   return (
                     <div key={family}>
-                      <div className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                      <div className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground max-md:mb-1.5 max-md:text-[11px] max-md:tracking-wide">
                         {RAL_FAMILY_LABELS[family as RalFamily]}
                       </div>
-                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">
+                      {/* Telefono: quattro campioni per riga (erano due quadrati da 160px: 5.461px di pagina). */}
+                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6 max-sm:grid-cols-4 max-sm:gap-1.5">
                         {colors.map((c) => (
                           <ColorSwatch
                             key={c.id}
@@ -1969,7 +2116,7 @@ function StepFiniture({
                 })}
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 max-sm:grid-cols-4 max-sm:gap-1.5">
                 {WIZARD_LEGNO.map((c) => (
                   <ColorSwatch
                     key={c.id}
@@ -1996,7 +2143,7 @@ function StepFiniture({
                 per battente puro o portafinestra usa una maniglia standard.
               </div>
             )}
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 max-md:gap-2">
               {handleOptions.map((handleType) => {
                 // v8.3 — foto reale della maniglia se disponibile, altrimenti SVG fallback.
                 const opt = handleType as typeof handleType & { referenceImage?: string | null };
@@ -2010,7 +2157,7 @@ function StepFiniture({
                     type="button"
                     onClick={() => setState((current) => ({ ...current, tipoManiglia: handleType.id as WizardHandleType }))}
                     className={cn(
-                      "relative rounded-2xl border-2 p-3 text-left transition flex gap-3",
+                      "relative rounded-2xl border-2 p-3 text-left transition flex gap-3 max-md:items-center max-md:rounded-xl max-md:p-2 max-md:gap-2.5",
                       selected ? "border-orange-500 bg-orange-50" : "border-slate-300 bg-white shadow-sm hover:border-orange-400 hover:shadow",
                     )}
                   >
@@ -2019,7 +2166,7 @@ function StepFiniture({
                         Consigliata
                       </div>
                     )}
-                    <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-slate-50 border">
+                    <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-slate-50 border max-md:h-14 max-md:w-14">
                       {previewUrl ? (
                         <img
                           src={previewUrl}
@@ -2035,10 +2182,10 @@ function StepFiniture({
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="text-sm font-semibold">{handleType.label}</div>
-                      <div className="mt-1 text-xs text-muted-foreground">{handleType.desc}</div>
+                      <div className="text-sm font-semibold max-md:text-[13px]">{handleType.label}</div>
+                      <div className="mt-1 text-xs text-muted-foreground max-md:mt-0.5 max-md:line-clamp-1 max-md:text-[11px]">{handleType.desc}</div>
                       {!previewUrl && (
-                        <div className="mt-1 text-[10px] italic text-amber-600">Anteprima generica</div>
+                        <div className="mt-1 text-[10px] italic text-amber-600 max-md:hidden">Anteprima generica</div>
                       )}
                     </div>
                   </button>
@@ -2049,20 +2196,21 @@ function StepFiniture({
 
           <div>
             <SectionTitle>Finitura maniglie e cerniere</SectionTitle>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+            {/* Telefono: tre per riga, colore e nome (la frase uguale su ogni scheda resta al computer). */}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6 max-sm:grid-cols-3 max-sm:gap-2">
               {WIZARD_HW_COLORS.map((hardware) => (
                 <button
                   key={hardware.id}
                   type="button"
                   onClick={() => setState((current) => ({ ...current, coloreHw: hardware.id as WizardHw }))}
                   className={cn(
-                    "rounded-2xl border p-3 text-left transition",
+                    "rounded-2xl border p-3 text-left transition max-sm:min-w-0 max-sm:rounded-xl max-sm:p-2",
                     state.coloreHw === hardware.id ? "border-orange-500 bg-orange-50" : "border-slate-300 bg-white shadow-sm hover:border-orange-400 hover:shadow",
                   )}
                 >
-                  <div className="h-11 rounded-xl border" style={{ background: hardware.hex }} />
-                  <div className="mt-2 text-sm font-semibold">{hardware.nome}</div>
-                  <div className="mt-1 text-xs text-muted-foreground">
+                  <div className="h-11 rounded-xl border max-sm:h-8 max-sm:rounded-lg" style={{ background: hardware.hex }} />
+                  <div className="mt-2 text-sm font-semibold max-sm:mt-1 max-sm:truncate max-sm:text-[11px]">{hardware.nome}</div>
+                  <div className="mt-1 text-xs text-muted-foreground max-sm:hidden">
                     La finitura si applica a maniglia e cerniere visibili.
                   </div>
                 </button>
@@ -2096,6 +2244,7 @@ function StepAccessori({
   onBack: () => void;
   onNext: () => void;
 }) {
+  const isMobile = useIsMobile();
   const targetOpenings = sceneAnalysis?.openings.filter((opening) => selectedOpeningIds.includes(opening.id)) ?? [];
   const hasVisibleManualBelt = targetOpenings.some((opening) => opening.hasBelt || opening.hasBeltBox);
   const hasNoVisibleCurtain = targetOpenings.some((opening) =>
@@ -2110,37 +2259,39 @@ function StepAccessori({
   return (
     <div className="space-y-4">
       <Card>
-        <CardContent className="space-y-5 p-5">
-          <div>
-            <div className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">Step 6</div>
-            <h2 className="mt-1 text-xl font-bold">Oscuranti, accessori e dettagli</h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Qui definiamo cassonetti, tapparelle e note libere che influenzeranno le regole di sostituzione.
-            </p>
-          </div>
+        <CardContent className="space-y-5 p-5 max-md:space-y-3 max-md:p-3">
+          {!isMobile && (
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">Step 6</div>
+              <h2 className="mt-1 text-xl font-bold">Oscuranti, accessori e dettagli</h2>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Qui definiamo cassonetti, tapparelle e note libere che influenzeranno le regole di sostituzione.
+              </p>
+            </div>
+          )}
 
           <div className="space-y-3">
-            <SectionTitle>Cassonetto</SectionTitle>
+            <SectionTitle primo>Cassonetto</SectionTitle>
             <button
               type="button"
               aria-pressed={state.cass}
               onClick={() => setState((current) => ({ ...current, cass: !current.cass }))}
               className={cn(
-                "flex w-full items-start gap-3 rounded-2xl border p-4 text-left transition",
+                "flex w-full items-start gap-3 rounded-2xl border p-4 text-left transition max-md:items-center max-md:rounded-xl max-md:p-3",
                 state.cass ? "border-orange-500 bg-orange-50" : "border-slate-300 bg-white shadow-sm hover:border-orange-400 hover:shadow",
               )}
             >
               <SelectionMark checked={state.cass} />
               <div>
-                <div className="font-semibold">Sostituisci il cassonetto</div>
-                <div className="mt-1 text-sm text-muted-foreground">
+                <div className="font-semibold max-md:text-[13px]">Sostituisci il cassonetto</div>
+                <div className="mt-1 text-sm text-muted-foreground max-md:hidden">
                   Il prompt tratterà il cassonetto come elemento separato dal serramento.
                 </div>
               </div>
             </button>
 
             {state.cass && (
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 max-md:grid-cols-2 max-md:gap-2">
                 {WIZARD_CASS_MATERIALI.map((option) => (
                   <ChoiceCard
                     key={option.id}
@@ -2205,7 +2356,7 @@ function StepAccessori({
 
           <div className="space-y-3">
             <SectionTitle>Tapparella / oscurante</SectionTitle>
-            <div className="grid gap-3 md:grid-cols-3">
+            <div className="grid gap-3 md:grid-cols-3 max-md:grid-cols-2 max-md:gap-2">
               {WIZARD_TAPP_OPTIONS.map((option) => (
                 <ChoiceCard
                   key={option.id}
@@ -2289,7 +2440,7 @@ function StepAccessori({
 
           <div className="space-y-3">
             <SectionTitle>Cerniere</SectionTitle>
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid gap-3 md:grid-cols-2 max-md:grid-cols-2 max-md:gap-2">
               {WIZARD_CERNIERE_OPTIONS.map((option) => (
                 <ChoiceCard
                   key={option.id}
@@ -2318,7 +2469,7 @@ function StepAccessori({
           {isDoorWindow && (
             <div className="space-y-3">
               <SectionTitle>Traverso portafinestra</SectionTitle>
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 max-md:grid-cols-2 max-md:gap-2">
                 {WIZARD_TRAVERSO_OPTIONS.map((option) => (
                   <ChoiceCard
                     key={option.id}
@@ -2349,8 +2500,11 @@ function StepAccessori({
             <Textarea
               value={notes}
               onChange={(event) => onNotesChange(event.target.value)}
-              placeholder="Esempio: mantieni tende e radiatore identici, resa molto fotorealistica, profilo minimal ma senza cambiare il vano esistente."
-              className="min-h-[120px]"
+              placeholder={isMobile
+                ? "Es. tende e radiatore identici, profilo minimal…"
+                : "Esempio: mantieni tende e radiatore identici, resa molto fotorealistica, profilo minimal ma senza cambiare il vano esistente."}
+              // Telefono: il testo scritto resta a 16px (sotto, iOS ingrandisce la pagina), il segnaposto a 13px e corto.
+              className="min-h-[120px] max-md:min-h-[88px] max-md:placeholder:text-[13px]"
             />
           </div>
         </CardContent>
@@ -2407,25 +2561,57 @@ function StepRender({
   downloading?: boolean;
 }) {
   const isMobile = useIsMobile();
+  // Telefono: con il render in corso o pronto il riepilogo lascia la schermata
+  // al risultato (prima bisognava scorrerlo per arrivare all'immagine).
+  const mostraRiepilogo = !(isMobile && (generating || resultUrl));
+  const collegaCrm = (
+    <Card>
+      <CardContent className="p-2">
+        <RenderCrmLinker
+          contactId={contactId}
+          opportunityId={opportunityId}
+          onContactChange={onContactChange}
+          onOpportunityChange={onOpportunityChange}
+        />
+      </CardContent>
+    </Card>
+  );
+  const creaPreventivo = (
+    <Button
+      onClick={onCreateQuote}
+      disabled={!contactId}
+      size="lg"
+      className="w-full gap-2 bg-emerald-600 hover:bg-emerald-700"
+    >
+      <FileText className="h-4 w-4" />
+      {contactId ? "Crea preventivo da questo render" : "Collega un contatto per creare il preventivo"}
+    </Button>
+  );
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 max-md:space-y-3">
+      {mostraRiepilogo && (
       <Card>
-        <CardContent className="space-y-5 p-5">
-          <div>
-            <div className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">Step 7</div>
-            <h2 className="mt-1 text-xl font-bold">Riepilogo finale e generazione</h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Controlliamo target, specifiche e regole di sostituzione prima di lanciare il render.
-            </p>
-          </div>
+        <CardContent className="space-y-5 p-5 max-md:space-y-3 max-md:p-3">
+          {!isMobile && (
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">Step 7</div>
+              <h2 className="mt-1 text-xl font-bold">Riepilogo finale e generazione</h2>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Controlliamo target, specifiche e regole di sostituzione prima di lanciare il render.
+              </p>
+            </div>
+          )}
 
+          {/* Telefono: un riepilogo in italiano (apertura, tipo, materiale, colore).
+              Le regole del prompt e gli elementi da preservare — testo tecnico,
+              in inglese — restano al computer. */}
           {preview ? (
-            <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-              <Card className="border-slate-200">
-                <CardContent className="space-y-4 p-4">
-                  <div className="text-sm font-semibold">Scope render</div>
-                  <div className="flex flex-wrap gap-2">
+            <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr] max-md:gap-0">
+              <Card className="border-slate-200 max-md:border-0 max-md:bg-transparent max-md:shadow-none">
+                <CardContent className="space-y-4 p-4 max-md:space-y-2 max-md:p-0">
+                  <div className="text-sm font-semibold max-md:hidden">Scope render</div>
+                  <div className="flex flex-wrap gap-2 max-md:hidden">
                     {preview.target_selection.targetLabels.map((label) => (
                       <Badge key={label} className="bg-slate-800 text-white hover:bg-slate-800">
                         Apertura {label}
@@ -2439,18 +2625,27 @@ function StepRender({
                   </div>
 
                   <div className="space-y-2">
-                    <div className="text-sm font-semibold">Specifiche tecniche</div>
+                    <div className="text-sm font-semibold max-md:text-[13px]">
+                      <span className="max-md:hidden">Specifiche tecniche</span>
+                      <span className="md:hidden">Riepilogo</span>
+                    </div>
                     {preview.technical_specification.map((spec) => (
-                      <div key={spec.openingId} className="rounded-xl border bg-slate-50 p-3 text-sm">
-                        <div className="font-semibold">
+                      <div key={spec.openingId} className="rounded-xl border bg-slate-50 p-3 text-sm max-md:rounded-lg max-md:px-3 max-md:py-2.5">
+                        <div className="font-semibold max-md:text-[13px]">
                           Apertura {spec.openingLabel} · {spec.desiredOpeningType.replace(/_/g, " ")}
                         </div>
-                        <div className="mt-1 text-muted-foreground">
-                          {spec.material} · {spec.profileId} · {spec.finish.mode === "legno"
-                            ? `${spec.finish.name} wood-effect`
-                            : `${spec.finish.name}${spec.finish.ral ? ` (RAL ${spec.finish.ral})` : ""}`}
+                        <div className="mt-1 text-muted-foreground max-md:mt-0.5 max-md:text-[11px]">
+                          {/* Materiale e profilo spesso coincidono («pvc · pvc»): una volta sola, col nome del catalogo. */}
+                          {[...new Set([spec.material, spec.profileId])]
+                            .map((id) => WIZARD_PROFILI.find((profilo) => profilo.id === id)?.label ?? id)
+                            .join(" · ")} · {spec.finish.mode === "legno"
+                            ? `${spec.finish.name} effetto legno`
+                            : isMobile
+                              // Telefono: basta il nome; il codice è quello del catalogo, non un RAL.
+                              ? spec.finish.name
+                              : `${spec.finish.name}${spec.finish.ral ? ` (RAL ${spec.finish.ral})` : ""}`}
                         </div>
-                        <div className="mt-2 flex flex-wrap gap-2">
+                        <div className="mt-2 flex flex-wrap gap-2 max-md:hidden">
                           <MiniBadge text={`maniglia ${spec.handleStyle.replace(/_/g, " ")}`} />
                           <MiniBadge text={`hardware ${spec.handleFinish}`} />
                           {spec.hingeMode === "hidden" && <MiniBadge text="cerniere a scomparsa" />}
@@ -2472,7 +2667,7 @@ function StepRender({
                 </CardContent>
               </Card>
 
-              <Card className="border-slate-200">
+              <Card className="border-slate-200 max-md:hidden">
                 <CardContent className="space-y-4 p-4">
                   <div className="text-sm font-semibold">Regole di sostituzione</div>
                   <div className="space-y-2 text-sm text-muted-foreground">
@@ -2506,22 +2701,25 @@ function StepRender({
           )}
 
           {!resultUrl && !generating && !error && (
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <Button size="lg" className="flex-1 gap-2 bg-orange-500 hover:bg-orange-600" onClick={onGenerate} disabled={!preview}>
+            // Telefono: indietro a icona a sinistra, «Genera render AI» che prende il resto.
+            <div className="flex flex-col gap-3 sm:flex-row max-md:flex-row-reverse max-md:gap-2">
+              <Button size="lg" className="flex-1 gap-2 bg-orange-500 hover:bg-orange-600 max-md:min-w-0" onClick={onGenerate} disabled={!preview}>
                 <Sparkles className="h-4 w-4" />
                 Genera render AI
               </Button>
-              <Button size="lg" variant="outline" onClick={onBack}>
-                Torna ai dettagli
+              <Button size="lg" variant="outline" onClick={onBack} aria-label="Torna ai dettagli" className="max-md:w-11 max-md:shrink-0 max-md:px-0">
+                <ArrowLeft className="hidden h-4 w-4 max-md:block" />
+                <span className="max-md:hidden">Torna ai dettagli</span>
               </Button>
             </div>
           )}
         </CardContent>
       </Card>
+      )}
 
       {error ? (
         <Card className="border-destructive/30 bg-destructive/5">
-          <CardContent className="space-y-3 p-5">
+          <CardContent className="space-y-3 p-5 max-md:p-3">
             <div className="flex items-center gap-2 text-sm font-semibold text-destructive">
               <RefreshCw className="h-4 w-4" />
               Render non riuscito
@@ -2568,7 +2766,7 @@ function StepRender({
         />
       ) : resultUrl ? (
         <>
-          <Card className="border-emerald-500/30 bg-emerald-50">
+          <Card className="border-emerald-500/30 bg-emerald-50 max-md:hidden">
             <CardContent className="flex items-center gap-3 p-4 text-emerald-900">
               <CheckCircle2 className="h-5 w-5 text-emerald-600" />
               <div>
@@ -2582,7 +2780,7 @@ function StepRender({
 
           {(originalSignedUrl || localPreview) && (
             <div className="space-y-1">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between max-md:hidden">
                 <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
                   Prima / Dopo
                 </div>
@@ -2596,18 +2794,11 @@ function StepRender({
             </div>
           )}
 
-          <Card>
-            <CardContent className="p-2">
-              <RenderCrmLinker
-                contactId={contactId}
-                opportunityId={opportunityId}
-                onContactChange={onContactChange}
-                onOpportunityChange={onOpportunityChange}
-              />
-            </CardContent>
-          </Card>
+          {!isMobile && collegaCrm}
 
-          <div className="grid gap-2 sm:grid-cols-2">
+          {/* Telefono: «Manda al cliente» (WhatsApp, Mail…) al posto dello «Scarica»; nuovo render a icona. */}
+          <div className="grid gap-2 sm:grid-cols-2 max-md:flex max-md:flex-row-reverse">
+            {isMobile && <MandaRenderMobile resultUrl={resultUrl} nomeFile="render-infissi" className="max-md:min-w-0 max-md:flex-1" />}
             {/* v8.6.33 — Loading state download per feedback su mobile/rete lenta */}
             {!isMobile && (
               <Button onClick={onDownload} className="gap-2" disabled={downloading}>
@@ -2624,11 +2815,16 @@ function StepRender({
                 )}
               </Button>
             )}
-            <Button variant="outline" onClick={onReset} className="gap-2">
-              <RefreshCw className="h-4 w-4" />
-              Nuovo render
+            <Button variant="outline" onClick={onReset} className="gap-2 max-md:w-11 max-md:shrink-0 max-md:px-0" aria-label="Nuovo render">
+              {isMobile ? <ImagePlus className="h-4 w-4" /> : <RefreshCw className="h-4 w-4" />}
+              <span className="max-md:hidden">Nuovo render</span>
             </Button>
           </div>
+
+          {/* Telefono: sotto l'immagine prima «Manda al cliente», poi il contatto
+              e il preventivo che ne ha bisogno. */}
+          {isMobile && collegaCrm}
+          {isMobile && creaPreventivo}
 
           {/* F4 (audit 16/07) — Refinement MIRATO: la nota corregge il render
               appena generato (image-to-image sul risultato), non riparte da
@@ -2640,32 +2836,75 @@ function StepRender({
             onEditChoices={onBack}
             onRegenerate={() => onGenerate({ refine: true })}
             disabled={generating}
-            regenerateLabel="Correggi questo render (1ª correzione entro 10 min inclusa)"
+            regenerateLabel={isMobile ? "Correggi il render" : "Correggi questo render (1ª correzione entro 10 min inclusa)"}
+            regenerateNote={isMobile ? "La prima correzione entro 10 minuti è inclusa." : undefined}
           />
 
-          <Button
-            onClick={onCreateQuote}
-            disabled={!contactId}
-            size="lg"
-            className="w-full gap-2 bg-emerald-600 hover:bg-emerald-700"
-          >
-            <FileText className="h-4 w-4" />
-            {contactId ? "Crea preventivo da questo render" : "Collega un contatto per creare il preventivo"}
-          </Button>
+          {!isMobile && creaPreventivo}
         </>
       ) : null}
     </div>
   );
 }
 
-function MetricCard({ label, value }: { label: string; value: string }) {
+function MetricCard({
+  label,
+  labelBreve,
+  value,
+  className,
+}: {
+  label: string;
+  /** Telefono: l'etichetta intera non sta in un terzo di schermo. */
+  labelBreve?: string;
+  value: string;
+  className?: string;
+}) {
   return (
-    <div className="rounded-2xl border bg-slate-50 p-4">
-      <div className="text-xs uppercase tracking-[0.14em] text-muted-foreground">{label}</div>
-      <div className="mt-2 text-lg font-semibold capitalize">{value}</div>
+    <div className={cn("rounded-2xl border bg-slate-50 p-4 max-md:min-w-0 max-md:rounded-lg max-md:px-2.5 max-md:py-2", className)}>
+      <div className="text-xs uppercase tracking-[0.14em] text-muted-foreground max-md:truncate max-md:text-[11px] max-md:normal-case max-md:tracking-normal">
+        {labelBreve ? (
+          <>
+            <span className="max-md:hidden">{label}</span>
+            <span className="md:hidden">{labelBreve}</span>
+          </>
+        ) : (
+          label
+        )}
+      </div>
+      <div className="mt-2 text-lg font-semibold capitalize max-md:mt-0 max-md:truncate max-md:text-[13px]">{value}</div>
     </div>
   );
 }
+
+// L'analisi AI restituisce codici inglesi («bathroom», «exterior»): prima si
+// vedevano così, grezzi, anche sul computer.
+const AMBIENTE_IT: Record<string, string> = {
+  living_room: "soggiorno",
+  kitchen: "cucina",
+  bedroom: "camera",
+  bathroom: "bagno",
+  staircase: "vano scala",
+  office: "ufficio",
+  facade: "facciata",
+  balcony: "balcone",
+  interior_generic: "interno",
+  exterior_generic: "esterno",
+  mixed: "misto",
+  unknown: "non chiaro",
+};
+const VISTA_IT: Record<string, string> = {
+  interior: "interna",
+  exterior: "esterna",
+  mixed: "mista",
+  unknown: "non chiara",
+};
+// Anche l'orientamento della foto arrivava in inglese («landscape»).
+const ORIENTAMENTO_IT: Record<string, string> = {
+  portrait: "verticale",
+  landscape: "orizzontale",
+  square: "quadrata",
+  unknown: "non chiaro",
+};
 
 // v8.3 — Card colore con foto reference reale.
 // Fallback al gradient CSS se la foto non c'è o non carica (no UI rotta).
@@ -2694,14 +2933,14 @@ function ColorSwatch({
       type="button"
       onClick={onClick}
       className={cn(
-        "group relative overflow-hidden rounded-2xl border-2 transition-all text-left",
+        "group relative overflow-hidden rounded-2xl border-2 transition-all text-left max-sm:min-w-0 max-sm:rounded-lg",
         selected
           ? "border-orange-500 ring-2 ring-orange-200"
           : "border-slate-300 bg-white shadow-sm hover:border-orange-400 hover:shadow",
       )}
       title={color.nome}
     >
-      <div className="aspect-square w-full overflow-hidden bg-slate-100">
+      <div className="aspect-square w-full overflow-hidden bg-slate-100 max-sm:aspect-[4/3]">
         {previewUrl && !imgError ? (
           <img
             src={previewUrl}
@@ -2714,8 +2953,8 @@ function ColorSwatch({
           <div className="h-full w-full" style={getFrameFinishPreviewStyle(color)} />
         )}
       </div>
-      <div className="bg-white px-2 py-1.5">
-        <div className="flex items-center gap-1">
+      <div className="bg-white px-2 py-1.5 max-sm:px-1 max-sm:py-1">
+        <div className="flex items-center gap-1 max-sm:hidden">
           {color.code && (
             <span className="text-[10px] font-mono text-muted-foreground">{color.code}</span>
           )}
@@ -2725,11 +2964,11 @@ function ColorSwatch({
             </span>
           )}
         </div>
-        <div className="truncate text-xs font-semibold">{color.nome}</div>
+        <div className="truncate text-xs font-semibold max-sm:line-clamp-2 max-sm:whitespace-normal max-sm:text-[11px] max-sm:leading-tight">{color.nome}</div>
       </div>
       {selected && (
-        <div className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-orange-500 text-white shadow">
-          <CheckCircle2 className="h-4 w-4" />
+        <div className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-orange-500 text-white shadow max-sm:right-1 max-sm:top-1 max-sm:h-5 max-sm:w-5">
+          <CheckCircle2 className="h-4 w-4 max-sm:h-3.5 max-sm:w-3.5" />
         </div>
       )}
     </button>
@@ -2852,10 +3091,21 @@ function HandlePreview({ kind, finish }: { kind: string; finish: string }) {
   );
 }
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
+function SectionTitle({ children, primo = false }: { children: React.ReactNode; primo?: boolean }) {
   // Separatore sopra ogni sezione: le scelte di un blocco non si confondono
   // con quelle del blocco precedente.
-  return <div className="border-t border-slate-200 pt-4 text-sm font-semibold">{children}</div>;
+  // Telefono: 13px come il resto del testo; la prima sezione del passo non ha
+  // sopra il titolo del passo, quindi niente riga in cima alla scheda.
+  return (
+    <div
+      className={cn(
+        "border-t border-slate-200 pt-4 text-sm font-semibold max-md:pt-3 max-md:text-[13px]",
+        primo && "max-md:border-t-0 max-md:pt-0",
+      )}
+    >
+      {children}
+    </div>
+  );
 }
 
 function SelectionMark({ checked }: { checked: boolean }) {
@@ -2892,7 +3142,8 @@ function ChoiceCard({
       onClick={onClick}
       aria-pressed={selected}
       className={cn(
-        "relative rounded-2xl border p-4 pr-10 text-left transition",
+        // Telefono: due per riga, solo il nome (la descrizione resta al computer).
+        "relative rounded-2xl border p-4 pr-10 text-left transition max-md:min-w-0 max-md:rounded-xl max-md:px-2.5 max-md:py-2.5 max-md:pr-7",
         disabled
           ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400 opacity-70"
           : selected
@@ -2905,14 +3156,14 @@ function ChoiceCard({
       <span
         aria-hidden="true"
         className={cn(
-          "absolute right-3 top-3 flex h-4 w-4 items-center justify-center rounded-full border-2",
+          "absolute right-3 top-3 flex h-4 w-4 items-center justify-center rounded-full border-2 max-md:right-2 max-md:top-2.5",
           selected ? "border-orange-500 bg-orange-500" : "border-slate-300 bg-white",
         )}
       >
         {selected && <span className="h-1.5 w-1.5 rounded-full bg-white" />}
       </span>
-      <div className="text-sm font-semibold">{title}</div>
-      <div className="mt-1 text-sm text-muted-foreground">{desc}</div>
+      <div className="text-sm font-semibold max-md:text-[13px] max-md:leading-tight">{title}</div>
+      <div className="mt-1 text-sm text-muted-foreground max-md:hidden">{desc}</div>
     </button>
   );
 }
@@ -2953,16 +3204,19 @@ function NavButtons({
   nextIcon?: React.ReactNode;
   nextAccent?: boolean;
 }) {
+  // Telefono: una riga in fondo al passo — indietro a icona, avanti che prende
+  // il resto (prima erano due pulsanti a tutta larghezza impilati, con
+  // «Indietro» sopra). Niente barra fissa: copriva le scelte.
   return (
-    <div className="flex flex-col gap-2 sm:flex-row">
-      <Button variant="outline" onClick={onBack} className="gap-1">
+    <div className="flex flex-col gap-2 sm:flex-row max-md:flex-row">
+      <Button variant="outline" onClick={onBack} className="gap-1 max-md:w-11 max-md:shrink-0 max-md:px-0" aria-label="Indietro">
         <ArrowLeft className="h-4 w-4" />
-        Indietro
+        <span className="max-md:hidden">Indietro</span>
       </Button>
       <Button
         onClick={onNext}
         disabled={nextDisabled}
-        className={cn("flex-1 gap-2", nextAccent ? "bg-orange-500 hover:bg-orange-600" : "bg-slate-800 hover:bg-slate-700")}
+        className={cn("flex-1 gap-2 max-md:min-w-0", nextAccent ? "bg-orange-500 hover:bg-orange-600" : "bg-slate-800 hover:bg-slate-700")}
       >
         {nextLabel}
         {nextIcon ?? <ArrowRight className="h-4 w-4" />}

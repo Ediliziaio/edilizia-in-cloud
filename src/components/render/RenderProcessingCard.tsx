@@ -106,26 +106,28 @@ export function RenderProcessingCard({
             />
             <div className="absolute bottom-3 left-4 right-4 flex items-center gap-2 text-white">
               <Sparkles className={`h-4 w-4 ${a.text} animate-pulse`} />
-              <span className="text-sm font-semibold">{subjectLabel}</span>
+              <span className="text-sm font-semibold max-md:text-[13px]">{subjectLabel}</span>
             </div>
             <style>{`@keyframes renderScan { 0% { transform: translateY(0); } 100% { transform: translateY(256px); } }`}</style>
           </div>
         )}
 
-        <div className="p-6 space-y-5">
-          <div className="flex items-center justify-between gap-4">
+        {/* Telefono: fase, tempo e barra; tessere delle fasi e «Lo sapevi?»
+            restano al computer. */}
+        <div className="p-6 space-y-5 max-md:space-y-3 max-md:p-4">
+          <div className="flex items-center justify-between gap-4 max-md:gap-3">
             <div className="flex items-center gap-3 min-w-0">
-              <div className={`h-10 w-10 rounded-full ${a.bgSoft} flex items-center justify-center shrink-0`}>
-                <Zap className={`h-5 w-5 ${a.text} animate-pulse`} />
+              <div className={`h-10 w-10 rounded-full ${a.bgSoft} flex items-center justify-center shrink-0 max-md:h-8 max-md:w-8`}>
+                <Zap className={`h-5 w-5 ${a.text} animate-pulse max-md:h-4 max-md:w-4`} />
               </div>
               <div className="min-w-0">
-                <p className="font-semibold text-slate-900 truncate">
+                <p className="font-semibold text-slate-900 truncate max-md:text-[13px]">
                   {stages[stageIdx].label}{".".repeat(dots)}
                 </p>
                 {/* v8.6.33 — Messaggio dinamico: dopo 90s il "stima 1-2 min"
                     rassicura mentre la barra resta al 96%. Dopo 150s avviso che
                     è più del solito. */}
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-slate-500 max-md:text-[11px]">
                   {elapsedSec}s trascorsi
                   {elapsedSec < 90 && " · stima 1-2 min"}
                   {elapsedSec >= 90 && elapsedSec < 150 && " · stiamo finalizzando, ci siamo quasi"}
@@ -133,14 +135,14 @@ export function RenderProcessingCard({
                 </p>
               </div>
             </div>
-            <div className={`text-2xl font-bold ${a.text} tabular-nums shrink-0`}>
+            <div className={`text-2xl font-bold ${a.text} tabular-nums shrink-0 max-md:text-lg`}>
               {Math.floor(progressPct)}%
             </div>
           </div>
 
-          <Progress value={progressPct} className="h-2" />
+          <Progress value={progressPct} className="h-2 max-md:h-1.5" />
 
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-4 gap-2 max-md:hidden">
             {stages.map((s, i) => {
               const Icon = s.icon;
               const done = i < stageIdx;
@@ -173,7 +175,7 @@ export function RenderProcessingCard({
             })}
           </div>
 
-          <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 flex gap-2.5">
+          <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 flex gap-2.5 max-md:hidden">
             <Sparkles className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />
             <p className="text-xs text-blue-900 leading-relaxed">
               <span className="font-semibold">Lo sapevi? </span>

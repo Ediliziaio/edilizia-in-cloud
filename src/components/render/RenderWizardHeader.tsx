@@ -35,6 +35,10 @@ const ACCENT_DOT: Record<NonNullable<RenderWizardHeaderProps["accent"]>, string>
 /**
  * Unified hero header for all "render AI" wizards: dark gradient banner with
  * back link, badge, title, description, and step indicator.
+ *
+ * Telefono: una riga (titolo e «Passo · 2/6») e la barra sottile; niente
+ * riquadro scuro, «Indietro» (c'è la freccia in alto), badge, occhiello,
+ * descrizione né etichette dei passi che si accavallavano.
  */
 export function RenderWizardHeader({
   onBack,
@@ -55,8 +59,8 @@ export function RenderWizardHeader({
     : 0;
 
   return (
-    <div className="mb-6 overflow-hidden rounded-b-2xl bg-gradient-to-br from-slate-800 to-slate-700 px-4 py-5 text-white sm:px-5">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+    <div className="mb-6 overflow-hidden rounded-b-2xl bg-gradient-to-br from-slate-800 to-slate-700 px-4 py-5 text-white sm:px-5 max-md:mb-3 max-md:rounded-none max-md:bg-none max-md:bg-transparent max-md:p-0 max-md:text-foreground">
+      <div className="flex flex-wrap items-center justify-between gap-2 max-md:hidden">
         {onBack ? (
           <button
             type="button"
@@ -75,25 +79,28 @@ export function RenderWizardHeader({
         </Badge>
       </div>
 
-      <div className="mt-3 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+      <div className="mt-3 flex flex-col gap-2 md:flex-row md:items-end md:justify-between max-md:mt-0 max-md:flex-row max-md:items-center max-md:justify-between">
         <div className="min-w-0">
-          <div className="text-[11px] font-semibold uppercase tracking-widest opacity-70">
+          <div className="text-[11px] font-semibold uppercase tracking-widest opacity-70 max-md:hidden">
             {eyebrow}
           </div>
-          <div className="text-2xl font-bold leading-tight break-words">{title}</div>
+          <div className="text-2xl font-bold leading-tight break-words max-md:truncate max-md:text-lg">{title}</div>
           {description && (
-            <div className="mt-1 max-w-2xl text-sm text-white/70">{description}</div>
+            <div className="mt-1 max-w-2xl text-sm text-white/70 max-md:hidden">{description}</div>
           )}
         </div>
-        <div className="rounded-xl bg-white/10 px-3 py-2 text-xs text-white/80 shrink-0">
-          Step {safeCurrentStep} / {totalSteps}
+        <div className="rounded-xl bg-white/10 px-3 py-2 text-xs text-white/80 shrink-0 max-md:rounded-full max-md:bg-muted max-md:px-2.5 max-md:py-1 max-md:text-[11px] max-md:font-medium max-md:text-muted-foreground">
+          <span className="max-md:hidden">Step {safeCurrentStep} / {totalSteps}</span>
+          <span className="md:hidden">
+            {visibleStepLabels[safeCurrentStep - 1]} · {safeCurrentStep}/{totalSteps}
+          </span>
         </div>
       </div>
 
-      <div className="mt-4">
-        <Progress value={progressValue} className="h-1.5 bg-white/20" />
+      <div className="mt-4 max-md:mt-2">
+        <Progress value={progressValue} className="h-1.5 bg-white/20 max-md:h-1 max-md:bg-slate-200" />
         <div
-          className="mt-2 grid gap-2"
+          className="mt-2 grid gap-2 max-md:hidden"
           style={{ gridTemplateColumns: `repeat(${visibleStepLabels.length}, minmax(0, 1fr))` }}
         >
           {visibleStepLabels.map((label, index) => (

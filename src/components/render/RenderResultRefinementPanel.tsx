@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 type ChoiceRow = {
   group: string;
@@ -22,6 +23,8 @@ interface RenderResultRefinementPanelProps {
   onEditChoices?: () => void;
   onRegenerate?: () => void;
   regenerateLabel?: string;
+  /** Riga piccola sotto i bottoni (es. «La prima correzione entro 10 minuti è inclusa»). */
+  regenerateNote?: string;
   disabled?: boolean;
   maxItems?: number;
 }
@@ -114,11 +117,56 @@ export function RenderResultRefinementPanel({
   onEditChoices,
   onRegenerate,
   regenerateLabel = "Genera variante",
+  regenerateNote,
   disabled,
   maxItems = 22,
 }: RenderResultRefinementPanelProps) {
+  const isMobile = useIsMobile();
   const choices = useMemo(() => collectChoices(config).slice(0, maxItems), [config, maxItems]);
   const groups = useMemo(() => Array.from(new Set(choices.map((item) => item.group))), [choices]);
+
+  // Telefono: resta solo la richiesta e il bottone, secondario rispetto a
+  // «Manda al cliente». L'elenco delle scelte (nomi di campo tecnici, fino a
+  // 22 riquadri) si rilegge dal computer.
+  if (isMobile) {
+    return (
+      <Card className="border-slate-200 bg-slate-50/60">
+        <CardContent className="space-y-2 p-3">
+          <div className="text-[13px] font-semibold">Vuoi cambiare qualcosa?</div>
+          {noteValue !== undefined && onNoteChange && (
+            <Textarea
+              value={noteValue}
+              onChange={(event) => onNoteChange(event.target.value)}
+              placeholder="Es. finitura più calda, il resto identico…"
+              className="min-h-[88px] bg-white placeholder:text-[13px]"
+              disabled={disabled}
+            />
+          )}
+          <div className="flex gap-2">
+            {onEditChoices && (
+              <Button
+                type="button"
+                variant="outline"
+                className="w-11 shrink-0 px-0"
+                onClick={onEditChoices}
+                disabled={disabled}
+                aria-label="Modifica scelte"
+              >
+                <SlidersHorizontal className="h-4 w-4" />
+              </Button>
+            )}
+            {onRegenerate && (
+              <Button type="button" variant="outline" className="min-w-0 flex-1 gap-2" onClick={onRegenerate} disabled={disabled}>
+                {disabled ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+                <span className="truncate">{regenerateLabel}</span>
+              </Button>
+            )}
+          </div>
+          {regenerateNote && <p className="text-[11px] text-muted-foreground">{regenerateNote}</p>}
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="border-slate-200 bg-slate-50/60">
@@ -190,6 +238,7 @@ export function RenderResultRefinementPanel({
             </Button>
           )}
         </div>
+        {regenerateNote && <p className="text-xs text-muted-foreground">{regenerateNote}</p>}
       </CardContent>
     </Card>
   );
