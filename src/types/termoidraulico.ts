@@ -20,6 +20,8 @@ export interface IdrComputoVoce {
   fonte?: string | null;
 }
 export interface IdrProgetto {
+  /** Il modello della libreria congelato nel preventivo (lib/moduli/modelloPreventivo). */
+  modello_snapshot?: import("@/lib/moduli/modelloPreventivo").ModelloPreventivo<IdrTemplatePdf> | null;
   id: string; company_id: string; code: string | null; stato: IdrStato; tipo_intervento: string | null;
   numero_terminali: number | null; tipo_generatore: string | null;
   cliente_nome: string | null; cliente_cognome: string | null; cliente_email: string | null; cliente_telefono: string | null;

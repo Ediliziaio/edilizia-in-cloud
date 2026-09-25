@@ -362,10 +362,10 @@ export default function ModuleTemplateLibrary({
         <Monitor className="mt-0.5 h-4 w-4 shrink-0" />
         <p>
           <strong>Modelli dell&apos;azienda.</strong> Le personalizzazioni si
-          salvano online e le vedono tutti i colleghi. Tetti e Serramenti
-          (finestre, persiane, intervento combinato) li usano già quando si crea
-          un preventivo; per le altre aree il preventivatore usa ancora il
-          template aziendale, che resta invariato.
+          salvano online e le vedono tutti i colleghi. Quando crei un preventivo
+          da un intervento, il PDF usa il suo modello. Per ora fanno eccezione
+          Fotovoltaico, Facciate e quattro modelli Serramenti (avvolgibili,
+          zanzariere, porte): lì vale il template aziendale, che resta invariato.
         </p>
       </div>
       {sincronia.errore && (

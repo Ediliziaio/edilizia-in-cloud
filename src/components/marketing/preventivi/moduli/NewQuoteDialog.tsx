@@ -8,6 +8,8 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { useModuliVendita, useModuliVisibilita } from "@/lib/moduli-vendita";
 import { useSerramentiModelSupport } from "@/hooks/useSerramentiModelSupport";
 import { useTettiModelSupport } from "@/hooks/useTettiModelSupport";
+import { useSupportoModelliPreventivo } from "@/hooks/useSupportoModelliPreventivo";
+import { eModuloConModelli } from "@/lib/moduli/modelloPreventivo";
 import { SALES_AREAS, type SalesArea } from "@/lib/moduli-vendita/areas";
 import { hasAreaAccess, matchesIntervention, pilotHref, quoteCreationHref } from "./salesSelector";
 
@@ -45,6 +47,7 @@ function QuoteChooser({ params, onSelect }: { params: URLSearchParams; onSelect:
   const { isModuloVisibile, isLoading: visibilityLoading } = useModuliVisibilita();
   const srSupport = useSerramentiModelSupport();
   const tetSupport = useTettiModelSupport();
+  const modelliSupport = useSupportoModelliPreventivo();
   const [areaId, setAreaId] = useState(params.get("area") ?? "");
   const [query, setQuery] = useState("");
   const heading = useRef<HTMLHeadingElement>(null);
@@ -93,7 +96,10 @@ function QuoteChooser({ params, onSelect }: { params: URLSearchParams; onSelect:
           {results.length === 0 && <div className="py-6 text-center"><p className="text-sm">Nessun intervento trovato.</p><Button variant="ghost" className="mt-2" onClick={() => setQuery("")}>Cancella ricerca</Button></div>}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{results.map(({ area: item, intervention }) => {
             const href = pilotHref(item, intervention, params);
-            const support = item.sourceModule === "tetti" ? tetSupport : srSupport;
+            const support = item.sourceModule === "tetti" ? tetSupport
+              : eModuloConModelli(item.sourceModule)
+                ? { supported: modelliSupport.supportato(item.sourceModule), isLoading: modelliSupport.isLoading, isError: modelliSupport.isError }
+                : srSupport;
             const ready = href && support.supported && !support.isLoading && !support.isError;
             const content = <><InterventionImage area={item} modelId={intervention.id} /><span className="block p-3"><span className="text-[11px] text-muted-foreground">{item.title}</span><span className="mt-1 block font-semibold">{intervention.title}</span><span className="mt-2 block text-xs leading-relaxed text-muted-foreground">{intervention.summary}</span><span className={`mt-3 flex items-center gap-2 text-xs ${ready ? "text-green-700" : "text-amber-800"}`}>{ready ? <><Check className="h-3.5 w-3.5" />Apri preventivatore</> : href ? "Salvataggio da attivare" : "Collegamento in preparazione"}</span></span></>;
             return href ? <Link key={`${item.id}/${intervention.id}`} onClick={onSelect} to={href} aria-label={`Apri preventivatore ${intervention.title}`} className="overflow-hidden rounded-xl border text-sm hover:border-orange-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">{content}</Link>

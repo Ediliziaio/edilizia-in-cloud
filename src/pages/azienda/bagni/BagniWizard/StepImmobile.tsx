@@ -20,10 +20,14 @@ import { Home, MapPin, Calculator, Accessibility, AlertTriangle } from "lucide-r
 import { calcRivestimenti } from "@/lib/bagni/calcoli";
 import type { BgnProgetto } from "@/types/bagni";
 import type { BgnFormPatch } from "./types";
+import type { SalesIntervention } from "@/lib/moduli-vendita/areas";
+import { InterventoScelto } from "@/components/moduli/InterventoScelto";
 
 interface Props {
   form: Partial<BgnProgetto>;
   onChange: <K extends keyof BgnFormPatch>(key: K, value: BgnFormPatch[K]) => void;
+  /** L'intervento della libreria, se il preventivo nasce da un modello. */
+  model?: SalesIntervention;
 }
 
 /** Tipi di intervento tipici per un bagno. */
@@ -62,7 +66,7 @@ const toInt = (raw: string): number | null => {
   return v == null ? null : Math.trunc(v);
 };
 
-export default function StepImmobile({ form, onChange }: Props) {
+export default function StepImmobile({ form, onChange, model }: Props) {
   // Calcolatore rivestimenti (puro, nessuno stato): pavimento + pareti dal perimetro × altezza.
   const riv = form.perimetro_ml != null && form.perimetro_ml > 0
     ? calcRivestimenti(form.immobile_superficie_mq ?? 0, form.perimetro_ml, form.altezza_rivestimento_m ?? 2.1)
@@ -85,7 +89,7 @@ export default function StepImmobile({ form, onChange }: Props) {
         {/* Tipo intervento */}
         <div>
           <Label className="text-xs">Tipo di intervento</Label>
-          <Select
+          {model ? <InterventoScelto intervento={model} /> : <Select
             value={form.tipo_intervento ?? ""}
             onValueChange={(v) => onChange("tipo_intervento", v)}
           >
@@ -97,7 +101,7 @@ export default function StepImmobile({ form, onChange }: Props) {
                 <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
               ))}
             </SelectContent>
-          </Select>
+          </Select>}
         </div>
 
         {/* Indirizzo cantiere */}

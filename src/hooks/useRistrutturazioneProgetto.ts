@@ -15,6 +15,7 @@
  * `totale_imponibile`/`totale` sul progetto via `calcTotaliComputo`. Nessun
  * valore di importo arriva "fidato" dal form: viene sempre derivato qui.
  */
+import { leggiModelloPreventivo } from "@/lib/moduli/modelloPreventivo";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
@@ -220,6 +221,8 @@ export function useUpsertProgetto() {
         // Il wizard rimanda la riga intera: totali, stato, commessa, codice e
         // date restano quelli del server (vedi lib/moduli/salvataggioProgetto).
         const campi = soloCampiDelForm(patch);
+        // Il modello si congela alla creazione e non si cambia più (trigger nel DB).
+        delete campi.modello_snapshot;
         return inFila(id, async () => {
           // Sconto o IVA cambiati: i totali salvati si ricalcolano qui, come nel
           // salvataggio del computo. Senza, restavano quelli col vecchio sconto.
@@ -240,6 +243,7 @@ export function useUpsertProgetto() {
       // Insert: assicura code + company_id + stato di default. IVA e detrazione
       // partono da quelle predefinite nel template dell'azienda, se chi crea non
       // le ha già scelte: prima valevano solo i default della tabella.
+      leggiModelloPreventivo("ristrutturazione", patch.modello_snapshot, companyId);
       const [code, predefiniti] = await Promise.all([
         (patch.code as string | null | undefined) ?? generateProgettoCode(companyId),
         predefinitiAzienda(companyId),
@@ -323,6 +327,7 @@ export function useClonaProgetto() {
           detrazione_pct: src.detrazione_pct,
           note: src.note,
           template_id: src.template_id,
+          ...(src.modello_snapshot ? { modello_snapshot: leggiModelloPreventivo("ristrutturazione", src.modello_snapshot, companyId) } : {}),
           totale_imponibile: src.totale_imponibile,
           totale: src.totale,
         })

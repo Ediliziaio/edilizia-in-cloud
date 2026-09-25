@@ -36,6 +36,7 @@ import { cn } from "@/lib/utils";
 import {
   useElettricoProgetto,
   useUpsertProgetto,
+  getEleTemplatePdf,
 } from "@/hooks/useElettricoProgetto";
 import type { EleProgetto } from "@/types/elettrico";
 import {
@@ -43,6 +44,8 @@ import {
   compactText, type EleWizardStepKey,
 } from "./ElettricoWizard/helpers";
 import type { EleFormPatch } from "./ElettricoWizard/types";
+import { useSupportoModelloPreventivo } from "@/hooks/useSupportoModelliPreventivo";
+import { TIPO_INTERVENTO_DEL_MODELLO, creaModelloPreventivo, interventoDelModulo, leggiModelloPreventivo } from "@/lib/moduli/modelloPreventivo";
 import StepCliente from "./ElettricoWizard/StepCliente";
 import StepImmobile from "./ElettricoWizard/StepImmobile";
 import StepComputo from "./ElettricoWizard/StepComputo";
@@ -64,6 +67,9 @@ export default function ElettricoWizard() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const isNew = !id;
+  // ?modello=… : il preventivo nasce da un intervento della libreria (come Tetti).
+  const requestedModel = searchParams.get("modello");
+  const modelSupport = useSupportoModelloPreventivo("elettrico");
   const { user, effectiveCompany } = useAuth();
   const [resumeDismissed, setResumeDismissed] = useState(false);
   const [exitDialogOpen, setExitDialogOpen] = useState(false);
@@ -103,9 +109,30 @@ export default function ElettricoWizard() {
 
   const { data: detail, isLoading, isError, refetch } = useElettricoProgetto(id);
   const upsertMut = useUpsertProgetto();
+  const savedModel = useMemo<{ snapshot: ReturnType<typeof leggiModelloPreventivo>; error: string | null }>(() => {
+    try { return { snapshot: detail ? leggiModelloPreventivo("elettrico", detail.progetto.modello_snapshot, detail.progetto.company_id) : null, error: null }; }
+    catch (error) { return { snapshot: null, error: error instanceof Error ? error.message : "Modello non valido" }; }
+  }, [detail]);
+  const model = interventoDelModulo("elettrico", isNew ? requestedModel : savedModel.snapshot?.modelId);
 
   // Local form state (campi del progetto).
-  const [form, setForm] = useState<EleFormPatch>({});
+  const [form, setForm] = useState<EleFormPatch>(() => model ? { tipo_intervento: TIPO_INTERVENTO_DEL_MODELLO.elettrico[model.id] } : {});
+  const createInput = async (): Promise<EleFormPatch> => {
+    if (!requestedModel) return form;
+    if (!model || !modelSupport.supported || !effectiveCompany?.id) throw new Error("Il salvataggio di questo intervento deve essere attivato nel database. Nessuna offerta generica è stata creata.");
+    const companyId = effectiveCompany.id;
+    const [{ createFullEltTemplate, isFullEltModuleId }, { loadLocalEltTemplate }, { sincronizzaModelliAzienda }] = await Promise.all([
+      import("@/lib/moduli-vendita/fullEltModules"), import("@/lib/moduli-vendita/localEltTemplates"),
+      import("@/lib/moduli-vendita/archivioModelli"),
+    ]);
+    if (!isFullEltModuleId(model.id)) throw new Error("Questo intervento non ha un modello completo. Nessuna offerta generica è stata creata.");
+    // Il modello personalizzato è dell'azienda: può averlo salvato un collega da
+    // un altro computer. Se il database non risponde resta la copia di questo browser.
+    await sincronizzaModelliAzienda(companyId).catch((): void => undefined);
+    const base = await getEleTemplatePdf(companyId);
+    const source = loadLocalEltTemplate(companyId, model.id)?.template ?? createFullEltTemplate(base, model.id);
+    return { ...form, tipo_intervento: TIPO_INTERVENTO_DEL_MODELLO.elettrico[model.id], modello_snapshot: creaModelloPreventivo("elettrico", companyId, model.id, source) };
+  };
   // L'ultimo form a video. Quando un salvataggio torna, «salvato» vale solo se
   // nel frattempo non si è scritto altro: azzerare «dirty» comunque perdeva le
   // modifiche fatte durante la richiesta, perché l'autosave non ripartiva.
@@ -239,17 +266,17 @@ export default function ElettricoWizard() {
     () => Math.round(((currentStepIndex + 1) / ELE_WIZARD_STEPS.length) * 100),
     [currentStepIndex],
   );
-  const completion = useMemo(
-    () => stepCompletion(form, detail?.computo),
-    [form, detail?.computo],
-  );
+  // Col modello il tipo d'intervento è già scelto: lo step Immobile si completa
+  // coi dati del cantiere, non col tipo preimpostato. Senza useMemo, come Tetti:
+  // il compilatore di React non riesce a conservarlo con il modello tra le dipendenze.
+  const completion = stepCompletion(model ? { ...form, tipo_intervento: null } : form, detail?.computo);
 
   const handleSaveAndContinue = async () => {
     // Nuovo progetto: crea passando tutto il form, poi naviga al record creato.
     if (isNew) {
       setCreating(true);
       try {
-        const created = await upsertMut.mutateAsync({ ...form });
+        const created = await upsertMut.mutateAsync(await createInput());
         navigate(`/azienda/elettrico/${created.id}/modifica`, { replace: true });
       } catch (e) {
         toast.error("Creazione progetto fallita", {
@@ -315,13 +342,18 @@ export default function ElettricoWizard() {
     );
   }
 
+  if (savedModel.error || (isNew && requestedModel && !model)) return <div role="alert" className="space-y-3 p-6"><h1 className="text-xl font-semibold">Intervento non disponibile</h1><p>{savedModel.error ?? "Il tipo di intervento richiesto non è riconosciuto."}</p><Button onClick={() => navigate("/azienda/marketing/preventivi?tab=moduli&area=elettrico")}>Scegli un intervento</Button></div>;
+
   const statoMeta = ELE_STATI_LABEL[(detail?.progetto.stato as EleProgetto["stato"]) ?? "bozza"];
 
   return (
     <div className="pb-28 md:pb-20">
+      {model && <section className="mx-auto max-w-6xl space-y-2 p-4"><h1 className="text-xl font-semibold">Preventivo · {model.title}</h1><p className="text-sm text-muted-foreground">{model.summary}</p><p className="text-xs">Cliente → Immobile → Lavorazioni e prodotti → Prezzi e sconti → PDF dell'intervento</p>
+        {isNew && !modelSupport.supported && <p role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm">{modelSupport.isLoading ? "Verifica del salvataggio…" : "Percorso predisposto: il salvataggio richiede ancora l'attivazione del database. Non inserire dati finché il collegamento non è attivo."}</p>}
+      </section>}
       {/* Sticky header */}
       {/* ── Riprendi bozza: su "nuovo", se esiste una bozza propria ── */}
-      <AlertDialog open={Boolean(isNew && ultimaBozza && !resumeDismissed)}>
+      <AlertDialog open={Boolean(isNew && !requestedModel && ultimaBozza && !resumeDismissed)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Hai un preventivo in bozza</AlertDialogTitle>
@@ -371,7 +403,7 @@ export default function ElettricoWizard() {
             <AlertDialogAction
               onClick={async () => {
                 try {
-                  await upsertMut.mutateAsync({ ...form });
+                  await upsertMut.mutateAsync(isNew ? await createInput() : { ...form });
                   toast.success("Bozza salvata — la ritrovi nella lista");
                 } catch (e) {
                   toast.error("Salvataggio bozza fallito", { description: e instanceof Error ? e.message : undefined });
@@ -395,7 +427,7 @@ export default function ElettricoWizard() {
             <div className="flex items-center gap-2 flex-wrap">
               <Hammer className="h-4 w-4 text-orange-600" />
               <span className="font-semibold text-sm">
-                {isNew ? "Nuovo progetto" : detail?.progetto.code ?? "Progetto"}
+                {isNew ? model?.title ?? "Nuovo progetto" : detail?.progetto.code ?? "Progetto"}
               </span>
               {!isNew && compactText(detail?.progetto.cliente_nome, detail?.progetto.cliente_cognome) && (
                 <Badge variant="outline" className="text-[10px]">
@@ -524,10 +556,12 @@ export default function ElettricoWizard() {
           {/* Step content */}
           <main className="col-span-12 space-y-4 md:col-span-9 lg:col-span-10">
             {currentStep === "cliente" && (
-              <StepCliente form={form} onChange={onChange} />
+              <fieldset disabled={Boolean(isNew && requestedModel && !modelSupport.supported)} className="min-w-0">
+                <StepCliente form={form} onChange={onChange} />
+              </fieldset>
             )}
             {currentStep === "immobile" && (
-              <StepImmobile form={form} onChange={onChange} />
+              <StepImmobile form={form} onChange={onChange} model={model} />
             )}
             {currentStep === "computo" && id && detail && (
               // key = id stabile del progetto: monta una volta col computo iniziale
@@ -540,6 +574,7 @@ export default function ElettricoWizard() {
                 scontoPct={Number(form.sconto_pct ?? detail.progetto.sconto_pct ?? 0)}
                 ivaPct={Number(form.iva_pct ?? detail.progetto.iva_pct ?? 10)}
                 prezzoManuale={form.prezzo_manuale !== undefined ? form.prezzo_manuale : detail.progetto.prezzo_manuale ?? null}
+                model={model}
               />
             )}
             {currentStep === "media" && id && detail && (
@@ -574,7 +609,7 @@ export default function ElettricoWizard() {
               </Button>
               <Button
                 onClick={handleSaveAndContinue}
-                disabled={upsertMut.isPending || creating}
+                disabled={upsertMut.isPending || creating || Boolean(isNew && requestedModel && !modelSupport.supported)}
                 className="min-h-11 flex-1 bg-orange-500 hover:bg-orange-600 gap-1 sm:flex-none md:min-h-0"
               >
                 {(upsertMut.isPending || creating) ? (

@@ -19,6 +19,7 @@
  * via `toDataUrl` perché react-pdf supporta solo JPG/PNG e alcune foto possono
  * essere WEBP: la conversione canvas le rende sicure per il renderer.
  */
+import { templateDelPreventivo } from "@/lib/moduli/modelloPreventivo";
 import { useState, type ReactElement } from "react";
 import type { DocumentProps } from "@react-pdf/renderer";
 import { toast } from "sonner";
@@ -167,7 +168,8 @@ export async function enrichElettricoPdf(opts: ElePdfPayload): Promise<ElePdfEnr
 
   // 1) Template: fresco da DB se non passato (riflette l'ultimo salvataggio).
   if (opts.localOnly && !opts.template) throw new Error("Il modello locale deve essere passato all'anteprima.");
-  const template = opts.template ?? (await getEleTemplatePdf(companyId));
+  // Il modello dell'intervento congelato nel preventivo, se c'è (lib/moduli/modelloPreventivo).
+  const template = await templateDelPreventivo("elettrico", progetto, opts.template, getEleTemplatePdf);
 
   // 2) Company (anagrafica per intestazione/contatti). Best-effort.
   let company: ElePdfCompany | null = opts.company ?? null;
