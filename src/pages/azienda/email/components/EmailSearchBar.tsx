@@ -107,20 +107,21 @@ export function EmailSearchBar({ initialValue = "", onSearch }: EmailSearchBarPr
           onChange={(e) => setValue(e.target.value)}
           placeholder="Cerca email…"
           aria-label="Cerca nello storico email"
-          className="h-9 rounded-xl border-blue-100 bg-blue-50/40 pl-8 pr-16 text-base md:text-sm focus-visible:ring-blue-200"
+          className="h-9 rounded-xl border-blue-100 bg-blue-50/40 pl-8 pr-8 sm:pr-16 text-base md:text-sm focus-visible:ring-blue-200"
         />
         {value && (
           <button
             type="button"
             onClick={() => setValue("")}
-              className="absolute right-9 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+              className="absolute right-2 sm:right-9 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
           >
             <X className="h-3.5 w-3.5" />
           </button>
         )}
         <Popover>
           <PopoverTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 rounded-xl text-blue-600 hover:bg-blue-50" title="Operatori ricerca">
+            {/* Mobile: niente guida agli operatori (from:, has:…), roba da tastiera. */}
+            <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 rounded-xl text-blue-600 hover:bg-blue-50 max-sm:hidden" title="Operatori ricerca">
               <HelpCircle className="h-3.5 w-3.5" />
             </Button>
           </PopoverTrigger>

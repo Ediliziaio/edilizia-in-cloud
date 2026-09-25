@@ -360,11 +360,10 @@ export function EmailLayout({
           <p className="text-sm font-semibold leading-tight truncate">
             <FolderTitle filter={filter.folder} />
           </p>
-          {connections && connections.length > 0 && (
+          {/* Sotto il titolo solo la casella scelta; «2 caselle» non serviva. */}
+          {connections && connections.length > 0 && filter.accountId && (
             <p className="truncate text-[10px] text-slate-500">
-              {filter.accountId
-                ? connections.find((c) => c.id === filter.accountId)?.email_address ?? "Tutte le caselle"
-                : `${connections.length} ${connections.length === 1 ? "casella" : "caselle"}`}
+              {connections.find((c) => c.id === filter.accountId)?.email_address ?? "Tutte le caselle"}
             </p>
           )}
         </div>
@@ -452,7 +451,9 @@ export function EmailLayout({
   );
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] overflow-hidden bg-slate-50">
+    // Sotto i 768px <main> ha già il margine per la barra in basso: con
+    // 100vh-4rem la barra di risposta finiva sotto la navigazione dell'app.
+    <div className="flex h-[calc(100vh-4rem)] max-md:h-full overflow-hidden bg-slate-50">
       {/* Backdrop mobile — chiude sidebar al click esterno */}
       {sidebarOpen && (
         <button
@@ -597,10 +598,12 @@ function EmailMailboxToolbar({
   // Sono toggle TRASVERSALI: si combinano (AND) con qualsiasi categoria selezionata sotto.
   const anyQuickActive = !!filter.unreadOnly || !!filter.priorityOnly;
   return (
-    <div className="space-y-2 border-b border-blue-100 bg-gradient-to-r from-white via-blue-50/40 to-orange-50/30 px-3 py-2 sm:px-4 sm:py-3">
+    // Mobile: una riga sola che scorre (filtri rapidi e poi categorie), senza
+    // l'etichetta «Filtri rapidi».
+    <div className="space-y-2 border-b border-blue-100 bg-gradient-to-r from-white via-blue-50/40 to-orange-50/30 px-3 py-2 sm:px-4 sm:py-3 max-sm:flex max-sm:gap-1.5 max-sm:space-y-0 max-sm:overflow-x-auto max-sm:[scrollbar-width:none] max-sm:[&::-webkit-scrollbar]:hidden">
       {/* Filtri rapidi — toggle indipendenti, combinabili con le categorie */}
-      <div className="flex items-center gap-1.5">
-        <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+      <div className="flex items-center gap-1.5 max-sm:contents">
+        <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-400 max-sm:hidden">
           Filtri rapidi
         </span>
         <button
@@ -608,7 +611,7 @@ function EmailMailboxToolbar({
           aria-pressed={!!filter.unreadOnly}
           title="Mostra solo le email da leggere"
           className={cn(
-            "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors",
+            "tap-compact inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors max-sm:h-8",
             filter.unreadOnly
               ? "border-blue-600 bg-blue-600 font-semibold text-white shadow-sm shadow-blue-200"
               : "border-blue-200 bg-white/80 text-blue-700 hover:bg-blue-50",
@@ -626,7 +629,7 @@ function EmailMailboxToolbar({
           aria-pressed={!!filter.priorityOnly}
           title="Mostra solo le email ad alta priorità"
           className={cn(
-            "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors",
+            "tap-compact inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors max-sm:h-8",
             filter.priorityOnly
               ? "border-orange-500 bg-orange-500 font-semibold text-white shadow-sm shadow-orange-200"
               : "border-orange-200 bg-white/80 text-orange-700 hover:bg-orange-50",
@@ -657,7 +660,7 @@ function EmailMailboxToolbar({
       </div>
 
       {/* Categorie (invariata) */}
-      <div className="flex gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="flex gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden max-sm:contents">
         {CATEGORY_FILTERS.map((category) => {
           const active = category.key === "all" ? !filter.category : filter.category === category.key;
           const Icon = category.icon;
@@ -666,7 +669,7 @@ function EmailMailboxToolbar({
               key={category.key}
               type="button"
               className={cn(
-                "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-medium transition-colors",
+                "tap-compact inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-medium transition-colors",
                 active
                   ? "bg-blue-600 font-semibold text-white shadow-sm shadow-blue-200"
                   : "bg-white/70 text-slate-600 hover:bg-white hover:text-slate-900",

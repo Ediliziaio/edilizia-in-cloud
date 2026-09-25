@@ -40,6 +40,7 @@ import {
   Truck, CalendarClock, PackageCheck, Send, ClipboardCheck, MoreHorizontal,
   ChevronUp, ChevronDown,
 } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -1462,30 +1463,42 @@ function EmailAnalysisPanel({
     })
     .slice(0, 8);
   const hasOperations = analysis.operations?.domain && analysis.operations.domain !== "none";
+  // Mobile: chiusa su una riga (categoria e priorità), si apre col tocco. Aperta
+  // occupava mezzo schermo prima del messaggio.
+  const isMobile = useIsMobile();
+  const [aperta, setAperta] = useState(false);
+  const mostraCorpo = !isMobile || aperta;
 
   return (
-    <div className="m-4 mb-0 rounded-lg border border-violet-200 bg-white shadow-sm overflow-hidden">
-      <div className="flex flex-wrap items-start justify-between gap-2 border-b bg-violet-50/60 px-3 py-2">
-        <div className="flex items-start gap-2">
-          <div className="mt-0.5 rounded-md bg-violet-600 p-1.5 text-white">
+    <div className="m-4 mb-0 rounded-lg border border-violet-200 bg-white shadow-sm overflow-hidden max-sm:m-3 max-sm:mb-0">
+      <div
+        className={cn("flex flex-wrap items-start justify-between gap-2 border-b bg-violet-50/60 px-3 py-2", isMobile && "cursor-pointer flex-nowrap items-center", isMobile && !aperta && "border-b-0")}
+        role={isMobile ? "button" : undefined}
+        aria-expanded={isMobile ? aperta : undefined}
+        onClick={isMobile ? () => setAperta((v) => !v) : undefined}
+      >
+        <div className="flex min-w-0 items-start gap-2 max-sm:items-center">
+          <div className="mt-0.5 rounded-md bg-violet-600 p-1.5 text-white max-sm:mt-0">
             <Sparkles className="h-3.5 w-3.5" />
           </div>
-          <div>
-            <p className="text-xs font-bold uppercase tracking-wide text-violet-900">
-              Analisi AI email
+          <div className="min-w-0">
+            <p className="text-xs font-bold uppercase tracking-wide text-violet-900 max-sm:whitespace-nowrap">
+              Analisi AI<span className="max-sm:hidden"> email</span>
             </p>
-            <p className="text-xs text-violet-800/80">
+            <p className="text-xs text-violet-800/80 max-sm:hidden">
               {analysis.intent || "Intento rilevato dalla conversazione"}
             </p>
           </div>
         </div>
-        <div className="flex flex-wrap gap-1">
+        <div className="flex flex-wrap items-center gap-1 max-sm:flex-nowrap">
           <Badge variant="outline" className="bg-white text-[10px]">
             {category}
           </Badge>
           <Badge
             className={cn(
-              "text-[10px]",
+              "text-[10px] whitespace-nowrap",
+              // Mobile: la priorità si mostra solo se c'è.
+              priorityLabel === "Nessuna" && "max-sm:hidden",
               analysis.priority === "alta"
                 ? "bg-rose-600 hover:bg-rose-600"
                 : "bg-violet-600 hover:bg-violet-600",
@@ -1493,9 +1506,11 @@ function EmailAnalysisPanel({
           >
             Priorità {priorityLabel}
           </Badge>
+          {isMobile && <ChevronDown className={cn("h-4 w-4 shrink-0 text-violet-700 transition-transform", aperta && "rotate-180")} />}
         </div>
       </div>
 
+      {mostraCorpo && (
       <div className="grid gap-3 p-3 text-sm lg:grid-cols-[1.2fr_0.8fr]">
         <div className="space-y-3">
           <div>
@@ -1585,6 +1600,7 @@ function EmailAnalysisPanel({
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }

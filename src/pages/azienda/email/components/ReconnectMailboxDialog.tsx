@@ -80,7 +80,7 @@ export default function ReconnectMailboxDialog({ open, onOpenChange, brokenConne
             <AlertTriangle className="h-5 w-5 text-rose-600" />
             Caselle da riconnettere
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="max-sm:sr-only">
             Una o più caselle hanno perso l'autorizzazione. Riconnetti quella interessata per ripristinare la sincronizzazione.
           </DialogDescription>
         </DialogHeader>
@@ -94,7 +94,7 @@ export default function ReconnectMailboxDialog({ open, onOpenChange, brokenConne
               const isThisPending = pendingId === conn.id;
               return (
                 <div key={conn.id} className="rounded-lg border p-3">
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="flex items-center gap-2 mb-1 max-sm:mb-2">
                     <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
                     <span className="text-sm font-medium truncate flex-1">{conn.email_address}</span>
                     <Badge variant="outline" className="text-[10px] capitalize shrink-0">
@@ -102,7 +102,7 @@ export default function ReconnectMailboxDialog({ open, onOpenChange, brokenConne
                     </Badge>
                   </div>
                   {conn.last_sync_error && (
-                    <p className="text-[11px] text-rose-700 mb-2 line-clamp-2">{conn.last_sync_error}</p>
+                    <p className="text-[11px] text-rose-700 mb-2 line-clamp-2 max-sm:hidden">{conn.last_sync_error}</p>
                   )}
                   {canOAuth ? (
                     <Button
@@ -127,7 +127,8 @@ export default function ReconnectMailboxDialog({ open, onOpenChange, brokenConne
           )}
         </div>
 
-        <div className="pt-1">
+        {/* Mobile: la riconnessione basta; le impostazioni sono lavoro da scrivania. */}
+        <div className="pt-1 max-sm:hidden">
           <Button asChild variant="ghost" size="sm" className="w-full text-muted-foreground gap-1.5">
             <Link to={settingsPath} onClick={() => onOpenChange(false)}>
               <Settings2 className="h-4 w-4" />Apri tutte le impostazioni email

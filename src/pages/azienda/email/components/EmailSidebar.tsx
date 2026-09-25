@@ -240,8 +240,9 @@ export function EmailSidebar({ filter, onFilterChange, onCompose, connections, s
   return (
     <ScrollArea className="flex-1 bg-gradient-to-b from-white via-white to-blue-50/40">
       <div className="p-3 space-y-4">
+        {/* Sotto i 768px c'e' gia' il bottone tondo «Scrivi» sopra la lista. */}
         <Button
-          className="h-11 w-full justify-start gap-2 rounded-2xl bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm shadow-blue-200 hover:bg-blue-700"
+          className="h-11 w-full justify-start gap-2 rounded-2xl bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm shadow-blue-200 hover:bg-blue-700 max-md:hidden"
           onClick={onCompose}
         >
           <PencilLine className="h-4 w-4" />
@@ -414,6 +415,20 @@ export function EmailSidebar({ filter, onFilterChange, onCompose, connections, s
 }
 
 /**
+ * Su telefono il popup di riconnessione si apre da solo una volta per sessione:
+ * a ogni ingresso nell'email era un foglio da chiudere prima di leggere. Il
+ * riquadro rosso nel menu resta toccabile. Segna la visita e dice se c'era già.
+ */
+function riconnessioneGiaMostrataSuMobile(): boolean {
+  if (!window.matchMedia("(max-width: 639px)").matches) return false;
+  try {
+    if (sessionStorage.getItem("email-riconnetti-visto")) return true;
+    sessionStorage.setItem("email-riconnetti-visto", "1");
+  } catch { /* storage non disponibile: si apre come sul desktop */ }
+  return false;
+}
+
+/**
  * SyncStatusPanel — pannello compatto sync caselle, in fondo alla sidebar.
  *
  * Mostra in 1 riga: stato salute (CheckCircle verde o AlertTriangle ambra),
@@ -457,7 +472,7 @@ function SyncStatusPanel({
       autoOpenedRef.current = false;
       return;
     }
-    if (!autoOpenedRef.current) {
+    if (!autoOpenedRef.current && !riconnessioneGiaMostrataSuMobile()) {
       autoOpenedRef.current = true;
       setReconnectOpen(true);
     }

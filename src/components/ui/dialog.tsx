@@ -74,7 +74,9 @@ const DialogContent = React.forwardRef<
       {...props}
     >
       {children}
-      <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity data-[state=open]:bg-accent data-[state=open]:text-muted-foreground hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
+      {/* Mobile: il bottone è gonfiato a 44px (area di tocco), quindi parte più
+          in alto per restare in linea col titolo. */}
+      <DialogPrimitive.Close className="absolute right-4 top-4 max-sm:right-2 max-sm:top-2 max-sm:flex max-sm:items-center max-sm:justify-center rounded-sm opacity-70 ring-offset-background transition-opacity data-[state=open]:bg-accent data-[state=open]:text-muted-foreground hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
         <X className="h-4 w-4" />
         <span className="sr-only">Chiudi</span>
       </DialogPrimitive.Close>
