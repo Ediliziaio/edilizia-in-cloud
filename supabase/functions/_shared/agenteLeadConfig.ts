@@ -19,6 +19,8 @@ export interface ConfigAgenteLead {
   /** Quanti giorni avanti cercare orari liberi (1-21). */
   giorniProposta: number;
   tagPrenotato: string | null;
+  /** Proporre solo orari dal lunedì al venerdì, anche se il calendario apre il sabato. */
+  soloFeriali: boolean;
 }
 
 export type EsitoConfig =
@@ -56,6 +58,7 @@ export function leggiConfigAgenteLead(toolsConfig: unknown): EsitoConfig {
         : [],
       giorniProposta: Number.isInteger(giorni) && giorni >= 1 && giorni <= 21 ? giorni : 7,
       tagPrenotato: tag || null,
+      soloFeriali: c.solo_feriali === true,
     },
   };
 }

@@ -189,6 +189,22 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Finiti i giri con gli strumenti senza un testo: un ultimo giro senza
+    // strumenti, così il lead riceve comunque una risposta.
+    if (!testoFinale) {
+      const r = await callOpenAI({
+        task_kind: "lead_qualificazione",
+        company_id: companyId,
+        wa_message_id: body.message_id ?? null,
+        model: budget.model_override ?? undefined,
+        messages: conv, tools: strumenti, tool_choice: "none",
+        temperature: 0.4, max_tokens: 400,
+      });
+      tokIn += r.usage?.prompt_tokens ?? 0;
+      tokOut += r.usage?.completion_tokens ?? 0;
+      testoFinale = r.choices[0].message.content ?? null;
+    }
+
     const pulito = sanitizeAnswer(testoFinale ?? "");
     const risposta = pulito.isFullyChainOfThought ? "" : (pulito.cleaned || testoFinale || "").trim();
     if (risposta) await inviaRisposta(numero.id, companyId, contatto.phone, contatto.id, risposta);
@@ -201,6 +217,8 @@ Deno.serve(async (req) => {
       return json({ ok: false, reason: "crediti" }, 402);
     }
     console.error(JSON.stringify({ level: "error", fn: "lead-agente-whatsapp", error: String(err) }));
+    // Il lead non resta senza risposta in silenzio: lo sa il team.
+    await avvisaTeam(admin, companyId, conf.config.utentiDaAvvisare, "Assistente WhatsApp: risposta non inviata", `Un lead ha scritto ma l'assistente non è riuscito a rispondere (${String(err).slice(0, 120)}). Rispondi tu da Conversazioni.`, contatto.id);
     return json({ error: "errore_interno" }, 500);
   }
 });

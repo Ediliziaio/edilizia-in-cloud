@@ -28,6 +28,7 @@ describe("leggiConfigAgenteLead", () => {
         utenti_da_avvisare: [UTENTE, "x"],
         giorni_proposta: 10,
         tag_prenotato: "  appuntamento fissato  ",
+        solo_feriali: true,
       },
     });
     expect(r).toEqual({
@@ -41,6 +42,7 @@ describe("leggiConfigAgenteLead", () => {
         utentiDaAvvisare: [UTENTE],
         giorniProposta: 10,
         tagPrenotato: "appuntamento fissato",
+        soloFeriali: true,
       },
     });
   });
@@ -58,6 +60,7 @@ describe("leggiConfigAgenteLead", () => {
       utentiDaAvvisare: [],
       giorniProposta: 7,
       tagPrenotato: null,
+      soloFeriali: false,
     });
   });
 });

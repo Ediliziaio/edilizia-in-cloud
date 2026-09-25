@@ -61,13 +61,17 @@ export async function handleLead(
   // il calendario e le fasi scelte dall'azienda. Niente ramo «già qualificato
   // → ticket»: la conversazione la segue l'agente o, se è in pausa, una persona.
   if (waNumber.agent_id) {
-    fetch(`${baseUrl}/functions/v1/lead-agente-whatsapp`, {
+    const chiamata = fetch(`${baseUrl}/functions/v1/lead-agente-whatsapp`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
       body: JSON.stringify({ message_id: messageId, contact_id: contact.id, wa_number_id: waNumber.id }),
     }).catch((err) =>
       console.error(JSON.stringify({ level: "error", fn: "handleLead", msg: "lead-agente-whatsapp non chiamato", error: String(err) }))
     );
+    // Il webhook risponde subito a Meta: senza waitUntil il runtime può
+    // chiudere la funzione prima che la chiamata all'agente sia partita.
+    // deno-lint-ignore no-explicit-any
+    (globalThis as any).EdgeRuntime?.waitUntil?.(chiamata);
     return;
   }
 

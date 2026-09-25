@@ -57,14 +57,33 @@ async function opportunitaAperta(ctx: CtxAgente): Promise<{ id: string; pipeline
   return (data?.[0] as { id: string; pipeline_id: string } | undefined) ?? null;
 }
 
-/** Sposta l'opportunità, solo su una fase della sua stessa pipeline. */
+/**
+ * Sposta l'opportunità, solo su una fase della sua stessa pipeline. Un lead
+ * arrivato direttamente su WhatsApp (non dal modulo Facebook) un'opportunità
+ * non ce l'ha: la si crea nella pipeline dell'agente, già nella fase di arrivo,
+ * così il cartellino compare dove l'azienda lo cerca.
+ */
 async function spostaFase(ctx: CtxAgente, faseId: string | null): Promise<boolean> {
   if (!faseId) return false;
-  const opp = await opportunitaAperta(ctx);
-  if (!opp) return false;
   const { data: fase } = await ctx.admin
     .from("marketing_pipeline_stages").select("id, pipeline_id").eq("id", faseId).maybeSingle();
-  if (!fase || fase.pipeline_id !== opp.pipeline_id) return false;
+  if (!fase) return false;
+  const opp = await opportunitaAperta(ctx);
+  if (!opp) {
+    if (ctx.config.pipelineId && fase.pipeline_id !== ctx.config.pipelineId) return false;
+    const { error } = await ctx.admin.from("marketing_opportunities").insert({
+      company_id: ctx.companyId,
+      contact_id: ctx.contactId,
+      pipeline_id: fase.pipeline_id,
+      stage_id: faseId,
+      name: nomeContatto(ctx) || ctx.contatto.phone || "Lead WhatsApp",
+      status: "open",
+      source: "whatsapp",
+    });
+    if (error) console.warn("[lead-agente] opportunità non creata:", error.message);
+    return !error;
+  }
+  if (fase.pipeline_id !== opp.pipeline_id) return false;
   const { error } = await ctx.admin
     .from("marketing_opportunities").update({ stage_id: faseId }).eq("id", opp.id).eq("company_id", ctx.companyId);
   if (error) console.warn("[lead-agente] fase non spostata:", error.message);
@@ -126,6 +145,8 @@ const orariLiberi: Strumento = {
       const { calendario, slot } = await slotLiberiCalendario(ctx.admin, ctx.config.calendarioId, dataIso, { companyId: ctx.companyId, adesso: ctx.adesso });
       if (!calendario) return { ok: false, errore: "calendario_non_valido", messaggio: "Il calendario delle chiamate non è attivo." };
       calendarioNome = calendario.name;
+      const settimana = new Date(`${dataIso}T12:00:00Z`).getUTCDay();
+      if (ctx.config.soloFeriali && (settimana === 0 || settimana === 6)) continue;
       const orari = (fascia ? slot.filter((s) => fasciaDi(s) === fascia) : slot).slice(0, 6);
       if (orari.length) giorni.push({ data: dataIso, giorno: dataEstesa(dataIso), orari });
     }
@@ -187,6 +208,11 @@ const prenotaChiamata: Strumento = {
     if (!esito.ok) return { ok: false, errore: esito.motivo, messaggio: esito.messaggio };
 
     const fase = await spostaFase(ctx, ctx.config.fasePrenotatoId);
+    // L'opportunità nata ora (lead arrivato su WhatsApp) va legata all'appuntamento.
+    if (!opp) {
+      const nuova = await opportunitaAperta(ctx);
+      if (nuova) await ctx.admin.from("appointments").update({ opportunity_id: nuova.id }).eq("id", esito.appointmentId);
+    }
     await aggiungiTag(ctx, ctx.config.tagPrenotato);
     await unisciQualificazione(ctx, { appuntamento: { data, ora, appointment_id: esito.appointmentId } });
     return { ok: true, quando: esito.quando, data, ora, fase_spostata: fase };
