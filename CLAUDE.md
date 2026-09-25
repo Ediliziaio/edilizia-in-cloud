@@ -106,6 +106,13 @@ chiavi pubbliche e gli indicatori come `openrouter_api_key_set`.
 - Si scrivono come prima (pagine admin, `manage-super-admins`): un trigger
   sposta il valore nel Vault e lascia nella tabella la riga vuota.
 
+Il PIN dei numeri WhatsApp (la verifica in due passaggi su Meta) sta nel Vault dal
+25 settembre 2026, come `ai_whatsapp_numbers.cloud_api_pin.<id>`: lo sposta un
+trigger a ogni scrittura e lo legge solo `pin_numero_whatsapp(id)`, dal service
+role. Su `ai_whatsapp_numbers` il ruolo `authenticated` ha il GRANT per colonna,
+tutto tranne token e PIN: un `select("*")` dal browser fallisce, e una colonna
+nuova che il browser deve leggere va aggiunta al GRANT e a `WA_NUMBER_COLUMNS`.
+
 ## Cron e pg_net: la coda è una sola
 
 `pg_net` ha un solo worker, che elabora le richieste a lotti dentro **una**
