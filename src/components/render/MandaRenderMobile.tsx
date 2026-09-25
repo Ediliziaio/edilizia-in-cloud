@@ -11,6 +11,8 @@ interface MandaRenderMobileProps {
   resultUrl: string;
   /** Nome del file mandato, senza estensione (es. «render-infissi»). */
   nomeFile: string;
+  /** Solo l'icona (righe strette, es. il render precedente in cima al passo). */
+  soloIcona?: boolean;
   className?: string;
 }
 
@@ -30,7 +32,7 @@ async function scaricaImmagine(url: string): Promise<Blob> {
  * tocco); se non è ancora pronta e il tocco «scade», un avviso chiede un
  * secondo tocco.
  */
-export function MandaRenderMobile({ resultUrl, nomeFile, className }: MandaRenderMobileProps) {
+export function MandaRenderMobile({ resultUrl, nomeFile, soloIcona = false, className }: MandaRenderMobileProps) {
   const immagineRef = useRef<Promise<Blob> | null>(null);
   const [inCorso, setInCorso] = useState(false);
 
@@ -64,9 +66,16 @@ export function MandaRenderMobile({ resultUrl, nomeFile, className }: MandaRende
   };
 
   return (
-    <Button type="button" onClick={() => void manda()} disabled={inCorso} className={cn("gap-2", className)}>
+    <Button
+      type="button"
+      onClick={() => void manda()}
+      disabled={inCorso}
+      variant={soloIcona ? "outline" : "default"}
+      aria-label={soloIcona ? "Manda al cliente" : undefined}
+      className={cn("gap-2", soloIcona && "w-11 shrink-0 px-0", className)}
+    >
       {inCorso ? <Loader2 className="h-4 w-4 animate-spin" /> : <Share2 className="h-4 w-4" />}
-      Manda al cliente
+      {!soloIcona && "Manda al cliente"}
     </Button>
   );
 }

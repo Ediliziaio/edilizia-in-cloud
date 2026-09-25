@@ -10,6 +10,12 @@ export interface RenderWizardHeaderProps {
   eyebrow: string;
   /** Big bold title. */
   title: string;
+  /**
+   * Telefono: il titolo corto al posto dello slogan, che non ci sta
+   * («Stesso bagno, nuove finit…»). Senza, si ricava dal badge:
+   * «Render AI — Bagni» → «Render Bagni».
+   */
+  mobileTitle?: string;
   /** Subtitle / description below the title. */
   description?: string;
   /** Right-side pill, e.g. "Render AI — Tetti". */
@@ -44,6 +50,7 @@ export function RenderWizardHeader({
   onBack,
   eyebrow,
   title,
+  mobileTitle,
   description,
   badgeLabel,
   stepLabels,
@@ -84,7 +91,10 @@ export function RenderWizardHeader({
           <div className="text-[11px] font-semibold uppercase tracking-widest opacity-70 max-md:hidden">
             {eyebrow}
           </div>
-          <div className="text-2xl font-bold leading-tight break-words max-md:truncate max-md:text-lg">{title}</div>
+          <div className="text-2xl font-bold leading-tight break-words max-md:truncate max-md:text-lg">
+            <span className="max-md:hidden">{title}</span>
+            <span className="md:hidden">{mobileTitle ?? badgeLabel.replace(/^Render AI\s*—\s*/, "Render ")}</span>
+          </div>
           {description && (
             <div className="mt-1 max-w-2xl text-sm text-white/70 max-md:hidden">{description}</div>
           )}

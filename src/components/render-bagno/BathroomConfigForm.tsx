@@ -22,6 +22,7 @@ import type {
   TipoIntervento,
 } from "@/modules/render-bagno/lib/types";
 import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { CatalogReferencePicker } from "@/components/render-bagno/CatalogReferencePicker";
 
 export type BathroomConfig = ConfigurazioneBagno;
@@ -274,10 +275,12 @@ function VisualOptionGrid(props: {
   return (
     <div className="space-y-2">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-        <Label className="text-xs">{label}</Label>
-        {helper ? <span className="text-[11px] text-muted-foreground">{helper}</span> : null}
+        <Label className="text-xs max-md:text-[11px]">{label}</Label>
+        {helper ? <span className="text-[11px] text-muted-foreground max-md:hidden">{helper}</span> : null}
       </div>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+      {/* Telefono: tre per riga con campione basso e nome a 11px (prima due per
+          riga con descrizione a 10px: 29 materiali = 15 righe per sezione). */}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 max-sm:grid-cols-3 max-sm:gap-1.5">
         {options.map((option) => {
           const selected = option.value === value;
           return (
@@ -295,17 +298,17 @@ function VisualOptionGrid(props: {
               )}
             >
               <div
-                className="h-16 w-full border-b border-black/5"
+                className="h-16 w-full border-b border-black/5 max-md:h-11"
                 style={option.previewStyle}
                 aria-hidden="true"
               />
-              <div className="space-y-1 px-2.5 py-2">
-                <div className="flex items-start justify-between gap-2">
-                  <span className="text-xs font-medium leading-tight">{option.label}</span>
-                  {selected ? <Check className="mt-0.5 h-3.5 w-3.5 text-primary" /> : null}
+              <div className="space-y-1 px-2.5 py-2 max-md:px-2 max-md:py-1.5">
+                <div className="flex items-start justify-between gap-2 max-md:gap-1">
+                  <span className="text-xs font-medium leading-tight max-md:line-clamp-2 max-md:text-[11px]">{option.label}</span>
+                  {selected ? <Check className="mt-0.5 h-3.5 w-3.5 text-primary max-md:h-3 max-md:w-3 max-md:shrink-0" /> : null}
                 </div>
                 {option.hint ? (
-                  <p className="line-clamp-2 text-[10px] leading-tight text-muted-foreground">
+                  <p className="line-clamp-2 text-[10px] leading-tight text-muted-foreground max-md:hidden">
                     {option.hint}
                   </p>
                 ) : null}
@@ -394,6 +397,7 @@ function BathroomMoodPreview({ value }: { value: BathroomConfig }) {
 }
 
 export function BathroomConfigForm({ value, onChange, companyId }: Props) {
+  const isMobile = useIsMobile();
   const update = (partial: Partial<BathroomConfig>) => onChange({ ...value, ...partial });
   /**
    * "Dal tuo catalogo" per una sezione. Scegliere un prodotto dal catalogo
@@ -414,18 +418,20 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
   );
 
   return (
-    <div className="space-y-5">
-      <BathroomMoodPreview value={value} />
+    <div className="space-y-5 max-md:space-y-3">
+      {/* Telefono: l'anteprima disegnata (e le sue note) resta al computer: la
+          foto vera è sopra e il render arriva tra poco. */}
+      {!isMobile && <BathroomMoodPreview value={value} />}
 
       <div>
-        <Label className="mb-2 block text-sm font-semibold">Tipo intervento</Label>
-        <div className="grid gap-2 sm:grid-cols-2">
+        <Label className="mb-2 block text-sm font-semibold max-md:text-[13px]">Tipo intervento</Label>
+        <div className="grid gap-2 sm:grid-cols-2 max-sm:grid-cols-2">
           {INTERVENTO_OPTIONS.map((opt) => (
             <button
               key={opt.value}
               type="button"
               className={cn(
-                "rounded-xl border px-3 py-3 text-left transition-all",
+                "rounded-xl border px-3 py-3 text-left transition-all max-md:px-2.5 max-md:py-2.5",
                 value.tipo_intervento === opt.value
                   ? "border-primary bg-primary/5 shadow-sm"
                   : "border-slate-300 bg-white shadow-sm hover:border-primary/60 hover:shadow",
@@ -434,8 +440,8 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
             >
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold">{opt.label}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">{opt.desc}</p>
+                  <p className="text-sm font-semibold max-md:text-[13px] max-md:leading-tight">{opt.label}</p>
+                  <p className="mt-1 text-xs text-muted-foreground max-md:hidden">{opt.desc}</p>
                 </div>
                 {value.tipo_intervento === opt.value ? (
                   <span className="rounded-full bg-primary/10 p-1 text-primary">
@@ -448,9 +454,16 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
         </div>
       </div>
 
-      <Accordion type="multiple" defaultValue={["piastrelle_parete", "pavimento"]} className="space-y-2">
-        <AccordionItem value="piastrelle_parete" className="rounded-xl border px-3">
-          <div className="flex items-center gap-2 py-2.5">
+      {/* Telefono: sezioni chiuse, un elenco con gli interruttori; si apre quella che serve. */}
+      <Accordion
+        type="multiple"
+        defaultValue={isMobile ? [] : ["piastrelle_parete", "pavimento"]}
+        // Telefono: un elenco unico a righe (come le impostazioni del telefono)
+        // invece di otto schede staccate.
+        className="space-y-2 max-md:space-y-0 max-md:divide-y max-md:overflow-hidden max-md:rounded-xl max-md:border max-md:bg-card"
+      >
+        <AccordionItem value="piastrelle_parete" className="rounded-xl border px-3 max-md:rounded-none max-md:border-0">
+          <div className="flex items-center gap-2 py-2.5 max-md:gap-3 max-md:py-1.5 max-md:[&>h3]:flex-1">
             <Switch
               checked={value.sostituzione.piastrelle_parete}
               onCheckedChange={(checked) =>
@@ -460,7 +473,7 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
                 })
               }
             />
-            <AccordionTrigger className="flex-1 py-0 text-sm">
+            <AccordionTrigger className="flex-1 py-0 text-sm max-md:text-[13px]">
               <span>Piastrelle parete</span>
             </AccordionTrigger>
           </div>
@@ -476,7 +489,7 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
               }
             />
             <div>
-              <Label className="text-xs">Formato</Label>
+              <Label className="text-xs max-md:text-[11px]">Formato</Label>
               <Select
                 value={value.piastrelle_parete.formato}
                 onValueChange={(format) =>
@@ -490,12 +503,12 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
                   ))}
                 </SelectContent>
               </Select>
-              <p className="mt-1 text-[11px] text-muted-foreground">
+              <p className="mt-1 text-[11px] text-muted-foreground max-md:hidden">
                 120x240 significa lastra reale alta circa 2,4 m: poche fughe, niente griglia 60x60 o piastrelle piccole.
               </p>
             </div>
             <div>
-              <Label className="text-xs">Posa</Label>
+              <Label className="text-xs max-md:text-[11px]">Posa</Label>
               <Select
                 value={value.piastrelle_parete.posa}
                 onValueChange={(posa) =>
@@ -511,7 +524,7 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
               </Select>
             </div>
             <div>
-              <Label className="text-xs">Colore fuga</Label>
+              <Label className="text-xs max-md:text-[11px]">Colore fuga</Label>
               <Input
                 value={value.piastrelle_parete.fuga_colore}
                 onChange={(event) =>
@@ -521,7 +534,7 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
               />
             </div>
             <div>
-              <Label className="text-xs">Altezza rivestimento</Label>
+              <Label className="text-xs max-md:text-[11px]">Altezza rivestimento</Label>
               <Select
                 value={value.piastrelle_parete.altezza_rivestimento || "fino al soffitto"}
                 onValueChange={(height) =>
@@ -540,8 +553,8 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
           </AccordionContent>
         </AccordionItem>
 
-        <AccordionItem value="pavimento" className="rounded-xl border px-3">
-          <div className="flex items-center gap-2 py-2.5">
+        <AccordionItem value="pavimento" className="rounded-xl border px-3 max-md:rounded-none max-md:border-0">
+          <div className="flex items-center gap-2 py-2.5 max-md:gap-3 max-md:py-1.5 max-md:[&>h3]:flex-1">
             <Switch
               checked={value.sostituzione.pavimento}
               onCheckedChange={(checked) =>
@@ -551,7 +564,7 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
                 })
               }
             />
-            <AccordionTrigger className="flex-1 py-0 text-sm">
+            <AccordionTrigger className="flex-1 py-0 text-sm max-md:text-[13px]">
               <span>Pavimento</span>
             </AccordionTrigger>
           </div>
@@ -567,7 +580,7 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
               }
             />
             <div>
-              <Label className="text-xs">Formato</Label>
+              <Label className="text-xs max-md:text-[11px]">Formato</Label>
               <Select
                 value={value.pavimento.formato}
                 onValueChange={(format) =>
@@ -581,12 +594,12 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
                   ))}
                 </SelectContent>
               </Select>
-              <p className="mt-1 text-[11px] text-muted-foreground">
+              <p className="mt-1 text-[11px] text-muted-foreground max-md:hidden">
                 Su pavimento il formato scelto deve restare leggibile: grande formato = giunti radi, campi ampi e scala coerente.
               </p>
             </div>
             <div>
-              <Label className="text-xs">Posa</Label>
+              <Label className="text-xs max-md:text-[11px]">Posa</Label>
               <Select
                 value={value.pavimento.posa}
                 onValueChange={(posa) =>
@@ -602,7 +615,7 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
               </Select>
             </div>
             <div>
-              <Label className="text-xs">Colore fuga</Label>
+              <Label className="text-xs max-md:text-[11px]">Colore fuga</Label>
               <Input
                 value={value.pavimento.fuga_colore}
                 onChange={(event) =>
@@ -614,8 +627,8 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
           </AccordionContent>
         </AccordionItem>
 
-        <AccordionItem value="doccia" className="rounded-xl border px-3">
-          <div className="flex items-center gap-2 py-2.5">
+        <AccordionItem value="doccia" className="rounded-xl border px-3 max-md:rounded-none max-md:border-0">
+          <div className="flex items-center gap-2 py-2.5 max-md:gap-3 max-md:py-1.5 max-md:[&>h3]:flex-1">
             <Switch
               checked={value.sostituzione.doccia}
               onCheckedChange={(checked) =>
@@ -625,14 +638,14 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
                 })
               }
             />
-            <AccordionTrigger className="flex-1 py-0 text-sm">
+            <AccordionTrigger className="flex-1 py-0 text-sm max-md:text-[13px]">
               <span>Doccia</span>
             </AccordionTrigger>
           </div>
           <AccordionContent className="space-y-3 pb-4">
             {catalogo(["box_doccia", "piatto_doccia", "soffione"], () => ({ sostituzione: { ...value.sostituzione, doccia: true }, doccia: { ...value.doccia, attivo: true } }))}
             <div>
-              <Label className="text-xs">Tipo</Label>
+              <Label className="text-xs max-md:text-[11px]">Tipo</Label>
               <Select
                 value={value.doccia.tipo}
                 onValueChange={(type) =>
@@ -650,7 +663,7 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
               </Select>
             </div>
             <div>
-              <Label className="text-xs">Vetro box</Label>
+              <Label className="text-xs max-md:text-[11px]">Vetro box</Label>
               <Select
                 value={value.doccia.box_vetro}
                 onValueChange={(glass) =>
@@ -667,7 +680,7 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
               </Select>
             </div>
             <div>
-              <Label className="text-xs">Piatto doccia</Label>
+              <Label className="text-xs max-md:text-[11px]">Piatto doccia</Label>
               <Select
                 value={value.doccia.piatto}
                 onValueChange={(tray) =>
@@ -684,7 +697,7 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
               </Select>
             </div>
             <div>
-              <Label className="text-xs">Profilo</Label>
+              <Label className="text-xs max-md:text-[11px]">Profilo</Label>
               <Select
                 value={value.doccia.profilo}
                 onValueChange={(profile) =>
@@ -701,7 +714,7 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
               </Select>
             </div>
             <div>
-              <Label className="text-xs">Soffione</Label>
+              <Label className="text-xs max-md:text-[11px]">Soffione</Label>
               <Select
                 value={value.doccia.soffione}
                 onValueChange={(showerhead) =>
@@ -720,8 +733,8 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
           </AccordionContent>
         </AccordionItem>
 
-        <AccordionItem value="vasca" className="rounded-xl border px-3">
-          <div className="flex items-center gap-2 py-2.5">
+        <AccordionItem value="vasca" className="rounded-xl border px-3 max-md:rounded-none max-md:border-0">
+          <div className="flex items-center gap-2 py-2.5 max-md:gap-3 max-md:py-1.5 max-md:[&>h3]:flex-1">
             <Switch
               checked={value.sostituzione.vasca}
               onCheckedChange={(checked) =>
@@ -731,14 +744,14 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
                 })
               }
             />
-            <AccordionTrigger className="flex-1 py-0 text-sm">
+            <AccordionTrigger className="flex-1 py-0 text-sm max-md:text-[13px]">
               <span>Vasca</span>
             </AccordionTrigger>
           </div>
           <AccordionContent className="space-y-3 pb-4">
             {catalogo(["vasca"], () => ({ sostituzione: { ...value.sostituzione, vasca: true }, vasca: { ...value.vasca, attivo: true } }))}
             <div>
-              <Label className="text-xs">Tipo</Label>
+              <Label className="text-xs max-md:text-[11px]">Tipo</Label>
               <Select
                 value={value.vasca.tipo}
                 onValueChange={(type) =>
@@ -756,7 +769,7 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
               </Select>
             </div>
             <div>
-              <Label className="text-xs">Materiale</Label>
+              <Label className="text-xs max-md:text-[11px]">Materiale</Label>
               <Select
                 value={value.vasca.materiale}
                 onValueChange={(material) =>
@@ -773,7 +786,7 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
               </Select>
             </div>
             <div>
-              <Label className="text-xs">Rubinetteria vasca</Label>
+              <Label className="text-xs max-md:text-[11px]">Rubinetteria vasca</Label>
               <Select
                 value={value.vasca.rubinetteria_vasca}
                 onValueChange={(tap) =>
@@ -789,7 +802,7 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
               </Select>
             </div>
             <div>
-              <Label className="text-xs">Dimensione vasca</Label>
+              <Label className="text-xs max-md:text-[11px]">Dimensione vasca</Label>
               <Select
                 value={value.vasca.dimensione_cm || "170x75"}
                 onValueChange={(size) =>
@@ -805,15 +818,15 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
                   <SelectItem value="190x90">190x90 cm - scenografica</SelectItem>
                 </SelectContent>
               </Select>
-              <p className="mt-1 text-[11px] text-muted-foreground">
+              <p className="mt-1 text-[11px] text-muted-foreground max-md:hidden">
                 Questa scala viene forzata nel prompt: la vasca non deve diventare una vaschetta piccola o decorativa.
               </p>
             </div>
           </AccordionContent>
         </AccordionItem>
 
-        <AccordionItem value="mobile_bagno" className="rounded-xl border px-3">
-          <div className="flex items-center gap-2 py-2.5">
+        <AccordionItem value="mobile_bagno" className="rounded-xl border px-3 max-md:rounded-none max-md:border-0">
+          <div className="flex items-center gap-2 py-2.5 max-md:gap-3 max-md:py-1.5 max-md:[&>h3]:flex-1">
             <Switch
               checked={value.sostituzione.mobile_bagno}
               onCheckedChange={(checked) =>
@@ -823,14 +836,14 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
                 })
               }
             />
-            <AccordionTrigger className="flex-1 py-0 text-sm">
+            <AccordionTrigger className="flex-1 py-0 text-sm max-md:text-[13px]">
               <span>Mobile bagno</span>
             </AccordionTrigger>
           </div>
           <AccordionContent className="space-y-3 pb-4">
             {catalogo(["mobile_bagno", "lavabo", "specchio"], () => ({ sostituzione: { ...value.sostituzione, mobile_bagno: true }, vanity: { ...value.vanity, attivo: true } }))}
             <div>
-              <Label className="text-xs">Stile</Label>
+              <Label className="text-xs max-md:text-[11px]">Stile</Label>
               <Select
                 value={value.vanity.stile}
                 onValueChange={(style) =>
@@ -847,7 +860,7 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
               </Select>
             </div>
             <div>
-              <Label className="text-xs">Colore mobile</Label>
+              <Label className="text-xs max-md:text-[11px]">Colore mobile</Label>
               <Input
                 value={value.vanity.colore}
                 onChange={(event) =>
@@ -866,7 +879,7 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
               }
             />
             <div>
-              <Label className="text-xs">Lavabo</Label>
+              <Label className="text-xs max-md:text-[11px]">Lavabo</Label>
               <Select
                 value={value.vanity.lavabo}
                 onValueChange={(basin) =>
@@ -883,7 +896,7 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
               </Select>
             </div>
             <div>
-              <Label className="text-xs">Larghezza (cm)</Label>
+              <Label className="text-xs max-md:text-[11px]">Larghezza (cm)</Label>
               <Select
                 value={String(value.vanity.larghezza_cm)}
                 onValueChange={(width) =>
@@ -901,7 +914,7 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
               </Select>
             </div>
             <div>
-              <Label className="text-xs">Numero lavabi</Label>
+              <Label className="text-xs max-md:text-[11px]">Numero lavabi</Label>
               <Select
                 value={String(value.vanity.numero_lavabi || 1)}
                 onValueChange={(count) =>
@@ -916,7 +929,7 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
               </Select>
             </div>
             <div>
-              <Label className="text-xs">Specchio</Label>
+              <Label className="text-xs max-md:text-[11px]">Specchio</Label>
               <Select
                 value={value.vanity.specchio || "retroilluminato"}
                 onValueChange={(mirror) =>
@@ -934,8 +947,8 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
           </AccordionContent>
         </AccordionItem>
 
-        <AccordionItem value="sanitari" className="rounded-xl border px-3">
-          <div className="flex items-center gap-2 py-2.5">
+        <AccordionItem value="sanitari" className="rounded-xl border px-3 max-md:rounded-none max-md:border-0">
+          <div className="flex items-center gap-2 py-2.5 max-md:gap-3 max-md:py-1.5 max-md:[&>h3]:flex-1">
             <Switch
               checked={value.sostituzione.sanitari}
               onCheckedChange={(checked) =>
@@ -945,14 +958,14 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
                 })
               }
             />
-            <AccordionTrigger className="flex-1 py-0 text-sm">
+            <AccordionTrigger className="flex-1 py-0 text-sm max-md:text-[13px]">
               <span>Sanitari</span>
             </AccordionTrigger>
           </div>
           <AccordionContent className="space-y-3 pb-4">
             {catalogo(["wc", "bidet"], () => ({ sostituzione: { ...value.sostituzione, sanitari: true }, sanitari: { ...value.sanitari, attivo: true } }))}
             <div>
-              <Label className="text-xs">WC</Label>
+              <Label className="text-xs max-md:text-[11px]">WC</Label>
               <Select
                 value={value.sanitari.azione_wc}
                 onValueChange={(action) =>
@@ -969,7 +982,7 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
             {value.sanitari.azione_wc === "sostituisci" ? (
               <>
                 <div>
-                  <Label className="text-xs">Tipo WC</Label>
+                  <Label className="text-xs max-md:text-[11px]">Tipo WC</Label>
                   <Select
                     value={value.sanitari.tipo_wc}
                     onValueChange={(type) =>
@@ -987,7 +1000,7 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
                 {value.sanitari.tipo_wc === "sospeso" || value.sanitari.tipo_wc === "rimless_sospeso" ? (
                   <div className="space-y-3 rounded-xl border bg-muted/20 p-3">
                     <div>
-                      <Label className="text-xs">Piastra WC a parete</Label>
+                      <Label className="text-xs max-md:text-[11px]">Piastra WC a parete</Label>
                       <Select
                         value={value.sanitari.piastra_wc || "rettangolare_sottile"}
                         onValueChange={(plate) =>
@@ -1011,7 +1024,7 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
                         update({ sanitari: { ...value.sanitari, piastra_wc_colore: color as NonNullable<BathroomConfig["sanitari"]["piastra_wc_colore"]> } })
                       }
                     />
-                    <p className="text-[11px] text-muted-foreground">
+                    <p className="text-[11px] text-muted-foreground max-md:hidden">
                       Nei WC sospesi forziamo vaso sospeso senza piede a pavimento, cassetta da incasso invisibile e piastra a parete visibile.
                     </p>
                   </div>
@@ -1019,7 +1032,7 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
               </>
             ) : null}
             <div>
-              <Label className="text-xs">Bidet</Label>
+              <Label className="text-xs max-md:text-[11px]">Bidet</Label>
               <Select
                 value={value.sanitari.azione_bidet}
                 onValueChange={(action) =>
@@ -1037,7 +1050,7 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
             </div>
             {value.sanitari.azione_bidet === "sostituisci" || value.sanitari.azione_bidet === "aggiungi" ? (
               <div>
-                <Label className="text-xs">Tipo bidet</Label>
+                <Label className="text-xs max-md:text-[11px]">Tipo bidet</Label>
                 <Select
                   value={value.sanitari.tipo_bidet || "sospeso"}
                   onValueChange={(type) =>
@@ -1063,8 +1076,8 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
           </AccordionContent>
         </AccordionItem>
 
-        <AccordionItem value="rubinetteria" className="rounded-xl border px-3">
-          <div className="flex items-center gap-2 py-2.5">
+        <AccordionItem value="rubinetteria" className="rounded-xl border px-3 max-md:rounded-none max-md:border-0">
+          <div className="flex items-center gap-2 py-2.5 max-md:gap-3 max-md:py-1.5 max-md:[&>h3]:flex-1">
             <Switch
               checked={value.sostituzione.rubinetteria}
               onCheckedChange={(checked) =>
@@ -1074,7 +1087,7 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
                 })
               }
             />
-            <AccordionTrigger className="flex-1 py-0 text-sm">
+            <AccordionTrigger className="flex-1 py-0 text-sm max-md:text-[13px]">
               <span>Rubinetteria</span>
             </AccordionTrigger>
           </div>
@@ -1090,7 +1103,7 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
               }
             />
             <div>
-              <Label className="text-xs">Stile</Label>
+              <Label className="text-xs max-md:text-[11px]">Stile</Label>
               <Select
                 value={value.rubinetteria.stile}
                 onValueChange={(style) =>
@@ -1109,8 +1122,8 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
           </AccordionContent>
         </AccordionItem>
 
-        <AccordionItem value="parete_colore" className="rounded-xl border px-3">
-          <div className="flex items-center gap-2 py-2.5">
+        <AccordionItem value="parete_colore" className="rounded-xl border px-3 max-md:rounded-none max-md:border-0">
+          <div className="flex items-center gap-2 py-2.5 max-md:gap-3 max-md:py-1.5 max-md:[&>h3]:flex-1">
             <Switch
               checked={value.sostituzione.parete_colore}
               onCheckedChange={(checked) =>
@@ -1120,13 +1133,13 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
                 })
               }
             />
-            <AccordionTrigger className="flex-1 py-0 text-sm">
+            <AccordionTrigger className="flex-1 py-0 text-sm max-md:text-[13px]">
               <span>Pareti non piastrellate</span>
             </AccordionTrigger>
           </div>
           <AccordionContent className="space-y-3 pb-4">
             <div>
-              <Label className="text-xs">Azione</Label>
+              <Label className="text-xs max-md:text-[11px]">Azione</Label>
               <Select
                 value={value.parete.azione}
                 onValueChange={(action) =>
@@ -1144,8 +1157,8 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
             {value.parete.azione === "tinta_unita" || value.parete.azione === "lastra_decorativa" ? (
               <>
                 <div>
-                  <Label className="text-xs">Preset colore rapidi</Label>
-                  <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  <Label className="text-xs max-md:text-[11px]">Preset colore rapidi</Label>
+                  <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 max-sm:grid-cols-3 max-sm:gap-1.5">
                     {QUICK_PAINT_PRESETS.map((preset) => {
                       const selected = (value.parete.colore_hex || "#F5F5F0").toLowerCase() === preset.value.toLowerCase();
                       return (
@@ -1158,15 +1171,15 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
                           )}
                           onClick={() => update({ parete: { ...value.parete, colore_hex: preset.value } })}
                         >
-                          <span className="h-6 w-6 rounded-full border border-black/10" style={{ backgroundColor: preset.value }} />
-                          <span className="text-xs font-medium">{preset.label}</span>
+                          <span className="h-6 w-6 rounded-full border border-black/10 max-md:h-5 max-md:w-5 max-md:shrink-0" style={{ backgroundColor: preset.value }} />
+                          <span className="text-xs font-medium max-md:text-[11px] max-md:leading-tight">{preset.label}</span>
                         </button>
                       );
                     })}
                   </div>
                 </div>
                 <div>
-                  <Label className="text-xs">Colore</Label>
+                  <Label className="text-xs max-md:text-[11px]">Colore</Label>
                   <div className="flex items-center gap-2">
                     <input
                       type="color"
@@ -1193,17 +1206,20 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
       </Accordion>
 
       <div>
-        <Label className="text-xs font-semibold">Note libere</Label>
+        <Label className="text-xs font-semibold max-md:text-[13px]">Note libere</Label>
         <Textarea
           value={value.note_libere || ""}
           onChange={(event) => update({ note_libere: event.target.value })}
-          placeholder="Indicazioni aggiuntive per l'AI, ad esempio: 'mantieni il bagno molto luminoso', 'stile hotel di lusso ma realistico', 'niente elementi decorativi extra'."
+          placeholder={isMobile
+            ? "Es. molto luminoso, stile hotel, niente decorazioni…"
+            : "Indicazioni aggiuntive per l'AI, ad esempio: 'mantieni il bagno molto luminoso', 'stile hotel di lusso ma realistico', 'niente elementi decorativi extra'."}
           rows={4}
-          className="mt-1"
+          // Telefono: il testo scritto resta a 16px (sotto, iOS ingrandisce la pagina), il segnaposto a 13px.
+          className="mt-1 max-md:min-h-[88px] max-md:placeholder:text-[13px]"
         />
       </div>
 
-      <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-xs text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/20 dark:text-emerald-100">
+      <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-xs text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/20 dark:text-emerald-100 max-md:hidden">
         <p className="font-semibold">Come ragiona il render</p>
         <p className="mt-1 text-emerald-900/80 dark:text-emerald-100/80">
           Se scegli una doccia walk-in, il sistema forza una vera walk-in aperta. Se selezioni una vasca al posto della doccia, la doccia esistente viene rimossa. Se cambi solo una superficie, il resto deve rimanere coerente con il bagno originale.

@@ -33,7 +33,8 @@ export function CatalogReferencePicker({ companyId, verticale, categorie, select
   if (!companyId || loading) return null;
   if (visibili.length === 0) {
     return (
-      <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+      // Telefono: niente invito a riempire il catalogo, che si imposta dal computer.
+      <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground max-md:hidden">
         <ImagePlus className="h-3.5 w-3.5" />
         <span>
           Nessuna foto prodotto per questa sezione.{" "}
@@ -49,7 +50,7 @@ export function CatalogReferencePicker({ companyId, verticale, categorie, select
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-medium">Dal tuo catalogo</span>
+        <span className="text-xs font-medium max-md:text-[11px]">Dal tuo catalogo</span>
         <span className={cn("text-[11px] tabular-nums", pieno ? "text-amber-600" : "text-muted-foreground")}>
           {selectedIds.length}/{MAX_CATALOG_REFERENCES} riferimenti
         </span>
@@ -75,7 +76,7 @@ export function CatalogReferencePicker({ companyId, verticale, categorie, select
               <div className="aspect-square w-full overflow-hidden rounded-t-lg bg-muted">
                 {url ? <img src={url} alt={a.etichetta} className="h-full w-full object-cover" loading="lazy" /> : null}
               </div>
-              <div className="px-1 py-0.5 text-[10px] leading-tight line-clamp-2">{a.etichetta}</div>
+              <div className="px-1 py-0.5 text-[10px] leading-tight line-clamp-2 max-md:text-[11px]">{a.etichetta}</div>
               {selected && (
                 <span className="absolute right-1 top-1 rounded-full bg-primary p-0.5 text-primary-foreground">
                   <Check className="h-3 w-3" />
