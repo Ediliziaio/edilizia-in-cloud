@@ -181,10 +181,14 @@ stessa migrazione che la apre.
 ## Backup e ripristino delle aziende
 
 Il job `company-backup-settimanale` (domenica 02:30 UTC) salva un JSON per
-azienda in `company-exports`. Il contenuto lo decide `admin_tabelle_da_esportare()`
-(ogni tabella con `company_id`, meno log e telemetria) e lo costruisce
-`admin_esporta_azienda(uuid)` dentro il database — non via PostgREST, che taglia
-a mille righe e su 628 tabelle costerebbe migliaia di chiamate.
+azienda in `company-exports`. Il contenuto lo decide `admin_catalogo_backup()`:
+tutto ciò che la purga cancella — ogni tabella con `company_id` e ogni tabella
+figlia presa attraverso la madre (righe fattura, voci e rate delle commesse…) —
+meno le esclusioni scritte una per una, col motivo, in `admin_backup_esclusioni()`.
+Lo costruisce `admin_esporta_azienda(uuid)` dentro il database — non via
+PostgREST, che taglia a mille righe e su 628 tabelle costerebbe migliaia di
+chiamate. `admin_backup_tabelle_scoperte()` deve restare vuota: se non lo è,
+qualcosa che la purga cancella non finisce nel backup.
 
 `admin_ripristina_backup(dump, modo)`:
 - `prova` — ricrea le tabelle in uno schema `ripristino_prova_*`, versa le righe,
