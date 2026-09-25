@@ -2076,12 +2076,10 @@ function ListHeader({ onCreate }: { onCreate: () => void }) {
     // Telefono: solo il titolo, senza fascia né spiegazione; le campagne si creano dal computer o dal tablet.
     <div className="border-b bg-white max-sm:border-0 max-sm:bg-transparent">
       <div className="mx-auto flex max-w-[1500px] flex-col gap-4 px-4 py-5 sm:px-6 lg:flex-row lg:items-center lg:justify-between max-sm:px-0 max-sm:pb-3 max-sm:pt-0">
+        {/* Titolo a 24px come nelle altre pagine (era 30) e senza le due
+            righe di spiegazione sotto. */}
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl max-sm:text-lg">Pubblicità</h1>
-          <p className="mt-1 max-w-2xl text-sm text-slate-600 max-sm:hidden">
-            Porta richieste di preventivo dalla pubblicità su Facebook, Instagram e Google.
-            Ogni campagna nasce in pausa: va online solo quando la attivi tu.
-          </p>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-950 max-sm:text-lg">Pubblicità</h1>
         </div>
         <Button onClick={onCreate} size="lg" className="shrink-0 max-sm:hidden">
           <Plus className="h-4 w-4" />

@@ -32,6 +32,7 @@ import {
   Library,
   Loader2,
   MessageSquare,
+  MoreHorizontal,
   Pencil,
   Play,
   Plus,
@@ -50,6 +51,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -4560,7 +4562,9 @@ function GestioneSocial({
 
   return (
     <div className="min-h-screen bg-slate-50/50">
-      <div className="mx-auto max-w-7xl space-y-5 p-4 md:p-6 max-sm:space-y-3 max-sm:p-0">
+      {/* Da 640 niente p-6 né colonna da 1280px centrata: il margine lo dà il
+          layout (la pagina partiva 24px più in là delle altre). */}
+      <div className="space-y-5 max-sm:space-y-3">
 
         {/* ─── PAGE HEADER ─────────────────────────────────────────────── */}
         {/* Telefono: solo il titolo. Collegamenti e import CSV restano al computer;
@@ -4571,15 +4575,25 @@ function GestioneSocial({
               <h1 className="text-2xl font-bold text-slate-900 max-sm:text-lg">Gestione social</h1>
               <Badge className="border-0 bg-gradient-to-r from-orange-500 to-amber-500 text-white max-sm:px-1.5 max-sm:py-0 max-sm:text-[10px]">Beta</Badge>
             </div>
-            <p className="mt-1 text-sm text-slate-500 max-sm:hidden">Scrivi, programma e pubblica i post delle tue pagine Facebook e Instagram.</p>
           </div>
+          {/* Senza sottotitolo; Collegamenti e Importa da CSV in un menu «⋯»
+              accanto a «Crea post» (a 1024 i tre bottoni andavano a capo). */}
           <div className="flex flex-wrap gap-2 max-sm:hidden">
-            <Button variant="outline" size="sm" onClick={goToIntegrations} className="gap-1.5">
-              <Settings className="h-3.5 w-3.5" /> Collegamenti
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setBulkModalOpen(true)} className="gap-1.5">
-              <Upload className="h-3.5 w-3.5" /> Importa da CSV
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon" className="h-9 w-9" aria-label="Altre azioni" title="Altre azioni">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem className="gap-2" onSelect={goToIntegrations}>
+                  <Settings className="h-4 w-4" /> Collegamenti
+                </DropdownMenuItem>
+                <DropdownMenuItem className="gap-2" onSelect={() => setBulkModalOpen(true)}>
+                  <Upload className="h-4 w-4" /> Importa da CSV
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button size="sm" className="gap-1.5 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white shadow-sm"
               onClick={() => setTab("crea-post")}>
               <Plus className="h-3.5 w-3.5" /> Crea post
@@ -4638,11 +4652,13 @@ function GestioneSocial({
           <div className="flex overflow-x-auto border-b scrollbar-none">
             {tabs.map(({ id, label, icon: Icon, badge, badgeBreve }) => (
               <button key={id} type="button" onClick={() => setTab(id)}
-                className={cn("flex shrink-0 items-center gap-2 border-b-2 px-4 py-3.5 text-sm font-semibold transition-colors md:px-5 md:py-4",
+                // Icone e spaziatura larga da 1280: a 1024 le linguette uscivano
+                // dalla riga (814px in 686).
+                className={cn("flex shrink-0 items-center gap-2 border-b-2 px-4 py-3.5 text-sm font-semibold transition-colors md:py-4 xl:px-5",
                   "max-sm:flex-1 max-sm:justify-center max-sm:gap-1 max-sm:px-1 max-sm:py-2.5 max-sm:text-[13px]",
                   !SCHEDE_TELEFONO.includes(id) && "max-sm:hidden",
                   activeTab === id ? "border-orange-500 text-orange-700" : "border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-700")}>
-                <Icon className="h-4 w-4 max-sm:hidden" />
+                <Icon className="h-4 w-4 max-xl:hidden" />
                 {label}
                 {badge != null && (
                   <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-bold",
