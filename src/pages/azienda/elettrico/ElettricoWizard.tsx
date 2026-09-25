@@ -570,9 +570,10 @@ export default function ElettricoWizard() {
                 variant="outline"
                 onClick={handleBack}
                 disabled={currentStepIndex === 0}
-                className="min-h-11 md:min-h-0"
+                className="min-h-11 md:min-h-0 max-md:w-11 max-md:shrink-0 max-md:px-0"
               >
-                <ArrowLeft className="h-4 w-4 mr-1" /> Indietro
+                {/* Telefono: solo la freccia, il pulsante principale prende la riga. */}
+                <ArrowLeft className="h-4 w-4 mr-1 max-md:mr-0" /> <span className="max-md:sr-only">Indietro</span>
               </Button>
               <Button
                 onClick={handleSaveAndContinue}

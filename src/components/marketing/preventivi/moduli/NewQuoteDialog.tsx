@@ -1,10 +1,11 @@
 import { useRef, useState, type ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, ArrowRight, FileText, Search, Check } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useModuliVendita, useModuliVisibilita } from "@/lib/moduli-vendita";
 import { useSerramentiModelSupport } from "@/hooks/useSerramentiModelSupport";
 import { useTettiModelSupport } from "@/hooks/useTettiModelSupport";
@@ -56,6 +57,28 @@ function QuoteChooser({ params, onSelect }: { params: URLSearchParams; onSelect:
   const waiting = isLoading || visibilityLoading;
   const selectArea = (id: string) => { setAreaId(id); setQuery(""); heading.current?.focus(); };
   const view = area ? moduli.find(item => item.modulo.slug === area.sourceModule) : undefined;
+  // Telefono: le schede «in preparazione» non si toccano e non portano da
+  // nessuna parte, quindi restano fuori. Un'area che ha solo quelle apre
+  // subito il suo preventivo generale; in ricerca, al posto delle schede
+  // spente, c'è il generale dell'area trovata.
+  const isMobile = useIsMobile();
+  const navigate = useNavigate();
+  const generaleHref = (item: SalesArea) => {
+    const modulo = moduli.find(candidate => candidate.modulo.slug === item.sourceModule);
+    return modulo ? quoteCreationHref(`${modulo.modulo.href}/nuovo`, params) : null;
+  };
+  const collegato = (item: SalesArea, intervention: SalesArea["interventions"][number]) => !!pilotHref(item, intervention, params);
+  const haModelli = (item: SalesArea) => item.interventions.some(intervention => collegato(item, intervention));
+  const scegliArea = (item: SalesArea) => {
+    const href = generaleHref(item);
+    if (isMobile && href && !haModelli(item)) { onSelect(); navigate(href); return; }
+    selectArea(item.id);
+  };
+  const mostrati = isMobile ? results.filter(result => collegato(result.area, result.intervention)) : results;
+  const areeSenzaModello = isMobile && searching && !area
+    ? areas.filter(item => results.some(result => result.area.id === item.id) && !mostrati.some(result => result.area.id === item.id))
+    : [];
+  const ricercaInutile = isMobile && !!area && !haModelli(area);
 
   return <DialogContent onOpenAutoFocus={event => { event.preventDefault(); heading.current?.focus(); }}
     className="flex max-h-[94dvh] w-[calc(100%-1.5rem)] max-w-4xl flex-col gap-0 overflow-hidden rounded-2xl p-0 sm:max-h-[88dvh] [&>button]:flex [&>button]:h-11 [&>button]:w-11 [&>button]:items-center [&>button]:justify-center [&>button]:right-2 [&>button]:top-2 max-sm:w-full max-sm:rounded-b-none max-sm:[&>button]:top-1.5">
@@ -75,7 +98,7 @@ function QuoteChooser({ params, onSelect }: { params: URLSearchParams; onSelect:
         <ArrowRight aria-hidden="true" className="h-5 w-5 shrink-0 text-orange-600" />
       </Link>}
 
-      <div className="relative mb-4 max-sm:mb-3"><Search className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground max-sm:top-2.5" aria-hidden="true" /><Input type="search" aria-label="Cerca un intervento" placeholder={area ? "Cerca in questa area…" : "Cerca: persiane, bagno, ripasso…"} value={query} onChange={event => setQuery(event.target.value)} className="h-11 pl-9 text-base sm:text-sm max-sm:h-9" /></div>
+      {!ricercaInutile && <div className="relative mb-4 max-sm:mb-3"><Search className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground max-sm:top-2.5" aria-hidden="true" /><Input type="search" aria-label="Cerca un intervento" placeholder={area ? "Cerca in questa area…" : "Cerca: persiane, bagno, ripasso…"} value={query} onChange={event => setQuery(event.target.value)} className="h-11 pl-9 text-base sm:text-sm max-sm:h-9" /></div>}
 
       {waiting ? <p role="status" className="py-8 text-center text-sm text-muted-foreground">Verifico le aree abilitate…</p>
         : isError ? <p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm">Non è stato possibile verificare i moduli aziendali. Chiudi e riprova: nessun accesso viene dato per confermato.</p>
@@ -85,7 +108,7 @@ function QuoteChooser({ params, onSelect }: { params: URLSearchParams; onSelect:
           {/* Telefono: tre aree per riga con la foto piccola e il nome sotto,
               tutte in una schermata (a due per riga con le foto grandi se ne
               vedevano quattro). */}
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4 max-sm:grid-cols-3 max-sm:gap-2">{areas.map(item => <button type="button" key={item.id} onClick={() => selectArea(item.id)}
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4 max-sm:grid-cols-3 max-sm:gap-2">{areas.map(item => <button type="button" key={item.id} onClick={() => scegliArea(item)}
             className="tap-compact group min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-card text-left shadow-sm transition-colors hover:border-orange-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" aria-label={`Scegli area ${item.title}`}>
             <AreaImage area={item} /><span className="flex min-h-16 items-center justify-between gap-2 p-3 max-sm:min-h-0 max-sm:px-1.5 max-sm:py-1.5"><span className="text-sm font-semibold leading-snug max-sm:line-clamp-2 max-sm:w-full max-sm:text-center max-sm:text-[11px] max-sm:leading-tight">{item.title}</span><ArrowRight aria-hidden="true" className="h-4 w-4 shrink-0 text-muted-foreground group-hover:text-orange-600 max-sm:hidden" /></span>
           </button>)}</div>
@@ -93,12 +116,15 @@ function QuoteChooser({ params, onSelect }: { params: URLSearchParams; onSelect:
           {area && !searching && view && <Link onClick={onSelect} to={quoteCreationHref(`${view.modulo.href}/nuovo`, params)} className="mb-4 flex min-h-14 items-center justify-between gap-3 rounded-xl border bg-muted/20 p-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary max-sm:mb-3 max-sm:min-h-0 max-sm:py-2.5">
             <span><span className="block font-semibold">Preventivo {area.title} generale</span><span className="block text-xs text-muted-foreground max-sm:hidden">Per lavori misti, senza un modello d’intervento specifico.</span></span><ArrowRight aria-hidden="true" className="h-4 w-4 shrink-0" />
           </Link>}
-          <p role="status" className="mb-3 text-xs text-muted-foreground max-sm:sr-only">{results.length} interventi {area ? "in questa area" : "trovati"}</p>
-          {results.length === 0 && <div className="py-6 text-center"><p className="text-sm">Nessun intervento trovato.</p><Button variant="ghost" className="mt-2" onClick={() => setQuery("")}>Cancella ricerca</Button></div>}
+          {areeSenzaModello.map(item => { const href = generaleHref(item); return href && <Link key={item.id} onClick={onSelect} to={href} className="mb-2 flex items-center justify-between gap-3 rounded-xl border bg-muted/20 px-3 py-2.5 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+            Preventivo {item.title} generale<ArrowRight aria-hidden="true" className="h-4 w-4 shrink-0" />
+          </Link>; })}
+          <p role="status" className="mb-3 text-xs text-muted-foreground max-sm:sr-only">{mostrati.length} interventi {area ? "in questa area" : "trovati"}</p>
+          {mostrati.length === 0 && areeSenzaModello.length === 0 && (searching || !isMobile) && <div className="py-6 text-center"><p className="text-sm">Nessun intervento trovato.</p><Button variant="ghost" className="mt-2" onClick={() => setQuery("")}>Cancella ricerca</Button></div>}
           {/* Telefono: due interventi per riga, foto e nome; il riassunto e
               «Apri preventivatore» si leggono dal computer (resta l'avviso se
               il percorso non è pronto). */}
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 max-sm:grid-cols-2 max-sm:gap-2">{results.map(({ area: item, intervention }) => {
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 max-sm:grid-cols-2 max-sm:gap-2">{mostrati.map(({ area: item, intervention }) => {
             const href = pilotHref(item, intervention, params);
             const support = item.sourceModule === "tetti" ? tetSupport : srSupport;
             const ready = href && support.supported && !support.isLoading && !support.isError;
