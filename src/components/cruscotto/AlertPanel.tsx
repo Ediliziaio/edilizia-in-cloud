@@ -134,14 +134,15 @@ export function AlertPanel({ marketingAlerts, operations, finance, todayData, bi
           <div
             key={alert.id}
             className={cn(
-              "rounded-xl px-4 py-3 flex items-start gap-3 transition-colors",
+              // Mobile: titolo e freccia; la spiegazione e il testo del bottone no.
+              "rounded-xl px-4 py-3 flex items-start gap-3 transition-colors max-sm:items-center max-sm:px-3 max-sm:py-2",
               alert.level === "critical" && "bg-destructive/8 border border-destructive/20",
               alert.level === "warning" && "bg-amber-500/8 border border-amber-500/20",
               alert.level === "info" && "bg-blue-500/8 border border-blue-500/20",
             )}
           >
             <AlertTriangle className={cn(
-              "w-4 h-4 shrink-0 mt-0.5",
+              "w-4 h-4 shrink-0 mt-0.5 max-sm:mt-0",
               alert.level === "critical" && "text-destructive",
               alert.level === "warning" && "text-amber-600",
               alert.level === "info" && "text-blue-600",
@@ -153,16 +154,17 @@ export function AlertPanel({ marketingAlerts, operations, finance, todayData, bi
                 alert.level === "warning" && "text-amber-700 dark:text-amber-400",
                 alert.level === "info" && "text-blue-700 dark:text-blue-400",
               )}>{alert.title}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{alert.body}</p>
+              <p className="text-xs text-muted-foreground mt-0.5 max-sm:hidden">{alert.body}</p>
             </div>
             <Button
               variant="ghost"
               size="sm"
               className="shrink-0 text-xs h-7 gap-1"
               onClick={() => navigate(alert.link)}
+              aria-label={alert.cta}
             >
-              {alert.cta}
-              <ChevronRight className="w-3 h-3" />
+              <span className="max-sm:hidden">{alert.cta}</span>
+              <ChevronRight className="w-3 h-3 max-sm:h-4 max-sm:w-4" />
             </Button>
           </div>
         ))}

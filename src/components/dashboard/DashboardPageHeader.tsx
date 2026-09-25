@@ -39,6 +39,9 @@ export function DashboardPageHeader({
     <div
       className={cn(
         "rounded-2xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm sm:px-6 sm:py-5 print:border-0 print:shadow-none",
+        // Mobile senza titolo resta solo il bottone «Filtri»: niente riquadro
+        // intorno, che spendeva una card intera per un bottone.
+        compactTitle && "max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none",
         className,
       )}
     >

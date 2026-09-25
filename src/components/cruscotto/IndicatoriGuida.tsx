@@ -177,7 +177,9 @@ function CardIndicatore({ def, indicatore }: { def: DefIndicatore; indicatore: I
           : undefined
       }
       className={cn(
-        "rounded-xl border border-l-4 bg-card p-4 flex flex-col gap-2 transition-all",
+        // Mobile: due per riga, solo titolo, numero e stato. Soglia, spiegazione
+        // e «come si calcola» (un tooltip, che col dito non si apre) no.
+        "rounded-xl border border-l-4 bg-card p-3 flex flex-col gap-1.5 transition-all sm:p-4 sm:gap-2",
         ui.bordo,
         cliccabile &&
           "cursor-pointer hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
@@ -186,11 +188,11 @@ function CardIndicatore({ def, indicatore }: { def: DefIndicatore; indicatore: I
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <Icona className={cn("h-4 w-4 shrink-0", ui.icona)} />
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground truncate">
+          <p className="text-[11px] font-medium uppercase leading-3.5 tracking-wide text-muted-foreground line-clamp-2 sm:truncate sm:text-xs">
             {def.titolo}
           </p>
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="hidden items-center gap-1.5 sm:flex">
           <Tooltip>
             <TooltipTrigger asChild>
               <button
@@ -213,20 +215,23 @@ function CardIndicatore({ def, indicatore }: { def: DefIndicatore; indicatore: I
       </div>
 
       <div className="flex items-baseline gap-2">
-        <span className={cn("text-2xl font-bold tabular-nums", ui.valore)}>
+        <span className={cn("text-xl font-bold tabular-nums sm:text-2xl", ui.valore)}>
           {formattaValore(indicatore, def.unita, def.decimali)}
         </span>
-        <span className="text-[11px] text-muted-foreground">{def.soglia}</span>
+        <span className="hidden text-[11px] text-muted-foreground sm:inline">{def.soglia}</span>
+        <span className={cn("ml-auto self-center rounded-full px-2 py-0.5 text-[10px] font-bold whitespace-nowrap sm:hidden", ui.badge)}>
+          {ui.label}
+        </span>
       </div>
 
       {indicatore.stato === "nd" && indicatore.mancanti ? (
-        <div className="rounded-lg border border-dashed bg-muted/40 p-2.5 space-y-1.5">
+        <div className="rounded-lg border border-dashed bg-muted/40 p-2.5 space-y-1.5 max-sm:border-0 max-sm:bg-transparent max-sm:p-0">
           {indicatore.mancanti.map((m) => (
             <div key={m.cosa} className="text-xs">
-              <p className="text-muted-foreground">Manca: {m.cosa}.</p>
+              <p className="text-muted-foreground max-sm:hidden">Manca: {m.cosa}.</p>
               <Link
                 to={m.link}
-                className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
+                className="inline-flex items-center gap-1 font-medium text-primary hover:underline max-sm:hidden"
               >
                 {m.azione} <ArrowRight className="h-3 w-3" />
               </Link>
@@ -235,7 +240,7 @@ function CardIndicatore({ def, indicatore }: { def: DefIndicatore; indicatore: I
         </div>
       ) : (
         indicatore.dettaglio && (
-          <p className="text-xs text-muted-foreground leading-snug">{indicatore.dettaglio}</p>
+          <p className="hidden text-xs text-muted-foreground leading-snug sm:block">{indicatore.dettaglio}</p>
         )
       )}
     </div>
@@ -255,7 +260,7 @@ export function IndicatoriGuida() {
   return (
     <TooltipProvider delayDuration={150}>
       <Card>
-        <CardHeader className="pb-3">
+        <CardHeader className="p-3 pb-2 sm:p-6 sm:pb-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <CardTitle className="flex items-center gap-2 text-base">
               <CircleGauge className="h-4 w-4 text-primary" />
@@ -282,20 +287,20 @@ export function IndicatoriGuida() {
               </div>
             )}
           </div>
-          <p className="text-xs text-muted-foreground">
+          <p className="hidden text-xs text-muted-foreground sm:block">
             Solo dati reali: dove il numero è spento, la card dice cosa inserire e dove.
             Tocca una card per aprire l'area che la spiega.
           </p>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
           {dati.isLoading ? (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
               {Array.from({ length: 8 }).map((_, i) => (
                 <Skeleton key={i} className="h-32 rounded-xl" />
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
               {DEFINIZIONI.map((def) => (
                 <CardIndicatore key={def.chiave} def={def} indicatore={dati[def.chiave]} />
               ))}
@@ -303,7 +308,7 @@ export function IndicatoriGuida() {
               {/* DSCR e ciclo di cassa vivono nel CdG: una fonte sola, qui solo il ponte. */}
               <Link
                 to="/azienda/controllo-gestione"
-                className="rounded-xl border border-dashed bg-muted/30 p-4 flex flex-col justify-between gap-2 transition-all hover:-translate-y-0.5 hover:bg-muted/60 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="hidden rounded-xl border border-dashed bg-muted/30 p-4 sm:flex flex-col justify-between gap-2 transition-all hover:-translate-y-0.5 hover:bg-muted/60 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <div className="flex items-center gap-2">
                   <CircleGauge className="h-4 w-4 text-muted-foreground" />

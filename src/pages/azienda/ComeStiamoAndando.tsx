@@ -47,7 +47,9 @@ function Numero({
   return (
     <div className="relative flex min-w-0 gap-2.5 overflow-hidden rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm">
       <span className={`absolute inset-y-0 left-0 w-1 ${stile.filo}`} aria-hidden />
-      <span className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${stile.chip}`}>
+      {/* Mobile: niente icona (mandava l'etichetta su due righe) e niente riga
+          di contesto: a colpo d'occhio servono nome e numero. */}
+      <span className={`mt-0.5 hidden h-7 w-7 shrink-0 items-center justify-center rounded-lg sm:flex ${stile.chip}`}>
         <Icona className="h-3.5 w-3.5" />
       </span>
       <div className="min-w-0 flex-1">
@@ -56,7 +58,7 @@ function Numero({
             Le schede stanno in una griglia, quindi si allineano comunque. */}
         <p className="text-[11px] font-medium uppercase leading-3.5 tracking-wide text-slate-500">{etichetta}</p>
         <p className={`mt-1 text-lg font-bold leading-none tabular-nums sm:text-xl md:text-[26px] ${stile.valore}`}>{valore}</p>
-        <div className="mt-1 text-[11px] leading-4 text-slate-500">{contesto}</div>
+        <div className="mt-1 hidden text-[11px] leading-4 text-slate-500 sm:block">{contesto}</div>
       </div>
     </div>
   );
@@ -262,7 +264,8 @@ export default function ComeStiamoAndando({ comeSezione = false }: { comeSezione
             contesto={
               cantieriError ? "Dato non disponibile"
                 : inRitardo.length === 0 ? "Nessuno oltre la data di fine"
-                : "Oltre la data di fine pianificata"
+                // Su telefono la spiegazione di cosa vuol dire «in ritardo» no.
+                : <span className="hidden sm:inline">Oltre la data di fine pianificata</span>
             }
           />
         </div>
@@ -287,7 +290,7 @@ export default function ComeStiamoAndando({ comeSezione = false }: { comeSezione
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 border-b border-slate-100 px-4 py-2.5">
           <h2 className="text-sm font-semibold text-slate-900">Da guardare oggi</h2>
-          <p className="text-xs text-slate-500">in ordine di quanto costa non farlo</p>
+          <p className="hidden text-xs text-slate-500 sm:block">in ordine di quanto costa non farlo</p>
         </div>
 
         {caricando ? (

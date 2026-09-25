@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCruscottoData } from "@/hooks/useCruscottoData";
 import ComeStiamoAndando from "@/pages/azienda/ComeStiamoAndando";
@@ -34,7 +34,7 @@ import { useSedeFilter } from "@/store/sedeFilterStore";
 import { IndicatoriGuida } from "@/components/cruscotto/IndicatoriGuida";
 import { DashboardSelectorBar } from "@/components/dashboard/DashboardSelectorBar";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
-import { AlertCircle, ArrowUpRight, Download, Euro, LayoutDashboard, RefreshCw, Wallet } from "lucide-react";
+import { AlertCircle, Download, Euro, LayoutDashboard, RefreshCw, Wallet } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -275,7 +275,7 @@ export default function CruscottoAziendale() {
           <Button
             variant="outline"
             size="sm"
-            className="h-8 gap-1.5 text-xs"
+            className="hidden h-8 gap-1.5 text-xs sm:inline-flex"
             onClick={() => window.print()}
           >
             <Download className="h-3.5 w-3.5" />
@@ -327,7 +327,7 @@ export default function CruscottoAziendale() {
                   Con quattro riquadri lo riempivano; rimastine due, meta' blu
                   restava vuota. Ora la colonna e' piu' stretta e i due riquadri
                   si distribuiscono sull'altezza invece di ammucchiarsi in alto. */}
-              <div className="flex flex-col bg-[#173b67] p-5 text-white sm:p-6">
+              <div className="flex flex-col bg-[#173b67] p-4 text-white sm:p-6">
                 {/* Il richiamo urgente che stava qui — "Incassi da sbloccare,
                     279k € scaduti" — diceva la stessa cosa del primo punto di
                     "Da guardare oggi", poche righe piu' su, che pero' ne mostra
@@ -337,19 +337,19 @@ export default function CruscottoAziendale() {
                   Numeri del periodo
                 </p>
 
-                <div className="mt-4 grid flex-1 content-center gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                <div className="mt-3 grid flex-1 grid-cols-2 content-center gap-2 sm:mt-4 sm:gap-3 xl:grid-cols-1">
                   {executiveKpis.map((item) => {
                     const Icon = item.icon;
                     const clickable = !!item.drilldown;
                     const cardClass = cn(
-                      "rounded-xl border border-white/12 bg-white/9 p-4 text-left transition-colors",
+                      "rounded-xl border border-white/12 bg-white/9 p-3 text-left transition-colors sm:p-4",
                       clickable && "cursor-pointer hover:border-orange-300/40 hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-orange-300/40",
                     );
                     const inner = (
                       <div className="flex items-center gap-3">
                         <span
                           className={cn(
-                            "flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-white/10",
+                            "hidden h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-white/10 sm:flex",
                             item.tone === "green" && "text-emerald-100",
                             item.tone === "red" && "text-red-100",
                             item.tone === "orange" && "text-orange-100",
@@ -360,7 +360,7 @@ export default function CruscottoAziendale() {
                         </span>
                         <span className="min-w-0">
                           <span className="block text-[11px] font-semibold uppercase tracking-wide text-blue-100">{item.label}</span>
-                          <span className="block truncate text-xl font-bold text-white">{item.value}</span>
+                          <span className="block truncate text-lg font-bold text-white sm:text-xl">{item.value}</span>
                           <span className="mt-0.5 block truncate text-xs text-blue-50/70">{item.hint}</span>
                         </span>
                       </div>
@@ -381,38 +381,11 @@ export default function CruscottoAziendale() {
                 </div>
               </div>
 
-              {/* Su mobile il grafico recharts 12 mesi (multi-serie, gradienti,
-                  dot custom) è pesante da montare e illeggibile a 375px: lo
-                  sostituiamo con un riepilogo compatto degli ultimi valori. Il
-                  grafico completo resta su tablet/desktop. */}
-              {isMobile ? (
-                (() => {
-                  const last = executiveTrend[executiveTrend.length - 1] as
-                    | { mese?: string; venduto?: number; incassato?: number; cassa?: number } | undefined;
-                  if (!last || trendIsEmpty) return null;
-                  const cells = [
-                    { label: "Venduto", value: last.venduto, cls: "text-slate-900" },
-                    { label: "Incassato", value: last.incassato, cls: "text-slate-900" },
-                    { label: "Cassa", value: last.cassa, cls: safeNumber(last.cassa) < 0 ? "text-red-600" : "text-emerald-600" },
-                  ];
-                  return (
-                    <aside className="border-t border-slate-200 bg-gradient-to-br from-white to-orange-50/50 p-4">
-                      <p className="text-[11px] font-semibold uppercase text-slate-500">Ultimo mese ({last.mese})</p>
-                      <div className="mt-2 grid grid-cols-3 gap-2">
-                        {cells.map((c) => (
-                          <div key={c.label} className="rounded-lg border border-slate-100 bg-white p-2 text-center">
-                            <div className={cn("text-sm font-bold leading-tight", c.cls)}>{eur(safeNumber(c.value))}</div>
-                            <div className="text-[10px] text-slate-400">{c.label}</div>
-                          </div>
-                        ))}
-                      </div>
-                      <Link to="/azienda/controllo-gestione" className="mt-2 inline-flex items-center gap-1 text-[11px] font-medium text-orange-600">
-                        Andamento completo <ArrowUpRight className="h-3 w-3" />
-                      </Link>
-                    </aside>
-                  );
-                })()
-              ) : (
+              {/* Su mobile niente grafico 12 mesi (illeggibile a 375px) e nemmeno
+                  il riepilogo «Ultimo mese» che lo sostituiva: ripeteva venduto
+                  e incassato appena scritti sopra. L'andamento completo resta
+                  su tablet/desktop e nel Controllo di Gestione. */}
+              {isMobile ? null : (
               <aside className="border-t border-slate-200 bg-gradient-to-br from-white to-orange-50/50 p-5 xl:border-l xl:border-t-0">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
@@ -571,8 +544,12 @@ export default function CruscottoAziendale() {
       )}
 
       {!isDataEmpty && (
-        <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4 print:border-slate-200">
-          <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+        // Mobile: senza riquadro esterno, la card «I numeri che comandano» ne ha già uno.
+        <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4 print:border-slate-200 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
+          {/* Mobile: niente intestazione e niente cinque schede; resta la sintesi
+              (i numeri che comandano e gli avvisi). Gli approfondimenti per area
+              sono lavoro da scrivania. */}
+          <div className="mb-3 hidden flex-col gap-1 sm:flex sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Aree di controllo</p>
               <h2 className="text-lg font-semibold text-slate-950">Approfondisci solo quello che ti serve ora</h2>
@@ -580,10 +557,10 @@ export default function CruscottoAziendale() {
             <p className="hidden text-sm text-slate-500 sm:block">La sintesi resta sopra. Qui sotto trovi i dettagli separati per area.</p>
           </div>
 
-          <Tabs value={cruscottoTab} onValueChange={handleTabChange} className="w-full">
+          <Tabs value={isMobile ? "sintesi" : cruscottoTab} onValueChange={handleTabChange} className="w-full">
             {/* Mobile: riga unica scorrevole (niente griglia a 3 file con l'ultima
                 voce spaiata). Da sm: griglia a 5 colonne come prima. */}
-            <TabsList className="flex h-auto w-full items-center justify-start gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:grid sm:grid-cols-5">
+            <TabsList className="hidden h-auto w-full items-center justify-start gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:grid sm:grid-cols-5">
               <TabsTrigger value="sintesi" className="shrink-0 rounded-lg">Sintesi</TabsTrigger>
               <TabsTrigger value="finanza" className="shrink-0 rounded-lg" disabled={!showFinanza}>Finanza</TabsTrigger>
               <TabsTrigger value="operations" className="shrink-0 rounded-lg" disabled={!showOperazioni}>Operations</TabsTrigger>
@@ -591,7 +568,7 @@ export default function CruscottoAziendale() {
               <TabsTrigger value="team" className="shrink-0 rounded-lg" disabled={!showHR && sediVisibili.length === 0}>Team / sedi</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="sintesi" className="mt-4 space-y-4">
+            <TabsContent value="sintesi" className="mt-0 space-y-4 sm:mt-4">
               {/* Su questa scheda si impilavano quattro riquadri che rispondevano
                   tutti alla stessa domanda dei quattro in cima alla pagina. Il
                   semaforo e "Salute aziendale" ripetevano margine, ritardi e
