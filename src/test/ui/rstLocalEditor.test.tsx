@@ -39,7 +39,7 @@ describe("editor Ristrutturazioni: confine locale/online", () => {
     expect(preview.progetto.tipo_intervento).toBe("Intervento a computo");
     expect(preview.progetto.totale).toBe(3761.26);
     expect(preview.computo.every((row: { descrizione: string }) => row.descrizione.startsWith("Ambito A:"))).toBe(true);
-    fireEvent.click(screen.getByRole("button", { name: "Salva modulo in locale" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     await waitFor(() => expect(save).toHaveBeenCalledOnce());
     expect(save.mock.calls[0][0].id).toBe("local-ristrutturazioni-computo");
     expect(calls.remote).not.toHaveBeenCalled(); expect(calls.storage).not.toHaveBeenCalled();
@@ -52,7 +52,7 @@ describe("editor Ristrutturazioni: confine locale/online", () => {
     expect(preview.progetto.tipo_intervento).toBe("Redistribuzione degli spazi");
     expect(preview.progetto.totale).toBe(6885.68);
     expect(preview.computo.every((row: { descrizione: string }) => row.descrizione.startsWith("Nuovo layout:"))).toBe(true);
-    fireEvent.click(screen.getByRole("button", { name: "Salva modulo in locale" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     await waitFor(() => expect(save).toHaveBeenCalledOnce());
     expect(save.mock.calls[0][0].id).toBe("local-ristrutturazioni-spazi");
     expect(calls.remote).not.toHaveBeenCalled(); expect(calls.storage).not.toHaveBeenCalled();
@@ -65,7 +65,7 @@ describe("editor Ristrutturazioni: confine locale/online", () => {
     expect(preview.progetto.immobile_tipo).toBe("Ufficio");
     expect(preview.progetto.totale).toBe(12602.6);
     expect(preview.computo.every((row: { descrizione: string }) => row.descrizione.startsWith("Locale ufficio:"))).toBe(true);
-    fireEvent.click(screen.getByRole("button", { name: "Salva modulo in locale" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     await waitFor(() => expect(save).toHaveBeenCalledOnce());
     expect(save.mock.calls[0][0].id).toBe("local-ristrutturazioni-commerciale");
     expect(calls.remote).not.toHaveBeenCalled(); expect(calls.storage).not.toHaveBeenCalled();
@@ -79,7 +79,7 @@ describe("editor Ristrutturazioni: confine locale/online", () => {
     expect(preview.progetto.immobile_superficie_mq).toBeNull();
     expect(preview.progetto.totale).toBe(4904.4);
     expect(preview.computo.every((row: { descrizione: string }) => row.descrizione.startsWith("Zona soggiorno:"))).toBe(true);
-    fireEvent.click(screen.getByRole("button", { name: "Salva modulo in locale" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     await waitFor(() => expect(save).toHaveBeenCalledOnce());
     expect(save.mock.calls[0][0].id).toBe("local-ristrutturazioni-parziale");
     expect(save.mock.calls[0][0].pdf_cover_image_url).toContain("ristrutturazioni-parziale-cover");
@@ -91,8 +91,8 @@ describe("editor Ristrutturazioni: confine locale/online", () => {
     const file = new File(["test"], "logo.png", { type: "image/png" });
     fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: [file] } });
     await waitFor(() => expect(calls.image).toHaveBeenCalledWith(file));
-    await waitFor(() => expect(calls.success).toHaveBeenCalledWith("Immagine aggiunta in locale"));
-    fireEvent.click(screen.getByRole("button", { name: "Salva modulo in locale" }));
+    await waitFor(() => expect(calls.success).toHaveBeenCalledWith("Immagine aggiunta"));
+    fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     await waitFor(() => expect(save).toHaveBeenCalledOnce());
     expect(save.mock.calls[0][0].cover_logo_url).toBe("data:image/png;base64,LOCAL");
     expect(calls.storage).not.toHaveBeenCalled(); expect(calls.remote).not.toHaveBeenCalled();
@@ -100,7 +100,7 @@ describe("editor Ristrutturazioni: confine locale/online", () => {
   it("rimuove entrambi i campi immagine, senza fallback della vecchia copertina", async () => {
     const save = vi.fn(); mount(save);
     fireEvent.click(screen.getByRole("button", { name: "Rimuovi immagine copertina (sfondo)" }));
-    fireEvent.click(screen.getByRole("button", { name: "Salva modulo in locale" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     await waitFor(() => expect(save).toHaveBeenCalledOnce());
     expect(save.mock.calls[0][0].pdf_cover_image_url).toBeNull();
     expect(save.mock.calls[0][0].cover_image_url).toBeNull();
@@ -111,25 +111,25 @@ describe("editor Ristrutturazioni: confine locale/online", () => {
     const title = screen.getByRole("textbox", { name: "Titolo copertina" });
     expect(title.tagName).toBe("TEXTAREA");
     fireEvent.change(title, { target: { value: "Una nuova copertura.\nOgni scelta, chiara." } });
-    fireEvent.click(screen.getByRole("button", { name: "Salva modulo in locale" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     await waitFor(() => expect(save).toHaveBeenCalledOnce());
     expect(save.mock.calls[0][0].cover_title).toContain("\n");
     expect(calls.remote).not.toHaveBeenCalled();
   });
   it("salva tramite l'adapter locale senza invocare upsert Supabase", async () => {
     const save = vi.fn(); mount(save);
-    fireEvent.click(screen.getByRole("button", { name: "Salva modulo in locale" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
     expect(save.mock.calls[0][0].cover_title).toBe(template().cover_title);
     expect(calls.remote).not.toHaveBeenCalled();
-    expect(screen.getByRole("button", { name: "Salva modulo in locale" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Salva modello" })).toBeDisabled();
   });
   it("mantiene la bozza sporca quando il salvataggio fallisce", () => {
     mount(() => { throw new Error("Quota esaurita"); });
-    fireEvent.click(screen.getByRole("button", { name: "Salva modulo in locale" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     expect(calls.error).toHaveBeenCalled();
     expect(calls.success).not.toHaveBeenCalled();
-    expect(screen.getByRole("button", { name: "Salva modulo in locale" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Salva modello" })).toBeEnabled();
     expect(calls.remote).not.toHaveBeenCalled();
   });
   it("apre l'anteprima dedicata, senza detrazioni automatiche", () => {
@@ -146,5 +146,5 @@ it("un modello appena aperto non segnala modifiche mai fatte", () => {
   mount(vi.fn());
   expect(screen.getByText("Modello pronto · non ancora salvato")).toBeInTheDocument();
   expect(screen.queryByText(/Modifiche non salvate/)).not.toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Salva modulo in locale" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Salva modello" })).toBeEnabled();
 });

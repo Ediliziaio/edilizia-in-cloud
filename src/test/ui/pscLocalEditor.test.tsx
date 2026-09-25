@@ -36,7 +36,7 @@ describe("Piscine: modelli originali locali", () => {
     const save = mount("nuova");
     fireEvent.change(screen.getByRole("slider", { name: "Intensità velo scuro: cursore" }), { target: { value: "75" } });
     fireEvent.change(screen.getByRole("combobox", { name: "Allineamento testo" }), { target: { value: "right" } });
-    fireEvent.click(screen.getByRole("button", { name: "Salva modulo in locale" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     await waitFor(() => expect(save).toHaveBeenCalledOnce());
     expect(save.mock.calls[0][0].cover_overlay_opacity).toBe(0.75);
     expect(save.mock.calls[0][0].cover_text_align).toBe("right");
@@ -53,7 +53,7 @@ describe("Piscine: modelli originali locali", () => {
     expect(data.computo).toHaveLength(3);
     expect(JSON.stringify(data.computo)).not.toMatch(/Demolizione tramezzi|Posa pavimento/);
     expect(data.template.pdf_blocchi.modulo_intervento).toBe(id);
-    fireEvent.click(screen.getByRole("button", { name: "Salva modulo in locale" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     await waitFor(() => expect(save).toHaveBeenCalledOnce());
     expect(save.mock.calls[0][0].id).toBe("local-piscine-" + id);
     expect(calls.remote).not.toHaveBeenCalled(); expect(calls.storage).not.toHaveBeenCalled();
@@ -71,7 +71,7 @@ describe("Piscine: modelli originali locali", () => {
     fireEvent.change(screen.getByRole("combobox"), { target: { value: "faq-breve" } });
     fireEvent.click(screen.getByRole("button", { name: "Applica a domande frequenti" }));
     expect(save).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Salva modulo in locale" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     await waitFor(() => expect(save).toHaveBeenCalledOnce());
     const result = save.mock.calls[0][0];
     expect(result.faq).toHaveLength(4);
@@ -86,8 +86,8 @@ describe("Piscine: modelli originali locali", () => {
     const image = new File(["example"], "locale.png", { type: "image/png" });
     fireEvent.change(input, { target: { files: [image] } });
     await waitFor(() => expect(calls.image).toHaveBeenCalledWith(image));
-    await waitFor(() => expect(calls.success).toHaveBeenCalledWith("Immagine aggiunta in locale"));
-    fireEvent.click(screen.getByRole("button", { name: "Salva modulo in locale" }));
+    await waitFor(() => expect(calls.success).toHaveBeenCalledWith("Immagine aggiunta"));
+    fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     await waitFor(() => expect(save).toHaveBeenCalledOnce());
     expect(JSON.stringify(save.mock.calls[0][0])).toContain("data:image/png;base64,aGVsbG8=");
     expect(calls.storage).not.toHaveBeenCalled(); expect(calls.remote).not.toHaveBeenCalled();
@@ -96,10 +96,10 @@ describe("Piscine: modelli originali locali", () => {
     const save = vi.fn(() => { throw new Error("spazio esaurito"); });
     mount("rivestimento", save);
     fireEvent.change(screen.getByDisplayValue(template("rivestimento").cover_subtitle!), { target: { value: "Sottotitolo modificato" } });
-    fireEvent.click(screen.getByRole("button", { name: "Salva modulo in locale" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     await waitFor(() => expect(calls.error).toHaveBeenCalledWith("Salvataggio non riuscito", { description: "spazio esaurito" }));
     expect(screen.getByText("Modifiche non salvate")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Salva modulo in locale" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Salva modello" })).toBeEnabled();
     expect(calls.remote).not.toHaveBeenCalled();
   });
   it("un modulo nuovo è pulito ma permette il primo salvataggio", async () => {
@@ -110,7 +110,7 @@ describe("Piscine: modelli originali locali", () => {
     const beforeUnload = new Event("beforeunload", { cancelable: true });
     window.dispatchEvent(beforeUnload);
     expect(beforeUnload.defaultPrevented).toBe(false);
-    const button = screen.getByRole("button", { name: "Salva modulo in locale" });
+    const button = screen.getByRole("button", { name: "Salva modello" });
     expect(button).toBeEnabled(); fireEvent.click(button);
     await waitFor(() => expect(save).toHaveBeenCalledOnce());
     expect(button).toBeDisabled();
@@ -129,7 +129,7 @@ describe("Piscine: modelli originali locali", () => {
     expect(dirty).toHaveBeenLastCalledWith(false);
     const clean = new Event("beforeunload", { cancelable: true });
     window.dispatchEvent(clean); expect(clean.defaultPrevented).toBe(false);
-    const button = screen.getByRole("button", { name: "Salva modulo in locale" });
+    const button = screen.getByRole("button", { name: "Salva modello" });
     if (saved) expect(button).toBeDisabled(); else expect(button).toBeEnabled();
   });
 });

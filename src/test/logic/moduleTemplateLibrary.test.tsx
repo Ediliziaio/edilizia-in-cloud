@@ -1,14 +1,54 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { toast } from "sonner";
 import ModuleTemplateLibrary from "@/components/preventivi/modules/ModuleTemplateLibrary";
 import { LocalModuleDocumentEditor } from "@/components/preventivi/modules/LocalModuleDocumentEditor";
 import { loadModuleDocument } from "@/lib/moduli-vendita/localModuleDocuments";
 import { SALES_AREAS } from "@/lib/moduli-vendita/areas";
 import { fullModuleCover } from "@/lib/moduli-vendita/fullModuleCatalog";
-import { saveLocalSerramentiTemplate } from "@/lib/moduli-vendita/localSerramentiTemplates";
+import { loadLocalSerramentiTemplate, saveLocalSerramentiTemplate } from "@/lib/moduli-vendita/localSerramentiTemplates";
+import { createFullSerramentiTemplate } from "@/lib/moduli-vendita/fullSerramentiModules";
+import { MODELLO_NON_ONLINE } from "@/lib/moduli-vendita/archivioModelli";
 import { createSerramentiModuleTemplate } from "@/lib/moduli-vendita/serramentiTemplateModules";
 const state = vi.hoisted(() => ({ canEdit: true, remoteWrite: vi.fn() }));
+interface Riga { company_id: string; chiave: string; contenuto: unknown; salvato_il: string }
+const db = vi.hoisted(() => ({
+  righe: [] as Riga[],
+  erroreLettura: null as string | null,
+  erroreScrittura: null as string | null,
+}));
+// I modelli si salvano anche per l'azienda (modelli_libreria_azienda,
+// archivioModelli.ts): qui il database è finto, e si può spegnere.
+vi.mock("@/integrations/supabase/client", () => {
+  const leggi = (colonne: string) => {
+    const filtri: Array<(r: Riga) => boolean> = [];
+    const domanda = {
+      eq: (colonna: keyof Riga, valore: string) => { filtri.push((r) => r[colonna] === valore); return domanda; },
+      in: (colonna: keyof Riga, valori: string[]) => { filtri.push((r) => valori.includes(String(r[colonna]))); return domanda; },
+      then: <T,>(ok: (esito: unknown) => T, ko?: (e: unknown) => T) => {
+        const campi = colonne.split(",").map((c) => c.trim() as keyof Riga);
+        return Promise.resolve(db.erroreLettura
+          ? { data: null, error: { message: db.erroreLettura } }
+          : { data: db.righe.filter((r) => filtri.every((f) => f(r))).map((r) => Object.fromEntries(campi.map((c) => [c, r[c]]))), error: null })
+          .then(ok, ko);
+      },
+    };
+    return domanda;
+  };
+  return {
+    supabase: {
+      from: () => ({
+        select: leggi,
+        upsert: async (riga: Riga) => {
+          if (db.erroreScrittura) return { error: { message: db.erroreScrittura } };
+          db.righe = [...db.righe.filter((r) => r.chiave !== riga.chiave), riga];
+          return { error: null };
+        },
+      }),
+    },
+  };
+});
 vi.mock("@/hooks/useEffectiveCompanyId", () => ({
   useEffectiveCompanyId: () => "company-a",
 }));
@@ -40,6 +80,9 @@ vi.mock("@/components/piscine/PscModuleTemplatePanel", () => ({ PscModuleTemplat
 vi.mock("@/components/facciate/FacciateModuleTemplatePanel", () => ({ FacciateModuleTemplatePanel: ({ moduleId, companyId }: { moduleId: string; companyId: string }) => <p>Editor dedicato cappotto/{moduleId} · {companyId}</p> }));
 beforeEach(() => {
   localStorage.clear();
+  db.righe = [];
+  db.erroreLettura = null;
+  db.erroreScrittura = null;
   state.canEdit = true;
   state.remoteWrite.mockReset();
 });
@@ -175,7 +218,7 @@ describe("libreria completa dei moduli", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Sposta pagina prima" }),
     );
-    fireEvent.click(screen.getByRole("button", { name: "Salva in locale" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     const saved = loadModuleDocument("company-a", "bagni", "vasca-doccia");
     expect(saved?.document.title).toBe("La tua nuova doccia");
     expect(saved?.document.pages[1].id).toBe("perimetro");
@@ -206,10 +249,60 @@ describe("libreria completa dei moduli", () => {
     fireEvent.click(screen.getByRole("button", { name: "Moduli dell'area" }));
     expect(back).toHaveBeenCalledOnce();
     expect(confirm).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Salva in locale" }));
-    expect(screen.getByText("Salvato in locale")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
+    expect(screen.getByText("Salvato")).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Salva in locale" }),
+      screen.getByRole("button", { name: "Salva modello" }),
     ).toBeDisabled();
+  });
+});
+
+describe("i modelli sono dell'azienda, non del browser", () => {
+  const finestre = () => createFullSerramentiTemplate({ company_id: "company-a" }, "finestre");
+  const avvisoConRiprova = (testo: HTMLElement) => within(testo.closest("[role=alert]") as HTMLElement).getByRole("button", { name: "Riprova" });
+
+  it("un modello salvato da un collega su un altro computer compare come salvato", async () => {
+    saveLocalSerramentiTemplate("company-a", "finestre", finestre(), null);
+    await waitFor(() => expect(db.righe).toHaveLength(1));
+    localStorage.clear(); // un altro computer: nel browser non c'è nulla
+    mount("&modulo=serramenti");
+    expect(await screen.findByText("Salvato")).toBeInTheDocument();
+    expect(loadLocalSerramentiTemplate("company-a", "finestre")).not.toBeNull();
+  });
+
+  it("apre l'editor solo dopo aver letto i modelli dell'azienda", async () => {
+    mount("&modulo=fotovoltaico&modello=accumulo");
+    expect(screen.getByText("Caricamento dei modelli dell'azienda…")).toBeInTheDocument();
+    expect(await screen.findByText("Editor FV originale completo")).toBeInTheDocument();
+  });
+
+  it("dice quando un modello è rimasto solo in questo browser, e Riprova lo manda online", async () => {
+    db.erroreScrittura = "rete assente";
+    const avviso = vi.spyOn(console, "warn").mockImplementation(() => {});
+    saveLocalSerramentiTemplate("company-a", "finestre", finestre(), null);
+    await waitFor(() => expect(avviso).toHaveBeenCalled());
+    mount("&modulo=serramenti");
+    const testo = await screen.findByText("Un modello è salvato solo in questo browser: non è ancora online e i colleghi non lo vedono.");
+    db.erroreScrittura = null;
+    fireEvent.click(avvisoConRiprova(testo));
+    await waitFor(() => expect(db.righe.map((r) => r.chiave)).toEqual([expect.stringMatching(/:serramenti:finestre$/)]));
+    await waitFor(() => expect(screen.queryByText(/solo in questo browser/)).toBeNull());
+  });
+
+  it("se il database non risponde lo dice, e si può riprovare", async () => {
+    db.erroreLettura = "timeout";
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    mount("&modulo=serramenti");
+    const testo = await screen.findByText("Non riesco a leggere i modelli salvati online: stai vedendo le copie di questo browser.");
+    db.erroreLettura = null;
+    fireEvent.click(avvisoConRiprova(testo));
+    await waitFor(() => expect(screen.queryByText(/Non riesco a leggere i modelli salvati online/)).toBeNull());
+  });
+
+  it("un salvataggio che non arriva online si dice subito", () => {
+    const errore = vi.spyOn(toast, "error");
+    mount();
+    act(() => { window.dispatchEvent(new CustomEvent(MODELLO_NON_ONLINE, { detail: { chiave: "x" } })); });
+    expect(errore).toHaveBeenCalledWith("Modello salvato solo in questo browser", expect.objectContaining({ description: expect.stringContaining("i colleghi non lo vedono") }));
   });
 });

@@ -885,7 +885,7 @@ export function AdminLayout() {
         {isSettingsRoute && <AdminMobileSettingsNav />}
 
         <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3 pb-28 bg-muted/30">
-          <ErrorBoundary title="Errore nel caricamento della pagina">
+          <ErrorBoundary title="Errore nel caricamento della pagina" resetKey={location.pathname}>
             <Outlet />
           </ErrorBoundary>
         </main>
@@ -920,7 +920,7 @@ export function AdminLayout() {
             </div>
           </header>
           <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-6 bg-muted/30">
-            <ErrorBoundary title="Errore nel caricamento della pagina">
+            <ErrorBoundary title="Errore nel caricamento della pagina" resetKey={location.pathname}>
               <Outlet />
             </ErrorBoundary>
           </main>

@@ -1885,7 +1885,7 @@ export function CompanyLayout() {
           {/* pb mobile ≈ altezza pillola flottante + safe-area: l'ultimo
               elemento resta raggiungibile sopra il vetro della bottom-nav. */}
           <main className={`flex-1 ${isViewportEditor ? "min-h-0" : ""} overflow-y-auto overflow-x-hidden p-3 md:p-6 bg-muted/30 pb-28 md:pb-6`} id="main-content" aria-label="Contenuto principale">
-            <ErrorBoundary title="Errore nel caricamento della pagina">
+            <ErrorBoundary title="Errore nel caricamento della pagina" resetKey={location.pathname}>
               {/* Skeleton (non spinner) al cambio pagina: percezione di velocità sul primo paint mobile */}
               <Suspense fallback={
                 <div className="space-y-4" aria-busy="true" aria-label="Caricamento pagina">

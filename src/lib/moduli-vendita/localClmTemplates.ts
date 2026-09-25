@@ -1,5 +1,6 @@
 import type { ClmTemplatePdf } from "@/types/climatizzazione";
 import { isFullClmModuleId, type FullClmModuleId } from "./fullClmModules";
+import { archivioModelliAzienda } from "./archivioModelli";
 
 export interface LocalClmTemplate {
   version: 1;
@@ -31,7 +32,7 @@ function assertRecord(value: unknown, companyId: string, moduleId: FullClmModule
   }
 }
 
-export function loadLocalClmTemplate(companyId: string, moduleId: FullClmModuleId, storage: StoragePort = localStorage): LocalClmTemplate | null {
+export function loadLocalClmTemplate(companyId: string, moduleId: FullClmModuleId, storage: StoragePort = archivioModelliAzienda): LocalClmTemplate | null {
   const raw = storage.getItem(localClmTemplateKey(companyId, moduleId));
   if (raw === null) return null;
   let record: unknown;
@@ -41,7 +42,7 @@ export function loadLocalClmTemplate(companyId: string, moduleId: FullClmModuleI
 }
 
 /** Optimistic revision check prevents a second tab silently overwriting changes. */
-export function saveLocalClmTemplate(companyId: string, moduleId: FullClmModuleId, template: ClmTemplatePdf, expectedSavedAt: string | null, storage: StoragePort = localStorage): LocalClmTemplate {
+export function saveLocalClmTemplate(companyId: string, moduleId: FullClmModuleId, template: ClmTemplatePdf, expectedSavedAt: string | null, storage: StoragePort = archivioModelliAzienda): LocalClmTemplate {
   if (template.company_id !== companyId) throw new Error("Il modello appartiene a un'altra azienda. Riapri il modulo.");
   const existing = loadLocalClmTemplate(companyId, moduleId, storage);
   if ((existing?.savedAt ?? null) !== expectedSavedAt) throw new Error("Questo modulo è stato modificato in un'altra scheda. Riaprilo prima di salvare.");

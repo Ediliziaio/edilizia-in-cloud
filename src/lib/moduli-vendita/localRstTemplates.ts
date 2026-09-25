@@ -1,5 +1,6 @@
 import type { RstTemplatePdf } from "@/types/ristrutturazione";
 import { isFullRstModuleId, type FullRstModuleId } from "./fullRstModules";
+import { archivioModelliAzienda } from "./archivioModelli";
 
 export interface LocalRstTemplate {
   version: 1;
@@ -31,7 +32,7 @@ function assertRecord(value: unknown, companyId: string, moduleId: FullRstModule
   }
 }
 
-export function loadLocalRstTemplate(companyId: string, moduleId: FullRstModuleId, storage: StoragePort = localStorage): LocalRstTemplate | null {
+export function loadLocalRstTemplate(companyId: string, moduleId: FullRstModuleId, storage: StoragePort = archivioModelliAzienda): LocalRstTemplate | null {
   const raw = storage.getItem(localRstTemplateKey(companyId, moduleId));
   if (raw === null) return null;
   let record: unknown;
@@ -41,7 +42,7 @@ export function loadLocalRstTemplate(companyId: string, moduleId: FullRstModuleI
 }
 
 /** Optimistic revision check prevents a second tab silently overwriting changes. */
-export function saveLocalRstTemplate(companyId: string, moduleId: FullRstModuleId, template: RstTemplatePdf, expectedSavedAt: string | null, storage: StoragePort = localStorage): LocalRstTemplate {
+export function saveLocalRstTemplate(companyId: string, moduleId: FullRstModuleId, template: RstTemplatePdf, expectedSavedAt: string | null, storage: StoragePort = archivioModelliAzienda): LocalRstTemplate {
   if (template.company_id !== companyId) throw new Error("Il modello appartiene a un'altra azienda. Riapri il modulo.");
   const existing = loadLocalRstTemplate(companyId, moduleId, storage);
   if ((existing?.savedAt ?? null) !== expectedSavedAt) throw new Error("Questo modulo è stato modificato in un'altra scheda. Riaprilo prima di salvare.");

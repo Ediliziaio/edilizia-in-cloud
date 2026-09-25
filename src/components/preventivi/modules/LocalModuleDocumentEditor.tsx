@@ -160,7 +160,7 @@ function Editor({
       setHasSaved(true);
       setDirty(false);
       setError("");
-      toast.success("Modello salvato in locale");
+      toast.success("Modello salvato");
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Salvataggio non riuscito.",
@@ -248,19 +248,19 @@ function Editor({
           </Button>
           <Button onClick={save} disabled={(!dirty && hasSaved) || uploading}>
             <Save className="mr-2 h-4 w-4" />
-            Salva in locale
+            Salva modello
           </Button>
         </div>
       </div>
       <div className="flex flex-wrap justify-between gap-2 rounded-lg bg-sky-50 px-4 py-3 text-xs text-sky-950">
         <span>
-          Solo questo browser · modello non ancora collegato al preventivatore
+          Modello dell'azienda · non ancora collegato al preventivatore
         </span>
         <span role="status">
           {dirty
             ? "Modifiche da salvare"
             : hasSaved
-              ? "Salvato in locale"
+              ? "Salvato"
               : "Modello pronto · non ancora salvato"}
         </span>
       </div>

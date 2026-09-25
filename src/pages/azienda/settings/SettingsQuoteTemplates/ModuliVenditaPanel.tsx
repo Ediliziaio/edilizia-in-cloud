@@ -391,7 +391,7 @@ function LegacyModuliVenditaPanel({ initialModulo }: { initialModulo?: string })
         </div>
         <Card className="bg-slate-50 border-slate-200">
           <CardContent className="p-3 text-xs text-slate-600">
-            💡 I template aziendali sono il punto di partenza dei nuovi preventivi. I nuovi modelli Tetti e Serramenti contrassegnati «locali» sono copie indipendenti in questo browser: il collegamento al preventivatore non è ancora attivo.
+            💡 I template aziendali sono il punto di partenza dei nuovi preventivi. I modelli della libreria si salvano per l'azienda: Tetti e Serramenti (finestre, persiane, intervento combinato) li usano già quando si crea un preventivo, le altre aree non ancora.
           </CardContent>
         </Card>
       </div>

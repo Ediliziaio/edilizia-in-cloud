@@ -334,7 +334,7 @@ export default function CampoLayout() {
           {/* Page Content */}
           <main className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden md:overflow-visible px-3 py-3 sm:px-4 md:p-6 ${inFlussoCompilazione ? "pb-4" : "pb-28"} md:pb-6`}>
             <PreviewSessionContext.Provider value={previewSession}>
-              <ErrorBoundary title="Errore nel caricamento della pagina">
+              <ErrorBoundary title="Errore nel caricamento della pagina" resetKey={location.pathname}>
                 <Outlet />
               </ErrorBoundary>
             </PreviewSessionContext.Provider>

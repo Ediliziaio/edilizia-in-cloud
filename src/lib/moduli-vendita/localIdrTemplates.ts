@@ -1,5 +1,6 @@
 import type { IdrTemplatePdf } from "@/types/termoidraulico";
 import { isFullIdrModuleId, type FullIdrModuleId } from "./fullIdrModules";
+import { archivioModelliAzienda } from "./archivioModelli";
 
 export interface LocalIdrTemplate {
   version: 1;
@@ -31,7 +32,7 @@ function assertRecord(value: unknown, companyId: string, moduleId: FullIdrModule
   }
 }
 
-export function loadLocalIdrTemplate(companyId: string, moduleId: FullIdrModuleId, storage: StoragePort = localStorage): LocalIdrTemplate | null {
+export function loadLocalIdrTemplate(companyId: string, moduleId: FullIdrModuleId, storage: StoragePort = archivioModelliAzienda): LocalIdrTemplate | null {
   const raw = storage.getItem(localIdrTemplateKey(companyId, moduleId));
   if (raw === null) return null;
   let record: unknown;
@@ -41,7 +42,7 @@ export function loadLocalIdrTemplate(companyId: string, moduleId: FullIdrModuleI
 }
 
 /** Optimistic revision check prevents a second tab silently overwriting changes. */
-export function saveLocalIdrTemplate(companyId: string, moduleId: FullIdrModuleId, template: IdrTemplatePdf, expectedSavedAt: string | null, storage: StoragePort = localStorage): LocalIdrTemplate {
+export function saveLocalIdrTemplate(companyId: string, moduleId: FullIdrModuleId, template: IdrTemplatePdf, expectedSavedAt: string | null, storage: StoragePort = archivioModelliAzienda): LocalIdrTemplate {
   if (template.company_id !== companyId) throw new Error("Il modello appartiene a un'altra azienda. Riapri il modulo.");
   const existing = loadLocalIdrTemplate(companyId, moduleId, storage);
   if ((existing?.savedAt ?? null) !== expectedSavedAt) throw new Error("Questo modulo è stato modificato in un'altra scheda. Riaprilo prima di salvare.");

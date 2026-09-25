@@ -1,5 +1,6 @@
 import type { PavTemplatePdf } from "@/types/pavimenti";
 import { isFullPavModuleId, type FullPavModuleId } from "./fullPavModules";
+import { archivioModelliAzienda } from "./archivioModelli";
 
 export interface LocalPavTemplate {
   version: 1;
@@ -31,7 +32,7 @@ function assertRecord(value: unknown, companyId: string, moduleId: FullPavModule
   }
 }
 
-export function loadLocalPavTemplate(companyId: string, moduleId: FullPavModuleId, storage: StoragePort = localStorage): LocalPavTemplate | null {
+export function loadLocalPavTemplate(companyId: string, moduleId: FullPavModuleId, storage: StoragePort = archivioModelliAzienda): LocalPavTemplate | null {
   const raw = storage.getItem(localPavTemplateKey(companyId, moduleId));
   if (raw === null) return null;
   let record: unknown;
@@ -41,7 +42,7 @@ export function loadLocalPavTemplate(companyId: string, moduleId: FullPavModuleI
 }
 
 /** Optimistic revision check prevents a second tab silently overwriting changes. */
-export function saveLocalPavTemplate(companyId: string, moduleId: FullPavModuleId, template: PavTemplatePdf, expectedSavedAt: string | null, storage: StoragePort = localStorage): LocalPavTemplate {
+export function saveLocalPavTemplate(companyId: string, moduleId: FullPavModuleId, template: PavTemplatePdf, expectedSavedAt: string | null, storage: StoragePort = archivioModelliAzienda): LocalPavTemplate {
   if (template.company_id !== companyId) throw new Error("Il modello appartiene a un'altra azienda. Riapri il modulo.");
   const existing = loadLocalPavTemplate(companyId, moduleId, storage);
   if ((existing?.savedAt ?? null) !== expectedSavedAt) throw new Error("Questo modulo è stato modificato in un'altra scheda. Riaprilo prima di salvare.");

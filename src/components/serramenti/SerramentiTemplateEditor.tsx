@@ -615,7 +615,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
   }, [sharedLegalTemplates]);
 
   const saveSharedLegalTemplate = useCallback(async (kind: SharedLegalTemplateKind) => {
-    if (localModule) { toast.info("La copia locale non modifica la libreria online."); return; }
+    if (localModule) { toast.info("Dai modelli della libreria le condizioni non si salvano tra quelle condivise."); return; }
     const text = String(form.condizioni_legali_testo ?? "").trim();
     if (!text) {
       toast.error("Inserisci prima un testo da salvare");
@@ -676,7 +676,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
         localModule.save(form);
         setLocalSaved(true);
         setDirty(false);
-        toast.success("Modulo salvato in locale");
+        toast.success("Modello salvato");
       } catch (error) { toast.error(error instanceof Error ? error.message : "Salvataggio non riuscito."); }
       return;
     }
@@ -1373,7 +1373,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
             size="sm"
           >
             {upsertMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            {localModule ? "Salva modulo in locale" : "Salva"}
+            Salva
           </Button>
         </div>
       </div>
@@ -1799,7 +1799,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
         description="Quando un articolo di una macro attivata è nel preventivo, il PDF aggiunge una pagina dedicata (foto + descrizione estesa). Le modifiche qui sono sincronizzate con il listino."
         icon={<FileText className="h-4 w-4" />}
       >
-        {localModule ? <p className="text-sm text-muted-foreground">Le schede prodotto vengono dal listino del preventivo. Questa copia locale non modifica il catalogo condiviso.</p> : <MacroPagineDedicateManager vertical="serramentista" />}
+        {localModule ? <p className="text-sm text-muted-foreground">Le schede prodotto vengono dal listino del preventivo. Questo modello non modifica il catalogo condiviso.</p> : <MacroPagineDedicateManager vertical="serramentista" />}
       </SrCard>
       </>)}{/* === END SEZIONE MACRO === */}
 
@@ -2850,7 +2850,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
 
           <TemplateEditorSaveBar>
             <span role="status" className={dirty ? "text-xs text-amber-600" : "text-xs text-muted-foreground"}>
-              {dirty ? "Modifiche non salvate" : localSaved ? "Tutto salvato" : "Copia locale da salvare"}
+              {dirty ? "Modifiche non salvate" : localSaved ? "Tutto salvato" : "Modello da salvare"}
             </span>
             <div className="flex flex-wrap items-center justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => setPreviewOpen(true)} className="gap-1.5" aria-label="Apri anteprima PDF">
@@ -2863,7 +2863,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                 className="bg-orange-500 hover:bg-orange-600 gap-1.5"
               >
                 {upsertMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                {localModule ? "Salva copia locale" : "Salva impostazioni"}
+                {localModule ? "Salva modello" : "Salva impostazioni"}
               </Button>
             </div>
           </TemplateEditorSaveBar>

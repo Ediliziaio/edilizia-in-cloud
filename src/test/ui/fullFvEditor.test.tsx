@@ -40,20 +40,20 @@ describe("Accumulo: editor originale e confine locale", () => {
     expect(calls.remote).not.toHaveBeenCalled();
   });
   it("salva solo l'adapter locale ed esclude preset e generatori per l'impianto intero", () => {
-    const save = mount(); fireEvent.click(screen.getByRole("button", { name: "Salva in locale" }));
+    const save = mount(); fireEvent.click(screen.getByRole("button", { name: "Salva" }));
     expect(save).toHaveBeenCalledOnce(); expect(calls.remote).not.toHaveBeenCalled();
     expect(save.mock.calls[0][0].pdf_blocchi.modulo_intervento).toBe("accumulo");
     expect(screen.queryByText("AI online")).toBeNull(); expect(screen.queryByText("Preset generici")).toBeNull();
     expect(screen.queryByRole("button", { name: "{potenza_kwp}" })).toBeNull();
-    expect(screen.getByRole("button", { name: "Salva in locale" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Salva" })).toBeDisabled();
   });
   it("mantiene modifiche e salvataggio disponibile se lo spazio locale è esaurito", () => {
-    mount(vi.fn(() => { throw new Error("Quota esaurita"); })); fireEvent.click(screen.getByRole("button", { name: "Salva in locale" }));
-    expect(calls.error).toHaveBeenCalled(); expect(screen.getByRole("button", { name: "Salva in locale" })).toBeEnabled();
+    mount(vi.fn(() => { throw new Error("Quota esaurita"); })); fireEvent.click(screen.getByRole("button", { name: "Salva" }));
+    expect(calls.error).toHaveBeenCalled(); expect(screen.getByRole("button", { name: "Salva" })).toBeEnabled();
     expect(calls.remote).not.toHaveBeenCalled();
   });
   it("rifiuta il salvataggio dopo un cambio azienda", () => {
-    calls.company = "company-b"; const save = mount(); fireEvent.click(screen.getByRole("button", { name: "Salva in locale" }));
+    calls.company = "company-b"; const save = mount(); fireEvent.click(screen.getByRole("button", { name: "Salva" }));
     expect(save).not.toHaveBeenCalled(); expect(calls.error).toHaveBeenCalled(); expect(calls.remote).not.toHaveBeenCalled();
   });
   it("apre anteprima e varianti specifiche senza salvare", async () => {
@@ -69,5 +69,5 @@ it("un modello appena aperto non segnala modifiche mai fatte", () => {
   mount(vi.fn());
   expect(screen.getByText("Modello pronto · non ancora salvato")).toBeInTheDocument();
   expect(screen.queryByText(/Modifiche non salvate/)).not.toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Salva in locale" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Salva" })).toBeEnabled();
 });

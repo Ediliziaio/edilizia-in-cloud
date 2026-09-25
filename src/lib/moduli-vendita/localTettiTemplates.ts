@@ -1,5 +1,6 @@
 import type { TetTemplatePdf } from "@/types/tetti";
 import { findTettiTemplateModule, type TettiTemplateModuleId } from "./tettiTemplateModules";
+import { archivioModelliAzienda } from "./archivioModelli";
 
 export interface LocalTettiTemplate {
   version: 1;
@@ -31,7 +32,7 @@ function assertRecord(value: unknown, companyId: string, moduleId: TettiTemplate
   }
 }
 
-export function loadLocalTettiTemplate(companyId: string, moduleId: TettiTemplateModuleId, storage: StoragePort = localStorage): LocalTettiTemplate | null {
+export function loadLocalTettiTemplate(companyId: string, moduleId: TettiTemplateModuleId, storage: StoragePort = archivioModelliAzienda): LocalTettiTemplate | null {
   const raw = storage.getItem(localTettiTemplateKey(companyId, moduleId));
   if (raw === null) return null;
   let record: unknown;
@@ -41,7 +42,7 @@ export function loadLocalTettiTemplate(companyId: string, moduleId: TettiTemplat
 }
 
 /** Optimistic revision check prevents a second tab silently overwriting changes. */
-export function saveLocalTettiTemplate(companyId: string, moduleId: TettiTemplateModuleId, template: TetTemplatePdf, expectedSavedAt: string | null, storage: StoragePort = localStorage): LocalTettiTemplate {
+export function saveLocalTettiTemplate(companyId: string, moduleId: TettiTemplateModuleId, template: TetTemplatePdf, expectedSavedAt: string | null, storage: StoragePort = archivioModelliAzienda): LocalTettiTemplate {
   const existing = loadLocalTettiTemplate(companyId, moduleId, storage);
   if ((existing?.savedAt ?? null) !== expectedSavedAt) throw new Error("Questo modulo è stato modificato in un'altra scheda. Riaprilo prima di salvare.");
   const record: LocalTettiTemplate = { version: 1, companyId, moduleId,

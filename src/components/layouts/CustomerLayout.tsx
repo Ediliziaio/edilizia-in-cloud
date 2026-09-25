@@ -239,7 +239,7 @@ export function CustomerLayout() {
             {/* Larghezza di lettura: a 1366 px le card arrivavano a 1.078 px. */}
             <div className="mx-auto w-full max-w-5xl">
               <PreviewSessionContext.Provider value={previewSession}>
-                <ErrorBoundary title="Errore nel caricamento della pagina">
+                <ErrorBoundary title="Errore nel caricamento della pagina" resetKey={location.pathname}>
                   <Outlet />
                 </ErrorBoundary>
               </PreviewSessionContext.Provider>

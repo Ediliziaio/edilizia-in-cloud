@@ -62,7 +62,7 @@ export default function TecnicoLayout() {
 
       {/* Contenuto */}
       <main className="flex-1 overflow-y-auto">
-        <ErrorBoundary title="Errore nel caricamento della pagina">
+        <ErrorBoundary title="Errore nel caricamento della pagina" resetKey={location.pathname}>
           <Outlet />
         </ErrorBoundary>
       </main>

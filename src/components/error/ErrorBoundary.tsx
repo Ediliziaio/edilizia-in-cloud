@@ -11,6 +11,13 @@ interface Props {
   title?: string;
   /** Componente custom da mostrare al posto del fallback predefinito */
   fallback?: React.ReactNode;
+  /**
+   * Quando cambia, un errore mostrato si toglie e si riprova (i layout passano
+   * la pagina aperta). Senza, dopo il crash di una pagina anche tutte le altre
+   * mostravano l'errore finché non si ricaricava (Ener Italia, 25/09/2026). Non
+   * rimonta i figli quando non c'è errore: una `key` staccherebbe il telefono.
+   */
+  resetKey?: unknown;
 }
 
 interface State {
@@ -49,6 +56,14 @@ export class ErrorBoundary extends React.Component<Props, State> {
       ticketState: "idle",
       ticketError: null,
     };
+  }
+
+  componentDidUpdate(prevProps: Props, prevState: State) {
+    // Solo un errore già mostrato: se è la pagina nuova a rompersi, resta
+    // l'errore e non si riprova in giro.
+    if (prevState.hasError && this.state.hasError && prevProps.resetKey !== this.props.resetKey) {
+      this.handleReset();
+    }
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {

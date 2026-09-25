@@ -31,7 +31,7 @@ function mount({ id = "cappotto", template = make(id), save = vi.fn(), saved = f
   return render(<MemoryRouter initialEntries={[`/?area=facciate&modello=${id}&section=${section}`]}><FacciateTemplateEditor moduleId={id} template={template} save={save} saved={saved} /></MemoryRouter>);
 }
 const navigate = (name: string) => fireEvent.click(within(screen.getByRole("navigation", { name: "Pagine del PDF Facciate" })).getByRole("button", { name }));
-const saveButton = () => screen.getByRole("button", { name: "Salva modulo in locale" });
+const saveButton = () => screen.getByRole("button", { name: "Salva modello" });
 
 describe("Facciate shared Idr visual contract, local only", () => {
   it("salva i controlli avanzati senza perdere immagini o metadati", async () => {
@@ -150,7 +150,7 @@ describe("Facciate shared Idr visual contract, local only", () => {
     const pending = screen.getByRole("button", { name: "Salvataggio…" });
     expect(pending).toBeDisabled(); fireEvent.click(pending); expect(save).toHaveBeenCalledOnce();
     expect(screen.getByRole("textbox", { name: "Titolo copertina" })).toBeDisabled();
-    expect(screen.getByRole("status")).toHaveTextContent("Salvataggio locale in corso");
+    expect(screen.getByRole("status")).toHaveTextContent("Salvataggio in corso");
     await act(async () => reject(new Error("Quota locale esaurita")));
     expect(container.querySelector("[data-template-save-bar]")).toContainElement(screen.getByRole("alert"));
     expect(screen.getByRole("alert")).toHaveTextContent("Quota locale esaurita");
@@ -158,7 +158,7 @@ describe("Facciate shared Idr visual contract, local only", () => {
     expect(getFacDraft("fac-alignment", "cappotto")?.template.cover_title).toBe("Da conservare");
     expect(saveButton()).toBeEnabled();
     fireEvent.click(saveButton());
-    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Modulo salvato in locale"));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Modello salvato"));
     expect(screen.queryByRole("alert")).toBeNull();
     expect(saveButton()).toBeDisabled();
     expect(save.mock.calls[1][0].cover_title).toBe("Da conservare");

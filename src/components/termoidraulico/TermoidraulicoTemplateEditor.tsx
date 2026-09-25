@@ -461,8 +461,8 @@ export function TermoidraulicoTemplateEditor({ embedded = false, localModule }: 
         setLocalSaved(true);
       } else await upsert.mutateAsync(patch);
       setDirty(false);
-      toast.success(localModule ? "Modulo salvato in locale" : "Template salvato", {
-        description: localModule ? "Copia indipendente in questo browser. Collegamento al preventivatore in lavorazione." : "Verrà applicato ai nuovi preventivi termoidraulico.",
+      toast.success(localModule ? "Modello salvato" : "Template salvato", {
+        description: localModule ? "Salvato per l'azienda, lo vedono i colleghi. Il preventivatore usa ancora il template aziendale." : "Verrà applicato ai nuovi preventivi termoidraulico.",
       });
     } catch (e) {
       toast.error("Salvataggio non riuscito", {
@@ -1216,7 +1216,7 @@ if (field === "eyebrow") { set("pdf_cover_eyebrow", value); } }}   placeholders=
                 className="gap-1.5 bg-orange-500 hover:bg-orange-600"
               >
                 {upsert.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                {localModule ? "Salva modulo in locale" : "Salva template"}
+                {localModule ? "Salva modello" : "Salva template"}
               </Button>
             </div>
           </TemplateEditorSaveBar>
@@ -1424,7 +1424,7 @@ function ImageUploadField({ label, hint, value, companyId, onChange, aspect = "a
     }
     setUploading(true);
     try {
-      if (localOnly) { onChange(await readLocalTemplateImage(file)); toast.success("Immagine aggiunta in locale"); return; }
+      if (localOnly) { onChange(await readLocalTemplateImage(file)); toast.success("Immagine aggiunta"); return; }
       const ext = file.name.includes(".") ? file.name.split(".").pop()!.toLowerCase() : "bin";
       // folder[1] DEVE essere company_id (policy storage company-scoped).
       const path = `${companyId}/termoidraulico/template/${crypto.randomUUID()}.${ext}`;

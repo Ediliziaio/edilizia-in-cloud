@@ -1,5 +1,6 @@
 import type { SrTemplatePdfRow } from "@/types/serramenti";
 import { findSerramentiTemplateModule, type SerramentiTemplateModuleId } from "./serramentiTemplateModules";
+import { archivioModelliAzienda } from "./archivioModelli";
 
 export interface LocalSerramentiTemplate {
   version: 1;
@@ -27,7 +28,7 @@ function assertRecord(value: unknown, companyId: string, moduleId: SerramentiTem
     throw new Error("Copia locale non leggibile: non è stata sovrascritta. Conserva i dati e chiedi assistenza.");
   }
 }
-export function loadLocalSerramentiTemplate(companyId: string, moduleId: SerramentiTemplateModuleId, storage: StoragePort = localStorage): LocalSerramentiTemplate | null {
+export function loadLocalSerramentiTemplate(companyId: string, moduleId: SerramentiTemplateModuleId, storage: StoragePort = archivioModelliAzienda): LocalSerramentiTemplate | null {
   const raw = storage.getItem(localSerramentiTemplateKey(companyId, moduleId));
   if (raw === null) return null;
   let record: unknown;
@@ -35,7 +36,7 @@ export function loadLocalSerramentiTemplate(companyId: string, moduleId: Serrame
   assertRecord(record, companyId, moduleId);
   return record;
 }
-export function saveLocalSerramentiTemplate(companyId: string, moduleId: SerramentiTemplateModuleId, template: Partial<SrTemplatePdfRow>, expectedSavedAt: string | null, storage: StoragePort = localStorage): LocalSerramentiTemplate {
+export function saveLocalSerramentiTemplate(companyId: string, moduleId: SerramentiTemplateModuleId, template: Partial<SrTemplatePdfRow>, expectedSavedAt: string | null, storage: StoragePort = archivioModelliAzienda): LocalSerramentiTemplate {
   if (template.company_id !== companyId || template.id !== `local-serramenti-${moduleId}`) throw new Error("Il modello non appartiene a questa azienda o modulo.");
   const existing = loadLocalSerramentiTemplate(companyId, moduleId, storage);
   if ((existing?.savedAt ?? null) !== expectedSavedAt) throw new Error("Il modulo è cambiato in un'altra scheda. Riaprilo prima di salvare.");

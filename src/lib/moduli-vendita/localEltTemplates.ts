@@ -1,5 +1,6 @@
 import type { EleTemplatePdf } from "@/types/elettrico";
 import { isFullEltModuleId, type FullEltModuleId } from "./fullEltModules";
+import { archivioModelliAzienda } from "./archivioModelli";
 
 export interface LocalEltTemplate {
   version: 1;
@@ -35,7 +36,7 @@ function assertRecord(value: unknown, companyId: string, moduleId: FullEltModule
   }
 }
 
-export function loadLocalEltTemplate(companyId: string, moduleId: FullEltModuleId, storage: StoragePort = localStorage): LocalEltTemplate | null {
+export function loadLocalEltTemplate(companyId: string, moduleId: FullEltModuleId, storage: StoragePort = archivioModelliAzienda): LocalEltTemplate | null {
   const raw = storage.getItem(localEltTemplateKey(companyId, moduleId));
   if (raw === null) return null;
   let record: unknown;
@@ -45,7 +46,7 @@ export function loadLocalEltTemplate(companyId: string, moduleId: FullEltModuleI
 }
 
 /** Optimistic revision check prevents a second tab silently overwriting changes. */
-export function saveLocalEltTemplate(companyId: string, moduleId: FullEltModuleId, template: EleTemplatePdf, expectedSavedAt: string | null, storage: StoragePort = localStorage): LocalEltTemplate {
+export function saveLocalEltTemplate(companyId: string, moduleId: FullEltModuleId, template: EleTemplatePdf, expectedSavedAt: string | null, storage: StoragePort = archivioModelliAzienda): LocalEltTemplate {
   if (template.company_id !== companyId) throw new Error("Il modello appartiene a un'altra azienda. Riapri il modulo.");
   const existing = loadLocalEltTemplate(companyId, moduleId, storage);
   if ((existing?.savedAt ?? null) !== expectedSavedAt) throw new Error("Questo modulo è stato modificato in un'altra scheda. Riaprilo prima di salvare.");

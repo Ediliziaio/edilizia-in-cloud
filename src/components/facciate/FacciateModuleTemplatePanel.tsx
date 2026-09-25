@@ -37,8 +37,8 @@ function Workspace({ companyId, moduleId, branding, onDirtyChange }: FacciateMod
   return <section className="space-y-4">
     <Button variant="outline" onClick={() => { const next = new URLSearchParams(params); next.delete("modello"); next.delete("section"); next.delete("edizione"); setParams(next); }}>← Moduli Facciate</Button>
     <header><p className="text-xs uppercase tracking-wider text-emerald-800">Facciate e isolamento · Modello PDF</p><h2 className="text-2xl font-semibold">{FAC_MODULE_TITLES[moduleId]}</h2></header>
-    <p className="rounded border border-sky-200 bg-sky-50 p-3 text-sm text-sky-950">Copia locale indipendente per questa azienda. Testi, immagini e impostazioni si salvano in questo browser. Il PDF usa le pagine originali del Piano dei lavori e prezzi dimostrativi; il collegamento al preventivatore è ancora da attivare.</p>
-    {remoteLogo && <p className="text-xs text-muted-foreground">I loghi online non vengono scaricati: puoi caricarne una copia locale in Azienda e stile o Copertina.</p>}
+    <p className="rounded border border-sky-200 bg-sky-50 p-3 text-sm text-sky-950">Modello dell'azienda: testi, immagini e impostazioni si salvano online e li vedono tutti i colleghi. Il PDF usa le pagine originali del Piano dei lavori e prezzi dimostrativi; il collegamento al preventivatore è ancora da attivare.</p>
+    {remoteLogo && <p className="text-xs text-muted-foreground">I loghi online non vengono scaricati: puoi caricarne uno nel modello, in Azienda e stile o Copertina.</p>}
     <FacciateTemplateEditor moduleId={moduleId} template={initial.template} saved={!!initial.record} getRevision={() => revision.current} onDirtyChange={dirty} save={async template => {
       const commit = () => { revision.current = saveLocalFacTemplate(companyId, moduleId, template, revision.current).savedAt; };
       if (typeof navigator !== "undefined" && navigator.locks) await navigator.locks.request(localFacTemplateKey(companyId, moduleId), commit);

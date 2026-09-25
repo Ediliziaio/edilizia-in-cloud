@@ -90,7 +90,7 @@ Tutto è **strutturato** e pronto in DB: il lavoro residuo è di firma e process
    - **Configurazione attuale**: `human_oversight_level=approve_required`, solo suggerimenti
    - **Salvaguardie**: lavoratore informato, possibilità di contestare, audit trimestrale per bias
 
-2. **`ai-fraud-review`** — etichettare un soggetto come "frode" autonomamente avrebbe implicazioni legali serie
+2. **`ai-fraud-review`** (tolto il 25/09/2026, mai attivato) — etichettare un soggetto come "frode" autonomamente avrebbe implicazioni legali serie
    - **Configurazione attuale**: linguaggio cauto ("anomalia rilevata", non "frode")
    - **Salvaguardie**: HIL obbligatorio, no etichette automatiche di frode
 

@@ -77,7 +77,10 @@ describe("documenti dei moduli per intervento", () => {
     expect(
       loadModuleDocument("company-b", "bagni", "vasca-doccia")?.document.title,
     ).not.toBe("Il mio bagno");
-    expect(localStorage.length).toBe(3);
+    // Tre modelli distinti. Dal 25/09 nel browser c'è anche l'elenco dei modelli
+    // «da mandare online» (archivioModelli.ts): si contano solo i modelli.
+    const chiavi = Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i));
+    expect(chiavi.filter((k) => k?.startsWith("eic:module-document:"))).toHaveLength(3);
   });
   it("rifiuta salvataggi concorrenti, dati corrotti e aziende diverse", () => {
     const a = seed();

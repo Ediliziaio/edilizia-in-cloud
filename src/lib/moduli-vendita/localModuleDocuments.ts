@@ -1,5 +1,6 @@
 import { findSalesArea } from "./areas";
 import type { ModuleDocument } from "./moduleDocuments";
+import { archivioModelliAzienda } from "./archivioModelli";
 type StoragePort = Pick<Storage, "getItem" | "setItem">;
 export interface SavedModuleDocument {
   version: 1;
@@ -81,7 +82,7 @@ export function loadModuleDocument(
   company: string,
   area: string,
   module: string,
-  storage: StoragePort = localStorage,
+  storage: StoragePort = archivioModelliAzienda,
 ): SavedModuleDocument | null {
   const raw = storage.getItem(documentKey(company, area, module));
   if (raw === null) return null;
@@ -105,7 +106,7 @@ export function loadModuleDocument(
 export function saveModuleDocument(
   document: ModuleDocument,
   expectedRevision: string | null,
-  storage: StoragePort = localStorage,
+  storage: StoragePort = archivioModelliAzienda,
 ): SavedModuleDocument {
   const { companyId, areaId, moduleId } = document;
   validateModuleDocument(document, companyId, areaId, moduleId);

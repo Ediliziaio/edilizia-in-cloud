@@ -38,7 +38,7 @@ describe("Climatizzazione: modelli originali locali", () => {
     fireEvent.change(screen.getByRole("combobox", { name: "Posizione logo" }), { target: { value: "top_right" } });
     fireEvent.change(screen.getByRole("textbox", { name: "Colore testo" }), { target: { value: "#AABBCC" } });
     fireEvent.change(screen.getByRole("slider", { name: "Dimensione sottotitolo: cursore" }), { target: { value: "15" } });
-    fireEvent.click(screen.getByRole("button", { name: "Salva modulo in locale" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     await waitFor(() => expect(save).toHaveBeenCalledOnce());
     expect(save.mock.calls[0][0]).toMatchObject({ pdf_cover_text_align: "center", cover_text_align: "center", pdf_cover_logo_position: "top_right", cover_logo_position: "top_right", pdf_cover_text_color: "#AABBCC", cover_text_color: "#AABBCC", pdf_cover_subtitle_size: 15 });
     expect(calls.remote).not.toHaveBeenCalled();
@@ -48,7 +48,7 @@ describe("Climatizzazione: modelli originali locali", () => {
     const save = mount("canalizzato", vi.fn(), dirty);
     expect(screen.getByText("Nuovo modulo · non ancora salvato")).toBeInTheDocument();
     expect(screen.queryByText("Modifiche non salvate")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Salva modulo in locale" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Salva modello" })).toBeEnabled();
     expect(dirty).toHaveBeenLastCalledWith(false);
     const initialExit = new Event("beforeunload", { cancelable: true });
     window.dispatchEvent(initialExit);
@@ -58,11 +58,11 @@ describe("Climatizzazione: modelli originali locali", () => {
     const editedExit = new Event("beforeunload", { cancelable: true });
     window.dispatchEvent(editedExit);
     expect(editedExit.defaultPrevented).toBe(true);
-    fireEvent.click(screen.getByRole("button", { name: "Salva modulo in locale" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     await waitFor(() => expect(save).toHaveBeenCalledOnce());
     expect(dirty).toHaveBeenLastCalledWith(false);
     expect(screen.getByText("Tutto salvato")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Salva modulo in locale" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Salva modello" })).toBeDisabled();
     const savedExit = new Event("beforeunload", { cancelable: true });
     window.dispatchEvent(savedExit);
     expect(savedExit.defaultPrevented).toBe(false);
@@ -71,7 +71,7 @@ describe("Climatizzazione: modelli originali locali", () => {
     const dirty = vi.fn();
     mount("canalizzato", vi.fn(), dirty, true);
     expect(screen.getByText("Tutto salvato")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Salva modulo in locale" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Salva modello" })).toBeDisabled();
     expect(dirty).toHaveBeenLastCalledWith(false);
   });
   it.each(FULL_CLM_MODULES)("%s conserva identità, anteprima e confine locale", async id => {
@@ -83,7 +83,7 @@ describe("Climatizzazione: modelli originali locali", () => {
     expect(data.computo).toHaveLength(3);
     expect(JSON.stringify(data.computo)).not.toMatch(/Demolizione tramezzi|Posa pavimento/);
     expect(data.template.pdf_blocchi.modulo_intervento).toBe(id);
-    fireEvent.click(screen.getByRole("button", { name: "Salva modulo in locale" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     await waitFor(() => expect(save).toHaveBeenCalledOnce());
     expect(save.mock.calls[0][0].id).toBe("local-climatizzazione-" + id);
     expect(calls.remote).not.toHaveBeenCalled(); expect(calls.storage).not.toHaveBeenCalled();
@@ -103,9 +103,9 @@ describe("Climatizzazione: modelli originali locali", () => {
     expect(input).toBeTruthy();
     fireEvent.change(input, { target: { files: [new File(["image"], "cover.png", { type: "image/png" })] } });
     await waitFor(() => expect(calls.image).toHaveBeenCalledOnce());
-    await waitFor(() => expect(calls.success).toHaveBeenCalledWith("Immagine aggiunta in locale"));
+    await waitFor(() => expect(calls.success).toHaveBeenCalledWith("Immagine aggiunta"));
     fireEvent.change(screen.getAllByDisplayValue(/Il tuo ambiente/)[0], { target: { value: "Titolo personale" } });
-    fireEvent.click(screen.getByRole("button", { name: "Salva modulo in locale" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     await waitFor(() => expect(save).toHaveBeenCalledOnce());
     expect(save.mock.calls[0][0].cover_title).toBe("Titolo personale");
     expect(save.mock.calls[0][0].pdf_cover_hero).toBe("Titolo personale");
@@ -117,16 +117,16 @@ describe("Climatizzazione: modelli originali locali", () => {
   it("keeps the draft dirty after a failed local save", async () => {
     mount("vmc", vi.fn(() => { throw new Error("Quota locale esaurita"); }));
     fireEvent.change(screen.getAllByDisplayValue(/Aria che si rinnova/)[0], { target: { value: "Titolo modificato" } });
-    fireEvent.click(screen.getByRole("button", { name: "Salva modulo in locale" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     await waitFor(() => expect(calls.error).toHaveBeenCalledWith("Salvataggio non riuscito", { description: "Quota locale esaurita" }));
     expect(screen.getByText("Modifiche non salvate")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Salva modulo in locale" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Salva modello" })).toBeEnabled();
     expect(calls.remote).not.toHaveBeenCalled();
   });
   it("preserves both image fields when changing the cover style", async () => {
     const save = mount("vmc");
     fireEvent.click(screen.getByRole("button", { name: /Minimal · testo in alto/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Salva modulo in locale" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     await waitFor(() => expect(save).toHaveBeenCalledOnce());
     expect(save.mock.calls[0][0].pdf_cover_image_url).toBe("/module-art/climatizzazione-vmc-centered.jpg");
     expect(save.mock.calls[0][0].cover_image_url).toBe("/module-art/climatizzazione-vmc-centered.jpg");
