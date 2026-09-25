@@ -47,7 +47,9 @@ Deno.serve(async (req) => {
     const creditsTable = TABLE_MAP[service];
     const topupTable   = TOPUP_TABLE_MAP[service];
 
-    // Verify caller is super_admin or belongs to the requested company
+    // La ricarica manuale, senza pagamento, è del super admin: le aziende
+    // ricaricano da Impostazioni → Crediti, con Stripe. Fino al 26/09/2026
+    // passava anche chiunque fosse dell'azienda, e si ricaricava gratis.
     const { data: callerRoles } = await adminClient
       .from("user_roles")
       .select("role")
@@ -55,15 +57,7 @@ Deno.serve(async (req) => {
     const isSuperAdmin = (callerRoles || []).some((r: any) => r.role === "super_admin");
 
     if (!isSuperAdmin) {
-      const { data: callerProfile } = await adminClient
-        .from("profiles")
-        .select("company_id")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      if (!callerProfile || callerProfile.company_id !== companyId) {
-        return json({ error: "Non autorizzato" }, 403);
-      }
+      return json({ error: "Non autorizzato: la ricarica manuale è riservata allo staff di piattaforma" }, 403);
     }
 
     // Ricarica atomica via RPC (rimpiazza il pattern SELECT+UPDATE race-prone).

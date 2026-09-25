@@ -20,6 +20,8 @@ import { useAgentCredits, useCreditTopups, useCreditUsage, useUsageByAgent } fro
 import { CreditUsageBar } from "@/modules/ai-agents/components/CreditUsageBar";
 import { queryKeys } from "@/lib/queryKeys";
 import { useCompanyAiSpendStats } from "@/hooks/ai-provider";
+import { useAuth } from "@/contexts/AuthContext";
+import { Link } from "react-router-dom";
 
 interface CreditTransaction {
   id: string;
@@ -59,6 +61,11 @@ function humanTaskLabel(taskKind: string): string {
 export function CreditiTab() {
   const companyId = useEffectiveCompanyId();
   const queryClient = useQueryClient();
+  const { role } = useAuth();
+  // La ricarica manuale non passa da un pagamento: la fa lo staff di
+  // piattaforma (topup-credits risponde 403 agli altri, dal 26/09/2026).
+  // Le aziende ricaricano da Impostazioni → Crediti, con Stripe.
+  const isSuperAdmin = role === "super_admin";
   const { data: credits, isLoading } = useAgentCredits();
   const { data: topups } = useCreditTopups();
   const { data: usage } = useCreditUsage();
@@ -127,7 +134,7 @@ export function CreditiTab() {
     setIsTopupLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("topup-credits", {
-        body: { companyId: credits?.company_id, amountEur: topupAmount, paymentMethod: "manual_admin" },
+        body: { companyId: credits?.company_id, amountEur: topupAmount, service: "ai_agents", paymentMethod: "manual_admin" },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
@@ -146,7 +153,7 @@ export function CreditiTab() {
     try {
       const cId = credits?.company_id;
       if (!cId) throw new Error("company_id mancante");
-      const { error } = await supabase
+      const { data: salvate, error } = await supabase
         .from("ai_credits" as never)
         .update({
           auto_recharge_enabled: autoRechargeEnabled,
@@ -154,12 +161,17 @@ export function CreditiTab() {
           auto_recharge_amount: parseFloat(autoRechargeAmount) || 20,
           updated_at: new Date().toISOString(),
         } as never)
-        .eq("company_id" as never, cId as never);
+        .eq("company_id" as never, cId as never)
+        .select("company_id");
       if (error) throw error;
+      // Una UPDATE che la RLS filtra non dà errore: senza righe non si è salvato nulla.
+      if (!salvate || (salvate as unknown[]).length === 0) {
+        throw new Error("La ricarica automatica la cambia lo staff di piattaforma");
+      }
       queryClient.invalidateQueries({ queryKey: queryKeys.aiCredits.all });
       toast.success("Impostazioni ricarica automatica salvate");
-    } catch {
-      toast.error("Errore nel salvataggio");
+    } catch (e) {
+      toast.error(e instanceof Error && e.message ? e.message : "Errore nel salvataggio");
     } finally {
       setIsSavingAutoRecharge(false);
     }
@@ -272,6 +284,18 @@ export function CreditiTab() {
       )}
 
       {/* Manual Topup */}
+      {!isSuperAdmin ? (
+        <Card>
+          <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
+            <p className="text-sm text-muted-foreground">Per ricaricare i crediti usa il pagamento con carta.</p>
+            <Button asChild size="sm">
+              <Link to="/azienda/impostazioni/crediti">
+                <CreditCard className="h-4 w-4 mr-2" /> Ricarica i crediti
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
       <div>
         <h3 className="text-lg font-bold text-foreground">Ricarica Manuale</h3>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-4">
@@ -302,6 +326,7 @@ export function CreditiTab() {
           <CreditCard className="h-4 w-4 mr-2" /> Ricarica {topupAmount >= 5 ? formatEur(topupAmount) : ""}
         </Button>
       </div>
+      )}
 
       {/* Usage by Agent */}
       {usageByAgent && usageByAgent.length > 0 && (
