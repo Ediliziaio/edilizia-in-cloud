@@ -67,6 +67,8 @@ export async function convertiProformaInFattura(proformaId: string): Promise<Doc
     data_emissione: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}-${String(new Date().getDate()).padStart(2, "0")}`,
     anagrafica_id: doc.anagrafica_id,
     cliente_snapshot: doc.cliente_snapshot,
+    // La commessa della proforma resta sulla fattura: prima si perdeva.
+    ordine_id: doc.ordine_id ?? null,
     stato: "bozza",
     righe: doc.righe,
     riepilogo_iva: totali.riepilogo_iva,

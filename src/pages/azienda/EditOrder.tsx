@@ -619,6 +619,10 @@ function EditOrderInner() {
       }
 
       const rate = installmentsForSave.map((i, idx) => ({
+        // Con l'id la rata si aggiorna al suo posto: prima si cancellava e si
+        // reinseriva, e si perdevano fattura, movimento di banca e prima nota
+        // legati alla rata (25/09/2026).
+        ...(i.id ? { id: i.id } : {}),
         position: i.position ?? idx,
         label: i.label,
         type: i.type,

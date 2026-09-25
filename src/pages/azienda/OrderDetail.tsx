@@ -361,9 +361,10 @@ function OrderDetailInner() {
   const { data: dbInstallments = [] } = useQuery({
     queryKey: queryKeys.orders.installments(id),
     queryFn: async () => {
+      // Con la fattura interna della rata: numero e stato, per mostrarla.
       const { data, error } = await supabase
         .from("order_installments" as never)
-        .select("*")
+        .select("*, fattura:documenti_fiscali(id, numero, stato)")
         .eq("order_id", id!)
         .order("position");
       if (error) throw error;
@@ -390,6 +391,8 @@ function OrderDetailInner() {
         trigger_status_id: i.trigger_status_id,
         trigger_numero: i.trigger_numero,
         giorni_preavviso: i.giorni_preavviso,
+        documento_fiscale_id: i.documento_fiscale_id ?? null,
+        fattura: i.fattura ?? null,
       }));
     }
     if (!order) return [];
@@ -711,11 +714,28 @@ function OrderDetailInner() {
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(id) });
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.installments(id) });
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.all });
-      toast.success(paid ? `${installment.label} segnato come pagato` : `${installment.label} segnato come da pagare`);
+      // Una rata legata a una fattura interna muove anche la fattura: incasso,
+      // prima nota, scadenza (trigger allinea_fattura_da_rata, 25/09/2026).
+      if (installment.documento_fiscale_id) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.documentiFiscali.all });
+        queryClient.invalidateQueries({ queryKey: ["movimenti-cassa"] });
+        queryClient.invalidateQueries({ queryKey: queryKeys.primaNota.all });
+        queryClient.invalidateQueries({ queryKey: queryKeys.scadenzario.all });
+        queryClient.invalidateQueries({ queryKey: ["cashflow"] });
+      }
+      const numero = installment.fattura?.numero;
+      toast.success(paid ? `${installment.label} segnato come pagato` : `${installment.label} segnato come da pagare`, {
+        description: installment.documento_fiscale_id && numero && !numero.startsWith("Bozza")
+          ? (paid ? `Incasso registrato sulla fattura n. ${numero}.` : `Incasso tolto dalla fattura n. ${numero}.`)
+          : undefined,
+      });
     },
     onError: (error) => {
+      // Gli errori del database non sono Error: il motivo sta in .message
+      // (per esempio «la rata è incassata con la fattura n. …»).
+      const motivo = (error as { message?: string } | null)?.message;
       toast.error("Errore", {
-        description: error instanceof Error ? error.message : "Impossibile aggiornare lo stato del pagamento.",
+        description: motivo || "Impossibile aggiornare lo stato del pagamento.",
       });
     },
   });

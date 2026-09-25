@@ -63,7 +63,10 @@ export function computeMatchScore(tx: any, inv: any): MatchSuggestion | null {
   const invTotal = Number(inv.total || 0) - Number(inv.paid_amount || 0);
 
   // N° fattura nella causale del bonifico: segnale più forte (la banca cita la fattura).
-  if (invoiceNumberInCausale(tx.description || "", inv.invoice_number || "")) {
+  // Le fatture interne hanno anche la forma breve «37/2026» (numero_breve): chi
+  // paga scrive più spesso quella che «FT-2026-0037».
+  if (invoiceNumberInCausale(tx.description || "", inv.invoice_number || "")
+      || invoiceNumberInCausale(tx.description || "", inv.numero_breve || "")) {
     score += 60;
     reasons.push("N° fattura in causale");
   }

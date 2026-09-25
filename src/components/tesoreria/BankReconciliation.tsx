@@ -18,9 +18,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { format } from "date-fns";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { queryKeys } from "@/lib/queryKeys";
 import {
   fmtEur,
   computeMatchScore,
@@ -28,6 +30,16 @@ import {
   detectReconAnomalies,
 } from "@/lib/finance/reconciliationAnalysis";
 import type { MatchSuggestion, ReconSeverity } from "@/lib/finance/reconciliationAnalysis";
+import {
+  SELECT_FATTURE_INTERNE_DA_INCASSARE,
+  STATI_INCASSABILI_DA_BANCA,
+  TIPI_INCASSABILI_DA_BANCA,
+  eFatturaInterna,
+  eRiconciliazioneFatturaInterna,
+  fattureInterneDaIncassare,
+  nomeClienteSnapshot,
+} from "@/lib/finance/fattureInterneBanca";
+import type { CandidatoFatturaInterna, FatturaInternaDaIncassare } from "@/lib/finance/fattureInterneBanca";
 import { escapeCSV, neutralizeXlsxCell } from "@/lib/csvExport";
 
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -45,6 +57,7 @@ const RECON_SEVERITY_CLS: Record<ReconSeverity, string> = {
 export default function BankReconciliation({ companyId, refreshKey = 0 }: Props) {
   const isMobile = useIsMobile();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [transactions, setTransactions] = useState<any[]>([]);
   const [invoices, setInvoices] = useState<any[]>([]);
   const [reconciliations, setReconciliations] = useState<any[]>([]);
@@ -82,7 +95,7 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
 
     setLoading(true);
     try {
-      const [txRes, invRes, recRes, debRes, scadRes] = await Promise.all([
+      const [txRes, invRes, recRes, debRes, scadRes, interneRes] = await Promise.all([
         supabase
           .from("bank_transactions")
           .select("*, bank_accounts(display_name, account_name)")
@@ -92,6 +105,9 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
           // scheda Finanza della commessa) e' consumato quanto uno abbinato
           // a fattura: riproporlo qui inviterebbe a contarlo due volte.
           .is("linked_installment_id" as never, null)
+          // Idem per l'incasso di una fattura interna: il bonifico punta alla
+          // sua scadenza (riconcilia_bonifico_fattura).
+          .is("linked_scadenza_id", null)
           .eq("transaction_type", "credit")
           .order("booking_date", { ascending: false })
           .limit(1000),
@@ -99,12 +115,13 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
           .from("invoices")
           .select("id, invoice_number, client_company_name, total, paid_amount, status, due_date, bank_iban, issue_date, external_provider, external_id")
           .eq("company_id", companyId)
+          .is("deleted_at", null)
           .in("status", ["issued", "sent", "delivered", "overdue"])
           .order("due_date", { ascending: true })
           .limit(1000),
         supabase
           .from("bank_reconciliations")
-          .select("*, bank_transactions:transaction_id(id, booking_date, amount, description, creditor_name, debtor_name), invoices:invoice_id(id, invoice_number, client_company_name, total), scadenze:scadenza_id(id, description, amount, suppliers(name))")
+          .select("*, bank_transactions:transaction_id(id, booking_date, amount, description, creditor_name, debtor_name), invoices:invoice_id(id, invoice_number, client_company_name, total), scadenze:scadenza_id(id, description, amount, direction, suppliers(name)), movimento:movimento_id(documento:documento_id(id, numero, cliente_snapshot, totale_documento))")
           .eq("company_id", companyId)
           .is("unmatched_at", null)
           .order("matched_at", { ascending: false })
@@ -128,18 +145,36 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
           .in("status", ["da_pagare", "parziale"])
           .order("due_date", { ascending: true })
           .limit(1000),
+        // Fatture della fatturazione interna ancora da incassare: stanno in
+        // documenti_fiscali, non in invoices, e prima qui non comparivano.
+        supabase
+          .from("documenti_fiscali")
+          .select(SELECT_FATTURE_INTERNE_DA_INCASSARE)
+          .eq("company_id", companyId)
+          .is("deleted_at", null)
+          .in("tipo", [...TIPI_INCASSABILI_DA_BANCA])
+          .in("stato", [...STATI_INCASSABILI_DA_BANCA])
+          .order("data_scadenza", { ascending: true })
+          .limit(1000),
       ]);
       if (txRes.error) throw txRes.error;
       if (invRes.error) throw invRes.error;
       if (recRes.error) throw recRes.error;
       if (debRes.error) throw debRes.error;
       if (scadRes.error) throw scadRes.error;
-      setTransactions(txRes.data || []);
+      if (interneRes.error) throw interneRes.error;
+      // Un accredito con una riconciliazione attiva è già consumato, anche
+      // quando nessun linked_* lo dice (fattura interna senza scadenza).
+      const giaAbbinati = new Set<string>((recRes.data || []).map((r: { transaction_id: string }) => r.transaction_id));
+      setTransactions((txRes.data || []).filter((t) => !giaAbbinati.has(t.id)));
       setDebitTxs((debRes.data || []).filter((t: any) => !(/giroconto/i.test(String(t.category || "")) || /giroconto/i.test(String(t.description || "")))));
       setScadenze(scadRes.data || []);
       // (i giroconti interni restano nei dati: vengono separati a valle,
       // così KPI e anomalie parlano solo di incassi veri)
-      setInvoices(invRes.data || []);
+      setInvoices([
+        ...(invRes.data || []),
+        ...fattureInterneDaIncassare((interneRes.data || []) as unknown as FatturaInternaDaIncassare[]),
+      ]);
       setReconciliations(recRes.data || []);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -198,8 +233,59 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
     setSuggestions(matches);
   }
 
+  // Fattura interna, bonifico e rata della commessa si muovono insieme: dopo
+  // un abbinamento o uno storno le altre pagine rileggono i loro dati.
+  function aggiornaPagineCollegate() {
+    queryClient.invalidateQueries({ queryKey: queryKeys.documentiFiscali.all });
+    queryClient.invalidateQueries({ queryKey: queryKeys.orders.all });
+    queryClient.invalidateQueries({ queryKey: ["movimenti-cassa"] });
+    queryClient.invalidateQueries({ queryKey: queryKeys.primaNota.all });
+    queryClient.invalidateQueries({ queryKey: queryKeys.scadenzario.all });
+    queryClient.invalidateQueries({ queryKey: ["cashflow"] });
+  }
+
+  // Fattura interna: il bonifico diventa il suo incasso (movimento, prima nota,
+  // scadenza, stato e rata della commessa) in una sola transazione nel database.
+  async function confirmMatchInterna(tx: { id: string }, inv: CandidatoFatturaInterna, matchType: "manual" | "auto") {
+    if (matching) return;
+    setMatching(true);
+    try {
+      const suggerito = computeMatchScore(tx, inv);
+      const { data: movimentoId, error } = await supabase.rpc("riconcilia_bonifico_fattura" as never, {
+        p_transaction_id: tx.id,
+        p_documento_id: inv.id,
+        p_match_type: matchType,
+        p_match_score: suggerito?.score ?? null,
+      } as never);
+      if (error) {
+        toast.error("Bonifico non abbinato", { description: error.message });
+        return;
+      }
+      const nota = matchNote.trim();
+      if (nota && movimentoId) {
+        // Accanto al numero, che resta anche dopo uno storno.
+        const { error: notaErr } = await supabase.from("bank_reconciliations")
+          .update({ notes: `Fattura n. ${inv.invoice_number} · ${nota}` } as never)
+          .eq("movimento_id" as never, movimentoId as never)
+          .is("unmatched_at", null);
+        if (notaErr) logger.warn("[BankReconciliation] nota non salvata:", notaErr.message);
+      }
+      toast.success(`Riconciliata con fattura ${inv.invoice_number}`, {
+        description: "Incasso registrato: la fattura, la sua scadenza e la rata della commessa risultano incassate.",
+      });
+      aggiornaPagineCollegate();
+      setSelectedTx(null);
+      await loadData();
+    } catch (e) {
+      toast.error("Bonifico non abbinato", { description: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setMatching(false);
+    }
+  }
+
   // Fix 5: Sequential reconciliation — execute operations in order, stop on failure
   async function confirmMatch(tx: any, inv: any, matchType: "manual" | "auto") {
+    if (eFatturaInterna(inv)) return confirmMatchInterna(tx, inv, matchType);
     if (matching) return;
     setMatching(true);
     try {
@@ -368,6 +454,27 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
       const txId = typeof rec.bank_transactions === "object" ? rec.bank_transactions?.id : rec.transaction_id;
       const invId = typeof rec.invoices === "object" ? rec.invoices?.id : rec.invoice_id;
 
+      // ── Incasso di una fattura interna: si storna ─────────────────────────
+      // Fattura, scadenza e rata della commessa tornano da incassare, il
+      // bonifico torna libero. Mai il ramo «scadenza» qui sotto: toccherebbe
+      // la scadenza lasciando la fattura pagata.
+      if (eRiconciliazioneFatturaInterna(rec)) {
+        const { error } = await supabase.rpc("scollega_bonifico_fattura" as never, { p_reconciliation_id: rec.id } as never);
+        if (error) {
+          toast.error("Riconciliazione non rimossa", { description: error.message });
+          setUnlinking(false);
+          return;
+        }
+        toast.success("Riconciliazione rimossa", {
+          description: "Incasso stornato: la fattura e la rata della commessa tornano da incassare.",
+        });
+        aggiornaPagineCollegate();
+        setUnlinkTarget(null);
+        setUnlinking(false);
+        void loadData();
+        return;
+      }
+
       // ── Riconciliazione a SCADENZA (uscita): storno dedicato ──────────────
       // Prima le scadenze auto-matchate non si potevano scollegare da UI.
       if (!invId && rec.scadenza_id) {
@@ -525,7 +632,7 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
     try {
       const { data, error } = await supabase
         .from("bank_reconciliations")
-        .select("*, bank_transactions:transaction_id(booking_date, amount, description, creditor_name, debtor_name), invoices:invoice_id(invoice_number, client_company_name, total)")
+        .select("*, bank_transactions:transaction_id(booking_date, amount, description, creditor_name, debtor_name), invoices:invoice_id(invoice_number, client_company_name, total), movimento:movimento_id(documento:documento_id(numero, cliente_snapshot, totale_documento))")
         .eq("company_id", companyId)
         .order("matched_at", { ascending: false })
         .limit(10000);
@@ -537,9 +644,10 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
         "Descrizione transazione": rec.bank_transactions?.description || "",
         "Data transazione": rec.bank_transactions?.booking_date || "",
         "Importo riconciliato": Number(rec.matched_amount || 0),
-        "N° Fattura": rec.invoices?.invoice_number || "",
-        "Cliente": rec.invoices?.client_company_name || "",
-        "Totale fattura": Number(rec.invoices?.total || 0),
+        // Fattura esterna (invoices) o interna (l'incasso registrato dal bonifico)
+        "N° Fattura": rec.invoices?.invoice_number || rec.movimento?.documento?.numero || "",
+        "Cliente": rec.invoices?.client_company_name || nomeClienteSnapshot(rec.movimento?.documento?.cliente_snapshot ?? null),
+        "Totale fattura": Number(rec.invoices?.total ?? rec.movimento?.documento?.totale_documento ?? 0),
         "Note": rec.notes || "",
         "Stato": rec.unmatched_at ? `Scollegata (${format(new Date(rec.unmatched_at), "dd/MM/yyyy")})` : "Attiva",
       }));
@@ -791,7 +899,7 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
                         onClick={(e) => e.stopPropagation()}
                       >
                         <span className="text-xs text-muted-foreground truncate">
-                          → <span className="font-medium text-foreground">{label}</span> · {best.score}%
+                          → <span className="font-medium text-foreground">{label}</span> · {Math.min(best.score, 100)}%
                           <span className="hidden sm:inline"> · {best.reasons[0]}</span>
                         </span>
                         <Button
@@ -841,8 +949,8 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
                       <div className="min-w-0 flex-1">
                         <div className="text-sm font-medium flex items-center gap-1.5">
                           {inv.invoice_number || "—"}
-                          <Badge variant="outline" className="text-[9px] shrink-0 font-normal text-muted-foreground" title={inv.external_provider ? "Importata da gestionale esterno" : "Fattura nativa SDI"}>
-                            {inv.external_provider ? "FIC" : "SDI"}
+                          <Badge variant="outline" className="text-[9px] shrink-0 font-normal text-muted-foreground" title={eFatturaInterna(inv) ? "Emessa dalla fatturazione di Edilizia in Cloud: abbinata a un bonifico, si incassa da sola" : inv.external_provider ? "Importata da gestionale esterno" : "Fattura nativa SDI"}>
+                            {eFatturaInterna(inv) ? "Interna" : inv.external_provider ? "FIC" : "SDI"}
                           </Badge>
                         </div>
                         <p className="text-xs text-muted-foreground truncate">{inv.client_company_name || "—"}</p>
@@ -938,6 +1046,8 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
                 const tx = rec.bank_transactions as any;
                 const inv = rec.invoices as any;
                 const scad = (rec as any).scadenze as any;
+                const docInterno: { numero: string | null; cliente_snapshot: FatturaInternaDaIncassare["cliente_snapshot"] } | null = rec.movimento?.documento ?? null;
+                const clienteInterno = docInterno ? nomeClienteSnapshot(docInterno.cliente_snapshot ?? null) : "";
                 return (
                   <div key={rec.id} className="flex items-center gap-3 border rounded-lg p-3">
                     <div className="flex-1 min-w-0">
@@ -945,7 +1055,9 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
                         <span className="font-medium truncate">{tx?.description || "Transazione"}</span>
                         <ArrowRight className="h-3 w-3 text-muted-foreground flex-shrink-0" />
                         <span className="font-medium truncate">
-                          {inv?.invoice_number || (scad ? `${scad.suppliers?.name ? scad.suppliers.name + " — " : ""}${scad.description || "Scadenza"}` : "Documento")}
+                          {inv?.invoice_number
+                            || (docInterno ? `${docInterno.numero}${clienteInterno ? ` — ${clienteInterno}` : ""}` : null)
+                            || (scad ? `${scad.suppliers?.name ? scad.suppliers.name + " — " : ""}${scad.description || "Scadenza"}` : "Documento")}
                         </span>
                       </div>
                       <div className="text-xs text-muted-foreground">
@@ -956,7 +1068,7 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
                         {rec.notes && ` · ${rec.notes}`}
                       </div>
                     </div>
-                    <Button variant="ghost" size="sm" onClick={() => setUnlinkTarget(rec)}>
+                    <Button variant="ghost" size="sm" onClick={() => setUnlinkTarget(rec)} aria-label="Rimuovi riconciliazione">
                       <Unlink className="h-4 w-4" />
                     </Button>
                   </div>
@@ -1069,7 +1181,7 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
                           <div className="text-sm font-medium flex items-center gap-1.5">
                             {s.invoice.invoice_number} — {s.invoice.client_company_name}
                             <Badge variant="outline" className="text-[9px] shrink-0 font-normal text-muted-foreground">
-                              {s.invoice.external_provider ? "FIC" : "SDI"}
+                              {eFatturaInterna(s.invoice) ? "Interna" : s.invoice.external_provider ? "FIC" : "SDI"}
                             </Badge>
                           </div>
                           <div className="flex gap-1 mt-1 flex-wrap">
@@ -1081,7 +1193,8 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
                         <div className="text-right">
                           <p className="text-sm font-semibold">{fmtEur(Number(s.invoice.total) - Number(s.invoice.paid_amount || 0))}</p>
                           <Badge className={`text-[10px] ${s.score >= 80 ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"}`}>
-                            {s.score}%
+                            {/* Numero, importo e nome insieme passano 100: è una certezza, non un 130%. */}
+                            {Math.min(s.score, 100)}%
                           </Badge>
                         </div>
                       </div>
@@ -1120,7 +1233,11 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Rimuovi riconciliazione</DialogTitle>
-            <DialogDescription>Vuoi scollegare questa transazione dalla fattura?</DialogDescription>
+            <DialogDescription>
+              {unlinkTarget && eRiconciliazioneFatturaInterna(unlinkTarget)
+                ? "L'incasso registrato da questo bonifico verrà stornato: la fattura, la sua scadenza e la rata della commessa torneranno da incassare."
+                : "Vuoi scollegare questa transazione dalla fattura?"}
+            </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setUnlinkTarget(null)}>Annulla</Button>

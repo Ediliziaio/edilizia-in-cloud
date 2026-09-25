@@ -13,6 +13,7 @@ import { SdiStatoBanner } from "@/components/fatturazione/SdiStatoBanner";
 import { FaseSdiBadge } from "@/components/fatturazione/FaseSdiBadge";
 import { SegnaPagataDialog } from "@/components/fatturazione/SegnaPagataDialog";
 import { residuoDaIncassare } from "@/lib/fatturazione/incassi";
+import { useRataDellaFattura } from "@/hooks/useRataDellaFattura";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -59,6 +60,7 @@ export default function DocumentoDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { data: doc, isLoading, refetch } = useDocumentoFiscale(id);
+  const { data: rataCommessa } = useRataDellaFattura(id);
   const { data: azienda } = useAnagraficaAzienda();
   const updateMutation = useUpdateDocumento();
   const [ncLoading, setNcLoading] = useState(false);
@@ -294,6 +296,33 @@ export default function DocumentoDetail() {
                     </Link>
                   </Button>
                 )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* La rata della commessa che questa fattura incassa (25/09/2026). */}
+          {rataCommessa && (
+            <Card>
+              <CardHeader className="pb-3"><CardTitle className="text-sm">Commessa</CardTitle></CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                {rataCommessa.commessa && (
+                  <Link to={`/azienda/ordini/${rataCommessa.commessa.id}`} className="font-medium text-primary hover:underline">
+                    {rataCommessa.commessa.order_code || rataCommessa.commessa.description || "Apri la commessa"}
+                  </Link>
+                )}
+                <div className="flex justify-between gap-2">
+                  <span className="text-muted-foreground">Rata</span>
+                  <span className="text-right">{rataCommessa.label} · {formatCurrency(rataCommessa.amount)}</span>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <span className="text-muted-foreground">Nella commessa</span>
+                  <span>
+                    {rataCommessa.is_paid
+                      ? `Incassata${rataCommessa.paid_date ? ` il ${new Date(`${rataCommessa.paid_date}T12:00:00`).toLocaleDateString("it-IT")}` : ""}`
+                      : "Da incassare"}
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground">Pagata la fattura, la rata risulta incassata; incassata la rata, l'incasso va sulla fattura.</p>
               </CardContent>
             </Card>
           )}

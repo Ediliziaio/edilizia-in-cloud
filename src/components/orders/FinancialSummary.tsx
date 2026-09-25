@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { ritenutaSuLordo, IVA_SCORPORO_BANCA } from "@/lib/orders/bonusFiscali";
 import { formatCurrency } from "@/lib/formatters";
 // 2026-05-27: parseDecimalIT al posto di parseFloat sui campi importo —
@@ -33,7 +34,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Euro, CalendarIcon, Check, Clock, Building2, Landmark, AlertTriangle, Link2 } from "lucide-react";
+import { Euro, CalendarIcon, Check, Clock, Building2, Landmark, AlertTriangle, Link2, FileText } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
@@ -933,6 +934,17 @@ export function FinancialSummaryReadOnly({
             {formatCurrency(amount)}
           </span>
         </div>
+        {/* La fattura interna che incassa la rata (25/09/2026): pagata l'una,
+            pagata l'altra. */}
+        {inst.fattura && (
+          <Link
+            to={`/azienda/documenti/${inst.fattura.id}/dettaglio`}
+            className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+          >
+            <FileText className="h-3 w-3" />
+            {inst.fattura.stato === "bozza" ? "Fattura in bozza" : `Fattura n. ${inst.fattura.numero ?? ""}`}
+          </Link>
+        )}
         {amount > 0 && (
           <div className="flex flex-wrap items-center justify-between gap-2">
             {onInstallmentPaidToggle ? (
@@ -1008,7 +1020,9 @@ export function FinancialSummaryReadOnly({
         )}
         {/* Rata incassata → un tap e la registrazione nasce in Prima Nota
             (solo rate su DB: senza id non c'e' aggancio idempotente). */}
-        {conPrimaNota && orderId && inst.is_paid && !!inst.id && amount > 0 && (
+        {/* Con una fattura interna l'incasso in prima nota lo scrive la fattura:
+            un secondo sarebbe un doppione (e il database lo rifiuta). */}
+        {conPrimaNota && orderId && inst.is_paid && !!inst.id && amount > 0 && !inst.documento_fiscale_id && (
           <div className="flex justify-end">
             <RegistraIncassoPrimaNota
               inst={inst}
@@ -1104,8 +1118,10 @@ export function FinancialSummaryReadOnly({
             const pagate = visibili.filter(i => i.is_paid).length;
             // Rate ancora da incassare, con l'importo MOSTRATO (per il saldo
             // quello calcolato): sono i candidati della riconciliazione banca.
+            // Senza le rate con una fattura interna: il bonifico va sulla
+            // fattura (registro incassi o banca), e la rata la segue.
             const daIncassare: RataDaIncassare[] = installments
-              .filter(i => !i.is_paid && !!i.id)
+              .filter(i => !i.is_paid && !!i.id && !i.documento_fiscale_id)
               .map(i => ({
                 id: i.id!,
                 label: i.label,
