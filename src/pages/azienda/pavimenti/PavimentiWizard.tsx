@@ -389,7 +389,11 @@ export default function PavimentiWizard() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <div className="sticky top-0 z-30 border-b bg-background/95 shadow-sm backdrop-blur">
+      {/* Il contenitore che scorre ha 12px (telefono) o 24px (computer) di spazio
+          in alto: con top-0 la testata si fermava lì e nella fessura sopra si
+          vedevano passare i campi. Da telefono è anche a tutta larghezza,
+          attaccata alla barra dell'app. */}
+      <div className="sticky top-0 z-30 border-b bg-background/95 shadow-sm backdrop-blur max-md:-mx-3 max-md:-mt-3 max-md:-top-3 md:-top-6">
         <div className="container mx-auto flex max-w-6xl items-center gap-2 p-2.5 sm:gap-3 sm:p-3">
           <Button variant="ghost" size="icon" onClick={() => { if (isNew && dirty) { setExitDialogOpen(true); return; } navigate("/azienda/pavimenti"); }} className="h-10 w-10 shrink-0">
             <ArrowLeft className="h-4 w-4" />
@@ -401,7 +405,7 @@ export default function PavimentiWizard() {
                 {isNew ? "Nuovo progetto" : detail?.progetto.code ?? "Progetto"}
               </span>
               {!isNew && compactText(detail?.progetto.cliente_nome, detail?.progetto.cliente_cognome) && (
-                <Badge variant="outline" className="text-[10px] max-md:order-4 max-md:border-0 max-md:p-0 max-md:text-xs max-md:font-normal max-md:text-muted-foreground max-md:after:ml-1.5 max-md:after:content-['·']">
+                <Badge variant="outline" className="text-[10px] max-md:order-4 max-md:border-0 max-md:p-0 max-md:text-xs max-md:font-normal max-md:text-muted-foreground">
                   {compactText(detail?.progetto.cliente_nome, detail?.progetto.cliente_cognome)}
                 </Badge>
               )}
@@ -421,7 +425,7 @@ export default function PavimentiWizard() {
                   ● Modifiche non salvate
                 </span>
               ) : savedLabel ? (
-                <span className="text-[10px] text-emerald-600 flex items-center gap-0.5 max-md:order-5 max-md:text-xs">
+                <span className="text-[10px] text-emerald-600 flex items-center gap-0.5 max-md:hidden">
                   ✓ {savedLabel}
                 </span>
               ) : null}

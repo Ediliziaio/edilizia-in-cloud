@@ -104,11 +104,12 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
       ref={setNodeRef}
       style={style}
       className={cn(
-        "group relative rounded-xl border bg-card transition-shadow",
+        // Telefono: righe divise da una linea, non schede dentro la scheda del capitolo.
+        "group relative rounded-xl border bg-card transition-shadow max-sm:rounded-none max-sm:border-x-0 max-sm:border-t-0 max-sm:shadow-none",
         isDragging ? "z-10 border-orange-300 shadow-lg" : "border-border/70 hover:border-border hover:shadow-sm",
       )}
     >
-      <div className="flex items-stretch gap-1 p-2 sm:gap-2 sm:p-2.5">
+      <div className="flex items-stretch gap-1 p-2 sm:gap-2 sm:p-2.5 max-sm:px-0.5 max-sm:py-2">
         {/* Drag handle */}
         <button
           type="button"
@@ -120,21 +121,24 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
           <GripVertical className="h-4 w-4" />
         </button>
 
-        <div className="min-w-0 flex-1">
+        {/* Telefono: le due righe diventano una fila sola che va a capo, ordinata:
+            descrizione e cestino sopra; quantità, unità × prezzo e totale sotto.
+            Via duplica, sconto (se non c'è), prezzo di zona e la colonna di azioni. */}
+        <div className="min-w-0 flex-1 max-sm:flex max-sm:flex-wrap max-sm:items-center max-sm:gap-x-1 max-sm:gap-y-1.5">
           {/* Riga 1: descrizione + UdM */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 max-sm:contents">
             <Input
               value={voce.descrizione}
               onChange={(e) => onChange({ descrizione: e.target.value })}
               placeholder="Descrizione lavorazione…"
-              className="h-8 flex-1 border-transparent bg-transparent px-1.5 text-sm font-medium shadow-none hover:bg-muted/50 focus-visible:bg-background focus-visible:ring-1"
+              className="h-8 flex-1 border-transparent bg-transparent px-1.5 text-sm font-medium shadow-none hover:bg-muted/50 focus-visible:bg-background focus-visible:ring-1 max-sm:order-1 max-sm:min-w-0"
             />
             <Select
               value={voce.unita_misura}
               onValueChange={(v) => onChange({ unita_misura: v as PavUnitaMisura })}
             >
               {/* tap-compact: sul telefono la regola dei 44px gonfiava ogni bottone della riga. */}
-              <SelectTrigger className="tap-compact h-7 w-[74px] shrink-0 rounded-full border-dashed px-2 text-[11px] font-medium tabular-nums">
+              <SelectTrigger className="tap-compact h-7 w-[74px] shrink-0 rounded-full border-dashed px-2 text-[11px] font-medium tabular-nums max-sm:order-5 max-sm:w-[60px] max-sm:px-1.5">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -143,12 +147,23 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
                 ))}
               </SelectContent>
             </Select>
+            {/* Telefono: il cestino accanto alla descrizione, poi si va a capo. */}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onDelete}
+              aria-label="Elimina voce"
+              className="tap-compact hidden h-7 w-7 shrink-0 text-muted-foreground hover:bg-rose-50 hover:text-rose-600 max-sm:order-2 max-sm:inline-flex"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+            <span aria-hidden className="hidden max-sm:order-3 max-sm:block max-sm:h-0 max-sm:basis-full" />
           </div>
 
           {/* Riga 2: quantità × prezzo (− sconto) = importo */}
-          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 pl-1.5 sm:gap-x-3">
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 pl-1.5 sm:gap-x-3 max-sm:contents">
             {/* Quantità */}
-            <label className="flex items-center gap-1 text-[11px] text-muted-foreground">
+            <label className="flex items-center gap-1 text-[11px] text-muted-foreground max-sm:order-4">
               <span className="hidden sm:inline">Qtà</span>
               <Input
                 type="number"
@@ -156,12 +171,12 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
                 min={0}
                 value={Number.isFinite(voce.quantita) ? voce.quantita : 0}
                 onChange={(e) => onChange({ quantita: num(e.target.value) })}
-                className="h-7 w-16 px-1.5 text-right text-sm tabular-nums"
+                className="h-7 w-16 px-1.5 text-right text-sm tabular-nums max-sm:w-[52px]"
               />
             </label>
-            <span className="text-muted-foreground/60">×</span>
+            <span className="text-muted-foreground/60 max-sm:order-6">×</span>
             {/* Prezzo unitario */}
-            <label className="flex items-center gap-1 text-[11px] text-muted-foreground">
+            <label className="flex items-center gap-1 text-[11px] text-muted-foreground max-sm:order-7">
               <Input
                 type="number"
                 inputMode="decimal"
@@ -169,9 +184,9 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
                 step="0.01"
                 value={Number.isFinite(voce.prezzo_unitario) ? voce.prezzo_unitario : 0}
                 onChange={(e) => onChange({ prezzo_unitario: num(e.target.value) })}
-                className="h-7 w-20 px-1.5 text-right text-sm tabular-nums"
+                className="h-7 w-20 px-1.5 text-right text-sm tabular-nums max-sm:w-[68px]"
               />
-              <span className="text-muted-foreground/70">€/{voce.unita_misura}</span>
+              <span className="text-muted-foreground/70 max-sm:hidden">€/{voce.unita_misura}</span>
             </label>
 
             {/* Sconto in popover */}
@@ -181,7 +196,8 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
                   variant="ghost"
                   size="sm"
                   className={cn(
-                    "tap-compact h-7 gap-1 rounded-full px-2 text-[11px]",
+                    "tap-compact h-7 gap-1 rounded-full px-2 text-[11px] max-sm:order-9",
+                    !hasSconto && "max-sm:hidden",
                     hasSconto ? "bg-rose-50 text-rose-600 hover:bg-rose-100" : "text-muted-foreground hover:text-foreground",
                   )}
                 >
@@ -217,7 +233,7 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
             </Popover>
 
             {/* Spacer + importo */}
-            <div className="ml-auto flex items-center gap-2">
+            <div className="ml-auto flex items-center gap-2 max-sm:order-8">
               {showMargine && hasCosto && (
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -233,7 +249,7 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
                   </TooltipContent>
                 </Tooltip>
               )}
-              <span className="min-w-[88px] text-right text-base font-bold tabular-nums text-slate-900">
+              <span className="min-w-[88px] text-right text-base font-bold tabular-nums text-slate-900 max-sm:min-w-0 max-sm:text-sm">
                 {formatCurrency(importo)}
               </span>
             </div>
@@ -294,7 +310,7 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
         </div>
 
         {/* Azioni (hover / sempre su mobile) */}
-        <div className="flex shrink-0 flex-col items-center justify-start gap-0.5 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
+        <div className="flex shrink-0 flex-col items-center justify-start gap-0.5 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 max-sm:hidden">
           <Tooltip>
             <TooltipTrigger asChild>
               <Button

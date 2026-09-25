@@ -286,12 +286,14 @@ export default function ComputoEditor({
       {/* Telefono: a computo vuoto il riepilogo a zero non serve. */}
       <aside className={cn("lg:sticky lg:top-20 lg:self-start", isEmpty && "max-sm:hidden")}>
         <div className="overflow-hidden rounded-2xl border bg-card shadow-sm">
-          <div className="border-b bg-gradient-to-br from-slate-50 to-white px-4 py-3">
+          {/* Telefono: resta il totale che cresce mentre si scrive; capitoli, conteggio e
+              prezzo di zona sono già sulle testate dei capitoli e nel passo PDF. */}
+          <div className="border-b bg-gradient-to-br from-slate-50 to-white px-4 py-3 max-sm:hidden">
             <p className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
               <ListChecks className="h-3.5 w-3.5" /> Riepilogo computo
             </p>
           </div>
-          <div className="space-y-2.5 p-4">
+          <div className="space-y-2.5 p-4 max-sm:p-3">
             {/* Righe imponibile / IVA */}
             <div className="space-y-1.5 text-sm">
               <Row
@@ -329,7 +331,7 @@ export default function ComputoEditor({
 
             {/* Mini-breakdown per capitolo */}
             {totali.perCapitolo.length > 0 && (
-              <div className="space-y-1 border-t pt-2.5">
+              <div className="space-y-1 border-t pt-2.5 max-sm:hidden">
                 <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Per capitolo</p>
                 {totali.perCapitolo.map((c) => {
                   const quota = totali.sommaVoci > 0 ? (c.imponibile / totali.sommaVoci) * 100 : 0;
@@ -349,7 +351,7 @@ export default function ComputoEditor({
             )}
 
             {/* Conteggio voci */}
-            <div className="flex items-center justify-between border-t pt-2.5 text-[11px] text-muted-foreground">
+            <div className="flex items-center justify-between border-t pt-2.5 text-[11px] text-muted-foreground max-sm:hidden">
               <span>Voci totali</span>
               <Badge variant="outline" className="tabular-nums">{nVoci}</Badge>
             </div>

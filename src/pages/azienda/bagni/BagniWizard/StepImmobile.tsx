@@ -12,6 +12,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -63,14 +64,17 @@ const toInt = (raw: string): number | null => {
 };
 
 export default function StepImmobile({ form, onChange }: Props) {
+  const isMobile = useIsMobile();
   // Calcolatore rivestimenti (puro, nessuno stato): pavimento + pareti dal perimetro × altezza.
   const riv = form.perimetro_ml != null && form.perimetro_ml > 0
     ? calcRivestimenti(form.immobile_superficie_mq ?? 0, form.perimetro_ml, form.altezza_rivestimento_m ?? 2.1)
     : null;
   return (
     <Card>
-      <CardContent className="p-4 sm:p-5 space-y-4 max-sm:p-3 max-sm:space-y-3">
-        <div className="flex items-center gap-2">
+      {/* Telefono: colonna con spazi fissi, così il titolo nascosto non lascia un buco in cima. */}
+      <CardContent className="p-4 sm:p-5 space-y-4 max-sm:flex max-sm:flex-col max-sm:gap-3 max-sm:space-y-0 max-sm:p-3">
+        {/* Telefono: il titolo lo dice già il passo in alto. */}
+        <div className="flex items-center gap-2 max-sm:hidden">
           <div className="h-8 w-8 rounded-md bg-orange-50 text-orange-600 flex items-center justify-center max-sm:hidden">
             <Home className="h-4 w-4" />
           </div>
@@ -214,8 +218,9 @@ export default function StepImmobile({ form, onChange }: Props) {
         </div>
 
         {/* ─── Calcolatore rivestimenti ───────────────────────────────────────── */}
-        <div className="rounded-xl border border-orange-100 bg-orange-50/40 p-3 space-y-3">
-          <div className="flex items-center gap-1.5">
+        {/* Telefono: niente riquadro né titolo, i campi stanno col resto del modulo. */}
+        <div className="rounded-xl border border-orange-100 bg-orange-50/40 p-3 space-y-3 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0">
+          <div className="flex items-center gap-1.5 max-sm:hidden">
             <Calculator className="h-3.5 w-3.5 text-orange-600" />
             <span className="text-xs font-semibold text-slate-800">Calcolatore rivestimenti</span>
           </div>
@@ -242,7 +247,7 @@ export default function StepImmobile({ form, onChange }: Props) {
               {riv ? (
                 <p className="text-[11px] text-slate-700">
                   Pavimento: <span className="font-semibold tabular-nums">{riv.pavimento_mq} m²</span> · Rivestimento pareti:{" "}
-                  <span className="font-semibold tabular-nums">≈ {riv.rivestimento_mq} m²</span>. Usa questi m² nelle voci pavimento/rivestimento del computo.
+                  <span className="font-semibold tabular-nums">≈ {riv.rivestimento_mq} m²</span><span className="max-sm:hidden">. Usa questi m² nelle voci pavimento/rivestimento del computo.</span>
                 </p>
               ) : (
                 <p className="text-[10px] text-muted-foreground max-sm:hidden">
@@ -266,8 +271,11 @@ export default function StepImmobile({ form, onChange }: Props) {
             <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50/70 px-3 py-2">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
               <p className="text-[11px] text-blue-900">
-                Bagno accessibile: valuta <strong>maniglioni</strong>, <strong>piatto doccia a filo pavimento</strong> e sanitari ergonomici.
-                Questi interventi rientrano nel <strong>Bonus Barriere 75%</strong> — impostalo dai chip incentivi nello step Economia.
+                <span className="max-sm:hidden">
+                  Bagno accessibile: valuta <strong>maniglioni</strong>, <strong>piatto doccia a filo pavimento</strong> e sanitari ergonomici.
+                  Questi interventi rientrano nel <strong>Bonus Barriere 75%</strong> — impostalo dai chip incentivi nello step Economia.
+                </span>
+                <span className="sm:hidden">Maniglioni, piatto doccia a filo e sanitari ergonomici: vale il <strong>Bonus Barriere 75%</strong>.</span>
               </p>
             </div>
           )}
@@ -279,8 +287,8 @@ export default function StepImmobile({ form, onChange }: Props) {
           <Textarea
             value={form.note ?? ""}
             onChange={(e) => onChange("note", e.target.value || null)}
-            placeholder="Es. immobile in zona vincolata, condominio con orari cantiere, accesso difficoltoso…"
-            className="min-h-20 text-sm"
+            placeholder={isMobile ? "Vincoli, accessi, orari…" : "Es. immobile in zona vincolata, condominio con orari cantiere, accesso difficoltoso…"}
+            className="min-h-20 text-sm max-sm:min-h-16"
           />
           <p className="text-[10px] text-muted-foreground mt-0.5 max-sm:hidden">
             Vincoli edilizi/condominiali e annotazioni utili per il preventivo.

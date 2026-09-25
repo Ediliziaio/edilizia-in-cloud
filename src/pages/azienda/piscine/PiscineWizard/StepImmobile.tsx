@@ -13,6 +13,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -78,10 +79,13 @@ const toInt = (raw: string): number | null => {
 };
 
 export default function StepImmobile({ form, onChange }: Props) {
+  const isMobile = useIsMobile();
   return (
     <Card>
-      <CardContent className="p-4 sm:p-5 space-y-4 max-sm:p-3 max-sm:space-y-3">
-        <div className="flex items-center gap-2">
+      {/* Telefono: colonna con spazi fissi, così il titolo nascosto non lascia un buco in cima. */}
+      <CardContent className="p-4 sm:p-5 space-y-4 max-sm:flex max-sm:flex-col max-sm:gap-3 max-sm:space-y-0 max-sm:p-3">
+        {/* Telefono: il titolo lo dice già il passo in alto. */}
+        <div className="flex items-center gap-2 max-sm:hidden">
           <div className="h-8 w-8 rounded-md bg-cyan-50 text-cyan-600 flex items-center justify-center max-sm:hidden">
             <Waves className="h-4 w-4" />
           </div>
@@ -250,8 +254,8 @@ export default function StepImmobile({ form, onChange }: Props) {
           <Textarea
             value={form.note ?? ""}
             onChange={(e) => onChange("note", e.target.value || null)}
-            placeholder="Es. accesso mezzi per lo scavo, falda/terreno, distanze dai confini, posizione locale tecnico, allaccio acqua/elettrico, permessi…"
-            className="min-h-20 text-sm"
+            placeholder={isMobile ? "Vincoli, accessi, orari…" : "Es. accesso mezzi per lo scavo, falda/terreno, distanze dai confini, posizione locale tecnico, allaccio acqua/elettrico, permessi…"}
+            className="min-h-20 text-sm max-sm:min-h-16"
           />
           <p className="text-[10px] text-muted-foreground mt-0.5 max-sm:hidden">
             Vincoli edilizi/urbanistici (distanze, permessi) e annotazioni utili per il preventivo.

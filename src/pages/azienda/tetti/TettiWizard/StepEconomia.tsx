@@ -87,9 +87,11 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
   const hasComputo = computo.length > 0;
 
   return (
-    <div className="space-y-3">
+    // Telefono: colonna con spazi fissi, così il titolo nascosto non lascia un buco in cima.
+    <div className="space-y-3 max-sm:flex max-sm:flex-col max-sm:gap-3 max-sm:space-y-0">
       {/* Header */}
-      <div>
+      {/* Telefono: il titolo lo dice già il passo in alto. */}
+      <div className="max-sm:hidden">
         <h2 className="text-sm font-semibold text-slate-900">Economia</h2>
         <p className="text-[11px] text-muted-foreground max-sm:hidden">
           Sconto, IVA, eventuale detrazione fiscale e riepilogo del preventivo.{" "}
@@ -101,15 +103,17 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
         <div className="flex items-start gap-2.5 rounded-xl border border-amber-100 bg-amber-50/60 px-3 py-2.5">
           <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
           <p className="text-[11px] text-amber-900">
-            Il computo è ancora vuoto: torna allo step <span className="font-medium">Computo</span> per
-            aggiungere le lavorazioni. Qui vedrai i totali aggregati.
+            <span className="max-sm:hidden">Il computo è ancora vuoto: torna allo step <span className="font-medium">Computo</span> per
+            aggiungere le lavorazioni. Qui vedrai i totali aggregati.</span>
+            <span className="sm:hidden">Computo vuoto: le lavorazioni si aggiungono nel passo Computo.</span>
           </p>
         </div>
       )}
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_minmax(280px,360px)]">
         {/* ─── Riepilogo per capitolo — telefono: nascosto finché è vuoto ─── */}
-        <Card className={totali.perCapitolo.length === 0 ? "max-sm:hidden" : undefined}>
+        {/* Telefono no: gli stessi capitoli coi totali stanno nel riepilogo del passo PDF. */}
+        <Card className="max-sm:hidden">
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-1.5 text-sm">
               <Euro className="h-4 w-4 text-orange-600" /> Riepilogo per capitolo
@@ -238,7 +242,10 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
           {/* Totali complessivi */}
           <Card className="border-orange-200 bg-gradient-to-b from-orange-50/50 to-transparent">
             <CardContent className="space-y-2 p-4">
-              <SummaryRow label={totali.prezzoManuale ? "Prezzo del preventivo" : "Imponibile (lordo)"} value={imponibileLordo} muted />
+              {/* Telefono: senza sconto è uguale all'imponibile netto, una riga basta. */}
+              <div className={scontoGlobaleEur > 0 ? undefined : "max-sm:hidden"}>
+                <SummaryRow label={totali.prezzoManuale ? "Prezzo del preventivo" : "Imponibile (lordo)"} value={imponibileLordo} muted />
+              </div>
               {scontoGlobaleEur > 0 && (
                 <SummaryRow
                   label={`Sconto globale (${scontoPct.toLocaleString("it-IT")}%)`}

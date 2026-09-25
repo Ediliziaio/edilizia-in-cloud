@@ -326,8 +326,10 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
       )}
 
       {/* Come mostrare il computo nel PDF — scelta PER QUESTO PREVENTIVO (non template) */}
+      {/* Telefono no: l'impaginazione del computo si sceglie dal computer
+          (come nel preventivo classico); il PDF usa l'ultima scelta fatta. */}
       {!computoVuoto && (
-        <Card>
+        <Card className="max-md:hidden">
           <CardContent className="space-y-3 p-4 max-md:p-3">
             <div className="flex items-center gap-2">
               <Settings2 className="h-4 w-4 text-orange-600" />

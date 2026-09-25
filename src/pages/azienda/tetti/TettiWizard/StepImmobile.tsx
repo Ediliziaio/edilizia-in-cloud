@@ -12,6 +12,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import {
@@ -67,14 +68,17 @@ const toInt = (raw: string): number | null => {
 };
 
 export default function StepImmobile({ form, onChange, model }: Props) {
+  const isMobile = useIsMobile();
   // Derivati roof-specific (puri, nessuno stato): superficie reale di falda + stima lattoneria.
   const piantaMq = form.superficie_pianta_mq;
   const faldaMq = piantaMq != null && piantaMq > 0 ? calcSuperficieFalda(piantaMq, form.pendenza_pct ?? 0) : null;
   const lattoneria = form.perimetro_ml != null && form.perimetro_ml > 0 ? stimaLattoneria(form.perimetro_ml) : null;
   return (
     <Card>
-      <CardContent className="p-4 sm:p-5 space-y-4 max-sm:p-3 max-sm:space-y-3">
-        <div className="flex items-center gap-2">
+      {/* Telefono: colonna con spazi fissi, così il titolo nascosto non lascia un buco in cima. */}
+      <CardContent className="p-4 sm:p-5 space-y-4 max-sm:flex max-sm:flex-col max-sm:gap-3 max-sm:space-y-0 max-sm:p-3">
+        {/* Telefono: il titolo lo dice già il passo in alto. */}
+        <div className="flex items-center gap-2 max-sm:hidden">
           <div className="h-8 w-8 rounded-md bg-orange-50 text-orange-600 flex items-center justify-center max-sm:hidden">
             <Home className="h-4 w-4" />
           </div>
@@ -222,8 +226,9 @@ export default function StepImmobile({ form, onChange, model }: Props) {
         </div>
 
         {/* ─── Calcolatore copertura (roof-specific) ──────────────────────────── */}
-        <div className="rounded-xl border border-orange-100 bg-orange-50/40 p-3 space-y-3">
-          <div className="flex items-center gap-1.5">
+        {/* Telefono: niente riquadro né titolo, i campi stanno col resto del modulo. */}
+        <div className="rounded-xl border border-orange-100 bg-orange-50/40 p-3 space-y-3 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0">
+          <div className="flex items-center gap-1.5 max-sm:hidden">
             <Calculator className="h-3.5 w-3.5 text-orange-600" />
             <span className="text-xs font-semibold text-slate-800">Calcolatore copertura</span>
           </div>
@@ -288,7 +293,7 @@ export default function StepImmobile({ form, onChange, model }: Props) {
                 <p className="text-[11px] text-slate-700">
                   Stima lattoneria:{" "}
                   <span className="font-semibold tabular-nums">≈ {lattoneria.gronde_ml} m</span> di gronde/scossaline e{" "}
-                  <span className="font-semibold tabular-nums">~{lattoneria.pluviali_n}</span> pluviali. Valori di partenza, regolabili nel computo.
+                  <span className="font-semibold tabular-nums">~{lattoneria.pluviali_n}</span> pluviali<span className="max-sm:hidden">. Valori di partenza, regolabili nel computo.</span>
                 </p>
               ) : (
                 <p className="text-[10px] text-muted-foreground max-sm:hidden">
@@ -312,13 +317,17 @@ export default function StepImmobile({ form, onChange, model }: Props) {
             <div className="flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50/70 px-3 py-2">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-rose-600" />
               <p className="text-[11px] text-rose-900">
-                Copertura con amianto: obbligo di <strong>piano di lavoro e notifica all'ASL</strong> (D.Lgs. 81/08) e
-                smaltimento da ditta autorizzata. Nel listino trovi il capitolo <strong>"Bonifica e smaltimento amianto"</strong> da
-                aggiungere al computo.
+                <span className="max-sm:hidden">
+                  Copertura con amianto: obbligo di <strong>piano di lavoro e notifica all'ASL</strong> (D.Lgs. 81/08) e
+                  smaltimento da ditta autorizzata. Nel listino trovi il capitolo <strong>"Bonifica e smaltimento amianto"</strong> da
+                  aggiungere al computo.
+                </span>
+                <span className="sm:hidden">Servono <strong>piano di lavoro, notifica all'ASL</strong> e smaltimento da ditta autorizzata.</span>
               </p>
             </div>
           )}
-          <div className="flex items-start gap-2 rounded-lg bg-slate-50 px-3 py-2">
+          {/* Telefono no: promemoria fisso, le voci sono già nel listino. */}
+          <div className="flex items-start gap-2 rounded-lg bg-slate-50 px-3 py-2 max-sm:hidden">
             <HardHat className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
             <p className="text-[11px] text-slate-600">
               Lavori in quota &gt; 2 m: previsti <strong>ponteggio</strong> e <strong>linea vita</strong> (UNI 11578) — voci già
@@ -333,8 +342,8 @@ export default function StepImmobile({ form, onChange, model }: Props) {
           <Textarea
             value={form.note ?? ""}
             onChange={(e) => onChange("note", e.target.value || null)}
-            placeholder="Es. immobile in zona vincolata, condominio con orari cantiere, accesso difficoltoso…"
-            className="min-h-20 text-sm"
+            placeholder={isMobile ? "Vincoli, accessi, orari…" : "Es. immobile in zona vincolata, condominio con orari cantiere, accesso difficoltoso…"}
+            className="min-h-20 text-sm max-sm:min-h-16"
           />
           <p className="text-[10px] text-muted-foreground mt-0.5 max-sm:hidden">
             Vincoli edilizi/condominiali e annotazioni utili per il preventivo.

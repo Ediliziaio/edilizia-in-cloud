@@ -238,7 +238,7 @@ export default function CapitoloSection({
             ) : (
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                 <SortableContext items={voci.map((v) => v.id)} strategy={verticalListSortingStrategy}>
-                  <div className="space-y-1.5">
+                  <div className="space-y-1.5 max-sm:space-y-0">
                     {voci.map((v) => (
                       <VoceRow
                         key={v.id}

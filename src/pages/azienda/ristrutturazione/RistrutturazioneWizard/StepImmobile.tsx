@@ -12,6 +12,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -63,14 +64,17 @@ const toInt = (raw: string): number | null => {
 };
 
 export default function StepImmobile({ form, onChange }: Props) {
+  const isMobile = useIsMobile();
   // Stima superfici da vani (puro, nessuno stato): pavimenti/soffitti/pareti/tinteggiature.
   const superfici = form.immobile_superficie_mq != null && form.immobile_superficie_mq > 0
     ? stimaSuperficiVani(form.immobile_superficie_mq, form.altezza_media_m ?? 2.7, form.numero_vani ?? 1)
     : null;
   return (
     <Card>
-      <CardContent className="p-4 sm:p-5 space-y-4 max-sm:p-3 max-sm:space-y-3">
-        <div className="flex items-center gap-2">
+      {/* Telefono: colonna con spazi fissi, così il titolo nascosto non lascia un buco in cima. */}
+      <CardContent className="p-4 sm:p-5 space-y-4 max-sm:flex max-sm:flex-col max-sm:gap-3 max-sm:space-y-0 max-sm:p-3">
+        {/* Telefono: il titolo lo dice già il passo in alto. */}
+        <div className="flex items-center gap-2 max-sm:hidden">
           <div className="h-8 w-8 rounded-md bg-orange-50 text-orange-600 flex items-center justify-center max-sm:hidden">
             <Home className="h-4 w-4" />
           </div>
@@ -201,8 +205,9 @@ export default function StepImmobile({ form, onChange }: Props) {
         </div>
 
         {/* ─── Calcolatore superfici da vani ──────────────────────────────────── */}
-        <div className="rounded-xl border border-orange-100 bg-orange-50/40 p-3 space-y-3">
-          <div className="flex flex-wrap items-center gap-1.5">
+        {/* Telefono: niente riquadro né titolo, i campi stanno col resto del modulo. */}
+        <div className="rounded-xl border border-orange-100 bg-orange-50/40 p-3 space-y-3 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0">
+          <div className="flex flex-wrap items-center gap-1.5 max-sm:hidden">
             <Calculator className="h-3.5 w-3.5 text-orange-600" />
             <span className="text-xs font-semibold text-slate-800">Calcolatore superfici</span>
             <span className="text-[10px] text-muted-foreground max-sm:hidden">— stima da superficie + n. vani + altezza</span>
@@ -229,9 +234,9 @@ export default function StepImmobile({ form, onChange }: Props) {
             <div className="col-span-12 sm:col-span-6">
               {superfici ? (
                 <p className="text-[11px] text-slate-700">
-                  Stima: <span className="font-semibold tabular-nums">{superfici.pavimenti} m²</span> pavimenti/soffitti ·{" "}
+                  <span className="max-sm:hidden">Stima: </span><span className="font-semibold tabular-nums">{superfici.pavimenti} m²</span> pavimenti/soffitti ·{" "}
                   <span className="font-semibold tabular-nums">≈ {superfici.pareti} m²</span> pareti ·{" "}
-                  <span className="font-semibold tabular-nums">≈ {superfici.tinteggiature} m²</span> tinteggiature. Da usare nel computo.
+                  <span className="font-semibold tabular-nums">≈ {superfici.tinteggiature} m²</span> tinteggiature<span className="max-sm:hidden">. Da usare nel computo.</span>
                 </p>
               ) : (
                 <p className="text-[10px] text-muted-foreground max-sm:hidden">
@@ -248,8 +253,8 @@ export default function StepImmobile({ form, onChange }: Props) {
           <Textarea
             value={form.note ?? ""}
             onChange={(e) => onChange("note", e.target.value || null)}
-            placeholder="Es. immobile in zona vincolata, condominio con orari cantiere, accesso difficoltoso…"
-            className="min-h-20 text-sm"
+            placeholder={isMobile ? "Vincoli, accessi, orari…" : "Es. immobile in zona vincolata, condominio con orari cantiere, accesso difficoltoso…"}
+            className="min-h-20 text-sm max-sm:min-h-16"
           />
           <p className="text-[10px] text-muted-foreground mt-0.5 max-sm:hidden">
             Vincoli edilizi/condominiali e annotazioni utili per il preventivo.
