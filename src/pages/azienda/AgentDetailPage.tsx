@@ -23,6 +23,7 @@ import { useAiAgentsBasePath } from "@/hooks/useAiAgentsBasePath";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { callElevenLabsProxy } from "@/modules/ai-agents/hooks/useElevenLabsProxy";
 import type { UnifiedAgent } from "@/types/unifiedAgent.types";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 type SubTab = "panoramica" | "configurazione" | "conversazioni" | "statistiche";
 
@@ -69,6 +70,11 @@ export default function AgentDetailPage() {
   // Prefix dinamico: preserva contesto admin vs azienda sui link "Torna agli agenti"
   const basePath = useAiAgentsBasePath();
   const [activeTab, setActiveTab] = useState<SubTab>("panoramica");
+  // Telefono: l'agente si guarda (panoramica e chiamate); configurazione e
+  // statistiche si usano da computer o tablet.
+  const isMobile = useIsMobile();
+  const schedaVisibile: SubTab =
+    isMobile && (activeTab === "configurazione" || activeTab === "statistiche") ? "panoramica" : activeTab;
 
   const { data: agent, isLoading } = useQuery({
     queryKey: ["agent-detail", companyId, agentId],
@@ -238,19 +244,19 @@ export default function AgentDetailPage() {
   return (
     <div className="space-y-0">
       {/* Header */}
-      <div className="px-6 pt-6 pb-4">
-        <div className="flex items-center gap-3 mb-3">
+      <div className="px-6 pt-6 pb-4 max-md:px-0 max-md:pb-3 max-md:pt-0">
+        <div className="flex items-center gap-3 mb-3 max-md:hidden">
           <Button variant="ghost" size="sm" className="hidden md:inline-flex" onClick={() => navigate(basePath)}>
             <ArrowLeft className="h-4 w-4 mr-1" /> Agenti
           </Button>
         </div>
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
-            <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
+            <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center max-md:hidden">
               <Bot className="h-6 w-6 text-primary" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-foreground">{agent.nome}</h1>
+              <h1 className="text-xl font-bold text-foreground max-md:text-lg">{agent.nome}</h1>
               <div className="flex items-center gap-2 mt-0.5">
                 <Badge variant="secondary" className="text-[10px]">{agent.tipo}</Badge>
                 <Badge
@@ -271,9 +277,9 @@ export default function AgentDetailPage() {
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as SubTab)}>
-        <div className="px-6 border-b border-border">
-          <TabsList className="bg-transparent h-auto p-0 gap-0">
+      <Tabs value={schedaVisibile} onValueChange={(v) => setActiveTab(v as SubTab)}>
+        <div className="px-6 border-b border-border max-md:px-0">
+          <TabsList className="bg-transparent h-auto p-0 gap-0 max-md:w-full">
             {[
               { key: "panoramica", label: "Panoramica", icon: BarChart3 },
               { key: "configurazione", label: "Configurazione", icon: Settings2 },
@@ -285,9 +291,11 @@ export default function AgentDetailPage() {
                 <TabsTrigger
                   key={tab.key}
                   value={tab.key}
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5 text-sm"
+                  className={`rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5 text-sm max-md:flex-1 max-md:px-2 max-md:text-[13px] ${
+                    tab.key === "configurazione" || tab.key === "statistiche" ? "max-md:hidden" : ""
+                  }`}
                 >
-                  <Icon className="h-4 w-4 mr-1.5" />
+                  <Icon className="h-4 w-4 mr-1.5 max-md:hidden" />
                   {tab.label}
                 </TabsTrigger>
               );
@@ -296,8 +304,8 @@ export default function AgentDetailPage() {
         </div>
 
         {/* Panoramica */}
-        <TabsContent value="panoramica" className="mt-0 p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <TabsContent value="panoramica" className="mt-0 p-6 max-md:px-0 max-md:py-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 max-md:mb-3 max-md:grid-cols-2 max-md:gap-2">
             <StatCard icon={isVoice ? Phone : MessageSquare} label={isVoice ? "Chiamate" : "Chat"} value={isVoice ? safeNumber(agent.chiamate_totali) : safeNumber(agent.chat_totali)} />
             <StatCard icon={Clock} label="Minuti" value={Math.round(safeNumber(agent.minuti_totali))} />
             <StatCard icon={CheckCircle2} label="Completate" value={safeNumber(agent.chiamate_completate)} />
@@ -316,7 +324,7 @@ export default function AgentDetailPage() {
             </Card>
           )}
 
-          <div className="grid grid-cols-2 gap-4 mt-4">
+          <div className="grid grid-cols-2 gap-4 mt-4 max-md:mt-3 max-md:grid-cols-1 max-md:gap-2">
             <Card>
               <CardHeader className="pb-2"><CardTitle className="text-sm">Dettagli</CardTitle></CardHeader>
               <CardContent className="space-y-2 text-sm">
@@ -521,7 +529,7 @@ export default function AgentDetailPage() {
         </TabsContent>
 
         {/* Conversazioni */}
-        <TabsContent value="conversazioni" className="mt-0 p-6">
+        <TabsContent value="conversazioni" className="mt-0 p-6 max-md:px-0 max-md:py-3">
           <ConversazioniTab agentIdFilter={agentId} />
         </TabsContent>
 
@@ -545,13 +553,13 @@ export default function AgentDetailPage() {
 function StatCard({ icon: Icon, label, value }: { icon: typeof Phone; label: string; value: string | number }) {
   return (
     <Card>
-      <CardContent className="p-4 flex items-center gap-3">
-        <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+      <CardContent className="p-4 flex items-center gap-3 max-md:px-2.5 max-md:py-2">
+        <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center max-md:hidden">
           <Icon className="h-5 w-5 text-primary" />
         </div>
-        <div>
-          <p className="text-xl font-bold text-foreground">{value}</p>
-          <p className="text-xs text-muted-foreground">{label}</p>
+        <div className="max-md:min-w-0">
+          <p className="text-xl font-bold text-foreground max-md:text-base">{value}</p>
+          <p className="text-xs text-muted-foreground max-md:truncate max-md:text-[11px]">{label}</p>
         </div>
       </CardContent>
     </Card>

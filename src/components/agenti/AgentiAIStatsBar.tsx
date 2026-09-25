@@ -59,22 +59,23 @@ const STAT_CONFIG = [
 
 export function AgentiAIStatsBar({ stats }: { stats: AICompanyStats }) {
   return (
-    <div className="grid grid-cols-2 gap-2.5 px-6 pb-4 sm:grid-cols-3 lg:grid-cols-6 md:gap-3">
+    // Telefono: sei numeri 2×3 a filo pagina, senza icone.
+    <div className="grid grid-cols-2 gap-2.5 px-6 pb-4 sm:grid-cols-3 lg:grid-cols-6 md:gap-3 max-md:gap-2 max-md:px-0 max-md:pb-0">
       {STAT_CONFIG.map((cfg) => {
         const val = stats[cfg.key] ?? 0;
         const Icon = cfg.icon;
         return (
           <div
             key={cfg.key}
-            className="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white p-3 shadow-sm md:gap-3"
+            className="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white p-3 shadow-sm md:gap-3 max-md:min-w-0 max-md:rounded-lg max-md:px-2.5 max-md:py-2 max-md:shadow-none"
           >
             <div
-              className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg ${cfg.bg}`}
+              className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg max-md:hidden ${cfg.bg}`}
             >
               <Icon className={`h-4 w-4 ${cfg.color}`} />
             </div>
             <div className="min-w-0">
-              <p className="text-lg font-bold leading-tight text-slate-900 tabular-nums">
+              <p className="text-lg font-bold leading-tight text-slate-900 tabular-nums max-md:text-base">
                 {cfg.format(val)}
               </p>
               <p className="truncate text-[11px] text-slate-500">{cfg.label}</p>

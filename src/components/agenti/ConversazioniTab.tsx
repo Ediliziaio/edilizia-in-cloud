@@ -101,10 +101,12 @@ export function ConversazioniTab({ agentIdFilter }: ConversazioniTabProps = {}) 
   }
 
   return (
-    <div className="space-y-6">
+    // Telefono: il filtro agente a tutta larghezza (il titolo lo dice la scheda),
+    // righe più basse, stato vuoto in una riga.
+    <div className="space-y-6 max-md:space-y-3">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
+        <div className="max-md:hidden">
           <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
             <MessageSquare className="h-5 w-5 text-primary" />
             Conversazioni
@@ -114,7 +116,7 @@ export function ConversazioniTab({ agentIdFilter }: ConversazioniTabProps = {}) 
           </p>
         </div>
         <Select value={agentFilter} onValueChange={setAgentFilter}>
-          <SelectTrigger className="w-52 h-8 text-sm">
+          <SelectTrigger className="w-52 h-8 text-sm max-md:h-9 max-md:w-full">
             <SelectValue placeholder="Filtra per agente" />
           </SelectTrigger>
           <SelectContent>
@@ -134,18 +136,18 @@ export function ConversazioniTab({ agentIdFilter }: ConversazioniTabProps = {}) 
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       ) : conversations.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-center">
-          <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center mb-3">
+        <div className="flex flex-col items-center justify-center py-16 text-center max-md:py-4">
+          <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center mb-3 max-md:hidden">
             <MessageSquare className="h-7 w-7 text-primary" />
           </div>
-          <p className="text-foreground font-medium">Nessuna conversazione</p>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-foreground font-medium max-md:text-[13px]">Nessuna conversazione</p>
+          <p className="text-sm text-muted-foreground mt-1 max-md:hidden">
             Le conversazioni appariranno qui dopo che gli agenti gestiscono le prime chiamate o chat.
           </p>
           {/* Audit AI 2026-06: senza il webhook eventi del provider vocale i
               dati non arrivano MAI — dirlo evita di scambiare il vuoto per
               "nessuna attività". */}
-          <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800">
+          <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800 max-md:mt-1.5 max-md:border-0 max-md:bg-transparent max-md:p-0 max-md:text-[11px]">
             La raccolta automatica delle conversazioni (webhook eventi provider) non è ancora attiva.
           </p>
         </div>
@@ -161,11 +163,11 @@ export function ConversazioniTab({ agentIdFilter }: ConversazioniTabProps = {}) 
               <button
                 key={conv.id}
                 onClick={() => setSelectedConv(conv)}
-                className="w-full rounded-lg border border-slate-200 bg-white p-4 text-left shadow-sm transition-all hover:border-primary/50 hover:bg-slate-50 hover:shadow"
+                className="w-full rounded-lg border border-slate-200 bg-white p-4 text-left shadow-sm transition-all hover:border-primary/50 hover:bg-slate-50 hover:shadow max-md:px-3 max-md:py-2.5 max-md:shadow-none"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center max-md:hidden">
                       {conv.direzione === "outbound" ? (
                         <PhoneOutgoing className="h-4 w-4 text-primary" />
                       ) : (
@@ -203,7 +205,7 @@ export function ConversazioniTab({ agentIdFilter }: ConversazioniTabProps = {}) 
                     {conv.sentiment && (
                       <Badge
                         variant="outline"
-                        className={`text-[10px] ${
+                        className={`text-[10px] max-md:hidden ${
                           conv.sentiment === "positivo"
                             ? "border-green-300 text-green-600"
                             : conv.sentiment === "negativo"

@@ -163,20 +163,21 @@ export function ChatConversazioniTab() {
   }
 
   return (
-    <div className="space-y-4">
+    // Telefono: ricerca e stato sulla stessa riga, stato vuoto in una riga.
+    <div className="space-y-4 max-md:space-y-3">
       {/* Toolbar */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="relative flex-1 max-w-xs">
+      <div className="flex items-center gap-3 flex-wrap max-md:flex-nowrap max-md:gap-2">
+        <div className="relative flex-1 max-w-xs max-md:min-w-0 max-md:max-w-none">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
             value={cerca}
             onChange={(e) => setCerca(e.target.value)}
             placeholder="Cerca sessione..."
-            className="pl-8 h-8 text-sm"
+            className="pl-8 h-8 text-sm max-md:h-9"
           />
         </div>
         <Select value={filtroStato} onValueChange={setFiltroStato}>
-          <SelectTrigger className="w-36 h-8 text-sm">
+          <SelectTrigger className="w-36 h-8 text-sm max-md:h-9 max-md:w-28 max-md:shrink-0">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -193,15 +194,15 @@ export function ChatConversazioniTab() {
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       ) : sessions.length === 0 ? (
-        <div className="flex flex-col items-center py-16 text-center">
-          <MessageSquare className="h-10 w-10 text-muted-foreground mb-3" />
-          <p className="font-semibold">Nessuna sessione chat</p>
-          <p className="text-sm text-muted-foreground mt-1">
+        <div className="flex flex-col items-center py-16 text-center max-md:py-4">
+          <MessageSquare className="h-10 w-10 text-muted-foreground mb-3 max-md:hidden" />
+          <p className="font-semibold max-md:text-[13px]">Nessuna sessione chat</p>
+          <p className="text-sm text-muted-foreground mt-1 max-md:hidden">
             Le sessioni appariranno quando gli utenti interagiranno con i tuoi agenti chat.
           </p>
           {/* Audit AI 2026-06: stesso discorso delle conversazioni vocali —
               il salvataggio sessioni dal widget/provider non è ancora cablato. */}
-          <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800">
+          <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800 max-md:mt-1.5 max-md:border-0 max-md:bg-transparent max-md:p-0 max-md:text-[11px]">
             Il salvataggio automatico delle sessioni chat non è ancora attivo.
           </p>
         </div>
