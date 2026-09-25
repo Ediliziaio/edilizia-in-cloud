@@ -137,7 +137,8 @@ export default function SettingsEsportaDati() {
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-2xl font-bold tracking-tight">Esporta i dati dell'azienda</h2>
+        {/* Da 768 il titolo è già nella testata («Esporta i dati»). */}
+        <h2 className="text-2xl font-bold tracking-tight md:hidden">Esporta i dati dell'azienda</h2>
         <p className="text-muted-foreground">
           Un archivio zip con un foglio CSV per ogni elenco. Serve per un backup,
           per passare a un altro gestionale o per consegnare tutto al commercialista.
