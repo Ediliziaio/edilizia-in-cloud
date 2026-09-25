@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription,
@@ -10,13 +10,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Loader2, Copy, Check, ShieldCheck, User, TrendingUp, Phone,
-  ChevronRight, ChevronLeft, ChevronDown, Building2, LayoutDashboard, Megaphone, CheckCircle2, AlertTriangle, Settings,
-  Eye, EyeOff, Lock, HardHat, MapPin, Euro, Search, Users2, X, Info,
+  ChevronRight, ChevronLeft, ChevronDown, Building2, LayoutDashboard, Megaphone, CheckCircle2, Settings,
+  Eye, EyeOff, HardHat, Euro, Search, Users2, X, Share2, SlidersHorizontal,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
@@ -29,6 +27,7 @@ import {
   type PermissionSectionDef, type StaffRoleType, type BooleanPermissionKey,
 } from "@/components/users/permissionsDefaults";
 import { SolaLetturaToggle } from "@/components/users/SolaLetturaToggle";
+import { cn } from "@/lib/utils";
 
 export type { StaffRoleType };
 
@@ -54,16 +53,52 @@ interface CreateUserWizardProps {
   isLoading?: boolean;
 }
 
-const ROLE_OPTIONS: { value: StaffRoleType; label: string; description: string; icon: React.ElementType; color: string; preview?: string[] }[] = [
-  { value: "company_admin", label: "Amministratore", description: "Accesso completo a tutto", icon: ShieldCheck, color: "text-blue-600 bg-blue-500/10 border-blue-500/20", preview: [] },
-  { value: "company_staff", label: "Operatore", description: "Gestione interna commesse", icon: User, color: "text-slate-600 bg-slate-500/10 border-slate-500/20", preview: ["Ordini & Commesse", "Magazzino", "Calendario", "Clienti", "Fatturazione"] },
-  { value: "salesperson", label: "Venditore", description: "Vendite e opportunità", icon: TrendingUp, color: "text-emerald-600 bg-emerald-500/10 border-emerald-500/20", preview: ["CRM Contatti", "Opportunità", "Preventivi CRM", "Calendar CRM", "Sales OS"] },
-  { value: "call_center", label: "Call Center", description: "Contatti e assistenza", icon: Phone, color: "text-orange-600 bg-orange-500/10 border-orange-500/20", preview: ["CRM Contatti", "Opportunità (sposta le fasi)", "Calendario CRM", "Appuntamenti"] },
-  { value: "employee", label: "Operaio / Tecnico", description: "Accesso cantiere — solo attività assegnate", icon: HardHat, color: "text-amber-600 bg-amber-500/10 border-amber-500/20", preview: ["Calendario (propri turni)", "Giornale Lavori"] },
-  { value: "subcontractor", label: "Subappaltatore", description: "Commesse assegnate — visibilità limitata", icon: Building2, color: "text-purple-600 bg-purple-500/10 border-purple-500/20", preview: ["Ordini assegnati", "Calendario", "Clienti (propri)"] },
+/*
+ * Nuovo utente (ridisegnato il 25/09/2026, richiesta «migliorala notevolmente»).
+ *
+ * Prima: quattro passi (tipo → dati → una pagina di permessi con sette gruppi
+ * aperti, livelli economici, aree → riepilogo) e sei riquadri da 160px per il
+ * ruolo. La maggior parte degli utenti si crea col preset del ruolo, e il
+ * riepilogo ripeteva quello appena scritto.
+ *
+ * Ora: 1) chi è — nome, email e ruolo su una schermata, con il riassunto dei
+ * permessi del ruolo e «Crea utente» subito; 2) permessi, FACOLTATIVO («Personalizza»):
+ * prima le tre scelte che contano (importi, solo i suoi dati, sola lettura),
+ * poi i moduli in gruppi chiusi con la ricerca, poi le avanzate; 3) fatto — le
+ * credenziali, da condividere o copiare in un colpo.
+ */
+
+const ROLE_OPTIONS: { value: StaffRoleType; label: string; description: string; icon: React.ElementType; preview?: string[] }[] = [
+  { value: "company_admin", label: "Amministratore", description: "Accesso completo a tutto", icon: ShieldCheck, preview: [] },
+  { value: "company_staff", label: "Operatore", description: "Gestione interna commesse", icon: User, preview: ["Ordini & Commesse", "Magazzino", "Calendario", "Clienti", "Fatturazione"] },
+  { value: "salesperson", label: "Venditore", description: "Vendite e opportunità", icon: TrendingUp, preview: ["CRM Contatti", "Opportunità", "Preventivi CRM", "Calendar CRM", "Sales OS"] },
+  { value: "call_center", label: "Call Center", description: "Contatti e assistenza", icon: Phone, preview: ["CRM Contatti", "Opportunità (sposta le fasi)", "Calendario CRM", "Appuntamenti"] },
+  { value: "employee", label: "Operaio / Tecnico", description: "Solo app di cantiere", icon: HardHat, preview: ["Calendario (propri turni)", "Giornale Lavori"] },
+  { value: "subcontractor", label: "Subappaltatore", description: "Solo commesse assegnate", icon: Building2, preview: ["Ordini assegnati", "Calendario", "Clienti (propri)"] },
 ];
 
+/** Una riga sotto l'elenco dei ruoli, solo dove cambia qualcosa di importante. */
+const NOTA_RUOLO: Partial<Record<StaffRoleType, string>> = {
+  company_admin: "Vede e modifica tutto: non ci sono permessi da scegliere.",
+  employee: "Entra solo dall'app di cantiere (lavori.ediliziaincloud.com), non dal gestionale.",
+  subcontractor: "Vede solo le commesse assegnate a lui, nessun dato economico dell'azienda.",
+};
+
+/** Gli importi in parole, per il riassunto del primo passo (anche quando il
+ *  preset non coincide con un livello: «personalizzati» non diceva niente). */
+function descriviImporti(p: StaffPermissions): string {
+  const visti = [
+    p.can_view_order_amounts && "vendite",
+    p.can_view_costs && "costi",
+    p.can_view_margins && "margini",
+  ].filter(Boolean) as string[];
+  if (visti.length === 0) return "nessuno";
+  if (visti.length === 1) return visti[0];
+  return `${visti.slice(0, -1).join(", ")} e ${visti[visti.length - 1]}`;
+}
+
 const ROLES_WITH_PERMISSIONS: StaffRoleType[] = ["company_staff", "salesperson", "call_center", "employee", "subcontractor"];
+const ROLES_WITH_EMPLOYEE_FLAG: StaffRoleType[] = ["company_staff", "company_admin", "salesperson"];
 
 const ROLE_LABELS: Record<StaffRoleType, string> = {
   company_admin: "Amministratore", company_staff: "Operatore",
@@ -72,13 +107,18 @@ const ROLE_LABELS: Record<StaffRoleType, string> = {
   subcontractor: "Subappaltatore",
 };
 
-// --- Permission Group Component ---
-function PermGroup({ label, icon: Icon, iconColor, sections, permissions, onToggle }: {
+const EMAIL_VALIDA = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// --- Gruppo di permessi (chiuso: si apre a richiesta o con la ricerca) ---
+function PermGroup({ label, icon: Icon, iconColor, sections, permissions, onToggle, forzaAperto }: {
   label: string; icon: React.ElementType; iconColor: string;
   sections: PermissionSectionDef[]; permissions: StaffPermissions;
   onToggle: (key: BooleanPermissionKey, value: boolean) => void;
+  /** Aperto d'ufficio mentre si cerca: si vedono subito i moduli trovati. */
+  forzaAperto?: boolean;
 }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
+  const aperto = !!forzaAperto || open;
   const activeCount = sections.reduce((c, s) => {
     let n = permissions[s.viewKey] ? 1 : 0;
     if (s.editKey && permissions[s.editKey]) n++;
@@ -96,33 +136,31 @@ function PermGroup({ label, icon: Icon, iconColor, sections, permissions, onTogg
   };
 
   return (
-    <Collapsible open={open} onOpenChange={setOpen}>
+    <Collapsible open={aperto} onOpenChange={setOpen}>
       {/* Lo switch "attiva tutto" NON può stare dentro il bottone che apre il
-          gruppo: un <button> dentro un <button> è HTML non valido — la
-          tastiera non raggiunge lo switch e lo screen reader legge un solo
-          comando. Ora la riga è un contenitore, e i due comandi (apri/chiudi
-          e attiva-tutto) sono fratelli. Aspetto invariato. */}
-      <div className="w-full flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
+          gruppo: un <button> dentro un <button> è HTML non valido. La riga è
+          un contenitore, e i due comandi (apri/chiudi e attiva-tutto) sono fratelli. */}
+      <div className="flex w-full items-center justify-between rounded-lg bg-muted/50 px-3 py-2 transition-colors hover:bg-muted">
         <CollapsibleTrigger asChild>
-          <button type="button" className="flex flex-1 min-w-0 items-center gap-2 text-left">
-            <Icon className={`h-4 w-4 ${iconColor}`} />
-            <span className="text-sm font-medium">{label}</span>
-            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{activeCount}/{totalCount}</Badge>
+          <button type="button" className="tap-compact flex min-w-0 flex-1 items-center gap-2 text-left">
+            <Icon className={`h-4 w-4 shrink-0 ${iconColor}`} />
+            <span className="truncate text-sm font-medium">{label}</span>
+            <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">{activeCount}/{totalCount}</span>
           </button>
         </CollapsibleTrigger>
         <div className="flex items-center gap-2 pl-2">
           <Switch checked={allActive} onCheckedChange={handleToggleAll} aria-label={`Attiva tutti i permessi di ${label}`} />
           <CollapsibleTrigger asChild>
-            <button type="button" aria-label={open ? `Comprimi ${label}` : `Espandi ${label}`} className="text-muted-foreground">
-              {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            <button type="button" aria-label={aperto ? `Comprimi ${label}` : `Espandi ${label}`} className="tap-compact text-muted-foreground">
+              {aperto ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
             </button>
           </CollapsibleTrigger>
         </div>
       </div>
-      <CollapsibleContent className="px-3 pt-2 pb-1 space-y-1">
+      <CollapsibleContent className="space-y-0.5 px-1 pb-1 pt-1.5">
         {sections.map(section => (
-          <div key={section.viewKey} className="flex items-start justify-between gap-3 rounded-lg px-1.5 py-1.5 transition-colors hover:bg-muted/40">
-            <div className="flex items-start gap-2.5 min-w-0">
+          <div key={section.viewKey} className="flex items-start justify-between gap-3 rounded-lg px-2 py-1.5 transition-colors hover:bg-muted/40">
+            <div className="flex min-w-0 items-start gap-2.5">
               <Switch
                 id={`wiz-${section.viewKey}`}
                 className="mt-0.5"
@@ -131,24 +169,25 @@ function PermGroup({ label, icon: Icon, iconColor, sections, permissions, onTogg
                 onCheckedChange={(checked) => onToggle(section.viewKey, checked)}
               />
               <div className="min-w-0">
-                <Label htmlFor={`wiz-${section.viewKey}`} className="text-sm cursor-pointer leading-tight">{section.label}</Label>
+                <Label htmlFor={`wiz-${section.viewKey}`} className="cursor-pointer text-sm leading-tight">{section.label}</Label>
+                {/* Mobile: basta il nome del modulo. */}
                 {section.description && (
-                  <p className="text-xs text-muted-foreground mt-0.5 leading-snug">{section.description}</p>
+                  <p className="mt-0.5 text-xs leading-snug text-muted-foreground max-sm:hidden">{section.description}</p>
                 )}
                 {(bloccato(section.viewKey) || (section.editKey && bloccato(section.editKey))) && (
-                  <p className="text-[11px] text-amber-600 mt-0.5">{SOLA_LETTURA_BLOCKED_NOTE}</p>
+                  <p className="mt-0.5 text-[11px] text-amber-600">{SOLA_LETTURA_BLOCKED_NOTE}</p>
                 )}
               </div>
             </div>
             {section.editKey && permissions[section.viewKey] && (
-              <div className="flex items-center gap-1.5 shrink-0 pt-0.5">
+              <div className="flex shrink-0 items-center gap-1.5 pt-0.5">
                 <Switch
                   id={`wiz-${section.editKey}`}
                   checked={permissions[section.editKey]}
                   disabled={bloccato(section.editKey)}
                   onCheckedChange={(checked) => onToggle(section.editKey!, checked)}
                 />
-                <Label htmlFor={`wiz-${section.editKey}`} className="text-xs text-muted-foreground cursor-pointer">Modifica</Label>
+                <Label htmlFor={`wiz-${section.editKey}`} className="cursor-pointer text-xs text-muted-foreground">Modifica</Label>
               </div>
             )}
           </div>
@@ -158,8 +197,8 @@ function PermGroup({ label, icon: Icon, iconColor, sections, permissions, onTogg
   );
 }
 
-// Gruppi dello step permessi (stesse macro-aree della sidebar). Le 3 chiavi
-// economiche sono escluse dai gruppi: le governa il selettore a livelli.
+// Gruppi dei permessi (stesse macro-aree della sidebar). Le 3 chiavi
+// economiche sono escluse dai gruppi: le governa il selettore «Importi».
 const WIZARD_GROUPS = [
   { label: "Cruscotto",           icon: Building2,       iconColor: "text-indigo-600",  sections: CRUSCOTTO_SECTIONS },
   { label: "Cantieri & Lavori",   icon: LayoutDashboard, iconColor: "text-blue-600",    sections: CANTIERI_SECTIONS },
@@ -173,8 +212,8 @@ const WIZARD_ECON_KEYS = new Set<string>(["can_view_order_amounts", "can_view_co
 
 export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: CreateUserWizardProps) {
   const { toast } = useToast();
-  // Steps: 1=role, 2=info, 3=perms(or confirm for admin), 4=confirm(non-admin only), success=5
-  const [step, setStep] = useState(1);
+  // Passi: 1 = chi è (e si può già creare), 2 = permessi (facoltativo), 3 = fatto.
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -183,6 +222,7 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
   // scelto ma, senza un click sulla card, l'utente nasceva coi soli default.
   const [permissions, setPermissions] = useState<StaffPermissions>({ ...DEFAULT_PERMISSIONS, ...ROLE_PRESETS.company_staff });
   const [permSearch, setPermSearch] = useState("");
+  const [avanzateAperte, setAvanzateAperte] = useState(false);
   const economicLevel = detectEconomicLevel(permissions);
   const filterWizardSections = (sections: PermissionSectionDef[]) => {
     const q = permSearch.trim().toLowerCase();
@@ -193,23 +233,39 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
   const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [password, setPassword] = useState("");
+  const [scegliPassword, setScegliPassword] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmClose, setShowConfirmClose] = useState(false);
   const [commissionPercentage, setCommissionPercentage] = useState<string>("");
   const [alsoEmployee, setAlsoEmployee] = useState<boolean>(false);
   const [grossSalary, setGrossSalary] = useState<string>("");
+  // Ogni passo parte dall'alto: prima «Personalizza» apriva i permessi già
+  // scorsi in fondo, con lo scorrimento rimasto dal passo precedente.
+  const corpoRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    corpoRef.current?.scrollTo?.({ top: 0 });
+  }, [step]);
 
   const showPermissions = ROLES_WITH_PERMISSIONS.includes(roleType);
-  const totalSteps = showPermissions ? 4 : 3;
-  const isConfirmStep = showPermissions ? step === 4 : step === 3;
-  const isSuccessStep = step === 5;
+  const isSuccessStep = step === 3;
+  const conFlagDipendente = ROLES_WITH_EMPLOYEE_FLAG.includes(roleType);
+  const stipendioRilevante = roleType === "employee" || (conFlagDipendente && alsoEmployee);
+
+  // Permessi diversi dal preset del ruolo? Il riassunto lo dice.
+  const permessiPersonalizzati = useMemo(() => {
+    if (!showPermissions) return false;
+    const preset = { ...DEFAULT_PERMISSIONS, ...ROLE_PRESETS[roleType] } as Record<string, unknown>;
+    const attuali = permissions as unknown as Record<string, unknown>;
+    return Object.keys(preset).some((k) => JSON.stringify(attuali[k]) !== JSON.stringify(preset[k]));
+  }, [permissions, roleType, showPermissions]);
 
   const resetForm = () => {
     setStep(1); setFirstName(""); setLastName(""); setEmail("");
     setRoleType("company_staff");
     setPermissions({ ...DEFAULT_PERMISSIONS, ...ROLE_PRESETS.company_staff });
+    setPermSearch(""); setAvanzateAperte(false);
     setTemporaryPassword(null); setCopied(false);
-    setPassword(""); setShowPassword(false);
+    setPassword(""); setScegliPassword(false); setShowPassword(false);
     setShowConfirmClose(false); setCommissionPercentage(""); setAlsoEmployee(false); setGrossSalary("");
   };
 
@@ -254,8 +310,8 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
   const handleSelectAll = () => {
     const allTrue: Partial<StaffPermissions> = {};
     ALL_PERMISSION_SECTIONS.forEach(s => {
-      (allTrue as any)[s.viewKey] = true;
-      if (s.editKey) (allTrue as any)[s.editKey] = true;
+      allTrue[s.viewKey] = true;
+      if (s.editKey) allTrue[s.editKey] = true;
     });
     // syncLegacyMarketingFlags rispegne ciò che la sola lettura blocca.
     setPermissions(prev => syncLegacyMarketingFlags({ ...prev, ...allTrue, can_view_marketing: true }));
@@ -269,33 +325,28 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
     setPermissions(prev => ({ ...DEFAULT_PERMISSIONS, only_assigned: prev.only_assigned, sola_lettura: prev.sola_lettura, ...ROLE_PRESETS[roleType] }));
   };
 
-  const handleNext = () => {
-    if (step === 1) {
-      setStep(2);
-    } else if (step === 2) {
-      if (!firstName.trim() || !lastName.trim() || !email.trim()) {
-        toast({ title: "Campi obbligatori", description: "Compila nome, cognome e email.", variant: "destructive" });
-        return;
-      }
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        toast({ title: "Email non valida", description: "Inserisci un indirizzo email valido.", variant: "destructive" });
-        return;
-      }
-      setStep(3);
-    } else if (step === 3 && showPermissions) {
-      setStep(4);
+  /** Nome, cognome ed email: servono sia per creare sia per passare ai permessi. */
+  const datiValidi = (): boolean => {
+    if (!firstName.trim() || !lastName.trim() || !email.trim()) {
+      toast({ title: "Campi obbligatori", description: "Compila nome, cognome e email.", variant: "destructive" });
+      return false;
     }
+    if (!EMAIL_VALIDA.test(email.trim())) {
+      toast({ title: "Email non valida", description: "Inserisci un indirizzo email valido.", variant: "destructive" });
+      return false;
+    }
+    return true;
   };
 
-  const handleBack = () => {
-    if (isConfirmStep && !showPermissions) {
-      setStep(2); // Admin: confirm(3) -> info(2)
-    } else {
-      setStep(step - 1);
-    }
+  const vaiAiPermessi = () => {
+    if (datiValidi()) setStep(2);
   };
 
   const handleSubmit = async () => {
+    if (!datiValidi()) {
+      setStep(1);
+      return;
+    }
     try {
       const finalPerms = showPermissions ? syncLegacySettingsFlags(syncLegacyMarketingFlags(permissions)) : undefined;
       const commission = roleType === "salesperson" && commissionPercentage
@@ -303,10 +354,8 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
         : undefined;
       // "È anche un dipendente": per Operatore/Amministratore/Venditore col flag ON;
       // l'Operaio/Tecnico è sempre un dipendente. Lo stipendio è OPZIONALE.
-      const rolesWithEmployeeFlag = roleType === "company_staff" || roleType === "company_admin" || roleType === "salesperson";
-      const alsoEmp = rolesWithEmployeeFlag ? alsoEmployee : false;
-      const salaryRelevant = roleType === "employee" || alsoEmp;
-      const grossSalaryNum = salaryRelevant && grossSalary.trim()
+      const alsoEmp = conFlagDipendente ? alsoEmployee : false;
+      const grossSalaryNum = stipendioRilevante && grossSalary.trim()
         ? parseFloat(grossSalary.replace(",", "."))
         : undefined;
       const result = await onSubmit({
@@ -322,7 +371,7 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
       });
       if (result.temporaryPassword) {
         setTemporaryPassword(result.temporaryPassword);
-        setStep(5);
+        setStep(3);
       } else {
         handleClose();
       }
@@ -339,296 +388,281 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
     }
   };
 
+  // Le credenziali in un messaggio pronto da mandare: dal telefono si apre il
+  // foglio di condivisione (WhatsApp, SMS, email), dal computer si copiano.
+  const indirizzoAccesso = roleType === "employee" || roleType === "subcontractor"
+    ? "https://lavori.ediliziaincloud.com"
+    : "https://app.ediliziaincloud.com";
+  const testoAccesso = [
+    `Ciao ${firstName.trim()}, ecco il tuo accesso a EdiliziaInCloud:`,
+    indirizzoAccesso,
+    `Email: ${email.trim().toLowerCase()}`,
+    `Password: ${temporaryPassword ?? ""}`,
+    "Al primo accesso ti verrà chiesto di cambiarla.",
+  ].join("\n");
+  const puoCondividere = typeof navigator !== "undefined" && typeof (navigator as Navigator & { share?: unknown }).share === "function";
+
+  const condividiAccesso = async () => {
+    if (puoCondividere) {
+      try {
+        await navigator.share({ title: "Accesso EdiliziaInCloud", text: testoAccesso });
+        return;
+      } catch (err) {
+        if ((err as Error)?.name === "AbortError") return;
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(testoAccesso);
+      toast({ title: "Accesso copiato", description: "Incollalo in WhatsApp o in una email." });
+    } catch {
+      toast({ title: "Copia non riuscita", description: "Seleziona e copia la password a mano.", variant: "destructive" });
+    }
+  };
+
   const totalActive = useMemo(() => {
     const excluded = new Set(["only_assigned", "sola_lettura", "can_view_marketing", "can_edit_marketing"]);
     return Object.entries(permissions).filter(([k, v]) => v === true && !excluded.has(k)).length;
   }, [permissions]);
 
-  const stepLabels = showPermissions
-    ? ["Tipo Utente", "Dati Utente", "Permessi", "Conferma"]
-    : ["Tipo Utente", "Dati Utente", "Conferma"];
-
   const currentRoleOption = ROLE_OPTIONS.find(r => r.value === roleType);
+  const livelloAttivo = ECONOMIC_LEVELS.find((l) => l.id === economicLevel);
 
   return (
     <>
     <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) requestClose(); }}>
       <DialogContent
-        className={`${step === 3 && showPermissions ? "sm:max-w-[820px]" : "sm:max-w-[600px]"} max-h-[85vh] !flex !flex-col overflow-hidden transition-[max-width] duration-200`}
+        className={cn(
+          step === 2 ? "sm:max-w-[720px]" : "sm:max-w-[560px]",
+          "max-h-[85vh] !flex !flex-col overflow-hidden transition-[max-width] duration-200",
+        )}
         onPointerDownOutside={(e) => { if (isDirty) { e.preventDefault(); setShowConfirmClose(true); } }}
         onEscapeKeyDown={(e) => { if (isDirty) { e.preventDefault(); setShowConfirmClose(true); } }}
       >
-        {/* Fixed header */}
         <DialogHeader className="flex-shrink-0">
           <DialogTitle>
-            {isSuccessStep ? "Utente Creato" : `Nuovo Utente — Step ${step}/${totalSteps}`}
+            {isSuccessStep ? "Utente creato" : step === 2 ? `Permessi · ${ROLE_LABELS[roleType]}` : "Nuovo utente"}
           </DialogTitle>
-          {!isSuccessStep && (
-            <DialogDescription>{stepLabels[step - 1]}</DialogDescription>
-          )}
+          <DialogDescription className="sr-only">
+            {isSuccessStep ? "Credenziali del nuovo utente" : step === 2 ? "Permessi del nuovo utente" : "Nome, email e ruolo del nuovo utente"}
+          </DialogDescription>
         </DialogHeader>
 
-        {/* Progress bar */}
-        {!isSuccessStep && (
-          <div className="flex gap-1.5 px-1 flex-shrink-0">
-            {Array.from({ length: totalSteps }).map((_, i) => (
-              <div
-                key={i}
-                className={`h-1 flex-1 rounded-full transition-colors ${i < step ? "bg-primary" : "bg-muted"}`}
-              />
-            ))}
-          </div>
-        )}
-
         {/* Scrollable body */}
-        <div className="flex-1 min-h-0 overflow-y-auto pr-2">
-          {/* STEP 1: Role Selection */}
+        <div ref={corpoRef} className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1">
+          {/* ── PASSO 1: chi è ── */}
           {step === 1 && (
-            <div className="grid grid-cols-2 gap-3 py-2">
-              {ROLE_OPTIONS.map(opt => {
-                const Icon = opt.icon;
-                const isSelected = roleType === opt.value;
-                return (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => applyRolePreset(opt.value)}
-                    className={`flex flex-col items-center gap-2 p-4 rounded-lg border-2 text-center transition-all ${
-                      isSelected ? "border-primary bg-primary/5" : "border-border hover:border-muted-foreground/30"
-                    }`}
-                  >
-                    <div className={`rounded-full p-3 ${isSelected ? "bg-primary/10" : "bg-muted"}`}>
-                      <Icon className={`h-5 w-5 ${isSelected ? "text-primary" : "text-muted-foreground"}`} />
-                    </div>
-                    <div>
-                      <p className="font-medium text-sm">{opt.label}</p>
-                      <p className="text-xs text-muted-foreground">{opt.description}</p>
-                    </div>
-                    {isSelected && <Check className="h-4 w-4 text-primary" />}
-                  </button>
-                );
-              })}
-              {roleType === "company_admin" && (
-                <div className="col-span-2 bg-blue-500/5 border border-blue-500/20 rounded-lg p-3 flex items-start gap-2">
-                  <ShieldCheck className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
-                  <p className="text-xs text-blue-700">
-                    L'amministratore ha accesso completo a tutte le sezioni. Non è necessario configurare permessi specifici.
-                  </p>
+            <div className="space-y-4 py-1 max-sm:space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="nu-nome">Nome</Label>
+                  <Input id="nu-nome" value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Mario" autoComplete="off" />
                 </div>
-              )}
-              {(() => {
-                const selectedOpt = ROLE_OPTIONS.find(o => o.value === roleType);
-                return selectedOpt?.preview && selectedOpt.preview.length > 0 ? (
-                  <div className="col-span-2 mt-1 bg-muted/40 rounded-lg p-3 border border-border">
-                    <p className="text-xs font-medium text-muted-foreground mb-2">Accessi inclusi di default:</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {selectedOpt.preview.map(label => (
-                        <span key={label} className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">{label}</span>
-                      ))}
-                    </div>
-                  </div>
-                ) : null;
-              })()}
-              {(roleType === "employee" || roleType === "subcontractor") && (
-                <div className="col-span-2 bg-amber-500/5 border border-amber-500/20 rounded-lg p-3 flex items-start gap-2">
-                  <Lock className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
-                  <p className="text-xs text-amber-700">
-                    {roleType === "employee"
-                      ? "Accede solo all'app mobile di cantiere (lavori.ediliziaincloud.com). Nessun accesso al gestionale web."
-                      : "Accede solo alle commesse assegnate a lui. Nessun accesso a dati finanziari aziendali."}
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* STEP 2: User Info */}
-          {step === 2 && (
-            <div className="space-y-4 py-2">
-              {currentRoleOption && (
-                <Badge className={currentRoleOption.color}>
-                  <currentRoleOption.icon className="h-3 w-3 mr-1" />
-                  {currentRoleOption.label}
-                </Badge>
-              )}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Nome *</Label>
-                  <Input value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Mario" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Cognome *</Label>
-                  <Input value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Rossi" />
+                <div className="space-y-1.5">
+                  <Label htmlFor="nu-cognome">Cognome</Label>
+                  <Input id="nu-cognome" value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Rossi" autoComplete="off" />
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label>Email *</Label>
-                <Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="mario.rossi@azienda.it" />
-                <p className="text-xs text-muted-foreground">
-                  Verrà usata per il login. La password temporanea sarà generata automaticamente.
-                </p>
-              </div>
-              <div className="space-y-2">
-                <Label>Password (opzionale)</Label>
-                <div className="relative">
-                  <Input
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={e => setPassword(e.target.value)}
-                    placeholder="Lascia vuoto per generare automaticamente"
-                    autoComplete="new-password"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(p => !p)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {password
-                    ? "Password personalizzata. L'utente potrà cambiarla dopo il primo accesso."
-                    : "Verrà generata automaticamente una password sicura."}
-                </p>
+              <div className="space-y-1.5">
+                <Label htmlFor="nu-email">Email</Label>
+                <Input
+                  id="nu-email"
+                  type="email"
+                  inputMode="email"
+                  autoCapitalize="none"
+                  autoComplete="off"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="mario.rossi@azienda.it"
+                />
               </div>
 
-              {/* Venditore: solo % provvigione (il "assunto vs P.IVA" è il flag sotto) */}
+              <div className="space-y-1.5">
+                <Label id="nu-ruolo">Ruolo</Label>
+                <div role="radiogroup" aria-labelledby="nu-ruolo" className="grid gap-1.5 sm:grid-cols-2">
+                  {ROLE_OPTIONS.map(opt => {
+                    const Icon = opt.icon;
+                    const isSelected = roleType === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        role="radio"
+                        aria-checked={isSelected}
+                        onClick={() => applyRolePreset(opt.value)}
+                        className={cn(
+                          "tap-compact flex min-h-[48px] items-center gap-2.5 rounded-lg border px-3 py-2 text-left transition-colors",
+                          isSelected ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-border hover:bg-muted/50",
+                        )}
+                      >
+                        <Icon className={cn("h-4 w-4 shrink-0", isSelected ? "text-primary" : "text-muted-foreground")} />
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-sm font-medium leading-tight">{opt.label}</span>
+                          <span className="block truncate text-[11px] leading-tight text-muted-foreground">{opt.description}</span>
+                        </span>
+                        {isSelected && <Check className="h-4 w-4 shrink-0 text-primary" />}
+                      </button>
+                    );
+                  })}
+                </div>
+                {NOTA_RUOLO[roleType] && (
+                  <p className="text-[11px] leading-snug text-muted-foreground">{NOTA_RUOLO[roleType]}</p>
+                )}
+              </div>
+
+              {/* Venditore: provvigione accanto al flag «assunto». */}
               {roleType === "salesperson" && (
-                <div className="space-y-1.5 bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-4">
-                  <div className="flex items-center gap-2">
-                    <TrendingUp className="h-4 w-4 text-emerald-600" />
-                    <Label htmlFor="wiz-commission" className="font-medium">Provvigione %</Label>
-                  </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="wiz-commission">Provvigione %</Label>
                   <Input
                     id="wiz-commission"
-                    type="number" min="0" max="100" step="0.5"
+                    type="number" min="0" max="100" step="0.5" inputMode="decimal"
                     value={commissionPercentage}
                     onChange={(e) => setCommissionPercentage(e.target.value)}
                     placeholder="Es. 5"
                     className="max-w-[120px]"
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Percentuale sulle vendite chiuse. Se è in P.IVA a provvigione, lascia disattivato il flag "è anche un dipendente" qui sotto.
-                  </p>
                 </div>
               )}
 
-              {/* Flag "è anche un dipendente" — Operatore / Amministratore / Venditore.
-                  Se attivo compare lo stipendio (OPZIONALE) e si crea la scheda Dipendente.
-                  L'Operaio/Tecnico è già un dipendente → blocco dedicato sotto. */}
-              {(roleType === "company_staff" || roleType === "company_admin" || roleType === "salesperson") && (
-                <div className="space-y-2 bg-amber-500/5 border border-amber-500/20 rounded-lg p-4">
-                  <label className="flex items-start gap-2.5 cursor-pointer">
-                    <Checkbox checked={alsoEmployee} onCheckedChange={(v) => setAlsoEmployee(v === true)} className="mt-0.5" />
-                    <span className="text-sm">
-                      <span className="font-medium">È anche un dipendente</span> (in organico)
-                      <span className="block text-xs text-muted-foreground">
-                        {roleType === "salesperson"
-                          ? "Venditore assunto → crea anche la scheda Dipendente. Se è P.IVA a provvigione, lascialo disattivato."
-                          : "Crea anche la scheda Dipendente collegata (stipendio, ore, ferie)."}
-                      </span>
+              {/* «È anche un dipendente»: crea anche la scheda in Personale. */}
+              {conFlagDipendente && (
+                <label htmlFor="nu-dipendente" className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border px-3 py-2">
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium">{roleType === "salesperson" ? "Assunto" : "È anche un dipendente"}</span>
+                    <span className="block text-[11px] text-muted-foreground">
+                      {roleType === "salesperson" ? "Spento se lavora in P.IVA a provvigione." : "Crea anche la sua scheda in Personale."}
                     </span>
-                  </label>
-                  {alsoEmployee && (
-                    <div className="space-y-1.5 pl-7">
-                      <Label htmlFor="wiz-salary-also" className="font-medium text-sm">
-                        Stipendio lordo mensile (€) <span className="font-normal text-muted-foreground">— opzionale</span>
-                      </Label>
-                      <Input
-                        id="wiz-salary-also"
-                        type="number" min="0" step="50"
-                        value={grossSalary}
-                        onChange={(e) => setGrossSalary(e.target.value)}
-                        placeholder="Es. 1800"
-                        className="max-w-[160px]"
-                      />
-                      <p className="text-xs text-muted-foreground">Puoi lasciarlo vuoto e compilarlo dopo dal tab Dipendenti.</p>
-                    </div>
-                  )}
-                </div>
+                  </span>
+                  <Switch id="nu-dipendente" checked={alsoEmployee} onCheckedChange={setAlsoEmployee} />
+                </label>
               )}
 
-              {/* Operaio / Tecnico: è già un dipendente → stipendio (OPZIONALE) */}
-              {roleType === "employee" && (
-                <div className="space-y-1.5 bg-amber-500/5 border border-amber-500/20 rounded-lg p-4">
-                  <div className="flex items-center gap-2">
-                    <HardHat className="h-4 w-4 text-amber-600" />
-                    <Label htmlFor="wiz-salary" className="font-medium">
-                      Stipendio lordo mensile (€) <span className="font-normal text-muted-foreground">— opzionale</span>
-                    </Label>
-                  </div>
+              {stipendioRilevante && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="wiz-salary">
+                    Stipendio lordo mensile (€) <span className="font-normal text-muted-foreground">· facoltativo</span>
+                  </Label>
                   <Input
                     id="wiz-salary"
-                    type="number" min="0" step="50"
+                    type="number" min="0" step="50" inputMode="decimal"
                     value={grossSalary}
                     onChange={(e) => setGrossSalary(e.target.value)}
-                    placeholder="Es. 1600"
+                    placeholder={roleType === "employee" ? "Es. 1600" : "Es. 1800"}
                     className="max-w-[160px]"
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Finisce nella scheda Dipendente. Puoi lasciarlo vuoto e compilarlo dopo dal tab Dipendenti.
-                  </p>
+                </div>
+              )}
+
+              {/* Password: generata di default, sceglierla è un'eccezione. */}
+              {scegliPassword ? (
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <Label htmlFor="nu-password">Password</Label>
+                    <button
+                      type="button"
+                      className="tap-compact text-xs text-muted-foreground hover:text-foreground hover:underline"
+                      onClick={() => { setScegliPassword(false); setPassword(""); }}
+                    >
+                      Generala in automatico
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <Input
+                      id="nu-password"
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={e => setPassword(e.target.value)}
+                      placeholder="Scegli una password"
+                      autoComplete="new-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(p => !p)}
+                      aria-label={showPassword ? "Nascondi password" : "Mostra password"}
+                      className="tap-compact absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  La password la generiamo noi e te la mostriamo alla fine.{" "}
+                  <button type="button" className="tap-compact font-medium text-primary hover:underline" onClick={() => setScegliPassword(true)}>
+                    Scegli tu
+                  </button>
+                </p>
+              )}
+
+              {/* Cosa potrà fare: il riassunto dei permessi, con «Personalizza». */}
+              {showPermissions && (
+                <div className="flex items-start justify-between gap-3 rounded-lg border bg-muted/30 px-3 py-2.5">
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                      {permessiPersonalizzati ? "Permessi personalizzati" : `Permessi da ${ROLE_LABELS[roleType]}`}
+                    </p>
+                    <p className="mt-0.5 text-[13px] leading-snug">
+                      {permessiPersonalizzati
+                        ? `${totalActive} permessi attivi`
+                        : (currentRoleOption?.preview ?? []).join(" · ")}
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">
+                      Importi: {descriviImporti(permissions)}
+                      {permissions.only_assigned ? " · solo i suoi dati" : ""}
+                      {permissions.sola_lettura ? " · sola lettura" : ""}
+                    </p>
+                  </div>
+                  <Button type="button" variant="outline" size="sm" className="tap-compact h-8 shrink-0 gap-1.5" onClick={vaiAiPermessi}>
+                    <SlidersHorizontal className="h-3.5 w-3.5" />
+                    Personalizza
+                  </Button>
                 </div>
               )}
             </div>
           )}
 
-          {/* STEP 3: Permissions (non-admin) or Confirm (admin) — stesso
-              linguaggio della scheda utente (UserRolesPermissionsTab):
-              livelli economici, blocchi visibilità, ricerca, descrizioni. */}
-          {step === 3 && showPermissions && (
-            <div className="space-y-3 py-2">
-              {/* Visibilità dati economici — modello a 3 livelli condiviso */}
-              <div className="rounded-lg border bg-gradient-to-br from-emerald-50/60 to-transparent dark:from-emerald-950/20 p-3 space-y-3">
-                <div className="flex items-center gap-2">
-                  <Euro className="h-4 w-4 text-emerald-600 shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold leading-tight">Visibilità dati economici</p>
-                    <p className="text-xs text-muted-foreground">Cosa vede su commesse, lista, preventivi e PDF.</p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          {/* ── PASSO 2: permessi (facoltativo) ── */}
+          {step === 2 && showPermissions && (
+            <div className="space-y-4 py-1 max-sm:space-y-3">
+              {/* Le tre scelte che contano, in cima. */}
+              <section className="space-y-1.5">
+                <p className="text-sm font-semibold">Importi</p>
+                <div role="radiogroup" aria-label="Importi" className="grid grid-cols-3 gap-1 rounded-lg bg-muted p-1">
                   {ECONOMIC_LEVELS.map((lvl) => {
                     const active = economicLevel === lvl.id;
                     return (
                       <button
                         key={lvl.id}
                         type="button"
+                        role="radio"
+                        aria-checked={active}
                         onClick={() => setPermissions((prev) => ({ ...prev, ...lvl.values }))}
-                        className={`text-left rounded-lg border p-2.5 transition-all ${
-                          active
-                            ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 ring-1 ring-emerald-500/40"
-                            : "hover:bg-muted/50 border-border"
-                        }`}
+                        className={cn(
+                          "tap-compact rounded-md px-2 py-1.5 text-sm font-medium transition-colors",
+                          active ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+                        )}
                       >
-                        <div className="flex items-center gap-1.5">
-                          {active && <Check className="h-3.5 w-3.5 text-emerald-600 shrink-0" />}
-                          <span className="text-sm font-medium">{lvl.label}</span>
-                        </div>
-                        <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">{lvl.desc}</p>
+                        {lvl.label}
                       </button>
                     );
                   })}
                 </div>
-                {economicLevel === "custom" && (
-                  <p className="text-[11px] text-amber-600 flex items-center gap-1">
-                    <Info className="h-3 w-3 shrink-0" /> Combinazione personalizzata — regola i singoli interruttori qui sotto.
-                  </p>
-                )}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  {([
-                    { key: "can_view_order_amounts" as const, label: "Importi di vendita" },
-                    { key: "can_view_costs" as const, label: "Costi" },
-                    { key: "can_view_margins" as const, label: "Margini" },
-                  ]).map((t) => (
-                    <label key={t.key} className="flex items-center gap-2 rounded-md border bg-background/60 px-2.5 py-2 cursor-pointer">
-                      <Switch checked={!!permissions[t.key]} onCheckedChange={(c) => handleToggle(t.key, c)} />
-                      <span className="text-xs font-medium">{t.label}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
+                <p className="text-[11px] leading-snug text-muted-foreground">
+                  {livelloAttivo ? livelloAttivo.desc : "Combinazione personalizzata: la regoli in «Avanzate»."}
+                </p>
+              </section>
+
+              <label htmlFor="wiz-only_assigned" className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border px-3 py-2.5">
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium">Solo i dati assegnati a lui</span>
+                  <span className="block text-[11px] text-muted-foreground">Commesse, attività e appuntamenti suoi, non quelli degli altri.</span>
+                </span>
+                <Switch
+                  id="wiz-only_assigned"
+                  checked={permissions.only_assigned}
+                  onCheckedChange={checked => setPermissions(prev => ({ ...prev, only_assigned: checked }))}
+                />
+              </label>
 
               <SolaLetturaToggle
                 id="wiz-sola_lettura"
@@ -636,243 +670,185 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading }: Cr
                 onCheckedChange={checked => setPermissions(prev => syncLegacyMarketingFlags({ ...prev, sola_lettura: checked }))}
               />
 
-              {/* Limita visibilità + visibilità sul team */}
-              <div className="rounded-lg border bg-muted/30 p-3 space-y-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="space-y-0.5 min-w-0">
-                    <Label htmlFor="wiz-only_assigned" className="font-medium flex items-center gap-2 text-sm cursor-pointer">
-                      <EyeOff className="h-4 w-4" /> Limita visibilità ai dati assegnati
-                    </Label>
-                    <p className="text-xs text-muted-foreground">Se attivo, vedrà solo ordini, attività e appuntamenti assegnati a lui.</p>
-                  </div>
-                  <Switch
-                    id="wiz-only_assigned"
-                    checked={permissions.only_assigned}
-                    onCheckedChange={checked => setPermissions(prev => ({ ...prev, only_assigned: checked }))}
-                  />
+              {/* Cosa vede: moduli in gruppi chiusi, la ricerca li apre. */}
+              <section className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-semibold">Cosa vede</p>
+                  <span className="text-xs tabular-nums text-muted-foreground">{totalActive} attivi</span>
                 </div>
-                <div className="flex items-center justify-between gap-3">
-                  <div className="space-y-0.5 min-w-0">
-                    <Label htmlFor="wiz-team_tasks" className="font-medium flex items-center gap-2 text-sm cursor-pointer">
-                      <Users2 className="h-4 w-4" /> Attività del team
-                    </Label>
-                    <p className="text-xs text-muted-foreground">Vede le attività (task) di tutto il team; spento vede solo le proprie.</p>
-                  </div>
-                  <Switch
-                    id="wiz-team_tasks"
-                    checked={permissions.can_view_team_tasks}
-                    onCheckedChange={checked => setPermissions(prev => ({ ...prev, can_view_team_tasks: checked }))}
-                  />
-                </div>
-                <div className="flex items-center justify-between gap-3">
-                  <div className="space-y-0.5 min-w-0">
-                    <Label htmlFor="wiz-team_calendar" className="font-medium flex items-center gap-2 text-sm cursor-pointer">
-                      <Users2 className="h-4 w-4" /> Calendario del team
-                    </Label>
-                    <p className="text-xs text-muted-foreground">Vede appuntamenti ed eventi di tutti nel calendario; spento vede solo i propri.</p>
-                  </div>
-                  <Switch
-                    id="wiz-team_calendar"
-                    checked={permissions.can_view_all_team_calendar}
-                    onCheckedChange={checked => setPermissions(prev => ({ ...prev, can_view_all_team_calendar: checked }))}
-                  />
-                </div>
-              </div>
-
-              {/* Toolbar: ricerca + azioni rapide + contatore */}
-              <div className="flex items-center gap-2 flex-wrap">
-                <div className="relative flex-1 min-w-[160px]">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     placeholder="Cerca modulo…"
                     value={permSearch}
                     onChange={(e) => setPermSearch(e.target.value)}
-                    className="pl-8 h-9"
+                    className="h-9 pl-8"
                   />
                 </div>
-                <Button type="button" variant="outline" size="sm" className="h-9" onClick={handleSelectAll}>
-                  <Check className="h-3.5 w-3.5 mr-1" /> Tutti
-                </Button>
-                <Button type="button" variant="outline" size="sm" className="h-9" onClick={handleDeselectAll}>
-                  <X className="h-3.5 w-3.5 mr-1" /> Nessuno
-                </Button>
-                <Button type="button" variant="outline" size="sm" className="h-9" onClick={handleResetPreset}>
-                  Preset {ROLE_LABELS[roleType]}
-                </Button>
-                <Badge variant="outline" className="ml-auto tabular-nums">{totalActive} attivi</Badge>
-              </div>
-
-              {WIZARD_GROUPS.map((g) => {
-                const sections = filterWizardSections(g.sections);
-                if (sections.length === 0) return null;
-                return (
-                  <PermGroup key={g.label} label={g.label} icon={g.icon} iconColor={g.iconColor}
-                    sections={sections} permissions={permissions} onToggle={handleToggle} />
-                );
-              })}
-              {permSearch.trim() !== "" && WIZARD_GROUPS.every((g) => filterWizardSections(g.sections).length === 0) && (
-                <p className="text-sm text-muted-foreground text-center py-6">Nessun modulo corrisponde a "{permSearch}".</p>
-              )}
-
-              <Separator />
-
-              <div className="space-y-3 py-2">
-                <div className="flex items-center gap-2">
-                  <MapPin className="h-4 w-4 text-blue-600" />
-                  <Label className="font-medium">Aree visibili</Label>
+                <div className="flex flex-wrap gap-1.5">
+                  <Button type="button" variant="outline" size="sm" className="tap-compact h-7 gap-1 px-2 text-xs" onClick={handleSelectAll}>
+                    <Check className="h-3.5 w-3.5" /> Tutti
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" className="tap-compact h-7 gap-1 px-2 text-xs" onClick={handleDeselectAll}>
+                    <X className="h-3.5 w-3.5" /> Nessuno
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" className="tap-compact h-7 px-2 text-xs" onClick={handleResetPreset}>
+                    Come {ROLE_LABELS[roleType]}
+                  </Button>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  L'utente vedrà solo i dipendenti delle aree selezionate nel calendario e nei dropdown.
-                  Nessuna selezione = tutte le aree.
-                </p>
-                <div className="grid grid-cols-2 gap-2">
-                  {([
-                    { value: "cantiere", label: "🏗️ Cantiere", desc: "Operai in cantiere" },
-                    { value: "commerciale", label: "💼 Commerciale", desc: "Venditori e agenti" },
-                    { value: "amministrazione", label: "🏢 Amministrazione", desc: "Staff ufficio" },
-                    { value: "tecnico", label: "🔧 Tecnico", desc: "Personale tecnico" },
-                  ] as const).map(area => {
-                    const checked = (permissions.visible_areas || []).includes(area.value);
+                <div className="space-y-1.5">
+                  {WIZARD_GROUPS.map((g) => {
+                    const sections = filterWizardSections(g.sections);
+                    if (sections.length === 0) return null;
                     return (
-                      <label
-                        key={area.value}
-                        className={`flex items-start gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors ${
-                          checked ? "border-primary bg-primary/5" : "border-border hover:border-muted-foreground/30"
-                        }`}
-                      >
-                        <Checkbox
-                          checked={checked}
-                          onCheckedChange={(c) => {
-                            setPermissions(prev => {
-                              const current = prev.visible_areas || [];
-                              const next = c
-                                ? [...current, area.value]
-                                : current.filter(a => a !== area.value);
-                              return { ...prev, visible_areas: next };
-                            });
-                          }}
-                          className="mt-0.5"
-                        />
-                        <div>
-                          <span className="text-sm font-medium">{area.label}</span>
-                          <p className="text-xs text-muted-foreground">{area.desc}</p>
-                        </div>
-                      </label>
+                      <PermGroup key={g.label} label={g.label} icon={g.icon} iconColor={g.iconColor}
+                        sections={sections} permissions={permissions} onToggle={handleToggle}
+                        forzaAperto={permSearch.trim() !== ""} />
                     );
                   })}
                 </div>
-                {(permissions.visible_areas || []).length === 0 && (
-                  <p className="text-xs text-blue-600 bg-blue-50 rounded p-2">
-                    Nessuna area selezionata = accesso a tutte le aree
-                  </p>
+                {permSearch.trim() !== "" && WIZARD_GROUPS.every((g) => filterWizardSections(g.sections).length === 0) && (
+                  <p className="py-4 text-center text-sm text-muted-foreground">Nessun modulo corrisponde a "{permSearch}".</p>
                 )}
-              </div>
+              </section>
+
+              {/* Avanzate: dettaglio importi, visibilità sul team, aree. */}
+              <Collapsible open={avanzateAperte} onOpenChange={setAvanzateAperte}>
+                <CollapsibleTrigger asChild>
+                  <button type="button" className="tap-compact flex w-full items-center justify-between rounded-lg border border-border px-3 py-2.5 text-sm font-medium">
+                    Avanzate
+                    <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", avanzateAperte && "rotate-180")} />
+                  </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="space-y-3 pt-2">
+                  <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-3">
+                    {([
+                      { key: "can_view_order_amounts" as const, label: "Importi di vendita" },
+                      { key: "can_view_costs" as const, label: "Costi" },
+                      { key: "can_view_margins" as const, label: "Margini" },
+                    ]).map((t) => (
+                      <label key={t.key} className="flex cursor-pointer items-center gap-2 rounded-md border px-2.5 py-2">
+                        <Switch checked={!!permissions[t.key]} onCheckedChange={(c) => handleToggle(t.key, c)} />
+                        <span className="text-xs font-medium">{t.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <label htmlFor="wiz-team_tasks" className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border px-3 py-2">
+                    <span className="min-w-0">
+                      <span className="block text-sm font-medium">Attività del team</span>
+                      <span className="block text-[11px] text-muted-foreground">Spento vede solo le sue.</span>
+                    </span>
+                    <Switch
+                      id="wiz-team_tasks"
+                      checked={permissions.can_view_team_tasks}
+                      onCheckedChange={checked => setPermissions(prev => ({ ...prev, can_view_team_tasks: checked }))}
+                    />
+                  </label>
+                  <label htmlFor="wiz-team_calendar" className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border px-3 py-2">
+                    <span className="min-w-0">
+                      <span className="block text-sm font-medium">Calendario del team</span>
+                      <span className="block text-[11px] text-muted-foreground">Spento vede solo i suoi appuntamenti.</span>
+                    </span>
+                    <Switch
+                      id="wiz-team_calendar"
+                      checked={permissions.can_view_all_team_calendar}
+                      onCheckedChange={checked => setPermissions(prev => ({ ...prev, can_view_all_team_calendar: checked }))}
+                    />
+                  </label>
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-medium">
+                      Aree visibili <span className="font-normal text-muted-foreground">· nessuna scelta = tutte</span>
+                    </p>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {([
+                        { value: "cantiere", label: "Cantiere" },
+                        { value: "commerciale", label: "Commerciale" },
+                        { value: "amministrazione", label: "Amministrazione" },
+                        { value: "tecnico", label: "Tecnico" },
+                      ] as const).map(area => {
+                        const checked = (permissions.visible_areas || []).includes(area.value);
+                        return (
+                          <label
+                            key={area.value}
+                            className={cn(
+                              "flex cursor-pointer items-center gap-2 rounded-lg border px-2.5 py-2 text-sm transition-colors",
+                              checked ? "border-primary bg-primary/5" : "border-border hover:bg-muted/40",
+                            )}
+                          >
+                            <Checkbox
+                              checked={checked}
+                              onCheckedChange={(c) => {
+                                setPermissions(prev => {
+                                  const current = prev.visible_areas || [];
+                                  const next = c
+                                    ? [...current, area.value]
+                                    : current.filter(a => a !== area.value);
+                                  return { ...prev, visible_areas: next };
+                                });
+                              }}
+                            />
+                            {area.label}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
             </div>
           )}
 
-          {/* CONFIRM STEP */}
-          {isConfirmStep && (
-            <div className="space-y-4 py-2">
-              <div className="bg-muted/50 rounded-lg p-4 space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">Nome</span>
-                  <span className="text-sm font-medium">{firstName} {lastName}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">Email</span>
-                  <span className="text-sm font-medium">{email}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Ruolo</span>
-                  {currentRoleOption && (
-                    <Badge className={currentRoleOption.color}>
-                      <currentRoleOption.icon className="h-3 w-3 mr-1" />
-                      {currentRoleOption.label}
-                    </Badge>
-                  )}
-                </div>
-                {roleType === "salesperson" && commissionPercentage && (
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Provvigione</span>
-                    <Badge className="bg-emerald-500/10 text-emerald-700 border-emerald-500/20">
-                      {commissionPercentage}%
-                    </Badge>
-                  </div>
-                )}
-                {showPermissions && (
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Permessi attivi</span>
-                    <Badge variant="secondary">{totalActive}</Badge>
-                  </div>
-                )}
-              </div>
-              <div className="bg-amber-500/5 border border-amber-500/20 rounded-lg p-3 flex items-start gap-2">
-                <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
-                <p className="text-xs text-amber-700">
-                  {password.trim()
-                    ? "Password personalizzata impostata. Comunicala all'utente in modo sicuro."
-                    : "Verrà generata una password temporanea. L'utente dovrà cambiarla al primo accesso."}
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* SUCCESS STEP */}
+          {/* ── FATTO: credenziali ── */}
           {isSuccessStep && (
-            <div className="space-y-4 py-4 text-center">
-              <div className="mx-auto w-14 h-14 rounded-full bg-emerald-500/10 flex items-center justify-center">
-                <CheckCircle2 className="h-7 w-7 text-emerald-600" />
-              </div>
-              <p className="font-medium text-lg">Utente creato con successo!</p>
+            <div className="space-y-3 py-1">
+              <p className="flex items-center gap-2 text-sm font-medium text-emerald-700">
+                <CheckCircle2 className="h-5 w-5 shrink-0" />
+                {firstName.trim()} {lastName.trim()} può entrare.
+              </p>
               {temporaryPassword && (
-                <div className="bg-muted rounded-lg p-4 space-y-3 text-left">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Email</span>
-                    <span className="text-sm font-mono">{email}</span>
+                <div className="divide-y rounded-lg border bg-muted/30 text-sm">
+                  <div className="flex items-center justify-between gap-3 px-3 py-2">
+                    <span className="text-muted-foreground">Email</span>
+                    <span className="truncate font-mono text-xs">{email.trim().toLowerCase()}</span>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Password</span>
-                    <div className="flex items-center gap-2">
-                      <code className="text-sm font-mono bg-background px-2 py-1 rounded border">{temporaryPassword}</code>
-                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={copyPassword}>
+                  <div className="flex items-center justify-between gap-3 px-3 py-2">
+                    <span className="text-muted-foreground">Password</span>
+                    <span className="flex items-center gap-1">
+                      <code className="rounded border bg-background px-2 py-0.5 font-mono text-xs">{temporaryPassword}</code>
+                      <Button variant="ghost" size="icon" className="tap-compact h-7 w-7" onClick={copyPassword} aria-label="Copia la password">
                         {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
                       </Button>
-                    </div>
+                    </span>
                   </div>
                 </div>
               )}
-              <div className="bg-destructive/5 border border-destructive/20 rounded-lg p-3">
-                <p className="text-xs text-destructive font-medium">
-                  ⚠️ Questa password viene mostrata solo una volta. Comunica questa password all'utente in modo sicuro prima di chiudere.
-                </p>
-              </div>
+              <p className="text-[11px] text-amber-700">La password si vede solo ora: mandala adesso a {firstName.trim() || "chi la usa"}.</p>
             </div>
           )}
         </div>
 
         {/* Fixed footer */}
-        <DialogFooter className="flex-shrink-0 gap-2 sm:gap-0">
+        <DialogFooter className="flex-shrink-0 gap-2 sm:gap-2">
           {isSuccessStep ? (
-            <Button onClick={handleClose}>Chiudi</Button>
+            <>
+              <Button variant="outline" onClick={handleClose}>Chiudi</Button>
+              <Button onClick={() => { void condividiAccesso(); }} className="gap-1.5">
+                {puoCondividere ? <Share2 className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                {puoCondividere ? "Condividi accesso" : "Copia accesso"}
+              </Button>
+            </>
           ) : (
             <>
-              {step > 1 && (
-                <Button variant="outline" onClick={handleBack} disabled={isLoading}>
-                  <ChevronLeft className="h-4 w-4 mr-1" />
+              {step === 2 && (
+                <Button variant="outline" onClick={() => setStep(1)} disabled={isLoading}>
+                  <ChevronLeft className="mr-1 h-4 w-4" />
                   Indietro
                 </Button>
               )}
-              {isConfirmStep ? (
-                <Button onClick={handleSubmit} disabled={isLoading}>
-                  {isLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                  Crea Utente
-                </Button>
-              ) : (
-                <Button onClick={handleNext}>
-                  Avanti
-                  <ChevronRight className="h-4 w-4 ml-1" />
-                </Button>
-              )}
+              <Button onClick={() => { void handleSubmit(); }} disabled={isLoading}>
+                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Crea utente
+              </Button>
             </>
           )}
         </DialogFooter>

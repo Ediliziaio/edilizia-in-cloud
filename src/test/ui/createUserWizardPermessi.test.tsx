@@ -1,127 +1,175 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
-import { render, screen, fireEvent, cleanup, within } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup, within, waitFor } from "@testing-library/react";
 import { CreateUserWizard } from "@/components/users/CreateUserWizard";
 
 /**
- * Verifica FUNZIONALE dello step Permessi del wizard Nuovo Utente
- * (redesign 2026-07-12): percorre davvero gli step 1→2→3 e interagisce
- * con selettore economico, ricerca moduli e blocchi visibilità.
+ * Nuovo utente (ridisegnato il 25/09/2026): nome, email e ruolo su un passo
+ * solo, «Crea utente» subito col preset del ruolo; «Personalizza» apre i
+ * permessi (importi, solo i suoi dati, sola lettura in cima; moduli in gruppi
+ * chiusi che la ricerca apre; avanzate). Qui si percorre davvero il flusso.
  */
-function openWizardAtStep3() {
+function renderWizard(onSubmit = vi.fn(async () => ({}))) {
   render(
     <CreateUserWizard
       open
       onOpenChange={() => {}}
-      onSubmit={vi.fn(async () => ({}))}
+      onSubmit={onSubmit}
       isLoading={false}
     />,
   );
+  return onSubmit;
+}
 
-  // STEP 1 — scegli "Venditore" e avanti
-  fireEvent.click(screen.getByText("Venditore"));
-  fireEvent.click(screen.getByRole("button", { name: /avanti/i }));
-
-  // STEP 2 — anagrafica minima e avanti
+function compilaDati() {
   fireEvent.change(screen.getByPlaceholderText("Mario"), { target: { value: "Test" } });
   fireEvent.change(screen.getByPlaceholderText("Rossi"), { target: { value: "Utente" } });
   fireEvent.change(screen.getByPlaceholderText("mario.rossi@azienda.it"), { target: { value: "test.utente@azienda.it" } });
-  fireEvent.click(screen.getByRole("button", { name: /avanti/i }));
+}
+
+function apriPermessiVenditore() {
+  renderWizard();
+  fireEvent.click(screen.getByText("Venditore"));
+  compilaDati();
+  fireEvent.click(screen.getByRole("button", { name: /personalizza/i }));
+}
+
+function cercaModulo(testo: string) {
+  fireEvent.change(screen.getByPlaceholderText("Cerca modulo…"), { target: { value: testo } });
 }
 
 afterEach(cleanup);
 
 /**
- * Il wizard monta l'INTERA matrice permessi (7 gruppi, ~90 moduli) a ogni
- * render. Isolato costa mezzo secondo, ma quando la suite gira coi 250 file
- * in parallelo e la macchina è satura si arriva oltre i 5s di default e il
- * test cadeva per timeout — verde o rosso a seconda di quanto era occupato
- * il portatile, che è il modo peggiore di fallire. Il tetto qui è esplicito.
+ * La matrice permessi (7 gruppi, ~90 moduli) è pesante da montare: quando la
+ * suite gira coi 250 file in parallelo e la macchina è satura si arriva oltre
+ * i 5s di default. Il tetto qui è esplicito.
  */
 const TIMEOUT_MATRICE_PERMESSI = 30_000;
 
-describe("CreateUserWizard — step Permessi (parità con la scheda utente)", () => {
-  it("arriva allo step 3 e mostra selettore economico, blocchi visibilità e ricerca", () => {
-    openWizardAtStep3();
+describe("CreateUserWizard — nuovo utente", () => {
+  it("crea l'utente dal primo passo col preset del ruolo", async () => {
+    const onSubmit = renderWizard();
+    fireEvent.click(screen.getByText("Venditore"));
+    compilaDati();
+    // Il riassunto dice cosa potrà fare prima di creare.
+    expect(screen.getByText("Permessi da Venditore")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /crea utente/i }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    const dati = onSubmit.mock.calls[0][0];
+    expect(dati.role_type).toBe("salesperson");
+    expect(dati.email).toBe("test.utente@azienda.it");
+    expect(dati.permissions?.can_view_marketing_contacts).toBe(true);
+  }, TIMEOUT_MATRICE_PERMESSI);
 
-    // Selettore economico condiviso
-    expect(screen.getByText("Visibilità dati economici")).toBeInTheDocument();
-    expect(screen.getByText("Operativo")).toBeInTheDocument();
-    expect(screen.getByText("Commerciale")).toBeInTheDocument();
-    expect(screen.getByText("Pieno")).toBeInTheDocument();
+  it("senza email valida non crea e non passa ai permessi", () => {
+    const onSubmit = renderWizard();
+    fireEvent.change(screen.getByPlaceholderText("Mario"), { target: { value: "Test" } });
+    fireEvent.change(screen.getByPlaceholderText("Rossi"), { target: { value: "Utente" } });
+    fireEvent.change(screen.getByPlaceholderText("mario.rossi@azienda.it"), { target: { value: "non-una-email" } });
+    fireEvent.click(screen.getByRole("button", { name: /personalizza/i }));
+    expect(screen.queryByPlaceholderText("Cerca modulo…")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /crea utente/i }));
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
 
-    // Blocchi visibilità trasversali
-    expect(screen.getByText("Limita visibilità ai dati assegnati")).toBeInTheDocument();
-    expect(screen.getByText("Attività del team")).toBeInTheDocument();
-    expect(screen.getByText("Calendario del team")).toBeInTheDocument();
+  it("alla fine mostra le credenziali e le copia in un messaggio pronto", async () => {
+    const writeText = vi.fn(async () => {});
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    renderWizard(vi.fn(async () => ({ temporaryPassword: "Abc-123-xyz" })));
+    fireEvent.click(screen.getByText("Operaio / Tecnico"));
+    compilaDati();
+    fireEvent.click(screen.getByRole("button", { name: /crea utente/i }));
+    expect(await screen.findByText("Abc-123-xyz")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /copia accesso/i }));
+    await waitFor(() => expect(writeText).toHaveBeenCalled());
+    const testo = writeText.mock.calls[0][0] as string;
+    expect(testo).toContain("test.utente@azienda.it");
+    expect(testo).toContain("Abc-123-xyz");
+    // L'operaio entra dall'app di cantiere, non dal gestionale.
+    expect(testo).toContain("lavori.ediliziaincloud.com");
+  });
+});
 
-    // Ricerca + azioni rapide
+describe("CreateUserWizard — permessi (parità con la scheda utente)", () => {
+  it("in cima importi, solo i suoi dati e sola lettura; poi ricerca e avanzate", () => {
+    apriPermessiVenditore();
+
+    expect(screen.getByText("Importi")).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Operativo" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Commerciale" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Pieno" })).toBeInTheDocument();
+    expect(screen.getByText("Solo i dati assegnati a lui")).toBeInTheDocument();
+    expect(screen.getByText("Sola lettura")).toBeInTheDocument();
     expect(screen.getByPlaceholderText("Cerca modulo…")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /nessuno/i })).toBeInTheDocument();
 
-    // Descrizioni dei moduli renderizzate (dal registro condiviso)
-    expect(screen.getByText(/Vede, crea e modifica le commesse/)).toBeInTheDocument();
+    // Visibilità sul team: nelle avanzate.
+    fireEvent.click(screen.getByRole("button", { name: /avanzate/i }));
+    expect(screen.getByText("Attività del team")).toBeInTheDocument();
+    expect(screen.getByText("Calendario del team")).toBeInTheDocument();
 
-    // Sola lettura al posto dei «Modifica» delle aree operative
-    expect(screen.getByText("Sola lettura")).toBeInTheDocument();
+    // La ricerca apre i gruppi: descrizioni dal registro condiviso.
+    cercaModulo("commesse");
+    expect(screen.getByText(/Vede, crea e modifica le commesse/)).toBeInTheDocument();
     expect(screen.getByText("Può eliminare ordini e commesse")).toBeInTheDocument();
   }, TIMEOUT_MATRICE_PERMESSI);
 
-  it("il preset Venditore parte a livello economico Commerciale; click su Pieno accende i margini", () => {
-    openWizardAtStep3();
+  it("il preset Venditore parte a importi Commerciale; Pieno accende costi e margini", () => {
+    apriPermessiVenditore();
 
-    // Preset venditore: importi sì, costi/margini no → "Commerciale" attivo.
-    // Il livello attivo mostra il check dentro la card.
-    const commercialeCard = screen.getByText("Commerciale").closest("button")!;
-    expect(within(commercialeCard).queryByText("Vede importi di vendita e incassi, ma NON costi né margini.")).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Commerciale" })).toHaveAttribute("aria-checked", "true");
 
-    // Gli switch granulari: Margini spento
+    fireEvent.click(screen.getByRole("button", { name: /avanzate/i }));
     const margini = screen.getByText("Margini").closest("label")!;
     expect(within(margini).getByRole("switch")).toHaveAttribute("aria-checked", "false");
 
-    // Click su "Pieno" → margini e costi si accendono
-    fireEvent.click(screen.getByText("Pieno").closest("button")!);
+    fireEvent.click(screen.getByRole("radio", { name: "Pieno" }));
     expect(within(margini).getByRole("switch")).toHaveAttribute("aria-checked", "true");
     const costi = screen.getByText("Costi", { selector: "span" }).closest("label")!;
     expect(within(costi).getByRole("switch")).toHaveAttribute("aria-checked", "true");
   }, TIMEOUT_MATRICE_PERMESSI);
 
-  it("la ricerca filtra i moduli e mostra l'empty state quando non c'è match", () => {
-    openWizardAtStep3();
+  it("la ricerca filtra i moduli e mostra il messaggio quando non c'è niente", () => {
+    apriPermessiVenditore();
 
-    const search = screen.getByPlaceholderText("Cerca modulo…");
-
-    // Prima della ricerca il modulo Magazzino esiste
+    // I gruppi partono chiusi: la ricerca li apre sui moduli trovati.
+    expect(screen.queryByText("Magazzino")).not.toBeInTheDocument();
+    cercaModulo("magazz");
     expect(screen.getByText("Magazzino")).toBeInTheDocument();
 
-    fireEvent.change(search, { target: { value: "firma" } });
+    cercaModulo("firma");
     expect(screen.getByText("Firma Elettronica (FEA)")).toBeInTheDocument();
     expect(screen.queryByText("Magazzino")).not.toBeInTheDocument();
 
-    fireEvent.change(search, { target: { value: "zzzz-inesistente" } });
+    cercaModulo("zzzz-inesistente");
     expect(screen.getByText(/nessun modulo corrisponde/i)).toBeInTheDocument();
 
-    fireEvent.change(search, { target: { value: "" } });
-    expect(screen.getByText("Magazzino")).toBeInTheDocument();
+    cercaModulo("");
+    expect(screen.queryByText(/nessun modulo corrisponde/i)).not.toBeInTheDocument();
   }, TIMEOUT_MATRICE_PERMESSI);
 
   it("le 3 chiavi economiche NON compaiono doppie nei gruppi modulo", () => {
-    openWizardAtStep3();
-    // "Importi di vendita" esiste SOLO come switch del selettore economico,
-    // non anche come riga del gruppo Cantieri (niente doppioni).
+    apriPermessiVenditore();
+    fireEvent.click(screen.getByRole("button", { name: /avanzate/i }));
+    cercaModulo("import");
+    // "Importi di vendita" esiste SOLO come switch delle avanzate, non anche
+    // come riga del gruppo Cantieri (niente doppioni).
     expect(screen.getAllByText("Importi di vendita")).toHaveLength(1);
+    cercaModulo("margin");
     expect(screen.getAllByText("Margini")).toHaveLength(1);
   }, TIMEOUT_MATRICE_PERMESSI);
 
   it("le aree operative non hanno più un «Modifica» a parte", () => {
-    openWizardAtStep3();
-    // Il preset Venditore vede contatti/opportunità/preventivi: nessun switch
-    // di modifica per loro (li deriva la visibilità).
-    expect(document.getElementById("wiz-can_edit_marketing_contacts")).toBeNull();
+    apriPermessiVenditore();
+    cercaModulo("commesse");
     expect(document.getElementById("wiz-can_edit_orders")).toBeNull();
+    cercaModulo("contatti");
+    expect(document.getElementById("wiz-can_edit_marketing_contacts")).toBeNull();
   }, TIMEOUT_MATRICE_PERMESSI);
 
   it("con Sola lettura le azioni speciali si disabilitano", () => {
-    openWizardAtStep3();
+    apriPermessiVenditore();
+    cercaModulo("sconti");
     const approva = document.getElementById("wiz-can_approve_discounts")!;
     expect(approva).not.toBeDisabled();
     fireEvent.click(document.getElementById("wiz-sola_lettura")!);
