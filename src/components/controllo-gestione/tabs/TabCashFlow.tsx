@@ -36,6 +36,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface Props {
   anno: number;
@@ -63,6 +64,7 @@ const RIGHE_USCITE = [
 export function TabCashFlow({ anno }: Props) {
   const cf = useCashFlow(anno, 1, 12);
   const [editorOpen, setEditorOpen] = useState(false);
+  const isMobile = useIsMobile();
 
   if (cf.isLoading) {
     return (
@@ -84,7 +86,7 @@ export function TabCashFlow({ anno }: Props) {
   return (
     <div className="space-y-4">
       {/* KPI head */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 max-sm:gap-2 lg:grid-cols-4">
         <KPIBoxCF
           label="Saldo apertura"
           value={formatCurrency(meta.saldo_apertura)}
@@ -107,7 +109,9 @@ export function TabCashFlow({ anno }: Props) {
         />
       </div>
 
-      <div className="flex items-center justify-between">
+      {/* Mobile no: spiegazione tecnica, esportazione e voci manuali sono da
+          scrivania. Restano i quattro numeri e i dodici mesi. */}
+      <div className="flex items-center justify-between max-sm:hidden">
         <div>
           <p className="text-sm text-muted-foreground">
             Cash Flow Mensile Prospettico · {anno}
@@ -172,8 +176,36 @@ export function TabCashFlow({ anno }: Props) {
         />
       )}
 
+      {/* Mobile: dodici righe (mese, entrate, uscite, saldo a fine mese) al
+          posto della matrice a quattordici colonne da scorrere di lato. */}
+      {isMobile && (
+        <div className="overflow-hidden rounded-xl border bg-card">
+          <div className="grid grid-cols-[2.5rem_1fr_1fr_1fr] gap-2 border-b bg-muted/40 px-3 py-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            <span>Mese</span>
+            <span className="text-right">Entrate</span>
+            <span className="text-right">Uscite</span>
+            <span className="text-right">Saldo</span>
+          </div>
+          <ul className="divide-y text-[13px] tabular-nums">
+            {mesi.map((m) => (
+              <li
+                key={m.mese}
+                className={cn("grid grid-cols-[2.5rem_1fr_1fr_1fr] items-center gap-2 px-3 py-2", m.saldo_fine < 0 && "bg-rose-50/60")}
+              >
+                <span className="font-medium">{MESI_LABELS[m.mese - 1]}</span>
+                <span className="text-right text-emerald-700">{formatCurrencyCompact(m.entrate_totali)}</span>
+                <span className="text-right text-amber-700">{formatCurrencyCompact(m.uscite_totali)}</span>
+                <span className={cn("text-right font-semibold", m.saldo_fine < 0 ? "text-rose-700" : "text-foreground")}>
+                  {formatCurrencyCompact(m.saldo_fine)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {/* Tabella matrice */}
-      <Card className="rounded-2xl">
+      <Card className="rounded-2xl max-sm:hidden">
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Matrice mensile</CardTitle>
         </CardHeader>
@@ -409,9 +441,9 @@ function KPIBoxCF({
   };
   return (
     <Card className={cn("rounded-2xl border-0", palette[tone])}>
-      <CardContent className="p-4">
-        <p className="text-xs text-muted-foreground">{label}</p>
-        <p className="mt-1 text-xl font-bold tabular-nums">{value}</p>
+      <CardContent className="p-4 max-sm:px-3 max-sm:py-2.5">
+        <p className="text-xs text-muted-foreground max-sm:text-[11px]">{label}</p>
+        <p className="mt-1 text-xl font-bold tabular-nums max-sm:mt-0.5 max-sm:text-[17px]">{value}</p>
       </CardContent>
     </Card>
   );

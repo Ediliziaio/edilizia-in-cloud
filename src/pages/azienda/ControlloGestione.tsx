@@ -42,6 +42,16 @@ import { TabBudget } from "@/components/controllo-gestione/tabs/TabBudget";
 import { TabIndiciAvanzati } from "@/components/controllo-gestione/tabs/TabIndiciAvanzati";
 import { TabDashboard } from "@/components/controllo-gestione/tabs/TabDashboard";
 import { TabHealthCheck } from "@/components/controllo-gestione/tabs/TabHealthCheck";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+/**
+ * Su telefono tre schede su quattordici: il riepilogo, la cassa e le commesse
+ * si leggono a colpo d'occhio; bilanci riclassificati, indici, rating, piano
+ * industriale, pacchetto per la banca (un PDF) e configurazione sono lavoro
+ * da scrivania. Un indirizzo diretto a un'altra scheda apre il riepilogo.
+ */
+const TAB_MOBILE: CGTab[] = ["dash", "cashflow", "commesse"];
 
 type CGTab =
   | "dash" | "ce" | "sp" | "cashflow" | "pfn" | "commesse" | "prodotti"
@@ -87,6 +97,7 @@ export default function ControlloGestione() {
   const { isFeatureEnabled, isLoading: flagsLoading } = useFeatureFlags();
   const location = useLocation();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
 
   // Tab attiva derivata dall'URL (deep-link friendly)
   const tabFromUrl: CGTab = useMemo(() => {
@@ -139,26 +150,49 @@ export default function ControlloGestione() {
     );
   }
 
+  const tabVisibile: CGTab = isMobile && !TAB_MOBILE.includes(activeTab) ? "dash" : activeTab;
+  const anniDisponibili = [0, 1, 2, 3].map((d) => new Date().getFullYear() - 2 + d);
+
   return (
     <div className="flex flex-col h-full">
-      <DashboardSelectorBar title="Controllo di Gestione" />
-      <FilterBar
-        value={filters}
-        onChange={setFilters}
-        showScenario={activeTab === "piano"}
-        // Periodo/Mese oggi li consuma solo il CE riclassificato: altrove erano
-        // controlli morti. Li mostriamo solo dove filtrano davvero.
-        showPeriodo={activeTab === "ce"}
+      <DashboardSelectorBar
+        title={isMobile ? "Controllo gestione" : "Controllo di Gestione"}
+        // Mobile: l'anno sta sulla riga del titolo invece di una riga sua.
+        actions={isMobile ? (
+          <Select value={String(filters.anno)} onValueChange={(v) => setFilters({ ...filters, anno: Number(v) })}>
+            <SelectTrigger className="h-8 w-[84px] text-xs" aria-label="Anno"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {anniDisponibili.map((a) => <SelectItem key={a} value={String(a)}>{a}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        ) : undefined}
       />
+      {!isMobile && (
+        <FilterBar
+          value={filters}
+          onChange={setFilters}
+          showScenario={activeTab === "piano"}
+          // Periodo/Mese oggi li consuma solo il CE riclassificato: altrove erano
+          // controlli morti. Li mostriamo solo dove filtrano davvero.
+          showPeriodo={activeTab === "ce"}
+        />
+      )}
 
       <Tabs
-        value={activeTab}
+        value={tabVisibile}
         onValueChange={handleTabChange}
         className="flex-1 overflow-y-auto"
       >
         <div className="px-3 sm:px-4 pt-3 sticky top-0 z-10 bg-background border-b">
           {/* Mobile: scroll orizzontale con min-w sui trigger per evitare
               overlap del testo. Desktop: layout flex naturale. */}
+          {isMobile ? (
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="dash">Riepilogo</TabsTrigger>
+              <TabsTrigger value="cashflow">Cassa</TabsTrigger>
+              <TabsTrigger value="commesse">Commesse</TabsTrigger>
+            </TabsList>
+          ) : (
           <TabsList className="w-full sm:w-auto overflow-x-auto flex-nowrap justify-start gap-1 [&>button]:min-w-[8rem] sm:[&>button]:min-w-0 [&>button]:shrink-0">
             <TabsTrigger value="dash">Dashboard</TabsTrigger>
             <TabsTrigger value="ce">CE riclassificato</TabsTrigger>
@@ -175,6 +209,7 @@ export default function ControlloGestione() {
             <TabsTrigger value="pdf">Pacchetto banca</TabsTrigger>
             <TabsTrigger value="config">Configurazione</TabsTrigger>
           </TabsList>
+          )}
         </div>
 
         <div className="p-3 sm:p-4">

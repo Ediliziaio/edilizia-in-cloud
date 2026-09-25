@@ -496,18 +496,18 @@ export function TabDashboard({ anno }: Props) {
 
       {/* Alert panel */}
       <Card className="rounded-2xl">
-        <CardHeader className="pb-3">
+        <CardHeader className="pb-3 max-sm:p-3 max-sm:pb-2">
           <CardTitle className="flex items-center gap-2 text-base">
             <AlertTriangle className="h-4 w-4" /> Alert e segnalazioni
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="max-sm:p-3 max-sm:pt-0">
           <ul className="space-y-2">
             {alerts.map((a, i) => (
               <li
                 key={i}
                 className={cn(
-                  "flex items-start gap-3 rounded-xl border p-3 text-sm",
+                  "flex items-start gap-3 rounded-xl border p-3 text-sm max-sm:gap-2 max-sm:px-2.5 max-sm:py-2 max-sm:text-[13px] max-sm:leading-snug",
                   a.severity === "rosso"  && "border-rose-200 bg-rose-50 text-rose-900",
                   a.severity === "giallo" && "border-amber-200 bg-amber-50 text-amber-900",
                   a.severity === "verde"  && "border-emerald-200 bg-emerald-50 text-emerald-900",
@@ -522,7 +522,7 @@ export function TabDashboard({ anno }: Props) {
                   )}
                 />
                 <p className="flex-1">{a.testo}</p>
-                {a.href && (
+                {a.href && (!isMobile || /cash-flow|commesse/.test(a.href)) && (
                   <Link
                     to={a.href}
                     className="shrink-0 text-xs font-medium underline underline-offset-2"
@@ -574,7 +574,8 @@ export function TabDashboard({ anno }: Props) {
         </Card>
         )}
 
-        <Card className="rounded-2xl">
+        {/* Mobile no: ripete i numeri della scheda Commesse, accanto. */}
+        <Card className="rounded-2xl max-sm:hidden">
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Cantieri attivi</CardTitle>
           </CardHeader>
@@ -670,14 +671,14 @@ function DashboardActionCenter({
   return (
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.08fr)_minmax(360px,0.92fr)]">
       <Card className="rounded-2xl border-slate-200">
-        <CardHeader className="pb-3">
-          <div className="flex items-start justify-between gap-3">
+        <CardHeader className="pb-3 max-sm:p-3 max-sm:pb-2">
+          <div className="flex items-start justify-between gap-3 max-sm:items-center">
             <div>
               <CardTitle className="flex items-center gap-2 text-base">
                 <ClipboardList className="h-4 w-4 text-primary" />
                 Regia operativa
               </CardTitle>
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className="mt-1 text-xs text-muted-foreground max-sm:hidden">
                 Priorità calcolate dai dati di cassa, bilancio, commesse, budget e rating.
               </p>
             </div>
@@ -686,7 +687,7 @@ function DashboardActionCenter({
             </Badge>
           </div>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-3 max-sm:space-y-2 max-sm:p-3 max-sm:pt-0">
           {actions.map((action, index) => (
             <RecommendedActionRow
               key={action.id}
@@ -778,20 +779,27 @@ function RecommendedActionRow({
   onToggle: () => void;
 }) {
   return (
-    <div className="rounded-xl border bg-card p-3 transition hover:border-primary/30 hover:shadow-sm">
-      <div className="flex items-start gap-3">
+    <div className="rounded-xl border bg-card p-3 transition hover:border-primary/30 hover:shadow-sm max-sm:px-2.5 max-sm:py-2">
+      {/* Mobile: tutta la riga apre il dettaglio, non solo la freccina. */}
+      <div
+        className="flex items-start gap-3 max-sm:items-center max-sm:gap-2 max-sm:cursor-pointer"
+        onClick={(e) => { if (window.matchMedia("(max-width: 639px)").matches && !(e.target as HTMLElement).closest("button,a")) onToggle(); }}
+      >
         <div className={cn(
-          "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-semibold",
+          "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-semibold max-sm:mt-0 max-sm:h-6 max-sm:w-6 max-sm:text-[11px]",
           ACTION_PRIORITY_STYLES[action.priority],
         )}>
           {index + 1}
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="font-semibold leading-tight">{action.title}</p>
+            {/* Mobile 14px: a 16-17px in grassetto ogni azione prendeva tre righe. */}
+            <p className="font-semibold leading-tight max-sm:text-sm">{action.title}</p>
+            {/* Mobile no: la priorità la dice già il colore del numero, e il
+                badge andava su una riga sua. */}
             <Badge
               variant="outline"
-              className={cn("h-5 rounded-full px-2 text-[10px]", ACTION_PRIORITY_STYLES[action.priority])}
+              className={cn("h-5 rounded-full px-2 text-[10px] max-sm:hidden", ACTION_PRIORITY_STYLES[action.priority])}
             >
               {action.priority}
             </Badge>
@@ -808,7 +816,7 @@ function RecommendedActionRow({
             type="button"
             variant="ghost"
             size="icon"
-            className="h-8 w-8"
+            className="tap-compact h-8 w-8"
             aria-label={isOpen ? "Chiudi dettagli azione" : "Apri dettagli azione"}
             aria-expanded={isOpen}
             onClick={onToggle}
@@ -931,6 +939,10 @@ function KPIMacro({
   tone: "blue" | "green" | "red" | "amber" | "neutral";
   href?: string;
 }) {
+  // Mobile: nome e numero; il collegamento solo verso le schede che il
+  // telefono mostra (cassa, commesse): le altre riaprivano il riepilogo.
+  const isMobile = useIsMobile();
+  const linkAttivo = href && (!isMobile || /cash-flow|commesse/.test(href)) ? href : undefined;
   const palette = {
     blue: "bg-blue-50",
     green: "bg-emerald-50",
@@ -947,12 +959,12 @@ function KPIMacro({
           <span className="text-muted-foreground shrink-0">{icon}</span>
         </div>
         <p className="mt-1 text-base sm:text-xl font-bold tabular-nums truncate">{value}</p>
-        <p className="text-[10px] sm:text-[11px] text-muted-foreground truncate">{sub}</p>
+        <p className="hidden text-[10px] sm:block sm:text-[11px] text-muted-foreground truncate">{sub}</p>
       </CardContent>
     </Card>
   );
 
-  return href ? <Link to={href} className="block min-w-0">{inner}</Link> : inner;
+  return linkAttivo ? <Link to={linkAttivo} className="block min-w-0">{inner}</Link> : inner;
 }
 
 function buildCfoAnswer(question: string, context: CfoContext): CfoAnswer {
