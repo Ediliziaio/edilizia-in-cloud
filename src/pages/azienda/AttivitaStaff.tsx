@@ -24,7 +24,7 @@ import {
   CloudSun, ChevronLeft, ChevronRight, CalendarDays, Droplets,
   MapPin, Plus, Pencil, Trash2, X, Filter,
   ArrowUpCircle, Circle, AlertCircle, MoreHorizontal, Tag, Users, Target, User as UserIcon,
-  CalendarClock, Sparkles, ListChecks,
+  CalendarClock, Sparkles, ListChecks, ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -60,6 +60,9 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
+} from "@/components/ui/sheet";
 import { Link } from "react-router-dom";
 import { logger } from "@/utils/logger";
 import {
@@ -1096,6 +1099,9 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
   const [groupBy, setGroupBy] = useState<GroupBy>("none");
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [filterAssignee, setFilterAssignee] = useState<string>("me");
+  // Mobile: «di chi» e «raggruppa» stanno in un pannello, non in due righe
+  // sopra la lista (vedi la testata della card).
+  const [filtriAperti, setFiltriAperti] = useState(false);
 
   // ── Form state ──
   const [formTitle, setFormTitle] = useState("");
@@ -1146,18 +1152,23 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
   // Auto-set "scadute" al primo carico se ci sono task in ritardo
   const hasSetInitialFilter = useRef(false);
 
+  // Le attività «di chi» si sta guardando: le mie, tutto il team o una
+  // persona. Da qui partono SIA la lista SIA i numeri sui filtri — prima i
+  // numeri si contavano su tutto il team e la lista su una persona sola, e
+  // «Scadute (15)» mostrava una lista vuota.
+  const tasksDiChi = useMemo(() => {
+    if (!seesTeamTasks || filterAssignee === "all") return allTasks;
+    if (filterAssignee === "me") return allTasks.filter((t: any) => t.assigned_to === user?.id);
+    return allTasks.filter((t: any) => t.assigned_to === filterAssignee);
+  }, [allTasks, seesTeamTasks, filterAssignee, user?.id]);
+
   const filteredTasks = useMemo(() => {
     // Quando il calendario ha selezionato una data: mostra TUTTE le task di quel giorno
     if (calendarDate) {
       return allTasks.filter((t: any) => t.due_date?.slice(0, 10) === calendarDate);
     }
 
-    let filtered = allTasks;
-    // Assignee filter (solo con visione team)
-    if (seesTeamTasks && filterAssignee !== "all") {
-      if (filterAssignee === "me") filtered = filtered.filter((t: any) => t.assigned_to === user?.id);
-      else filtered = filtered.filter((t: any) => t.assigned_to === filterAssignee);
-    }
+    let filtered = tasksDiChi;
     switch (filter) {
       case "oggi":
         filtered = filtered.filter((t: any) => t.status !== "completata" && t.due_date && (isToday(new Date(t.due_date)) || isBefore(new Date(t.due_date), today)));
@@ -1184,17 +1195,17 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
       );
     }
     return filtered;
-  }, [allTasks, filter, today, weekEnd, searchQuery, seesTeamTasks, filterAssignee, user?.id, calendarDate]);
+  }, [allTasks, tasksDiChi, filter, today, weekEnd, searchQuery, calendarDate]);
 
   // Stats
   const stats = useMemo(() => {
-    const active = allTasks.filter((t: any) => t.status !== "completata");
+    const active = tasksDiChi.filter((t: any) => t.status !== "completata");
     const overdue = active.filter((t: any) => t.due_date && isBefore(new Date(t.due_date), today) && !isToday(new Date(t.due_date)));
     const todayTasks = active.filter((t: any) => t.due_date && isToday(new Date(t.due_date)));
-    const completed = allTasks.filter((t: any) => t.status === "completata");
+    const completed = tasksDiChi.filter((t: any) => t.status === "completata");
     const inProgress = active.filter((t: any) => t.status === "in_corso");
     return { total: active.length, overdue: overdue.length, today: todayTasks.length, completed: completed.length, inProgress: inProgress.length };
-  }, [allTasks, today]);
+  }, [tasksDiChi, today]);
 
   // Default al tab "scadute" alla prima apertura se ci sono task in ritardo
   useEffect(() => {
@@ -1592,6 +1603,17 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
     return a ? `${a.first_name || ""} ${a.last_name || ""}`.trim() : null;
   };
 
+  // «Di chi»: le mie, tutto il team, o una persona. Una lista sola per le
+  // pillole di desktop e per il pannello di mobile.
+  const opzioniChi = [
+    { key: "me", label: "Le mie" },
+    { key: "all", label: "Team" },
+    ...teamMembers.filter(m => m.id !== user?.id).map(m => ({
+      key: m.id, label: `${m.first_name?.[0] || ""}. ${m.last_name || ""}`.trim(),
+    })),
+  ];
+  const etichettaChi = opzioniChi.find(o => o.key === filterAssignee)?.label ?? "Le mie";
+
   return (
     <>
       <Card>
@@ -1633,7 +1655,9 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
 
           {/* Stats */}
           {(stats.total > 0 || stats.completed > 0) && (
-            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] font-medium">
+            // Su mobile questa riga ripeteva i numeri che stanno gia' sui filtri
+            // subito sotto («Scadute (15)»): una riga in meno prima della lista.
+            <div className="mt-2 hidden sm:flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] font-medium">
               {stats.overdue > 0 && <span className="inline-flex items-center gap-1 text-red-500"><span className="h-1.5 w-1.5 rounded-full bg-red-500" />{stats.overdue} scadute</span>}
               {stats.inProgress > 0 && <span className="inline-flex items-center gap-1 text-blue-500"><span className="h-1.5 w-1.5 rounded-full bg-blue-500" />{stats.inProgress} in corso</span>}
               {stats.today > 0 && <span className="inline-flex items-center gap-1 text-amber-600"><span className="h-1.5 w-1.5 rounded-full bg-amber-500" />{stats.today} oggi</span>}
@@ -1643,15 +1667,12 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
 
           {/* Assignee filter (visione team) — "chi". tap-compact: opt-out dal min
               44×44 mobile che gonfiava i chip in ovali (vedi index.css). */}
+          {/* Mobile: niente riga di nomi da scorrere (una pillola per ogni
+              persona dell'azienda, 20 e oltre). La scelta sta nel pannello
+              «Filtri», aperto dal bottone accanto alla ricerca. */}
           {seesTeamTasks && teamMembers.length > 0 && (
-            <div className="flex items-center gap-1.5 mt-2 overflow-x-auto pb-1 -mx-0.5 px-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {[
-                { key: "me", label: "Le mie" },
-                { key: "all", label: "Team" },
-                ...teamMembers.filter(m => m.id !== user?.id).map(m => ({
-                  key: m.id, label: `${m.first_name?.[0] || ""}. ${m.last_name || ""}`.trim()
-                })),
-              ].map(f => (
+            <div className="hidden sm:flex items-center gap-1.5 mt-2 overflow-x-auto pb-1 -mx-0.5 px-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {opzioniChi.map(f => (
                 <button key={f.key} onClick={() => setFilterAssignee(f.key)}
                   className={`tap-compact inline-flex shrink-0 items-center gap-1 h-8 md:h-7 px-3 rounded-full text-xs font-medium whitespace-nowrap transition-colors active:scale-95 ${filterAssignee === f.key ? "bg-violet-600 text-white shadow-sm" : "bg-muted/60 text-muted-foreground hover:bg-muted"}`}>
                   {f.label}
@@ -1677,9 +1698,10 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
             ))}
           </div>
 
-          {/* Search + view controls — mobile: search full-row, controls below */}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2 mt-2">
-            <div className="flex-1 relative">
+          {/* Ricerca e controlli. Mobile: una riga sola — ricerca e bottone
+              «di chi» che apre il pannello con persona e raggruppamento. */}
+          <div className="flex flex-row items-center gap-2 mt-2">
+            <div className="flex-1 min-w-0 relative">
               <Input
                 placeholder="Cerca attività..."
                 value={searchQuery}
@@ -1689,10 +1711,24 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
               <Filter className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               {searchQuery && <button onClick={() => setSearchQuery("")} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground" aria-label="Pulisci ricerca"><X className="h-3 w-3" /></button>}
             </div>
-            <div className="flex items-center gap-2">
+            {/* Mobile: il bottone dice DI CHI si stanno guardando le attività
+                (lo stato del filtro si legge senza aprirlo) e un pallino se
+                c'e' anche un raggruppamento attivo. */}
+            <button
+              type="button"
+              onClick={() => setFiltriAperti(true)}
+              className="sm:hidden inline-flex items-center gap-1.5 h-9 max-w-[45%] shrink-0 rounded-md border bg-background px-2.5 text-xs font-medium"
+              aria-label="Filtri attività"
+            >
+              <Users className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              <span className="truncate">{etichettaChi}</span>
+              {groupBy !== "none" && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-hidden />}
+              <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            </button>
+            <div className="hidden sm:flex items-center gap-2">
               {/* Group by */}
               <Select value={groupBy} onValueChange={v => { setGroupBy(v as GroupBy); setCollapsedGroups(new Set()); }}>
-                <SelectTrigger className="h-9 flex-1 sm:w-[110px] sm:flex-none text-xs"><SelectValue placeholder="Raggruppa" /></SelectTrigger>
+                <SelectTrigger className="h-9 sm:w-[110px] sm:flex-none text-xs"><SelectValue placeholder="Raggruppa" /></SelectTrigger>
                 <SelectContent>{GROUP_OPTIONS.map(g => <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>)}</SelectContent>
               </Select>
               {/* Compact toggle */}
@@ -2019,6 +2055,46 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Mobile: di chi guardare le attività e come raggrupparle. Due scelte,
+          un tocco ciascuna, al posto di due righe fisse sopra la lista. */}
+      <Sheet open={filtriAperti} onOpenChange={setFiltriAperti}>
+        <SheetContent side="bottom" className="rounded-t-2xl px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] max-h-[80dvh] overflow-y-auto">
+          <SheetHeader className="text-left">
+            <SheetTitle>Filtri</SheetTitle>
+            <SheetDescription>Di chi vedere le attività e come raggrupparle.</SheetDescription>
+          </SheetHeader>
+          <div className="mt-4 space-y-5">
+            {seesTeamTasks && teamMembers.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Di chi</p>
+                <div className="flex flex-wrap gap-2">
+                  {opzioniChi.map(f => (
+                    <button key={f.key} type="button"
+                      onClick={() => { setFilterAssignee(f.key); setFiltriAperti(false); }}
+                      className={`inline-flex items-center h-10 px-3.5 rounded-full text-sm font-medium transition-colors active:scale-95 ${filterAssignee === f.key ? "bg-violet-600 text-white" : "bg-muted text-foreground"}`}>
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Raggruppa per</p>
+              <div className="grid grid-cols-2 gap-2">
+                {GROUP_OPTIONS.map(g => (
+                  <button key={g.value} type="button"
+                    onClick={() => { setGroupBy(g.value); setCollapsedGroups(new Set()); }}
+                    className={`h-11 rounded-lg border text-sm font-medium transition-colors ${groupBy === g.value ? "border-primary bg-primary/10 text-primary" : "bg-background"}`}>
+                    {g.value === "none" ? "Nessun gruppo" : g.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <Button className="w-full h-11" onClick={() => setFiltriAperti(false)}>Fatto</Button>
+          </div>
+        </SheetContent>
+      </Sheet>
     </>
   );
 }
