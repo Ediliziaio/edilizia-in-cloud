@@ -1726,7 +1726,15 @@ export function CompanyLayout() {
   // blocco un filo lungo (Silvio) allungava <main> a 2.400px e il campo di
   // scrittura finiva sotto la piega; il margine di 24px era spazio vuoto.
   const isChatSchermoIntero = /^\/azienda\/chat\/?$/.test(location.pathname);
-  const altezzaBloccata = isViewportEditor || isChatSchermoIntero;
+  // Silvio AI: come la chat, e su mobile da bordo a bordo con il campo di
+  // scrittura appena sopra la barra flottante (80px + area sicura), non 112px.
+  const isSilvioSchermoIntero = /^\/azienda\/silvio-ai/.test(location.pathname);
+  const altezzaBloccata = isViewportEditor || isChatSchermoIntero || isSilvioSchermoIntero;
+  const paddingMain = isChatSchermoIntero
+    ? "p-3 md:p-0 pb-28 md:pb-0"
+    : isSilvioSchermoIntero
+      ? "p-0 pb-[calc(env(safe-area-inset-bottom)+5rem)] md:pb-0"
+      : "p-3 md:p-6 pb-28 md:pb-6";
 
   const showSupport = permissions.canViewTickets && isModuleEnabled("tickets");
 
@@ -1889,7 +1897,7 @@ export function CompanyLayout() {
               "spazi vuoti ai lati quando scrollo") — le tabelle scrollano nei loro wrapper */}
           {/* pb mobile ≈ altezza pillola flottante + safe-area: l'ultimo
               elemento resta raggiungibile sopra il vetro della bottom-nav. */}
-          <main className={`flex-1 ${altezzaBloccata ? "min-h-0" : ""} overflow-y-auto overflow-x-hidden p-3 ${isChatSchermoIntero ? "md:p-0" : "md:p-6"} bg-muted/30 pb-28 ${isChatSchermoIntero ? "md:pb-0" : "md:pb-6"}`} id="main-content" aria-label="Contenuto principale">
+          <main className={`flex-1 ${altezzaBloccata ? "min-h-0" : ""} overflow-y-auto overflow-x-hidden ${paddingMain} bg-muted/30`} id="main-content" aria-label="Contenuto principale">
             <ErrorBoundary title="Errore nel caricamento della pagina">
               {/* Skeleton (non spinner) al cambio pagina: percezione di velocità sul primo paint mobile */}
               <Suspense fallback={
