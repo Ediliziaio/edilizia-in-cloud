@@ -28,11 +28,14 @@ import { isAutoReply, tipoAutorisposta, type InboundHeaders } from "./outreach-a
 import { classifyEmail } from "./email-quality.ts";
 import { domainHasMx, domainOf, isPecEmail } from "./outreach-email-check.ts";
 import { passoDellInvio } from "./outreach-sequence.ts";
-import { intentDaParoleChiave, rispostaColSoloNumero } from "./outreach-intent-parole.ts";
+import { intentDaParoleChiave, rispostaColSoloNumero, rispostaPiuAvanti } from "./outreach-intent-parole.ts";
 import { avvisaSuperAdmin } from "./avvisaSuperAdmin.ts";
 import { testoSenzaCitazione } from "./avvisoEmail.ts";
 import { iscrizioniDaFermare } from "./outreachRispostaBrand.ts";
 import { shouldCreateOpportunity, triggerOpportunityFromSignal } from "./outreach-opportunity-trigger.ts";
+
+/** Dopo quanti giorni si richiama chi ha risposto «più avanti». */
+export const GIORNI_PIU_AVANTI = 75;
 
 const PLATFORM_COMPANY = "00000000-0000-0000-0000-000000000001";
 
@@ -498,6 +501,42 @@ export async function handleInboundReply(admin: any, r: InboundReply): Promise<v
       }
     } catch (e) {
       console.warn("[outreach-reply-handler] task chiamata non creato:", e instanceof Error ? e.message : e);
+    }
+  }
+
+  // 4-bis-1. «Più avanti»: non è un no. Le nostre email lo propongono come
+  // risposta («scrivimi più avanti e mi faccio sentire tra qualche mese»), e la
+  // promessa la mantiene un promemoria di chiamata fra circa due mesi e mezzo,
+  // che compare in «Oggi» quando scade (25/09/2026). Chi è interessato o fa una
+  // domanda ha già il suo promemoria per domani, qui sopra.
+  if (r.contactId && intent !== "unsubscribe" && intent !== "interested" && intent !== "question"
+      && rispostaPiuAvanti(r.text ?? "")) {
+    try {
+      const { data: giaAperto } = await admin.from("outreach_call_tasks").select("id")
+        .eq("company_id", PLATFORM_COMPANY).eq("contact_id", r.contactId).eq("status", "pending").limit(1).maybeSingle();
+      if (!giaAperto?.id) {
+        const { data: c } = await admin.from("marketing_contacts")
+          .select("first_name,last_name,company_name,phone").eq("id", r.contactId).maybeSingle();
+        let sequenceId: string | null = null;
+        if (r.enrollmentId) {
+          const { data: e } = await admin.from("outreach_enrollments").select("sequence_id").eq("id", r.enrollmentId).maybeSingle();
+          sequenceId = e?.sequence_id ?? null;
+        }
+        await admin.from("outreach_call_tasks").insert({
+          company_id: PLATFORM_COMPANY,
+          enrollment_id: r.enrollmentId ?? null,
+          contact_id: r.contactId,
+          sequence_id: sequenceId,
+          phone: c?.phone ?? null,
+          contact_name: [c?.first_name, c?.last_name].filter(Boolean).join(" ") || null,
+          company_name: c?.company_name ?? null,
+          note: `Aveva risposto «più avanti»: ricontattare (${fromEmail}): "${(snippet ?? "").slice(0, 240)}"`,
+          status: "pending",
+          due_at: new Date(Date.now() + GIORNI_PIU_AVANTI * 86_400_000).toISOString(),
+        });
+      }
+    } catch (e) {
+      console.warn("[outreach-reply-handler] promemoria «più avanti» non creato:", e instanceof Error ? e.message : e);
     }
   }
 
