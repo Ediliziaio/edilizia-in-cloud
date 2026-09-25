@@ -13,6 +13,8 @@ import {
   Calculator,
   CalendarClock,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   Clock3,
   CreditCard,
   Database as DatabaseIcon,
@@ -55,8 +57,10 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { CercaConFiltri, KpiMobili, PannelloFiltri, PilloleFiltro, RigaMobile } from "@/components/mobile/FiltriMobile";
 import { SmartDocumentImportModal } from "@/components/documenti/SmartDocumentImportModal";
 import { SmartDocumentInboxDialog } from "@/components/documenti/SmartDocumentInboxDialog";
 import { useAuth } from "@/contexts/AuthContext";
@@ -1143,6 +1147,10 @@ export default function ContenutiMultimediali() {
   const [authExpired, setAuthExpired] = useState(false);
   const [droppedFile, setDroppedFile] = useState<File | null>(null);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
+  // Mobile: cartella nel pannello filtri, 25 documenti per pagina, dettaglio dal basso.
+  const [filtriMobiliAperti, setFiltriMobiliAperti] = useState(false);
+  const [paginaMobile, setPaginaMobile] = useState(1);
+  const [dettaglioMobile, setDettaglioMobile] = useState<MediaLibraryItem | null>(null);
 
   const {
     data: mediaLoadResult = EMPTY_MEDIA_LOAD_RESULT,
@@ -1258,6 +1266,31 @@ export default function ContenutiMultimediali() {
   const selectCustomFolder = (folderId: string) => {
     setActiveCustomFolderId(folderId);
     setSelectedId(null);
+  };
+
+  // Mobile: pagine da 25 righe (niente elenco con lo scorrimento interno) e
+  // cartelle come pillole nel pannello filtri, solo quelle con dei documenti.
+  const PER_PAGINA_MOBILE = 25;
+  const pagineMobili = Math.max(1, Math.ceil(filteredItems.length / PER_PAGINA_MOBILE));
+  const paginaMobileValida = Math.min(paginaMobile, pagineMobili);
+  const righeMobili = filteredItems.slice((paginaMobileValida - 1) * PER_PAGINA_MOBILE, paginaMobileValida * PER_PAGINA_MOBILE);
+  const cartellaMobile = activeCustomFolder ? `c:${activeCustomFolder.id}` : activeTab;
+  const scelteCartelleMobili = [
+    ...TABS.filter((tab) => tab === "tutti" || tab === activeTab || (countsByTab[tab] ?? 0) > 0).map((tab) => ({
+      value: tab as string,
+      label: TAB_LABELS[tab],
+      n: countsByTab[tab] ?? 0,
+    })),
+    ...customFolders.map((folder) => ({
+      value: `c:${folder.id}`,
+      label: folder.name,
+      n: countsByCustomFolder.get(folder.id) ?? 0,
+    })),
+  ];
+  const scegliCartellaMobile = (value: string) => {
+    if (value.startsWith("c:")) selectCustomFolder(value.slice(2));
+    else selectSystemFolder(value as DriveTab);
+    setPaginaMobile(1);
   };
 
   const updateNewFolderName = (value: string) => {
@@ -1388,43 +1421,47 @@ export default function ContenutiMultimediali() {
   }
 
   return (
-    <div className="space-y-5 pb-20 md:pb-0">
-      <div className="flex flex-col gap-4 rounded-md border bg-background p-5 md:flex-row md:items-start md:justify-between">
+    // max-sm:pb-0: sul telefono lo spazio per la barra in basso lo lascia già il layout.
+    <div className="space-y-5 pb-20 md:pb-0 max-sm:space-y-3 max-sm:pb-0">
+      {/* Mobile: titolo e «Carica» su una riga, senza riquadro né descrizione;
+          cartelle nuove, Inbox AI e strumenti PDF restano al computer. */}
+      <div className="flex flex-col gap-4 rounded-md border bg-background p-5 md:flex-row md:items-start md:justify-between max-sm:flex-row max-sm:items-center max-sm:justify-between max-sm:gap-2 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <div className="flex h-10 w-10 items-center justify-center rounded-md bg-orange-500 text-white">
+            <div className="flex h-10 w-10 items-center justify-center rounded-md bg-orange-500 text-white max-sm:hidden">
               <FolderOpen className="h-5 w-5" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight">EiC Drive</h1>
-              <p className="text-sm text-muted-foreground">
+              <h1 className="text-2xl font-bold tracking-tight max-sm:text-lg max-sm:leading-6">EiC Drive</h1>
+              <p className="text-sm text-muted-foreground max-sm:hidden">
                 Drive aziendale per documenti, foto, computi, allegati e import AI.
               </p>
             </div>
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => setShowFolderDialog(true)}>
+        <div className="flex flex-wrap gap-2 max-sm:shrink-0">
+          <Button variant="outline" onClick={() => setShowFolderDialog(true)} className="max-sm:hidden">
             <FolderPlus className="mr-2 h-4 w-4" />
             Nuova cartella
           </Button>
-          <Button variant="outline" onClick={() => setShowSmartInbox(true)}>
+          <Button variant="outline" onClick={() => setShowSmartInbox(true)} className="max-sm:hidden">
             <Inbox className="mr-2 h-4 w-4" />
             Inbox AI
           </Button>
-          <Button variant="outline" onClick={() => setShowPdfTools(true)}>
+          <Button variant="outline" onClick={() => setShowPdfTools(true)} className="max-sm:hidden">
             <FileText className="mr-2 h-4 w-4" />
             Strumenti PDF
           </Button>
-          <Button onClick={() => setShowSmartImport(true)}>
-            <UploadCloud className="mr-2 h-4 w-4" />
-            Carica documento
+          <Button onClick={() => setShowSmartImport(true)} className="tap-compact max-sm:h-8 max-sm:px-3 max-sm:text-xs">
+            <UploadCloud className="mr-2 h-4 w-4 max-sm:mr-1.5" />
+            <span className="max-sm:hidden">Carica documento</span>
+            <span className="sm:hidden">Carica</span>
           </Button>
         </div>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-5">
+      <div className="grid gap-3 md:grid-cols-5 max-sm:hidden">
         <MetricCard label="Documenti" value={summary.total} icon={Archive} loading={isInitialMediaLoading} />
         <MetricCard label="Inbox AI" value={summary.aiInbox} icon={Brain} loading={isInitialMediaLoading} />
         <MetricCard label="Da verificare" value={summary.reviewRequired} icon={AlertTriangle} tone="warning" loading={isInitialMediaLoading} />
@@ -1432,7 +1469,23 @@ export default function ContenutiMultimediali() {
         <MetricCard label="Riservati" value={summary.reserved} icon={ShieldCheck} tone="restricted" loading={isInitialMediaLoading} />
       </div>
 
-      <IntegrationCoveragePanel coverage={integrationCoverage} loading={isInitialMediaLoading} />
+      {/* Mobile: due numeri; «Da classificare» apre la cartella omonima.
+          Dopo i riquadri del desktop: da primo figlio nascosto li sposterebbe. */}
+      <KpiMobili
+        className="sm:hidden"
+        voci={[
+          { label: "Documenti", valore: isInitialMediaLoading ? "…" : String(summary.total) },
+          {
+            label: "Da classificare",
+            valore: isInitialMediaLoading ? "…" : String(countsByTab.da_classificare ?? 0),
+            tono: (countsByTab.da_classificare ?? 0) > 0 ? "text-amber-600" : undefined,
+            onClick: () => scegliCartellaMobile(!activeCustomFolder && activeTab === "da_classificare" ? "tutti" : "da_classificare"),
+            attivo: !activeCustomFolder && activeTab === "da_classificare",
+          },
+        ]}
+      />
+
+      <IntegrationCoveragePanel coverage={integrationCoverage} loading={isInitialMediaLoading} className="max-sm:hidden" />
 
       {sourceWarnings.length > 0 ? (
         <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
@@ -1440,7 +1493,7 @@ export default function ContenutiMultimediali() {
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
             <div>
               <div className="font-medium">Archivio caricato parzialmente</div>
-              <p className="mt-1 text-xs leading-relaxed">
+              <p className="mt-1 text-xs leading-relaxed max-sm:hidden">
                 Alcune fonti non hanno risposto: {sourceWarnings.join(" · ")}. I documenti disponibili restano consultabili.
               </p>
             </div>
@@ -1448,7 +1501,7 @@ export default function ContenutiMultimediali() {
         </div>
       ) : null}
 
-      <div className="grid gap-4 xl:grid-cols-[260px_minmax(0,1fr)_360px]">
+      <div className="grid gap-4 xl:grid-cols-[260px_minmax(0,1fr)_360px] max-sm:hidden">
         <Card className="h-fit">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between gap-2">
@@ -1654,6 +1707,145 @@ export default function ContenutiMultimediali() {
           onInbox={() => setShowSmartInbox(true)}
         />
       </div>
+
+      {/* Mobile: ricerca con la cartella nel pannello filtri, documenti a righe
+          da ~52px (nome; area e data; stato solo se c'è da fare), dettaglio in
+          un foglio dal basso. Niente colonna cartelle, niente pannello fisso. */}
+      <div className="space-y-2 sm:hidden">
+        <CercaConFiltri
+          valore={query}
+          onCambia={(v) => { setQuery(v); setPaginaMobile(1); }}
+          segnaposto={activeCustomFolder || activeTab !== "tutti" ? `Cerca in ${activeFolderTitle}` : "Cerca documento"}
+          filtriAttivi={activeCustomFolder || activeTab !== "tutti" ? 1 : 0}
+          onApriFiltri={() => setFiltriMobiliAperti(true)}
+        />
+        {isLoading ? (
+          <div className="divide-y divide-border overflow-hidden rounded-lg border bg-card">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <div key={index} className="space-y-1.5 px-3 py-2.5">
+                <Skeleton className="h-3.5 w-2/3" />
+                <Skeleton className="h-3 w-1/3" />
+              </div>
+            ))}
+          </div>
+        ) : authExpired ? (
+          <EmptyState
+            inline
+            icon={AlertTriangle}
+            title="Sessione scaduta"
+            action={{ label: "Vai al login", onClick: () => navigate("/login?redirect=/azienda/contenuti-multimediali"), variant: "default" }}
+          />
+        ) : error ? (
+          <EmptyState
+            inline
+            icon={AlertTriangle}
+            title="Archivio non caricato"
+            action={{ label: "Riprova", onClick: () => refetch(), variant: "outline" }}
+          />
+        ) : filteredItems.length === 0 ? (
+          <p className="py-4 text-center text-xs text-muted-foreground">
+            {rawItems.length === 0 ? "Il Drive è vuoto" : query ? "Nessun documento trovato" : "Nessun documento in questa cartella"}
+          </p>
+        ) : (
+          <div className="divide-y divide-border overflow-hidden rounded-lg border bg-card">
+            {righeMobili.map((item) => (
+              <RigaMobile
+                key={item.id}
+                titolo={item.fileName}
+                sottotitolo={[item.areaLabel, item.lastActivityAt ? formatDate(item.lastActivityAt) : null].filter(Boolean).join(" · ")}
+                stato={
+                  item.statusTone === "warning" || item.statusTone === "error" || item.statusTone === "processing" ? (
+                    <span className={item.statusTone === "processing" ? "text-blue-600" : item.statusTone === "error" ? "text-rose-600" : "text-amber-600"}>
+                      {statusLabel(item)}
+                    </span>
+                  ) : undefined
+                }
+                onClick={() => setDettaglioMobile(item)}
+              />
+            ))}
+          </div>
+        )}
+        {pagineMobili > 1 && (
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] text-muted-foreground">
+              {(paginaMobileValida - 1) * PER_PAGINA_MOBILE + 1}–{Math.min(paginaMobileValida * PER_PAGINA_MOBILE, filteredItems.length)} di {filteredItems.length}
+            </span>
+            <div className="flex gap-1">
+              <Button
+                variant="outline"
+                size="icon"
+                className="tap-compact h-8 w-8"
+                aria-label="Pagina precedente"
+                disabled={paginaMobileValida <= 1}
+                onClick={() => setPaginaMobile(paginaMobileValida - 1)}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                className="tap-compact h-8 w-8"
+                aria-label="Pagina successiva"
+                disabled={paginaMobileValida >= pagineMobili}
+                onClick={() => setPaginaMobile(paginaMobileValida + 1)}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <PannelloFiltri
+        aperto={filtriMobiliAperti}
+        onAperto={setFiltriMobiliAperti}
+        attivi={activeCustomFolder || activeTab !== "tutti" ? 1 : 0}
+        onAzzera={() => scegliCartellaMobile("tutti")}
+        risultati={filteredItems.length}
+      >
+        <PilloleFiltro titolo="Cartella" valore={cartellaMobile} onScegli={scegliCartellaMobile} scelte={scelteCartelleMobili} />
+      </PannelloFiltri>
+
+      {/* Mobile: il documento dal basso con i dati che servono e «Apri file». */}
+      <Sheet open={!!dettaglioMobile} onOpenChange={(o) => { if (!o) setDettaglioMobile(null); }}>
+        <SheetContent side="bottom" className="max-h-[85dvh] overflow-y-auto rounded-t-2xl px-4 pb-6">
+          {dettaglioMobile && (
+            <>
+              <SheetHeader className="text-left">
+                <SheetTitle className="break-words pr-6 text-base leading-tight">{dettaglioMobile.fileName}</SheetTitle>
+                <SheetDescription className="sr-only">Dettaglio del documento</SheetDescription>
+              </SheetHeader>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {/* Niente doppioni (tipo uguale all'area) né «n.d.» quando manca la dimensione. */}
+                {[
+                  dettaglioMobile.areaLabel,
+                  dettaglioMobile.docType.replace(/_/g, " ").toLowerCase() !== dettaglioMobile.areaLabel.toLowerCase()
+                    ? dettaglioMobile.docType.replace(/_/g, " ")
+                    : null,
+                  dettaglioMobile.fileSize ? formatFileSize(dettaglioMobile.fileSize) : null,
+                  dettaglioMobile.lastActivityAt ? formatDate(dettaglioMobile.lastActivityAt) : null,
+                ].filter(Boolean).join(" · ")}
+              </p>
+              <p className="mt-3 text-xs text-muted-foreground">
+                {statusLabel(dettaglioMobile)}
+                {dettaglioMobile.linkedEntityLabel ? ` · collegato a ${dettaglioMobile.linkedEntityLabel}` : ""}
+                {dettaglioMobile.actorLabel ? ` · ${dettaglioMobile.actorLabel}` : ""}
+              </p>
+              {dettaglioMobile.errorMessage ? (
+                <p className="mt-2 text-xs text-amber-700">{dettaglioMobile.errorMessage}</p>
+              ) : null}
+              <Button
+                className="mt-4 h-10 w-full"
+                onClick={() => openSignedDocument(dettaglioMobile)}
+                disabled={openingId === dettaglioMobile.id || resolveMediaLibraryOpenTarget(dettaglioMobile).kind === "missing"}
+              >
+                {openingId === dettaglioMobile.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Eye className="mr-2 h-4 w-4" />}
+                Apri file
+              </Button>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
 
       <SmartDocumentInboxDialog
         open={showSmartInbox}
@@ -1898,9 +2090,11 @@ function MetricCard({
 function IntegrationCoveragePanel({
   coverage,
   loading = false,
+  className,
 }: {
   coverage: MediaLibraryIntegrationCoverage[];
   loading?: boolean;
+  className?: string;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const connected = coverage.filter((source) => source.state === "connected").length;
@@ -1914,7 +2108,7 @@ function IntegrationCoveragePanel({
   const badgeLabel = loading ? "Verifica in corso" : missingRequired === 0 ? "Copertura completa" : `${missingRequired} da collegare`;
 
   return (
-    <Card className="border-dashed bg-muted/20 shadow-none">
+    <Card className={cn("border-dashed bg-muted/20 shadow-none", className)}>
       <CardContent className="space-y-3 p-3">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="flex min-w-0 items-center gap-3">

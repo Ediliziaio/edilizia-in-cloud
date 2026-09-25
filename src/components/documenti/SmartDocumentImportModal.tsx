@@ -725,8 +725,9 @@ export function SmartDocumentImportModal({
               </>
             )}
           </DialogTitle>
+          {/* Mobile: niente spiegazione, basta il riquadro per scegliere il file. */}
           {step === 1 && (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground max-sm:hidden">
               Carica un PDF, una foto, un Excel o un file computo. L'AI lo classifica,
               prova a estrarre i dati e lo porta al modulo corretto senza farti
               ricaricare il documento.
@@ -737,7 +738,7 @@ export function SmartDocumentImportModal({
         {step === 1 && (
           <div className="space-y-4">
             <div
-              className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer ${
+              className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer max-sm:p-5 ${
                 dragOver ? "border-orange-400 bg-orange-50" : "border-slate-200 hover:border-slate-300"
               }`}
               onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
@@ -772,9 +773,11 @@ export function SmartDocumentImportModal({
                 </div>
               ) : (
                 <>
-                  <Upload className="h-10 w-10 mx-auto text-slate-300 mb-3" />
-                  <p className="text-sm font-medium">Trascina qui un documento</p>
-                  <p className="text-xs text-muted-foreground mt-1">
+                  <Upload className="h-10 w-10 mx-auto text-slate-300 mb-3 max-sm:mb-2 max-sm:h-8 max-sm:w-8" />
+                  {/* Sul telefono non si trascina: si tocca il riquadro. */}
+                  <p className="text-sm font-medium max-sm:hidden">Trascina qui un documento</p>
+                  <p className="text-sm font-medium sm:hidden">Tocca per scegliere il file</p>
+                  <p className="text-xs text-muted-foreground mt-1 max-sm:hidden">
                     PDF, immagine, Excel, XPWE o DCF — Max {formatBytes(MAX_SIZE)}
                   </p>
                 </>
@@ -782,7 +785,7 @@ export function SmartDocumentImportModal({
             </div>
 
             <div className="flex justify-end">
-              <Button onClick={handleStartClassify} disabled={!file}>
+              <Button onClick={handleStartClassify} disabled={!file} className="max-sm:w-full">
                 <Sparkles className="h-4 w-4 mr-1" /> Analizza e prepara importazione
               </Button>
             </div>
@@ -877,8 +880,8 @@ export function SmartDocumentImportModal({
               )}
             </div>
 
-            {/* Reasoning */}
-            <div className="text-sm bg-slate-50 rounded-lg p-3">
+            {/* Reasoning — mobile no: spiegazione, non serve per proseguire. */}
+            <div className="text-sm bg-slate-50 rounded-lg p-3 max-sm:hidden">
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">
                 Perché?
               </p>
@@ -920,8 +923,8 @@ export function SmartDocumentImportModal({
               </div>
             )}
 
-            {/* AI meta */}
-            <p className="text-[10px] text-muted-foreground text-right">
+            {/* AI meta — mobile no: modello, tempi e costo sono dati tecnici. */}
+            <p className="text-[10px] text-muted-foreground text-right max-sm:hidden">
               {result.analysis_id ? `job ${result.analysis_id.slice(0, 8)} · ` : ""}
               {result.ai_meta.model_used} · {(result.ai_meta.elapsed_ms / 1000).toFixed(1)}s · €{result.ai_meta.cost_billed_eur.toFixed(4)}
             </p>
@@ -976,14 +979,14 @@ export function SmartDocumentImportModal({
 
             {/* Footer meta + actions */}
             <div className="flex items-center justify-between border-t pt-3">
-              <div className="text-[10px] text-muted-foreground">
+              <div className="text-[10px] text-muted-foreground max-sm:hidden">
                 {deepResult.ai_meta.model_used} · {(deepResult.ai_meta.elapsed_ms / 1000).toFixed(1)}s · €{deepResult.ai_meta.cost_billed_eur.toFixed(4)}
                 {deepResult.confidence != null && (
                   <span className="ml-2">· confidence {(deepResult.confidence * 100).toFixed(0)}%</span>
                 )}
               </div>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => {
+              <div className="flex gap-2 max-sm:w-full">
+                <Button variant="outline" size="sm" className="max-sm:hidden" onClick={() => {
                   const payload = JSON.stringify(deepResult.ddt ?? deepResult.extracted ?? {}, null, 2);
                   navigator.clipboard?.writeText(payload).then(
                     () => toast.success("JSON copiato negli appunti"),
@@ -998,7 +1001,7 @@ export function SmartDocumentImportModal({
                     Cerco collegamenti…
                   </div>
                 )}
-                <Button onClick={handleClose}>
+                <Button onClick={handleClose} className="max-sm:flex-1">
                   <CheckCircle2 className="h-4 w-4 mr-1" /> Fatto
                 </Button>
               </div>
