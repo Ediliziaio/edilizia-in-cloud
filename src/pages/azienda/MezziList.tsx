@@ -225,18 +225,14 @@ export default function MezziList() {
           <button type="button" className="font-semibold underline" onClick={() => refetch()}>Riprova</button>
         </div>
       ) : mezzi.length === 0 ? (
-        // Telefono: una riga e basta; «Nuovo mezzo» c'è già in alto.
+        // Telefono: una riga e basta. Anche da tablet niente secondo bottone
+        // (blu, «Aggiungi il primo mezzo»): «Nuovo mezzo» c'è già in alto.
         <div className="rounded-2xl border border-dashed bg-card px-6 py-14 text-center max-sm:px-3 max-sm:py-5">
           <Truck className="mx-auto h-10 w-10 text-muted-foreground/50 max-sm:hidden" aria-hidden="true" />
           <h2 className="mt-3 text-base font-semibold max-sm:mt-0 max-sm:text-sm max-sm:font-normal max-sm:text-muted-foreground">Nessun mezzo ancora</h2>
           <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground max-sm:hidden">
             Aggiungi furgoni, mezzi d'opera e attrezzi: poi carichi assicurazione, revisione e tagliandi, e ti avvisiamo prima delle scadenze.
           </p>
-          {puoModificare && (
-            <Button className="mt-4 max-sm:hidden" onClick={() => setNuovoAperto(true)}>
-              <Plus className="mr-1 h-4 w-4" />Aggiungi il primo mezzo
-            </Button>
-          )}
         </div>
       ) : filtrati.length === 0 ? (
         <p className="py-10 text-center text-sm text-muted-foreground">Nessun mezzo corrisponde alla ricerca.</p>
