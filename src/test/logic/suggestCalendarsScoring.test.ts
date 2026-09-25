@@ -6,7 +6,8 @@
  */
 import { expect, it } from "vitest";
 
-const assertEquals = (attuale: unknown, atteso: unknown) => expect(attuale).toEqual(atteso);
+const assertEquals = (attuale: unknown, atteso: unknown, messaggio?: string) =>
+  expect(attuale, messaggio).toEqual(atteso);
 
 import {
   haversineKm,
