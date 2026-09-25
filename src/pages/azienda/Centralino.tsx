@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { PhoneCall, Phone, Delete, Loader2, ArrowUpRight, ArrowDownLeft, Settings2, History, User, Search } from "lucide-react";
+import { Phone, Delete, Loader2, ArrowUpRight, ArrowDownLeft, Settings2, History, User, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DisponibilitaOperatore } from "@/components/telephony/DisponibilitaOperatore";
 
@@ -101,17 +101,14 @@ export default function Centralino() {
   return (
     // Telefono: il centralino si usa (disponibilità, tastierino, storico);
     // numeri e agenti si impostano da computer o tablet.
-    <div className="mx-auto max-w-5xl space-y-6 max-md:space-y-3">
-      {/* Header */}
+    // Da 768 a tutta larghezza come le altre pagine: a 1440 la colonna da
+    // 1024px centrata lasciava due fasce vuote e il titolo fuori allineamento.
+    <div className="mx-auto max-w-5xl space-y-6 md:max-w-none max-md:space-y-3">
+      {/* Header — titolo e «Numeri & agenti» sulla stessa riga: la frase sotto
+          il titolo (e l'icona) a 1024 mandava il bottone a capo, a sinistra. */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="flex items-center gap-2 text-xl font-bold max-md:text-lg">
-            <PhoneCall className="h-5 w-5 text-primary max-md:hidden" />
-            Centralino
-          </h1>
-          <p className="text-sm text-muted-foreground max-md:hidden">
-            Chiama e parla direttamente dal gestionale, col numero aziendale. Storico chiamate incluso.
-          </p>
+          <h1 className="text-xl font-bold max-md:text-lg">Centralino</h1>
         </div>
         <Button asChild variant="outline" size="sm" className="gap-1.5 max-md:hidden">
           <Link to="/azienda/agenti-ai?tab=telefonia">
