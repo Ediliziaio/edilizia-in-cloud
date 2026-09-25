@@ -915,8 +915,7 @@ export function EmailViewer({ threadId, onBack, onClose, onReply, onAiDraftReady
           : "";
         const silvioAlLavoro = summarizeMutation.isPending || analyzeMutation.isPending || operationProposalsMutation.isPending || suggestRepliesMutation.isPending;
         return (
-          // pr-20: in basso a destra c'è il tondo di Silvio, che copriva l'ultimo bottone.
-          <div className="hidden md:flex items-center gap-2 border-t p-3 pr-20 bg-muted/20">
+          <div className="hidden md:flex items-center gap-2 border-t p-3 bg-muted/20">
             <Button size="sm" className="gap-1.5" disabled={!ultima} onClick={() => rispondi("reply")}>
               <Reply className="h-3.5 w-3.5" />
               Rispondi
@@ -955,7 +954,6 @@ export function EmailViewer({ threadId, onBack, onClose, onReply, onAiDraftReady
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                {/* Non in fondo a destra: lì sopra c'è il tondo di Silvio che lo copriva. */}
                 <Button variant="outline" size="sm" className="gap-1.5 border-violet-200 text-violet-700 hover:bg-violet-50" disabled={!ultima}>
                   {silvioAlLavoro ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
                   <span className="hidden xl:inline">Silvio</span>

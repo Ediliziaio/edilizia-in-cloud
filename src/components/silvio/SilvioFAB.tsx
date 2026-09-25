@@ -413,12 +413,20 @@ export function SilvioFAB({ hidden = false, mode = "azienda" }: Props) {
   // Silvio AI resta nascosto: lì la chat è già a tutto schermo.
   if (mode === "azienda" && location.pathname.startsWith("/azienda/silvio-ai")) return null;
 
+  // Chat Team ed Email sono a tutta pagina: in basso a destra c'è il campo
+  // di scrittura, e il tondo copriva il tasto di invio. Lì si nasconde solo il
+  // bottone: il componente resta montato perché ascolta «silvio:open-chat».
+  const senzaTondo = mode === "azienda" && /^\/azienda\/(chat|email)\/?$/.test(location.pathname);
+
   const fabButton = (
 	          <motion.button
 	            type="button"
 	            aria-label="Apri assistente Silvio"
               aria-expanded={open}
-	            className="fixed bottom-4 right-4 z-40 hidden h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 via-orange-500 to-amber-400 text-white shadow-xl shadow-orange-300/40 transition-all hover:scale-105 hover:shadow-2xl md:bottom-6 md:right-6 md:flex"
+	            className={cn(
+                "fixed bottom-4 right-4 z-40 hidden h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 via-orange-500 to-amber-400 text-white shadow-xl shadow-orange-300/40 transition-all hover:scale-105 hover:shadow-2xl md:bottom-6 md:right-6 md:flex",
+                senzaTondo && "md:hidden",
+              )}
               style={{
                 bottom: "calc(1rem + env(safe-area-inset-bottom))",
                 pointerEvents: scrollHidden && !open ? "none" : undefined,

@@ -2249,7 +2249,9 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
     )}>
       {/* ═══ LEFT PANEL: Chat List ═══ */}
       <div className={cn(
-        "w-full md:w-[380px] lg:w-[420px] md:min-w-[320px] flex flex-col bg-white dark:bg-[#111b21] border-r border-[#e9edef] dark:border-gray-800",
+        // Lista 320px su tablet e portatile, più larga solo da 1280: a 1024
+        // prendeva 420px su 784 e i messaggi andavano a capo ogni due parole.
+        "w-full md:w-[320px] xl:w-[380px] 2xl:w-[420px] md:min-w-[300px] md:shrink-0 flex flex-col bg-white dark:bg-[#111b21] border-r border-[#e9edef] dark:border-gray-800",
         showMobile && selectedChannelId ? "hidden md:flex" : "flex",
       )}>
         {/* Header */}
