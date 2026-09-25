@@ -564,8 +564,14 @@ export default function ClimatizzazioneWizard() {
             )}
 
             {/* Navigation footer: su telefono sopra la barra in basso, che altrimenti lo copre.
+                Sticky e non fixed: con un passo corto sta subito sotto il modulo
+                (fisso in fondo lasciava un vuoto a metà schermo), con uno lungo
+                resta attaccato in basso mentre si scorre. Lo sticky si misura dal
+                bordo interno del contenitore che scorre, che su telefono ha già
+                7rem di spazio in fondo (pb-28 in CompanyLayout): -1.5rem lo mette
+                a 5.5rem dal fondo dello schermo, appena sopra la barra in basso.
                 Al passo PDF, sul telefono, la barra la disegna lo step: indietro · PDF · invia. */}
-            <div className={cn("fixed inset-x-3 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-40 flex items-center justify-between gap-2 rounded-2xl border bg-background/95 px-3 py-2.5 shadow-[0_-8px_20px_rgba(15,23,42,0.08)] backdrop-blur md:static md:mx-0 md:rounded-none md:border-0 md:bg-transparent md:px-0 md:py-2 md:shadow-none md:backdrop-blur-0", currentStep === "pdf" && id && detail && "max-md:hidden")}>
+            <div className={cn("sticky bottom-[calc(env(safe-area-inset-bottom)-1.5rem)] z-40 flex items-center justify-between gap-2 rounded-2xl border bg-background/95 px-3 py-2.5 shadow-[0_-8px_20px_rgba(15,23,42,0.08)] backdrop-blur md:static md:mx-0 md:rounded-none md:border-0 md:bg-transparent md:px-0 md:py-2 md:shadow-none md:backdrop-blur-0", currentStep === "pdf" && id && detail && "max-md:hidden")}>
               <Button
                 variant="outline"
                 onClick={handleBack}

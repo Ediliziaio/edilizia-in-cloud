@@ -52,8 +52,8 @@ const CommandInput = React.forwardRef<
     <CommandPrimitive.Input
       ref={ref}
       className={cn(
-        // text-base su mobile: con font <16px iOS Safari/PWA zooma la pagina al focus (vedi input.tsx)
-        "flex h-11 w-full rounded-md bg-transparent py-3 text-base outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
+        // 14px anche su telefono: l'ingrandimento di iOS al tocco lo blocca il viewport (lib/mobile/zoomCampiIos.ts)
+        "flex h-11 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
         className,
       )}
       {...props}

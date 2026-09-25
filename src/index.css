@@ -447,11 +447,9 @@ html.capacitor .fixed.bottom-0 {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
-html.capacitor input,
-html.capacitor select,
-html.capacitor textarea {
-  font-size: 16px;
-}
+/* Niente più 16px forzati nei campi dell'app: l'ingrandimento di iOS al tocco
+   lo blocca il viewport (src/lib/mobile/zoomCampiIos.ts), e i campi stanno a
+   14px come sul computer. */
 
 /* Disable pull-to-refresh in native (Capacitor handles it) */
 html.capacitor {

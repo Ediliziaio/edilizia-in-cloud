@@ -7,6 +7,7 @@ import { initWebVitalsReporter } from "./lib/velocity/webVitalsReporter";
 // Meta Ads attribution: cattura fbclid → _fbc, bootstrap _fbp per CAPI.
 import { initFacebookClickTracker } from "./lib/meta/fbcTracker";
 import { isNative } from "./lib/mobile/platform";
+import { bloccaZoomCampiIos } from "./lib/mobile/zoomCampiIos";
 import { mettiDaParteLaPaginaPreparata } from "@/lib/paginaPreparata";
 
 // 🚨 ESPLICITO unregister di service worker stale.
@@ -119,6 +120,10 @@ if (window.location.search.includes("__recovery=")) {
 // Meta Ads attribution: idempotente, no-op se fbclid assente.
 // Va PRIMA del render perché il fbclid arriva da URL al primo paint.
 initFacebookClickTracker();
+
+// iPhone e iPad: niente ingrandimento al tocco di un campo, così i campi
+// possono stare a 14px (vedi zoomCampiIos.ts). Prima del render.
+bloccaZoomCampiIos();
 
 // iOS/Android (WKWebView) — rete di sicurezza contro i crash da unhandled rejection.
 // Una promise non-catchata (es. fetch a una edge function fallito per CORS/cold-start,

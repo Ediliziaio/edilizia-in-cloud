@@ -107,7 +107,7 @@ export function EmailSearchBar({ initialValue = "", onSearch }: EmailSearchBarPr
           onChange={(e) => setValue(e.target.value)}
           placeholder="Cerca email…"
           aria-label="Cerca nello storico email"
-          className="h-9 rounded-xl border-blue-100 bg-blue-50/40 pl-8 pr-8 sm:pr-16 text-base md:text-sm focus-visible:ring-blue-200"
+          className="h-9 rounded-xl border-blue-100 bg-blue-50/40 pl-8 pr-8 sm:pr-16 text-sm focus-visible:ring-blue-200"
         />
         {value && (
           <button

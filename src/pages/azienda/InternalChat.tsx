@@ -2325,7 +2325,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
               onChange={(e) => setSearchQuery(e.target.value)}
               inputMode="search"
               enterKeyHint="search"
-              className="pl-10 h-10 md:h-9 rounded-lg bg-[#f0f2f5] dark:bg-[#202c33] border-0 text-base md:text-sm placeholder:text-[#667781]"
+              className="pl-10 h-10 md:h-9 rounded-lg bg-[#f0f2f5] dark:bg-[#202c33] border-0 text-sm placeholder:text-[#667781]"
             />
           </div>
         </div>
@@ -2557,7 +2557,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                     value={msgSearch} onChange={(e) => setMsgSearch(e.target.value)}
                     inputMode="search"
                     enterKeyHint="search"
-                    className="pl-9 h-10 md:h-8 text-base md:text-sm bg-[#f0f2f5] dark:bg-[#202c33] border-0"
+                    className="pl-9 h-10 md:h-8 text-sm bg-[#f0f2f5] dark:bg-[#202c33] border-0"
                     autoFocus
                   />
                   <button type="button" onClick={() => { setShowSearch(false); setMsgSearch(""); }}

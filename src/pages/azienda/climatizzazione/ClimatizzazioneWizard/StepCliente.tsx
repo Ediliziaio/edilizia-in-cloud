@@ -102,8 +102,11 @@ export default function StepCliente({ form, onChange }: Props) {
 
   return (
     <Card>
-      <CardContent className="p-4 sm:p-5 space-y-4 max-sm:p-3 max-sm:space-y-3">
-        <div className="flex items-center gap-2">
+      {/* Telefono: «Seleziona da CRM» e «Collega opportunità» sono due bottoni
+          affiancati in cima (erano due riquadri con titolo, uno in testa e uno
+          in fondo) e il titolo «Cliente» lo dice già il passo in alto. */}
+      <CardContent className="p-4 sm:p-5 space-y-4 max-sm:grid max-sm:grid-cols-2 max-sm:gap-2 max-sm:space-y-0 max-sm:p-3">
+        <div className="flex items-center gap-2 max-sm:hidden">
           <div className="h-8 w-8 rounded-md bg-orange-50 text-orange-600 flex items-center justify-center max-sm:hidden">
             <User className="h-4 w-4" />
           </div>
@@ -117,9 +120,9 @@ export default function StepCliente({ form, onChange }: Props) {
         </div>
 
         {/* Collegamento contatto CRM */}
-        <div className="rounded-md border border-slate-200 bg-white px-3 py-2.5">
+        <div className="rounded-md border border-slate-200 bg-white px-3 py-2.5 max-sm:order-1 max-sm:border-0 max-sm:bg-transparent max-sm:p-0">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between max-sm:flex-row max-sm:items-center max-sm:justify-between">
-            <div className="min-w-0">
+            <div className="min-w-0 max-sm:hidden">
               <p className="text-xs font-semibold text-slate-900">
                 {form.cliente_id ? <>Contatto CRM<span className="max-sm:hidden"> collegato</span></> : "Contatto CRM"}
               </p>
@@ -129,7 +132,7 @@ export default function StepCliente({ form, onChange }: Props) {
                   : "Collega un contatto per compilare anagrafica e recapiti."}
               </p>
             </div>
-            <div className="flex shrink-0 gap-2">
+            <div className="flex shrink-0 gap-2 max-sm:w-full max-sm:gap-1">
               {form.cliente_id && (
                 <Button
                   variant="ghost"
@@ -145,7 +148,7 @@ export default function StepCliente({ form, onChange }: Props) {
                   <Button
                     size="sm"
                     variant="outline"
-                    className="tap-compact h-8 gap-1.5 border-slate-200 px-3 text-xs text-slate-700 hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700"
+                    className="tap-compact h-8 gap-1.5 border-slate-200 px-3 text-xs text-slate-700 hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700 max-sm:min-w-0 max-sm:flex-1 max-sm:px-2"
                   >
                     <Users className="h-3.5 w-3.5" />
                     {form.cliente_id ? "Cambia" : "Seleziona da CRM"}
@@ -183,7 +186,7 @@ export default function StepCliente({ form, onChange }: Props) {
         </div>
 
         {/* Anagrafica */}
-        <div className="grid grid-cols-12 gap-3">
+        <div className="grid grid-cols-12 gap-3 max-sm:order-3 max-sm:col-span-2 max-sm:gap-2">
           <div className="col-span-6">
             <Label className="text-xs">Nome</Label>
             <Input
@@ -229,9 +232,9 @@ export default function StepCliente({ form, onChange }: Props) {
         </div>
 
         {/* Collegamento opportunità CRM */}
-        <div className="rounded-md border border-dashed border-slate-200 bg-slate-50/40 px-3 py-2.5">
+        <div className="rounded-md border border-dashed border-slate-200 bg-slate-50/40 px-3 py-2.5 max-sm:order-2 max-sm:border-0 max-sm:bg-transparent max-sm:p-0">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between max-sm:flex-row max-sm:items-center max-sm:justify-between">
-            <div className="min-w-0">
+            <div className="min-w-0 max-sm:hidden">
               <p className="text-xs font-semibold text-slate-900 flex items-center gap-1.5">
                 <Briefcase className="h-3.5 w-3.5 text-slate-500" />
                 Opportunità<span className="max-sm:hidden"> CRM (opzionale)</span>
@@ -240,14 +243,15 @@ export default function StepCliente({ form, onChange }: Props) {
                 Collega il progetto a un'opportunità per il tracking nel pipeline.
               </p>
             </div>
-            <div className="flex shrink-0 items-center gap-2">
+            <div className="flex shrink-0 items-center gap-2 max-sm:w-full">
               {form.opportunita_id ? (
-                <Badge variant="secondary" className="gap-1.5 py-1 pl-2.5 pr-1">
-                  Collegata
+                <Badge variant="secondary" className="gap-1.5 py-1 pl-2.5 pr-1 max-sm:h-8 max-sm:w-full max-sm:justify-between max-sm:rounded-md">
+                  <span className="max-sm:hidden">Collegata</span>
+                  <span className="truncate sm:hidden">Opportunità collegata</span>
                   <button
                     type="button"
                     onClick={() => onChange("opportunita_id", null)}
-                    className="ml-0.5 rounded-full p-0.5 hover:bg-background/60"
+                    className="tap-compact ml-0.5 rounded-full p-0.5 hover:bg-background/60 max-sm:p-1.5"
                     aria-label="Rimuovi collegamento opportunità"
                   >
                     <X className="h-3 w-3" />
@@ -256,7 +260,7 @@ export default function StepCliente({ form, onChange }: Props) {
               ) : (
                 <Popover open={oppPickerOpen} onOpenChange={setOppPickerOpen}>
                   <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm" className="tap-compact h-8 gap-1.5 text-xs">
+                    <Button variant="outline" size="sm" className="tap-compact h-8 gap-1.5 text-xs max-sm:w-full max-sm:px-2">
                       <Briefcase className="h-3.5 w-3.5" />
                       Collega opportunità
                     </Button>

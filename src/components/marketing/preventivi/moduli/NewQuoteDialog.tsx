@@ -98,7 +98,7 @@ function QuoteChooser({ params, onSelect }: { params: URLSearchParams; onSelect:
         <ArrowRight aria-hidden="true" className="h-5 w-5 shrink-0 text-orange-600" />
       </Link>}
 
-      {!ricercaInutile && <div className="relative mb-4 max-sm:mb-3"><Search className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground max-sm:top-2.5" aria-hidden="true" /><Input type="search" aria-label="Cerca un intervento" placeholder={area ? "Cerca in questa area…" : "Cerca: persiane, bagno, ripasso…"} value={query} onChange={event => setQuery(event.target.value)} className="h-11 pl-9 text-base sm:text-sm max-sm:h-9" /></div>}
+      {!ricercaInutile && <div className="relative mb-4 max-sm:mb-3"><Search className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground max-sm:top-2.5" aria-hidden="true" /><Input type="search" aria-label="Cerca un intervento" placeholder={area ? "Cerca in questa area…" : "Cerca: persiane, bagno, ripasso…"} value={query} onChange={event => setQuery(event.target.value)} className="h-11 pl-9 text-sm max-sm:h-9" /></div>}
 
       {waiting ? <p role="status" className="py-8 text-center text-sm text-muted-foreground">Verifico le aree abilitate…</p>
         : isError ? <p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm">Non è stato possibile verificare i moduli aziendali. Chiudi e riprova: nessun accesso viene dato per confermato.</p>

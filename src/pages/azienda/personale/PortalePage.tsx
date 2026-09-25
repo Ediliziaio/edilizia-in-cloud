@@ -2185,7 +2185,7 @@ export default function PortalePage({ portalContext = "azienda", mode = "full" }
                   <Input
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
-                    className="h-11 rounded-xl border-slate-200 pl-9 text-base sm:text-sm"
+                    className="h-11 rounded-xl border-slate-200 pl-9 text-sm"
                     placeholder="Cerca corso, manuale o procedura"
                   />
                 </div>
@@ -3388,7 +3388,7 @@ function KnowledgeBasePanel({
               <Input
                 value={search}
                 onChange={(event) => onSearchChange(event.target.value)}
-                className="h-11 rounded-2xl border-slate-200 pl-9 text-base sm:text-sm"
+                className="h-11 rounded-2xl border-slate-200 pl-9 text-sm"
                 placeholder="Cerca SOP, manuale, regolamento, quiz o corso collegato"
               />
             </div>
@@ -4765,7 +4765,7 @@ function PortalPreview({
               <Input
                 value={learnerSearch}
                 onChange={(event) => setLearnerSearch(event.target.value)}
-                className="h-10 rounded-2xl border-slate-200 pl-9 text-base sm:text-sm"
+                className="h-10 rounded-2xl border-slate-200 pl-9 text-sm"
                 placeholder="Cerca corsi e procedure"
               />
             </div>
