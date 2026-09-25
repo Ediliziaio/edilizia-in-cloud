@@ -8,6 +8,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/headers.ts";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
+import { verificaPermessoAzienda } from "../_shared/permessoAzienda.ts";
 
 const BREVO_API_URL = "https://api.brevo.com/v3/transactionalSMS/sms";
 const BATCH_SIZE = 10;
@@ -111,17 +112,13 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const [{ data: profile }, { data: delegatedAccess }] = await Promise.all([
-      supabase.from("profiles").select("company_id").eq("id", userData.user.id).maybeSingle(),
-      supabase
-        .from("multi_company_access")
-        .select("company_id")
-        .eq("user_id", userData.user.id)
-        .eq("company_id", company_id)
-        .maybeSingle(),
-    ]);
-    if (profile?.company_id !== company_id && !delegatedAccess) {
-      return new Response(JSON.stringify({ error: "Non autorizzato per questa azienda" }), {
+    // Chi manda la campagna deve poter usare gli SMS in quell'azienda: accesso
+    // attivo, non sospeso né scaduto, e il permesso dell'area, come la pagina.
+    // Fino al 26/09/2026 bastava una riga di accesso multi-azienda qualsiasi.
+    try {
+      await verificaPermessoAzienda(supabase, userData.user.id, company_id, ["can_view_sms_marketing"], "le campagne SMS");
+    } catch (e) {
+      return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Non autorizzato per questa azienda" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
