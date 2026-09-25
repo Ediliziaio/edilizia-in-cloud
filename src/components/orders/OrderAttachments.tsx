@@ -357,7 +357,7 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
           onDrop: (e: React.DragEvent) => handleDrop(e, extra!.dropId ?? null),
         } : {})}
         className={[
-          "flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm text-left transition-colors shrink-0 md:shrink md:w-full",
+          "tap-compact flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm text-left transition-colors shrink-0 md:shrink md:w-full",
           "border md:border-0 whitespace-nowrap md:whitespace-normal",
           attiva ? "bg-primary/10 text-primary font-medium border-primary/30" : "hover:bg-muted text-foreground",
           sopraCartella === id ? "ring-2 ring-primary/50 bg-primary/5" : "",
@@ -440,7 +440,8 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
 
         <div className="grid gap-3 md:grid-cols-[minmax(180px,240px)_1fr]">
           {/* Cartelle: colonna su desktop, riga scorrevole su telefono */}
-          <nav aria-label="Cartelle documenti" className="min-w-0">
+          {/* Mobile: senza documenti le cartelle (tutte a 0) non servono. */}
+          <nav aria-label="Cartelle documenti" className={tutti.length === 0 ? "min-w-0 max-sm:hidden" : "min-w-0"}>
             <div className="flex md:flex-col gap-1.5 md:gap-0.5 overflow-x-auto pb-1 md:pb-0 -mx-1 px-1">
               {voceCartella(TUTTI, "Tutti", tutti.length)}
               {caricoCartelle && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground m-2" />}
@@ -504,11 +505,17 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
             )}
 
             {visibili.length === 0 ? (
-              <div className="rounded-md border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
+              <div className="rounded-md border border-dashed px-4 py-8 text-center text-sm text-muted-foreground max-sm:py-4 max-sm:text-xs">
                 {ricerca
                   ? "Nessun documento corrisponde alla ricerca."
                   : selezione === TUTTI
-                    ? (editable ? "Nessun documento. Premi «Carica file» o trascina qui i file." : "Nessun documento caricato.")
+                    ? (editable ? (
+                        <>
+                          {/* Dal telefono non si trascina: basta «Carica file». */}
+                          <span className="max-sm:hidden">Nessun documento. Premi «Carica file» o trascina qui i file.</span>
+                          <span className="sm:hidden">Nessun documento.</span>
+                        </>
+                      ) : "Nessun documento caricato.")
                     : editable
                       ? (
                         <>

@@ -211,7 +211,7 @@ export function OrderActivityFeed({ orderId, customerId, customerEmail, customer
           <Activity className="h-4 w-4 text-muted-foreground" />
           Comunicazioni e attività
         </CardTitle>
-        <CardDescription className="text-xs">
+        <CardDescription className="text-xs max-sm:hidden">
           Tutto quello fatto col cliente e su questa commessa.
         </CardDescription>
       </CardHeader>

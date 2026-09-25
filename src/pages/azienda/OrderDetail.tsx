@@ -1428,7 +1428,8 @@ function OrderDetailInner() {
                 indirizzoLavori={order.indirizzo_lavori}
               />
               <div className="space-y-4">
-                <Card>
+                {/* Mobile no: rimandava alla scheda Cantiere, che è lì accanto. */}
+                <Card className="max-sm:hidden">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base">
                       Organizzazione del cantiere
