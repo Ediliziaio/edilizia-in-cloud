@@ -242,7 +242,7 @@ const INTEGRATION_REGISTRY: Omit<MediaLibraryIntegrationCoverage, "count" | "sta
   {
     key: "allegati-operativi",
     label: "Allegati record",
-    description: "File agganciati a clienti, commesse, ticket, opportunita e ordini.",
+    description: "File agganciati a clienti, commesse, ticket, opportunità e ordini.",
     sources: ["attachment"],
     required: true,
   },
@@ -256,14 +256,14 @@ const INTEGRATION_REGISTRY: Omit<MediaLibraryIntegrationCoverage, "count" | "sta
   {
     key: "crm-documenti",
     label: "CRM",
-    description: "Documenti caricati su contatti e opportunita.",
+    description: "Documenti caricati su contatti e opportunità.",
     sources: ["marketing_document"],
     required: true,
   },
   {
     key: "foto-cantiere",
     label: "Foto cantiere",
-    description: "Foto, GPS, qualita AI e materiali raccolti da cantiere.",
+    description: "Foto, GPS, qualità AI e materiali raccolti da cantiere.",
     sources: ["site_photo"],
     required: true,
   },

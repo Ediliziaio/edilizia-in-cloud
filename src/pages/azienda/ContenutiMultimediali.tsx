@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 
 const PdfToolkitDialog = lazy(() =>
   import("@/components/documenti/PdfToolkitDialog").then((m) => ({ default: m.PdfToolkitDialog })),
@@ -323,9 +323,9 @@ const TAB_DESCRIPTIONS: Record<DriveTab, string> = {
   preventivi: "Offerte, proposte e documenti commerciali",
   fiscale: "Fatture, DDT, ricevute e note",
   cantieri: "Foto, verbali, SAL e documenti di commessa",
-  crm: "Clienti, contatti, opportunita e lead",
+  crm: "Clienti, contatti, opportunità e lead",
   foto_media: "Foto, video e asset multimediali",
-  riservati: "Contratti, identita e documenti sensibili",
+  riservati: "Contratti, identità e documenti sensibili",
   altro: "File generici non ancora classificati",
 };
 
@@ -394,8 +394,8 @@ function entityLabel(table: string | null | undefined): string | null {
     profiles: "Contatto",
     purchase_orders: "Ordine acquisto",
     suppliers: "Fornitore",
-    opportunities: "Opportunita",
-    marketing_opportunities: "Opportunita",
+    opportunities: "Opportunità",
+    marketing_opportunities: "Opportunità",
     marketing_contacts: "Contatto marketing",
     marketing_documents: "Documento CRM",
     email_inbox: "Email ricevuta",
@@ -439,6 +439,29 @@ function formatDuration(ms: number | null): string | null {
   if (!ms || ms <= 0) return null;
   if (ms < 1000) return `${ms} ms`;
   return `${(ms / 1000).toFixed(ms >= 10_000 ? 0 : 1)} s`;
+}
+
+/** Il tipo di documento, se dice qualcosa in più dell'area («render» sotto «Render» no). */
+function tipoSeDiversoDallArea(item: Pick<MediaLibraryItem, "docType" | "areaLabel">): string | null {
+  const tipo = item.docType.replace(/_/g, " ").trim();
+  if (!tipo || tipo.toLowerCase() === item.areaLabel.trim().toLowerCase()) return null;
+  return tipo;
+}
+
+/**
+ * «Render infissi · bagno legno»: la verticale e, se dice qualcosa, il nome
+ * della foto di partenza. Prima «Render infissi e68fe4e8», col codice della
+ * sessione che non diceva niente (la data è già nella riga).
+ */
+function nomeRender(row: { vertical: string | null; original_photo_url: string | null }): string {
+  const base = `Render ${row.vertical ?? "AI"}`;
+  const foto = pathFileName(row.original_photo_url, "")
+    .replace(/\.[a-z0-9]+$/i, "")
+    .replace(/^\d{10,}[_-]?/, "")
+    .replace(/^original$/i, "")
+    .replace(/[_-]+/g, " ")
+    .trim();
+  return foto ? `${base} · ${foto}` : base;
 }
 
 function compactFacts(values: Array<string | null | undefined>): string[] {
@@ -834,10 +857,10 @@ async function loadMediaItems(companyId: string, options: MediaLibraryLoadOption
       storagePath: storagePathFromMaybeUrl(row.file_url, "marketing-attachments") ?? row.file_url,
       actorId: row.uploaded_by,
       actorLabel: actorLabel(actorLabels, row.uploaded_by),
-      linkedEntityLabel: row.opportunity_id ? "Opportunita" : "Contatto marketing",
+      linkedEntityLabel: row.opportunity_id ? "Opportunità" : "Contatto marketing",
       linkedEntityTable: row.opportunity_id ? "marketing_opportunities" : "marketing_contacts",
       linkedEntityId: row.opportunity_id ?? row.contact_id,
-      metadataFacts: compactFacts([row.opportunity_id ? "Associato a opportunita" : "Associato a contatto"]),
+      metadataFacts: compactFacts([row.opportunity_id ? "Associato a opportunità" : "Associato a contatto"]),
     }),
   );
 
@@ -922,8 +945,9 @@ async function loadMediaItems(companyId: string, options: MediaLibraryLoadOption
         metadataFacts: compactFacts([
           row.title ? `Titolo: ${row.title}` : null,
           typeof row.total === "number" ? `Totale: ${row.total.toLocaleString("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" })}` : null,
-          row.opportunity_id ? `Opportunita: ${row.opportunity_id}` : null,
-          row.contact_id ? `Contatto: ${row.contact_id}` : null,
+          // Il codice interno (uuid) non diceva niente a chi legge.
+          row.opportunity_id ? "Opportunità collegata" : null,
+          row.contact_id ? "Contatto collegato" : null,
           row.status ? `Stato preventivo: ${row.status}` : null,
         ]),
       }),
@@ -951,23 +975,28 @@ async function loadMediaItems(companyId: string, options: MediaLibraryLoadOption
     }),
   );
 
-  const renderSessionItems = renderSessionRows.map((row) =>
-    buildMediaLibraryItem({
+  const renderSessionItems = renderSessionRows.map((row) => {
+    // Si apre il render fatto; la foto di partenza solo se il render non c'è
+    // (prima era il contrario: «Apri» su un render mostrava la foto del cliente).
+    const risultato = firstExternalUrl(row.result_urls);
+    const originaleInArchivio: string | null =
+      row.original_photo_url && !isExternalUrl(row.original_photo_url) ? row.original_photo_url : null;
+    return buildMediaLibraryItem({
       id: `render-session:${row.id}`,
       source: "render",
-      fileName: `Render ${row.vertical ?? "AI"} ${row.id.slice(0, 8)}`,
+      fileName: nomeRender(row),
       docType: "render",
       status: row.status,
       createdAt: row.created_at,
       completedAt: row.processing_completed_at,
       fileSize: null,
       mimeType: "image/*",
-      storageBucket: row.original_photo_url && !isExternalUrl(row.original_photo_url) ? "render-originals" : null,
-      storagePath: row.original_photo_url && !isExternalUrl(row.original_photo_url) ? row.original_photo_url : null,
-      externalUrl: firstExternalUrl(row.result_urls) ?? (isExternalUrl(row.original_photo_url) ? row.original_photo_url : null),
+      storageBucket: !risultato && originaleInArchivio ? "render-originals" : null,
+      storagePath: !risultato ? originaleInArchivio : null,
+      externalUrl: risultato ?? (isExternalUrl(row.original_photo_url) ? row.original_photo_url : null),
       actorId: row.created_by,
       actorLabel: actorLabel(actorLabels, row.created_by),
-      linkedEntityLabel: row.opportunity_id ? "Opportunita" : row.contact_id ? "Contatto marketing" : null,
+      linkedEntityLabel: row.opportunity_id ? "Opportunità" : row.contact_id ? "Contatto marketing" : null,
       linkedEntityTable: row.opportunity_id ? "marketing_opportunities" : row.contact_id ? "marketing_contacts" : null,
       linkedEntityId: row.opportunity_id ?? row.contact_id,
       metadataFacts: compactFacts([
@@ -975,8 +1004,8 @@ async function loadMediaItems(companyId: string, options: MediaLibraryLoadOption
         row.result_urls?.length ? `Output generati: ${row.result_urls.length}` : null,
       ]),
       errorMessage: row.error_message,
-    }),
-  );
+    });
+  });
 
   const serramentiMediaItems = serramentiMediaRows.map((row) =>
     buildMediaLibraryItem({
@@ -1151,6 +1180,7 @@ export default function ContenutiMultimediali() {
   const [filtriMobiliAperti, setFiltriMobiliAperti] = useState(false);
   const [paginaMobile, setPaginaMobile] = useState(1);
   const [dettaglioMobile, setDettaglioMobile] = useState<MediaLibraryItem | null>(null);
+  const schermoStretto = useSchermoStretto();
 
   const {
     data: mediaLoadResult = EMPTY_MEDIA_LOAD_RESULT,
@@ -1370,6 +1400,11 @@ export default function ContenutiMultimediali() {
     }
 
     setOpeningId(item.id);
+    // La scheda si apre subito, dentro il clic: aperta dopo l'attesa del link
+    // firmato (che può anche riprovare per qualche secondo) Safari su iPhone la
+    // blocca come popup. Il documento ci entra appena il link è pronto.
+    const scheda = window.open("", "_blank");
+    if (scheda) scheda.opener = null;
     try {
       const { data, error: signedError } = await retryWithBackoff(
         () => supabase.storage.from(target.storageBucket).createSignedUrl(target.storagePath, 3600),
@@ -1387,8 +1422,10 @@ export default function ContenutiMultimediali() {
         throw new Error(signedError?.message ?? "URL firmato non generato");
       }
 
-      window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+      if (scheda) scheda.location.replace(data.signedUrl);
+      else window.location.assign(data.signedUrl);
     } catch (err) {
+      scheda?.close();
       toast.error("Non riesco ad aprire il file", {
         description: err instanceof Error ? err.message : "Verifica permessi e bucket del documento.",
       });
@@ -1700,6 +1737,7 @@ export default function ContenutiMultimediali() {
         </Card>
 
         <MediaDetailPanel
+          anteprima={!schermoStretto}
           item={selectedItem}
           opening={selectedItem ? openingId === selectedItem.id : false}
           onOpen={selectedItem ? () => openSignedDocument(selectedItem) : undefined}
@@ -1751,6 +1789,7 @@ export default function ContenutiMultimediali() {
             {righeMobili.map((item) => (
               <RigaMobile
                 key={item.id}
+                sinistra={<MiniaturaDocumento item={item} className="h-8 w-8" />}
                 titolo={item.fileName}
                 sottotitolo={[item.areaLabel, item.lastActivityAt ? formatDate(item.lastActivityAt) : null].filter(Boolean).join(" · ")}
                 stato={
@@ -1819,13 +1858,12 @@ export default function ContenutiMultimediali() {
                 {/* Niente doppioni (tipo uguale all'area) né «n.d.» quando manca la dimensione. */}
                 {[
                   dettaglioMobile.areaLabel,
-                  dettaglioMobile.docType.replace(/_/g, " ").toLowerCase() !== dettaglioMobile.areaLabel.toLowerCase()
-                    ? dettaglioMobile.docType.replace(/_/g, " ")
-                    : null,
+                  tipoSeDiversoDallArea(dettaglioMobile),
                   dettaglioMobile.fileSize ? formatFileSize(dettaglioMobile.fileSize) : null,
                   dettaglioMobile.lastActivityAt ? formatDate(dettaglioMobile.lastActivityAt) : null,
                 ].filter(Boolean).join(" · ")}
               </p>
+              <AnteprimaImmagine key={dettaglioMobile.id} item={dettaglioMobile} className="mt-3 max-h-[45dvh]" />
               <p className="mt-3 text-xs text-muted-foreground">
                 {statusLabel(dettaglioMobile)}
                 {dettaglioMobile.linkedEntityLabel ? ` · collegato a ${dettaglioMobile.linkedEntityLabel}` : ""}
@@ -2257,7 +2295,6 @@ function MediaRow({
   onSelect: () => void;
   onOpen: () => void;
 }) {
-  const Icon = iconForItem(item);
   const StatusIcon = statusIcon(item.statusTone);
   const activityLabel = item.actorLabel ? `${item.actionLabel} da ${item.actorLabel}` : item.actionLabel;
   const canOpen = resolveMediaLibraryOpenTarget(item).kind !== "missing";
@@ -2280,9 +2317,7 @@ function MediaRow({
       )}
     >
       <div className="flex min-w-0 items-start gap-3">
-        <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-md border bg-background">
-          <Icon className="h-5 w-5 text-muted-foreground" />
-        </div>
+        <MiniaturaDocumento key={item.id} item={item} className="mt-0.5 h-10 w-10" iconaClassName="h-5 w-5" />
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <p className="truncate font-medium">{item.fileName}</p>
@@ -2291,11 +2326,13 @@ function MediaRow({
               {statusLabel(item)}
             </Badge>
           </div>
+          {/* Niente doppioni: il tipo solo se diverso dall'area («Render · render»),
+              la dimensione solo se c'è (non «n.d.»). */}
           <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
             <span>{item.areaLabel}</span>
-            <span>{item.docType.replace(/_/g, " ")}</span>
+            {tipoSeDiversoDallArea(item) ? <span>{tipoSeDiversoDallArea(item)}</span> : null}
             <span>{item.integrationLabel}</span>
-            <span>{formatFileSize(item.fileSize)}</span>
+            {item.fileSize ? <span>{formatFileSize(item.fileSize)}</span> : null}
             <span>{formatDate(item.lastActivityAt)}</span>
             <span>{activityLabel}</span>
             {item.linkedEntityLabel ? <span>Collegato a {item.linkedEntityLabel}</span> : null}
@@ -2322,12 +2359,15 @@ function MediaDetailPanel({
   onOpen,
   onImport,
   onInbox,
+  anteprima = true,
 }: {
   item: MediaLibraryItem | null;
   opening: boolean;
   onOpen?: () => void;
   onImport: () => void;
   onInbox: () => void;
+  /** Falso sul telefono, dove il pannello è nascosto: l'immagine non si scarica. */
+  anteprima?: boolean;
 }) {
   if (!item) {
     return (
@@ -2378,11 +2418,13 @@ function MediaDetailPanel({
           </div>
         </div>
 
+        {anteprima ? <AnteprimaImmagine key={item.id} item={item} /> : null}
+
         <div className="grid grid-cols-2 gap-2 text-sm">
           <DetailStat label="Tipo" value={item.docType.replace(/_/g, " ")} />
           <DetailStat label="Dimensione" value={formatFileSize(item.fileSize)} />
           <DetailStat label="Origine" value={item.integrationLabel} />
-          <DetailStat label="Ultima attivita" value={formatDate(item.lastActivityAt)} />
+          <DetailStat label="Ultima attività" value={formatDate(item.lastActivityAt)} />
         </div>
 
         {typeof item.confidence === "number" ? (
@@ -2471,6 +2513,152 @@ function MediaDetailPanel({
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+/** Sotto i 640px (`max-sm`): lì la griglia da computer c'è ma è nascosta. */
+function useSchermoStretto(): boolean {
+  const query = "(max-width: 639px)";
+  const [stretto, setStretto] = useState(
+    () => typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia(query).matches,
+  );
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") return;
+    const mql = window.matchMedia(query);
+    const cambia = () => setStretto(mql.matches);
+    mql.addEventListener?.("change", cambia);
+    return () => mql.removeEventListener?.("change", cambia);
+  }, []);
+  return stretto;
+}
+
+type TrasformazioneImmagine = { width: number; height?: number; resize: "cover" | "contain"; quality: number };
+
+/** Miniatura delle righe: 96px bastano per 40px anche sugli schermi densi. */
+const MINIATURA: TrasformazioneImmagine = { width: 96, height: 96, resize: "cover", quality: 60 };
+/** Anteprima nella scheda: abbastanza grande da leggerla, non il file intero (un render è 2 MB). */
+const ANTEPRIMA: TrasformazioneImmagine = { width: 900, resize: "contain", quality: 75 };
+
+function eImmagineDrive(item: MediaLibraryItem): boolean {
+  return (item.mimeType ?? "").startsWith("image/") || /\.(jpe?g|png|webp|gif|avif)$/i.test(item.fileName);
+}
+
+/** Da «…/storage/v1/object/public/<bucket>/<file>» all'indirizzo ridimensionato da Supabase. */
+function urlPubblicoRidimensionato(url: string, t: TrasformazioneImmagine): string | null {
+  const segnaposto = "/storage/v1/object/public/";
+  const i = url.indexOf(segnaposto);
+  if (i < 0) return null;
+  const file = url.slice(i + segnaposto.length).split("?")[0];
+  const parametri = new URLSearchParams({ width: String(t.width), resize: t.resize, quality: String(t.quality) });
+  if (t.height) parametri.set("height", String(t.height));
+  return `${url.slice(0, i)}/storage/v1/render/image/public/${file}?${parametri.toString()}`;
+}
+
+/**
+ * Indirizzo ridimensionato di un'immagine del Drive: per i file in archivio un
+ * link firmato di dieci minuti (con la stessa trasformazione dei render), per
+ * quelli pubblici l'indirizzo di Supabase che ridimensiona. `ancheOriginale`:
+ * per un indirizzo esterno che non si può ridimensionare, usa l'originale.
+ */
+function useIndirizzoImmagine(
+  item: MediaLibraryItem,
+  t: TrasformazioneImmagine,
+  ancheOriginale: boolean,
+  aSchermo = true,
+): string | null {
+  const target = resolveMediaLibraryOpenTarget(item);
+  const attiva = aSchermo && eImmagineDrive(item) && target.kind !== "missing";
+  const { data } = useQuery({
+    queryKey: ["drive-immagine", item.id, t.width, t.height ?? 0, t.resize],
+    enabled: attiva,
+    staleTime: 9 * 60 * 1000,
+    queryFn: async () => {
+      if (target.kind === "external") {
+        return urlPubblicoRidimensionato(target.url, t) ?? (ancheOriginale ? target.url : null);
+      }
+      if (target.kind !== "storage") return null;
+      const { data: firmato } = await supabase.storage
+        .from(target.storageBucket)
+        .createSignedUrl(target.storagePath, 600, { transform: t });
+      return firmato?.signedUrl ?? null;
+    },
+  });
+  return attiva ? data ?? null : null;
+}
+
+/**
+ * Vero quando l'elemento è (quasi) a schermo. Un elemento nascosto (la griglia
+ * da computer sul telefono, e viceversa) non ci arriva mai: niente richieste.
+ */
+function useASchermo<T extends Element>(): [RefObject<T | null>, boolean] {
+  const ref = useRef<T>(null);
+  const [aSchermo, setASchermo] = useState(() => typeof IntersectionObserver === "undefined");
+  useEffect(() => {
+    const elemento = ref.current;
+    if (!elemento || aSchermo) return;
+    const osservatore = new IntersectionObserver(
+      (voci) => {
+        if (voci.some((voce) => voce.isIntersecting)) {
+          setASchermo(true);
+          osservatore.disconnect();
+        }
+      },
+      { rootMargin: "200px" },
+    );
+    osservatore.observe(elemento);
+    return () => osservatore.disconnect();
+  }, [aSchermo]);
+  return [ref, aSchermo];
+}
+
+/**
+ * Accanto al nome: la miniatura se è un'immagine (render, foto di cantiere),
+ * altrimenti l'icona del tipo. Stessa misura, così le righe restano allineate.
+ */
+function MiniaturaDocumento({
+  item,
+  className,
+  iconaClassName = "h-4 w-4",
+}: {
+  item: MediaLibraryItem;
+  className?: string;
+  iconaClassName?: string;
+}) {
+  const Icona = iconForItem(item);
+  const [ref, aSchermo] = useASchermo<HTMLSpanElement>();
+  const indirizzo = useIndirizzoImmagine(item, MINIATURA, false, aSchermo);
+  const [nonCaricata, setNonCaricata] = useState(false);
+  return (
+    <span
+      ref={ref}
+      className={cn("flex shrink-0 items-center justify-center overflow-hidden rounded-md border bg-background", className)}
+      aria-hidden="true"
+    >
+      {indirizzo && !nonCaricata ? (
+        <img src={indirizzo} alt="" decoding="async" onError={() => setNonCaricata(true)} className="h-full w-full object-cover" />
+      ) : (
+        <Icona className={cn("text-muted-foreground", iconaClassName)} />
+      )}
+    </span>
+  );
+}
+
+/**
+ * L'immagine dentro la scheda del documento (render, foto di cantiere, foto
+ * aziendali): si guarda senza aprirla fuori. Se non si carica, sparisce.
+ */
+function AnteprimaImmagine({ item, className }: { item: MediaLibraryItem; className?: string }) {
+  const indirizzo = useIndirizzoImmagine(item, ANTEPRIMA, true);
+  const [nonCaricata, setNonCaricata] = useState(false);
+  if (!indirizzo || nonCaricata) return null;
+  return (
+    <img
+      src={indirizzo}
+      alt={item.fileName}
+      loading="lazy"
+      onError={() => setNonCaricata(true)}
+      className={cn("max-h-72 w-full rounded-lg border bg-muted object-contain", className)}
+    />
   );
 }
 
