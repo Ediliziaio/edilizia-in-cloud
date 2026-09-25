@@ -2639,13 +2639,15 @@ function Step3Consumi({
         subtitle={<>Da bolletta o stima rapida. Più dati ⇒ analisi più precisa del payback.</>}
       />
 
-      {/* KPI hero (visibile sempre) */}
+      {/* KPI hero. Telefono: restano i due calcolati (spesa annua, stima a 10
+          anni); consumo e prezzo medio sono gli stessi numeri dei campi qui sotto. */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4 max-sm:gap-2 max-sm:mb-3">
         <FvKpi
           label="Consumo annuo"
           value={consumoAnnuo > 0 ? consumoAnnuo.toLocaleString("it-IT") : "—"}
           unit="kWh"
           variant="orange"
+          className="max-sm:hidden"
         />
         <FvKpi
           label="Spesa annua"
@@ -2661,6 +2663,7 @@ function Step3Consumi({
           }
           unit="€/kWh"
           hint={data.tariffa_tipo}
+          className="max-sm:hidden"
         />
         <FvKpi
           label="Stima 10 anni"

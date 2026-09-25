@@ -12,7 +12,7 @@
  */
 
 import { ReactNode, useEffect, useRef } from "react";
-import { Check, Loader2 } from "lucide-react";
+import { Check, Loader2, Save } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // ─── TAB BAR ORIZZONTALE STICKY ───────────────────────────────────────────────
@@ -161,7 +161,9 @@ export function FvPageHeader({
 }: FvPageHeaderProps) {
   return (
     <div className="bg-white px-4 sm:px-8 pt-5 pb-1 border-b border-slate-200 max-md:pt-3">
-      <div className="flex items-center gap-3 flex-wrap text-xs text-slate-500 mb-2 max-md:mb-1 max-md:gap-2 max-md:flex-nowrap">
+      {/* Telefono no: il numero è già nel titolo, lo stato e l'ora dell'ultima
+          modifica sono testo in più. Sotto il titolo resta il cliente. */}
+      <div className="flex items-center gap-3 flex-wrap text-xs text-slate-500 mb-2 max-md:hidden">
         {numero && (
           <span className="font-mono bg-slate-100 text-slate-800 font-semibold px-2 py-0.5 rounded text-[11px] shrink-0">
             {numero}
@@ -180,7 +182,7 @@ export function FvPageHeader({
         <div className="min-w-0 flex-1">
           <h1 className="text-lg sm:text-2xl font-bold text-slate-900 tracking-tight leading-tight truncate">{title}</h1>
           {subtitle && (
-            <p className="hidden sm:block text-slate-500 text-sm mt-1 truncate max-w-xl">{subtitle}</p>
+            <p className="text-slate-500 text-sm mt-1 truncate max-w-xl max-md:mt-0 max-md:text-xs">{subtitle}</p>
           )}
         </div>
         {actions && <div className="flex w-full sm:w-auto gap-2 items-center flex-wrap justify-end max-md:w-auto max-md:shrink-0 max-md:flex-nowrap max-md:gap-1">{actions}</div>}
@@ -200,7 +202,8 @@ interface FvPanelTitleProps {
 
 export function FvPanelTitle({ step, totalSteps: _totalSteps, title, subtitle }: FvPanelTitleProps) {
   return (
-    <div className="mb-6 max-md:mb-3">
+    // Telefono no: «Fase N — …» ripete il passo già acceso in alto.
+    <div className="mb-6 max-md:hidden">
       <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight mb-1 max-md:mb-0 max-md:text-base">
         Fase {step} — {title}
       </h2>
@@ -458,7 +461,9 @@ export function FvFooter({
               "max-md:px-3",
             )}
           >
-            Salva<span className="max-md:hidden"> bozza</span>
+            {/* Telefono: solo l'icona, «Avanti» prende la riga. */}
+            <Save className="h-4 w-4 md:hidden" aria-hidden="true" />
+            <span className="max-md:sr-only">Salva</span><span className="max-md:hidden"> bozza</span>
           </button>
         )}
         {showNext && onNext && (
