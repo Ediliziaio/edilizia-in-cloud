@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import type { MarketingAppointment } from "@/types/marketingCalendar";
+import { RigaMobile } from "@/components/mobile/FiltriMobile";
 import { useGoogleCalendarSync } from "@/hooks/useGoogleCalendarSync";
 import { useAppleCalendarSync } from "@/hooks/useAppleCalendarSync";
 import {
@@ -144,9 +145,9 @@ export default function MarketingAppointmentsList({ appointments, onRefresh, onC
   ];
 
   return (
-    <div className="space-y-4">
-      {/* Sub-tabs con count badge */}
-      <div className="flex items-center gap-1 border-b">
+    <div className="space-y-4 max-sm:space-y-3">
+      {/* Sub-tabs con count badge — telefono: quattro in riga, più strette. */}
+      <div className="flex items-center gap-1 border-b max-sm:gap-0">
         {subTabs.map((t) => {
           const active = subTab === t.key;
           return (
@@ -157,7 +158,7 @@ export default function MarketingAppointmentsList({ appointments, onRefresh, onC
                 setPage(0);
               }}
               className={cn(
-                "inline-flex items-center gap-1.5 pb-2 pt-1 px-3 text-sm font-medium border-b-2 transition-colors",
+                "tap-compact inline-flex items-center gap-1.5 pb-2 pt-1 px-3 text-sm font-medium border-b-2 transition-colors max-sm:flex-1 max-sm:justify-center max-sm:gap-1 max-sm:whitespace-nowrap max-sm:px-1 max-sm:text-xs",
                 active
                   ? "border-primary text-primary"
                   : "border-transparent text-muted-foreground hover:text-foreground"
@@ -190,8 +191,42 @@ export default function MarketingAppointmentsList({ appointments, onRefresh, onC
         />
       </div>
 
+      {/* Telefono: righe (titolo, cliente · giorno e ora, stato); la tabella a 7 colonne al computer. */}
+      <div className="divide-y divide-border overflow-hidden rounded-lg border sm:hidden">
+        {paged.length === 0 ? (
+          <p className="px-3 py-4 text-center text-[13px] text-muted-foreground">
+            {search.trim()
+              ? "Nessun risultato"
+              : subTab === "followup"
+              ? "Nessun appuntamento da seguire"
+              : subTab === "annullato"
+              ? "Nessun appuntamento annullato"
+              : subTab === "prossimo"
+              ? "Nessun appuntamento imminente"
+              : "Nessun appuntamento"}
+          </p>
+        ) : (
+          paged.map((apt) => {
+            const stato = MARKETING_APPOINTMENT_STATUS_OPTIONS.find((o) => o.value === apt.status);
+            return (
+              <RigaMobile
+                key={apt.id}
+                onClick={() => onClickAppointment(apt)}
+                titolo={apt.title || apt.contact_name || "Appuntamento"}
+                sottotitolo={[
+                  apt.contact_name && apt.contact_name !== apt.title ? apt.contact_name : null,
+                  `${format(parseISO(apt.appointment_date), "d MMM", { locale: it })}${apt.appointment_time ? ` ${apt.appointment_time.slice(0, 5)}` : ""}`,
+                  apt.assigned_name ?? "non assegnato",
+                ].filter(Boolean).join(" · ")}
+                stato={stato ? <Badge variant={stato.variant} className="text-[10px]">{stato.label}</Badge> : undefined}
+              />
+            );
+          })
+        )}
+      </div>
+
       {/* Table */}
-      <div className="border rounded-lg">
+      <div className="border rounded-lg max-sm:hidden">
         <Table>
           <TableHeader>
             <TableRow>
@@ -320,8 +355,8 @@ export default function MarketingAppointmentsList({ appointments, onRefresh, onC
 
       {/* Pagination */}
       {filtered.length > 0 && (
-        <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <span>
+        <div className={cn("flex items-center justify-between text-sm text-muted-foreground max-sm:justify-center max-sm:text-xs", totalPages <= 1 && "max-sm:hidden")}>
+          <span className="max-sm:hidden">
             Mostra da {page * rowsPerPage + 1} a{" "}
             {Math.min((page + 1) * rowsPerPage, filtered.length)} di {filtered.length} risultati
           </span>
@@ -330,7 +365,7 @@ export default function MarketingAppointmentsList({ appointments, onRefresh, onC
               value={String(rowsPerPage)}
               onValueChange={(v) => { setRowsPerPage(Number(v)); setPage(0); }}
             >
-              <SelectTrigger className="h-8 w-20 text-xs">
+              <SelectTrigger className="h-8 w-20 text-xs max-sm:hidden">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

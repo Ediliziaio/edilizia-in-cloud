@@ -785,7 +785,7 @@ export default function MarketingAppointmentDialog({
               ? isBlocked ? "Modifica tempo bloccato" : "Modifica appuntamento"
               : isBlocked ? "Aggiungi tempo bloccato" : "Prenota appuntamento"}
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="max-sm:sr-only">
             {isBlocked
               ? "Blocca un periodo sul calendario per impedire prenotazioni"
               : "Compila i dettagli per prenotare un appuntamento"}
@@ -838,14 +838,15 @@ export default function MarketingAppointmentDialog({
 
                 <div className="space-y-2">
                   <Label htmlFor="mkt-desc">Descrizione</Label>
-                  <Textarea id="mkt-desc" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Dettagli aggiuntivi..." rows={3} />
+                  <Textarea id="mkt-desc" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Dettagli aggiuntivi..." rows={3} className="max-sm:h-16 max-sm:min-h-0 max-sm:placeholder:text-[13px]" />
                 </div>
 
-                <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+                {/* Telefono: le modalità in tasselli piccoli, senza la riga di spiegazione. */}
+                <div className="rounded-lg border bg-muted/30 p-4 space-y-3 max-sm:p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <Label className="text-sm font-semibold">Modalità incontro</Label>
-                      <p className="mt-0.5 text-xs text-muted-foreground">{meetingStatusLabel}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground max-sm:hidden">{meetingStatusLabel}</p>
                     </div>
                     {meetingProvider === "google_meet" && (
                       <Badge variant={meetingUrl ? "default" : "secondary"} className="gap-1">
@@ -855,7 +856,7 @@ export default function MarketingAppointmentDialog({
                     )}
                   </div>
 
-                  <div className={cn("grid gap-2", linkDelCalendario ? "sm:grid-cols-3" : "sm:grid-cols-2")}>
+                  <div className={cn("grid gap-2", linkDelCalendario ? "sm:grid-cols-3 max-sm:grid-cols-3" : "sm:grid-cols-2 max-sm:grid-cols-2")}>
                     {linkDelCalendario && (
                       <button
                         type="button"
@@ -865,7 +866,7 @@ export default function MarketingAppointmentDialog({
                           setMeetingUrl(linkDelCalendario);
                         }}
                         className={cn(
-                          "rounded-lg border bg-background p-3 text-left text-sm transition hover:border-primary/60 hover:bg-primary/5",
+                          "rounded-lg border bg-background p-3 text-left text-sm transition hover:border-primary/60 hover:bg-primary/5 max-sm:px-2 max-sm:py-2 max-sm:text-[13px]",
                           meetingProvider === "manual" && "border-primary bg-primary/5 ring-1 ring-primary/20",
                         )}
                       >
@@ -873,7 +874,7 @@ export default function MarketingAppointmentDialog({
                           <Video className="h-4 w-4 text-primary" />
                           Link del calendario
                         </span>
-                        <span className="mt-1 block text-xs text-muted-foreground">Sempre lo stesso: arriva al cliente nella conferma e nei promemoria.</span>
+                        <span className="mt-1 block text-xs text-muted-foreground max-sm:hidden">Sempre lo stesso: arriva al cliente nella conferma e nei promemoria.</span>
                       </button>
                     )}
                     <button
@@ -884,12 +885,12 @@ export default function MarketingAppointmentDialog({
                         setMeetingUrl("");
                       }}
                       className={cn(
-                        "rounded-lg border bg-background p-3 text-left text-sm transition hover:border-primary/60 hover:bg-primary/5",
+                        "rounded-lg border bg-background p-3 text-left text-sm transition hover:border-primary/60 hover:bg-primary/5 max-sm:px-2 max-sm:py-2 max-sm:text-[13px]",
                         meetingProvider === "none" && "border-primary bg-primary/5 ring-1 ring-primary/20",
                       )}
                     >
                       <span className="font-medium">In presenza / telefono</span>
-                      <span className="mt-1 block text-xs text-muted-foreground">Usa indirizzo, note o telefonata senza link video.</span>
+                      <span className="mt-1 block text-xs text-muted-foreground max-sm:hidden">Usa indirizzo, note o telefonata senza link video.</span>
                     </button>
                     <button
                       type="button"
@@ -901,7 +902,7 @@ export default function MarketingAppointmentDialog({
                         setMeetingStatus(url ? "ready" : "pending");
                       }}
                       className={cn(
-                        "rounded-lg border bg-background p-3 text-left text-sm transition hover:border-primary/60 hover:bg-primary/5",
+                        "rounded-lg border bg-background p-3 text-left text-sm transition hover:border-primary/60 hover:bg-primary/5 max-sm:px-2 max-sm:py-2 max-sm:text-[13px]",
                         meetingProvider === "google_meet" && "border-primary bg-primary/5 ring-1 ring-primary/20",
                       )}
                     >
@@ -909,7 +910,7 @@ export default function MarketingAppointmentDialog({
                         <Video className="h-4 w-4 text-primary" />
                         Google Meet
                       </span>
-                      <span className="mt-1 block text-xs text-muted-foreground">Generato dal sync Google Calendar del responsabile.</span>
+                      <span className="mt-1 block text-xs text-muted-foreground max-sm:hidden">Generato dal sync Google Calendar del responsabile.</span>
                     </button>
                   </div>
 
@@ -1000,7 +1001,7 @@ export default function MarketingAppointmentDialog({
                       <svg className="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 9a3 3 0 100-6 3 3 0 000 6zM6 8a4 4 0 118 0 4 4 0 01-8 0zM10 11a5 5 0 00-5 5 1 1 0 001 1h8a1 1 0 001-1 5 5 0 00-5-5z" /></svg>
                     </span>
                     Venditore assegnato
-                    <span className="text-[10px] text-muted-foreground font-normal">(staff interno)</span>
+                    <span className="text-[10px] text-muted-foreground font-normal max-sm:hidden">(staff interno)</span>
                   </Label>
                   <Select value={assignedTo} onValueChange={setAssignedTo}>
                     <SelectTrigger><SelectValue placeholder="Non assegnato" /></SelectTrigger>
@@ -1011,7 +1012,7 @@ export default function MarketingAppointmentDialog({
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-[10px] text-muted-foreground">
+                  <p className="text-[10px] text-muted-foreground max-sm:hidden">
                     Scegli il commerciale interno che gestirà l'appuntamento.
                   </p>
                 </div>
@@ -1020,7 +1021,7 @@ export default function MarketingAppointmentDialog({
                 <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
                   <div className="flex items-center justify-between">
                     <Label className="text-sm font-semibold">Data e ora</Label>
-                    <span className="text-xs text-muted-foreground">Fuso orario: Europe/Rome</span>
+                    <span className="text-xs text-muted-foreground max-sm:hidden">Fuso orario: Europe/Rome</span>
                   </div>
 
                   <div className="space-y-2">
@@ -1074,7 +1075,7 @@ export default function MarketingAppointmentDialog({
                       <svg className="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 9a3 3 0 100-6 3 3 0 000 6zM6 8a4 4 0 118 0 4 4 0 01-8 0zM10 11a5 5 0 00-5 5 1 1 0 001 1h8a1 1 0 001-1 5 5 0 00-5-5z" /></svg>
                     </span>
                     Cliente *
-                    <span className="text-[10px] text-muted-foreground font-normal">(contatto CRM)</span>
+                    <span className="text-[10px] text-muted-foreground font-normal max-sm:hidden">(contatto CRM)</span>
                   </Label>
                   <div>
                     <Popover
@@ -1135,7 +1136,7 @@ export default function MarketingAppointmentDialog({
                       </PopoverContent>
                     </Popover>
                   </div>
-                  <p className="text-[10px] text-muted-foreground">
+                  <p className="text-[10px] text-muted-foreground max-sm:hidden">
                     Persona esterna per cui è l'appuntamento (prospect o cliente).
                   </p>
                 </div>
@@ -1238,7 +1239,7 @@ export default function MarketingAppointmentDialog({
                         <ListChecks className="h-3.5 w-3.5 text-primary" />
                         Crea task follow-up
                       </Label>
-                      <p className="mt-0.5 text-xs text-muted-foreground">
+                      <p className="mt-0.5 text-xs text-muted-foreground max-sm:hidden">
                         Stato: {selectedStatusMeta.label}. {selectedStatusMeta.description}
                       </p>
                     </div>
@@ -1332,7 +1333,7 @@ export default function MarketingAppointmentDialog({
               <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <Label className="text-sm font-semibold">Data e ora</Label>
-                  <span className="text-xs text-muted-foreground">Fuso orario: Europe/Rome</span>
+                  <span className="text-xs text-muted-foreground max-sm:hidden">Fuso orario: Europe/Rome</span>
                 </div>
 
                 <div className="space-y-2">
@@ -1407,11 +1408,11 @@ export default function MarketingAppointmentDialog({
             )}
           </div>
 
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+          <div className="flex gap-2 max-sm:w-full">
+            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving} className="max-sm:hidden">
               Annulla
             </Button>
-            <Button onClick={handleSave} disabled={saving || solaLettura || calendars.length === 0 || !!timeError} title={bloccoTitle} className="gap-2">
+            <Button onClick={handleSave} disabled={saving || solaLettura || calendars.length === 0 || !!timeError} title={bloccoTitle} className="gap-2 max-sm:flex-1">
               {saving && <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />}
               {saving
                 ? "Salvataggio..."

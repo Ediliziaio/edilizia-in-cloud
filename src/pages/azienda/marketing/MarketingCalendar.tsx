@@ -1139,15 +1139,16 @@ export default function MarketingCalendar() {
         </div>
       )}
 
-      {/* Header redesign */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+      {/* Header redesign — telefono: titolo e «Nuovo» su una riga; sync e
+          impostazioni dei calendari restano a computer e tablet. */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 max-sm:flex-row max-sm:items-center max-sm:justify-between max-sm:gap-2">
+        <div className="flex items-center gap-3 max-sm:min-w-0">
+          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 max-sm:hidden">
             <CalendarIcon className="h-5 w-5 text-primary" />
           </div>
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Calendario appuntamenti</h1>
-            <p className="text-sm text-muted-foreground">
+          <div className="max-sm:min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight max-sm:truncate max-sm:text-lg">Calendario<span className="max-sm:hidden"> appuntamenti</span></h1>
+            <p className="text-sm text-muted-foreground max-sm:text-xs">
               {headerStats.visible} visibili · <span className="font-medium text-foreground">{headerStats.todayCount}</span> oggi
               {activeFilterCount > 0 && (
                 <>
@@ -1158,7 +1159,7 @@ export default function MarketingCalendar() {
                 </>
               )}
             </p>
-            <div className="mt-1 flex flex-wrap items-center gap-1.5">
+            <div className="mt-1 flex flex-wrap items-center gap-1.5 max-sm:hidden">
               {isGoogleConnected && (
                 <Badge variant="outline" className="h-5 gap-1 border-emerald-200 bg-emerald-50 px-1.5 text-[10px] text-emerald-700">
                   <CheckCircle2 className="h-3 w-3" />
@@ -1185,13 +1186,13 @@ export default function MarketingCalendar() {
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 max-sm:shrink-0">
           <Button
             size="sm"
             variant="outline"
             onClick={handleSyncExternalCalendars}
             disabled={syncingExternal}
-            className="h-9 gap-1.5"
+            className="h-9 gap-1.5 max-sm:hidden"
             title="Sincronizza disponibilità e appuntamenti con i calendari esterni collegati"
           >
             <RefreshCw className={cn("h-4 w-4", syncingExternal && "animate-spin")} />
@@ -1201,7 +1202,7 @@ export default function MarketingCalendar() {
             size="sm"
             variant="ghost"
             onClick={() => navigate(calendarSettingsPath)}
-            className="h-9 gap-1 text-muted-foreground hover:text-foreground"
+            className="h-9 gap-1 text-muted-foreground hover:text-foreground max-md:hidden"
             title="Impostazioni calendari"
           >
             <Settings className="h-4 w-4" />
@@ -1212,12 +1213,14 @@ export default function MarketingCalendar() {
             onClick={() => (hasCalendars ? openNewDialog() : navigate(calendarSettingsPath))}
             disabled={hasCalendars && permissions.solaLettura}
             title={hasCalendars && permissions.solaLettura ? "Sei in sola lettura" : undefined}
-            className="h-9"
+            // Senza calendari il bottone porta alla configurazione, che dal telefono non si fa.
+            className={cn("h-9", !hasCalendars && "max-md:hidden")}
           >
             {hasCalendars ? (
               <>
                 <Plus className="h-4 w-4 mr-1.5" />
-                Nuovo appuntamento
+                <span className="max-sm:hidden">Nuovo appuntamento</span>
+                <span className="sm:hidden">Nuovo</span>
               </>
             ) : (
               <>
@@ -1232,8 +1235,9 @@ export default function MarketingCalendar() {
       {/* KPI dashboard — 2026-05-27 (UX request): allineata al Calendario
           Lavori operativo per consistenza. Mostra metriche del periodo che
           l'utente sta filtrando, NON dell'intera azienda. */}
+      {/* Telefono: oggi e settimana; «da assegnare» e «conflitti» solo quando ce ne sono. */}
       <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
-        <div className="rounded-lg border bg-card px-3 py-2">
+        <div className="rounded-lg border bg-card px-3 py-2 max-sm:hidden">
           <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Visibili</p>
           <p className="text-xl font-bold tabular-nums">{headerStats.visible}</p>
         </div>
@@ -1258,7 +1262,7 @@ export default function MarketingCalendar() {
           title={kpiFilter === "unassigned" ? "Mostra tutti gli appuntamenti" : "Mostra solo i non assegnati"}
           className={cn(
             "rounded-lg border px-3 py-2 text-left transition-colors hover:bg-amber-50/70 dark:hover:bg-amber-950/40",
-            headerStats.unassigned > 0 ? "border-amber-200 bg-amber-50 dark:bg-amber-950/30" : "bg-card",
+            headerStats.unassigned > 0 ? "border-amber-200 bg-amber-50 dark:bg-amber-950/30" : "bg-card max-sm:hidden",
             kpiFilter === "unassigned" && "ring-2 ring-amber-400 ring-offset-1",
           )}
         >
@@ -1277,7 +1281,7 @@ export default function MarketingCalendar() {
           title={kpiFilter === "conflicts" ? "Mostra tutti gli appuntamenti" : "Mostra solo gli appuntamenti in conflitto"}
           className={cn(
             "col-span-2 rounded-lg border px-3 py-2 text-left transition-colors hover:bg-red-50/70 dark:hover:bg-red-950/40 md:col-span-1",
-            headerStats.conflicts > 0 ? "border-red-200 bg-red-50 dark:bg-red-950/30" : "bg-card",
+            headerStats.conflicts > 0 ? "border-red-200 bg-red-50 dark:bg-red-950/30" : "bg-card max-sm:hidden",
             kpiFilter === "conflicts" && "ring-2 ring-red-400 ring-offset-1",
           )}
         >
@@ -1426,7 +1430,7 @@ export default function MarketingCalendar() {
                     aria-label="Apri filtri"
                   >
                     <SlidersHorizontal className="h-3.5 w-3.5" />
-                    Filtri
+                    <span className="max-sm:hidden">Filtri</span>
                     {activeFilterCount > 0 && (
                       <Badge
                         variant="secondary"
@@ -1463,7 +1467,8 @@ export default function MarketingCalendar() {
                   Era stato sostituito da un badge statico "Vista mese" — UI
                   ingannevole perché il rendering condizionale a valle
                   supportava già tutte e 3 le viste. */}
-              <div className="inline-flex h-9 items-center rounded-md border bg-background p-0.5 text-xs font-medium md:text-sm">
+              {/* Telefono: resta il mese con l'elenco del giorno sotto; giorno e settimana a colonne orarie al computer. */}
+              <div className="inline-flex h-9 items-center rounded-md border bg-background p-0.5 text-xs font-medium md:text-sm max-sm:hidden">
                 <button
                   type="button"
                   onClick={() => setCalendarView("day")}
@@ -1520,7 +1525,7 @@ export default function MarketingCalendar() {
                 type="button"
                 onClick={() => setShowOperativi((v) => !v)}
                 className={cn(
-                  "inline-flex h-9 items-center gap-1.5 rounded-md border px-3 text-xs font-medium transition-colors md:text-sm",
+                  "inline-flex h-9 items-center gap-1.5 rounded-md border px-3 text-xs font-medium transition-colors md:text-sm max-sm:hidden",
                   showOperativi
                     ? "border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100"
                     : "bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -1535,7 +1540,11 @@ export default function MarketingCalendar() {
             </div>
 
             {!hasCalendars ? (
-              <div className="flex min-h-0 flex-1 items-center justify-center rounded-lg border bg-background p-4 sm:p-6">
+              <>
+              <p className="rounded-lg border bg-muted/30 px-3 py-2.5 text-[13px] text-muted-foreground md:hidden">
+                Il calendario si imposta da computer o tablet.
+              </p>
+              <div className="flex min-h-0 flex-1 items-center justify-center rounded-lg border bg-background p-4 sm:p-6 max-md:hidden">
                 <div className="mx-auto w-full max-w-3xl">
                   <div className="grid gap-5 lg:grid-cols-[1fr_300px]">
                     <div>
@@ -1580,6 +1589,7 @@ export default function MarketingCalendar() {
                   </div>
                 </div>
               </div>
+              </>
             ) : calendarView === "week" ? (
               <MarketingCalendarWeekView
                 weekStart={weekStart}
