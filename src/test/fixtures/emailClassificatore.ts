@@ -11,7 +11,7 @@
  *   - `expect_l1_resolves`: true se L1 DEVE risolverla (per stats hit rate)
  */
 
-import type { EmailCategoria, EmailInput } from "../types";
+import type { EmailCategoria, EmailInput } from "../../../supabase/functions/_shared/email-ai-cascade";
 
 export interface EmailFixture {
   id: string;

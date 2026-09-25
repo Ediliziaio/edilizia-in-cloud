@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   validaPiano, matchDeterministico, serveSonnet, modalitaDaBudget,
   gradinoConsentito, stimaCostoToken, SOGLIA_CONFIDENZA, type Piano,
-} from "../orchestratore";
+} from "../../../supabase/functions/_shared/silvio-orchestratore-logic";
 
 const CHIAVI = ["crea_bozza_fattura_passiva", "aggiungi_scadenza_previsionale", "invia_email"];
 

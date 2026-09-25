@@ -10,7 +10,8 @@
  *   3. Nominatim (OpenStreetMap) — fallback SENZA chiave, sempre disponibile
  *      (policy OSM: User-Agent descrittivo + basso volume, ~1 req/s).
  *
- * Il parsing rispecchia fv-geocode/index.ts (che ha unit test in src/lib).
+ * Il parsing Google (parseGeocodeGoogle) ha un gemello in fv-geocode/index.ts e lo
+ * prova src/test/logic/fotovoltaicoGeocode.test.ts.
  */
 
 export interface GeocodeResult {
@@ -82,7 +83,7 @@ function findComp(comps: AddrComp[], type: string): AddrComp | undefined {
   return comps.find((c) => Array.isArray(c.types) && c.types.includes(type));
 }
 
-function parseGeocodeGoogle(resp: Record<string, unknown>): GeocodeResult | null {
+export function parseGeocodeGoogle(resp: Record<string, unknown>): GeocodeResult | null {
   const status = resp.status as string | undefined;
   if (status && status !== "OK") return null;
   const results = resp.results as Array<Record<string, unknown>> | undefined;

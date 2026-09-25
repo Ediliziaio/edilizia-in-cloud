@@ -1,7 +1,8 @@
 /**
- * silvio-canali-logic.ts — MP-SILVIO-07 · logica pura multicanale (Deno mirror)
- * Specchio FEDELE di src/lib/silvio/canali.ts. Nessun I/O. Tieni i due allineati:
- * il test di parità in src/lib/silvio/__tests__/canali.test.ts li confronta.
+ * silvio-canali-logic.ts — MP-SILVIO-07 · logica pura multicanale
+ * Nessun I/O. Usata da silvio-canale-adapter, provata da vitest in
+ * src/test/logic/silvioCanali.test.ts. La copia in src/lib/silvio/canali.ts, che
+ * nessuna pagina usava, è stata tolta il 25/09/2026: questa è l'unica.
  */
 
 export type Canale = "web" | "email" | "whatsapp" | "voce";

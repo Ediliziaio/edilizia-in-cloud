@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   richiedeIdentitaVerificata, forzaConferma, approvabileSuCanale,
   richiedeRiformulazione, SOGLIA_CONFIDENZA_CANALE, messaggioEsito,
-} from "../canali";
+} from "../../../supabase/functions/_shared/silvio-canali-logic";
 
 describe("identità obbligatoria sui canali esterni", () => {
   it("whatsapp/voce richiedono identità verificata", () => {

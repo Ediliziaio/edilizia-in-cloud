@@ -10,7 +10,7 @@ import {
   avanzaEsecuzione,
   normalizzaEmail,
   type SequenzaStep,
-} from "../sequenze";
+} from "../../../supabase/functions/_shared/sequenze-logic";
 
 const STEP: SequenzaStep[] = [
   { offset_giorni: 3, oggetto: "Ha visto il preventivo {{numero}}?", corpo_template: "Ciao {{nome}}, le ricordo il preventivo da {{importo}}." },

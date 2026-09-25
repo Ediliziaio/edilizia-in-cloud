@@ -1,9 +1,10 @@
 /**
- * COPIA per Deno edge runtime di src/lib/email-ai/sequenze.ts (tenere in sync).
- * sequenze.ts — MP-EMAIL-AI-13 · logica pura sequenze in uscita
+ * sequenze-logic.ts — MP-EMAIL-AI-13 · logica pura sequenze in uscita
  *
- * Funzioni pure (no I/O, no Deno, no Supabase) usate sia dai test vitest sia
- * dall'edge function `email-sequenze-tick` (copia in _shared/sequenze-logic.ts).
+ * Funzioni pure (no I/O, no Deno, no Supabase) usate dall'edge function
+ * `email-sequenze-tick` e da outreach-dispatch-logic.ts, provate da vitest in
+ * src/test/logic/emailSequenze.test.ts. La copia in src/lib/email-ai/sequenze.ts,
+ * che nessuna pagina usava, è stata tolta il 25/09/2026: questa è l'unica.
  * Centralizza: sostituzione variabili, scheduling step, valutazione STOP,
  * limiti di invio e footer di disiscrizione. Nessun invio reale qui dentro.
  */

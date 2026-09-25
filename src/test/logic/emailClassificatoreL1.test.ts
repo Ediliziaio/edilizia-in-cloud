@@ -1,54 +1,84 @@
 /**
- * MP-EMAIL-AI-01 — Test suite L1 classifier deterministico.
+ * MP-EMAIL-AI-01 — La cascata L1 delle email (_shared/email-ai-cascade.ts) sulle
+ * email d'esempio di src/test/fixtures/emailClassificatore.ts.
  *
- * Esegue tutte le fixture e verifica:
+ * Fino al 25/09/2026 girava su una copia della cascata in src/lib/email-ai/classifier.ts
+ * che nessuna pagina usava: ora prova la funzione che email-ai-l1-classify ed
+ * email-ai-l3-batch eseguono davvero. Il database è finto e risponde alle letture
+ * della cascata con le righe date qui sotto.
+ *
+ * Verifica:
  *   - Per le fixture con expect_l1_resolves=true → categoria + matched_by attesi
  *   - Stampa % hit rate L1 (target MP §9: ≥70% senza alcuna chiamata AI)
- *
- * Mock di ClassifierContext: nessun DB, nessun CRM. Solo header+regex fire.
- * Se vogliamo testare CRM match → fixture con `entita_id` precompilato (TODO).
  */
 
 import { describe, it, expect } from "vitest";
-import { classificaDeterministica } from "../classifier";
-import type { ClassifierContext, MittenteNotoHit, CrmMatchHit } from "../types";
-import { EMAIL_FIXTURES, countL1Expected } from "../__fixtures__/emails";
+import {
+  classificaDeterministica as classificaSulServer,
+  type EmailInput,
+} from "../../../supabase/functions/_shared/email-ai-cascade";
+import { EMAIL_FIXTURES, countL1Expected } from "../fixtures/emailClassificatore";
 
-/**
- * Mock context: nessun mittente noto, nessun match CRM.
- * Solo header e regex possono scattare → testa la robustezza dei livelli base.
- */
-const emptyContext: ClassifierContext = {
-  lookupMittenteNoto: async () => null,
-  matchCRM: async () => null,
-};
+type Riga = Record<string, unknown> | null;
+type Filtri = Record<string, unknown>;
 
-/**
- * Context con un fornitore + cliente noti per testare la branch CRM.
- */
-const seededContext: ClassifierContext = {
-  lookupMittenteNoto: async (email): Promise<MittenteNotoHit | null> => {
-    if (email === "vendite@known-supplier.it") {
-      return {
-        categoria: "fornitore",
-        entita_tipo: "fornitore",
-        entita_id: "00000000-0000-0000-0000-000000000001",
+interface QueryFinta {
+  select(): QueryFinta;
+  eq(colonna: string, valore: unknown): QueryFinta;
+  ilike(colonna: string, valore: unknown): QueryFinta;
+  in(): QueryFinta;
+  order(): QueryFinta;
+  limit(): QueryFinta;
+  maybeSingle(): Promise<{ data: Riga; error: null }>;
+  /** Le regole dell'utente si leggono con un await sulla query: nessuna. */
+  then<T>(fatto: (risposta: { data: unknown[]; error: null }) => T): Promise<T>;
+}
+
+/** Un finto client Supabase: ogni `.maybeSingle()` chiede la riga a `riga(tabella, filtri)`. */
+function databaseFinto(riga: (tabella: string, filtri: Filtri) => Riga = () => null) {
+  return {
+    from(tabella: string): QueryFinta {
+      const filtri: Filtri = {};
+      const query: QueryFinta = {
+        select: () => query,
+        eq(colonna, valore) {
+          filtri[colonna] = valore;
+          return query;
+        },
+        ilike(colonna, valore) {
+          filtri[colonna] = valore;
+          return query;
+        },
+        in: () => query,
+        order: () => query,
+        limit: () => query,
+        maybeSingle: async () => ({ data: riga(tabella, filtri), error: null }),
+        then: async (fatto) => fatto({ data: [], error: null }),
       };
-    }
-    return null;
-  },
-  matchCRM: async (email, dominio): Promise<CrmMatchHit | null> => {
-    if (email === "info@laterizi-mediterraneo.it" || dominio === "laterizi-mediterraneo.it") {
-      return {
-        categoria: "fornitore",
-        entita_tipo: "fornitore",
-        entita_id: "00000000-0000-0000-0000-000000000002",
-        matched_field: "email",
-      };
-    }
-    return null;
-  },
-};
+      return query;
+    },
+    rpc: async (): Promise<{ data: null; error: null }> => ({ data: null, error: null }),
+  };
+}
+
+type DatabaseFinto = ReturnType<typeof databaseFinto>;
+
+const classificaDeterministica = (email: EmailInput, db: DatabaseFinto) =>
+  classificaSulServer(db as unknown as Parameters<typeof classificaSulServer>[0], "azienda-di-prova", email);
+
+/** Nessun mittente noto, nessun match CRM: scattano solo header e regex. */
+const emptyContext = databaseFinto();
+
+/** Un fornitore già imparato (mittenti_noti) e uno in anagrafica, per la parte CRM. */
+const seededContext = databaseFinto((tabella, filtri) => {
+  if (tabella === "mittenti_noti" && filtri.email === "vendite@known-supplier.it") {
+    return { categoria: "fornitore", entita_tipo: "fornitore", entita_id: "00000000-0000-0000-0000-000000000001" };
+  }
+  if (tabella === "suppliers" && filtri.email === "info@laterizi-mediterraneo.it") {
+    return { id: "00000000-0000-0000-0000-000000000002" };
+  }
+  return null;
+});
 
 describe("L1 classifier deterministico", () => {
   describe("Fixture coverage — ogni categoria attesa è coperta", () => {

@@ -1,9 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { parseGeocodeGoogle } from "@/lib/fotovoltaico/geocode";
+import { parseGeocodeGoogle } from "../../../supabase/functions/_shared/forwardGeocode";
 
 /**
- * Test del parser Google Geocoding (src/lib/fotovoltaico/geocode.ts).
- * Esercita il CODICE DI PRODUZIONE (mirror nell'edge fv-geocode).
+ * Test del parser Google Geocoding (supabase/functions/_shared/forwardGeocode.ts,
+ * gemello in fv-geocode/index.ts). Fino al 25/09/2026 provava una copia in
+ * src/lib/fotovoltaico/geocode.ts che nessuna pagina usava.
  */
 
 const respMilano = {

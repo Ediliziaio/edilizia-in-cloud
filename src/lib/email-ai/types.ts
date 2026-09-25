@@ -62,43 +62,6 @@ export interface ClassificationResult {
   matched_by?: string;
 }
 
-/**
- * Contesto fornito al classificatore deterministico per le lookup CRM.
- * Implementato in modo diverso da client (supabase-js) vs edge (deno).
- */
-export interface ClassifierContext {
-  /** Cache mittenti noti per quel company_id. */
-  lookupMittenteNoto: (
-    email: string,
-    dominio?: string,
-  ) => Promise<MittenteNotoHit | null>;
-
-  /** Lookup CRM per email mittente (cliente/fornitore/operaio). */
-  matchCRM: (
-    email: string,
-    dominio: string,
-  ) => Promise<CrmMatchHit | null>;
-
-  /**
-   * MP-EMAIL-AI-05 (opzionale): carica le regole utente attive per la company.
-   * Se presente, vengono valutate PRIMA di tutto (massima precedenza).
-   */
-  loadRegole?: () => Promise<import("./rules-engine").Regola[]>;
-}
-
-export interface MittenteNotoHit {
-  categoria: EmailCategoria;
-  entita_tipo: EntitaTipo | null;
-  entita_id: string | null;
-}
-
-export interface CrmMatchHit {
-  categoria: EmailCategoria;
-  entita_tipo: EntitaTipo;
-  entita_id: string;
-  matched_field: "email" | "domain";
-}
-
 /** Costante soglia confidenza Haiku: sotto = "altro" + da_rivedere=true. */
 export const SOGLIA_CONFIDENZA_L3 = 0.6;
 
