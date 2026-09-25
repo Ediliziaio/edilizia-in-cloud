@@ -25,7 +25,14 @@ export type TemplateVisibilityKey =
   | "show_notes"
   | "show_page_numbers";
 
-export const getLogoPublicUrl = (path: string): string => {
+/**
+ * L'indirizzo pubblico di un'immagine del modello; undefined se non c'è.
+ * Senza il controllo, un modello «offerta» senza copertina (quasi tutti)
+ * mandava in crash l'intera pagina Modelli di preventivo: `null.replace`
+ * (Ener Italia, 25/09/2026). Come templateAssetUrl del QuoteBuilder.
+ */
+export const getLogoPublicUrl = (path: string | null | undefined): string | undefined => {
+  if (!path) return undefined;
   if (/^https?:\/\//i.test(path)) return path;
   const clean = path.replace(/^\/+/, "");
   const [maybeBucket, ...rest] = clean.split("/");
