@@ -131,7 +131,8 @@ describe("dove si vede", () => {
   });
 
   it("il rapporto del mattino dice chi è rimasto senza backup", () => {
-    const canarino = leggi("supabase/functions/ops-canarino/index.ts");
+    // Dal 25/09 (email unica del mattino) le sezioni del rapporto stanno in stato.ts.
+    const canarino = leggi("supabase/functions/ops-canarino/stato.ts");
     expect(canarino).toContain('{ key: "backup_mancanti", titolo: "Aziende senza un backup da più di 8 giorni" }');
     expect(canarino).toContain('supabase.rpc("ops_backup_mancanti", { p_giorni: 8 })');
     const migrazione = leggi("supabase/migrations/20280920210000_backup_mancanti_nel_rapporto.sql");
