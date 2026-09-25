@@ -103,7 +103,7 @@ export default function MezzoDetail() {
         <ArrowLeft className="h-4 w-4" aria-hidden="true" />Mezzi e attrezzature
       </Link>
 
-      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 p-3 shadow-sm sm:p-5">
+      <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 p-3 shadow-sm sm:p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex min-w-0 items-start gap-3">
             {fotoCopertina ? (

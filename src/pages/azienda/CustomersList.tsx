@@ -813,7 +813,7 @@ function CustomersListInner() {
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-3 py-3 sm:py-5 shadow-sm sm:px-6">
+      <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-3 py-3 sm:py-5 shadow-sm sm:px-6">
         <div className="flex flex-col gap-3 sm:gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex min-w-0 items-start gap-2.5 sm:gap-3">
             <div className="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
@@ -883,7 +883,8 @@ function CustomersListInner() {
           )}
 
           {/* Import */}
-          <Button variant="outline" size="sm" onClick={() => setImportOpen(true)} aria-label="Importa clienti con AI">
+          {/* Mobile no: niente importazioni da telefono. */}
+          <Button variant="outline" size="sm" onClick={() => setImportOpen(true)} aria-label="Importa clienti con AI" className="hidden sm:inline-flex">
             <Upload className="h-4 w-4 sm:mr-1.5" />
             <span className="hidden sm:inline">Importa</span>
             <Sparkles className="h-3.5 w-3.5 ml-1 text-primary" />
@@ -941,7 +942,9 @@ function CustomersListInner() {
       {/* Testata navy famiglia (come Costi/Commesse/Personale/Assistenza):
           i numeri dell'anagrafica clienti. "Con ordini"/"Solo anagrafica"
           restano nascosti su mobile (una riga pulita coi 2 principali). */}
-      <div className="rounded-2xl bg-[#173b67] p-3 sm:p-4">
+      {/* Mobile no: i numeri erano già nascosti e restava un riquadro blu vuoto
+          con scritto «Clienti». */}
+      <div className="hidden rounded-2xl bg-[#173b67] p-3 sm:block sm:p-4">
         <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-orange-100">Clienti</p>
         {statsLoading ? (
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
@@ -1001,7 +1004,7 @@ function CustomersListInner() {
       {/* Search + Filters — pattern uniformato a OrdersFilters (Commesse):
           Mobile: search + Filtri avanzati sempre visibili → toggle "Filtri rapidi" mostra 2 select
           Desktop: tutto inline una riga */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm">
+      <div className="rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
         {/* Riga 1: Search + Filtri avanzati button + Clear */}
         <div className="flex items-center gap-2">
           <div className="relative flex-1 min-w-0">
@@ -1010,7 +1013,7 @@ function CustomersListInner() {
               placeholder="Cerca cliente…"
               value={searchQuery}
               onChange={(e) => wrapSet(setSearchQuery)(e.target.value)}
-              className="pl-10 pr-9 h-10 sm:h-9"
+              className="pl-10 pr-9 h-10 sm:h-9 max-sm:h-9 max-sm:bg-white"
               aria-label="Cerca per nome, email, telefono o codice fiscale"
             />
             {searchQuery && (
@@ -1027,7 +1030,7 @@ function CustomersListInner() {
           <Button
             variant="outline"
             size="sm"
-            className="relative h-10 sm:h-9 shrink-0"
+            className="tap-compact relative h-10 sm:h-9 shrink-0 max-sm:h-9 max-sm:bg-white"
             onClick={() => setAdvOpen(true)}
             aria-label="Apri filtri avanzati"
             title="Filtri avanzati"
@@ -1058,7 +1061,8 @@ function CustomersListInner() {
         <button
           type="button"
           onClick={() => setQuickFiltersOpen((v) => !v)}
-          className="mt-2 sm:hidden flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+          // Mobile no: una riga in più sotto la ricerca per due filtri poco usati.
+          className="mt-2 hidden w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
           aria-expanded={quickFiltersOpen}
           aria-label="Apri filtri rapidi"
         >
@@ -1378,82 +1382,41 @@ function CustomersListInner() {
               const anomalies = getCustomerAnomalies(customer);
               const severity = getWorstSeverity(anomalies);
               const avatarColor = getAvatarColor(fullName);
-              const isSelected = selectedIds.has(customer.id);
               return (
-                <div key={customer.id} className="flex items-center gap-2 px-4 py-3 hover:bg-muted/50 active:bg-muted transition-colors">
-                  {/* Hit area 44×44 (touch target Apple HIG / Material). Checkbox 16px
-                      centrato dentro. È uno <span role=checkbox>, NON un <button>:
-                      la Checkbox interna è già un <button> Radix, e button-dentro-button
-                      è HTML invalido (warning validateDOMNesting). Tastiera gestita a mano. */}
-                  <span
-                    role="checkbox"
-                    tabIndex={0}
-                    aria-label={`Seleziona ${fullName}`}
-                    aria-checked={isSelected}
-                    onClick={(e) => { e.stopPropagation(); toggleRow(customer.id); }}
-                    onKeyDown={(e) => {
-                      if (e.key === " " || e.key === "Enter") {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        toggleRow(customer.id);
-                      }
-                    }}
-                    className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center -ml-2 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    <Checkbox
-                      checked={isSelected}
-                      tabIndex={-1}
-                      aria-hidden="true"
-                      className="pointer-events-none"
-                    />
-                  </span>
-                  <Link to={`/azienda/clienti/${customer.id}`} className="flex-1 flex items-center gap-3 min-w-0">
-                    <Avatar className={`h-10 w-10 shrink-0 ${avatarColor}`}>
-                      <AvatarFallback className="text-sm font-bold text-white bg-transparent">
+                // Una riga da ~52px: nome, contatto e città, anomalie e commesse
+                // a destra. Via la casella di selezione (niente azioni in blocco
+                // da telefono) e il badge «Anagrafica», che non serve per trovare
+                // un cliente.
+                <div key={customer.id} className="flex items-center hover:bg-muted/50 active:bg-muted transition-colors">
+                  <Link to={`/azienda/clienti/${customer.id}`} className="tap-compact flex flex-1 items-center gap-2.5 min-w-0 px-3 py-2">
+                    <Avatar className={`h-8 w-8 shrink-0 ${avatarColor}`}>
+                      <AvatarFallback className="text-[11px] font-bold text-white bg-transparent">
                         {initials}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-start flex-wrap gap-x-2 gap-y-1">
-                        <p className="font-semibold text-sm leading-tight line-clamp-2 break-words">{fullName}</p>
-                        {customer.is_business && (
-                          <Badge variant="outline" className="text-[10px] h-4 px-1 border-blue-500/40 text-blue-700 dark:text-blue-400">
-                            Azienda
-                          </Badge>
-                        )}
-                        {customer.portal_disabled && (
-                          <Badge variant="outline" className="text-[10px] h-4 px-1 border-amber-500/40 text-amber-700 dark:text-amber-400">
-                            Anagrafica
-                          </Badge>
-                        )}
-                        {severity !== "ok" && (
-                          <Badge
-                            variant="outline"
-                            className={`text-[10px] h-4 px-1 ${
-                              severity === "high"
-                                ? "border-red-500/40 text-red-700"
-                                : severity === "medium"
-                                  ? "border-amber-500/40 text-amber-700"
-                                  : "border-slate-400 text-slate-600"
-                            }`}
-                          >
-                            {anomalies.length} anomalie
-                          </Badge>
-                        )}
-                      </div>
-                      {cleanPhone && <p className="text-xs text-muted-foreground">{cleanPhone}</p>}
-                      {cleanEmail ? (
-                        <p className="text-xs text-muted-foreground truncate">{cleanEmail}</p>
-                      ) : (
-                        <p className="text-xs text-amber-700">Email non inserita</p>
-                      )}
-                      {customer.city && <p className="text-[11px] text-muted-foreground">{formatLocality(customer.city, customer.postal_code, customer.province)}</p>}
+                      <p className="truncate text-[13px] font-semibold leading-tight">{fullName}</p>
+                      <p className={cn("truncate text-[11px]", cleanPhone || cleanEmail ? "text-muted-foreground" : "text-amber-700")}>
+                        {cleanPhone || cleanEmail || "Nessun contatto"}
+                        {customer.city ? ` · ${customer.city}` : ""}
+                      </p>
                     </div>
+                    {severity !== "ok" && (
+                      <span
+                        className={cn(
+                          "shrink-0 text-[11px] font-medium",
+                          severity === "high" ? "text-red-600" : severity === "medium" ? "text-amber-600" : "text-slate-500",
+                        )}
+                        title={`${anomalies.length} anomalie`}
+                      >
+                        ⚠ {anomalies.length}
+                      </span>
+                    )}
                     {customer.order_count > 0 && (
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground shrink-0">
-                        <ClipboardList className="h-3.5 w-3.5" />
-                        <span className="font-medium">{customer.order_count}</span>
-                      </div>
+                      <span className="flex shrink-0 items-center gap-0.5 text-[11px] text-muted-foreground">
+                        <ClipboardList className="h-3 w-3" />
+                        {customer.order_count}
+                      </span>
                     )}
                   </Link>
                 </div>

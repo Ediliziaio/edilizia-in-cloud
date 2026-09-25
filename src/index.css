@@ -874,3 +874,43 @@ html .react-flow .react-flow__edges svg {
 @media (prefers-reduced-motion: reduce) {
   .eic-mock-fill, .eic-mock-pulse, .eic-mock-fill-y { animation: none; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Testata delle pagine su telefono (.testata-pagina, venti pagine: Clienti,
+   Mezzi, Tesoreria, Prima Nota, Fatture, Assistenza…). Sul desktop è un
+   riquadro con icona, titolo, sottotitolo e azioni. Sotto i 640px il riquadro,
+   l'icona colorata e il sottotitolo sparivano solo in parte e il titolo
+   prendeva una riga, le azioni un'altra: qui titolo e azioni stanno su una
+   riga che va a capo solo se non c'è posto, senza cornice intorno.
+   ══════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 639px) {
+  .testata-pagina {
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+  .testata-pagina.flex-col,
+  .testata-pagina > .flex-col {
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 0.5rem !important;
+  }
+  /* Solo il quadratino dell'icona (un div): i bottoni «brand» come
+     «+ Nuovo» usano lo stesso sfumato e devono restare. */
+  .testata-pagina div.from-orange-500.to-amber-400 {
+    display: none !important;
+  }
+  .testata-pagina h1 + p {
+    display: none !important;
+  }
+  /* I bottoni della testata tengono la loro altezza (h-8/h-9): gonfiati a 44px
+     dalla regola del tocco, «+ Nuovo» sembrava un blocco. */
+  .testata-pagina :is(a, button) {
+    min-height: 0;
+    min-width: 0;
+  }
+}
