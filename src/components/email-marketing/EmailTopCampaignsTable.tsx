@@ -115,15 +115,17 @@ export function EmailTopCampaignsTable({ campaigns, onCampaignClick }: EmailTopC
               />
             ))}
           </div>
-          <Table className="max-md:hidden">
+          {/* Intestazioni corte e su una riga, «Tipo» solo da 1280: a 1024 i titoli
+              andavano a capo in tre o quattro righe e il bollino usciva dalla card. */}
+          <Table className="max-md:hidden [&_td]:py-3">
             <TableHeader>
-              <TableRow>
+              <TableRow className="[&_th]:whitespace-nowrap">
                 <TableHead>Titolo</TableHead>
-                <TableHead>Data di esecuzione</TableHead>
-                <TableHead className="text-right">Consegnato</TableHead>
-                <TableHead className="text-right">Tasso apertura</TableHead>
-                <TableHead className="text-right">Tasso clic</TableHead>
-                <TableHead>Tipo</TableHead>
+                <TableHead>Inviata il</TableHead>
+                <TableHead className="text-right">Consegnate</TableHead>
+                <TableHead className="text-right">Aperture</TableHead>
+                <TableHead className="text-right">Clic</TableHead>
+                <TableHead className="hidden xl:table-cell">Tipo</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -134,13 +136,13 @@ export function EmailTopCampaignsTable({ campaigns, onCampaignClick }: EmailTopC
                   onClick={onCampaignClick ? () => onCampaignClick(c.id, c.name) : undefined}
                 >
                   <TableCell className="font-medium">{c.name}</TableCell>
-                  <TableCell className="text-muted-foreground">
+                  <TableCell className="whitespace-nowrap text-muted-foreground">
                     {c.sent_at ? format(new Date(c.sent_at), "dd MMM yyyy", { locale: it }) : "—"}
                   </TableCell>
-                  <TableCell className="text-right">{c.delivered.toLocaleString("it-IT")}</TableCell>
-                  <TableCell className="text-right">{fmt(c.opened, c.delivered)}</TableCell>
-                  <TableCell className="text-right">{fmt(c.clicked, c.delivered)}</TableCell>
-                  <TableCell>
+                  <TableCell className="text-right tabular-nums">{c.delivered.toLocaleString("it-IT")}</TableCell>
+                  <TableCell className="text-right tabular-nums">{fmt(c.opened, c.delivered)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{fmt(c.clicked, c.delivered)}</TableCell>
+                  <TableCell className="hidden xl:table-cell">
                     <Badge variant="outline">{TYPE_LABELS[c.type] || c.type}</Badge>
                   </TableCell>
                 </TableRow>

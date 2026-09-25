@@ -281,7 +281,20 @@ export function EmailCampaignsTab() {
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input className="pl-9" placeholder="Cerca in tutte le cartelle…" value={searchInput} onChange={(e) => { setSearchInput(e.target.value); setPage(0); }} />
         </div>
-        <div className="flex flex-wrap items-center gap-1.5 max-md:-mx-3 max-md:w-[calc(100%+1.5rem)] max-md:flex-nowrap max-md:overflow-x-auto max-md:px-3 max-md:scrollbar-none">
+        {/* Tra 768 e 1280 le sei pillole non stavano in riga con ricerca e
+            bottoni (i bottoni finivano su una riga tutta loro): lì lo stato si
+            sceglie da un menu. Sul telefono e da 1280 restano le pillole. */}
+        <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(0); }}>
+          <SelectTrigger className="hidden h-10 w-[150px] shrink-0 md:flex xl:hidden" aria-label="Stato">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {FILTRI_STATO.map(([v, lbl]) => (
+              <SelectItem key={v} value={v}>{v === "all" ? "Tutti gli stati" : lbl}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <div className="flex flex-wrap items-center gap-1.5 md:hidden xl:flex max-md:-mx-3 max-md:w-[calc(100%+1.5rem)] max-md:flex-nowrap max-md:overflow-x-auto max-md:px-3 max-md:scrollbar-none">
           {FILTRI_STATO.map(([v, lbl]) => (
             <button
               key={v}
@@ -296,8 +309,9 @@ export function EmailCampaignsTab() {
           ))}
         </div>
         <div className="ml-auto flex gap-2 max-md:hidden">
-          <Button variant="outline" size="sm" onClick={() => setFolderDialogOpen(true)}>
-            <FolderPlus className="mr-1 h-4 w-4" /> <span className="hidden sm:inline">Crea cartella</span>
+          {/* Sotto 1280 solo l'icona: la scritta mandava a capo la riga. */}
+          <Button variant="outline" size="sm" onClick={() => setFolderDialogOpen(true)} title="Crea cartella" aria-label="Crea cartella">
+            <FolderPlus className="h-4 w-4 xl:mr-1" /> <span className="hidden xl:inline">Crea cartella</span>
           </Button>
           <CampaignCreateDropdown />
         </div>
@@ -364,14 +378,18 @@ export function EmailCampaignsTab() {
         </Card>
       ) : (
         <>
-          <Table>
+          {/* Da tablet righe più basse: titolo su una riga (intero nel tooltip)
+              e meno margine verticale; erano alte 93px per due righe di titolo. */}
+          <Table className="md:[&_td]:py-3">
             <TableHeader>
               <TableRow>
                 <TableHead>Titolo</TableHead>
                 <TableHead>Stato</TableHead>
                 <TableHead className="hidden md:table-cell">Invio</TableHead>
-                <TableHead className="hidden sm:table-cell">Data di invio</TableHead>
-                <TableHead className="hidden lg:table-cell">Ultima modifica</TableHead>
+                {/* Date su una riga (a 1024 andavano a capo in tre: «31 lug / 2026 /
+                    07:36») e «Ultima modifica» solo da 1280, per lasciare spazio al titolo. */}
+                <TableHead className="hidden whitespace-nowrap sm:table-cell">Data di invio</TableHead>
+                <TableHead className="hidden whitespace-nowrap xl:table-cell">Ultima modifica</TableHead>
                 <TableHead className="w-10 max-md:hidden" />
               </TableRow>
             </TableHeader>
@@ -395,7 +413,7 @@ export function EmailCampaignsTab() {
                   >
                     <TableCell className="font-medium">
                       <div className="flex flex-col gap-1">
-                        <span>{c.name}</span>
+                        <span className="md:line-clamp-1" title={c.name}>{c.name}</span>
                         {c.subject && <span className="text-xs font-normal text-muted-foreground line-clamp-1">{c.subject}</span>}
                         {isIncomplete && (
                           <span className="text-xs font-normal text-amber-600">Da completare prima dell'invio</span>
@@ -408,10 +426,10 @@ export function EmailCampaignsTab() {
                     <TableCell className="hidden text-sm text-muted-foreground md:table-cell">
                       {esitoInvio(c)}
                     </TableCell>
-                    <TableCell className="hidden text-muted-foreground sm:table-cell">
+                    <TableCell className="hidden whitespace-nowrap text-muted-foreground sm:table-cell">
                       {dataInvio ? format(new Date(dataInvio), "dd MMM yyyy HH:mm", { locale: it }) : "—"}
                     </TableCell>
-                    <TableCell className="hidden text-muted-foreground lg:table-cell">
+                    <TableCell className="hidden whitespace-nowrap text-muted-foreground xl:table-cell">
                       {format(new Date(c.updated_at), "dd MMM yyyy", { locale: it })}
                     </TableCell>
                       <TableCell onClick={(e) => e.stopPropagation()} className="max-md:hidden">

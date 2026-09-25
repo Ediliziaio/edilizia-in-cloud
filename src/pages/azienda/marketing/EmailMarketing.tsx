@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BarChart3, Send, FileText, Mail } from "lucide-react";
+import { BarChart3, Send, FileText } from "lucide-react";
 import { EmailStatsTab } from "@/components/email-marketing/EmailStatsTab";
 import { EmailCampaignsTab } from "@/components/email-marketing/EmailCampaignsTab";
 import { EmailTemplatesTab } from "@/components/email-marketing/EmailTemplatesTab";
@@ -58,18 +58,12 @@ const EmailMarketing = () => {
     <div className="space-y-6 max-sm:space-y-3">
       <ApiHealthBanner filter={["email_marketing"]} />
 
-      {/* Telefono: solo il titolo e dove si creano le campagne, senza riquadro né icona. */}
-      <div className="rounded-2xl border bg-gradient-to-br from-card via-card to-orange-50/50 p-5 shadow-sm dark:to-orange-950/20 max-sm:rounded-none max-sm:border-0 max-sm:bg-none max-sm:p-0 max-sm:shadow-none">
-        <div className="flex items-start gap-3">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200 dark:shadow-orange-950 max-sm:hidden">
-            <Mail className="h-5 w-5" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-foreground max-sm:text-lg">Email Marketing</h1>
-            <p className="text-sm text-muted-foreground max-sm:hidden">Gestisci campagne, template e monitora le performance</p>
-            <p className="text-[11px] text-muted-foreground sm:hidden">le campagne si creano da computer o tablet</p>
-          </div>
-        </div>
+      {/* Solo il titolo, come sul telefono e nelle altre pagine: da tablet
+          c'erano un riquadro sfumato, l'icona e un sottotitolo che ripeteva
+          le schede qui sotto. */}
+      <div>
+        <h1 className="text-2xl font-bold text-foreground max-sm:text-lg">Email Marketing</h1>
+        <p className="text-[11px] text-muted-foreground sm:hidden">le campagne si creano da computer o tablet</p>
       </div>
 
       {/* Banner riepilogo crediti — minimal, mostra alert solo se saldo basso o
@@ -78,17 +72,19 @@ const EmailMarketing = () => {
       <EmailCreditsBanner />
 
       <Tabs value={schedaVisibile} onValueChange={handleTabChange}>
-        {/* Telefono: Campagne e Statistiche; i modelli si preparano dal computer. */}
-        <TabsList className="h-auto gap-1 rounded-2xl border bg-card p-2 shadow-sm max-sm:w-full max-sm:rounded-xl max-sm:p-1 max-sm:shadow-none">
-          <TabsTrigger value="campagne" className="gap-1.5 max-sm:flex-1 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700 dark:data-[state=active]:bg-orange-950/50 dark:data-[state=active]:text-orange-300">
+        {/* Telefono: Campagne e Statistiche; i modelli si preparano dal computer.
+            Da tablet le schede standard dell'app: prima stavano in una card con
+            ombra e la scheda attiva era arancione, diversa da ogni altra pagina. */}
+        <TabsList className="gap-1 max-sm:h-auto max-sm:w-full max-sm:rounded-xl max-sm:border max-sm:bg-card max-sm:p-1">
+          <TabsTrigger value="campagne" className="gap-1.5 max-sm:flex-1 max-sm:data-[state=active]:bg-orange-50 max-sm:data-[state=active]:text-orange-700 max-sm:dark:data-[state=active]:bg-orange-950/50 max-sm:dark:data-[state=active]:text-orange-300">
             <Send className="h-4 w-4 max-sm:hidden" />
             Campagne
           </TabsTrigger>
-          <TabsTrigger value="modelli" className="gap-1.5 max-sm:hidden data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700 dark:data-[state=active]:bg-orange-950/50 dark:data-[state=active]:text-orange-300">
+          <TabsTrigger value="modelli" className="gap-1.5 max-sm:hidden">
             <FileText className="h-4 w-4" />
             Modelli
           </TabsTrigger>
-          <TabsTrigger value="statistiche" className="gap-1.5 max-sm:flex-1 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700 dark:data-[state=active]:bg-orange-950/50 dark:data-[state=active]:text-orange-300">
+          <TabsTrigger value="statistiche" className="gap-1.5 max-sm:flex-1 max-sm:data-[state=active]:bg-orange-50 max-sm:data-[state=active]:text-orange-700 max-sm:dark:data-[state=active]:bg-orange-950/50 max-sm:dark:data-[state=active]:text-orange-300">
             <BarChart3 className="h-4 w-4 max-sm:hidden" />
             Statistiche
           </TabsTrigger>
