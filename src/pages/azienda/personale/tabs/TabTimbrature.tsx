@@ -11,7 +11,8 @@ import { Button } from "@/components/ui/button";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { AlertCircle, Clock, LogIn, LogOut, Coffee, MapPin } from "lucide-react";
+import { AlertCircle, Clock, LogIn, LogOut, Coffee, MapPin, ChevronDown } from "lucide-react";
+import { CercaConFiltri, PannelloFiltri, PilloleFiltro } from "@/components/mobile/FiltriMobile";
 
 const TIPO_ICONS: Record<string, { icon: typeof LogIn; label: string; color: string }> = {
   entrata: { icon: LogIn, label: "Entrata", color: "text-emerald-600" },
@@ -55,6 +56,15 @@ export function TabTimbrature() {
   const [dateFrom, setDateFrom] = useState(today);
   const [dateTo, setDateTo] = useState(today);
   const [filterName, setFilterName] = useState("");
+  // Mobile: date in un pannello dal basso; chi non ha timbrato sta in una riga
+  // che si apre (prima diciotto riquadri prima della lista).
+  const [filtriMobileAperti, setFiltriMobileAperti] = useState(false);
+  const [mostraAssenti, setMostraAssenti] = useState(false);
+  const ieri = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toLocaleDateString("en-CA", { timeZone: "Europe/Rome" }); })();
+  const settimana = (() => { const d = new Date(); d.setDate(d.getDate() - 6); return d.toLocaleDateString("en-CA", { timeZone: "Europe/Rome" }); })();
+  const periodoMobile = dateFrom === today && dateTo === today ? "oggi"
+    : dateFrom === ieri && dateTo === ieri ? "ieri"
+    : dateFrom === settimana && dateTo === today ? "settimana" : "altro";
 
   const companyId = useEffectiveCompanyId();
   const rangeFrom = dateFrom <= dateTo ? dateFrom : dateTo;
@@ -102,10 +112,33 @@ export function TabTimbrature() {
     return operaio.includes(normalizedFilter) || cantiere.includes(normalizedFilter);
   });
 
+  const presenti = (liveStatus as LiveStatusProfilo[]).filter((p) => p.is_present);
+  const assenti = (liveStatus as LiveStatusProfilo[]).filter((p) => !p.is_present);
+  const rigaPersona = (p: LiveStatusProfilo) => (
+    <div key={p.id} className="flex items-center gap-2.5 px-3 py-2">
+      <div className="relative shrink-0">
+        <div
+          className="flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-bold text-white"
+          style={{ backgroundColor: p.colore_avatar || "#0EA5E9" }}
+        >
+          {p.nome?.[0]}{p.cognome?.[0]}
+        </div>
+        <div className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-background ${p.is_present ? "bg-emerald-500" : "bg-muted-foreground/40"}`} />
+      </div>
+      <p className="min-w-0 flex-1 truncate text-[13px] font-medium">{p.nome} {p.cognome}</p>
+      {/* Chi non ha timbrato non ripete «Non timbrato» su ogni riga: lo dice il pallino grigio. */}
+      {p.last_tipo && (
+        <span className="shrink-0 text-[11px] text-muted-foreground">
+          {`${TIPO_ICONS[p.last_tipo]?.label || p.last_tipo} ${p.last_ora?.slice(0, 5) || ""}`}
+        </span>
+      )}
+    </div>
+  );
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 max-sm:space-y-3">
       {/* Live Status Panel */}
-      <Card>
+      <Card className="max-sm:hidden">
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <Clock className="h-4 w-4" />
@@ -150,8 +183,42 @@ export function TabTimbrature() {
         </CardContent>
       </Card>
 
+      {/* Mobile: chi è presente a righe, chi non ha timbrato in una riga che si
+          apre. Dopo il riquadro del desktop: da primo figlio nascosto lo sposterebbe. */}
+      {liveStatus.length > 0 && (
+        <div className="divide-y divide-border overflow-hidden rounded-lg border bg-card sm:hidden max-sm:!mt-0">
+          <div className="flex items-center justify-between px-3 py-2">
+            <span className="text-[13px] font-semibold">In azienda ora</span>
+            <span className="text-[13px] font-semibold tabular-nums text-emerald-600">{presenti.length}<span className="font-normal text-muted-foreground"> su {liveStatus.length}</span></span>
+          </div>
+          {presenti.map(rigaPersona)}
+          {assenti.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setMostraAssenti((v) => !v)}
+              className="tap-compact flex w-full items-center justify-between px-3 py-2 text-left text-[12px] text-muted-foreground"
+            >
+              {/* «Non in azienda» e non «non hanno timbrato»: qui c'è anche chi è già uscito. */}
+              <span>{assenti.length} non in azienda</span>
+              <ChevronDown className={`h-4 w-4 transition-transform ${mostraAssenti ? "rotate-180" : ""}`} />
+            </button>
+          )}
+          {mostraAssenti && assenti.map(rigaPersona)}
+        </div>
+      )}
+
+      {/* Mobile: ricerca per nome e bottone delle date. */}
+      <CercaConFiltri
+        className="sm:hidden"
+        valore={filterName}
+        onCambia={setFilterName}
+        segnaposto="Cerca persona o cantiere"
+        filtriAttivi={periodoMobile === "oggi" ? 0 : 1}
+        onApriFiltri={() => setFiltriMobileAperti(true)}
+      />
+
       {/* Filters */}
-      <div className="flex flex-wrap gap-2 items-center">
+      <div className="flex flex-wrap gap-2 items-center max-sm:hidden">
         <Input
           type="date"
           value={dateFrom}
@@ -173,11 +240,37 @@ export function TabTimbrature() {
         />
       </div>
 
-      {/* Timbrature Table */}
-      <Card>
+      {/* Mobile: una timbratura per riga (persona; tipo, cantiere e fonte; ora). */}
+      {!isLoading && !isError && filtered.length > 0 && (
+        <div className="divide-y divide-border overflow-hidden rounded-lg border bg-card sm:hidden">
+          {filtered.map((t) => {
+            const tipoInfo = TIPO_ICONS[t.tipo] || { icon: Clock, label: t.tipo, color: "text-foreground" };
+            return (
+              <div key={t.id} className="flex items-center gap-2.5 px-3 py-2.5">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[13px] font-semibold leading-tight">{t.profilo_nome} {t.profilo_cognome}</p>
+                  <p className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground">
+                    <span className={tipoInfo.color}>{tipoInfo.label}</span>
+                    {t.cantiere_codice ? ` · ${t.cantiere_codice}` : ""}
+                    {t.fonte ? ` · ${t.fonte}` : ""}
+                  </p>
+                </div>
+                <div className="shrink-0 text-right">
+                  <p className="text-[13px] font-semibold leading-tight tabular-nums">{t.ora_evento?.slice(0, 5)}</p>
+                  {dateFrom !== dateTo && <p className="mt-0.5 text-[11px] leading-tight text-muted-foreground">{t.data_evento?.slice(8, 10)}/{t.data_evento?.slice(5, 7)}</p>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Timbrature Table — mobile: solo per caricamento, errore e lista vuota,
+          senza bordo (è una riga di testo, non una scheda). */}
+      <Card className={!isLoading && !isError && filtered.length > 0 ? "max-sm:hidden" : "max-sm:border-0 max-sm:bg-transparent max-sm:shadow-none"}>
         <CardContent className="p-0">
           <Table>
-            <TableHeader>
+            <TableHeader className="max-sm:hidden">
               <TableRow>
                 <TableHead>Data/Ora</TableHead>
                 <TableHead>Dipendente</TableHead>
@@ -213,10 +306,11 @@ export function TabTimbrature() {
               ) : filtered.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7}>
-                    <div className="flex flex-col items-center justify-center py-12 gap-2 text-center">
-                      <Clock className="h-10 w-10 text-muted-foreground/40" aria-hidden="true" />
-                      <p className="text-sm font-medium text-foreground">Nessuna timbratura trovata</p>
-                      <p className="text-xs text-muted-foreground">
+                    {/* Mobile: una riga di testo. */}
+                    <div className="flex flex-col items-center justify-center py-12 gap-2 text-center max-sm:py-1">
+                      <Clock className="h-10 w-10 text-muted-foreground/40 max-sm:hidden" aria-hidden="true" />
+                      <p className="text-sm font-medium text-foreground max-sm:text-xs max-sm:font-normal max-sm:text-muted-foreground">Nessuna timbratura trovata</p>
+                      <p className="text-xs text-muted-foreground max-sm:hidden">
                         {filterName
                           ? `Nessuna timbratura per "${filterName}" nel periodo selezionato.`
                           : "Non ci sono timbrature nel periodo selezionato. Prova a cambiare le date."}
@@ -291,7 +385,8 @@ export function TabTimbrature() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <p className="text-sm text-amber-900/80 dark:text-amber-200/80">
+            {/* Mobile no: la spiegazione (il titolo dice già cosa manca). */}
+            <p className="text-sm text-amber-900/80 dark:text-amber-200/80 max-sm:hidden">
               Queste persone hanno timbrato dall'app di cantiere ma non hanno un profilo HR
               collegato: le loro ore non entrano nelle presenze né nel cedolino. Creane il
               profilo in <span className="font-medium">Profili</span> (o collega l'utente al
@@ -333,6 +428,34 @@ export function TabTimbrature() {
           </CardContent>
         </Card>
       )}
+
+      {/* Mobile: il periodo delle timbrature. */}
+      <PannelloFiltri
+        aperto={filtriMobileAperti}
+        onAperto={setFiltriMobileAperti}
+        attivi={periodoMobile === "oggi" ? 0 : 1}
+        onAzzera={() => { setDateFrom(today); setDateTo(today); }}
+        risultati={isLoading ? undefined : filtered.length}
+      >
+        <PilloleFiltro
+          titolo="Periodo"
+          valore={periodoMobile}
+          onScegli={(v) => {
+            if (v === "oggi") { setDateFrom(today); setDateTo(today); }
+            if (v === "ieri") { setDateFrom(ieri); setDateTo(ieri); }
+            if (v === "settimana") { setDateFrom(settimana); setDateTo(today); }
+          }}
+          scelte={[
+            { value: "oggi", label: "Oggi" },
+            { value: "ieri", label: "Ieri" },
+            { value: "settimana", label: "Ultimi 7 giorni" },
+          ]}
+        />
+        <div className="grid grid-cols-2 gap-2">
+          <Input type="date" aria-label="Dal" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="h-9 text-xs" />
+          <Input type="date" aria-label="Al" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="h-9 text-xs" />
+        </div>
+      </PannelloFiltri>
     </div>
   );
 }

@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Search, Users, UserCheck, UserX, Briefcase, Mail, Phone, AlertTriangle } from "lucide-react";
+import { CercaConFiltri, PannelloFiltri, PilloleFiltro } from "@/components/mobile/FiltriMobile";
 
 type ScadCount = { scaduti: number; inScadenza: number };
 
@@ -33,6 +34,9 @@ export function TabProfili() {
   const [filterReparto, setFilterReparto] = useState<string>("tutti");
   const [selectedProfilo, setSelectedProfilo] = useState<HrProfilo | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  // Mobile: stato e reparto in un pannello dal basso accanto alla ricerca.
+  const [filtriMobileAperti, setFiltriMobileAperti] = useState(false);
+  const nFiltriMobile = (filterStato !== "tutti" ? 1 : 0) + (filterReparto !== "tutti" ? 1 : 0);
 
   // Unique reparti
   const reparti = useMemo(() => {
@@ -64,9 +68,9 @@ export function TabProfili() {
   const handleEdit = (p: HrProfilo) => { setSelectedProfilo(p); setSheetOpen(true); };
 
   return (
-    <div className="space-y-4">
-      {/* KPI */}
-      <div className="grid grid-cols-3 gap-2 sm:gap-3">
+    <div className="space-y-4 max-sm:space-y-3">
+      {/* KPI — mobile no: il numero di persone sta nel bottone «Mostra» dei filtri. */}
+      <div className="grid grid-cols-3 gap-2 sm:gap-3 max-sm:hidden">
         <Card>
           <CardContent className="p-2 sm:p-4 flex items-center gap-2 sm:gap-3">
             <div className="p-1.5 sm:p-2 rounded-lg bg-muted shrink-0"><Users className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" /></div>
@@ -87,8 +91,23 @@ export function TabProfili() {
         </Card>
       </div>
 
+      {/* Mobile: ricerca, filtri e «+» su una riga (dopo il primo blocco del
+          desktop: da primo figlio nascosto lo sposterebbe). */}
+      <div className="flex items-center gap-2 sm:hidden max-sm:!mt-0">
+        <CercaConFiltri
+          className="min-w-0 flex-1"
+          valore={search}
+          onCambia={setSearch}
+          filtriAttivi={nFiltriMobile}
+          onApriFiltri={() => setFiltriMobileAperti(true)}
+        />
+        <Button size="icon" onClick={handleNew} aria-label="Nuovo profilo" className="tap-compact h-9 w-9 shrink-0">
+          <Plus className="h-4 w-4" />
+        </Button>
+      </div>
+
       {/* Toolbar */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2 max-sm:hidden">
         <div className="flex gap-2 flex-1">
           <div className="relative flex-1">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -124,16 +143,50 @@ export function TabProfili() {
       {isLoading ? (
         <div className="text-center py-12 text-muted-foreground">Caricamento...</div>
       ) : filtered.length === 0 ? (
-        <Card><CardContent className="py-12 text-center text-muted-foreground">Nessun profilo trovato.</CardContent></Card>
+        <Card className="max-sm:border-0 max-sm:bg-transparent max-sm:shadow-none"><CardContent className="py-12 text-center text-muted-foreground max-sm:p-0 max-sm:text-left max-sm:text-xs">Nessun profilo trovato.</CardContent></Card>
       ) : (
-        <div className="space-y-2">
-          {filtered.map((p) => (
-            <ProfiloRow key={p.id} profilo={p} scad={scadCounts?.get(p.id)} onClick={() => handleEdit(p)} />
-          ))}
-        </div>
+        <>
+          <div className="divide-y divide-border overflow-hidden rounded-lg border bg-card sm:hidden">
+            {filtered.map((p) => (
+              <ProfiloRigaMobile key={p.id} profilo={p} scad={scadCounts?.get(p.id)} onClick={() => handleEdit(p)} />
+            ))}
+          </div>
+          <div className="space-y-2 max-sm:hidden">
+            {filtered.map((p) => (
+              <ProfiloRow key={p.id} profilo={p} scad={scadCounts?.get(p.id)} onClick={() => handleEdit(p)} />
+            ))}
+          </div>
+        </>
       )}
 
       <HrProfiloSheet open={sheetOpen} onOpenChange={setSheetOpen} profilo={selectedProfilo} allProfili={profili} />
+
+      <PannelloFiltri
+        aperto={filtriMobileAperti}
+        onAperto={setFiltriMobileAperti}
+        attivi={nFiltriMobile}
+        onAzzera={() => { setFilterStato("tutti"); setFilterReparto("tutti"); }}
+        risultati={filtered.length}
+      >
+        <PilloleFiltro<typeof filterStato>
+          titolo="Stato"
+          valore={filterStato}
+          onScegli={setFilterStato}
+          scelte={[
+            { value: "tutti", label: "Tutti", n: kpis.totali },
+            { value: "attivi", label: "Attivi", n: kpis.attivi },
+            { value: "cessati", label: "Cessati", n: kpis.cessati },
+          ]}
+        />
+        {reparti.length > 0 && (
+          <PilloleFiltro
+            titolo="Reparto"
+            valore={filterReparto}
+            onScegli={setFilterReparto}
+            scelte={[{ value: "tutti", label: "Tutti" }, ...reparti.map((r) => ({ value: r, label: r }))]}
+          />
+        )}
+      </PannelloFiltri>
     </div>
   );
 }
@@ -181,5 +234,37 @@ function ProfiloRow({ profilo: p, scad, onClick }: { profilo: HrProfilo; scad?: 
         </Badge>
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * Mobile: una riga da ~52px (avatar, nome, mansione e reparto; documenti
+ * scaduti o in scadenza a destra), senza badge, email e telefono.
+ */
+function ProfiloRigaMobile({ profilo: p, scad, onClick }: { profilo: HrProfilo; scad?: ScadCount; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`tap-compact flex w-full items-center gap-2.5 px-3 py-2.5 text-left active:bg-muted ${!p.attivo ? "opacity-60" : ""}`}
+    >
+      <div
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white"
+        style={{ backgroundColor: p.colore_avatar || "hsl(var(--primary))" }}
+      >
+        {p.nome?.[0]}{p.cognome?.[0]}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[13px] font-semibold leading-tight">{p.nome} {p.cognome}</p>
+        <p className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground">
+          {[p.mansione, p.reparto, !p.attivo ? "Cessato" : null].filter(Boolean).join(" · ") || (CONTRATTO_LABELS[p.tipo_contratto] || p.tipo_contratto)}
+        </p>
+      </div>
+      {scad && scad.scaduti > 0 ? (
+        <span className="shrink-0 text-[11px] font-medium text-red-600">{scad.scaduti} scadut{scad.scaduti === 1 ? "o" : "i"}</span>
+      ) : scad && scad.inScadenza > 0 ? (
+        <span className="shrink-0 text-[11px] font-medium text-amber-600">{scad.inScadenza} in scadenza</span>
+      ) : null}
+    </button>
   );
 }

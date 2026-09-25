@@ -25,6 +25,11 @@ import { useFleetTrackAccess } from "@/hooks/useFleetTrackAccess";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
+import { cn } from "@/lib/utils";
+
+// Mobile: tre schede su tredici (chi c'è oggi, richieste da approvare, persone);
+// il resto dell'HR resta al computer.
+const TABS_MOBILE = ["timbrature", "richieste", "profili"];
 
 function TabFallback() {
   return (
@@ -72,7 +77,14 @@ export default function PersonalePage() {
   // Su mobile la tab di default è "timbrature" (operativa) invece di "regia"
   // (cruscotto HR-vetrina con 5 query e KPI): si atterra sull'azione utile.
   const defaultTab = isMobile ? "timbrature" : "regia";
-  const activeTab = rawTab && availableTabs.includes(rawTab) ? rawTab : defaultTab;
+  const schedaValida = rawTab && availableTabs.includes(rawTab) ? rawTab : defaultTab;
+  // Mobile: un indirizzo verso una scheda che qui non c'è apre le timbrature.
+  const activeTab = isMobile && !TABS_MOBILE.includes(schedaValida) ? "timbrature" : schedaValida;
+  // Classi della linguetta: su telefono solo le tre schede, affiancate e senza icona.
+  const trigger = (tab: string) => cn(
+    "gap-1.5 shrink-0 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700",
+    TABS_MOBILE.includes(tab) ? "tap-compact max-sm:h-8 max-sm:text-xs" : "max-sm:hidden",
+  );
 
   const handleTabChange = (value: string) => {
     const next = new URLSearchParams(searchParams);
@@ -84,59 +96,60 @@ export default function PersonalePage() {
   if (isScopriPlan) return <UpgradeScopriWall type="hr_completo" inline />;
 
   return (
-    <div className="space-y-6">
-      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/50 p-5 shadow-sm">
+    <div className="space-y-6 max-sm:space-y-3">
+      {/* Mobile: solo il titolo, senza riquadro, icona e sottotitolo. */}
+      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/50 p-5 shadow-sm max-sm:rounded-none max-sm:border-0 max-sm:bg-none max-sm:p-0 max-sm:shadow-none">
         <div className="flex items-start gap-3">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200 max-sm:hidden">
             <Users className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-950">Personale & HR</h1>
-            <p className="text-sm text-slate-600">Gestione presenze, ferie, timbrature e anagrafiche del personale.</p>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-950 max-sm:text-lg max-sm:leading-6">Personale & HR</h1>
+            <p className="text-sm text-slate-600 max-sm:hidden">Gestione presenze, ferie, timbrature e anagrafiche del personale.</p>
           </div>
         </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="flex flex-nowrap h-auto gap-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm w-full justify-start overflow-x-auto scrollbar-none">
-          <TabsTrigger value="regia" className="gap-1.5 shrink-0 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
+        <TabsList className="flex flex-nowrap h-auto gap-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm w-full justify-start overflow-x-auto scrollbar-none max-sm:grid max-sm:grid-cols-3 max-sm:rounded-lg max-sm:p-1 max-sm:shadow-none max-sm:[&_svg]:hidden">
+          <TabsTrigger value="regia" className={trigger("regia")}>
             <LayoutDashboard className="h-4 w-4" /> Regia HR
           </TabsTrigger>
-          <TabsTrigger value="organigramma" className="gap-1.5 shrink-0 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
+          <TabsTrigger value="organigramma" className={trigger("organigramma")}>
             <Network className="h-4 w-4" /> Organigramma
           </TabsTrigger>
-          <TabsTrigger value="uffici" className="gap-1.5 shrink-0 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
+          <TabsTrigger value="uffici" className={trigger("uffici")}>
             <Building2 className="h-4 w-4" /> Uffici
           </TabsTrigger>
-          <TabsTrigger value="profili" className="gap-1.5 shrink-0 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
-            <Users className="h-4 w-4" /> Profili
+          <TabsTrigger value="profili" className={cn(trigger("profili"), "max-sm:order-3")}>
+            <Users className="h-4 w-4" /> <span className="max-sm:hidden">Profili</span><span className="sm:hidden">Persone</span>
           </TabsTrigger>
-          <TabsTrigger value="timbrature" className="gap-1.5 shrink-0 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
-            <Clock className="h-4 w-4" /> Timbrature
+          <TabsTrigger value="timbrature" className={cn(trigger("timbrature"), "max-sm:order-1")}>
+            <Clock className="h-4 w-4" /> <span className="max-sm:hidden">Timbrature</span><span className="sm:hidden">Oggi</span>
           </TabsTrigger>
-          <TabsTrigger value="presenze" className="gap-1.5 shrink-0 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
+          <TabsTrigger value="presenze" className={trigger("presenze")}>
             <CalendarDays className="h-4 w-4" /> Presenze
           </TabsTrigger>
-          <TabsTrigger value="richieste" className="gap-1.5 shrink-0 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
+          <TabsTrigger value="richieste" className={cn(trigger("richieste"), "max-sm:order-2")}>
             <FileText className="h-4 w-4" /> Richieste
           </TabsTrigger>
-          <TabsTrigger value="sedi" className="gap-1.5 shrink-0 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
+          <TabsTrigger value="sedi" className={trigger("sedi")}>
             <MapPin className="h-4 w-4" /> Sedi
           </TabsTrigger>
-          <TabsTrigger value="festivita" className="gap-1.5 shrink-0 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
+          <TabsTrigger value="festivita" className={trigger("festivita")}>
             <CalendarCheck className="h-4 w-4" /> Festività
           </TabsTrigger>
-          <TabsTrigger value="cedolini" className="gap-1.5 shrink-0 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
+          <TabsTrigger value="cedolini" className={trigger("cedolini")}>
             <Receipt className="h-4 w-4" /> Cedolini
           </TabsTrigger>
-          <TabsTrigger value="documenti" className="gap-1.5 shrink-0 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
+          <TabsTrigger value="documenti" className={trigger("documenti")}>
             <FolderOpen className="h-4 w-4" /> Documenti
           </TabsTrigger>
-          <TabsTrigger value="candidati" className="gap-1.5 shrink-0 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
+          <TabsTrigger value="candidati" className={trigger("candidati")}>
             <UserRoundSearch className="h-4 w-4" /> Candidati
           </TabsTrigger>
           {hasFleetTrack && (
-            <TabsTrigger value="gps-percorsi" className="gap-1.5 shrink-0 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
+            <TabsTrigger value="gps-percorsi" className={trigger("gps-percorsi")}>
               <Navigation className="h-4 w-4" /> GPS Percorsi
             </TabsTrigger>
           )}

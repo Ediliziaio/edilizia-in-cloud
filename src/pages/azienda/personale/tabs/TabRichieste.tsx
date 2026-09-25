@@ -15,6 +15,8 @@ import { Plus, Clock, CheckCircle2, XCircle, AlertCircle, Filter, Calendar, type
 import { format, differenceInCalendarDays } from "date-fns";
 import { it } from "date-fns/locale";
 import type { HrProfilo, RichiestaTipo, RichiestaStato } from "@/types/hr";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { CercaConFiltri, KpiMobili, PannelloFiltri, PilloleFiltro } from "@/components/mobile/FiltriMobile";
 
 const TIPO_LABELS: Record<RichiestaTipo, string> = {
   ferie: "Ferie",
@@ -76,6 +78,8 @@ export function TabRichieste() {
   const [searchText, setSearchText] = useState("");
   const [showNew, setShowNew] = useState(false);
   const [detailReq, setDetailReq] = useState<RichiestaWithProfilo | null>(null);
+  // Mobile: lo stato sta in un pannello dal basso accanto alla ricerca.
+  const [filtriMobileAperti, setFiltriMobileAperti] = useState(false);
 
   // Fetch SEMPRE tutte le richieste: il filtro per stato è applicato lato client
   // così le KPI (In attesa/Approvate/Rifiutate) restano coerenti anche quando è
@@ -110,9 +114,9 @@ export function TabRichieste() {
   }, [richieste]);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 max-sm:space-y-3">
       {/* KPI cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 max-sm:hidden">
         <KpiCard title="Totali" value={kpis.totali} icon={Calendar} />
         <KpiCard title="In attesa" value={kpis.in_attesa} icon={Clock} className="border-amber-200" />
         <KpiCard title="Approvate" value={kpis.approvate} icon={CheckCircle2} className="border-emerald-200" />
@@ -120,7 +124,7 @@ export function TabRichieste() {
       </div>
 
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2 max-sm:hidden">
         <div className="flex items-center gap-1.5">
           <Filter className="h-4 w-4 text-muted-foreground" />
           <Select value={statoFilter} onValueChange={(value) => {
@@ -151,6 +155,35 @@ export function TabRichieste() {
         </div>
       </div>
 
+      {/* Mobile: da approvare (tocca e filtra) e approvate, nome e cifra. Dopo
+          i blocchi del desktop: da primi figli nascosti lo sposterebbero. */}
+      <KpiMobili
+        className="sm:hidden max-sm:!mt-0"
+        voci={[
+          {
+            label: "Da approvare",
+            valore: String(kpis.in_attesa),
+            tono: kpis.in_attesa > 0 ? "text-amber-600" : undefined,
+            onClick: () => setStatoFilter((s) => (s === "in_attesa" ? "tutte" : "in_attesa")),
+            attivo: statoFilter === "in_attesa",
+          },
+          { label: "Approvate", valore: String(kpis.approvate) },
+        ]}
+      />
+      {/* Mobile: ricerca, filtri e «+» su una riga. */}
+      <div className="flex items-center gap-2 sm:hidden">
+        <CercaConFiltri
+          className="min-w-0 flex-1"
+          valore={searchText}
+          onCambia={setSearchText}
+          filtriAttivi={statoFilter !== "tutte" ? 1 : 0}
+          onApriFiltri={() => setFiltriMobileAperti(true)}
+        />
+        <Button size="icon" onClick={() => setShowNew(true)} aria-label="Nuova richiesta" className="tap-compact h-9 w-9 shrink-0">
+          <Plus className="h-4 w-4" />
+        </Button>
+      </div>
+
       {/* List */}
       {isLoading && !loadingTimedOut ? (
         <div className="text-center py-12 text-muted-foreground">Caricamento...</div>
@@ -168,9 +201,10 @@ export function TabRichieste() {
           </CardContent>
         </Card>
       ) : filtered.length === 0 ? (
-        <Card><CardContent className="py-12 text-center text-muted-foreground">Nessuna richiesta trovata.</CardContent></Card>
+        // Mobile: una riga di testo, senza riquadro.
+        <Card className="max-sm:border-0 max-sm:bg-transparent max-sm:shadow-none"><CardContent className="py-12 text-center text-muted-foreground max-sm:p-0 max-sm:text-left max-sm:text-xs">Nessuna richiesta trovata.</CardContent></Card>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-2 max-sm:space-y-0 max-sm:divide-y max-sm:divide-border max-sm:overflow-hidden max-sm:rounded-lg max-sm:border max-sm:bg-card">
           {filtered.map((r) => (
             <RichiestaRow key={r.id} richiesta={r} onClick={() => setDetailReq(r)} />
           ))}
@@ -194,6 +228,27 @@ export function TabRichieste() {
           onClose={() => setDetailReq(null)}
         />
       )}
+
+      <PannelloFiltri
+        aperto={filtriMobileAperti}
+        onAperto={setFiltriMobileAperti}
+        attivi={statoFilter !== "tutte" ? 1 : 0}
+        onAzzera={() => setStatoFilter("tutte")}
+        risultati={filtered.length}
+      >
+        <PilloleFiltro<RichiestaStatoFilter>
+          titolo="Stato"
+          valore={statoFilter}
+          onScegli={setStatoFilter}
+          scelte={[
+            { value: "tutte", label: "Tutte", n: kpis.totali },
+            { value: "in_attesa", label: "In attesa", n: kpis.in_attesa },
+            { value: "approvata", label: "Approvate", n: kpis.approvate },
+            { value: "rifiutata", label: "Rifiutate", n: kpis.rifiutate },
+            { value: "annullata", label: "Annullate" },
+          ]}
+        />
+      </PannelloFiltri>
     </div>
   );
 }
@@ -220,11 +275,13 @@ function RichiestaRow({ richiesta: r, onClick }: { richiesta: RichiestaWithProfi
   const days = differenceInCalendarDays(new Date(r.data_fine), new Date(r.data_inizio)) + 1;
 
   return (
-    <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={onClick}>
-      <CardContent className="p-3 flex items-center gap-3">
+    // Mobile: una riga da ~52px (persona; tipo, periodo e giorni; stato a
+    // parole), senza scheda, avatar e badge.
+    <Card className="cursor-pointer hover:shadow-md transition-shadow max-sm:rounded-none max-sm:border-0 max-sm:shadow-none max-sm:active:bg-muted" onClick={onClick}>
+      <CardContent className="p-3 flex items-center gap-3 max-sm:gap-2.5 max-sm:py-2.5">
         {/* Avatar */}
         <div
-          className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
+          className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 max-sm:hidden"
           style={{ backgroundColor: r.profilo?.colore_avatar || "hsl(var(--primary))" }}
         >
           {(r.profilo?.nome?.[0] ?? "")}{(r.profilo?.cognome?.[0] ?? "")}
@@ -233,10 +290,15 @@ function RichiestaRow({ richiesta: r, onClick }: { richiesta: RichiestaWithProfi
         {/* Info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className="font-medium text-sm truncate">{r.profilo?.nome} {r.profilo?.cognome}</span>
-            <Badge variant="outline" className="text-xs">{TIPO_LABELS[r.tipo] || r.tipo}</Badge>
+            <span className="font-medium text-sm truncate max-sm:text-[13px] max-sm:font-semibold max-sm:leading-tight">
+              {r.profilo?.nome} {r.profilo?.cognome}
+              {/* Mobile: senza profilo collegato la riga resterebbe senza titolo. */}
+              {!r.profilo && <span className="sm:hidden">Dipendente non trovato</span>}
+            </span>
+            <Badge variant="outline" className="text-xs max-sm:hidden">{TIPO_LABELS[r.tipo] || r.tipo}</Badge>
           </div>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-muted-foreground max-sm:mt-0.5 max-sm:truncate max-sm:text-[11px] max-sm:leading-tight">
+            <span className="sm:hidden">{TIPO_LABELS[r.tipo] || r.tipo} · </span>
             {format(new Date(r.data_inizio), "dd MMM", { locale: it })} → {format(new Date(r.data_fine), "dd MMM yyyy", { locale: it })}
             {" · "}{days} {days === 1 ? "giorno" : "giorni"}
             {r.ore_richieste ? ` · ${r.ore_richieste}h` : ""}
@@ -244,10 +306,11 @@ function RichiestaRow({ richiesta: r, onClick }: { richiesta: RichiestaWithProfi
         </div>
 
         {/* Status badge */}
-        <Badge className={`${st.bg} ${st.text} gap-1`}>
+        <Badge className={`${st.bg} ${st.text} gap-1 max-sm:hidden`}>
           <Icon className="h-3 w-3" />
           {st.label}
         </Badge>
+        <span className={`shrink-0 text-[11px] font-medium sm:hidden ${st.text}`}>{st.label}</span>
       </CardContent>
     </Card>
   );
@@ -325,7 +388,7 @@ function NuovaRichiestaDialog({ profili, open, onClose }: { profili: HrProfilo[]
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Nuova Richiesta</DialogTitle>
-          <DialogDescription>Crea una richiesta di ferie, permesso o assenza.</DialogDescription>
+          <DialogDescription className="max-sm:sr-only">Crea una richiesta di ferie, permesso o assenza.</DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <div>
@@ -366,7 +429,8 @@ function NuovaRichiestaDialog({ profili, open, onClose }: { profili: HrProfilo[]
               <Input type="date" value={dataFine} onChange={(e) => setDataFine(e.target.value)} />
             </div>
           </div>
-          <div>
+          {/* Mobile no: le ore si calcolano dai giorni e dall'orario del profilo. */}
+          <div className="max-sm:hidden">
             <Label>Ore richieste (opzionale)</Label>
             <Input type="number" min={0} step={0.5} value={ore} onChange={(e) => setOre(e.target.value)} placeholder="Es. 4" />
           </div>
@@ -376,7 +440,7 @@ function NuovaRichiestaDialog({ profili, open, onClose }: { profili: HrProfilo[]
                 <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
                 <div>
                   <p className="font-medium">{saldoHint.label}: {saldoHint.requested}</p>
-                  <p className="text-amber-800">{saldoHint.available}. Il sistema blocca richieste sopra saldo o sovrapposte.</p>
+                  <p className="text-amber-800">{saldoHint.available}<span className="max-sm:hidden">. Il sistema blocca richieste sopra saldo o sovrapposte.</span></p>
                 </div>
               </div>
             </div>
@@ -387,7 +451,7 @@ function NuovaRichiestaDialog({ profili, open, onClose }: { profili: HrProfilo[]
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Annulla</Button>
+          <Button variant="outline" onClick={onClose} className="max-sm:hidden">Annulla</Button>
           <Button onClick={handleSubmit} disabled={create.isPending}>
             {create.isPending ? "Invio..." : "Crea Richiesta"}
           </Button>
@@ -403,6 +467,7 @@ function toastMissing() {
 
 /* ── Detail / approval dialog ── */
 function DettaglioRichiestaDialog({ richiesta: r, open, onClose }: { richiesta: RichiestaWithProfilo; open: boolean; onClose: () => void }) {
+  const isMobile = useIsMobile();
   const update = useUpdateRichiestaStato();
   const [noteRisposta, setNoteRisposta] = useState(r.note_risposta || "");
   const st = STATO_STYLE[r.stato] || STATO_STYLE.in_attesa;
@@ -415,9 +480,10 @@ function DettaglioRichiestaDialog({ richiesta: r, open, onClose }: { richiesta: 
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-md">
+        {/* Mobile: chi e che cosa nel titolo, senza la descrizione sotto. */}
         <DialogHeader>
-          <DialogTitle>Dettaglio Richiesta</DialogTitle>
-          <DialogDescription>
+          <DialogTitle>{isMobile ? `${r.profilo?.nome ?? ""} ${r.profilo?.cognome ?? ""} — ${TIPO_LABELS[r.tipo] || r.tipo}` : "Dettaglio Richiesta"}</DialogTitle>
+          <DialogDescription className="max-sm:sr-only">
             {r.profilo?.nome} {r.profilo?.cognome} — {TIPO_LABELS[r.tipo] || r.tipo}
           </DialogDescription>
         </DialogHeader>
@@ -447,7 +513,7 @@ function DettaglioRichiestaDialog({ richiesta: r, open, onClose }: { richiesta: 
               <span>{format(new Date(r.approvata_il), "dd/MM/yyyy HH:mm")}</span>
             </div>
           )}
-          <div className="flex justify-between">
+          <div className="flex justify-between max-sm:hidden">
             <span className="text-muted-foreground">Creata il</span>
             <span>{format(new Date(r.created_at), "dd/MM/yyyy HH:mm")}</span>
           </div>
