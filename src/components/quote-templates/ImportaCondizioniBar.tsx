@@ -25,9 +25,11 @@ interface Props {
   compatto?: boolean;
   /** Il modulo ha già il suo "modello standard": mostra solo l'import da documento. */
   soloImport?: boolean;
+  /** Local drafts never upload a document or invoke an online AI function. */
+  localOnly?: boolean;
 }
 
-export function ImportaCondizioniBar({ companyId, testoAttuale, onTesto, compatto = false, soloImport = false }: Props) {
+export function ImportaCondizioniBar({ companyId, testoAttuale, onTesto, compatto = false, soloImport = false, localOnly = false }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
 
@@ -46,6 +48,15 @@ export function ImportaCondizioniBar({ companyId, testoAttuale, onTesto, compatt
     setBusy(true);
     try {
       const nome = file.name.toLowerCase();
+      if (localOnly) {
+        const content = nome.endsWith(".docx") ? await estraiTestoDocx(file)
+          : /\.(txt|md)$/.test(nome) ? await file.text() : null;
+        if (content === null) throw new Error("In locale puoi importare Word (.docx) o testo (.txt/.md). Nessun file viene caricato online.");
+        if (!content.trim()) throw new Error("Il documento non contiene testo leggibile.");
+        onTesto(content.trim());
+        toast.success("Testo importato in locale", { description: "Verifica struttura e contenuto prima di salvarlo." });
+        return;
+      }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let body: Record<string, any>;
       if (nome.endsWith(".docx")) {
@@ -96,9 +107,9 @@ export function ImportaCondizioniBar({ companyId, testoAttuale, onTesto, compatt
       )}
       <Button type="button" size="sm" variant="outline" className="h-8 gap-1.5" onClick={() => fileRef.current?.click()} disabled={busy}>
         {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileUp className="h-3.5 w-3.5" />}
-        {busy ? "L'AI sta leggendo il documento…" : "Importa da PDF / Word (AI)"}
+        {busy ? (localOnly ? "Lettura del documento…" : "L'AI sta leggendo il documento…") : (localOnly ? "Importa Word / testo in locale" : "Importa da PDF / Word (AI)")}
       </Button>
-      <input ref={fileRef} type="file" accept=".pdf,.docx,.txt,.md,image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void importa(f); }} />
+      <input ref={fileRef} type="file" accept={localOnly ? ".docx,.txt,.md" : ".pdf,.docx,.txt,.md,image/*"} className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void importa(f); }} />
     </div>
   );
 }

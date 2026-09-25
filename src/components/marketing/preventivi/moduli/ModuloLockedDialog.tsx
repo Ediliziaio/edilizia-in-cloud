@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -25,27 +25,29 @@ interface ModuloLockedDialogProps {
  * Dialog informativo per modulo bloccato (stato "bloccato"):
  *  - mostra descrizione lunga + lista benefici + prezzo indicativo
  *  - permette di richiedere l'attivazione tramite edge function
- *    `richiesta-attivazione-modulo` (FASE 7); fallback toast informativo
- *    se l'edge function non è ancora deployata.
+ *    `richiesta-attivazione-modulo`; conferma solo con risposta positiva.
  */
 export function ModuloLockedDialog({ view, open, onOpenChange }: ModuloLockedDialogProps) {
   const { effectiveCompany, user } = useAuth();
   const [isSending, setIsSending] = useState(false);
+  const sendingRef = useRef(false);
 
   if (!view) return null;
   const { modulo } = view;
   const Icon = modulo.icon;
 
   const handleRichiediAttivazione = async () => {
+    if (sendingRef.current) return;
     if (!effectiveCompany?.id || !user?.id) {
       toast.error("Impossibile inviare la richiesta", {
         description: "Sessione non valida, ricarica la pagina e riprova.",
       });
       return;
     }
+    sendingRef.current = true;
     setIsSending(true);
     try {
-      const { error } = await supabase.functions.invoke("richiesta-attivazione-modulo", {
+      const { data, error } = await supabase.functions.invoke("richiesta-attivazione-modulo", {
         body: {
           companyId: effectiveCompany.id,
           userId: user.id,
@@ -55,23 +57,18 @@ export function ModuloLockedDialog({ view, open, onOpenChange }: ModuloLockedDia
         },
       });
       if (error) throw error;
+      if (data?.ok !== true) throw new Error("Il servizio non ha confermato la ricezione.");
       toast.success("Richiesta inviata", {
         description: `Ti contatteremo a breve per attivare il modulo ${modulo.nome}.`,
       });
       onOpenChange(false);
-    } catch (err) {
-      // Fallback graceful: l'edge function potrebbe non essere ancora deployata
-      const message = err instanceof Error ? err.message : "Errore sconosciuto";
-      const isMissingFn = /404|not found|missing|FunctionsFetchError/i.test(message);
-      if (isMissingFn) {
-        toast.success("Richiesta registrata", {
-          description: `Ti contatteremo a breve per attivare il modulo ${modulo.nome}. Per priorità immediata: info@ediliziaincloud.it`,
-        });
-        onOpenChange(false);
-      } else {
-        toast.error("Errore invio richiesta", { description: message });
-      }
+    } catch {
+      // Un errore di rete/404 non prova che la richiesta sia stata registrata.
+      toast.error("Invio non confermato", {
+        description: "Non abbiamo conferma della ricezione. Riprova più tardi oppure contatta il supporto.",
+      });
     } finally {
+      sendingRef.current = false;
       setIsSending(false);
     }
   };

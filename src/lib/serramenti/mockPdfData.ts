@@ -27,6 +27,7 @@ import { CAMPI_IMMAGINE_SERRAMENTI, firmaImmagine, firmaImmaginiModello } from "
 import { blocchiAccesi, fotoDeiBlocchi, fotoDellePagine } from "@/lib/pdf/fotoBlocchi";
 import { votiOnlineAzienda } from "@/lib/pdf/votiOnline";
 import { datiTecniciScheda } from "@/lib/listino/schedeLinea";
+import { applySerramentiModulePreview, type SerramentiTemplateModuleId } from "@/lib/moduli-vendita/serramentiTemplateModules";
 
 const MOCK_FAMILY_ID = "demo-family-aluminio-2ante";
 const MOCK_MACRO_ID = "demo-macro-infissi";
@@ -41,6 +42,7 @@ const MOCK_MACRO_ID = "demo-macro-infissi";
  * webp e l'utente vede l'anteprima nera/vuota altrimenti.
  */
 export async function buildMockPdfData(opts: {
+  moduleId?: SerramentiTemplateModuleId;
   template: Partial<SrTemplatePdfRow> | null;
   companyName?: string | null;
   companyLogoUrl?: string | null;
@@ -388,7 +390,7 @@ export async function buildMockPdfData(opts: {
     fotoDeiBlocchi("serramenti", tpl?.pdf_blocchi, blocchiAccesi(normalizePdfPagesOrder(tpl?.pdf_pages_order ?? null))),
     fotoDellePagine("serramenti", tpl?.pdf_blocchi, ["percorso", "confronto", "cta", "proposta", "allegato", "dettagli"]),
     // Il voto vero dell'azienda anche nell'anteprima del modello: «Dicono di noi» com'è.
-    votiOnlineAzienda(tpl?.company_id ?? null),
+    opts.moduleId ? Promise.resolve(null) : votiOnlineAzienda(tpl?.company_id ?? null),
   ]);
   const inlinedTemplate = tpl ? {
     ...tpl,
@@ -401,32 +403,32 @@ export async function buildMockPdfData(opts: {
   } : null;
 
   return {
-    detail,
+    detail: opts.moduleId ? applySerramentiModulePreview(detail, opts.template ?? {}, opts.moduleId) : detail,
     template: inlinedTemplate as SrTemplatePdfRow | null,
     company: {
       name: opts.companyName ?? "La tua Azienda",
       ragione_sociale: opts.companyName ?? "La tua Azienda",
-      indirizzo: opts.companyIndirizzo ?? "Via Esempio 1, 20100 Milano",
-      telefono: "+39 02 87654321",
-      email: "info@example.com",
-      partita_iva: "01234567890",
+      indirizzo: opts.companyIndirizzo ?? (opts.moduleId ? null : "Via Esempio 1, 20100 Milano"),
+      telefono: opts.moduleId ? tpl?.telefono : "+39 02 87654321",
+      email: opts.moduleId ? tpl?.email : "info@example.com",
+      partita_iva: opts.moduleId ? tpl?.partita_iva : "01234567890",
       logo_url: inlinedLogo ?? companyLogoUrl ?? null,
       brand_logo_dark_url: inlinedLogoDark ?? opts.companyLogoDarkUrl ?? null,
       brand_primary_color: opts.companyBrandColor ?? null,
-      website: "www.example.com",
+      website: opts.moduleId ? null : "www.example.com",
       recensioni_online: votiOnline,
     },
-    consulente,
-    familiesById,
-    fieldsByMacro,
-    macroPagineDedicate,
-    lineeDedicate,
-    macroNomeById: {
+    consulente: opts.moduleId ? null : consulente,
+    familiesById: opts.moduleId ? {} : familiesById,
+    fieldsByMacro: opts.moduleId ? {} : fieldsByMacro,
+    macroPagineDedicate: opts.moduleId ? [] : macroPagineDedicate,
+    lineeDedicate: opts.moduleId ? [] : lineeDedicate,
+    macroNomeById: opts.moduleId ? {} : {
       [MOCK_MACRO_ID]: "Infissi in alluminio premium",
     },
     axisLabelByKey: {},
     supplierLineById: {},
-    publicUrl,
+    publicUrl: opts.moduleId ? null : publicUrl,
     autoFallbackMacroId: null,
     // Come nel PDF vero di chi non ha spento «Mostra sconti applicati».
     mostraSconti: true,

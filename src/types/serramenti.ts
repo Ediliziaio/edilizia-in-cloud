@@ -89,6 +89,8 @@ export interface SrCashflowRiga {
 }
 
 export interface SrProgettoRow {
+  /** Optional for legacy projects; immutable document configuration captured at creation. */
+  modello_snapshot?: import("@/lib/serramenti/quoteModel").SrQuoteModelSnapshot | null;
   id: string;
   company_id: string;
   code: string;

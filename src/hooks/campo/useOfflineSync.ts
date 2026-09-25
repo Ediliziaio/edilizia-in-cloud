@@ -6,6 +6,7 @@ import {
   type SyncItemType,
 } from "@/lib/campo/sync-queue";
 import { isOnline, onNetworkChange } from "@/lib/campo/network-status";
+import { assertReportDay, campoWorkDay } from "@/lib/campo/workDay";
 
 interface OfflineSyncState {
   queueCount: number;
@@ -31,6 +32,9 @@ async function defaultProcessor(item: SyncItem): Promise<void> {
       return;
     }
     case "rapportino_vocale": {
+      const draft = item.payload as { dati_estratti?: { data_lavoro?: string } };
+      // Legacy queues use the original creation day, never the retry day.
+      assertReportDay(draft.dati_estratti?.data_lavoro ?? campoWorkDay(new Date(item.createdAt)));
       const { error } = await supabase
         .from("rapportini_vocali")
         // @ts-expect-error — types generati non ancora aggiornati post-migration

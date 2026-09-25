@@ -10,12 +10,14 @@
  * stessa pagina gira con i dati veri (FamilyCatalog) e con quelli d'esempio
  * (/dev/listino).
  */
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   AlertTriangle,
   AppWindow,
   Bath,
+  ChevronLeft,
+  ChevronRight,
   Copy,
   CopyPlus,
   Eye,
@@ -148,7 +150,7 @@ export function ListinoNavigatore(props: ListinoNavigatoreProps) {
   }
 
   return (
-    <div className="overflow-hidden rounded-xl border bg-card">
+    <div className="min-w-0 max-w-full overflow-hidden rounded-xl border bg-card">
       <CappelloAree
         aree={aree}
         attiva={area}
@@ -187,7 +189,7 @@ export function ListinoNavigatore(props: ListinoNavigatoreProps) {
   );
 }
 
-function CappelloAree({
+export function CappelloAree({
   aree,
   attiva,
   cercando,
@@ -200,6 +202,40 @@ function CappelloAree({
   onScegli: (chiave: string) => void;
   onNuovaArea?: () => void;
 }) {
+  const barra = useRef<HTMLDivElement>(null);
+  const [scorrimento, setScorrimento] = useState({ prima: false, dopo: false });
+  const chiaviAree = aree.map((a) => a.chiave).join("|");
+
+  useEffect(() => {
+    const el = barra.current;
+    if (!el) return;
+    const aggiorna = () => setScorrimento({
+      prima: el.scrollLeft > 1,
+      dopo: el.scrollLeft + el.clientWidth < el.scrollWidth - 1,
+    });
+    aggiorna();
+    el.addEventListener("scroll", aggiorna, { passive: true });
+    const observer = new ResizeObserver(aggiorna);
+    observer.observe(el);
+    Array.from(el.children).forEach((child) => observer.observe(child));
+    return () => { el.removeEventListener("scroll", aggiorna); observer.disconnect(); };
+  }, [chiaviAree]);
+
+  useEffect(() => {
+    const el = barra.current;
+    const selezionata = el?.querySelector<HTMLElement>('[aria-selected="true"]');
+    if (!el || !selezionata) return;
+    const contenitore = el.getBoundingClientRect();
+    const scheda = selezionata.getBoundingClientRect();
+    if (scheda.left < contenitore.left) el.scrollLeft += scheda.left - contenitore.left - 8;
+    else if (scheda.right > contenitore.right) el.scrollLeft += scheda.right - contenitore.right + 8;
+    setScorrimento({ prima: el.scrollLeft > 1, dopo: el.scrollLeft + el.clientWidth < el.scrollWidth - 1 });
+  }, [attiva?.chiave, chiaviAree]);
+
+  const scorri = (direzione: number) => {
+    const el = barra.current;
+    if (el) el.scrollBy({ left: direzione * Math.max(180, el.clientWidth * 0.75), behavior: "smooth" });
+  };
   const preventivatore = attiva?.standard?.preventivatore;
   // Le tipologie dell'area che non arrivano al suo preventivatore: prima la
   // riga diceva «Collegata» anche quando qualcuna non lo era.
@@ -208,8 +244,30 @@ function CappelloAree({
     : 0;
   return (
     <div className="border-b bg-muted/30">
-      <div className="flex items-center gap-2 pr-2">
-      <div role="tablist" aria-label="Aree del listino" className="flex min-w-0 flex-1 overflow-x-auto px-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2">
+        <label className="flex min-w-0 flex-1 flex-wrap items-center gap-2 text-xs font-medium text-muted-foreground">
+          Scegli area
+          <select
+            aria-label="Scegli area del listino"
+            value={attiva?.chiave ?? ""}
+            onChange={(event) => onScegli(event.target.value)}
+            className="h-10 min-w-0 max-w-full flex-1 rounded-md border bg-background px-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:max-w-xs"
+          >
+            {!attiva && <option value="" disabled>Seleziona un'area</option>}
+            {aree.map((a) => <option key={a.chiave} value={a.chiave}>{a.nome} ({a.articoli})</option>)}
+          </select>
+        </label>
+        {onNuovaArea && !cercando && (
+          <Button variant="outline" size="sm" className="h-10 shrink-0 gap-1 border-dashed" onClick={onNuovaArea}>
+            <Plus className="h-3.5 w-3.5" aria-hidden="true" /> Area
+          </Button>
+        )}
+      </div>
+      <div className="flex min-w-0 items-center gap-1 px-1">
+      <Button type="button" variant="ghost" size="icon" className="h-11 w-9 shrink-0" aria-label="Scorri aree a sinistra" disabled={!scorrimento.prima} onClick={() => scorri(-1)}>
+        <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+      </Button>
+      <div ref={barra} role="tablist" aria-label="Aree del listino" className="flex min-w-0 flex-1 overflow-x-auto overscroll-x-contain px-2 pb-1">
         {aree.map((a) => {
           const Icona = ICONE_AREA[a.chiave] ?? Layers3;
           const selezionata = a.chiave === attiva?.chiave;
@@ -219,7 +277,18 @@ function CappelloAree({
               type="button"
               role="tab"
               aria-selected={selezionata}
+              tabIndex={selezionata ? 0 : -1}
               onClick={() => onScegli(a.chiave)}
+              onKeyDown={(event) => {
+                const index = aree.findIndex((voce) => voce.chiave === a.chiave);
+                const destinazione = event.key === "ArrowRight" ? (index + 1) % aree.length
+                  : event.key === "ArrowLeft" ? (index - 1 + aree.length) % aree.length
+                  : event.key === "Home" ? 0 : event.key === "End" ? aree.length - 1 : -1;
+                if (destinazione < 0) return;
+                event.preventDefault();
+                onScegli(aree[destinazione].chiave);
+                (barra.current?.children[destinazione] as HTMLElement | undefined)?.focus({ preventScroll: true });
+              }}
               className={cn(
                 "-mb-px flex shrink-0 items-center gap-2.5 border-b-2 px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 selezionata
@@ -246,17 +315,9 @@ function CappelloAree({
           );
         })}
       </div>
-      {onNuovaArea && !cercando && (
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-8 shrink-0 gap-1 border-dashed text-muted-foreground hover:text-foreground"
-          onClick={onNuovaArea}
-        >
-          <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-          Area
-        </Button>
-      )}
+      <Button type="button" variant="ghost" size="icon" className="h-11 w-9 shrink-0" aria-label="Scorri aree a destra" disabled={!scorrimento.dopo} onClick={() => scorri(1)}>
+        <ChevronRight className="h-5 w-5" aria-hidden="true" />
+      </Button>
       </div>
       {attiva && (
         <p className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t bg-background/60 px-4 py-1.5 text-xs text-muted-foreground">
@@ -910,7 +971,8 @@ function Margine({ economia }: { economia: EconomiaRiga }) {
 
 function Segnali({ famiglia }: { famiglia: FamilyWithAxes }) {
   const segnali: Array<{ testo: string; icona: LucideIcon; classe: string }> = [];
-  if (!famiglia.attivo) segnali.push({ testo: "Disattivato", icona: PowerOff, classe: "text-amber-700 dark:text-amber-400" });
+  const baseStandard = !!famiglia.custom_field_values?._catalog_standard;
+  if (!famiglia.attivo) segnali.push({ testo: baseStandard ? "Base standard · da completare" : "Disattivato", icona: PowerOff, classe: "text-amber-700 dark:text-amber-400" });
   if (famiglia.mostra_preventivo === false) {
     segnali.push({ testo: "Fuori dai preventivi", icona: EyeOff, classe: "text-muted-foreground" });
   }

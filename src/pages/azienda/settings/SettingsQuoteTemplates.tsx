@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useQuoteTemplates } from "@/hooks/useQuoteTemplates";
 import { QuoteTemplatePreview } from "@/components/quotes/QuoteTemplatePreview";
+import { resolveQuoteTemplatePreview } from "@/lib/quoteTemplatePreview";
 import {
   COLOR_PALETTES, DEFAULT_TEMPLATE, FONT_SIZE_PRESETS, LINE_HEIGHT_PRESETS,
   ROW_DENSITY_LABELS, TABLE_BORDERS_LABELS, HEADER_ALIGNMENT_LABELS,
@@ -11,7 +12,7 @@ import {
 } from "@/types/quoteTemplate";
 import type {
   QuoteTemplate, QuoteTemplateKind, LogoPosition, LogoSize,
-  RowDensity, TableBorders, TextAlignment, ProductSpec,
+  RowDensity, TableBorders, TextAlignment, ProductSpec, FontFamily,
 } from "@/types/quoteTemplate";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -28,7 +29,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
   Plus, Trash2, Pencil, Star, Loader2, Upload, ImageIcon, Download, Copy, FileText, Eye,
-  CheckCircle2, Palette, Wand2, FileImage, ScrollText, ArrowLeft, Save,
+  CheckCircle2, Palette, Wand2, FileImage, ScrollText, ArrowLeft, Save, ArrowRight,
+  Blocks, CircleCheck, Lightbulb, Layers3,
 } from "lucide-react";
 import { MergeTagInserter } from "@/components/quotes/MergeTagInserter";
 import { CanvaColorPicker } from "@/components/quotes/CanvaColorPicker";
@@ -36,7 +38,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShoppingBag } from "lucide-react";
 // MP-IMP-001 Fase 3 — sezioni estratte in cartella dedicata
 import {
-  LAYOUTS, FONTS, DESIGN_PRESETS, ALLOWED_LOGO_TYPES,
+  LAYOUTS, FONTS, DESIGN_PRESETS, COMPLETE_OFFER_BLUEPRINTS, ALLOWED_LOGO_TYPES,
 } from "./SettingsQuoteTemplates/constants";
 import {
   getLogoPublicUrl, kindColorHint, kindColorLabels, cnTab, getReferencingOffers,
@@ -296,7 +298,8 @@ function TemplateCard({ tmpl, kindMeta, logoSrcFor, effectiveCompanyName, templa
   // Anteprima specifica per kind
   const renderPreview = () => {
     if (kind === 'offerta') {
-      return <QuoteTemplatePreview template={tmpl} companyName={effectiveCompanyName} logoSrc={logoSrcFor(tmpl)} scale={0.2} />;
+      const preview = resolveQuoteTemplatePreview(tmpl, templates);
+      return <QuoteTemplatePreview template={preview} companyName={effectiveCompanyName} logoSrc={logoSrcFor(tmpl)} coverSrc={getLogoPublicUrl(preview.cover_image_url)} scale={0.42} />;
     }
     if (kind === 'copertina' && tmpl.cover_image_url) {
       return (
@@ -326,8 +329,8 @@ function TemplateCard({ tmpl, kindMeta, logoSrcFor, effectiveCompanyName, templa
   const renderMeta = () => {
     if (kind === 'offerta') {
       const parts: string[] = [tmpl.layout];
-      if (tmpl.linked_cover_id) parts.push("+ copertina");
-      if (tmpl.linked_terms_id || tmpl.linked_legal_id) parts.push("+ condizioni e termini legali");
+      if (tmpl.linked_cover_id || tmpl.cover_title || tmpl.cover_subtitle) parts.push("+ copertina");
+      if (tmpl.linked_terms_id || tmpl.linked_legal_id || tmpl.contractual_terms_text || tmpl.payment_terms_text || tmpl.delivery_terms_text) parts.push("+ condizioni");
       const productCount = (tmpl.linked_product_ids ?? []).length;
       if (productCount > 0) parts.push(`+ ${productCount} ${productCount === 1 ? "prodotto" : "prodotti"}`);
       const sectionCount = (tmpl.linked_section_ids ?? []).length;
@@ -364,8 +367,8 @@ function TemplateCard({ tmpl, kindMeta, logoSrcFor, effectiveCompanyName, templa
   }, [templates, tmpl.id, kind]);
 
   return (
-    <Card className={`relative overflow-hidden border ${kindMeta.borderColor} hover:shadow-md transition-shadow`}>
-      <CardContent className="p-4 space-y-3">
+    <Card className={`relative overflow-hidden border ${kindMeta.borderColor} hover:-translate-y-0.5 hover:shadow-lg transition-all`}>
+      <CardContent className="p-5 space-y-4">
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
             <div className={`h-8 w-8 rounded ${kindMeta.bgColor} flex items-center justify-center text-base shrink-0`}>
@@ -383,9 +386,21 @@ function TemplateCard({ tmpl, kindMeta, logoSrcFor, effectiveCompanyName, templa
             <Badge variant="outline" className="shrink-0 text-[10px]">{usedByCount} offerte</Badge>
           )}
         </div>
-        <div className="flex justify-center">{renderPreview()}</div>
+        <div className="flex min-h-[292px] items-center justify-center rounded-xl border border-slate-200/80 bg-gradient-to-br from-slate-50 via-white to-slate-100 p-4 shadow-inner">
+          {renderPreview()}
+        </div>
         {tmpl.description && (
           <p className="text-xs text-muted-foreground line-clamp-2">{tmpl.description}</p>
+        )}
+        {kind === 'offerta' && (
+          <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-600">
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 font-medium text-emerald-700">
+              <CircleCheck className="h-3 w-3" /> Completa per il cliente
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1">
+              <ArrowRight className="h-3 w-3" /> Nel preventivatore standard
+            </span>
+          </div>
         )}
         <div className="flex gap-2">
           <Button variant="outline" size="sm" className="flex-1" onClick={onEdit}>
@@ -400,6 +415,177 @@ function TemplateCard({ tmpl, kindMeta, logoSrcFor, effectiveCompanyName, templa
             </Button>
           )}
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+interface BlockLinkSelectorProps {
+  label: string;
+  value: string | null;
+  options: QuoteTemplate[];
+  onChange: (id: string | null) => void;
+  onCreate: () => void;
+}
+
+function BlockLinkSelector({ label, value, options, onChange, onCreate }: BlockLinkSelectorProps) {
+  return (
+    <div className="rounded-xl border border-orange-200/80 bg-white/80 p-3">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <Label className="text-xs font-semibold text-slate-800">{label}</Label>
+        {value && <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-700"><CircleCheck className="h-3 w-3" /> Collegato</span>}
+      </div>
+      <div className="flex items-center gap-2">
+        <select
+          value={value ?? ""}
+          onChange={(event) => onChange(event.target.value || null)}
+          className="h-9 min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-2.5 text-xs text-slate-800 outline-none transition focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+          aria-label={label}
+        >
+          <option value="">Nessun blocco collegato</option>
+          {options.map((option) => (
+            <option key={option.id} value={option.id}>{option.name}</option>
+          ))}
+        </select>
+        <Button type="button" variant="outline" size="sm" className="h-9 shrink-0 px-2.5 text-xs" onClick={onCreate}>
+          <Plus className="mr-1 h-3.5 w-3.5" /> Crea
+        </Button>
+      </div>
+      {options.length === 0 && <p className="mt-1.5 text-[10px] text-muted-foreground">Nessun blocco disponibile: puoi crearlo direttamente.</p>}
+    </div>
+  );
+}
+
+interface MultiBlockSelectorProps {
+  label: string;
+  values: string[];
+  options: QuoteTemplate[];
+  onChange: (ids: string[]) => void;
+}
+
+function MultiBlockSelector({ label, values, options, onChange }: MultiBlockSelectorProps) {
+  const toggle = (id: string) => {
+    onChange(values.includes(id) ? values.filter((value) => value !== id) : [...values, id]);
+  };
+
+  return (
+    <div className="rounded-xl border border-orange-200/80 bg-white/80 p-3">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <Label className="text-xs font-semibold text-slate-800">{label}</Label>
+        <span className="text-[10px] font-medium text-slate-500">{values.length} selezionate</span>
+      </div>
+      {options.length === 0 ? (
+        <p className="rounded-lg border border-dashed border-slate-200 px-3 py-2 text-[10px] text-muted-foreground">Nessun blocco disponibile: crealo nella tab dedicata e poi torna qui.</p>
+      ) : (
+        <div className="grid gap-1.5 sm:grid-cols-2">
+          {options.map((option) => {
+            const checked = values.includes(option.id);
+            return (
+              <label key={option.id} className={`flex cursor-pointer items-center gap-2 rounded-lg border px-2.5 py-2 text-xs transition-colors ${checked ? "border-orange-300 bg-orange-50 text-orange-900" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"}`}>
+                <input type="checkbox" checked={checked} onChange={() => toggle(option.id)} className="accent-orange-500" />
+                <span className="min-w-0 truncate">{option.name}</span>
+              </label>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TemplateLibraryGuide({
+  activeKind,
+  countsByKind,
+  templates,
+  isAdmin,
+  onNew,
+  onSelectKind,
+}: {
+  activeKind: QuoteTemplateKind;
+  countsByKind: Record<QuoteTemplateKind, number>;
+  templates: QuoteTemplate[];
+  isAdmin: boolean;
+  onNew: (kind: QuoteTemplateKind) => void;
+  onSelectKind: (kind: QuoteTemplateKind) => void;
+}) {
+  const blockCount = KIND_ORDER.filter((kind) => kind !== "offerta").reduce((sum, kind) => sum + (countsByKind[kind] ?? 0), 0);
+  const defaultTemplate = templates.find((template) => template.is_default && ((template.kind as QuoteTemplateKind | undefined) ?? "offerta") === "offerta");
+
+  return (
+    <Card className="overflow-hidden border-slate-200 bg-gradient-to-b from-white to-slate-50/80 shadow-sm">
+      <CardHeader className="border-b border-slate-100 bg-white/80 pb-4">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-100 text-orange-600">
+            <Layers3 className="h-4 w-4" />
+          </div>
+          Il flusso delle offerte
+        </CardTitle>
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          Parti da un&apos;offerta completa, personalizzala e ritrovala direttamente nel preventivatore standard.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-5 p-4">
+        <div className="grid grid-cols-3 gap-2">
+          <div className="rounded-lg border bg-white p-2.5 text-center">
+            <p className="text-lg font-bold text-slate-900">{templates.length}</p>
+            <p className="text-[10px] uppercase tracking-wide text-slate-500">Totali</p>
+          </div>
+          <div className="rounded-lg border bg-white p-2.5 text-center">
+            <p className="text-lg font-bold text-orange-600">{countsByKind.offerta ?? 0}</p>
+            <p className="text-[10px] uppercase tracking-wide text-slate-500">Offerte</p>
+          </div>
+          <div className="rounded-lg border bg-white p-2.5 text-center">
+            <p className="text-lg font-bold text-emerald-600">{blockCount}</p>
+            <p className="text-[10px] uppercase tracking-wide text-slate-500">Componenti</p>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Come funziona</p>
+          {[
+            { icon: "01", title: "Scegli un modello completo", text: "Copertina, testi, investimento e condizioni sono già nello stesso documento." },
+            { icon: "02", title: "Personalizza il messaggio", text: "Adatta palette, claim, termini, logo e struttura al tuo modo di vendere." },
+            { icon: "03", title: "Usalo nel preventivatore", text: "Salva l'offerta e selezionala quando prepari il prossimo preventivo standard." },
+          ].map((step) => (
+            <div key={step.icon} className="flex items-start gap-2.5">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-900 text-[10px] font-bold text-white">{step.icon}</span>
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-slate-800">{step.title}</p>
+                <p className="mt-0.5 text-[11px] leading-snug text-slate-500">{step.text}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="rounded-xl border border-orange-200 bg-orange-50/70 p-3">
+          <div className="flex items-start gap-2">
+            <Lightbulb className="mt-0.5 h-4 w-4 shrink-0 text-orange-600" />
+            <div>
+              <p className="text-xs font-semibold text-orange-900">Suggerimento</p>
+              <p className="mt-1 text-[11px] leading-relaxed text-orange-900/75">
+                {defaultTemplate
+                  ? `Il default attuale è “${defaultTemplate.name}”. Puoi aggiornarlo senza perdere i blocchi già collegati.`
+                  : "Crea una delle offerte complete qui a sinistra: sarà pronta per essere selezionata nel preventivatore standard."}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {isAdmin && (
+          <div className="space-y-2 border-t border-slate-200 pt-4">
+            <p className="text-xs font-semibold text-slate-700">Azione rapida</p>
+            <Button type="button" variant="outline" size="sm" className="w-full justify-between" onClick={() => onNew(activeKind)}>
+              {activeKind === "offerta" ? "Crea un'offerta completa" : `Crea ${KIND_META[activeKind].label.toLowerCase()}`}
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Button>
+            {activeKind === "offerta" && (countsByKind.copertina ?? 0) === 0 && (
+              <Button type="button" variant="ghost" size="sm" className="w-full justify-between text-xs text-pink-700 hover:bg-pink-50 hover:text-pink-800" onClick={() => onSelectKind("copertina")}>
+                Inizia dalla copertina
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Button>
+            )}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -442,6 +628,8 @@ export default function SettingsQuoteTemplates() {
   const [activeKind, setActiveKind] = useState<QuoteTemplateKind>('offerta');
   // Dialog "Scegli che tipo di template creare"
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [showAdvancedCreateTypes, setShowAdvancedCreateTypes] = useState(false);
+  const [showAdvancedLibrary, setShowAdvancedLibrary] = useState(false);
   // Kind correntemente in editing (deriva da form.kind, default offerta)
   const formKind: QuoteTemplateKind = (form.kind as QuoteTemplateKind | undefined) ?? 'offerta';
 
@@ -534,6 +722,26 @@ export default function SettingsQuoteTemplates() {
       description: "Controlla l'anteprima e salva quando il layout ti convince.",
     });
   };
+
+  const openCompleteOffer = useCallback((blueprint: typeof COMPLETE_OFFER_BLUEPRINTS[number]) => {
+    if (!confirmDiscardChanges()) return;
+    setCreateDialogOpen(false);
+    setShowAdvancedCreateTypes(false);
+    setActiveKind('offerta');
+    setEditId(null);
+    setForm({
+      ...blankTemplateForKind('offerta'),
+      ...blueprint.patch,
+      name: blueprint.name,
+      description: blueprint.description,
+      // Le condizioni standard restano inline: l'offerta è autonoma e non
+      // dipende da una scheda separata per poter essere usata nel preventivatore.
+      contractual_terms_text: CONDIZIONI_STANDARD_MD,
+      body_format: 'markdown',
+    });
+    setIsDirty(true);
+    setEditing(true);
+  }, [confirmDiscardChanges]);
 
   const openNewTemplate = useCallback((kind: QuoteTemplateKind) => {
     setEditId(null);
@@ -758,15 +966,15 @@ export default function SettingsQuoteTemplates() {
 
       <TabsContent value="documenti" className="space-y-6 mt-0">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-start gap-3 min-w-0">
+      <div className="flex items-start gap-3 min-w-0">
           <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-orange-500 to-amber-400 flex items-center justify-center shrink-0 shadow-sm">
             <FileText className="h-5 w-5 text-white" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold leading-tight">Libreria Template Preventivi</h1>
+            <h1 className="text-xl sm:text-2xl font-bold leading-tight">Offerte complete</h1>
             <p className="text-sm text-muted-foreground">
-              Crea e gestisci blocchi riusabili: copertine, condizioni, schede prodotto, sezioni libere.
-              I template "Offerta" li compongono in un PDF unico.
+              Scegli un modello già completo di copertina, contenuti, investimento e condizioni.
+              Il preventivatore standard userà direttamente queste offerte.
             </p>
           </div>
         </div>
@@ -774,7 +982,7 @@ export default function SettingsQuoteTemplates() {
           {!editing && templates.length > 0 && (
             <Badge variant="outline" className="gap-1 text-[11px] h-6">
               <Eye className="h-3 w-3" />
-              {templates.length} totali
+              {countsByKind.offerta ?? 0} offerte
             </Badge>
           )}
           {editing && formKind === 'offerta' && (
@@ -792,97 +1000,166 @@ export default function SettingsQuoteTemplates() {
         </div>
       </div>
 
-      {/* Tabs per kind (solo in modalità lista) */}
+      {/* Le offerte complete sono il percorso principale. I blocchi separati
+          restano disponibili solo come libreria avanzata/back-office. */}
       {!editing && (
-        <div className="flex flex-wrap gap-1.5 border-b border-slate-200 pb-0">
-          {KIND_ORDER.map((k) => {
-            const meta = KIND_META[k];
-            const count = countsByKind[k] ?? 0;
-            const isActive = activeKind === k;
-            return (
-              <button
-                key={k}
-                type="button"
-                onClick={() => setActiveKind(k)}
-                className={cnTab(isActive, meta.color, meta.borderColor, meta.bgColor)}
-              >
-                <span className="text-base">{meta.emoji}</span>
-                <span>{meta.label}</span>
-                <span className={`ml-1 text-[10px] px-1.5 py-0.5 rounded-full ${
-                  isActive ? "bg-white/80 text-slate-700" : "bg-slate-200 text-slate-600"
-                }`}>
-                  {count}
-                </span>
-              </button>
-            );
-          })}
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-2">
+            <button
+              type="button"
+              onClick={() => setActiveKind('offerta')}
+              className={cnTab(activeKind === 'offerta', KIND_META.offerta.color, KIND_META.offerta.borderColor, KIND_META.offerta.bgColor)}
+            >
+              <span className="text-base">📄</span>
+              <span>Offerte complete</span>
+              <span className="ml-1 rounded-full bg-white/80 px-1.5 py-0.5 text-[10px] text-slate-700">{countsByKind.offerta ?? 0}</span>
+            </button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="gap-1.5 text-xs text-slate-600"
+              onClick={() => {
+                const next = !showAdvancedLibrary;
+                setShowAdvancedLibrary(next);
+                if (!next) setActiveKind('offerta');
+              }}
+            >
+              <Blocks className="h-3.5 w-3.5" />
+              {showAdvancedLibrary ? 'Nascondi componenti avanzati' : 'Componenti avanzati'}
+              <Badge variant="secondary" className="ml-0.5 h-5 px-1.5 text-[10px]">
+                {KIND_ORDER.filter((kind) => kind !== 'offerta').reduce((total, kind) => total + (countsByKind[kind] ?? 0), 0)}
+              </Badge>
+            </Button>
+          </div>
+          {showAdvancedLibrary && (
+            <div className="flex flex-wrap gap-1.5 rounded-lg border border-dashed border-slate-200 bg-slate-50/60 p-2">
+              {KIND_ORDER.filter((kind) => kind !== 'offerta').map((k) => {
+                const meta = KIND_META[k];
+                const count = countsByKind[k] ?? 0;
+                const isActive = activeKind === k;
+                return (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => setActiveKind(k)}
+                    className={cnTab(isActive, meta.color, meta.borderColor, meta.bgColor)}
+                  >
+                    <span className="text-base">{meta.emoji}</span>
+                    <span>{meta.label}</span>
+                    <span className={`ml-1 rounded-full px-1.5 py-0.5 text-[10px] ${isActive ? "bg-white/80 text-slate-700" : "bg-slate-200 text-slate-600"}`}>
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {!editing && (
+        <div className="flex flex-col gap-1 rounded-xl border border-slate-200 bg-white/70 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-lg">{KIND_META[activeKind].emoji}</span>
+            <div>
+              <p className={`text-sm font-semibold ${KIND_META[activeKind].color}`}>{KIND_META[activeKind].label}</p>
+              <p className="text-xs text-muted-foreground">{KIND_META[activeKind].description}</p>
+            </div>
+          </div>
+          <Badge variant="outline" className="w-fit text-[11px]">
+            {filteredTemplates.length} {filteredTemplates.length === 1 ? "template disponibile" : "template disponibili"}
+          </Badge>
         </div>
       )}
 
       {!editing ? (
         /* Template list filtrata per kind attivo */
-        fetchError ? (
-          <Card className="p-8 text-center">
-            <p className="text-destructive font-medium">Errore nel caricamento dei template</p>
-            <p className="text-sm text-muted-foreground mt-1">{(fetchError as Error).message}</p>
-          </Card>
-        ) : !isLoading && filteredTemplates.length === 0 ? (
-          <Card className={`p-8 text-center space-y-3 ${KIND_META[activeKind].borderColor} ${KIND_META[activeKind].bgColor}/30`}>
-            <div className="text-4xl">{KIND_META[activeKind].emoji}</div>
-            <div>
-              <p className={`font-semibold ${KIND_META[activeKind].color}`}>
-                Nessun {KIND_META[activeKind].label.toLowerCase()} ancora
-              </p>
-              <p className="text-sm text-muted-foreground mt-1 max-w-md mx-auto">
-                {KIND_META[activeKind].description}
-              </p>
-            </div>
-            {isAdmin && (
-              <Button onClick={() => handleNew(activeKind)} className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500">
-                <Plus className="h-4 w-4 mr-2" />Crea il primo
-              </Button>
-            )}
-            {isAdmin && activeKind === 'condizioni' && (
-              <div className="pt-1 text-xs text-muted-foreground">
-                <Button
-                  variant="link"
-                  size="sm"
-                  className="h-auto p-0 text-xs"
-                  onClick={() => {
-                    if (!confirmDiscardChanges()) return;
-                    openNewTemplate('condizioni');
-                    // il form nuovo è vuoto: il modello standard va messo subito dopo
-                    setTimeout(() => updateForm({ body_html: markdownSempliceToHtml(CONDIZIONI_STANDARD_MD), body_format: 'html' }), 60);
-                  }}
-                >
-                  Parti dal modello standard
-                </Button>
-                <span> · oppure, nell'editor, importa le tue condizioni da PDF o Word: l'AI le riordina.</span>
+        <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="min-w-0">
+            {isLoading ? (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                {[0, 1].map((item) => (
+                  <Card key={item} className="overflow-hidden border-slate-200">
+                    <CardContent className="space-y-4 p-5">
+                      <div className="flex items-center gap-3"><div className="h-9 w-9 animate-pulse rounded-lg bg-slate-200" /><div className="space-y-2"><div className="h-3 w-36 animate-pulse rounded bg-slate-200" /><div className="h-2.5 w-52 animate-pulse rounded bg-slate-100" /></div></div>
+                      <div className="h-[292px] animate-pulse rounded-xl bg-slate-100" />
+                      <div className="h-9 animate-pulse rounded-lg bg-slate-100" />
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : fetchError ? (
+              <Card className="p-8 text-center">
+                <p className="font-medium text-destructive">Errore nel caricamento dei template</p>
+                <p className="mt-1 text-sm text-muted-foreground">{(fetchError as Error).message}</p>
+              </Card>
+            ) : filteredTemplates.length === 0 ? (
+              <Card className={`space-y-3 p-8 text-center ${KIND_META[activeKind].borderColor} ${KIND_META[activeKind].bgColor}/30`}>
+                <div className="text-4xl">{KIND_META[activeKind].emoji}</div>
+                <div>
+                  <p className={`font-semibold ${KIND_META[activeKind].color}`}>
+                    Nessun {KIND_META[activeKind].label.toLowerCase()} ancora
+                  </p>
+                  <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
+                    {KIND_META[activeKind].description}
+                  </p>
+                </div>
+                {isAdmin && (
+                  <Button onClick={() => activeKind === 'offerta' ? setCreateDialogOpen(true) : handleNew(activeKind)} className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500">
+                    <Plus className="mr-2 h-4 w-4" />{activeKind === 'offerta' ? "Scegli un'offerta completa" : "Crea il primo"}
+                  </Button>
+                )}
+                {isAdmin && activeKind === 'condizioni' && (
+                  <div className="pt-1 text-xs text-muted-foreground">
+                    <Button
+                      variant="link"
+                      size="sm"
+                      className="h-auto p-0 text-xs"
+                      onClick={() => {
+                        if (!confirmDiscardChanges()) return;
+                        openNewTemplate('condizioni');
+                        setTimeout(() => updateForm({ body_html: markdownSempliceToHtml(CONDIZIONI_STANDARD_MD), body_format: 'html' }), 60);
+                      }}
+                    >
+                      Parti dal modello standard
+                    </Button>
+                    <span> · oppure importa le tue condizioni nell&apos;editor.</span>
+                  </div>
+                )}
+                {isAdmin && (
+                  <Button variant="outline" onClick={() => setCreateDialogOpen(true)} size="sm" className="ml-2">
+                    Vedi tutti i tipi
+                  </Button>
+                )}
+              </Card>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                {filteredTemplates.map(tmpl => (
+                  <TemplateCard
+                    key={tmpl.id}
+                    tmpl={tmpl}
+                    kindMeta={KIND_META[((tmpl.kind as QuoteTemplateKind | undefined) ?? 'offerta')]}
+                    logoSrcFor={logoSrcFor}
+                    effectiveCompanyName={effectiveCompany?.name}
+                    templates={templates}
+                    onEdit={() => handleEdit(tmpl)}
+                    onDuplicate={() => handleDuplicate(tmpl)}
+                    onDelete={() => setDeleteConfirmId(tmpl.id)}
+                  />
+                ))}
               </div>
             )}
-            {isAdmin && (
-              <Button variant="outline" onClick={() => setCreateDialogOpen(true)} size="sm" className="ml-2">
-                Vedi tutti i tipi
-              </Button>
-            )}
-          </Card>
-        ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredTemplates.map(tmpl => (
-            <TemplateCard
-              key={tmpl.id}
-              tmpl={tmpl}
-              kindMeta={KIND_META[((tmpl.kind as QuoteTemplateKind | undefined) ?? 'offerta')]}
-              logoSrcFor={logoSrcFor}
-              effectiveCompanyName={effectiveCompany?.name}
-              templates={templates}
-              onEdit={() => handleEdit(tmpl)}
-              onDuplicate={() => handleDuplicate(tmpl)}
-              onDelete={() => setDeleteConfirmId(tmpl.id)}
-            />
-          ))}
+          </div>
+          <TemplateLibraryGuide
+            activeKind={activeKind}
+            countsByKind={countsByKind}
+            templates={templates}
+            isAdmin={isAdmin}
+            onNew={(kind) => kind === "offerta" ? setCreateDialogOpen(true) : handleNew(kind)}
+            onSelectKind={setActiveKind}
+          />
         </div>
-        )
       ) : (
         /* Editor with preview */
         <div className="space-y-3">
@@ -958,7 +1235,7 @@ export default function SettingsQuoteTemplates() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid gap-2 sm:grid-cols-3">
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                   {DESIGN_PRESETS.map((preset) => (
                     <button
                       key={preset.name}
@@ -1048,7 +1325,7 @@ export default function SettingsQuoteTemplates() {
                     label="🎨 Copertina"
                     value={form.linked_cover_id ?? null}
                     options={templatesByKind('copertina')}
-                    onChange={(id: any) => updateForm({ linked_cover_id: id })}
+                    onChange={(id) => updateForm({ linked_cover_id: id })}
                     onCreate={() => {
                       if (!handleCancel()) return;
                       setActiveKind('copertina');
@@ -1060,7 +1337,7 @@ export default function SettingsQuoteTemplates() {
                     value={form.linked_terms_id ?? form.linked_legal_id ?? null}
                     // I vecchi blocchi "legali" restano selezionabili qui: è lo stesso posto nel PDF.
                     options={[...templatesByKind('condizioni'), ...templatesByKind('legali')]}
-                    onChange={(id: any) => {
+                    onChange={(id) => {
                       // Il DB valida il tipo per colonna: un vecchio blocco "legali" va in linked_legal_id.
                       const eLegacyLegali = !!id && templatesByKind('legali').some((t) => t.id === id);
                       updateForm(eLegacyLegali ? { linked_legal_id: id, linked_terms_id: null } : { linked_terms_id: id, linked_legal_id: null });
@@ -1075,13 +1352,13 @@ export default function SettingsQuoteTemplates() {
                     label="🛒 Schede prodotto da includere"
                     values={form.linked_product_ids ?? []}
                     options={templatesByKind('prodotto')}
-                    onChange={(ids: any) => updateForm({ linked_product_ids: ids })}
+                    onChange={(ids) => updateForm({ linked_product_ids: ids })}
                   />
                   <MultiBlockSelector
                     label="✨ Sezioni libere"
                     values={form.linked_section_ids ?? []}
                     options={templatesByKind('sezione')}
-                    onChange={(ids: any) => updateForm({ linked_section_ids: ids })}
+                    onChange={(ids) => updateForm({ linked_section_ids: ids })}
                   />
                 </CardContent>
               </Card>
@@ -1235,7 +1512,7 @@ export default function SettingsQuoteTemplates() {
                       }`}
                     >
                       <div className="mb-2 flex justify-center">
-                        <QuoteTemplatePreview template={{ ...form, layout: l.key }} companyName={effectiveCompany?.name} logoSrc={logoSrcFor(form)} scale={0.08} />
+                        <QuoteTemplatePreview template={{ ...form, layout: l.key }} companyName={effectiveCompany?.name} logoSrc={logoSrcFor(form)} page="detail" scale={0.08} />
                       </div>
                       <p className="font-medium">{l.label}</p>
                       <p className="text-xs text-muted-foreground mt-1">{l.desc}</p>
@@ -1917,7 +2194,7 @@ export default function SettingsQuoteTemplates() {
                 </CardTitle>
                 <p className="text-xs text-white/65">
                   {formKind === 'offerta'
-                    ? "Anteprima fedele a logo, margini, tabella, footer e condizioni."
+                    ? "Esempio di stile. Controlla il PDF generato prima dell'invio."
                     : `Blocco riusabile linkabile dalle offerte. Apparirà nel PDF finale come ${KIND_META[formKind].label.toLowerCase()}.`}
                 </p>
               </CardHeader>
@@ -1926,9 +2203,10 @@ export default function SettingsQuoteTemplates() {
                   <div className="flex min-w-max justify-center">
                     {formKind === 'offerta' ? (
                       <QuoteTemplatePreview
-                        template={form}
+                        template={resolveQuoteTemplatePreview(form, templates)}
                         companyName={effectiveCompany?.name}
                         logoSrc={logoSrcFor(form)}
+                        coverSrc={getLogoPublicUrl(resolveQuoteTemplatePreview(form, templates).cover_image_url)}
                         page={previewPage}
                         scale={0.45}
                       />
@@ -2005,48 +2283,103 @@ export default function SettingsQuoteTemplates() {
         </div>
       )}
 
-      {/* Dialog "Scegli che tipo di template creare" — 6 cards selezionabili */}
-      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+      {/* L'offerta completa è il percorso principale. I blocchi singoli restano
+          disponibili nel dialog solo per chi vuole una composizione avanzata. */}
+      <Dialog
+        open={createDialogOpen}
+        onOpenChange={(open) => {
+          setCreateDialogOpen(open);
+          if (!open) setShowAdvancedCreateTypes(false);
+        }}
+      >
         <DialogContent className="max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Crea un nuovo template</DialogTitle>
+            <DialogTitle>{showAdvancedCreateTypes ? "Aggiungi un componente avanzato" : "Crea un'offerta completa"}</DialogTitle>
             <p className="text-sm text-muted-foreground">
-              Scegli quale tipo di blocco vuoi aggiungere alla tua libreria. I blocchi sono riusabili tra più offerte.
+              {showAdvancedCreateTypes
+                ? "Copertine, condizioni, schede prodotto e sezioni sono opzionali: usali solo quando vuoi riutilizzare un contenuto in più offerte."
+                : "Ogni modello include copertina, testi, investimento, condizioni e stile. Dopo il salvataggio sarà disponibile nel preventivatore standard."}
             </p>
           </DialogHeader>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-2">
-            {KIND_ORDER.map((k) => {
-              const meta = KIND_META[k];
-              const count = countsByKind[k] ?? 0;
-              return (
-                <button
-                  key={k}
-                  type="button"
-                  onClick={() => {
-                    setCreateDialogOpen(false);
-                    setActiveKind(k);
-                    handleNew(k);
-                  }}
-                  className={`text-left rounded-xl border-2 ${meta.borderColor} ${meta.bgColor} hover:scale-[1.02] hover:shadow-md transition-all p-4 group focus:outline-none focus:ring-2 focus:ring-orange-400`}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="text-3xl">{meta.emoji}</div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 mb-1">
-                        <h3 className={`font-semibold ${meta.color}`}>{meta.label}</h3>
-                        {count > 0 && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/80 text-slate-700 font-medium">
-                            {count} esistenti
-                          </span>
-                        )}
+          {!showAdvancedCreateTypes ? (
+            <>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 mt-2">
+                {COMPLETE_OFFER_BLUEPRINTS.map((blueprint) => {
+                  const blueprintLayout = blueprint.patch.layout ?? "classic";
+                  const layoutLabel = LAYOUTS.find((layout) => layout.key === blueprintLayout)?.label ?? "Classic";
+                  return (
+                    <button
+                      key={blueprint.key}
+                      type="button"
+                      onClick={() => openCompleteOffer(blueprint)}
+                      className="group rounded-xl border-2 border-orange-200 bg-gradient-to-b from-white to-orange-50/60 p-4 text-left transition-all hover:-translate-y-0.5 hover:border-orange-400 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-orange-400"
+                    >
+                      <div className="mb-3 flex items-start justify-between gap-2">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-sm">
+                          <FileText className="h-5 w-5" />
+                        </div>
+                        <span className="rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-slate-600 shadow-sm">
+                          {layoutLabel}
+                        </span>
                       </div>
-                      <p className="text-xs text-slate-600 leading-snug">{meta.description}</p>
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
+                      <h3 className="font-semibold text-slate-900">{blueprint.name}</h3>
+                      <p className="mt-1.5 text-xs leading-relaxed text-slate-600">{blueprint.description}</p>
+                      <div className="mt-3 flex items-center gap-1.5 text-[11px] font-semibold text-orange-700">
+                        <CircleCheck className="h-3.5 w-3.5" /> Completa di tutto
+                        <ArrowRight className="ml-auto h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="flex items-center justify-between gap-3 border-t border-slate-200 pt-3">
+                <p className="text-xs text-muted-foreground">I componenti separati servono solo per contenuti condivisi tra più offerte.</p>
+                <Button type="button" variant="outline" size="sm" className="shrink-0 gap-1.5" onClick={() => setShowAdvancedCreateTypes(true)}>
+                  <Blocks className="h-3.5 w-3.5" /> Componente avanzato
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 mt-2">
+                {KIND_ORDER.filter((kind) => kind !== "offerta").map((k) => {
+                  const meta = KIND_META[k];
+                  const count = countsByKind[k] ?? 0;
+                  return (
+                    <button
+                      key={k}
+                      type="button"
+                      onClick={() => {
+                        setCreateDialogOpen(false);
+                        setShowAdvancedCreateTypes(false);
+                        setActiveKind(k);
+                        handleNew(k);
+                      }}
+                      className={`text-left rounded-xl border-2 ${meta.borderColor} ${meta.bgColor} hover:scale-[1.02] hover:shadow-md transition-all p-4 group focus:outline-none focus:ring-2 focus:ring-orange-400`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="text-3xl">{meta.emoji}</div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <h3 className={`font-semibold ${meta.color}`}>{meta.label}</h3>
+                            {count > 0 && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/80 text-slate-700 font-medium">
+                                {count} esistenti
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-slate-600 leading-snug">{meta.description}</p>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              <Button type="button" variant="ghost" size="sm" className="w-fit gap-1.5 px-0 text-xs text-slate-600" onClick={() => setShowAdvancedCreateTypes(false)}>
+                <ArrowLeft className="h-3.5 w-3.5" /> Torna alle offerte complete
+              </Button>
+            </>
+          )}
           <DialogFooter className="mt-2">
             <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>Annulla</Button>
           </DialogFooter>

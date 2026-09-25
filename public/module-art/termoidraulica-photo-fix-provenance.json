@@ -1,0 +1,15 @@
+{
+  "mode": "built-in image_gen",
+  "date": "2026-09-24",
+  "assets": [
+    {
+      "path": "/module-art/termoidraulica-caldaia-wide-v3.jpg",
+      "prompt": "Use case: photorealistic-natural. Asset type: panoramic editorial illustration for a heating proposal PDF, not a customer's actual installation. Create a photorealistic wide 3:1 photograph of a modest elegant Italian utility room with a single closed, unbranded white wall mounted condensing boiler in the CENTER. Show the ENTIRE appliance with generous margins around it; it occupies only the central 35% of image height so a center panoramic crop preserves its top and bottom. A short enclosed flue enters the wall behind it, service connections hidden by a plain removable matching cover immediately beneath; no exposed wiring or procedural demonstration. Warm neutral plaster wall and light stone flooring, soft natural light, natural material grain. Wide composition, level camera, no people, no tools, no diagrams, no text, no logos, no watermark. The appliance must be recognizable and entirely visible, with its whole silhouette in the middle half of the frame vertically."
+    },
+    {
+      "path": "/module-art/termoidraulica-terminali-closing-v3.jpg",
+      "prompt": "Use case: photorealistic-natural. Asset type: landscape editorial photo for a heating proposal closing page, not an actual customer job. A complete elegant vertical white panel radiator mounted in the CENTER of a warm neutral Italian living room wall. ENTIRE radiator, both top and bottom and its two lower valve connections clearly visible, with generous empty wall above and below and wide side margins. 3:2 landscape photograph, straight-on camera, radiator occupies only 55% of image height centered vertically and 15% of width. Light oak floor, soft daylight, understated sofa edge and linen curtains far to the sides. No people, no tools, no operational procedure, no exposed wiring, no text, logos or watermark. Realistic plaster and material texture. Whole radiator silhouette must remain within the central 60% height and central 35% width."
+    }
+  ],
+  "discarded": "Generated manifold rejected after visual inspection: ambiguous connections; not copied or referenced."
+}

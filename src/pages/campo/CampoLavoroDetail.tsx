@@ -4,7 +4,6 @@
  */
 import { useEffect, useState } from "react";
 import { ImgRiservata } from "@/components/common/ImgRiservata";
-import { linkFileRiservato } from "@/lib/storage/fileRiservati";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -25,6 +24,8 @@ import { cn } from "@/lib/utils";
 import { useOrderDiary } from "@/hooks/useOrderDiary";
 import { useIsCampo } from "@/hooks/useIsCampo";
 import { FirmaPad } from "@/components/campo/FirmaPad";
+import { loadCampoAssignments } from "@/lib/campo/assignments";
+import { notifyRapportinoPdf, openRapportinoPdf } from "@/lib/campo/rapportinoPdf";
 
 type Tab = "descrizione" | "rapportini" | "diario" | "documenti" | "chat";
 
@@ -224,7 +225,7 @@ export default function CampoLavoroDetail() {
 
   // Verifica assegnazione — controlla order_campo_assignments e order_employees
   const { data: assignment, isLoading, isFetching, isError, error } = useQuery<CampoAssignment | null>({
-    queryKey: ["campo-lavoro", orderId, currentUserKey, fallbackOrderCode, fallbackOrderTitle, fallbackOrderAddress],
+    queryKey: ["campo-lavoro", orderId, companyId, currentUserKey, fallbackOrderCode, fallbackOrderTitle, fallbackOrderAddress],
     queryFn: async () => {
       const orderSelect = `
         id, order_code, description, status,
@@ -255,11 +256,12 @@ export default function CampoLavoroDetail() {
       let probeTimedOut = false;
       const flagTimeout = () => { probeTimedOut = true; };
 
-      const directOrderPromise = withTimeout(
+      const directOrderPromise = withTimeout<{ data: CampoOrder | null; error: unknown }>(
         supabase
           .from("orders")
           .select(orderSelect)
           .eq("id", orderId!)
+          .eq("company_id", companyId!)
           .maybeSingle(),
         6000,
         { data: null, error: null },
@@ -281,105 +283,24 @@ export default function CampoLavoroDetail() {
         return null;
       }
 
-      const campoAssignmentPromise = withTimeout(
-        supabase
-          .from("order_campo_assignments")
-          .select(`*, order:orders(${orderSelect})`)
-          .eq("order_id", orderId!)
-          .in("user_id", currentUserIds)
-          .limit(1)
-          .maybeSingle(),
-        5000,
-        { data: null, error: null },
+      const assignments = await withTimeout(
+        loadCampoAssignments(currentUserId!, companyId!, { orderId, includeClosed: true }),
+        6000,
+        null,
         flagTimeout,
       );
-
-      const employeePromise = withTimeout(
-        supabase
-          .from("employees")
-          .select("id")
-          .in("user_id", currentUserIds)
-          .limit(1)
-          .maybeSingle(),
-        5000,
-        { data: null, error: null },
-        flagTimeout,
-      );
-
-      const subcontractorPromise = withTimeout(
-        supabase
-          .from("subappaltatori")
-          .select("id")
-          .in("user_id", currentUserIds)
-          .limit(1)
-          .maybeSingle(),
-        5000,
-        { data: null, error: null },
-        flagTimeout,
-      );
-
-      const [
-        { data: campoData, error: campoErr },
-        { data: emp, error: empErr },
-        { data: subData, error: subErr },
-      ] = await Promise.all([campoAssignmentPromise, employeePromise, subcontractorPromise]);
-      if (campoErr) throw campoErr;
-      if (empErr) throw empErr;
-      if (subErr) throw subErr;
-
-      // 1. Prova order_campo_assignments
-      if (campoData?.order) return campoData as unknown as CampoAssignment;
-
-      // 2. Fallback: controlla order_employees
-      if (emp?.id) {
-        const { data: empRows, error: rowsErr } = await withTimeout(
-          supabase
-            .from("order_employees")
-            .select("id, order_id")
-            .eq("order_id", orderId!)
-            .eq("employee_id", emp.id)
-            .limit(1),
-          5000,
-          { data: null, error: null },
-          flagTimeout,
-        );
-        if (rowsErr) throw rowsErr;
-        const empAssign = empRows?.[0] ?? null;
-
-        if (empAssign) {
-          const { data: orderData, error: ordErr } = await directOrderPromise;
-          if (ordErr) throw ordErr;
-          if (!orderData) return null;
-
-          return { ...empAssign, order: orderData as CampoOrder, is_capocantiere: false };
-        }
+      const resolved = assignments?.find(a => a.order_id === orderId);
+      if (resolved) {
+        const { data: orderData, error: orderError } = await directOrderPromise;
+        if (orderError) throw orderError;
+        return {
+          id: resolved.id,
+          order_id: resolved.order_id,
+          role_type: resolved.sources.some(s => s.kind === "contract" || s.kind === "subcontractor_team") ? "subcontractor" : "field",
+          is_capocantiere: resolved.is_capocantiere,
+          order: orderData ?? { ...resolved.order, customer: null },
+        } as CampoAssignment;
       }
-
-      // 3. Fallback subappaltatore: lavori assegnati tramite contratto subappalto
-      if (subData?.id) {
-        const { data: contract, error: contractErr } = await withTimeout(
-          supabase
-            .from("contratti_subappalto")
-            .select("id, order_id, stato")
-            .eq("order_id", orderId!)
-            .eq("subappaltatore_id", subData.id)
-            .eq("stato", "attivo")
-            .maybeSingle(),
-          5000,
-          { data: null, error: null },
-          flagTimeout,
-        );
-        if (contractErr) throw contractErr;
-
-        if (contract) {
-          const { data: orderData, error: ordErr } = await directOrderPromise;
-          if (ordErr) throw ordErr;
-          if (!orderData) return null;
-
-          return { ...contract, role_type: "subcontractor", order: orderData as CampoOrder, is_capocantiere: false };
-        }
-      }
-
       // 4. Ultima rete di sicurezza: se le RLS consentono la lettura diretta
       // dell'ordine, mostra il dettaglio invece di lasciare la pagina vuota.
       const { data: directOrder, error: directOrderErr } = await directOrderPromise;
@@ -440,7 +361,7 @@ export default function CampoLavoroDetail() {
       // Non assegnato — la UI mostra un fallback recuperabile.
       return null;
     },
-    enabled: !!orderId,
+    enabled: !!orderId && !!currentUserId && !!companyId,
     retry: 1,
     // Query-cancello: un "non assegnato" (null) in cache/persister non deve
     // essere riservito com'è — verifica sempre fresca al mount, altrimenti
@@ -532,11 +453,11 @@ export default function CampoLavoroDetail() {
       const { data: urlData } = supabase.storage.from("campo-rapportini").getPublicUrl(up.path);
       const { error: updErr } = await supabase
         .from("campo_rapportini")
-        .update({ firma_operaio_url: urlData.publicUrl })
+        .update({ firma_operaio_url: urlData.publicUrl, pdf_url: null })
         .eq("id", rapportinoId);
       if (updErr) throw updErr;
-      // Rigenera il PDF con la firma (fire-and-forget)
-      supabase.functions.invoke("genera-pdf-rapportino", { body: { rapportino_id: rapportinoId } }).catch(() => {});
+      // Invalidate the old export immediately; regenerate with visible feedback.
+      if (orderId) void notifyRapportinoPdf(rapportinoId, orderId, queryClient);
     },
     onSuccess: () => {
       toast.success("Rapportino firmato");
@@ -549,22 +470,9 @@ export default function CampoLavoroDetail() {
   });
 
   const apriPdfRapportino = async (r: CampoRapportinoRow) => {
-    if (r.pdf_url) {
-      // Link a scadenza: il contenitore dei rapportini non e' aperto a chiunque.
-      window.open((await linkFileRiservato(r.pdf_url)) ?? r.pdf_url, "_blank", "noopener");
-      return;
-    }
-    // Rapportini vecchi (o generazione fallita): genera al volo e apri
     setPdfBusyId(r.id);
     try {
-      const { data, error } = await supabase.functions.invoke("genera-pdf-rapportino", {
-        body: { rapportino_id: r.id },
-      });
-      if (error) throw error;
-      const url = (data as { pdf_url?: string } | null)?.pdf_url;
-      if (!url) throw new Error("PDF non disponibile, riprova tra qualche istante");
-      window.open((await linkFileRiservato(url)) ?? url, "_blank", "noopener");
-      queryClient.invalidateQueries({ queryKey: ["campo-rapportini-ordine", orderId] });
+      await openRapportinoPdf(r, orderId!, queryClient);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Non riesco a generare il PDF");
     } finally {
@@ -1061,7 +969,7 @@ export default function CampoLavoroDetail() {
                       className="flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-2 text-xs font-semibold text-foreground disabled:opacity-50"
                     >
                       {pdfBusyId === r.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-                      PDF
+                      {pdfBusyId === r.id ? "Preparo PDF…" : r.pdf_url ? "Apri PDF" : "Genera PDF"}
                     </button>
                     {r.firma_operaio_url ? (
                       <span className="flex items-center gap-1 rounded-full bg-green-500/15 px-2.5 py-1 text-[10px] font-semibold text-green-700">

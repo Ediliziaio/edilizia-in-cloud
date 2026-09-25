@@ -1,3 +1,4 @@
+import { buildPscModulePreview, type FullPscModuleId } from "@/lib/moduli-vendita/fullPscModules";
 /**
  * PiscineLivePreviewPanel — wrapper vertical del pannello anteprima live
  * condiviso (PdfBlobLivePreviewPanel). Porta i mock builder Piscine +
@@ -31,7 +32,7 @@ function buildMockComputo(companyId: string): PisComputoVoce[] {
 function buildMockProgetto(companyId: string): PisProgetto {
   return {
     id: "preview", company_id: companyId, code: "ANTEPRIMA", stato: "bozza",
-    tipo_intervento: "Nuova piscina interrata",
+    tipo_intervento: "Nuova piscina interrata", tipo_piscina: null, tipo_costruzione: null, massimale_detrazione: null,
     cliente_nome: "Mario", cliente_cognome: "Rossi", cliente_email: null, cliente_telefono: null,
     cantiere_indirizzo: "Via Roma 1", cantiere_citta: "Milano", cantiere_provincia: "MI", cantiere_cap: "20100",
     immobile_tipo: "Appartamento", immobile_superficie_mq: 90, immobile_anno: 1975, immobile_piani: 1,
@@ -42,27 +43,30 @@ function buildMockProgetto(companyId: string): PisProgetto {
 }
 
 export function PiscineLivePreviewPanel({
-  template, companyId,
+  template, companyId, moduleId, activeSection,
 }: {
+  activeSection?: string | null;
   template: PisTemplatePdf | null;
   companyId: string | null;
+  moduleId?: FullPscModuleId;
 }) {
   const depsKey = useMemo(
-    () => (companyId ?? "") + "|" + JSON.stringify(template ?? {}),
-    [template, companyId],
+    () => (companyId ?? "") + "|" + (moduleId ?? "") + "|" + JSON.stringify(template ?? {}),
+    [template, companyId, moduleId],
   );
   const renderBlobUrl = useCallback(() => {
     if (!companyId || !template) return Promise.reject(new Error("Template non pronto"));
-    return renderPisPreviewBlobUrl({
+    return renderPisPreviewBlobUrl(moduleId ? buildPscModulePreview(companyId, template, moduleId) : {
       progetto: buildMockProgetto(companyId),
       computo: buildMockComputo(companyId),
       media: [],
       template,
     });
-  }, [template, companyId]);
+  }, [template, companyId, moduleId]);
 
   return (
     <PdfBlobLivePreviewPanel
+      activeSection={activeSection}
       renderBlobUrl={renderBlobUrl}
       depsKey={depsKey}
       enabled={!!companyId && !!template}

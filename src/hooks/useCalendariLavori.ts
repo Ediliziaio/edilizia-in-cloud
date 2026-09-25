@@ -39,6 +39,7 @@ function invalidaSquadreOvunque(qc: ReturnType<typeof useQueryClient>, companyId
   qc.invalidateQueries({ queryKey: queryKeys.externalTeams.all });
   qc.invalidateQueries({ queryKey: ["external-teams-filter"] });
   qc.invalidateQueries({ queryKey: ["external-teams-list"] });
+  qc.invalidateQueries({ queryKey: ["external_teams_active", companyId] });
 }
 
 /**
@@ -228,7 +229,7 @@ export function useEliminaSquadra() {
       toast.success("Squadra eliminata");
     },
     onError: () =>
-      toast.error("Impossibile eliminare", { description: "La squadra è assegnata a delle commesse: disattivala invece." }),
+      toast.error("Impossibile eliminare", { description: "La squadra può avere assegnazioni o composizioni da conservare: disattivala invece." }),
   });
 }
 

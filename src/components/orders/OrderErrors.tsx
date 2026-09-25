@@ -472,6 +472,7 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["order-errors", orderId] });
+      queryClient.invalidateQueries({ queryKey: ["oes-errors", orderId] });
       queryClient.invalidateQueries({ queryKey: ["global-errors", effectiveCompany?.id] });
       queryClient.invalidateQueries({ queryKey: ["marginalita-cantieri", effectiveCompany?.id] });
       queryClient.invalidateQueries({ queryKey: ["marginalita-widget", effectiveCompany?.id] });
@@ -490,6 +491,7 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["order-errors", orderId] });
+      queryClient.invalidateQueries({ queryKey: ["oes-errors", orderId] });
       queryClient.invalidateQueries({ queryKey: ["global-errors", effectiveCompany?.id] });
       queryClient.invalidateQueries({ queryKey: ["marginalita-cantieri", effectiveCompany?.id] });
       queryClient.invalidateQueries({ queryKey: ["marginalita-widget", effectiveCompany?.id] });

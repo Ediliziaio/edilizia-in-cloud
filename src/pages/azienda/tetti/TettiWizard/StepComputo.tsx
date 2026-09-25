@@ -23,6 +23,7 @@ import { useListinoVociSearch } from "@/hooks/useTettiListino";
 import type { TetComputoVoce, TetUnitaMisura } from "@/types/tetti";
 import type { ComputoVoceLocal } from "@/types/computo";
 import ComputoEditor from "@/components/tetti/ComputoEditor/ComputoEditor";
+import type { TETTI_TEMPLATE_MODULES } from "@/lib/moduli-vendita/tettiTemplateModules";
 
 interface Props {
   progettoId: string;
@@ -31,12 +32,13 @@ interface Props {
   ivaPct: number;
   /** Prezzo scritto a mano in Economia: il riepilogo del computo parte da quello. */
   prezzoManuale?: number | null;
+  model?: typeof TETTI_TEMPLATE_MODULES[number];
 }
 
 const LISTINO_SETTINGS_HREF =
-  "/azienda/impostazioni/template-preventivi?tab=moduli-vendita&modulo=tetti";
+  "/azienda/tetti/listino";
 
-export default function StepComputo({ progettoId, initialComputo, scontoPct, ivaPct, prezzoManuale = null }: Props) {
+export default function StepComputo({ progettoId, initialComputo, scontoPct, ivaPct, prezzoManuale = null, model }: Props) {
   const companyId = useEffectiveCompanyId();
   const saveMut = useSaveComputo(progettoId);
 
@@ -192,6 +194,12 @@ export default function StepComputo({ progettoId, initialComputo, scontoPct, iva
         )}
       </div>
 
+      {model && <section className="rounded-xl border bg-muted/20 p-4" aria-label={`Lavorazioni per ${model.title}`}>
+        <h3 className="text-sm font-semibold">{model.title}: componi le lavorazioni</h3>
+        <p className="mt-1 text-xs text-muted-foreground">Aggiungi dal listino o inserisci una voce libera. Questo schema non aggiunge importi né quantità di esempio.</p>
+        <ul className="mt-3 grid gap-2 text-sm sm:grid-cols-2">{model.works.map(work => <li key={work}>• {work}</li>)}</ul>
+        <p className="mt-3 text-xs text-muted-foreground">Da chiarire nell'offerta: {model.excluded}</p>
+      </section>}
       {/* Hint listino vuoto */}
       {listinoVuoto && (
         <div className="flex items-start gap-2.5 rounded-xl border border-blue-100 bg-blue-50/60 px-3 py-2.5">

@@ -36,6 +36,15 @@ describe("la testata di serie", () => {
 });
 
 describe("la testata scritta dall'azienda", () => {
+  it("ripristina la testata dell'intervento senza perdere le personalizzazioni degli altri campi", () => {
+    const salvati = {
+      modulo_defaults: { testata_garanzie: { titolo: "Le garanzie dell'accumulo", intro: "Condizioni del sistema scelto." } },
+      testata_garanzie: { occhiello: "La nostra assistenza", titolo: "" },
+    };
+    expect(leggiTestata("garanzie", "fotovoltaico", salvati)).toEqual({
+      occhiello: "La nostra assistenza", titolo: "Le garanzie dell'accumulo", intro: "Condizioni del sistema scelto.",
+    });
+  });
   it("vale solo quello che l'azienda ha scritto: il resto resta di serie", () => {
     const salvati = { [chiaveTestata("garanzie")]: { titolo: "Dieci anni *senza pensieri*." } };
     expect(leggiTestata("garanzie", "edili", salvati)).toEqual({

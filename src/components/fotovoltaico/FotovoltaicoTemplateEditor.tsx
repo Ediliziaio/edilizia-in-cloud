@@ -1,3 +1,8 @@
+import { TemplateSectionNavigation } from "@/components/preventivi/TemplateSectionNavigation";
+import { orderedSectionExcluded } from "@/components/preventivi/templateNavigationState";
+import { TemplateCoverDesignControls, COVER_DESIGN_CHOICES } from "@/components/preventivi/TemplateCoverDesignControls";
+import { TemplateImageFieldView } from "@/components/preventivi/TemplateImageFieldView";
+import { TemplateCoverStylePicker, TemplateCoverTextFields, coverStyleOnly } from "@/components/preventivi/TemplateCoverControls";
 /**
  * FotovoltaicoTemplateEditor — editor del template PDF del modulo Fotovoltaico.
  *
@@ -14,6 +19,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { templateEditorLayout, TemplateEditorSaveBar, TemplateEditorWorkspace, TemplateEditorNavigation } from "@/components/preventivi/TemplateEditorLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,6 +39,13 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { AiTemplateGenerator } from "@/components/preventivi/AiTemplateGenerator";
+import { StandardTextTemplatePicker } from "@/components/preventivi/StandardTextTemplatePicker";
+import { readLocalTemplateImage } from "@/lib/moduli-vendita/localTemplateImage";
+import { InterventionTextPicker } from "@/components/preventivi/modules/InterventionTextPicker";
+import { accumuloCopyChoices } from "@/lib/moduli-vendita/fvInterventionCopy";
+import { createFullFvTemplate, type FullFvTemplate, type FullFvModuleId } from "@/lib/moduli-vendita/fullFvModules";
+import { fotoDellaLibreria } from "../../../supabase/functions/_shared/blocchiPreventivo";
+import { FV_ACCUMULO_PAGINE_NON_APPLICABILI, FV_ACCUMULO_LABELS } from "../../../supabase/functions/_shared/fvIntervento";
 import type { AiTemplateDraft } from "@/components/preventivi/AiTemplateReviewDialog";
 import { FvPagesOrderEditor } from "@/components/fotovoltaico/FvPagesOrderEditor";
 import { ContenutoPagina } from "@/components/preventivi/ContenutoPagina";
@@ -99,7 +112,8 @@ interface FvCantiereGalleria {
   foto_url?: string;
 }
 
-interface FvTemplate {
+export interface FvTemplate {
+  ragione_sociale?: string | null;
   logo_url?: string | null;
   pdf_cover_logo_url?: string | null;
   colore_primario?: string | null;
@@ -182,17 +196,18 @@ const FV_PLACEHOLDERS = [
   "numero_pannelli", "indirizzo", "comune",
 ] as const;
 function PlaceholderChips({
-  value, onChange, label = "Inserisci campo personalizzato (cliccabile):",
+  value, onChange, label = "Inserisci campo personalizzato (cliccabile):", accumulo = false,
 }: {
   value: string;
   onChange: (next: string) => void;
   label?: string;
+  accumulo?: boolean;
 }) {
   return (
     <div className="mt-1.5">
       <p className="text-[10px] text-muted-foreground mb-1">{label}</p>
       <div className="flex flex-wrap gap-1">
-        {FV_PLACEHOLDERS.map((n) => (
+        {FV_PLACEHOLDERS.filter(n => !accumulo || (n !== "potenza_kwp" && n !== "numero_pannelli")).map((n) => (
           <button
             key={n}
             type="button"
@@ -208,7 +223,15 @@ function PlaceholderChips({
 }
 
 interface Props {
+  /** Compatibilità con i pannelli incorporati: la barra di salvataggio resta disponibile. */
   embedded?: boolean;
+  localModule?: {
+    id: FullFvModuleId;
+    template: FullFvTemplate;
+    saved: boolean;
+    onDirtyChange: (dirty: boolean) => void;
+    save: (template: FullFvTemplate) => void;
+  };
 }
 
 type SharedLegalTemplateKind = "condizioni" | "legali";
@@ -308,8 +331,8 @@ const FV_EDITOR_SECTIONS: Array<{
 }> = [
   {
     id: "brand",
-    label: "Brand & azienda",
-    icon: "Azienda",
+    label: "Azienda e stile",
+    icon: "🏢",
     description: "Identita, contatti e colori.",
   },
   // Le pagine del PDF, una sezione ciascuna nell'ordine in cui escono: le pagine nuove
@@ -318,37 +341,37 @@ const FV_EDITOR_SECTIONS: Array<{
   {
     id: "page_conversione",
     label: "Conversione",
-    icon: "Conv",
+    icon: "⚡",
     description: "Garanzie, FAQ e condizioni.",
   },
   {
     id: "page_ordine",
-    label: "Ordine pagine",
-    icon: "Order",
+    label: "Ordine e pagine",
+    icon: "🔀",
     description: "Visibilita e riordino PDF.",
   },
   {
     id: "prodotti",
     label: "Linee prodotto",
-    icon: "Listino",
+    icon: "📦",
     description: "Immagini e testi dal listino.",
   },
   {
     id: "strategia",
     label: "Costi tecnici",
-    icon: "ROI",
+    icon: "🧮",
     description: "Costi base, default preventivo e noleggio B2B.",
   },
   {
     id: "contenuti",
     label: "Contenuti",
-    icon: "PDF",
+    icon: "📝",
     description: "Presentazione, valore, garanzie, FAQ e condizioni.",
   },
   {
     id: "default",
-    label: "Default",
-    icon: "Default",
+    label: "Impostazioni tecniche",
+    icon: "⚙️",
     description: "Validita, recesso, acconto e costi tecnici.",
   },
 ];
@@ -362,14 +385,10 @@ const FV_EDITOR_SECTION_GROUPS: Array<{
     sections: ["brand"],
   },
   {
-    title: "Struttura PDF",
-    sections: ["page_ordine"],
-  },
-  {
     title: "Pagine del PDF",
     // «Conversione» mostrava gli stessi campi di «Contenuti»: ora garanzie e domande
     // hanno la loro pagina, e il resto sta in «Contenuti».
-    sections: PAGINE_EDITOR_FOTOVOLTAICO.map((p) => p.id as FvEditorSection),
+    sections: ["page_ordine", ...PAGINE_EDITOR_FOTOVOLTAICO.map((p) => p.id as FvEditorSection)],
   },
   {
     title: "Dati & contenuti",
@@ -520,7 +539,7 @@ function sanitizeTemplatePayload(value: FvTemplate): Record<string, unknown> {
   return payload;
 }
 
-function FvTemplateQualityPanel({ items }: { items: FvTemplateQualityItem[] }) {
+function FvTemplateQualityPanel({ items, local = false }: { items: FvTemplateQualityItem[]; local?: boolean }) {
   const critical = items.filter((item) => item.level === "critical").length;
   const warnings = items.filter((item) => item.level === "warning").length;
   const ok = critical === 0 && warnings === 0;
@@ -536,10 +555,10 @@ function FvTemplateQualityPanel({ items }: { items: FvTemplateQualityItem[] }) {
           )}
           <div>
             <p className={`font-semibold text-sm ${ok ? "text-emerald-900" : "text-amber-950"}`}>
-              {ok ? "Template fotovoltaico pronto alla vendita" : "Checklist advertiser e venditore"}
+              {local ? "Prima di utilizzare questo modulo" : ok ? "Template fotovoltaico pronto alla vendita" : "Checklist advertiser e venditore"}
             </p>
             <p className={`text-xs mt-0.5 ${ok ? "text-emerald-800" : "text-amber-900"}`}>
-              {ok
+              {local ? "Controlla contenuti aziendali, condizioni e configurazione effettiva. L'anteprima usa dati dimostrativi." : ok
                 ? "Contenuti, garanzie, FAQ e default economici sono coerenti."
                 : `${critical} blocchi critici e ${warnings} warning da sistemare prima di scalare campagne o inviare offerte.`}
             </p>
@@ -665,11 +684,14 @@ function CopyPresetRow({
   field,
   current,
   onPick,
+  disabled = false,
 }: {
   field: keyof typeof FV_COPY_PRESETS;
   current: string;
   onPick: (html: string) => void;
+  disabled?: boolean;
 }) {
+  if (disabled) return null;
   const presets = FV_COPY_PRESETS[field] ?? [];
   if (presets.length === 0) return null;
   const hasContent = current.replace(/<[^>]*>/g, "").trim().length > 0;
@@ -696,7 +718,7 @@ function CopyPresetRow({
   );
 }
 
-export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
+export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localModule }: Props) {
   const [searchParams, setSearchParams] = useSearchParams();
   const { data: template, isLoading } = useFvTemplatePdf();
   const {
@@ -708,7 +730,8 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
   const sectionParam = searchParams.get("section");
   const initialSection: FvEditorSection = isFvEditorSection(sectionParam) ? sectionParam : "brand";
 
-  const [form, setForm] = useState<FvTemplate>({});
+  const [form, setForm] = useState<FvTemplate>(() => localModule ? normalizeTemplate(localModule.template) : {});
+  const [moduleDefaults] = useState(() => localModule ? createFullFvTemplate(localModule.template, localModule.template.company_id, localModule.id) : null);
   // Dati ereditati dal Profilo azienda → placeholder anagrafica (UX allineata a Serramenti).
   const companyAnagrafica = useCompanyAnagraficaForTemplate();
   // Il PDF, senza un logo nel modello, usa quello aziendale (fv-genera-pdf,
@@ -717,11 +740,14 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
   const logoAnteprima = (form.logo_url as string | null) || effectiveCompany?.logo_url || null;
   const companyId = useEffectiveCompanyId();
   const [dirty, setDirty] = useState(false);
+  const [localSaved, setLocalSaved] = useState(localModule?.saved ?? true);
+  const onDirtyChange = localModule?.onDirtyChange;
+  useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
   // Chiudere/ricaricare la scheda con modifiche non salvate ora chiede conferma
   // (il salvataggio qui è solo manuale: prima si perdeva tutto in silenzio).
   useBeforeUnload(dirty);
   const [activeSection, setActiveSection] = useState<FvEditorSection>(initialSection);
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
   const [delRecIdx, setDelRecIdx] = useState<number | null>(null);
   const [delCertIdx, setDelCertIdx] = useState<number | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
@@ -737,13 +763,14 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
   const fotoTeamInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
+    if (localModule || dirty) return;
     if (template) {
       setForm(normalizeTemplate(template as FvTemplate));
       setDirty(false);
     } else if (!isLoading) {
       setForm(normalizeTemplate({}));
     }
-  }, [template, isLoading]);
+  }, [template, isLoading, localModule, dirty]);
 
   useEffect(() => {
     const section = searchParams.get("section");
@@ -757,7 +784,7 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
 
   const selectSection = (section: FvEditorSection) => {
     setActiveSection(section);
-    setMobileSidebarOpen(false);
+
     const next = new URLSearchParams(searchParams);
     next.set("section", section);
     setSearchParams(next, { replace: true });
@@ -771,33 +798,46 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
   // Mappa il draft AI (13 campi generici) sui campi del template Fotovoltaico.
   const applyGeneratedFv = (d: AiTemplateDraft) => {
     if (d.cover_title) update("pdf_cover_hero", d.cover_title);
+    if (d.cover_subtitle) update("pdf_cover_subhero", d.cover_subtitle);
     if (d.chi_siamo) update("presentazione_impresa_html", d.chi_siamo);
     if (d.soluzione?.length)
       update("valore_proposta_html", d.soluzione.map((i) => `<p><strong>${i.titolo}</strong>${i.descrizione ? " — " + i.descrizione : ""}</p>`).join(""));
     if (d.garanzie?.length)
       update("garanzie_conversione", d.garanzie.map((g) => ({ icona: "shield" as const, titolo: g.titolo, descrizione: g.descrizione ?? "" })));
+    if (d.usp?.length)
+      update("usp", d.usp.map((item) => ({ titolo: item.titolo, descrizione: item.descrizione ?? "" })));
+    if (d.percorso?.length)
+      update("percorso_cliente_intro", `<p>${d.percorso.map((item) => `${item.titolo}: ${item.descrizione ?? ""}`).join(". ")}</p>`);
+    if (d.cronoprogramma?.length)
+      update("cronoprogramma", d.cronoprogramma.map((item) => ({ fase: item.fase, durata: item.durata ?? "da concordare", descrizione: item.descrizione ?? "" })));
     if (d.faq?.length) update("faq_items", d.faq.map((f) => ({ domanda: f.domanda, risposta: f.risposta })));
+    if (d.payment_terms_text || d.validity_text) {
+      update("condizioni_legali_attivo", true);
+      update("condizioni_legali_testo", [d.payment_terms_text, d.validity_text].filter(Boolean).join("\n\n"));
+    }
+    const validityDays = d.validity_text?.match(/(\d+)\s*giorni/i)?.[1];
+    if (validityDays) update("scadenza_validita_preventivo_giorni", Number(validityDays));
+    if (d.footer_text) update("pdf_cta_finale_testo", d.footer_text);
   };
 
   // ─── Cover presets 1-click (parità Serramenti) ───────────────────────────
   // Applica in batch tutti i campi pdf_cover_* del preset selezionato.
   const applyCoverPreset = useCallback((presetId: string) => {
-    const preset = COVER_PRESETS.find((p) => p.id === presetId);
+    const preset = COVER_PRESETS.find(item => item.id === presetId);
     if (!preset) return;
-    setForm((prev) => ({ ...prev, ...preset.patch }));
+    setForm(prev => prev ? { ...prev, ...coverStyleOnly(preset.patch) } : prev);
     setDirty(true);
   }, []);
   // Detection live del preset attivo (evidenzia la card). null = personalizzato.
   const activeCoverPresetId = useMemo(() => detectActiveCoverPreset(form), [form]);
   // Preset stili copertina: collassati di default (occupavano troppo spazio).
-  const [showPresets, setShowPresets] = useState(false);
 
   // ─── Galleria immagini stock cover (parità Serramenti) ───────────────────
   const [stockDialogOpen, setStockDialogOpen] = useState(false);
   const [stockCategory, setStockCategory] = useState<CoverStockImage["categoria"] | "all">("all");
   const stockFiltered = useMemo(
-    () => (stockCategory === "all" ? COVER_STOCK_IMAGES : COVER_STOCK_IMAGES.filter((img) => img.categoria === stockCategory)),
-    [stockCategory],
+    () => localModule && moduleDefaults ? fotoDellaLibreria("fotovoltaico", moduleDefaults.pdf_blocchi).map((f, i): CoverStockImage => ({ id: `modulo-${i}`, url: f.url, thumb: f.url, label: f.nome, categoria: "accumulo" })) : (stockCategory === "all" ? COVER_STOCK_IMAGES : COVER_STOCK_IMAGES.filter((img) => img.categoria === stockCategory)),
+    [stockCategory, localModule, moduleDefaults],
   );
   const applyStockImage = useCallback((img: CoverStockImage) => {
     setForm((prev) => ({ ...prev, pdf_cover_image_url: img.url }));
@@ -806,6 +846,16 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
   }, []);
 
   const handleSave = () => {
+    if (localModule) {
+      try {
+        if (companyId !== localModule.template.company_id) throw new Error("L'azienda è cambiata. Riapri il modulo prima di salvare.");
+        localModule.save({ ...localModule.template, ...form });
+        setLocalSaved(true);
+        setDirty(false);
+        toast.success("Modulo salvato in locale", { description: "Il modello aziendale online non è stato modificato." });
+      } catch (error) { toast.error("Salvataggio non riuscito", { description: String(error) }); }
+      return;
+    }
     // Cast a Record perché upsert FV accetta Record<string, unknown>
     upsertMut.mutate(sanitizeTemplatePayload(form), {
       onSuccess: () => {
@@ -823,6 +873,11 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
   // va il percorso del file, non un link firmato che scade dopo un anno (vedi
   // supabase/functions/_shared/immaginiModelloPdf.ts).
   const handleLogoUpload = async (file: File) => {
+    if (localModule) {
+      try { update("logo_url", await readLocalTemplateImage(file)); } catch (error) { toast.error(String(error)); }
+      if (logoInputRef.current) logoInputRef.current.value = "";
+      return;
+    }
     if (!file.type.startsWith("image/")) {
       toast.error("Carica un file immagine");
       return;
@@ -855,6 +910,11 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
   };
 
   const handleCoverLogoUpload = async (file: File) => {
+    if (localModule) {
+      try { update("pdf_cover_logo_url", await readLocalTemplateImage(file)); } catch (error) { toast.error(String(error)); }
+      if (coverLogoInputRef.current) coverLogoInputRef.current.value = "";
+      return;
+    }
     if (!file.type.startsWith("image/")) {
       toast.error("Carica un file immagine");
       return;
@@ -884,6 +944,11 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
   };
 
   const handleCoverUpload = async (file: File) => {
+    if (localModule) {
+      try { update("pdf_cover_image_url", await readLocalTemplateImage(file)); } catch (error) { toast.error(String(error)); }
+      if (coverInputRef.current) coverInputRef.current.value = "";
+      return;
+    }
     if (!file.type.startsWith("image/")) {
       toast.error("Carica un file immagine");
       return;
@@ -935,16 +1000,27 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
   );
   const qualityItems = useMemo(
     () =>
-      buildFvTemplateQualityItems({
+      localModule ? [
+        { level: "warning", section: "Intervento", title: "Configurazione da confermare", detail: "Modello, compatibilità, capacità utile, potenza e dotazioni devono corrispondere alla fornitura reale." },
+        ...(!form.condizioni_legali_attivo || !String(form.condizioni_legali_testo ?? "").trim() ? [{ level: "critical", section: "Condizioni", title: "Condizioni da aggiungere", detail: "Inserisci e verifica i testi approvati dell'azienda prima di utilizzare il modulo per un'offerta." }] : []),
+        { level: "warning", section: "Azienda", title: "Verifica i contenuti ereditati", detail: "La presentazione proviene dal modello aziendale. Conferma che sia corretta; aggiungi solo referenze e certificazioni reali." },
+      ] as FvTemplateQualityItem[] : buildFvTemplateQualityItems({
         ...form,
+        recensioni: form.recensioni?.map(r => ({ ...r })),
+        certificazioni: form.certificazioni?.map(r => ({ ...r })),
+        cantieri_galleria: form.cantieri_galleria?.map(r => ({ ...r })),
         listino_macrocategorie_fv: fvListinoMacrocategorie,
       }),
-    [form, fvListinoMacrocategorie],
+    [form, fvListinoMacrocategorie, localModule],
   );
   const qualityCriticalCount = qualityItems.filter((item) => item.level === "critical").length;
   const qualityWarningCount = qualityItems.filter((item) => item.level === "warning").length;
-  const activeMeta =
-    FV_EDITOR_SECTIONS.find((section) => section.id === activeSection) ?? FV_EDITOR_SECTIONS[0];
+  const editorSections = FV_EDITOR_SECTIONS.filter(section => !localModule || !["page_render", "strategia"].includes(section.id)).map(section => {
+    const key = section.id === "page_percorso" ? "iter" : section.id.replace(/^page_/, "");
+    const custom = localModule?.id === "accumulo" ? FV_ACCUMULO_LABELS[key] : undefined;
+    return custom ? { ...section, description: custom.descrizione } : section;
+  });
+  const activeMeta = editorSections.find((section) => section.id === activeSection) ?? editorSections[0];
 
   const recensioni = form.recensioni ?? [];
   const certificazioni = form.certificazioni ?? [];
@@ -970,6 +1046,7 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
   // ─── Upload immagini (foto azienda + foto impianti recensioni) ─────────────
   // Stesso pattern di logo/cover: bucket fv-progetti, nel modello il percorso del file.
   const uploadTemplateImage = async (file: File, folder: string): Promise<string> => {
+    if (localModule) return readLocalTemplateImage(file);
     if (!companyId) throw new Error("Profilo senza azienda");
     const ext = file.name.includes(".") ? file.name.split(".").pop()!.toLowerCase() : "jpg";
     const storagePath = `${companyId}/${folder}/${crypto.randomUUID()}.${ext}`;
@@ -1113,6 +1190,7 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
   }, [selectedSharedLegalTemplate]);
 
   const saveSharedLegalTemplate = useCallback(async (kind: SharedLegalTemplateKind) => {
+    if (localModule) return;
     const text = String(form.condizioni_legali_testo ?? "").trim();
     if (!text) {
       toast.error("Inserisci prima un testo da salvare");
@@ -1131,9 +1209,9 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
       is_active: true,
     });
     toast.success(kind === "condizioni" ? "Salvato nei Template offerte (Condizioni e termini legali)" : "Termini legali salvati nei Template offerte");
-  }, [form.condizioni_legali_testo, upsertQuoteTemplate]);
+  }, [form.condizioni_legali_testo, upsertQuoteTemplate, localModule]);
 
-  if (isLoading) {
+  if (!localModule && isLoading) {
     return (
       <div className="space-y-3">
         <Skeleton className="h-16" />
@@ -1151,7 +1229,7 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
   const ordinePagineFv = normalizeFvPdfPagesOrder(form.pdf_pages_order ?? null);
   const paginaFvVisibile = paginaFv?.pagina ? ordinePagineFv.find((p) => p.id === paginaFv.pagina)?.visible ?? false : false;
   const campoFotoFv = (valore: string | null, onChange: (url: string | null) => void) => (
-    <CampoFotoModello valore={valore} onChange={onChange} bucket="fv-progetti" cartella={companyId ? `${companyId}/template-blocchi` : null} />
+    <CampoFotoModello localOnly={!!localModule} valore={valore} onChange={onChange} bucket="fv-progetti" cartella={companyId ? `${companyId}/template-blocchi` : null} />
   );
 
   const contenutiPagine = {
@@ -1280,6 +1358,7 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
           icon={<ImageIcon className="h-4 w-4" />}
         >
           <GalleryLavoriEditor
+            localOnly={!!localModule}
             items={(form.gallery_lavori ?? []) as GalleryLavoroItem[]}
             onChange={(items) => update("gallery_lavori", items)}
             bucket="fv-progetti"
@@ -1297,7 +1376,7 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
               type="button"
               size="sm"
               variant="outline"
-              onClick={() => update("garanzie_conversione", DEFAULT_FV_GARANZIE)}
+              onClick={() => update("garanzie_conversione", moduleDefaults?.garanzie_conversione ?? DEFAULT_FV_GARANZIE)}
               className="h-7 text-[11px]"
             >
               Ripristina default
@@ -1371,7 +1450,7 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
               type="button"
               size="sm"
               variant="outline"
-              onClick={() => update("usp", DEFAULT_FV_USP)}
+              onClick={() => update("usp", moduleDefaults?.usp ?? DEFAULT_FV_USP)}
               className="h-7 text-[11px]"
             >
               Ripristina default
@@ -1473,7 +1552,7 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
             type="button"
             size="sm"
             variant="outline"
-            onClick={() => update("faq_items", DEFAULT_FV_FAQ)}
+            onClick={() => update("faq_items", moduleDefaults?.faq_items ?? DEFAULT_FV_FAQ)}
             className="h-7 text-[11px]"
           >
             Ripristina default
@@ -1540,7 +1619,7 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
             </span>
           ) : (
             <span className="hidden rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 sm:inline-block">
-              ✓ Salvato
+              {localSaved ? "✓ Salvato" : "Modello pronto · non ancora salvato"}
             </span>
           )}
           <span
@@ -1558,17 +1637,25 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
           </span>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <AiTemplateGenerator
+          {localModule && moduleDefaults && <InterventionTextPicker title={localModule.id === "accumulo" ? "Accumulo fotovoltaico" : moduleDefaults.pdf_cover_eyebrow || "Fotovoltaico"} choices={accumuloCopyChoices(moduleDefaults)} onApply={patch => { setForm(prev => ({ ...prev, ...patch })); setDirty(true); }} />}
+          {!localModule && <AiTemplateGenerator
             settoreFn="ai-genera-template-fotovoltaico"
             onApply={applyGeneratedFv}
             className="gap-1.5 h-9 px-3 text-sm bg-orange-500 hover:bg-orange-600"
-          />
+          />}
+          {!localModule && <StandardTextTemplatePicker
+            module="fotovoltaico"
+            onApply={applyGeneratedFv}
+            snapshot={form as unknown as Record<string, unknown>}
+            className="h-9 px-3 text-sm"
+          />}
           <Button
             type="button"
             variant="outline"
             size="sm"
             className="gap-1"
             onClick={() => setPreviewOpen(true)}
+            aria-label="Anteprima PDF"
           >
             <Eye className="h-4 w-4" />
             <span className="hidden sm:inline">Anteprima PDF</span>
@@ -1576,337 +1663,62 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
           </Button>
           <Button
             onClick={handleSave}
-            disabled={!dirty || upsertMut.isPending}
+            disabled={(!dirty && localSaved) || upsertMut.isPending}
             className="bg-sky-700 hover:bg-sky-800 gap-1"
             size="sm"
           >
             {upsertMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            Salva
+            {localModule ? "Salva in locale" : "Salva"}
           </Button>
         </div>
       </div>
 
-      <FvTemplateQualityPanel items={qualityItems} />
+      <FvTemplateQualityPanel items={qualityItems} local={!!localModule} />
 
-      <div className="flex items-center justify-between gap-2 rounded-lg border border-sky-200 bg-sky-50 p-2 md:hidden">
-        <div className="min-w-0 text-xs text-sky-900">
-          <span className="font-semibold">{activeMeta.label}</span>
-          <span className="ml-1 text-sky-700">{activeMeta.description}</span>
-        </div>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => setMobileSidebarOpen((open) => !open)}
-          className="h-7 border-sky-300 text-[11px]"
-        >
-          {mobileSidebarOpen ? "Chiudi" : "Sezioni"}
-        </Button>
-      </div>
-
-      <div className="grid grid-cols-12 gap-4">
-        <aside className={`col-span-12 md:col-span-3 ${mobileSidebarOpen ? "block" : "hidden md:block"}`}>
-          <nav className="sticky top-[68px] max-h-[calc(100vh-90px)] overflow-y-auto rounded-lg border border-slate-200 bg-white p-2">
+      <TemplateEditorWorkspace moduleId={localModule?.id}>
+        <TemplateEditorNavigation>
+          <nav className={templateEditorLayout.navigationPanel}>
             <div className="px-2 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
               Modulo fotovoltaico
             </div>
             <div className="space-y-3">
-              {FV_EDITOR_SECTION_GROUPS.map((group) => (
-                <div key={group.title}>
-                  <div className="px-2 pb-1 pt-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                    {group.title}
-                  </div>
-                  <div className="space-y-1">
-                    {group.sections.map((sectionId, index) => {
-                      const section = FV_EDITOR_SECTIONS.find((item) => item.id === sectionId);
-                      if (!section) return null;
-                      const isActive = activeSection === section.id;
-                      return (
-                        <button
-                          key={section.id}
-                          type="button"
-                          onClick={() => selectSection(section.id)}
-                          className={
-                            "w-full rounded-md px-2 py-2 text-left transition-all " +
-                            (isActive
-                              ? "bg-sky-700 text-white shadow-sm"
-                              : "text-slate-700 hover:bg-sky-50")
-                          }
-                        >
-                          <div className="flex items-center gap-2">
-                            <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[10px] font-bold ${isActive ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500"}`}>
-                              {group.title === "Pagine del PDF" ? index + 1 : section.icon.slice(0, 2)}
-                            </span>
-                            <span className="min-w-0">
-                              <span className={`block truncate text-xs font-semibold ${isActive ? "text-white" : "text-slate-900"}`}>
-                                {section.label}
-                              </span>
-                              <span className={`block truncate text-[10px] ${isActive ? "text-sky-50" : "text-slate-500"}`}>
-                                {section.description}
-                              </span>
-                            </span>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
+              <TemplateSectionNavigation groups={FV_EDITOR_SECTION_GROUPS.map(group => ({ label: group.title, items: group.sections.flatMap(id => { const item = editorSections.find(section => section.id === id); return item ? [{ id: item.id, label: item.label, emoji: item.icon, descr: item.description }] : []; }) }))} activeSection={activeSection} onSelect={selectSection} isExcluded={id => orderedSectionExcluded("fotovoltaico", ordinePagineFv, id)} />
             </div>
           </nav>
-        </aside>
+        </TemplateEditorNavigation>
 
-        <div className="col-span-12 min-w-0 space-y-4 md:col-span-9 xl:col-span-5">
+        <div className={templateEditorLayout.content} data-template-content data-template-editor-content="fotovoltaico">
 
       {activeSection === "page_cover" && (
         <>
           <FvSectionHeader
-            title="Cover preventivo fotovoltaico"
+            title="Copertina"
             description="Come nel serramento: puoi controllare immagine, titolo, sottotitolo dinamico, colori e card cliente della prima pagina."
             number={1}
           />
           {/* ─── Preset stili cover 1-click (parità Serramenti) ───────────── */}
-          <div className="rounded-lg border bg-gradient-to-br from-sky-50 to-cyan-50/30 p-3 space-y-3 mb-4">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <div>
-                <Label className="text-xs font-semibold uppercase tracking-wide text-sky-700">
-                  ✨ Preset stili — anteprima reale 1-click
-                </Label>
-                <p className="text-[10px] text-muted-foreground mt-0.5">
-                  Configurazione completa (colori, font, layout) in un click. L'immagine di sfondo non viene modificata.
-                </p>
-              </div>
-              {activeCoverPresetId && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 border border-sky-300 text-sky-800 px-2 h-5 text-[10px]">
-                  <span className="text-sm leading-none">{COVER_PRESETS.find((p) => p.id === activeCoverPresetId)?.emoji}</span>
-                  Attivo: {COVER_PRESETS.find((p) => p.id === activeCoverPresetId)?.nome}
-                </span>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowPresets((v) => !v)}
-              className="w-full flex items-center justify-between rounded-md border border-sky-200 bg-white hover:bg-sky-50 px-2.5 py-1.5 text-[11px] font-medium text-slate-700 transition-colors"
-            >
-              <span>{showPresets ? "Nascondi preset stili" : "Scegli un preset pronto (1 click)"}</span>
-              <span className="text-slate-400 text-[10px]">{showPresets ? "▲ chiudi" : "▼ apri"}</span>
-            </button>
-            {showPresets && (<>
-            {(["solid", "photo"] as const).map((cat) => {
-              const presetsInCat = COVER_PRESETS.filter((p) => p.category === cat);
-              if (presetsInCat.length === 0) return null;
-              const catLabel = cat === "solid"
-                ? { emoji: "🎨", title: "Solo colore (no immagine)", subtitle: "Background solido con titolo e accent" }
-                : { emoji: "📷", title: "Con immagine sfondo", subtitle: "Foto come sfondo + overlay scuro per leggibilità" };
-              return (
-                <div key={cat} className="space-y-2">
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-sm">{catLabel.emoji}</span>
-                    <span className="text-xs font-bold uppercase tracking-wide text-slate-700">{catLabel.title}</span>
-                    <span className="text-[10px] text-muted-foreground">{catLabel.subtitle}</span>
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
-                    {presetsInCat.map((p) => {
-                      const isActive = activeCoverPresetId === p.id;
-                      const tv = p.patch.pdf_cover_text_vertical ?? "bottom";
-                      const ta = p.patch.pdf_cover_text_align ?? "left";
-                      return (
-                        <button
-                          key={p.id}
-                          type="button"
-                          onClick={() => applyCoverPreset(p.id)}
-                          title={p.descrizione}
-                          className={
-                            "group relative rounded-lg overflow-hidden transition-all text-left focus:outline-none focus:ring-2 focus:ring-sky-400 bg-white border-2 " +
-                            (isActive ? "border-sky-500 shadow-md ring-2 ring-sky-300" : "border-slate-200 hover:border-sky-300 hover:shadow-sm")
-                          }
-                        >
-                          <div className="relative w-full overflow-hidden flex flex-col p-2" style={{ aspectRatio: "210/297", backgroundColor: p.swatchBg, color: p.swatchText }}>
-                            {p.category === "photo" && (
-                              <div className="absolute inset-0 pointer-events-none opacity-40" style={{ backgroundImage: "linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0) 50%, rgba(0,0,0,0.25) 100%)" }} />
-                            )}
-                            <div className="absolute top-1.5 left-1.5 text-[7px] font-bold uppercase tracking-wider px-1 py-px rounded-sm z-10" style={{ backgroundColor: "rgba(255,255,255,0.92)", color: "#475569" }}>
-                              {p.category === "solid" ? "● colore" : "📷 foto"}
-                            </div>
-                            <div className="relative flex-1 flex flex-col z-[1]" style={{ justifyContent: tv === "top" ? "flex-start" : tv === "center" ? "center" : "flex-end" }}>
-                              <div style={{ textAlign: ta === "center" ? "center" : "left" }}>
-                                <div className="font-bold uppercase tracking-wider mb-1" style={{ fontSize: 5, color: p.swatchAccent, opacity: 0.9 }}>★ Proposta</div>
-                                <div className="font-bold leading-tight whitespace-pre-line" style={{ fontSize: Math.max(7, (p.patch.pdf_cover_title_size ?? 40) * 0.16) }}>{p.sampleTitle}</div>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="px-2 py-1.5 bg-white border-t border-slate-100">
-                            <div className="flex items-center gap-1">
-                              <span className="text-sm leading-none">{p.emoji}</span>
-                              <span className="text-[11px] font-semibold text-slate-900 truncate">{p.nome}</span>
-                            </div>
-                            <div className="flex items-center gap-1 mt-0.5">
-                              <span className="text-[8px] uppercase tracking-wide bg-slate-100 text-slate-600 px-1 py-px rounded font-semibold">{p.tag}</span>
-                            </div>
-                          </div>
-                          {isActive && (
-                            <div className="absolute top-1.5 right-1.5 bg-sky-500 text-white rounded-full w-5 h-5 flex items-center justify-center shadow-md z-10">
-                              <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                            </div>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-            {!activeCoverPresetId && (
-              <p className="text-[10px] text-amber-700 bg-amber-100/60 rounded px-2 py-1 inline-block">
-                💡 Configurazione personalizzata — non corrisponde a nessun preset. I tuoi valori vengono mantenuti.
-              </p>
-            )}
-            </>)}
-          </div>
+          <TemplateCoverStylePicker presets={COVER_PRESETS} activeId={activeCoverPresetId} onApply={applyCoverPreset} />
+<div className="my-4"><TemplateCoverTextFields value={{ eyebrow: form.pdf_cover_eyebrow, title: form.pdf_cover_hero, subtitle: form.pdf_cover_subhero, dynamicSubtitle: form.pdf_cover_subhero_template }} onChange={(field, value) => { if (field === "eyebrow") { update("pdf_cover_eyebrow", (value ?? "") || null); }
+if (field === "title") { update("pdf_cover_hero", (value ?? "") || null); }
+if (field === "subtitle") { update("pdf_cover_subhero", (value ?? "") || null); }
+if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?? "") || null); } }} dynamicSubtitle  placeholders={(value, onChange) => <PlaceholderChips value={value} onChange={onChange} accumulo={!!localModule} />} /></div>
           {/* Colonna singola: l'anteprima è ora nel pannello live globale a destra. */}
           <div className="grid gap-4">
-            <FvSettingsCard
-              title="Testi e stile copertina"
-              description="Il sottotitolo dinamico usa i dati del preventivo senza rendere statici prodotti o componenti."
-              icon={<ImageIcon className="h-4 w-4" />}
-            >
-              <div className="grid grid-cols-12 gap-3">
-                <div className="col-span-12 md:col-span-6">
-                  <Label className="text-xs">Eyebrow</Label>
-                  <Input
-                    value={form.pdf_cover_eyebrow ?? ""}
-                    onChange={(e) => update("pdf_cover_eyebrow", e.target.value || null)}
-                    placeholder="La tua proposta personalizzata"
-                    className="h-9 text-xs"
-                  />
-                  <PlaceholderChips
-                    value={form.pdf_cover_eyebrow ?? ""}
-                    onChange={(v) => update("pdf_cover_eyebrow", v || null)}
-                  />
-                </div>
-                <div className="col-span-12 md:col-span-6">
-                  <Label className="text-xs">Titolo hero</Label>
-                  <Textarea
-                    value={form.pdf_cover_hero ?? ""}
-                    onChange={(e) => update("pdf_cover_hero", e.target.value || null)}
-                    rows={2}
-                    placeholder={"Il sole\ndiventa tuo."}
-                  />
-                  <PlaceholderChips
-                    value={form.pdf_cover_hero ?? ""}
-                    onChange={(v) => update("pdf_cover_hero", v || null)}
-                  />
-                </div>
-                <div className="col-span-12">
-                  <Label className="text-xs">Sottotitolo statico</Label>
-                  <Input
-                    value={form.pdf_cover_subhero ?? ""}
-                    onChange={(e) => update("pdf_cover_subhero", e.target.value || null)}
-                    placeholder="Usato se non compili il template dinamico"
-                    className="h-9 text-xs"
-                  />
-                </div>
-                <div className="col-span-12">
-                  <Label className="text-xs">Sottotitolo dinamico</Label>
-                  <Textarea
-                    value={form.pdf_cover_subhero_template ?? ""}
-                    onChange={(e) => update("pdf_cover_subhero_template", e.target.value || null)}
-                    rows={2}
-                    placeholder="Impianto fotovoltaico {potenza_kwp} {accumulo_kwh} per {indirizzo}."
-                  />
-                  <PlaceholderChips
-                    value={form.pdf_cover_subhero_template ?? ""}
-                    onChange={(v) => update("pdf_cover_subhero_template", v || null)}
-                  />
-                </div>
-                <div className="col-span-12 md:col-span-4">
-                  <Label className="text-xs">Sfondo solido</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      type="color"
-                      value={form.pdf_cover_bg_color ?? "#0F2542"}
-                      onChange={(e) => update("pdf_cover_bg_color", e.target.value)}
-                      className="h-9 w-14 p-1"
-                    />
-                    <Input
-                      value={form.pdf_cover_bg_color ?? ""}
-                      onChange={(e) => update("pdf_cover_bg_color", e.target.value || null)}
-                      className="h-9 font-mono text-xs"
-                    />
-                  </div>
-                </div>
-                <div className="col-span-12 md:col-span-4">
-                  <Label className="text-xs">Colore testo</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      type="color"
-                      value={form.pdf_cover_text_color ?? "#FFFFFF"}
-                      onChange={(e) => update("pdf_cover_text_color", e.target.value)}
-                      className="h-9 w-14 p-1"
-                    />
-                    <Input
-                      value={form.pdf_cover_text_color ?? ""}
-                      onChange={(e) => update("pdf_cover_text_color", e.target.value || null)}
-                      className="h-9 font-mono text-xs"
-                    />
-                  </div>
-                </div>
-                <div className="col-span-12 md:col-span-4">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-xs">Opacità overlay</Label>
-                    <span className="text-[11px] font-semibold text-sky-700">{form.pdf_cover_overlay_opacity ?? 62}%</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={0}
-                    max={100}
-                    value={form.pdf_cover_overlay_opacity ?? 62}
-                    onChange={(e) => update("pdf_cover_overlay_opacity", Number(e.target.value))}
-                    className="w-full mt-2 accent-sky-600"
-                    aria-label="Opacità overlay scuro"
-                  />
-                </div>
-                <div className="col-span-12 flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    variant={(form.pdf_cover_text_align ?? "left") === "left" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => update("pdf_cover_text_align", "left")}
-                    className={(form.pdf_cover_text_align ?? "left") === "left" ? "bg-sky-700 hover:bg-sky-800" : ""}
-                  >
-                    Allinea sinistra
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={form.pdf_cover_text_align === "center" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => update("pdf_cover_text_align", "center")}
-                    className={form.pdf_cover_text_align === "center" ? "bg-sky-700 hover:bg-sky-800" : ""}
-                  >
-                    Centra
-                  </Button>
-                  <label className="flex items-center gap-2 rounded-md border border-slate-200 px-3 py-1.5 text-xs">
-                    <input
-                      type="checkbox"
-                      checked={form.pdf_cover_show_client_card !== false}
-                      onChange={(e) => update("pdf_cover_show_client_card", e.target.checked)}
-                    />
-                    Mostra card cliente
-                  </label>
-                </div>
-                <div className="col-span-12 md:col-span-6">
-                  <Label className="text-xs">Posizione logo</Label>
-                  <select
-                    value={form.pdf_cover_logo_position ?? "top_left"}
-                    onChange={(e) => update("pdf_cover_logo_position", e.target.value as FvTemplate["pdf_cover_logo_position"])}
-                    className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-xs"
-                  >
-                    <option value="top_left">In alto a sinistra</option>
-                    <option value="top_right">In alto a destra</option>
-                    <option value="top_center">Centrato</option>
-                    <option value="hidden">Nascosto</option>
-                  </select>
-                </div>
-                <div className="col-span-12 md:col-span-6">
+            <TemplateCoverDesignControls hasImage={!!form.pdf_cover_image_url} fields={[
+{id:"eyebrowSize",kind:"range",value:form.pdf_cover_eyebrow_size ?? 11,min:8,max:14,step:1,unit:"pt",onChange:value=>update("pdf_cover_eyebrow_size", value)},
+{id:"titleSize",kind:"range",value:form.pdf_cover_title_size ?? 40,min:28,max:64,step:1,unit:"pt",onChange:value=>update("pdf_cover_title_size", value)},
+{id:"subtitleSize",kind:"range",value:form.pdf_cover_subtitle_size ?? 13,min:10,max:18,step:1,unit:"pt",onChange:value=>update("pdf_cover_subtitle_size", value)},
+{id:"overlayOpacity",kind:"range",value:form.pdf_cover_overlay_opacity ?? 62,min:0,max:100,step:1,unit:"%",onChange:value=>update("pdf_cover_overlay_opacity", value)},
+{id:"textAlign",kind:"choice",value:form.pdf_cover_text_align ?? "left",choices:COVER_DESIGN_CHOICES.textAlign,onChange:value=>update("pdf_cover_text_align", value as typeof form.pdf_cover_text_align)},
+{id:"textVertical",kind:"choice",value:form.pdf_cover_text_vertical ?? "bottom",choices:COVER_DESIGN_CHOICES.textVertical,onChange:value=>update("pdf_cover_text_vertical", value as typeof form.pdf_cover_text_vertical)},
+{id:"logoPosition",kind:"choice",value:form.pdf_cover_logo_position ?? "top_left",choices:COVER_DESIGN_CHOICES.logoPosition,onChange:value=>update("pdf_cover_logo_position", value as typeof form.pdf_cover_logo_position)},
+{id:"overlayStyle",kind:"choice",value:form.pdf_cover_overlay_style ?? "flat",choices:COVER_DESIGN_CHOICES.overlayStyle,onChange:value=>update("pdf_cover_overlay_style", value as typeof form.pdf_cover_overlay_style)},
+{id:"decorationStyle",kind:"choice",value:form.pdf_cover_decoration_style ?? "square",choices:COVER_DESIGN_CHOICES.decorationStyle,onChange:value=>update("pdf_cover_decoration_style", value as typeof form.pdf_cover_decoration_style)},
+{id:"textColor",kind:"color",value:form.pdf_cover_text_color,fallback:"#FFFFFF",onChange:value=>update("pdf_cover_text_color", value || null),onReset:()=>update("pdf_cover_text_color", null)},
+{id:"backgroundColor",kind:"color",value:form.pdf_cover_bg_color,fallback:"#0F2542",onChange:value=>update("pdf_cover_bg_color", value || null),onReset:()=>update("pdf_cover_bg_color", null)},
+{id:"showDecoration",kind:"toggle",value:form.pdf_cover_show_decoration !== false,onChange:value=>update("pdf_cover_show_decoration", value)},
+{id:"showClientCard",kind:"toggle",value:form.pdf_cover_show_client_card !== false,onChange:value=>update("pdf_cover_show_client_card", value)}
+]}><div className="col-span-12 md:col-span-6">
                   <Label className="text-xs">URL immagine cover</Label>
                   <Input
                     value={form.pdf_cover_image_url ?? ""}
@@ -1914,231 +1726,9 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
                     placeholder="https://..."
                     className="h-9 text-xs"
                   />
-                </div>
-                {/* ─── Layout cover (parità Serramenti): posizione verticale,
-                     overlay, decorazione, dimensioni font ─────────────────── */}
-                <div className="col-span-12">
-                  <Label className="text-xs">Posizione verticale testo</Label>
-                  <div className="flex flex-wrap gap-2 mt-1">
-                    {([["top", "In alto"], ["center", "Centro"], ["bottom", "In basso"]] as const).map(([v, lbl]) => (
-                      <Button key={v} type="button" size="sm"
-                        variant={(form.pdf_cover_text_vertical ?? "bottom") === v ? "default" : "outline"}
-                        onClick={() => update("pdf_cover_text_vertical", v)}
-                        className={(form.pdf_cover_text_vertical ?? "bottom") === v ? "bg-sky-700 hover:bg-sky-800" : ""}
-                      >{lbl}</Button>
-                    ))}
-                  </div>
-                </div>
-                <div className="col-span-12 md:col-span-6">
-                  <Label className="text-xs">Stile overlay (su immagine)</Label>
-                  <select
-                    value={form.pdf_cover_overlay_style ?? "flat"}
-                    onChange={(e) => update("pdf_cover_overlay_style", e.target.value as FvTemplate["pdf_cover_overlay_style"])}
-                    className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-xs"
-                  >
-                    <option value="flat">Piatto</option>
-                    <option value="gradient">Gradient (dal basso)</option>
-                    <option value="gradient_diag">Gradient diagonale</option>
-                    <option value="vignette">Vignette</option>
-                  </select>
-                </div>
-                <div className="col-span-12 md:col-span-6">
-                  <Label className="text-xs">Decorazione angolo</Label>
-                  <div className="flex items-center gap-2">
-                    <label className="flex items-center gap-1.5 text-xs whitespace-nowrap">
-                      <input type="checkbox" checked={form.pdf_cover_show_decoration !== false}
-                        onChange={(e) => update("pdf_cover_show_decoration", e.target.checked)} />
-                      Mostra
-                    </label>
-                    <select
-                      value={form.pdf_cover_decoration_style ?? "square"}
-                      onChange={(e) => update("pdf_cover_decoration_style", e.target.value as FvTemplate["pdf_cover_decoration_style"])}
-                      disabled={form.pdf_cover_show_decoration === false}
-                      className="h-9 flex-1 rounded-md border border-input bg-background px-2 py-1 text-xs disabled:opacity-50"
-                    >
-                      <option value="square">Finestra</option>
-                      <option value="circle">Anelli</option>
-                      <option value="line">Linea</option>
-                      <option value="pattern">Pattern</option>
-                      <option value="none">Nessuna</option>
-                    </select>
-                  </div>
-                </div>
-                <div className="col-span-12 md:col-span-4">
-                  <Label className="text-xs">Dim. titolo ({form.pdf_cover_title_size ?? 40})</Label>
-                  <input type="range" min={28} max={64} value={form.pdf_cover_title_size ?? 40}
-                    onChange={(e) => update("pdf_cover_title_size", Number(e.target.value))} className="w-full" />
-                </div>
-                <div className="col-span-12 md:col-span-4">
-                  <Label className="text-xs">Dim. sottotitolo ({form.pdf_cover_subtitle_size ?? 13})</Label>
-                  <input type="range" min={10} max={18} value={form.pdf_cover_subtitle_size ?? 13}
-                    onChange={(e) => update("pdf_cover_subtitle_size", Number(e.target.value))} className="w-full" />
-                </div>
-                <div className="col-span-12 md:col-span-4">
-                  <Label className="text-xs">Dim. eyebrow ({form.pdf_cover_eyebrow_size ?? 11})</Label>
-                  <input type="range" min={8} max={14} value={form.pdf_cover_eyebrow_size ?? 11}
-                    onChange={(e) => update("pdf_cover_eyebrow_size", Number(e.target.value))} className="w-full" />
-                </div>
-              </div>
-            </FvSettingsCard>
+                </div></TemplateCoverDesignControls>
 
-            <FvSettingsCard
-              title="Anteprima e immagine"
-              description="La cover resta un template; i dati cliente e impianto arrivano dal preventivo."
-            >
-              <input
-                ref={coverInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => e.target.files?.[0] && handleCoverUpload(e.target.files[0])}
-              />
-              <div
-                className="relative aspect-[3/4] overflow-hidden rounded-md border bg-slate-900 p-5 shadow-sm"
-                style={{
-                  backgroundColor: form.pdf_cover_bg_color ?? "#0F2542",
-                  color: form.pdf_cover_text_color ?? "#FFFFFF",
-                  textAlign: form.pdf_cover_text_align === "center" ? "center" : "left",
-                }}
-              >
-                {form.pdf_cover_image_url && (
-                  <ImgRiservata loading="lazy"
-                    src={form.pdf_cover_image_url}
-                    alt=""
-                    className="absolute inset-0 h-full w-full object-cover"
-                    aria-hidden="true"
-                  />
-                )}
-                {form.pdf_cover_image_url && (() => {
-                  const op = (form.pdf_cover_overlay_opacity ?? 62) / 100;
-                  const st = form.pdf_cover_overlay_style ?? "flat";
-                  let bg = "#000000"; let o: number = op;
-                  if (st === "gradient") { bg = `linear-gradient(to bottom, rgba(0,0,0,${op * 0.15}) 0%, rgba(0,0,0,${op * 0.55}) 55%, rgba(0,0,0,${op}) 100%)`; o = 1; }
-                  else if (st === "gradient_diag") { bg = `linear-gradient(135deg, rgba(0,0,0,${op * 0.2}) 0%, rgba(0,0,0,${op}) 100%)`; o = 1; }
-                  else if (st === "vignette") { bg = `radial-gradient(ellipse at center, rgba(0,0,0,${op * 0.1}) 0%, rgba(0,0,0,${op * 0.5}) 70%, rgba(0,0,0,${op * 0.95}) 100%)`; o = 1; }
-                  return <div className="absolute inset-0 pointer-events-none" style={{ background: bg, opacity: o }} />;
-                })()}
-                {/* Decoro angolo style-aware (colore = testo cover → armonizza, come Serramenti) */}
-                {form.pdf_cover_show_decoration !== false && (() => {
-                  const v = form.pdf_cover_decoration_style ?? "square";
-                  if (v === "none") return null;
-                  const c = form.pdf_cover_text_color || "#FFFFFF";
-                  return (
-                    <svg viewBox="0 0 180 180" aria-hidden className="absolute top-3 right-3 w-10 h-10 pointer-events-none z-[1]">
-                      {v === "circle" ? (
-                        <>
-                          <circle cx={90} cy={90} r={80} stroke={c} strokeWidth={3} fill="none" opacity={0.7} />
-                          <circle cx={90} cy={90} r={56} stroke={c} strokeWidth={1.5} fill="none" opacity={0.4} />
-                          <circle cx={90} cy={90} r={32} stroke={c} strokeWidth={1} fill="none" opacity={0.25} />
-                        </>
-                      ) : v === "line" ? (
-                        <>
-                          <path d="M 90 10 L 90 170" stroke={c} strokeWidth={2.5} opacity={0.7} />
-                          <path d="M 70 40 L 110 40" stroke={c} strokeWidth={1.5} opacity={0.5} />
-                          <path d="M 70 140 L 110 140" stroke={c} strokeWidth={1.5} opacity={0.5} />
-                        </>
-                      ) : v === "pattern" ? (
-                        <g opacity={0.45} fill={c}>
-                          {Array.from({ length: 25 }).map((_, i) => (<circle key={i} cx={30 + (i % 5) * 30} cy={30 + Math.floor(i / 5) * 30} r={3} />))}
-                        </g>
-                      ) : (
-                        <>
-                          <g opacity={0.7} stroke={c} fill="none">
-                            <rect x={20} y={20} width={140} height={140} rx={6} strokeWidth={3} />
-                            <path d="M 90 25 L 90 155" strokeWidth={2} />
-                            <path d="M 25 90 L 155 90" strokeWidth={2} />
-                          </g>
-                          <circle cx={84} cy={90} r={3} fill={c} opacity={0.7} />
-                        </>
-                      )}
-                    </svg>
-                  );
-                })()}
-                <div className="relative z-[1] flex h-full flex-col">
-                  {(form.pdf_cover_logo_position ?? "top_left") !== "hidden" && (
-                    <div
-                      className={
-                        "flex items-center gap-2 " +
-                        (form.pdf_cover_logo_position === "top_right"
-                          ? "justify-end"
-                          : form.pdf_cover_logo_position === "top_center"
-                            ? "justify-center"
-                            : "justify-start")
-                      }
-                    >
-                      <div className="flex h-9 w-9 items-center justify-center rounded bg-orange-500 text-white">
-                        {(form.pdf_cover_logo_url ?? form.logo_url) ? (
-                          <ImgRiservata loading="lazy" src={(form.pdf_cover_logo_url ?? form.logo_url) as string} alt="" className="h-full w-full rounded object-contain bg-white p-1" />
-                        ) : (
-                          <Sun className="h-5 w-5" />
-                        )}
-                      </div>
-                      <span className="text-xs font-semibold">Azienda</span>
-                    </div>
-                  )}
-                  <div
-                    className="space-y-3"
-                    style={{
-                      marginTop: (form.pdf_cover_text_vertical ?? "bottom") === "top" ? "1rem" : "auto",
-                      marginBottom: (form.pdf_cover_text_vertical ?? "bottom") === "bottom" ? 0 : "auto",
-                    }}
-                  >
-                    <div className="font-bold uppercase tracking-widest text-orange-200" style={{ fontSize: `${(form.pdf_cover_eyebrow_size ?? 11) * 0.85}px` }}>
-                      {form.pdf_cover_eyebrow || "La tua proposta personalizzata"}
-                    </div>
-                    <div className="whitespace-pre-line font-black leading-none" style={{ fontSize: `${(form.pdf_cover_title_size ?? 40) * 0.7}px` }}>
-                      {form.pdf_cover_hero || "Il sole\ndiventa tuo."}
-                    </div>
-                    <div className="leading-relaxed opacity-85" style={{ fontSize: `${(form.pdf_cover_subtitle_size ?? 13) * 0.92}px` }}>
-                      {form.pdf_cover_subhero_template || form.pdf_cover_subhero || "Impianto fotovoltaico {potenza_kwp} {accumulo_kwh} per {indirizzo}."}
-                    </div>
-                    {form.pdf_cover_show_client_card !== false && (
-                      <div className="rounded-md border border-white/20 bg-white/10 p-3 text-xs">
-                        Card cliente dinamica
-                      </div>
-                    )}
-                  </div>
-                </div>
-                {uploadingCover && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-white/80">
-                    <Loader2 className="h-5 w-5 animate-spin text-sky-700" />
-                  </div>
-                )}
-              </div>
-              <div className="mt-3 flex gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => coverInputRef.current?.click()}
-                  disabled={uploadingCover}
-                  className="flex-1 gap-1"
-                >
-                  <Upload className="h-3.5 w-3.5" />
-                  {form.pdf_cover_image_url ? "Cambia" : "Carica"}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setStockDialogOpen(true)}
-                  className="flex-1 gap-1 border-sky-200 text-sky-700 hover:bg-sky-50"
-                >
-                  📷 Galleria stock
-                </Button>
-                {form.pdf_cover_image_url && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => update("pdf_cover_image_url", null)}
-                    className="text-rose-600"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                )}
-              </div>
-            </FvSettingsCard>
+            <FvSettingsCard title="Immagine copertina"><TemplateImageFieldView imageComponent={ImgRiservata} label="Immagine copertina" value={form.pdf_cover_image_url ?? null} busy={uploadingCover} localOnly={!!localModule} inputRef={coverInputRef} onFile={file => { if (file) return handleCoverUpload(file); }} onRemove={() => update("pdf_cover_image_url", null)} /><Button type="button" size="sm" variant="outline" onClick={() => setStockDialogOpen(true)}>Scegli dalla libreria</Button></FvSettingsCard>
           </div>
         </>
       )}
@@ -2147,7 +1737,7 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
       {activeSection === "brand" && (
         <>
       <FvSectionHeader
-        title="Brand e azienda"
+        title="Azienda e stile"
         description="Questa sezione allinea il modulo FV alla struttura serramenti: identità, contatti e dati usati nel PDF."
         number={1}
       />
@@ -2375,6 +1965,7 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
               <div className="col-span-12">
                 <Label className="text-xs">Testo Chi siamo</Label>
                 <CopyPresetRow
+                  disabled={!!localModule}
                   field="presentazione_impresa_html"
                   current={form.presentazione_impresa_html ?? ""}
                   onPick={(html) => update("presentazione_impresa_html", html)}
@@ -2394,7 +1985,7 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
       {activeSection === "page_percorso" && (
         <>
           <FvSectionHeader
-            title="Pagina Il tuo percorso"
+            title="Come lavoriamo"
             description="Copy introduttivo della pagina iter: chiarisce tempi, responsabilita e prossime azioni."
             number={3}
           />
@@ -2404,6 +1995,7 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
           >
             <CopyPresetRow
               field="percorso_cliente_intro"
+              disabled={!!localModule}
               current={form.percorso_cliente_intro ?? ""}
               onPick={(html) => update("percorso_cliente_intro", html)}
             />
@@ -2427,7 +2019,7 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
                   type="button"
                   size="sm"
                   variant="outline"
-                  onClick={() => update("cronoprogramma", DEFAULT_FV_CRONOPROGRAMMA)}
+                  onClick={() => update("cronoprogramma", moduleDefaults?.cronoprogramma ?? DEFAULT_FV_CRONOPROGRAMMA)}
                   className="h-7 text-[11px]"
                 >
                   Ripristina default
@@ -2501,6 +2093,7 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
           >
             <CopyPresetRow
               field="consulente_descrizione_default"
+              disabled={!!localModule}
               current={form.consulente_descrizione_default ?? ""}
               onPick={(html) => update("consulente_descrizione_default", html)}
             />
@@ -2538,7 +2131,7 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
       {activeSection === "page_cta" && (
         <>
           <FvSectionHeader
-            title="Pagina CTA finale"
+            title="I prossimi passi"
             description="Titolo e testo prima della firma: deve trasformare il preventivo in prossima azione."
             number={6}
           />
@@ -2581,6 +2174,9 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
             icon={<FileText className="h-4 w-4" />}
           >
             <FvPagesOrderEditor
+              ordineDiSerie={moduleDefaults?.pdf_pages_order}
+              escluse={localModule ? FV_ACCUMULO_PAGINE_NON_APPLICABILI : undefined}
+              labels={localModule?.id === "accumulo" ? FV_ACCUMULO_LABELS : undefined}
               value={form.pdf_pages_order ?? null}
               onChange={(next) => update("pdf_pages_order", next)}
               blocchi={form.pdf_blocchi}
@@ -2699,7 +2295,7 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
         description="Attiva le pagine PDF storytelling direttamente dal listino prodotti, come nei serramenti."
         icon={<FileText className="h-4 w-4" />}
       >
-        <MacroPagineDedicateManager vertical="fotovoltaico" />
+        {localModule ? <p className="rounded-lg border p-4 text-sm">Le schede prodotto provengono dal listino. In questa copia locale non vengono modificati i dati condivisi.</p> : <MacroPagineDedicateManager vertical="fotovoltaico" />}
       </FvSettingsCard>
         </>
       )}
@@ -2877,6 +2473,7 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
             <Label className="text-xs">Proposta di valore FV</Label>
             <CopyPresetRow
               field="valore_proposta_html"
+              disabled={!!localModule}
               current={form.valore_proposta_html ?? ""}
               onPick={(html) => update("valore_proposta_html", html)}
             />
@@ -2945,7 +2542,7 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
                     type="button"
                     variant="ghost"
                     size="sm"
-                    disabled={!String(form.condizioni_legali_testo ?? "").trim() || upsertQuoteTemplate.isPending}
+                    disabled={!!localModule || !String(form.condizioni_legali_testo ?? "").trim() || upsertQuoteTemplate.isPending}
                     onClick={() => void saveSharedLegalTemplate("condizioni")}
                   >
                     {upsertQuoteTemplate.isPending ? (
@@ -2968,6 +2565,8 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
             <div className="col-span-12">
               <Label className="text-xs">Condizioni commerciali / legali</Label>
               <ImportaCondizioniBar
+                localOnly={!!localModule}
+                soloImport={!!localModule}
                 compatto
                 companyId={companyId}
                 testoAttuale={String(form.condizioni_legali_testo ?? "")}
@@ -3119,38 +2718,42 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
         </FvSettingsCard>
       ) : null}
 
+          <TemplateEditorSaveBar>
+            <span role="status" className={dirty ? "text-xs text-amber-600" : "text-xs text-muted-foreground"}>
+              {dirty ? "Modifiche non salvate" : localSaved ? "Tutto salvato" : "Copia locale da salvare"}
+            </span>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setPreviewOpen(true)} className="gap-1.5" aria-label="Apri anteprima PDF">
+                <Eye className="h-4 w-4" /> Anteprima PDF
+              </Button>
+              <Button
+                type="button"
+                onClick={handleSave}
+                disabled={(!dirty && localSaved) || upsertMut.isPending}
+                className="bg-orange-500 hover:bg-orange-600 gap-1.5"
+              >
+                {upsertMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                {localModule ? "Salva modulo in locale" : "Salva impostazioni"}
+              </Button>
+            </div>
+          </TemplateEditorSaveBar>
         </div>
 
         {/* ── ANTEPRIMA LIVE preventivo FV — colonna persistente (desktop xl), sotto
             su tablet. HTML vero completo, scrollabile, si aggiorna mentre editi. ── */}
-        <aside className="col-span-12 xl:col-span-4 min-w-0">
-          <div className="xl:sticky xl:top-[68px] xl:self-start xl:h-[calc(100vh-96px)] h-[75vh]">
+        <aside data-template-preview className={templateEditorLayout.preview}>
+          <div className={templateEditorLayout.previewPanel}>
             <Suspense fallback={<div className="h-full rounded-lg border bg-muted/20 flex items-center justify-center text-xs text-muted-foreground">Carico anteprima…</div>}>
               <FvLivePreviewPanel
                 form={form as unknown as Record<string, unknown>}
-                companyName={(form.ragione_sociale as string | null) ?? null}
+                companyName={form.ragione_sociale || companyAnagrafica?.ragione_sociale || null}
                 logoUrl={logoAnteprima}
                 activeSection={activeSection}
               />
             </Suspense>
           </div>
         </aside>
-      </div>
-
-      {/* Save sticky bottom */}
-      {!embedded && (
-        <div className="sticky bottom-4 flex justify-end">
-          <Button
-            onClick={handleSave}
-            disabled={!dirty || upsertMut.isPending}
-            className="bg-sky-700 hover:bg-sky-800 gap-1 shadow-lg"
-            size="lg"
-          >
-            {upsertMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            Salva impostazioni
-          </Button>
-        </div>
-      )}
+      </TemplateEditorWorkspace>
 
       {/* Galleria immagini stock cover (parità Serramenti) */}
       <Dialog open={stockDialogOpen} onOpenChange={setStockDialogOpen}>
@@ -3158,7 +2761,8 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
           <DialogHeader className="p-4 pb-3 border-b">
             <DialogTitle className="text-base">📷 Galleria immagini stock</DialogTitle>
             <DialogDescription className="text-xs">
-              Click su un'immagine per usarla come sfondo cover. Tutte libere da licenza (Unsplash) — uso commerciale incluso.
+              Click su un'immagine per usarla come sfondo cover. Sono immagini
+              curate e incluse nella libreria locale del modulo.
             </DialogDescription>
             <div className="flex flex-wrap gap-1 pt-2">
               {COVER_STOCK_CATEGORIE.map((cat) => {
@@ -3261,6 +2865,7 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
             open={previewOpen}
             onOpenChange={setPreviewOpen}
             form={form as unknown as Record<string, unknown>}
+            companyName={form.ragione_sociale || companyAnagrafica?.ragione_sociale || null}
             logoUrl={logoAnteprima}
           />
         </Suspense>

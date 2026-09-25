@@ -30,8 +30,11 @@ import { buildMockPdfData } from "@/lib/serramenti/mockPdfData";
 // M15 · Anteprima con dati reali: caricamento ultimi 5 preventivi
 // dell'azienda + fallback al mock se nessuno selezionato.
 import { useProgetti } from "@/lib/serramenti/queries";
+import type { DocumentProps } from "@react-pdf/renderer";
+import type { SerramentiTemplateModuleId } from "@/lib/moduli-vendita/serramentiTemplateModules";
 
 interface Props {
+  moduleId?: SerramentiTemplateModuleId;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** Template corrente in edit (anche con modifiche non salvate). */
@@ -57,6 +60,7 @@ type PreviewState =
 const STORAGE_KEY_PREVIEW_PROGETTO = "sr-template-preview-progetto-id";
 
 export function SerramentiTemplatePreviewDialog({
+  moduleId,
   open, onOpenChange, template,
   companyName, companyLogoUrl, companyLogoDarkUrl, companyBrandColor, companyIndirizzo,
 }: Props) {
@@ -67,14 +71,15 @@ export function SerramentiTemplatePreviewDialog({
 
   // M15 · Selettore data-source: null = mock demo, string = id preventivo reale.
   const [selectedProgettoId, setSelectedProgettoId] = useState<string | null>(() => {
+    if (moduleId) return null;
     try { return localStorage.getItem(STORAGE_KEY_PREVIEW_PROGETTO); }
     catch { return null; }
   });
   const { data: progettiAll } = useProgetti();
   // Mostriamo solo gli ultimi 5 ordinati per created_at desc (già ordinati da api).
   const progettiRecenti = useMemo(
-    () => (progettiAll ?? []).slice(0, 5),
-    [progettiAll],
+    () => moduleId ? [] : (progettiAll ?? []).slice(0, 5),
+    [progettiAll, moduleId],
   );
   const persistSelection = (id: string | null) => {
     setSelectedProgettoId(id);
@@ -107,7 +112,7 @@ export function SerramentiTemplatePreviewDialog({
       // I dati reali vengono passati al SerramentoPDF tramite enrichForPdf()
       // dell'hook useSerramentoPDF (riuso totale, no duplication).
       let enriched;
-      if (selectedProgettoId) {
+      if (selectedProgettoId && !moduleId) {
         try {
           const [{ getProgetto }, { enrichForPdfPublic }] = await Promise.all([
             import("@/lib/serramenti/api"),
@@ -126,10 +131,11 @@ export function SerramentiTemplatePreviewDialog({
           // cancellato), fallback al mock con toast non bloccante.
           console.warn("[template-preview] real-data fetch failed, fallback to mock:", realErr);
           toast.warning("Anteprima con dati reali non disponibile · uso demo");
-          enriched = await buildMockPdfData({ template, companyName, companyLogoUrl, companyLogoDarkUrl, companyBrandColor, companyIndirizzo });
+          enriched = await buildMockPdfData({ template, moduleId, companyName, companyLogoUrl, companyLogoDarkUrl, companyBrandColor, companyIndirizzo });
         }
       } else {
         enriched = await buildMockPdfData({
+          moduleId,
           template,
           companyName,
           companyLogoUrl,
@@ -144,7 +150,7 @@ export function SerramentiTemplatePreviewDialog({
       // non si risolve MAI e lo spinner gira a vuoto. Con la race mostriamo un errore
       // chiaro invece di restare appesi. 45s è generoso anche su connessioni lente.
       const blob = await Promise.race([
-        pdf(element).toBlob(),
+        pdf(element as unknown as React.ReactElement<DocumentProps>).toBlob(),
         new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error(
             "Generazione troppo lenta (timeout). Probabile causa: un'immagine del template (logo, foto o render) non si carica. Riprova; se persiste, ricarica/sostituisci quell'immagine.",
@@ -240,7 +246,7 @@ export function SerramentiTemplatePreviewDialog({
     };
     // M15 · re-trigger anche al cambio data-source (demo ↔ preventivo reale).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, selectedProgettoId]);
+  }, [open, selectedProgettoId, moduleId]);
 
   // Cleanup blob URL alla chiusura del dialog
   useEffect(() => {
@@ -256,7 +262,7 @@ export function SerramentiTemplatePreviewDialog({
     if (state.status !== "ready") return;
     const a = document.createElement("a");
     a.href = state.blobUrl;
-    a.download = "anteprima-template.pdf";
+    a.download = moduleId ? `anteprima-${moduleId}.pdf` : "anteprima-template.pdf";
     a.click();
     toast.success("Anteprima scaricata");
   };

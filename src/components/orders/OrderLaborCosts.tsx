@@ -9,6 +9,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { usePermissions } from "@/hooks/usePermissions";
+import { refreshWorkQueries } from "@/lib/orders/refreshWorkQueries";
+import { campoRoles, campoAssignmentError } from "@/lib/orders/campoAssignmentForm";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
 import { differenceInDays, parseISO } from "date-fns";
@@ -28,6 +30,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import type { SubappaltatoreConDashboard } from "@/types/subappaltatori";
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogCancel } from "@/components/ui/alert-dialog";
 
 interface CampoAssignment {
   id: string;
@@ -36,6 +40,7 @@ interface CampoAssignment {
   data_inizio: string | null;
   data_fine_prevista: string | null;
   is_capocantiere: boolean | null;
+  note?: string | null;
   profile: {
     id: string;
     first_name: string | null;
@@ -72,10 +77,10 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false }: 
   const { effectiveCompany, role } = useAuth();
   const effectiveCompanyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
-  const canEdit = editable && (role === "company_admin" || role === "company_staff" || role === "super_admin");
   // Visibilità costi: chi non ha canViewCosts vede l'operativo (chi è assegnato,
   // DURC, stato pagamenti) ma NON i valori € di manodopera/subappalto.
-  const { canViewCosts } = usePermissions();
+  const { canViewCosts, canEditOrders } = usePermissions();
+  const canEdit = editable && canEditOrders && (role === "company_admin" || role === "company_staff" || role === "super_admin");
 
   const [campoDialogOpen, setCampoDialogOpen] = useState(false);
   const [formUserId, setFormUserId] = useState("");
@@ -84,9 +89,10 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false }: 
   const [formDataFine, setFormDataFine] = useState("");
   const [formCapocantiere, setFormCapocantiere] = useState(false);
   const [formNote, setFormNote] = useState("");
+  const [removeTarget, setRemoveTarget] = useState<CampoAssignment | null>(null);
 
   // ── Queries ──────────────────────────────────────────────────
-  const { data: subappaltatori = [] } = useQuery({
+  const { data: subappaltatori = [], isError: subError, isLoading: loadingSub, refetch: retrySub } = useQuery({
     queryKey: ["subappaltatori-order", orderId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -106,9 +112,9 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false }: 
   const durcAlerts = subappaltatori
     .map((s) => {
       const sc = s.durc_scadenza ?? null;
-      const days = sc ? differenceInDays(parseISO(sc), new Date()) : null;
+      const days = daysUntil(sc);
       const level: "scaduto" | "scadenza" | "mancante" | null =
-        !sc ? "mancante" : days! < 0 ? "scaduto" : days! <= 30 ? "scadenza" : null;
+        days === null ? "mancante" : days < 0 ? "scaduto" : days <= 30 ? "scadenza" : null;
       return level ? { id: s.id, nome: s.ragione_sociale, level, days } : null;
     })
     .filter(
@@ -117,7 +123,7 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false }: 
     )
     .sort((a, b) => ({ scaduto: 0, scadenza: 1, mancante: 2 })[a.level] - ({ scaduto: 0, scadenza: 1, mancante: 2 })[b.level]);
 
-  const { data: assegnazioni = [], isLoading: loadingAssegnazioni } = useQuery<CampoAssignment[]>({
+  const { data: assegnazioni = [], isLoading: loadingAssegnazioni, isError: assignmentsError, refetch: retryAssignments } = useQuery<CampoAssignment[]>({
     queryKey: ["order-campo-assignments", orderId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -134,15 +140,29 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false }: 
     enabled: !!orderId,
   });
 
-  const { data: utentiCampoRaw = [] } = useCompanyStaffUsers(campoDialogOpen ? effectiveCompanyId : null, "all");
+  const { data: utentiCampoRaw = [], isLoading: loadingUsers, isError: usersError } = useCompanyStaffUsers(campoDialogOpen ? effectiveCompanyId : null, "all");
   const utentiCampo = utentiCampoRaw.filter((u) =>
     u.roles?.includes("employee") || u.roles?.includes("worker") || u.roles?.includes("subcontractor")
   );
+  const selectedUser = utentiCampo.find(u => u.id === formUserId);
+  const allowedRoles = campoRoles(selectedUser?.roles);
+  const existingAssignment = assegnazioni.find(a => a.user_id === formUserId);
+  const capocantiere = assegnazioni.find(a => a.is_capocantiere);
+  const formError = campoAssignmentError({ userId: formUserId, role: formRoleType,
+    roles: selectedUser?.roles ?? [], start: formDataInizio, end: formDataFine,
+    isCapo: formCapocantiere, existing: !!existingAssignment,
+    otherCapo: !!capocantiere && capocantiere.user_id !== formUserId });
+  const openCampoDialog = (asCapo: boolean) => {
+    setFormUserId(""); setFormRoleType("employee"); setFormDataInizio(""); setFormDataFine("");
+    setFormNote(""); setFormCapocantiere(asCapo); setCampoDialogOpen(true);
+  };
 
   // ── Mutations ────────────────────────────────────────────────
   const assegnaCampoMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("order_campo_assignments").insert({
+      if (!canEdit || !effectiveCompanyId || assignmentsError || loadingAssegnazioni) throw new Error("Assegnazioni non disponibili");
+      if (formError) throw new Error(formError);
+      const row = {
         company_id: effectiveCompanyId,
         order_id: orderId,
         user_id: formUserId,
@@ -151,39 +171,49 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false }: 
         data_fine_prevista: formDataFine || null,
         is_capocantiere: formCapocantiere,
         note: formNote || null,
-      });
+      };
+      const { data: updated, error } = existingAssignment
+        ? await supabase.from("order_campo_assignments").update(row).eq("id", existingAssignment.id).eq("order_id", orderId).select("id").maybeSingle()
+        : await supabase.from("order_campo_assignments").insert(row);
       if (error) throw error;
+      if (existingAssignment && !updated) throw new Error("Nomina non aggiornata: verifica i permessi e ricarica");
 
-      // UNIFICAZIONE delle due porte: chi entra nel cantiere deve esistere
+      // UNIFICAZIONE delle due porte: il dipendente che entra nel cantiere deve esistere
       // anche sul lato costi. Se l'utente assegnato ha una scheda dipendente
       // (employees.user_id), si crea la riga order_employees mancante — così
       // i rapportini approvati trovano subito dove accumulare ore e costo.
       let avvisoCosti: string | null = null;
       try {
-        const { data: emp } = await supabase
-          .from("employees")
-          .select("id, costo_orario")
-          .eq("company_id", effectiveCompanyId!)
-          .eq("user_id", formUserId)
-          .maybeSingle();
-        if (emp?.id) {
-          const { data: giaPresente } = await supabase
-            .from("order_employees")
-            .select("id")
-            .eq("order_id", orderId)
-            .eq("employee_id", emp.id)
-            .limit(1)
+        if (formRoleType === "employee") {
+          const { data: emp, error: employeeError } = await supabase
+            .from("employees")
+            .select("id, costo_orario")
+            .eq("company_id", effectiveCompanyId!)
+            .eq("user_id", formUserId)
             .maybeSingle();
-          if (!giaPresente) {
-            const { error: eIns } = await supabase.from("order_employees").insert({
-              order_id: orderId,
-              employee_id: emp.id,
-              phase_id: null,
-              hourly_rate: Number(emp.costo_orario) || 0,
-              hours_worked: 0,
-              total_cost: 0,
-            });
-            if (eIns) avvisoCosti = eIns.message;
+          if (employeeError) throw employeeError;
+          if (emp?.id) {
+            const { data: giaPresente, error: laborError } = await supabase
+              .from("order_employees")
+              .select("id")
+              .eq("order_id", orderId)
+              .eq("employee_id", emp.id)
+              .limit(1)
+              .maybeSingle();
+            if (laborError) throw laborError;
+            if (!giaPresente) {
+              const { error: eIns } = await supabase.from("order_employees").insert({
+                order_id: orderId,
+                employee_id: emp.id,
+                phase_id: null,
+                hourly_rate: Number(emp.costo_orario) || 0,
+                hours_worked: 0,
+                total_cost: 0,
+              });
+              if (eIns) avvisoCosti = eIns.message;
+            }
+          } else {
+            avvisoCosti = "Account senza scheda dipendente collegata: verifica l'anagrafica per registrare correttamente ore e costi.";
           }
         }
       } catch (e) {
@@ -196,8 +226,7 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false }: 
       if (avvisoCosti) {
         toast.warning("Assegnato, ma la riga costi non è stata creata", { description: avvisoCosti });
       }
-      queryClient.invalidateQueries({ queryKey: ["order-campo-assignments", orderId] });
-      queryClient.invalidateQueries({ queryKey: ["order-employees", orderId] });
+      refreshWorkQueries(queryClient, orderId);
       setCampoDialogOpen(false);
       setFormUserId(""); setFormDataInizio(""); setFormDataFine("");
       setFormCapocantiere(false); setFormNote("");
@@ -207,15 +236,19 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false }: 
 
   const rimuoviCampoMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("order_campo_assignments").delete().eq("id", id);
+      if (!canEdit) throw new Error("Non hai il permesso di gestire le assegnazioni");
+      const { data: removed, error } = await supabase.from("order_campo_assignments").delete().eq("id", id).eq("order_id", orderId).select("id").maybeSingle();
       if (error) throw error;
+      if (!removed) throw new Error("Assegnazione non rimossa: verifica i permessi e ricarica");
     },
-    onSuccess: () => { toast.success("Assegnazione rimossa"); queryClient.invalidateQueries({ queryKey: ["order-campo-assignments", orderId] }); },
+    onSuccess: () => {
+      toast.success("Assegnazione esplicita rimossa", { description: "Eventuali accessi da lavorazioni o contratti restano invariati." });
+      refreshWorkQueries(queryClient, orderId); setRemoveTarget(null);
+    },
     onError: () => toast.error("Errore rimozione"),
   });
 
   // ── Derived data ─────────────────────────────────────────────
-  const capocantiere = assegnazioni.find((a) => a.is_capocantiere);
   const assegnazioniOperai = assegnazioni.filter((a) => a.role_type === "employee");
   const assegnazioniSub = assegnazioni.filter((a) => a.role_type === "subcontractor");
 
@@ -228,11 +261,11 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false }: 
               <Crown className="h-4 w-4 text-amber-600" />
               <span className="text-sm font-semibold text-amber-900 dark:text-amber-200">Capocantiere</span>
             </div>
-            {!capocantiere && canEdit && (
+            {!capocantiere && canEdit && !assignmentsError && !loadingAssegnazioni && (
               <Button
                 size="sm" variant="outline"
                 className="h-7 text-xs border-amber-300 text-amber-700 hover:bg-amber-100"
-                onClick={() => { setFormCapocantiere(true); setCampoDialogOpen(true); }}
+                onClick={() => openCampoDialog(true)}
               >
                 <UserPlus className="h-3 w-3 mr-1" /> Assegna
               </Button>
@@ -260,7 +293,8 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false }: 
               </div>
               {canEdit && (
                 <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive"
-                  onClick={() => rimuoviCampoMutation.mutate(capocantiere.id)}
+                  aria-label="Rimuovi assegnazione esplicita del capocantiere"
+                  onClick={() => setRemoveTarget(capocantiere)}
                   disabled={rimuoviCampoMutation.isPending}
                 >
                   <Trash2 className="h-3 w-3" />
@@ -274,30 +308,29 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false }: 
             // CampoRapportino: nessun blocco). Il capocantiere aggiunge il
             // rapportino UNICO di squadra e, una volta nominato, riserva a lui
             // la dichiarazione di avanzamento delle fasi.
-            <p className="text-xs text-amber-600/70 mt-1">
-              Facoltativo: senza capocantiere ogni operaio fa il proprio rapportino
-              come sempre. Nominandone uno (anche un subappaltatore), lui può fare
-              un <strong>unico rapportino di squadra</strong> al giorno — presenze e
-              ore di tutti — e diventa l'unico a dichiarare l'avanzamento delle fasi.
+            <p className="text-xs text-amber-800 dark:text-amber-200 mt-1">
+              {assignmentsError ? "Nomina non verificabile: ricarica gli accessi qui sotto." : loadingAssegnazioni ? "Verifica della nomina in corso…" : <>Facoltativo. Ogni operaio può inviare il proprio rapportino. Con un referente puoi raccogliere presenze e avanzamento in un <strong>rapportino di squadra</strong>.</>}
             </p>
           )}
         </div>
 
         {/* ── Tabs ──────────────────────────────────────────────── */}
-        <Tabs defaultValue="teams" className="w-full">
+        <Tabs defaultValue="cantiere" className="w-full">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="teams" className="gap-1.5 text-xs">
               <Building2 className="h-3.5 w-3.5" />
-              Subappaltatori ({subappaltatori.length})
+              Affidamenti ({subError ? "—" : loadingSub ? "…" : subappaltatori.length})
             </TabsTrigger>
             <TabsTrigger value="cantiere" className="gap-1.5 text-xs">
               <ShieldCheck className="h-3.5 w-3.5" />
-              Cantiere ({assegnazioni.length})
+              App Campo ({assignmentsError ? "—" : loadingAssegnazioni ? "…" : assegnazioni.length})
             </TabsTrigger>
           </TabsList>
 
           {/* ── Subappaltatori ──────────────────────────────────── */}
           <TabsContent value="teams" className="space-y-3 mt-4">
+            {subError && <div role="alert" className="text-sm text-destructive">Affidamenti non disponibili. <Button variant="outline" size="sm" onClick={() => retrySub()}>Riprova affidamenti</Button></div>}
+            {loadingSub && <p className="text-sm text-muted-foreground">Caricamento affidamenti…</p>}
             {durcAlerts.length > 0 && (
               <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 space-y-1.5">
                 <div className="flex items-center gap-2 text-sm font-semibold text-amber-900">
@@ -363,21 +396,23 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false }: 
               </div>
             )}
 
-            {subappaltatori.length === 0 && (
-              <p className="text-sm text-muted-foreground py-2">Nessun subappaltatore con scheda DURC/SAL</p>
+            {!subError && !loadingSub && subappaltatori.length === 0 && (
+              <p className="text-sm text-muted-foreground py-2">Nessun affidamento con scheda DURC/SAL collegato. Le squadre operative e i relativi costi sono nelle lavorazioni qui sopra.</p>
             )}
           </TabsContent>
 
           {/* ── Assegnazioni Cantiere ───────────────────────────── */}
           <TabsContent value="cantiere" className="space-y-3 mt-4">
             <p className="text-xs text-muted-foreground">
-              Persone che possono accedere a questo cantiere nell&apos;app campo.
+              Il numero indica le assegnazioni esplicite, non tutti gli utenti abilitati. Un dipendente può accedere anche dal lavoro assegnato, un subappaltatore dal contratto attivo. Le date sono organizzative: non garantiscono la revoca dell'accesso.
             </p>
 
-            {loadingAssegnazioni ? (
+            {assignmentsError ? (
+              <div role="alert" className="text-sm text-destructive">Impossibile verificare gli accessi. <Button variant="outline" size="sm" onClick={() => retryAssignments()}>Riprova accessi</Button></div>
+            ) : loadingAssegnazioni ? (
               <div className="flex justify-center py-4"><Loader2 className="animate-spin h-5 w-5 text-muted-foreground" /></div>
             ) : assegnazioni.filter((a) => !a.is_capocantiere).length === 0 ? (
-              <p className="text-sm text-muted-foreground py-2">Nessun operaio assegnato al cantiere</p>
+              <p className="text-sm text-muted-foreground py-2">Nessun altro accesso esplicito registrato.</p>
             ) : (
               <div className="space-y-2">
                 {/* Operai */}
@@ -401,7 +436,8 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false }: 
                         </div>
                         {canEdit && (
                           <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive"
-                            onClick={() => rimuoviCampoMutation.mutate(a.id)} disabled={rimuoviCampoMutation.isPending}>
+                            aria-label={`Rimuovi assegnazione esplicita ${a.profile?.first_name ?? ""} ${a.profile?.last_name ?? ""}`}
+                            onClick={() => setRemoveTarget(a)} disabled={rimuoviCampoMutation.isPending}>
                             <Trash2 className="h-3 w-3" />
                           </Button>
                         )}
@@ -431,7 +467,8 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false }: 
                         </div>
                         {canEdit && (
                           <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive"
-                            onClick={() => rimuoviCampoMutation.mutate(a.id)} disabled={rimuoviCampoMutation.isPending}>
+                            aria-label={`Rimuovi assegnazione esplicita ${a.profile?.first_name ?? ""} ${a.profile?.last_name ?? ""}`}
+                            onClick={() => setRemoveTarget(a)} disabled={rimuoviCampoMutation.isPending}>
                             <Trash2 className="h-3 w-3" />
                           </Button>
                         )}
@@ -443,8 +480,8 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false }: 
             )}
 
             {canEdit && (
-              <Button variant="outline" size="sm" className="w-full" onClick={() => { setFormCapocantiere(false); setCampoDialogOpen(true); }}>
-                <UserPlus className="h-4 w-4 mr-2" /> Assegna al Cantiere
+              <Button variant="outline" size="sm" className="w-full" disabled={loadingAssegnazioni || assignmentsError} onClick={() => openCampoDialog(false)}>
+                <UserPlus className="h-4 w-4 mr-2" /> Assegna accesso app Campo
               </Button>
             )}
           </TabsContent>
@@ -452,19 +489,28 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false }: 
 
         {/* ── Dialogs ──────────────────────────────────────────── */}
         {/* Dialog assegnazione campo */}
-        <Dialog open={campoDialogOpen} onOpenChange={setCampoDialogOpen}>
-          <DialogContent className="max-w-md">
+        <Dialog open={campoDialogOpen} onOpenChange={open => { if (!assegnaCampoMutation.isPending) setCampoDialogOpen(open); }}>
+          <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>Assegna al cantiere</DialogTitle>
+              <DialogTitle>{formCapocantiere ? "Nomina il capocantiere" : "Assegna accesso app Campo"}</DialogTitle>
               <DialogDescription>
-                L&apos;utente assegnato vedrà questo cantiere nell&apos;app campo.
+                Collega un account esistente a questo cantiere. La squadra esterna, il suo contratto e il referente Campo rimangono informazioni distinte.
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4">
+            <fieldset disabled={assegnaCampoMutation.isPending} className="min-w-0 space-y-4">
+              {usersError && <p role="alert" className="text-sm text-destructive">Impossibile caricare gli utenti Campo. Chiudi e riprova.</p>}
+              {!usersError && !loadingUsers && utentiCampo.length === 0 && <p className="text-sm text-muted-foreground">Nessun account operaio o subappaltatore disponibile. Configura prima l'account nella relativa anagrafica.</p>}
               <div>
-                <Label>Utente</Label>
-                <Select value={formUserId} onValueChange={setFormUserId}>
-                  <SelectTrigger><SelectValue placeholder="Seleziona operaio o subappaltatore" /></SelectTrigger>
+                <Label htmlFor="campo-user">Utente</Label>
+                <Select value={formUserId} onValueChange={id => {
+                  setFormUserId(id);
+                  const existing = assegnazioni.find(a => a.user_id === id);
+                  const roles = campoRoles(utentiCampo.find(u => u.id === id)?.roles);
+                  const previousRole = existing?.role_type;
+                  setFormRoleType((previousRole === "employee" || previousRole === "subcontractor") && roles.includes(previousRole) ? previousRole : roles[0] ?? "employee");
+                  setFormDataInizio(existing?.data_inizio ?? ""); setFormDataFine(existing?.data_fine_prevista ?? ""); setFormNote(existing?.note ?? "");
+                }}>
+                  <SelectTrigger id="campo-user" disabled={loadingUsers || usersError}><SelectValue placeholder={loadingUsers ? "Caricamento utenti…" : "Seleziona operaio o subappaltatore"} /></SelectTrigger>
                   <SelectContent>
                     {utentiCampo.map((u) => {
                       const roleLabel = u.roles?.includes("subcontractor") ? "Sub" : "Operaio";
@@ -472,48 +518,66 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false }: 
                       <SelectItem key={u.id} value={u.id}>
                         {[u.first_name, u.last_name].filter(Boolean).join(" ")}
                         <span className="ml-2 text-muted-foreground text-xs">({roleLabel})</span>
+                        {assegnazioni.some(a => a.user_id === u.id) && <span className="ml-1 text-xs">· già assegnato</span>}
                       </SelectItem>
                     )})}
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label>Ruolo</Label>
-                <Select value={formRoleType} onValueChange={(v: "employee" | "subcontractor") => setFormRoleType(v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                <Label htmlFor="campo-role">Ruolo nell'app</Label>
+                <Select value={formUserId ? formRoleType : ""} onValueChange={(v: "employee" | "subcontractor") => setFormRoleType(v)}>
+                  <SelectTrigger id="campo-role" disabled={allowedRoles.length < 2}><SelectValue placeholder="Seleziona prima l'utente" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="employee">Operaio / Dipendente</SelectItem>
-                    <SelectItem value="subcontractor">Subappaltatore</SelectItem>
+                    {allowedRoles.includes("employee") && <SelectItem value="employee">Operaio / Dipendente</SelectItem>}
+                    {allowedRoles.includes("subcontractor") && <SelectItem value="subcontractor">Subappaltatore</SelectItem>}
                   </SelectContent>
                 </Select>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label>Data inizio</Label>
-                  <Input type="date" value={formDataInizio} onChange={e => setFormDataInizio(e.target.value)} />
+                  <Label htmlFor="campo-start">Data inizio</Label>
+                  <Input id="campo-start" type="date" value={formDataInizio} onChange={e => setFormDataInizio(e.target.value)} />
                 </div>
                 <div>
-                  <Label>Data fine prevista</Label>
-                  <Input type="date" value={formDataFine} onChange={e => setFormDataFine(e.target.value)} />
+                  <Label htmlFor="campo-end">Data fine prevista</Label>
+                  <Input id="campo-end" type="date" value={formDataFine} onChange={e => setFormDataFine(e.target.value)} />
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <Switch checked={formCapocantiere} onCheckedChange={setFormCapocantiere} />
-                <Label className="cursor-pointer">Capocantiere responsabile</Label>
+                <Switch id="campo-capo" checked={formCapocantiere} onCheckedChange={setFormCapocantiere} disabled={!!capocantiere && capocantiere.user_id !== formUserId} />
+                <Label htmlFor="campo-capo" className="cursor-pointer">Capocantiere responsabile</Label>
               </div>
               <div>
-                <Label>Note (opzionale)</Label>
-                <Input value={formNote} onChange={e => setFormNote(e.target.value)} placeholder="Es: Responsabile posa serramenti" />
+                <Label htmlFor="campo-note">Note (opzionale)</Label>
+                <Input id="campo-note" value={formNote} onChange={e => setFormNote(e.target.value)} placeholder="Es: Responsabile posa serramenti" />
               </div>
-            </div>
+              {formUserId && formError && <p role="alert" className="text-sm text-destructive">{formError}</p>}
+              {existingAssignment && formCapocantiere && !formError && <p className="text-xs text-muted-foreground">Verrà aggiornata la nomina sull'assegnazione esistente, senza creare una seconda riga.</p>}
+            </fieldset>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setCampoDialogOpen(false)}>Annulla</Button>
-              <Button onClick={() => assegnaCampoMutation.mutate()} disabled={!formUserId || assegnaCampoMutation.isPending}>
+              <Button variant="outline" disabled={assegnaCampoMutation.isPending} onClick={() => setCampoDialogOpen(false)}>Annulla</Button>
+              <Button onClick={() => assegnaCampoMutation.mutate()} disabled={!!formError || usersError || assignmentsError || loadingUsers || loadingAssegnazioni || assegnaCampoMutation.isPending}>
                 {assegnaCampoMutation.isPending ? <Loader2 className="animate-spin h-4 w-4" /> : "Assegna"}
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        <AlertDialog open={!!removeTarget} onOpenChange={open => { if (!open && !rimuoviCampoMutation.isPending) setRemoveTarget(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Rimuovere l'assegnazione esplicita?</AlertDialogTitle>
+              <AlertDialogDescription>
+                {removeTarget?.profile?.first_name} {removeTarget?.profile?.last_name}: verrà rimossa solo questa assegnazione{removeTarget?.is_capocantiere ? " e la nomina di capocantiere" : ""}.
+                {" "}L'accesso tramite lavorazioni o contratti attivi può restare disponibile. Ore, costi e rapportini non vengono cancellati. Questa azione non è una revoca completa dell'accesso.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={rimuoviCampoMutation.isPending}>Annulla</AlertDialogCancel>
+              <Button variant="destructive" disabled={rimuoviCampoMutation.isPending} onClick={() => removeTarget && rimuoviCampoMutation.mutate(removeTarget.id)}>Rimuovi assegnazione</Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
     </div>
   );
 

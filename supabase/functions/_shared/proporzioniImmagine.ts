@@ -69,8 +69,12 @@ export const PROPORZIONE_TAVOLA = 0.9;
  * di prova, un'immagine che il browser non ha potuto ridisegnare).
  */
 const TAVOLA_DI_SERIE = /\/pdf-stock\/[^/]+\/tavola-[^/?#]+\.(jpe?g|png)(?:[?#]|$)/i;
+const TAVOLE_MODULI: Record<string, number> = {
+  "/module-art/serramenti-persiane-controlli.jpg": 2 / 3,
+  "/module-art/tetti-ripasso-dettagli.jpg": 2 / 3,
+};
 
 export function eTavola(src: string | null | undefined): number | null {
-  const p = proporzioniImmagine(src) ?? (src && TAVOLA_DI_SERIE.test(src) ? 0.8 : null);
+  const p = proporzioniImmagine(src) ?? (src ? TAVOLE_MODULI[src.split(/[?#]/)[0]] : null) ?? (src && TAVOLA_DI_SERIE.test(src) ? 0.8 : null);
   return p != null && p < PROPORZIONE_TAVOLA ? p : null;
 }

@@ -17,11 +17,12 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency } from "@/lib/formatters";
 import { useCatalogItems } from "@/hooks/useCatalogItems";
+import { useCatalogCategories } from "@/hooks/useCatalogCategories";
 import type { CatalogCategory, CatalogItem } from "@/types/catalogItem";
 
 interface ProductPickerProps {
-  category: CatalogCategory;
-  onBack: () => void;
+  category?: CatalogCategory | null;
+  onBack?: () => void;
   onSelectItem: (item: CatalogItem) => void;
 }
 
@@ -41,6 +42,8 @@ function formatPriceHint(item: CatalogItem): string {
 export function ProductPicker({ category, onBack, onSelectItem }: ProductPickerProps) {
   const [searchRaw, setSearchRaw] = useState("");
   const [searchDebounced, setSearchDebounced] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const { data: categories = [] } = useCatalogCategories();
 
   // Debounce 200ms per evitare re-filter ad ogni keystroke
   useEffect(() => {
@@ -48,20 +51,20 @@ export function ProductPicker({ category, onBack, onSelectItem }: ProductPickerP
     return () => clearTimeout(t);
   }, [searchRaw]);
 
-  const { items, isLoading } = useCatalogItems({
-    categoriaId: category.id,
+  const { items, isLoading, error } = useCatalogItems({
+    categoriaId: category?.id ?? (categoryFilter || null),
     search: searchDebounced,
   });
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2">
+      {onBack && <div className="flex items-center gap-2">
         <Button variant="ghost" size="sm" onClick={onBack}>
           <ArrowLeft className="mr-1 h-4 w-4" /> Categorie
         </Button>
         <span className="text-sm text-muted-foreground">›</span>
-        <span className="text-sm font-medium">{category.nome}</span>
-      </div>
+        <span className="text-sm font-medium">{category?.nome ?? "Tutti i prodotti"}</span>
+      </div>}
 
       <div className="sticky top-0 z-10 bg-background pb-2">
         <div className="relative">
@@ -69,14 +72,26 @@ export function ProductPicker({ category, onBack, onSelectItem }: ProductPickerP
           <Input
             value={searchRaw}
             onChange={(e) => setSearchRaw(e.target.value)}
-            placeholder="Cerca per nome, descrizione o SKU…"
+            placeholder="Cerca prodotto, codice o marca…"
+            aria-label="Cerca nel catalogo prodotti"
             className="pl-9"
             autoFocus
           />
         </div>
+        {!category && (
+          <div className="mt-3 flex items-center gap-3">
+            <select aria-label="Filtra per categoria" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="h-9 min-w-0 flex-1 rounded-md border bg-background px-3 text-sm">
+              <option value="">Tutte le categorie</option>
+              {categories.map((cat) => <option key={cat.id} value={cat.id}>{cat.nome}</option>)}
+            </select>
+            <span className="shrink-0 text-xs text-muted-foreground" aria-live="polite">{isLoading ? "Caricamento…" : `${items.length} prodotti`}</span>
+          </div>
+        )}
       </div>
 
-      {isLoading ? (
+      {error ? (
+        <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">Il catalogo non è disponibile. Chiudi e riprova tra poco; puoi comunque inserire una riga libera.</p>
+      ) : isLoading ? (
         <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
           {Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className="h-24 w-full" />
@@ -124,14 +139,15 @@ export function ProductPicker({ category, onBack, onSelectItem }: ProductPickerP
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-start justify-between gap-2">
-                  <div className="truncate text-sm font-medium">{item.nome}</div>
+                  <div className="line-clamp-2 text-sm font-medium">{item.nome}</div>
                   <Badge
                     variant={item.source === "family" ? "default" : "secondary"}
                     className="shrink-0 text-[10px] uppercase"
                   >
-                    {item.source === "family" ? "Famiglia" : "Articolo"}
+                    {item.source === "family" ? "Configurabile" : "Prodotto"}
                   </Badge>
                 </div>
+                {item.source === "article" && (item.marca || item.sku) && <p className="mt-1 text-xs text-muted-foreground">{[item.marca, item.sku].filter(Boolean).join(" · ")}</p>}
                 {item.descrizione && (
                   <div className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
                     {item.descrizione}

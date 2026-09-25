@@ -8,6 +8,9 @@ import { useVertical, type Vertical } from "@/hooks/useVertical";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
 import { invalidateAllTariffe } from "@/lib/tariffeQueryKeys";
+import { areePerTariffe, tariffaNellArea, type FiltroAreaTariffe } from "@/lib/tariffe/areeTariffe";
+import { AREE_STANDARD, areaDiVerticale, nomeArea } from "@/lib/listino/areeStandard";
+import { lavorazioneStandardDaCompletare } from "@/lib/listino/statoCatalogoStandard";
 import {
   Plus, Pencil, Trash2, Zap, Search, Copy, MoreVertical, Calculator,
   Percent, Package, Activity, Archive, RotateCcw, Info,
@@ -65,6 +68,10 @@ import { BulkPriceAdjustDialog } from "@/components/settings/BulkPriceAdjustDial
 import { TariffaUsageDialog } from "@/components/settings/TariffaUsageDialog";
 import { AnalisiPrezzoDialog } from "@/components/listino/AnalisiPrezzoDialog";
 import ListinoManutenzione from "@/pages/azienda/settings/ListinoManutenzione";
+import { CostoLavorazioneEditor, type DipendenteCostoLavorazione } from "@/components/settings/CostoLavorazioneEditor";
+import { calcolaCostoLavorazione, campiConCostoLavorazione, costoLavorazioneModificato, GRUPPI_LAVORAZIONE, gruppoLavorazione, leggiCostoLavorazione, MODALITA_COSTO_LABEL, numeroCosto, oggettoCampi, type GruppoLavorazione } from "@/lib/tariffe/costoLavorazione";
+import { loadCatalogPages } from "@/lib/listino/loadCatalogPages";
+import { AreeManodopera } from "@/components/settings/AreeManodopera";
 
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -273,7 +280,8 @@ function KpiHeader({
   const kpi = useMemo(() => {
     const totali = tariffe.length;
     const attive = tariffe.filter((t) => t.attivo !== false).length;
-    const archiviate = totali - attive;
+    const basi = tariffe.filter(lavorazioneStandardDaCompletare).length;
+    const archiviate = totali - attive - basi;
     // Margine medio pesato per prezzo_vendita (solo tariffe con entrambi i valori)
     let sumMarg = 0;
     let countMarg = 0;
@@ -289,7 +297,7 @@ function KpiHeader({
       }
     }
     const margineMedio = countMarg > 0 ? sumMarg / countMarg : 0;
-    return { totali, attive, archiviate, margineMedio, countMarg, sottoSoglia };
+    return { totali, attive, archiviate, basi, margineMedio, countMarg, sottoSoglia };
   }, [tariffe, soglia]);
 
   // Striscia unica al posto di 4 card da 130px: stessi numeri, un decimo dello
@@ -302,6 +310,7 @@ function KpiHeader({
         <span className="text-muted-foreground">voci</span>
         <span className="text-xs text-muted-foreground">
           · {kpi.attive} attive{kpi.archiviate > 0 ? ` · ${kpi.archiviate} archiviate` : ""}
+          {kpi.basi > 0 ? ` · ${kpi.basi} basi da completare` : ""}
         </span>
       </div>
       {isAdmin && (
@@ -334,8 +343,8 @@ function KpiHeader({
 }
 
 // ─── Tariffa Dialog ───────────────────────────────────────────────────────────
-function TariffaDialog({
-  open, onClose, editing, companyId, isAdmin, currentVertical, onSaved, squadre = [],
+export function TariffaDialog({
+  open, onClose, editing, companyId, isAdmin, currentVertical, onSaved, squadre = [], dipendenti = [], erroreDipendenti = false, gruppoIniziale = "posa",
 }: {
   open: boolean; onClose: () => void; editing: Tariffa | null;
   companyId: string; isAdmin: boolean;
@@ -343,6 +352,9 @@ function TariffaDialog({
   onSaved: () => void;
   /** Squadre/subappaltatori per "di chi e' questo listino". */
   squadre?: Array<{ id: string; name: string | null }>;
+  dipendenti?: DipendenteCostoLavorazione[];
+  erroreDipendenti?: boolean;
+  gruppoIniziale?: GruppoLavorazione;
 }) {
   const [nome, setNome] = useState(editing?.nome ?? "");
   const [codice, setCodice] = useState(editing?.codice ?? "");
@@ -357,7 +369,7 @@ function TariffaDialog({
     String(editing?.costo_interno ?? editing?.prezzo_costo ?? ""),
   );
   const [verticalAssociato, setVerticalAssociato] = useState<string>(
-    editing?.vertical_associato ?? (currentVertical ?? ""),
+    editing ? (editing.vertical_associato ?? "") : (currentVertical ?? ""),
   );
   const [pianoBase, setPianoBase] = useState(String(editing?.piano_base ?? "1"));
   const [prezzoPianoAgg, setPrezzoPianoAgg] = useState(String(editing?.prezzo_piano_aggiuntivo ?? ""));
@@ -371,10 +383,15 @@ function TariffaDialog({
   /** "" = listino aziendale generico; altrimenti id squadra. */
   const [externalTeamId, setExternalTeamId] = useState<string>(editing?.external_team_id ?? "");
   const [saving, setSaving] = useState(false);
+  const costoSalvato = leggiCostoLavorazione(editing?.custom_field_values);
+  const costoModificato = costoLavorazioneModificato(costoSalvato, editing?.costo_interno ?? editing?.prezzo_costo ?? 0);
+  const [configCosto, setConfigCosto] = useState(() => ({ ...costoSalvato, modalita: costoModificato ? "manuale" as const : costoSalvato.modalita }));
+  const [gruppo, setGruppo] = useState<GruppoLavorazione>(() => editing ? gruppoLavorazione(editing) : gruppoIniziale);
+  const calcoloCosto = calcolaCostoLavorazione(configCosto, numeroCosto(costoInterno) ?? (configCosto.modalita === "manuale" ? 0 : null));
 
   // Semaforo margine live
-  const pvNum = parseFloat(prezzoVendita) || 0;
-  const ciNum = parseFloat(costoInterno) || 0;
+  const pvNum = numeroCosto(prezzoVendita) ?? 0;
+  const ciNum = calcoloCosto.applicato ?? 0;
   const marginePerc = pvNum > 0 ? ((pvNum - ciNum) / pvNum) * 100 : 0;
   const guadagnoUnit = pvNum - ciNum;
 
@@ -389,6 +406,9 @@ function TariffaDialog({
   //   - Per nuove tariffe forziamo prezzo>0 (non ha senso creare una tariffa a zero)
   //   - Per admin, margine negativo blocca (uso il `>=` perché = non ha senso commerciale)
   const blockReason: string | null = (() => {
+    if (isAdmin && configCosto.modalita === "manuale" && costoInterno.trim() && numeroCosto(costoInterno) == null) return "Inserisci un costo diretto valido, maggiore o uguale a zero.";
+    if (isAdmin && calcoloCosto.applicato == null) return "Completa il costo della modalità scelta: ore, operatori e costo orario oppure importo del subappalto.";
+    if (isAdmin && configCosto.modalita === "interna" && externalTeamId) return "Una squadra interna non può usare un listino riservato al subappaltatore: scegli Listino aziendale (generico).";
     if (isAdmin && pvNum > 0 && ciNum > 0 && ciNum >= pvNum) {
       return "Il costo è ≥ del prezzo di vendita. Correggi prima di salvare.";
     }
@@ -407,7 +427,7 @@ function TariffaDialog({
       const parseNonNegative = (value: string, label: string): number | null => {
         const trimmed = value.trim();
         if (!trimmed) return null;
-        const parsed = Number.parseFloat(trimmed);
+        const parsed = Number(trimmed.replace(",", "."));
         if (!Number.isFinite(parsed) || parsed < 0) {
           throw new Error(`${label} deve essere un numero positivo o zero`);
         }
@@ -424,7 +444,7 @@ function TariffaDialog({
       };
 
       const prezzoVenditaValue = parseNonNegative(prezzoVendita, "Prezzo vendita");
-      const costoInternoValue = parseNonNegative(costoInterno, "Costo interno") ?? 0;
+      const costoInternoValue = isAdmin ? calcoloCosto.applicato! : (editing?.costo_interno ?? editing?.prezzo_costo ?? 0);
       const prezzoPianoAggValue = parseNonNegative(prezzoPianoAgg, "Prezzo piano aggiuntivo");
       const pianoBaseValue = parseNonNegativeInt(pianoBase, "Piano base", 1);
 
@@ -448,25 +468,30 @@ function TariffaDialog({
         fonte: fonte.trim() || null,
         incidenza_manodopera_pct: incidenzaMdo,
         attivo,
+        attiva: attivo,
         // Listino per squadra: "" = generico (NULL)
         external_team_id: externalTeamId || null,
         piano_base: tipo === "tiro_piano" ? pianoBaseValue : null,
         prezzo_piano_aggiuntivo: tipo === "tiro_piano" ? prezzoPianoAggValue : null,
+        custom_field_values: { ...oggettoCampi(editing?.custom_field_values), _gruppo_lavorazione: gruppo },
       };
       // costo_interno only visible/writable by admins
       if (isAdmin) {
         payload.costo_interno = costoInternoValue;
+        payload.costo_default = costoInternoValue;
         // Manteniamo il legacy prezzo_costo allineato finché esiste la colonna
         payload.prezzo_costo = costoInternoValue;
+        payload.custom_field_values = campiConCostoLavorazione(editing?.custom_field_values, configCosto, costoInternoValue, gruppo);
       }
 
       const tbl = supabase.from("tariffe_aziendali");
       if (editing) {
-        const { error } = await tbl
+        const { data, error } = await tbl
           .update(payload as never)
           .eq("id", editing.id)
-          .eq("company_id", companyId);
+          .eq("company_id", companyId).select("id").single();
         if (error) throw error;
+        if (!data) throw new Error("Voce non aggiornata: verifica i permessi e riprova.");
       } else {
         const { error } = await tbl.insert(payload as never);
         if (error) throw error;
@@ -563,6 +588,7 @@ function TariffaDialog({
               </Label>
               <Select
                 value={unitaFatturazione}
+                disabled={!!editing}
                 onValueChange={(v) => setUnitaFatturazione(v as UnitaFatturazione)}
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -600,20 +626,21 @@ function TariffaDialog({
           {/* Vertical + Attivo */}
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <Label>Vertical associato</Label>
+              <Label>Area di lavoro</Label>
               <Select
                 value={verticalAssociato || "__none__"}
                 onValueChange={(v) => setVerticalAssociato(v === "__none__" ? "" : v)}
               >
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger aria-label="Area di lavoro della voce"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__none__">Globale (nessun vertical)</SelectItem>
-                  <SelectItem value="serramentista">Serramentista</SelectItem>
-                  <SelectItem value="generico">Generico</SelectItem>
-                  <SelectItem value="edile">Edile</SelectItem>
-                  <SelectItem value="impiantistica">Impiantistica</SelectItem>
+                  <SelectItem value="__none__">Comune / nessuna area</SelectItem>
+                  {AREE_STANDARD.map((area) => <SelectItem key={area.chiave} value={area.verticale}>{area.nome}</SelectItem>)}
+                  {[...new Set(["generico", "edile", "impiantistica", verticalAssociato])]
+                    .filter((v) => v && !AREE_STANDARD.some((a) => a.verticale === v))
+                    .map((v) => <SelectItem key={v} value={v}>{nomeArea(areaDiVerticale(v) ?? "generale")} ({v})</SelectItem>)}
                 </SelectContent>
               </Select>
+              <p className="mt-1 text-xs text-muted-foreground">Organizza la voce nel listino. Le voci comuni restano senza un&apos;area specifica.</p>
             </div>
             <div className="flex items-end gap-3">
               <div className="flex-1">
@@ -628,24 +655,17 @@ function TariffaDialog({
             </div>
           </div>
 
+          <label className="block space-y-1 text-sm">Gruppo di lavorazioni
+            <select aria-label="Gruppo di lavorazioni della voce" value={gruppo} onChange={e => setGruppo(e.target.value as GruppoLavorazione)} className="h-10 w-full rounded-md border bg-background px-3">
+              {GRUPPI_LAVORAZIONE.map(g => <option key={g.id} value={g.id}>{g.nome}</option>)}
+            </select>
+            <span className="block text-xs text-muted-foreground">All'interno dell'area, organizza la voce per fase o tipo di lavoro.</span>
+          </label>
+
+          {isAdmin && <CostoLavorazioneEditor value={configCosto} onChange={setConfigCosto} costoManuale={costoInterno} onCostoManuale={setCostoInterno} unita={umLabel} dipendenti={dipendenti} erroreDipendenti={erroreDipendenti} costoModificato={costoModificato} />}
+
           {/* Prezzi */}
           <div className="grid gap-3 sm:grid-cols-2">
-            {isAdmin && (
-              <div>
-                <Label>Costo interno (€ per {umLabel})</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={costoInterno}
-                  onChange={(e) => setCostoInterno(e.target.value)}
-                  placeholder="0.00"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Costo reale (posatore, attrezzatura). Non visibile al cliente.
-                </p>
-              </div>
-            )}
             <div>
               <Label>Prezzo vendita (€ per {umLabel})</Label>
               <Input
@@ -800,11 +820,15 @@ function TariffaDialog({
 
           {/* Sprint B — Varianti Costo Manodopera: visibile solo su tariffe esistenti e solo admin */}
           {isAdmin && editing && (
+            <details className="rounded-lg border p-3">
+              <summary className="cursor-pointer text-sm font-medium">Varianti per commesse e squadre (avanzato)</summary>
+              <p className="my-2 text-xs text-muted-foreground">Il calcolo sopra imposta il costo base del listino. Nei margini delle commesse, assegnazioni già bloccate e varianti predefinite hanno precedenza. Non vengono cambiate da questo salvataggio.</p>
             <TariffaVariantiSection
               tariffaId={editing.id}
               costoDefault={editing.costo_interno ?? editing.prezzo_costo ?? null}
               tariffaSquadraId={externalTeamId || null}
             />
+            </details>
           )}
 
           {/* Reverse panel: prodotti del listino che usano questa tariffa */}
@@ -1268,11 +1292,12 @@ function TariffeTable({
                 <TableCell>
                   <div className="flex min-w-0 items-center gap-1.5 font-medium">
                     {t.codice && (
-                      <Badge variant="outline" className="h-4 shrink-0 px-1.5 font-mono text-[10px] font-normal">
+                      <Badge variant="outline" title={t.codice} className="h-4 max-w-32 shrink-0 truncate px-1.5 font-mono text-[10px] font-normal">
                         {t.codice}
                       </Badge>
                     )}
                     <span className="truncate" title={t.nome}>{t.nome}</span>
+                    {lavorazioneStandardDaCompletare(t) && <Badge variant="secondary" className="shrink-0 text-[10px]">Da completare</Badge>}
                   </div>
                   <div className="mt-0.5 flex min-w-0 items-center gap-1.5">
                     <span className={`inline-flex h-4 shrink-0 items-center rounded px-1.5 text-[10px] font-medium ${tipoBadgeClass(t.tipo)}`}>
@@ -1288,6 +1313,7 @@ function TariffeTable({
                         {t.vertical_associato}
                       </Badge>
                     )}
+                    <Badge variant="outline" className="h-4 shrink-0 px-1.5 text-[10px] font-normal">{GRUPPI_LAVORAZIONE.find(g => g.id === gruppoLavorazione(t))?.nome}</Badge>
                     {t.tipo === "tiro_piano" && t.prezzo_piano_aggiuntivo != null && (
                       <span className="shrink-0 whitespace-nowrap text-[11px] text-muted-foreground">
                         +{formatCurrency(t.prezzo_piano_aggiuntivo)}/piano oltre il {t.piano_base ?? 1}°
@@ -1309,6 +1335,10 @@ function TariffeTable({
                 {isAdmin && (
                   <TableCell className="whitespace-nowrap text-right tabular-nums">
                     {pc ? formatCurrency(pc) : <span className="text-muted-foreground">—</span>}
+                    <span className="block text-[10px] text-muted-foreground">{(() => {
+                      const config = leggiCostoLavorazione(t.custom_field_values);
+                      return MODALITA_COSTO_LABEL[costoLavorazioneModificato(config, pc) ? "manuale" : config.modalita];
+                    })()}</span>
                   </TableCell>
                 )}
                 {isAdmin && (
@@ -1379,8 +1409,8 @@ function TariffeTable({
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
-type StatoFilter = "all" | "attive" | "archiviate";
-type VerticalFilter = "all" | "current" | "global";
+type StatoFilter = "all" | "attive" | "archiviate" | "standard";
+type VerticalFilter = FiltroAreaTariffe;
 /** Filtro per redditività (solo admin): tutte / sotto la soglia minima / in perdita. */
 type MargineFilter = "all" | "sotto-soglia" | "perdita";
 
@@ -1413,6 +1443,7 @@ export default function SettingsTariffe() {
   /** Filtro listino: "tutte" | "generico" | id squadra. */
   const [squadraFilter, setSquadraFilter] = useState<string>("tutte");
   const [margineFilter, setMargineFilter] = useState<MargineFilter>("all");
+  const [lavorazioneFilter, setLavorazioneFilter] = useState<GruppoLavorazione | "all">("all");
   const [usageTariffa, setUsageTariffa] = useState<Tariffa | null>(null);
   const [analisiTariffa, setAnalisiTariffa] = useState<Tariffa | null>(null);
   // Selezione multipla per azioni in blocco
@@ -1436,13 +1467,14 @@ export default function SettingsTariffe() {
     queryKey: ["tariffe-aziendali-full", companyId],
     enabled: !!companyId,
     queryFn: async () => {
+      return loadCatalogPages<Tariffa>(async (from, to) => {
       const { data, error } = await supabase
         .from("tariffe_aziendali")
-        .select("id, company_id, nome, descrizione, tipo, unita, unita_fatturazione, prezzo_vendita, prezzo_costo, costo_interno, vertical_associato, piano_base, prezzo_piano_aggiuntivo, attivo, external_team_id, codice, fonte")
+        .select("id, company_id, nome, descrizione, tipo, unita, unita_fatturazione, prezzo_vendita, prezzo_costo, costo_interno, vertical_associato, piano_base, prezzo_piano_aggiuntivo, attivo, external_team_id, codice, fonte, incidenza_manodopera_pct, custom_field_values")
         .eq("company_id", companyId)
-        .order("nome");
-      if (error) throw error;
-      return (data ?? []) as unknown as Tariffa[];
+        .order("nome").order("id").range(from, to);
+        return { data: data as unknown as Tariffa[], error };
+      });
     },
   });
 
@@ -1466,6 +1498,18 @@ export default function SettingsTariffe() {
     for (const sq of squadre) m[sq.id] = sq.name ?? "Squadra";
     return m;
   }, [squadre]);
+
+  const { data: dipendenti = [], isError: erroreDipendenti } = useQuery({
+    queryKey: ["dipendenti-costo-lavorazione", companyId],
+    enabled: !!companyId && dialogOpen && isAdmin && permissions.canViewEmployees && permissions.canViewCosts,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("employees")
+        .select("id, first_name, last_name, costo_orario").eq("company_id", companyId!).eq("is_active", true).order("last_name");
+      if (error) throw error;
+      return (data ?? []) as DipendenteCostoLavorazione[];
+    },
+  });
 
   // #50 — Guardia anti-eliminazione: quando si apre la conferma di delete per
   // UNA voce, conta i riferimenti per avvisare l'admin (consigliando
@@ -1522,7 +1566,7 @@ export default function SettingsTariffe() {
       const next = !(t.attivo !== false);
       const { error } = await supabase
         .from("tariffe_aziendali")
-        .update({ attivo: next } as never)
+        .update({ attivo: next, attiva: next } as never)
         .eq("id", t.id)
         .eq("company_id", companyId);
       if (error) throw error;
@@ -1550,10 +1594,16 @@ export default function SettingsTariffe() {
         vertical_associato: t.vertical_associato ?? null,
         prezzo_vendita: t.prezzo_vendita ?? null,
         costo_interno: t.costo_interno ?? t.prezzo_costo ?? 0,
+        costo_default: t.costo_interno ?? t.prezzo_costo ?? 0,
         prezzo_costo: t.prezzo_costo ?? t.costo_interno ?? 0,
         piano_base: t.piano_base ?? null,
         prezzo_piano_aggiuntivo: t.prezzo_piano_aggiuntivo ?? null,
-        attivo: true,
+        attivo: t.attivo !== false,
+        attiva: t.attivo !== false,
+        external_team_id: t.external_team_id ?? null,
+        fonte: t.fonte ?? null,
+        incidenza_manodopera_pct: t.incidenza_manodopera_pct ?? null,
+        custom_field_values: t.custom_field_values ?? {},
       };
       const { error } = await supabase.from("tariffe_aziendali").insert(payload as never);
       if (error) throw error;
@@ -1574,7 +1624,7 @@ export default function SettingsTariffe() {
       if (ids.length === 0) return { count: 0, attivo };
       const { error } = await supabase
         .from("tariffe_aziendali")
-        .update({ attivo } as never)
+        .update({ attivo, attiva: attivo } as never)
         .in("id", ids)
         .eq("company_id", companyId);
       if (error) throw error;
@@ -1626,13 +1676,14 @@ export default function SettingsTariffe() {
     return tariffe.filter((t) => {
       // stato
       if (statoFilter === "attive" && t.attivo === false) return false;
-      if (statoFilter === "archiviate" && t.attivo !== false) return false;
+      if (statoFilter === "archiviate" && (t.attivo !== false || lavorazioneStandardDaCompletare(t))) return false;
+      if (statoFilter === "standard" && !lavorazioneStandardDaCompletare(t)) return false;
       // listino per squadra
       if (squadraFilter === "generico" && t.external_team_id) return false;
       if (squadraFilter !== "tutte" && squadraFilter !== "generico" && t.external_team_id !== squadraFilter) return false;
       // vertical
-      if (verticalFilter === "current" && t.vertical_associato !== currentVertical) return false;
-      if (verticalFilter === "global" && t.vertical_associato) return false;
+      if (!tariffaNellArea(t.vertical_associato, verticalFilter, currentVertical)) return false;
+      if (lavorazioneFilter !== "all" && gruppoLavorazione(t) !== lavorazioneFilter) return false;
       // search — nome, descrizione, tipo, unità di fatturazione e vertical
       if (q) {
         const haystack = `${t.nome} ${t.descrizione ?? ""} ${tipoLabel(t.tipo)} ${t.unita_fatturazione ?? t.unita ?? ""} ${t.vertical_associato ?? ""}`.toLowerCase();
@@ -1650,7 +1701,7 @@ export default function SettingsTariffe() {
       }
       return true;
     });
-  }, [tariffe, statoFilter, squadraFilter, verticalFilter, currentVertical, search, margineFilter, soglia]);
+  }, [tariffe, statoFilter, squadraFilter, verticalFilter, currentVertical, search, margineFilter, soglia, lavorazioneFilter]);
 
   // Raggruppamento per group (per i tab)
   const byGroup = useMemo(() => {
@@ -1711,6 +1762,7 @@ export default function SettingsTariffe() {
     search.trim() !== "" ||
     statoFilter !== "attive" ||
     verticalFilter !== "all" ||
+    lavorazioneFilter !== "all" || squadraFilter !== "tutte" ||
     margineFilter !== "all" ||
     activeGroup !== "all";
 
@@ -1720,6 +1772,8 @@ export default function SettingsTariffe() {
     setVerticalFilter("all");
     setMargineFilter("all");
     setActiveGroup("all");
+    setLavorazioneFilter("all");
+    setSquadraFilter("tutte");
   };
 
   // #48 — Filtri attivi come "chip" rimovibili singolarmente. Lo stato "attive"
@@ -1728,11 +1782,12 @@ export default function SettingsTariffe() {
   const activeFilterChips = useMemo(() => {
     const chips: { key: string; label: string; onRemove: () => void }[] = [];
     const q = search.trim();
+    if (lavorazioneFilter !== "all") chips.push({ key: "lavorazione", label: `Lavorazioni: ${GRUPPI_LAVORAZIONE.find(g => g.id === lavorazioneFilter)?.nome}`, onRemove: () => setLavorazioneFilter("all") });
     if (q) chips.push({ key: "search", label: `Cerca: "${q}"`, onRemove: () => setSearch("") });
     if (statoFilter !== "attive")
       chips.push({
         key: "stato",
-        label: statoFilter === "archiviate" ? "Stato: archiviate" : "Stato: tutte",
+        label: statoFilter === "standard" ? "Stato: basi da completare" : statoFilter === "archiviate" ? "Stato: archiviate" : "Stato: tutte",
         onRemove: () => setStatoFilter("attive"),
       });
     if (verticalFilter !== "all")
@@ -1740,8 +1795,8 @@ export default function SettingsTariffe() {
         key: "vertical",
         label:
           verticalFilter === "current"
-            ? `Vertical: ${currentVertical || "corrente"}`
-            : "Vertical: globali",
+            ? `Area: ${nomeArea(areaDiVerticale(currentVertical) ?? "generale")}`
+            : verticalFilter === "global" ? "Area: comuni / non assegnate" : `Area: ${nomeArea(verticalFilter.slice(5))}`,
         onRemove: () => setVerticalFilter("all"),
       });
     if (margineFilter !== "all")
@@ -1751,7 +1806,7 @@ export default function SettingsTariffe() {
         onRemove: () => setMargineFilter("all"),
       });
     return chips;
-  }, [search, statoFilter, verticalFilter, margineFilter, currentVertical]);
+  }, [search, statoFilter, verticalFilter, margineFilter, currentVertical, lavorazioneFilter]);
 
   // Esporta in CSV ciò che è attualmente filtrato (round-trip con l'import).
   const exportCsv = () => {
@@ -1800,7 +1855,7 @@ export default function SettingsTariffe() {
           <div className="min-w-0">
             <h1 className="text-lg sm:text-xl font-bold leading-tight">Manodopera e Servizi</h1>
             <p className="hidden text-sm text-muted-foreground sm:block">
-              Posa, trasporto, pratiche e servizi: ogni voce ha vendita{isAdmin ? " e costo" : ""}, il preventivatore le usa da solo.
+              Scegli l'area e la lavorazione. Prezzo al cliente e costo di esecuzione restano separati.
             </p>
           </div>
         </div>
@@ -1888,6 +1943,24 @@ export default function SettingsTariffe() {
         }}
       />
 
+      {tariffe.some(lavorazioneStandardDaCompletare) && (
+        <div className="flex flex-col gap-3 rounded-lg border border-blue-200 bg-blue-50/50 p-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm">
+            Hai {tariffe.filter(lavorazioneStandardDaCompletare).length} lavorazioni standard da personalizzare.
+            <span className="block text-xs text-muted-foreground">Apri una voce, controlla cosa comprende e imposta i tuoi prezzi. Le basi non sono attive nei preventivi.</span>
+          </p>
+          <Button variant="outline" size="sm" onClick={() => {
+            setStatoFilter("standard"); setActiveGroup("all"); setSearch("");
+            setVerticalFilter("all"); setSquadraFilter("tutte"); setMargineFilter("all"); setLavorazioneFilter("all");
+          }}>Completa le basi</Button>
+        </div>
+      )}
+
+      <AreeManodopera tariffe={tariffe} value={verticalFilter} onChange={(area) => {
+        setVerticalFilter(area); setLavorazioneFilter("all"); setActiveGroup("all");
+        setSearch(""); setSquadraFilter("tutte"); setMargineFilter("all"); setStatoFilter("all");
+      }} />
+
       {/* Filter bar — senza Card: bordo e padding non aggiungevano niente,
           solo ~40px in più prima della tabella. Una riga sola su desktop. */}
       <div className="space-y-2">
@@ -1897,30 +1970,37 @@ export default function SettingsTariffe() {
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Cerca per nome, tipo, unità o vertical…"
+              placeholder="Cerca per nome, tipo, unità o area…"
               className="h-9 pl-9"
             />
           </div>
           <Select value={statoFilter} onValueChange={(v) => setStatoFilter(v as StatoFilter)}>
-            <SelectTrigger className="h-9 w-full md:w-[140px]">
+            <SelectTrigger aria-label="Filtra per stato della voce" className="h-9 w-full md:w-[180px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="attive">Solo attive</SelectItem>
+              <SelectItem value="standard">Basi da completare</SelectItem>
               <SelectItem value="archiviate">Solo archiviate</SelectItem>
               <SelectItem value="all">Tutte</SelectItem>
             </SelectContent>
           </Select>
           <Select value={verticalFilter} onValueChange={(v) => setVerticalFilter(v as VerticalFilter)}>
-            <SelectTrigger className="h-9 w-full md:w-[160px]">
-              <SelectValue placeholder="Filtra vertical" />
+            <SelectTrigger aria-label="Filtra per area di lavoro" className="h-9 w-full md:w-[220px]">
+              <SelectValue placeholder="Filtra per area" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Tutti i vertical</SelectItem>
-              <SelectItem value="current">Solo {currentVertical || "corrente"}</SelectItem>
-              <SelectItem value="global">Solo globali</SelectItem>
+              <SelectItem value="all">Tutte le aree</SelectItem>
+              <SelectItem value="global">Comuni / non assegnate</SelectItem>
+              {areePerTariffe(tariffe).map((area) => (
+                <SelectItem key={area.chiave} value={`area:${area.chiave}`}>{area.nome}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
+          <select aria-label="Filtra per gruppo di lavorazioni" value={lavorazioneFilter} onChange={e => { setLavorazioneFilter(e.target.value as GruppoLavorazione | "all"); setActiveGroup("all"); }} className="h-9 w-full rounded-md border bg-background px-3 text-sm md:w-[230px]">
+            <option value="all">Tutte le lavorazioni</option>
+            {GRUPPI_LAVORAZIONE.map(g => <option key={g.id} value={g.id}>{g.nome}</option>)}
+          </select>
           {squadre.length > 0 && (
             <Select value={squadraFilter} onValueChange={setSquadraFilter}>
               <SelectTrigger className="h-9 w-full md:w-[180px]">
@@ -2048,6 +2128,12 @@ export default function SettingsTariffe() {
                   <p className="text-sm text-muted-foreground mt-1">
                     Nessuna voce corrisponde ai filtri o alla ricerca attuali.
                   </p>
+                  {verticalFilter.startsWith("area:") && (
+                    <p className="mx-auto mt-2 max-w-lg text-sm text-muted-foreground">
+                      Le voci senza area sono in «Comuni / non assegnate». Puoi aprirle e scegliere l&apos;area di lavoro:
+                      il nome della lavorazione, da solo, non la assegna automaticamente.
+                    </p>
+                  )}
                 </div>
                 <div className="flex justify-center">
                   <Button variant="outline" onClick={resetFilters}>
@@ -2172,7 +2258,10 @@ export default function SettingsTariffe() {
           editing={editing}
           companyId={companyId}
           isAdmin={isAdmin}
-          currentVertical={currentVertical}
+          currentVertical={verticalFilter.startsWith("area:") ? (AREE_STANDARD.find(a => a.chiave === verticalFilter.slice(5))?.verticale ?? verticalFilter.slice(5)) : verticalFilter === "global" ? null : currentVertical}
+          gruppoIniziale={lavorazioneFilter === "all" ? "posa" : lavorazioneFilter}
+          dipendenti={permissions.canViewEmployees && permissions.canViewCosts ? dipendenti : []}
+          erroreDipendenti={erroreDipendenti}
           onSaved={() => invalidateAllTariffe(queryClient)}
         />
       )}

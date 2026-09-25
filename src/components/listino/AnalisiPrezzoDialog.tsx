@@ -260,11 +260,15 @@ function AnalisiEditor({
           incidenza_manodopera_pct: risultato.incidenzaManodoperaPct,
           fonte: "analisi_prezzo",
         };
-        if (aggiornaCosto) patch.prezzo_costo = risultato.costoAziendale;
+        if (aggiornaCosto) {
+          patch.prezzo_costo = risultato.costoAziendale;
+          patch.costo_interno = risultato.costoAziendale;
+          patch.costo_default = risultato.costoAziendale;
+        }
         const { error } = await (supabase as any)
           .from("tariffe_aziendali")
           .update(patch)
-          .eq("id", tariffa.id);
+          .eq("id", tariffa.id).eq("company_id", companyId);
         if (error) throw error;
       }
       return { applica };

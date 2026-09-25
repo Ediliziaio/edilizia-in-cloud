@@ -6,10 +6,14 @@ import Beasties from "beasties";
 import { minify as htmlMinify } from "html-minifier-terser";
 import { readFileSync, writeFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { viteLocalCacheKey } from "./config/viteLocalCache";
 
 // https://vitejs.dev/config/
 const isMobile = process.env.VITE_APP_MODE === "mobile";
-export default defineConfig(() => ({
+export default defineConfig(({ command, mode }) => ({
+  // Multiple local terminals/previews otherwise delete chunks still used by
+  // another Vite server, producing 504 Outdated Optimize Dep and reload loops.
+  cacheDir: path.resolve(__dirname, "node_modules", `.vite-${viteLocalCacheKey(command, mode, process.argv, process.env)}`),
   server: {
     host: "::",
     port: process.env.PORT ? parseInt(process.env.PORT) : 8080,
@@ -252,7 +256,7 @@ export default defineConfig(() => ({
         // template gallery, ~200KB per il pacchetto Serramenti) caricati on
         // demand solo dal picker. Cloudflare CDN li serve già velocemente.
         // Pattern globale + esclusione esplicita /templates/** (foto picker).
-        globPatterns: ["**/*.{ico,svg,woff2}", "icons/**/*.png", "apple-touch-icon.png"],
+        globPatterns: ["**/*.{ico,svg,woff2}", "icons/**/*.png"],
         globIgnores: ["**/templates/**", "**/img/**"],
         // NO navigateFallback: Cloudflare Pages handles SPA routing server-side
         // via _redirects (/* /index.html 200). Caching index.html in the SW

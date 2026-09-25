@@ -22,7 +22,9 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useIsCampo } from "@/hooks/useIsCampo";
+import { useCampoAssignments } from "@/hooks/campo/useCampoAssignments";
+import { CampoCrewAgenda } from "@/components/campo/CampoCrewAgenda";
+import { campoCrewAgendaEnabled } from "@/hooks/campo/useCampoCrewAgenda";
 import { cn } from "@/lib/utils";
 import { haversineMeters } from "@/lib/tsp";
 import { forwardGeocode } from "@/lib/geocoding";
@@ -70,11 +72,6 @@ interface Appuntamento {
 
 type CalendarItem = Cantiere | Appuntamento;
 
-type AssignmentRow = {
-  id: string;
-  order_id: string | null;
-  order: OrderSummary | null;
-};
 
 type AppointmentRow = Omit<Appuntamento, "type" | "formatted_address"> & {
   formatted_address: string | null;
@@ -149,11 +146,6 @@ function campoLavoroUrl(order: {
   return `/campo/lavoro/${order.id}${query ? `?${query}` : ""}`;
 }
 
-function isOpenOrder(order: OrderSummary | null | undefined): order is OrderSummary {
-  if (!order?.id) return false;
-  const status = order.status?.toLowerCase();
-  return status !== "annullato" && status !== "chiuso";
-}
 
 /**
  * Lavoro ancora aperto ma con la data di fine già passata → è IN RITARDO
@@ -165,26 +157,11 @@ function isOverdueOrder(order: OrderSummary | null | undefined): boolean {
   return differenceInCalendarDays(new Date(), parseISO(order.work_end_date)) > 0;
 }
 
-function assignmentsToCantieri(rows: AssignmentRow[] | null | undefined): Cantiere[] {
-  const seen = new Set<string>();
-  return (rows ?? [])
-    .filter((row) => {
-      if (!isOpenOrder(row.order) || seen.has(row.order.id)) return false;
-      seen.add(row.order.id);
-      return true;
-    })
-    .map((row) => ({
-      id: row.id,
-      type: "cantiere" as const,
-      order: row.order!,
-    }));
-}
 
 
 export default function CampoCalendario() {
   const navigate = useNavigate();
   const { user, profile, company, effectiveCompany } = useAuth();
-  const { isSubappaltatore } = useIsCampo();
   // Sede REALE dell'azienda (prima era hardcodato il Duomo di Milano per
   // qualsiasi tenant): geocodifichiamo l'indirizzo operativo; se non c'è,
   // le righe "Dalla sede" semplicemente non compaiono.
@@ -211,110 +188,11 @@ export default function CampoCalendario() {
 
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
-  // Employee ID
-  const { data: employeeId } = useQuery({
-    queryKey: ["campo-emp-id", user?.id, profile?.company_id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("employees").select("id")
-        .eq("user_id", user!.id).eq("company_id", profile!.company_id)
-        .maybeSingle();
-      if (error) throw error;
-      return data?.id ?? null;
-    },
-    enabled: !!user?.id && !!profile?.company_id,
-  });
-
-  // Cantieri assegnati
-  const { data: allCantieri = [], isLoading: loadingCantieri } = useQuery<Cantiere[]>({
-    queryKey: ["campo-lavori-full", employeeId, user?.id, profile?.company_id, isSubappaltatore],
-    queryFn: async () => {
-      if (isSubappaltatore) {
-        const { data: directAssignments, error: directError } = await supabase
-          .from("order_campo_assignments")
-          .select(`
-            id, order_id, role_type, note,
-            order:orders(id, order_code, description, status, indirizzo_lavori, percentuale_avanzamento, work_start_date, work_end_date)
-          `)
-          .eq("user_id", user!.id);
-        if (directError) throw directError;
-
-        const directCantieri = assignmentsToCantieri(directAssignments as AssignmentRow[] | null);
-        if (directCantieri.length > 0) return directCantieri;
-
-        const { data: subcontractor, error: subcontractorError } = await supabase
-          .from("subappaltatori")
-          .select("id")
-          .eq("user_id", user!.id)
-          .maybeSingle();
-        if (subcontractorError) throw subcontractorError;
-        if (!subcontractor?.id) return [];
-
-        const { data: contracts, error: contractsError } = await supabase
-          .from("contratti_subappalto")
-          .select(`
-            id, order_id, stato,
-            order:orders(id, order_code, description, status, indirizzo_lavori, percentuale_avanzamento, work_start_date, work_end_date)
-          `)
-          .eq("subappaltatore_id", subcontractor.id)
-          .eq("stato", "attivo");
-        if (contractsError) throw contractsError;
-
-        // La squadra con un accesso vede anche le pose assegnate alla SUA
-        // squadra sulla commessa (order_external_teams), non solo quelle con
-        // un contratto di subappalto: è la strada di chi non usa Google.
-        const { data: squadre } = await supabase
-          .from("external_teams")
-          .select("id")
-          .eq("subappaltatore_id" as never, subcontractor.id as never);
-        const squadraIds = ((squadre ?? []) as Array<{ id: string }>).map((sq) => sq.id);
-        let daSquadra: AssignmentRow[] = [];
-        if (squadraIds.length > 0) {
-          const { data: assegnate, error: assegnateError } = await supabase
-            .from("order_external_teams")
-            .select(`
-              id, order_id,
-              order:orders(id, order_code, description, status, indirizzo_lavori, percentuale_avanzamento, work_start_date, work_end_date)
-            `)
-            .in("external_team_id", squadraIds);
-          if (assegnateError) throw assegnateError;
-          daSquadra = (assegnate ?? []) as unknown as AssignmentRow[];
-        }
-        return assignmentsToCantieri([...((contracts ?? []) as unknown as AssignmentRow[]), ...daSquadra]);
-      }
-
-      // Le assegnazioni operaio vivono in DUE tabelle (order_employees dalla
-      // scheda costi, order_campo_assignments dall'app campo): la Home le
-      // legge entrambe, qui ne leggevamo una sola → cantieri visibili in Home
-      // ma "Nessun impegno" nel calendario. Unione con dedup per order_id.
-      const [empRes, campoRes] = await Promise.all([
-        employeeId
-          ? supabase
-              .from("order_employees")
-              .select(`id, order_id, order:orders(id, order_code, description, status, indirizzo_lavori, percentuale_avanzamento, work_start_date, work_end_date)`)
-              .eq("employee_id", employeeId)
-          : Promise.resolve({ data: [], error: null }),
-        supabase
-          .from("order_campo_assignments")
-          .select(`id, order_id, order:orders(id, order_code, description, status, indirizzo_lavori, percentuale_avanzamento, work_start_date, work_end_date)`)
-          .eq("user_id", user!.id),
-      ]);
-      if (empRes.error) throw empRes.error;
-      if (campoRes.error) throw campoRes.error;
-      const uniti = [
-        ...assignmentsToCantieri(empRes.data as AssignmentRow[] | null),
-        ...assignmentsToCantieri(campoRes.data as AssignmentRow[] | null),
-      ];
-      const visti = new Set<string>();
-      return uniti.filter((c) => {
-        const key = c.order?.id ?? c.id;
-        if (visti.has(key)) return false;
-        visti.add(key);
-        return true;
-      });
-    },
-    enabled: isSubappaltatore ? !!user?.id : !!user?.id,
-  });
+  const { data: assignments, isLoading: loadingCantieri, isError: cantieriError, refetch: reloadCantieri } = useCampoAssignments();
+  const allCantieri: Cantiere[] = useMemo(() => (assignments ?? []).map(a => ({
+    id: a.id, type: "cantiere",
+    order: { ...a.order, order_code: a.order.order_code ?? "", description: a.order.description ?? "", status: a.order.status ?? "", percentuale_avanzamento: a.order.percentuale_avanzamento ?? 0 },
+  })), [assignments]);
 
   // Appuntamenti assegnati all'operaio
   const { data: allAppuntamenti = [], isLoading: loadingApp } = useQuery<Appuntamento[]>({
@@ -474,6 +352,12 @@ export default function CampoCalendario() {
 
   return (
     <div className="mx-auto flex h-full max-w-7xl flex-col gap-3 md:gap-4">
+      {cantieriError && (
+        <div role="alert" className="rounded-xl border border-destructive/30 bg-background p-4 text-sm">
+          <p>I cantieri non sono aggiornati. Non usare questo elenco come conferma della giornata.</p>
+          <Button variant="outline" size="sm" className="mt-2" onClick={() => reloadCantieri()}>Riprova</Button>
+        </div>
+      )}
       <div className="rounded-2xl border bg-background p-4 shadow-sm md:p-5">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="min-w-0">
@@ -672,6 +556,8 @@ export default function CampoCalendario() {
 
           <div className="min-h-[340px] px-3 py-3 pb-28 md:min-h-[520px] md:px-5 md:pb-6">
 
+        {campoCrewAgendaEnabled && <div className="mb-3"><CampoCrewAgenda day={format(selectedDay, "yyyy-MM-dd")} /></div>}
+
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
@@ -682,9 +568,9 @@ export default function CampoCalendario() {
               <CalendarOff className="h-8 w-8 text-muted-foreground/60" />
             </div>
             <div>
-              <p className="font-semibold text-foreground">Nessun impegno programmato</p>
+              <p className="font-semibold text-foreground">{campoCrewAgendaEnabled ? "Nessun altro cantiere o appuntamento" : "Nessun impegno programmato"}</p>
               <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-                {isToday(selectedDay) ? "Oggi non risultano cantieri o appuntamenti assegnati." : `Niente programmato per ${format(selectedDay, "EEEE d MMMM", { locale: it })}.`}
+                {campoCrewAgendaEnabled ? "I turni di squadra sono elencati nell'agenda qui sopra." : isToday(selectedDay) ? "Oggi non risultano cantieri o appuntamenti assegnati." : `Niente programmato per ${format(selectedDay, "EEEE d MMMM", { locale: it })}.`}
               </p>
             </div>
           </div>

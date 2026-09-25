@@ -1,5 +1,3 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Package } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -9,6 +7,7 @@ import { OrderAttachments } from "./OrderAttachments";
 import { SupplierPaymentsCard } from "./SupplierPaymentsCard";
 import { usePermissions } from "@/hooks/usePermissions";
 import type { OrderItemData } from "@/lib/orderUtils";
+import { OrderMaterialsSummary } from "./OrderMaterialsSummary";
 
 interface OrdineArticoliProps {
   orderId: string;
@@ -42,12 +41,13 @@ export function OrdineArticoli({
 }: OrdineArticoliProps) {
   const queryClient = useQueryClient();
   // Pagamenti fornitori = costi → visibili solo a chi ha canViewCosts.
-  const { canViewCosts } = usePermissions();
+  const { canViewCosts, canEditOrders } = usePermissions();
 
   // Posa dal listino → voce Manodopera (order_external_teams). Materiale resta
   // in order_items: il costo manodopera NON viene contato due volte.
   const addLaborMutation = useMutation({
     mutationFn: async (labor: { external_team_id: string; total_cost: number; notes: string }) => {
+      if (!canEditOrders) throw new Error("Permessi insufficienti");
       const { error } = await supabase.from("order_external_teams").insert({
         order_id: orderId,
         external_team_id: labor.external_team_id,
@@ -69,35 +69,26 @@ export function OrdineArticoli({
 
   return (
     <div className="space-y-4">
+      <OrderMaterialsSummary items={displayItems} orderId={orderId} />
       {/* Il lavoro dell'utente, fatto dal pannello: articoli da ordinare
           raggruppati per fornitore, un click per OdA. E se fra gli articoli
           c'e' della posa, il banner propone di spostarla nelle Lavorazioni. */}
       <OrdinaPerFornitorePanel orderId={orderId} orderCode={orderCode} items={displayItems} />
-      <PosaInLavorazioniBanner orderId={orderId} items={displayItems} />
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-            <Package className="h-4 w-4 text-orange-500" />
-            Articoli
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
+      {canEditOrders && canViewCosts && <PosaInLavorazioniBanner orderId={orderId} items={displayItems} />}
           <OrderItemsList
             items={displayItems}
             onItemsChange={onItemsChange}
-            editable={true}
-            allowEdit={true}
-            showStatusControls={true}
+            editable={canEditOrders}
+            allowEdit={canEditOrders}
+            showStatusControls={canEditOrders}
             showOdaCoverage={true}
             onAttachmentsRefresh={onAttachmentsRefresh}
             onItemUpdate={onItemUpdate}
             fallbackCompanyId={companyId}
             onAddLabor={(labor) => addLaborMutation.mutate(labor)}
           />
-        </CardContent>
-      </Card>
 
-      {showAttachments && <OrderAttachments orderId={orderId} editable={true} />}
+      {showAttachments && <OrderAttachments orderId={orderId} editable={canEditOrders} />}
 
       {showSupplierPayments && canViewCosts && (
         <SupplierPaymentsCard items={orderItems} companyId={companyId} orderId={orderId} />

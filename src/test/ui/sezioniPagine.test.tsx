@@ -90,8 +90,8 @@ describe("il menu delle pagine", () => {
 describe("la sezione di una pagina, negli editor edili", () => {
   it("un blocco: testi e foto, e «Mostra nel PDF» che è lo stesso dell'ordine delle pagine", () => {
     render(<Edile sezione="page_protezione" />);
-    expect(screen.getByText("Protezione della casa")).toBeInTheDocument();
-    const interruttore = screen.getByRole("switch", { name: "Mostra «Protezione della casa» nel PDF" });
+    expect(screen.getByText("Protezione degli ambienti")).toBeInTheDocument();
+    const interruttore = screen.getByRole("switch", { name: "Mostra «Protezione degli ambienti» nel PDF" });
     expect(interruttore).toBeChecked();
     fireEvent.change(screen.getByDisplayValue("Trattiamo la tua casa *come se fosse la nostra*."), { target: { value: "La tua casa, *protetta*." } });
     expect(salvato().blocchi).toEqual({ protezione: { titolo: "La tua casa, *protetta*." } });
@@ -147,7 +147,7 @@ describe("la sezione di una pagina, negli editor edili", () => {
     expect(salvato().blocchi.controlli.foto).toEqual(["/pdf-stock/bagni/installazione.jpg"]);
     dallaLibreria("protezione");
     expect(salvato().blocchi.controlli.foto).toEqual(["/pdf-stock/bagni/installazione.jpg", "/pdf-stock/bagni/protezione.jpg"]);
-    expect(screen.getByText("Foto (al massimo due)")).toBeInTheDocument();
+    expect(screen.getByText("Foto della pagina · 2 di 2")).toBeInTheDocument();
     dallaLibreria("tavola dal vecchio al nuovo");
     expect(salvato().blocchi.controlli.foto).toEqual(["/pdf-stock/bagni/tavola-dal-vecchio-al-nuovo.jpg"]);
   });
@@ -179,7 +179,7 @@ describe("la sezione di una pagina, in Serramenti e Fotovoltaico", () => {
     expect(screen.getByText("Esce nel preventivo")).toBeInTheDocument();
     expect(screen.getByLabelText("Titolo")).toHaveValue("Le risposte\nprima della conferma.");
     expect(screen.getByText("Le domande del modello")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("switch", { name: "Mostra «Domande frequenti» nel PDF" }));
+    fireEvent.click(screen.getByRole("switch", { name: "Mostra «Domande e risposte» nel PDF" }));
     expect(salvato().esce).toBe(false);
     expect(screen.getByText("Spenta: nel preventivo non esce")).toBeInTheDocument();
   });

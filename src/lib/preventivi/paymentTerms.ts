@@ -6,8 +6,8 @@
  * commessa, si copiano 1:1 nelle rate (order_installments) — stesso schema `type`.
  *
  * Le fasi sono percent-driven: l'importo si ricalcola dal totale del preventivo,
- * così restano coerenti anche se il totale cambia. L'ULTIMA fase assorbe il resto
- * (arrotondamenti) per far quadrare la somma esatta col totale.
+ * così restano coerenti anche se il totale cambia. Solo un piano al 100%
+ * assorbe gli arrotondamenti nell'ultima fase con percentuale positiva.
  */
 
 export type QuotePaymentPhaseType = "deposit" | "balance" | "financing";
@@ -45,23 +45,36 @@ export function defaultQuotePaymentPhases(): QuotePaymentPhase[] {
  * L'ultima fase assorbe il resto per garantire somma-importi === totale (no drift da arrotondamenti).
  */
 export function recalcPhaseAmounts(phases: QuotePaymentPhase[], total: number): QuotePaymentPhase[] {
-  const t = Math.max(0, round2(total));
+  const t = Number.isFinite(total) ? Math.max(0, round2(total)) : 0;
   const n = phases.length;
   if (n === 0) return phases;
+  const valid = paymentPlanError(phases) === null;
+  const lastPositive = phases.reduce((last, p, i) => p.percent > 0 ? i : last, -1);
   let remaining = t;
   return phases.map((p, i) => {
-    if (i === n - 1) {
-      // L'ultima fase assorbe SEMPRE il residuo esatto (mai negativo).
+    if (valid && i === lastPositive) {
       return { ...p, amount: remaining > 0 ? round2(remaining) : 0 };
     }
-    // Fase intermedia: quota da percentuale, MA clampata a [0, residuo] così la
-    // somma degli importi non supera mai il totale (percentuali >100% o negative
-    // non producono importi assurdi/negativi né over-allocazione).
-    const want = round2((t * (Number(p.percent) || 0)) / 100);
-    const amount = Math.min(Math.max(0, want), Math.max(0, round2(remaining)));
+    const percent = Number.isFinite(p.percent) ? Math.min(100, Math.max(0, p.percent)) : 0;
+    const want = round2(t * percent / 100);
+    // Un piano incompleto mostra gli importi effettivamente richiesti: non
+    // trasformare, per esempio, un saldo dichiarato del 30% in un 70%.
+    const amount = valid ? Math.min(want, Math.max(0, remaining)) : want;
     remaining = round2(remaining - amount);
     return { ...p, amount };
   });
+}
+
+/** Nessun piano è ammesso; se presente, deve essere completo e leggibile. */
+export function paymentPlanError(phases: QuotePaymentPhase[]): string | null {
+  if (phases.length === 0) return null;
+  if (phases.some((p) => !Number.isFinite(p.percent) || p.percent < 0 || p.percent > 100))
+    return "Ogni percentuale di pagamento deve essere compresa tra 0 e 100.";
+  if (Math.abs(phases.reduce((sum, p) => sum + p.percent, 0) - 100) > 0.000001)
+    return "Completa le fasi di pagamento: le percentuali devono sommare 100%.";
+  if (phases.some((p) => !p.label.trim()))
+    return "Inserisci una descrizione per ogni fase di pagamento.";
+  return null;
 }
 
 /** Somma delle percentuali (per mostrare all'utente se il piano quadra al 100%). */

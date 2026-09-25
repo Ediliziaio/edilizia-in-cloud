@@ -40,9 +40,10 @@ describe("computo nel documento edile condiviso (TabellaCapitolo)", () => {
 
   it("il capitolo non è atomico: uno lungo scorre sulla pagina dopo, non viene tagliato", () => {
     // Il contenitore del capitolo scorre…
-    expect(tabella).toMatch(/return \(\s*\n\s*<View style=\{\{ marginBottom: 16 \}\}>/);
+    expect(tabella).toMatch(/return \(\s*\n\s*<View minPresenceAhead=\{spazioDopo\} style=\{\{ marginBottom: 16 \}\}>/);
     // …l'intestazione del capitolo non resta orfana in fondo alla pagina…
-    expect(tabella).toMatch(/<View wrap=\{false\} minPresenceAhead=\{\d+\}>/);
+    expect(tabella).toContain("<View wrap={false}>");
+    expect(tabella).toContain("{cap.voci[0] ? riga(cap.voci[0]) : null}");
     // …e le singole voci restano intere.
     expect(tabella).toMatch(/<View key=\{v\.id\} wrap=\{false\}/);
   });

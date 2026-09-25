@@ -9,9 +9,8 @@ import type { ComponentType, LazyExoticComponent } from "react";
 // client-side è ri-importare lo STESSO chunk con una query diversa.
 const RETRY_DELAYS_MS = [1200, 3500];
 
-// Stessa chiave usata dall'ErrorBoundary per contare i reload automatici:
-// un import riuscito = rete sana → si azzera il contatore, così un futuro
-// chunk error riparte dai tentativi automatici invece del blocco manuale.
+// Non azzerare per import non correlati: il layout può caricarsi mentre la
+// pagina continua a fallire, altrimenti i tre reload diventano infiniti.
 const CHUNK_RELOAD_KEY = "_chunk_err_reload_v2";
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -19,10 +18,25 @@ const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve,
 // Chrome/Edge includono l'URL fallito nel messaggio ("Failed to fetch
 // dynamically imported module: https://…/Pagina-Hash.js"); Safari/Firefox no
 // → per loro si ritenta la factory originale, che non memoizza il fallimento.
-function failedChunkUrl(err: unknown): string | null {
+export function failedChunkUrl(err: unknown): string | null {
   const msg = err instanceof Error ? err.message : String(err ?? "");
-  const match = msg.match(/https?:\/\/[^\s'")]+\.(?:js|mjs)/);
-  return match ? match[0] : null;
+  const match = msg.match(/https?:\/\/[^\s'"<>\)]+/);
+  if (!match) return null;
+  try {
+    const url = new URL(match[0]);
+    // Include i moduli sorgente Vite e conserva query/hash dell'URL originale.
+    if (!/\.(?:[cm]?js|jsx|tsx?)$/.test(url.pathname)) return null;
+    if (url.origin !== window.location.origin) return null;
+    return url.href;
+  } catch {
+    return null;
+  }
+}
+
+export function retryChunkUrl(url: string, stamp: number): string {
+  const next = new URL(url);
+  next.searchParams.set("__chunk_retry", String(stamp));
+  return next.href;
 }
 
 export function lazyWithRetry<T extends ComponentType<unknown>>(
@@ -34,12 +48,12 @@ export function lazyWithRetry<T extends ComponentType<unknown>>(
       try {
         const bustUrl = attempt > 0 ? failedChunkUrl(lastError) : null;
         const mod = bustUrl
-          ? ((await import(/* @vite-ignore */ `${bustUrl}${bustUrl.includes("?") ? "&" : "?"}v=${Date.now()}`)) as {
+          ? ((await import(/* @vite-ignore */ retryChunkUrl(bustUrl, Date.now()))) as {
               default: T;
             })
           : await factory();
         try {
-          sessionStorage.removeItem(CHUNK_RELOAD_KEY);
+          if (attempt > 0) sessionStorage.removeItem(CHUNK_RELOAD_KEY);
         } catch {
           /* storage non disponibile: ignora */
         }

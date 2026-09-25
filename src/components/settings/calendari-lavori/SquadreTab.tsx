@@ -4,7 +4,7 @@
  */
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, HardHat, FileText } from "lucide-react";
+import { Plus, Pencil, Trash2, HardHat, FileText, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ExternalTeamDialog, type ExternalTeamFormData } from "@/components/employees/ExternalTeamDialog";
 import { ExternalTeamAttachments } from "@/components/employees/ExternalTeamAttachments";
+import { InternalTeamRosterDialog } from "@/components/employees/InternalTeamRosterDialog";
 import type { ExternalTeam } from "@/types/employees";
 import { SQUADRA_KIND_LABEL, STATO_SYNC_LABEL, statoSyncSquadra, type StatoSyncSquadra } from "@/types/squadre";
 import {
@@ -45,7 +46,7 @@ const STATO_CLASSE: Record<StatoSyncSquadra, string> = {
 
 export function SquadreTab({ canManage }: { canManage: boolean }) {
   const { effectiveCompany } = useAuth();
-  const { data: squadre = [], isLoading } = useSquadre();
+  const { data: squadre = [], isLoading, isError, refetch } = useSquadre();
   const { data: subappaltatori = [] } = useSubappaltatoriAzienda();
   const salva = useSalvaSquadra();
   const elimina = useEliminaSquadra();
@@ -55,6 +56,7 @@ export function SquadreTab({ canManage }: { canManage: boolean }) {
   const [inModifica, setInModifica] = useState<ExternalTeam | null>(null);
   const [daEliminare, setDaEliminare] = useState<ExternalTeam | null>(null);
   const [allegatiDi, setAllegatiDi] = useState<ExternalTeam | null>(null);
+  const [composizioneDi, setComposizioneDi] = useState<ExternalTeam | null>(null);
 
   // Utenti dell'azienda per il capocantiere delle squadre interne.
   const { data: utenti = [] } = useQuery({
@@ -96,7 +98,7 @@ export function SquadreTab({ canManage }: { canManage: boolean }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
-          Ogni squadra ha un colore nel calendario e può avere il suo calendario Google.
+          Squadre interne di dipendenti e ditte esterne. Il calendario Google è facoltativo.
         </p>
         <Button
           disabled={!canManage}
@@ -110,7 +112,12 @@ export function SquadreTab({ canManage }: { canManage: boolean }) {
         </Button>
       </div>
 
-      {isLoading ? (
+      {isError ? (
+        <div role="alert" className="space-y-2 rounded-lg border p-4 text-sm">
+          <p>Impossibile caricare le squadre. Nessun dato è stato modificato.</p>
+          <Button variant="outline" onClick={() => void refetch()}>Riprova</Button>
+        </div>
+      ) : isLoading ? (
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
             <Skeleton key={i} className="h-14 w-full" />
@@ -165,6 +172,9 @@ export function SquadreTab({ canManage }: { canManage: boolean }) {
                           </Badge>
                         )}
                       </span>
+                      {s.kind === "interna" && <Button variant="link" size="sm" className="mt-1 h-auto px-0" onClick={() => setComposizioneDi(s)}>
+                        <Users className="mr-1 h-3.5 w-3.5" /> Dipendenti della squadra
+                      </Button>}
                     </TableCell>
                     <TableCell className="hidden sm:table-cell">{SQUADRA_KIND_LABEL[s.kind ?? "esterna"]}</TableCell>
                     <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
@@ -267,6 +277,8 @@ export function SquadreTab({ canManage }: { canManage: boolean }) {
         isSaving={salva.isPending}
       />
 
+      {composizioneDi && <InternalTeamRosterDialog key={`${effectiveCompany?.id}:${composizioneDi.id}`} team={composizioneDi} onClose={() => setComposizioneDi(null)} />}
+
       {allegatiDi && (
         <ExternalTeamAttachments
           team={{ id: allegatiDi.id, name: allegatiDi.name }}
@@ -280,7 +292,7 @@ export function SquadreTab({ canManage }: { canManage: boolean }) {
           <AlertDialogHeader>
             <AlertDialogTitle>Eliminare «{daEliminare?.name}»?</AlertDialogTitle>
             <AlertDialogDescription>
-              Se la squadra è assegnata a delle commesse non si può eliminare: disattivala e sparisce dai menu.
+              Se la squadra ha assegnazioni o uno storico delle composizioni, non si può eliminare: disattivala per non proporla nei nuovi incarichi.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -1,3 +1,9 @@
+import { TemplateSectionNavigation } from "@/components/preventivi/TemplateSectionNavigation";
+import { SerramentiCoverLayoutPicker } from "./SerramentiCoverLayoutPicker";
+import { orderedSectionExcluded } from "@/components/preventivi/templateNavigationState";
+import { TemplateCoverDesignControls, COVER_DESIGN_CHOICES } from "@/components/preventivi/TemplateCoverDesignControls";
+import { TemplateImageFieldView } from "@/components/preventivi/TemplateImageFieldView";
+import { TemplateCoverStylePicker, TemplateCoverTextFields, coverStyleOnly } from "@/components/preventivi/TemplateCoverControls";
 /**
  * SerramentiTemplateEditor — editor del template PDF Preventivatore Serramenti.
  *
@@ -31,6 +37,7 @@ import {
   Building2, Wand2, AlertTriangle, CheckCircle2,
 } from "lucide-react";
 import { CampoFotoModello } from "@/components/preventivi/CampoFotoModello";
+import { templateEditorLayout, TemplateEditorSaveBar, TemplateEditorWorkspace, TemplateEditorNavigation } from "@/components/preventivi/TemplateEditorLayout";
 // Lazy load dei 3 sub-editor pesanti.
 // PERF: caricati on-demand quando la tab è attiva o il dialog si apre.
 // Risparmio: ~50 KB nel chunk principale dell'editor.
@@ -49,10 +56,15 @@ const SerramentiConversionEditor = lazy(() =>
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { AiTemplateGenerator } from "@/components/preventivi/AiTemplateGenerator";
+import { StandardTextTemplatePicker } from "@/components/preventivi/StandardTextTemplatePicker";
+import { InterventionTextPicker } from "@/components/preventivi/modules/InterventionTextPicker";
+import { serramentiCopyChoices } from "@/lib/moduli-vendita/serramentiInterventionCopy";
+import { serramentiModuleExclusions } from "@/lib/moduli-vendita/serramentiOfferScope";
 import type { AiTemplateDraft } from "@/components/preventivi/AiTemplateReviewDialog";
-import { useCompanyAnagraficaForTemplate, inheritedPlaceholder } from "@/hooks/useCompanyAnagraficaForTemplate";
+import { useCompanyAnagraficaForTemplate, inheritedPlaceholder, type TemplateCompanyAnagrafica } from "@/hooks/useCompanyAnagraficaForTemplate";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { ImportaCondizioniBar } from "@/components/quote-templates/ImportaCondizioniBar";
+import { fotoDellaLibreria } from "../../../supabase/functions/_shared/blocchiPreventivo";
 import { useBrandSettings } from "@/hooks/useBrandSettings";
 import { SerramentiLivePreviewPanel } from "@/components/serramenti/SerramentiLivePreviewPanel";
 import { useTemplatePdf, useUpsertTemplatePdf } from "@/lib/serramenti/queries";
@@ -83,7 +95,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { COVER_PRESETS, detectActiveCoverPreset } from "./coverPresets";
 // M14 · Contrast WCAG check (testo vs sfondo cover)
 import { contrastRatio, wcagLevel, suggestBestTextColor } from "@/lib/utils/contrast";
-// M16 · Galleria immagini stock (Unsplash free) per cover
+// M16 · Galleria immagini curate EiC per cover
 import { COVER_STOCK_IMAGES, COVER_STOCK_CATEGORIE, type CoverStockImage } from "./coverStockImages";
 // M20 · Palette colore intelligente (brand variations + curate)
 import { generateBrandPalette, CURATED_PALETTES } from "@/lib/utils/colorPalette";
@@ -94,6 +106,9 @@ import { ImgRiservata } from "@/components/common/ImgRiservata";
 import { riferimentoImmagine } from "@/lib/storage/immaginiModelloPdf";
 import type { GalleryLavoroItem } from "@/types/gallery";
 import { useBeforeUnload } from "@/hooks/useBeforeUnload";
+import { readLocalTemplateImage } from "@/lib/moduli-vendita/localTemplateImage";
+import { findSerramentiTemplateModule, type SerramentiTemplateModuleId } from "@/lib/moduli-vendita/serramentiTemplateModules";
+import { createFullSerramentiTemplate } from "@/lib/moduli-vendita/fullSerramentiModules";
 
 const DEFAULT_RENDER_DISCLAIMER =
   "Il render AI è una simulazione indicativa pensata per aiutare il cliente a immaginare il risultato estetico. Non sostituisce rilievo tecnico, schede prodotto e verifica di fattibilità: misure, materiali, colori e finiture definitive vengono confermati prima dell'ordine.";
@@ -243,7 +258,10 @@ function isReviewDraft(value: unknown): boolean {
   ]);
 }
 
-function buildTemplateQualityItems(form: Partial<SrTemplatePdfRow>): TemplateQualityItem[] {
+function buildTemplateQualityItems(
+  form: Partial<SrTemplatePdfRow>,
+  companyAnagrafica?: Pick<TemplateCompanyAnagrafica, "ragione_sociale" | "telefono" | "email"> | null,
+): TemplateQualityItem[] {
   const items: TemplateQualityItem[] = [];
   const esigenze = (form.esigenze_default ?? []) as SrEsigenza[];
   const soluzioni = (form.soluzione_default ?? []) as SrSoluzioneItem[];
@@ -256,7 +274,11 @@ function buildTemplateQualityItems(form: Partial<SrTemplatePdfRow>): TemplateQua
   const faq = (form.faq_items ?? SR_FAQ_DEFAULT) as NonNullable<SrTemplatePdfRow["faq_items"]>;
   const ctaPassi = (form.pdf_cta_finale_passi ?? []) as string[];
 
-  if (!hasReadableText(form.ragione_sociale, 3)) {
+  const ragioneSocialeEffettiva = form.ragione_sociale || companyAnagrafica?.ragione_sociale;
+  const telefonoEffettivo = form.telefono || companyAnagrafica?.telefono;
+  const emailEffettiva = form.email || companyAnagrafica?.email;
+
+  if (!hasReadableText(ragioneSocialeEffettiva, 3)) {
     items.push({
       level: "warning",
       title: "Ragione sociale mancante",
@@ -264,7 +286,7 @@ function buildTemplateQualityItems(form: Partial<SrTemplatePdfRow>): TemplateQua
       section: "Brand",
     });
   }
-  if (!hasReadableText(form.telefono, 6) && !hasReadableText(form.email, 6)) {
+  if (!hasReadableText(telefonoEffettivo, 6) && !hasReadableText(emailEffettiva, 6)) {
     items.push({
       level: "warning",
       title: "Contatto aziendale assente",
@@ -427,11 +449,18 @@ function normalizeSerramentiTemplateCopy(template: Partial<SrTemplatePdfRow>): {
 }
 
 interface SerramentiTemplateEditorProps {
-  /** Se true, nasconde lo sticky bottom save (usato dentro Tabs con bottone proprio) */
+  /** Compatibilità con i pannelli incorporati: la barra di salvataggio resta disponibile. */
   embedded?: boolean;
+  localModule?: {
+    id: SerramentiTemplateModuleId;
+    template: Partial<SrTemplatePdfRow>;
+    saved: boolean;
+    onDirtyChange: (dirty: boolean) => void;
+    save: (template: Partial<SrTemplatePdfRow>) => void;
+  };
 }
 
-export function SerramentiTemplateEditor({ embedded: _embedded = false }: SerramentiTemplateEditorProps) {
+export function SerramentiTemplateEditor({ embedded: _embedded = false, localModule }: SerramentiTemplateEditorProps) {
   const { data: template, isLoading } = useTemplatePdf();
   const upsertMut = useUpsertTemplatePdf();
   const { templates: quoteTemplates, upsertTemplate: upsertQuoteTemplate } = useQuoteTemplates();
@@ -442,11 +471,14 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
   // Logo "versione chiara" (per copertine su sfondo scuro) ora si gestisce in
   // Brand & Azienda: la copertina lo eredita, non lo carica più qui.
   const { brand } = useBrandSettings(companyId ?? undefined);
+  const moduleDefaults = useMemo(() => localModule ? createFullSerramentiTemplate(localModule.template, localModule.id) : undefined, [localModule?.id]);
 
-  const [form, setForm] = useState<Partial<SrTemplatePdfRow>>({});
+  const [form, setForm] = useState<Partial<SrTemplatePdfRow>>(() => localModule?.template ?? {});
   const [dirty, setDirty] = useState(false);
+  const [localSaved, setLocalSaved] = useState(localModule?.saved ?? true);
+  const onDirtyChange = localModule?.onDirtyChange;
+  useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
   // Preset stili copertina: collassati di default (occupavano troppo spazio in cima).
-  const [showPresets, setShowPresets] = useState(false);
   // Chiudere/ricaricare la scheda con modifiche non salvate ora chiede conferma
   // (il salvataggio qui è solo manuale: prima si perdeva tutto in silenzio).
   useBeforeUnload(dirty);
@@ -463,7 +495,13 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
   // template renderizzato + dati cliente demo. Aggiornamento auto su edit
   // (debounced 300ms) — vedi SerramentiTemplatePreviewDialog.
   const [previewOpen, setPreviewOpen] = useState(false);
-  const qualityItems = useMemo(() => buildTemplateQualityItems(form), [form]);
+  const qualityItems = useMemo(() => {
+    const items = buildTemplateQualityItems(form, companyAnagrafica);
+    if (localModule && (!form.condizioni_legali_attivo || !form.condizioni_legali_testo?.trim())) {
+      items.unshift({ level: "critical", title: "Condizioni dell'offerta da completare", detail: "Prima dell'invio, inserisci e verifica i testi approvati dall'azienda: pagamenti, validità, inclusioni, esclusioni e condizioni applicabili. Il modello locale non è ancora collegato al preventivatore.", section: "Condizioni contrattuali" });
+    }
+    return items;
+  }, [form, companyAnagrafica, !!localModule]);
   const qualityCriticalCount = qualityItems.filter((item) => item.level === "critical").length;
   const qualityWarningCount = qualityItems.filter((item) => item.level === "warning").length;
   const sharedLegalTemplates = useMemo<SharedLegalTemplateOption[]>(() => {
@@ -479,6 +517,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
   }, [quoteTemplates]);
 
   useEffect(() => {
+    if (localModule) return;
     if (template) {
       const normalized = normalizeSerramentiTemplateCopy(template);
       setForm(normalized.next);
@@ -508,7 +547,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
         crono_giorni_collaudo_default: 1,
       });
     }
-  }, [template, isLoading]);
+  }, [template, isLoading, localModule]);
 
   // PERF: useCallback stabilizza l'identity di `update` tra i re-render.
   // Senza, ogni keystroke creava una nuova function reference → i sub-editor
@@ -524,19 +563,28 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
   // modificano dall'ordine delle pagine. Callback stabili: l'editor delle pagine è memoizzato.
   const aggiornaBlocchi = useCallback((v: Record<string, unknown>) => update("pdf_blocchi", v), [update]);
   const campoFotoBlocco = useCallback((valore: string | null, onChange: (url: string | null) => void) => (
-    <CampoFotoModello valore={valore} onChange={onChange} bucket="sr-progetti" cartella={companyId ? `${companyId}/template-blocchi` : null} />
-  ), [companyId]);
+    <CampoFotoModello localOnly={!!localModule} valore={valore} onChange={onChange} bucket="sr-progetti" cartella={companyId ? `${companyId}/template-blocchi` : null} />
+  ), [companyId, localModule]);
 
   // Mappa il draft AI (13 campi generici) sui campi del template Serramenti.
   const applyGeneratedSr = useCallback((d: AiTemplateDraft) => {
     const toText = (h?: string | null) => (h ?? "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
     if (d.cover_title) update("pdf_cover_hero", d.cover_title);
+    if (d.cover_subtitle) update("pdf_cover_subhero", d.cover_subtitle);
     if (d.chi_siamo) update("chi_siamo_testo", toText(d.chi_siamo));
     if (d.esigenze?.length) update("esigenze_default", d.esigenze.map((i) => ({ titolo: i.titolo, descrizione: i.descrizione ?? "" })));
     if (d.soluzione?.length) update("soluzione_default", d.soluzione.map((i) => ({ titolo: i.titolo, descrizione: i.descrizione ?? "" })));
     if (d.usp?.length) update("perche_noi_default", d.usp.map((i) => (i.descrizione ? `${i.titolo}: ${i.descrizione}` : i.titolo)));
     if (d.garanzie?.length) update("garanzie", d.garanzie.map((g) => ({ icona: "shield" as const, titolo: g.titolo, descrizione: g.descrizione ?? "" })));
     if (d.faq?.length) update("faq_items", d.faq.map((f) => ({ domanda: f.domanda, risposta: f.risposta })));
+    if (d.percorso?.length) update("prossimi_passi_default", d.percorso.map((item) => `${item.titolo}${item.descrizione ? `: ${item.descrizione}` : ""}`));
+    if (d.payment_terms_text || d.validity_text) {
+      update("condizioni_legali_attivo", true);
+      update("condizioni_legali_testo", [d.payment_terms_text, d.validity_text].filter(Boolean).map(toText).join("\n\n"));
+    }
+    const validityDays = d.validity_text?.match(/(\d+)\s*giorni/i)?.[1];
+    if (validityDays) update("valido_giorni_default", Number(validityDays));
+    if (d.footer_text) update("pdf_cta_finale_passi", [toText(d.footer_text)]);
   }, [update]);
 
   const applySharedLegalTemplate = useCallback((templateId: string, mode: "replace" | "append") => {
@@ -567,6 +615,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
   }, [sharedLegalTemplates]);
 
   const saveSharedLegalTemplate = useCallback(async (kind: SharedLegalTemplateKind) => {
+    if (localModule) { toast.info("La copia locale non modifica la libreria online."); return; }
     const text = String(form.condizioni_legali_testo ?? "").trim();
     if (!text) {
       toast.error("Inserisci prima un testo da salvare");
@@ -587,7 +636,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
     toast.success(kind === "condizioni" ? "Salvato nei Template offerte (Condizioni e termini legali)" : "Termini legali salvati nei Template offerte", {
       description: "Ora il blocco è riutilizzabile anche nei preventivi standard.",
     });
-  }, [form.condizioni_legali_testo, upsertQuoteTemplate]);
+  }, [form.condizioni_legali_testo, upsertQuoteTemplate, localModule]);
 
   // UID stabili per le bullet/object list dei renderListEditor /
   // renderBulletObjectEditor. Prima usavano key={idx} -> rimuovendo una
@@ -620,6 +669,17 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
   }, []);
 
   const handleSave = () => {
+    if (localModule) {
+      try {
+        if (companyId !== localModule.template.company_id) throw new Error("L'azienda è cambiata. Riapri il modulo.");
+        if (!form.pdf_cover_hero?.trim()) throw new Error("Inserisci un titolo di copertina.");
+        localModule.save(form);
+        setLocalSaved(true);
+        setDirty(false);
+        toast.success("Modulo salvato in locale");
+      } catch (error) { toast.error(error instanceof Error ? error.message : "Salvataggio non riuscito."); }
+      return;
+    }
     upsertMut.mutate(form, {
       onSuccess: () => setDirty(false),
     });
@@ -629,9 +689,9 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
   // Setta in batch tutti i campi pdf_cover_* del preset selezionato.
   // L'immagine sfondo NON viene toccata (è un asset uploadato).
   const applyCoverPreset = useCallback((presetId: string) => {
-    const preset = COVER_PRESETS.find((p) => p.id === presetId);
+    const preset = COVER_PRESETS.find(item => item.id === presetId);
     if (!preset) return;
-    setForm((prev) => ({ ...prev, ...preset.patch }));
+    setForm(prev => prev ? { ...prev, ...coverStyleOnly(preset.patch) } : prev);
     setDirty(true);
   }, []);
 
@@ -674,14 +734,17 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
     {
       label: "Azienda",
       items: [
-        { id: "brand", label: "Brand & azienda", emoji: "🏢", descr: "Logo, colori, anagrafica" },
+        { id: "brand", label: "Azienda e stile", emoji: "🏢", descr: "Logo, colori, anagrafica" },
       ],
     },
     {
       label: "Pagine del PDF",
       // Una sezione per pagina, nell'ordine in cui escono nel documento: le pagine nuove
       // stanno qui come le altre, non solo in «Ordine pagine» (vedi pagineEditor.ts).
-      items: PAGINE_EDITOR_SERRAMENTI.map((p) => ({ id: p.id as EditorSection, label: p.voce, emoji: p.emoji, descr: p.descrizione })),
+      items: PAGINE_EDITOR_SERRAMENTI.map((p) => ({ id: p.id as EditorSection,
+        label: p.voce,
+        emoji: p.emoji,
+        descr: localModule && p.id === "page_come_funziona" ? "Caratteristiche e scelte di questo intervento" : p.descrizione })),
     },
     {
       label: "Dati & contenuti",
@@ -690,7 +753,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
         { id: "macro",     label: "Linee prodotto",        emoji: "📦", descr: "Pagine dedicate macrocategoria" },
         { id: "garanzie",  label: "Metriche & perché noi",  emoji: "📊", descr: "Numeri e USP della pagina proposta" },
         { id: "condizioni", label: "Condizioni contrattuali", emoji: "📜", descr: "Termini di vendita nel PDF" },
-        { id: "default",   label: "Default tecnici",       emoji: "⚙️", descr: "IVA, anticipo, validità" },
+        { id: "default",   label: "Impostazioni tecniche", emoji: "⚙️", descr: "IVA, anticipo, validità" },
       ],
     },
   ];
@@ -719,18 +782,18 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
     // scroll corrente (richiesta utente: "torno in alto non va bene").
   };
   // Mobile sidebar drawer open state
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
 
   // ─── M16 · Stock images dialog state ───────────────────────────────────
-  // Dialog modale per scegliere fra le 18 immagini Unsplash. Categoria
-  // filtrabile, click → setta pdf_cover_image_url con URL Unsplash.
+  // Dialog modale per scegliere fra le immagini locali curate. Categoria
+  // filtrabile, click → setta pdf_cover_image_url con un asset riproducibile.
   const [stockDialogOpen, setStockDialogOpen] = useState(false);
   const [stockCategory, setStockCategory] = useState<CoverStockImage["categoria"] | "all">("all");
   const stockFiltered = useMemo(
-    () => stockCategory === "all"
+    () => localModule && moduleDefaults?.pdf_blocchi?.modulo_foto ? fotoDellaLibreria("serramenti", moduleDefaults.pdf_blocchi).map((f, i): CoverStockImage => ({ id: `modulo-${i}`, url: f.url, thumb: f.url, label: f.nome, categoria: "serramenti" })) : stockCategory === "all"
       ? COVER_STOCK_IMAGES
       : COVER_STOCK_IMAGES.filter((img) => img.categoria === stockCategory),
-    [stockCategory],
+    [stockCategory, localModule, moduleDefaults],
   );
   const applyStockImage = useCallback((img: CoverStockImage) => {
     setForm((prev) => ({ ...prev, pdf_cover_image_url: img.url }));
@@ -741,6 +804,10 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
 
   // ─── Logo upload ──────────────────────────────────────────────────────────
   const handleLogoUpload = async (file: File) => {
+    if (localModule) {
+      try { update("logo_url", await readLocalTemplateImage(file)); } catch (error) { toast.error(String(error)); }
+      return;
+    }
     if (!file.type.startsWith("image/")) {
       toast.error("Carica un file immagine (PNG, JPG, WebP)");
       return;
@@ -779,6 +846,10 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
    * (bucket sr-progetti, nel modello il percorso del file). Salva in chi_siamo_foto_url.
    */
   const handleChiSiamoUpload = async (file: File) => {
+    if (localModule) {
+      try { update("chi_siamo_foto_url", await readLocalTemplateImage(file)); } catch (error) { toast.error(String(error)); }
+      return;
+    }
     if (!file.type.startsWith("image/")) {
       toast.error("Carica un file immagine (PNG, JPG, WebP)");
       return;
@@ -815,6 +886,10 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
   const [uploadingTestFoto, setUploadingTestFoto] = useState<number | null>(null);
   const [selectedSharedLegalId, setSelectedSharedLegalId] = useState("");
   const handleTestimonianzaFotoUpload = async (idx: number, file: File) => {
+    if (localModule) {
+      try { updateTestimonianza(idx, "foto_url", await readLocalTemplateImage(file)); } catch (error) { toast.error(String(error)); }
+      return;
+    }
     if (!file.type.startsWith("image/")) { toast.error("Carica un file immagine (PNG, JPG, WebP)"); return; }
     if (file.size > 8 * 1024 * 1024) { toast.error("File troppo grande (max 8 MB)"); return; }
     setUploadingTestFoto(idx);
@@ -840,6 +915,10 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
    * Stesso pattern logo/chi-siamo: bucket sr-progetti, nel modello il percorso del file.
    */
   const handleCoverUpload = async (file: File) => {
+    if (localModule) {
+      try { update("pdf_cover_image_url", await readLocalTemplateImage(file)); } catch (error) { toast.error(String(error)); }
+      return;
+    }
     if (!file.type.startsWith("image/")) {
       toast.error("Carica un file immagine (PNG, JPG, WebP)");
       return;
@@ -872,6 +951,10 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
   };
 
   const handleCoverLogoUpload = async (file: File) => {
+    if (localModule) {
+      try { update("pdf_cover_logo_url", await readLocalTemplateImage(file)); } catch (error) { toast.error(String(error)); }
+      return;
+    }
     if (!file.type.startsWith("image/")) {
       toast.error("Carica un file immagine (PNG, JPG, WebP)");
       return;
@@ -903,7 +986,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
     }
   };
 
-  if (isLoading) {
+  if (!localModule && isLoading) {
     return (
       <div className="space-y-3">
         <Skeleton className="h-16" />
@@ -920,12 +1003,17 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
     presets,
     currentValue,
     onApply,
+    moduleField,
   }: {
     label: string;
     presets: { label: string; value: T }[];
     currentValue: T;
     onApply: (v: T) => void;
+    moduleField?: keyof SrTemplatePdfRow;
   }) => {
+    const choices = moduleDefaults && moduleField
+      ? [{ label: "Testi dedicati a questo intervento", value: moduleDefaults[moduleField] as T }]
+      : presets;
     const hasContent = Array.isArray(currentValue) && (currentValue as unknown as unknown[]).length > 0;
     return (
       <DropdownMenu>
@@ -938,7 +1026,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
         <DropdownMenuContent align="end" className="w-64">
           <DropdownMenuLabel className="text-xs">Scegli un template</DropdownMenuLabel>
           <DropdownMenuSeparator />
-          {presets.map((p, i) => (
+          {choices.map((p, i) => (
             <DropdownMenuItem
               key={i}
               className="cursor-pointer text-xs"
@@ -1196,21 +1284,25 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
     ),
     page_lavori: (
       <GalleryLavoriEditor
+        localOnly={!!localModule}
         items={(form.gallery_lavori ?? []) as GalleryLavoroItem[]}
         onChange={(items) => update("gallery_lavori", items)}
         bucket="sr-progetti"
         uploadPath={`${companyId}/gallery-lavori`}
       />
     ),
-    page_garanzie: <SerramentiConversionEditor form={form} update={update} companyAnagrafica={companyAnagrafica} sezioni={["garanzie"]} />,
-    page_confronto: <SerramentiConversionEditor form={form} update={update} companyAnagrafica={companyAnagrafica} sezioni={["confronto"]} />,
-    page_faq: <SerramentiConversionEditor form={form} update={update} companyAnagrafica={companyAnagrafica} sezioni={["faq"]} />,
+    page_garanzie: <SerramentiConversionEditor defaults={moduleDefaults} form={form} update={update} companyAnagrafica={companyAnagrafica} sezioni={["garanzie"]} />,
+    page_confronto: <SerramentiConversionEditor defaults={moduleDefaults} form={form} update={update} companyAnagrafica={companyAnagrafica} sezioni={["confronto"]} hideConfrontoVisibility />,
+    page_faq: <SerramentiConversionEditor defaults={moduleDefaults} form={form} update={update} companyAnagrafica={companyAnagrafica} sezioni={["faq"]} />,
   };
   // La sezione aperta, se è una pagina del documento, e se la pagina esce.
-  const paginaSr = paginaEditor("serramenti", activeSection);
+  const paginaSrBase = paginaEditor("serramenti", activeSection);
+  const paginaSr = localModule && paginaSrBase?.id === "page_come_funziona"
+    ? { ...paginaSrBase, descrizione: "Caratteristiche e scelte di questo intervento" }
+    : paginaSrBase;
   const IconaPaginaSr = paginaSr?.icona ?? ImageIcon;
   const ordinePagineSr = normalizePdfPagesOrder(form.pdf_pages_order ?? null);
-  const paginaSrVisibile = paginaSr?.pagina ? ordinePagineSr.find((p) => p.id === paginaSr.pagina)?.visible ?? false : false;
+  const paginaSrVisibile = paginaSr?.pagina ? !orderedSectionExcluded("serramenti", ordinePagineSr, activeSection, form) : false;
 
   return (
     <div className="space-y-4">
@@ -1222,7 +1314,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
       <div className="sticky top-0 z-20 -mx-1 px-1 py-2.5 bg-background/95 backdrop-blur border-b border-slate-100 flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2 min-w-0">
           <div className="text-xs hidden sm:flex items-center gap-1.5 min-w-0">
-            <span className="text-muted-foreground">Template PDF Serramenti</span>
+            <span className="text-muted-foreground">{localModule ? findSerramentiTemplateModule(localModule.id)?.title : "Template PDF Serramenti"}</span>
             <span className="text-muted-foreground/40">/</span>
             <span className="font-semibold text-orange-700 truncate">
               {SECTIONS.find(s => s.id === activeSection)?.emoji} {SECTIONS.find(s => s.id === activeSection)?.label}
@@ -1234,7 +1326,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
             </span>
           ) : (
             <span className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5 font-medium hidden sm:inline-block">
-              ✓ Salvato
+              {localSaved ? "✓ Salvato" : "Modello pronto · non ancora salvato"}
             </span>
           )}
           <span
@@ -1252,11 +1344,18 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
           </span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <AiTemplateGenerator
+          {localModule && moduleDefaults && <InterventionTextPicker title={moduleDefaults.pdf_cover_eyebrow || "Serramenti"} choices={serramentiCopyChoices(localModule.id, moduleDefaults)} onApply={patch => { setForm(prev => ({ ...prev, ...patch })); setDirty(true); }} />}
+          {!localModule && <AiTemplateGenerator
             settoreFn="ai-genera-template-serramenti"
             onApply={applyGeneratedSr}
             className="gap-1.5 h-9 px-3 text-sm bg-orange-500 hover:bg-orange-600"
-          />
+          />}
+          {!localModule && <StandardTextTemplatePicker
+            module="serramenti"
+            onApply={applyGeneratedSr}
+            snapshot={form as unknown as Record<string, unknown>}
+            className="h-9 px-3 text-sm"
+          />}
           <Button
             onClick={() => setPreviewOpen(true)}
             variant="outline"
@@ -1269,12 +1368,12 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
           </Button>
           <Button
             onClick={handleSave}
-            disabled={!dirty || upsertMut.isPending}
+            disabled={(!dirty && localSaved) || upsertMut.isPending}
             className="bg-orange-600 hover:bg-orange-500 gap-1"
             size="sm"
           >
             {upsertMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            Salva
+            {localModule ? "Salva modulo in locale" : "Salva"}
           </Button>
         </div>
       </div>
@@ -1283,66 +1382,19 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
 
       {/* ─── REFACTOR · Layout sidebar + content ─────────────────────────
           Sostituisce lo scroll infinito mono-pagina con una UI app-like:
-          - Sidebar sticky a sinistra (col-span-3) con 6 sezioni navigabili
-          - Content panel a destra (col-span-9) renderizza solo la sezione attiva
+          - Proporzioni condivise: sidebar / form / preview = 2 / 6 / 4 su desktop xl
+          - Il form renderizza solo la sezione attiva
           - Mobile (<md): sidebar collassa in un drawer apribile dall'header
           - Deeplink: ?section=brand|pagine|… per share-friendly URL */}
 
       {/* Mobile: bottone selettore sezione (hamburger) */}
-      <div className="md:hidden flex items-center justify-between gap-2 bg-orange-50 border border-orange-200 rounded-lg p-2">
-        <div className="text-xs text-orange-800 truncate">
-          <span className="font-semibold">{SECTIONS.find(s => s.id === activeSection)?.emoji} {SECTIONS.find(s => s.id === activeSection)?.label}</span>
-        </div>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}
-          className="h-7 text-[11px] border-orange-300"
-        >
-          {mobileSidebarOpen ? "Chiudi sezioni" : "Cambia sezione"}
-        </Button>
-      </div>
 
-      <div className="grid grid-cols-12 gap-4">
+
+      <TemplateEditorWorkspace moduleId={localModule?.id}>
         {/* ── SIDEBAR ──────────────────────────────────────────────── */}
-        <aside className={
-          "md:col-span-3 col-span-12 " +
-          (mobileSidebarOpen ? "block" : "hidden md:block")
-        }>
-          <nav className="sticky top-[68px] bg-white border border-slate-200 rounded-lg p-2 max-h-[calc(100vh-90px)] overflow-y-auto">
-            {SECTION_GROUPS.map((group, gi) => (
-              <div key={group.label} className={gi > 0 ? "mt-3 pt-2 border-t border-slate-100" : ""}>
-                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 px-2 py-1.5 mb-0.5">
-                  {group.label}
-                </div>
-                <div className="space-y-0.5">
-                  {group.items.map((s) => {
-                    const isActive = activeSection === s.id;
-                    return (
-                      <button
-                        key={s.id}
-                        type="button"
-                        onClick={() => {
-                          setActiveSection(s.id);
-                          setMobileSidebarOpen(false);
-                        }}
-                        className={
-                          "w-full text-left rounded-md px-2 py-1.5 transition-all flex items-center gap-2 " +
-                          (isActive
-                            ? "bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-sm"
-                            : "hover:bg-orange-50 text-slate-700")
-                        }
-                      >
-                        <span className="text-sm leading-none">{s.emoji}</span>
-                        <span className={"text-[12px] font-medium leading-tight flex-1 truncate " + (isActive ? "text-white" : "text-slate-800")}>
-                          {s.label}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
+        <TemplateEditorNavigation>
+          <nav className={templateEditorLayout.navigationPanel}>
+            <TemplateSectionNavigation groups={SECTION_GROUPS} activeSection={activeSection} onSelect={setActiveSection} isExcluded={id => orderedSectionExcluded("serramenti", ordinePagineSr, id, form)} />
             {/* Footer sidebar: scorciatoia Anteprima PDF */}
             <div className="mt-3 pt-2 border-t border-slate-100">
               <Button
@@ -1356,15 +1408,15 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
               </Button>
             </div>
           </nav>
-        </aside>
+        </TemplateEditorNavigation>
 
         {/* ── CONTENT PANEL ────────────────────────────────────────── */}
-        <div className="md:col-span-9 xl:col-span-5 col-span-12 space-y-4 min-w-0">
+        <div className={templateEditorLayout.content} data-template-content data-template-editor-content="serramenti">
 
       {/* === SEZIONE: BRAND === */}
       {activeSection === "brand" && (<>
       <SectionHeader
-        title="🏢 Brand & azienda"
+        title="🏢 Azienda e stile"
         description="Logo, dati anagrafici, colori e linee prodotto che compaiono in ogni PDF."
         number={1}
       />
@@ -1625,6 +1677,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
       >
         <div className="flex justify-end mb-3">
           <PresetMenu<SrEsigenza[]>
+            moduleField="esigenze_default"
             label="Applica template standard"
             currentValue={(form.esigenze_default ?? []) as SrEsigenza[]}
             presets={[
@@ -1641,11 +1694,12 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
       {/* Soluzione */}
       <SrCard
         title="Libreria soluzioni / argomenti di vendita"
-        description="Tutte le soluzioni che proponi (su misura, posa qualificata, vetri premium...). Le sceglierai una per una per ogni preventivo."
+        description={localModule ? "Prodotti, componenti e lavorazioni di questo intervento. Personalizza le descrizioni in base a ciò che l'azienda propone realmente." : "Tutte le soluzioni che proponi (su misura, posa qualificata, vetri premium...). Le sceglierai una per una per ogni preventivo."}
         icon={<Sparkles className="h-4 w-4" />}
       >
         <div className="flex justify-end mb-3">
           <PresetMenu<SrSoluzioneItem[]>
+            moduleField="soluzione_default"
             label="Applica template standard"
             currentValue={(form.soluzione_default ?? []) as SrSoluzioneItem[]}
             presets={[
@@ -1666,6 +1720,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
       >
         <div className="flex justify-end mb-3">
           <PresetMenu<string[]>
+            moduleField="perche_noi_default"
             label="Applica template standard"
             currentValue={(form.perche_noi_default ?? []) as string[]}
             presets={[
@@ -1687,6 +1742,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
       >
         <div className="flex justify-end mb-3">
           <PresetMenu<string[]>
+            moduleField="incluso_default"
             label="Applica template standard"
             currentValue={(form.incluso_default ?? []) as string[]}
             presets={[
@@ -1699,6 +1755,14 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
         {renderListEditor("voce", "incluso_default", "Es. Rilievo dimensionale a casa tua senza costi aggiuntivi")}
       </SrCard>
 
+      {localModule && <SrCard title="Esclusioni e opere da confermare" description="Questo testo compare vicino al prezzo nel PDF. Indica cosa non è compreso o richiede una voce separata; non sostituisce le condizioni contrattuali." icon={<ListChecks className="h-4 w-4" />}>
+        <Label htmlFor="module-exclusions">Esclusioni del modulo</Label>
+        <Textarea id="module-exclusions" className="mt-2" rows={4} value={serramentiModuleExclusions(form)} onChange={event => update("pdf_blocchi", { ...form.pdf_blocchi, modulo_esclusioni: event.target.value })} />
+        <Button className="mt-2" variant="outline" size="sm" onClick={() => {
+          if (window.confirm("Ripristinare le esclusioni di questo intervento? Il testo corrente verrà sostituito nella bozza.")) update("pdf_blocchi", { ...form.pdf_blocchi, modulo_esclusioni: serramentiModuleExclusions(moduleDefaults) });
+        }}>Ripristina testo del modulo</Button>
+      </SrCard>}
+
       {/* Prossimi passi */}
       <SrCard
         title="Libreria 'Prossimi passi' (chiusura PDF)"
@@ -1707,6 +1771,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
       >
         <div className="flex justify-end mb-3">
           <PresetMenu<string[]>
+            moduleField="prossimi_passi_default"
             label="Applica template standard"
             currentValue={(form.prossimi_passi_default ?? []) as string[]}
             presets={[
@@ -1734,7 +1799,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
         description="Quando un articolo di una macro attivata è nel preventivo, il PDF aggiunge una pagina dedicata (foto + descrizione estesa). Le modifiche qui sono sincronizzate con il listino."
         icon={<FileText className="h-4 w-4" />}
       >
-        <MacroPagineDedicateManager vertical="serramentista" />
+        {localModule ? <p className="text-sm text-muted-foreground">Le schede prodotto vengono dal listino del preventivo. Questa copia locale non modifica il catalogo condiviso.</p> : <MacroPagineDedicateManager vertical="serramentista" />}
       </SrCard>
       </>)}{/* === END SEZIONE MACRO === */}
 
@@ -1774,22 +1839,22 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
           }}
           className="w-full"
         >
-          {/* TabsList nascosto: la navigazione è in sidebar. Manteniamo
-              il componente per accessibilità ARIA (Radix richiede TabsList
-              come parent di TabsTrigger anche se invisibile). */}
-          <TabsList className="sr-only">
-            <TabsTrigger value="cover">Cover</TabsTrigger>
+          {/* The sidebar owns keyboard navigation. These labels only retain
+              Radix panel associations; no second invisible focusable menu. */}
+          <TabsList className="hidden" aria-hidden="true">
+            <TabsTrigger value="cover">Copertina</TabsTrigger>
             <TabsTrigger value="chi-siamo">Chi siamo</TabsTrigger>
-            <TabsTrigger value="percorso">Il tuo percorso</TabsTrigger>
+            <TabsTrigger value="percorso">Come lavoriamo</TabsTrigger>
             <TabsTrigger value="consulente">Consulente</TabsTrigger>
-            <TabsTrigger value="render">Render AI</TabsTrigger>
-            <TabsTrigger value="cta">CTA finale</TabsTrigger>
+            <TabsTrigger value="render">Simulazione prima e dopo</TabsTrigger>
+            <TabsTrigger value="cta">I prossimi passi</TabsTrigger>
             <TabsTrigger value="conversione">⚡ Conversione</TabsTrigger>
-            <TabsTrigger value="ordine-pagine">Ordine pagine</TabsTrigger>
+            <TabsTrigger value="ordine-pagine">Ordine e pagine</TabsTrigger>
           </TabsList>
 
           {/* ═══ COVER ═══════════════════════════════════════════════════════ */}
           <TabsContent value="cover" className="mt-4 space-y-3">
+            <SerramentiCoverLayoutPicker value={form.pdf_blocchi} onChange={aggiornaBlocchi} />
             <div className="flex items-center justify-between">
               <div className="text-xs text-muted-foreground">
                 Editor visuale · anteprima in tempo reale · tutti i parametri sotto
@@ -1803,177 +1868,11 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                  🎨 Solid (4) e 📷 Photo (4). Click → applica in batch.
                  Le card mostrano una mini-anteprima A4 con bg, accent,
                  posizione testo e indicatore di tipo (solid vs photo). */}
-            <SrCard
-              title="Preset stili — 1 click"
-              description="Configurazione completa (colori, font, layout) in un click. L'immagine di sfondo non viene modificata."
-              icon={<Sparkles className="h-4 w-4" />}
-            >
-            <div className="space-y-3">
-              {activeCoverPresetId && (
-                <div className="flex justify-end">
-                  <Badge variant="outline" className="bg-orange-50 border-orange-200 text-orange-700 gap-1 text-[10px] h-5">
-                    <span className="text-sm leading-none">{COVER_PRESETS.find(p => p.id === activeCoverPresetId)?.emoji}</span>
-                    Attivo: {COVER_PRESETS.find(p => p.id === activeCoverPresetId)?.nome}
-                  </Badge>
-                </div>
-              )}
-              {/* Toggle: i preset sono collassati di default per non occupare tutta la cima */}
-              <button
-                type="button"
-                onClick={() => setShowPresets((v) => !v)}
-                className="w-full flex items-center justify-between rounded-md border border-slate-200 bg-white hover:bg-slate-50 px-2.5 py-1.5 text-[11px] font-medium text-slate-700 transition-colors"
-              >
-                <span>{showPresets ? "Nascondi preset stili" : "Scegli un preset pronto (8 stili · 1 click)"}</span>
-                <span className="text-slate-400 text-[10px]">{showPresets ? "▲ chiudi" : "▼ apri"}</span>
-              </button>
-              {showPresets && (<>
-              {/* Helper per render di una singola card preset (riusato da entrambi i gruppi). */}
-              {(["solid", "photo"] as const).map((cat) => {
-                const presetsInCat = COVER_PRESETS.filter((p) => p.category === cat);
-                if (presetsInCat.length === 0) return null;
-                const catLabel = cat === "solid"
-                  ? { emoji: "🎨", title: "Solo colore (no immagine)", subtitle: "Background solido con titolo e accent" }
-                  : { emoji: "📷", title: "Con immagine sfondo", subtitle: "Foto come sfondo + overlay scuro per leggibilità" };
-                return (
-                  <div key={cat} className="space-y-2">
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-sm">{catLabel.emoji}</span>
-                      <span className="text-xs font-bold uppercase tracking-wide text-slate-700">{catLabel.title}</span>
-                      <span className="text-[10px] text-muted-foreground">{catLabel.subtitle}</span>
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
-                      {presetsInCat.map((p) => {
-                        const isActive = activeCoverPresetId === p.id;
-                        const tv = p.patch.pdf_cover_text_vertical ?? "bottom";
-                        const ta = p.patch.pdf_cover_text_align ?? "left";
-                        return (
-                          <button
-                            key={p.id}
-                            type="button"
-                            onClick={() => applyCoverPreset(p.id)}
-                            title={p.descrizione}
-                            className={
-                              "group relative rounded-lg overflow-hidden transition-all text-left focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white border-2 " +
-                              (isActive
-                                ? "border-orange-500 shadow-md ring-2 ring-orange-300"
-                                : "border-slate-200 hover:border-orange-300 hover:shadow-sm")
-                            }
-                          >
-                            {/* Mini-anteprima A4 — aspect 210/297, scala miniatura */}
-                            <div
-                              className="relative w-full overflow-hidden flex flex-col p-2"
-                              style={{
-                                aspectRatio: "210/297",
-                                backgroundColor: p.swatchBg,
-                                color: p.swatchText,
-                              }}
-                            >
-                              {/* Per preset photo: simulazione immagine sfondo con gradient subtile */}
-                              {p.category === "photo" && (
-                                <div
-                                  className="absolute inset-0 pointer-events-none opacity-40"
-                                  style={{
-                                    backgroundImage:
-                                      "linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0) 50%, rgba(0,0,0,0.25) 100%)",
-                                  }}
-                                />
-                              )}
-                              {/* Badge tipo preset (solo colore vs con foto) */}
-                              <div
-                                className="absolute top-1.5 left-1.5 text-[7px] font-bold uppercase tracking-wider px-1 py-px rounded-sm z-10"
-                                style={{
-                                  backgroundColor: "rgba(255,255,255,0.92)",
-                                  color: "#475569",
-                                }}
-                              >
-                                {p.category === "solid" ? "● colore" : "📷 foto"}
-                              </div>
-
-                              {/* Contenitore del blocco testo con justify-content
-                                  dinamico per simulare top/center/bottom. */}
-                              <div className="relative flex-1 flex flex-col z-[1]" style={{
-                                justifyContent:
-                                  tv === "top" ? "flex-start"
-                                  : tv === "center" ? "center"
-                                  : "flex-end",
-                              }}>
-                                {/* Logo placeholder posizione: per top_center,
-                                    sopra il contenuto */}
-                                {tv === "top" && (
-                                  <div className="flex items-center gap-1 mb-2"
-                                    style={{
-                                      justifyContent: p.patch.pdf_cover_logo_position === "top_right" ? "flex-end"
-                                        : p.patch.pdf_cover_logo_position === "top_center" ? "center"
-                                        : "flex-start",
-                                    }}
-                                  >
-                                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: p.swatchAccent, opacity: 0.7 }} />
-                                    <div className="h-1 w-5 rounded-full opacity-30" style={{ backgroundColor: p.swatchText }} />
-                                  </div>
-                                )}
-                                {/* Eyebrow + Titolo + Card cliente simulati */}
-                                <div style={{ textAlign: ta === "center" ? "center" : "left" }}>
-                                  <div
-                                    className="font-bold uppercase tracking-wider mb-1"
-                                    style={{ fontSize: 5, color: p.swatchAccent, opacity: 0.9 }}
-                                  >
-                                    ★ Proposta
-                                  </div>
-                                  <div
-                                    className="font-bold leading-tight whitespace-pre-line"
-                                    style={{
-                                      fontSize: Math.max(7, (p.patch.pdf_cover_title_size ?? 40) * 0.16),
-                                    }}
-                                  >
-                                    {p.sampleTitle}
-                                  </div>
-                                  {p.patch.pdf_cover_show_client_card !== false && (
-                                    <div
-                                      className="mt-1 rounded-sm px-1 py-0.5 inline-block"
-                                      style={{ backgroundColor: "rgba(255,255,255,0.12)" }}
-                                    >
-                                      <div className="h-0.5 w-3 rounded-full opacity-50" style={{ backgroundColor: p.swatchText }} />
-                                      <div className="h-1 w-4 rounded-full mt-0.5" style={{ backgroundColor: p.swatchText }} />
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                            {/* Footer card con nome + tag */}
-                            <div className="px-2 py-1.5 bg-white border-t border-slate-100">
-                              <div className="flex items-center gap-1">
-                                <span className="text-sm leading-none">{p.emoji}</span>
-                                <span className="text-[11px] font-semibold text-slate-900 truncate">{p.nome}</span>
-                              </div>
-                              <div className="flex items-center gap-1 mt-0.5">
-                                <span className="text-[8px] uppercase tracking-wide bg-slate-100 text-slate-600 px-1 py-px rounded font-semibold">
-                                  {p.tag}
-                                </span>
-                              </div>
-                            </div>
-                            {/* Check icon su attivo */}
-                            {isActive && (
-                              <div className="absolute top-1.5 right-1.5 bg-orange-500 text-white rounded-full w-5 h-5 flex items-center justify-center shadow-md z-10">
-                                <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
-                                  <path d="M2 6l3 3 5-6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-                                </svg>
-                              </div>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-              {!activeCoverPresetId && (
-                <p className="text-[10px] text-amber-700 bg-amber-100/60 rounded px-2 py-1 inline-block">
-                  💡 Configurazione personalizzata — non corrisponde a nessun preset. I tuoi valori vengono mantenuti.
-                </p>
-              )}
-              </>)}
-            </div>
-            </SrCard>
+            <TemplateCoverStylePicker presets={COVER_PRESETS} activeId={activeCoverPresetId} onApply={applyCoverPreset} />
+<div className="my-4"><TemplateCoverTextFields value={{ eyebrow: form.pdf_cover_eyebrow, title: form.pdf_cover_hero, subtitle: form.pdf_cover_subhero, dynamicSubtitle: form.pdf_cover_subhero_template }} onChange={(field, value) => { if (field === "eyebrow") { update("pdf_cover_eyebrow", (value ?? "") || null); }
+if (field === "title") { update("pdf_cover_hero", (value ?? "") || null); }
+if (field === "subtitle") { update("pdf_cover_subhero", (value ?? "") || null); }
+if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?? "") || null); } }} dynamicSubtitle  placeholders={(value, onChange) => <PlaceholderChips value={value} onChange={onChange}  />} /></div>
 
             <div className="grid grid-cols-12 gap-4 md:items-start">
               {/* PREVIEW LIVE — formato A4 portrait scalato.
@@ -1982,671 +1881,13 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                   per dare più spazio alla parte di creazione (campi a col-8). */}
               {/* Anteprima HTML interna copertina: NASCOSTA — sostituita dal
                   pannello globale "Anteprima live PDF" a destra (mostra tutte le pagine). */}
-              <div className="hidden">
-                <Label className="text-xs mb-1.5 block flex items-center gap-1.5">
-                  <Eye className="h-3.5 w-3.5 text-orange-500" /> Anteprima live · si aggiorna mentre modifichi
-                </Label>
-                <div
-                  className="relative w-full overflow-hidden rounded-lg border-2 border-slate-200 shadow-sm"
-                  style={{
-                    aspectRatio: "210/297",
-                    backgroundColor: form.pdf_cover_bg_color || "#0F2A2E",
-                  }}
-                >
-                  {/* Immagine di sfondo */}
-                  {form.pdf_cover_image_url && (
-                    <ImgRiservata loading="lazy"
-                      src={form.pdf_cover_image_url}
-                      alt="cover bg"
-                      className="absolute inset-0 w-full h-full object-cover"
-                    />
-                  )}
-                  {/* Overlay scuro su immagine — M13 con stile selezionabile.
-                       L'anteprima HTML usa CSS gradient per replicare il PDF SVG. */}
-                  {form.pdf_cover_image_url && (() => {
-                    const op = (form.pdf_cover_overlay_opacity ?? 65) / 100;
-                    const style = form.pdf_cover_overlay_style ?? "flat";
-                    let bgValue = "#000000";
-                    let opacityValue: number = op;
-                    if (style === "gradient") {
-                      bgValue = `linear-gradient(to bottom, rgba(0,0,0,${op * 0.15}) 0%, rgba(0,0,0,${op * 0.55}) 55%, rgba(0,0,0,${op}) 100%)`;
-                      opacityValue = 1;
-                    } else if (style === "gradient_diag") {
-                      bgValue = `linear-gradient(135deg, rgba(0,0,0,${op * 0.2}) 0%, rgba(0,0,0,${op}) 100%)`;
-                      opacityValue = 1;
-                    } else if (style === "vignette") {
-                      bgValue = `radial-gradient(ellipse at center, rgba(0,0,0,${op * 0.1}) 0%, rgba(0,0,0,${op * 0.5}) 70%, rgba(0,0,0,${op * 0.95}) 100%)`;
-                      opacityValue = 1;
-                    }
-                    return (
-                      <div
-                        className="absolute inset-0 pointer-events-none"
-                        style={{ background: bgValue, opacity: opacityValue }}
-                      />
-                    );
-                  })()}
-                  {/* Decoro in alto a destra — FEDELE al PDF (CoverDecorationSvg):
-                      rispetta pdf_cover_decoration_style (finestra/anelli/linea/
-                      pattern) e usa il colore del TESTO cover, che armonizza
-                      sempre col fondo. Prima era un blocco piatto in colore brand
-                      (ignorava lo stile e stonava). */}
-                  {form.pdf_cover_show_decoration !== false && (() => {
-                    const v = form.pdf_cover_decoration_style ?? "square";
-                    if (v === "none") return null;
-                    const c = form.pdf_cover_text_color || "#FFFFFF";
-                    return (
-                      <svg viewBox="0 0 180 180" aria-hidden className="absolute top-3 right-3 w-11 h-11 pointer-events-none">
-                        {v === "circle" ? (
-                          <>
-                            <circle cx={90} cy={90} r={80} stroke={c} strokeWidth={3} fill="none" opacity={0.7} />
-                            <circle cx={90} cy={90} r={56} stroke={c} strokeWidth={1.5} fill="none" opacity={0.4} />
-                            <circle cx={90} cy={90} r={32} stroke={c} strokeWidth={1} fill="none" opacity={0.25} />
-                          </>
-                        ) : v === "line" ? (
-                          <>
-                            <path d="M 90 10 L 90 170" stroke={c} strokeWidth={2.5} opacity={0.7} />
-                            <path d="M 70 40 L 110 40" stroke={c} strokeWidth={1.5} opacity={0.5} />
-                            <path d="M 70 140 L 110 140" stroke={c} strokeWidth={1.5} opacity={0.5} />
-                          </>
-                        ) : v === "pattern" ? (
-                          <g opacity={0.45} fill={c}>
-                            {Array.from({ length: 25 }).map((_, i) => (
-                              <circle key={i} cx={30 + (i % 5) * 30} cy={30 + Math.floor(i / 5) * 30} r={3} />
-                            ))}
-                          </g>
-                        ) : (
-                          <>
-                            <g opacity={0.7} stroke={c} fill="none">
-                              <rect x={20} y={20} width={140} height={140} rx={6} strokeWidth={3} />
-                              <path d="M 90 25 L 90 155" strokeWidth={2} />
-                              <path d="M 25 90 L 155 90" strokeWidth={2} />
-                            </g>
-                            <circle cx={84} cy={90} r={3} fill={c} opacity={0.7} />
-                            <g opacity={0.3} stroke={c}>
-                              <path d="M 0 90 L 18 90" strokeWidth={1.5} />
-                              <path d="M 162 90 L 180 90" strokeWidth={1.5} />
-                              <path d="M 90 0 L 90 18" strokeWidth={1.5} />
-                              <path d="M 90 162 L 90 180" strokeWidth={1.5} />
-                            </g>
-                          </>
-                        )}
-                      </svg>
-                    );
-                  })()}
-                  {/* Contenuto testuale */}
-                  <div
-                    className="absolute inset-0 p-4 flex flex-col"
-                    style={{
-                      color: form.pdf_cover_text_color || "#FFFFFF",
-                      textAlign: form.pdf_cover_text_align === "center" ? "center" : "left",
-                      alignItems: form.pdf_cover_text_align === "center" ? "center" : "flex-start",
-                    }}
-                  >
-                    {/* Logo + company name */}
-                    {/* M17 · Posizione logo configurabile (preview HTML).
-                        hidden → blocco non renderizzato; top_left/right/center
-                        → justify-* gestisce l'allineamento orizzontale. */}
-                    {(form.pdf_cover_logo_position ?? "top_left") !== "hidden" && (
-                      <div
-                        className="flex items-center gap-2 mb-auto w-full"
-                        style={{
-                          justifyContent:
-                            form.pdf_cover_logo_position === "top_right"
-                              ? "flex-end"
-                              : form.pdf_cover_logo_position === "top_center"
-                                ? "center"
-                                : "flex-start",
-                        }}
-                      >
-                        {(() => {
-                          const sz = Math.round(28 * ((form.pdf_cover_logo_size ?? 100) / 100));
-                          const coverLogo = form.pdf_cover_logo_url ?? brand?.brand_logo_dark_url ?? form.logo_url;
-                          return coverLogo ? (
-                            <ImgRiservata
-                              loading="lazy"
-                              src={coverLogo}
-                              alt="logo"
-                              className="object-contain rounded bg-white/10 p-0.5 shrink-0"
-                              style={{ width: sz, height: sz }}
-                            />
-                          ) : (
-                            <div
-                              className="rounded-full bg-white/20 flex items-center justify-center font-bold shrink-0"
-                              style={{ width: sz, height: sz, fontSize: Math.max(7, Math.round(10 * (form.pdf_cover_logo_size ?? 100) / 100)) }}
-                            >
-                              A
-                            </div>
-                          );
-                        })()}
-                        <span className="text-[10px] font-semibold uppercase tracking-wide">
-                          {form.indirizzo_completo ? "Azienda" : "Il tuo brand"}
-                        </span>
-                      </div>
-                    )}
 
-                    {/* Eyebrow + Title + Subtitle — M18 vertical-align */}
-                    <div
-                      className="mb-4 w-full"
-                      style={{
-                        marginTop:
-                          (form.pdf_cover_text_vertical ?? "bottom") === "top"
-                            ? 0
-                            : "auto",
-                        marginBottom:
-                          form.pdf_cover_text_vertical === "center" ? "auto" : "1rem",
-                      }}
-                    >
-                      <div
-                        className="font-semibold uppercase tracking-wider mb-2"
-                        style={{
-                          color: form.pdf_cover_eyebrow_color || form.colore_primario || "#2D7D5C",
-                          fontSize: `${(form.pdf_cover_eyebrow_size ?? 11) * 0.6}px`,
-                        }}
-                      >
-                        {form.pdf_cover_eyebrow ||
-                          "★ La tua proposta personalizzata"}
-                      </div>
-                      <div
-                        className="font-bold leading-tight whitespace-pre-wrap mb-1.5"
-                        style={{
-                          color: form.pdf_cover_title_color || form.pdf_cover_text_color || "#FFFFFF",
-                          fontSize: `${(form.pdf_cover_title_size ?? 40) * 0.5}px`,
-                        }}
-                      >
-                        {form.pdf_cover_hero ||
-                          "La tua casa,\nfinalmente al caldo."}
-                      </div>
-                      <div
-                        className="line-clamp-2"
-                        style={{
-                          color: form.pdf_cover_subtitle_color || "#D1D5DB",
-                          fontSize: `${(form.pdf_cover_subtitle_size ?? 13) * 0.6}px`,
-                        }}
-                      >
-                        {form.pdf_cover_subhero ||
-                          "Sintesi auto-generata del preventivo"}
-                      </div>
-                      {form.pdf_cover_show_client_card !== false && (
-                        <div className="mt-3 bg-white/10 rounded-md p-2 backdrop-blur-sm text-left">
-                          <div className="text-[8px] uppercase opacity-70">
-                            Preparato per
-                          </div>
-                          <div className="text-xs font-semibold">
-                            Mario Rossi
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                <p className="text-[10px] text-muted-foreground mt-1.5">
-                  Anteprima approssimativa · il PDF finale può differire
-                  leggermente per tipografia
-                </p>
-              </div>
 
               {/* CONTROLLI EDITOR — REDESIGN slice 3: raggruppati in card leggibili
                   (Sfondo · Testi); la card "Tipografia & layout" è subito sotto. */}
               <div className="col-span-12 md:order-1 space-y-3">
                 {/* ══ Card: Sfondo copertina ══ */}
-                <SrCard title="Sfondo copertina" icon={<ImageIcon className="h-4 w-4" />}>
-                <div className="space-y-3">
-                {/* Immagine di sfondo */}
-                <div>
-                  <Label className="text-xs mb-1 block">
-                    Immagine di sfondo cover (opzionale)
-                  </Label>
-                  <input
-                    ref={coverInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) =>
-                      e.target.files?.[0] && handleCoverUpload(e.target.files[0])
-                    }
-                  />
-                  <div className="flex gap-2 flex-wrap">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => coverInputRef.current?.click()}
-                      disabled={uploadingCover}
-                      className="flex-1 min-w-[120px] h-8 text-xs"
-                    >
-                      {uploadingCover ? (
-                        <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />
-                      ) : (
-                        <Upload className="h-3 w-3 mr-1.5" />
-                      )}
-                      {form.pdf_cover_image_url
-                        ? "Cambia"
-                        : "Carica"}
-                    </Button>
-                    {/* M16 · Galleria stock images (18 immagini Unsplash) */}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setStockDialogOpen(true)}
-                      className="flex-1 min-w-[120px] h-8 text-xs border-orange-200 text-orange-700 hover:bg-orange-50"
-                    >
-                      📷 Galleria stock
-                    </Button>
-                    {form.pdf_cover_image_url && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => update("pdf_cover_image_url", null)}
-                        className="h-8 text-xs text-rose-600"
-                      >
-                        Rimuovi
-                      </Button>
-                    )}
-                  </div>
-                  <p className="text-[10px] text-muted-foreground mt-1">
-                    Carica file (PNG/JPG max 8 MB) o scegli dalle 18 immagini stock free.
-                  </p>
-                </div>
-
-                {/* Overlay opacity + M13 stile (visibili solo con immagine) */}
-                {form.pdf_cover_image_url && (
-                  <div className="space-y-2">
-                    <div>
-                      <Label className="text-xs flex items-center justify-between mb-1">
-                        <span>Opacità overlay scuro</span>
-                        <span className="font-mono text-muted-foreground">
-                          {form.pdf_cover_overlay_opacity ?? 65}%
-                        </span>
-                      </Label>
-                      <input
-                        type="range"
-                        min={0}
-                        max={100}
-                        step={5}
-                        value={form.pdf_cover_overlay_opacity ?? 65}
-                        onChange={(e) =>
-                          update(
-                            "pdf_cover_overlay_opacity",
-                            Number(e.target.value),
-                          )
-                        }
-                        className="w-full accent-orange-500"
-                      />
-                    </div>
-                    {/* M13 · Tipo overlay (flat / gradient / vignette) */}
-                    <div>
-                      <Label className="text-xs mb-1 block">Stile overlay</Label>
-                      <div className="grid grid-cols-4 gap-1">
-                        {([
-                          { v: "flat",          label: "Piatto",     hint: "Nero uniforme" },
-                          { v: "gradient",      label: "Gradient ↓", hint: "Trasparente in alto, scuro in basso" },
-                          { v: "gradient_diag", label: "Gradient ↘", hint: "Diagonale alto-sx → basso-dx" },
-                          { v: "vignette",      label: "Vignette",   hint: "Centro chiaro, angoli scuri" },
-                        ] as const).map((opt) => {
-                          const isActive = (form.pdf_cover_overlay_style ?? "flat") === opt.v;
-                          return (
-                            <button
-                              key={opt.v}
-                              type="button"
-                              title={opt.hint}
-                              onClick={() => update("pdf_cover_overlay_style", opt.v)}
-                              className={
-                                "rounded border text-[10px] py-1 px-1 transition-all " +
-                                (isActive
-                                  ? "bg-orange-500 text-white border-orange-500 font-semibold"
-                                  : "bg-white border-slate-200 hover:border-orange-300 text-slate-700")
-                              }
-                            >
-                              {opt.label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                      <p className="text-[10px] text-muted-foreground mt-0.5">
-                        Gradient migliora la leggibilità del testo su foto chiare.
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Colore di sfondo (solo quando non c'è immagine) */}
-                {!form.pdf_cover_image_url && (
-                  <div>
-                    <Label className="text-xs mb-1 block">
-                      Colore di sfondo cover
-                    </Label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="color"
-                        value={form.pdf_cover_bg_color || "#0F2A2E"}
-                        onChange={(e) =>
-                          update("pdf_cover_bg_color", e.target.value)
-                        }
-                        className="h-8 w-12 rounded border cursor-pointer"
-                      />
-                      <Input
-                        value={form.pdf_cover_bg_color ?? ""}
-                        onChange={(e) =>
-                          update(
-                            "pdf_cover_bg_color",
-                            e.target.value || null,
-                          )
-                        }
-                        placeholder="#0F2A2E"
-                        className="h-8 text-xs font-mono flex-1"
-                      />
-                      {form.pdf_cover_bg_color && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => update("pdf_cover_bg_color", null)}
-                          className="h-8 text-[11px]"
-                        >
-                          Reset
-                        </Button>
-                      )}
-                    </div>
-
-                    {/* M20 · Palette intelligente: brand variations + curate.
-                        Solo quando non c'è immagine (palette serve per il bg solido). */}
-                    <div className="mt-2 space-y-1.5">
-                      {/* Brand palette: 4 variazioni dal colore_primario aziendale */}
-                      {form.colore_primario && (
-                        <div>
-                          <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">
-                            🎨 Brand · variazioni da {form.colore_primario}
-                          </div>
-                          <div className="flex gap-1 flex-wrap">
-                            {generateBrandPalette(form.colore_primario).map((c) => (
-                              <button
-                                key={c}
-                                type="button"
-                                onClick={() => update("pdf_cover_bg_color", c)}
-                                title={c}
-                                className={
-                                  "w-7 h-7 rounded border-2 transition-all hover:scale-110 " +
-                                  (form.pdf_cover_bg_color === c
-                                    ? "border-orange-500 ring-1 ring-orange-300"
-                                    : "border-slate-200 hover:border-orange-300")
-                                }
-                                style={{ backgroundColor: c }}
-                              />
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      {/* Palette curate (3 set) */}
-                      {CURATED_PALETTES.map((p) => (
-                        <div key={p.name}>
-                          <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">
-                            {p.emoji} {p.name}
-                          </div>
-                          <div className="flex gap-1 flex-wrap">
-                            {p.colors.map((c) => (
-                              <button
-                                key={c}
-                                type="button"
-                                onClick={() => update("pdf_cover_bg_color", c)}
-                                title={c}
-                                className={
-                                  "w-7 h-7 rounded border-2 transition-all hover:scale-110 " +
-                                  (form.pdf_cover_bg_color === c
-                                    ? "border-orange-500 ring-1 ring-orange-300"
-                                    : "border-slate-200 hover:border-orange-300")
-                                }
-                                style={{ backgroundColor: c }}
-                              />
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                </div>
-                </SrCard>{/* ══ fine Card: Sfondo copertina ══ */}
-
-                {/* ══ Card: Testi copertina ══ */}
-                <SrCard title="Testi copertina" icon={<Quote className="h-4 w-4" />}>
-                <div className="space-y-3">
-                {/* Eyebrow */}
-                <div>
-                  <Label className="text-xs mb-1 block">
-                    Eyebrow (testo piccolo sopra il titolo)
-                  </Label>
-                  <Input
-                    value={form.pdf_cover_eyebrow ?? ""}
-                    onChange={(e) =>
-                      update("pdf_cover_eyebrow", e.target.value || null)
-                    }
-                    placeholder="★ La tua proposta personalizzata"
-                    className="h-8 text-xs"
-                  />
-                  <PlaceholderChips
-                    value={form.pdf_cover_eyebrow ?? ""}
-                    onChange={(v) => update("pdf_cover_eyebrow", v || null)}
-                  />
-                </div>
-
-                {/* Titolo */}
-                <div>
-                  <Label className="text-xs mb-1 block">
-                    Titolo hero (a capo per due righe)
-                  </Label>
-                  <Textarea
-                    value={form.pdf_cover_hero ?? ""}
-                    onChange={(e) =>
-                      update("pdf_cover_hero", e.target.value || null)
-                    }
-                    placeholder="La tua casa, finalmente al caldo."
-                    rows={2}
-                    className="text-sm"
-                  />
-                  <PlaceholderChips
-                    value={form.pdf_cover_hero ?? ""}
-                    onChange={(v) => update("pdf_cover_hero", v || null)}
-                  />
-                </div>
-
-                {/* Sottotitolo */}
-                <div>
-                  <Label className="text-xs mb-1 block">
-                    Sottotitolo (opzionale)
-                  </Label>
-                  <Textarea
-                    value={form.pdf_cover_subhero ?? ""}
-                    onChange={(e) =>
-                      update("pdf_cover_subhero", e.target.value || null)
-                    }
-                    placeholder="Lascia vuoto per usare la sintesi auto-generata del preventivo"
-                    rows={2}
-                    className="text-sm"
-                  />
-                </div>
-
-                {/* Milestone 4: subhero template con placeholder dinamici. */}
-                <div>
-                  <Label className="text-xs mb-1 block flex items-center justify-between">
-                    <span>Sottotitolo dinamico (con placeholder) — opzionale</span>
-                    <span className="text-[10px] font-normal text-muted-foreground">override del sottotitolo sopra</span>
-                  </Label>
-                  <Textarea
-                    value={form.pdf_cover_subhero_template ?? ""}
-                    onChange={(e) =>
-                      update("pdf_cover_subhero_template", e.target.value || null)
-                    }
-                    placeholder="Per la casa di {cliente_nome_completo} a {cantiere_citta} · {num_serramenti} serramenti · Consegna entro {data_consegna_stimata}"
-                    rows={2}
-                    className="text-sm font-mono"
-                  />
-                  <PlaceholderChips
-                    value={form.pdf_cover_subhero_template ?? ""}
-                    onChange={(v) => update("pdf_cover_subhero_template", v || null)}
-                  />
-                  <p className="text-[10px] text-muted-foreground mt-1.5 italic">
-                    Clicca un campo per aggiungerlo. Questi campi funzionano anche negli altri
-                    testi e titoli del template (cover, Chi siamo, CTA): scrivi es. {"{cliente_nome}"} e
-                    verrà sostituito nel PDF.
-                  </p>
-                </div>
-                </div>
-                </SrCard>{/* ══ fine Card: Testi copertina ══ */}
-
-            {/* ══ Card: Logo, tipografia & layout — dentro la colonna sinistra così
-                l'anteprima sticky resta visibile anche mentre modifichi qui ══ */}
-            <SrCard title="Logo, tipografia & layout" icon={<Sparkles className="h-4 w-4" />} className="mt-2">
-              <div className="grid grid-cols-12 gap-3">
-                {/* Font size + colore — Eyebrow */}
-                <div className="col-span-12 md:col-span-4">
-                  <Label className="text-[11px] flex items-center justify-between mb-1">
-                    <span>Eyebrow</span>
-                    <span className="font-mono text-muted-foreground">
-                      {form.pdf_cover_eyebrow_size ?? 11}pt
-                    </span>
-                  </Label>
-                  <input
-                    type="range"
-                    min={8}
-                    max={20}
-                    step={1}
-                    value={form.pdf_cover_eyebrow_size ?? 11}
-                    onChange={(e) => update("pdf_cover_eyebrow_size", Number(e.target.value))}
-                    className="w-full accent-orange-500"
-                  />
-                  <div className="flex items-center gap-1.5 mt-1.5">
-                    <input
-                      type="color"
-                      value={form.pdf_cover_eyebrow_color || form.colore_primario || "#2D7D5C"}
-                      onChange={(e) => update("pdf_cover_eyebrow_color", e.target.value)}
-                      className="h-5 w-8 rounded border cursor-pointer shrink-0"
-                      title="Colore eyebrow"
-                    />
-                    <Input
-                      value={form.pdf_cover_eyebrow_color ?? ""}
-                      onChange={(e) => update("pdf_cover_eyebrow_color", e.target.value || null)}
-                      placeholder="Brand color"
-                      className="h-5 text-[10px] font-mono flex-1 px-1"
-                    />
-                    {form.pdf_cover_eyebrow_color && (
-                      <button
-                        type="button"
-                        onClick={() => update("pdf_cover_eyebrow_color", null)}
-                        className="text-[10px] text-muted-foreground hover:text-destructive shrink-0"
-                        title="Ripristina colore brand"
-                      >✕</button>
-                    )}
-                  </div>
-                </div>
-                {/* Font size + colore — Titolo */}
-                <div className="col-span-12 md:col-span-4">
-                  <Label className="text-[11px] flex items-center justify-between mb-1">
-                    <span>Titolo hero</span>
-                    <span className="font-mono text-muted-foreground">
-                      {form.pdf_cover_title_size ?? 40}pt
-                    </span>
-                  </Label>
-                  <input
-                    type="range"
-                    min={22}
-                    max={64}
-                    step={1}
-                    value={form.pdf_cover_title_size ?? 40}
-                    onChange={(e) => update("pdf_cover_title_size", Number(e.target.value))}
-                    className="w-full accent-orange-500"
-                  />
-                  <div className="flex items-center gap-1.5 mt-1.5">
-                    <input
-                      type="color"
-                      value={form.pdf_cover_title_color || form.pdf_cover_text_color || "#FFFFFF"}
-                      onChange={(e) => update("pdf_cover_title_color", e.target.value)}
-                      className="h-5 w-8 rounded border cursor-pointer shrink-0"
-                      title="Colore titolo"
-                    />
-                    <Input
-                      value={form.pdf_cover_title_color ?? ""}
-                      onChange={(e) => update("pdf_cover_title_color", e.target.value || null)}
-                      placeholder="Colore testo"
-                      className="h-5 text-[10px] font-mono flex-1 px-1"
-                    />
-                    {form.pdf_cover_title_color && (
-                      <button
-                        type="button"
-                        onClick={() => update("pdf_cover_title_color", null)}
-                        className="text-[10px] text-muted-foreground hover:text-destructive shrink-0"
-                        title="Ripristina colore testo"
-                      >✕</button>
-                    )}
-                  </div>
-                </div>
-                {/* Font size + colore — Sottotitolo */}
-                <div className="col-span-12 md:col-span-4">
-                  <Label className="text-[11px] flex items-center justify-between mb-1">
-                    <span>Sottotitolo</span>
-                    <span className="font-mono text-muted-foreground">
-                      {form.pdf_cover_subtitle_size ?? 13}pt
-                    </span>
-                  </Label>
-                  <input
-                    type="range"
-                    min={9}
-                    max={22}
-                    step={1}
-                    value={form.pdf_cover_subtitle_size ?? 13}
-                    onChange={(e) => update("pdf_cover_subtitle_size", Number(e.target.value))}
-                    className="w-full accent-orange-500"
-                  />
-                  <div className="flex items-center gap-1.5 mt-1.5">
-                    <input
-                      type="color"
-                      value={form.pdf_cover_subtitle_color || "#D1D5DB"}
-                      onChange={(e) => update("pdf_cover_subtitle_color", e.target.value)}
-                      className="h-5 w-8 rounded border cursor-pointer shrink-0"
-                      title="Colore sottotitolo"
-                    />
-                    <Input
-                      value={form.pdf_cover_subtitle_color ?? ""}
-                      onChange={(e) => update("pdf_cover_subtitle_color", e.target.value || null)}
-                      placeholder="#D1D5DB"
-                      className="h-5 text-[10px] font-mono flex-1 px-1"
-                    />
-                    {form.pdf_cover_subtitle_color && (
-                      <button
-                        type="button"
-                        onClick={() => update("pdf_cover_subtitle_color", null)}
-                        className="text-[10px] text-muted-foreground hover:text-destructive shrink-0"
-                        title="Ripristina colore default"
-                      >✕</button>
-                    )}
-                  </div>
-                </div>
-                {/* Allineamento testo */}
-                <div className="col-span-12 md:col-span-4">
-                  <Label className="text-[11px] mb-1 block">Allineamento testo</Label>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    <Button
-                      size="sm"
-                      variant={(form.pdf_cover_text_align ?? "left") === "left" ? "default" : "outline"}
-                      onClick={() => update("pdf_cover_text_align", "left")}
-                      className={`h-7 text-[11px] ${(form.pdf_cover_text_align ?? "left") === "left" ? "bg-orange-500 hover:bg-orange-600" : ""}`}
-                    >
-                      Sinistra
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant={form.pdf_cover_text_align === "center" ? "default" : "outline"}
-                      onClick={() => update("pdf_cover_text_align", "center")}
-                      className={`h-7 text-[11px] ${form.pdf_cover_text_align === "center" ? "bg-orange-500 hover:bg-orange-600" : ""}`}
-                    >
-                      Centro
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Logo copertina — REDESIGN: la versione chiara del logo (per sfondo
-                    scuro) si gestisce ora in Brand & Azienda, un unico posto per tutti
-                    i template. La copertina la EREDITA. Resta un override facoltativo
-                    solo-per-questo-template per i casi particolari. */}
-                <div className="col-span-12 md:col-span-4">
+                <div data-cover-media className="space-y-3"><TemplateImageFieldView imageComponent={ImgRiservata} label="Immagine copertina" value={form.pdf_cover_image_url ?? null} busy={uploadingCover} localOnly={!!localModule} inputRef={coverInputRef} onFile={file => { if (file) return handleCoverUpload(file); }} onRemove={() => update("pdf_cover_image_url", null)} /><Button type="button" size="sm" variant="outline" onClick={() => setStockDialogOpen(true)}>Scegli dalla libreria</Button><div className="col-span-12 md:col-span-4">
                   <Label className="text-[11px] mb-1 block">Logo copertina</Label>
                   <input
                     ref={coverLogoInputRef}
@@ -2708,219 +1949,83 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                       </div>
                     )}
                   </div>
-                </div>
+                </div></div>{/* ══ fine Card: Sfondo copertina ══ */}
 
-                {/* M17 · Posizione logo cover */}
-                <div className="col-span-12 md:col-span-4">
-                  <Label className="text-[11px] mb-1 block">Posizione logo</Label>
-                  <div className="grid grid-cols-4 gap-1">
-                    {([
-                      { v: "top_left",   icon: "◰", title: "Alto sinistra" },
-                      { v: "top_center", icon: "◓", title: "Alto centro" },
-                      { v: "top_right",  icon: "◳", title: "Alto destra" },
-                      { v: "hidden",     icon: "✕", title: "Nascosto" },
-                    ] as const).map((opt) => {
-                      const isActive = (form.pdf_cover_logo_position ?? "top_left") === opt.v;
-                      return (
-                        <button
-                          key={opt.v}
-                          type="button"
-                          title={opt.title}
-                          onClick={() => update("pdf_cover_logo_position", opt.v)}
-                          className={
-                            "h-7 rounded border text-sm font-bold transition-all " +
-                            (isActive
-                              ? "bg-orange-500 text-white border-orange-500"
-                              : "bg-white border-slate-200 hover:border-orange-300 text-slate-700")
-                          }
-                        >
-                          {opt.icon}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
+                {/* ══ Card: Testi copertina ══ */}
+                {/* ══ fine Card: Testi copertina ══ */}
 
-                {/* Dimensione logo cover (scala %) — subito dopo posizione, nascosta se logo hidden */}
-                {(form.pdf_cover_logo_position ?? "top_left") !== "hidden" && (
-                  <div className="col-span-12 md:col-span-4">
-                    <Label className="text-[11px] flex items-center justify-between mb-1">
-                      <span>Dimensione logo</span>
-                      <span className="font-mono text-muted-foreground">
-                        {form.pdf_cover_logo_size ?? 100}%
-                      </span>
-                    </Label>
-                    <input
-                      type="range"
-                      min={60}
-                      max={160}
-                      step={5}
-                      value={form.pdf_cover_logo_size ?? 100}
-                      onChange={(e) => update("pdf_cover_logo_size", Number(e.target.value))}
-                      className="w-full accent-orange-500"
-                    />
-                  </div>
-                )}
-
-                {/* M18 · Allineamento verticale blocco testo */}
-                <div className="col-span-12 md:col-span-4">
-                  <Label className="text-[11px] mb-1 block">Posizione testo (verticale)</Label>
-                  <div className="grid grid-cols-3 gap-1">
-                    {([
-                      { v: "top",    label: "↑ Alto",   title: "Testo subito sotto al logo" },
-                      { v: "center", label: "↕ Centro", title: "Testo centrato verticalmente" },
-                      { v: "bottom", label: "↓ Basso",  title: "Testo in fondo, pre-footer (default)" },
-                    ] as const).map((opt) => {
-                      const isActive = (form.pdf_cover_text_vertical ?? "bottom") === opt.v;
-                      return (
-                        <button
-                          key={opt.v}
-                          type="button"
-                          title={opt.title}
-                          onClick={() => update("pdf_cover_text_vertical", opt.v)}
-                          className={
-                            "h-7 rounded border text-[10px] font-semibold transition-all " +
-                            (isActive
-                              ? "bg-orange-500 text-white border-orange-500"
-                              : "bg-white border-slate-200 hover:border-orange-300 text-slate-700")
-                          }
-                        >
-                          {opt.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Colore testo override + M14 contrast check */}
-                <div className="col-span-12 md:col-span-4">
-                  <Label className="text-[11px] mb-1 block flex items-center justify-between gap-1">
-                    <span>Colore testo</span>
-                    {/* M14 · Badge contrast WCAG. Calcolato live tra testo e
-                        sfondo (immagine: usa overlay-darkened bg; tinta unita:
-                        usa bg color). Con quick-fix se FAIL. */}
-                    {(() => {
-                      const textColor = form.pdf_cover_text_color || "#FFFFFF";
-                      // Sfondo "effettivo": se c'è immagine assumiamo overlay scuro
-                      // (#000 mediamente, semplificazione conservativa). Se no, bg solido.
-                      const bgColor = form.pdf_cover_image_url
-                        ? "#000000"
-                        : form.pdf_cover_bg_color || "#0F2A2E";
-                      const ratio = contrastRatio(textColor, bgColor);
-                      // Il titolo cover è "large text" (≥ 22pt) → soglia AA = 3.0
-                      const level = wcagLevel(ratio, true);
-                      const badgeCls =
-                        level === "AAA"
-                          ? "bg-emerald-100 text-emerald-700 border-emerald-300"
-                          : level === "AA"
-                            ? "bg-amber-100 text-amber-700 border-amber-300"
-                            : "bg-rose-100 text-rose-700 border-rose-300";
-                      const emoji = level === "AAA" ? "✅" : level === "AA" ? "⚠️" : "❌";
-                      return (
-                        <span
-                          className={`text-[9px] px-1.5 py-0.5 rounded border font-mono font-semibold ${badgeCls}`}
-                          title={`Contrast ratio ${ratio.toFixed(1)}:1 · WCAG ${level} (large text). Suggerito ≥ 4.5:1 per leggibilità ottimale.`}
-                        >
-                          {emoji} {ratio.toFixed(1)}:1 · {level}
-                        </span>
-                      );
-                    })()}
-                  </Label>
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      type="color"
-                      value={form.pdf_cover_text_color || "#FFFFFF"}
-                      onChange={(e) => update("pdf_cover_text_color", e.target.value)}
-                      className="h-7 w-9 rounded border cursor-pointer"
-                    />
-                    <Input
-                      value={form.pdf_cover_text_color ?? ""}
-                      onChange={(e) => update("pdf_cover_text_color", e.target.value || null)}
-                      placeholder="#FFFFFF"
-                      className="h-7 text-[11px] font-mono flex-1"
-                    />
-                  </div>
-                  {/* Auto-fix: se FAIL, mostra il pulsante che applica miglior contrasto */}
-                  {(() => {
-                    const textColor = form.pdf_cover_text_color || "#FFFFFF";
-                    const bgColor = form.pdf_cover_image_url
-                      ? "#000000"
-                      : form.pdf_cover_bg_color || "#0F2A2E";
-                    const ratio = contrastRatio(textColor, bgColor);
-                    if (wcagLevel(ratio, true) !== "FAIL") return null;
-                    const suggested = suggestBestTextColor(bgColor);
-                    return (
-                      <button
-                        type="button"
-                        onClick={() => update("pdf_cover_text_color", suggested)}
-                        className="mt-1 w-full text-[10px] py-1 px-2 rounded bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100 font-medium"
-                        title="Imposta automaticamente il colore con miglior contrasto su questo sfondo"
-                      >
-                        🔧 Fix automatico → {suggested === "#FFFFFF" ? "Bianco" : "Nero"}
-                      </button>
-                    );
-                  })()}
-                </div>
-
-                {/* Toggle decorazione + card cliente */}
-                <div className="col-span-12 md:col-span-4 space-y-1.5">
-                  <Label className="text-[11px] mb-1 block">Elementi visibili</Label>
-                  <label className="flex items-center gap-2 cursor-pointer text-[11px]">
-                    <input
-                      type="checkbox"
-                      checked={form.pdf_cover_show_decoration !== false}
-                      onChange={(e) => update("pdf_cover_show_decoration", e.target.checked)}
-                      className="h-3.5 w-3.5 accent-orange-500"
-                    />
-                    Decorazione SVG (alto destra)
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer text-[11px]">
-                    <input
-                      type="checkbox"
-                      checked={form.pdf_cover_show_client_card !== false}
-                      onChange={(e) => update("pdf_cover_show_client_card", e.target.checked)}
-                      className="h-3.5 w-3.5 accent-orange-500"
-                    />
-                    Card "Preparato per" (cliente)
-                  </label>
-                </div>
-
-                {/* M19 · Variante decorazione (visibile solo se decoration ON) */}
-                {form.pdf_cover_show_decoration !== false && (
-                  <div className="col-span-12 md:col-span-8">
-                    <Label className="text-[11px] mb-1 block">Stile decorazione</Label>
-                    <div className="grid grid-cols-5 gap-1">
-                      {([
-                        { v: "square",  label: "⊞ Finestra", title: "Finestra stilizzata 4 ante (default)" },
-                        { v: "circle",  label: "◯ Cerchio",  title: "Cerchi concentrici outline" },
-                        { v: "line",    label: "│ Linea",    title: "Linea verticale + tick" },
-                        { v: "pattern", label: "⋮⋮ Dots",    title: "Pattern 5×5 dots geometrico" },
-                        { v: "none",    label: "✕ None",     title: "Nessuna decorazione" },
-                      ] as const).map((opt) => {
-                        const isActive = (form.pdf_cover_decoration_style ?? "square") === opt.v;
-                        return (
-                          <button
-                            key={opt.v}
-                            type="button"
-                            title={opt.title}
-                            onClick={() => update("pdf_cover_decoration_style", opt.v)}
-                            className={
-                              "h-7 rounded border text-[10px] font-semibold transition-all " +
-                              (isActive
-                                ? "bg-orange-500 text-white border-orange-500"
-                                : "bg-white border-slate-200 hover:border-orange-300 text-slate-700")
-                            }
-                          >
-                            {opt.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* Reset tipografia */}
-                <div className="col-span-12 flex justify-end">
+            {/* ══ Card: Logo, tipografia & layout — dentro la colonna sinistra così
+                l'anteprima sticky resta visibile anche mentre modifichi qui ══ */}
+            <TemplateCoverDesignControls hasImage={!!form.pdf_cover_image_url} fields={[
+{id:"eyebrowSize",kind:"range",value:form.pdf_cover_eyebrow_size ?? 11,min:8,max:20,step:1,unit:"pt",onChange:value=>update("pdf_cover_eyebrow_size", value)},
+{id:"titleSize",kind:"range",value:form.pdf_cover_title_size ?? 40,min:22,max:64,step:1,unit:"pt",onChange:value=>update("pdf_cover_title_size", value)},
+{id:"subtitleSize",kind:"range",value:form.pdf_cover_subtitle_size ?? 13,min:9,max:22,step:1,unit:"pt",onChange:value=>update("pdf_cover_subtitle_size", value)},
+{id:"logoSize",kind:"range",value:form.pdf_cover_logo_size ?? 100,min:60,max:160,step:5,unit:"%",onChange:value=>update("pdf_cover_logo_size", value)},
+{id:"overlayOpacity",kind:"range",value:form.pdf_cover_overlay_opacity ?? 65,min:0,max:100,step:5,unit:"%",onChange:value=>update("pdf_cover_overlay_opacity", value)},
+{id:"textAlign",kind:"choice",value:form.pdf_cover_text_align ?? "left",choices:COVER_DESIGN_CHOICES.textAlign,onChange:value=>update("pdf_cover_text_align", value as typeof form.pdf_cover_text_align)},
+{id:"textVertical",kind:"choice",value:form.pdf_cover_text_vertical ?? "bottom",choices:COVER_DESIGN_CHOICES.textVertical,onChange:value=>update("pdf_cover_text_vertical", value as typeof form.pdf_cover_text_vertical)},
+{id:"logoPosition",kind:"choice",value:form.pdf_cover_logo_position ?? "top_left",choices:COVER_DESIGN_CHOICES.logoPosition,onChange:value=>update("pdf_cover_logo_position", value as typeof form.pdf_cover_logo_position)},
+{id:"overlayStyle",kind:"choice",value:form.pdf_cover_overlay_style ?? "flat",choices:COVER_DESIGN_CHOICES.overlayStyle,onChange:value=>update("pdf_cover_overlay_style", value as typeof form.pdf_cover_overlay_style)},
+{id:"decorationStyle",kind:"choice",value:form.pdf_cover_decoration_style ?? "square",choices:COVER_DESIGN_CHOICES.decorationStyle,onChange:value=>update("pdf_cover_decoration_style", value as typeof form.pdf_cover_decoration_style)},
+{id:"textColor",kind:"color",value:form.pdf_cover_text_color,fallback:"#FFFFFF",onChange:value=>update("pdf_cover_text_color", value || null),onReset:()=>update("pdf_cover_text_color", null)},
+{id:"backgroundColor",kind:"color",value:form.pdf_cover_bg_color,fallback:"#0F2A2E",onChange:value=>update("pdf_cover_bg_color", value || null),onReset:()=>update("pdf_cover_bg_color", null)},
+{id:"eyebrowColor",kind:"color",value:form.pdf_cover_eyebrow_color,fallback:form.colore_primario || "#2D7D5C",onChange:value=>update("pdf_cover_eyebrow_color", value || null),onReset:()=>update("pdf_cover_eyebrow_color", null)},
+{id:"titleColor",kind:"color",value:form.pdf_cover_title_color,fallback:form.pdf_cover_text_color || "#FFFFFF",onChange:value=>update("pdf_cover_title_color", value || null),onReset:()=>update("pdf_cover_title_color", null)},
+{id:"subtitleColor",kind:"color",value:form.pdf_cover_subtitle_color,fallback:"#D1D5DB",onChange:value=>update("pdf_cover_subtitle_color", value || null),onReset:()=>update("pdf_cover_subtitle_color", null)},
+{id:"showDecoration",kind:"toggle",value:form.pdf_cover_show_decoration !== false,onChange:value=>update("pdf_cover_show_decoration", value)},
+{id:"showClientCard",kind:"toggle",value:form.pdf_cover_show_client_card !== false,onChange:value=>update("pdf_cover_show_client_card", value)}
+]}>{!form.pdf_cover_image_url && (<div className="mt-2 space-y-1.5">
+                      {/* Brand palette: 4 variazioni dal colore_primario aziendale */}
+                      {form.colore_primario && (
+                        <div>
+                          <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">
+                            🎨 Brand · variazioni da {form.colore_primario}
+                          </div>
+                          <div className="flex gap-1 flex-wrap">
+                            {generateBrandPalette(form.colore_primario).map((c) => (
+                              <button
+                                key={c}
+                                type="button"
+                                onClick={() => update("pdf_cover_bg_color", c)}
+                                title={c}
+                                className={
+                                  "w-7 h-7 rounded border-2 transition-all hover:scale-110 " +
+                                  (form.pdf_cover_bg_color === c
+                                    ? "border-orange-500 ring-1 ring-orange-300"
+                                    : "border-slate-200 hover:border-orange-300")
+                                }
+                                style={{ backgroundColor: c }}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {/* Palette curate (3 set) */}
+                      {CURATED_PALETTES.map((p) => (
+                        <div key={p.name}>
+                          <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">
+                            {p.emoji} {p.name}
+                          </div>
+                          <div className="flex gap-1 flex-wrap">
+                            {p.colors.map((c) => (
+                              <button
+                                key={c}
+                                type="button"
+                                onClick={() => update("pdf_cover_bg_color", c)}
+                                title={c}
+                                className={
+                                  "w-7 h-7 rounded border-2 transition-all hover:scale-110 " +
+                                  (form.pdf_cover_bg_color === c
+                                    ? "border-orange-500 ring-1 ring-orange-300"
+                                    : "border-slate-200 hover:border-orange-300")
+                                }
+                                style={{ backgroundColor: c }}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>)}<div className="col-span-12 flex justify-end">
                   <Button
                     size="sm"
                     variant="ghost"
@@ -2937,9 +2042,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                   >
                     Ripristina default tipografia
                   </Button>
-                </div>
-              </div>
-            </SrCard>
+                </div></TemplateCoverDesignControls>
               </div>{/* ══ fine colonna sinistra controlli ══ */}
             </div>{/* ══ fine griglia cover: anteprima sticky + controlli ══ */}
           </TabsContent>
@@ -3327,6 +2430,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
           <TabsContent value="conversione" className="mt-4">
             <Suspense fallback={<div className="h-20 flex items-center justify-center text-xs text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin mr-2" />Caricamento…</div>}>
               <SerramentiConversionEditor
+                defaults={moduleDefaults}
                 form={form}
                 update={update}
                 companyAnagrafica={companyAnagrafica}
@@ -3349,6 +2453,8 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
             <div className="mt-3">
               <Suspense fallback={<div className="h-20 flex items-center justify-center text-xs text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin mr-2" />Caricamento…</div>}>
                 <SerramentiPagesOrderEditor
+                  defaults={moduleDefaults?.pdf_pages_order ?? undefined}
+                  intervention={!!localModule}
                   value={form.pdf_pages_order ?? null}
                   onChange={(next) => update("pdf_pages_order", next)}
                   blocchi={form.pdf_blocchi}
@@ -3380,7 +2486,10 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
           campoFoto={campoFotoBlocco}
           visibile={paginaSr.pagina ? {
             valore: paginaSrVisibile,
-            onChange: (v) => update("pdf_pages_order", conPaginaVisibile(ordinePagineSr, paginaSr.pagina as string, v)),
+            onChange: (v) => {
+              update("pdf_pages_order", conPaginaVisibile(ordinePagineSr, paginaSr.pagina as string, v));
+              if (paginaSr.id === "page_confronto") update("confronto_attivo", v);
+            },
           } : undefined}
         />
       </SrCard>
@@ -3527,6 +2636,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
       {activeSection === "condizioni" && (<>
       <SectionHeader
         title="📜 Condizioni contrattuali"
+        number={5}
         description="I termini di vendita stampati come pagina dedicata in fondo al preventivo PDF. Puoi partire da un template salvato in libreria, dal modello standard o scrivere da zero."
       />
 
@@ -3585,7 +2695,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
               size="sm"
               variant="ghost"
               className="text-xs"
-              disabled={!form.condizioni_legali_testo?.trim() || upsertQuoteTemplate.isPending}
+              disabled={!!localModule || !form.condizioni_legali_testo?.trim() || upsertQuoteTemplate.isPending}
               onClick={() => saveSharedLegalTemplate("condizioni")}
             >
               Salva nella libreria come "Condizioni e termini legali"
@@ -3607,13 +2717,14 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
           {form.condizioni_legali_attivo !== false && (
             <>
               <ImportaCondizioniBar
+                localOnly={!!localModule}
                 soloImport
                 compatto
                 companyId={companyId}
                 testoAttuale={String(form.condizioni_legali_testo ?? "")}
                 onTesto={(md) => update("condizioni_legali_testo", md)}
               />
-              <Button
+              {!localModule && <Button
                 size="sm"
                 variant="outline"
                 onClick={() => {
@@ -3623,7 +2734,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                 }}
               >
                 <Sparkles className="h-3.5 w-3.5 mr-1" /> Inserisci modello standard serramentista
-              </Button>
+              </Button>}
               <Textarea
                 value={form.condizioni_legali_testo ?? ""}
                 onChange={(e) => update("condizioni_legali_testo", e.target.value || null)}
@@ -3737,40 +2848,45 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
       </SrCard>
       </>)}{/* === END SEZIONE DEFAULT === */}
 
+          <TemplateEditorSaveBar>
+            <span role="status" className={dirty ? "text-xs text-amber-600" : "text-xs text-muted-foreground"}>
+              {dirty ? "Modifiche non salvate" : localSaved ? "Tutto salvato" : "Copia locale da salvare"}
+            </span>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setPreviewOpen(true)} className="gap-1.5" aria-label="Apri anteprima PDF">
+                <Eye className="h-4 w-4" /> Anteprima PDF
+              </Button>
+              <Button
+                type="button"
+                onClick={handleSave}
+                disabled={(!dirty && localSaved) || upsertMut.isPending}
+                className="bg-orange-500 hover:bg-orange-600 gap-1.5"
+              >
+                {upsertMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                {localModule ? "Salva copia locale" : "Salva impostazioni"}
+              </Button>
+            </div>
+          </TemplateEditorSaveBar>
         </div>{/* /content-panel */}
 
         {/* ── ANTEPRIMA LIVE PDF — colonna persistente (desktop xl), sotto su tablet.
             Mostra il PDF vero completo (tutte le pagine) e si aggiorna ~1s dopo
             ogni modifica, così l'utente vede il risultato mentre lavora. ── */}
-        <aside className="col-span-12 xl:col-span-4 min-w-0">
-          <div className="xl:sticky xl:top-[68px] xl:self-start xl:h-[calc(100vh-96px)] h-[75vh]">
+        <aside data-template-preview className={templateEditorLayout.preview}>
+          <div className={templateEditorLayout.previewPanel}>
             <SerramentiLivePreviewPanel
+              moduleId={localModule?.id}
               template={form}
               companyName={form.ragione_sociale}
               companyLogoUrl={form.logo_url}
               companyLogoDarkUrl={brand?.brand_logo_dark_url ?? null}
               companyBrandColor={brand?.brand_primary_color ?? null}
               companyIndirizzo={form.indirizzo_completo}
-              activeSection={sectionToPdfTab(activeSection) ?? undefined}
+              activeSection={activeSection}
             />
           </div>
         </aside>
-      </div>{/* /grid */}
-
-      {/* Sticky footer: mantiene solo il salvataggio sempre raggiungibile.
-          L'anteprima PDF resta accessibile dalla sidebar/header, senza duplicare
-          un bottone fisso in basso che copreva la lettura delle impostazioni. */}
-      <div className="sticky bottom-4 flex justify-end gap-3 z-10 pointer-events-none">
-        <Button
-          onClick={handleSave}
-          disabled={!dirty || upsertMut.isPending}
-          className="bg-orange-600 hover:bg-orange-500 gap-1 shadow-lg pointer-events-auto"
-          size="lg"
-        >
-          {upsertMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          Salva impostazioni
-        </Button>
-      </div>
+      </TemplateEditorWorkspace>
 
       {/* Dialog anteprima PDF — generato on-the-fly con dati demo + template corrente.
           PERF: render condizionale `{previewOpen && ...}` per non montare mai il
@@ -3780,6 +2896,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
       {previewOpen && (
         <Suspense fallback={null}>
           <SerramentiTemplatePreviewDialog
+            moduleId={localModule?.id}
             open={previewOpen}
             onOpenChange={setPreviewOpen}
             template={form}
@@ -3792,18 +2909,18 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
         </Suspense>
       )}
 
-      {/* M16 · Dialog galleria immagini stock (18 immagini Unsplash) */}
+      {/* M16 · Dialog galleria immagini curate EiC */}
       <Dialog open={stockDialogOpen} onOpenChange={setStockDialogOpen}>
         <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col p-0 gap-0">
           <DialogHeader className="p-4 pb-3 border-b">
             <DialogTitle className="text-base">📷 Galleria immagini stock</DialogTitle>
             <DialogDescription className="text-xs">
-              Click su un'immagine per usarla come sfondo cover. Tutte le immagini sono
-              libere da licenza (Unsplash) — uso commerciale incluso.
+              Click su un'immagine per usarla come sfondo cover. Sono immagini
+              curate e incluse nella libreria locale del modulo.
             </DialogDescription>
             {/* Filtri categoria */}
             <div className="flex flex-wrap gap-1 pt-2">
-              {COVER_STOCK_CATEGORIE.map((cat) => {
+              {COVER_STOCK_CATEGORIE.filter(cat => !localModule || cat.value === "all").map((cat) => {
                 const isActive = stockCategory === cat.value;
                 return (
                   <button

@@ -1,0 +1,44 @@
+[
+  {
+    "id": "bagni-accessibilita",
+    "asset": "/module-art/bagni-accessibilita.jpg",
+    "mode": "builtin imagegen",
+    "prompt": "Create one photorealistic natural architectural editorial photograph for an illustrative construction quote PDF cover. Landscape 3:2. Subject: Accessible contemporary bathroom, wide step-free walk-in shower, visible sturdy grab bars and a discreet fold-down shower seat, accessible floor space, warm stone and timber finishes, no people. Illustration only, not a certified compliance plan. Style: premium restrained Italian architecture photography, soft warm natural daylight, authentic textures, cream and stone palette, composition with subject clearly visible at center for landscape crop. No collage, no text, no watermark, no logo. This is an illustrative project mood image, never proof of an actual completed job."
+  },
+  {
+    "id": "elettrico-ricarica",
+    "asset": "/module-art/elettrico-ricarica.jpg",
+    "mode": "builtin imagegen",
+    "prompt": "Create one photorealistic natural architectural editorial photograph for an illustrative construction quote PDF cover. Landscape 3:2. Subject: Wall-mounted residential EV charging unit next to a parked unbranded electric car under an Italian house carport, charging cable visibly plugged into the car, neat enclosed installation, pale plaster warm evening light. Style: premium restrained Italian architecture photography, soft warm natural daylight, authentic textures, cream and stone palette, composition with subject clearly visible at center for landscape crop. No collage, no text, no watermark, no logo. This is an illustrative project mood image, never proof of an actual completed job."
+  },
+  {
+    "id": "pavimenti-resina",
+    "asset": "/module-art/pavimenti-resina.jpg",
+    "mode": "builtin imagegen",
+    "prompt": "Create one photorealistic natural architectural editorial photograph for an illustrative construction quote PDF cover. Landscape 3:2. Subject: Modern residential living room emphasizing a seamless smooth matte warm grey resin floor, continuous surface with no timber grain or tile joints, restrained warm furnishings, low camera angle. Style: premium restrained Italian architecture photography, soft warm natural daylight, authentic textures, cream and stone palette, composition with subject clearly visible at center for landscape crop. No collage, no text, no watermark, no logo. This is an illustrative project mood image, never proof of an actual completed job."
+  },
+  {
+    "id": "pavimenti-esterni",
+    "asset": "/module-art/pavimenti-esterni.jpg",
+    "mode": "builtin imagegen",
+    "prompt": "Create one photorealistic natural architectural editorial photograph for an illustrative construction quote PDF cover. Landscape 3:2. Subject: Outdoor terrace of an Italian house, large stone outdoor paving slabs with clearly visible joints, step and neat edge details, garden beyond, emphasize exterior flooring, no pool. Style: premium restrained Italian architecture photography, soft warm natural daylight, authentic textures, cream and stone palette, composition with subject clearly visible at center for landscape crop. No collage, no text, no watermark, no logo. This is an illustrative project mood image, never proof of an actual completed job."
+  },
+  {
+    "id": "pavimenti-pareti",
+    "asset": "/module-art/pavimenti-pareti.jpg",
+    "mode": "builtin imagegen",
+    "prompt": "Create one photorealistic natural architectural editorial photograph for an illustrative construction quote PDF cover. Landscape 3:2. Subject: Contemporary bathroom detail highlighting a vertical wall clad in warm ivory ceramic tiles with clean joints, a small basin partially visible at edge, front three-quarter view emphasizing wall tiling rather than flooring. Style: premium restrained Italian architecture photography, soft warm natural daylight, authentic textures, cream and stone palette, composition with subject clearly visible at center for landscape crop. No collage, no text, no watermark, no logo. This is an illustrative project mood image, never proof of an actual completed job."
+  },
+  {
+    "id": "ristrutturazioni-commerciale",
+    "asset": "/module-art/ristrutturazioni-commerciale.jpg",
+    "mode": "builtin imagegen",
+    "prompt": "Create one photorealistic natural architectural editorial photograph for an illustrative construction quote PDF cover. Landscape 3:2. Subject: Renovated small professional office reception in Italy, contemporary accessible open layout, two neat desks farther back, warm neutral materials, glass partition and elegant overhead lighting, unmistakably workplace not home, no people screens text or branding. Style: premium restrained Italian architecture photography, soft warm natural daylight, authentic textures, cream and stone palette, composition with subject clearly visible at center for landscape crop. No collage, no text, no watermark, no logo. This is an illustrative project mood image, never proof of an actual completed job."
+  },
+  {
+    "id": "termoidraulica-caldaia",
+    "asset": "/module-art/termoidraulica-caldaia.jpg",
+    "mode": "builtin imagegen",
+    "prompt": "Create one photorealistic natural architectural editorial photograph for an illustrative construction quote PDF cover. Landscape 3:2. Subject: Domestic utility alcove in an Italian home with a compact unbranded wall mounted condensing boiler, enclosed white casing with minimal controls and professionally routed pipes, wide architectural context, no exposed wiring or labels, not a technical installation diagram. Style: premium restrained Italian architecture photography, soft warm natural daylight, authentic textures, cream and stone palette, composition with subject clearly visible at center for landscape crop. No collage, no text, no watermark, no logo. This is an illustrative project mood image, never proof of an actual completed job."
+  }
+]

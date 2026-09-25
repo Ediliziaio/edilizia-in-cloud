@@ -82,8 +82,17 @@ export function useModuliVisibilita(): UseModuliVisibilitaResult {
       if (error) throw error;
     },
     onSuccess: (_data, vars) => {
+      // Aggiorna subito tutte le viste (catalogo, impostazioni e nuovo preventivo).
+      // Non aspettare il refetch per rendere riattivabile il modulo nascosto.
+      queryClient.setQueryData<Set<string>>(queryKey, (previous) => {
+        const next = new Set(previous ?? []);
+        if (vars.visibile) next.delete(vars.slug); else next.add(vars.slug);
+        return next;
+      });
       void queryClient.invalidateQueries({ queryKey });
-      toast.success(vars.visibile ? "Modulo attivato" : "Modulo nascosto");
+      toast.success(vars.visibile ? "Modulo riattivato per la squadra" : "Modulo disattivato per la squadra", {
+        description: vars.visibile ? "Il modulo è nuovamente visibile. Il piano non cambia." : "Puoi riattivarlo da Moduli disattivati. I preventivi esistenti non vengono eliminati.",
+      });
     },
     onError: (err: unknown) => {
       const msg = err instanceof Error ? err.message : "Errore sconosciuto";

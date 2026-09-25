@@ -203,6 +203,10 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // Until the public HTML renderer supports native model snapshots, never
+    // publish a different (general-template) document for the same quote.
+    if (prog.modello_snapshot) return errorResponse("Modello specifico: usa il PDF A4. Pagina firma non ancora collegata.", 409, corsHeaders);
+
     // 2. Load BOM
     const [{ data: serramenti }, { data: accessori }, { data: media }, { data: template }, { data: company }] =
       await Promise.all([

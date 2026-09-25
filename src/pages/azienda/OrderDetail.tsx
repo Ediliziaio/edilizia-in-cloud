@@ -1,8 +1,8 @@
-import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
-import { AlertTriangle, BellRing, AlertCircle, Package, Receipt, HardHat, Truck, FileText, FileWarning, Download, Sparkles, Wallet, ListChecks, Plus, LayoutDashboard, Paperclip, ArrowRight } from "lucide-react";
+import { AlertTriangle, BellRing, AlertCircle, Package, Receipt, HardHat, Truck, FileText, FileWarning, Download, Sparkles, Wallet, Paperclip, ArrowRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { OrderSurveysCard } from "@/components/orders/OrderSurveysCard";
 import { MezziCommessaCard } from "@/components/mezzi/MezziCommessaCard";
@@ -12,7 +12,7 @@ import { OrderScheduleBadge } from "@/components/orders/OrderScheduleBadge";
 import { OrderNotesDialog } from "@/components/orders/OrderNotesDialog";
 import { OrderMeasureControl } from "@/components/orders/OrderMeasureControl";
 import { OrderEconomicsSummary } from "@/components/orders/OrderEconomicsSummary";
-import { CassaVerdettoBand, EsposizioneCommessa } from "@/components/orders/EsposizioneCommessa";
+import { EsposizioneCommessa } from "@/components/orders/EsposizioneCommessa";
 import { RitenuteTab } from "@/components/ritenute/RitenuteTab";
 import { formatDateTime, formatCurrency } from "@/lib/formatters";
 import { differenceInDays, parseISO, isBefore, startOfDay, format } from "date-fns";
@@ -47,7 +47,12 @@ import { type OrderStatus, type OrderItemData, type Installment, deleteOrderCasc
 import { dataAttesaRata } from "@/lib/orders/rateEventi";
 import { useFattureByOrdine } from "@/hooks/billing/useFatturaOrdineLink";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { OrderCommessaSummary } from "@/components/orders/OrderCommessaSummary";
+import { OrderFinancialOverview } from "@/components/orders/OrderFinancialOverview";
+import { OrderDetailNavigation } from "@/components/orders/OrderDetailNavigation";
+import { useOrderDetailNavigation } from "@/hooks/useOrderDetailNavigation";
+import { isOrderDetailTab, type OrderDetailSection } from "@/lib/orders/detailNavigation";
 import { OrderAssistenzaTab } from "@/components/orders/OrderAssistenzaTab";
 // ── New sub-components ──────────────────────────────────────────
 import { OrdineDetailHeader } from "@/components/orders/OrdineDetailHeader";
@@ -308,26 +313,10 @@ function OrderDetailInner() {
   const [playbookEditorOpen, setPlaybookEditorOpen] = useState(false);
   const { vertical } = useVertical();
 
-  // Monta UN SOLO layout (mobile O desktop): prima erano entrambi nel tree
-  // nascosti via CSS → ogni card della pagina renderizzava due volte.
-  // Breakpoint allineato a Tailwind `sm` (640px), lo stesso delle classi
-  // sm:hidden / hidden sm:grid usate dai due container.
-  const [isNarrow, setIsNarrow] = useState<boolean>(() =>
-    typeof window !== "undefined" && window.matchMedia("(max-width: 639px)").matches
-  );
-  useEffect(() => {
-    const mql = window.matchMedia("(max-width: 639px)");
-    const onChange = (e: MediaQueryListEvent) => setIsNarrow(e.matches);
-    mql.addEventListener("change", onChange);
-    return () => mql.removeEventListener("change", onChange);
-  }, []);
-
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [editedNotes, setEditedNotes] = useState("");
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [mobileTab, setMobileTab] = useState<string>("stato");
-  const [desktopTab, setDesktopTab] = useState<string>("panoramica");
   const [notesOpen, setNotesOpen] = useState(false);
   const [firmaOpen, setFirmaOpen] = useState(false);
   const [creaFatturaOpen, setCreaFatturaOpen] = useState(false);
@@ -357,8 +346,10 @@ function OrderDetailInner() {
     gcTime: 10 * 60 * 1000,
   });
 
+  const { activeTab, navigateTo } = useOrderDetailNavigation(!!order?.id);
+
   // Fetch order installments from DB
-  const { data: dbInstallments = [] } = useQuery({
+  const { data: dbInstallments = [], isPending: installmentsPending, isError: installmentsError } = useQuery({
     queryKey: queryKeys.orders.installments(id),
     queryFn: async () => {
       // Con la fattura interna della rata: numero e stato, per mostrarla.
@@ -400,7 +391,7 @@ function OrderDetailInner() {
   }, [dbInstallments, order]);
 
   // Fetch order items
-  const { data: orderItems = [], isPending: orderItemsPending } = useQuery({
+  const { data: orderItems = [], isPending: orderItemsPending, isError: orderItemsError } = useQuery({
     queryKey: ["order-items", id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -449,7 +440,7 @@ function OrderDetailInner() {
   // la riga sotto lo stepper — per le ristrutturazioni l'avanzamento vero vive
   // nelle fasi, non negli stati commerciali. Query minima (solo status);
   // invalidata da useOrderWorkPhases a ogni modifica delle fasi.
-  const { data: phaseProgress } = useQuery({
+  const { data: phaseProgress, isLoading: phaseProgressLoading, isError: phaseProgressError } = useQuery({
     queryKey: ["order-phases-progress", id],
     queryFn: async () => {
       // order_work_phases non è nei tipi generati (colonna creata via MCP)
@@ -521,7 +512,7 @@ function OrderDetailInner() {
   // Prossima mossa = prossima task APERTA della commessa. La fonte è il sistema
   // task reale (card "Attività"): così assegnare = creare l'attività della persona.
   // Qui la mostriamo in cima per decisione rapida, senza duplicare il sistema.
-  const { data: prossimaTask } = useQuery<{
+  const { data: prossimaTask, isLoading: taskLoading, isError: taskError } = useQuery<{
     id: string; title: string; due_date: string | null; assigned_to: string | null;
     assigned?: { first_name?: string | null; last_name?: string | null } | null;
   } | null>({
@@ -947,12 +938,12 @@ function OrderDetailInner() {
     discount_percent: item.discount_percent, standard_cost: item.standard_cost,
   }));
 
-  const orderAlerts = useMemo(() => {
+  const resolvedInstallments = useMemo(() => {
     if (!order) return [];
     // Stessa matematica delle card rate: l'ULTIMA rata 'balance' vale il
     // residuo calcolato, le intermedie il loro importo. Senza questa mappa
     // l'alert diceva una cifra e la lista Pagamenti un'altra.
-    const totaleIvato = (order.total_amount || 0) * (1 + (order.vat_rate || 22) / 100);
+    const totaleIvato = (order.total_amount || 0) * (1 + (order.vat_rate ?? 22) / 100);
     const costoFin = order.financing_cost ?? 0;
     const posSaldo = displayInstallments.reduce<number | null>(
       (acc, i) => (i.type === "balance" ? Math.max(acc ?? i.position, i.position) : acc),
@@ -978,8 +969,9 @@ function OrderDetailInner() {
         expected_date: order.expected_date,
       }) ?? i.expected_date,
     }));
-    return getOrderAlerts(order, displayItems, conDataEffettiva);
-  }, [order, displayItems, displayInstallments]);
+    return conDataEffettiva;
+  }, [order, displayInstallments]);
+  const orderAlerts = useMemo(() => order ? getOrderAlerts(order, displayItems, resolvedInstallments) : [], [order, displayItems, resolvedInstallments]);
 
   const handleAttachmentsRefresh = () => { refetchAttachments(); };
 
@@ -1164,7 +1156,7 @@ function OrderDetailInner() {
   const collectedAmount = calculateCollectedNetFromInstallments({
     installments: displayInstallments,
     totalAmount: order.total_amount,
-    vatRate: order.vat_rate || 22,
+    vatRate: order.vat_rate ?? 22,
     financingCost: order.financing_cost ?? 0,
   });
   // Incassato LORDO (IVA inclusa) = stesso numero del piano rate ("€ Riepilogo" e
@@ -1173,34 +1165,20 @@ function OrderDetailInner() {
   const collectedGross = calculateCollectedGrossFromInstallments({
     installments: displayInstallments,
     totalAmount: order.total_amount,
-    vatRate: order.vat_rate || 22,
+    vatRate: order.vat_rate ?? 22,
     financingCost: order.financing_cost ?? 0,
   });
   // Target incassi LORDO = totale ivato al netto del costo finanziaria (= "su 27.280"
   // del piano rate), così la barra cassa combacia con l'Avanzamento incassi.
   const cashTotalGross = Math.max(
     0,
-    (order.total_amount || 0) * (1 + (order.vat_rate || 22) / 100) - (order.financing_cost ?? 0),
+    (order.total_amount || 0) * (1 + (order.vat_rate ?? 22) / 100) - (order.financing_cost ?? 0),
   );
   // Avanzamento fisico (media % fasi) per esposizione e proiezione margine.
   const avanzamentoPct = phaseProgress?.avgPct ?? null;
 
-  // Navigazione dalla fascia verdetto: porta alla tab Finanza e scrolla
-  // all'ancora richiesta (stessa logica del bottone "Registra incasso").
-  const vaiAllaFinanza = (anchor?: string) => {
-    const mobile = typeof window !== "undefined" && window.matchMedia("(max-width: 639px)").matches;
-    if (mobile) {
-      setMobileTab("finanza");
-      setTimeout(() => {
-        const panel = document.querySelector('[role="tabpanel"][data-state="active"]');
-        (panel ?? document.querySelector('[role="tablist"]'))?.scrollIntoView({ behavior: "smooth", block: "start" });
-      }, 50);
-    } else {
-      setDesktopTab("finanza");
-      setTimeout(() => {
-        document.getElementById(anchor ?? "section-pagamenti")?.scrollIntoView({ behavior: "smooth", block: "start" });
-      }, 60);
-    }
+  const vaiAllaFinanza = (section: OrderDetailSection = "section-pagamenti") => {
+    navigateTo({ tab: "finanza", section });
   };
 
   // ── Cassa della commessa ───────────────────────────────────────────────────
@@ -1221,13 +1199,9 @@ function OrderDetailInner() {
       .sort()
       .pop() ?? order.work_end_date ?? null;
 
-  // Prossima mossa: la task aperta è scaduta?
-  const prossimaTaskOverdue =
-    !!prossimaTask?.due_date && new Date(prossimaTask.due_date) < new Date(new Date().toDateString());
-
   return (
     // commessa-elevated: ombra più marcata su tutte le Card della pagina (vedi index.css)
-    <div className="commessa-elevated min-h-screen bg-slate-50">
+    <div id="order-detail-overview" className="commessa-elevated min-h-screen bg-slate-50 scroll-mt-4">
       {/* ── New Header (breadcrumb + title + actions) ──────────── */}
       <OrdineDetailHeader
         ordineId={id!}
@@ -1242,28 +1216,7 @@ function OrderDetailInner() {
         orderType={order.order_type}
         onDuplica={() => setDuplicateDialogOpen(true)}
         onModifica={() => navigate(`/azienda/ordini/${id}/modifica`)}
-        onRegistraIncasso={() => {
-          // "Registra incasso": porta al piano rate della commessa (lo stesso
-          // Riepilogo Finanziario impostato in creazione/modifica), dove ogni
-          // rata si segna Pagato/Non pagato con storico date. I verbali SAL
-          // (documenti) restano nel tab/sezione dedicata.
-          const isMobile = typeof window !== "undefined" && window.matchMedia("(max-width: 639px)").matches;
-          if (isMobile) {
-            setMobileTab("finanza");
-            // Aspetta che il tab si renderizzi prima dello scroll
-            setTimeout(() => {
-              const mobileFinanzaContent = document.querySelector('[role="tabpanel"][data-state="active"]');
-              const target = mobileFinanzaContent || document.querySelector('[role="tablist"]');
-              if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }, 50);
-          } else {
-            setDesktopTab("finanza");
-            setTimeout(() => {
-              const pagamentiEl = document.getElementById('section-pagamenti');
-              if (pagamentiEl) pagamentiEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }, 60);
-          }
-        }}
+        onRegistraIncasso={() => vaiAllaFinanza("section-pagamenti")}
         onElimina={() => setDeleteConfirmOpen(true)}
         onDownloadPDF={handleDownloadPDF}
         isGeneratingPDF={pdfPreparing || isGeneratingPDF}
@@ -1281,7 +1234,9 @@ function OrderDetailInner() {
             order.customer
               ? {
                   id: order.customer.id,
-                  name: `${order.customer.first_name ?? ""} ${order.customer.last_name ?? ""}`.trim() || "Cliente",
+                  name:
+                    `${order.customer.first_name ?? ""} ${order.customer.last_name ?? ""}`.trim() ||
+                    "Cliente",
                   phone: order.customer.phone,
                   email: order.customer.email,
                 }
@@ -1290,17 +1245,32 @@ function OrderDetailInner() {
           workAddress={order.work_address}
           getPdfBlob={getPdfBlobForOrder}
           paymentDue={(() => {
-            const unpaid = displayInstallments.filter((i) => !i.is_paid && i.amount > 0);
+            const unpaid = displayInstallments.filter(
+              (i) => !i.is_paid && i.amount > 0,
+            );
             if (unpaid.length === 0) return null;
             const next = [...unpaid].sort((a, b) => {
-              const da = a.expected_date ? new Date(a.expected_date).getTime() : Infinity;
-              const db = b.expected_date ? new Date(b.expected_date).getTime() : Infinity;
+              const da = a.expected_date
+                ? new Date(a.expected_date).getTime()
+                : Infinity;
+              const db = b.expected_date
+                ? new Date(b.expected_date).getTime()
+                : Infinity;
               return da - db;
             })[0];
             const residuo = unpaid.reduce((s, i) => s + i.amount, 0);
-            return { amount: next?.amount ?? residuo, dueDate: next?.expected_date ?? null, label: next?.label ?? null };
+            return {
+              amount: next?.amount ?? residuo,
+              dueDate: next?.expected_date ?? null,
+              label: next?.label ?? null,
+            };
           })()}
           sollecitoRef={sollecitoRef}
+          onCreateTask={permissions.canViewOrders ? () => setTaskDialogOpen(true) : undefined}
+          onApplyPlaybook={permissions.canViewOrders ? handleApplyPlaybook : undefined}
+          onManagePlaybook={permissions.canViewOrders ? () => setPlaybookEditorOpen(true) : undefined}
+          applyingPlaybook={applyingPlaybook}
+          playbookLabel={PLAYBOOK_LABELS[getOrderPlaybook(vertical).key]}
           onOpenOps={() => setOpsOpen(true)}
           onOpenFiles={() => setFilesOpen(true)}
           onOpenNotes={() => setNotesOpen(true)}
@@ -1309,636 +1279,137 @@ function OrderDetailInner() {
             <ChiediASilvio
               className="h-8 ml-auto"
               ask={`Analizza la commessa ${order.order_code ? `"${order.order_code}" ` : ""}${
-                order.customer ? `del cliente ${order.customer.first_name} ${order.customer.last_name} ` : ""
+                order.customer
+                  ? `del cliente ${order.customer.first_name} ${order.customer.last_name} `
+                  : ""
               }(${order.description || "senza descrizione"}): stato avanzamento, costi vs preventivo, scadenze, margine e criticità. Cosa devo sapere e quali sono le prossime mosse?`}
             />
           }
         />
       )}
 
-      {/* ── Prossima mossa: la prossima task APERTA della commessa. Fonte = sistema
-          task reale (card "Attività" più sotto), quindi assegnare crea l'attività
-          della persona. Strip sottile per decisione rapida, coerente con quella di
-          Silvio. ── */}
-      {permissions.canViewOrders && (
-        // Quando NON c'è una prossima task, su mobile nascondiamo l'intera
-        // strip (i CTA "Applica processo / Attività / Gestisci" erano solo
-        // rumore: le attività si gestiscono dalla sezione dedicata più sotto).
-        // Se c'è una task, il promemoria resta utile anche su mobile.
-        <div className={cn("bg-white border-b border-gray-100 px-3 sm:px-6 py-2", !prossimaTask && "hidden sm:block")}>
-          <div className="flex items-center gap-2 flex-wrap text-sm">
-            <ListChecks className="h-4 w-4 text-muted-foreground shrink-0" />
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground shrink-0">Attività</span>
-            {prossimaTask ? (
-              <>
-                <span className="font-medium text-slate-900 truncate">{prossimaTask.title}</span>
-                {prossimaTask.due_date && (
-                  <span className={`text-xs flex items-center gap-1 shrink-0 ${prossimaTaskOverdue ? "text-red-600 font-medium" : "text-muted-foreground"}`}>
-                    {prossimaTaskOverdue && <AlertTriangle className="h-3 w-3" />}
-                    entro {format(new Date(prossimaTask.due_date), "dd/MM")}
-                  </span>
-                )}
-                {prossimaTask.assigned?.first_name && (
-                  <span className="text-xs text-muted-foreground shrink-0">· {prossimaTask.assigned.first_name} {prossimaTask.assigned.last_name?.[0] ?? ""}.</span>
-                )}
-                <Button variant="ghost" size="sm" className="ml-auto h-7 text-xs shrink-0" onClick={() => setTaskDialogOpen(true)}>
-                  <Plus className="h-3.5 w-3.5 mr-1" /> Aggiungi
-                </Button>
-              </>
-            ) : (
-              <>
-                <span className="text-muted-foreground">Nessuna attività pianificata.</span>
-                <div className="ml-auto flex items-center gap-2 shrink-0">
-                  <Button
-                    variant="default"
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={handleApplyPlaybook}
-                    disabled={applyingPlaybook}
-                    title={`Crea le attività del flusso ${PLAYBOOK_LABELS[getOrderPlaybook(vertical).key]}`}
-                  >
-                    <Sparkles className="h-3.5 w-3.5 mr-1" />
-                    {applyingPlaybook ? "Applico…" : "Applica flusso"}
-                  </Button>
-                  <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setTaskDialogOpen(true)}>
-                    <Plus className="h-3.5 w-3.5 mr-1" /> Attività
-                  </Button>
-                  <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={() => setPlaybookEditorOpen(true)}>
-                    Gestisci
-                  </Button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ── Status strip ──────────────────────────────────────── */}
-      <div className="bg-white border-b border-gray-100 px-3 sm:px-6 py-3">
-        <OrdineStatusStrip
-          statuses={statuses}
-          currentStatusId={order.current_status_id}
-          statusHistory={progressHistory}
-          onStatusChange={handleStatusChange}
-        />
-
-        {/* Semaforo tempi: avanzamento reale vs atteso dalle date delle fasi.
-            Non renderizza nulla se la commessa non ha fasi datate. */}
-        <OrderScheduleBadge orderId={id!} className="mt-2" />
-
-        {/* Avanzamento cantiere derivato dalle lavorazioni: lo stato in alto
-            resta commerciale (corto per le ristrutturazioni), il progresso
-            operativo si legge qui — nessun doppio aggiornamento manuale. */}
-        {(phaseProgress?.total ?? 0) > 0 && (
-          <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-            <HardHat className="h-3.5 w-3.5 shrink-0 text-amber-600" />
-            <span className="shrink-0">
-              Cantiere:{" "}
-              <strong className="text-foreground">
-                {phaseProgress!.done}/{phaseProgress!.total}
-              </strong>{" "}
-              fasi completate
-              {phaseProgress!.inCorso > 0 && <> · {phaseProgress!.inCorso} in corso</>}
-            </span>
-            <div className="h-1.5 min-w-[80px] max-w-[220px] flex-1 overflow-hidden rounded-full bg-muted">
-              <div
-                className="h-full rounded-full bg-amber-500 transition-all"
-                style={{ width: `${(phaseProgress!.done / phaseProgress!.total) * 100}%` }}
-              />
-            </div>
-            <span className="shrink-0 font-medium text-foreground">
-              {Math.round((phaseProgress!.done / phaseProgress!.total) * 100)}%
-            </span>
-          </div>
-        )}
-      </div>
-
       <div className="px-3 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
-        {/* ── Alerts ──────────────────────────────────────────── */}
-        {orderAlerts.length > 0 && (
-          <div className="space-y-3">
-            {orderAlerts.map((alert) => (
-              <Alert
-                key={`${alert.type}-${alert.title}`}
-                variant={alert.type === "urgent" ? "destructive" : "default"}
-                className={cn(
-                  alert.type === "warning" &&
-                    "border-amber-500 bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-100 [&>svg]:text-amber-600",
-                  alert.type === "info" &&
-                    "border-blue-500 bg-blue-50 text-blue-900 dark:bg-blue-950 dark:text-blue-100 [&>svg]:text-blue-600"
-                )}
-              >
-                {alert.icon}
-                <AlertTitle>{alert.title}</AlertTitle>
-                <AlertDescription>{alert.description}</AlertDescription>
-                {alert.sollecitabile && (order.customer?.phone || order.customer?.email) && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="mt-2 h-7 border-red-300 bg-white text-xs text-red-700 hover:bg-red-50"
-                    onClick={() => sollecitoRef.current?.()}
-                  >
-                    <BellRing className="mr-1 h-3.5 w-3.5" /> Sollecita ora
-                  </Button>
-                )}
-              </Alert>
-            ))}
-          </div>
-        )}
-
-        {/* ── Fascia verdetto cassa: chi finanzia, incassato, da incassare.
-               Stesso linguaggio delle testate navy di Costi/Finanza. ── */}
-        {permissions.canViewOrderAmounts && (
-          <ErrorBoundary fallback={<></>}>
-            <CassaVerdettoBand
-              orderId={id!}
-              totalAmount={order.total_amount}
-              vatRate={order.vat_rate || 22}
-              financingCost={order.financing_cost ?? 0}
-              installments={displayInstallments}
-              collectedGross={collectedGross}
-              cashTotalGross={cashTotalGross}
-              canViewCosts={permissions.canViewCosts}
-              onVaiPagamenti={() => vaiAllaFinanza("section-pagamenti")}
-              onVaiEsposizione={() => vaiAllaFinanza("esposizione-commessa")}
-            />
-          </ErrorBoundary>
-        )}
-
-        {/* ── Card commessa: ognuna isolata in ErrorBoundary (fallback vuoto) così
-               un errore in una NON può buttare giù il dettaglio commessa. ── */}
-        {/* Conto economico: riepilogo a colpo d'occhio, sempre in cima */}
-        {/* Conto economico = costi + margine → solo a chi può vederli. */}
-        {(permissions.canViewCosts || permissions.canViewMargins) && (
-        <ErrorBoundary fallback={<></>}>
-          <OrderEconomicsSummary
-            orderId={id!}
-            totalAmount={order.total_amount}
-            vatRate={order.vat_rate || 22}
-            items={economicsItems}
-            collectedAmount={collectedAmount}
-            cashCollected={collectedGross}
-            cashTotal={cashTotalGross}
-            itemsLoading={orderItemsPending}
-            avanzamentoPct={avanzamentoPct}
+        <OrderFinancialOverview
+          orderId={id!}
+          totalAmount={order.total_amount}
+          vatRate={order.vat_rate ?? 22}
+          items={economicsItems}
+          itemsLoading={orderItemsPending}
+          itemsError={orderItemsError}
+          installments={resolvedInstallments}
+          installmentsLoading={installmentsPending}
+          installmentsError={installmentsError}
+          collectedGross={collectedGross}
+          cashTotalGross={cashTotalGross}
+          canViewAmounts={permissions.canViewOrderAmounts}
+          canViewMargins={permissions.canViewMargins}
+          onOpenEconomics={() => navigateTo({ tab: "finanza", section: "section-conto-economico" })}
+          onOpenPayments={() => vaiAllaFinanza()}
+        />
+        <OrderCommessaSummary
+          statusName={statuses.find(status => status.id === order.current_status_id)?.name}
+          statusColor={statuses.find(status => status.id === order.current_status_id)?.color}
+          progress={phaseProgress}
+          progressLoading={phaseProgressLoading}
+          progressError={phaseProgressError}
+          workStartDate={order.work_start_date}
+          workEndDate={order.work_end_date}
+          expectedDate={order.expected_date}
+          nextTask={prossimaTask}
+          taskLoading={taskLoading}
+          taskError={taskError}
+          onOpenWork={() => navigateTo({ tab: "cantiere", section: "section-lavorazioni" })}
+          onOpenPlanning={() => navigateTo({ tab: "cantiere", section: "section-pianificazione" })}
+          onOpenTasks={() => navigateTo({ tab: "cantiere", section: "section-attivita" })}
+        >
+          <OrdineStatusStrip
+            statuses={statuses}
+            currentStatusId={order.current_status_id}
+            statusHistory={progressHistory}
+            onStatusChange={permissions.canEditOrders ? handleStatusChange : undefined}
           />
-        </ErrorBoundary>
-        )}
-
-        {/* Origine ordine (badge riga): nato da preventivo o diretto. I rilievi/
-            sopralluoghi sono spostati dentro la Panoramica (sono un'attività). */}
-        <OrderOriginBadge quoteId={order.quote_id} quoteNumber={order.quote_number} />
-
-        {/* Controllo misure: solo se ci sono articoli su misura (altrimenti null) */}
-        <ErrorBoundary fallback={<></>}>
-          <OrderMeasureControl orderId={id!} />
-        </ErrorBoundary>
-
-        {/* ── MOBILE: tab layout ──────────────────────────────── */}
-        {isNarrow && (
-        <div className="sm:hidden">
-          <Tabs value={mobileTab} onValueChange={setMobileTab}>
-            <TabsList className="w-full flex overflow-x-auto scrollbar-hide h-auto gap-0.5 bg-white border border-slate-200 rounded-lg p-1">
-              <TabsTrigger value="stato" className="text-xs py-2 px-3 shrink-0 data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-500 data-[state=active]:to-amber-400 data-[state=active]:text-white data-[state=active]:shadow-sm">Stato</TabsTrigger>
-              <TabsTrigger value="articoli" className="text-xs py-2 px-3 shrink-0 data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-500 data-[state=active]:to-amber-400 data-[state=active]:text-white data-[state=active]:shadow-sm">Articoli</TabsTrigger>
-              <TabsTrigger value="finanza" className="text-xs py-2 px-3 shrink-0 data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-500 data-[state=active]:to-amber-400 data-[state=active]:text-white data-[state=active]:shadow-sm">Finanza</TabsTrigger>
-              <TabsTrigger value="sal" className="text-xs py-2 px-3 shrink-0 data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-500 data-[state=active]:to-amber-400 data-[state=active]:text-white data-[state=active]:shadow-sm">Verbali SAL</TabsTrigger>
-              <TabsTrigger value="cantiere" className="text-xs py-2 px-3 shrink-0 data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-500 data-[state=active]:to-amber-400 data-[state=active]:text-white data-[state=active]:shadow-sm">Cantiere</TabsTrigger>
-              <TabsTrigger value="campo" className="text-xs py-2 px-3 shrink-0 data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-500 data-[state=active]:to-amber-400 data-[state=active]:text-white data-[state=active]:shadow-sm">
-                <div className="flex items-center gap-1">
-                  <HardHat className="w-3 h-3" />
-                  Campo
-                </div>
-              </TabsTrigger>
-              <TabsTrigger value="assistenza" className="text-xs py-2 px-3 shrink-0 data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-500 data-[state=active]:to-amber-400 data-[state=active]:text-white data-[state=active]:shadow-sm">Assistenza</TabsTrigger>
-              <TabsTrigger value="altro" className="text-xs py-2 px-3 shrink-0 data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-500 data-[state=active]:to-amber-400 data-[state=active]:text-white data-[state=active]:shadow-sm">Altro</TabsTrigger>
-              <TabsTrigger value="ritenute" className="text-xs py-2 px-3 shrink-0 data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-500 data-[state=active]:to-amber-400 data-[state=active]:text-white data-[state=active]:shadow-sm">Ritenute</TabsTrigger>
-            </TabsList>
-
-            {/* Tab 1: Stato + Cliente + Date */}
-            <TabsContent value="stato" className="space-y-4 mt-4">
-              <ErrorBoundary fallback={<></>}>
-                <OrderSurveysCard orderId={id!} />
-              </ErrorBoundary>
-              {order.order_type === "appaltatore_lavoro" && (
-                <OrdineAppaltatoreLavoroCard
-                  workAddress={order.work_address}
-                  workDescription={order.work_description}
-                  materialsLocation={order.materials_location}
-                  workStartDate={order.work_start_date}
-                  workEndDate={order.work_end_date}
-                />
-              )}
-              <OrdineCliente customer={order.customer} indirizzoLavori={order.indirizzo_lavori} />
-              <QuoteCard title="Storico Stati">
-                {statusHistory.length === 0 ? (
-                  <p className="text-slate-500 text-sm">Nessuno storico</p>
-                ) : (
-                  <div className="space-y-3">
-                    {statusHistory.map((entry) => (
+          <OrderScheduleBadge orderId={id!} />
+          <QuoteCard title="Storico Stati">
+            {statusHistory.length === 0 ? (
+              <p className="text-slate-500 text-sm">Nessuno storico</p>
+            ) : (
+              <div className="space-y-3">
+                {statusHistory.map((entry) => (
+                  <div
+                    key={entry.id}
+                    className="flex items-center justify-between border-b border-slate-100 pb-2 last:border-0 last:pb-0"
+                  >
+                    <div className="flex items-center gap-2">
                       <div
-                        key={entry.id}
-                        className="flex items-center justify-between border-b border-slate-100 pb-2 last:border-0 last:pb-0"
-                      >
-                        <div className="flex items-center gap-2">
-                          <div
-                            className="w-2.5 h-2.5 rounded-full shrink-0"
-                            style={{ backgroundColor: entry.status.color }}
-                          />
-                          <span className="text-sm font-medium text-slate-900">{entry.status.name}</span>
-                        </div>
-                        <span className="text-xs text-slate-500">
-                          {formatDateTime(entry.changed_at)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </QuoteCard>
-              <OrdineTempistiche
-                orderId={order.id}
-                expectedDate={order.expected_date}
-                warehouseArrivalDate={order.warehouse_arrival_date}
-                workStartDate={order.work_start_date}
-                workEndDate={order.work_end_date}
-                orderCode={order.order_code}
-                orderDescription={order.description}
-                defaultAddress={order.work_address || order.customer?.address}
-              />
-              <ErrorBoundary fallback={<></>}>
-                <MezziCommessaCard orderId={id!} />
-              </ErrorBoundary>
-              {/* Documenti Commessa (allegati/file) */}
-              <OrderAttachments orderId={id!} editable={true} />
-            </TabsContent>
-
-            {/* Tab 2: Articoli */}
-            <TabsContent value="articoli" className="space-y-4 mt-4">
-              <OrdineArticoli
-                orderId={id!}
-                orderCode={order.order_code}
-                displayItems={displayItems}
-                orderItems={orderItems}
-                companyId={effectiveCompany?.id || ""}
-                onItemsChange={(newItems) => {
-                  const newItem = newItems.find((ni) => !ni.id);
-                  if (newItem) addItemMutation.mutate(newItem);
-                }}
-                onItemUpdate={handleItemUpdate}
-                onAttachmentsRefresh={handleAttachmentsRefresh}
-                showAttachments={false}
-                showSupplierPayments={false}
-              />
-              {/* Manodopera subito dopo gli Articoli (sequenza coerente col desktop) */}
-              <OrderWorkPhases orderId={id!} orderCode={order.order_code} />
-              {/* Pagamenti Fornitori sotto la Manodopera, collegati agli OdA */}
-              {permissions.canViewCosts && (
-                <SupplierPaymentsCard
-                  items={orderItems}
-                  companyId={effectiveCompany?.id || ""}
-                  orderId={id!}
-                />
-              )}
-              {/* OdA collegati QUI come su desktop: prima stava nel tab "Altro"
-                  e su mobile nessuno li trovava. Gate canViewCosts come la
-                  card SupplierPayments qui sopra: mostra fornitori e importi
-                  d'acquisto. */}
-              {permissions.canViewCosts && (
-              <LinkedPurchaseOrdersCard
-                orderId={id!}
-                orderCode={order.order_code}
-                items={displayItems.map((i) => ({
-                  id: i.id,
-                  name: i.name,
-                  quantity: i.quantity,
-                  purchase_price: i.purchase_price,
-                  supplier_id: i.supplier_id,
-                  vat_rate: i.vat_rate,
-                  posizioni: i.posizioni,
-                }))}
-              />
-              )}
-              <OrderSerialsTrackingCard orderId={id!} orderItems={orderItems} />
-            </TabsContent>
-
-            {/* Tab 3: Finanza */}
-            <TabsContent value="finanza" className="space-y-4 mt-4">
-              {/* Importi/acconti = lato vendita → solo a chi può vedere gli importi. */}
-              {permissions.canViewOrderAmounts && (
-              <OrdineEconomico
-                orderId={id!}
-                totalAmount={order.total_amount}
-                vatRate={order.vat_rate || 22}
-                paymentType={(order.payment_type as PaymentType) || "standard"}
-                installments={displayInstallments}
-                hasBuildingBonus={order.has_building_bonus}
-                financingCost={order.financing_cost ?? undefined}
-                collectedAmount={collectedAmount}
-                onInstallmentPaidToggle={handleInstallmentPaidToggle}
-                onInstallmentDateChange={handleInstallmentDateChange}
-                orderCode={order.order_code}
-                conPrimaNota={permissions.canViewPrimaNota}
-                clienteNome={order.customer ? `${order.customer.first_name ?? ""} ${order.customer.last_name ?? ""}`.trim() : null}
-                customerId={order.customer_id}
-                pivaImpresa={effectiveCompany?.vat_number ?? null}
-              />
-              )}
-              {/* Chi finanzia il cantiere: cassa consuntiva (incassato vs pagato).
-                  Mescola vendite e costi → servono entrambi i permessi. */}
-              {permissions.canViewOrderAmounts && permissions.canViewCosts && (
-                <ErrorBoundary fallback={<></>}>
-                  <EsposizioneCommessa
-                    orderId={id!}
-                    totalAmount={order.total_amount}
-                    vatRate={order.vat_rate || 22}
-                    financingCost={order.financing_cost ?? 0}
-                    installments={displayInstallments}
-                    cashTotalGross={cashTotalGross}
-                    avanzamentoPct={avanzamentoPct}
-                  />
-                </ErrorBoundary>
-              )}
-              {/* Fatturazione e documenti */}
-              <QuoteCard
-                title={
-                  <span className="flex items-center gap-2">
-                    Fatturazione e Documenti
-                    {linkedDocumentsCount > 0 && (
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700">{linkedDocumentsCount}</span>
-                    )}
-                  </span>
-                }
-                icon={<Receipt className="h-4 w-4" />}
-              >
-                <div className="space-y-3">
-                  {fattureCollegate.length > 0 ? (
-                    <div className="space-y-2">
-                      {fattureCollegate.map((f: LinkedFiscalDocument) => (
-                        <div
-                          key={f.id}
-                          className="flex items-center justify-between gap-2 p-2 rounded-md border bg-white text-sm"
-                        >
-                          <Link to={`/azienda/documenti/${f.id}`} className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium truncate">{f.numero}</span>
-                              <span className="text-[11px] text-muted-foreground">{formatFiscalType(f.tipo)}</span>
-                            </div>
-                            <Badge
-                              variant="outline"
-                              className={`mt-1 text-xs ${
-                                f.stato === "pagata" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
-                                f.stato === "emessa" || f.stato === "consegnata" ? "bg-blue-50 text-blue-700 border-blue-200" :
-                                f.stato === "rifiutata" || f.stato === "scaduta" ? "bg-red-50 text-red-700 border-red-200" :
-                                ""
-                              }`}
-                            >
-                              {f.stato === "bozza" ? "Bozza" :
-                               f.stato === "emessa" ? "Emessa" :
-                               f.stato === "pagata" ? "Pagata" :
-                               f.stato === "consegnata" ? "Consegnata" :
-                               f.stato === "inviata_sdi" ? "Inviata SDI" :
-                               f.stato === "rifiutata" ? "Rifiutata" :
-                               f.stato === "scaduta" ? "Scaduta" :
-                               f.stato}
-                            </Badge>
-                          </Link>
-                          <div className="flex items-center gap-2">
-                            <span className="text-muted-foreground whitespace-nowrap">
-                              {formatCurrency(f.totale_da_pagare)}
-                            </span>
-                            {/* Niente export su telefono. */}
-                            {!isMobile && (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                aria-label={`Scarica ${f.numero}`}
-                                onClick={() => handleDownloadFiscalDocument(f)}
-                              >
-                                <Download className="h-4 w-4" />
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      ))}
+                        className="w-2.5 h-2.5 rounded-full shrink-0"
+                        style={{ backgroundColor: entry.status.color }}
+                      />
+                      <span className="text-sm font-medium text-slate-900">
+                        {entry.status.name}
+                      </span>
                     </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground text-center py-2">
-                      Nessun documento fiscale collegato
-                    </p>
-                  )}
-                  {documentiCommessa.length > 0 && (
-                    <div className="space-y-2">
-                      <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                        Allegati commessa
-                      </div>
-                      {documentiCommessa.map((documento) => (
-                        <button
-                          key={documento.id}
-                          type="button"
-                          onClick={() => handleOpenOrderDocument(documento)}
-                          className="flex w-full items-center justify-between gap-2 rounded-md border p-2 text-left text-sm transition-colors hover:bg-accent"
-                        >
-                          <div className="min-w-0">
-                            <div className="font-medium truncate">{documento.file_name}</div>
-                            <div className="text-xs text-muted-foreground">{formatAttachmentType(documento)}</div>
-                          </div>
-                          <Download className="h-4 w-4 shrink-0 text-muted-foreground" />
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  {/* 2 colonne su mobile: con 4, "Proforma"/"N. Credito" (whitespace-nowrap) strabordavano a 375px */}
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        if (isNativeBilling) {
-                          setCreaFatturaOpen(true);
-                        } else {
-                          toast.info("Per creare fatture dal sistema, attiva la fatturazione nativa nelle Impostazioni > Fatturazione.");
-                        }
-                      }}
-                    >
-                      <Receipt className="h-3.5 w-3.5 mr-1" />
-                      Fattura
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        if (isNativeBilling) {
-                          setCreaProformaOpen(true);
-                        } else {
-                          toast.info("Per creare proforma dal sistema, attiva la fatturazione nativa nelle Impostazioni > Fatturazione.");
-                        }
-                      }}
-                    >
-                      <FileText className="h-3.5 w-3.5 mr-1" />
-                      Proforma
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        if (isNativeBilling) {
-                          setCreaDDTOpen(true);
-                        } else {
-                          toast.info("Per creare DDT dal sistema, attiva la fatturazione nativa nelle Impostazioni > Fatturazione.");
-                        }
-                      }}
-                    >
-                      <Truck className="h-3.5 w-3.5 mr-1" />
-                      DDT
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        if (isNativeBilling) {
-                          setCreaNotaCreditoOpen(true);
-                        } else {
-                          toast.info("Per creare note di credito dal sistema, attiva la fatturazione nativa nelle Impostazioni > Fatturazione.");
-                        }
-                      }}
-                    >
-                      <FileWarning className="h-3.5 w-3.5 mr-1" />
-                      N. Credito
-                    </Button>
+                    <span className="text-xs text-slate-500">
+                      {formatDateTime(entry.changed_at)}
+                    </span>
                   </div>
-                </div>
-              </QuoteCard>
-            </TabsContent>
-
-            {/* Tab 4: SAL */}
-            <TabsContent value="sal" className="space-y-4 mt-4">
-              {companyId && (
-                <OrdineSAL
-                  orderId={id!}
-                  companyId={companyId}
-                  orderTotalAmount={order.total_amount ?? undefined}
-                  installments={displayInstallments}
-                  vatRate={order.vat_rate || 22}
-                  financingCost={order.payment_type === "financing" ? order.financing_cost ?? 0 : 0}
-                />
-              )}
-            </TabsContent>
-
-            {/* Tab 5: Cantiere */}
-            <TabsContent value="cantiere" className="space-y-4 mt-4">
-              <div className="space-y-2">
-                <div>
-                  <h2 className="text-base font-semibold">Timeline Cantiere</h2>
-                  <p className="text-sm text-muted-foreground">
-                    Tutti gli aggiornamenti: stati, lavori, SAL e varianti.
-                  </p>
-                </div>
-                <TimelineCantiere
-                  orderId={id!}
-                  companyId={effectiveCompany?.id || ""}
-                  adminView={true}
-                />
+                ))}
               </div>
-            </TabsContent>
-
-            {/* Tab Campo: rapportini + whatsapp */}
-            <TabsContent value="campo" className="space-y-4 mt-4">
-              <OrdineFotoCantiere orderId={id!} />
-              <OrdineRapportiniCampo orderId={id!} />
-              <WhatsAppActivityFeed cantiereId={id!} />
-            </TabsContent>
-
-            {/* Tab 6: Altro */}
-            <TabsContent value="assistenza" className="space-y-4 mt-4">
-              <OrderAssistenzaTab orderId={id!} />
-            </TabsContent>
-
-            <TabsContent value="altro" className="space-y-4 mt-4">
-              <OrdineNote
-                notes={order.internal_notes}
-                isEditing={isEditingNotes}
-                editedNotes={editedNotes}
-                isSaving={updateNotesMutation.isPending}
-                onEdit={handleEditNotes}
-                onSave={handleSaveNotes}
-                onCancel={() => setIsEditingNotes(false)}
-                onNotesChange={setEditedNotes}
-              />
-              <OrderErrors orderId={id!} />
-              <LinkedTasks orderId={id} category="ordini" />
-              <LinkedAppointments orderId={id!} />
-              <OrderUsciteCard orderId={id!} />
-              <OrderCommunicationsCard
-                customerId={order.customer_id}
-                customerEmail={order.customer?.email}
-                customerName={order.customer ? `${order.customer.first_name} ${order.customer.last_name}` : undefined}
-              />
-              {effectiveCompany?.id && (
-                <OrdineVariazione orderId={id!} companyId={effectiveCompany.id} />
-              )}
-              {effectiveCompany?.id && id && (
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="flex items-center gap-2 text-base">
-                      <Sparkles className="h-4 w-4 text-violet-600" />
-                      Documenti AI
-                    </CardTitle>
-                    <CardDescription className="text-xs">
-                      Genera contratti d'appalto con l'AI a partire dai dati di questo ordine.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="flex flex-wrap gap-2">
-                    <ContrattoAIDialog orderId={id} companyId={effectiveCompany.id} />
-                    <AllocazioneOperaiAIDialog orderId={id} companyId={effectiveCompany.id} />
-                  </CardContent>
-                </Card>
-              )}
-            </TabsContent>
-
-            {/* Tab 7: Ritenute di Garanzia */}
-            <TabsContent value="ritenute" className="space-y-4 mt-4">
-              <RitenuteTab orderId={id!} />
-            </TabsContent>
-          </Tabs>
-        </div>
-        )}
-
-        {/* ── DESKTOP: tab layout ──────────────────────────────── */}
-        {!isNarrow && (
-        <>
-        {/* NB: nessuna metric strip qui — il "Conto economico" sopra (sempre
-            visibile) mostra già margine/incassato/da incassare, e lo stato è
-            nello stepper: una strip duplicherebbe quei numeri. */}
-        <Tabs value={desktopTab} onValueChange={setDesktopTab} className="hidden sm:block">
-          {/* Barra tab STICKY: nel mega-scroll della Panoramica la navigazione
-              Panoramica/Articoli/Finanza resta sempre raggiungibile. Il wrapper
-              rompe il padding di pagina (-mx) e usa lo sfondo pagina + blur così
-              il contenuto che scorre sotto non "trapela" attorno al pill. */}
-          <div className="sticky top-0 z-20 -mx-3 sm:-mx-6 px-3 sm:px-6 py-2 bg-slate-50/90 backdrop-blur supports-[backdrop-filter]:bg-slate-50/75">
-            <TabsList className="w-full flex flex-wrap gap-1 bg-white border rounded-lg p-1 shadow-sm">
-              <TabsTrigger value="panoramica" className="text-sm">
-                <LayoutDashboard className="w-4 h-4 mr-1.5" />
-                Panoramica
-              </TabsTrigger>
-              <TabsTrigger value="cantiere" className="text-sm">
-                <HardHat className="w-4 h-4 mr-1.5" />
-                Cantiere
-              </TabsTrigger>
-              <TabsTrigger value="articoli" className="text-sm">
-                <Package className="w-4 h-4 mr-1.5" />
-                Articoli e manodopera
-              </TabsTrigger>
-              <TabsTrigger value="finanza" className="text-sm">
-                <Wallet className="w-4 h-4 mr-1.5" />
-                Finanza
-              </TabsTrigger>
-            </TabsList>
-          </div>
+            )}
+          </QuoteCard>
+        </OrderCommessaSummary>
+        <Tabs
+          value={activeTab}
+          onValueChange={(value) => {
+            if (isOrderDetailTab(value)) navigateTo({ tab: value });
+          }}
+        >
+          <OrderDetailNavigation />
 
           {/* Tab: Panoramica */}
-          <TabsContent value="panoramica" className="space-y-6 mt-4">
+          <TabsContent value="panoramica" className="space-y-4 mt-4">
+            {/* ── Alerts ──────────────────────────────────────────── */}
+            {orderAlerts.length > 0 && (
+              <div className="space-y-3">
+                {orderAlerts.map((alert) => (
+                  <Alert
+                    key={`${alert.type}-${alert.title}`}
+                    variant={
+                      alert.type === "urgent" ? "destructive" : "default"
+                    }
+                    className={cn(
+                      alert.type === "warning" &&
+                        "border-amber-500 bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-100 [&>svg]:text-amber-600",
+                      alert.type === "info" &&
+                        "border-blue-500 bg-blue-50 text-blue-900 dark:bg-blue-950 dark:text-blue-100 [&>svg]:text-blue-600",
+                    )}
+                  >
+                    {alert.icon}
+                    <AlertTitle>{alert.title}</AlertTitle>
+                    <AlertDescription>{alert.description}</AlertDescription>
+                    {alert.sollecitabile &&
+                      (order.customer?.phone || order.customer?.email) && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="mt-2 h-7 border-red-300 bg-white text-xs text-red-700 hover:bg-red-50"
+                          onClick={() => sollecitoRef.current?.()}
+                        >
+                          <BellRing className="mr-1 h-3.5 w-3.5" /> Sollecita
+                          ora
+                        </Button>
+                      )}
+                  </Alert>
+                ))}
+              </div>
+            )}
+
+            {/* Origine ordine (badge riga): nato da preventivo o diretto. I rilievi/
+            sopralluoghi sono spostati dentro la Panoramica (sono un'attività). */}
+            <OrderOriginBadge
+              quoteId={order.quote_id}
+              quoteNumber={order.quote_number}
+            />
+
             {/* Modulo Appaltatori — pannello dedicato per lavori di sola
                 manodopera. Non viene montato per ordini cliente standard. */}
             {order.order_type === "appaltatore_lavoro" && (
@@ -1951,40 +1422,41 @@ function OrderDetailInner() {
               />
             )}
 
-            {/* Cliente, pianificazione e date chiave.
-                Prima erano due righe da due colonne: ma "Tempistiche" e' alta
-                il triplo di "Cliente" (611px contro 274px, misurati), quindi
-                sotto Cliente restava un buco bianco di ~340px e la riga sotto
-                ripartiva sfalsata. Qui la colonna destra la occupa solo
-                Tempistiche, che si affianca alla pila delle tre card corte:
-                le due colonne si chiudono quasi pari (630px contro 611px).
-                L'ordine nel DOM NON cambia, quindi su mobile la sequenza resta
-                Cliente → Tempistiche → Appuntamenti → Rilievi. */}
-            <div className="grid gap-6 lg:grid-cols-2 items-start">
-              <div className="lg:col-start-1 lg:row-start-1">
-                <OrdineCliente customer={order.customer} indirizzoLavori={order.indirizzo_lavori} />
-              </div>
-              <div className="lg:col-start-2 lg:row-start-1 lg:row-span-3">
-                <OrdineTempistiche
-                  orderId={order.id}
-                  expectedDate={order.expected_date}
-                  warehouseArrivalDate={order.warehouse_arrival_date}
-                  workStartDate={order.work_start_date}
-                  workEndDate={order.work_end_date}
-                  orderCode={order.order_code}
-                  orderDescription={order.description}
-                  defaultAddress={order.work_address || order.customer?.address}
-                />
-              </div>
-              <div className="lg:col-start-1 lg:row-start-2">
-                <LinkedAppointments orderId={id!} />
-              </div>
-              <div className="lg:col-start-1 lg:row-start-3">
+            <div className="grid gap-4 lg:grid-cols-2 items-start">
+              <OrdineCliente
+                customer={order.customer}
+                indirizzoLavori={order.indirizzo_lavori}
+              />
+              <div className="space-y-4">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">
+                      Organizzazione del cantiere
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <p className="text-sm text-muted-foreground">
+                      Lavorazioni, dipendenti, subappaltatori, calendario e
+                      rapportini sono riuniti in Cantiere.
+                    </p>
+                    <Button
+                      variant="outline"
+                      onClick={() =>
+                        navigateTo({
+                          tab: "cantiere",
+                          section: "section-lavorazioni",
+                        })
+                      }
+                    >
+                      <HardHat className="mr-2 h-4 w-4" /> Apri il cantiere
+                    </Button>
+                  </CardContent>
+                </Card>
                 <ErrorBoundary fallback={<></>}>
                   <OrderSurveysCard orderId={id!} />
                 </ErrorBoundary>
               </div>
-              <div className="empty:hidden lg:col-start-1 lg:row-start-4">
+              <div className="empty:hidden lg:col-span-2">
                 <ErrorBoundary fallback={<></>}>
                   <MezziCommessaCard orderId={id!} />
                 </ErrorBoundary>
@@ -1997,7 +1469,11 @@ function OrderDetailInner() {
               orderId={id!}
               customerId={order.customer_id}
               customerEmail={order.customer?.email}
-              customerName={order.customer ? `${order.customer.first_name} ${order.customer.last_name}` : undefined}
+              customerName={
+                order.customer
+                  ? `${order.customer.first_name} ${order.customer.last_name}`
+                  : undefined
+              }
             />
 
             {/* Assistenza: prima occupava un tab intero per una sola card da
@@ -2006,62 +1482,148 @@ function OrderDetailInner() {
                 il seguito del rapporto col cliente, non un'area a se'.
                 Nessun titolo di sezione aggiunto: il componente ha gia' il suo
                 ("Assistenze su questa commessa"). */}
-            <OrderAssistenzaTab orderId={id!} />
+            <div id="section-assistenza" className="scroll-mt-24">
+              <OrderAssistenzaTab orderId={id!} />
+            </div>
 
             {/* Allegati operativi del cantiere: foto, disegni, permessi. Le
                 fatture stanno in Finanza, con gli altri soldi. */}
-            <div className="space-y-4 pt-2">
+            <div id="section-documenti" className="space-y-4 pt-2 scroll-mt-24">
               <div className="flex items-center gap-2">
                 <Paperclip className="h-4 w-4 text-muted-foreground" />
-                <h2 className="text-base font-semibold">Documenti di cantiere</h2>
+                <h2 className="text-base font-semibold">
+                  Documenti di cantiere
+                </h2>
               </div>
 
               {/* Una colonna sola: la card "Fatturazione e documenti fiscali"
                   che stava a destra e' passata al tab Finanza, ma la griglia a
                   due colonne era rimasta con la cella vuota — gli allegati
                   occupavano meta' larghezza e l'altra meta' era bianca. */}
-              <OrderAttachments orderId={id!} editable={true} />
+              <OrderAttachments
+                orderId={id!}
+                editable={permissions.canEditOrders}
+              />
             </div>
 
-            {/* Card "Note Interne" (orders.internal_notes) rimossa dalla Panoramica:
-                le note di commessa vivono nel popup "Note interne" delle azioni
-                rapide (thread di team). Il campo legacy resta editabile dal tab
-                "Altro" mobile. */}
+            <details className="rounded-lg border bg-white">
+              <summary className="cursor-pointer px-4 py-3 text-sm font-medium">
+                Note e strumenti della commessa
+              </summary>
+              <div id="section-note" className="space-y-4 p-3 scroll-mt-24">
+                {permissions.canEditOrders ? (
+                  <OrdineNote
+                    notes={order.internal_notes}
+                    isEditing={isEditingNotes}
+                    editedNotes={editedNotes}
+                    isSaving={updateNotesMutation.isPending}
+                    onEdit={handleEditNotes}
+                    onSave={handleSaveNotes}
+                    onCancel={() => setIsEditingNotes(false)}
+                    onNotesChange={setEditedNotes}
+                  />
+                ) : (
+                  <p className="whitespace-pre-wrap text-sm">
+                    {order.internal_notes || "Nessuna nota interna"}
+                  </p>
+                )}
+                <OrderCommunicationsCard
+                  customerId={order.customer_id}
+                  customerEmail={order.customer?.email}
+                  customerName={
+                    order.customer
+                      ? `${order.customer.first_name} ${order.customer.last_name}`
+                      : undefined
+                  }
+                />
+                {permissions.canEditOrders && effectiveCompany?.id && id && (
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <Sparkles className="h-4 w-4 text-violet-600" />
+                        Documenti AI
+                      </CardTitle>
+                      <CardDescription className="text-xs">
+                        Genera contratti d'appalto con l'AI a partire dai dati
+                        di questo ordine.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex flex-wrap gap-2">
+                      <ContrattoAIDialog
+                        orderId={id}
+                        companyId={effectiveCompany.id}
+                      />
+                      <AllocazioneOperaiAIDialog
+                        orderId={id}
+                        companyId={effectiveCompany.id}
+                      />
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            </details>
           </TabsContent>
 
-          {/* Tab: Articoli e manodopera */}
-          <TabsContent value="articoli" className="space-y-6 mt-4">
+          {/* Materiali: acquisti, consegne, uscite e matricole. Le lavorazioni sono in Cantiere. */}
+          <TabsContent value="articoli" className="space-y-4 mt-4">
+            <div id="section-materiali" className="scroll-mt-24">
+              {/* Controllo misure: solo se ci sono articoli su misura (altrimenti null) */}
+              <ErrorBoundary fallback={<></>}>
+                <OrderMeasureControl orderId={id!} />
+              </ErrorBoundary>
+            </div>
             {/* Riepilogo del tab: quanto vale in tutto quello che si compra.
                 Prima i costi erano solo riga per riga (6.200 + 3.500 + 1.700…)
                 e il totale si trovava unicamente nel Conto economico, sopra i
                 tab: chi lavorava qui non aveva mai il quadro d'insieme. */}
-            {permissions.canViewCosts && displayItems.length > 0 && (() => {
-              const tot = displayItems.reduce(
-                (sum, i) => sum + (Number(i.purchase_price) || 0) * (Number(i.quantity) || 0), 0);
-              const daOrdinare = displayItems.filter((i) => i.status === "da_ordinare").length;
-              const arrivati = displayItems.filter((i) => i.status === "in_magazzino").length;
-              return (
-                <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 rounded-lg border bg-muted/30 px-4 py-3">
-                  <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
-                    <span className="text-muted-foreground">
-                      <strong className="text-foreground">{displayItems.length}</strong> articoli
-                    </span>
-                    {daOrdinare > 0 && (
+            {permissions.canViewCosts &&
+              displayItems.length > 0 &&
+              (() => {
+                const tot = displayItems.reduce(
+                  (sum, i) =>
+                    sum +
+                    (Number(i.purchase_price) || 0) * (Number(i.quantity) || 0),
+                  0,
+                );
+                const daOrdinare = displayItems.filter(
+                  (i) => i.status === "da_ordinare",
+                ).length;
+                const arrivati = displayItems.filter(
+                  (i) => i.status === "in_magazzino",
+                ).length;
+                return (
+                  <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 rounded-lg border bg-muted/30 px-4 py-3">
+                    <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
                       <span className="text-muted-foreground">
-                        <strong className="text-amber-600">{daOrdinare}</strong> da ordinare
+                        <strong className="text-foreground">
+                          {displayItems.length}
+                        </strong>{" "}
+                        articoli
                       </span>
-                    )}
-                    <span className="text-muted-foreground">
-                      <strong className="text-emerald-600">{arrivati}</strong> in magazzino
-                    </span>
+                      {daOrdinare > 0 && (
+                        <span className="text-muted-foreground">
+                          <strong className="text-amber-600">
+                            {daOrdinare}
+                          </strong>{" "}
+                          con stato “da ordinare”
+                        </span>
+                      )}
+                      <span className="text-muted-foreground">
+                        <strong className="text-emerald-600">{arrivati}</strong>{" "}
+                        in magazzino
+                      </span>
+                    </div>
+                    <div className="text-sm">
+                      <span className="text-muted-foreground">
+                        Costo sulle righe articolo{" "}
+                      </span>
+                      <strong className="tabular-nums">
+                        {formatCurrency(tot)}
+                      </strong>
+                    </div>
                   </div>
-                  <div className="text-sm">
-                    <span className="text-muted-foreground">Costo d'acquisto </span>
-                    <strong className="tabular-nums">{formatCurrency(tot)}</strong>
-                  </div>
-                </div>
-              );
-            })()}
+                );
+              })()}
 
             {/* Articoli */}
             <OrdineArticoli
@@ -2079,80 +1641,106 @@ function OrderDetailInner() {
               showAttachments={false}
               showSupplierPayments={false}
             />
-            {/* Lavorazioni / Manodopera — sempre sotto gli Articoli.
-                Le lavorazioni si pianificano QUI ma il loro avanzamento (SAL,
-                timeline, rapportini) vive nel tab Cantiere: senza un rimando
-                si pianificava in un posto e si verificava in un altro, senza
-                che nulla lo dicesse. */}
-            <div className="space-y-2">
-              <OrderWorkPhases orderId={id!} orderCode={order.order_code} />
-              <div className="flex justify-end">
-                <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground"
-                  onClick={() => setDesktopTab("cantiere")}>
-                  <HardHat className="h-4 w-4" />
-                  Vedi l'avanzamento in Cantiere
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
-              </div>
+            <div className="flex justify-end">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() =>
+                  navigateTo({
+                    tab: "cantiere",
+                    section: "section-lavorazioni",
+                  })
+                }
+              >
+                <HardHat className="mr-2 h-4 w-4" /> Lavorazioni e manodopera in
+                Cantiere <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
             </div>
             <OrderUsciteCard orderId={id!} />
             {permissions.canViewCosts && (
-            <LinkedPurchaseOrdersCard
-              orderId={id!}
-              orderCode={order.order_code}
-              items={displayItems.map((i) => ({
-                // id incluso come nella versione mobile: senza, le righe OdA
-                // create da desktop nascevano con order_item_id nullo e
-                // l'articolo risultava per sempre "Senza OdA".
-                id: i.id,
-                name: i.name,
-                quantity: i.quantity,
-                purchase_price: i.purchase_price,
-                supplier_id: i.supplier_id,
-                vat_rate: i.vat_rate,
-                posizioni: i.posizioni,
-              }))}
-            />
+              <LinkedPurchaseOrdersCard
+                orderId={id!}
+                orderCode={order.order_code}
+                items={displayItems.map((i) => ({
+                  // id incluso come nella versione mobile: senza, le righe OdA
+                  // create da desktop nascevano con order_item_id nullo e
+                  // l'articolo risultava per sempre "Senza OdA".
+                  id: i.id,
+                  name: i.name,
+                  quantity: i.quantity,
+                  purchase_price: i.purchase_price,
+                  supplier_id: i.supplier_id,
+                  vat_rate: i.vat_rate,
+                  posizioni: i.posizioni,
+                  status: i.status,
+                  stock_item_id: i.stock_item_id,
+                }))}
+              />
             )}
+            <OrderSerialsTrackingCard orderId={id!} orderItems={orderItems} />
           </TabsContent>
 
           {/* Tab: Finanza */}
-          <TabsContent value="finanza" className="space-y-6 mt-4">
-            {/* Economico (dettaglio) — i pagamenti sono la parte più consultata
-                della commessa. L'id è il target del bottone "+ SAL" in testata
-                (desktop): il Riepilogo Finanziario col piano rate è il primo blocco. */}
+          <TabsContent value="finanza" className="space-y-4 mt-4">
+            {/* ── Card commessa: ognuna isolata in ErrorBoundary (fallback vuoto) così
+               un errore in una NON può buttare giù il dettaglio commessa. ── */}
+            {/* Conto economico: riepilogo a colpo d'occhio, sempre in cima */}
+            {/* Conto economico = costi + margine → solo a chi può vederli. */}
+            {(permissions.canViewCosts || permissions.canViewMargins) && (
+              <ErrorBoundary fallback={<></>}>
+                <OrderEconomicsSummary
+                  orderId={id!}
+                  totalAmount={order.total_amount}
+                  vatRate={order.vat_rate ?? 22}
+                  items={economicsItems}
+                  collectedAmount={collectedAmount}
+                  cashCollected={collectedGross}
+                  cashTotal={cashTotalGross}
+                  itemsLoading={orderItemsPending}
+                  avanzamentoPct={avanzamentoPct}
+                />
+              </ErrorBoundary>
+            )}
+
+            {/* Piano rate: destinazione comune di "Registra incasso" e dei link dalla Panoramica. */}
             <div id="section-pagamenti" className="scroll-mt-24">
               {permissions.canViewOrderAmounts && (
-              <OrdineEconomico
-                orderId={id!}
-                totalAmount={order.total_amount}
-                vatRate={order.vat_rate || 22}
-                paymentType={(order.payment_type as PaymentType) || "standard"}
-                installments={displayInstallments}
-                hasBuildingBonus={order.has_building_bonus}
-                financingCost={order.financing_cost ?? undefined}
-                collectedAmount={collectedAmount}
-                onInstallmentPaidToggle={handleInstallmentPaidToggle}
-                onInstallmentDateChange={handleInstallmentDateChange}
-                orderCode={order.order_code}
-                conPrimaNota={permissions.canViewPrimaNota}
-                clienteNome={order.customer ? `${order.customer.first_name ?? ""} ${order.customer.last_name ?? ""}`.trim() : null}
-                customerId={order.customer_id}
-                pivaImpresa={effectiveCompany?.vat_number ?? null}
-              />
+                <OrdineEconomico
+                  orderId={id!}
+                  totalAmount={order.total_amount}
+                  vatRate={order.vat_rate ?? 22}
+                  paymentType={
+                    (order.payment_type as PaymentType) || "standard"
+                  }
+                  installments={displayInstallments}
+                  hasBuildingBonus={order.has_building_bonus}
+                  financingCost={order.financing_cost ?? undefined}
+                  collectedAmount={collectedAmount}
+                  onInstallmentPaidToggle={handleInstallmentPaidToggle}
+                  onInstallmentDateChange={handleInstallmentDateChange}
+                  orderCode={order.order_code}
+                  conPrimaNota={permissions.canViewPrimaNota}
+                  clienteNome={
+                    order.customer
+                      ? `${order.customer.first_name ?? ""} ${order.customer.last_name ?? ""}`.trim()
+                      : null
+                  }
+                  customerId={order.customer_id}
+                  pivaImpresa={effectiveCompany?.vat_number ?? null}
+                />
               )}
             </div>
 
             {/* Chi finanzia il cantiere: cassa consuntiva — prima della previsione
                 qui sotto (quando ci sono movimenti, il consuntivo conta di più).
                 Vendite+costi → entrambi i permessi. L'ancora serve alla fascia
-                verdetto in testata (solo qui: il mount mobile resta senza id). */}
+                verdetto in Panoramica, su tutti i dispositivi. */}
             {permissions.canViewOrderAmounts && permissions.canViewCosts && (
               <ErrorBoundary fallback={<></>}>
                 <EsposizioneCommessa
                   orderId={id!}
                   totalAmount={order.total_amount}
-                  vatRate={order.vat_rate || 22}
+                  vatRate={order.vat_rate ?? 22}
                   financingCost={order.financing_cost ?? 0}
                   installments={displayInstallments}
                   cashTotalGross={cashTotalGross}
@@ -2167,60 +1755,104 @@ function OrderDetailInner() {
                 quando l'acconto non copre i fornitori. Additiva, non tocca il
                 Conto economico. Richiede ANCHE canViewCosts: il costo
                 materiali dei fornitori è metà del suo messaggio. */}
-            {permissions.canViewOrderAmounts && permissions.canViewCosts && (collectedGross > 0 || costoMaterialiGross > 0) && (
-              <QuoteCard
-                title={
-                  <span className="flex items-center gap-2">
-                    <span className={`h-2.5 w-2.5 rounded-full ${accontoCopreMateriali ? "bg-emerald-500" : "bg-red-500"}`} />
-                    Cassa della commessa
-                  </span>
-                }
-                icon={<Wallet className="h-4 w-4" />}
-              >
-                <div className="space-y-3">
-                  <p className={`text-[13px] leading-snug ${accontoCopreMateriali ? "text-emerald-700" : "text-red-600"}`}>
-                    {accontoCopreMateriali ? (
-                      <>L'acconto incassato copre il costo dei materiali: nessun anticipo richiesto.</>
-                    ) : (
-                      <>
-                        L'acconto incassato (<strong>{formatCurrency(collectedGross)}</strong>) non copre i materiali
-                        (<strong>{formatCurrency(costoMaterialiGross)}</strong>): anticipi circa{" "}
-                        <strong>{formatCurrency(Math.abs(cassaDopoMateriali))}</strong>
-                        {saldoDate ? <> fino al saldo del <strong>{format(new Date(saldoDate), "dd/MM/yyyy")}</strong></> : null}.
-                      </>
-                    )}
-                  </p>
-                  <div className="rounded-lg border bg-muted/20 text-[13px]">
-                    <div className="flex items-center justify-between px-3 py-2 border-b border-slate-100">
-                      <span className="text-muted-foreground">Acconto incassato</span>
-                      <span className="font-medium text-emerald-600">+ {formatCurrency(collectedGross)}</span>
-                    </div>
-                    {costoMaterialiGross > 0 && (
+            {permissions.canViewOrderAmounts &&
+              permissions.canViewCosts &&
+              (collectedGross > 0 || costoMaterialiGross > 0) && (
+                <QuoteCard
+                  title={
+                    <span className="flex items-center gap-2">
+                      <span
+                        className={`h-2.5 w-2.5 rounded-full ${accontoCopreMateriali ? "bg-emerald-500" : "bg-red-500"}`}
+                      />
+                      Cassa della commessa
+                    </span>
+                  }
+                  icon={<Wallet className="h-4 w-4" />}
+                >
+                  <div className="space-y-3">
+                    <p
+                      className={`text-[13px] leading-snug ${accontoCopreMateriali ? "text-emerald-700" : "text-red-600"}`}
+                    >
+                      {accontoCopreMateriali ? (
+                        <>
+                          L'acconto incassato copre il costo dei materiali:
+                          nessun anticipo richiesto.
+                        </>
+                      ) : (
+                        <>
+                          L'acconto incassato (
+                          <strong>{formatCurrency(collectedGross)}</strong>) non
+                          copre i materiali (
+                          <strong>{formatCurrency(costoMaterialiGross)}</strong>
+                          ): anticipi circa{" "}
+                          <strong>
+                            {formatCurrency(Math.abs(cassaDopoMateriali))}
+                          </strong>
+                          {saldoDate ? (
+                            <>
+                              {" "}
+                              fino al saldo del{" "}
+                              <strong>
+                                {format(new Date(saldoDate), "dd/MM/yyyy")}
+                              </strong>
+                            </>
+                          ) : null}
+                          .
+                        </>
+                      )}
+                    </p>
+                    <div className="rounded-lg border bg-muted/20 text-[13px]">
                       <div className="flex items-center justify-between px-3 py-2 border-b border-slate-100">
-                        <span className="text-muted-foreground">Costo materiali (fornitori)</span>
-                        <span className="font-medium text-slate-700">− {formatCurrency(costoMaterialiGross)}</span>
+                        <span className="text-muted-foreground">
+                          Acconto incassato
+                        </span>
+                        <span className="font-medium text-emerald-600">
+                          + {formatCurrency(collectedGross)}
+                        </span>
                       </div>
-                    )}
-                    <div className="flex items-center justify-between px-3 py-2 border-b border-slate-100">
-                      <span className="font-medium text-foreground">Punto minimo di cassa</span>
-                      <span className={`font-semibold ${cassaDopoMateriali < 0 ? "text-red-600" : "text-emerald-600"}`}>
-                        {formatCurrency(cassaDopoMateriali)}
-                      </span>
+                      {costoMaterialiGross > 0 && (
+                        <div className="flex items-center justify-between px-3 py-2 border-b border-slate-100">
+                          <span className="text-muted-foreground">
+                            Costo materiali (fornitori)
+                          </span>
+                          <span className="font-medium text-slate-700">
+                            − {formatCurrency(costoMaterialiGross)}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between px-3 py-2 border-b border-slate-100">
+                        <span className="font-medium text-foreground">
+                          Punto minimo di cassa
+                        </span>
+                        <span
+                          className={`font-semibold ${cassaDopoMateriali < 0 ? "text-red-600" : "text-emerald-600"}`}
+                        >
+                          {formatCurrency(cassaDopoMateriali)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between px-3 py-2">
+                        <span className="text-muted-foreground">
+                          Saldo a fine lavori
+                          {saldoDate
+                            ? ` · ${format(new Date(saldoDate), "dd/MM/yyyy")}`
+                            : ""}
+                        </span>
+                        <span className="font-medium text-emerald-600">
+                          + {formatCurrency(saldoResiduoGross)}
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between px-3 py-2">
-                      <span className="text-muted-foreground">
-                        Saldo a fine lavori{saldoDate ? ` · ${format(new Date(saldoDate), "dd/MM/yyyy")}` : ""}
-                      </span>
-                      <span className="font-medium text-emerald-600">+ {formatCurrency(saldoResiduoGross)}</span>
-                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      Stima sui materiali · manodopera e altre spese escluse.
+                    </p>
                   </div>
-                  <p className="text-[11px] text-muted-foreground">Stima sui materiali · manodopera e altre spese escluse.</p>
-                </div>
-              </QuoteCard>
-            )}
+                </QuoteCard>
+              )}
 
             <OrderErrors orderId={id!} />
-            <RitenuteTab orderId={id!} />
+            <div id="section-ritenute" className="scroll-mt-24">
+              <RitenuteTab orderId={id!} />
+            </div>
             {effectiveCompany?.id && (
               <OrdineVariazione orderId={id!} companyId={effectiveCompany.id} />
             )}
@@ -2236,38 +1868,48 @@ function OrderDetailInner() {
             )}
             {/* Fatture e documenti fiscali della commessa: stavano nella
                 Panoramica, lontani da incassi e scadenze a cui appartengono. */}
-              <QuoteCard
-                title={
-                  <span className="flex items-center gap-2">
-                    Fatturazione e Documenti
-                    {linkedDocumentsCount > 0 && (
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700">{linkedDocumentsCount}</span>
-                    )}
-                  </span>
-                }
-                icon={<Receipt className="h-4 w-4" />}
-              >
-                <div className="space-y-3">
-                  {fattureCollegate.length > 0 ? (
-                    <div className="space-y-2">
-                      {fattureCollegate.map((f: LinkedFiscalDocument) => (
-                        <div
-                          key={f.id}
-                          className="flex items-center justify-between gap-2 p-2 rounded-md border bg-white text-sm"
+            <QuoteCard
+              title={
+                <span className="flex items-center gap-2">
+                  Fatturazione e Documenti
+                  {linkedDocumentsCount > 0 && (
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700">
+                      {linkedDocumentsCount}
+                    </span>
+                  )}
+                </span>
+              }
+              icon={<Receipt className="h-4 w-4" />}
+            >
+              <div className="space-y-3">
+                {fattureCollegate.length > 0 ? (
+                  <div className="space-y-2">
+                    {fattureCollegate.map((f: LinkedFiscalDocument) => (
+                      <div
+                        key={f.id}
+                        className="flex items-center justify-between gap-2 p-2 rounded-md border bg-white text-sm"
+                      >
+                        <Link
+                          to={`/azienda/documenti/${f.id}`}
+                          className="min-w-0 flex-1"
                         >
-                          <Link to={`/azienda/documenti/${f.id}`} className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium truncate">{f.numero}</span>
-                              <span className="text-[11px] text-muted-foreground">{formatFiscalType(f.tipo)}</span>
-                            </div>
-                            <Badge variant="outline" className="text-xs">
-                              {formatStatoFiscale(f.stato)}
-                            </Badge>
-                          </Link>
                           <div className="flex items-center gap-2">
-                            <span className="text-muted-foreground whitespace-nowrap">
-                              {formatCurrency(f.totale_da_pagare)}
+                            <span className="font-medium truncate">
+                              {f.numero}
                             </span>
+                            <span className="text-[11px] text-muted-foreground">
+                              {formatFiscalType(f.tipo)}
+                            </span>
+                          </div>
+                          <Badge variant="outline" className="text-xs">
+                            {formatStatoFiscale(f.stato)}
+                          </Badge>
+                        </Link>
+                        <div className="flex items-center gap-2">
+                          <span className="text-muted-foreground whitespace-nowrap">
+                            {formatCurrency(f.totale_da_pagare)}
+                          </span>
+                          {!isMobile && (
                             <Button
                               type="button"
                               variant="ghost"
@@ -2278,143 +1920,181 @@ function OrderDetailInner() {
                             >
                               <Download className="h-4 w-4" />
                             </Button>
-                          </div>
-                        </div>
-                      ))}
-                      <div className="pt-1 border-t flex justify-between text-sm">
-                        <span className="text-muted-foreground">Totale fatturato</span>
-                        <span className="font-medium">
-                          {formatCurrency(
-                            fattureCollegate.reduce(
-                              (s: number, f: LinkedFiscalDocument) => s + (f.totale_da_pagare ?? 0),
-                              0
-                            )
                           )}
-                        </span>
+                        </div>
                       </div>
+                    ))}
+                    <div className="pt-1 border-t flex justify-between text-sm">
+                      <span className="text-muted-foreground">
+                        Totale fatturato
+                      </span>
+                      <span className="font-medium">
+                        {formatCurrency(
+                          fattureCollegate.reduce(
+                            (s: number, f: LinkedFiscalDocument) =>
+                              s + (f.totale_da_pagare ?? 0),
+                            0,
+                          ),
+                        )}
+                      </span>
                     </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground text-center py-2">
-                      Nessun documento fiscale collegato
-                    </p>
-                  )}
-                  {/* Bottoni a dimensione naturale (prima grid-cols-4 li stirava
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-2">
+                    Nessun documento fiscale collegato
+                  </p>
+                )}
+                {/* Bottoni a dimensione naturale (prima grid-cols-4 li stirava
                       su tutta la card larga desktop). flex-wrap li tiene compatti. */}
-                  <div className="flex flex-wrap gap-2 [&>button]:flex-1 sm:[&>button]:flex-none">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        if (isNativeBilling) {
-                          setCreaFatturaOpen(true);
-                        } else {
-                          toast.info("Per creare fatture dal sistema, attiva la fatturazione nativa nelle Impostazioni > Fatturazione.");
-                        }
-                      }}
-                    >
-                      <Receipt className="h-3.5 w-3.5 mr-1" />
-                      Fattura
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        if (isNativeBilling) {
-                          setCreaProformaOpen(true);
-                        } else {
-                          toast.info("Per creare proforma dal sistema, attiva la fatturazione nativa nelle Impostazioni > Fatturazione.");
-                        }
-                      }}
-                    >
-                      <FileText className="h-3.5 w-3.5 mr-1" />
-                      Proforma
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        if (isNativeBilling) {
-                          setCreaDDTOpen(true);
-                        } else {
-                          toast.info("Per creare DDT dal sistema, attiva la fatturazione nativa nelle Impostazioni > Fatturazione.");
-                        }
-                      }}
-                    >
-                      <Truck className="h-3.5 w-3.5 mr-1" />
-                      DDT
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        if (isNativeBilling) {
-                          setCreaNotaCreditoOpen(true);
-                        } else {
-                          toast.info("Per creare note di credito dal sistema, attiva la fatturazione nativa nelle Impostazioni > Fatturazione.");
-                        }
-                      }}
-                    >
-                      <FileWarning className="h-3.5 w-3.5 mr-1" />
-                      N. Credito
-                    </Button>
+                <div className="flex flex-wrap gap-2 [&>button]:flex-1 sm:[&>button]:flex-none">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (isNativeBilling) {
+                        setCreaFatturaOpen(true);
+                      } else {
+                        toast.info(
+                          "Per creare fatture dal sistema, attiva la fatturazione nativa nelle Impostazioni > Fatturazione.",
+                        );
+                      }
+                    }}
+                  >
+                    <Receipt className="h-3.5 w-3.5 mr-1" />
+                    Fattura
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (isNativeBilling) {
+                        setCreaProformaOpen(true);
+                      } else {
+                        toast.info(
+                          "Per creare proforma dal sistema, attiva la fatturazione nativa nelle Impostazioni > Fatturazione.",
+                        );
+                      }
+                    }}
+                  >
+                    <FileText className="h-3.5 w-3.5 mr-1" />
+                    Proforma
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (isNativeBilling) {
+                        setCreaDDTOpen(true);
+                      } else {
+                        toast.info(
+                          "Per creare DDT dal sistema, attiva la fatturazione nativa nelle Impostazioni > Fatturazione.",
+                        );
+                      }
+                    }}
+                  >
+                    <Truck className="h-3.5 w-3.5 mr-1" />
+                    DDT
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (isNativeBilling) {
+                        setCreaNotaCreditoOpen(true);
+                      } else {
+                        toast.info(
+                          "Per creare note di credito dal sistema, attiva la fatturazione nativa nelle Impostazioni > Fatturazione.",
+                        );
+                      }
+                    }}
+                  >
+                    <FileWarning className="h-3.5 w-3.5 mr-1" />
+                    N. Credito
+                  </Button>
+                </div>
+              </div>
+            </QuoteCard>
+          </TabsContent>
+
+          {/* Un solo percorso operativo su desktop e mobile. Nessuna duplicazione dei dati. */}
+          <TabsContent value="cantiere" className="space-y-4 mt-4">
+            <div id="section-lavorazioni" className="scroll-mt-24">
+              <OrderWorkPhases orderId={id!} orderCode={order.order_code}
+                onOpenReports={() => navigateTo({ tab: "cantiere", section: "section-rapportini" })} />
+            </div>
+            <details className="rounded-lg border bg-white">
+              <summary className="cursor-pointer px-4 py-3 text-sm font-medium">
+                Calendario, date e attività
+              </summary>
+              <div
+                id="section-pianificazione"
+                className="grid gap-4 p-3 lg:grid-cols-2 scroll-mt-24"
+              >
+                <OrdineTempistiche
+                  orderId={order.id}
+                  expectedDate={order.expected_date}
+                  warehouseArrivalDate={order.warehouse_arrival_date}
+                  workStartDate={order.work_start_date}
+                  workEndDate={order.work_end_date}
+                  orderCode={order.order_code}
+                  orderDescription={order.description}
+                  defaultAddress={order.work_address || order.customer?.address}
+                />
+                <div className="space-y-4">
+                  <LinkedAppointments orderId={id!} />
+                  <div id="section-attivita" className="scroll-mt-24">
+                    <LinkedTasks orderId={id} category="ordini" />
                   </div>
                 </div>
-              </QuoteCard>
-          </TabsContent>
-
-          {/* Tab: Cantiere — SAL, timeline e rapportini erano impilati dentro la
-              Panoramica, che con loro arrivava a ~1.750px. Qui stanno insieme e
-              la Panoramica torna a una schermata. Su mobile erano gia' tre tab
-              separati (sal / cantiere / campo): ora le due viste concordano. */}
-          <TabsContent value="cantiere" className="space-y-4 mt-4">
-            <div className="space-y-4 pt-2">
-              <div className="flex items-center gap-2">
-                <HardHat className="h-4 w-4 text-muted-foreground" />
-                <h2 className="text-base font-semibold">Avanzamento cantiere</h2>
               </div>
-              <div id="section-sal">
-                {companyId && (
-                  <OrdineSAL
-                    orderId={id!}
-                    companyId={companyId}
-                    orderTotalAmount={order.total_amount ?? undefined}
-                    installments={displayInstallments}
-                    vatRate={order.vat_rate || 22}
-                    financingCost={order.payment_type === "financing" ? order.financing_cost ?? 0 : 0}
-                  />
-                )}
+            </details>
+            <div id="section-rapportini" className="scroll-mt-24">
+              <OrdineRapportiniCampo orderId={id!} />
+            </div>
+            <details className="rounded-lg border bg-white">
+              <summary className="cursor-pointer px-4 py-3 text-sm font-medium">
+                Foto e aggiornamenti dal campo
+              </summary>
+              <div id="section-foto" className="space-y-4 p-3 scroll-mt-24">
+                <OrdineFotoCantiere orderId={id!} />
+                <WhatsAppActivityFeed cantiereId={id!} />
               </div>
-              {/* Desktop largo (≥xl): timeline e rapportini affiancati per
-                  dimezzare lo scroll; sotto xl restano impilati. items-start:
-                  altezze indipendenti (nessuno stiramento). */}
-              {effectiveCompany?.id && (
-                <div className="grid gap-4 xl:grid-cols-2 xl:items-start">
-                  {/* La timeline rende testo nudo (nessuna Card), mentre i
-                      rapportini accanto sono una Card: affiancati sembravano
-                      due cose scollegate, con la scritta "Nessun aggiornamento"
-                      che fluttuava nel vuoto. La incorniciamo QUI e non dentro
-                      TimelineCantiere, che il portale cliente monta gia' dentro
-                      una sua Card: cambiarlo la' avrebbe prodotto un doppio bordo. */}
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <HardHat className="h-4 w-4 text-muted-foreground" />
-                        Timeline cantiere
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <TimelineCantiere orderId={id!} companyId={effectiveCompany.id} adminView={true} />
-                    </CardContent>
-                  </Card>
-                  <OrdineRapportiniCampo orderId={id!} />
-                </div>
+            </details>
+            <div id="section-sal" className="scroll-mt-24">
+              {companyId && (
+                <OrdineSAL
+                  orderId={id!}
+                  companyId={companyId}
+                  showPaymentProgress={false}
+                  orderTotalAmount={order.total_amount ?? undefined}
+                  installments={displayInstallments}
+                  vatRate={order.vat_rate ?? 22}
+                  financingCost={
+                    order.payment_type === "financing"
+                      ? (order.financing_cost ?? 0)
+                      : 0
+                  }
+                />
               )}
             </div>
+            {effectiveCompany?.id && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">
+                    Diario e avanzamento cantiere
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <TimelineCantiere
+                    orderId={id!}
+                    companyId={effectiveCompany.id}
+                    adminView={true}
+                  />
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
-
         </Tabs>
-        </>
-        )}
       </div>
 
       {/* ── Dialogs ──────────────────────────────────────────── */}
@@ -2479,7 +2159,7 @@ function OrderDetailInner() {
         </DialogContent>
       </Dialog>
 
-      {/* Crea/assegna task (dalla strip "Prossima mossa") → task reale: l'attività
+      {/* Crea/assegna task dalle azioni rapide → task reale: l'attività
           compare nella lista del responsabile. Riusa il dialog standard. */}
       <TaskDialog
         open={taskDialogOpen}

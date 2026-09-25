@@ -34,7 +34,7 @@ interface Props {
 }
 
 const LISTINO_SETTINGS_HREF =
-  "/azienda/impostazioni/template-preventivi?tab=moduli-vendita&modulo=elettrico";
+  "/azienda/elettrico/listino";
 
 export default function StepComputo({ progettoId, initialComputo, scontoPct, ivaPct, prezzoManuale = null }: Props) {
   const companyId = useEffectiveCompanyId();

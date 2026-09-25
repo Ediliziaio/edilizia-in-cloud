@@ -8,10 +8,11 @@ import { useMemo, useState, type ReactNode } from "react";
 import { ImageOff, ImagePlus, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
-  chiaveSalvataFotoPagina, eFotoDiSerie, FOTO_PAGINE_ETICHETTE, fotoDellaLibreria, fotoPaginaDiSerie, leggiFotoPagina,
+  chiaveSalvataFotoPagina, eFotoDiSerie, FOTO_PAGINE_ETICHETTE, fotoDellaLibreria, leggiFotoPagina,
   type ChiaveFotoPagina, type SettoreBlocchi,
 } from "../../../supabase/functions/_shared/blocchiPreventivo";
 import { eTavola } from "../../../supabase/functions/_shared/proporzioniImmagine";
+import { ModulePhotoUpdateButton } from "./modules/ModulePhotoUpdateButton";
 
 interface Props {
   chiave: ChiaveFotoPagina;
@@ -31,20 +32,22 @@ export function EditorFotoPagina({ chiave, settore, salvati, onSalvati, campoFot
   const tutti = useMemo(() => (salvati && typeof salvati === "object" ? (salvati as Record<string, unknown>) : {}), [salvati]);
   const chiaveSalvata = chiaveSalvataFotoPagina(chiave);
   const attuale = leggiFotoPagina(chiave, settore, tutti);
-  const diSerie = fotoPaginaDiSerie(chiave, settore);
+  const diSerie = leggiFotoPagina(chiave, settore, { modulo_defaults: tutti.modulo_defaults });
   const [libreriaAperta, setLibreriaAperta] = useState(false);
+  const [caricaFoto, setCaricaFoto] = useState(false);
   // Senza le tavole: qui la foto riempie una fascia e si ritaglia, e una tavola
   // perderebbe le sue scritte.
-  const libreria = useMemo(() => fotoDellaLibreria(settore).filter((f) => eTavola(f.url) == null), [settore]);
+  const libreria = useMemo(() => fotoDellaLibreria(settore, tutti).filter((f) => eTavola(f.url) == null), [settore, tutti]);
 
   const salva = (valore: Record<string, unknown> | null) => {
     const { [chiaveSalvata]: _via, ...resto } = tutti;
     onSalvati(valore ? { ...resto, [chiaveSalvata]: valore } : resto);
   };
-  const scegli = (url: string | null) => salva(url ? { foto: [url], senzaFoto: false } : { foto: [], senzaFoto: true });
+  const scegli = (url: string | null) => { salva(url ? { foto: [url], senzaFoto: false } : { foto: [], senzaFoto: true }); if (url) setCaricaFoto(false); };
 
   return (
     <div className={incorniciato ? "mt-3 space-y-3 rounded-md border bg-background p-3" : "space-y-3"}>
+      <ModulePhotoUpdateButton value={salvati} sector={settore} onChange={onSalvati} />
       <div className="space-y-0.5">
         <p className="text-xs font-medium">{FOTO_PAGINE_ETICHETTE[chiave]}</p>
         {nota ? <p className="text-[11px] text-muted-foreground">{nota}</p> : null}
@@ -59,8 +62,7 @@ export function EditorFotoPagina({ chiave, settore, salvati, onSalvati, campoFot
           campoFoto(attuale, (url) => scegli(url))
         ) : (
           <div className="space-y-1">
-            <p className="text-[11px] text-muted-foreground">Senza foto: la pagina finisce col testo. Potete caricarne una vostra:</p>
-            {campoFoto(null, (url) => scegli(url))}
+            <p className="rounded-md bg-slate-50 p-3 text-xs text-muted-foreground">Pagina senza foto. Il PDF mostra il contenuto, senza riquadri vuoti. Puoi aggiungere un’immagine dalla libreria o una vostra foto.</p>
           </div>
         )}
         <div className="flex flex-wrap gap-1.5 md:flex-col">
@@ -72,14 +74,15 @@ export function EditorFotoPagina({ chiave, settore, salvati, onSalvati, campoFot
               <ImageOff className="mr-1.5 h-3.5 w-3.5" /> Togli la foto
             </Button>
           ) : null}
+          {(!attuale || eFotoDiSerie(attuale)) && <Button size="sm" variant="ghost" onClick={() => setCaricaFoto(v => !v)}><ImagePlus className="mr-1.5 h-3.5 w-3.5" />{caricaFoto ? "Annulla caricamento" : attuale ? "Sostituisci con una vostra foto" : "Carica una vostra foto"}</Button>}
           {diSerie && attuale !== diSerie ? (
             <Button size="sm" variant="ghost" onClick={() => salva(null)}>
-              <RotateCcw className="mr-1.5 h-3.5 w-3.5" /> Torna alla foto di serie
+              <RotateCcw className="mr-1.5 h-3.5 w-3.5" /> Ripristina immagine standard
             </Button>
           ) : null}
         </div>
       </div>
-      {attuale && eFotoDiSerie(attuale) ? (
+      {caricaFoto && (!attuale || eFotoDiSerie(attuale)) ? (
         <div className="space-y-1">
           <p className="text-[11px] text-muted-foreground">Oppure caricate una vostra foto:</p>
           {campoFoto(null, (url) => scegli(url))}

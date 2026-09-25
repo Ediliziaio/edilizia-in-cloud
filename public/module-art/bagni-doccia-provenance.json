@@ -1,0 +1,10 @@
+{
+  "module": "bagni/doccia",
+  "asset": "/module-art/bagni-doccia-cover.jpg",
+  "workspacePath": "/Users/agenteai/Documents/Codex/2026-09-22/agg/work/edilizia-in-cloud/public/module-art/bagni-doccia-cover.jpg",
+  "source": "/Users/agenteai/.codex/generated_images/01a0c971-7f8c-79f3-b076-73f23be195be/exec-a91b23f8-b5e0-4a66-a25d-6ceb23fe68c5.png",
+  "method": "Built-in Imagegen; JPEG format conversion only",
+  "prompt": "Use case: photorealistic-natural. Asset type: portrait 2:3 editorial cover for an Italian existing-shower-renovation quotation PDF. A tasteful compact corner shower in an ordinary residential bathroom, renewed pale warm stone-look ceramic tile on two walls, square white shower tray with a clearly visible small raised edge, simple clear glass corner enclosure with chrome hinges and a functional chrome wall mixer and handheld shower rail. Composition tightly focused on the existing shower footprint and its new surfaces, not a whole bathroom, no bathtub. Believable geometry and fixtures, straight verticals, natural side daylight, restrained premium architectural photography, warm neutral palette. Quiet lower third for title added separately. No person, no lettering, no logos, no watermark, no before/after, no technical cutaway. Illustrative interior concept, not a company project, not a promise of accessibility or flush installation.",
+  "usage": "Illustrazione, non lavoro aziendale, progetto esecutivo o fornitura implicita",
+  "date": "2026-09-24"
+}

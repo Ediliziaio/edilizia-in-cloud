@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate, useParams, useSearchParams, Link } from "react-router-dom";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesUpdate, Json } from "@/integrations/supabase/types";
 import { filtriRicercaContatti } from "@/lib/ricerca/ricercaContatti";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
@@ -17,7 +17,10 @@ import {
   useQuoteFormHydration,
   type ExistingQuoteForHydration,
 } from "@/hooks/useQuoteFormHydration";
+import { QuoteLivePreviewPanel } from "@/components/quotes/QuoteLivePreviewPanel";
+import { ScontoGlobaleField } from "@/components/preventivi/ScontoGlobaleField";
 import { QuoteTemplatePreview } from "@/components/quotes/QuoteTemplatePreview";
+import { resolveQuoteTemplatePreview } from "@/lib/quoteTemplatePreview";
 import AIQuotePanel from "@/components/quotes/AIQuotePanel";
 import { useListinoCliente } from "@/hooks/useListinoCliente";
 import { QuoteAdvisorPanel } from "@/components/quotes/QuoteAdvisorPanel";
@@ -41,7 +44,11 @@ import { QuotePaymentTermsCard } from "@/components/marketing/preventivi/QuotePa
 import { BonusLinesCard } from "@/components/orders/BonusLinesCard";
 import { useBonusFiscaliFlags } from "@/hooks/useBonusFiscaliFlags";
 import { type BonusLine, serializeBonusLines } from "@/lib/orders/bonusFiscali";
-import { type QuotePaymentPhase, recalcPhaseAmounts } from "@/lib/preventivi/paymentTerms";
+import { type QuotePaymentPhase, recalcPhaseAmounts, paymentPlanError } from "@/lib/preventivi/paymentTerms";
+import { readQuoteDraft, serializeQuoteDraft, type QuoteDraft } from "@/lib/preventivi/quoteDraft";
+import { assertSavedQuoteAmounts } from "@/lib/preventivi/quoteSaveValidation";
+import { fetchQuotePdf } from "@/lib/preventivi/quotePdfDownload";
+import { quoteWriteVersion } from "@/lib/preventivi/quoteWriteVersion";
 // Refactor 2026-05-10: ProductSearchDialog estratto in file separato (-316 righe)
 import { ProductSearchDialog } from "@/components/marketing/preventivi/ProductSearchDialog";
 import { QuoteDiscountControl } from "@/components/preventivi/QuoteDiscountControl";
@@ -58,7 +65,6 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Separator } from "@/components/ui/separator";
 import {
   Select,
   SelectContent,
@@ -418,6 +424,8 @@ export default function QuoteBuilder() {
   // Dopo l'anteprima di un preventivo NUOVO si passa in modifica: un secondo
   // salvataggio dalla rotta /nuovo creerebbe un doppione.
   const [pendingEditNavId, setPendingEditNavId] = useState<string | null>(null);
+  const [partialQuoteId, setPartialQuoteId] = useState<string | null>(null);
+  const newQuoteCompletedRef = useRef(false);
   // Sprint A — Preventivatore Unificato: dialog a 3 stadi dietro feature flag
   // `PREVENTIVATORE_UNIFIED_V1`. Quando ON sostituisce il cluster di 5 bottoni
   // (Listino / Bundle / Serramento / Riga libera / Altro) con un unico
@@ -471,11 +479,16 @@ export default function QuoteBuilder() {
 
   // Template
   const { templates, defaultTemplate } = useQuoteTemplates();
+  // Il preventivatore standard deve proporre solo offerte complete. I template
+  // di tipo copertina/condizioni/prodotto/sezione sono componenti avanzati e
+  // non devono poter diventare, per errore, l'aspetto dell'intero PDF.
+  const offerTemplates = useMemo(
+    () => templates.filter((template) => ((template.kind as string | undefined) ?? "offerta") === "offerta"),
+    [templates],
+  );
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   // Mobile: lo step Cliente aveva 18 campi in colonna. Pagamento e dettagli lavoro
   // restano disponibili, ma chiusi finché non servono.
-  const isMobile = useIsMobile();
-  const [pagamentoAperto, setPagamentoAperto] = useState(false);
   const [dettagliLavoroAperti, setDettagliLavoroAperti] = useState(false);
 
   useEffect(() => {
@@ -489,12 +502,15 @@ export default function QuoteBuilder() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [defaultTemplate]);
 
+  const effectiveSelectedTemplateId = offerTemplates.some((template) => template.id === selectedTemplateId)
+    ? selectedTemplateId
+    : (defaultTemplate?.id ?? offerTemplates[0]?.id ?? null);
   const selectedTemplate =
-    templates.find((t) => t.id === selectedTemplateId) ?? defaultTemplate;
+    offerTemplates.find((t) => t.id === effectiveSelectedTemplateId) ?? defaultTemplate;
   const [layoutOverride, setLayoutOverride] = useState<QuoteTemplateLayout | null>(null);
-  const effectiveTemplate = layoutOverride
+  const effectiveTemplate = resolveQuoteTemplatePreview(layoutOverride
     ? { ...selectedTemplate, layout: layoutOverride }
-    : selectedTemplate;
+    : (selectedTemplate ?? {}), templates);
 
   // P03: load impostazioni, tariffe, articoli, categorie
   const {
@@ -568,9 +584,11 @@ export default function QuoteBuilder() {
     [familyAxesMap],
   );
 
-  // Sync PDF impostazioni for new quote (company-level defaults → form state)
+  // Applicare i default una sola volta: un refetch non deve cancellare le scelte.
+  const pdfDefaultsAppliedRef = useRef(false);
   useEffect(() => {
-    if (impostazioni && Object.keys(impostazioni).length > 0 && !isEdit) {
+    if (!pdfDefaultsAppliedRef.current && impostazioni && Object.keys(impostazioni).length > 0 && !isEdit) {
+      pdfDefaultsAppliedRef.current = true;
       setPdfPrezziRiga(impostazioni.pdf_mostra_prezzi_per_riga ?? true);
       setPdfSoloTotale(impostazioni.pdf_mostra_solo_totale ?? false);
       setPdfSconti(impostazioni.pdf_mostra_sconti ?? false);
@@ -626,6 +644,8 @@ export default function QuoteBuilder() {
   const { data: existingQuote, isLoading: quoteLoading, isError: quoteError } = useQuery({
     queryKey: queryKeys.quotes.detail(id),
     enabled: isEdit && !!companyId,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("quotes")
@@ -638,9 +658,11 @@ export default function QuoteBuilder() {
     },
   });
 
-  const { data: existingItems = [] } = useQuery({
+  const { data: existingItems = [], isSuccess: existingItemsLoaded } = useQuery({
     queryKey: queryKeys.quotes.items(id),
     enabled: isEdit,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("quote_items")
@@ -652,14 +674,17 @@ export default function QuoteBuilder() {
     },
   });
 
-  const { data: existingAttachments = [] } = useQuery({
+  const { data: existingAttachments = [], isSuccess: existingAttachmentsLoaded } = useQuery({
     queryKey: queryKeys.quotes.attachments(id),
     enabled: isEdit,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("quote_pdf_attachments")
         .select("material_id")
-        .eq("quote_id", id!);
+        .eq("quote_id", id!)
+        .order("sort_order");
       if (error) throw error;
       return data.map((a) => a.material_id);
     },
@@ -699,7 +724,9 @@ export default function QuoteBuilder() {
     setPdfImmagini,
     setPdfSchedeTecniche,
     setPdfFirma,
-    setLayoutOverride,
+    setLayoutOverride: (value) => setLayoutOverride(
+      value === "classic" || value === "modern" || value === "minimal" || value === "bold" ? value : null,
+    ),
     setPaymentMethod,
     setPaymentPhases,
     setBonusLines,
@@ -799,11 +826,11 @@ export default function QuoteBuilder() {
   useEffect(() => {
     if (existingItems.length > 0) {
       setItems(
-        existingItems.map((i) => {
+        existingItems.map((i): QuoteItemPro => {
           return {
             id: i.id,
-            item_type: i.item_type,
-            item_category: i.item_category || "prodotto",
+            item_type: i.item_type === "service" ? "service" : "product",
+            item_category: (i.item_category || "prodotto") as QuoteItemPro["item_category"],
             name: i.name,
             description: i.description || "",
             quantity: i.quantity,
@@ -1469,99 +1496,16 @@ export default function QuoteBuilder() {
    * «Salva» successivo si fermava con «Qualcun altro ha salvato».
    */
   const rileggiVersione = useCallback(async (quoteId: string) => {
-    const { data } = await supabase.from("quotes").select("updated_at").eq("id", quoteId).maybeSingle();
+    const { data, error } = await supabase.from("quotes").select("updated_at").eq("id", quoteId).eq("company_id", companyId!).single();
+    if (error) throw error;
     const versione = (data as { updated_at?: string | null } | null)?.updated_at;
     if (versione) versioneCaricataRef.current = versione;
-  }, []);
+  }, [companyId]);
 
-  // Autosave bozza silenzioso con indicatore di errore
-  const lastSavedHashRef = useRef<string>("");
-  const autosaveRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Un solo percorso per salvataggio manuale e automatico.
+  const saveInFlightRef = useRef(false);
+  const [lastSavedHash, setLastSavedHash] = useState("");
   const [autosaveFailed, setAutosaveFailed] = useState(false);
-
-  const autosaveDraft = useCallback(async () => {
-    // Guard: non sovrascrivere preventivi già inviati/accettati/rifiutati/scaduti
-    const STATI_BLOCCATI = ['inviata', 'accettata', 'rifiutata', 'scaduta'];
-    if (STATI_BLOCCATI.includes(existingQuote?.status || '')) return;
-    if (!companyId || !user || !clientName.trim() || saving || !isEdit) return;
-    // P2 FIX: hash completo su items invece di solo items.length, altrimenti
-    // modifiche a quantità/prezzo/sconto riga NON triggerano autosave —
-    // l'utente crede di essere salvato ma perde dati al refresh.
-    // Serializziamo solo i campi che contano per rilevare una modifica.
-    const itemsSignature = items
-      .map((i) => `${i.name}|${i.quantity}|${i.unit_price}|${i.discount_percent}|${i.item_category}`)
-      .join("·");
-    const hash = JSON.stringify({ clientName, itemsSignature, discountPercent, prezzoManuale, prezzoManualeIvaPct });
-    if (hash === lastSavedHashRef.current) return;
-    try {
-      // ORDINE (fix 2026-08-21): righe PRIMA della testata, come in
-      // handleSave — se la RPC righe fallisce non va scritto niente,
-      // altrimenti la testata resta avanti rispetto alle righe.
-      // P2 FIX (2026-07): l'autosave ora persiste ANCHE le righe. Prima
-      // scriveva solo client_name+discount ma l'hash includeva le righe →
-      // l'indicatore "Salvataggio automatico" diventava verde pur NON avendo
-      // salvato le modifiche a quantità/prezzo/righe, perse poi al refresh.
-      // Stessa RPC atomica del salvataggio manuale (transazione: nessuna
-      // perdita parziale). L'UI non ri-legge le righe dopo, quindi il
-      // delete+insert lato DB non tocca lo stato locale. Payload allineato a
-      // quello di handleSave — modificarli insieme.
-      if (items.length > 0) {
-        const payload = items.map((it, idx) => ({
-          sort_order: idx,
-          client_temp_id: it.client_temp_id ?? null,
-          parent_temp_id: it.parent_temp_id ?? null,
-          item_type: it.item_type,
-          name: it.name,
-          description: it.description ?? null,
-          quantity: it.quantity,
-          unit_price: it.unit_price,
-          discount_percent: it.discount_percent ?? 0,
-          vat_rate: it.vat_rate ?? 22,
-          unit_of_measure: it.unit_of_measure,
-          article_template_id: it.article_template_id ?? null,
-          item_category: it.item_category ?? "prodotto",
-          tariffa_id: it.tariffa_id ?? null,
-          prezzo_acquisto: it.prezzo_acquisto ?? 0,
-          mostra_nel_pdf: it.mostra_nel_pdf ?? true,
-          is_optional: it.is_optional ?? false,
-          misura_x: it.misura_x ?? null,
-          misura_y: it.misura_y ?? null,
-          family_id: it.family_id ?? null,
-          axis_selections: it.axis_selections ?? null,
-          supplier_catalog_id: it.supplier_catalog_id ?? null,
-          supplier_product_line_id: it.supplier_product_line_id ?? null,
-        }));
-        const { error: rpcErr } = await supabase.rpc("save_quote_items_atomic", {
-          p_quote_id: id!,
-          p_company_id: companyId,
-          p_items: payload,
-        });
-        if (rpcErr) throw rpcErr;
-      }
-      await supabase.from("quotes").update({
-        client_name: clientName,
-        discount_percent: discountPercent,
-        prezzo_manuale: prezzoManuale,
-        prezzo_manuale_iva_pct: prezzoManualeIvaPct,
-        updated_at: new Date().toISOString(),
-      }).eq("id", id!).eq("company_id", companyId);
-      lastSavedHashRef.current = hash;
-      await rileggiVersione(id!);
-      setAutosaveFailed(false);
-    } catch {
-      setAutosaveFailed(true);
-    }
-    // `existingQuote?.status` volutamente fuori dalle deps: l'autosave scatta su cambi
-    // utente (clientName/items/discount), non sul carico di existingQuote. Leggere status
-    // dentro la funzione è sufficiente (closure chiama la query refetch se ID cambia).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clientName, items, discountPercent, prezzoManuale, prezzoManualeIvaPct, companyId, user, saving, isEdit, id, rileggiVersione]);
-
-  useEffect(() => {
-    if (!isEdit) return;
-    autosaveRef.current = setInterval(autosaveDraft, 60_000);
-    return () => { if (autosaveRef.current) clearInterval(autosaveRef.current); };
-  }, [autosaveDraft, isEdit]);
 
   // Avvisa prima di uscire con modifiche non salvate
   const isDirty = !saving && (items.length > 0 || clientName.trim() !== "");
@@ -1576,79 +1520,121 @@ export default function QuoteBuilder() {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [isDirty]);
 
-  // ── Recupero bozza locale per preventivo NUOVO (P2) ──────────────────────
-  // I preventivi in EDIT hanno l'autosave su DB; quelli NUOVI vivevano solo in
-  // useState → persi al refresh/crash. Salviamo una bozza curata in localStorage
-  // e la riproponiamo con un banner (ripristino ESPLICITO: nessun auto-overwrite).
-  // Allineato al pattern useOrderDraft di CreateOrder.
+  // Bozza completa: nessuna scrittura remota per un preventivo nuovo.
   const quoteDraftKey = companyId ? `quote-draft-${companyId}` : null;
-  const [recoverableDraft, setRecoverableDraft] = useState<Record<string, any> | null>(null);
-  const draftCheckedRef = useRef(false);
+  const [recoverableDraft, setRecoverableDraft] = useState<QuoteDraft | null>(null);
+  const [localDraftFailed, setLocalDraftFailed] = useState(false);
+  const [localDraftSaved, setLocalDraftSaved] = useState(false);
+  const draftCheckedRef = useRef<string | null>(null);
+  const draftReadFailedRef = useRef(false);
+  const draftSnapshot: QuoteDraft = {
+    partialQuoteId,
+    step, contactId, clientName, clientEmail, clientPhone, clientCompany,
+    clientAddress, clientFiscalCode, clientVatNumber, title, description, validityDays,
+    notes, internalNotes, tipoLavoro, indirizzoLavori, pianoInstallazione, kmCantiere,
+    salespersonId, sedeId, discountPercent, prezzoManuale, prezzoManualeIvaPct, provvigionePct,
+    items, paymentMethod, paymentPhases, bonusLines, selectedRenders, selectedMaterials,
+    renderUrl, renderSessionId, renderOriginalUrl, selectedTemplateId, layoutOverride, financingProposal,
+    pdfPrezziRiga, pdfSoloTotale, pdfSconti, pdfImmagini, pdfSchedeTecniche, pdfFirma,
+    pdfMisure, pdfAttributi, pdfNoteCliente, pdfCondizioni, pdfWatermarkText, pdfCopiaDestinatario,
+  };
+  const draftSerialized = JSON.stringify(draftSnapshot);
 
   useEffect(() => {
-    if (isEdit || !quoteDraftKey || draftCheckedRef.current) return;
-    draftCheckedRef.current = true;
+    if (isEdit || !quoteDraftKey || draftCheckedRef.current === quoteDraftKey) return;
+    draftCheckedRef.current = quoteDraftKey;
     try {
       const raw = localStorage.getItem(quoteDraftKey);
-      if (raw) setRecoverableDraft(JSON.parse(raw));
-    } catch { /* localStorage non disponibile */ }
+      if (raw) setRecoverableDraft(readQuoteDraft(raw));
+    } catch {
+      draftReadFailedRef.current = true;
+      setLocalDraftFailed(true);
+      toast.error("Impossibile leggere la bozza locale", { description: "I dati non vengono cancellati. Conserva questa pagina aperta e salva il preventivo prima di uscire." });
+    }
   }, [isEdit, quoteDraftKey]);
 
+  const persistLocalDraft = useCallback(() => {
+    if (isEdit || newQuoteCompletedRef.current || !quoteDraftKey || recoverableDraft || draftReadFailedRef.current || draftCheckedRef.current !== quoteDraftKey) return;
+    const snapshot = JSON.parse(draftSerialized) as QuoteDraft;
+    if (!snapshot.clientName?.trim() && !snapshot.items?.length && !snapshot.description && !snapshot.notes) return;
+    try {
+      localStorage.setItem(quoteDraftKey, serializeQuoteDraft(snapshot));
+      setLocalDraftSaved(true);
+      setLocalDraftFailed(false);
+    } catch { setLocalDraftFailed(true); }
+  }, [isEdit, quoteDraftKey, recoverableDraft, draftSerialized]);
+
   useEffect(() => {
-    if (isEdit || !quoteDraftKey || saving) return;
-    if (!clientName.trim() && items.length === 0) return;
-    const t = setTimeout(() => {
-      try {
-        localStorage.setItem(quoteDraftKey, JSON.stringify({
-          savedAt: new Date().toISOString(),
-          contactId, clientName, clientEmail, clientPhone, clientCompany,
-          clientAddress, clientFiscalCode, clientVatNumber,
-          title, description, validityDays, notes, internalNotes,
-          tipoLavoro, indirizzoLavori, pianoInstallazione, kmCantiere,
-          salespersonId, sedeId, discountPercent, prezzoManuale, prezzoManualeIvaPct, provvigionePct, items,
-        }));
-      } catch { /* localStorage pieno/non disponibile */ }
-    }, 1000);
-    return () => clearTimeout(t);
-  }, [isEdit, quoteDraftKey, saving, contactId, clientName, clientEmail, clientPhone,
-      clientCompany, clientAddress, clientFiscalCode, clientVatNumber, title, description,
-      validityDays, notes, internalNotes, tipoLavoro, indirizzoLavori, pianoInstallazione,
-      kmCantiere, salespersonId, sedeId, discountPercent, prezzoManuale, prezzoManualeIvaPct, provvigionePct, items]);
+    if (saving) return;
+    const timer = setTimeout(persistLocalDraft, 500);
+    window.addEventListener("pagehide", persistLocalDraft);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("pagehide", persistLocalDraft);
+    };
+  }, [persistLocalDraft, saving]);
 
   const clearQuoteDraft = useCallback(() => {
     if (!quoteDraftKey) return;
-    try { localStorage.removeItem(quoteDraftKey); } catch { /* ignore */ }
+    try { localStorage.removeItem(quoteDraftKey); setLocalDraftSaved(false); }
+    catch { setLocalDraftFailed(true); }
   }, [quoteDraftKey]);
 
   const restoreQuoteDraft = () => {
     const d = recoverableDraft;
     if (!d) return;
-    setContactId(d.contactId ?? null);
-    setClientName(d.clientName ?? "");
-    setClientEmail(d.clientEmail ?? "");
-    setClientPhone(d.clientPhone ?? "");
-    setClientCompany(d.clientCompany ?? "");
-    setClientAddress(d.clientAddress ?? "");
-    setClientFiscalCode(d.clientFiscalCode ?? "");
-    setClientVatNumber(d.clientVatNumber ?? "");
-    setTitle(d.title ?? "Preventivo");
-    setDescription(d.description ?? "");
-    setValidityDays(d.validityDays ?? 30);
-    setNotes(d.notes ?? "");
-    setInternalNotes(d.internalNotes ?? "");
-    setTipoLavoro(d.tipoLavoro ?? "");
-    setIndirizzoLavori(d.indirizzoLavori ?? "");
-    setPianoInstallazione(d.pianoInstallazione ?? 0);
-    setKmCantiere(d.kmCantiere ?? 0);
-    setSalespersonId(d.salespersonId ?? null);
-    setSedeId(d.sedeId ?? null);
-    setDiscountPercent(d.discountPercent ?? 0);
-    setPrezzoManuale(d.prezzoManuale ?? null);
-    setPrezzoManualeIvaPct(d.prezzoManualeIvaPct ?? null);
-    setProvvigionePct(d.provvigionePct ?? 0);
-    if (Array.isArray(d.items)) setItems(d.items);
+    if (d.pdfPrezziRiga !== undefined) pdfDefaultsAppliedRef.current = true;
+    if (d.partialQuoteId !== undefined) setPartialQuoteId(d.partialQuoteId);
+    if (d.step !== undefined) setStep(d.step);
+    if (d.contactId !== undefined) setContactId(d.contactId);
+    if (d.clientName !== undefined) setClientName(d.clientName);
+    if (d.clientEmail !== undefined) setClientEmail(d.clientEmail);
+    if (d.clientPhone !== undefined) setClientPhone(d.clientPhone);
+    if (d.clientCompany !== undefined) setClientCompany(d.clientCompany);
+    if (d.clientAddress !== undefined) setClientAddress(d.clientAddress);
+    if (d.clientFiscalCode !== undefined) setClientFiscalCode(d.clientFiscalCode);
+    if (d.clientVatNumber !== undefined) setClientVatNumber(d.clientVatNumber);
+    if (d.title !== undefined) setTitle(d.title);
+    if (d.description !== undefined) setDescription(d.description);
+    if (d.validityDays !== undefined) setValidityDays(d.validityDays);
+    if (d.notes !== undefined) setNotes(d.notes);
+    if (d.internalNotes !== undefined) setInternalNotes(d.internalNotes);
+    if (d.tipoLavoro !== undefined) setTipoLavoro(d.tipoLavoro);
+    if (d.indirizzoLavori !== undefined) setIndirizzoLavori(d.indirizzoLavori);
+    if (d.pianoInstallazione !== undefined) setPianoInstallazione(d.pianoInstallazione);
+    if (d.kmCantiere !== undefined) setKmCantiere(d.kmCantiere);
+    if (d.salespersonId !== undefined) setSalespersonId(d.salespersonId);
+    if (d.sedeId !== undefined) setSedeId(d.sedeId);
+    if (d.discountPercent !== undefined) setDiscountPercent(d.discountPercent);
+    if (d.prezzoManuale !== undefined) setPrezzoManuale(d.prezzoManuale);
+    if (d.prezzoManualeIvaPct !== undefined) setPrezzoManualeIvaPct(d.prezzoManualeIvaPct);
+    if (d.provvigionePct !== undefined) setProvvigionePct(d.provvigionePct);
+    if (d.items !== undefined) setItems(d.items);
+    if (d.paymentMethod !== undefined) setPaymentMethod(d.paymentMethod);
+    if (d.paymentPhases !== undefined) setPaymentPhases(d.paymentPhases);
+    if (d.bonusLines !== undefined) setBonusLines(d.bonusLines);
+    if (d.selectedRenders !== undefined) setSelectedRenders(d.selectedRenders);
+    if (d.selectedMaterials !== undefined) setSelectedMaterials(d.selectedMaterials);
+    if (d.renderUrl !== undefined) setRenderUrl(d.renderUrl);
+    if (d.renderSessionId !== undefined) setRenderSessionId(d.renderSessionId);
+    if (d.renderOriginalUrl !== undefined) setRenderOriginalUrl(d.renderOriginalUrl);
+    if (d.selectedTemplateId !== undefined) setSelectedTemplateId(d.selectedTemplateId);
+    if (d.layoutOverride !== undefined) setLayoutOverride(d.layoutOverride);
+    if (d.financingProposal !== undefined) setFinancingProposal(d.financingProposal as FinancingProposal | null);
+    if (d.pdfPrezziRiga !== undefined) setPdfPrezziRiga(d.pdfPrezziRiga);
+    if (d.pdfSoloTotale !== undefined) setPdfSoloTotale(d.pdfSoloTotale);
+    if (d.pdfSconti !== undefined) setPdfSconti(d.pdfSconti);
+    if (d.pdfImmagini !== undefined) setPdfImmagini(d.pdfImmagini);
+    if (d.pdfSchedeTecniche !== undefined) setPdfSchedeTecniche(d.pdfSchedeTecniche);
+    if (d.pdfFirma !== undefined) setPdfFirma(d.pdfFirma);
+    if (d.pdfMisure !== undefined) setPdfMisure(d.pdfMisure);
+    if (d.pdfAttributi !== undefined) setPdfAttributi(d.pdfAttributi);
+    if (d.pdfNoteCliente !== undefined) setPdfNoteCliente(d.pdfNoteCliente);
+    if (d.pdfCondizioni !== undefined) setPdfCondizioni(d.pdfCondizioni);
+    if (d.pdfWatermarkText !== undefined) setPdfWatermarkText(d.pdfWatermarkText);
+    if (d.pdfCopiaDestinatario !== undefined) setPdfCopiaDestinatario(d.pdfCopiaDestinatario);
     setRecoverableDraft(null);
-    toast.success("Bozza ripristinata");
+    toast.success("Bozza ripristinata", { description: "Ripresi anche modello, pagamenti e impostazioni PDF, se presenti nella bozza." });
   };
 
   // Step validation
@@ -1663,7 +1649,7 @@ export default function QuoteBuilder() {
       }
       case 1: {
         const activeItems = items.filter(
-          (i) => !["nota", "subtotale"].includes(i.item_category)
+          (i) => !["nota", "subtotale", "sconto"].includes(i.item_category)
         );
         if (activeItems.length === 0) {
           toast.error("Aggiungi almeno un prodotto o servizio");
@@ -1695,7 +1681,7 @@ export default function QuoteBuilder() {
     prezzoManualeIvaPct
   );
   const subtotal = totaliPro.subtotale;
-  const discountAmt = subtotal * (discountPercent / 100);
+  const discountAmt = Math.round((subtotal - totaliPro.subtotale_netto) * 100) / 100;
   // ⚠️ IVA: `totaliPro.iva_breakdown` è GIÀ al netto dello sconto globale
   // (calcolaTotaliPreventivo ritorna iva_breakdown_netto = iva × (1 - sconto%)).
   // Prima qui la si ri-moltiplicava per (1 - discountPercent/100) → IVA scontata
@@ -1720,22 +1706,40 @@ export default function QuoteBuilder() {
   );
 
   // Save
-  const handleSave = async (status: string = "bozza", opts?: { anteprima?: boolean }) => {
+  const handleSave = async (status: string = "bozza", opts?: { anteprima?: boolean; autosave?: boolean; complete?: boolean }) => {
     if (!companyId || !user) return;
+    if (isEdit && (!existingQuote || !existingItemsLoaded || !existingAttachmentsLoaded)) {
+      if (!opts?.autosave) toast.error("Caricamento incompleto", {
+        description: "Attendi il caricamento di righe e allegati. Se il problema continua, ricarica la pagina prima di salvare.",
+      });
+      return;
+    }
+    if (!isEdit && (partialQuoteId || pendingEditNavId)) {
+      toast.error("Questo preventivo è già stato creato", {
+        description: "Apri la versione salvata per completarla senza creare un duplicato.",
+        action: { label: "Apri preventivo", onClick: () => navigate(`/azienda/marketing/preventivi/${partialQuoteId || pendingEditNavId}`) },
+      });
+      return;
+    }
     // P2 FIX: blocca double-click / submit concorrente.
     // Se c'è già un save in progress ignora chiamata duplicata per evitare
     // la race condition DELETE→INSERT che può perdere righe preventivo.
-    if (saving) return;
+    if (saveInFlightRef.current) return;
+    if (paymentPlanError(paymentPhases)) {
+      toast.error(paymentPlanError(paymentPhases)!);
+      return;
+    }
+    persistLocalDraft();
+    saveInFlightRef.current = true;
     setSaving(true);
     try {
-      // TODO IMP10: complex type — quoteData includes P03 fields not in generated types
       // Linka all'opportunità se siamo arrivati con ?opportunity_id=…
       // così il preventivo appare anche nella tab Preventivi dell'opp.
       // In MODIFICA il campo NON si tocca: prima l'update scriveva null e
       // ogni salvataggio cancellava il legame col deal (0 preventivi
       // agganciati in tutto il DB, verificato 2026-08-21).
       const urlOpportunityId = searchParams.get("opportunity_id") || null;
-      const quoteData: Record<string, unknown> = {
+      const quoteData: TablesUpdate<"quotes"> = {
         company_id: companyId,
         // Su un preventivo esistente lo stato non si tocca se non è una bozza: i
         // pulsanti salvano sempre «bozza», e da /modifica un preventivo inviato
@@ -1755,7 +1759,7 @@ export default function QuoteBuilder() {
         notes: notes || null,
         internal_notes: internalNotes || null,
         payment_method: paymentMethod || null,
-        payment_phases: paymentPhases.length ? recalcPhaseAmounts(paymentPhases, total) : null,
+        payment_phases: paymentPhases.length ? recalcPhaseAmounts(paymentPhases, total).map(phase => ({ ...phase })) : null,
         bonus_lines: bonusLines.length ? serializeBonusLines(bonusLines) : null,
         validity_days: validityDays,
         discount_percent: discountPercent,
@@ -1763,7 +1767,7 @@ export default function QuoteBuilder() {
         prezzo_manuale_iva_pct: prezzoManualeIvaPct,
         // L'autore resta chi l'ha creato: le notifiche di firma e scadenza vanno a lui.
         ...(isEdit ? {} : { created_by: user.id }),
-        template_id: selectedTemplateId || null,
+        template_id: effectiveSelectedTemplateId || null,
         tipo_lavoro: tipoLavoro || null,
         indirizzo_lavori: indirizzoLavori || null,
         piano_installazione: pianoInstallazione || null,
@@ -1810,21 +1814,15 @@ export default function QuoteBuilder() {
         financing_num_installments: financingProposal?.num_installments ?? null,
         financing_monthly_rate: financingProposal?.monthly_rate ?? null,
         financing_total_due: financingProposal?.total_due ?? null,
-        financing_calculation_json: financingProposal?.calculation ?? null,
+        financing_calculation_json: financingProposal ? JSON.parse(JSON.stringify(financingProposal.calculation)) as Json : null,
       };
 
       let quoteId = id;
 
-      // P0-1: salvataggio atomico delle righe preventivo (stessa RPC di sempre).
-      // ORDINE (fix 2026-08-21): le RIGHE si salvano PRIMA della testata.
-      // Prima era il contrario: se la RPC righe falliva (es. CHECK violata),
-      // la testata restava salvata coi TOTALI NUOVI e le righe vecchie —
-      // totale fantasma in lista e nel dettaglio finche' non risalvavi.
-      // Con le righe prima: se falliscono, non si scrive nulla; se riescono
-      // e la testata fallisce, i totali restano quelli vecchi (conservativo)
-      // e l'errore viene comunque mostrato per il retry.
+      // La RPC è atomica per le righe, NON per testata + allegati.
+      // Controllare ogni risultato: nessun falso successo dopo errori parziali.
       const salvaRigheAtomiche = async (idPreventivo: string) => {
-        if (items.length > 0) {
+        {
           const payload = items.map((it, idx) => ({
             sort_order: idx,
             client_temp_id: it.client_temp_id ?? null,
@@ -1850,16 +1848,18 @@ export default function QuoteBuilder() {
             supplier_catalog_id: it.supplier_catalog_id ?? null,
             supplier_product_line_id: it.supplier_product_line_id ?? null,
           }));
-          const { error: rpcErr } = await supabase.rpc("save_quote_items_atomic", {
+          const { data: rpcData, error: rpcErr } = await supabase.rpc("save_quote_items_atomic", {
             p_quote_id: idPreventivo,
             p_company_id: companyId,
             p_items: payload,
           });
           if (rpcErr) throw rpcErr;
-        } else if (isEdit) {
-          // Preventivo svuotato completamente dall'utente: nulla da inserire,
-          // cancelliamo esplicitamente le righe residue.
-          await supabase.from("quote_items").delete().eq("quote_id", idPreventivo);
+          versioneCaricataRef.current = await quoteWriteVersion(rpcData, async () => {
+            const { data: written, error: versionError } = await supabase.from("quotes")
+              .select("updated_at").eq("id", idPreventivo).eq("company_id", companyId).single();
+            if (versionError) throw versionError;
+            return written.updated_at;
+          });
         }
       };
 
@@ -1892,51 +1892,73 @@ export default function QuoteBuilder() {
         // Prima, se la RPC falliva, qui nasceva un «OFF-<anno>-001» a prescindere:
         // un doppione garantito. Meglio fermarsi e dirlo.
         if (numErr || !numData) throw new Error(numErr?.message || "Impossibile assegnare il numero al preventivo: riprova.");
-        quoteData.quote_number = numData;
         const { data, error } = await supabase
           .from("quotes")
-          .insert(quoteData)
+          .insert({ ...quoteData, company_id: companyId, quote_number: numData, created_by: user.id })
           .select("id")
           .single();
         if (error) throw error;
         quoteId = data.id;
+        setPartialQuoteId(quoteId!);
         try {
           await salvaRigheAtomiche(quoteId!);
         } catch (eRighe) {
           // Compensazione: la testata appena nata senza le sue righe sarebbe
           // un mezzo preventivo coi totali sbagliati — meglio nessuno.
-          await supabase.from("quotes").delete().eq("id", quoteId!).eq("company_id", companyId);
+          const { error: cleanupError } = await supabase.from("quotes").delete().eq("id", quoteId!).eq("company_id", companyId);
+          if (cleanupError) {
+            setPendingEditNavId(quoteId!);
+            throw new Error("Salvataggio parziale: il preventivo è stato creato, ma le righe non sono state salvate. Aprilo dalla lista prima di riprovare.", { cause: eRighe });
+          }
+          setPartialQuoteId(null);
           throw eRighe;
         }
       }
 
-      // Attachments
-      if (isEdit) {
-        await supabase
-          .from("quote_pdf_attachments")
-          .delete()
-          .eq("quote_id", quoteId!);
-      }
-      if (selectedMaterials.length > 0) {
-        await supabase.from("quote_pdf_attachments").insert(
-          selectedMaterials.map((mId, idx) => ({
+      // Inserire i nuovi allegati prima di rimuovere i vecchi: un errore di
+      // caricamento non deve cancellare quelli già collegati al preventivo.
+      const { data: currentAttachments, error: attachmentsReadError } = await supabase
+        .from("quote_pdf_attachments").select("material_id").eq("quote_id", quoteId!);
+      if (attachmentsReadError) throw attachmentsReadError;
+      const currentMaterialIds = new Set(currentAttachments.map((a) => a.material_id));
+      const materialsToAdd = [...new Set(selectedMaterials)].filter((mId) => !currentMaterialIds.has(mId));
+      if (materialsToAdd.length > 0) {
+        const { error: attachmentsInsertError } = await supabase.from("quote_pdf_attachments").insert(
+          materialsToAdd.map((mId) => ({
             quote_id: quoteId!,
             material_id: mId,
-            sort_order: idx,
+            sort_order: selectedMaterials.indexOf(mId),
           }))
         );
+        if (attachmentsInsertError) throw attachmentsInsertError;
+      }
+      const materialsToRemove = [...currentMaterialIds].filter((mId) => !selectedMaterials.includes(mId));
+      if (materialsToRemove.length > 0) {
+        const { error: attachmentsDeleteError } = await supabase.from("quote_pdf_attachments")
+          .delete().eq("quote_id", quoteId!).in("material_id", materialsToRemove);
+        if (attachmentsDeleteError) throw attachmentsDeleteError;
       }
 
       // Preventivi V2 — calcolo provvigione teorica (non-blocking)
       if (quoteId && salespersonId) {
         try {
-          await supabase.rpc("compute_quote_commission", { p_quote_id: quoteId });
+          const { error: commissionError } = await supabase.rpc("compute_quote_commission", { p_quote_id: quoteId });
+          if (commissionError) throw commissionError;
         } catch (commErr) {
           console.warn("compute_quote_commission failed (non-critical):", commErr);
         }
       }
 
-      if (isEdit) await rileggiVersione(quoteId);
+      const { data: savedQuote, error: savedQuoteError } = await supabase.from("quotes")
+        .select("subtotal, discount_amount, vat_amount, total, updated_at")
+        .eq("id", quoteId!).eq("company_id", companyId).single();
+      if (savedQuoteError) throw savedQuoteError;
+      assertSavedQuoteAmounts(savedQuote, { subtotal, discount_amount: discountAmt, vat_amount: vatAmount, total });
+      versioneCaricataRef.current = savedQuote.updated_at;
+      setLastSavedHash(draftSerialized);
+      setAutosaveFailed(false);
+      if (opts?.autosave) return; // Nessun refetch che possa cancellare input in corso.
+      if (!isEdit) newQuoteCompletedRef.current = true;
       queryClient.invalidateQueries({ queryKey: queryKeys.quotes.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.quotes.detail(quoteId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.quotes.items(quoteId) });
@@ -1950,9 +1972,7 @@ export default function QuoteBuilder() {
             { body: { quote_id: quoteId } },
           );
           if (ePdf) throw ePdf;
-          if (!pdf?.signed_url) throw new Error("PDF non disponibile");
-          const resp = await fetch(pdf.signed_url);
-          const blob = await resp.blob();
+          const blob = await fetchQuotePdf(pdf?.signed_url);
           setAnteprimaUrl(URL.createObjectURL(blob));
           // Anche il PDF aggiorna il preventivo (percorso e data del file).
           await rileggiVersione(quoteId);
@@ -1969,6 +1989,8 @@ export default function QuoteBuilder() {
         navigate(`/azienda/marketing/preventivi/${quoteId}`);
       }
     } catch (err: unknown) {
+      setAutosaveFailed(true);
+      if (opts?.autosave) return;
       if (isConflittoModifica(err)) {
         // Non è un guasto: è una persona che ha salvato prima di te. Quello
         // che hai scritto resta sullo schermo, così non va perso.
@@ -1979,14 +2001,68 @@ export default function QuoteBuilder() {
         });
         return;
       }
-      const errMsg = err instanceof Error ? err.message : "Errore salvataggio";
-      toast.error(errMsg);
+      const errMsg = err instanceof Error ? err.message : (err as { message?: string })?.message || "Errore salvataggio";
+      toast.error("Salvataggio non completato", { description: `${errMsg} I dati inseriti restano in questa pagina.`, duration: 10000 });
     } finally {
+      saveInFlightRef.current = false;
       setSaving(false);
     }
   };
 
+  // Payload completo e guardia di versione condivisi con il salvataggio manuale.
+  useEffect(() => {
+    if (!isEdit || !existingQuote || !existingItemsLoaded || !existingAttachmentsLoaded ||
+        autosaveFailed || saving || !clientName.trim() ||
+        !["bozza", "draft"].includes(existingQuote.status || "") ||
+        lastSavedHash === draftSerialized) return;
+    const timer = setTimeout(() => { void handleSave("bozza", { autosave: true }); }, 60_000);
+    return () => clearTimeout(timer);
+    // handleSave usa lo snapshot di questo render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftSerialized, lastSavedHash, isEdit, existingQuote, existingItemsLoaded, existingAttachmentsLoaded, autosaveFailed, saving, companyId]);
+
   // ─── Render ───────────────────────────────────────────────────────────────
+
+  const clientReady = !!clientName.trim();
+  const productLines = items.filter((item) => !["nota", "subtotale", "sconto"].includes(item.item_category));
+  const productsReady = productLines.length > 0 && productLines.every((item) => !!item.name.trim());
+  const paymentError = paymentPlanError(paymentPhases);
+  const quoteReady = clientReady && productsReady && !paymentError;
+
+  // Prima le voci, poi la definizione del prezzo: stessa sequenza in modifica e riepilogo.
+  const priceAndDiscountPanel = productLines.length > 0 ? (
+        <Card className="border-orange-200">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Prezzo e sconto</CardTitle>
+            <p className="text-sm text-muted-foreground">Usa i prezzi dei prodotti oppure concorda un prezzo unico. L'anteprima si aggiorna con i valori applicati.</p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                {isEdit && id ? <QuoteDiscountControl quoteId={id} currentDiscount={discountPercent} approvalStatus={approvalStatus} onDiscountChange={setDiscountPercent} />
+                  : <ScontoGlobaleField id="quote-sconto-globale" value={discountPercent} onCommit={setDiscountPercent} imponibileLordo={subtotal} tipoLavoro={tipoLavoro || "classico"} />}
+                {!isEdit && listinoCliente?.attivo && (listinoCliente.sconto_globale_pct ?? 0) > 0 && <p className="text-xs text-muted-foreground">Sconto concordato nel listino cliente: {listinoCliente.sconto_globale_pct}%. Inseriscilo qui per verificarlo con le regole aziendali.</p>}
+                {discountPercent > 0 && <p className="text-xs font-medium text-emerald-700">Risparmio sul prezzo IVA esclusa: {formatCurrency(discountAmt)}</p>}
+              </div>
+              <div className="space-y-2">
+                <PrezzoPreventivoAMano id="quote-prezzo-manuale" companyId={companyId} value={prezzoManuale} sommaVoci={totaliPro.somma_voci} showDisabledHint onCommit={(v) => {
+                  setPrezzoManuale(v);
+                  if (v && prezzoManualeIvaPct == null) setPrezzoManualeIvaPct(ivaPredefinita());
+                  if (!v) setPrezzoManualeIvaPct(null);
+                }} />
+                {totaliPro.prezzo_manuale && <div className="flex items-center justify-between gap-3">
+                  <Label htmlFor="quote-prezzo-manuale-iva">IVA sul prezzo manuale (%)</Label>
+                  <Input id="quote-prezzo-manuale-iva" type="number" min={0} max={100} step={0.5} className="w-20" value={prezzoManualeIvaPct ?? 0} onChange={(e) => setPrezzoManualeIvaPct(Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)))} />
+                </div>}
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-slate-50 p-3 text-sm">
+              <span className="text-slate-500">Imponibile {formatCurrency(imponibilePreventivo)} + IVA {formatCurrency(vatAmount)}</span>
+              <span className="font-semibold">Totale IVA inclusa <strong className="ml-2 text-lg text-primary">{formatCurrency(total)}</strong></span>
+            </div>
+          </CardContent>
+        </Card>
+  ) : null;
 
   // Step config per QuoteStepper (replica look wizard FV)
   const stepperSteps: QuoteStep[] = STEPS.map((s) => ({
@@ -2011,6 +2087,7 @@ export default function QuoteBuilder() {
   return (
     <div className="space-y-4 pb-24 [&_label]:text-xs sm:[&_label]:text-sm">
       {/* Recupero bozza locale (solo preventivo NUOVO) */}
+      {paymentError && step === 2 && <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{paymentError} Correggi il piano prima di salvare o aprire il PDF. Le modifiche restano nella pagina.</div>}
       {!isEdit && recoverableDraft && (
         <div className="flex flex-col gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-2 text-sm text-amber-900">
@@ -2034,10 +2111,10 @@ export default function QuoteBuilder() {
       <QuotePageHeader
         title={isEdit ? "Modifica preventivo" : "Nuovo preventivo"}
         subtitle={
-          autosaveFailed ? (
+          autosaveFailed || localDraftFailed ? (
             <span className="flex items-center gap-1 font-medium text-red-600">
               <AlertTriangle className="h-3 w-3" />
-              salvataggio auto fallito
+              {localDraftFailed ? "Bozza locale non protetta: salva prima di uscire" : "Salvataggio non completato: controlla prima di uscire"}
             </span>
           ) : undefined
         }
@@ -2094,9 +2171,17 @@ export default function QuoteBuilder() {
       <QuoteStepper
         steps={stepperSteps}
         current={step}
+        completedSteps={[
+          clientReady,
+          productsReady,
+          quoteReady,
+        ]}
         onSelect={setStep}
         allowJumpForward
       />
+
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_380px] 2xl:grid-cols-[minmax(0,1fr)_420px]">
+      <div className="min-w-0 space-y-4">
 
       {/* ── STEP 0: Cliente ── */}
       {step === 0 && (
@@ -2138,6 +2223,9 @@ export default function QuoteBuilder() {
                   <Label>Telefono</Label>
                   <Input value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} placeholder="+39 333 1234567" />
                 </div>
+                <details className="md:col-span-2 rounded-lg border p-3">
+                  <summary className="cursor-pointer text-sm font-medium">Dati fiscali e azienda <span className="font-normal text-muted-foreground">· facoltativi</span></summary>
+                  <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-3">
                 <div>
                   <Label>Azienda</Label>
                   <Input value={clientCompany} onChange={(e) => setClientCompany(e.target.value)} placeholder="Rossi Srl" />
@@ -2150,6 +2238,8 @@ export default function QuoteBuilder() {
                   <Label>P.IVA</Label>
                   <Input value={clientVatNumber} onChange={(e) => setClientVatNumber(e.target.value)} />
                 </div>
+                  </div>
+                </details>
                 <div className="md:col-span-2">
                   <Label>Indirizzo</Label>
                   <Input value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} placeholder="Via Roma 1, 20100 Milano (MI)" />
@@ -2182,7 +2272,9 @@ export default function QuoteBuilder() {
                   <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2}
                     placeholder="Breve descrizione dei lavori (appare sul PDF)" />
                 </div>
-                <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <details className="md:col-span-3 rounded-lg border p-3">
+                  <summary className="cursor-pointer text-sm font-medium">Note per il cliente e per il team</summary>
+                <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label>Note visibili al cliente</Label>
                     <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2}
@@ -2194,33 +2286,11 @@ export default function QuoteBuilder() {
                       placeholder="Info riservate per il team" />
                   </div>
                 </div>
+                </details>
               </div>
             </div>
 
             {/* Blocco 3b: Modalità e fasi di pagamento (firmate dal cliente, riportate in commessa) */}
-            <div className="border-t pt-4">
-              {isMobile && !pagamentoAperto ? (
-                <button
-                  type="button"
-                  onClick={() => setPagamentoAperto(true)}
-                  className="flex w-full items-center justify-between rounded-lg border border-dashed px-3 py-3 text-left text-sm"
-                >
-                  <span>
-                    <span className="font-medium">Modalità e fasi di pagamento</span>
-                    <span className="block text-xs text-muted-foreground">{paymentMethod || paymentPhases.length ? "Impostate: tocca per vedere" : "Piano standard (30/70): tocca per cambiare"}</span>
-                  </span>
-                  <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-                </button>
-              ) : (
-                <QuotePaymentTermsCard
-                  total={total}
-                  method={paymentMethod}
-                  phases={paymentPhases}
-                  onMethodChange={setPaymentMethod}
-                  onPhasesChange={setPaymentPhases}
-                />
-              )}
-            </div>
 
             {/* Blocco 3c: ripartizione tra bonus edilizi (opt-in azienda). Si decide
                 qui perché è quello che il cliente firma; la commessa la eredita. */}
@@ -2244,7 +2314,7 @@ export default function QuoteBuilder() {
               <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Dettagli lavoro e assegnazione
               </h4>
-            {isMobile && !dettagliLavoroAperti ? (
+            {!dettagliLavoroAperti ? (
               <button
                 type="button"
                 onClick={() => setDettagliLavoroAperti(true)}
@@ -2390,7 +2460,10 @@ export default function QuoteBuilder() {
                     // avanzato degli utenti abituati.
                     <div className="flex flex-wrap gap-2">
                       <Button size="sm" variant="brand" onClick={() => setAddItemOpen(true)}>
-                        <Plus className="h-4 w-4 mr-1" /> Aggiungi voce
+                        <Plus className="h-4 w-4 mr-1" /> Cerca e aggiungi prodotti
+                      </Button>
+                      <Button type="button" size="sm" variant="outline" onClick={() => addItem("product")}>
+                        <Plus className="h-4 w-4 mr-1" /> Aggiungi voce manuale
                       </Button>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -2704,11 +2777,9 @@ export default function QuoteBuilder() {
                                   );
                                 })()}
                                 <div className="flex-1">
-                              {/* Riga in due righe fino a 1280 px: nome sopra, numeri sotto. Con la sidebar
-                                  aperta (tablet 768, laptop 1024) la riga larga 306-350 px lasciava 18 px
-                                  a Sc% e IVA%. Su una riga sola solo da xl in su. */}
+                              {/* Nome a larghezza piena: i campi numerici restano leggibili anche con l'anteprima a destra. */}
                               <div className="grid grid-cols-12 gap-2 items-end">
-                                <div className="col-span-12 xl:col-span-4">
+                                <div className="col-span-12">
                                   <Label className="text-xs">
                                     Nome{" "}
                                     {isSconto && (
@@ -2726,28 +2797,30 @@ export default function QuoteBuilder() {
                                     className={isSconto ? "text-red-600" : ""}
                                   />
                                 </div>
-                                <div className="col-span-6 md:col-span-3 xl:col-span-2">
+                                <div className="col-span-6 2xl:col-span-3">
                                   <Label className="text-xs">Quantità</Label>
                                   <Input
                                     type="number"
                                     min={0}
                                     step={0.01}
+                                    aria-label={`Quantità: ${item.name || "riga"}`}
                                     value={item.quantity}
                                     onChange={(e) =>
                                       updateItem(
                                         idx,
                                         "quantity",
-                                        parseFloat(e.target.value) || 0
+                                        Math.max(0, parseFloat(e.target.value) || 0)
                                       )
                                     }
                                   />
                                 </div>
-                                <div className="col-span-6 md:col-span-3 xl:col-span-2">
-                                  <Label className="text-xs">€/unit</Label>
+                                <div className="col-span-6 2xl:col-span-3">
+                                  <Label className="text-xs">Prezzo unitario €</Label>
                                   <Input
                                     type="number"
                                     min={0}
                                     step={0.01}
+                                    aria-label={`Prezzo unitario: ${item.name || "riga"}`}
                                     value={item.unit_price}
                                     onChange={(e) =>
                                       updateItem(
@@ -2759,37 +2832,39 @@ export default function QuoteBuilder() {
                                     className={isSconto ? "text-red-600" : ""}
                                   />
                                 </div>
-                                <div className="col-span-4 md:col-span-2 xl:col-span-1">
-                                  <Label className="text-xs">Sc%</Label>
+                                <div className="col-span-4 2xl:col-span-2">
+                                  <Label className="text-xs">Sconto %</Label>
                                   <Input
                                     type="number"
                                     min={0}
                                     max={100}
+                                    aria-label={`Sconto riga: ${item.name || "riga"}`}
                                     value={item.discount_percent}
                                     onChange={(e) =>
                                       updateItem(
                                         idx,
                                         "discount_percent",
-                                        parseFloat(e.target.value) || 0
+                                        Math.min(100, Math.max(0, parseFloat(e.target.value) || 0))
                                       )
                                     }
                                   />
                                 </div>
-                                <div className="col-span-4 md:col-span-2 xl:col-span-1">
+                                <div className="col-span-4 2xl:col-span-2">
                                   <Label className="text-xs">IVA%</Label>
                                   <Input
                                     type="number"
+                                    aria-label={`IVA riga: ${item.name || "riga"}`}
                                     value={item.vat_rate}
                                     onChange={(e) =>
                                       updateItem(
                                         idx,
                                         "vat_rate",
-                                        parseFloat(e.target.value) || 0
+                                        Math.min(100, Math.max(0, parseFloat(e.target.value) || 0))
                                       )
                                     }
                                   />
                                 </div>
-                                <div className="col-span-4 md:col-span-2 xl:col-span-2 flex items-end justify-end gap-1">
+                                <div className="col-span-4 2xl:col-span-2 flex items-end justify-end gap-1">
                                   <p
                                     className={`font-medium text-sm py-2 ${
                                       isSconto ? "text-red-600" : ""
@@ -2814,7 +2889,7 @@ export default function QuoteBuilder() {
                                     <DropdownMenuContent align="end">
                                       <DropdownMenuItem
                                         onClick={() => {
-                                          const copy = {
+                                          const copy: QuoteItemPro = {
                                             ...items[idx],
                                             id: undefined,
                                             sort_order: items.length,
@@ -2932,199 +3007,21 @@ export default function QuoteBuilder() {
                   </DndContext>
                 )}
 
-                {/* Totals in step 1 */}
-                {items.length > 0 && (
-                  <div className="mt-6 space-y-4">
-                    <PrezzoPreventivoAMano
-                      id="quote-prezzo-manuale"
-                      companyId={companyId}
-                      value={prezzoManuale}
-                      sommaVoci={totaliPro.somma_voci}
-                      onCommit={(v) => {
-                        setPrezzoManuale(v);
-                        // Prima volta che si scrive un prezzo: un'aliquota di partenza
-                        // (quella più usata nelle righe, come le righe nuove) — restano
-                        // a 0€ senza aliquote miste da cui ripartire l'IVA. Tolto il
-                        // prezzo, l'aliquota non serve più.
-                        if (v && prezzoManualeIvaPct == null) setPrezzoManualeIvaPct(ivaPredefinita());
-                        if (!v) setPrezzoManualeIvaPct(null);
-                      }}
-                    />
-                    {Number(prezzoManuale ?? 0) > 0 && (
-                      <div className="flex justify-between items-center gap-2 py-1 rounded-md bg-orange-50/50 border border-orange-200 px-2.5">
-                        <span className="text-orange-900 text-xs">
-                          Aliquota IVA del prezzo scritto a mano — qui le righe hanno aliquote
-                          miste, quindi con le righe a 0€ non c'è nulla da ripartire.
-                        </span>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <Input
-                            id="quote-prezzo-manuale-iva"
-                            type="number"
-                            min={0}
-                            max={100}
-                            step={0.5}
-                            className="w-16 h-7 text-right text-xs bg-white"
-                            value={prezzoManualeIvaPct ?? 0}
-                            onChange={(e) => setPrezzoManualeIvaPct(parseFloat(e.target.value) || 0)}
-                          />
-                          <span className="text-xs text-orange-900">%</span>
-                        </div>
-                      </div>
-                    )}
-                    {isEdit && id && (
-                      <QuoteDiscountControl
-                        quoteId={id}
-                        currentDiscount={discountPercent}
-                        approvalStatus={approvalStatus}
-                        onDiscountChange={setDiscountPercent}
-                      />
-                    )}
-                    <div className="flex justify-end">
-                      <div className="w-full max-w-sm rounded-lg border bg-gradient-to-br from-muted/30 to-muted/10 p-4 space-y-2.5 text-sm">
-                        <div className="flex justify-between items-center">
-                          <span className="text-muted-foreground text-xs uppercase tracking-wide">
-                            {totaliPro.prezzo_manuale ? "Prezzo del preventivo" : "Subtotale"}
-                          </span>
-                          <span className="tabular-nums font-medium">
-                            {formatCurrency(subtotal)}
-                          </span>
-                        </div>
-                        {!isEdit && listinoCliente?.attivo &&
-                          (listinoCliente.sconto_globale_pct ?? 0) > 0 &&
-                          discountPercent !== listinoCliente.sconto_globale_pct && (
-                          <div className="flex justify-between items-center gap-2 rounded-md bg-primary/5 border border-primary/20 px-2 py-1.5">
-                            <span className="text-xs">
-                              Listino cliente: sconto concordato{" "}
-                              <span className="font-semibold">{listinoCliente.sconto_globale_pct}%</span>
-                            </span>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="h-6 text-xs"
-                              onClick={() => setDiscountPercent(listinoCliente.sconto_globale_pct)}
-                            >
-                              Applica
-                            </Button>
-                          </div>
-                        )}
-                        {!isEdit && (
-                          <div className="flex justify-between items-center gap-2 py-1 border-t border-dashed">
-                            <span className="text-muted-foreground text-xs uppercase tracking-wide">
-                              Sconto globale
-                            </span>
-                            <div className="flex items-center gap-1">
-                              <Input
-                                type="number"
-                                min={0}
-                                max={100}
-                                step={0.5}
-                                className="w-16 h-7 text-right text-xs"
-                                value={discountPercent}
-                                onChange={(e) =>
-                                  setDiscountPercent(
-                                    parseFloat(e.target.value) || 0
-                                  )
-                                }
-                              />
-                              <span className="text-xs text-muted-foreground">%</span>
-                            </div>
-                          </div>
-                        )}
-                        {discountPercent > 0 && (
-                          <div className="flex justify-between items-center text-orange-600 dark:text-orange-400">
-                            <span className="text-xs uppercase tracking-wide">
-                              Sconto applicato
-                            </span>
-                            <span className="tabular-nums font-medium">
-                              -{formatCurrency(discountAmt)}
-                            </span>
-                          </div>
-                        )}
-                        <div className="flex justify-between items-center">
-                          <span className="text-muted-foreground text-xs uppercase tracking-wide">
-                            IVA
-                          </span>
-                          <span className="tabular-nums text-muted-foreground">
-                            {formatCurrency(vatAmount)}
-                          </span>
-                        </div>
-                        <div className="h-px bg-border" />
-                        <div className="flex justify-between items-baseline">
-                          <span className="font-semibold text-base">
-                            Totale
-                          </span>
-                          <span className="font-bold text-xl text-primary tabular-nums">
-                            {formatCurrency(total)}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
+
               </CardContent>
             </Card>
           </div>
 
-          {/* Right: summary panel (hidden on mobile) */}
-          <div className="hidden lg:block w-72 shrink-0 sticky top-4">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Riepilogo</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                {["prodotto", "posa", "trasporto", "smaltimento", "nolo"].map(
-                  (cat) => {
-                    const catItems = items.filter(
-                      (i) => i.item_category === cat && !i.is_optional
-                    );
-                    if (catItems.length === 0) return null;
-                    const tot = catItems.reduce(
-                      (s, i) =>
-                        s +
-                        i.quantity *
-                          i.unit_price *
-                          (1 - i.discount_percent / 100),
-                      0
-                    );
-                    const labels: Record<string, string> = {
-                      prodotto: "Prodotti",
-                      posa: "Posa",
-                      trasporto: "Trasporto",
-                      smaltimento: "Smaltimento",
-                      nolo: "Nolo",
-                    };
-                    return (
-                      <div key={cat} className="flex justify-between">
-                        <span className="text-muted-foreground">
-                          {labels[cat]}
-                        </span>
-                        <span>{formatCurrency(tot)}</span>
-                      </div>
-                    );
-                  }
-                )}
-                <Separator />
-                {Object.entries(totaliPro.iva_breakdown).map(([rate, amt]) => (
-                  <div
-                    key={rate}
-                    className="flex justify-between text-muted-foreground"
-                  >
-                    <span>IVA {rate}%</span>
-                    <span>{formatCurrency(amt)}</span>
-                  </div>
-                ))}
-                <Separator />
-                <div className="flex justify-between font-bold text-base">
-                  <span>Totale</span>
-                  <span>{formatCurrency(total)}</span>
-                </div>
-              </CardContent>
-            </Card>
 
-            {/* Advisor commerciale AI: storico margini cliente + prezzo target
-                (ai-quote-supreme, on-demand — ha un costo AI per chiamata). */}
-            <div className="mt-4">
+        </div>
+      )}
+
+
+      {step === 1 && priceAndDiscountPanel}
+
+      {/* Advisor AI facoltativo: richieste solo su azione esplicita. */}
+      {step === 1 && (
+            <details className="rounded-xl border p-4"><summary className="cursor-pointer text-sm font-medium">Consigli commerciali AI (facoltativi)</summary>
               <QuoteAdvisorPanel
                 contactId={contactId}
                 clientName={clientName}
@@ -3153,20 +3050,255 @@ export default function QuoteBuilder() {
                   totaliPro.costo_totale > 0 ? totaliPro.margine_totale_pct : null
                 }
               />
-            </div>
-          </div>
-        </div>
+            </details>
       )}
 
-      {/* ── STEP 2: Documenti + PDF settings ── */}
+      {/* ── STEP 3: Riepilogo ── */}
       {step === 2 && (
-        <div className="space-y-4">
+        <QuoteCard
+          title="Controlla la tua offerta"
+          icon={<FileCheck className="h-4 w-4" />}
+        >
+          <div className="space-y-6">
+            {(!clientReady || !productsReady) && (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                <span>{!clientReady ? "Inserisci il nome del cliente per preparare il PDF." : "Aggiungi almeno un prodotto o servizio e completa i nomi delle righe."}</span>
+                <Button size="sm" variant="outline" onClick={() => setStep(!clientReady ? 0 : 1)}>{!clientReady ? "Completa cliente" : "Completa prodotti"}</Button>
+              </div>
+            )}
+            {/* Client summary */}
+            <div>
+              <h4 className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-2 flex items-center gap-1.5">
+                <User className="h-3.5 w-3.5 text-orange-500" /> Cliente
+              </h4>
+              <div className="grid grid-cols-2 gap-2 text-sm rounded-lg border border-slate-200 bg-slate-50/50 p-3">
+                <div>
+                  <span className="text-slate-500">Nome:</span>{" "}
+                  <span className="font-medium">{clientName || "—"}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500">Email:</span>{" "}
+                  <span className="font-medium">{clientEmail || "—"}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500">Azienda:</span>{" "}
+                  <span className="font-medium">{clientCompany || "—"}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500">Telefono:</span>{" "}
+                  <span className="font-medium">{clientPhone || "—"}</span>
+                </div>
+                {tipoLavoro && (
+                  <div className="col-span-2">
+                    <span className="text-slate-500">Tipo di lavoro:</span>{" "}
+                    <span className="font-medium">{tipoLavoro}</span>
+                  </div>
+                )}
+                {indirizzoLavori && (
+                  <div className="col-span-2">
+                    <span className="text-slate-500">Indirizzo lavori:</span>{" "}
+                    <span className="font-medium">{indirizzoLavori}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Items summary */}
+            <div>
+              <h4 className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-2 flex items-center gap-1.5">
+                <Package className="h-3.5 w-3.5 text-orange-500" /> Prodotti ({items.length})
+              </h4>
+              {items.length > 0 ? (
+                <>
+                  {/* Desktop: tabella a 4 colonne */}
+                  <div className="hidden md:block">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Prodotto</TableHead>
+                          <TableHead className="text-right">Qtà</TableHead>
+                          <TableHead className="text-right">Prezzo</TableHead>
+                          <TableHead className="text-right">Totale</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {items.map((it, index) => (
+                          <TableRow key={it.id ?? it.client_temp_id ?? index}>
+                            <TableCell>
+                              {it.name || "—"}
+                              {it.is_optional && (
+                                <Badge variant="outline" className="ml-2 text-xs">
+                                  Opzionale
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {it.quantity}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {formatCurrency(it.unit_price)}
+                            </TableCell>
+                            <TableCell className="text-right font-medium">
+                              {formatCurrency(
+                                it.quantity *
+                                  it.unit_price *
+                                  (1 - it.discount_percent / 100)
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+
+                  {/* Mobile: card per riga (niente tabella schiacciata) */}
+                  <div className="md:hidden space-y-2">
+                    {items.map((it, index) => (
+                      <div key={it.id ?? it.client_temp_id ?? index} className="rounded-lg border border-slate-200 bg-white p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <p className="min-w-0 font-medium text-sm leading-snug">
+                            {it.name || "—"}
+                            {it.is_optional && (
+                              <Badge variant="outline" className="ml-1.5 text-[10px]">
+                                Opzionale
+                              </Badge>
+                            )}
+                          </p>
+                          <p className="shrink-0 font-semibold text-sm tabular-nums text-slate-900">
+                            {formatCurrency(it.quantity * it.unit_price * (1 - it.discount_percent / 100))}
+                          </p>
+                        </div>
+                        <div className="mt-1.5 text-xs text-muted-foreground tabular-nums">
+                          {it.quantity} × {formatCurrency(it.unit_price)}
+                          {it.discount_percent > 0 ? ` · −${it.discount_percent}%` : ""}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">Nessun prodotto</p>
+              )}
+            </div>
+
+            {priceAndDiscountPanel}
+
+
+            {/* #40 Governance — avviso NON bloccante doppia approvazione */}
+            {approvazioneEsito?.richiedeApprovazione && (
+              <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-amber-600" />
+                <div>
+                  <p className="font-medium">Richiede doppia approvazione</p>
+                  <p className="text-xs mt-0.5">
+                    {approvazioneEsito.motivo} Puoi comunque salvare e inviare: è un controllo di
+                    governance, non un blocco.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Documents */}
+            {/* Render AI allegati */}
+
+            {selectedMaterials.length > 0 && (
+              <div>
+                <h3 className="font-medium mb-2">
+                  Documenti allegati ({selectedMaterials.length})
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {selectedMaterials.map((mId) => {
+                    const m = materials.find((x) => x.id === mId);
+                    return m ? (
+                      <Badge key={mId} variant="secondary">
+                        {m.name}
+                      </Badge>
+                    ) : null;
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Template / Aspetto Documento */}
+            {offerTemplates.length > 0 && (
+              <div className="border-t pt-4">
+                <h3 className="font-medium mb-3 flex items-center gap-2">
+                  <Palette className="h-4 w-4" />
+                  Aspetto del Documento
+                </h3>
+                <div className="space-y-4">
+                  <div>
+                    <Label className="text-sm">Offerta completa</Label>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Copertina, testi, condizioni e stile sono inclusi nello stesso modello.
+                    </p>
+                    <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                        {offerTemplates.map((tmpl) => {
+                          const preview = resolveQuoteTemplatePreview(tmpl, templates);
+                          return (
+                          <button type="button" key={tmpl.id} aria-pressed={effectiveSelectedTemplateId === tmpl.id}
+                            onClick={() => { setSelectedTemplateId(tmpl.id); setLayoutOverride(null); }}
+                            className={`flex flex-col items-center gap-3 rounded-xl border-2 p-4 text-left transition ${effectiveSelectedTemplateId === tmpl.id ? "border-orange-500 bg-orange-50/50" : "border-slate-200 bg-slate-50 hover:border-orange-300"}`}>
+                            <div className="pointer-events-none" aria-hidden="true"><QuoteTemplatePreview template={preview} companyName={effectiveCompany?.name} logoSrc={templateAssetUrl(tmpl.logo_url)} coverSrc={templateAssetUrl(preview.cover_image_url)} scale={0.25} /></div>
+                            <span className="w-full text-sm font-semibold">{tmpl.name}{tmpl.is_default ? " · Predefinito" : ""}</span>
+                            {tmpl.description && <span className="line-clamp-2 w-full text-xs text-muted-foreground">{tmpl.description}</span>}
+                          </button>
+                          );
+                        })}
+                    </div>
+                  </div>
+                  {/* Layout quick-select — su telefono 2 per riga: a 4 le anteprime erano francobolli */}
+                  <details className="rounded-lg border p-3">
+                    <summary className="cursor-pointer text-sm">Cambia solo l'impaginazione</summary>
+                  <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {(
+                      ["classic", "modern", "minimal", "bold"] as QuoteTemplateLayout[]
+                    ).map((layout) => (
+                      <button
+                        key={layout}
+                        onClick={() => setLayoutOverride(layout)}
+                        className={`border rounded-lg p-2 text-center text-xs transition-all ${
+                          (layoutOverride ?? selectedTemplate?.layout) === layout
+                            ? "border-primary ring-1 ring-primary/30 bg-primary/5"
+                            : "border-border opacity-60"
+                        }`}
+                      >
+                        <QuoteTemplatePreview
+                          template={{ ...selectedTemplate, layout }}
+                          companyName={effectiveCompany?.name}
+                          logoSrc={templateAssetUrl(selectedTemplate?.logo_url)}
+                          page="detail"
+                          scale={0.16}
+                        />
+                        <span className="capitalize mt-1 block">{layout}</span>
+                      </button>
+                    ))}
+                  </div>
+                  </details>
+
+                </div>
+              </div>
+            )}
+          </div>
+        </QuoteCard>
+      )}
+
+      {/* Opzioni e allegati nello stesso passaggio della revisione finale. */}
+      {step === 2 && (
+        <details className="rounded-xl border border-slate-200 bg-white p-4">
+          <summary className="cursor-pointer font-medium">Personalizza PDF e allegati <span className="text-xs font-normal text-muted-foreground">· facoltativo{selectedMaterials.length ? ` · ${selectedMaterials.length} allegati` : ""}</span></summary>
+        <div className="mt-4 space-y-4">
+            <QuoteRenderPicker
+              contactId={contactId}
+              selectedRenderIds={selectedRenders.map(r => r.id)}
+              onSelectionChange={(renders) => setSelectedRenders(renders)}
+            />
           {canEditPreventivi ? (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Settings2 className="h-4 w-4" />
-                Impostazioni PDF (override per questo preventivo)
+                Contenuto del documento
                 <Badge variant="secondary" className="ml-2 text-[10px]">Admin</Badge>
               </CardTitle>
               <p className="text-xs text-muted-foreground mt-1">
@@ -3414,272 +3546,22 @@ export default function QuoteBuilder() {
             }}
           />
         </div>
-      )}
-
-      {/* ── STEP 3: Riepilogo ── */}
-      {step === 3 && (
-        <QuoteCard
-          title="Riepilogo Preventivo"
-          icon={<FileCheck className="h-4 w-4" />}
-        >
-          <div className="space-y-6">
-            {/* Client summary */}
-            <div>
-              <h4 className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-2 flex items-center gap-1.5">
-                <User className="h-3.5 w-3.5 text-orange-500" /> Cliente
-              </h4>
-              <div className="grid grid-cols-2 gap-2 text-sm rounded-lg border border-slate-200 bg-slate-50/50 p-3">
-                <div>
-                  <span className="text-slate-500">Nome:</span>{" "}
-                  <span className="font-medium">{clientName || "—"}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500">Email:</span>{" "}
-                  <span className="font-medium">{clientEmail || "—"}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500">Azienda:</span>{" "}
-                  <span className="font-medium">{clientCompany || "—"}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500">Telefono:</span>{" "}
-                  <span className="font-medium">{clientPhone || "—"}</span>
-                </div>
-                {tipoLavoro && (
-                  <div className="col-span-2">
-                    <span className="text-slate-500">Tipo di lavoro:</span>{" "}
-                    <span className="font-medium">{tipoLavoro}</span>
-                  </div>
-                )}
-                {indirizzoLavori && (
-                  <div className="col-span-2">
-                    <span className="text-slate-500">Indirizzo lavori:</span>{" "}
-                    <span className="font-medium">{indirizzoLavori}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Items summary */}
-            <div>
-              <h4 className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-2 flex items-center gap-1.5">
-                <Package className="h-3.5 w-3.5 text-orange-500" /> Prodotti ({items.length})
-              </h4>
-              {items.length > 0 ? (
-                <>
-                  {/* Desktop: tabella a 4 colonne */}
-                  <div className="hidden md:block">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Prodotto</TableHead>
-                          <TableHead className="text-right">Qtà</TableHead>
-                          <TableHead className="text-right">Prezzo</TableHead>
-                          <TableHead className="text-right">Totale</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {items.map((it) => (
-                          <TableRow key={it.id}>
-                            <TableCell>
-                              {it.name || "—"}
-                              {it.is_optional && (
-                                <Badge variant="outline" className="ml-2 text-xs">
-                                  Opzionale
-                                </Badge>
-                              )}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              {it.quantity}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              {formatCurrency(it.unit_price)}
-                            </TableCell>
-                            <TableCell className="text-right font-medium">
-                              {formatCurrency(
-                                it.quantity *
-                                  it.unit_price *
-                                  (1 - it.discount_percent / 100)
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-
-                  {/* Mobile: card per riga (niente tabella schiacciata) */}
-                  <div className="md:hidden space-y-2">
-                    {items.map((it) => (
-                      <div key={it.id} className="rounded-lg border border-slate-200 bg-white p-3">
-                        <div className="flex items-start justify-between gap-3">
-                          <p className="min-w-0 font-medium text-sm leading-snug">
-                            {it.name || "—"}
-                            {it.is_optional && (
-                              <Badge variant="outline" className="ml-1.5 text-[10px]">
-                                Opzionale
-                              </Badge>
-                            )}
-                          </p>
-                          <p className="shrink-0 font-semibold text-sm tabular-nums text-slate-900">
-                            {formatCurrency(it.quantity * it.unit_price * (1 - it.discount_percent / 100))}
-                          </p>
-                        </div>
-                        <div className="mt-1.5 text-xs text-muted-foreground tabular-nums">
-                          {it.quantity} × {formatCurrency(it.unit_price)}
-                          {it.discount_percent > 0 ? ` · −${it.discount_percent}%` : ""}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <p className="text-sm text-muted-foreground">Nessun prodotto</p>
-              )}
-            </div>
-
-            {/* Totals (replica look hero FV) */}
-            <div className="flex justify-end">
-              <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 space-y-1.5 text-sm shadow-sm">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">
-                    {totaliPro.prezzo_manuale ? "Prezzo del preventivo" : "Subtotale"}
-                  </span>
-                  <span className="font-medium tabular-nums">{formatCurrency(subtotal)}</span>
-                </div>
-                {discountPercent > 0 && (
-                  <div className="flex justify-between text-orange-600">
-                    <span>Sconto {discountPercent}%</span>
-                    <span className="tabular-nums">-{formatCurrency(discountAmt)}</span>
-                  </div>
-                )}
-                <div className="flex justify-between">
-                  <span className="text-slate-500">IVA</span>
-                  <span className="font-medium tabular-nums">{formatCurrency(vatAmount)}</span>
-                </div>
-                <div className="border-t border-slate-200 my-2" />
-                <div className="flex justify-between items-center font-bold">
-                  <span className="text-base">Totale</span>
-                  <span className="text-2xl tabular-nums text-orange-600">{formatCurrency(total)}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* #40 Governance — avviso NON bloccante doppia approvazione */}
-            {approvazioneEsito?.richiedeApprovazione && (
-              <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-                <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-amber-600" />
-                <div>
-                  <p className="font-medium">Richiede doppia approvazione</p>
-                  <p className="text-xs mt-0.5">
-                    {approvazioneEsito.motivo} Puoi comunque salvare e inviare: è un controllo di
-                    governance, non un blocco.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* Documents */}
-            {/* Render AI allegati */}
-            <QuoteRenderPicker
-              contactId={contactId}
-              selectedRenderIds={selectedRenders.map(r => r.id)}
-              onSelectionChange={(renders) => setSelectedRenders(renders)}
-            />
-
-            {selectedMaterials.length > 0 && (
-              <div>
-                <h3 className="font-medium mb-2">
-                  Documenti allegati ({selectedMaterials.length})
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  {selectedMaterials.map((mId) => {
-                    const m = materials.find((x) => x.id === mId);
-                    return m ? (
-                      <Badge key={mId} variant="secondary">
-                        {m.name}
-                      </Badge>
-                    ) : null;
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Template / Aspetto Documento */}
-            {templates.length > 0 && (
-              <div className="border-t pt-4">
-                <h3 className="font-medium mb-3 flex items-center gap-2">
-                  <Palette className="h-4 w-4" />
-                  Aspetto del Documento
-                </h3>
-                <div className="space-y-4">
-                  <div>
-                    <Label className="text-sm">Template</Label>
-                    <Select
-                      value={selectedTemplateId || ""}
-                      onValueChange={setSelectedTemplateId}
-                    >
-                      <SelectTrigger className="w-full max-w-xs mt-1">
-                        <SelectValue placeholder="Seleziona template" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {templates.map((tmpl) => (
-                          <SelectItem key={tmpl.id} value={tmpl.id}>
-                            {tmpl.name} {tmpl.is_default ? "(Default)" : ""}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  {/* Layout quick-select — su telefono 2 per riga: a 4 le anteprime erano francobolli */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {(
-                      ["classic", "modern", "minimal", "bold"] as QuoteTemplateLayout[]
-                    ).map((layout) => (
-                      <button
-                        key={layout}
-                        onClick={() => setLayoutOverride(layout)}
-                        className={`border rounded-lg p-2 text-center text-xs transition-all ${
-                          (layoutOverride ?? selectedTemplate?.layout) === layout
-                            ? "border-primary ring-1 ring-primary/30 bg-primary/5"
-                            : "border-border opacity-60"
-                        }`}
-                      >
-                        <QuoteTemplatePreview
-                          template={{ ...selectedTemplate, layout }}
-                          companyName={effectiveCompany?.name}
-                          logoSrc={templateAssetUrl(selectedTemplate?.logo_url)}
-                          scale={0.06}
-                        />
-                        <span className="capitalize mt-1 block">{layout}</span>
-                      </button>
-                    ))}
-                  </div>
-                  {/* Mini preview — da tablet in su: su telefono è una miniatura illeggibile
-                      e c'è già «Anteprima PDF» nella barra in basso */}
-                  {effectiveTemplate && (
-                    <div className="hidden sm:flex justify-center">
-                      <QuoteTemplatePreview
-                        template={effectiveTemplate}
-                        companyName={effectiveCompany?.name}
-                        logoSrc={templateAssetUrl(effectiveTemplate.logo_url)}
-                        scale={0.25}
-                      />
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        </QuoteCard>
+        </details>
       )}
 
       {/* ── Pannello Finanziamento (Step 3 — Riepilogo) ──────────────────
           Mostrato dopo i totali del preventivo. Toggle off di default per
           backward-compat. Quando attivo, calcola la rata reale dalle
           tabelle finanziarie configurate (eic_tabelle_finanziamento). */}
-      {step === 3 && (
+      {step === 2 && (
         <div className="mt-4">
+          <QuotePaymentTermsCard
+            total={total}
+            method={paymentMethod}
+            phases={paymentPhases}
+            onMethodChange={setPaymentMethod}
+            onPhasesChange={setPaymentPhases}
+          />
           <QuoteFinancingPanel
             quoteTotal={total}
             value={financingProposal}
@@ -3687,6 +3569,46 @@ export default function QuoteBuilder() {
           />
         </div>
       )}
+
+      </div>
+      <aside className="order-first min-w-0 lg:order-last lg:sticky lg:top-4">
+        <div className="hidden lg:block"><QuoteLivePreviewPanel
+              template={effectiveTemplate}
+              companyName={effectiveCompany?.name || "La tua azienda"}
+              clientName={clientName} clientAddress={clientAddress}
+              title={title} description={description} siteAddress={indirizzoLavori}
+              validityDays={validityDays} items={items}
+              showImages={pdfImmagini} imageForItem={resolveItemImage} showMeasurements={pdfMisure}
+              subtotal={subtotal} net={imponibilePreventivo} total={total}
+              vatBreakdown={totaliPro.iva_breakdown} discountPercent={discountPercent}
+              manualPrice={totaliPro.prezzo_manuale}
+              showPrices={pdfPrezziRiga} onlyTotal={pdfSoloTotale} showDiscounts={pdfSconti}
+              notes={notes} showNotes={pdfNoteCliente} showConditions={pdfCondizioni} showSignature={pdfFirma}
+              paymentMethod={paymentMethod} paymentPhases={paymentPhases}
+              logoSrc={templateAssetUrl(effectiveTemplate.logo_url)}
+              coverSrc={templateAssetUrl(effectiveTemplate.cover_image_url)}
+            /></div>
+        <details className="rounded-xl border bg-white p-3 lg:hidden">
+          <summary className="cursor-pointer text-sm font-semibold">Mostra anteprima live · {formatCurrency(total)}</summary>
+          <div className="mt-3"><QuoteLivePreviewPanel
+              template={effectiveTemplate}
+              companyName={effectiveCompany?.name || "La tua azienda"}
+              clientName={clientName} clientAddress={clientAddress}
+              title={title} description={description} siteAddress={indirizzoLavori}
+              validityDays={validityDays} items={items}
+              showImages={pdfImmagini} imageForItem={resolveItemImage} showMeasurements={pdfMisure}
+              subtotal={subtotal} net={imponibilePreventivo} total={total}
+              vatBreakdown={totaliPro.iva_breakdown} discountPercent={discountPercent}
+              manualPrice={totaliPro.prezzo_manuale}
+              showPrices={pdfPrezziRiga} onlyTotal={pdfSoloTotale} showDiscounts={pdfSconti}
+              notes={notes} showNotes={pdfNoteCliente} showConditions={pdfCondizioni} showSignature={pdfFirma}
+              paymentMethod={paymentMethod} paymentPhases={paymentPhases}
+              logoSrc={templateAssetUrl(effectiveTemplate.logo_url)}
+              coverSrc={templateAssetUrl(effectiveTemplate.cover_image_url)}
+            /></div>
+        </details>
+      </aside>
+      </div>
 
       {/* Sticky action bar (replica FvFooter) */}
       {/* md:pr-36 riserva lo spazio del FAB Silvio (fixed bottom-6 right-6, z-40):
@@ -3706,18 +3628,18 @@ export default function QuoteBuilder() {
                 <span className="flex items-center gap-1.5 text-blue-600 font-medium">
                   <Loader2 className="h-3 w-3 animate-spin" /> Salvataggio…
                 </span>
-              ) : autosaveFailed ? (
+              ) : autosaveFailed || localDraftFailed ? (
                 <span className="flex items-center gap-1.5 text-red-600 font-medium">
                   <span className="w-2 h-2 rounded-full bg-red-500" /> Errore salvataggio
                 </span>
               ) : isEdit ? (
                 <span className="flex items-center gap-1.5 text-emerald-600 font-medium">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  Salvataggio automatico
+                  {lastSavedHash === draftSerialized ? "Modifiche salvate" : "Modifiche da salvare"}
                 </span>
               ) : (
                 <span className="flex items-center gap-1.5 text-slate-400">
-                  <span className="w-2 h-2 rounded-full bg-slate-300" /> Pronto
+                  <span className="w-2 h-2 rounded-full bg-slate-300" /> {recoverableDraft ? "Bozza da recuperare" : localDraftSaved ? "Bozza su questo dispositivo" : "Non ancora salvato"}
                 </span>
               )}
             </div>
@@ -3727,9 +3649,10 @@ export default function QuoteBuilder() {
               onClick={() => setStep(Math.max(0, step - 1))}
               disabled={step === 0}
               className="h-9 shrink-0"
+              aria-label="Indietro"
             >
-              <ArrowLeft className="h-4 w-4 mr-1.5" />
-              Indietro
+              <ArrowLeft className="h-4 w-4 sm:mr-1.5" />
+              <span className="hidden sm:inline">Indietro</span>
             </Button>
           </div>
 
@@ -3748,16 +3671,16 @@ export default function QuoteBuilder() {
                 variant="outline"
                 size="sm"
                 onClick={() => handleSave("bozza", { anteprima: true })}
-                disabled={saving || anteprimaLoading || !clientName}
+                disabled={saving || anteprimaLoading || !quoteReady}
                 className="h-9"
-                aria-label="Anteprima PDF"
+                aria-label="Salva e apri PDF"
               >
                 {anteprimaLoading ? (
                   <Loader2 className="h-4 w-4 sm:mr-2 animate-spin" />
                 ) : (
                   <Eye className="h-4 w-4 sm:mr-2" />
                 )}
-                <span className="hidden sm:inline">Anteprima PDF</span>
+                <span className="hidden sm:inline">Salva e apri PDF</span>
               </Button>
             )}
             <Button
@@ -3788,8 +3711,8 @@ export default function QuoteBuilder() {
             ) : (
               <button
                 type="button"
-                onClick={() => handleSave("bozza")}
-                disabled={saving || !clientName}
+                onClick={() => handleSave("bozza", { complete: true })}
+                disabled={saving || !quoteReady}
                 className="inline-flex items-center gap-1.5 px-3.5 sm:px-5 py-2 text-sm font-bold rounded-lg text-white transition-all bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-[0_4px_12px_rgba(16,185,129,0.3)] hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(16,185,129,0.4)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 h-9"
               >
                 {saving ? (
@@ -3930,8 +3853,8 @@ export default function QuoteBuilder() {
             // quando `items.length` era diversa.
             setItems((prev) => {
               const base = [...prev];
-              configured.forEach((c, idx) => {
-                base.push({ ...c.quote_item, sort_order: base.length + idx });
+              configured.forEach((c) => {
+                base.push({ ...c.quote_item, sort_order: base.length });
               });
               return base;
             });

@@ -19,10 +19,12 @@
  * via `toDataUrl` perché react-pdf supporta solo JPG/PNG e alcune foto possono
  * essere WEBP: la conversione canvas le rende sicure per il renderer.
  */
-import { useState } from "react";
+import { useState, type ReactElement } from "react";
+import type { DocumentProps } from "@react-pdf/renderer";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { getTetTemplatePdf } from "@/hooks/useTettiProgetto";
+import { resolveTetQuoteTemplate } from "@/lib/tetti/quoteModel";
 import { toDataUrl } from "@/lib/serramenti/pdfImageUtils";
 import { immaginiDelModello } from "@/components/preventivi/pdf/immaginiDocumento";
 import { eRiferimentoNudo, linkFileRiservati } from "@/lib/storage/fileRiservati";
@@ -133,12 +135,12 @@ async function mapWithConcurrency<T, R>(
 }
 
 // ─── Enrich ──────────────────────────────────────────────────────────────────
-async function enrichForPdf(opts: TetPdfPayload): Promise<TetPdfEnriched> {
+export async function enrichTettiPdf(opts: TetPdfPayload): Promise<TetPdfEnriched> {
   const { progetto, computo, media } = opts;
   const companyId = progetto.company_id;
 
   // 1) Template: fresco da DB se non passato (riflette l'ultimo salvataggio).
-  const template = opts.template ?? (await getTetTemplatePdf(companyId));
+  const template = await resolveTetQuoteTemplate(progetto, opts.template, getTetTemplatePdf);
 
   // 2) Company (anagrafica per intestazione/contatti). Best-effort.
   let company: TetPdfCompany | null = opts.company ?? null;
@@ -281,14 +283,14 @@ async function enrichForPdf(opts: TetPdfPayload): Promise<TetPdfEnriched> {
  * o al unmount. Non apre tab né scarica: serve solo la sorgente per l'iframe.
  */
 export async function renderTetPreviewBlobUrl(opts: TetPdfPayload): Promise<string> {
-  const enriched = await enrichForPdf(opts);
+  const enriched = await enrichTettiPdf(opts);
   const [{ pdf }, { TettiPDF }, React] = await Promise.all([
     import("@react-pdf/renderer"),
     import("@/components/tetti/TettiPDF"),
     import("react"),
   ]);
   const element = React.createElement(TettiPDF, enriched);
-  const blob = await pdf(element).toBlob();
+  const blob = await pdf(element as unknown as ReactElement<DocumentProps>).toBlob();
   return URL.createObjectURL(blob);
 }
 
@@ -310,14 +312,14 @@ export function useTettiPDF() {
         });
         return { ok: false };
       }
-      const enriched = await enrichForPdf(opts);
+      const enriched = await enrichTettiPdf(opts);
       const [{ pdf }, { TettiPDF }, React] = await Promise.all([
         import("@react-pdf/renderer"),
         import("@/components/tetti/TettiPDF"),
         import("react"),
       ]);
       const element = React.createElement(TettiPDF, enriched);
-      const blob = await pdf(element).toBlob();
+      const blob = await pdf(element as unknown as ReactElement<DocumentProps>).toBlob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       const filename = buildFilename(opts.progetto);
@@ -350,14 +352,14 @@ export function useTettiPDF() {
         });
         return;
       }
-      const enriched = await enrichForPdf(opts);
+      const enriched = await enrichTettiPdf(opts);
       const [{ pdf }, { TettiPDF }, React] = await Promise.all([
         import("@react-pdf/renderer"),
         import("@/components/tetti/TettiPDF"),
         import("react"),
       ]);
       const element = React.createElement(TettiPDF, enriched);
-      const blob = await pdf(element).toBlob();
+      const blob = await pdf(element as unknown as ReactElement<DocumentProps>).toBlob();
       const url = URL.createObjectURL(blob);
       const win = window.open(url, "_blank");
       const revoke = () => { try { URL.revokeObjectURL(url); } catch { /* noop */ } };

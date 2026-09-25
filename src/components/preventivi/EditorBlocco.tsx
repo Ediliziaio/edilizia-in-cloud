@@ -4,8 +4,8 @@
  *
  * Mostra sempre il blocco com'è davvero (i testi di serie del settore con sopra
  * quelli dell'azienda) e salva SOLO quello che l'azienda cambia: il resto resta
- * di serie e migliora insieme alla libreria. «Torna ai testi di serie» cancella le
- * scelte di questo blocco.
+ * di serie. Ripristino dei testi e ripristino delle immagini sono separati:
+ * nessuno dei due cancella gli altri contenuti o la didascalia personalizzata.
  */
 import { useMemo, useState, type ReactNode } from "react";
 import { ImagePlus, Plus, RotateCcw, Trash2, X } from "lucide-react";
@@ -19,6 +19,8 @@ import {
 } from "../../../supabase/functions/_shared/blocchiPreventivo";
 import { ICONE, type NodoIcona, type NomeIcona } from "../../../supabase/functions/_shared/iconePreventivo";
 import { eTavola } from "../../../supabase/functions/_shared/proporzioniImmagine";
+import { ModulePhotoUpdateButton } from "./modules/ModulePhotoUpdateButton";
+import { resetBlockContent } from "./resetBlockContent";
 
 interface Props {
   chiave: ChiaveBlocco;
@@ -57,8 +59,8 @@ function EditorVoci({ titolo, voci, onVoci, conTesto }: {
       <Label className="text-xs">{titolo}</Label>
       <div className="space-y-1.5">
         {voci.map((x, i) => (
-          <div key={i} className="flex items-start gap-1.5">
-            <div className="flex h-9 items-center gap-1 rounded-md border bg-background px-1.5">
+          <div key={i} className="grid grid-cols-[minmax(0,1fr)_36px] items-start gap-2 rounded-lg border bg-muted/10 p-3">
+            <div className="flex h-9 w-fit max-w-full items-center gap-1 rounded-md border bg-background px-1.5">
               <AnteprimaIcona nome={x.icona} />
               <select
                 aria-label={`Icona di ${x.titolo || "voce"}`}
@@ -70,13 +72,13 @@ function EditorVoci({ titolo, voci, onVoci, conTesto }: {
                 {NOMI_ICONE.map((n) => <option key={n} value={n}>{n}</option>)}
               </select>
             </div>
-            <div className="grid min-w-0 flex-1 gap-1.5 md:grid-cols-[1fr_1.4fr]">
-              <Input value={x.titolo} onChange={(e) => cambia(i, "titolo", e.target.value)} placeholder="Titolo" aria-label="Titolo della voce" />
+            <div className="col-span-2 row-start-2 grid min-w-0 gap-2">
+              <Textarea rows={2} className="min-h-[60px] font-medium" value={x.titolo} onChange={(e) => cambia(i, "titolo", e.target.value)} placeholder="Titolo" aria-label="Titolo della voce" />
               {conTesto ? (
-                <Input value={x.testo ?? ""} onChange={(e) => cambia(i, "testo", e.target.value || null)} placeholder="Una riga di spiegazione (facoltativa)" aria-label="Spiegazione della voce" />
+                <Textarea rows={3} className="min-h-[76px] text-sm leading-relaxed" value={x.testo ?? ""} onChange={(e) => cambia(i, "testo", e.target.value || null)} placeholder="Spiegazione della voce (facoltativa)" aria-label="Spiegazione della voce" />
               ) : null}
             </div>
-            <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0" onClick={() => onVoci(voci.filter((_, j) => j !== i))} aria-label={`Togli ${x.titolo || "voce"}`}>
+            <Button type="button" size="icon" variant="ghost" className="col-start-2 row-start-1 h-9 w-9 shrink-0" onClick={() => onVoci(voci.filter((_, j) => j !== i))} aria-label={`Togli ${x.titolo || "voce"}`}>
               <X className="h-3.5 w-3.5" />
             </Button>
           </div>
@@ -95,7 +97,8 @@ export function EditorBlocco({ chiave, settore, salvati, onSalvati, campoFoto, i
   const effettivo = useMemo(() => leggiBlocco(chiave, settore, tutti), [chiave, settore, tutti]);
   const descrizione = descrizioneBlocco(chiave);
   const [libreriaAperta, setLibreriaAperta] = useState(false);
-  const libreria = useMemo(() => fotoDellaLibreria(settore), [settore]);
+  const [aggiungiFoto, setAggiungiFoto] = useState(false);
+  const libreria = useMemo(() => fotoDellaLibreria(settore, tutti), [settore, tutti]);
 
   const salva = (campi: Record<string, unknown>) => onSalvati({ ...tutti, [chiave]: { ...proprio, ...campi } });
   // Nei campi si vede quello che l'azienda sta scrivendo, anche vuoto: se mostrassero
@@ -106,16 +109,19 @@ export function EditorBlocco({ chiave, settore, salvati, onSalvati, campoFoto, i
   const vociCampo = (k: "voci" | "escluse"): VoceBlocco[] =>
     Array.isArray(proprio[k]) && (proprio[k] as unknown[]).length > 0 ? (proprio[k] as VoceBlocco[]) : effettivo[k];
   const tornaDiSerie = () => {
-    if (!window.confirm("Rimettere testi e foto di serie per questa pagina?")) return;
-    const { [chiave]: _via, ...resto } = tutti;
-    onSalvati(resto);
+    if (!window.confirm("Ripristinare i testi standard di questa pagina? Le foto e le didascalie personalizzate non cambiano.")) return;
+    onSalvati(resetBlockContent(tutti, chiave, "texts"));
   };
+  const fotoStandard = leggiBlocco(chiave, settore, { modulo_defaults: tutti.modulo_defaults }).foto;
+  const fotoModificate = JSON.stringify(effettivo.foto) !== JSON.stringify(fotoStandard);
 
   // Due posti per le foto, come nel PDF. Una tavola (la grafica verticale con le
   // scritte dentro) esce da sola e intera, con le voci accanto: un posto solo.
   const slot = [effettivo.foto[0] ?? null, effettivo.foto[1] ?? null];
   const tavola = slot.find((u) => u && eTavola(u) != null) ?? null;
-  const posti = tavola ? [tavola] : slot;
+  // Empty upload slots are optional controls, not missing PDF content.
+  const piene = slot.filter((url): url is string => !!url);
+  const posti = tavola ? [tavola] : aggiungiFoto && piene.length < 2 ? [...piene, null] : piene;
   const salvaFoto = (nuove: Array<string | null>) => {
     const piene = nuove.filter((u): u is string => Boolean(u));
     salva(piene.length > 0 ? { foto: piene, senzaFoto: false } : { foto: [], senzaFoto: true });
@@ -131,10 +137,12 @@ export function EditorBlocco({ chiave, settore, salvati, onSalvati, campoFoto, i
       salvaFoto(nuove);
     }
     setLibreriaAperta(false);
+    setAggiungiFoto(false);
   };
 
   return (
     <div className={incorniciato ? "mt-3 space-y-4 rounded-md border bg-background p-3" : "space-y-4"}>
+      <ModulePhotoUpdateButton value={salvati} sector={settore} onChange={onSalvati} />
       {descrizione.promessa ? (
         <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
           Questa pagina promette qualcosa al cliente ed è accesa di serie: adatta le voci a come lavorate, e spegnila se non lo fate.
@@ -169,7 +177,8 @@ export function EditorBlocco({ chiave, settore, salvati, onSalvati, campoFoto, i
 
       {chiave !== "compreso" ? (
         <div className="space-y-2">
-          <Label className="text-xs">{tavola ? "La tavola" : "Foto (al massimo due)"}</Label>
+          <Label className="text-xs">{tavola ? "La tavola" : `Foto della pagina · ${piene.length} di 2`}</Label>
+          {!piene.length && <p className="rounded-md bg-slate-50 p-3 text-xs text-muted-foreground">Questa pagina è senza foto. Scegli un’immagine illustrativa dalla libreria oppure aggiungi una vostra foto. Non vengono stampati riquadri vuoti.</p>}
           <div className={tavola ? "grid gap-3 md:grid-cols-[220px_1fr] md:items-start" : "grid gap-3 md:grid-cols-2"}>
             {posti.map((url, i) => (
               <div key={i} className="space-y-1">
@@ -182,7 +191,7 @@ export function EditorBlocco({ chiave, settore, salvati, onSalvati, campoFoto, i
                     </Button>
                   </div>
                 ) : (
-                  campoFoto(url, (nuova) => salvaFoto(tavola ? [nuova] : slot.map((u, j) => (j === i ? nuova : u))))
+                  campoFoto(url, (nuova) => { salvaFoto(tavola ? [nuova] : slot.map((u, j) => (j === i ? nuova : u))); if (nuova) setAggiungiFoto(false); })
                 )}
               </div>
             ))}
@@ -196,6 +205,8 @@ export function EditorBlocco({ chiave, settore, salvati, onSalvati, campoFoto, i
           <Button size="sm" variant="outline" onClick={() => setLibreriaAperta((a) => !a)}>
             <ImagePlus className="mr-1.5 h-3.5 w-3.5" /> {libreriaAperta ? "Chiudi la libreria" : "Scegli dalla libreria"}
           </Button>
+          {!tavola && piene.length < 2 && <Button size="sm" variant="ghost" onClick={() => setAggiungiFoto(v => !v)}><Plus className="mr-1.5 h-3.5 w-3.5" />{aggiungiFoto ? "Annulla caricamento" : piene.length ? "Aggiungi seconda foto (facoltativa)" : "Carica una vostra foto"}</Button>}
+          {fotoModificate && <Button type="button" size="sm" variant="ghost" onClick={() => { onSalvati(resetBlockContent(tutti, chiave, "images")); setAggiungiFoto(false); }}><RotateCcw className="mr-1.5 h-3.5 w-3.5" />Ripristina immagini standard</Button>}
           {libreriaAperta ? (
             <div className="grid max-h-72 grid-cols-2 gap-2 overflow-y-auto rounded-md border p-2 md:grid-cols-4">
               {libreria.map((f) => (
@@ -213,8 +224,8 @@ export function EditorBlocco({ chiave, settore, salvati, onSalvati, campoFoto, i
       ) : null}
 
       <div className="flex justify-end">
-        <Button size="sm" variant="ghost" onClick={tornaDiSerie}>
-          <RotateCcw className="mr-1 h-3.5 w-3.5" /> Torna ai testi di serie
+        <Button type="button" size="sm" variant="ghost" onClick={tornaDiSerie}>
+          <RotateCcw className="mr-1 h-3.5 w-3.5" /> Ripristina testi standard
         </Button>
       </div>
     </div>

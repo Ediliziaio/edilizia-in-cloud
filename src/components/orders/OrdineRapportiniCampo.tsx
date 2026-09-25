@@ -6,9 +6,12 @@
 import { useState } from "react";
 import { ImgRiservata } from "@/components/common/ImgRiservata";
 import { linkFileRiservato } from "@/lib/storage/fileRiservati";
+import { notifyRapportinoPdf, openRapportinoPdf } from "@/lib/campo/rapportinoPdf";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
+import { refreshWorkQueries } from "@/lib/orders/refreshWorkQueries";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
@@ -25,6 +28,8 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import type { RapportinoStato } from "@/types/rapportino";
 import { SourceBadge } from "@/components/whatsapp/SourceBadge";
+import { LaborApprovalDialog } from "@/components/orders/LaborApprovalDialog";
+import { recheckLaborApproval } from "@/lib/campo/loadLaborReview";
 
 import { useIsMobile } from "@/hooks/use-mobile";
 interface Props { orderId: string; }
@@ -57,10 +62,13 @@ function StatoBadge({ stato }: { stato: RapportinoStato }) {
 export function OrdineRapportiniCampo({ orderId }: Props) {
   const isMobile = useIsMobile();
   const qc = useQueryClient();
-  const { role } = useAuth();
-  const canApprove = role === "company_admin" || role === "company_staff" || role === "super_admin";
+  const { role, effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+  const { canEditOrders, canViewCosts } = usePermissions();
+  const canApprove = canEditOrders && (role === "company_admin" || role === "company_staff" || role === "super_admin");
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [approvalId, setApprovalId] = useState<string | null>(null);
   const [fotoModal, setFotoModal] = useState<string | null>(null);
   const [firmaModal, setFirmaModal] = useState<{ url: string; title: string } | null>(null);
 
@@ -68,8 +76,8 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
   const [rifiutaId, setRifiutaId] = useState<string | null>(null);
   const [motivoRifiuto, setMotivoRifiuto] = useState("");
 
-  const { data: rapportini = [], isLoading } = useQuery({
-    queryKey: ["order-campo-rapportini", orderId],
+  const { data: rapportini = [], isLoading, isError, refetch } = useQuery({
+    queryKey: ["order-campo-rapportini", orderId, companyId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("campo_rapportini")
@@ -77,19 +85,22 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
         // (user_id e approvato_da): senza disambiguare PostgREST rifiuta l'embed.
         .select("*, autore:profiles!campo_rapportini_user_id_fkey(first_name, last_name)")
         .eq("order_id", orderId)
+        .eq("company_id", companyId!)
         .order("data_lavoro", { ascending: false });
       if (error) throw error;
       return data ?? [];
     },
-    enabled: !!orderId,
+    enabled: !!orderId && !!companyId,
   });
 
   // ── Approva ────────────────────────────────────────────────────────────────
   const approvaMutation = useMutation({
-    mutationFn: async (rapportinoId: string) => {
+    mutationFn: async ({rapportinoId, fingerprint, acknowledged}: {rapportinoId: string; fingerprint: string; acknowledged: boolean}) => {
+      if (!canApprove || !companyId) throw new Error("Non hai il permesso di approvare rapportini");
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Sessione scaduta, riaccedi");
-      const { error } = await supabase
+      const reviewed = await recheckLaborApproval({companyId, orderId, reportId: rapportinoId, showCosts: canViewCosts}, fingerprint, acknowledged);
+      const approvalQuery = supabase
         .from("campo_rapportini")
         .update({
           stato: "approvato",
@@ -97,9 +108,16 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
           approvato_da: user.id,
           approvato_at: new Date().toISOString(),
           motivo_rifiuto: null,
+          pdf_url: null,
         })
-        .eq("id", rapportinoId);
+        .eq("id", rapportinoId)
+        .eq("order_id", orderId)
+        .eq("company_id", companyId);
+      const { data: updated, error } = await (reviewed.stato == null ? approvalQuery.is("stato", null) : approvalQuery.eq("stato", reviewed.stato))
+        .eq("updated_at", reviewed.updated_at)
+        .select("id").maybeSingle();
       if (error) throw error;
+      if (!updated) throw new Error("Rapportino non aggiornato: potrebbe essere già cambiato. Aggiorna il controllo e verifica i permessi.");
 
       // È QUI che l'avanzamento fasi si applica: le % dichiarate dall'operaio
       // valgono solo quando l'ufficio approva. GREATEST(attuale, dichiarata)
@@ -107,11 +125,14 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
       // viene detto, non nascosto.
       let erroreFasi: string | null = null;
       try {
-        const { data: rapp } = await supabase
+        const { data: rapp, error: reportError } = await supabase
           .from("campo_rapportini")
           .select("fasi_lavorate")
           .eq("id", rapportinoId)
+          .eq("order_id", orderId)
+          .eq("company_id", companyId)
           .single();
+        if (reportError) throw reportError;
         const fasi = (rapp?.fasi_lavorate ?? []) as Array<{ phase_id: string; percentuale: number }>;
         if (fasi.length > 0) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -119,7 +140,8 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
           const { data: fresche, error: frescheErr } = await db
             .from("order_work_phases")
             .select("id, status, percentuale")
-            .in("id", fasi.map((f) => f.phase_id));
+            .in("id", fasi.map((f) => f.phase_id))
+            .eq("order_id", orderId);
           if (frescheErr) throw frescheErr;
           const byId = new Map(
             ((fresche ?? []) as { id: string; status: string; percentuale: number | null }[])
@@ -139,36 +161,47 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
       } catch (e) {
         erroreFasi = e instanceof Error ? e.message : String(e);
       }
-      return { erroreFasi };
+      return { erroreFasi, rapportinoId };
     },
-    onSuccess: ({ erroreFasi }) => {
+    onSuccess: ({ erroreFasi, rapportinoId }) => {
       toast.success("Rapportino approvato");
       if (erroreFasi) {
         toast.error("Approvato, ma l'avanzamento fasi non è stato aggiornato", { description: erroreFasi });
       }
-      qc.invalidateQueries({ queryKey: ["order-campo-rapportini", orderId] });
-      qc.invalidateQueries({ queryKey: ["order_work_phases", orderId] });
-      qc.invalidateQueries({ queryKey: ["order-phases-progress", orderId] });
+      refreshWorkQueries(qc, orderId);
+      void notifyRapportinoPdf(rapportinoId, orderId, qc);
+      setApprovalId(null);
     },
-    onError: () => toast.error("Errore durante l'approvazione"),
+    onError: (error: unknown) => toast.error(error instanceof Error ? error.message : "Errore durante l'approvazione"),
   });
 
   // ── Rifiuta ────────────────────────────────────────────────────────────────
   const rifiutaMutation = useMutation({
     mutationFn: async ({ id, motivo }: { id: string; motivo: string }) => {
-      const { error } = await supabase
+      if (!canApprove || !companyId) throw new Error("Non hai il permesso di rifiutare rapportini");
+      const original = rapportini.find(r => r.id === id);
+      if (!original || (original.stato ?? (original.approvato ? "approvato" : "inviato")) !== "inviato") throw new Error("Rapportino cambiato: ricarica prima di rifiutare");
+      const rejectionQuery = supabase
         .from("campo_rapportini")
         .update({
           stato: "rifiutato",
           approvato: false,
           motivo_rifiuto: motivo.trim() || null,
+          pdf_url: null,
         })
-        .eq("id", id);
+        .eq("id", id)
+        .eq("order_id", orderId)
+        .eq("company_id", companyId)
+        .eq("updated_at", original.updated_at);
+      const { data: updated, error } = await (original.stato == null ? rejectionQuery.is("stato", null) : rejectionQuery.eq("stato", original.stato))
+        .select("id").maybeSingle();
       if (error) throw error;
+      if (!updated) throw new Error("Rapportino non aggiornato: verifica i permessi e ricarica");
     },
-    onSuccess: () => {
+    onSuccess: (_result, { id }) => {
       toast.success("Rapportino rifiutato");
-      qc.invalidateQueries({ queryKey: ["order-campo-rapportini", orderId] });
+      refreshWorkQueries(qc, orderId);
+      void notifyRapportinoPdf(id, orderId, qc);
       setRifiutaId(null);
       setMotivoRifiuto("");
     },
@@ -182,22 +215,10 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
 
   // ── Genera/scarica PDF ─────────────────────────────────────────────────────
   const pdfMutation = useMutation({
-    mutationFn: async (rapportino: any) => {
-      // Se il PDF esiste già, apri direttamente
-      if (rapportino.pdf_url) {
-        window.open((await linkFileRiservato(rapportino.pdf_url)) ?? rapportino.pdf_url, "_blank");
-        return;
-      }
-      // Altrimenti genera
-      const { data, error } = await supabase.functions.invoke("genera-pdf-rapportino", {
-        body: { rapportino_id: rapportino.id },
-      });
-      if (error) throw error;
-      if (!data?.pdf_url) throw new Error("PDF non disponibile");
-      window.open((await linkFileRiservato(data.pdf_url)) ?? data.pdf_url, "_blank");
-      qc.invalidateQueries({ queryKey: ["order-campo-rapportini", orderId] });
+    mutationFn: async (rapportino: (typeof rapportini)[number]) => {
+      await openRapportinoPdf(rapportino, orderId, qc);
     },
-    onError: () => toast.error("Errore generazione PDF"),
+    onError: (error: unknown) => toast.error(error instanceof Error ? error.message : "Errore generazione PDF"),
   });
 
   return (
@@ -211,12 +232,15 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
       <CardContent>
         {isLoading ? (
           <div className="flex justify-center py-4"><Loader2 className="animate-spin h-5 w-5" /></div>
+        ) : isError ? (
+          <div role="alert" className="space-y-2 text-sm"><p>Rapportini non disponibili. Non è possibile verificare il consuntivo.</p><Button variant="outline" onClick={() => refetch()}>Riprova</Button></div>
         ) : rapportini.length === 0 ? (
           <p className="text-sm text-muted-foreground">Nessun rapportino caricato dagli operai</p>
         ) : (
           <div className="space-y-3">
-            {rapportini.map((r: any) => {
-              const stato: RapportinoStato = r.stato ?? (r.approvato ? "approvato" : "inviato");
+            {rapportini.map((r) => {
+              const rawStato = r.stato ?? (r.approvato ? "approvato" : "inviato");
+              const stato: RapportinoStato = rawStato === "inviato" || rawStato === "approvato" || rawStato === "rifiutato" ? rawStato : "bozza";
               return (
                 <div key={r.id} className="border rounded-lg overflow-hidden">
                   {/* Header rapportino */}
@@ -346,7 +370,7 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
                           <>
                             <Button
                               size="sm"
-                              onClick={() => approvaMutation.mutate(r.id)}
+                              onClick={() => setApprovalId(r.id)}
                               disabled={approvaMutation.isPending}
                             >
                               <Check className="h-3 w-3 mr-1" /> Approva
@@ -364,7 +388,7 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
                         {canApprove && stato === "rifiutato" && (
                           <Button
                             size="sm"
-                            onClick={() => approvaMutation.mutate(r.id)}
+                            onClick={() => setApprovalId(r.id)}
                             disabled={approvaMutation.isPending}
                           >
                             <Check className="h-3 w-3 mr-1" /> Approva ora
@@ -397,10 +421,11 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
                         {/* Costo scritto dal trigger all'approvazione: ore ×
                             costo orario del dipendente. 0 = subappaltatore
                             (costa a contratto/SAL) o dipendente senza tariffa. */}
-                        {stato === "approvato" && Number(r.costo_manodopera) > 0 && (
+                        {canViewCosts && stato === "approvato" && (
                           <div className="text-xs font-medium text-emerald-700">
                             Costo manodopera registrato:{" "}
-                            {Number(r.costo_manodopera).toLocaleString("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" })}
+                            {r.costo_manodopera == null ? "Non disponibile" : Number(r.costo_manodopera).toLocaleString("it-IT", { style: "currency", currency: "EUR", useGrouping: true })}
+                            {Number(r.costo_manodopera) === 0 && r.costo_manodopera != null && <span className="mt-1 block font-normal text-amber-700">Zero registrato: può dipendere da tariffa mancante o presenze esterne. Non indica automaticamente lavoro senza costo.</span>}
                           </div>
                         )}
                       </div>
@@ -412,6 +437,13 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
           </div>
         )}
       </CardContent>
+      {approvalId && companyId && canApprove && <LaborApprovalDialog
+        key={companyId + ":" + approvalId + ":" + canViewCosts}
+        companyId={companyId} orderId={orderId} reportId={approvalId} showCosts={canViewCosts}
+        busy={approvaMutation.isPending} onClose={() => setApprovalId(null)}
+        onInspect={id => { setApprovalId(null); setExpandedId(id); }}
+        onApprove={(fingerprint, acknowledged) => approvaMutation.mutate({rapportinoId: approvalId, fingerprint, acknowledged})}
+      />}
 
       {/* Modal foto fullscreen */}
       <Dialog open={!!fotoModal} onOpenChange={() => setFotoModal(null)}>

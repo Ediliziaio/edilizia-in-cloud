@@ -8,6 +8,7 @@
  */
 
 import { MODULO_RECESSO } from "./condizioniStandard.ts";
+import { isFvAccumulo, isFvLocalIntervention, fvInterventionLabel, FV_ACCUMULO_PAGINE_NON_APPLICABILI } from "./fvIntervento.ts";
 import { eFotoDiSerie, leggiBlocco, leggiFotoPagina, PAGINE_BLOCCO, type PaginaBlocco } from "./blocchiPreventivo.ts";
 import { iconaSvg } from "./iconePreventivo.ts";
 import { eTavola } from "./proporzioniImmagine.ts";
@@ -552,6 +553,12 @@ p { margin-bottom: 2mm; }
 .blocco-voce-titolo { font-family: 'Outfit', sans-serif; font-size: 10.5pt; font-weight: 700; color: #1E3A5F; line-height: 1.25; padding-top: 0.6mm; }
 .blocco-voci.tre .blocco-voce-titolo { font-size: 9.5pt; padding-top: 1.8mm; }
 .blocco-voce-testo { font-size: 8.8pt; color: #475569; line-height: 1.45; margin-top: 0.8mm; }
+.blocco-editoriale .blocco-voci { grid-template-columns: 1fr; gap: 4mm; margin-top: 8mm; }
+.blocco-editoriale .blocco-voce { padding: 7mm; min-height: 33mm; align-items: center; background: linear-gradient(115deg, #F8FAFC, #FFFFFF); border-left: 1.5mm solid #F97316; }
+.blocco-editoriale .blocco-icona { width: 17mm; height: 17mm; margin-right: 3mm; }
+.blocco-editoriale .blocco-icona svg { width: 25px; height: 25px; }
+.blocco-editoriale .blocco-voce-titolo { font-size: 14pt; padding: 0; }
+.blocco-editoriale .blocco-voce-testo { font-size: 10.5pt; line-height: 1.5; margin-top: 2mm; }
 /* La tavola: una grafica verticale intera, al centro, alta quanto lo spazio che
    lasciano titolo e voci (cqh), mai più larga della pagina (cqw). */
 .content > .blocco-tavola { flex: 1 1 0; min-height: 0; container-type: size; display: flex; justify-content: center; margin: 1mm 0 2mm; }
@@ -699,6 +706,12 @@ table .saving-zero { color: #64748B; }
 .product-info .product-specs { display: flex; gap: 1.2mm; flex-wrap: wrap; margin-top: 1.2mm; }
 .product-info .spec-chip { background: #F1F5F9; color: #475569; font-size: 7pt; font-weight: 600; padding: 0.4mm 1.8mm; border-radius: 3px; }
 .product-info .spec-chip.green { background: #DCFCE7; color: #166534; }
+.product-card.featured { margin-top: 8mm; grid-template-columns: 1fr; padding: 7mm; gap: 6mm; }
+.product-card.featured .product-img { height: 82mm; aspect-ratio: auto; }
+.product-card.featured .product-img svg, .product-card.featured .product-img img { height: 90%; width: 80%; }
+.product-card.featured .product-info h3 { font-size: 17pt; line-height: 1.2; }
+.product-card.featured .product-info p { font-size: 10pt; line-height: 1.5; margin: 4mm 0; }
+.product-card.featured .spec-chip { font-size: 10pt; padding: 2mm 4mm; }
 .macro-hero { display: grid; grid-template-columns: 1fr 1.1fr; gap: 7mm; align-items: center; margin: 5mm 0; }
 .macro-hero-img { height: 92mm; border-radius: 12px; overflow: hidden; background: linear-gradient(135deg, #F8FAFC 0%, #E2E8F0 100%); border: 1px solid #E2E8F0; display: flex; align-items: center; justify-content: center; }
 .macro-hero-img img { width: 100%; height: 100%; object-fit: cover; }
@@ -785,9 +798,9 @@ function guaranteeIconLabel(icon: string | null | undefined): string {
     case "award":
       return "★";
     case "clock":
-      return "48h";
+      return "◷";
     case "tools":
-      return "FER";
+      return "✓";
     case "battery":
       return "kWh";
     case "sun":
@@ -827,6 +840,8 @@ function imageHref(value: string | null | undefined): string | null {
   // Le foto articolo arrivano dall'edge come data URI base64 (così il PDF è
   // self-contained anche nel download browser): vanno accettate, non scartate.
   if (raw.startsWith("data:image/")) return raw;
+  // Public artwork bundled with this site is valid in local previews too.
+  if (/^\/(?:module-art|cover-stock|pdf-stock)\/[a-zA-Z0-9_./-]+$/.test(raw) && !raw.includes("..")) return raw;
   try {
     const url = new URL(raw);
     if (!["http:", "https:"].includes(url.protocol)) return null;
@@ -1022,7 +1037,7 @@ function clampPct(value: number | null | undefined, fallback: number): number {
 }
 
 function coverText(value: string | null | undefined, fallback: string): string {
-  const text = plainText(value);
+  const text = String(value ?? "").split(/\r?\n/).map(line => plainText(line)).join("\n").trim();
   return text || fallback;
 }
 
@@ -1104,7 +1119,7 @@ function pageCover(d: FvPdfTemplateData): string {
   const subtitleSize = clampSize(d.template?.pdf_cover_subtitle_size, 10, 18, 16);
   const eyebrowSize = clampSize(d.template?.pdf_cover_eyebrow_size, 8, 14, 10);
   const overlayBg = overlayStyle === "gradient"
-    ? `linear-gradient(to bottom, rgba(15,37,66,${(overlayOpacity * 0.15).toFixed(2)}) 0%, rgba(15,37,66,${(overlayOpacity * 0.55).toFixed(2)}) 55%, rgba(15,37,66,${overlayOpacity.toFixed(2)}) 100%)`
+    ? `linear-gradient(to bottom, rgba(15,37,66,${(overlayOpacity * (isFvLocalIntervention(d.template) ? 0.7 : 0.15)).toFixed(2)}) 0%, rgba(15,37,66,${(overlayOpacity * 0.55).toFixed(2)}) 55%, rgba(15,37,66,${overlayOpacity.toFixed(2)}) 100%)`
     : overlayStyle === "gradient_diag"
       ? `linear-gradient(135deg, rgba(15,37,66,${(overlayOpacity * 0.2).toFixed(2)}) 0%, rgba(15,37,66,${overlayOpacity.toFixed(2)}) 100%)`
       : overlayStyle === "vignette"
@@ -1177,14 +1192,14 @@ function pageInvestimento(d: FvPdfTemplateData, pageN: number, total: number): s
     ${header(d.progetto.numero, cliente, d.azienda.name)}
     <div class="content">
       <div class="eyebrow">L'investimento</div>
-      <h1 class="page-title">Il tuo impianto,<br/>tutto compreso.</h1>
-      <p class="page-subtitle">Il prezzo, cosa comprende e quanto recuperi con la detrazione.</p>
+      <h1 class="page-title">${isFvLocalIntervention(d.template) ? "La tua proposta,<br/>voce per voce." : "Il tuo impianto,<br/>tutto compreso."}</h1>
+      <p class="page-subtitle">${isFvLocalIntervention(d.template) ? "Il prezzo delle sole componenti e attività elencate. Eventuali servizi aggiuntivi si concordano separatamente." : "Il prezzo, cosa comprende e quanto recuperi con la detrazione."}</p>
       ${valoreProposta ? `<div class="callout callout-info">
         <span class="callout-icon">i</span>
         <div><strong>Perché questa proposta è costruita su misura</strong><div class="rich-text">${valoreProposta}</div></div>
       </div>` : ""}
       <div class="invest-hero">
-        <div class="label">Prezzo chiavi in mano</div>
+        <div class="label">${isFvLocalIntervention(d.template) ? "Importo della proposta" : "Prezzo chiavi in mano"}</div>
         <div class="price">${fmtEur(d.costi.prezzo_vendita_iva_inclusa)}</div>
         <div class="desc">IVA ${d.costi.iva_perc}% inclusa${inclusi.length > 0 ? " · componenti e servizi elencati qui sotto." : "."}</div>
       </div>
@@ -1219,7 +1234,7 @@ function pageInvestimento(d: FvPdfTemplateData, pageN: number, total: number): s
               ${r2(`Rata mensile · ${mp.durata_mesi} rate`, `${fmtEur(mp.rata_mensile)}/mese`, true)}
             </tbody>
             <tfoot><tr style="border-top:2px solid #1E3A5F;font-weight:700;">
-              <td style="padding:1.8mm 0;color:#1E3A5F;">Totale chiavi in mano</td>
+              <td style="padding:1.8mm 0;color:#1E3A5F;">${isFvLocalIntervention(d.template) ? "Totale proposta" : "Totale chiavi in mano"}</td>
               <td style="padding:1.8mm 0;text-align:right;color:#1E3A5F;">${fmtEur(tot)}</td>
             </tr></tfoot>
           </table>${noteP}`;
@@ -1259,7 +1274,7 @@ function pageInvestimento(d: FvPdfTemplateData, pageN: number, total: number): s
           </tr></thead>
           <tbody>${rows}</tbody>
           <tfoot><tr style="border-top:2px solid #1E3A5F;font-weight:700;">
-            <td style="padding:1.8mm 0;color:#1E3A5F;">Totale chiavi in mano</td>
+            <td style="padding:1.8mm 0;color:#1E3A5F;">${isFvLocalIntervention(d.template) ? "Totale proposta" : "Totale chiavi in mano"}</td>
             <td style="padding:1.8mm 0;text-align:center;color:#1E3A5F;">${fmtNum(sumPct, 0)}%</td>
             <td style="padding:1.8mm 0;text-align:right;color:#1E3A5F;">${fmtEur(sumImp)}</td>
           </tr></tfoot>
@@ -1339,17 +1354,29 @@ function pageBundleKit(d: FvPdfTemplateData, pageN: number, total: number): stri
   </div>`;
 }
 
-function pageComponenti(d: FvPdfTemplateData, pageN: number, total: number): string {
+/** Full intervention documents never silently drop components beyond the first four. */
+function gruppiComponenti(d: FvPdfTemplateData): FvPdfTemplateData["componenti"][] {
+  if (!isFvLocalIntervention(d.template)) return [d.componenti.filter(c => ["pannello", "inverter", "accumulo", "wallbox", "ottimizzatore", "struttura"].includes(c.categoria)).slice(0, 4)];
+  const groups: FvPdfTemplateData["componenti"][] = [[]];
+  let size = 0;
+  for (const component of d.componenti) {
+    const text = [component.modello, component.descrizione, component.articolo_descrizione_estesa].filter(Boolean).join(" ");
+    const estimate = Math.max(50, 22 + Math.ceil(text.length / 58) * 3.8);
+    if (groups[groups.length - 1].length && (size + estimate > 175 || groups[groups.length - 1].length >= 3)) { groups.push([]); size = 0; }
+    groups[groups.length - 1].push(component); size += estimate;
+  }
+  return groups;
+}
+
+function pageComponenti(d: FvPdfTemplateData, pageN: number, total: number, componenti = gruppiComponenti(d)[0], parte = 0): string {
   const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
-  const cards = d.componenti
-    .filter((c) => ["pannello", "inverter", "accumulo", "wallbox", "ottimizzatore", "struttura"].includes(c.categoria))
-    .slice(0, 4)
+  const cards = componenti
     .map((c) => {
       const media = productCategoryMedia(d, c.categoria);
       const imageUrl = imageHref(c.image_url) ?? media.imageUrl;
       const icon = imageUrl
         ? `<img src="${escHtml(imageUrl)}" alt="${escHtml(media.label)}"/>`
-        : svgProdottoIcona(productIconType(c.categoria));
+        : isFvAccumulo(d.template) ? `<svg viewBox="0 0 240 280" xmlns="http://www.w3.org/2000/svg" aria-label="Schema illustrativo, non immagine del prodotto"><rect x="63" y="25" width="114" height="225" rx="10" fill="#FFFFFF" stroke="#1E3A5F" stroke-width="3"/><path d="M63 90h114M63 155h114M63 220h114" stroke="#CBD5E1" stroke-width="2"/><circle cx="120" cy="235" r="4" fill="#F97316"/></svg>` : svgProdottoIcona(productIconType(c.categoria));
       const chips: string[] = [];
       if (c.potenza_w) chips.push(`<span class="spec-chip">${c.potenza_w} Wp</span>`);
       if (c.capacita_kwh) chips.push(`<span class="spec-chip">${fmtNum(c.capacita_kwh, 1)} kWh</span>`);
@@ -1357,7 +1384,7 @@ function pageComponenti(d: FvPdfTemplateData, pageN: number, total: number): str
       const titolo = c.modello ?? c.descrizione;
       const articleDescription = plainText(c.articolo_descrizione_estesa);
       const description = articleDescription || media.description;
-      return `<div class="product-card">
+      return `<div class="product-card${isFvAccumulo(d.template) && componenti.length === 1 ? " featured" : ""}">
         <div class="product-img">${icon}</div>
         <div class="product-info">
           <div class="product-brand">${escHtml([media.label, c.marca].filter(Boolean).join(" · "))}</div>
@@ -1365,6 +1392,7 @@ function pageComponenti(d: FvPdfTemplateData, pageN: number, total: number): str
           ${description ? `<p>${escHtml(description)}</p>` : ""}
           ${c.quantita > 1 ? `<p>Quantità: <strong>${c.quantita} pezzi</strong></p>` : ""}
           ${chips.length > 0 ? `<div class="product-specs">${chips.join("")}</div>` : ""}
+          ${isFvAccumulo(d.template) && !imageUrl ? `<p style="color:#64748B;font-size:8pt;">Schema illustrativo. Per identificare il prodotto fanno fede il modello e la scheda tecnica della fornitura.</p>` : ""}
         </div>
       </div>`;
     })
@@ -1373,9 +1401,9 @@ function pageComponenti(d: FvPdfTemplateData, pageN: number, total: number): str
   return `<div class="page">
     ${header(d.progetto.numero, cliente, d.azienda.name)}
     <div class="content">
-      <div class="eyebrow">I componenti</div>
+      <div class="eyebrow">I componenti${parte ? ` · continua ${parte + 1}` : ""}</div>
       <h1 class="page-title">I componenti,<br/>uno per uno.</h1>
-      <p class="page-subtitle">Marca, modello e garanzia di ogni componente che installiamo sul tuo tetto.</p>
+      <p class="page-subtitle">${isFvLocalIntervention(d.template) ? "I prodotti elencati nella proposta. Modelli, prestazioni e condizioni sono quelli delle schede confermate." : "Marca, modello e garanzia di ogni componente che installiamo sul tuo tetto."}</p>
       ${cards || "<p>Nessun componente configurato.</p>"}
       ${fasciaFotoPagina(d, "componenti", "center 45%", true)}
     </div>
@@ -1795,7 +1823,7 @@ function fasciaFotoPagina(d: FvPdfTemplateData, pagina: PaginaConFotoFv, posizio
 
 /** «Dal tuo tetto *alla tua presa*.»: la parola fra asterischi nel colore dell'accento. */
 function titoloConAccento(titolo: string): string {
-  return escHtml(titolo).replace(/\*([^*]+)\*/g, '<span class="accento">$1</span>');
+  return escHtml(titolo).replace(/\*([^*]+)\*/g, '<span class="accento">$1</span>').replace(/\n/g, "<br/>");
 }
 
 function pageBlocco(d: FvPdfTemplateData, id: PaginaBlocco, pageN: number, total: number): string {
@@ -1827,7 +1855,7 @@ function pageBlocco(d: FvPdfTemplateData, id: PaginaBlocco, pageN: number, total
   }
   return `<div class="page">
     ${header(d.progetto.numero, cliente, d.azienda.name)}
-    <div class="content">
+    <div class="content${isFvAccumulo(d.template) && foto.length === 0 && blocco.voci.length <= 4 ? " blocco-editoriale" : ""}">
       <div class="eyebrow">${escHtml(blocco.occhiello)}</div>
       <h1 class="page-title blocco-titolo">${titoloConAccento(blocco.titolo)}</h1>
       ${blocco.intro ? `<p class="page-subtitle">${escHtml(blocco.intro)}</p>` : ""}
@@ -1975,9 +2003,9 @@ function pageIter(d: FvPdfTemplateData, pageN: number, total: number): string {
   return `<div class="page">
     ${header(d.progetto.numero, cliente, d.azienda.name)}
     <div class="content">
-      <div class="eyebrow">Iter pratiche</div>
-      <h1 class="page-title">Pensiamo a<br/>tutto noi.</h1>
-      <p class="page-subtitle">Tu firmi una sola volta. Ecco i passaggi fino all'accensione dell'impianto.</p>
+      <div class="eyebrow">${isFvLocalIntervention(d.template) ? "Il percorso dell'intervento" : "Iter pratiche"}</div>
+      <h1 class="page-title">${isFvLocalIntervention(d.template) ? "Dalla verifica<br/>alla consegna." : "Pensiamo a<br/>tutto noi."}</h1>
+      <p class="page-subtitle">${isFvLocalIntervention(d.template) ? escHtml(fvInterventionLabel(d.template)) + ": attività e tempi da concordare." : "Tu firmi una sola volta. Ecco i passaggi fino all'accensione dell'impianto."}</p>
       ${intro ? `<div class="callout callout-info"><span class="callout-icon">i</span><div><strong>Il percorso cliente</strong><div class="rich-text">${intro}</div></div></div>` : ""}
       <div class="tl">
         ${customCrono.length > 0 ? customTimeline : defaultTimeline}
@@ -1986,8 +2014,7 @@ function pageIter(d: FvPdfTemplateData, pageN: number, total: number): string {
       ${d.foto_di_serie?.installatori ? `<div class="foto-fascia"><img src="${d.foto_di_serie.installatori}" alt="" style="object-position:center 55%;" /></div>` : ""}
       <div class="callout callout-success">
         <span class="callout-icon">✓</span>
-        <div><strong>Tu firmi una volta sola.</strong>
-        Le pratiche comprese nella proposta le seguiamo noi. I tempi dipendono anche dal Comune e dal distributore di rete.</div>
+        <div>${isFvLocalIntervention(d.template) ? "<strong>Prima si conferma il perimetro.</strong> Tempi, attività e documentazione si concordano sul caso concreto. Servizi e funzioni aggiuntive devono essere esplicitamente inclusi." : "<strong>Tu firmi una volta sola.</strong> Le pratiche comprese nella proposta le seguiamo noi. I tempi dipendono anche dal Comune e dal distributore di rete."}</div>
       </div>
     </div>
     ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
@@ -2001,7 +2028,20 @@ function faqDellAzienda(d: FvPdfTemplateData): Array<{ q: string; a: string }> {
   return (d.template?.faq_items ?? [])
     .filter((f) => plainText(f.domanda).length > 0 && plainText(f.risposta).length > 0)
     .map((f) => ({ q: plainText(f.domanda), a: plainText(f.risposta) }))
-    .slice(0, 8);
+    .slice(0, isFvLocalIntervention(d.template) ? undefined : 8);
+}
+
+function gruppiFaq(d: FvPdfTemplateData): Array<Array<{ q: string; a: string }>> {
+  const faqs = faqDellAzienda(d);
+  if (!isFvLocalIntervention(d.template)) return [faqs];
+  const groups: typeof faqs[] = [[]];
+  let used = 0;
+  for (const faq of faqs) {
+    const estimate = 13 + Math.ceil(faq.q.length / 80) * 4 + Math.ceil(faq.a.length / 95) * 4;
+    if (groups[groups.length - 1].length && used + estimate > 200) { groups.push([]); used = 0; }
+    groups[groups.length - 1].push(faq); used += estimate;
+  }
+  return groups;
 }
 
 /** Le recensioni scritte nel modello: con le parole e con chi le ha dette. */
@@ -2083,9 +2123,8 @@ function pageRecensioni(d: FvPdfTemplateData, pageN: number, total: number): str
   </div>`;
 }
 
-function pageFAQ(d: FvPdfTemplateData, pageN: number, total: number): string {
+function pageFAQ(d: FvPdfTemplateData, pageN: number, total: number, faqs = faqDellAzienda(d)): string {
   const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
-  const faqs = faqDellAzienda(d);
   const testata = testataFv(d, "domande");
   return `<div class="page">
     ${header(d.progetto.numero, cliente, d.azienda.name)}
@@ -2107,6 +2146,7 @@ function pageFAQ(d: FvPdfTemplateData, pageN: number, total: number): string {
  * quelli che ci sono davvero (niente zeri, niente rientro oltre i 25 anni).
  */
 function numeriDellImpianto(d: FvPdfTemplateData): Array<{ etichetta: string; valore: string; unita?: string; nota: string; tono?: "green" | "orange" }> {
+  if (isFvLocalIntervention(d.template)) return [];
   const out: Array<{ etichetta: string; valore: string; unita?: string; nota: string; tono?: "green" | "orange" }> = [];
   if (d.flows.produzione_kwh > 0) out.push({ etichetta: "Energia prodotta", valore: fmtNum(d.flows.produzione_kwh), unita: "kWh", nota: "ogni anno, dal primo", tono: "green" });
   if (d.flows.autosufficienza_pct > 0) out.push({ etichetta: "Autosufficienza", valore: fmtPct(d.flows.autosufficienza_pct, 0), nota: "del consumo di casa dal tuo sole" });
@@ -2136,14 +2176,14 @@ function pageDecisione(d: FvPdfTemplateData, pageN: number, total: number): stri
   const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
   const fin = d.finanziamento;
   // Rata e costo netto mensile solo con un finanziamento vero.
-  const netto = fin ? Math.max(0, fin.rata_mensile - d.scenario.risparmio_mensile_eur) : null;
+  const netto = fin && !isFvAccumulo(d.template) ? Math.max(0, fin.rata_mensile - d.scenario.risparmio_mensile_eur) : null;
   const docMeta = `${d.azienda.name}${d.azienda.vat_number ? ` · P.IVA ${d.azienda.vat_number}` : ""} · Doc ${d.progetto.numero} · ${fmtData(d.progetto.creato_il)}`;
   const urgenzaTitolo = plainText(d.template?.urgenza_titolo) || "Validità offerta";
   const urgenzaDescrizione = plainText(d.template?.urgenza_descrizione);
-  const condizioni = safeRichText(d.template?.condizioni_legali_testo);
+  const condizioni = d.template?.condizioni_legali_attivo === false ? "" : safeRichText(d.template?.condizioni_legali_testo);
   const noleggioNote = safeRichText(d.template?.noleggio_note_legali);
   const isNoleggioOperativo = Boolean(fin?.finanziaria?.toLowerCase().includes("noleggio"));
-  const ctaTitolo = plainText(d.template?.pdf_cta_finale_titolo) || "Pronto a\niniziare?";
+  const ctaTitolo = coverText(d.template?.pdf_cta_finale_titolo, "Pronto a\niniziare?");
   const ctaTesto = safeRichText(d.template?.pdf_cta_finale_testo);
   const consulenteDescrizione = plainText(d.template?.consulente_descrizione_default);
   // I numeri dell'impianto riempiono la pagina quando la firma non c'è più: escono
@@ -2170,7 +2210,7 @@ function pageDecisione(d: FvPdfTemplateData, pageN: number, total: number): stri
       </div>` : ""}
       <div class="offer-box">
         <div class="offer-eyebrow">★ Riepilogo offerta — valida ${d.progetto.valido_giorni} giorni</div>
-        <h3>Impianto FV ${fmtNum(d.progetto.potenza_kwp, 1)} kWp${d.progetto.has_accumulo ? ` + accumulo ${fmtNum(d.progetto.capacita_accumulo_kwh, 1)} kWh` : ""}<br/>chiavi in mano</h3>
+        <h3>${isFvAccumulo(d.template) ? `Aggiunta accumulo ${fmtNum(d.progetto.capacita_accumulo_kwh, 1)} kWh<br/>su impianto esistente` : isFvLocalIntervention(d.template) ? escHtml(fvInterventionLabel(d.template)) + "<br/>Limitato alle voci elencate" : `Impianto FV ${fmtNum(d.progetto.potenza_kwp, 1)} kWp${d.progetto.has_accumulo ? ` + accumulo ${fmtNum(d.progetto.capacita_accumulo_kwh, 1)} kWh` : ""}<br/>chiavi in mano`}</h3>
         <div class="offer-num">${fmtEur(d.costi.prezzo_vendita_iva_inclusa)}</div>
         <div style="font-size:9pt;opacity:0.85;margin-top:2mm;position:relative;">IVA ${d.costi.iva_perc}% inclusa${fin ? ` · ${fmtEur(fin.rata_mensile)}/mese × ${fin.durata_mesi} mesi (${escHtml(fin.finanziaria)}${fin.taeg_perc != null ? ` TAEG ${fmtNum(fin.taeg_perc, 2)}%` : ""})` : ""}${netto != null ? `<br/>Costo netto reale: <strong style="color:#FBBF24;">${fmtEur(netto)}/mese</strong> (rata − risparmio)` : ""}</div>
       </div>
@@ -2235,7 +2275,7 @@ function pageFirmaContratto(d: FvPdfTemplateData, pageN: number, total: number):
   const righe: Array<[string, string]> = [
     ["Impresa", [d.azienda.name, d.azienda.vat_number ? `P.IVA ${d.azienda.vat_number}` : null].filter(Boolean).join(" · ")],
     ["Committente", [cliente, d.cliente.cf ? `CF ${d.cliente.cf}` : null].filter(Boolean).join(" · ")],
-    ["Oggetto", `Impianto fotovoltaico ${fmtNum(d.progetto.potenza_kwp, 1)} kWp${d.progetto.has_accumulo ? ` con accumulo ${fmtNum(d.progetto.capacita_accumulo_kwh, 1)} kWh` : ""}, chiavi in mano`],
+    ["Oggetto", isFvAccumulo(d.template) ? `Integrazione sistema di accumulo ${fmtNum(d.progetto.capacita_accumulo_kwh, 1)} kWh su impianto esistente, limitata alle voci elencate` : isFvLocalIntervention(d.template) ? `${fvInterventionLabel(d.template)}, limitato alle voci elencate` : `Impianto fotovoltaico ${fmtNum(d.progetto.potenza_kwp, 1)} kWp${d.progetto.has_accumulo ? ` con accumulo ${fmtNum(d.progetto.capacita_accumulo_kwh, 1)} kWh` : ""}, chiavi in mano`],
   ];
   if (luogo) righe.push(["Luogo dei lavori", luogo]);
   righe.push(["Documento", `Preventivo ${d.progetto.numero} del ${fmtData(d.progetto.creato_il)}`]);
@@ -2251,7 +2291,7 @@ function pageFirmaContratto(d: FvPdfTemplateData, pageN: number, total: number):
         ${righe.map(([k, v]) => `<div class="firma-riga${k === "Importo" ? " importo" : ""}"><span>${escHtml(k)}</span><span>${escHtml(v)}</span></div>`).join("")}
       </div>
       <div class="sig-box">
-        <p class="sig-dich">Il Committente dichiara di aver ricevuto, letto e accettato la presente proposta in ogni sua parte — l'impianto, l'importo${conCondizioni ? " e le condizioni generali di contratto che la accompagnano" : ""} — e ne sottoscrive il contenuto.</p>
+        <p class="sig-dich">Il Committente dichiara di aver ricevuto, letto e accettato la presente proposta in ogni sua parte — ${isFvLocalIntervention(d.template) ? "l'intervento descritto" : "l'impianto"}, l'importo${conCondizioni ? " e le condizioni generali di contratto che la accompagnano" : ""} — e ne sottoscrive il contenuto.</p>
         <div class="sig-grid">
           <div><div class="sig-line"></div><div class="sig-label">Luogo e data</div></div>
           <div><div class="sig-line"></div><div class="sig-label">Per l'impresa</div><div class="sig-name">${escHtml(d.azienda.name)}</div></div>
@@ -2430,6 +2470,8 @@ function quantePagineContratto(d: FvPdfTemplateData): number {
 function pagineDaDisegnare(d: FvPdfTemplateData): FvPdfPageOrderItem[] {
   const hasMap = hasRealMapImages(d);
   return normalizeFvPdfPagesOrder(d.template?.pdf_pages_order).filter((page) => {
+    if (isFvLocalIntervention(d.template) && FV_ACCUMULO_PAGINE_NON_APPLICABILI.has(page.id)) return false;
+    if (isFvLocalIntervention(d.template) && page.id === "componenti" && d.componenti.length === 0) return false;
     if (!page.visible) return false;
     // Senza immagini satellite reali l'anteprima non ha niente da mostrare.
     if (page.id === "anteprima" && !hasMap) return false;
@@ -2462,7 +2504,7 @@ export function getFvPdfRenderedPagesCount(d: FvPdfTemplateData): number {
   // Il contratto (condizioni, firma, modulo di recesso) si conta con la decisione,
   // che lo porta con sé.
   return 1 + (haPaginaKit(d) ? 1 : 0) + pagineDaDisegnare(d).reduce((count, page) => (
-    count + (page.id === "macro_categorie" ? macroPages.length : page.id === "decisione" ? 1 + quantePagineContratto(d) : 1)
+    count + (page.id === "macro_categorie" ? macroPages.length : page.id === "componenti" ? gruppiComponenti(d).length : page.id === "faq" ? gruppiFaq(d).length : page.id === "decisione" ? 1 + quantePagineContratto(d) : 1)
   ), 0);
 }
 
@@ -2507,79 +2549,90 @@ export function renderFvPdfHtml(d: FvPdfTemplateData): string {
   const orderedPages = pagineDaDisegnare(d);
   const TOTAL = getFvPdfRenderedPagesCount(d);
   let pageN = 1;
-  const pages = [pageCover(d)];
+  const pages: string[] = [];
+  const sectionParts = new Map<string, number>();
+  // Metadata on the existing first child: no extra boxes or style changes.
+  // Keep the historical outer page tag intact for PDF page-count consumers.
+  const append = (section: string, ...htmlPages: string[]) => {
+    for (const html of htmlPages) {
+      const part = sectionParts.get(section) ?? 0;
+      sectionParts.set(section, part + 1);
+      pages.push(html.replace(/<div class="page">(\s*)<([a-z][\w-]*)/, `<div class="page">$1<$2 data-fv-section="${section}" id="fv-section-${section}-${part}"`));
+    }
+  };
+  append("cover", pageCover(d));
   // Pagina del kit subito dopo la copertina, quando il kit ha un nome o delle voci.
   if (haPaginaKit(d)) {
-    pages.push(pageBundleKit(d, ++pageN, TOTAL));
+    append("kit", pageBundleKit(d, ++pageN, TOTAL));
   }
   for (const page of orderedPages) {
     switch (page.id) {
       case "investimento":
-        pages.push(pageInvestimento(d, ++pageN, TOTAL));
+        append(page.id, pageInvestimento(d, ++pageN, TOTAL));
         break;
       case "anteprima":
-        pages.push(pageAnteprima(d, ++pageN, TOTAL));
+        append(page.id, pageAnteprima(d, ++pageN, TOTAL));
         break;
       case "componenti":
-        pages.push(pageComponenti(d, ++pageN, TOTAL));
+        append(page.id, ...gruppiComponenti(d).map((group, index) => pageComponenti(d, ++pageN, TOTAL, group, index)));
         break;
       case "macro_categorie":
-        pages.push(...macroPages.map((macro) => pageMacroCategoriaDedicata(d, macro, ++pageN, TOTAL)));
+        append(page.id, ...macroPages.map((macro) => pageMacroCategoriaDedicata(d, macro, ++pageN, TOTAL)));
         break;
       case "produzione":
-        pages.push(pageProduzione(d, ++pageN, TOTAL));
+        append(page.id, pageProduzione(d, ++pageN, TOTAL));
         break;
       case "flussi":
-        pages.push(pageFlussi(d, ++pageN, TOTAL));
+        append(page.id, pageFlussi(d, ++pageN, TOTAL));
         break;
       case "risparmio":
-        pages.push(pageRisparmio(d, ++pageN, TOTAL));
+        append(page.id, pageRisparmio(d, ++pageN, TOTAL));
         break;
       case "costi_futuri":
-        pages.push(pageCostiFuturi(d, ++pageN, TOTAL));
+        append(page.id, pageCostiFuturi(d, ++pageN, TOTAL));
         break;
       case "piano_pagamento":
-        if (d.finanziamento) pages.push(pagePiano(d, d.finanziamento, ++pageN, TOTAL));
+        if (d.finanziamento) append(page.id, pagePiano(d, d.finanziamento, ++pageN, TOTAL));
         break;
       case "bollette_240":
-        pages.push(pageBollette240(d, ++pageN, TOTAL));
+        append(page.id, pageBollette240(d, ++pageN, TOTAL));
         break;
       case "cassa_25":
-        pages.push(pageCassa25(d, ++pageN, TOTAL));
+        append(page.id, pageCassa25(d, ++pageN, TOTAL));
         break;
       case "co2":
-        pages.push(pageCO2(d, ++pageN, TOTAL));
+        append(page.id, pageCO2(d, ++pageN, TOTAL));
         break;
       case "garanzie":
-        pages.push(pageGaranzie(d, ++pageN, TOTAL));
+        append(page.id, pageGaranzie(d, ++pageN, TOTAL));
         break;
       case "iter":
-        pages.push(pageIter(d, ++pageN, TOTAL));
+        append(page.id, pageIter(d, ++pageN, TOTAL));
         break;
       case "faq":
-        pages.push(pageFAQ(d, ++pageN, TOTAL));
+        append(page.id, ...gruppiFaq(d).map(group => pageFAQ(d, ++pageN, TOTAL, group)));
         break;
       case "recensioni":
-        pages.push(pageRecensioni(d, ++pageN, TOTAL));
+        append(page.id, pageRecensioni(d, ++pageN, TOTAL));
         break;
       case "come_funziona":
       case "protezione":
       case "controlli":
       case "documenti":
       case "diario":
-        pages.push(pageBlocco(d, page.id, ++pageN, TOTAL));
+        append(page.id, pageBlocco(d, page.id, ++pageN, TOTAL));
         break;
       case "decisione":
-        pages.push(pageDecisione(d, ++pageN, TOTAL));
+        append(page.id, pageDecisione(d, ++pageN, TOTAL));
         // Le condizioni si firmano dopo averle lette: prima le condizioni, poi la
         // pagina della firma, poi il modulo di recesso se le condizioni lo prevedono.
         if (haPaginaCondizioni(d)) {
           const nuove = pagineCondizioni(d, pageN + 1, TOTAL);
           pageN += nuove.length;
-          pages.push(...nuove);
+          append("condizioni", ...nuove);
         }
-        pages.push(pageFirmaContratto(d, ++pageN, TOTAL));
-        if (haModuloRecesso(d)) pages.push(pageModuloRecesso(d, ++pageN, TOTAL));
+        append("firma", pageFirmaContratto(d, ++pageN, TOTAL));
+        if (haModuloRecesso(d)) append("recesso", pageModuloRecesso(d, ++pageN, TOTAL));
         break;
     }
   }

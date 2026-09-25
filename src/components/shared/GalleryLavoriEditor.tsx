@@ -7,6 +7,7 @@ import { ImgRiservata } from "@/components/common/ImgRiservata";
 import { BUCKET_RISERVATI } from "@/lib/storage/fileRiservati";
 import { riferimentoImmagine } from "@/lib/storage/immaginiModelloPdf";
 import type { GalleryLavoroItem } from "@/types/gallery";
+import { readLocalTemplateImage } from "@/lib/moduli-vendita/localTemplateImage";
 
 interface Props {
   items: GalleryLavoroItem[];
@@ -28,6 +29,7 @@ interface Props {
   /** Prefisso path upload (es. "abc123/tetti/gallery") — senza slash finale */
   uploadPath: string;
   maxItems?: number;
+  localOnly?: boolean;
 }
 
 export function GalleryLavoriEditor({
@@ -36,6 +38,7 @@ export function GalleryLavoriEditor({
   bucket,
   uploadPath,
   maxItems = 12,
+  localOnly = false,
 }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -51,6 +54,11 @@ export function GalleryLavoriEditor({
     setUploading(true);
     const added: GalleryLavoroItem[] = [];
     for (const file of toUpload) {
+      if (localOnly) {
+        try { added.push({ id: crypto.randomUUID(), url: await readLocalTemplateImage(file) }); }
+        catch (error) { toast.error(error instanceof Error ? error.message : "Immagine non leggibile"); }
+        continue;
+      }
       if (!file.type.startsWith("image/")) { toast.error(`${file.name}: solo immagini`); continue; }
       if (file.size > 8 * 1024 * 1024) { toast.error(`${file.name}: max 8 MB`); continue; }
       const ext = file.name.includes(".") ? file.name.split(".").pop()!.toLowerCase() : "jpg";

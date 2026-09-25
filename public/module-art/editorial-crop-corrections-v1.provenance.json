@@ -1,0 +1,17 @@
+{
+  "created": "2026-09-24",
+  "generator": "Built-in ImageGen",
+  "purpose": "Immagini editoriali illustrative. Non rappresentano un lavoro aziendale, certificazione, specifica di cablaggio o conformità di accessibilità.",
+  "assets": [
+    {
+      "file": "elettrico-quadro-dettaglio-v1.jpg",
+      "prompt": "Use case: photorealistic-natural. Asset type: horizontal editorial banner for an Italian quotation PDF explaining a residential electrical distribution panel. Create a 3:1 panoramic photograph, 1536x512 or similar wide aspect. One complete small unbranded white residential electrical distribution board seen straight on, casing fully visible, front access flap neatly open to side, two rows of enclosed modular circuit breaker faces, no exposed wires. Placed centrally on a pale neutral wall in a tidy utility room, understated background. Board height only 65% of image height with at least 15% margin above and below. Entire object visible, not cut off. Soft natural daylight, warm neutral palette, high-end architectural editorial photo, realistic proportions. No person, no solar inverter, no solar cabling, no photovoltaic connectors, no voltage ratings, no readable text, no branding, no watermark. This is illustrative product context not an installation or electrical wiring instruction."
+    },
+    {
+      "file": "bagni-accessibilita-chiusura-v1.jpg",
+      "reference": "bagni-accessibilita-cover.jpg",
+      "prompt": "Use case: precise-object-edit. Edit target: attached portrait bathroom photo. Create a LANDSCAPE 3:2 editorial closing image for a bathroom adaptation proposal PDF. Preserve the same sink and tap, toilet, grab supports, pale beige wall tiles, natural lighting and calm realistic architectural aesthetic. Recompose the view so the FULL sink including tap and the FULL toilet including grab rails are comfortably inside the central area with margin on all sides. Show much LESS empty floor than in the original, and a little more wall above the tap. Do not add any other fixtures or people. Keep support configuration from the original, no compliance claims, no text, no labels, no logos. This is a generic illustrative interior, not an accessibility compliance specification."
+    }
+  ],
+  "encoding": "JPEG quality 85, original composition and dimensions preserved."
+}

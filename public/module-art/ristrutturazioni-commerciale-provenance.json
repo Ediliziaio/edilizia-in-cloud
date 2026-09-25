@@ -1,0 +1,14 @@
+[
+  {
+    "fileProgetto": "public/module-art/ristrutturazioni-commerciale-cover.jpg",
+    "prompt": "Use case: photorealistic-natural. Asset type: portrait cover for an Italian renovation quotation for shops and offices. A newly renovated small professional reception and flexible commercial interior, with a modest oak reception counter, warm neutral plaster, durable stone-look floor, a glass partition opening into a small meeting room, a simple track light. Clearly a workplace, not a home, no bed or kitchen. Photorealistic editorial architectural photography, convincing materials, calm natural daylight, vertical 2:3 framing, balanced perspective, calm lower third reserved for title added in code. No people, no brands, no text, no watermark, no extravagant luxury. An illustrative concept, not a real completed company project.",
+    "originale": "/Users/agenteai/.codex/generated_images/01a0c971-7f8c-79f3-b076-73f23be195be/exec-5d6f61e8-6342-4f84-85d2-d8ef07a380be.png",
+    "metodo": "Strumento integrato image_gen; JPEG nel progetto locale."
+  },
+  {
+    "fileProgetto": "public/module-art/ristrutturazioni-commerciale-cantiere.jpg",
+    "prompt": "Use case: photorealistic-natural. Asset type: landscape 3:2 supporting photograph for a commercial renovation quotation PDF. Interior of a modest empty office undergoing a planned fit-out: clean unpainted plasterboard partitions with finished joints, an existing glass meeting-room partition protected with translucent film, protected floor with neatly taped kraft board, a small orderly stack of drywall boards and closed tool boxes confined to one side. No people and no active business operations. Natural daylight, realistic restrained architectural documentation style, convincing materials, correct perspective, no dramatic destruction. Show work-zone organisation, not a certified safety design. No signage, lettering, logos, watermark or before/after collage. Illustrative construction scene, not a real company's completed work.",
+    "originale": "/Users/agenteai/.codex/generated_images/01a0c971-7f8c-79f3-b076-73f23be195be/exec-42a613fa-1884-4562-9d52-df64ff14b0a2.png",
+    "metodo": "Strumento integrato image_gen; JPEG nel progetto locale."
+  }
+]

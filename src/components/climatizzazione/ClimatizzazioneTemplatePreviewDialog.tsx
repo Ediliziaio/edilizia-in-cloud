@@ -16,6 +16,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { renderClmPreviewBlobUrl } from "@/hooks/useClimatizzazionePDF";
 import type { ClmTemplatePdf, ClmProgetto, ClmComputoVoce } from "@/types/climatizzazione";
 
+import { buildClmModulePreview, type FullClmModuleId } from "@/lib/moduli-vendita/fullClmModules";
+
 function buildMockComputo(companyId: string): ClmComputoVoce[] {
   const row = (
     i: number, cap: string, descrizione: string,
@@ -39,7 +41,7 @@ function buildMockComputo(companyId: string): ClmComputoVoce[] {
 function buildMockProgetto(companyId: string): ClmProgetto {
   return {
     id: "preview", company_id: companyId, code: "ANTEPRIMA", stato: "bozza",
-    tipo_intervento: "Nuovo impianto di climatizzazione",
+    tipo_intervento: "Nuovo impianto di climatizzazione", numero_unita_interne: null, tipologia_impianto: null, massimale_detrazione: null,
     cliente_nome: "Mario", cliente_cognome: "Rossi", cliente_email: null, cliente_telefono: null,
     cantiere_indirizzo: "Via Roma 1", cantiere_citta: "Milano", cantiere_provincia: "MI", cantiere_cap: "20100",
     immobile_tipo: "Appartamento", immobile_superficie_mq: 90, immobile_anno: 1975, immobile_piani: 1,
@@ -54,12 +56,13 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   template: ClmTemplatePdf | null;
   companyId: string | null;
+  moduleId?: FullClmModuleId;
   /** Apertura del PDF in una scheda separata (riusa l'handler dell'editor). */
   onOpenInTab?: () => void;
 }
 
 export function ClimatizzazioneTemplatePreviewDialog({
-  open, onOpenChange, template, companyId, onOpenInTab,
+  open, onOpenChange, template, companyId, onOpenInTab, moduleId,
 }: Props) {
   const [url, setUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -74,7 +77,7 @@ export function ClimatizzazioneTemplatePreviewDialog({
         setLoading(true);
         setError(null);
         try {
-          const blobUrl = await renderClmPreviewBlobUrl({
+          const blobUrl = await renderClmPreviewBlobUrl(moduleId ? buildClmModulePreview(companyId, template, moduleId) : {
             progetto: buildMockProgetto(companyId),
             computo: buildMockComputo(companyId),
             media: [],
@@ -92,7 +95,7 @@ export function ClimatizzazioneTemplatePreviewDialog({
       })();
     }, 450);
     return () => { cancelled = true; window.clearTimeout(timer); };
-  }, [open, template, companyId]);
+  }, [open, template, companyId, moduleId]);
 
   // Revoca l'ultimo blob al unmount.
   useEffect(() => () => {

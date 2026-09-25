@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { filtriRicercaContatti } from "@/lib/ricerca/ricercaContatti";
 import { CAMPI_IMMAGINE_SERRAMENTI, normalizzaImmaginiModello } from "@/lib/storage/immaginiModelloPdf";
 import { termineDiRicerca } from "@/lib/ricercaPostgrest";
+import { readSrQuoteModelSnapshot, srModelProjectDefaults } from "./quoteModel";
 import type {
   SrProgettoRow,
   SrSerramentoRow,
@@ -50,6 +51,9 @@ export async function createProgetto(
     companyId = (profile as any)?.company_id ?? null;
   }
   if (!companyId) throw new Error("Nessuna azienda aperta: entra in un'azienda per creare il preventivo");
+  const modelSnapshot = readSrQuoteModelSnapshot(input.modello_snapshot, companyId);
+  // One INSERT persists the document and the quote atomically. No local-only association.
+  if (modelSnapshot) input = { ...srModelProjectDefaults(modelSnapshot), ...input };
 
   // FIX integrazione · Leggi i default dal template aziendale (se esiste)
   // e pre-popola i campi `iva_percentuale`, `valido_fino_giorni`,
@@ -109,6 +113,7 @@ export async function createProgetto(
     valido_fino_giorni: validoGiorniDefault,
     fin_anticipo_pct: anticipoPctDefault,
     stato: "bozza",
+    ...(modelSnapshot ? { modello_snapshot: modelSnapshot, valido_fino_giorni: input.valido_fino_giorni ?? validoGiorniDefault } : {}),
   };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1308,6 +1313,13 @@ export async function deleteMedia(id: string): Promise<void> {
 export async function generaPdf(
   progetto_id: string,
 ): Promise<{ html_url: string; public_url: string | null; duration_ms: number; pages_count: number | null }> {
+  // The public-signature renderer does not yet support model snapshots.
+  // Read * to remain compatible with databases without the optional column.
+  const { data: project, error: projectError } = await supabase.from("sr_progetti").select("*").eq("id", progetto_id).maybeSingle();
+  if (projectError || !project) throw new Error("Impossibile verificare il preventivo prima della generazione.");
+  if ((project as unknown as SrProgettoRow).modello_snapshot) {
+    throw new Error("Per questo modello usa il PDF A4. La pagina di firma non è ancora collegata.");
+  }
   const { data, error } = await supabase.functions.invoke("sr-genera-pdf", {
     body: { progetto_id },
   });

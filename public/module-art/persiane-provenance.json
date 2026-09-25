@@ -1,0 +1,23 @@
+{
+  "method": "builtin image_gen",
+  "date": "2026-09-23",
+  "usage": "Immagini illustrative generate, non opere reali dell'azienda né schede tecniche di prodotto",
+  "assets": [
+    {
+      "path": "public/module-art/serramenti-persiane-cover.jpg",
+      "prompt": "Use case: photorealistic-natural. Asset type: portrait A4 sales quotation cover for Italian exterior shutters, not windows. Primary request: high-end architectural photo of sage green two-leaf exterior louvered shutters mounted correctly on a pale warm stucco Italian house façade. One shutter partly open shows genuine horizontal louvers, dark hinges and wall catch; tactile satin painted aluminum, stone sill. Morning daylight with subtle leaf shadows. Quiet editorial composition, vertical portrait, enough darker quiet space in lower third for white title added later. No people, no text, no logo, no watermark, no collages. This is an illustrative architectural scene, not a real company's completed work."
+    },
+    {
+      "path": "public/module-art/serramenti-persiane-dettaglio.jpg",
+      "prompt": "Use case: product-mockup. Asset type: wide editorial technical-detail photograph for a premium Italian quotation about exterior louvered shutters. Close three-quarter view of a single satin sage green aluminum shutter leaf, showing well-spaced horizontal fixed louvers, vertical stile, and one mechanically plausible dark metal hinge connecting to a matching outer frame. Pale warm stucco wall in background; subtle sunlight and natural shadows. Clean material detail, sharp believable manufacture, no exploded view, no glass window cross section, no people, no captions, no labels, no arrows, no branding, no watermark. Landscape 3:2. This is illustrative, not a specified manufacturer's product."
+    },
+    {
+      "path": "public/module-art/serramenti-persiane-controlli.jpg",
+      "prompt": "Use case: productivity-visual. Asset type: portrait technical photo-board for an Italian quotation about installation of sage-green exterior louvered shutters (persiane). A refined 2x2 grid of four separate photorealistic editorial detail photos, with slim white gutters and rounded corners, no text whatsoever. Top left: close-up of measuring a shutter opening with a tape, no person face. Top right: close-up of correctly mounted dark metal hinge on sage green shutter frame and sound light stucco masonry. Bottom left: a hand operating the small lever of adjustable shutter louvers. Bottom right: exterior shutter wall catch retaining an open leaf against the façade, clear mechanical plausibility. Consistent sage, warm off-white, charcoal hardware; realistic hands, natural daylight, professionally built home; no glass window cross-sections, no insulation diagrams, no logos, no watermarks. Portrait 3:4 composition. Illustrative installation details, not a real company's work."
+    },
+    {
+      "path": "public/module-art/serramenti-persiane-protezione.jpg",
+      "prompt": "Use case: photorealistic-natural. Asset type: wide editorial photo for an Italian sales quotation page about careful installation of exterior shutters. Ground-floor house with warm pale stucco façade and an open sage-green louvered shutter. Foreground stone sill and adjacent terracotta floor carefully protected with clean reusable felt and masking tape; a compact organized toolkit and a detached matching shutter leaf resting vertically on a padded trestle at ground level. No people, no roof, no ladders, no dangerous work at height. Natural daylight, calm professional construction editorial photography, visible realistic textures, landscape 3:2. No text, no logos, no watermark. This is an illustrative process scene, not a real company's job or a technical instruction diagram."
+    }
+  ]
+}

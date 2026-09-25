@@ -54,7 +54,7 @@ import {
   useProgetto, useCreateProgetto, useUpdateProgetto, useDuplicaProgetto,
 } from "@/lib/serramenti/queries";
 import { SR_WIZARD_STEPS } from "@/types/serramenti";
-import type { SrProgettoDetail, SrProgettoRow, SrWizardStep, SrTipoIntervento, SrStatoProgetto } from "@/types/serramenti";
+import type { SrProgettoDetail, SrProgettoRow, SrWizardStep, SrTipoIntervento, SrStatoProgetto, SrTemplatePdfRow } from "@/types/serramenti";
 import { SrCard, SrCallout } from "@/lib/serramenti/wizardUI";
 import { StepBom } from "@/components/serramenti/StepBom";
 import { StepAccessori } from "@/components/serramenti/StepAccessori";
@@ -68,6 +68,9 @@ import { AiSerramentiDraftLauncher } from "@/components/serramenti/AiSerramentiD
 import type { CrmContactMinimal } from "@/lib/serramenti/api";
 import { confermaSalvate, modificheDaSalvare, segnaModifica, type ModificheInSospeso } from "@/lib/serramenti/modificheInSospeso";
 import { totaliCambiati, totaliDelPreventivo } from "@/lib/serramenti/righePreventivo";
+import { useSerramentiModelSupport } from "@/hooks/useSerramentiModelSupport";
+import { isSrQuoteModelId, makeSrQuoteModelSnapshot, readSrQuoteModelSnapshot, srModelProjectDefaults } from "@/lib/serramenti/quoteModel";
+import { findSerramentiTemplateModule } from "@/lib/moduli-vendita/serramentiTemplateModules";
 
 const STEP_ICONS: Record<SrWizardStep, React.FC<React.SVGProps<SVGSVGElement>>> = {
   cliente: User,
@@ -91,6 +94,8 @@ export default function SerramentiWizard() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const isNew = !id;
+  const requestedModel = searchParams.get("modello");
+  const modelSupport = useSerramentiModelSupport();
   const { user, effectiveCompany } = useAuth();
   const [resumeDismissed, setResumeDismissed] = useState(false);
   const [exitDialogOpen, setExitDialogOpen] = useState(false);
@@ -139,7 +144,13 @@ export default function SerramentiWizard() {
   // L'utente può vedere il PDF in qualsiasi momento del wizard, non solo
   // allo Step PDF finale. Riduce sorprese in fase di invio cliente.
   const { previewPDF, isGenerating: isGeneratingPdf } = useSerramentoPDF();
-  const { data: pdfTemplate } = useTemplatePdf();
+  const { data: pdfTemplate, isLoading: loadingPdfTemplate, isError: templateError } = useTemplatePdf();
+  const savedModel = useMemo<{ snapshot: ReturnType<typeof readSrQuoteModelSnapshot>; error: string | null }>(() => {
+    try { return { snapshot: detail ? readSrQuoteModelSnapshot(detail.progetto.modello_snapshot, detail.progetto.company_id) : null, error: null }; }
+    catch (error) { return { snapshot: null, error: error instanceof Error ? error.message : "Modello non leggibile" }; }
+  }, [detail]);
+  const modelId = isNew ? (isSrQuoteModelId(requestedModel) ? requestedModel : undefined) : savedModel.snapshot?.modelId;
+  const modelDefinition = modelId ? findSerramentiTemplateModule(modelId) : null;
   // La stessa anagrafica del passo PDF, dell'azienda del preventivo: qui
   // mancava il logo chiaro e l'anteprima usciva diversa dal PDF scaricato.
   const { data: pdfCompany } = useAziendaPerPdf(detail?.progetto.company_id);
@@ -224,6 +235,26 @@ export default function SerramentiWizard() {
 
   // Local form state — solo per i campi del progetto stesso
   const [form, setForm] = useState<Partial<SrProgettoRow>>({});
+  const newQuoteInput = async (): Promise<Partial<SrProgettoRow>> => {
+    const input = { ...form, tipo_intervento: (form.tipo_intervento as SrTipoIntervento) ?? "sostituzione" };
+    if (!requestedModel) return input;
+    if (!isSrQuoteModelId(requestedModel) || !modelSupport.supported || !effectiveCompany?.id) {
+      throw new Error("Questo modello non è ancora collegato al salvataggio. Usa il preventivatore generale oppure completa l'attivazione.");
+    }
+    if (loadingPdfTemplate || templateError) throw new Error("Attendi il caricamento del modello aziendale prima di creare il preventivo.");
+    const [{ createFullSerramentiTemplate }, { loadLocalSerramentiTemplate }] = await Promise.all([
+      import("@/lib/moduli-vendita/fullSerramentiModules"), import("@/lib/moduli-vendita/localSerramentiTemplates"),
+    ]);
+    const companyId = effectiveCompany.id;
+    const { data: currentTemplate, error: readError } = await supabase.from("sr_template_pdf").select("*").eq("company_id", companyId).maybeSingle();
+    if (readError) throw new Error("Impossibile verificare il modello aziendale. Riprova prima di creare il preventivo.");
+    const localCopy = loadLocalSerramentiTemplate(companyId, requestedModel);
+    const template = localCopy?.template ?? createFullSerramentiTemplate({ ...(currentTemplate as unknown as Partial<SrTemplatePdfRow> | null), company_id: companyId }, requestedModel);
+    const snapshot = makeSrQuoteModelSnapshot(companyId, requestedModel, template);
+    const definition = findSerramentiTemplateModule(requestedModel)!;
+    return { ...srModelProjectDefaults(snapshot), intervento_titolo: definition.title, intervento_sintesi: definition.summary,
+      ...input, modello_snapshot: snapshot };
+  };
   const [dirty, setDirty] = useState(false);
   /** I campi toccati e non ancora salvati: l'autosave manda solo questi. */
   const modificheRef = useRef<ModificheInSospeso<SrProgettoRow>>(new Map());
@@ -498,11 +529,10 @@ export default function SerramentiWizard() {
     if (isNew) {
       setCreating(true);
       try {
-        const created = await createMut.mutateAsync({
-          ...form,
-          tipo_intervento: (form.tipo_intervento as SrTipoIntervento) ?? "sostituzione",
-        });
+        const created = await createMut.mutateAsync(await newQuoteInput());
         navigate(`/azienda/serramenti/${created.id}/modifica`, { replace: true });
+      } catch (error) {
+        toast.error("Preventivo non creato", { description: error instanceof Error ? error.message : "Riprova." });
       } finally {
         setCreating(false);
       }
@@ -528,10 +558,7 @@ export default function SerramentiWizard() {
     if (!isNew) return;
     setCreating(true);
     try {
-      const created = await createMut.mutateAsync({
-        ...form,
-        tipo_intervento: (form.tipo_intervento as SrTipoIntervento) ?? "sostituzione",
-      });
+      const created = await createMut.mutateAsync(await newQuoteInput());
       navigate(`/azienda/serramenti/${created.id}/modifica?ai=1`, { replace: true });
     } catch (e) {
       toast.error("Non riesco ad avviare Silvio AI", {
@@ -615,11 +642,30 @@ export default function SerramentiWizard() {
     );
   }
 
+  if (savedModel.error || (isNew && requestedModel && !isSrQuoteModelId(requestedModel))) {
+    return <div className="mx-auto max-w-3xl space-y-4 p-6" role="alert">
+      <h1 className="text-xl font-semibold">{modelSupport.isLoading ? "Verifica del modello…" : "Collegamento del modello da completare"}</h1>
+      <p className="text-sm text-muted-foreground">{savedModel.error ?? "Il modello PDF è disponibile nelle impostazioni, ma il salvataggio del modello nel preventivo non è ancora attivo. Nessuna offerta è stata creata."}</p>
+      <Button onClick={() => navigate("/azienda/marketing/preventivi?tab=moduli&area=serramenti")}>Torna ai modelli</Button>
+      {isNew && <Button variant="outline" onClick={() => {
+        const context = new URLSearchParams();
+        for (const key of ["contact_id", "opportunity_id"]) { const value = searchParams.get(key); if (value) context.set(key, value); }
+        navigate(`/azienda/serramenti/nuovo?${context}`);
+      }}>Usa il preventivatore generale</Button>}
+    </div>;
+  }
+
   return (
     <div className="pb-28 md:pb-20">
+      {modelDefinition && <div className="mx-auto max-w-6xl px-4 pt-4"><div className="rounded-xl border border-orange-200 bg-orange-50 p-4 text-sm">
+        <p className="font-semibold">{modelDefinition.title}</p>
+        <p className="mt-1 text-muted-foreground">{isNew ? "Il PDF userà la personalizzazione salvata in questo browser, se presente, altrimenti il modello standard. Prodotti e prezzi arrivano dal tuo listino." : "Il modello PDF è conservato in questo preventivo. Le modifiche successive ai modelli non ne sostituiscono testi e impostazioni."}</p>
+        <p className="mt-2 text-xs">Cliente e cantiere → Prodotti e servizi → Prezzi, sconti e PDF</p>
+        {isNew && !modelSupport.supported && <p role="alert" className="mt-3 rounded border border-amber-300 bg-amber-50 p-3">Il salvataggio di questo intervento richiede l'attivazione del database. Non inserire dati finché il collegamento non è attivo.</p>}
+      </div></div>}
       {/* Sticky header */}
       {/* ── Riprendi bozza: su "nuovo", se esiste una bozza propria ── */}
-      <AlertDialog open={Boolean(isNew && ultimaBozza && !resumeDismissed)}>
+      <AlertDialog open={Boolean(isNew && !requestedModel && ultimaBozza && !resumeDismissed)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Hai un preventivo in bozza</AlertDialogTitle>
@@ -669,10 +715,7 @@ export default function SerramentiWizard() {
             <AlertDialogAction
               onClick={async () => {
                 try {
-                  await createMut.mutateAsync({
-                    ...form,
-                    tipo_intervento: (form.tipo_intervento as SrTipoIntervento) ?? "sostituzione",
-                  });
+                  await createMut.mutateAsync(await newQuoteInput());
                   toast.success("Bozza salvata — la ritrovi nella lista");
                 } catch (e) {
                   toast.error("Salvataggio bozza fallito", { description: e instanceof Error ? e.message : undefined });
@@ -952,6 +995,7 @@ export default function SerramentiWizard() {
                 un fallback con "Riprova" invece dell'app blank. */}
             <ErrorBoundary title="Errore in questa sezione del preventivo">
             {currentStep === "cliente" && (
+              <fieldset disabled={Boolean(isNew && requestedModel && !modelSupport.supported)} className="min-w-0">
               <StepCliente
                 form={form}
                 onChange={onChange}
@@ -960,9 +1004,10 @@ export default function SerramentiWizard() {
                 isNew={isNew}
                 creating={creating}
                 onStartAi={handleCreateAndStartAi}
-                autoOpenAi={urlStartAi}
+                autoOpenAi={urlStartAi && (!requestedModel || modelSupport.supported)}
                 onGoToComposition={() => setCurrentStep("bom")}
               />
+              </fieldset>
             )}
             {currentStep === "immobile" && (
               <div className="space-y-4">
@@ -972,7 +1017,7 @@ export default function SerramentiWizard() {
               </div>
             )}
             {currentStep === "bom" && id && detail && (
-              <StepBom progettoId={id} detail={detail} />
+              <StepBom progettoId={id} detail={detail} modelId={modelId} />
             )}
             {currentStep === "accessori_foto" && id && detail && (
               <StepAccessori progettoId={id} detail={detail} />
@@ -1001,7 +1046,7 @@ export default function SerramentiWizard() {
               </Button>
               <Button
                 onClick={handleSaveAndContinue}
-                disabled={updateMut.isPending || creating}
+                disabled={updateMut.isPending || creating || Boolean(isNew && requestedModel && !modelSupport.supported)}
                 className="min-h-11 flex-1 bg-orange-500 hover:bg-orange-600 gap-1 sm:flex-none md:min-h-0"
               >
                 {(updateMut.isPending || creating) ? (

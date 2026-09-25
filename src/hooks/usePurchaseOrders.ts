@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { queryKeys } from "@/lib/queryKeys";
+import { refreshMaterialQueries } from "@/lib/orders/refreshMaterialQueries";
 
 export interface PurchaseOrder {
   id: string;
@@ -115,6 +116,7 @@ export function usePurchaseOrders() {
     },
     onSuccess: () => {
       toast.success("Ordine d'acquisto creato");
+      refreshMaterialQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.all });
     },
     onError: (e) => toast.error("Errore", { description: String(e) }),
@@ -238,6 +240,7 @@ export function usePurchaseOrders() {
     },
     onSuccess: (_data, variables) => {
       toast.success("Stato aggiornato");
+      refreshMaterialQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.all });
       // detail(undefined) produceva ["purchase-order-detail", undefined], che
       // non matcha nessuna query reale: il dettaglio restava stale dopo il
@@ -256,6 +259,7 @@ export function usePurchaseOrders() {
       if (error) throw error;
     },
     onSuccess: (_data, variables) => {
+      refreshMaterialQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.detail(variables.id) });
     },
@@ -327,6 +331,7 @@ export function usePurchaseOrderDetail(poId: string | null) {
       if (error) throw error;
     },
     onSuccess: () => {
+      refreshMaterialQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.items(poId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.detail(poId) });
     },
@@ -339,6 +344,7 @@ export function usePurchaseOrderDetail(poId: string | null) {
       if (error) throw error;
     },
     onSuccess: () => {
+      refreshMaterialQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.items(poId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.detail(poId) });
     },
@@ -351,6 +357,7 @@ export function usePurchaseOrderDetail(poId: string | null) {
       if (error) throw error;
     },
     onSuccess: () => {
+      refreshMaterialQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.items(poId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.detail(poId) });
     },

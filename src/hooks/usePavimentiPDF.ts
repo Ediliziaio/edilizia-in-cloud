@@ -19,7 +19,8 @@
  * via `toDataUrl` perché react-pdf supporta solo JPG/PNG e alcune foto possono
  * essere WEBP: la conversione canvas le rende sicure per il renderer.
  */
-import { useState } from "react";
+import { useState, type ReactElement } from "react";
+import type { DocumentProps } from "@react-pdf/renderer";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { getPavTemplatePdf } from "@/hooks/usePavimentiProgetto";
@@ -101,6 +102,8 @@ export const DEFAULT_COMPUTO_OPTIONS: PavPdfComputoOptions = {
 };
 
 export interface PavPdfPayload {
+  /** Source/localStorage modules never read company/template/reviews or sign storage URLs. */
+  localOnly?: boolean;
   progetto: PavProgetto;
   computo: PavComputoVoce[];
   media: PavProgettoMedia[];
@@ -133,16 +136,29 @@ async function mapWithConcurrency<T, R>(
 }
 
 // ─── Enrich ──────────────────────────────────────────────────────────────────
-async function enrichForPdf(opts: PavPdfPayload): Promise<PavPdfEnriched> {
+export async function enrichPavimentiPdf(opts: PavPdfPayload): Promise<PavPdfEnriched> {
   const { progetto, computo, media } = opts;
   const companyId = progetto.company_id;
 
   // 1) Template: fresco da DB se non passato (riflette l'ultimo salvataggio).
+  if (opts.localOnly && !opts.template) throw new Error("Il modulo locale richiede un modello esplicito.");
   const template = opts.template ?? (await getPavTemplatePdf(companyId));
+  // Fail closed before any image fetch. Local assets and uploaded data URLs only.
+  if (opts.localOnly) {
+    const validate = (value: unknown, imageField = false): void => {
+      if (typeof value === "string" && imageField && value &&
+        !/^\/(?!\/)/.test(value) && !/^data:image\/(?:png|jpeg|webp);base64,/.test(value)) {
+        throw new Error("Il modulo locale accetta solo immagini locali: sostituisci il collegamento remoto con un file.");
+      }
+      if (Array.isArray(value)) value.forEach(item => validate(item, imageField));
+      else if (value && typeof value === "object") Object.entries(value).forEach(([key, item]) => validate(item, /(?:url|foto)$/i.test(key) && key !== "website"));
+    };
+    validate(template); validate(opts.company); validate(media);
+  }
 
   // 2) Company (anagrafica per intestazione/contatti). Best-effort.
   let company: PavPdfCompany | null = opts.company ?? null;
-  if (!company && companyId) {
+  if (!opts.localOnly && !company && companyId) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data } = await (supabase as any)
       .from("companies")
@@ -240,7 +256,7 @@ async function enrichForPdf(opts: PavPdfPayload): Promise<PavPdfEnriched> {
     toDataUrl(template.logo_url ?? company?.logo_url ?? null),
     toDataUrl(template.chi_siamo_foto_url ?? null),
     // Copertina (in tinta col colore dell'azienda), logo di copertina e galleria dei lavori.
-    immaginiDelModello("pavimenti", template as unknown as Record<string, unknown>, company?.logo_chiaro_url ?? null, companyId),
+    immaginiDelModello("pavimenti", (opts.localOnly ? { ...template, company_id: "" } : template) as unknown as Record<string, unknown>, company?.logo_chiaro_url ?? null, opts.localOnly ? null : companyId),
   ]);
   const inlinedTemplate = {
     ...template,
@@ -258,7 +274,7 @@ async function enrichForPdf(opts: PavPdfPayload): Promise<PavPdfEnriched> {
   const imageMedia = [...media]
     .filter((m) => Boolean(m.url) && !/\.pdf($|\?)/i.test(m.url))
     .sort((a, b) => (a.ordine ?? 0) - (b.ordine ?? 0));
-  const linkMedia = await linkFileRiservati(imageMedia.map((m) => m.url));
+  const linkMedia = opts.localOnly ? imageMedia.map(m => m.url) : await linkFileRiservati(imageMedia.map((m) => m.url));
   const inlinedUrls = await mapWithConcurrency(imageMedia, 4, async (_m, i) => toDataUrl(linkMedia[i]));
   const inlinedMedia: PavProgettoMedia[] = imageMedia
     .map((m, i) => ({ ...m, url: inlinedUrls[i] ?? linkMedia[i] ?? "" }))
@@ -281,14 +297,14 @@ async function enrichForPdf(opts: PavPdfPayload): Promise<PavPdfEnriched> {
  * o al unmount. Non apre tab né scarica: serve solo la sorgente per l'iframe.
  */
 export async function renderPavPreviewBlobUrl(opts: PavPdfPayload): Promise<string> {
-  const enriched = await enrichForPdf(opts);
+  const enriched = await enrichPavimentiPdf(opts);
   const [{ pdf }, { PavimentiPDF }, React] = await Promise.all([
     import("@react-pdf/renderer"),
     import("@/components/pavimenti/PavimentiPDF"),
     import("react"),
   ]);
   const element = React.createElement(PavimentiPDF, enriched);
-  const blob = await pdf(element).toBlob();
+  const blob = await pdf(element as ReactElement<DocumentProps>).toBlob();
   return URL.createObjectURL(blob);
 }
 
@@ -310,14 +326,14 @@ export function usePavimentiPDF() {
         });
         return { ok: false };
       }
-      const enriched = await enrichForPdf(opts);
+      const enriched = await enrichPavimentiPdf(opts);
       const [{ pdf }, { PavimentiPDF }, React] = await Promise.all([
         import("@react-pdf/renderer"),
         import("@/components/pavimenti/PavimentiPDF"),
         import("react"),
       ]);
       const element = React.createElement(PavimentiPDF, enriched);
-      const blob = await pdf(element).toBlob();
+      const blob = await pdf(element as ReactElement<DocumentProps>).toBlob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       const filename = buildFilename(opts.progetto);
@@ -350,14 +366,14 @@ export function usePavimentiPDF() {
         });
         return;
       }
-      const enriched = await enrichForPdf(opts);
+      const enriched = await enrichPavimentiPdf(opts);
       const [{ pdf }, { PavimentiPDF }, React] = await Promise.all([
         import("@react-pdf/renderer"),
         import("@/components/pavimenti/PavimentiPDF"),
         import("react"),
       ]);
       const element = React.createElement(PavimentiPDF, enriched);
-      const blob = await pdf(element).toBlob();
+      const blob = await pdf(element as ReactElement<DocumentProps>).toBlob();
       const url = URL.createObjectURL(blob);
       const win = window.open(url, "_blank");
       const revoke = () => { try { URL.revokeObjectURL(url); } catch { /* noop */ } };

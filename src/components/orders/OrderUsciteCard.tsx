@@ -26,7 +26,7 @@ export function OrderUsciteCard({ orderId }: { orderId: string }) {
   const navigate = useNavigate();
   const { isNative } = useBillingMode();
   const { generate: generateDDT } = useShipmentDDTPDF();
-  const { data: uscite = [], isLoading } = useUsciteByOrder(orderId);
+  const { data: uscite = [], isLoading, isError, refetch, isFetching } = useUsciteByOrder(orderId);
   const createDdt = useCreateDdtFromUscita();
   const [creatingId, setCreatingId] = useState<string | null>(null);
 
@@ -60,6 +60,8 @@ export function OrderUsciteCard({ orderId }: { orderId: string }) {
       <CardContent className="p-0">
         {isLoading ? (
           <div className="py-6 text-center text-sm text-muted-foreground">Caricamento…</div>
+        ) : isError ? (
+          <div role="alert" className="p-4 flex flex-wrap items-center gap-3 text-sm">Impossibile caricare le uscite di magazzino.<Button size="sm" variant="outline" disabled={isFetching} onClick={() => refetch()}>Riprova</Button></div>
         ) : uscite.length === 0 ? (
           /* Prima diceva solo "vai in Magazzino → Uscita merce": un'istruzione
              senza il modo di eseguirla. Ora il collegamento c'e'. */

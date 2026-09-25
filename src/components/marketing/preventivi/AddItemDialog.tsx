@@ -1,221 +1,72 @@
-/**
- * AddItemDialog — Preventivatore Unificato (Sprint A §4.3 + fix gerarchia).
- *
- * Dialog a quattro stadi dietro il feature flag `PREVENTIVATORE_UNIFIED_V1`.
- * Sostituisce i 5 bottoni legacy (Wizard serramenti / Articolo / Tariffa /
- * Riga libera / Aggiungi bundle) con un unico entry point a UX gerarchico:
- *
- *   Stadio 1 · Macrocategoria  → MacrocategoryGrid (es. "PIU' LUCE")
- *   Stadio 2 · Categoria       → CategoryGrid filtrata per macrocat
- *   Stadio 3 · Prodotto        → ProductPicker
- *   Stadio 4 · Configurazione  → ProductConfigurator (dispatcher family|article)
- *
- * Auto-skip rules per non costringere doppi click inutili:
- *   • Se esiste 1 sola macrocategoria → salta lo Stadio 1 e va a Stadio 2.
- *   • Se la company NON ha proprio macrocategorie → resta sul vecchio flow
- *     (Categoria diretta come Stadio 1).
- *
- * Il contratto verso QuoteBuilder rimane uguale: callback `onAddItems(items,
- * nextSortOrder)`. Il parent NON vede il livello macrocat: è solo UX.
- */
-import { useEffect, useState } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { CategoryGrid } from "./CategoryGrid";
-import { MacrocategoryGrid } from "./MacrocategoryGrid";
+import { useState } from "react";
+import { Check, Plus } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { ProductPicker } from "./ProductPicker";
 import { ProductConfigurator } from "./configurators/ProductConfigurator";
-import { useCatalogMacrocategories } from "@/hooks/useCatalogMacrocategories";
 import type { TariffaPro } from "@/hooks/usePreventivoCosti";
-import type {
-  CatalogCategory,
-  CatalogItem,
-  CatalogMacrocategory,
-  ConfiguredItem,
-} from "@/types/catalogItem";
-
-export type AddItemStage = 1 | 2 | 3 | 4;
+import type { CatalogItem, ConfiguredItem } from "@/types/catalogItem";
 
 export interface AddItemDialogProps {
   open: boolean;
   onClose: () => void;
-  /** Tariffe (posa/trasporto/…) già caricate dal QuoteBuilder. */
   tariffe: TariffaPro[];
-  /** sort_order di partenza per i nuovi item (= items.length nel builder). */
   currentSortOrder: number;
-  /** Callback quando l'utente conferma l'aggiunta di uno o più item. */
   onAddItems: (items: ConfiguredItem[], nextSortOrder: number) => void;
-  /** Secondary actions Stadio 1 — se omesse, il bottone non viene mostrato. */
   onAddFreeLine?: () => void;
   onAddDiscount?: () => void;
   onAddSubtotal?: () => void;
 }
 
-export function AddItemDialog({
-  open,
-  onClose,
-  tariffe,
-  currentSortOrder,
-  onAddItems,
-  onAddFreeLine,
-  onAddDiscount,
-  onAddSubtotal,
-}: AddItemDialogProps) {
-  const { data: macros, isLoading: macrosLoading } = useCatalogMacrocategories();
-
-  const [stage, setStage] = useState<AddItemStage>(1);
-  const [macro, setMacro] = useState<CatalogMacrocategory | null>(null);
-  const [category, setCategory] = useState<CatalogCategory | null>(null);
+/** Il catalogo rimane montato durante la configurazione per conservare ricerca e filtro. */
+export function AddItemDialog({ open, onClose, tariffe, currentSortOrder, onAddItems, onAddFreeLine, onAddDiscount, onAddSubtotal }: AddItemDialogProps) {
   const [item, setItem] = useState<CatalogItem | null>(null);
+  const [keepAdding, setKeepAdding] = useState(true);
+  const [addedCount, setAddedCount] = useState(0);
+  const [lastAdded, setLastAdded] = useState("");
 
-  // ── Auto-skip Stadio 1 quando c'è ≤1 macrocategoria ───────────────────
-  // Se NON ci sono macrocategorie → flow legacy: parto da Stadio 2 senza filtro
-  // Se c'è 1 sola macrocat → la pre-seleziono e parto da Stadio 2 con filtro
-  useEffect(() => {
-    if (!open || macrosLoading) return;
-    if (stage !== 1) return;
-    if (macro) return;
-    const list = macros ?? [];
-    if (list.length === 0) {
-      // Nessuna macrocat: legacy mode — categorie tutte assieme
-      setMacro(null);
-      setStage(2);
-    } else if (list.length === 1) {
-      setMacro(list[0]);
-      setStage(2);
-    }
-  }, [open, macrosLoading, macros, stage, macro]);
-
-  function reset(): void {
-    setStage(1);
-    setMacro(null);
-    setCategory(null);
+  function handleClose() {
     setItem(null);
-  }
-
-  function handleClose(): void {
-    reset();
+    setAddedCount(0);
+    setLastAdded("");
     onClose();
   }
 
-  function handleSelectMacro(m: CatalogMacrocategory): void {
-    setMacro(m);
-    setCategory(null);
-    setItem(null);
-    setStage(2);
-  }
-
-  function handleBackFromCategoryGrid(): void {
-    // Se l'utente ha solo 1 macrocategoria non possiamo "tornare indietro" a una
-    // schermata vuota: in quel caso chiudiamo. Altrimenti torniamo a Stadio 1.
-    const list = macros ?? [];
-    if (list.length <= 1) {
+  function handleAddItems(configured: ConfiguredItem[], nextSortOrder: number) {
+    onAddItems(configured, nextSortOrder);
+    if (!keepAdding) {
       handleClose();
       return;
     }
-    setMacro(null);
-    setCategory(null);
+    setLastAdded(item?.nome ?? "Prodotto");
+    setAddedCount((count) => count + 1);
     setItem(null);
-    setStage(1);
   }
-
-  function handleSelectCategory(cat: CatalogCategory): void {
-    setCategory(cat);
-    setItem(null);
-    setStage(3);
-  }
-
-  function handleSelectItem(it: CatalogItem): void {
-    setItem(it);
-    setStage(4);
-  }
-
-  function handleBackFromPicker(): void {
-    setCategory(null);
-    setItem(null);
-    setStage(2);
-  }
-
-  function handleBackFromConfigurator(): void {
-    setItem(null);
-    setStage(3);
-  }
-
-  function handleAddItems(items: ConfiguredItem[], nextSortOrder: number): void {
-    onAddItems(items, nextSortOrder);
-    handleClose();
-  }
-
-  /** Wrappa le azioni meta Stadio 1 per chiudere il dialog dopo il click. */
-  function handleSecondary(action: (() => void) | undefined): (() => void) | undefined {
-    if (!action) return undefined;
-    return () => {
-      action();
-      handleClose();
-    };
-  }
-
-  const stageLabel =
-    stage === 1
-      ? "Scegli una macrocategoria per iniziare."
-      : stage === 2
-      ? macro
-        ? `Scegli una categoria di "${macro.nome}".`
-        : "Scegli una categoria."
-      : stage === 3
-      ? "Scegli il prodotto."
-      : "Configura il prodotto.";
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose(); }}>
+    <Dialog open={open} onOpenChange={(value) => { if (!value) handleClose(); }}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto p-4 sm:p-6 max-sm:top-auto max-sm:bottom-0 max-sm:translate-y-0 max-sm:max-h-[85vh] max-sm:rounded-t-2xl max-sm:rounded-b-none">
         <DialogHeader className="text-left">
-          <DialogTitle className="text-base sm:text-lg">Aggiungi voce al preventivo</DialogTitle>
-          <DialogDescription>{stageLabel}</DialogDescription>
+          <DialogTitle>{item ? "Configura il prodotto" : "Prodotti e lavorazioni"}</DialogTitle>
+          <DialogDescription>{item ? "Imposta quantità e varianti, verifica il prezzo e la posa." : "Cerca in tutto il catalogo oppure filtra per categoria. Aggiungi più prodotti senza uscire."}</DialogDescription>
         </DialogHeader>
-
-        {stage === 1 && (
-          <MacrocategoryGrid
-            onSelectMacrocategory={handleSelectMacro}
-            onAddFreeLine={handleSecondary(onAddFreeLine)}
-            onAddDiscount={handleSecondary(onAddDiscount)}
-            onAddSubtotal={handleSecondary(onAddSubtotal)}
-          />
+        {lastAdded && <p role="status" className="flex items-center gap-2 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800"><Check className="h-4 w-4 shrink-0" />{lastAdded} aggiunto · {addedCount} {addedCount === 1 ? "prodotto inserito" : "prodotti inseriti"}</p>}
+        {open && <div hidden={!!item}><ProductPicker onSelectItem={setItem} /></div>}
+        {item && (
+          <>
+            <ProductConfigurator key={`${item.source}-${item.id}`} item={item} tariffe={tariffe} currentSortOrder={currentSortOrder} onBack={() => setItem(null)} onAddItems={handleAddItems} confirmLabel={keepAdding ? "Aggiungi e continua" : "Aggiungi e chiudi"} />
+            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+              <input type="checkbox" checked={keepAdding} onChange={(e) => setKeepAdding(e.target.checked)} className="accent-orange-500" />
+              Continua ad aggiungere prodotti
+            </label>
+          </>
         )}
-
-        {stage === 2 && (
-          <CategoryGrid
-            macrocategory={macro}
-            onBack={macro ? handleBackFromCategoryGrid : undefined}
-            onSelectCategory={handleSelectCategory}
-            onAddFreeLine={handleSecondary(onAddFreeLine)}
-            onAddDiscount={handleSecondary(onAddDiscount)}
-            onAddSubtotal={handleSecondary(onAddSubtotal)}
-          />
-        )}
-
-        {stage === 3 && category && (
-          <ProductPicker
-            category={category}
-            onBack={handleBackFromPicker}
-            onSelectItem={handleSelectItem}
-          />
-        )}
-
-        {stage === 4 && item && (
-          <ProductConfigurator
-            item={item}
-            tariffe={tariffe}
-            currentSortOrder={currentSortOrder}
-            onBack={handleBackFromConfigurator}
-            onAddItems={handleAddItems}
-          />
-        )}
+        {!item && <div className="flex flex-wrap items-center gap-2 border-t pt-3">
+          {onAddFreeLine && <Button variant="outline" size="sm" onClick={() => { onAddFreeLine(); handleClose(); }}><Plus className="mr-1 h-4 w-4" />Riga libera</Button>}
+          {onAddDiscount && <Button variant="ghost" size="sm" onClick={() => { onAddDiscount(); handleClose(); }}>Sconto</Button>}
+          {onAddSubtotal && <Button variant="ghost" size="sm" onClick={() => { onAddSubtotal(); handleClose(); }}>Subtotale</Button>}
+          <Button className="ml-auto" onClick={handleClose}>{addedCount ? "Fatto, torna al preventivo" : "Torna al preventivo"}</Button>
+        </div>}
       </DialogContent>
     </Dialog>
   );

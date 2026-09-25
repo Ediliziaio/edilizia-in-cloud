@@ -71,11 +71,12 @@ import { useComplementiFinestre } from "./useComplementiFinestre";
 interface Props {
   progettoId: string;
   detail: SrProgettoDetail;
+  modelId?: import("@/lib/serramenti/quoteModel").SrQuoteModelId;
 }
 
 type ManualPricingMode = "prodotto" | "corpo";
 
-export function StepBom({ progettoId, detail }: Props) {
+export function StepBom({ progettoId, detail, modelId }: Props) {
   const addMut = useAddSerramento(progettoId);
   const updateMut = useUpdateSerramento(progettoId);
   const deleteMut = useDeleteSerramento(progettoId);
@@ -509,10 +510,12 @@ export function StepBom({ progettoId, detail }: Props) {
         </div>
 
         <ListinoPickerDialog
+          key={modelId ?? "general"}
           open={listinoOpen}
           onOpenChange={setListinoOpen}
           onSelect={handlePickFromListino}
           preferenzeAssi={preferenzeAssi}
+          modelId={modelId}
         />
 
         {/* Il listino per un complemento: sulla sua tipologia, con le misure della finestra. */}
@@ -1834,8 +1837,8 @@ function MacroOverrideSelect({
   value: string | null;
   onChange: (next: string | null) => void;
 }) {
-  const { data: macros = [] } = useListinoMacrocategorie();
-  const macrosAttive = macros.filter((m: any) => m.attivo);
+  const { macrocategorie: macros } = useListinoMacrocategorie();
+  const macrosAttive = macros.filter(m => m.attivo);
   return (
     <div className="col-span-12">
       <div className="rounded-md border border-dashed border-slate-200 bg-muted/20 p-2.5">

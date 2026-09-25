@@ -133,7 +133,7 @@ describe("blocchi del preventivo: dal modello al PDF degli edili", () => {
     expect(edile).toMatch(/<View fixed style=\{\{ flexGrow: 1 \}\} render=/);
     expect(edile).toContain("subPageNumber !== subPageTotalPages) return null;");
     const serramenti = leggi("src/components/serramenti/SerramentoPDF.tsx");
-    expect(serramenti).toContain("height: altezzaFotoBlocco(blocco, foto.length)");
+    expect(serramenti).toContain("height: altezzaFotoBlocco(blocco, foto.length, moduloLocale)");
   });
 });
 

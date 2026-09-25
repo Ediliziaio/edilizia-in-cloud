@@ -32,6 +32,7 @@ import type { TemplateCompanyAnagrafica } from "@/hooks/useCompanyAnagraficaForT
 import { buildBrandFooterText } from "@/hooks/useCompanyAnagraficaForTemplate";
 
 interface Props {
+  defaults?: Partial<SrTemplatePdfRow>;
   form: Partial<SrTemplatePdfRow>;
   update: <K extends keyof SrTemplatePdfRow>(key: K, value: SrTemplatePdfRow[K]) => void;
   companyAnagrafica?: TemplateCompanyAnagrafica | null;
@@ -41,6 +42,8 @@ interface Props {
    * restano le altre (vedi pagineEditor.ts).
    */
   sezioni?: SezioneConversione[];
+  /** The dedicated page editor already owns its single visibility switch. */
+  hideConfrontoVisibility?: boolean;
 }
 
 export type SezioneConversione = "garanzie" | "urgenza" | "confronto" | "certificazioni" | "bonus" | "faq" | "firma";
@@ -76,10 +79,12 @@ const BONUS_ICONE: Array<{ value: SrBonus["icona"]; label: string }> = [
 ];
 
 function SerramentiConversionEditorImpl({
+  defaults,
   form,
   update,
   companyAnagrafica,
   sezioni,
+  hideConfrontoVisibility = false,
 }: Props) {
   const mostra = (sezione: SezioneConversione) => !sezioni || sezioni.includes(sezione);
   // Da sola, una sezione non ha bisogno del numero che la mette in fila con le altre.
@@ -91,7 +96,7 @@ function SerramentiConversionEditorImpl({
     update("garanzie", garanzie.map((g, i) => i === idx ? { ...g, ...patch } : g));
   const removeGaranzia = (idx: number) =>
     update("garanzie", garanzie.filter((_, i) => i !== idx));
-  const resetGaranzie = () => update("garanzie", SR_GARANZIE_DEFAULT);
+  const resetGaranzie = () => update("garanzie", defaults ? defaults.garanzie ?? [] : SR_GARANZIE_DEFAULT);
 
   // Confronto Prima/Dopo
   const righeConfronto = (form.confronto_righe ?? []) as SrConfrontoRiga[];
@@ -100,7 +105,7 @@ function SerramentiConversionEditorImpl({
     update("confronto_righe", righeConfronto.map((r, i) => i === idx ? { ...r, ...patch } : r));
   const removeConfronto = (idx: number) =>
     update("confronto_righe", righeConfronto.filter((_, i) => i !== idx));
-  const resetConfronto = () => update("confronto_righe", SR_CONFRONTO_DEFAULT);
+  const resetConfronto = () => update("confronto_righe", defaults ? defaults.confronto_righe ?? [] : SR_CONFRONTO_DEFAULT);
 
   // Certificazioni
   const certificazioni = (form.certificazioni ?? []) as SrCertificazione[];
@@ -109,7 +114,7 @@ function SerramentiConversionEditorImpl({
     update("certificazioni", certificazioni.map((c, i) => i === idx ? { ...c, ...patch } : c));
   const removeCertificazione = (idx: number) =>
     update("certificazioni", certificazioni.filter((_, i) => i !== idx));
-  const resetCertificazioni = () => update("certificazioni", SR_CERTIFICAZIONI_DEFAULT);
+  const resetCertificazioni = () => update("certificazioni", defaults ? defaults.certificazioni ?? [] : SR_CERTIFICAZIONI_DEFAULT);
 
   // Bonus
   const bonus = (form.bonus_aggiuntivi ?? []) as SrBonus[];
@@ -118,7 +123,7 @@ function SerramentiConversionEditorImpl({
     update("bonus_aggiuntivi", bonus.map((b, i) => i === idx ? { ...b, ...patch } : b));
   const removeBonus = (idx: number) =>
     update("bonus_aggiuntivi", bonus.filter((_, i) => i !== idx));
-  const resetBonus = () => update("bonus_aggiuntivi", SR_BONUS_DEFAULT);
+  const resetBonus = () => update("bonus_aggiuntivi", defaults ? defaults.bonus_aggiuntivi ?? [] : SR_BONUS_DEFAULT);
 
   // FAQ
   const faqItems = (form.faq_items ?? []) as SrFaq[];
@@ -127,7 +132,7 @@ function SerramentiConversionEditorImpl({
     update("faq_items", faqItems.map((f, i) => i === idx ? { ...f, ...patch } : f));
   const removeFaq = (idx: number) =>
     update("faq_items", faqItems.filter((_, i) => i !== idx));
-  const resetFaq = () => update("faq_items", SR_FAQ_DEFAULT);
+  const resetFaq = () => update("faq_items", defaults ? defaults.faq_items ?? [] : SR_FAQ_DEFAULT);
 
   return (
     <div className="space-y-6">
@@ -285,16 +290,16 @@ function SerramentiConversionEditorImpl({
         <p className="text-[11px] text-muted-foreground mb-2">
           Tabella tecnica che mostra il delta misurabile: serramento attuale vs nuovo.
         </p>
-        <label className="flex items-center gap-2 cursor-pointer mb-2">
+        {!hideConfrontoVisibility && <label className="flex items-center gap-2 cursor-pointer mb-2">
           <input
             type="checkbox"
-            checked={!!form.confronto_attivo}
+            checked={form.confronto_attivo !== false}
             onChange={(e) => update("confronto_attivo", e.target.checked)}
             className="h-4 w-4 accent-orange-500"
           />
           <span className="text-sm font-medium">Mostra pagina confronto nel PDF</span>
-        </label>
-        {form.confronto_attivo && (
+        </label>}
+        {(hideConfrontoVisibility || form.confronto_attivo !== false) && (
           <div className="space-y-2">
             <div>
               <Label className="text-xs">Titolo pagina</Label>

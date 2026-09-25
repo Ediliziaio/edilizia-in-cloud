@@ -5,6 +5,7 @@
  */
 import { useCallback, useMemo } from "react";
 import { PdfBlobLivePreviewPanel } from "@/components/shared/PdfBlobLivePreviewPanel";
+import { buildEltModulePreview, type FullEltModuleId } from "@/lib/moduli-vendita/fullEltModules";
 import { renderElePreviewBlobUrl } from "@/hooks/useElettricoPDF";
 import type { EleTemplatePdf, EleProgetto, EleComputoVoce } from "@/types/elettrico";
 
@@ -43,27 +44,31 @@ function buildMockProgetto(companyId: string): EleProgetto {
 }
 
 export function ElettricoLivePreviewPanel({
-  template, companyId,
+  template, companyId, moduleId, activeSection,
 }: {
+  activeSection?: string | null;
+  moduleId?: FullEltModuleId;
   template: EleTemplatePdf | null;
   companyId: string | null;
 }) {
   const depsKey = useMemo(
-    () => (companyId ?? "") + "|" + JSON.stringify(template ?? {}),
-    [template, companyId],
+    () => (moduleId ?? "") + "|" + (companyId ?? "") + "|" + JSON.stringify(template ?? {}),
+    [template, companyId, moduleId],
   );
   const renderBlobUrl = useCallback(() => {
     if (!companyId || !template) return Promise.reject(new Error("Template non pronto"));
+    if (moduleId) return renderElePreviewBlobUrl(buildEltModulePreview(companyId, template, moduleId));
     return renderElePreviewBlobUrl({
       progetto: buildMockProgetto(companyId),
       computo: buildMockComputo(companyId),
       media: [],
       template,
     });
-  }, [template, companyId]);
+  }, [template, companyId, moduleId]);
 
   return (
     <PdfBlobLivePreviewPanel
+      activeSection={activeSection}
       renderBlobUrl={renderBlobUrl}
       depsKey={depsKey}
       enabled={!!companyId && !!template}

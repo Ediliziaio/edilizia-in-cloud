@@ -27,17 +27,29 @@ interface Props {
   sommaVoci: number;
   /** null = torna alla somma delle righe. */
   onCommit: (valore: number | null) => void;
+  /** Nel classico l'opzione deve essere individuabile anche se non abilitata. */
+  showDisabledHint?: boolean;
 }
 
-export function PrezzoPreventivoAMano({ id, companyId, value, sommaVoci, onCommit }: Props) {
-  const { data: attivo = false } = usePrezzoFinaleAMano(companyId);
+export function PrezzoPreventivoAMano({ id, companyId, value, sommaVoci, onCommit, showDisabledHint = false }: Props) {
+  const { data: attivo = false, isLoading, isError } = usePrezzoFinaleAMano(companyId);
   const scritto = Number(value ?? 0) > 0;
-  if (!attivo && !scritto) return null;
+  if (!attivo && !scritto) return showDisabledHint ? (
+    <div className="rounded-lg border border-dashed p-3 text-sm">
+      <p className="font-medium">Prezzo manuale dell'offerta</p>
+      <p className="mt-1 text-xs text-muted-foreground">
+        {isLoading ? "Verifica delle impostazioni aziendali…" : isError
+          ? "Impossibile verificare l'abilitazione. Riprova prima di impostare un prezzo manuale."
+          : "Disponibile quando l'azienda abilita «Prezzo del preventivo» in Impostazioni → Margini e sconti. Per ora il totale segue i prezzi delle righe."}
+      </p>
+      {!isLoading && !isError && <a href="/azienda/impostazioni/margini" target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-xs font-medium text-orange-700 underline">Apri impostazioni in nuova scheda</a>}
+    </div>
+  ) : null;
 
   return (
     <div className="rounded-lg border border-orange-200 bg-orange-50/50 p-2.5">
       <Label htmlFor={id} className="text-xs font-semibold text-orange-900">
-        Prezzo del preventivo (IVA esclusa)
+        Prezzo manuale dell'offerta (IVA esclusa)
       </Label>
       <Input
         id={id}
@@ -55,7 +67,8 @@ export function PrezzoPreventivoAMano({ id, companyId, value, sommaVoci, onCommi
         }}
         className="mt-1 h-8 bg-white text-sm tabular-nums"
       />
-      <p className="mt-1 text-[10px] leading-snug text-orange-900/80">
+      <p className="mt-1 text-xs leading-snug text-orange-900/80">
+        Applica con Invio o uscendo dal campo. {" "}
         {scritto ? (
           <>
             Prende il posto della somma delle righe{sommaVoci > 0 ? ` (${formatCurrency(sommaVoci)})` : ""}.

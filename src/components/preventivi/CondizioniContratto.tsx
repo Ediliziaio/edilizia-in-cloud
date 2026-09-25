@@ -41,9 +41,10 @@ interface Props {
   /** Il modulo di recesso allegato al preventivo: lo accende l'azienda, spento di serie. */
   recesso: boolean;
   onRecesso: (v: boolean) => void;
+  localOnly?: boolean;
 }
 
-export function CondizioniContratto({ companyId, settore, attivo, testo, onAttivo, onTesto, recesso, onRecesso }: Props) {
+export function CondizioniContratto({ companyId, settore, attivo, testo, onAttivo, onTesto, recesso, onRecesso, localOnly = false }: Props) {
   const { templates: templatesLibreria } = useQuoteTemplates();
   const blocchi = useMemo(
     () => templatesLibreria.filter((t) => t.is_active !== false && (t.kind === "condizioni" || t.kind === "legali")),
@@ -93,7 +94,7 @@ export function CondizioniContratto({ companyId, settore, attivo, testo, onAttiv
             <Button size="sm" variant="secondary" onClick={usaTestoDelSettore}>
               Parti dal testo del settore
             </Button>
-            <ImportaCondizioniBar companyId={companyId} testoAttuale={testo} onTesto={onTesto} compatto soloImport />
+            <ImportaCondizioniBar companyId={companyId} testoAttuale={testo} onTesto={onTesto} compatto soloImport localOnly={localOnly} />
           </div>
 
           {blocchi.length > 0 && (

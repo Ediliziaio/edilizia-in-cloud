@@ -1,0 +1,30 @@
+{
+  "tool": "native image_gen",
+  "usage": "AI-generated illustrative imagery, not completed company projects or construction specifications",
+  "assets": [
+    {
+      "id": "cappotto",
+      "prompt": "Use case: photorealistic-natural. Asset type: landscape photograph for an Italian construction proposal PDF cover and technical block. Primary request: exterior thermal insulation installation on a modest Italian residential facade. Show a worker in plain workwear and gloves at ground level pressing reinforcing mesh into fresh basecoat over rigid insulation boards, next to a neatly masked window reveal. A small unfinished section reveals the insulation board edge without instructional labels. Realistic ordinary building site, tidy materials, soft daylight, muted warm plaster and grey mineral tones. Composition: landscape 3:2, horizontal architectural editorial photograph, important wall detail centered, enough surrounding wall to crop a portrait cover; no close-up face required. No text, branding, logos, watermark, collage, infographic, exaggerated before/after, unrealistic construction claims. Illustrative scene, no identifiable real company.",
+      "source": "/Users/agenteai/.codex/generated_images/01a0d228-8b59-7e53-8dc6-e0d686d4ffb5/exec-88746846-70bc-4cfa-bf87-47f3378acad7.png",
+      "destination": "public/module-art/facciate-cappotto-dettaglio.jpg"
+    },
+    {
+      "id": "balconi",
+      "prompt": "Use case: photorealistic-natural. Asset type: landscape photographic image for Italian balcony repair proposal PDF. Primary request: clear close architectural view of a small exterior balcony's concrete frontal edge, soffit and drip edge, with a localized professionally prepared plaster repair patch. Retain a simple dark metal railing above and warm residential facade behind. Viewed from safe ground level, no people, no active demolition. Realistic repair patch with subtle roughness, no dramatic structural damage, no before/after collage. Soft Mediterranean daylight, high material detail, restrained architectural editorial photography. Landscape 3:2 composition with balcony centered and room around it for portrait cover crop. No text, arrows, logos, watermark, technical claims, invented certifications.",
+      "source": "/Users/agenteai/.codex/generated_images/01a0d228-8b59-7e53-8dc6-e0d686d4ffb5/exec-bed30274-60d2-4eed-9dd1-1cee73419d9f.png",
+      "destination": "public/module-art/facciate-balconi-dettaglio.jpg"
+    },
+    {
+      "id": "tinteggiatura",
+      "prompt": "Use case: photorealistic-natural. Asset type: landscape editorial photograph for external facade painting proposal PDF. Primary request: a painter in plain neutral workwear and gloves using a roller on a modest Italian house exterior wall at ground level; a freshly painted warm ivory area beside a prepared plaster area, a small pair of subtle beige color samples nearby and a carefully masked window. Show exterior context clearly with stone pavement and daylight, no interior room. Single realistic scene, believable roller geometry and anatomy, no brands on tools or buckets, tidy ordinary worksite. Landscape 3:2 composition, subject and wall centered with sufficient margins for portrait cover crop, soft daylight, natural textures. No text, logos, watermark, collage, diagram or exaggerated results.",
+      "source": "/Users/agenteai/.codex/generated_images/01a0d228-8b59-7e53-8dc6-e0d686d4ffb5/exec-a0314dbe-332f-4b94-97fb-e56175019aca.png",
+      "destination": "public/module-art/facciate-tinteggiatura-dettaglio.jpg"
+    },
+    {
+      "id": "interno",
+      "prompt": "Use case: photorealistic-natural. Asset type: landscape architectural photograph for an internal wall insulation proposal PDF. Primary request: an ordinary empty Italian residential room with a partly installed interior wall insulation lining next to a window. Show a neat unfinished rigid mineral insulation board area, the thickness at a window reveal, and its junction with the ceiling; one adjacent completed smooth plaster wall. Realistic coherent assembly as illustrative concept, no labeled cutaway or claim of engineered specification. Protected timber floor, small tidy plain tools, no loose electrical wires, no people. Soft natural window light, muted warm off-white walls. Landscape 3:2 view with the wall-window junction centered, enough margins for portrait cover crop. No text, logos, watermark, collage, before/after panel or technical diagram.",
+      "source": "/Users/agenteai/.codex/generated_images/01a0d228-8b59-7e53-8dc6-e0d686d4ffb5/exec-d5dd2c85-3115-4189-8b58-3b9eb27ffaea.png",
+      "destination": "public/module-art/facciate-interno-dettaglio.jpg"
+    }
+  ]
+}
