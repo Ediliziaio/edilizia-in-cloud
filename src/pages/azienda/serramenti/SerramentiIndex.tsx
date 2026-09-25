@@ -419,14 +419,15 @@ export default function SerramentiIndex() {
         </div>
         {/* Telefono: titolo e «Nuovo» su una riga; le impostazioni dal computer. */}
         <div className="relative max-w-[1400px] mx-auto px-3 sm:px-8 py-4 sm:py-8 flex items-center justify-between flex-wrap gap-3 sm:gap-4 max-sm:flex-nowrap max-sm:py-3">
-          <div className="min-w-0 flex-1">
+          {/* Telefono: freccia e titolo sulla stessa riga. */}
+          <div className="min-w-0 flex-1 max-sm:flex max-sm:items-center max-sm:gap-1">
             <button
               type="button"
               onClick={() => navigate("/azienda/marketing/preventivi")}
-              className="inline-flex items-center gap-1 text-[11px] sm:text-xs font-medium text-blue-100/90 hover:text-white mb-2 transition-colors max-sm:mb-1"
+              className="inline-flex items-center gap-1 text-[11px] sm:text-xs font-medium text-blue-100/90 hover:text-white mb-2 transition-colors max-sm:-ml-2 max-sm:mb-0 max-sm:shrink-0 max-sm:justify-center"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
-              <span className="max-sm:hidden">Torna ai Preventivi</span><span className="sm:hidden">Preventivi</span>
+              <span className="max-sm:hidden">Torna ai Preventivi</span><span className="sm:hidden max-sm:sr-only">Preventivi</span>
             </button>
             <div className="text-[10px] sm:text-[11px] uppercase tracking-widest font-semibold mb-1 text-orange-200 max-sm:hidden">
               ★ MARKETING & VENDITA
@@ -464,7 +465,7 @@ export default function SerramentiIndex() {
       <div className="max-w-[1400px] mx-auto px-4 sm:px-8 py-5 sm:py-6 space-y-4 sm:space-y-5">
         {/* KPI Dashboard — informativi, non cliccabili */}
         {/* Telefono: quattro numeri col nome corto (conversione e ticket medio al computer). */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 max-sm:gap-2">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 max-sm:grid-cols-4 max-sm:gap-1.5">
           <KpiCard label="Totale preventivi" breve="Totale" value={stats.totale} icon={<FileText className="h-4 w-4" />} tone="slate" />
           <KpiCard
             label="Aperte (pipeline)"
@@ -1297,7 +1298,7 @@ function KpiCard({
 }) {
   const c = TONE_CLASS[tone];
   return (
-    <div className={cn("bg-white border-l-4 rounded-lg shadow-sm p-3 sm:p-4 max-sm:px-3 max-sm:py-2", c.border, className)}>
+    <div className={cn("bg-white border-l-4 rounded-lg shadow-sm p-3 sm:p-4 max-sm:px-2 max-sm:py-1.5", c.border, className)}>
       <div className="flex items-center justify-between gap-2">
         <p className="text-[10px] sm:text-[11px] font-medium text-muted-foreground uppercase tracking-wide truncate">
           <span className="max-sm:hidden">{label}</span><span className="sm:hidden">{breve ?? label}</span>

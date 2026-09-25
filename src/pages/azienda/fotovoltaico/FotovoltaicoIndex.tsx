@@ -144,13 +144,14 @@ export default function FotovoltaicoIndex() {
         </div>
         {/* Telefono: titolo e «Nuovo» su una riga; impostazioni e componenti si curano dal computer. */}
         <div className="relative max-w-[1400px] mx-auto px-3 sm:px-8 py-4 sm:py-8 flex items-center justify-between flex-wrap gap-3 sm:gap-4 max-sm:flex-nowrap max-sm:py-3">
-          <div className="min-w-0 flex-1">
+          {/* Telefono: freccia e titolo sulla stessa riga. */}
+          <div className="min-w-0 flex-1 max-sm:flex max-sm:items-center max-sm:gap-1">
             <Link
               to="/azienda/marketing/preventivi"
-              className="inline-flex items-center gap-1 text-[11px] sm:text-xs font-medium text-blue-100/90 hover:text-white mb-2 transition-colors max-sm:mb-1"
+              className="inline-flex items-center gap-1 text-[11px] sm:text-xs font-medium text-blue-100/90 hover:text-white mb-2 transition-colors max-sm:-ml-2 max-sm:mb-0 max-sm:shrink-0 max-sm:justify-center"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
-              <span className="max-sm:hidden">Torna ai Preventivi</span><span className="sm:hidden">Preventivi</span>
+              <span className="max-sm:hidden">Torna ai Preventivi</span><span className="sm:hidden max-sm:sr-only">Preventivi</span>
             </Link>
             <div className="text-[10px] sm:text-xs uppercase tracking-widest font-semibold mb-1 text-orange-200 max-sm:hidden">
               ★ MARKETING & VENDITA

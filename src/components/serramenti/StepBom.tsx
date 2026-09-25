@@ -1313,7 +1313,7 @@ export function SerramentoRow({
               {/* Breadcrumb: Macrocategoria > Articolo. La macro viene
                   visualizzata in stile pillola/uppercase per gerarchia. */}
               {macroNome && (
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-blue-800 bg-blue-50 border border-blue-100 rounded px-1.5 py-0.5 mr-1.5 max-md:whitespace-nowrap">
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-blue-800 bg-blue-50 border border-blue-100 rounded px-1.5 py-0.5 mr-1.5 max-md:hidden">
                   {macroNome}
                 </span>
               )}
@@ -1424,7 +1424,8 @@ export function SerramentoRow({
             <Button
               size="icon" variant="ghost"
               onClick={onDuplicate}
-              className="h-8 w-8"
+              // tap-compact: da telefono i due bottoni a 44px stringevano il nome della finestra.
+              className="tap-compact h-8 w-8"
               title="Duplica posizione"
             >
               <Copy className="h-4 w-4 text-slate-500" />
@@ -1432,7 +1433,7 @@ export function SerramentoRow({
             <Button
               size="icon" variant="ghost"
               onClick={onDelete}
-              className="h-8 w-8"
+              className="tap-compact h-8 w-8"
               title="Elimina posizione"
             >
               <Trash2 className="h-4 w-4 text-rose-600" />

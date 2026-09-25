@@ -723,7 +723,8 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
             mostra max sconto, soglia approvazione, margine min in base
             all'importo del preventivo + tipo lavoro. Configurabile in
             /azienda/impostazioni/scontistica. */}
-        <div className="mb-3 rounded-md border border-slate-200 bg-slate-50/60 border-l-4 border-l-[#173b67] p-3 space-y-2">
+        {/* Telefono no: le regole si leggono dal computer; il limite allo sconto vale comunque. */}
+        <div className="mb-3 rounded-md border border-slate-200 bg-slate-50/60 border-l-4 border-l-[#173b67] p-3 space-y-2 max-md:hidden">
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-center gap-1.5 text-xs font-semibold text-[#173b67]">
               <Tag className="h-3.5 w-3.5" />
@@ -917,23 +918,25 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
                 onChange("iva_percentuale", next);
               }}
             >
-              <SelectTrigger className="h-9 text-xs mt-1">
+              {/* Telefono: nel campo chiuso solo l'aliquota («10% —…» tagliato);
+                  nell'elenco aperto restano le spiegazioni. */}
+              <SelectTrigger className="h-9 text-xs mt-1 max-sm:[&_.iva-desc]:hidden">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="0">0% — Esente / Non imponibile</SelectItem>
-                <SelectItem value="4">4% — IVA speciale (Legge 104 / disabilità)</SelectItem>
-                <SelectItem value="10">10% — Ristrutturazione edilizia</SelectItem>
-                <SelectItem value="22">22% — Ordinaria</SelectItem>
+                <SelectItem value="0">0%<span className="iva-desc"> — Esente / Non imponibile</span></SelectItem>
+                <SelectItem value="4">4%<span className="iva-desc"> — IVA speciale (Legge 104 / disabilità)</span></SelectItem>
+                <SelectItem value="10">10%<span className="iva-desc"> — Ristrutturazione edilizia</span></SelectItem>
+                <SelectItem value="22">22%<span className="iva-desc"> — Ordinaria</span></SelectItem>
                 <SelectItem value="mista" disabled={ivaMistaSenzaVoci && form.iva_percentuale !== IVA_MISTA_SENTINEL}>
-                  IVA mista — Beni Significativi (DM 29.12.99)
+                  IVA mista<span className="iva-desc"> — Beni Significativi (DM 29.12.99)</span>
                 </SelectItem>
                 {/* Valore legacy fuori standard (es. preventivi vecchi a 21%, 5%,
                     27%): lo mostriamo come opzione cosi' il commerciale
                     sa che e' un valore non standard e puo' correggerlo. */}
                 {isLegacyIvaValue(form.iva_percentuale) && (
                   <SelectItem value={String(form.iva_percentuale)}>
-                    {form.iva_percentuale}% — non standard (legacy)
+                    {form.iva_percentuale}%<span className="iva-desc"> — non standard (legacy)</span>
                   </SelectItem>
                 )}
               </SelectContent>
@@ -983,8 +986,9 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
               Visibile esclusivamente a super_admin / company_admin.
               Mostra costo acquisto totale, margine € e % con confronto contro
               margine_min della regola scontistica (alert sotto target). */}
+          {/* Telefono no: margini e costi si guardano dal computer, come negli altri preventivatori. */}
           {canViewImpresa && marginCalc && (
-            <div className="col-span-12">
+            <div className="col-span-12 max-md:hidden">
               <div
                 className={`rounded-md border p-4 max-md:p-3 ${
                   !marginCalc.costiCompleti
@@ -1168,7 +1172,8 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
                 />
               </div>
               <div className="col-span-12 md:col-span-4 max-md:order-1">
-                <Label className="text-xs">Quando</Label>
+                {/* Telefono: l'etichetta la dice il segnaposto (o il valore scritto). */}
+                <Label className="text-xs max-md:sr-only">Quando</Label>
                 <Input
                   value={m.when ?? ""}
                   onChange={(e) => {
@@ -1194,7 +1199,7 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
               </div>
               {/* Importo calcolato sul medio */}
               <div className="col-span-12 text-[11px] text-muted-foreground -mt-1 pl-1 max-md:order-2">
-                ≈ {formatEuro((forbice.media * (Number(m.percentuale) || 0)) / 100)} IVA inclusa
+                ≈ {formatEuro((forbice.media * (Number(m.percentuale) || 0)) / 100)}<span className="max-md:hidden"> IVA inclusa</span>
               </div>
             </div>
           ))}

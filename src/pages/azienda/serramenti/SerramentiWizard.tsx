@@ -1170,9 +1170,10 @@ function StepCliente({
         </div>
       )}
 
-      <div className="mb-3 rounded-md border border-slate-200 bg-white px-3 py-2">
+      {/* Telefono: senza riquadro; da collegare è un solo bottone a tutta riga. */}
+      <div className="mb-3 rounded-md border border-slate-200 bg-white px-3 py-2 max-md:border-0 max-md:bg-transparent max-md:p-0">
         <div className="flex flex-row items-center justify-between gap-2">
-          <div className="min-w-0">
+          <div className={cn("min-w-0", !form.cliente_id && "max-md:hidden")}>
             <p className="text-xs font-semibold text-slate-900">
               {/* Telefono: una riga per titolo e una per il nome, senza spiegazioni. */}
               {form.cliente_id ? <>Contatto CRM<span className="max-md:hidden"> collegato</span></> : "Contatto CRM"}
@@ -1183,7 +1184,7 @@ function StepCliente({
                 : "Collega un contatto per compilare anagrafica e recapiti."}
             </p>
           </div>
-          <div className="flex shrink-0 gap-2">
+          <div className={cn("flex shrink-0 gap-2", !form.cliente_id && "max-md:w-full")}>
             {form.cliente_id && (
               <Button
                 variant="ghost"
@@ -1198,7 +1199,7 @@ function StepCliente({
               size="sm"
               variant="outline"
               onClick={() => setPickerOpen(true)}
-              className="tap-compact h-8 gap-1.5 border-slate-200 px-3 text-xs text-slate-700 hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700"
+              className="tap-compact h-8 gap-1.5 border-slate-200 px-3 text-xs text-slate-700 hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700 max-md:flex-1"
             >
               <Users className="h-3.5 w-3.5" />
               {form.cliente_id ? "Cambia" : "Seleziona da CRM"}
@@ -1225,7 +1226,7 @@ function StepCliente({
         </div>
       )}
 
-      <div className="grid grid-cols-12 gap-3">
+      <div className="grid grid-cols-12 gap-3 max-sm:gap-2">
         <div className="col-span-6">
           <Label className="text-xs">Nome</Label>
           <Input
@@ -1272,7 +1273,7 @@ function StepCliente({
             className="h-9"
           />
         </div>
-        <div className="col-span-6">
+        <div className="col-span-6 max-sm:col-span-5">
           <Label className="text-xs">Città</Label>
           <Input
             value={form.cliente_citta ?? ""}
@@ -1287,10 +1288,10 @@ function StepCliente({
             value={form.cliente_cap ?? ""}
             onChange={(e) => onChange("cliente_cap", e.target.value)}
             placeholder="20121"
-            className="h-9"
+            className="h-9 max-sm:px-2"
           />
         </div>
-        <div className="col-span-3">
+        <div className="col-span-3 max-sm:col-span-4">
           <Label className="text-xs">Provincia</Label>
           <Input
             value={form.cliente_provincia ?? ""}
@@ -1420,7 +1421,8 @@ function StepImmobile({
       description="Indirizzo del cantiere (se diverso dal cliente) e tipo di intervento. La sintesi narrativa si genera automaticamente dal BOM."
       icon={<Home className="h-4 w-4" />}
     >
-      <div className="grid grid-cols-12 gap-3">
+      {/* Telefono: spazi più stretti, così CAP e piano non si tagliano. */}
+      <div className="grid grid-cols-12 gap-3 max-sm:gap-2">
         <div className="col-span-12">
           <Label className="text-xs">Tipo di intervento</Label>
           <Select
@@ -1446,11 +1448,11 @@ function StepImmobile({
             placeholder="Via Tortona 33"
             className="h-9"
           />
-          <p className="text-[10px] text-muted-foreground mt-0.5">
+          <p className="text-[10px] text-muted-foreground mt-0.5 max-sm:hidden">
             Lascia vuoto se coincide con l'indirizzo del cliente
           </p>
         </div>
-        <div className="col-span-6">
+        <div className="col-span-6 max-sm:col-span-5">
           <Label className="text-xs">Città</Label>
           <Input
             value={form.cantiere_citta ?? ""}
@@ -1465,16 +1467,16 @@ function StepImmobile({
             value={form.cantiere_cap ?? ""}
             onChange={(e) => onChange("cantiere_cap", e.target.value)}
             placeholder="20121"
-            className="h-9"
+            className="h-9 max-sm:px-2"
           />
         </div>
-        <div className="col-span-3">
+        <div className="col-span-3 max-sm:col-span-4">
           <Label className="text-xs">Piano</Label>
           <Input
             value={form.cantiere_piano ?? ""}
             onChange={(e) => onChange("cantiere_piano", e.target.value)}
             placeholder="3° con ascensore"
-            className="h-9"
+            className="h-9 max-sm:px-2"
           />
         </div>
         {/* Campo "Sintesi dell'intervento" rimosso intenzionalmente.
