@@ -1,25 +1,32 @@
 /**
- * AdminArticleTemplates — gestione super_admin della libreria GLOBALE dei
- * template articoli (`article_family_templates`), quella che le aziende
- * importano dal Listino con "Importa da template".
+ * AdminArticleTemplates — la «Libreria listino» del super admin: quello che si
+ * dà pronto alle aziende, in tre schede.
  *
- * Qui il super_admin può: vedere TUTTI i template (anche disattivati),
- * cercarli/filtrarli, modificarne metadati e GRIGLIA PREZZI, attivarli/
- * disattivarli, duplicarli, eliminarli, e importare in blocco la libreria
- * fornitore WnD (estratta dai listini PDF, file src/data/wndArticleTemplates.ts).
+ *  - Modelli di area (25/09/2026): un'area intera — tipologie, prodotti con
+ *    foto e schede, varianti — presa dal listino di un'azienda e installabile
+ *    in un'altra come copia sua (ModelliAreaTab, listino_modelli_area).
+ *  - Prodotti singoli: la libreria GLOBALE dei template articoli
+ *    (`article_family_templates`) che le aziende importano dal Listino con
+ *    «Importa → Modelli pronti». Qui si vedono TUTTI (anche disattivati), si
+ *    cercano, si modificano metadati e GRIGLIA PREZZI, si attivano, duplicano,
+ *    eliminano, e si importano in blocco le librerie base e fornitore.
+ *  - Marche e serie dei serramenti (LibreriaMarcheSerie).
  *
  * RLS: select/insert/update/delete riservati a super_admin (policy aft_*).
  */
 import { useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
   Boxes, Plus, Search, Pencil, Copy, Trash2, Download, Loader2, Grid3x3,
-  Image as ImageIcon, X, Minus, ChevronDown, ChevronRight, Layers,
+  Image as ImageIcon, X, Minus, ChevronDown, ChevronRight, Layers, Library, Tags,
 } from "lucide-react";
 import { GlobalPhotoLibraryPicker } from "@/components/admin/GlobalPhotoLibraryPicker";
 import { LibreriaMarcheSerie } from "@/components/admin/LibreriaMarcheSerie";
+import { ModelliAreaTab } from "@/components/admin/listino/ModelliAreaTab";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -110,8 +117,25 @@ interface Template {
 /** "porta_finestra" → "Porta Finestra", "veneziane" → "Veneziane". */
 const prettyLabel = (s: string) => (s || "Senza categoria").replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
+const SCHEDE = ["aree", "prodotti", "marche"] as const;
+type Scheda = (typeof SCHEDE)[number];
+
 export default function AdminArticleTemplates() {
   const qc = useQueryClient();
+  // La scheda aperta sta nell'indirizzo: si ricarica e si linka.
+  const [parametri, setParametri] = useSearchParams();
+  const richiesta = parametri.get("scheda");
+  const scheda: Scheda = SCHEDE.includes(richiesta as Scheda) ? (richiesta as Scheda) : "aree";
+  const cambiaScheda = (v: string) =>
+    setParametri(
+      (prima) => {
+        const dopo = new URLSearchParams(prima);
+        if (v === "aree") dopo.delete("scheda");
+        else dopo.set("scheda", v);
+        return dopo;
+      },
+      { replace: true },
+    );
   const [search, setSearch] = useState("");
   const [tag, setTag] = useState<string>("");
   const [onlyInactive, setOnlyInactive] = useState(false);
@@ -252,170 +276,198 @@ export default function AdminArticleTemplates() {
   });
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex items-start gap-3">
-          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-            <Boxes className="h-5 w-5 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold leading-tight">Template Articoli</h1>
-            <p className="text-sm text-muted-foreground">
-              Libreria globale importabile dalle aziende ("Importa da template" nel Listino).
-            </p>
-          </div>
+    <div className="space-y-5">
+      <div className="flex items-start gap-3">
+        <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+          <Library className="h-5 w-5 text-primary" />
         </div>
-        <div className="flex items-center gap-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" disabled={importLibrary.isPending}>
-                {importLibrary.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
-                Importa da libreria
-                <ChevronDown className="h-4 w-4 ml-1.5 opacity-60" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-80">
-              <DropdownMenuLabel>Librerie base (neutre)</DropdownMenuLabel>
-              {LIBRARY_SOURCES.filter((s) => s.gruppo === "base").map((s) => (
-                <DropdownMenuItem
-                  key={s.key}
-                  disabled={importLibrary.isPending}
-                  onSelect={(e) => { e.preventDefault(); importLibrary.mutate(s); }}
-                  className="flex-col items-start gap-0.5"
-                >
-                  <span className="font-medium flex items-center gap-2">
-                    {importingKey === s.key && <Loader2 className="h-3 w-3 animate-spin" />}
-                    {s.label}
-                  </span>
-                  <span className="text-xs text-muted-foreground">{s.hint}</span>
-                </DropdownMenuItem>
-              ))}
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel>Cataloghi fornitore</DropdownMenuLabel>
-              {LIBRARY_SOURCES.filter((s) => s.gruppo === "fornitore").map((s) => (
-                <DropdownMenuItem
-                  key={s.key}
-                  disabled={importLibrary.isPending}
-                  onSelect={(e) => { e.preventDefault(); importLibrary.mutate(s); }}
-                  className="flex-col items-start gap-0.5"
-                >
-                  <span className="font-medium flex items-center gap-2">
-                    {importingKey === s.key && <Loader2 className="h-3 w-3 animate-spin" />}
-                    {s.label}
-                  </span>
-                  <span className="text-xs text-muted-foreground">{s.hint}</span>
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <Button onClick={() => setCreatingNew(true)}>
-            <Plus className="h-4 w-4 mr-2" /> Nuovo
-          </Button>
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold leading-tight">Libreria listino</h1>
+          <p className="text-sm text-muted-foreground">
+            Quello che dai pronto alle aziende: aree intere, prodotti singoli, marche e serie dei serramenti.
+          </p>
         </div>
       </div>
 
-      {/* Il livello sopra le tipologie: la marca e la serie di profilo, che è
-          il modo in cui un serramentista descrive davvero il suo listino. */}
-      <LibreriaMarcheSerie />
+      <Tabs value={scheda} onValueChange={cambiaScheda} className="space-y-4">
+        <TabsList className="h-auto w-full flex-wrap justify-start sm:w-auto">
+          <TabsTrigger value="aree" className="gap-1.5">
+            <Layers className="h-4 w-4" aria-hidden="true" /> Modelli di area
+          </TabsTrigger>
+          <TabsTrigger value="prodotti" className="gap-1.5">
+            <Boxes className="h-4 w-4" aria-hidden="true" /> Prodotti singoli
+            {templates.length > 0 && <span className="text-xs text-muted-foreground">{templates.length}</span>}
+          </TabsTrigger>
+          <TabsTrigger value="marche" className="gap-1.5">
+            <Tags className="h-4 w-4" aria-hidden="true" /> Marche e serie
+          </TabsTrigger>
+        </TabsList>
 
-      <Card>
-        <CardContent className="p-3 flex flex-col sm:flex-row gap-2 sm:items-center">
-          <div className="relative flex-1">
-            <Search className="h-4 w-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input className="pl-8" placeholder="Cerca per nome, codice, categoria…" value={search} onChange={(e) => setSearch(e.target.value)} />
-          </div>
-          <select className="h-10 rounded-md border bg-background px-2 text-sm" value={categoria} onChange={(e) => setCategoria(e.target.value)}>
-            <option value="">Tutte le categorie</option>
-            {allCategorie.map((c) => <option key={c} value={c}>{prettyLabel(c)}</option>)}
-          </select>
-          <select className="h-10 rounded-md border bg-background px-2 text-sm" value={tag} onChange={(e) => setTag(e.target.value)}>
-            <option value="">Tutti i tag</option>
-            {allTags.map((t) => <option key={t} value={t}>{t}</option>)}
-          </select>
-          <label className="flex items-center gap-2 text-sm whitespace-nowrap px-1">
-            <Switch checked={onlyInactive} onCheckedChange={setOnlyInactive} /> Solo disattivati
-          </label>
-        </CardContent>
-      </Card>
+        <TabsContent value="aree" className="mt-0">
+          <ModelliAreaTab />
+        </TabsContent>
 
-      <Card>
-        <CardHeader className="pb-2 flex-row items-center justify-between gap-2 space-y-0">
-          <div className="min-w-0">
-            <CardTitle className="text-base">
-              {isLoading ? "Caricamento…" : `${filtered.length} template · ${groups.length} categorie`}
-            </CardTitle>
-            <CardDescription>Clic su un template per modificarne dati e griglia prezzi.</CardDescription>
-          </div>
-          {groups.length > 1 && (
-            <Button variant="ghost" size="sm" className="shrink-0" onClick={toggleAll}>
-              {allCollapsed ? "Espandi tutto" : "Collassa tutto"}
-            </Button>
-          )}
-        </CardHeader>
-        <CardContent className="p-0">
-          {groups.map((g) => {
-            const isOpen = !collapsed.has(g.key);
-            return (
-              <div key={g.key} className="border-t first:border-t-0">
-                <button
-                  type="button"
-                  onClick={() => toggleGroup(g.key)}
-                  className="w-full flex items-center gap-2 px-4 py-2 bg-muted/40 hover:bg-muted/60 text-left"
-                >
-                  {isOpen ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
-                  <Layers className="h-4 w-4 text-primary/70" />
-                  <span className="font-semibold text-sm">{prettyLabel(g.categoria)}</span>
-                  {g.vertical && g.vertical !== "serramenti" && <Badge variant="outline" className="text-[10px]">{g.vertical}</Badge>}
-                  <Badge variant="secondary" className="text-[10px] ml-auto">{g.items.length}</Badge>
-                </button>
-                {isOpen && (
-                  <div className="divide-y">
-                    {g.items.map((t) => (
-                      <div key={t.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/40">
-                        <div className="h-9 w-9 rounded border bg-muted/40 overflow-hidden flex items-center justify-center shrink-0">
-                          {t.image_url
-                            ? <img src={t.image_url} alt="" className="w-full h-full object-contain" loading="lazy" />
-                            : <ImageIcon className="h-4 w-4 text-muted-foreground/50" />}
-                        </div>
-                        <button className="flex-1 min-w-0 text-left" onClick={() => setEditingId(t.id)}>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-medium text-sm truncate">{t.nome}</span>
-                            {!t.is_active && <Badge variant="outline" className="text-[10px] border-amber-300 text-amber-700 bg-amber-50">disattivo</Badge>}
-                          </div>
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap mt-0.5">
-                            {t.tipologia && <span className="font-mono">{t.tipologia}</span>}
-                            {t.modalita_prezzo_base === "griglia" && (
-                              <span className="inline-flex items-center gap-1"><Grid3x3 className="h-3 w-3" /> Griglia L×H</span>
-                            )}
-                            {(t.tags ?? []).slice(0, 3).map((x) => <Badge key={x} variant="secondary" className="text-[10px]">{x}</Badge>)}
-                          </div>
-                        </button>
-                        <Switch checked={t.is_active} disabled={toggleActive.isPending} onCheckedChange={() => toggleActive.mutate(t)} title="Attiva/disattiva" aria-label={`Attiva/disattiva ${t.nome}`} />
-                        <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setEditingId(t.id)} title="Modifica" aria-label={`Modifica ${t.nome}`}><Pencil className="h-4 w-4" /></Button>
-                        <Button size="icon" variant="ghost" className="h-8 w-8" disabled={duplicate.isPending} onClick={() => duplicate.mutate(t.id)} title="Duplica" aria-label={`Duplica ${t.nome}`}><Copy className="h-4 w-4" /></Button>
-                        <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" disabled={del.isPending} onClick={() => { if (confirm(`Eliminare "${t.nome}"?`)) del.mutate(t.id); }} title="Elimina" aria-label={`Elimina ${t.nome}`}><Trash2 className="h-4 w-4" /></Button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-          {/* Errore di caricamento ONESTO: prima un fetch fallito al primo load
-              mostrava l'empty-state "Nessun template" (data=[], niente toast). */}
-          {isError && (
-            <div className="flex flex-col items-center gap-3 py-12 text-center">
-              <p className="text-sm text-destructive">
-                Errore nel caricamento dei template{listError instanceof Error ? `: ${listError.message}` : "."}
-              </p>
-              <Button size="sm" variant="outline" onClick={() => refetch()}>Riprova</Button>
+        <TabsContent value="marche" className="mt-0">
+          {/* Il livello sopra le tipologie: la marca e la serie di profilo, che è
+              il modo in cui un serramentista descrive davvero il suo listino. */}
+          <LibreriaMarcheSerie />
+        </TabsContent>
+
+        <TabsContent value="prodotti" className="mt-0 space-y-4">
+          <div className="flex flex-col gap-3 rounded-lg border bg-muted/30 p-4 sm:flex-row sm:items-center">
+            <p className="flex-1 text-sm text-muted-foreground">
+              Modelli di un prodotto alla volta (finestre, porte…), con disegno e griglia prezzi. Le aziende li prendono
+              dal loro listino, con «Importa → Modelli pronti».
+            </p>
+            <div className="flex items-center gap-2">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" disabled={importLibrary.isPending}>
+                    {importLibrary.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
+                    Importa da libreria
+                    <ChevronDown className="h-4 w-4 ml-1.5 opacity-60" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-80">
+                  <DropdownMenuLabel>Librerie base (neutre)</DropdownMenuLabel>
+                  {LIBRARY_SOURCES.filter((s) => s.gruppo === "base").map((s) => (
+                    <DropdownMenuItem
+                      key={s.key}
+                      disabled={importLibrary.isPending}
+                      onSelect={(e) => { e.preventDefault(); importLibrary.mutate(s); }}
+                      className="flex-col items-start gap-0.5"
+                    >
+                      <span className="font-medium flex items-center gap-2">
+                        {importingKey === s.key && <Loader2 className="h-3 w-3 animate-spin" />}
+                        {s.label}
+                      </span>
+                      <span className="text-xs text-muted-foreground">{s.hint}</span>
+                    </DropdownMenuItem>
+                  ))}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel>Cataloghi fornitore</DropdownMenuLabel>
+                  {LIBRARY_SOURCES.filter((s) => s.gruppo === "fornitore").map((s) => (
+                    <DropdownMenuItem
+                      key={s.key}
+                      disabled={importLibrary.isPending}
+                      onSelect={(e) => { e.preventDefault(); importLibrary.mutate(s); }}
+                      className="flex-col items-start gap-0.5"
+                    >
+                      <span className="font-medium flex items-center gap-2">
+                        {importingKey === s.key && <Loader2 className="h-3 w-3 animate-spin" />}
+                        {s.label}
+                      </span>
+                      <span className="text-xs text-muted-foreground">{s.hint}</span>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button onClick={() => setCreatingNew(true)}>
+                <Plus className="h-4 w-4 mr-2" /> Nuovo prodotto
+              </Button>
             </div>
-          )}
-          {!isLoading && !isError && filtered.length === 0 && (
-            <div className="py-12 text-center text-muted-foreground text-sm">Nessun template con questi filtri.</div>
-          )}
-        </CardContent>
-      </Card>
+          </div>
+
+          <Card>
+            <CardContent className="p-3 flex flex-col sm:flex-row gap-2 sm:items-center">
+              <div className="relative flex-1">
+                <Search className="h-4 w-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Input className="pl-8" placeholder="Cerca per nome, codice, categoria…" value={search} onChange={(e) => setSearch(e.target.value)} />
+              </div>
+              <select className="h-10 rounded-md border bg-background px-2 text-sm" value={categoria} onChange={(e) => setCategoria(e.target.value)}>
+                <option value="">Tutte le categorie</option>
+                {allCategorie.map((c) => <option key={c} value={c}>{prettyLabel(c)}</option>)}
+              </select>
+              <select className="h-10 rounded-md border bg-background px-2 text-sm" value={tag} onChange={(e) => setTag(e.target.value)}>
+                <option value="">Tutti i tag</option>
+                {allTags.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+              <label className="flex items-center gap-2 text-sm whitespace-nowrap px-1">
+                <Switch checked={onlyInactive} onCheckedChange={setOnlyInactive} /> Solo disattivati
+              </label>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2 flex-row items-center justify-between gap-2 space-y-0">
+              <div className="min-w-0">
+                <CardTitle className="text-base">
+                  {isLoading ? "Caricamento…" : `${filtered.length} template · ${groups.length} categorie`}
+                </CardTitle>
+                <CardDescription>Clic su un template per modificarne dati e griglia prezzi.</CardDescription>
+              </div>
+              {groups.length > 1 && (
+                <Button variant="ghost" size="sm" className="shrink-0" onClick={toggleAll}>
+                  {allCollapsed ? "Espandi tutto" : "Collassa tutto"}
+                </Button>
+              )}
+            </CardHeader>
+            <CardContent className="p-0">
+              {groups.map((g) => {
+                const isOpen = !collapsed.has(g.key);
+                return (
+                  <div key={g.key} className="border-t first:border-t-0">
+                    <button
+                      type="button"
+                      onClick={() => toggleGroup(g.key)}
+                      className="w-full flex items-center gap-2 px-4 py-2 bg-muted/40 hover:bg-muted/60 text-left"
+                    >
+                      {isOpen ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                      <Layers className="h-4 w-4 text-primary/70" />
+                      <span className="font-semibold text-sm">{prettyLabel(g.categoria)}</span>
+                      {g.vertical && g.vertical !== "serramenti" && <Badge variant="outline" className="text-[10px]">{g.vertical}</Badge>}
+                      <Badge variant="secondary" className="text-[10px] ml-auto">{g.items.length}</Badge>
+                    </button>
+                    {isOpen && (
+                      <div className="divide-y">
+                        {g.items.map((t) => (
+                          <div key={t.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/40">
+                            <div className="h-9 w-9 rounded border bg-muted/40 overflow-hidden flex items-center justify-center shrink-0">
+                              {t.image_url
+                                ? <img src={t.image_url} alt="" className="w-full h-full object-contain" loading="lazy" />
+                                : <ImageIcon className="h-4 w-4 text-muted-foreground/50" />}
+                            </div>
+                            <button className="flex-1 min-w-0 text-left" onClick={() => setEditingId(t.id)}>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-medium text-sm truncate">{t.nome}</span>
+                                {!t.is_active && <Badge variant="outline" className="text-[10px] border-amber-300 text-amber-700 bg-amber-50">disattivo</Badge>}
+                              </div>
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap mt-0.5">
+                                {t.tipologia && <span className="font-mono">{t.tipologia}</span>}
+                                {t.modalita_prezzo_base === "griglia" && (
+                                  <span className="inline-flex items-center gap-1"><Grid3x3 className="h-3 w-3" /> Griglia L×H</span>
+                                )}
+                                {(t.tags ?? []).slice(0, 3).map((x) => <Badge key={x} variant="secondary" className="text-[10px]">{x}</Badge>)}
+                              </div>
+                            </button>
+                            <Switch checked={t.is_active} disabled={toggleActive.isPending} onCheckedChange={() => toggleActive.mutate(t)} title="Attiva/disattiva" aria-label={`Attiva/disattiva ${t.nome}`} />
+                            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setEditingId(t.id)} title="Modifica" aria-label={`Modifica ${t.nome}`}><Pencil className="h-4 w-4" /></Button>
+                            <Button size="icon" variant="ghost" className="h-8 w-8" disabled={duplicate.isPending} onClick={() => duplicate.mutate(t.id)} title="Duplica" aria-label={`Duplica ${t.nome}`}><Copy className="h-4 w-4" /></Button>
+                            <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" disabled={del.isPending} onClick={() => { if (confirm(`Eliminare "${t.nome}"?`)) del.mutate(t.id); }} title="Elimina" aria-label={`Elimina ${t.nome}`}><Trash2 className="h-4 w-4" /></Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              {/* Errore di caricamento ONESTO: prima un fetch fallito al primo load
+                  mostrava l'empty-state "Nessun template" (data=[], niente toast). */}
+              {isError && (
+                <div className="flex flex-col items-center gap-3 py-12 text-center">
+                  <p className="text-sm text-destructive">
+                    Errore nel caricamento dei template{listError instanceof Error ? `: ${listError.message}` : "."}
+                  </p>
+                  <Button size="sm" variant="outline" onClick={() => refetch()}>Riprova</Button>
+                </div>
+              )}
+              {!isLoading && !isError && filtered.length === 0 && (
+                <div className="py-12 text-center text-muted-foreground text-sm">Nessun template con questi filtri.</div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       {editingId && (
         <EditDialogLoader
