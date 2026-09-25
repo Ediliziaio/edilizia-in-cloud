@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { buildPavimentiEsterniPrompt } from "@/modules/render-pavimenti-esterni/lib/promptBuilder";
-import type { ConfigurazionePavimentoEsterno } from "@/modules/render-pavimenti-esterni/lib/types";
+import { buildExteriorFloorPrompt as buildPavimentiEsterniPrompt } from "../../../shared/render-exterior-floor/exteriorFloorPromptBuilder";
+import type { ConfigurazionePavimentoEsterno } from "../../../shared/render-exterior-floor/types";
 
 function baseConfig(overrides: Partial<ConfigurazionePavimentoEsterno> = {}): ConfigurazionePavimentoEsterno {
   return {

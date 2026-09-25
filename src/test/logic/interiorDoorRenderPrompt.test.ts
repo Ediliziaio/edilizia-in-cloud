@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_INTERIOR_DOOR_CONFIG } from "@/components/render-porte-interne/defaultInteriorDoorConfig";
-import { buildInteriorDoorPrompt } from "@/modules/render-porte-interne/lib/interiorDoorPromptBuilder";
-import type { ConfigurazionePortaInterna } from "@/modules/render-porte-interne/lib/types";
+import { DEFAULT_INTERIOR_DOOR_CONFIG } from "../../../shared/render-technical/defaults";
+import { buildInteriorDoorPrompt } from "../../../shared/render-interior-door/interiorDoorPromptBuilder";
+import type { ConfigurazionePortaInterna } from "../../../shared/render-interior-door/types";
 
 function config(overrides: Partial<ConfigurazionePortaInterna> = {}): ConfigurazionePortaInterna {
   return {

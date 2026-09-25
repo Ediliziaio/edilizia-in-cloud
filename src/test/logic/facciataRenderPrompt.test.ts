@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { DEFAULT_FACCIATA_CONFIG } from "@/components/render-facciata/defaultFacciataConfig";
 import { buildFacciataRenderConfig } from "@/modules/render-facciata/lib/facciataRenderConfig";
-import { buildFacciataPrompt } from "@/modules/render-facciata/lib/facciataPromptBuilder";
+import { buildFacciataPrompt } from "../../../shared/render-facciata/facciataPromptBuilder";
 import { normalizeFacciataSceneAnalysis } from "@/modules/render-facciata/lib/facciataSceneAnalysis";
 import type { ConfigurazioneFacciata } from "@/modules/render-facciata/lib/types";
 

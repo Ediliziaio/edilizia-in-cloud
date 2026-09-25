@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { buildGardenPrompt } from "@/modules/render-giardini/lib/gardenPromptBuilder";
-import type { ConfigurazioneGiardino } from "@/modules/render-giardini/lib/types";
+import { buildGardenPrompt } from "../../../shared/render-garden/gardenPromptBuilder";
+import type { ConfigurazioneGiardino } from "../../../shared/render-garden/types";
 
 function baseConfig(overrides: Partial<ConfigurazioneGiardino> = {}): ConfigurazioneGiardino {
   const defaultPrato = { attivo: true, tipo: "prato_resistente" };

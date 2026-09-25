@@ -39,8 +39,8 @@ Fotovoltaico in produzione.
 Hook complementare: `useFeatureFlags()` in `src/hooks/useFeatureFlags.ts`
 per leggere il catalogo `platform_feature_flags`.
 
-Replica client-side: `src/lib/featureResolver.ts` (porting deterministico
-della RPC per test e fallback).
+La replica client-side `src/lib/featureResolver.ts` (porting della RPC per test
+e fallback) è stata tolta il 25/09/2026: non la usava nessuno, la verità è la RPC.
 
 ### 3. Voce sidebar "Fotovoltaico"
 

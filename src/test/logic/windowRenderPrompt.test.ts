@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { mapWizardToConfig, type WizardState } from "@/modules/render/lib/configMapper";
 import { normalizeWindowSceneAnalysis } from "@/modules/render/lib/windowSceneAnalysis";
-import { buildWindowPrompt } from "@/modules/render/lib/windowPromptBuilder";
+import { buildWindowPrompt } from "../../../shared/render-window/windowPromptBuilder";
 
 const baseState: WizardState = {
   tipo: "F2A",

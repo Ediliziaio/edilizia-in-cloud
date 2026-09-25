@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_SECURITY_DOOR_CONFIG } from "@/components/render-porte-blindate/defaultSecurityDoorConfig";
-import { buildSecurityDoorPrompt } from "@/modules/render-porte-blindate/lib/securityDoorPromptBuilder";
-import type { ConfigurazionePortaBlindata } from "@/modules/render-porte-blindate/lib/types";
+import { DEFAULT_SECURITY_DOOR_CONFIG } from "../../../shared/render-technical/defaults";
+import { buildSecurityDoorPrompt } from "../../../shared/render-security-door/securityDoorPromptBuilder";
+import type { ConfigurazionePortaBlindata } from "../../../shared/render-security-door/types";
 
 function config(overrides: Partial<ConfigurazionePortaBlindata> = {}): ConfigurazionePortaBlindata {
   return {
