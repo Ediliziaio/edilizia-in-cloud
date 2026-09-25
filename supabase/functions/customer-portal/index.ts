@@ -61,18 +61,25 @@ Deno.serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
     const { data: aziendaEffettiva } = await supabaseUtente.rpc("get_effective_company_id");
-    if (typeof aziendaEffettiva === "string" && aziendaEffettiva !== companyId) {
-      // Un'azienda diversa dalla propria: serve il permesso sulla sua fatturazione.
-      const { data: puo } = await supabaseUtente.rpc("has_permission_for_company", {
-        _user_id: userId,
-        _permission: "can_view_billing",
-        _company_id: aziendaEffettiva,
-      });
-      if (puo !== true) return errorResponse("Non puoi gestire la fatturazione di questa azienda", 403, corsH);
-      companyId = aziendaEffettiva;
-    }
+    if (typeof aziendaEffettiva === "string") companyId = aziendaEffettiva;
 
     if (!companyId) return errorResponse("Azienda non trovata", 404, corsH);
+
+    // Il portale Stripe gestisce l'abbonamento dell'azienda a EiC: annullarlo o
+    // cambiare piano vale per tutti. Lo apre solo il super admin o un
+    // amministratore di quell'azienda (25/09/2026: prima, sull'azienda del
+    // proprio profilo, bastava averci un profilo, anche da cliente del portale).
+    const { data: adminAzienda } = await supabaseUtente.rpc("can_manage_company_people", { p_company_id: companyId });
+    let amministra = adminAzienda === true;
+    if (!amministra && companyId === profile?.company_id) {
+      // L'area Produttori (ProduttoreFatturazione): il suo amministratore ha il
+      // ruolo produttore_admin sull'azienda del proprio profilo.
+      const { data: ruoli } = await supabaseAdmin.from("user_roles").select("role").eq("user_id", userId);
+      amministra = (ruoli ?? []).some((r: { role: string }) => r.role === "produttore_admin");
+    }
+    if (!amministra) {
+      return errorResponse("Solo un amministratore dell'azienda può gestire l'abbonamento", 403, corsH);
+    }
 
     // Get company's Stripe customer ID
     const { data: company } = await supabaseAdmin

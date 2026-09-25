@@ -34,3 +34,21 @@ export const PRIORITA_RUOLI_SILVIO = [
 export function ruoloPrincipaleSilvio(ruoli: readonly string[]): string {
   return PRIORITA_RUOLI_SILVIO.find((r) => ruoli.includes(r)) ?? ruoli[0] ?? "company_staff";
 }
+
+/**
+ * I ruoli a cui l'app dà i permessi della riga staff_permissions (usePermissions):
+ * per loro Silvio applica gli stessi permessi, per area e sulle righe. Prima li
+ * applicava solo a company_staff, e il venditore (che nella scala sta sopra)
+ * leggeva da Silvio tutte le commesse anche senza il permesso (25/09/2026).
+ */
+export const RUOLI_CON_PERMESSI_STAFF: readonly string[] = [
+  "company_staff",
+  "salesperson",
+  "call_center",
+  "employee",
+  "subcontractor",
+];
+
+export function usaPermessiStaff(ruolo: string): boolean {
+  return RUOLI_CON_PERMESSI_STAFF.includes(ruolo);
+}

@@ -185,9 +185,13 @@ describe("stessa scala di ruoli della chat", () => {
 
   it("la chat usa la stessa funzione, non una copia", () => {
     const chat = readFileSync(join(ROOT, "supabase/functions/silvio-chat/index.ts"), "utf8");
-    expect(chat).toContain('import { ruoloPrincipaleSilvio } from "../_shared/ruoloSilvio.ts";');
+    expect(chat).toMatch(/import \{[^}]*\bruoloPrincipaleSilvio\b[^}]*\} from "\.\.\/_shared\/ruoloSilvio\.ts";/);
     expect(chat).toContain("const primaryRole = ruoloPrincipaleSilvio(roleList);");
     expect(chat).not.toContain("const rolePriority =");
+    // Anche chi usa i permessi della riga lo decide ruoloSilvio (25/09/2026:
+    // prima la chat li caricava solo per company_staff, e il venditore no).
+    expect(chat).toContain("const staffPermsPromise = usaPermessiStaff(primaryRole)");
+    expect(chat).not.toContain('primaryRole === "company_staff"');
   });
 
   it("gli strumenti del brief esistono e la loro area ha un permesso", () => {

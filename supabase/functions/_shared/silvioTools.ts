@@ -8995,6 +8995,32 @@ export const DOMAIN_STAFF_PERMISSION: Partial<Record<ToolDomain, string>> = {
   // creative che non leggono dati sensibili).
 };
 
+/** Aree che si aprono anche con un permesso diverso da quello principale.
+ *  calendar: trova_slot_liberi serve anche a chi fissa gli appuntamenti CRM
+ *  senza vedere il calendario lavori (il venditore, di serie). */
+export const DOMAIN_STAFF_PERMISSION_ANCHE: Partial<Record<ToolDomain, string[]>> = {
+  calendar: ["can_view_marketing_appointments"],
+};
+
+/** I permessi che aprono l'area: il principale e le alternative. */
+export function permessiDellArea(domain: ToolDomain | undefined): string[] {
+  if (!domain) return [];
+  const principale = DOMAIN_STAFF_PERMISSION[domain];
+  return principale ? [principale, ...(DOMAIN_STAFF_PERMISSION_ANCHE[domain] ?? [])] : [];
+}
+
+/** L'area del tool è spenta per questa riga permessi? Solo se TUTTI i permessi
+ *  che la aprono sono esplicitamente false: senza riga, o senza gate d'area,
+ *  nessun limite (il comportamento storico). */
+export function areaSpentaPerPermessi(
+  perms: Record<string, unknown> | null | undefined,
+  domain: ToolDomain | undefined,
+): boolean {
+  const chiavi = permessiDellArea(domain);
+  if (!perms || chiavi.length === 0) return false;
+  return chiavi.every((k) => perms[k] === false);
+}
+
 /**
  * MP-AIE-01 v2 — filtra i tool per canale + role + persona + domain.
  * Funzione canonica usata da: silvio-chat, ai-orchestrator, whatsapp-ai-processor,
@@ -9042,10 +9068,7 @@ export function getToolsForChannel(opts: {
     if (domainSet && tool.domain && !domainSet.has(tool.domain)) continue;
     // RBAC granulare per-utente (MVP): esclude il tool SOLO se il permesso
     // staff mappato sul suo dominio è esplicitamente false.
-    if (opts.staffPermissions && tool.domain) {
-      const permKey = DOMAIN_STAFF_PERMISSION[tool.domain];
-      if (permKey && opts.staffPermissions[permKey] === false) continue;
-    }
+    if (opts.staffPermissions && tool.domain && areaSpentaPerPermessi(opts.staffPermissions, tool.domain)) continue;
     out.push(tool);
   }
   return out;

@@ -25,7 +25,7 @@
  * Questo file decide cosa CHIEDERE, così chi non ha niente da vedere non costa
  * né una query né una chiamata al modello.
  */
-import { DEFAULT_TOOL_ALLOWED_ROLES, DOMAIN_STAFF_PERMISSION, SILVIO_TOOLS } from "./silvioTools.ts";
+import { DEFAULT_TOOL_ALLOWED_ROLES, SILVIO_TOOLS, permessiDellArea } from "./silvioTools.ts";
 import { ruoloPrincipaleSilvio } from "./ruoloSilvio.ts";
 
 /** Uno strumento del brief e quanto del suo risultato entra nel prompt. */
@@ -63,8 +63,9 @@ export function strumentoConcesso(nome: string, ruolo: string, permessi: Permess
   const ammessi = tool.allowedRoles && tool.allowedRoles.length > 0 ? tool.allowedRoles : DEFAULT_TOOL_ALLOWED_ROLES;
   if (!ammessi.includes(ruolo) && !ammessi.includes("*")) return false;
   if (RUOLI_AMMINISTRATORE.includes(ruolo)) return true;
-  const chiave = tool.domain ? DOMAIN_STAFF_PERMISSION[tool.domain] : undefined;
-  return !!chiave && permessi?.[chiave] === true;
+  // Il permesso principale dell'area o una sua alternativa (permessiDellArea),
+  // come in chat: lì basta che non siano tutti spenti, qui ne serve uno acceso.
+  return permessiDellArea(tool.domain).some((chiave) => permessi?.[chiave] === true);
 }
 
 export function pianoDelBrief(ruoli: readonly string[], permessi: PermessiUtente): PianoDelBrief {
