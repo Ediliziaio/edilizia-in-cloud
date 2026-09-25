@@ -19,7 +19,6 @@ vi.mock("@/hooks/useRistrutturazionePDF", () => ({ useRistrutturazionePDF: () =>
 vi.mock("@/components/ristrutturazione/RistrutturazioneLivePreviewPanel", () => ({ RistrutturazioneLivePreviewPanel: () : null => null }));
 vi.mock("@/components/ristrutturazione/RistrutturazioneTemplatePreviewDialog", () => ({ RistrutturazioneTemplatePreviewDialog: () : null => null }));
 vi.mock("@/components/preventivi/StandardTextTemplatePicker", () => ({ StandardTextTemplatePicker: () : null => null }));
-vi.mock("@/components/preventivi/CopertinaAnteprima", () => ({ CopertinaAnteprima: () : null => null }));
 vi.mock("@/components/preventivi/AiSalesProfileForm", () => ({ AiSalesProfileForm: () : null => null }));
 vi.mock("@/components/preventivi/AiTemplateReviewDialog", () => ({ AiTemplateReviewDialog: () : null => null }));
 vi.mock("sonner", () => ({ toast: { success: calls.success, error: calls.error } }));

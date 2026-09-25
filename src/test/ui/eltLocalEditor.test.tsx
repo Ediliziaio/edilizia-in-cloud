@@ -20,7 +20,6 @@ vi.mock("@/hooks/useElettricoPDF", () => ({ useElettricoPDF: () => ({ previewPDF
 vi.mock("@/components/elettrico/ElettricoLivePreviewPanel", () => ({ ElettricoLivePreviewPanel: (): null => null }));
 vi.mock("@/components/elettrico/ElettricoTemplatePreviewDialog", () => ({ ElettricoTemplatePreviewDialog: (): null => null }));
 vi.mock("@/components/preventivi/StandardTextTemplatePicker", () => ({ StandardTextTemplatePicker: (): null => null }));
-vi.mock("@/components/preventivi/CopertinaAnteprima", () => ({ CopertinaAnteprima: (): null => null }));
 vi.mock("@/components/preventivi/AiSalesProfileForm", () => ({ AiSalesProfileForm: (): null => null }));
 vi.mock("@/components/preventivi/AiTemplateReviewDialog", () => ({ AiTemplateReviewDialog: (): null => null }));
 vi.mock("sonner", () => ({ toast: { success: calls.success, error: calls.error } }));
