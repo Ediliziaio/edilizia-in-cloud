@@ -280,22 +280,34 @@ export async function enrichTermoidraulicoPdf(opts: IdrPdfPayload): Promise<IdrP
 
 /**
  * Il documento del preventivo: quello dei moduli edili, oppure il Conto Termico
- * 3.0 se il preventivo nasce da quel modello. Anteprima, download e firma
- * online passano tutti da qui.
+ * 3.0 o la Casa Full Electric se il preventivo nasce da quei modelli. Anteprima,
+ * download e firma online passano tutti da qui.
  */
 export async function elementoPdf(enriched: IdrPdfEnriched): Promise<ReactElement> {
   const React = await import("react");
-  const { eContoTermico } = await import("@/lib/contoTermico/pdfDelPreventivo");
+  const [{ eContoTermico }, { eFullElectric }] = await Promise.all([
+    import("@/lib/contoTermico/pdfDelPreventivo"),
+    import("@/lib/fullElectric/pdfDelPreventivo"),
+  ]);
+  const inline = async (percorsi: Record<string, string | undefined | null>) => Object.fromEntries(await Promise.all(
+    Object.entries(percorsi).map(async ([posto, url]) => [posto, url ? await toDataUrl(url) : null] as const),
+  ));
+  if (eFullElectric(enriched)) {
+    const [{ FullElectricPDF }, { datiPdfFullElectric, fotoFullElectric }, { leggiDatiFullElectric }] = await Promise.all([
+      import("@/components/termoidraulico/fullElectric/FullElectricPDF"),
+      import("@/lib/fullElectric/pdfDelPreventivo"),
+      import("@/lib/fullElectric/dati"),
+    ]);
+    const foto = await inline(fotoFullElectric(leggiDatiFullElectric(enriched.progetto.full_electric).componenti));
+    return React.createElement(FullElectricPDF, { data: datiPdfFullElectric(enriched, foto) });
+  }
   if (eContoTermico(enriched)) {
     const [{ ContoTermicoPDF }, { datiPdfContoTermico, fotoDelPreventivo }, { leggiDatiContoTermico }] = await Promise.all([
       import("@/components/termoidraulico/contoTermico/ContoTermicoPDF"),
       import("@/lib/contoTermico/pdfDelPreventivo"),
       import("@/lib/contoTermico/dati"),
     ]);
-    const percorsi = fotoDelPreventivo(leggiDatiContoTermico(enriched.progetto.conto_termico).tipo);
-    const foto = Object.fromEntries(await Promise.all(
-      Object.entries(percorsi).map(async ([posto, url]) => [posto, url ? await toDataUrl(url) : null] as const),
-    ));
+    const foto = await inline(fotoDelPreventivo(leggiDatiContoTermico(enriched.progetto.conto_termico).tipo));
     return React.createElement(ContoTermicoPDF, { data: datiPdfContoTermico(enriched, foto) });
   }
   const { TermoidraulicoPDF } = await import("@/components/termoidraulico/TermoidraulicoPDF");

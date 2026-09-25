@@ -4,13 +4,11 @@
  * mano o dalle righe); qui si scrivono contributo, modalità e spese, e sotto
  * si vede subito cosa ottiene il cliente: gli stessi numeri del PDF.
  */
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { Flame, Plus, Trash2, TriangleAlert } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Flame, TriangleAlert } from "lucide-react";
+import { CampoNumero, CampoTesto, Scelta, SchedaTecnica } from "@/components/termoidraulico/campiEconomia";
 import { anniTesto, calcolaContoTermico, euro } from "@/lib/contoTermico/calcoli";
 import { economiaContoTermico, type DatiContoTermico } from "@/lib/contoTermico/dati";
 import { CONTO_TERMICO, INTERVENTI_CONTO_TERMICO, numeroRate, type InterventoContoTermico } from "@/lib/contoTermico/regole";
@@ -23,76 +21,11 @@ interface Props {
   ivaPct: number;
 }
 
-/** «4.800» sono migliaia, «8,5» e «8.5» decimali. */
-const numeroDaTesto = (t: string): number | null => {
-  const s = t.trim().replace(/[€\s]/g, "");
-  const pulito = /^\d{1,3}(\.\d{3})+(,\d+)?$/.test(s) ? s.replace(/\./g, "").replace(",", ".") : s.replace(",", ".");
-  if (!pulito) return null;
-  const n = Number(pulito);
-  return Number.isFinite(n) ? n : null;
-};
-
-/** Un numero che si salva quando si esce dal campo, non a ogni tasto. */
-function CampoNumero({ id, etichetta, valore, onCommit, suffisso, aiuto }: { id: string; etichetta: string; valore: number | null; onCommit: (v: number | null) => void; suffisso?: string; aiuto?: string }) {
-  const [testo, setTesto] = useState(valore == null ? "" : String(valore).replace(".", ","));
-  return (
-    <div className="space-y-1">
-      <Label htmlFor={id} className="text-xs">{etichetta}</Label>
-      <div className="relative">
-        <Input
-          id={id}
-          inputMode="decimal"
-          value={testo}
-          onChange={(e) => setTesto(e.target.value)}
-          onBlur={() => onCommit(numeroDaTesto(testo))}
-          className={cn("h-9", suffisso && "pr-12")}
-        />
-        {suffisso ? <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-muted-foreground">{suffisso}</span> : null}
-      </div>
-      {aiuto ? <p className="text-[10px] leading-snug text-muted-foreground">{aiuto}</p> : null}
-    </div>
-  );
-}
-
-function CampoTesto({ id, etichetta, valore, onCommit, segnaposto }: { id: string; etichetta: string; valore: string; onCommit: (v: string) => void; segnaposto?: string }) {
-  const [testo, setTesto] = useState(valore);
-  return (
-    <div className="space-y-1">
-      <Label htmlFor={id} className="text-xs">{etichetta}</Label>
-      <Input id={id} value={testo} placeholder={segnaposto} onChange={(e) => setTesto(e.target.value)} onBlur={() => testo.trim() !== valore && onCommit(testo.trim())} className="h-9" />
-    </div>
-  );
-}
-
-function Scelta<T extends string | number | null>({ valore, opzioni, onChange }: { valore: T; opzioni: { valore: T; etichetta: string }[]; onChange: (v: T) => void }) {
-  return (
-    <div className="flex flex-wrap gap-1.5">
-      {opzioni.map((o) => (
-        <button
-          key={String(o.valore)}
-          type="button"
-          aria-pressed={valore === o.valore}
-          onClick={() => onChange(o.valore)}
-          className={cn(
-            "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
-            valore === o.valore ? "border-orange-300 bg-orange-50 text-orange-800" : "border-slate-200 bg-white text-slate-600 hover:border-orange-200",
-          )}
-        >
-          {o.etichetta}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 export function ContoTermicoEconomia({ dati, onChange, prezzoIvaInclusa, ivaPct }: Props) {
   const cambia = (patch: Partial<DatiContoTermico>) => onChange({ ...dati, ...patch });
   const r = useMemo(() => calcolaContoTermico(economiaContoTermico(dati, prezzoIvaInclusa, ivaPct)), [dati, prezzoIvaInclusa, ivaPct]);
   const oltreIlTetto = prezzoIvaInclusa > 0 && dati.contributo > prezzoIvaInclusa * (CONTO_TERMICO.percentualeMassima / 100);
   const rate = numeroRate(dati.contributo, dati.potenza_kw);
-  // Le righe della scheda hanno campi non controllati: dopo una cancellazione si
-  // ridisegnano tutte, altrimenti la riga che sale mostrerebbe il testo di quella tolta.
-  const [giro, setGiro] = useState(0);
 
   return (
     <Card className="border-orange-200">
@@ -173,29 +106,11 @@ export function ContoTermicoEconomia({ dati, onChange, prezzoIvaInclusa, ivaPct 
           </div>
         </div>
 
-        <div className="space-y-1.5">
-          <Label className="text-xs">Scheda tecnica del modello proposto (nel PDF)</Label>
-          {dati.caratteristiche.map((x, i) => (
-            // Sul telefono voce e valore vanno su due righe: affiancati, la voce si tagliava.
-            <div key={`${giro}-${i}`} className="flex flex-wrap gap-2 rounded-lg border p-2 sm:flex-nowrap sm:border-0 sm:p-0">
-              <Input aria-label="Caratteristica" defaultValue={x.etichetta} placeholder="Potenza termica" className="h-8 basis-full text-xs sm:basis-auto sm:flex-1"
-                onBlur={(e) => cambia({ caratteristiche: dati.caratteristiche.map((y, j) => (j === i ? { ...y, etichetta: e.target.value.trim() } : y)) })} />
-              <Input aria-label="Valore" defaultValue={x.valore} placeholder="8 kW" className="h-8 min-w-0 flex-1 text-xs sm:w-40 sm:flex-none"
-                onBlur={(e) => cambia({ caratteristiche: dati.caratteristiche.map((y, j) => (j === i ? { ...y, valore: e.target.value.trim() } : y)) })} />
-              <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0" aria-label="Togli la riga"
-                onClick={() => { setGiro((g) => g + 1); cambia({ caratteristiche: dati.caratteristiche.filter((_, j) => j !== i) }); }}>
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-          ))}
-          {dati.caratteristiche.length < 9 ? (
-            <Button type="button" variant="outline" size="sm" className="h-8 text-xs"
-              onClick={() => cambia({ caratteristiche: [...dati.caratteristiche, { etichetta: "Caratteristica", valore: "da scrivere" }] })}>
-              <Plus className="mr-1 h-3.5 w-3.5" /> Aggiungi una riga
-            </Button>
-          ) : null}
-        </div>
-
+        <SchedaTecnica
+          etichetta="Scheda tecnica del modello proposto (nel PDF)"
+          righe={dati.caratteristiche}
+          onChange={(caratteristiche) => cambia({ caratteristiche })}
+        />
       </CardContent>
     </Card>
   );

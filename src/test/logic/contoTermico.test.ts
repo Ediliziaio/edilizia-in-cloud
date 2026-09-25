@@ -185,9 +185,12 @@ describe("Conto Termico: il documento si genera anche da solo", () => {
   it("nel browser prepara Buffer prima delle foto e non spezza le parole", () => {
     // Il documento degli altri preventivi lo fa al caricamento; il Conto Termico
     // si genera senza caricarlo, e senza Buffer le foto perdevano la chiave di cache.
-    const src = readFileSync(resolve("src/components/termoidraulico/contoTermico/ContoTermicoPDF.tsx"), "utf8");
-    expect(src).toContain('import { ensurePdfBufferCompatibility } from "@/lib/pdf/ensurePdfBufferCompatibility"');
-    expect(src).toContain("\nensurePdfBufferCompatibility();");
-    expect(src).toContain("Font.registerHyphenationCallback((word) => [word]);");
+    // Lo fa il tema del racconto, che il documento importa.
+    const tema = readFileSync(resolve("src/components/preventivi/pdf/racconto/temaRacconto.ts"), "utf8");
+    expect(tema).toContain('import { ensurePdfBufferCompatibility } from "@/lib/pdf/ensurePdfBufferCompatibility"');
+    expect(tema).toContain("\nensurePdfBufferCompatibility();");
+    expect(tema).toContain("Font.registerHyphenationCallback((word) => [word]);");
+    const documento = readFileSync(resolve("src/components/termoidraulico/contoTermico/ContoTermicoPDF.tsx"), "utf8");
+    expect(documento).toContain('from "@/components/preventivi/pdf/racconto/temaRacconto"');
   });
 });

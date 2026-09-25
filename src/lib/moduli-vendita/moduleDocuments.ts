@@ -152,6 +152,8 @@ export const INTERVENTION_LIMITS: Record<string, string> = {
     "La diagnosi può richiedere approfondimenti. I ricambi non preventivabili vengono concordati prima della sostituzione.",
   "termoidraulica/conto-termico":
     "Il contributo del GSE è stimato: l'importo definitivo lo stabilisce il GSE. Distribuzione, terminali e opere non elencate sono esclusi.",
+  "termoidraulica/full-electric":
+    "Produzione, consumi e risparmi sono stime; gli incentivi dipendono dai requisiti. Opere, aumenti di potenza e adeguamenti non elencati sono esclusi.",
   "elettrico/completo":
     "Opere murarie, finiture, impianti speciali e apparecchi illuminanti devono essere esplicitamente elencati.",
   "elettrico/adeguamento":

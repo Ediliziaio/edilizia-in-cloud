@@ -38,6 +38,8 @@ import type { IdrProgetto, IdrComputoVoce, IdrProgettoMedia } from "@/types/term
 import { InviaFirmaCard } from "@/components/moduli/InviaFirmaCard";
 import { MODELLO_CONTO_TERMICO } from "@/lib/contoTermico/pdfDelPreventivo";
 import { leggiDatiContoTermico } from "@/lib/contoTermico/dati";
+import { MODELLO_FULL_ELECTRIC } from "@/lib/fullElectric/pdfDelPreventivo";
+import { leggiDatiFullElectric } from "@/lib/fullElectric/dati";
 
 import { useIsMobile } from "@/hooks/use-mobile";
 interface Props {
@@ -135,6 +137,9 @@ export default function StepPdf({ progetto, computo, media }: Props) {
   // servono il contributo e le spese annue, senza i quali i conti restano vuoti.
   const contoTermico = progetto.modello_snapshot?.modelId === MODELLO_CONTO_TERMICO;
   const datiCt = contoTermico ? leggiDatiContoTermico(progetto.conto_termico) : null;
+  // La Casa Full Electric racconta bollette ed energia: senza, restano pagine a zero.
+  const fullElectric = progetto.modello_snapshot?.modelId === MODELLO_FULL_ELECTRIC;
+  const datiFe = fullElectric ? leggiDatiFullElectric(progetto.full_electric) : null;
 
   // ─── Checklist (non bloccante, eccetto computo vuoto) ──────────────────────
   const checks: ChecklistItem[] = [
@@ -168,6 +173,18 @@ export default function StepPdf({ progetto, computo, media }: Props) {
         ok: datiCt.spesa_annua_attuale > datiCt.spesa_annua_nuova,
         label: "Spese annue di oggi e di domani",
         hint: datiCt.spesa_annua_attuale > datiCt.spesa_annua_nuova ? undefined : "Senza, il PDF non mostra il risparmio negli anni",
+      },
+    ] : []),
+    ...(datiFe ? [
+      {
+        ok: datiFe.spesa_gas + datiFe.spesa_luce > 0,
+        label: "Bollette di oggi (gas e luce)",
+        hint: datiFe.spesa_gas + datiFe.spesa_luce > 0 ? undefined : "Scrivile in Prezzi e sconti: senza, il PDF non mostra il risparmio",
+      },
+      {
+        ok: datiFe.produzione_kwh > 0 && datiFe.consumo_kwh > 0,
+        label: "Produzione e consumi di domani",
+        hint: datiFe.produzione_kwh > 0 && datiFe.consumo_kwh > 0 ? undefined : "Dalla simulazione del fotovoltaico: servono all'energia mese per mese",
       },
     ] : []),
     {
@@ -401,7 +418,9 @@ export default function StepPdf({ progetto, computo, media }: Props) {
           <p className="text-[11px] text-muted-foreground">
             {contoTermico
               ? "PDF A4 pronto da allegare via email o stampare: copertina, chi siamo e garanzie, cosa vuol dire il Conto Termico, cosa installiamo voce per voce, foto, contributo, risparmio e beneficio negli anni, recensioni, passaggi, condizioni e firma."
-              : "PDF A4 brandizzato pronto da allegare via email o stampare: copertina, presentazione impresa, computo per capitoli, foto, cronoprogramma e condizioni."}
+              : fullElectric
+                ? "PDF A4 pronto da allegare via email o stampare: copertina, chi siamo, il sistema pezzo per pezzo, cosa installiamo voce per voce, foto, energia mese per mese, bollette prima e dopo, incentivi, beneficio negli anni, ambiente, recensioni, passaggi, condizioni e firma."
+                : "PDF A4 brandizzato pronto da allegare via email o stampare: copertina, presentazione impresa, computo per capitoli, foto, cronoprogramma e condizioni."}
           </p>
 
           {computoVuoto ? (
