@@ -9,6 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Mail, RefreshCw, Settings2, AlertTriangle, Loader2 } from "lucide-react";
+import { spiegaErroreCasella } from "@/lib/email/spiegaErroreCasella";
 
 export interface BrokenConnection {
   id: string;
@@ -46,7 +47,7 @@ export default function ReconnectMailboxDialog({ open, onOpenChange, brokenConne
     mutationFn: async (conn: BrokenConnection) => {
       if (!effectiveCompany?.id) throw new Error("Azienda attiva non disponibile");
       const provider = oauthProvider(conn.provider);
-      if (!provider) throw new Error("Questa casella usa IMAP/SMTP: verifica le impostazioni manualmente.");
+      if (!provider) throw new Error("Per questa casella va reinserita la password dalle impostazioni email.");
 
       const isAdmin = window.location.pathname.startsWith("/admin/");
       const callbackPath = isAdmin
@@ -59,7 +60,8 @@ export default function ReconnectMailboxDialog({ open, onOpenChange, brokenConne
         { body: { provider, redirect_uri: redirectUri, company_id: effectiveCompany.id } },
       );
       if (error || !data?.auth_url) {
-        throw new Error(data?.error ?? error?.message ?? "Errore nell'avvio della riconnessione");
+        console.error("[email-oauth-start]", data?.error ?? error?.message);
+        throw new Error("Non siamo riusciti ad aprire la pagina di accesso. Riprova tra qualche minuto; se succede ancora, scrivici.");
       }
       // Stato per il re-check lato callback + ritorno alla pagina corrente.
       sessionStorage.setItem("oauth_state", data.state);
@@ -67,7 +69,7 @@ export default function ReconnectMailboxDialog({ open, onOpenChange, brokenConne
       sessionStorage.setItem("email_oauth_return_to", `${window.location.pathname}${window.location.search}`);
       window.location.href = data.auth_url;
     },
-    onError: (e) => toast.error("Riconnessione fallita", { description: (e as Error).message }),
+    onError: (e) => toast.error("Riconnessione non riuscita", { description: (e as Error).message }),
   });
 
   const pendingId = reconnect.isPending ? (reconnect.variables as BrokenConnection | undefined)?.id : null;
@@ -81,7 +83,7 @@ export default function ReconnectMailboxDialog({ open, onOpenChange, brokenConne
             Caselle da riconnettere
           </DialogTitle>
           <DialogDescription>
-            Una o più caselle hanno perso l'autorizzazione. Riconnetti quella interessata per ripristinare la sincronizzazione.
+            Una casella non riceve più le email perché il collegamento si è interrotto. Premi «Riconnetti» e conferma l'accesso: ci vuole un minuto.
           </DialogDescription>
         </DialogHeader>
 
@@ -102,7 +104,9 @@ export default function ReconnectMailboxDialog({ open, onOpenChange, brokenConne
                     </Badge>
                   </div>
                   {conn.last_sync_error && (
-                    <p className="text-[11px] text-rose-700 mb-2 line-clamp-2">{conn.last_sync_error}</p>
+                    <p className="text-[12px] text-rose-700 mb-2" title={conn.last_sync_error}>
+                      {spiegaErroreCasella(conn.last_sync_error, conn.provider)}
+                    </p>
                   )}
                   {canOAuth ? (
                     <Button
@@ -117,7 +121,7 @@ export default function ReconnectMailboxDialog({ open, onOpenChange, brokenConne
                   ) : (
                     <Button asChild size="sm" variant="outline" className="w-full gap-1.5">
                       <Link to={settingsPath} onClick={() => onOpenChange(false)}>
-                        <Settings2 className="h-4 w-4" />Verifica impostazioni IMAP/SMTP
+                        <Settings2 className="h-4 w-4" />Reinserisci la password
                       </Link>
                     </Button>
                   )}

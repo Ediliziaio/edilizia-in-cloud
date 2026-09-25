@@ -28,6 +28,7 @@ import { ImapCustomDialog, type CasellaDaRicollegare } from "./ImapCustomDialog"
 import { EmailSignatureEditor } from "./EmailSignatureEditor";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type { JSX } from "react";
+import { spiegaErroreCasella } from "@/lib/email/spiegaErroreCasella";
 
 // Brand SVG icons per Gmail / Outlook / IMAP (no extra deps)
 function GmailIcon({ className }: { className?: string }) {
@@ -564,7 +565,7 @@ export function EmailOAuthConnectionsCard() {
                       {c.last_sync_error && c.status === "active" && (
                         <p
                           className="text-[10px] text-amber-700 dark:text-amber-500"
-                          title={c.last_sync_error}
+                          title={spiegaErroreCasella(c.last_sync_error, c.provider)}
                         >
                           Ultimo tentativo non riuscito, ci riproviamo da soli
                           {c.consecutive_errors >= 3 ? ` (${c.consecutive_errors} di fila)` : ""}

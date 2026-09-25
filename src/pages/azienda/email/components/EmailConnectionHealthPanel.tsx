@@ -21,6 +21,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { spiegaErroreCasella } from "@/lib/email/spiegaErroreCasella";
 
 export type EmailConnectionHealth = {
   consecutive_errors?: number | null;
@@ -170,7 +171,7 @@ export function EmailConnectionHealthPanel({
       const { data, error } = await withPanelTimeout(
         supabase.functions.invoke<DiagnosticResult>("email-oauth-diagnostic"),
         8000,
-        "Diagnostica OAuth troppo lenta.",
+        "Il controllo delle caselle ci sta mettendo troppo: riprova tra poco.",
       );
       if (error) throw error;
       return data ?? {};
@@ -279,8 +280,8 @@ export function EmailConnectionHealthPanel({
             <p className="text-sm font-bold text-slate-950">{panelTitle}</p>
             <p className="mt-0.5 text-xs leading-5 text-slate-500">
               {rows.length > 0
-                ? `Ultimo sync ${bestSyncLabel(rows)} · ${fetchedTotal} email lette`
-                : "Collega Gmail, Outlook o IMAP per attivare sync, Regia AI e risposte assistite."}
+                ? `Ultimo controllo ${bestSyncLabel(rows)} · ${fetchedTotal} email lette`
+                : "Collega Gmail, Outlook o un'altra casella per ricevere qui le tue email, con l'AI che ti aiuta a smistarle e rispondere."}
             </p>
             {(loadError || fallbackConnections.error) && (
               <p className="mt-1 line-clamp-2 text-[11px] font-medium text-amber-700">
@@ -336,8 +337,7 @@ export function EmailConnectionHealthPanel({
               <div className="flex items-start gap-2">
                 <Plug className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
                 <span>
-                  Nessun account email personale è leggibile per questo utente. Se hai già collegato una casella, usa la diagnostica:
-                  controlla RLS, company utente, stato token e funzioni Edge.
+                  Non vediamo nessuna casella collegata al tuo utente. Se l'hai già collegata e non compare, scrivici e controlliamo noi.
                 </span>
               </div>
             </div>
@@ -363,14 +363,14 @@ export function EmailConnectionHealthPanel({
                         <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-500">
                           <span className="inline-flex items-center gap-1">
                             <Clock3 className="h-3 w-3" />
-                            Sync {formatRelativeDate(connection.last_synced_at)}
+                            Controllata {formatRelativeDate(connection.last_synced_at)}
                           </span>
                           <span>{connection.emails_fetched_total ?? 0} email lette</span>
-                          <span>Polling {connection.poll_enabled === false ? "spento" : `${connection.poll_interval_minutes ?? 10} min`}</span>
+                          <span>{connection.poll_enabled === false ? "Controllo automatico spento" : `Controllo ogni ${connection.poll_interval_minutes ?? 10} min`}</span>
                         </div>
                         {(connection.last_sync_error || connection.last_test_error) && (
-                          <p className="mt-2 rounded-lg border border-amber-100 bg-white px-2 py-1.5 text-[11px] leading-4 text-amber-800">
-                            {connection.last_sync_error || connection.last_test_error}
+                          <p className="mt-2 rounded-lg border border-amber-100 bg-white px-2 py-1.5 text-[11px] leading-4 text-amber-800" title={connection.last_sync_error || connection.last_test_error || undefined}>
+                            {spiegaErroreCasella(connection.last_sync_error || connection.last_test_error, connection.provider)}
                           </p>
                         )}
                       </div>
