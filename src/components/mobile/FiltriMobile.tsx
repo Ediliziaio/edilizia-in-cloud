@@ -228,7 +228,8 @@ export function RigaMobile({
       )}
     </>
   );
-  const cls = cn("flex min-h-[52px] w-full items-center gap-2.5 px-3 py-2 text-left", (to || onClick) && "active:bg-muted", className);
+  // py-2.5 e non min-h: su link e bottoni la regola tap-compact azzera il min-height.
+  const cls = cn("flex min-h-[52px] w-full items-center gap-2.5 px-3 py-2.5 text-left", (to || onClick) && "active:bg-muted", className);
   if (to) return <Link to={to} className={cn("tap-compact", cls)}>{corpo}</Link>;
   if (onClick) return <button type="button" onClick={onClick} className={cn("tap-compact", cls)}>{corpo}</button>;
   return <div className={cls}>{corpo}</div>;
