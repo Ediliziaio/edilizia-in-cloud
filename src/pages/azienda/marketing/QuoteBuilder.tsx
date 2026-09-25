@@ -510,7 +510,7 @@ export default function QuoteBuilder() {
   const [layoutOverride, setLayoutOverride] = useState<QuoteTemplateLayout | null>(null);
   const effectiveTemplate = resolveQuoteTemplatePreview(layoutOverride
     ? { ...selectedTemplate, layout: layoutOverride }
-    : (selectedTemplate ?? {}), templates);
+    : (selectedTemplate ?? {}), templates, effectiveCompany?.brand_primary_color);
 
   // P03: load impostazioni, tariffe, articoli, categorie
   const {
@@ -3234,7 +3234,7 @@ export default function QuoteBuilder() {
                     </p>
                     <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
                         {offerTemplates.map((tmpl) => {
-                          const preview = resolveQuoteTemplatePreview(tmpl, templates);
+                          const preview = resolveQuoteTemplatePreview(tmpl, templates, effectiveCompany?.brand_primary_color);
                           return (
                           <button type="button" key={tmpl.id} aria-pressed={effectiveSelectedTemplateId === tmpl.id}
                             onClick={() => { setSelectedTemplateId(tmpl.id); setLayoutOverride(null); }}

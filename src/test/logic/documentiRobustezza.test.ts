@@ -167,7 +167,8 @@ describe("preventivo generico: l'impaginato classico parla la lingua del documen
 
   it("gli altri impaginati (moderno, minimale, bold) restano com'erano", () => {
     expect(src).toContain('page.drawText("OFFERTA", { x: contentX, y, size: 26, font: fontBold, color: textC });');
-    expect(src).toMatch(/if \(classicPremium\) \{\n\s+\/\/ Come il computo del documento edile/);
+    // L'intestazione della tabella del classico: la fascia nel colore dell'azienda (25/09/2026).
+    expect(src).toMatch(/if \(classicPremium\) \{\n\s+\/\/ Una fascia nel colore dell'azienda con le etichette in bianco/);
   });
 });
 

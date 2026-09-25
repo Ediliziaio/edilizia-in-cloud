@@ -286,19 +286,21 @@ interface TemplateCardProps {
   kindMeta: typeof KIND_META[QuoteTemplateKind];
   logoSrcFor: (t: Partial<QuoteTemplate>) => string | undefined;
   effectiveCompanyName?: string;
+  /** Il colore del marchio dell'azienda: nelle anteprime vale come nel PDF. */
+  brandColor?: string | null;
   templates: QuoteTemplate[];
   onEdit: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
 }
 
-function TemplateCard({ tmpl, kindMeta, logoSrcFor, effectiveCompanyName, templates, onEdit, onDuplicate, onDelete }: TemplateCardProps) {
+function TemplateCard({ tmpl, kindMeta, logoSrcFor, effectiveCompanyName, brandColor, templates, onEdit, onDuplicate, onDelete }: TemplateCardProps) {
   const kind = (tmpl.kind as QuoteTemplateKind | undefined) ?? 'offerta';
 
   // Anteprima specifica per kind
   const renderPreview = () => {
     if (kind === 'offerta') {
-      const preview = resolveQuoteTemplatePreview(tmpl, templates);
+      const preview = resolveQuoteTemplatePreview(tmpl, templates, brandColor);
       return <QuoteTemplatePreview template={preview} companyName={effectiveCompanyName} logoSrc={logoSrcFor(tmpl)} coverSrc={getLogoPublicUrl(preview.cover_image_url)} scale={0.42} />;
     }
     if (kind === 'copertina' && tmpl.cover_image_url) {
@@ -1142,6 +1144,7 @@ export default function SettingsQuoteTemplates() {
                     kindMeta={KIND_META[((tmpl.kind as QuoteTemplateKind | undefined) ?? 'offerta')]}
                     logoSrcFor={logoSrcFor}
                     effectiveCompanyName={effectiveCompany?.name}
+                    brandColor={effectiveCompany?.brand_primary_color}
                     templates={templates}
                     onEdit={() => handleEdit(tmpl)}
                     onDuplicate={() => handleDuplicate(tmpl)}
@@ -2235,7 +2238,7 @@ export default function SettingsQuoteTemplates() {
                   <div className="flex min-w-max justify-center">
                     {formKind === 'offerta' ? (
                       <QuoteTemplatePreview
-                        template={resolveQuoteTemplatePreview(form, templates)}
+                        template={resolveQuoteTemplatePreview(form, templates, effectiveCompany?.brand_primary_color)}
                         companyName={effectiveCompany?.name}
                         logoSrc={logoSrcFor(form)}
                         coverSrc={getLogoPublicUrl(resolveQuoteTemplatePreview(form, templates).cover_image_url)}

@@ -34,6 +34,21 @@ export function coloreDelBlocco(
   return hex;
 }
 
+/**
+ * Il colore del preventivo: quello scelto nel modello; se è rimasto il blu di
+ * fabbrica, quello del marchio; se non c'è nemmeno quello, il primo scelto nei
+ * blocchi collegati (copertina, condizioni, legali). Ener aveva copertina e
+ * condizioni verdi e il modello blu: tabella, fascia del totale e intestazioni
+ * uscivano blu fra due pagine verdi.
+ */
+export function colorePreventivo(modello: unknown, marchio: unknown, blocchi: Array<{ primary_color?: unknown } | null | undefined>): string {
+  return coloreDelBlocco(modello)
+    ?? coloreDelBlocco(marchio)
+    ?? blocchi.map((b) => coloreDelBlocco(b?.primary_color)).find(Boolean)
+    ?? normalizzaHex(modello)
+    ?? COLORE_PRIMARIO_DI_FABBRICA;
+}
+
 /** Il fondo della copertina: quello della copertina collegata, se scelto; se no quello del modello. */
 export function coloreCopertina(
   modelloPrincipale: unknown,

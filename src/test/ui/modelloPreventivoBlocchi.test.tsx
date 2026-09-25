@@ -140,7 +140,8 @@ describe("il PDF (generate-quote-pdf)", () => {
 
   it("condizioni e sezioni: i titoli nel colore del blocco", () => {
     expect(pdf).toContain("const titoliC = opts.colore ? rgbColor(opts.colore) : primaryC;");
-    expect(pdf).toContain("color: isHeading ? titoliC : textC,");
+    // Gli articoli nel colore del blocco (un titolo di primo livello dentro il testo nel nero del documento).
+    expect(pdf).toContain("const stile: StileTesto = { f: fontBoldB, size, c: livello === 1 ? inchiostroC : titoliC };");
     expect(pdf).toContain("colore: coloreDelBlocco(section.primary_color),");
     expect(pdf).toContain("colore: coloreDelBlocco(t.composed_terms?.primary_color) ?? coloreDelBlocco(t.composed_legal?.primary_color),");
   });
