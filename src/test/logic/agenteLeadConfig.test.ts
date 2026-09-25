@@ -43,6 +43,8 @@ describe("leggiConfigAgenteLead", () => {
         giorniProposta: 10,
         tagPrenotato: "appuntamento fissato",
         soloFeriali: true,
+        showroom: [],
+        faseShowroomId: null,
       },
     });
   });
@@ -61,6 +63,26 @@ describe("leggiConfigAgenteLead", () => {
       giorniProposta: 7,
       tagPrenotato: null,
       soloFeriali: false,
+      showroom: [],
+      faseShowroomId: null,
     });
+  });
+
+  it("legge gli showroom e scarta quelli senza nome o senza calendari validi", () => {
+    const r = leggiConfigAgenteLead({
+      lead_whatsapp: {
+        calendario_id: CAL,
+        fase_showroom_id: UTENTE,
+        showroom: [
+          { nome: " Lissone ", indirizzo: "Via Nuova Valassina 27", calendari: [CAL, CAL, "x"] },
+          { nome: "lissone", calendari: [CAL] },
+          { nome: "Inverigo", calendari: [] },
+          { nome: "", calendari: [CAL] },
+          "spazzatura",
+        ],
+      },
+    });
+    expect(r.ok && r.config.showroom).toEqual([{ nome: "Lissone", indirizzo: "Via Nuova Valassina 27", calendari: [CAL] }]);
+    expect(r.ok && r.config.faseShowroomId).toBe(UTENTE);
   });
 });

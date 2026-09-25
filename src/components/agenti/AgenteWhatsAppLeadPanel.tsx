@@ -3,7 +3,9 @@
  *
  * Collega l'agente a un numero WhatsApp «lead» e sceglie dove prenota e cosa
  * sposta: calendario delle chiamate, pipeline e tre fasi (prenotato, fuori
- * zona, operatore), chi avvisare quando passa la mano. Scrive
+ * zona, operatore), chi avvisare. Facoltativi gli showroom: se il cliente
+ * chiede di venire di persona, l'agente fissa lì (sui calendari dei
+ * consulenti di quello showroom) invece della telefonata. Scrive
  * ai_agents_v2.tools_config.lead_whatsapp (lo legge la edge
  * lead-agente-whatsapp) e ai_whatsapp_numbers.agent_id.
  */
@@ -15,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, MessageCircle, Save } from "lucide-react";
+import { Loader2, MessageCircle, Plus, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 interface Props {
@@ -36,6 +38,14 @@ interface LeadWhatsAppCfg {
   giorni_proposta?: number;
   tag_prenotato?: string;
   solo_feriali?: boolean;
+  showroom?: ShowroomCfg[];
+  fase_showroom_id?: string;
+}
+
+interface ShowroomCfg {
+  nome: string;
+  indirizzo?: string | null;
+  calendari: string[];
 }
 
 const NESSUNA = "__nessuna__";
@@ -55,12 +65,13 @@ export function AgenteWhatsAppLeadPanel({ agentId, companyId, toolsConfig, stato
     queryKey: ["agente-whatsapp-lead-opzioni", companyId],
     enabled: !!companyId,
     queryFn: async () => {
-      const [numeri, calendari, pipeline, fasi, utenti] = await Promise.all([
+      const [numeri, calendari, pipeline, fasi, utenti, sedi] = await Promise.all([
         db.from("ai_whatsapp_numbers").select("id, numero, display_name, purpose, agent_id").eq("company_id", companyId).is("deleted_at", null),
         db.from("marketing_calendars").select("id, name").eq("company_id", companyId).eq("is_active", true).order("name"),
         db.from("marketing_pipelines").select("id, name").eq("company_id", companyId).order("position"),
         db.from("marketing_pipeline_stages").select("id, name, pipeline_id, position").eq("company_id", companyId).order("position"),
         db.from("profiles").select("id, first_name, last_name, email").eq("company_id", companyId).order("first_name"),
+        db.from("company_sedi").select("id, nome, indirizzo").eq("company_id", companyId).eq("attiva", true).order("nome"),
       ]);
       return {
         numeri: (numeri.data ?? []) as Array<{ id: string; numero: string | null; display_name: string | null; purpose: string | null; agent_id: string | null }>,
@@ -68,6 +79,7 @@ export function AgenteWhatsAppLeadPanel({ agentId, companyId, toolsConfig, stato
         pipeline: (pipeline.data ?? []) as Array<{ id: string; name: string }>,
         fasi: (fasi.data ?? []) as Array<{ id: string; name: string; pipeline_id: string }>,
         utenti: (utenti.data ?? []) as Array<{ id: string; first_name: string | null; last_name: string | null; email: string | null }>,
+        sedi: (sedi.data ?? []) as Array<{ id: string; nome: string; indirizzo: string | null }>,
       };
     },
   });
@@ -84,6 +96,12 @@ export function AgenteWhatsAppLeadPanel({ agentId, companyId, toolsConfig, stato
   const [giorni, setGiorni] = useState<number>(iniziale.giorni_proposta ?? 7);
   const [tag, setTag] = useState<string>(iniziale.tag_prenotato ?? "");
   const [soloFeriali, setSoloFeriali] = useState<boolean>(iniziale.solo_feriali === true);
+  const [showroom, setShowroom] = useState<ShowroomCfg[]>(
+    Array.isArray(iniziale.showroom) ? iniziale.showroom.map((x) => ({ nome: x.nome ?? "", indirizzo: x.indirizzo ?? "", calendari: x.calendari ?? [] })) : [],
+  );
+  const [faseShowroom, setFaseShowroom] = useState<string>(iniziale.fase_showroom_id ?? "");
+  const cambiaShowroom = (i: number, patch: Partial<ShowroomCfg>) =>
+    setShowroom((prev) => prev.map((x, j) => (j === i ? { ...x, ...patch } : x)));
 
   const numeroCollegato = dati?.numeri.find((n) => n.agent_id === agentId)?.id || "";
   // SCOLLEGA = l'utente ha scelto di togliere il numero dall'agente.
@@ -115,6 +133,15 @@ export function AgenteWhatsAppLeadPanel({ agentId, companyId, toolsConfig, stato
         throw new Error("Questo numero è già collegato a un altro agente: scollegalo prima da quello.");
       }
       // tools_config fresco dal database: gli altri rami (voce, strumenti) restano com'erano.
+      const showroomValidi = showroom
+        .map((x) => ({ nome: x.nome.trim(), indirizzo: (x.indirizzo ?? "").trim() || null, calendari: x.calendari }))
+        .filter((x) => x.nome || x.calendari.length);
+      const senzaCalendario = showroomValidi.find((x) => !x.nome || !x.calendari.length);
+      if (senzaCalendario) {
+        throw new Error(senzaCalendario.nome
+          ? `Scegli almeno un calendario per lo showroom «${senzaCalendario.nome}».`
+          : "Ogni showroom ha bisogno di un nome.");
+      }
       const { data: attuale, error: e1 } = await db.from("ai_agents_v2").select("tools_config").eq("id", agentId).eq("company_id", companyId).single();
       if (e1) throw new Error(e1.message);
       const lead_whatsapp: LeadWhatsAppCfg = {
@@ -127,6 +154,8 @@ export function AgenteWhatsAppLeadPanel({ agentId, companyId, toolsConfig, stato
         giorni_proposta: Math.min(21, Math.max(1, Math.round(giorni || 7))),
         tag_prenotato: tag.trim() || undefined,
         solo_feriali: soloFeriali,
+        showroom: showroomValidi,
+        fase_showroom_id: faseShowroom || undefined,
       };
       // .select("id"): senza permesso l'update non dà errore ma non tocca righe,
       // e il messaggio «salvato» sarebbe falso.
@@ -178,7 +207,8 @@ export function AgenteWhatsAppLeadPanel({ agentId, companyId, toolsConfig, stato
         </CardTitle>
         <p className="text-xs text-muted-foreground">
           Chi scrive al numero scelto parla con questo agente: fa le domande del prompt, propone gli orari liberi del
-          calendario, fissa la chiamata e sposta l'opportunità. Se un collega mette in pausa la conversazione, l'agente tace.
+          calendario, fissa la chiamata (o lo showroom, se il cliente lo chiede), sposta l'opportunità e scrive negli appunti
+          il riepilogo della chat. Se un collega mette in pausa la conversazione, l'agente tace.
         </p>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -227,7 +257,7 @@ export function AgenteWhatsAppLeadPanel({ agentId, companyId, toolsConfig, stato
             </div>
             <div>
               <label className="text-xs font-medium mb-1 block">Pipeline</label>
-              <Select value={pipelineId || NESSUNA} onValueChange={(v) => { setPipelineId(v === NESSUNA ? "" : v); setFasePrenotato(""); setFaseFuoriZona(""); setFaseOperatore(""); }}>
+              <Select value={pipelineId || NESSUNA} onValueChange={(v) => { setPipelineId(v === NESSUNA ? "" : v); setFasePrenotato(""); setFaseFuoriZona(""); setFaseOperatore(""); setFaseShowroom(""); }}>
                 <SelectTrigger className="h-9"><SelectValue placeholder="Nessuna" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value={NESSUNA}>Nessuna</SelectItem>
@@ -254,8 +284,50 @@ export function AgenteWhatsAppLeadPanel({ agentId, companyId, toolsConfig, stato
               <Checkbox checked={soloFeriali} onCheckedChange={(v) => setSoloFeriali(v === true)} />
               Proponi solo orari dal lunedì al venerdì
             </label>
+            <div className="rounded-md border p-3 space-y-3">
+              <div>
+                <p className="text-sm font-medium">Appuntamenti in showroom (facoltativo)</p>
+                <p className="text-xs text-muted-foreground">
+                  Se il cliente chiede di venire di persona, l'agente gli fa scegliere lo showroom e fissa sul primo calendario
+                  libero dei suoi consulenti. Senza showroom l'agente fissa solo telefonate.
+                </p>
+              </div>
+              {showroom.map((x, i) => (
+                <div key={i} className="rounded-md border bg-muted/30 p-2 space-y-2">
+                  <div className="grid gap-2 sm:grid-cols-[1fr_2fr_auto]">
+                    <Input value={x.nome} onChange={(e) => cambiaShowroom(i, { nome: e.target.value })} placeholder="Nome (es. Lissone)" className="h-9" />
+                    <Input value={x.indirizzo ?? ""} onChange={(e) => cambiaShowroom(i, { indirizzo: e.target.value })} placeholder="Indirizzo che l'agente scrive al cliente" className="h-9" />
+                    <Button type="button" variant="ghost" size="icon" aria-label="Togli lo showroom" onClick={() => setShowroom((prev) => prev.filter((_, j) => j !== i))}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="max-h-32 overflow-y-auto rounded-md border bg-background p-2 grid gap-1 sm:grid-cols-2">
+                    {(dati?.calendari ?? []).map((c) => (
+                      <label key={c.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                        <Checkbox
+                          checked={x.calendari.includes(c.id)}
+                          onCheckedChange={(v) => cambiaShowroom(i, { calendari: v ? [...x.calendari, c.id] : x.calendari.filter((id) => id !== c.id) })}
+                        />
+                        {c.name}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => setShowroom((prev) => [...prev, { nome: "", indirizzo: "", calendari: [] }])}>
+                  <Plus className="h-4 w-4 mr-1" /> Aggiungi showroom
+                </Button>
+                {showroom.length === 0 && (dati?.sedi.length ?? 0) > 0 && (
+                  <Button type="button" variant="outline" size="sm" onClick={() => setShowroom((dati?.sedi ?? []).map((s) => ({ nome: s.nome, indirizzo: s.indirizzo ?? "", calendari: [] as string[] })))}>
+                    Parti dalle sedi dell'azienda
+                  </Button>
+                )}
+              </div>
+              {showroom.length > 0 && sceltaFase(faseShowroom, setFaseShowroom, "Quando fissa in showroom (se vuoto, come la chiamata)")}
+            </div>
             <div>
-              <label className="text-xs font-medium mb-1 block">Chi avvisare quando passa la mano</label>
+              <label className="text-xs font-medium mb-1 block">Chi avvisare (prenotazioni e passaggi a una persona)</label>
               <div className="max-h-40 overflow-y-auto rounded-md border p-2 space-y-1">
                 {(dati?.utenti ?? []).map((u) => {
                   const nome = [u.first_name, u.last_name].filter(Boolean).join(" ") || u.email || "Utente";
