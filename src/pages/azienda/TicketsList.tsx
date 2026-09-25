@@ -56,6 +56,7 @@ import {
   PhoneCall,
   SlidersHorizontal,
 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { ExportButton } from "@/components/shared/ExportButton";
 import {
@@ -567,6 +568,14 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
     );
   }
 
+  // Filtri dentro «Altri filtri» (da tablet): quanti sono attivi.
+  const nAltriFiltri = [
+    scadenzaFilter !== "tutte",
+    fonteFilter !== "tutti",
+    pagamentoFilter !== "tutti",
+    merceFilter !== "tutte",
+  ].filter(Boolean).length;
+
   return (
     <div ref={ref} className="space-y-6 max-sm:space-y-3">
       {/* Header */}
@@ -691,9 +700,10 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
         ))}
       </div>
 
+      {/* Nove riquadri: cinque per riga solo da 1280px. A 1024 erano larghi
+          100px e le etichette andavano su tre righe («MERCE / DA / ARRIVARE»). */}
       <div className="hidden rounded-2xl bg-[#173b67] p-3 sm:block sm:p-4">
-        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-orange-100">Assistenza</p>
-        <div className="grid grid-cols-2 gap-2 md:grid-cols-5 sm:gap-3">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-3 xl:grid-cols-5">
           <NavyStatCard
             label="Totale"
             value={metrics.totale}
@@ -795,16 +805,19 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
         </div>
       )}
 
-      {/* Filters row */}
-      <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm max-sm:gap-2 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1 min-w-0">
+      {/* Filters row. Da tablet una riga sullo sfondo: ricerca, stato,
+          priorità e assegnato; scadenza, fonte, pagamento e merce stanno in
+          «Altri filtri». Prima erano un riquadro con sette tendine su due
+          righe sotto la ricerca. */}
+      <div className="flex flex-col gap-3 max-sm:gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
+        <div className="flex items-center gap-2 sm:contents">
+          <div className="relative flex-1 min-w-0 sm:min-w-[220px]">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder={isMobile ? "Cerca" : "Cerca per cliente, oggetto o email…"}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 max-sm:h-9 max-sm:bg-white"
+              className="pl-10 max-sm:h-9 max-sm:bg-white sm:h-9 sm:bg-white"
             />
           </div>
           <Button
@@ -823,10 +836,9 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
             )}
           </Button>
         </div>
-        <div className="flex flex-wrap items-center gap-2 max-sm:hidden">
-          <Filter className="h-4 w-4 text-muted-foreground shrink-0 hidden sm:block" />
+        <div className="flex flex-wrap items-center gap-2 max-sm:hidden sm:contents">
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="flex-1 sm:w-[170px] sm:flex-none"><SelectValue placeholder="Stato" /></SelectTrigger>
+            <SelectTrigger className="flex-1 sm:h-9 sm:w-auto sm:flex-none"><SelectValue placeholder="Stato" /></SelectTrigger>
             <SelectContent className="max-h-[380px]">
               <SelectItem value="all">Tutti gli stati ({statusCounts.all})</SelectItem>
               {TICKET_FASI.map((fase) => {
@@ -850,7 +862,7 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
             </SelectContent>
           </Select>
           <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-            <SelectTrigger className="flex-1 sm:w-[150px] sm:flex-none"><SelectValue placeholder="Priorità" /></SelectTrigger>
+            <SelectTrigger className="flex-1 sm:h-9 sm:w-auto sm:flex-none"><SelectValue placeholder="Priorità" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Tutte le priorità</SelectItem>
               <SelectItem value="urgente">🔴 Urgente</SelectItem>
@@ -859,6 +871,69 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
               <SelectItem value="bassa">⚪️ Bassa</SelectItem>
             </SelectContent>
           </Select>
+          <Select value={assegnatoFilter} onValueChange={setAssegnatoFilter}>
+            <SelectTrigger className="flex-1 sm:h-9 sm:w-auto sm:flex-none"><SelectValue placeholder="Assegnato a" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="tutti">Tutti (assegnato o no)</SelectItem>
+              <SelectItem value="unassigned">Non assegnato</SelectItem>
+              {staffList.map((s) => (
+                <SelectItem key={s.id} value={s.id}>
+                  {[s.first_name, s.last_name].filter(Boolean).join(" ") || "Senza nome"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {/* Gli altri quattro filtri, usati di rado, in un pannello: col
+              numero di quelli attivi sul bottone. */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="h-9 gap-1.5">
+                <Filter className="h-4 w-4" />
+                Altri filtri
+                {nAltriFiltri > 0 && (
+                  <span className="rounded-full bg-primary px-1.5 text-[10px] font-semibold leading-4 text-primary-foreground">{nAltriFiltri}</span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-64 space-y-2 p-3">
+              <Select value={scadenzaFilter} onValueChange={setScadenzaFilter}>
+                <SelectTrigger className="w-full"><SelectValue placeholder="Scadenza" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="tutte">Tutte le scadenze</SelectItem>
+                  <SelectItem value="scaduto_oggi">Scaduti / Oggi</SelectItem>
+                  <SelectItem value="settimana">Entro 7 giorni</SelectItem>
+                  <SelectItem value="futuro">Oltre 7 giorni</SelectItem>
+                  <SelectItem value="senza">Senza scadenza</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={fonteFilter} onValueChange={setFonteFilter}>
+                <SelectTrigger className="w-full"><SelectValue placeholder="Fonte" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="tutti">Tutte le fonti</SelectItem>
+                  <SelectItem value="ufficio">Da ufficio</SelectItem>
+                  <SelectItem value="campo">📍 Da campo</SelectItem>
+                  <SelectItem value="cliente">Da cliente</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={pagamentoFilter} onValueChange={(v) => setPagamentoFilter(v as typeof pagamentoFilter)}>
+                <SelectTrigger className="w-full"><SelectValue placeholder="Pagamento" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="tutti">A pagamento e gratis</SelectItem>
+                  <SelectItem value="pagamento">Solo a pagamento</SelectItem>
+                  <SelectItem value="gratis">Solo gratuite</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={merceFilter} onValueChange={(v) => setMerceFilter(v as typeof merceFilter)}>
+                <SelectTrigger className="w-full"><SelectValue placeholder="Merce" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="tutte">Merce: tutte</SelectItem>
+                  <SelectItem value="in_arrivo">Merce da arrivare</SelectItem>
+                  <SelectItem value="incompleta">Bolla incompleta</SelectItem>
+                  <SelectItem value="arrivata">Merce arrivata</SelectItem>
+                </SelectContent>
+              </Select>
+            </PopoverContent>
+          </Popover>
           {/* Tabella o pipeline — solo desktop, come in Commesse */}
           <ToggleGroup
             type="single"
@@ -873,54 +948,6 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
               <Columns3 className="h-4 w-4" />
             </ToggleGroupItem>
           </ToggleGroup>
-          <Select value={scadenzaFilter} onValueChange={setScadenzaFilter}>
-            <SelectTrigger className="flex-1 sm:w-[170px] sm:flex-none"><SelectValue placeholder="Scadenza" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="tutte">Tutte le scadenze</SelectItem>
-              <SelectItem value="scaduto_oggi">Scaduti / Oggi</SelectItem>
-              <SelectItem value="settimana">Entro 7 giorni</SelectItem>
-              <SelectItem value="futuro">Oltre 7 giorni</SelectItem>
-              <SelectItem value="senza">Senza scadenza</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={assegnatoFilter} onValueChange={setAssegnatoFilter}>
-            <SelectTrigger className="flex-1 sm:w-[180px] sm:flex-none"><SelectValue placeholder="Assegnato a" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="tutti">Tutti (assegnato o no)</SelectItem>
-              <SelectItem value="unassigned">Non assegnato</SelectItem>
-              {staffList.map((s) => (
-                <SelectItem key={s.id} value={s.id}>
-                  {[s.first_name, s.last_name].filter(Boolean).join(" ") || "Senza nome"}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={fonteFilter} onValueChange={setFonteFilter}>
-            <SelectTrigger className="flex-1 sm:w-[150px] sm:flex-none"><SelectValue placeholder="Fonte" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="tutti">Tutte le fonti</SelectItem>
-              <SelectItem value="ufficio">Da ufficio</SelectItem>
-              <SelectItem value="campo">📍 Da campo</SelectItem>
-              <SelectItem value="cliente">Da cliente</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={pagamentoFilter} onValueChange={(v) => setPagamentoFilter(v as typeof pagamentoFilter)}>
-            <SelectTrigger className="flex-1 sm:w-[170px] sm:flex-none"><SelectValue placeholder="Pagamento" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="tutti">A pagamento e gratis</SelectItem>
-              <SelectItem value="pagamento">Solo a pagamento</SelectItem>
-              <SelectItem value="gratis">Solo gratuite</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={merceFilter} onValueChange={(v) => setMerceFilter(v as typeof merceFilter)}>
-            <SelectTrigger className="flex-1 sm:w-[190px] sm:flex-none"><SelectValue placeholder="Merce" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="tutte">Merce: tutte</SelectItem>
-              <SelectItem value="in_arrivo">Merce da arrivare</SelectItem>
-              <SelectItem value="incompleta">Bolla incompleta</SelectItem>
-              <SelectItem value="arrivata">Merce arrivata</SelectItem>
-            </SelectContent>
-          </Select>
         </div>
       </div>
 
@@ -984,9 +1011,12 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
             ))}
           </div>
 
-          {/* Desktop table */}
+          {/* Desktop table. Scadenza e Assegnato da 1280, Aggiornato e Ordine
+              da 1536, celle più strette sotto: con le tendine di stato e
+              assegnato a larghezza fissa la tabella usciva dalla pagina anche
+              a 1440 e l'oggetto restava di 70px. */}
           <div className="hidden sm:block">
-            <Table>
+            <Table className="[&_td]:px-2.5 [&_th]:px-2.5 2xl:[&_td]:px-4 2xl:[&_th]:px-4">
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-10">
@@ -995,11 +1025,11 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
                   <SortableTableHead className="w-24" active={sort.key === "tipo"} direction={sort.direction} onClick={() => handleSort("tipo")}>Tipo</SortableTableHead>
                   <SortableTableHead active={sort.key === "cliente"} direction={sort.direction} onClick={() => handleSort("cliente")}>Cliente · Oggetto</SortableTableHead>
                   <SortableTableHead active={sort.key === "priority"} direction={sort.direction} onClick={() => handleSort("priority")}>Priorità</SortableTableHead>
-                  <SortableTableHead active={sort.key === "scadenza"} direction={sort.direction} onClick={() => handleSort("scadenza")}>Scadenza</SortableTableHead>
+                  <SortableTableHead className="hidden xl:table-cell" active={sort.key === "scadenza"} direction={sort.direction} onClick={() => handleSort("scadenza")}>Scadenza</SortableTableHead>
                   <SortableTableHead active={sort.key === "status"} direction={sort.direction} onClick={() => handleSort("status")}>Stato</SortableTableHead>
-                  <SortableTableHead className="hidden lg:table-cell" active={sort.key === "assigned"} direction={sort.direction} onClick={() => handleSort("assigned")}>Assegnato</SortableTableHead>
-                  <SortableTableHead className="hidden xl:table-cell" active={sort.key === "order"} direction={sort.direction} onClick={() => handleSort("order")}>Ordine</SortableTableHead>
-                  <SortableTableHead className="hidden md:table-cell" active={sort.key === "updated"} direction={sort.direction} onClick={() => handleSort("updated")}>Aggiornato</SortableTableHead>
+                  <SortableTableHead className="hidden xl:table-cell" active={sort.key === "assigned"} direction={sort.direction} onClick={() => handleSort("assigned")}>Assegnato</SortableTableHead>
+                  <SortableTableHead className="hidden 2xl:table-cell" active={sort.key === "order"} direction={sort.direction} onClick={() => handleSort("order")}>Ordine</SortableTableHead>
+                  <SortableTableHead className="hidden 2xl:table-cell" active={sort.key === "updated"} direction={sort.direction} onClick={() => handleSort("updated")}>Aggiornato</SortableTableHead>
                   <TableHead className="w-10"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -1347,7 +1377,9 @@ function DesktopTicketRow({
         <Checkbox checked={selected} onCheckedChange={onToggleSelected} aria-label={`Seleziona ${ticket.subject}`} />
       </TableCell>
       <TableCell><TipoChip tipo={ticket.tipo} /></TableCell>
-      <TableCell>
+      {/* L'oggetto è la colonna che conta: con le tendine di stato e
+          assegnato a larghezza fissa restava di 70px («Mancano…»). */}
+      <TableCell className="min-w-[200px] xl:min-w-[220px]">
         <div className="flex items-center gap-2">
           <User className="h-4 w-4 text-muted-foreground shrink-0" />
           <div className="min-w-0">
@@ -1372,11 +1404,11 @@ function DesktopTicketRow({
           {getTicketPriorityLabel(ticket.priority)}
         </Badge>
       </TableCell>
-      <TableCell><ScadenzaCell iso={scadenza} /></TableCell>
+      <TableCell className="hidden xl:table-cell"><ScadenzaCell iso={scadenza} /></TableCell>
       <TableCell>
         <TicketStatusSelect value={ticket.status} disabled={isUpdating} onChange={(value) => onStatusChange(ticket.id, value)} />
       </TableCell>
-      <TableCell className="hidden lg:table-cell">
+      <TableCell className="hidden xl:table-cell">
         <TicketAssigneeSelect
           value={ticket.assigned_to || UNASSIGNED_VALUE}
           staffList={staffList}
@@ -1384,7 +1416,7 @@ function DesktopTicketRow({
           onChange={(value) => onAssigneeChange(ticket.id, value)}
         />
       </TableCell>
-      <TableCell className="hidden xl:table-cell">
+      <TableCell className="hidden 2xl:table-cell">
         {ticket.order ? (
           <div className="flex items-center gap-1 text-sm text-muted-foreground">
             <Package className="h-3.5 w-3.5" />
@@ -1394,7 +1426,7 @@ function DesktopTicketRow({
           <span className="text-muted-foreground">—</span>
         )}
       </TableCell>
-      <TableCell className="hidden md:table-cell text-sm">
+      <TableCell className="hidden 2xl:table-cell text-sm">
         {(() => {
           // Sulle lavorazioni aperte conta da quanto sono ferme, non la data in
           // sé: "5 mesi fa" non dice se qualcuno se ne sta occupando.

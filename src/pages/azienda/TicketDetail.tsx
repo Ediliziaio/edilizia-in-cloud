@@ -444,10 +444,12 @@ export default function TicketDetail() {
             </Badge>
             {/* Mobile: il titolo a capo su due righe (troncato si leggeva «Manca il silico…»). */}
             <h1 className="text-xl font-bold truncate max-md:order-last max-md:basis-full max-md:whitespace-normal max-md:text-base max-md:leading-snug max-md:line-clamp-2">{ticket.subject}</h1>
-            <Badge variant="outline" style={{ backgroundColor: statusColor.bg, color: statusColor.text, borderColor: statusColor.border }}>
+            {/* Da 768px stato e priorità si leggono (e si cambiano) nelle tendine
+                del pannello a sinistra, subito sotto: qui erano un doppione. */}
+            <Badge variant="outline" className="md:hidden" style={{ backgroundColor: statusColor.bg, color: statusColor.text, borderColor: statusColor.border }}>
               {getTicketStatusLabel(ticket.status)}
             </Badge>
-            <Badge variant="outline" style={{ backgroundColor: priorityColor.bg, color: priorityColor.text, borderColor: priorityColor.border }}>
+            <Badge variant="outline" className="md:hidden" style={{ backgroundColor: priorityColor.bg, color: priorityColor.text, borderColor: priorityColor.border }}>
               {getTicketPriorityLabel(ticket.priority)}
             </Badge>
           </div>
@@ -499,7 +501,10 @@ export default function TicketDetail() {
       <Separator className="mb-4" />
 
       {/* Layout: mobile stacked, desktop columns with independent scroll */}
-      <div className="flex flex-col md:grid md:grid-cols-3 gap-6 flex-1 min-h-0 max-md:flex-none max-md:gap-3">
+      {/* Pannello a sinistra a larghezza fissa (280/320/380px): a un terzo di
+          pagina, a 768, era di 224px e le tendine si tagliavano; a 1920 di 560
+          con dentro etichette e tendine corte. */}
+      <div className="flex flex-col md:grid md:grid-cols-[280px_minmax(0,1fr)] lg:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[380px_minmax(0,1fr)] gap-6 flex-1 min-h-0 max-md:flex-none max-md:gap-3">
         {/* Sidebar: on mobile scrolls naturally, on desktop has fixed scroll */}
         <div className="order-2 md:order-1 overflow-y-auto pr-1 space-y-4 max-h-[50vh] md:max-h-[calc(100vh-220px)] max-md:max-h-none max-md:overflow-visible max-md:space-y-3 max-md:pr-0">
           {/* Card unificata: Gestione + Contesto */}
@@ -867,7 +872,7 @@ export default function TicketDetail() {
         </div>
 
         {/* Chat: on mobile first, on desktop second */}
-        <div className="order-1 md:order-2 md:col-span-2 min-h-0">
+        <div className="order-1 md:order-2 min-h-0">
           <TicketChat
             ticketId={ticket.id}
             messages={messages}
