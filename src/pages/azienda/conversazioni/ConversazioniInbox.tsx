@@ -81,6 +81,15 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
     [lista, selectedKey],
   );
 
+  // Mobile: filo aperto a tutto schermo come la chat del team (stessa classe su
+  // <body>: via header, barra in basso, linguette e padding di <main>). Prima
+  // i messaggi avevano 250px fra header, linguette, compositore e barra.
+  useEffect(() => {
+    const cls = "chat-mobile-conv-open";
+    document.body.classList.toggle(cls, !!selectedItem && window.matchMedia("(max-width: 767px)").matches);
+    return () => document.body.classList.remove(cls);
+  }, [selectedItem]);
+
   const { data: timeline = [], isLoading: timelineLoading } = useConversazioneTimeline(
     selectedItem?.entita_tipo ?? null,
     selectedItem?.entita_id ?? null,
@@ -205,7 +214,8 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
         selectedItem ? "hidden md:flex" : "flex",
       )}>
         <div className="p-3 border-b">
-          <div className="flex items-center justify-between mb-2">
+          {/* Mobile: il titolo ripete la linguetta sopra; restano ricerca e stato. */}
+          <div className="hidden md:flex items-center justify-between mb-2">
             <h2 className="text-sm font-semibold flex items-center gap-2">
               <Inbox className="h-4 w-4" /> Conversazioni
             </h2>
@@ -238,7 +248,7 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
                 type="button"
                 onClick={() => setStatoFilter(f.k)}
                 className={cn(
-                  "rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors",
+                  "tap-compact rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors max-md:h-8 max-md:px-3 max-md:text-xs",
                   statoFilter === f.k ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/70",
                 )}
               >
@@ -249,8 +259,8 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
               </button>
             ))}
           </div>
-          {/* Filtri canale */}
-          <div className="mt-1.5 flex items-center gap-1">
+          {/* Filtri canale (mobile no: una seconda riga di sette icone) */}
+          <div className="mt-1.5 hidden md:flex items-center gap-1">
             <button
               type="button"
               onClick={() => setCanaleFilter("tutti")}

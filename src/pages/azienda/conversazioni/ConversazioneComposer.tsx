@@ -308,7 +308,7 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
   return (
     <div className="border-t bg-background shrink-0">
       {/* Selettore canale */}
-      <div className="flex items-center gap-1 px-3 pt-2">
+      <div className="flex items-center gap-1 px-3 pt-2 max-md:overflow-x-auto max-md:[scrollbar-width:none]">
         {CANALI.map((c) => (
           <button
             key={c.key}
@@ -316,7 +316,7 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
             disabled={c.disabled}
             onClick={() => setCanale(c.key)}
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+              "tap-compact inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors max-md:h-8",
               canale === c.key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted",
               c.disabled && "opacity-40 cursor-not-allowed",
             )}
@@ -462,14 +462,18 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
         const etichetta = piattaforma === "instagram" ? "Instagram" : "Messenger";
         return (
           <div className="p-3 max-w-3xl mx-auto space-y-2">
-            <p className="text-[11px] text-muted-foreground">
+            {/* Mobile: il canale lo dice già la pillola selezionata sopra. */}
+            <p className="text-[11px] text-muted-foreground max-md:hidden">
               {etichetta}{id?.username ? ` · @${id.username}` : id?.nome ? ` · ${id.nome}` : ""}
               {aperta && " · puoi rispondere fino a 24 ore dal suo ultimo messaggio"}
             </p>
             {!aperta && (
               <div className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-[11px] text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
-                Sono passate più di 24 ore dal suo ultimo messaggio: Meta non permette di rispondere da qui
-                finché non scrive di nuovo. Puoi rispondere dall'app di {etichetta}.
+                <span className="md:hidden">Oltre 24 ore dal suo ultimo messaggio: rispondi dall'app di {etichetta}.</span>
+                <span className="max-md:hidden">
+                  Sono passate più di 24 ore dal suo ultimo messaggio: Meta non permette di rispondere da qui
+                  finché non scrive di nuovo. Puoi rispondere dall'app di {etichetta}.
+                </span>
               </div>
             )}
             <div className="flex items-end gap-2">
