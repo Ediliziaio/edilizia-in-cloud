@@ -136,7 +136,7 @@ export function PilloleFiltro<T extends string>({
               aria-pressed={attiva}
               className={cn(
                 "tap-compact h-8 rounded-full border px-3 text-xs font-medium transition-colors",
-                attiva ? "border-slate-900 bg-slate-900 text-white" : "bg-background text-slate-700",
+                attiva ? "border-slate-900 bg-slate-900 text-white" : "border-border bg-background text-slate-700",
               )}
             >
               {c.label}
@@ -170,7 +170,8 @@ export function KpiMobili({ voci, className }: { voci: VoceKpiMobile[]; classNam
             <p className={cn("truncate text-base font-bold leading-tight tabular-nums", v.tono)}>{v.valore}</p>
           </>
         );
-        const base = "min-w-0 rounded-lg border bg-card px-3 py-2 text-left";
+        // border-border: sui <button> il colore del bordo non eredita quello del tema (veniva quasi nero).
+        const base = "min-w-0 rounded-lg border border-border bg-card px-3 py-2 text-left";
         return v.onClick ? (
           <button
             key={v.label}
