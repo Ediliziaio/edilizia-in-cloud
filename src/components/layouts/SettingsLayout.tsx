@@ -35,9 +35,6 @@ const SECTION_MAP: Record<string, SectionMeta> = {
   scontistica:            { title: "Margini e sconti",        description: "Limiti di sconto per commerciali, clienti e fasce di importo" },
   "stati-ordine":         { title: "Stati ordine",             description: "Configura gli stati del flusso degli ordini" },
   "cartelle-documenti":   { title: "Cartelle documenti",       description: "Le cartelle in cui si dividono i documenti di ogni commessa" },
-  // Mancavano: queste due pagine avevano per titolo «Impostazioni».
-  "qr-codici":            { title: "QR & Codici",              description: "QR tracciabili e codici a barre del magazzino" },
-  "motivi-perdita":       { title: "Motivi di perdita",        description: "I motivi tra cui scegliere quando un'opportunità è persa" },
   fornitori:              { title: "Fornitori",                description: "Gestisci l'anagrafica fornitori" },
   "categorie-costi":      { title: "Categorie costi",          description: "Organizza le categorie di costo dei cantieri" },
   "automazioni-finanza":  { title: "Automazioni finanza",      description: "Configura automazioni per la gestione finanziaria" },
