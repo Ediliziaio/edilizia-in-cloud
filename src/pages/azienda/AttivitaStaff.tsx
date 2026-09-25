@@ -187,7 +187,7 @@ function AttivitaHeader() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Widget Meteo
 // ─────────────────────────────────────────────────────────────────────────────
-function MeteoWidget() {
+function MeteoWidget({ compatto = false }: { compatto?: boolean }) {
   const { data: location, isLoading: loadingLoc } = useCompanyLocation();
   // ?? garantisce coordinate stabili dal primo render, evita cambio query key
   // quando location carica (che causava il "meteo sparisce" durante il refetch)
@@ -226,6 +226,36 @@ function MeteoWidget() {
           )}
         </CardContent>
       </Card>
+    );
+  }
+
+  // Mobile: una riga sola, senza riquadro. Il meteo serve a decidere il
+  // cantiere di domani, non a occupare un sesto dello schermo prima delle
+  // attivita'.
+  if (compatto) {
+    return (
+      <div className="flex items-center gap-2 text-xs text-muted-foreground min-w-0">
+        <span className="text-base leading-none">{weatherCodeToEmoji(todayWeather.code)}</span>
+        <span className="font-semibold text-foreground tabular-nums">{todayWeather.maxTemp}°</span>
+        <span className="tabular-nums">/{todayWeather.minTemp}°</span>
+        <span className="truncate">{location?.city ?? "Milano"}</span>
+        {todayWeather.precip > 0 && (
+          <span className="flex items-center gap-0.5 text-blue-600 dark:text-blue-400 shrink-0">
+            <Droplets className="h-3 w-3" />{todayWeather.precip}mm
+          </span>
+        )}
+        {forecastDays.length > 0 && (
+          <span className="ml-auto flex items-center gap-2 shrink-0">
+            {forecastDays.map(({ date, weather }) => (
+              <span key={date} className="flex items-center gap-0.5">
+                <span className="capitalize">{format(new Date(date), "EEEEE", { locale: it })}</span>
+                <span className="leading-none">{weatherCodeToEmoji(weather.code)}</span>
+                <span className="tabular-nums text-foreground">{weather.maxTemp}°</span>
+              </span>
+            ))}
+          </span>
+        )}
+      </div>
     );
   }
 
@@ -2117,7 +2147,7 @@ function TabAttivita() {
       {/* Sinistra: Meteo + Calendario (integrati) · Destra: le mie attività giornaliere */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-6">
         <div className="lg:col-span-2 space-y-3 sm:space-y-6">
-          <MeteoWidget />
+          <MeteoWidget compatto={isMobile} />
           {/* Calendario mese: ingombrante e poco usato su mobile (la vista
               "Oggi/Settimana" dei chip basta). Solo da tablet in su. */}
           {!isMobile && (
@@ -2454,7 +2484,7 @@ export default function AttivitaStaff() {
         {isAdmin ? (
           <TabsList className="grid w-full max-w-full sm:max-w-md grid-cols-2 h-auto">
             <TabsTrigger value="attivita" className="gap-1.5 text-xs sm:text-sm py-2"><ClipboardCheck className="h-4 w-4" /><span>Dashboard</span></TabsTrigger>
-            <TabsTrigger value="regia" className="gap-1.5 text-xs sm:text-sm py-2"><Users className="h-4 w-4" /><span className="truncate"><span className="hidden sm:inline">Regia </span>attività</span></TabsTrigger>
+            <TabsTrigger value="regia" className="gap-1.5 text-xs sm:text-sm py-2"><Users className="h-4 w-4" /><span className="truncate">Regia<span className="hidden sm:inline"> attività</span></span></TabsTrigger>
           </TabsList>
         ) : (
           <TabsList className={cn("grid w-full h-auto", seesRegia ? "grid-cols-5 max-w-2xl" : "grid-cols-4 max-w-xl")}>
