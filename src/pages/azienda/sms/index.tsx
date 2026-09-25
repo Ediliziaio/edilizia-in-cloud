@@ -22,7 +22,6 @@ import {
   Users,
   FileText,
   History,
-  MessageSquare,
 } from "lucide-react";
 import { useSmsProviderConfig } from "@/hooks/useSmsProviderConfig";
 import { useTelnyxSetup } from "@/hooks/useTelnyxSetup";
@@ -91,16 +90,11 @@ export default function SmsPage({ defaultTab = "panoramica", platformMode = fals
 
   return (
     <div className="space-y-6 max-md:space-y-3">
-      {/* Header — telefono: solo il titolo (e il credito) */}
+      {/* Header — solo il titolo (e il credito), come sul telefono: da tablet
+          c'erano icona e lo slogan «Campagne bulk, invii singoli, automazioni». */}
       <div className="flex items-start justify-between gap-4 flex-wrap max-md:items-center max-md:gap-2">
         <div>
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2 max-md:text-lg">
-            <MessageSquare className="h-6 w-6 text-[#1E3A5F] max-md:hidden" />
-            SMS
-          </h1>
-          <p className="text-muted-foreground text-sm mt-0.5 max-md:hidden">
-            Campagne bulk, invii singoli, automazioni — tutto in un unico posto.
-          </p>
+          <h1 className="text-2xl font-bold text-foreground max-md:text-lg">SMS</h1>
         </div>
         {onboardingOk && <SmsWalletBadge onRicarica={() => setRicaricaOpen(true)} />}
       </div>
@@ -118,33 +112,36 @@ export default function SmsPage({ defaultTab = "panoramica", platformMode = fals
         )
       ) : (
         <Tabs value={schedaVisibile} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full max-w-4xl grid-cols-3 sm:grid-cols-7 max-md:h-auto max-md:p-1">
+          {/* Da tablet le schede prendono la larghezza del testo e le icone
+              compaiono solo da 1280: in sette colonne uguali a 1024 le icone
+              venivano schiacciate a zero e sparivano da metà delle schede. */}
+          <TabsList className="grid w-full max-w-4xl grid-cols-3 sm:grid-cols-7 md:inline-flex md:w-auto md:max-w-none max-md:h-auto max-md:p-1">
             <TabsTrigger value="panoramica" className="gap-1.5 max-md:text-[13px]">
-              <BarChart3 className="h-4 w-4 max-md:hidden" />
+              <BarChart3 className="hidden h-4 w-4 xl:block" />
               <span className="hidden sm:inline max-md:inline">Panoramica</span>
             </TabsTrigger>
             <TabsTrigger value="invia" className="gap-1.5 max-md:text-[13px]">
-              <Send className="h-4 w-4 max-md:hidden" />
+              <Send className="hidden h-4 w-4 xl:block" />
               <span className="hidden sm:inline max-md:inline">Invia ora</span>
             </TabsTrigger>
             <TabsTrigger value="campagne" className="gap-1.5 max-md:hidden">
-              <Megaphone className="h-4 w-4" />
+              <Megaphone className="hidden h-4 w-4 xl:block" />
               <span className="hidden sm:inline">Campagne</span>
             </TabsTrigger>
             <TabsTrigger value="automazioni" className="gap-1.5 max-md:hidden">
-              <Zap className="h-4 w-4" />
+              <Zap className="hidden h-4 w-4 xl:block" />
               <span className="hidden sm:inline">Automazioni</span>
             </TabsTrigger>
             <TabsTrigger value="contatti" className="gap-1.5 max-md:hidden">
-              <Users className="h-4 w-4" />
+              <Users className="hidden h-4 w-4 xl:block" />
               <span className="hidden sm:inline">Contatti</span>
             </TabsTrigger>
             <TabsTrigger value="template" className="gap-1.5 max-md:hidden">
-              <FileText className="h-4 w-4" />
+              <FileText className="hidden h-4 w-4 xl:block" />
               <span className="hidden sm:inline">Template</span>
             </TabsTrigger>
             <TabsTrigger value="storico" className="gap-1.5 max-md:text-[13px]">
-              <History className="h-4 w-4 max-md:hidden" />
+              <History className="hidden h-4 w-4 xl:block" />
               <span className="hidden sm:inline max-md:inline">Storico</span>
             </TabsTrigger>
           </TabsList>

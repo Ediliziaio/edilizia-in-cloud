@@ -10,7 +10,7 @@ import { RigaMobile } from "@/components/mobile/FiltriMobile";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { Search, ChevronLeft, ChevronRight, MessageSquare } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -55,17 +55,8 @@ export function SmsHistory() {
     <Card>
       <CardHeader className="max-md:p-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 max-md:gap-2">
-          <CardTitle className="flex items-center gap-2 max-md:hidden">
-            <MessageSquare className="h-5 w-5 text-[#1E3A5F]" />
-            Storico Messaggi
-            {totalCount > 0 && (
-              <span className="ml-2 text-sm font-normal text-muted-foreground">
-                ({new Intl.NumberFormat("it-IT").format(totalCount)} totali)
-              </span>
-            )}
-          </CardTitle>
-
-          {/* Filtri */}
+          {/* Filtri — anche da tablet senza titolo: «Storico Messaggi» ripeteva la
+              scheda e a 1024 andava a capo in due righe. Il totale resta, a destra. */}
           <div className="flex flex-wrap gap-2">
             <div className="relative max-md:basis-full">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -109,6 +100,11 @@ export function SmsHistory() {
               </SelectContent>
             </Select>
           </div>
+          {totalCount > 0 && (
+            <span className="text-sm text-muted-foreground max-md:hidden">
+              {new Intl.NumberFormat("it-IT").format(totalCount)} messaggi
+            </span>
+          )}
         </div>
       </CardHeader>
 
