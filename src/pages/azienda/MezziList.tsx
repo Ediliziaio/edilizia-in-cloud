@@ -127,7 +127,7 @@ export default function MezziList() {
       </div>
 
       {parco && (
-        <p className="px-1 text-sm text-muted-foreground">
+        <p className="px-1 text-sm text-muted-foreground max-sm:hidden">
           {mezzi.length === 1 ? "1 mezzo" : `${mezzi.length} mezzi`}
           {parco.valore > 0 && <> · valore d'acquisto <span className="font-medium text-foreground">{formatCurrency(parco.valore)}</span></>}
           {parco.costoAnno > 0 && <> · costano circa <span className="font-medium text-foreground">{formatCurrency(parco.costoAnno)}</span> l'anno</>}

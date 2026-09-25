@@ -99,18 +99,19 @@ export default function MezzoDetail() {
 
   return (
     <div className="space-y-3 sm:space-y-4">
-      <Link to="/azienda/mezzi" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+      {/* Mobile no: la freccia indietro è già nella barra in alto. */}
+      <Link to="/azienda/mezzi" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground max-sm:hidden">
         <ArrowLeft className="h-4 w-4" aria-hidden="true" />Mezzi e attrezzature
       </Link>
 
       <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 p-3 shadow-sm sm:p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex min-w-0 items-start gap-3">
+          <div className="flex min-w-0 items-start gap-3 max-sm:flex-1 max-sm:basis-0 max-sm:gap-2.5">
             {fotoCopertina ? (
               <img
                 src={fotoCopertina}
                 alt={`Foto di ${mezzo.nome}`}
-                className="h-16 w-20 shrink-0 rounded-xl border object-cover shadow-sm sm:h-20 sm:w-28"
+                className="h-16 w-20 shrink-0 rounded-xl border object-cover shadow-sm sm:h-20 sm:w-28 max-sm:h-11 max-sm:w-14 max-sm:rounded-lg"
               />
             ) : (
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)] sm:h-12 sm:w-12">
@@ -123,7 +124,7 @@ export default function MezzoDetail() {
                 {mezzo.targa && <span className="rounded border bg-white px-1.5 font-mono text-xs text-slate-700">{mezzo.targa}</span>}
                 <Badge variant="outline" className={`text-[11px] ${stato.cls}`}>{stato.label}</Badge>
               </div>
-              <p className="mt-0.5 text-sm text-slate-500">{sottotitolo}</p>
+              <p className="mt-0.5 text-sm text-slate-500 max-sm:text-xs">{sottotitolo}</p>
               {mezzo.su_mezzo_id && mezzo.su_mezzo_nome && (
                 <p className="mt-1 text-sm">
                   Caricato su{" "}
@@ -133,39 +134,40 @@ export default function MezzoDetail() {
             </div>
           </div>
           {puoModificare && (
-            <div className="flex shrink-0 gap-2">
-              <Button size="sm" variant="outline" onClick={() => setModificaAperta(true)}>
-                <Pencil className="mr-1 h-4 w-4" />Modifica
+            <div className="flex shrink-0 gap-2 max-sm:gap-1">
+              <Button size="sm" variant="outline" className="max-sm:h-8 max-sm:w-8 max-sm:p-0" aria-label="Modifica mezzo" onClick={() => setModificaAperta(true)}>
+                <Pencil className="mr-1 h-4 w-4 max-sm:mr-0" /><span className="max-sm:hidden">Modifica</span>
               </Button>
-              <Button size="sm" variant="ghost" className="text-destructive" onClick={() => setConfermaElimina(true)} aria-label="Elimina mezzo">
+              <Button size="sm" variant="ghost" className="text-destructive max-sm:h-8 max-sm:w-8 max-sm:p-0" onClick={() => setConfermaElimina(true)} aria-label="Elimina mezzo">
                 <Trash2 className="h-4 w-4" />
               </Button>
             </div>
           )}
         </div>
 
-        <dl className="mt-4 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2 xl:grid-cols-4">
-          <div className="flex items-center gap-2 rounded-lg bg-white/70 px-3 py-2">
-            <Gauge className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+        {/* Mobile: quattro dati in due colonne, senza icone. */}
+        <dl className="mt-4 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2 xl:grid-cols-4 max-sm:mt-2 max-sm:grid-cols-2 max-sm:gap-1.5 max-sm:text-[13px]">
+          <div className="flex items-center gap-2 rounded-lg bg-white/70 px-3 py-2 max-sm:border max-sm:bg-card max-sm:px-2.5 max-sm:py-1.5">
+            <Gauge className="h-4 w-4 shrink-0 text-slate-400 max-sm:hidden" aria-hidden="true" />
             <div className="min-w-0">
               <dt className="text-xs text-muted-foreground">{mezzo.contatore_unita === "ore" ? "Ore di lavoro" : "Km"}</dt>
               <dd className="truncate font-medium">
                 {formatContatore(mezzo.contatore, mezzo.contatore_unita)}
                 {mezzo.contatore_aggiornato_il && (
-                  <span className="font-normal text-muted-foreground"> · al {formatData(mezzo.contatore_aggiornato_il)}</span>
+                  <span className="font-normal text-muted-foreground max-sm:hidden"> · al {formatData(mezzo.contatore_aggiornato_il)}</span>
                 )}
               </dd>
             </div>
           </div>
-          <div className="flex items-center gap-2 rounded-lg bg-white/70 px-3 py-2">
-            <User className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+          <div className="flex items-center gap-2 rounded-lg bg-white/70 px-3 py-2 max-sm:border max-sm:bg-card max-sm:px-2.5 max-sm:py-1.5">
+            <User className="h-4 w-4 shrink-0 text-slate-400 max-sm:hidden" aria-hidden="true" />
             <div className="min-w-0">
               <dt className="text-xs text-muted-foreground">In carico a</dt>
               <dd className="truncate font-medium">{mezzo.assegnato_persona ?? "Nessuno"}</dd>
             </div>
           </div>
-          <div className="flex items-center gap-2 rounded-lg bg-white/70 px-3 py-2">
-            <HardHat className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+          <div className={`flex items-center gap-2 rounded-lg bg-white/70 px-3 py-2 max-sm:border max-sm:bg-card max-sm:px-2.5 max-sm:py-1.5 ${costo && costo.totale > 0 ? "" : "max-sm:col-span-2"}`}>
+            <HardHat className="h-4 w-4 shrink-0 text-slate-400 max-sm:hidden" aria-hidden="true" />
             <div className="min-w-0">
               <dt className="text-xs text-muted-foreground">Cantiere</dt>
               <dd className="truncate font-medium">
@@ -177,8 +179,8 @@ export default function MezzoDetail() {
               </dd>
             </div>
           </div>
-          <div className="flex items-center gap-2 rounded-lg bg-white/70 px-3 py-2">
-            <Euro className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+          <div className={`flex items-center gap-2 rounded-lg bg-white/70 px-3 py-2 max-sm:border max-sm:bg-card max-sm:px-2.5 max-sm:py-1.5 ${costo && costo.totale > 0 ? "" : "max-sm:hidden"}`}>
+            <Euro className="h-4 w-4 shrink-0 text-slate-400 max-sm:hidden" aria-hidden="true" />
             <div className="min-w-0">
               <dt className="text-xs text-muted-foreground">Costa circa, in un anno</dt>
               <dd
@@ -198,15 +200,15 @@ export default function MezzoDetail() {
           </div>
         </dl>
 
-        {dettagli && <p className="mt-2 text-xs text-muted-foreground">{dettagli}</p>}
+        {dettagli && <p className="mt-2 text-xs text-muted-foreground max-sm:hidden">{dettagli}</p>}
 
         {aBordo.length > 0 && (
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
-              <Package className="h-4 w-4" aria-hidden="true" />A bordo:
+          <div className="mt-3 flex flex-wrap items-center gap-2 max-sm:mt-2 max-sm:gap-1.5">
+            <span className="inline-flex items-center gap-1 text-sm text-muted-foreground max-sm:text-xs">
+              <Package className="h-4 w-4 max-sm:h-3.5 max-sm:w-3.5" aria-hidden="true" />A bordo:
             </span>
             {aBordo.map((a) => (
-              <Link key={a.id} to={`/azienda/mezzi/${a.id}`} className="rounded-full border bg-white px-2.5 py-0.5 text-sm hover:border-orange-300">
+              <Link key={a.id} to={`/azienda/mezzi/${a.id}`} className="tap-compact rounded-full border bg-white px-2.5 py-0.5 text-sm hover:border-orange-300 max-sm:text-xs">
                 {a.nome}
               </Link>
             ))}
@@ -228,12 +230,14 @@ export default function MezzoDetail() {
       </div>
 
       <Tabs value={tabScelto ?? (aperte > 0 ? "segnalazioni" : "scadenze")} onValueChange={setTabScelto}>
-        <div className="-mx-1 overflow-x-auto px-1">
-          <TabsList className="inline-flex w-max">
+        {/* Mobile: scadenze, foto e segnalazioni (quel che serve dal furgone);
+            tagliandi e storico si guardano al computer. */}
+        <div className="-mx-1 overflow-x-auto px-1 max-sm:mx-0 max-sm:px-0">
+          <TabsList className="inline-flex w-max max-sm:grid max-sm:w-full max-sm:grid-cols-3">
             <TabsTrigger value="scadenze">Scadenze</TabsTrigger>
-            <TabsTrigger value="manutenzioni">Tagliandi</TabsTrigger>
+            <TabsTrigger value="manutenzioni" className="max-sm:hidden">Tagliandi</TabsTrigger>
             <TabsTrigger value="foto">Foto</TabsTrigger>
-            <TabsTrigger value="storico">Storico</TabsTrigger>
+            <TabsTrigger value="storico" className="max-sm:hidden">Storico</TabsTrigger>
             <TabsTrigger value="segnalazioni" className="gap-1.5">
               Segnalazioni
               {aperte > 0 && <span className="rounded-full bg-red-500 px-1.5 text-[11px] font-semibold text-white">{aperte}</span>}

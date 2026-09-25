@@ -39,9 +39,9 @@ export function MezzoFotoSection({ mezzoId, copertina, puoModificare }: Props) {
   };
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-sm text-muted-foreground">Com'è il mezzo, danni, targhette: le foto restano qui.</p>
+    <div className="space-y-3 max-sm:space-y-2">
+      <div className="flex items-center justify-between gap-2 max-sm:justify-end">
+        <p className="text-sm text-muted-foreground max-sm:hidden">Com'è il mezzo, danni, targhette: le foto restano qui.</p>
         {puoModificare && (
           <>
             <input
@@ -53,7 +53,7 @@ export function MezzoFotoSection({ mezzoId, copertina, puoModificare }: Props) {
               onChange={(e) => scegli(e.target.files)}
               aria-label="Scegli le foto da caricare"
             />
-            <Button size="sm" onClick={() => input.current?.click()} disabled={carica.isPending} className="shrink-0">
+            <Button size="sm" onClick={() => input.current?.click()} disabled={carica.isPending} className="shrink-0 max-sm:h-8 max-sm:text-xs">
               {carica.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Camera className="mr-1 h-4 w-4" />}
               Aggiungi foto
             </Button>
@@ -69,9 +69,9 @@ export function MezzoFotoSection({ mezzoId, copertina, puoModificare }: Props) {
           <button type="button" className="font-semibold underline" onClick={() => refetch()}>Riprova</button>
         </div>
       ) : foto.length === 0 ? (
-        <div className="rounded-xl border border-dashed py-10 text-center text-sm text-muted-foreground">
-          <Camera className="mx-auto mb-2 h-8 w-8 opacity-40" />
-          Nessuna foto. La prima che carichi diventa la copertina del mezzo.
+        <div className="rounded-xl border border-dashed py-10 text-center text-sm text-muted-foreground max-sm:py-4">
+          <Camera className="mx-auto mb-2 h-8 w-8 opacity-40 max-sm:hidden" />
+          Nessuna foto<span className="max-sm:hidden">. La prima che carichi diventa la copertina del mezzo</span>.
         </div>
       ) : (
         <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
