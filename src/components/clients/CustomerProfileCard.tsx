@@ -23,6 +23,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -92,6 +93,9 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const [fieldSearch, setFieldSearch] = useState("");
+  // Mobile: i gruppi di campi partono chiusi (aperti la scheda era lunga
+  // oltre 1.000px); nome, contatti e indirizzo sono già in testata.
+  const isMobile = useIsMobile();
 
   // Chi può salvare lo decide il database (company_admin o staff con
   // can_edit_customers): gli altri vedevano i campi modificabili e scoprivano
@@ -264,8 +268,8 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
             </TabsList>
 
             <TabsContent value="all_fields" className="mt-2 space-y-2">
-              {/* Search bar */}
-              <div className="relative">
+              {/* Search bar — mobile no: con i gruppi chiusi basta aprirne uno. */}
+              <div className="relative max-sm:hidden">
                 <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
                 <Input
                   placeholder="Cerca campi"
@@ -276,7 +280,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
               </div>
 
               {/* Collapsible: Anagrafica */}
-              <Collapsible defaultOpen>
+              <Collapsible defaultOpen={!isMobile}>
                 <CollapsibleTrigger className="flex items-center gap-1 text-xs font-semibold w-full group py-1 hover:bg-muted/50 rounded px-1">
                   <ChevronDown className="h-3 w-3 transition-transform group-data-[state=closed]:-rotate-90" />
                   Anagrafica
@@ -370,7 +374,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
               </Collapsible>
 
               {/* Collapsible: Indirizzo residenza / sede legale */}
-              <Collapsible defaultOpen>
+              <Collapsible defaultOpen={!isMobile}>
                 <CollapsibleTrigger className="flex items-center gap-1 text-xs font-semibold w-full group py-1 hover:bg-muted/50 rounded px-1">
                   <ChevronDown className="h-3 w-3 transition-transform group-data-[state=closed]:-rotate-90" />
                   {customer.is_business ? "Sede legale" : "Indirizzo residenza"}
@@ -432,7 +436,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
               </Collapsible>
 
               {/* Collapsible: Indirizzo cantiere */}
-              <Collapsible defaultOpen>
+              <Collapsible defaultOpen={!isMobile}>
                 <CollapsibleTrigger className="flex items-center gap-1 text-xs font-semibold w-full group py-1 hover:bg-muted/50 rounded px-1">
                   <ChevronDown className="h-3 w-3 transition-transform group-data-[state=closed]:-rotate-90" />
                   Indirizzo cantiere

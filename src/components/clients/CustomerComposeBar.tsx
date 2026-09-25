@@ -769,7 +769,8 @@ export function CustomerComposeBar({
           {saveNote.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
         </Button>
       </div>
-      <p className="px-3 pb-2 text-[10px] text-muted-foreground">
+      {/* Mobile no: i tasti Enter/Shift+Enter sono da tastiera del computer. */}
+      <p className="px-3 pb-2 text-[10px] text-muted-foreground max-sm:hidden">
         <span className={activeChannel.color}>{activeChannel.icon}</span>{" "}
         Visibile solo al team. Enter per salvare · Shift+Enter per nuova riga.
       </p>

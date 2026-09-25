@@ -704,10 +704,11 @@ export default function CompanyCustomerDetail() {
       {/* ───── Hero header stile MarketingContactDetail ───── */}
       <div className="rounded-2xl border bg-card p-4 md:p-5 shadow-sm">
         <div className="flex items-start gap-3 md:gap-4">
+          {/* Mobile: la freccia c'è già nella barra in alto. */}
           <Button
             variant="ghost"
             size="icon"
-            className="shrink-0 -ml-2"
+            className="shrink-0 -ml-2 max-md:hidden"
             onClick={() => navigate("/azienda/clienti")}
             aria-label="Torna ai clienti"
           >
