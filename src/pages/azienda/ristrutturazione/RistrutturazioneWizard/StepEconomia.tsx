@@ -105,7 +105,7 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
       {/* Header */}
       <div>
         <h2 className="text-sm font-semibold text-slate-900">Economia</h2>
-        <p className="text-[11px] text-muted-foreground">
+        <p className="text-[11px] text-muted-foreground max-sm:hidden">
           Sconto, IVA, eventuale detrazione fiscale e riepilogo del preventivo.{" "}
           {totali.prezzoManuale ? "I totali partono dal prezzo scritto nei Parametri." : "I totali derivano dal computo."}
         </p>
@@ -122,8 +122,8 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
       )}
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_minmax(280px,360px)]">
-        {/* ─── Riepilogo per capitolo ─────────────────────────────────────── */}
-        <Card>
+        {/* ─── Riepilogo per capitolo — telefono: nascosto finché è vuoto ─── */}
+        <Card className={totali.perCapitolo.length === 0 ? "max-sm:hidden" : undefined}>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-1.5 text-sm">
               <Euro className="h-4 w-4 text-orange-600" /> Riepilogo per capitolo
@@ -390,7 +390,8 @@ function PctField({ id, label, value, onCommit, hint, icon: Icon }: PctFieldProp
           %
         </span>
       </div>
-      {hint && <p className="text-[10px] text-muted-foreground">{hint}</p>}
+      {/* Telefono no: i suggerimenti sotto i campi. */}
+      {hint && <p className="text-[10px] text-muted-foreground max-sm:hidden">{hint}</p>}
     </div>
   );
 }

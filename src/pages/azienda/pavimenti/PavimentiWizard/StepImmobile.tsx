@@ -75,14 +75,14 @@ const toInt = (raw: string): number | null => {
 export default function StepImmobile({ form, onChange }: Props) {
   return (
     <Card>
-      <CardContent className="p-4 sm:p-5 space-y-4">
+      <CardContent className="p-4 sm:p-5 space-y-4 max-sm:p-3 max-sm:space-y-3">
         <div className="flex items-center gap-2">
           <div className="h-8 w-8 rounded-md bg-teal-50 text-teal-600 flex items-center justify-center">
             <LayoutGrid className="h-4 w-4" />
           </div>
           <div>
             <h2 className="text-sm font-semibold text-slate-900">Dati intervento e cantiere</h2>
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-[11px] text-muted-foreground max-sm:hidden">
               Tipo di intervento, materiale, superficie e indirizzo del cantiere.
             </p>
           </div>

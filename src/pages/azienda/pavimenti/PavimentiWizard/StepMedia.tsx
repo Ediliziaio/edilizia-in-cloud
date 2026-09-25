@@ -224,7 +224,7 @@ export default function StepMedia({ progettoId, media }: Props) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="text-sm font-semibold text-slate-900">Foto e allegati</h2>
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-[11px] text-muted-foreground max-sm:hidden">
             Stato attuale, render di progetto, lavori simili e documenti. Compaiono nel preventivo PDF.
           </p>
         </div>
@@ -256,7 +256,8 @@ export default function StepMedia({ progettoId, media }: Props) {
       </div>
 
       {ordered.length === 0 ? (
-        <Card>
+        // Telefono no: il riquadro vuoto ripeteva «Carica file» che sta già in alto.
+        <Card className="max-sm:hidden">
           <CardContent className="p-0">
             <EmptyState
               icon={ImageIcon}

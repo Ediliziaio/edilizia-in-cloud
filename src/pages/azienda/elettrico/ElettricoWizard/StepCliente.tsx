@@ -102,14 +102,15 @@ export default function StepCliente({ form, onChange }: Props) {
 
   return (
     <Card>
-      <CardContent className="p-4 sm:p-5 space-y-4">
+      <CardContent className="p-4 sm:p-5 space-y-4 max-sm:p-3 max-sm:space-y-3">
         <div className="flex items-center gap-2">
           <div className="h-8 w-8 rounded-md bg-orange-50 text-orange-600 flex items-center justify-center">
             <User className="h-4 w-4" />
           </div>
           <div>
             <h2 className="text-sm font-semibold text-slate-900">Cliente</h2>
-            <p className="text-[11px] text-muted-foreground">
+            {/* Telefono no: spiegazioni sotto i titoli. */}
+            <p className="text-[11px] text-muted-foreground max-sm:hidden">
               Collega un contatto CRM o compila i dati. Verranno usati nel preventivo PDF.
             </p>
           </div>
@@ -117,12 +118,12 @@ export default function StepCliente({ form, onChange }: Props) {
 
         {/* Collegamento contatto CRM */}
         <div className="rounded-md border border-slate-200 bg-white px-3 py-2.5">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between max-sm:flex-row max-sm:items-center max-sm:justify-between">
             <div className="min-w-0">
               <p className="text-xs font-semibold text-slate-900">
                 {form.cliente_id ? "Contatto CRM collegato" : "Contatto CRM"}
               </p>
-              <p className="truncate text-[11px] text-slate-500">
+              <p className="truncate text-[11px] text-slate-500 max-sm:hidden">
                 {form.cliente_id
                   ? "Dati sincronizzati nel progetto."
                   : "Collega un contatto per compilare anagrafica e recapiti."}
@@ -183,7 +184,7 @@ export default function StepCliente({ form, onChange }: Props) {
 
         {/* Anagrafica */}
         <div className="grid grid-cols-12 gap-3">
-          <div className="col-span-12 sm:col-span-6">
+          <div className="col-span-6">
             <Label className="text-xs">Nome</Label>
             <Input
               value={form.cliente_nome ?? ""}
@@ -192,7 +193,7 @@ export default function StepCliente({ form, onChange }: Props) {
               className="h-9"
             />
           </div>
-          <div className="col-span-12 sm:col-span-6">
+          <div className="col-span-6">
             <Label className="text-xs">Cognome</Label>
             <Input
               value={form.cliente_cognome ?? ""}
@@ -201,7 +202,7 @@ export default function StepCliente({ form, onChange }: Props) {
               className="h-9"
             />
           </div>
-          <div className="col-span-12 sm:col-span-6">
+          <div className="col-span-6">
             <Label className="text-xs flex items-center gap-1">
               <Mail className="h-3 w-3" /> Email
             </Label>
@@ -213,7 +214,7 @@ export default function StepCliente({ form, onChange }: Props) {
               className="h-9"
             />
           </div>
-          <div className="col-span-12 sm:col-span-6">
+          <div className="col-span-6">
             <Label className="text-xs flex items-center gap-1">
               <Phone className="h-3 w-3" /> Telefono
             </Label>
@@ -228,13 +229,13 @@ export default function StepCliente({ form, onChange }: Props) {
 
         {/* Collegamento opportunità CRM */}
         <div className="rounded-md border border-dashed border-slate-200 bg-slate-50/40 px-3 py-2.5">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between max-sm:flex-row max-sm:items-center max-sm:justify-between">
             <div className="min-w-0">
               <p className="text-xs font-semibold text-slate-900 flex items-center gap-1.5">
                 <Briefcase className="h-3.5 w-3.5 text-slate-500" />
-                Opportunità CRM (opzionale)
+                Opportunità<span className="max-sm:hidden"> CRM (opzionale)</span>
               </p>
-              <p className="truncate text-[11px] text-slate-500">
+              <p className="truncate text-[11px] text-slate-500 max-sm:hidden">
                 Collega il progetto a un'opportunità per il tracking nel pipeline.
               </p>
             </div>

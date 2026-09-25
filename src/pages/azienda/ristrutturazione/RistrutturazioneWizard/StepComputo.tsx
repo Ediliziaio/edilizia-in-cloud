@@ -180,7 +180,7 @@ export default function StepComputo({ progettoId, initialComputo, scontoPct, iva
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="text-sm font-semibold text-slate-900">Computo metrico</h2>
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-[11px] text-muted-foreground max-sm:hidden">
             Aggiungi capitoli e voci dai listini. I totali si aggiornano in tempo reale e si salvano da soli.
           </p>
         </div>
@@ -220,23 +220,24 @@ export default function StepComputo({ progettoId, initialComputo, scontoPct, iva
           type="button"
           variant="outline"
           size="sm"
-          className="h-8 gap-1.5 text-xs"
+          className="tap-compact h-8 gap-1.5 text-xs max-sm:flex-1"
           disabled={!companyId}
           onClick={() => setImportOpen(true)}
         >
-          <Sparkles className="h-3.5 w-3.5 text-orange-500" /> Importa computo da PDF (AI)
+          <Sparkles className="h-3.5 w-3.5 text-orange-500" /> <span className="max-sm:hidden">Importa computo da PDF (AI)</span><span className="sm:hidden">Importa PDF</span>
         </Button>
         <Button
           type="button"
           variant="outline"
           size="sm"
-          className="h-8 gap-1.5 text-xs"
+          className="tap-compact h-8 gap-1.5 text-xs max-sm:flex-1"
           disabled={!companyId}
           onClick={() => setVoiceOpen(true)}
         >
-          <Mic className="h-3.5 w-3.5 text-violet-500" /> Descrivi a voce (AI)
+          <Mic className="h-3.5 w-3.5 text-violet-500" /> <span className="max-sm:hidden">Descrivi a voce (AI)</span><span className="sm:hidden">Detta a voce</span>
         </Button>
-        <span className="text-[11px] text-muted-foreground">
+        {/* Telefono: due bottoni affiancati, senza la frase di spiegazione. */}
+        <span className="text-[11px] text-muted-foreground max-sm:hidden">
           Carica un computo esistente: l'AI estrae le voci, le rivedi e le aggiungi.
         </span>
       </div>

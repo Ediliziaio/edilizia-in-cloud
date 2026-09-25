@@ -5,6 +5,10 @@
  * invia l'email di firma col flusso esistente (send-quote-signature) e mostra
  * lo stato vivo (inviata → vista → firmata) con link copiabile. Da qui in poi
  * il reminder di scadenza (quote-expiry-reminder, cron) è automatico.
+ *
+ * Sul telefono la card sparisce: resta una riga con lo stato e le azioni
+ * scendono nella barra in basso del passo — indietro, PDF (da guardare o da
+ * mandare con WhatsApp, Mail…) e «Invia per firma».
  */
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -16,9 +20,13 @@ import { Badge } from "@/components/ui/badge";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { Send, Loader2, Copy, CheckCircle2, Eye, PenLine, Clock } from "lucide-react";
+import { Send, Loader2, Copy, CheckCircle2, Eye, PenLine, Clock, Link2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { condividiLink } from "@/lib/mobile/condividiFile";
+import { cn } from "@/lib/utils";
+import { BarraInvioMobile } from "@/components/moduli/BarraInvioMobile";
 import {
   getModuleQuote, upsertModuleQuote, sendModuleQuoteSignature, signatureLink, resolveModuleSignatureLink,
   type ModuleQuoteRow,
@@ -41,10 +49,15 @@ interface Props {
   /** Es. computo vuoto: blocca l'invio con motivo (niente PDF vuoto al cliente). */
   disabled?: boolean;
   disabledReason?: string;
+  /** Il PDF si può già generare (di solito: il computo ha voci). Di base vale `!disabled`. */
+  pdfDisponibile?: boolean;
+  /** Telefono: con questa la card disegna la barra in basso del passo (indietro · PDF · invia). */
+  onIndietro?: () => void;
 }
 
 export function InviaFirmaCard(props: Props) {
   const { user } = useAuth();
+  const isMobile = useIsMobile();
   const [working, setWorking] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [email, setEmail] = useState(props.clientEmail ?? "");
@@ -94,13 +107,47 @@ export function InviaFirmaCard(props: Props) {
     }
   };
 
-  const copiaLink = async () => {
-    if (!quote) return;
+  const apriInvio = () => {
+    if (props.disabled) {
+      toast.error(props.disabledReason || "Completa il preventivo per poterlo inviare.");
+      return;
+    }
+    // Riallinea l'email al valore corrente del cliente ad ogni apertura:
+    // se il venditore l'ha compilata/cambiata in un altro step, il dialog
+    // non deve mostrare il valore vecchio catturato al mount.
+    if (props.clientEmail && !email.trim()) setEmail(props.clientEmail);
+    setDialogOpen(true);
+  };
+
+  const linkFirma = async () => {
+    if (!quote) return null;
     const link = (await resolveModuleSignatureLink(quote.id))
       ?? (quote.signature_token ? signatureLink(quote.signature_token) : null);
-    if (!link) { toast.error("Nessun link di firma: invia prima il preventivo"); return; }
+    if (!link) toast.error("Nessun link di firma: invia prima il preventivo");
+    return link;
+  };
+
+  const copiaLink = async () => {
+    const link = await linkFirma();
+    if (!link) return;
     await navigator.clipboard.writeText(link);
     toast.success("Link di firma copiato");
+  };
+
+  // Dal telefono il link si manda col foglio di condivisione: WhatsApp in un tocco.
+  const mandaLink = async () => {
+    const link = await linkFirma();
+    if (!link) return;
+    const esito = await condividiLink(link, props.titolo);
+    if (esito === "non-supportato") {
+      await navigator.clipboard.writeText(link);
+      toast.success("Link di firma copiato");
+    } else if (esito === "serve-un-tocco") {
+      toast.success("Link di firma pronto", {
+        action: { label: "Manda", onClick: () => { void condividiLink(link, props.titolo); } },
+        duration: 10000,
+      });
+    }
   };
 
   const stato = quote?.signed_at
@@ -110,6 +157,97 @@ export function InviaFirmaCard(props: Props) {
       : quote?.sent_at
         ? { label: "Inviato — in attesa", icon: Clock, cls: "bg-amber-100 text-amber-800" }
         : null;
+
+  const dialogInvio = (
+    <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Invia per firma</DialogTitle>
+          <DialogDescription className="max-sm:sr-only">
+            Genera il PDF aggiornato e lo invia a {props.clientName || "il cliente"} con il link di firma.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div>
+            <Label className="text-xs">Email del cliente</Label>
+            <Input
+              type="email"
+              className="h-9 mt-1"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="cliente@esempio.it"
+            />
+          </div>
+          <div>
+            <Label className="text-xs">Messaggio (opzionale)</Label>
+            <Input
+              className="h-9 mt-1"
+              value={messaggio}
+              onChange={(e) => setMessaggio(e.target.value)}
+              placeholder="Come da accordi, ecco il preventivo…"
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => setDialogOpen(false)} disabled={working} className="max-sm:hidden">Annulla</Button>
+          <Button onClick={() => void handleInvia()} disabled={working} className="bg-emerald-600 hover:bg-emerald-700">
+            {working ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Send className="h-4 w-4 mr-1.5" />}
+            Invia ora
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+
+  if (isMobile && props.onIndietro) {
+    const pdfDisponibile = props.pdfDisponibile ?? !props.disabled;
+    return (
+      <>
+        {stato && (
+          <div className={cn("flex items-center gap-2 rounded-xl px-3 py-2", stato.cls)}>
+            <stato.icon className="h-4 w-4 shrink-0" />
+            <span className="min-w-0 flex-1 truncate text-[13px] font-medium">
+              {stato.label}
+              {quote?.signed_at && ` il ${new Date(quote.signed_at).toLocaleDateString("it-IT")}`}
+            </span>
+            {!quote?.signed_at && (quote?.sent_at || quote?.signature_token) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="tap-compact -my-1 h-8 gap-1.5 px-2 text-xs"
+                onClick={() => { void mandaLink(); }}
+              >
+                <Link2 className="h-3.5 w-3.5" /> Link firma
+              </Button>
+            )}
+          </div>
+        )}
+
+        <BarraInvioMobile
+          onIndietro={props.onIndietro}
+          titolo={props.titolo}
+          generaPdf={props.generaPdfBlob}
+          pdfBloccato={pdfDisponibile ? null : props.disabledReason || "Completa il preventivo per generare il PDF."}
+        >
+          {quote?.signed_at ? (
+            <Button disabled className="h-11 flex-1 gap-1.5 bg-emerald-600">
+              <CheckCircle2 className="h-4 w-4" /> Firmato
+            </Button>
+          ) : (
+            <Button
+              className={cn("h-11 flex-1 gap-1.5 bg-orange-500 hover:bg-orange-600", props.disabled && "opacity-60")}
+              disabled={loading || working}
+              onClick={apriInvio}
+            >
+              {working ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              {quote?.sent_at ? "Reinvia" : "Invia per firma"}
+            </Button>
+          )}
+        </BarraInvioMobile>
+        {dialogInvio}
+      </>
+    );
+  }
 
   return (
     <Card className="border-emerald-200 bg-emerald-50/40">
@@ -143,13 +281,7 @@ export function InviaFirmaCard(props: Props) {
             size="sm"
             className="h-8 bg-emerald-600 hover:bg-emerald-700"
             disabled={loading || working || props.disabled || !!quote?.signed_at}
-            onClick={() => {
-              // Riallinea l'email al valore corrente del cliente ad ogni apertura:
-              // se il venditore l'ha compilata/cambiata in un altro step, il dialog
-              // non deve mostrare il valore vecchio catturato al mount.
-              if (props.clientEmail && !email.trim()) setEmail(props.clientEmail);
-              setDialogOpen(true);
-            }}
+            onClick={apriInvio}
           >
             {working ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Send className="h-3.5 w-3.5 mr-1.5" />}
             {quote?.sent_at ? "Reinvia aggiornato" : "Invia per firma"}
@@ -167,44 +299,7 @@ export function InviaFirmaCard(props: Props) {
           )}
         </div>
 
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Invia per firma</DialogTitle>
-              <DialogDescription>
-                Genera il PDF aggiornato e lo invia a {props.clientName || "il cliente"} con il link di firma.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-3">
-              <div>
-                <Label className="text-xs">Email del cliente</Label>
-                <Input
-                  type="email"
-                  className="h-9 mt-1"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="cliente@esempio.it"
-                />
-              </div>
-              <div>
-                <Label className="text-xs">Messaggio (opzionale)</Label>
-                <Input
-                  className="h-9 mt-1"
-                  value={messaggio}
-                  onChange={(e) => setMessaggio(e.target.value)}
-                  placeholder="Come da accordi, ecco il preventivo…"
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="ghost" onClick={() => setDialogOpen(false)} disabled={working}>Annulla</Button>
-              <Button onClick={() => void handleInvia()} disabled={working} className="bg-emerald-600 hover:bg-emerald-700">
-                {working ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Send className="h-4 w-4 mr-1.5" />}
-                Invia ora
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        {dialogInvio}
       </CardContent>
     </Card>
   );

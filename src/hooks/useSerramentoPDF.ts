@@ -190,6 +190,17 @@ export async function enrichForPdfPublic(opts: SerramentoPdfPayload): Promise<Se
   return enrichForPdf(opts);
 }
 
+/** Il PDF A4 come file: dal telefono si manda col foglio di condivisione. */
+export async function renderSerramentoBlob(opts: SerramentoPdfPayload): Promise<Blob> {
+  const enriched = await enrichForPdf(opts);
+  const [{ pdf }, { SerramentoPDF }, React] = await Promise.all([
+    import("@react-pdf/renderer"),
+    import("@/components/serramenti/SerramentoPDF"),
+    import("react"),
+  ]);
+  return pdf(React.createElement(SerramentoPDF, enriched) as unknown as Parameters<typeof pdf>[0]).toBlob();
+}
+
 function getPublicAppOrigin(): string {
   // In locale non vogliamo stampare link verso localhost in un PDF consegnato al
   // cliente. Preferiamo env esplicita, poi l'origine reale non-local, poi prod.

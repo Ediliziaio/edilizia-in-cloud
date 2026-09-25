@@ -211,11 +211,12 @@ export default function ComputoEditor({
         {/* Toolbar */}
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-50 text-orange-600">
+            {/* Telefono: il titolo è già quello del passo; resta il conteggio delle voci. */}
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-50 text-orange-600 max-sm:hidden">
               <Calculator className="h-4 w-4" />
             </div>
             <div>
-              <h3 className="text-sm font-semibold text-slate-900">Computo metrico</h3>
+              <h3 className="text-sm font-semibold text-slate-900 max-sm:hidden">Computo metrico</h3>
               <p className="text-[11px] text-muted-foreground">
                 {nVoci > 0
                   ? `${nVoci} ${nVoci === 1 ? "voce" : "voci"} · ${capitoli.length} ${capitoli.length === 1 ? "capitolo" : "capitoli"}`
@@ -224,11 +225,12 @@ export default function ComputoEditor({
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* Telefono no: i margini si guardano dal computer. */}
             <button
               type="button"
               onClick={() => setShowMargine((s) => !s)}
               className={cn(
-                "inline-flex h-8 items-center gap-1.5 rounded-full border px-2.5 text-[11px] font-medium transition-colors",
+                "inline-flex h-8 items-center gap-1.5 rounded-full border px-2.5 text-[11px] font-medium transition-colors max-sm:hidden",
                 showMargine
                   ? "border-emerald-200 bg-emerald-50 text-emerald-700"
                   : "border-border bg-background text-muted-foreground hover:text-foreground",
@@ -241,7 +243,7 @@ export default function ComputoEditor({
               size="sm"
               variant="outline"
               onClick={() => setGlobalPickerOpen(true)}
-              className="h-8 gap-1.5"
+              className="tap-compact h-8 gap-1.5"
             >
               <Sparkles className="h-3.5 w-3.5 text-orange-500" /> Cerca voce
             </Button>
@@ -377,16 +379,17 @@ function Row({ label, value, muted }: { label: string; value: string; muted?: bo
 /** Empty-state premium e guidato. */
 function EmptyState({ onAddCapitolo, onSearch }: { onAddCapitolo: () => void; onSearch: () => void }) {
   return (
-    <div className="rounded-2xl border border-dashed border-border bg-gradient-to-b from-muted/30 to-transparent px-6 py-10 text-center">
-      <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-50 text-orange-500">
+    // Telefono: due bottoni e basta (via icona grande e spiegazione).
+    <div className="rounded-2xl border border-dashed border-border bg-gradient-to-b from-muted/30 to-transparent px-6 py-10 text-center max-sm:px-3 max-sm:py-4">
+      <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-50 text-orange-500 max-sm:hidden">
         <Calculator className="h-7 w-7" />
       </div>
-      <h3 className="text-base font-semibold text-slate-900">Costruisci il computo</h3>
-      <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
+      <h3 className="text-base font-semibold text-slate-900 max-sm:text-sm">Costruisci il computo</h3>
+      <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground max-sm:hidden">
         Organizza il lavoro in capitoli (Demolizioni, Impianti, Finiture…) e pesca le voci
         dai tuoi listini: lavorazioni, prodotti e manodopera. Tutto si somma in tempo reale.
       </p>
-      <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+      <div className="mt-5 flex flex-wrap items-center justify-center gap-2 max-sm:mt-3">
         <Button onClick={onAddCapitolo} className="gap-1.5 bg-orange-500 hover:bg-orange-600">
           <Plus className="h-4 w-4" /> Aggiungi capitolo
         </Button>

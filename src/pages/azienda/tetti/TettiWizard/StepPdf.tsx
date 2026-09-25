@@ -42,7 +42,13 @@ interface Props {
   progetto: TetProgetto;
   computo: TetComputoVoce[];
   media: TetProgettoMedia[];
+  /** Telefono: la barra in basso del passo (indietro · PDF · invia) la disegna la card di invio. */
+  onIndietro?: () => void;
+  /** Telefono: le voci di «Da completare» portano al passo in cui si completano. */
+  onVaiAlPasso?: (passo: PassoDaCompletare) => void;
 }
+
+type PassoDaCompletare = "cliente" | "immobile" | "computo";
 
 interface ChecklistItem {
   ok: boolean;
@@ -50,7 +56,7 @@ interface ChecklistItem {
   hint?: string;
 }
 
-export default function StepPdf({ progetto, computo, media }: Props) {
+export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlPasso }: Props) {
   const isMobile = useIsMobile();
   const companyId = useEffectiveCompanyId();
   const { data: template } = useTetTemplatePdf();
@@ -164,6 +170,12 @@ export default function StepPdf({ progetto, computo, media }: Props) {
     },
   ];
   const erroriCount = checks.filter((c) => !c.ok).length;
+  // Telefono: al posto della checklist, una riga con quello che manca davvero.
+  const mancano: { etichetta: string; passo: PassoDaCompletare }[] = [];
+  if (!(progetto.cliente_nome || progetto.cliente_cognome)) mancano.push({ etichetta: "cliente", passo: "cliente" });
+  if (!(progetto.cantiere_indirizzo || progetto.cantiere_citta)) mancano.push({ etichetta: "indirizzo del cantiere", passo: "immobile" });
+  if (computoVuoto) mancano.push({ etichetta: "voci del computo", passo: "computo" });
+  else if (totali.totale <= 0) mancano.push({ etichetta: "prezzi del computo", passo: "computo" });
 
   const payload = {
     progetto, computo, media, template: template ?? null, company: company ?? null,
@@ -194,6 +206,8 @@ export default function StepPdf({ progetto, computo, media }: Props) {
           vatAmount={totali.iva}
           total={totali.totale}
           validityDays={template?.default_validita_giorni ?? undefined}
+          pdfDisponibile={!computoVuoto}
+          onIndietro={onIndietro}
           disabled={computoVuoto || Boolean(progetto.modello_snapshot)}
           disabledReason={progetto.modello_snapshot ? "Per questo intervento usa il PDF A4: il collegamento alla firma è da completare." : "Aggiungi voci al computo prima di inviare il preventivo."}
           generaPdfBlob={async () => {
@@ -205,10 +219,10 @@ export default function StepPdf({ progetto, computo, media }: Props) {
         />
       )}
 
-      {/* Anteprima del preventivo — mini-documento brandizzato */}
-      <Card>
-        <CardContent className="space-y-3 p-4">
-          <div className="flex items-center gap-2">
+      {/* Anteprima del preventivo — mini-documento brandizzato (sul telefono senza la cornice) */}
+      <Card className="max-md:border-0 max-md:bg-transparent max-md:shadow-none">
+        <CardContent className="space-y-3 p-4 max-md:p-0">
+          <div className="flex items-center gap-2 max-md:hidden">
             <FileText className="h-4 w-4 text-orange-600" />
             <h2 className="text-sm font-semibold text-slate-900">Anteprima del preventivo</h2>
           </div>
@@ -279,7 +293,7 @@ export default function StepPdf({ progetto, computo, media }: Props) {
                   </div>
                 </div>
               ) : (
-                <p className="mt-3 rounded-lg bg-muted/40 px-3 py-2 text-[11px] text-muted-foreground">
+                <p className="mt-3 rounded-lg bg-muted/40 px-3 py-2 text-[11px] text-muted-foreground max-md:hidden">
                   Nessuna voce nel computo: il preventivo è ancora vuoto. Aggiungi le lavorazioni nello step Computo.
                 </p>
               )}
@@ -288,15 +302,38 @@ export default function StepPdf({ progetto, computo, media }: Props) {
         </CardContent>
       </Card>
 
+      {isMobile && mancano.length > 0 && (
+        <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
+          <p>
+            Da completare:{" "}
+            {mancano.map((m, i) => (
+              <span key={m.etichetta}>
+                {i > 0 && ", "}
+                {onVaiAlPasso ? (
+                  <button
+                    type="button"
+                    className="tap-compact font-medium underline underline-offset-2"
+                    onClick={() => onVaiAlPasso(m.passo)}
+                  >
+                    {m.etichetta}
+                  </button>
+                ) : m.etichetta}
+              </span>
+            ))}
+          </p>
+        </div>
+      )}
+
       {/* Come mostrare il computo nel PDF — scelta PER QUESTO PREVENTIVO (non template) */}
       {!computoVuoto && (
         <Card>
-          <CardContent className="space-y-3 p-4">
+          <CardContent className="space-y-3 p-4 max-md:p-3">
             <div className="flex items-center gap-2">
               <Settings2 className="h-4 w-4 text-orange-600" />
               <h2 className="text-sm font-semibold text-slate-900">Come mostrare il computo nel PDF</h2>
             </div>
-            <p className="-mt-1 text-[11px] text-muted-foreground">
+            <p className="-mt-1 text-[11px] text-muted-foreground max-md:hidden">
               Vale solo per questo preventivo — non modifica il template.
             </p>
             {/* Livello di dettaglio */}
@@ -321,7 +358,7 @@ export default function StepPdf({ progetto, computo, media }: Props) {
                     )}
                   >
                     <span className="block text-xs font-semibold">{opt.label}</span>
-                    <span className="block text-[10px] text-muted-foreground">{opt.hint}</span>
+                    <span className="block text-[10px] text-muted-foreground max-md:hidden">{opt.hint}</span>
                   </button>
                 );
               })}
@@ -348,7 +385,7 @@ export default function StepPdf({ progetto, computo, media }: Props) {
       )}
 
       {/* Checklist */}
-      <Card className={cn(computoVuoto ? "border-amber-200" : "")}>
+      <Card className={cn(computoVuoto ? "border-amber-200" : "", "max-md:hidden")}>
         <CardContent className="space-y-2 p-4">
           <div className="flex items-center gap-2">
             <Check className="h-4 w-4 text-orange-600" />
@@ -372,14 +409,14 @@ export default function StepPdf({ progetto, computo, media }: Props) {
         </CardContent>
       </Card>
 
-      {/* Generazione PDF */}
-      <Card>
+      {/* Generazione PDF — sul telefono PDF e invio stanno nella barra in basso */}
+      <Card className="max-md:hidden">
         <CardContent className="space-y-3 p-4">
           <div className="flex items-center gap-2">
             <Download className="h-4 w-4 text-orange-600" />
             <h2 className="text-sm font-semibold text-slate-900">Scarica il preventivo</h2>
           </div>
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-[11px] text-muted-foreground max-sm:hidden">
             PDF A4 brandizzato pronto da allegare via email o stampare: copertina, presentazione
             impresa, computo per capitoli, foto, cronoprogramma e condizioni.
           </p>

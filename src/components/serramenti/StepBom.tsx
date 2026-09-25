@@ -26,7 +26,8 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { RectangleVertical, Plus, Trash2, Copy, Loader2, Upload, HelpCircle, Package, Sparkles, Gift, Euro, FileText } from "lucide-react";
+import { RectangleVertical, Plus, Trash2, Copy, Loader2, Upload, HelpCircle, Package, Sparkles, Gift, Euro, FileText, ChevronDown } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
@@ -698,7 +699,7 @@ function BulkPosaActions({
         <Button
           variant="outline"
           size="sm"
-          className="h-7 text-[11px] gap-1 border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+          className="tap-compact h-7 text-[11px] gap-1 border-emerald-200 text-emerald-700 hover:bg-emerald-50"
           onClick={() => onBulkUpdate(false)}
           disabled={stato === "tutte_con"}
         >
@@ -707,7 +708,7 @@ function BulkPosaActions({
         <Button
           variant="outline"
           size="sm"
-          className="h-7 text-[11px] gap-1 border-amber-200 text-amber-700 hover:bg-amber-50"
+          className="tap-compact h-7 text-[11px] gap-1 border-amber-200 text-amber-700 hover:bg-amber-50"
           onClick={() => onBulkUpdate(true)}
           disabled={stato === "tutte_senza"}
         >
@@ -753,6 +754,10 @@ function BulkAssiActions({
 }) {
   const [coloreInterno, setColoreInterno] = useState("");
   const [coloreEsterno, setColoreEsterno] = useState("");
+  // Telefono: il blocco parte chiuso (una riga), se no copre mezza pagina prima delle righe.
+  const isMobile = useIsMobile();
+  const [apertoSulTelefono, setApertoSulTelefono] = useState(false);
+  const aperto = !isMobile || apertoSulTelefono;
   const assi = useMemo(() => {
     const usate = new Set(serramenti.map((s) => s.family_id).filter(Boolean) as string[]);
     if (usate.size === 0) return [];
@@ -809,10 +814,23 @@ function BulkAssiActions({
 
   return (
     <div className="rounded-md border border-blue-200 bg-blue-50/50 p-2.5 mb-3">
-      <div className="text-[10px] uppercase tracking-wide text-blue-800 font-semibold mb-2">
-        Stesse scelte per tutte le {serramenti.length} righe
-      </div>
-      <div className="flex flex-wrap items-end gap-2">
+      {isMobile ? (
+        <button
+          type="button"
+          onClick={() => setApertoSulTelefono((v) => !v)}
+          aria-expanded={apertoSulTelefono}
+          className="tap-compact flex w-full items-center justify-between gap-2 text-[11px] font-semibold uppercase tracking-wide text-blue-800"
+        >
+          Stesse scelte per tutte le {serramenti.length} righe
+          <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${apertoSulTelefono ? "rotate-180" : ""}`} />
+        </button>
+      ) : (
+        <div className="text-[10px] uppercase tracking-wide text-blue-800 font-semibold mb-2">
+          Stesse scelte per tutte le {serramenti.length} righe
+        </div>
+      )}
+      {aperto && (
+      <div className="flex flex-wrap items-end gap-2 max-md:mt-2 max-md:grid max-md:grid-cols-2">
         {assi.map((asse) => {
           const codiceScelto = sceltiGruppo[asse.codice] ?? "";
           const [tipoScelto, indiceValore, indiceVoce] = codiceScelto.split(":");
@@ -821,7 +839,7 @@ function BulkAssiActions({
             ? testoScelta(valoreScelto.label, tipoScelto === "o" ? valoreScelto.voci[Number(indiceVoce)] : null)
             : undefined;
           return (
-            <div key={asse.codice} className="space-y-1 min-w-[160px]">
+            <div key={asse.codice} className="space-y-1 min-w-[160px] max-md:min-w-0">
               <Label className="text-[10px] text-slate-700">{asse.nome}</Label>
               <Select
                 value={codiceScelto}
@@ -865,7 +883,7 @@ function BulkAssiActions({
           <>
             {/* Stessa tendina di «Colore»: i colori del listino divisi per fascia, o
                 scritti a mano. Prima era il suggeritore del browser, grigio e diverso. */}
-            <div className="space-y-1 min-w-[170px]">
+            <div className="space-y-1 min-w-[170px] max-md:min-w-0">
               <Label htmlFor="bulk-colore-interno" className="text-[10px] text-slate-700">Colore interno</Label>
               <SceltaColore
                 id="bulk-colore-interno"
@@ -876,7 +894,7 @@ function BulkAssiActions({
                 className="h-8 bg-white"
               />
             </div>
-            <div className="space-y-1 min-w-[170px]">
+            <div className="space-y-1 min-w-[170px] max-md:min-w-0">
               <Label htmlFor="bulk-colore-esterno" className="text-[10px] text-slate-700">Colore esterno</Label>
               <SceltaColore
                 id="bulk-colore-esterno"
@@ -891,7 +909,7 @@ function BulkAssiActions({
               type="button"
               variant="outline"
               size="sm"
-              className="h-8 text-xs bg-white"
+              className="tap-compact h-8 text-xs bg-white max-md:col-span-2"
               disabled={!coloreInterno.trim() && !coloreEsterno.trim()}
               onClick={applicaColori}
             >
@@ -900,6 +918,7 @@ function BulkAssiActions({
           </>
         )}
       </div>
+      )}
     </div>
   );
 }
@@ -1290,11 +1309,11 @@ export function SerramentoRow({
             <span className="h-6 w-6 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-[11px] font-bold shrink-0">
               {index + 1}
             </span>
-            <span className="min-w-[190px] flex-1">
+            <span className="min-w-[190px] flex-1 max-md:min-w-0 max-md:basis-[calc(100%-2rem)] max-md:text-[13px] max-md:leading-snug">
               {/* Breadcrumb: Macrocategoria > Articolo. La macro viene
                   visualizzata in stile pillola/uppercase per gerarchia. */}
               {macroNome && (
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-blue-800 bg-blue-50 border border-blue-100 rounded px-1.5 py-0.5 mr-1.5">
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-blue-800 bg-blue-50 border border-blue-100 rounded px-1.5 py-0.5 mr-1.5 max-md:whitespace-nowrap">
                   {macroNome}
                 </span>
               )}
@@ -1340,17 +1359,17 @@ export function SerramentoRow({
                 Senza, modificare L/H su un articolo "a pezzo" sembrava
                 un bug ("ho cambiato la larghezza ma il prezzo non cambia"). */}
             {modalitaPrezzo === "pz" && (
-              <span className="text-[9px] font-semibold text-slate-600 bg-slate-100 border border-slate-200 rounded px-1.5 py-0.5">
+              <span className="text-[9px] font-semibold text-slate-600 bg-slate-100 border border-slate-200 rounded px-1.5 py-0.5 max-md:hidden">
                 a pezzo (prezzo fisso)
               </span>
             )}
             {modalitaPrezzo === "mq" && (
-              <span className="text-[9px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded px-1.5 py-0.5">
+              <span className="text-[9px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded px-1.5 py-0.5 max-md:hidden">
                 a m²
               </span>
             )}
             {modalitaPrezzo === "griglia" && (
-              <span className="text-[9px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded px-1.5 py-0.5">
+              <span className="text-[9px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded px-1.5 py-0.5 max-md:hidden">
                 da griglia
               </span>
             )}
@@ -1384,12 +1403,12 @@ export function SerramentoRow({
               </span>
             )}
             {modalitaPrezzo === "misura_libera" && (
-              <span className="text-[9px] font-semibold text-slate-600 bg-slate-100 border border-slate-200 rounded px-1.5 py-0.5">
+              <span className="text-[9px] font-semibold text-slate-600 bg-slate-100 border border-slate-200 rounded px-1.5 py-0.5 max-md:hidden">
                 a corpo
               </span>
             )}
             {isManualCorpo && (
-              <span className="text-[9px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded px-1.5 py-0.5">
+              <span className="text-[9px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded px-1.5 py-0.5 max-md:hidden">
                 importo a corpo
               </span>
             )}

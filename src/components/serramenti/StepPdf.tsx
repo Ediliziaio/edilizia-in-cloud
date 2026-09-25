@@ -3,22 +3,35 @@
  *
  * Il PDF si genera nel browser (SerramentoPDF). «Genera link firma» chiama
  * sr-genera-pdf, che salva la versione HTML e il link da mandare al cliente.
+ *
+ * Sul telefono niente schede di spiegazione: il riepilogo, cosa manca, e in
+ * basso la barra con il PDF (da mandare o guardare) e «Invia per firma», che
+ * rigenera la pagina e ne manda il link col foglio di condivisione.
  */
-import { FileText, Loader2, Check, AlertCircle, ExternalLink, Link2, Copy, Download, Eye } from "lucide-react";
+import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { FileText, Loader2, Check, AlertCircle, AlertTriangle, ArrowRight, ExternalLink, Link2, Copy, Download, Eye, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import type { SrProgettoDetail } from "@/types/serramenti";
+import type { SrProgettoDetail, SrWizardStep } from "@/types/serramenti";
 import { SrCard, SrCallout, SrKpi } from "@/lib/serramenti/wizardUI";
 import { formatEuro, formatEuroRangeOrSingle, formatNumero } from "@/lib/serramenti/format";
-import { useGeneraPdf, useConvertiInOrdine, useTemplatePdf, useAziendaPerPdf } from "@/lib/serramenti/queries";
+import { SR_QK, useGeneraPdf, useConvertiInOrdine, useTemplatePdf, useAziendaPerPdf } from "@/lib/serramenti/queries";
+import { generaPdf } from "@/lib/serramenti/api";
 import { ClipboardList } from "lucide-react";
-import { useSerramentoPDF } from "@/hooks/useSerramentoPDF";
+import { renderSerramentoBlob, useSerramentoPDF } from "@/hooks/useSerramentoPDF";
 import { generateInterventoSintesi } from "@/lib/serramenti/sintesiIntervento";
+import { BarraInvioMobile } from "@/components/moduli/BarraInvioMobile";
+import { condividiLink } from "@/lib/mobile/condividiFile";
 
 import { useIsMobile } from "@/hooks/use-mobile";
 interface Props {
   progettoId: string;
   detail: SrProgettoDetail;
+  /** Telefono: la barra in basso del passo (indietro · PDF · invia per firma) la disegna lo step. */
+  onIndietro?: () => void;
+  /** Telefono: le voci di «Da completare» portano al passo in cui si completano. */
+  onVaiAlPasso?: (passo: SrWizardStep) => void;
 }
 
 interface ChecklistItem {
@@ -27,10 +40,15 @@ interface ChecklistItem {
   hint?: string;
   /** Consigliato, non obbligatorio: se manca, PDF, link firma e commessa si fanno lo stesso. */
   facoltativo?: boolean;
+  /** Telefono: come si chiama nella riga «Da completare» e in che passo si completa. */
+  breve?: string;
+  passo?: SrWizardStep;
 }
 
-export function StepPdf({ progettoId, detail }: Props) {
+export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso }: Props) {
   const isMobile = useIsMobile();
+  const qc = useQueryClient();
+  const [invioInCorso, setInvioInCorso] = useState(false);
   const p = detail.progetto;
   const generaPdfMut = useGeneraPdf(progettoId);
   const convertiMut = useConvertiInOrdine(progettoId);
@@ -58,11 +76,13 @@ export function StepPdf({ progettoId, detail }: Props) {
       ok: !!(p.cliente_nome || p.cliente_cognome),
       label: "Anagrafica cliente",
       hint: !p.cliente_nome ? "Manca il nome" : undefined,
+      breve: "cliente", passo: "cliente",
     },
     {
       ok: !!(p.cantiere_indirizzo || p.cliente_indirizzo),
       label: "Indirizzo cantiere",
       hint: !p.cantiere_indirizzo && !p.cliente_indirizzo ? "Aggiungi almeno un indirizzo" : undefined,
+      breve: "indirizzo", passo: "immobile",
     },
     {
       // La sintesi viene SEMPRE auto-generata da BOM + tipo intervento.
@@ -73,21 +93,25 @@ export function StepPdf({ progettoId, detail }: Props) {
       hint: !sintesiCalcolata
         ? "Aggiungi almeno un serramento o complemento: la sintesi si genera da lì."
         : undefined,
+      breve: "serramenti", passo: "bom",
     },
     {
       ok: Array.isArray(p.esigenze) && p.esigenze.filter((e) => e.titolo).length >= 1,
       label: "Almeno 1 esigenza",
       hint: "Più ne metti meglio è (max 3 entrano nel PDF)",
+      breve: "esigenze", passo: "immobile",
     },
     {
       ok: numSerramenti > 0,
       label: `${numSerramenti} serramenti in BOM`,
       hint: numSerramenti === 0 ? "Mancanti — vai allo Step Serramenti" : undefined,
+      breve: "serramenti", passo: "bom",
     },
     {
       ok: Number(p.totale_max ?? p.totale_min ?? 0) > 0,
       label: "Totale preventivo calcolato",
       hint: !Number(p.totale_max ?? p.totale_min ?? 0) ? "Vai allo Step Economia e clicca 'Applica calcoli'" : undefined,
+      breve: "totale", passo: "economia",
     },
     {
       ok: !!p.consulenza_at,
@@ -101,16 +125,79 @@ export function StepPdf({ progettoId, detail }: Props) {
   const ready = checks.every((c) => c.ok || c.facoltativo);
   const erroriCount = checks.filter((c) => !c.ok && !c.facoltativo).length;
   const paginaFirmaUrl = p.public_url ?? p.pdf_html_url;
+  // Telefono: al posto della checklist, una riga con quello che manca davvero.
+  const mancano = checks
+    .filter((c) => !c.ok && !c.facoltativo && c.breve)
+    .filter((c, i, tutte) => tutte.findIndex((x) => x.breve === c.breve) === i);
+  const titoloInvio = `Preventivo ${p.code ?? ""}`.trim();
+
+  // «Invia per firma» dal telefono: rigenera la pagina (il cliente vede il
+  // preventivo di adesso) e ne manda il link col foglio di condivisione.
+  const inviaPerFirma = async () => {
+    if (!ready) {
+      toast.error(`Completa prima: ${mancano.map((c) => c.breve).join(", ")}`);
+      return;
+    }
+    if (p.modello_snapshot) {
+      toast.error("Per questo modello usa il PDF: la pagina di firma non è ancora collegata.");
+      return;
+    }
+    setInvioInCorso(true);
+    try {
+      const esito = await generaPdf(progettoId);
+      void qc.invalidateQueries({ queryKey: SR_QK.progetto(progettoId) });
+      void qc.invalidateQueries({ queryKey: ["sr-progetti"] });
+      const link = esito.public_url;
+      if (!link) {
+        toast.success("Pagina generata", {
+          description: "Il link pubblico non c'è ancora.",
+          action: { label: "Apri", onClick: () => window.open(esito.html_url, "_blank") },
+          duration: 10000,
+        });
+        return;
+      }
+      const condivisione = await condividiLink(link, titoloInvio);
+      if (condivisione === "non-supportato") {
+        await navigator.clipboard.writeText(link);
+        toast.success("Link di firma copiato");
+      } else if (condivisione === "serve-un-tocco") {
+        toast.success("Link di firma pronto", {
+          action: { label: "Manda", onClick: () => { void condividiLink(link, titoloInvio); } },
+          duration: 10000,
+        });
+      }
+    } catch (e) {
+      toast.error("Invio non riuscito", { description: e instanceof Error ? e.message : "Riprova." });
+    } finally {
+      setInvioInCorso(false);
+    }
+  };
 
   return (
     <div className="space-y-3">
+      {/* Telefono: il link di firma già generato, in una riga. */}
+      {isMobile && p.public_url && (
+        <div className="flex items-center gap-2 rounded-xl bg-orange-50 px-3 py-2 text-orange-900">
+          <Link2 className="h-4 w-4 shrink-0" />
+          <span className="min-w-0 flex-1 truncate text-[13px] font-medium">
+            Link di firma{p.pdf_generated_at && ` del ${new Date(p.pdf_generated_at).toLocaleDateString("it-IT")}`}
+          </span>
+          <Button asChild variant="ghost" size="sm" className="tap-compact -my-1 h-8 gap-1.5 px-2 text-xs">
+            <a href={p.public_url} target="_blank" rel="noopener noreferrer">
+              <ExternalLink className="h-3.5 w-3.5" /> Apri
+            </a>
+          </Button>
+        </div>
+      )}
+
       {/* Anteprima dati PDF */}
       <SrCard
         title="Anteprima dati preventivo"
         description="Riepilogo di cosa entrerà nel PDF cliente."
         icon={<FileText className="h-4 w-4" />}
       >
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+        {/* Telefono: codice e totale sono già nella testata e qui sotto. */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4 max-md:hidden">
           <SrKpi label="Codice" value={p.code} />
           <SrKpi label="Serramenti" value={numSerramenti} />
           <SrKpi label="Complementi" value={detail.accessori.reduce((a, x) => a + (x.quantita ?? 1), 0)} />
@@ -121,7 +208,7 @@ export function StepPdf({ progettoId, detail }: Props) {
           />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3 max-md:mb-0">
           <div className="border-l-4 border-orange-200 pl-3 py-1">
             <p className="text-[10px] uppercase font-semibold text-muted-foreground mb-1">Pagina 1 — Proposta</p>
             <p className="text-sm">
@@ -152,12 +239,36 @@ export function StepPdf({ progettoId, detail }: Props) {
         </div>
       </SrCard>
 
+      {isMobile && mancano.length > 0 && (
+        <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
+          <p>
+            Da completare:{" "}
+            {mancano.map((c, i) => (
+              <span key={c.breve}>
+                {i > 0 && ", "}
+                {onVaiAlPasso && c.passo ? (
+                  <button
+                    type="button"
+                    className="tap-compact font-medium underline underline-offset-2"
+                    onClick={() => onVaiAlPasso(c.passo!)}
+                  >
+                    {c.breve}
+                  </button>
+                ) : c.breve}
+              </span>
+            ))}
+          </p>
+        </div>
+      )}
+
       {/* Checklist completezza */}
       <SrCard
         title="Checklist completezza"
         description="Tutti gli elementi richiesti per generare un PDF presentabile."
         icon={<Check className="h-4 w-4" />}
         variant={ready ? "highlight" : "default"}
+        className="max-md:hidden"
       >
         <div className="space-y-1">
           {checks.map((c, i) => (
@@ -183,6 +294,7 @@ export function StepPdf({ progettoId, detail }: Props) {
         title="Scarica PDF da inviare al cliente"
         description="PDF A4 pronto da stampare o allegare via email. Include anagrafica, totale preventivo, modalità di pagamento, allegato tecnico e render."
         icon={<Download className="h-4 w-4" />}
+        className="max-md:hidden"
       >
         {!ready && (
           <SrCallout variant="warning" className="mb-3">
@@ -233,6 +345,7 @@ export function StepPdf({ progettoId, detail }: Props) {
         title="Link pubblico per firma cliente"
         description="Genera un link che il cliente può aprire dal telefono per leggere il preventivo e firmarlo digitalmente. È separato dal PDF: serve solo per la firma."
         icon={<Link2 className="h-4 w-4" />}
+        className="max-md:hidden"
       >
         {p.modello_snapshot && <p role="status" className="mb-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Questo modello è collegato al PDF A4. Il collegamento alla pagina di firma è ancora da completare: usa il PDF scaricabile, senza generare una pagina con un modello diverso.</p>}
         <div className="flex flex-col sm:flex-row gap-2">
@@ -305,6 +418,7 @@ export function StepPdf({ progettoId, detail }: Props) {
         description="Quando il cliente firma o conferma, converti il preventivo in commessa per gestire produzione, posa e fatturazione."
         icon={<ClipboardList className="h-4 w-4" />}
         variant={p.ordine_id ? "muted" : "highlight"}
+        className="max-md:hidden"
       >
         {p.ordine_id ? (
           <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -341,6 +455,49 @@ export function StepPdf({ progettoId, detail }: Props) {
           </div>
         )}
       </SrCard>
+
+      {/* Telefono: la commessa in una riga, come negli altri preventivatori. */}
+      {isMobile && (p.ordine_id ? (
+        <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50/60 px-3 py-2">
+          <p className="min-w-0 flex-1 truncate text-[13px] font-semibold text-emerald-900">Commessa già aperta</p>
+          <Button asChild variant="outline" size="sm" className="tap-compact h-8 shrink-0 gap-1 text-xs">
+            <a href={`/azienda/ordini/${p.ordine_id}`}>
+              Apri <ArrowRight className="h-3.5 w-3.5" />
+            </a>
+          </Button>
+        </div>
+      ) : ready && (
+        <div className="flex items-center gap-2 rounded-xl border border-orange-200 bg-orange-50/60 px-3 py-2">
+          <p className="min-w-0 flex-1 truncate text-[13px] font-semibold text-orange-900">Il cliente ha accettato?</p>
+          <Button
+            size="sm"
+            className="tap-compact h-8 shrink-0 gap-1.5 bg-orange-500 text-xs text-white hover:bg-orange-600"
+            disabled={convertiMut.isPending}
+            onClick={() => convertiMut.mutate()}
+          >
+            {convertiMut.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            Crea commessa
+          </Button>
+        </div>
+      ))}
+
+      {isMobile && onIndietro && (
+        <BarraInvioMobile
+          onIndietro={onIndietro}
+          titolo={titoloInvio}
+          generaPdf={() => renderSerramentoBlob({ detail, template: template ?? null, company: company ?? null, useFreshTemplate: true })}
+          pdfBloccato={ready ? null : `Completa prima: ${mancano.map((c) => c.breve).join(", ")}`}
+        >
+          <Button
+            className={`h-11 flex-1 gap-1.5 bg-orange-500 hover:bg-orange-600 ${ready && !p.modello_snapshot ? "" : "opacity-60"}`}
+            disabled={invioInCorso}
+            onClick={() => { void inviaPerFirma(); }}
+          >
+            {invioInCorso ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            Invia per firma
+          </Button>
+        </BarraInvioMobile>
+      )}
     </div>
   );
 }

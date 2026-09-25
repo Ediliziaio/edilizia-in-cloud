@@ -141,7 +141,7 @@ export function StepAccessori({ progettoId, detail }: Props) {
           della loro finestra, in «Composizione offerta»: questo passo ha solo foto
           del cantiere e render. */}
       {accessori.length > 0 && (
-        <SrCallout variant="info" icon={<ImageIcon className="h-3.5 w-3.5" />} title="Complementi">
+        <SrCallout variant="info" icon={<ImageIcon className="h-3.5 w-3.5" />} title="Complementi" className="max-md:hidden">
           Tapparelle, zanzariere e cassonetti si aggiungono nel box di ogni finestra, in{" "}
           <strong>Composizione offerta</strong>: prendono le sue misure e il modello già usato.
         </SrCallout>
@@ -154,14 +154,14 @@ export function StepAccessori({ progettoId, detail }: Props) {
         icon={<Sparkles className="h-4 w-4" />}
         variant="highlight"
       >
-        <div className="flex flex-col sm:flex-row gap-2">
+        <div className="flex flex-row gap-2">
           <Button
             onClick={() => setRenderDialogOpen(true)}
             variant="outline"
             className="flex-1 gap-2 border-orange-300 hover:bg-orange-50"
           >
             <Sparkles className="h-4 w-4 text-orange-600" />
-            Importa render esistente
+            Importa<span className="max-md:hidden"> render esistente</span>
           </Button>
           {/* Genera nuovo render: apre il builder Render Infissi DENTRO un
               Dialog (iframe verso /azienda/render/infissi/embed). Al
@@ -171,7 +171,8 @@ export function StepAccessori({ progettoId, detail }: Props) {
             className="flex-1 gap-2 bg-orange-500 hover:bg-orange-600"
           >
             <Sparkles className="h-4 w-4" />
-            Genera nuovo render
+            <span className="max-md:hidden">Genera nuovo render</span>
+            <span className="md:hidden">Nuovo render</span>
           </Button>
         </div>
 
@@ -192,7 +193,7 @@ export function StepAccessori({ progettoId, detail }: Props) {
                   ? situazioni.find((s) => s.storage_path?.startsWith(`render-session:${sessionId}:`))
                   : null;
                 return (
-                  <div key={render.id} className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <div key={render.id} className="grid grid-cols-2 gap-2">
                     {/* PRIMA — foto originale */}
                     <div className="relative group rounded-md overflow-hidden border bg-muted aspect-video">
                       {prima?.url ? (
@@ -215,7 +216,7 @@ export function StepAccessori({ progettoId, detail }: Props) {
                       )}
                       <button
                         onClick={() => setMediaToDelete(render)}
-                        className="absolute top-1 right-1 h-6 w-6 rounded-full bg-rose-600 text-white opacity-0 group-hover:opacity-100 transition flex items-center justify-center"
+                        className="absolute top-1 right-1 h-6 w-6 rounded-full bg-rose-600 text-white opacity-0 group-hover:opacity-100 transition flex items-center justify-center tap-compact max-md:h-7 max-md:w-7 max-md:opacity-100"
                         title="Rimuovi"
                         aria-label="Rimuovi render"
                       >
@@ -239,7 +240,7 @@ export function StepAccessori({ progettoId, detail }: Props) {
                     {m.url && <img loading="lazy" src={m.url} alt="prima" className="w-full h-full object-cover" />}
                     <button
                       onClick={() => setMediaToDelete(m)}
-                      className="absolute top-1 right-1 h-6 w-6 rounded-full bg-rose-600 text-white opacity-0 group-hover:opacity-100 transition flex items-center justify-center"
+                      className="absolute top-1 right-1 h-6 w-6 rounded-full bg-rose-600 text-white opacity-0 group-hover:opacity-100 transition flex items-center justify-center tap-compact max-md:h-7 max-md:w-7 max-md:opacity-100"
                       title="Rimuovi"
                     >
                       <X className="h-3 w-3" />
@@ -253,7 +254,7 @@ export function StepAccessori({ progettoId, detail }: Props) {
           );
         })()}
 
-        <SrCallout variant="info" className="mt-3">
+        <SrCallout variant="info" className="mt-3 max-md:hidden">
           💡 I render compaiono nella pagina 3 del PDF cliente come confronto <strong>prima / dopo</strong>.
           Massimo 4 coppie visibili nel PDF.
         </SrCallout>
@@ -280,7 +281,7 @@ export function StepAccessori({ progettoId, detail }: Props) {
           disabled={uploadMediaMut.isPending}
         >
           {uploadMediaMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-          Carica foto (multipla supportata, max 10 MB ciascuna)
+          Carica foto<span className="max-md:hidden"> (multipla supportata, max 10 MB ciascuna)</span>
         </Button>
 
         {detail.media.filter((m) => m.kind !== "render").length > 0 && (
@@ -296,7 +297,7 @@ export function StepAccessori({ progettoId, detail }: Props) {
                 )}
                 <button
                   onClick={() => setMediaToDelete(m)}
-                  className="absolute top-1 right-1 h-6 w-6 rounded-full bg-rose-600 text-white opacity-0 group-hover:opacity-100 transition flex items-center justify-center"
+                  className="absolute top-1 right-1 h-6 w-6 rounded-full bg-rose-600 text-white opacity-0 group-hover:opacity-100 transition flex items-center justify-center tap-compact max-md:h-7 max-md:w-7 max-md:opacity-100"
                   title="Elimina"
                   aria-label="Elimina foto"
                 >

@@ -32,17 +32,18 @@ export function SrCard({ title, description, icon, className, children, variant 
       className,
     )}>
       {(title || icon) && (
-        <CardHeader className="p-4 pb-2">
-          <CardTitle className="text-base flex items-center gap-2">
+        <CardHeader className="p-4 pb-2 max-md:p-3 max-md:pb-1.5">
+          <CardTitle className="text-base flex items-center gap-2 max-md:text-sm">
             {icon && <span className={variant === "highlight" ? "text-[#173b67]" : "text-slate-700"}>{icon}</span>}
             {title}
           </CardTitle>
+          {/* Sul telefono niente spiegazioni sotto il titolo: il campo parla da sé. */}
           {description && (
-            <p className="text-[11px] text-muted-foreground mt-1">{description}</p>
+            <p className="text-[11px] text-muted-foreground mt-1 max-md:hidden">{description}</p>
           )}
         </CardHeader>
       )}
-      <CardContent className={cn("p-4", title && "pt-2")}>
+      <CardContent className={cn("p-4 max-md:p-3", title && "pt-2 max-md:pt-1.5")}>
         {children}
       </CardContent>
     </Card>
@@ -74,13 +75,14 @@ export function SrKpi({ label, value, unit, hint, variant = "default", className
     warning: "bg-amber-50 text-amber-900 border-amber-200",
   };
   return (
-    <div className={cn("rounded-md border p-3", colors[variant], className)}>
+    // Telefono: nome e cifra, più piccoli; la nota sotto resta al computer.
+    <div className={cn("rounded-md border p-3 max-md:px-2.5 max-md:py-2", colors[variant], className)}>
       <p className="text-[10px] font-semibold uppercase tracking-wide opacity-70">{label}</p>
-      <p className="text-xl font-bold mt-0.5 tabular-nums">
+      <p className="text-xl font-bold mt-0.5 tabular-nums max-md:text-base">
         {value}
         {unit && <span className="text-xs font-normal opacity-70 ml-1">{unit}</span>}
       </p>
-      {hint && <p className="text-[10px] opacity-60 mt-0.5">{hint}</p>}
+      {hint && <p className="text-[10px] opacity-60 mt-0.5 max-md:hidden">{hint}</p>}
     </div>
   );
 }

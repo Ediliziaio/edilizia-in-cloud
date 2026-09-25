@@ -358,9 +358,11 @@ export function VoiceComputoDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />
-            Descrivi i lavori — l'AI compone il computo
+            {/* Telefono: titolo su una riga, la spiegazione la dà l'esempio nel campo. */}
+            <span className="max-sm:hidden">Descrivi i lavori — l'AI compone il computo</span>
+            <span className="sm:hidden">Descrivi i lavori</span>
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="max-sm:sr-only">
             Detta a voce o scrivi cosa c'è da fare: l'AI propone le voci, tu le
             rivedi e le aggiungi al computo.
           </DialogDescription>

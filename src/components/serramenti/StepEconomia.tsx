@@ -642,12 +642,14 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
         description={`${detail.serramenti.length} serramenti · ${detail.accessori.length} complementi · ${(detail.servizi ?? []).length} servizi · ${formatNumero(totaleCalc.metri_quadri, 2)} m²`}
         icon={<Calculator className="h-4 w-4" />}
       >
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+        {/* Telefono: le tre voci in riga; imponibile e totale li dice il riquadro «Totale» sotto. */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 max-md:grid-cols-3">
           {/* La posa è nel prezzo solo degli articoli che la hanno a listino. */}
           <SrKpi label="Serramenti" value={formatEuro(totaleCalc.imponibile_serramenti)} hint="Posa compresa dove prevista" />
           <SrKpi label="Complementi" value={formatEuro(totaleCalc.imponibile_accessori)} />
           <SrKpi label="Servizi" value={formatEuro(totaleCalc.imponibile_servizi)} hint="Trasporto, ENEA, ecc." />
           <SrKpi
+            className="max-md:hidden"
             label="Imponibile"
             value={formatEuro(totaleCalc.imponibile_netto)}
             hint={[
@@ -655,7 +657,7 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
               totaleCalc.sconto > 0 ? `Sconto: -${formatEuro(totaleCalc.sconto)}` : null,
             ].filter(Boolean).join(" · ") || undefined}
           />
-          <SrKpi label="IVA inclusa" value={formatEuro(totaleCalc.totale_iva_inclusa)} variant="primary" />
+          <SrKpi label="IVA inclusa" value={formatEuro(totaleCalc.totale_iva_inclusa)} variant="primary" className="max-md:hidden" />
         </div>
       </SrCard>
 
@@ -692,7 +694,7 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
                   className="h-9 text-sm mt-1 bg-white tabular-nums"
                 />
               </div>
-              <div className="col-span-12 md:col-span-7 text-[11px] text-orange-900/80 leading-snug">
+              <div className={`col-span-12 md:col-span-7 text-[11px] text-orange-900/80 leading-snug ${totaleCalc.prezzo_manuale ? "" : "max-md:hidden"}`}>
                 {totaleCalc.prezzo_manuale ? (
                   <>
                     Prende il posto della somma delle voci
@@ -727,11 +729,11 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
               <Tag className="h-3.5 w-3.5" />
               Regole scontistica aziendale
               {discountEval.isFallback ? (
-                <span className="ml-1 text-[10px] font-normal text-slate-500">
+                <span className="ml-1 text-[10px] font-normal text-slate-500 max-md:hidden">
                   · fallback (nessuna regola matcha → max 10%)
                 </span>
               ) : (
-                <span className="ml-1 text-[10px] font-normal text-slate-500">
+                <span className="ml-1 text-[10px] font-normal text-slate-500 max-md:hidden">
                   · {discountEval.matchingRules.length} regol{discountEval.matchingRules.length > 1 ? "e" : "a"} attiv{discountEval.matchingRules.length > 1 ? "e" : "a"}
                 </span>
               )}
@@ -740,7 +742,7 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
               href="/azienda/impostazioni/scontistica"
               target="_blank"
               rel="noreferrer"
-              className="text-[10px] text-[#173b67] underline hover:no-underline"
+              className="text-[10px] text-[#173b67] underline hover:no-underline max-md:hidden"
             >
               Configura regole →
             </a>
@@ -766,7 +768,7 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
 
           {/* Regole matchanti (nome) */}
           {discountEval.matchingRules.length > 0 && (
-            <p className="text-[10px] text-slate-600 leading-tight">
+            <p className="text-[10px] text-slate-600 leading-tight max-md:hidden">
               <Info className="inline h-3 w-3 mr-0.5 -mt-0.5" />
               Applicate: {discountEval.matchingRules.map((r) => r.name).join(" · ")}
               {discountEval.primaryRule && discountEval.matchingRules.length > 1 && (
@@ -783,9 +785,9 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
           <div className="mb-3 rounded-md border border-blue-200 bg-blue-50/60 px-3 py-2 text-[11px] text-blue-900 flex items-start gap-2">
             <Lock className="h-3.5 w-3.5 mt-0.5 shrink-0" />
             <span>
-              Lo sconto è gestito dall'amministrazione. Puoi proporre uno sconto
+              Lo sconto è gestito dall'amministrazione.<span className="max-md:hidden"> Puoi proporre uno sconto
               superiore al consentito tramite <strong>Richiedi approvazione</strong> —
-              il titolare riceverà la richiesta in <em>Preventivi → Approvazioni</em>.
+              il titolare riceverà la richiesta in <em>Preventivi → Approvazioni</em>.</span>
             </span>
           </div>
         )}
@@ -882,7 +884,7 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
                 size="sm"
                 variant="outline"
                 onClick={() => void handleRequestApproval()}
-                className="mt-1.5 h-7 text-[11px] gap-1 border-amber-300 text-amber-700 hover:bg-amber-50"
+                className="tap-compact mt-1.5 h-7 text-[11px] gap-1 border-amber-300 text-amber-700 hover:bg-amber-50"
               >
                 <Send className="h-3 w-3" />
                 Richiedi approvazione
@@ -984,7 +986,7 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
           {canViewImpresa && marginCalc && (
             <div className="col-span-12">
               <div
-                className={`rounded-md border p-4 ${
+                className={`rounded-md border p-4 max-md:p-3 ${
                   !marginCalc.costiCompleti
                     ? "border-amber-300 bg-amber-50/60"
                     : marginCalc.sottoTarget
@@ -1031,7 +1033,7 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
                     </p>
                   </div>
                 </div>
-                <p className="text-[10px] text-slate-600 mt-2 leading-tight">
+                <p className="text-[10px] text-slate-600 mt-2 leading-tight max-md:hidden">
                   <Info className="inline h-3 w-3 mr-0.5 -mt-0.5" />
                   Il margine è calcolato su valori netti IVA esclusa: imponibile vendita meno costo acquisto netto.
                   {marginCalc.costiCompleti
@@ -1068,7 +1070,7 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
                   <p className="text-[10px] uppercase font-semibold text-[#173b67]">
                     📊 Riepilogo IVA mista · Regola Beni Significativi (DM 29.12.99)
                   </p>
-                  <span className="text-[10px] text-slate-600">
+                  <span className="text-[10px] text-slate-600 max-md:hidden">
                     IVA calcolata sulle righe del preventivo
                   </span>
                 </div>
@@ -1091,7 +1093,7 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
                   </div>
                 </div>
                 {/* Dettaglio split Beni Significativi (educational) */}
-                <p className="text-[10px] text-slate-600 leading-relaxed">
+                <p className="text-[10px] text-slate-600 leading-relaxed max-md:hidden">
                   <strong>Serramenti</strong> (bene significativo) al 10% fino a {formatEuro(totaleCalc.mista_breakdown.altre_prestazioni)}{" "}
                   (= valore accessori + posa + altre opere).
                   {totaleCalc.mista_breakdown.bs_quota_22 > 0 ? (
@@ -1131,13 +1133,14 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
               ))}
             </SelectContent>
           </Select>
-          <p className="text-[11px] text-slate-600">{schemaCfg.description}</p>
+          <p className="text-[11px] text-slate-600 max-md:hidden">{schemaCfg.description}</p>
         </div>
 
         <div className="space-y-2">
           {milestones.map((m, idx) => (
             <div key={getUid(idx)} className="grid grid-cols-12 gap-2 items-end">
-              <div className="col-span-5">
+              {/* Telefono: nome, % e cestino su una riga; «Quando» sotto. */}
+              <div className="col-span-7 md:col-span-5">
                 <Label className="text-xs">Step {idx + 1}</Label>
                 <Input
                   value={m.label}
@@ -1150,7 +1153,7 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
                   placeholder="es. Acconto alla firma"
                 />
               </div>
-              <div className="col-span-2">
+              <div className="col-span-3 md:col-span-2">
                 <Label className="text-xs">%</Label>
                 <Input
                   type="number"
@@ -1164,7 +1167,7 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
                   className="h-9 text-xs"
                 />
               </div>
-              <div className="col-span-4">
+              <div className="col-span-12 md:col-span-4 max-md:order-1">
                 <Label className="text-xs">Quando</Label>
                 <Input
                   value={m.when ?? ""}
@@ -1177,7 +1180,7 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
                   className="h-9 text-xs"
                 />
               </div>
-              <div className="col-span-1 flex justify-end">
+              <div className="col-span-2 md:col-span-1 flex justify-end">
                 <Button
                   size="icon"
                   variant="ghost"
@@ -1190,7 +1193,7 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
                 </Button>
               </div>
               {/* Importo calcolato sul medio */}
-              <div className="col-span-12 text-[11px] text-muted-foreground -mt-1 pl-1">
+              <div className="col-span-12 text-[11px] text-muted-foreground -mt-1 pl-1 max-md:order-2">
                 ≈ {formatEuro((forbice.media * (Number(m.percentuale) || 0)) / 100)} IVA inclusa
               </div>
             </div>
@@ -1237,18 +1240,18 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
             role="tab"
             aria-selected={finModalita === "tabella"}
             onClick={() => setFinModalita("tabella")}
-            className={`px-3 py-1 text-xs rounded transition-colors ${finModalita === "tabella" ? "bg-white shadow-sm font-semibold text-orange-600" : "text-muted-foreground hover:text-foreground"}`}
+            className={`tap-compact px-3 py-1 text-xs rounded transition-colors ${finModalita === "tabella" ? "bg-white shadow-sm font-semibold text-orange-600" : "text-muted-foreground hover:text-foreground"}`}
           >
-            Da tabella configurata
+            Da tabella<span className="max-md:hidden"> configurata</span>
           </button>
           <button
             type="button"
             role="tab"
             aria-selected={finModalita === "manuale"}
             onClick={() => setFinModalita("manuale")}
-            className={`px-3 py-1 text-xs rounded transition-colors ${finModalita === "manuale" ? "bg-white shadow-sm font-semibold text-orange-600" : "text-muted-foreground hover:text-foreground"}`}
+            className={`tap-compact px-3 py-1 text-xs rounded transition-colors ${finModalita === "manuale" ? "bg-white shadow-sm font-semibold text-orange-600" : "text-muted-foreground hover:text-foreground"}`}
           >
-            Manuale (TAN libero)
+            Manuale<span className="max-md:hidden"> (TAN libero)</span>
           </button>
         </div>
 
@@ -1331,7 +1334,7 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
                     <div>
                       <p className="text-[10px] uppercase text-orange-600 font-semibold">Rata mensile</p>
-                      <p className="text-2xl font-bold text-orange-900 tabular-nums">
+                      <p className="text-2xl font-bold text-orange-900 tabular-nums max-md:text-xl">
                         {formatEuro(rigaTabellaScelta.importo_rata, 0)}
                       </p>
                       <p className="text-[10px] text-orange-600">× {rigaTabellaScelta.numero_rate} rate</p>
@@ -1355,7 +1358,7 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
                       </p>
                     </div>
                   </div>
-                  <p className="text-[10px] text-center text-orange-600/80 mt-2">
+                  <p className="text-[10px] text-center text-orange-600/80 mt-2 max-md:hidden">
                     Valori letti dalla tabella ufficiale: TAN e TAEG sono pre-calcolati, niente input manuali.
                   </p>
                 </div>
@@ -1418,7 +1421,7 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
           <div className="flex items-center justify-between border rounded-md p-2.5 bg-muted/20">
             <div>
               <p className="text-sm font-medium">Includi nel preventivo</p>
-              <p className="text-[10px] text-muted-foreground">Aliquota Ecobonus 50% (Bonus Casa) o 65%</p>
+              <p className="text-[10px] text-muted-foreground max-md:hidden">Aliquota Ecobonus 50% (Bonus Casa) o 65%</p>
             </div>
             <Switch checked={bonusAttivo} onCheckedChange={setBonusAttivo} />
           </div>
@@ -1495,7 +1498,7 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
                     onChange={(e) => setUwAttuale(Number(e.target.value) || 0)}
                     className="h-9 text-xs"
                   />
-                  <p className="text-[10px] text-muted-foreground mt-0.5">Singolo vetro: ~5.0 · Vecchia vetrocamera: ~2.8</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5 max-md:hidden">Singolo vetro: ~5.0 · Vecchia vetrocamera: ~2.8</p>
                 </div>
                 <div className="col-span-6 md:col-span-3">
                   <Label className="text-xs flex items-center gap-1">
@@ -1523,7 +1526,7 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
                     onChange={(e) => setUwNuovo(Number(e.target.value) || 0)}
                     className="h-9 text-xs"
                   />
-                  <p className="text-[10px] text-muted-foreground mt-0.5">Standard: 1.4 · Performante: 1.1 · Triplo vetro: 0.8</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5 max-md:hidden">Standard: 1.4 · Performante: 1.1 · Triplo vetro: 0.8</p>
                 </div>
                 <div className="col-span-6 md:col-span-3">
                   <Label className="text-xs">m² casa</Label>
@@ -1534,7 +1537,7 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
                   />
                 </div>
                 <div className="col-span-6 md:col-span-3">
-                  <Label className="text-xs">Bolletta riscaldamento attuale (€/anno)</Label>
+                  <Label className="text-xs"><span className="max-md:hidden">Bolletta riscaldamento attuale (€/anno)</span><span className="md:hidden">Bolletta (€/anno)</span></Label>
                   <Input
                     type="number" value={bollettaAttuale}
                     onChange={(e) => setBollettaAttuale(Number(e.target.value) || 0)}
@@ -1581,7 +1584,7 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
           icon={<TrendingUp className="h-4 w-4" />}
           variant="highlight"
         >
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3 max-md:mb-0">
             <SrKpi label="Totale preventivo" value={formatEuro(forbice.media)} />
             <SrKpi label="Recuperato in 10 anni" value={formatEuro(cashflow.totale_recuperato_10y)} variant="success" />
             <SrKpi label="% Recupero" value={formatPct(cashflow.pct_recuperato_10y, 0)} variant={cashflow.pct_recuperato_10y >= 100 ? "success" : "warning"} />
@@ -1592,8 +1595,11 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
               variant={cashflow.payback_anni != null && cashflow.payback_anni <= 10 ? "success" : "warning"}
             />
           </div>
-          <RoiChart righe={cashflow.righe} costoIniziale={forbice.media} payback={cashflow.payback_anni ?? null} />
-          <div className="mt-3 overflow-x-auto">
+          {/* Telefono: bastano i quattro numeri sopra; grafico e tabella anno per anno al computer. */}
+          <div className="max-md:hidden">
+            <RoiChart righe={cashflow.righe} costoIniziale={forbice.media} payback={cashflow.payback_anni ?? null} />
+          </div>
+          <div className="mt-3 overflow-x-auto max-md:hidden">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -1625,7 +1631,7 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
       )}
 
       <div className="flex justify-end">
-        <Button onClick={handleSalvaCalcoli} className="bg-orange-500 hover:bg-orange-600">
+        <Button onClick={handleSalvaCalcoli} className="bg-orange-500 hover:bg-orange-600 max-md:w-full">
           Applica calcoli al progetto
         </Button>
       </div>
@@ -1655,7 +1661,7 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
                   ? `Preventivo "solo fornitura": tutte le ${tot} unità senza manodopera.`
                   : `${senzaPosa.length} riga${senzaPosa.length === 1 ? "" : "he"} con manodopera esclusa (${tot} di ${totSerr} unità).`}
               </p>
-              <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
+              <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed max-md:hidden">
                 Il cliente dovrà occuparsi personalmente della posa per gli articoli marcati come <strong>"Solo fornitura"</strong>.
                 Riepilogo dettagliato verrà incluso nel PDF preventivo.
               </p>

@@ -392,36 +392,39 @@ export default function RistrutturazioneWizard() {
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <Hammer className="h-4 w-4 text-orange-600" />
-              <span className="font-semibold text-sm">
+            <div className="flex items-center gap-2 flex-wrap max-md:gap-y-0.5">
+              <Hammer className="h-4 w-4 text-orange-600 max-md:hidden" />
+              <span className="font-semibold text-sm max-md:order-1 max-md:text-[15px]">
                 {isNew ? "Nuovo progetto" : detail?.progetto.code ?? "Progetto"}
               </span>
               {!isNew && compactText(detail?.progetto.cliente_nome, detail?.progetto.cliente_cognome) && (
-                <Badge variant="outline" className="text-[10px]">
+                <Badge variant="outline" className="text-[10px] max-md:order-4 max-md:border-0 max-md:p-0 max-md:text-xs max-md:font-normal max-md:text-muted-foreground max-md:after:ml-1.5 max-md:after:content-['·']">
                   {compactText(detail?.progetto.cliente_nome, detail?.progetto.cliente_cognome)}
                 </Badge>
               )}
               {!isNew && detail && (
-                <Badge variant="outline" className={cn("text-[10px]", statoMeta.className)}>
+                <Badge variant="outline" className={cn("text-[10px] max-md:order-2 max-md:text-[11px]", statoMeta.className)}>
                   {statoMeta.label}
                 </Badge>
               )}
+              {/* Telefono: codice e stato sulla prima riga, cliente e salvataggio sotto. */}
+              <span aria-hidden className="hidden h-0 basis-full max-md:order-3 max-md:block" />
               {upsertMut.isPending ? (
-                <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                <span className="text-[10px] text-muted-foreground flex items-center gap-1 max-md:order-5 max-md:text-xs">
                   <Loader2 className="h-3 w-3 animate-spin" /> Salvataggio…
                 </span>
               ) : dirty ? (
-                <span className="text-[10px] text-amber-600" title="Le modifiche verranno salvate automaticamente entro 2 secondi">
+                <span className="text-[10px] text-amber-600 max-md:order-5 max-md:text-xs" title="Le modifiche verranno salvate automaticamente entro 2 secondi">
                   ● Modifiche non salvate
                 </span>
               ) : savedLabel ? (
-                <span className="text-[10px] text-emerald-600 flex items-center gap-0.5">
+                <span className="text-[10px] text-emerald-600 flex items-center gap-0.5 max-md:order-5 max-md:text-xs">
                   ✓ {savedLabel}
                 </span>
               ) : null}
             </div>
-            <p className="text-[11px] text-muted-foreground truncate">
+            {/* Telefono: il passo attivo lo dice già lo stepper qui sotto. */}
+            <p className="text-[11px] text-muted-foreground truncate max-md:hidden">
               Step {currentStepIndex + 1} di {RST_WIZARD_STEPS.length} · {RST_WIZARD_STEPS[currentStepIndex]?.label}
             </p>
           </div>
@@ -430,10 +433,10 @@ export default function RistrutturazioneWizard() {
           <div className="h-full bg-orange-600 transition-all duration-300" style={{ width: `${progress}%` }} />
         </div>
         {/* Stepper mobile */}
-        <div className="md:hidden overflow-x-auto border-t bg-background/95 px-3 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <nav className="flex min-w-max gap-2" aria-label="Step progetto ristrutturazione">
+        <div className="md:hidden overflow-x-auto border-t bg-background/95 px-2 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {/* min-h-0: la regola globale dà 64px a ogni <nav> su telefono (pensata per la barra in basso). */}
+          <nav className="flex min-h-0 w-full min-w-max gap-1" aria-label="Step progetto ristrutturazione">
             {RST_WIZARD_STEPS.map((s, idx) => {
-              const Icon = STEP_ICONS[s.key];
               const isActive = s.key === currentStep;
               const isComplete = completion[s.key];
               const disabled = isNew && idx > 0;
@@ -444,26 +447,19 @@ export default function RistrutturazioneWizard() {
                   onClick={() => !disabled && handleStepClick(s.key)}
                   disabled={disabled}
                   aria-current={isActive ? "step" : undefined}
+                  // Telefono: tutti i passi in una riga, col nome corto: quelli
+                  // fatti in verde, l'attivo pieno, gli altri spenti.
                   className={cn(
-                    "inline-flex min-h-11 min-w-[92px] items-center justify-center gap-1.5 rounded-md border px-3 text-xs transition-colors",
+                    "tap-compact inline-flex h-8 flex-1 items-center justify-center rounded-full border px-1.5 text-[11px] font-medium transition-colors",
                     isActive
-                      ? "border-orange-300 bg-orange-100 text-orange-900 font-semibold"
+                      ? "border-orange-500 bg-orange-500 font-semibold text-white"
                       : isComplete
-                      ? "border-emerald-100 bg-emerald-50 text-emerald-800"
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
                       : "border-border bg-background text-muted-foreground",
                     disabled && "cursor-not-allowed opacity-50",
                   )}
                 >
-                  <span className={cn(
-                    "flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold",
-                    isActive ? "bg-orange-600 text-white" :
-                    isComplete ? "bg-emerald-100 text-emerald-700" :
-                    "bg-muted text-muted-foreground",
-                  )}>
-                    {isComplete && !isActive ? <CheckCircle2 className="h-3.5 w-3.5" /> : idx + 1}
-                  </span>
-                  <Icon className="h-3.5 w-3.5 shrink-0" />
-                  <span className="max-w-[72px] truncate">{s.label}</span>
+                  {s.label}
                 </button>
               );
             })}
@@ -556,14 +552,17 @@ export default function RistrutturazioneWizard() {
                 progetto={{ ...detail.progetto, ...form }}
                 computo={detail.computo}
                 media={detail.media}
+                onIndietro={handleBack}
+                onVaiAlPasso={(passo) => void handleStepClick(passo)}
               />
             )}
             {currentStep === "pdf" && !(id && detail) && (
               <StepComingSoon step={currentStep} />
             )}
 
-            {/* Navigation footer: su telefono sopra la barra in basso, che altrimenti lo copre. */}
-            <div className="fixed inset-x-3 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-40 flex items-center justify-between gap-2 rounded-2xl border bg-background/95 px-3 py-2.5 shadow-[0_-8px_20px_rgba(15,23,42,0.08)] backdrop-blur md:static md:mx-0 md:rounded-none md:border-0 md:bg-transparent md:px-0 md:py-2 md:shadow-none md:backdrop-blur-0">
+            {/* Navigation footer: su telefono sopra la barra in basso, che altrimenti lo copre.
+                Al passo PDF, sul telefono, la barra la disegna lo step: indietro · PDF · invia. */}
+            <div className={cn("fixed inset-x-3 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-40 flex items-center justify-between gap-2 rounded-2xl border bg-background/95 px-3 py-2.5 shadow-[0_-8px_20px_rgba(15,23,42,0.08)] backdrop-blur md:static md:mx-0 md:rounded-none md:border-0 md:bg-transparent md:px-0 md:py-2 md:shadow-none md:backdrop-blur-0", currentStep === "pdf" && id && detail && "max-md:hidden")}>
               <Button
                 variant="outline"
                 onClick={handleBack}
