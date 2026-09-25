@@ -53,8 +53,8 @@ async function salvaDato(
   const patch: Record<string, unknown> = { ...ctx.qualificazione, [args.campo]: args.valore };
 
   const updatePayload: Record<string, unknown> = { qualificazione_json: patch };
-  if (args.campo === "nome") updatePayload.nome = args.valore;
-  if (args.campo === "cognome") updatePayload.cognome = args.valore;
+  if (args.campo === "nome") updatePayload.first_name = args.valore;
+  if (args.campo === "cognome") updatePayload.last_name = args.valore;
 
   const { error } = await ctx.supabase
     .from("marketing_contacts")
@@ -147,7 +147,7 @@ async function handoff(ctx: LeadCtx): Promise<ToolResult> {
       contact_id: ctx.contact_id,
       titolo: `Lead qualificato: ${q.servizio ?? "generico"}`,
       descrizione,
-      urgenza: (q.score ?? 0) >= 75 ? "alta" : "media",
+      urgenza: Number(q.score ?? 0) >= 75 ? "alta" : "media",
       categoria: "richiesta_info",
       source: "whatsapp_lead",
     })

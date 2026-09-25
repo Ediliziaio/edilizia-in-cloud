@@ -95,7 +95,15 @@ export type ConversazioneStato = "aperta" | "in_attesa" | "chiusa";
 interface OverlayArgs {
   entitaTipo: EntitaTipo;
   entitaId: string;
-  patch: { last_read_at?: string; stato?: ConversazioneStato; assegnato_a?: string | null };
+  patch: {
+    last_read_at?: string;
+    stato?: ConversazioneStato;
+    assegnato_a?: string | null;
+    // Pausa dell'agente WhatsApp in questa conversazione (25/09/2026).
+    bot_in_pausa?: boolean;
+    bot_in_pausa_motivo?: string | null;
+    bot_in_pausa_il?: string | null;
+  };
 }
 
 /**
@@ -127,6 +135,37 @@ export function useConversazioneOverlay(companyId: string | null | undefined) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["conversazioni-lista", companyId] });
+      qc.invalidateQueries({ queryKey: ["conversazione-assistente", companyId] });
+    },
+  });
+}
+
+/**
+ * L'agente WhatsApp risponde in questa conversazione, o è in pausa perché la
+ * segue una persona (25/09/2026)? `haAgente` dice se l'azienda ha un numero
+ * collegato a un agente: senza, il pulsante non serve e non si mostra.
+ */
+export function useAssistenteConversazione(
+  companyId: string | null | undefined,
+  entitaTipo: EntitaTipo | null,
+  entitaId: string | null,
+) {
+  return useQuery({
+    queryKey: ["conversazione-assistente", companyId, entitaTipo, entitaId],
+    enabled: !!companyId && !!entitaTipo && !!entitaId,
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const db = supabase as any;
+      const [{ data: numeri }, { data: conv }] = await Promise.all([
+        db.from("ai_whatsapp_numbers").select("id").eq("company_id", companyId).not("agent_id", "is", null).is("deleted_at", null).limit(1),
+        db.from("conversazioni").select("bot_in_pausa, bot_in_pausa_motivo")
+          .eq("company_id", companyId).eq("entita_tipo", entitaTipo).eq("entita_id", entitaId).maybeSingle(),
+      ]);
+      return {
+        haAgente: Array.isArray(numeri) && numeri.length > 0,
+        inPausa: !!conv?.bot_in_pausa,
+        motivo: (conv?.bot_in_pausa_motivo as string | null) ?? null,
+      };
     },
   });
 }

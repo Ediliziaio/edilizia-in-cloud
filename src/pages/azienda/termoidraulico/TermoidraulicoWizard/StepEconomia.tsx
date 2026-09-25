@@ -33,11 +33,15 @@ import { FinanziamentoQuoteToggle } from "@/components/moduli/FinanziamentoQuote
 import { ScontoGlobaleField } from "@/components/preventivi/ScontoGlobaleField";
 import { PrezzoPreventivoAMano } from "@/components/preventivi/PrezzoPreventivoAMano";
 import { useIdrTemplatePdf } from "@/hooks/useTermoidraulicoProgetto";
+import { ContoTermicoEconomia } from "@/components/termoidraulico/contoTermico/ContoTermicoEconomia";
+import { leggiDatiContoTermico } from "@/lib/contoTermico/dati";
 
 interface Props {
   form: Partial<IdrProgetto>;
   onChange: <K extends keyof IdrFormPatch>(key: K, value: IdrFormPatch[K]) => void;
   computo: IdrComputoVoce[];
+  /** L'intervento della libreria: col Conto Termico la detrazione lascia il posto al contributo. */
+  model?: { id: string } | null;
 }
 
 /** Coerce numerico controllato: stringa vuota → 0, clamp [0,100] per le percentuali. */
@@ -49,7 +53,8 @@ const toPct = (raw: string): number => {
   return Math.min(100, Math.max(0, v));
 };
 
-export default function StepEconomia({ form, onChange, computo }: Props) {
+export default function StepEconomia({ form, onChange, computo, model }: Props) {
+  const contoTermico = model?.id === "conto-termico";
   // Template del modulo (cached): serve a mostrare la rata solo se la promo è attiva.
   const { data: template } = useIdrTemplatePdf();
   const scontoPct = Number(form.sconto_pct ?? 0);
@@ -106,60 +111,78 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
         </div>
       )}
 
+      {/* Due colonne su schermo largo. Sul telefono le colonne si sciolgono
+          (display: contents) e l'ordine lo decide `order`: riepilogo, prezzo,
+          Conto Termico, totali — il prezzo si scrive prima di vedere cosa ottiene
+          il cliente. */}
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_minmax(280px,360px)]">
-        {/* ─── Riepilogo per capitolo ─────────────────────────────────────── */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-1.5 text-sm">
-              <Euro className="h-4 w-4 text-orange-600" /> Riepilogo per capitolo
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            {totali.perCapitolo.length === 0 ? (
-              <p className="px-4 pb-4 text-xs text-muted-foreground">
-                Nessuna voce nel computo.
-              </p>
-            ) : (
-              <div className="overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b text-[11px] uppercase tracking-wide text-muted-foreground">
-                      <th className="px-4 py-2 text-left font-medium">Capitolo</th>
-                      <th className="px-2 py-2 text-right font-medium">Voci</th>
-                      <th className="px-4 py-2 text-right font-medium">Imponibile</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {totali.perCapitolo.map((c) => (
-                      <tr key={c.nome} className="border-b last:border-0">
-                        <td className="px-4 py-2 font-medium text-slate-800">{c.nome}</td>
-                        <td className="px-2 py-2 text-right tabular-nums text-muted-foreground">{c.voci}</td>
+        <div className="contents lg:block lg:space-y-3">
+          {/* ─── Riepilogo per capitolo ─────────────────────────────────────── */}
+          <Card className="order-1">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-1.5 text-sm">
+                <Euro className="h-4 w-4 text-orange-600" /> Riepilogo per capitolo
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              {totali.perCapitolo.length === 0 ? (
+                <p className="px-4 pb-4 text-xs text-muted-foreground">
+                  Nessuna voce nel computo.
+                </p>
+              ) : (
+                <div className="overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b text-[11px] uppercase tracking-wide text-muted-foreground">
+                        <th className="px-4 py-2 text-left font-medium">Capitolo</th>
+                        <th className="px-2 py-2 text-right font-medium">Voci</th>
+                        <th className="px-4 py-2 text-right font-medium">Imponibile</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {totali.perCapitolo.map((c) => (
+                        <tr key={c.nome} className="border-b last:border-0">
+                          <td className="px-4 py-2 font-medium text-slate-800">{c.nome}</td>
+                          <td className="px-2 py-2 text-right tabular-nums text-muted-foreground">{c.voci}</td>
+                          <td className="px-4 py-2 text-right font-semibold tabular-nums text-slate-900">
+                            {formatCurrency(c.imponibile)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t bg-muted/30">
+                        <td className="px-4 py-2 text-xs font-medium text-muted-foreground" colSpan={2}>
+                          Subtotale lavorazioni
+                        </td>
                         <td className="px-4 py-2 text-right font-semibold tabular-nums text-slate-900">
-                          {formatCurrency(c.imponibile)}
+                          {formatCurrency(lordoCapitoli)}
                         </td>
                       </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr className="border-t bg-muted/30">
-                      <td className="px-4 py-2 text-xs font-medium text-muted-foreground" colSpan={2}>
-                        Subtotale lavorazioni
-                      </td>
-                      <td className="px-4 py-2 text-right font-semibold tabular-nums text-slate-900">
-                        {formatCurrency(lordoCapitoli)}
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Il Conto Termico sta nella colonna larga: nella stretta i campi si tagliavano. */}
+          {contoTermico && (
+            <div className="order-3">
+              <ContoTermicoEconomia
+                dati={leggiDatiContoTermico(form.conto_termico)}
+                onChange={(dati) => onChange("conto_termico", dati)}
+                prezzoIvaInclusa={totali.totale}
+                ivaPct={ivaPct}
+              />
+            </div>
+          )}
+        </div>
 
         {/* ─── Parametri + totali complessivi ──────────────────────────────── */}
-        <div className="space-y-3">
+        <div className="contents lg:block lg:space-y-3">
           {/* Parametri economici */}
-          <Card>
+          <Card className="order-2">
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-1.5 text-sm">
                 <Percent className="h-4 w-4 text-orange-600" /> Parametri
@@ -172,6 +195,7 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
                 value={form.prezzo_manuale}
                 sommaVoci={totali.sommaVoci}
                 onCommit={(v) => onChange("prezzo_manuale", v)}
+                sempre={contoTermico}
               />
               <ScontoGlobaleField
                 id="idr-sconto"
@@ -187,14 +211,14 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
                 onCommit={(v) => onChange("iva_pct", v)}
                 hint="In edilizia spesso 10% (termoidraulico) o 4% (prima casa)."
               />
-              <PctField
+              {!contoTermico && <PctField
                 id="idr-detrazione"
                 label="Detrazione / bonus"
                 value={form.detrazione_pct ?? 0}
                 onCommit={(v) => onChange("detrazione_pct", v)}
                 hint="Opzionale: % di detrazione fiscale (es. 50%) — importo indicativo."
                 icon={BadgePercent}
-              />
+              />}
               {/* Rata nel PDF: compare solo se la promo è configurata nel template,
                   con la rata concreta sul totale corrente (scelta per-preventivo). */}
               <FinanziamentoQuoteToggle
@@ -204,7 +228,7 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
                 onChange={(v) => onChange("mostra_finanziamento", v)}
               />
               {/* Preset incentivi termoidraulico: 1-click → imposta detrazione + massimale di spesa */}
-              <div>
+              {!contoTermico && <div>
                 <p className="mb-1 text-[10px] text-muted-foreground">Incentivi rapidi (termoidraulico):</p>
                 <div className="flex flex-wrap gap-1.5">
                   {INCENTIVI_TERMOIDRAULICO.map((inc) => {
@@ -232,12 +256,12 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
                     );
                   })}
                 </div>
-              </div>
+              </div>}
             </CardContent>
           </Card>
 
           {/* Totali complessivi */}
-          <Card className="border-orange-200 bg-gradient-to-b from-orange-50/50 to-transparent">
+          <Card className="order-4 border-orange-200 bg-gradient-to-b from-orange-50/50 to-transparent">
             <CardContent className="space-y-2 p-4">
               <SummaryRow label={totali.prezzoManuale ? "Prezzo del preventivo" : "Imponibile (lordo)"} value={imponibileLordo} muted />
               {scontoGlobaleEur > 0 && (
@@ -275,7 +299,7 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
           </Card>
 
           {/* Margine complessivo */}
-          <Card>
+          <Card className="order-5">
             <CardContent className="flex items-center justify-between gap-2 p-4">
               <div className="flex items-center gap-2">
                 <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-600">

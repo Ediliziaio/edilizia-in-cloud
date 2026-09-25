@@ -36,6 +36,8 @@ import {
   type IdrPdfCompany, renderIdrPreviewBlobUrl } from "@/hooks/useTermoidraulicoPDF";
 import type { IdrProgetto, IdrComputoVoce, IdrProgettoMedia } from "@/types/termoidraulico";
 import { InviaFirmaCard } from "@/components/moduli/InviaFirmaCard";
+import { MODELLO_CONTO_TERMICO } from "@/lib/contoTermico/pdfDelPreventivo";
+import { leggiDatiContoTermico } from "@/lib/contoTermico/dati";
 
 import { useIsMobile } from "@/hooks/use-mobile";
 interface Props {
@@ -129,6 +131,10 @@ export default function StepPdf({ progetto, computo, media }: Props) {
   const clienteLabel =
     [progetto.cliente_nome, progetto.cliente_cognome].filter(Boolean).join(" ") || "Cliente da definire";
   const ivaPct = Number(progetto.iva_pct ?? 10);
+  // Il Conto Termico ha il suo documento: niente tabella del computo, ma il
+  // contributo e le spese annue, senza i quali le pagine dei conti restano vuote.
+  const contoTermico = progetto.modello_snapshot?.modelId === MODELLO_CONTO_TERMICO;
+  const datiCt = contoTermico ? leggiDatiContoTermico(progetto.conto_termico) : null;
 
   // ─── Checklist (non bloccante, eccetto computo vuoto) ──────────────────────
   const checks: ChecklistItem[] = [
@@ -152,16 +158,29 @@ export default function StepPdf({ progetto, computo, media }: Props) {
       label: "Totale preventivo calcolato",
       hint: totali.totale <= 0 ? "Verifica quantità e prezzi nel computo" : undefined,
     },
-    {
-      ok: Boolean((template?.chi_siamo ?? "").trim()) || (template?.usp ?? []).some((u) => (u.titolo ?? "").trim()),
-      label: "Presentazione impresa (chi siamo / USP)",
-      hint: "Configurala nel template per un PDF più convincente",
-    },
-    {
-      ok: media.length > 0,
-      label: "Foto o render del progetto",
-      hint: media.length === 0 ? "Opzionale: aggiungi foto nello step Foto" : undefined,
-    },
+    ...(datiCt ? [
+      {
+        ok: datiCt.contributo > 0,
+        label: "Contributo del Conto Termico",
+        hint: datiCt.contributo > 0 ? undefined : "Scrivilo in Prezzi e sconti: è la stima del simulatore del GSE",
+      },
+      {
+        ok: datiCt.spesa_annua_attuale > datiCt.spesa_annua_nuova,
+        label: "Spese annue di oggi e di domani",
+        hint: datiCt.spesa_annua_attuale > datiCt.spesa_annua_nuova ? undefined : "Senza, il PDF non mostra il risparmio negli anni",
+      },
+    ] : [
+      {
+        ok: Boolean((template?.chi_siamo ?? "").trim()) || (template?.usp ?? []).some((u) => (u.titolo ?? "").trim()),
+        label: "Presentazione impresa (chi siamo / USP)",
+        hint: "Configurala nel template per un PDF più convincente",
+      },
+      {
+        ok: media.length > 0,
+        label: "Foto o render del progetto",
+        hint: media.length === 0 ? "Opzionale: aggiungi foto nello step Foto" : undefined,
+      },
+    ]),
   ];
   const erroriCount = checks.filter((c) => !c.ok).length;
 
@@ -288,8 +307,9 @@ export default function StepPdf({ progetto, computo, media }: Props) {
         </CardContent>
       </Card>
 
-      {/* Come mostrare il computo nel PDF — scelta PER QUESTO PREVENTIVO (non template) */}
-      {!computoVuoto && (
+      {/* Come mostrare il computo nel PDF — scelta PER QUESTO PREVENTIVO (non template).
+          Il documento del Conto Termico elenca le voci senza prezzi: la scelta non serve. */}
+      {!computoVuoto && !contoTermico && (
         <Card>
           <CardContent className="space-y-3 p-4">
             <div className="flex items-center gap-2">
@@ -380,8 +400,9 @@ export default function StepPdf({ progetto, computo, media }: Props) {
             <h2 className="text-sm font-semibold text-slate-900">Scarica il preventivo</h2>
           </div>
           <p className="text-[11px] text-muted-foreground">
-            PDF A4 brandizzato pronto da allegare via email o stampare: copertina, presentazione
-            impresa, computo per capitoli, foto, cronoprogramma e condizioni.
+            {contoTermico
+              ? "PDF A4 pronto da allegare via email o stampare: copertina, cosa vuol dire il Conto Termico, contributo, risparmio e beneficio negli anni, passaggi e firma."
+              : "PDF A4 brandizzato pronto da allegare via email o stampare: copertina, presentazione impresa, computo per capitoli, foto, cronoprogramma e condizioni."}
           </p>
 
           {computoVuoto ? (

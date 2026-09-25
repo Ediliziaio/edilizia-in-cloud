@@ -144,11 +144,16 @@ describe("la colonna del modello nel database", () => {
   const cartella = resolve(process.cwd(), "supabase/migrations");
   const file = readdirSync(cartella).find((f) => f.endsWith("_modelli_preventivo_moduli_edili.sql"));
   const sql = file ? readFileSync(resolve(cartella, file), "utf8") : "";
+  // Una migrazione successiva può rifare il vincolo di una tabella con un
+  // intervento in più (Conto Termico, 20280926004500): vale l'ultima.
+  const successive = readdirSync(cartella).filter((f) => f > (file ?? "") && f.endsWith(".sql")).sort()
+    .map((f) => readFileSync(resolve(cartella, f), "utf8")).filter((testo) => testo.includes("_modello_valido"));
 
   it("c'è in ogni tabella, con gli stessi interventi della libreria", () => {
     expect(file).toBeDefined();
     for (const modulo of MODULI_CON_MODELLI) {
-      const riga = sql.match(new RegExp(`\\('${TABELLA_PREVENTIVI[modulo]}', array\\[([^\\]]+)\\]\\)`));
+      const cerca = new RegExp(`\\('${TABELLA_PREVENTIVI[modulo]}', array\\[([^\\]]+)\\]\\)`);
+      const riga = [...successive].reverse().map((testo) => testo.match(cerca)).find(Boolean) ?? sql.match(cerca);
       expect(riga, modulo).not.toBeNull();
       const nelDb = [...riga![1].matchAll(/'([^']+)'/g)].map((m) => m[1]).sort();
       expect(nelDb, modulo).toEqual(interventiDelModulo(modulo).map((i) => i.id).sort());

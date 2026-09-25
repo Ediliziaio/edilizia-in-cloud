@@ -51,6 +51,7 @@ import StepImmobile from "./TermoidraulicoWizard/StepImmobile";
 import StepComputo from "./TermoidraulicoWizard/StepComputo";
 import StepMedia from "./TermoidraulicoWizard/StepMedia";
 import StepEconomia from "./TermoidraulicoWizard/StepEconomia";
+import { DATI_CONTO_TERMICO_INIZIALI } from "@/lib/contoTermico/dati";
 import StepPdf from "./TermoidraulicoWizard/StepPdf";
 
 const STEP_ICONS: Record<IdrWizardStepKey, React.FC<React.SVGProps<SVGSVGElement>>> = {
@@ -131,7 +132,12 @@ export default function TermoidraulicoWizard() {
     await sincronizzaModelliAzienda(companyId).catch((): void => undefined);
     const base = await getIdrTemplatePdf(companyId);
     const source = loadLocalIdrTemplate(companyId, model.id)?.template ?? createFullIdrTemplate(base, model.id);
-    return { ...form, tipo_intervento: TIPO_INTERVENTO_DEL_MODELLO.termoidraulico[model.id], modello_snapshot: creaModelloPreventivo("termoidraulico", companyId, model.id, source) };
+    // Conto Termico: il contributo non è una detrazione. Senza azzerarla, il
+    // predefinito dell'azienda (spesso 50%) finiva nel documento.
+    const contoTermico = model.id === "conto-termico"
+      ? { detrazione_pct: 0, massimale_detrazione: null, conto_termico: form.conto_termico ?? DATI_CONTO_TERMICO_INIZIALI }
+      : {};
+    return { ...form, ...contoTermico, tipo_intervento: TIPO_INTERVENTO_DEL_MODELLO.termoidraulico[model.id], modello_snapshot: creaModelloPreventivo("termoidraulico", companyId, model.id, source) };
   };
   // L'ultimo form a video. Quando un salvataggio torna, «salvato» vale solo se
   // nel frattempo non si è scritto altro: azzerare «dirty» comunque perdeva le
@@ -581,7 +587,7 @@ export default function TermoidraulicoWizard() {
               <StepMedia progettoId={id} media={detail.media} />
             )}
             {currentStep === "economia" && detail && (
-              <StepEconomia form={form} onChange={onChange} computo={detail.computo} />
+              <StepEconomia form={form} onChange={onChange} computo={detail.computo} model={model} />
             )}
             {currentStep === "pdf" && id && detail && (
               // Merge progetto salvato + edit correnti del form (sconto/IVA/

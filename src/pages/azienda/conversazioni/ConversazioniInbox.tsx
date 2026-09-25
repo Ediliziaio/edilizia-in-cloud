@@ -6,6 +6,7 @@ import {
   useConversazioneTimeline,
   useConversazioneOverlay,
   useConversazioniCerca,
+  useAssistenteConversazione,
   type CanaleConversazione,
   type ConversazioneListItem,
 } from "@/hooks/useConversazioni";
@@ -19,6 +20,7 @@ import { cn } from "@/lib/utils";
 import {
   Mail, MessageSquare, MessageCircle, StickyNote, Search, Inbox, Instagram, Facebook,
   AlertCircle, ChevronLeft, User, Briefcase, RefreshCw, UserCheck, CheckCircle2, RotateCcw, Info,
+  Bot, PauseCircle,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
@@ -181,6 +183,30 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
     overlay.mutate(
       { entitaTipo: selectedItem.entita_tipo, entitaId: selectedItem.entita_id, patch: { stato } },
       { onSuccess: () => toast.success(stato === "chiusa" ? "Conversazione chiusa" : "Conversazione riaperta") },
+    );
+  };
+
+  // L'agente WhatsApp (25/09/2026): chi prende la chat lo mette in pausa, e
+  // l'agente smette di rispondere a quel contatto finché qualcuno non lo riattiva.
+  const assistente = useAssistenteConversazione(
+    companyId,
+    selectedItem?.entita_tipo ?? null,
+    selectedItem?.entita_id ?? null,
+  );
+  const cambiaPausaAssistente = () => {
+    if (!selectedItem || !assistente.data) return;
+    const pausa = !assistente.data.inPausa;
+    overlay.mutate(
+      {
+        entitaTipo: selectedItem.entita_tipo,
+        entitaId: selectedItem.entita_id,
+        patch: {
+          bot_in_pausa: pausa,
+          bot_in_pausa_motivo: pausa ? "Presa in carico da una persona" : null,
+          bot_in_pausa_il: pausa ? new Date().toISOString() : null,
+        },
+      },
+      { onSuccess: () => toast.success(pausa ? "Assistente in pausa: la conversazione la segui tu" : "Assistente riattivato") },
     );
   };
 
@@ -400,6 +426,19 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
                 >
                   <Info className="h-4 w-4" />
                 </Button>
+                {selectedItem.entita_tipo === "contatto" && assistente.data?.haAgente && (
+                  <Button
+                    variant={assistente.data.inPausa ? "secondary" : "ghost"}
+                    size="sm" className="h-8 gap-1.5 text-xs"
+                    onClick={cambiaPausaAssistente} disabled={overlay.isPending}
+                    title={assistente.data.inPausa
+                      ? `L'assistente non risponde a questo contatto${assistente.data.motivo ? ` (${assistente.data.motivo})` : ""}. Clicca per riattivarlo.`
+                      : "Metti in pausa l'assistente WhatsApp per questo contatto"}
+                  >
+                    {assistente.data.inPausa ? <PauseCircle className="h-3.5 w-3.5" /> : <Bot className="h-3.5 w-3.5" />}
+                    <span className="hidden lg:inline">{assistente.data.inPausa ? "Assistente in pausa" : "Pausa assistente"}</span>
+                  </Button>
+                )}
                 <Button
                   variant={selectedItem.assegnato_a === user?.id ? "secondary" : "ghost"}
                   size="sm" className="h-8 gap-1.5 text-xs"

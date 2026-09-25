@@ -111,7 +111,12 @@ export async function creaRapportino(
   }
 
   cantiereNome = cantiere.description || cantiere.order_code || cantiereNome || "cantiere";
-  const dataLavoro = args.data_lavoro ?? new Date().toISOString().substring(0, 10);
+  // Oggi in Italia: con la data UTC un rapportino mandato dopo mezzanotte
+  // finiva sul giorno prima.
+  const dataLavoro = args.data_lavoro ??
+    new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome" }).format(new Date());
+  // «non_specificato» non è un valore ammesso dalla colonna meteo.
+  const meteo = args.meteo && args.meteo !== "non_specificato" ? args.meteo : null;
 
   const descriptionFromAttivita = args.attivita?.length
     ? args.attivita.join(". ")
@@ -144,7 +149,7 @@ export async function creaRapportino(
         ore_straordinario: args.ore_straordinario ?? existing.ore_straordinario,
         descrizione_lavori: mergedDescrizione || existing.descrizione_lavori,
         materiali_usati: mergedMateriali,
-        meteo: args.meteo,
+        ...(meteo ? { meteo } : {}),
         note: mergedNote,
         source: "whatsapp",
         updated_at: new Date().toISOString(),
@@ -174,10 +179,12 @@ export async function creaRapportino(
       ore_straordinario: args.ore_straordinario ?? null,
       descrizione_lavori: descriptionFromAttivita,
       materiali_usati: args.materiali_usati ?? [],
-      meteo: args.meteo ?? null,
+      meteo,
       note: args.note ?? null,
       source: "whatsapp",
-      role_type: "operaio",
+      // La colonna ammette solo employee / subcontractor: con «operaio»
+      // (com'era fino al 25/09/2026) ogni rapportino nuovo da WhatsApp falliva.
+      role_type: "employee",
       stato: "bozza",
     })
     .select("id")

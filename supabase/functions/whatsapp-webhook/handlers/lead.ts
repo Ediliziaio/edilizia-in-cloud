@@ -54,6 +54,27 @@ export async function handleLead(
 
   await avvisaAutomazioni(supabase, ctx, contact.id, messageId);
 
+  const baseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+  // Numero con un agente dell'azienda (25/09/2026): risponde lui, col prompt,
+  // il calendario e le fasi scelte dall'azienda. Niente ramo «già qualificato
+  // → ticket»: la conversazione la segue l'agente o, se è in pausa, una persona.
+  if (waNumber.agent_id) {
+    const chiamata = fetch(`${baseUrl}/functions/v1/lead-agente-whatsapp`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
+      body: JSON.stringify({ message_id: messageId, contact_id: contact.id, wa_number_id: waNumber.id, from_phone: senderPhone }),
+    }).catch((err) =>
+      console.error(JSON.stringify({ level: "error", fn: "handleLead", msg: "lead-agente-whatsapp non chiamato", error: String(err) }))
+    );
+    // Il webhook risponde subito a Meta: senza waitUntil il runtime può
+    // chiudere la funzione prima che la chiamata all'agente sia partita.
+    // deno-lint-ignore no-explicit-any
+    (globalThis as any).EdgeRuntime?.waitUntil?.(chiamata);
+    return;
+  }
+
   // Lead già qualificato → handoff commerciale (skip AI)
   if (
     contact.stato === "lead_qualificato" ||
@@ -70,9 +91,6 @@ export async function handleLead(
     });
     return;
   }
-
-  const baseUrl = Deno.env.get("SUPABASE_URL")!;
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
   fetch(`${baseUrl}/functions/v1/lead-ai-processor`, {
     method: "POST",

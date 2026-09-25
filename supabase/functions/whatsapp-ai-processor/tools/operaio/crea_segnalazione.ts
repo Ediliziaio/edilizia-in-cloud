@@ -63,7 +63,10 @@ export async function creaSegnalazione(
       descrizione: args.descrizione,
       urgenza,
       tipo_problema: args.tipo_problema ?? null,
-      photo_urls: args.photo_urls ?? [],
+      // La foto mandata con il messaggio (il modello non ne conosce il link).
+      photo_urls: args.photo_urls?.length
+        ? args.photo_urls
+        : ctx.mediaCorrente?.tipo === "image" ? [ctx.mediaCorrente.url] : [],
       source: "whatsapp",
     })
     .select("id")

@@ -402,6 +402,23 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
                   const { data, error } = await supabase.functions.invoke("whatsapp-send", { body: payload });
                   if (error) throw error;
                   if ((data as { error?: string } | null)?.error) throw new Error((data as { error: string }).error);
+                  // Una persona ha risposto a mano: l'agente WhatsApp non le
+                  // parla sopra. Col template no: chi manda il primo messaggio
+                  // vuole proprio che alla risposta del lead pensi l'agente.
+                  if (!template && entitaTipo === "contatto") {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const { error: pausaErr } = await (supabase as any).from("conversazioni").upsert({
+                      company_id: effectiveCompany.id,
+                      entita_tipo: "contatto",
+                      entita_id: entitaId,
+                      bot_in_pausa: true,
+                      bot_in_pausa_motivo: "Ha risposto una persona dalla chat",
+                      bot_in_pausa_il: new Date().toISOString(),
+                      updated_at: new Date().toISOString(),
+                    }, { onConflict: "company_id,entita_tipo,entita_id" });
+                    if (pausaErr) console.warn("[composer] pausa assistente non salvata:", pausaErr.message);
+                    qc.invalidateQueries({ queryKey: ["conversazione-assistente"] });
+                  }
                   toast.success("Messaggio WhatsApp inviato");
                   qc.invalidateQueries({ queryKey: ["conversazione-timeline", entitaTipo, entitaId] });
                   qc.invalidateQueries({ queryKey: ["conversazioni-lista"] });

@@ -279,18 +279,38 @@ export async function enrichTermoidraulicoPdf(opts: IdrPdfPayload): Promise<IdrP
 }
 
 /**
+ * Il documento del preventivo: quello dei moduli edili, oppure il Conto Termico
+ * 3.0 se il preventivo nasce da quel modello. Anteprima, download e firma
+ * online passano tutti da qui.
+ */
+export async function elementoPdf(enriched: IdrPdfEnriched): Promise<ReactElement> {
+  const React = await import("react");
+  const { eContoTermico } = await import("@/lib/contoTermico/pdfDelPreventivo");
+  if (eContoTermico(enriched)) {
+    const [{ ContoTermicoPDF }, { datiPdfContoTermico, fotoDelPreventivo }, { leggiDatiContoTermico }] = await Promise.all([
+      import("@/components/termoidraulico/contoTermico/ContoTermicoPDF"),
+      import("@/lib/contoTermico/pdfDelPreventivo"),
+      import("@/lib/contoTermico/dati"),
+    ]);
+    const percorsi = fotoDelPreventivo(leggiDatiContoTermico(enriched.progetto.conto_termico).tipo);
+    const foto = Object.fromEntries(await Promise.all(
+      Object.entries(percorsi).map(async ([posto, url]) => [posto, url ? await toDataUrl(url) : null] as const),
+    ));
+    return React.createElement(ContoTermicoPDF, { data: datiPdfContoTermico(enriched, foto) });
+  }
+  const { TermoidraulicoPDF } = await import("@/components/termoidraulico/TermoidraulicoPDF");
+  return React.createElement(TermoidraulicoPDF, enriched);
+}
+
+/**
  * Renderizza il PDF e ritorna un blob URL — per l'ANTEPRIMA LIVE in dialog (iframe).
  * Il chiamante è responsabile di revocare l'URL (URL.revokeObjectURL) quando cambia
  * o al unmount. Non apre tab né scarica: serve solo la sorgente per l'iframe.
  */
 export async function renderIdrPreviewBlobUrl(opts: IdrPdfPayload): Promise<string> {
   const enriched = await enrichTermoidraulicoPdf(opts);
-  const [{ pdf }, { TermoidraulicoPDF }, React] = await Promise.all([
-    import("@react-pdf/renderer"),
-    import("@/components/termoidraulico/TermoidraulicoPDF"),
-    import("react"),
-  ]);
-  const element = React.createElement(TermoidraulicoPDF, enriched);
+  const { pdf } = await import("@react-pdf/renderer");
+  const element = await elementoPdf(enriched);
   const blob = await pdf(element as unknown as ReactElement<DocumentProps>).toBlob();
   return URL.createObjectURL(blob);
 }
@@ -314,12 +334,8 @@ export function useTermoidraulicoPDF() {
         return { ok: false };
       }
       const enriched = await enrichTermoidraulicoPdf(opts);
-      const [{ pdf }, { TermoidraulicoPDF }, React] = await Promise.all([
-        import("@react-pdf/renderer"),
-        import("@/components/termoidraulico/TermoidraulicoPDF"),
-        import("react"),
-      ]);
-      const element = React.createElement(TermoidraulicoPDF, enriched);
+      const { pdf } = await import("@react-pdf/renderer");
+      const element = await elementoPdf(enriched);
       const blob = await pdf(element as unknown as ReactElement<DocumentProps>).toBlob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -354,12 +370,8 @@ export function useTermoidraulicoPDF() {
         return;
       }
       const enriched = await enrichTermoidraulicoPdf(opts);
-      const [{ pdf }, { TermoidraulicoPDF }, React] = await Promise.all([
-        import("@react-pdf/renderer"),
-        import("@/components/termoidraulico/TermoidraulicoPDF"),
-        import("react"),
-      ]);
-      const element = React.createElement(TermoidraulicoPDF, enriched);
+      const { pdf } = await import("@react-pdf/renderer");
+      const element = await elementoPdf(enriched);
       const blob = await pdf(element as unknown as ReactElement<DocumentProps>).toBlob();
       const url = URL.createObjectURL(blob);
       const win = window.open(url, "_blank");

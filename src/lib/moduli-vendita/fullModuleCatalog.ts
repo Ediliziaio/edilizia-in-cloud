@@ -19,6 +19,7 @@ export const FULL_MODULE_COVERS: Readonly<Record<string, string>> = {
   "termoidraulica/manutenzione": "/pdf-stock/termoidraulico/collaudo.jpg",
   "termoidraulica/ibrido": "/module-art/termoidraulica-ibrido-cover-v2.jpg",
   "termoidraulica/acqua-calda": "/module-art/termoidraulica-acqua-calda-cover-v2.jpg",
+  "termoidraulica/conto-termico": "/pdf-stock/termoidraulico/pompa-di-calore.jpg",
   "bagni/completo": "/module-art/bagni.jpg",
   "bagni/vasca-doccia": "/module-art/bagni-vasca-doccia-cover.jpg",
   "bagni/doccia": "/module-art/bagni-doccia-cover.jpg",

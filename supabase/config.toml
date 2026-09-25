@@ -1105,6 +1105,9 @@ verify_jwt = false
 [functions.lead-ai-processor]
 verify_jwt = false
 
+[functions.lead-agente-whatsapp]
+verify_jwt = false
+
 # La chiama l'app (schermate AI: Silvio, Assistente, chat interna, AI Test Lab)
 # col JWT dell'utente: requireAuth.
 [functions.get-openrouter-models]

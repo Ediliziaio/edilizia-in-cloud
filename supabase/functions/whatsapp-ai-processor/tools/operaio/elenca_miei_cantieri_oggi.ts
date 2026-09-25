@@ -41,7 +41,7 @@ export async function elencaMieiCantieriOggi(
     return errResult("no_user_id", "Non riesco a identificarti.");
   }
 
-  const dataRif = args.data ?? new Date().toISOString().substring(0, 10);
+  const dataRif = args.data ?? new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome" }).format(new Date());
 
   const { data: rows, error } = await ctx.supabase
     .from("orders")
