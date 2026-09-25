@@ -3,7 +3,7 @@ import { filtroSoloMiei } from "@/hooks/useOpportunitiesData";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useURLFilters } from "@/hooks/useURLFilters";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
-import { Search, Upload, Plus, Download, Filter, ArrowUpDown, Settings2, ChevronDown, MoreHorizontal, Loader2, ChevronLeft, ChevronRight, ContactRound, AlertTriangle, CheckCircle2, ShieldCheck, Sparkles, ExternalLink, Mail, Phone, Building2, CalendarClock, Copy, Radar, BookmarkPlus } from "lucide-react";
+import { Search, Upload, Plus, Download, Filter, ArrowUpDown, Settings2, ChevronDown, Loader2, ChevronLeft, ChevronRight, ContactRound, AlertTriangle, CheckCircle2, ShieldCheck, Sparkles, ExternalLink, Mail, Phone, Building2, CalendarClock, Copy, Radar, BookmarkPlus } from "lucide-react";
 import { PLATFORM_ADMIN_COMPANY_ID } from "@/lib/adminConstants";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -48,6 +48,8 @@ import { filtriRicercaContatti } from "@/lib/ricerca/ricercaContatti";
 import { getAddedTags, getRemovedTags, normalizeTagList } from "@/lib/marketingTags";
 
 import { useIsMobile } from "@/hooks/use-mobile";
+import { cn } from "@/lib/utils";
+import { CercaConFiltri, PannelloFiltri, PilloleFiltro, RigaMobile } from "@/components/mobile/FiltriMobile";
 // Map filter field keys to actual DB columns
 const CSV_FIELDS: ImportField[] = [
   { key: "first_name", label: "Nome", required: true },
@@ -487,6 +489,9 @@ function BulkEnrichButton({ selectedIds, onDone }: { selectedIds: Set<string>; o
 
 export default function MarketingContacts() {
   const isMobile = useIsMobile();
+  const routePrefix = useMarketingRoutePrefix();
+  // Mobile: pannello dei filtri dal basso (vista, ordine, filtri da lista).
+  const [filtriMobileAperti, setFiltriMobileAperti] = useState(false);
   const { effectiveCompany, user, viewAsUserId } = useAuth();
   // «Vede solo i propri»: in «Vista come» la sessione è del super admin ma i
   // permessi sono dell'utente simulato → il filtro va sull'utente simulato.
@@ -604,6 +609,8 @@ export default function MarketingContacts() {
   const setQualityFilter = useCallback((value: ContactQualityFilter) => {
     setURLParams({ quality: value, page: 1 });
   }, [setURLParams]);
+  // Mobile: il numero sul bottone dei filtri (vista scelta + filtri da lista).
+  const filtriMobileAttivi = (qualityFilter === "all" ? 0 : 1) + activeFilterCount;
   // Preset filter via query param: ?filter=stale|stale_2h
   // Permette ai banner della dashboard / executive summary di "deep-linkare"
   // direttamente sui lead da contattare. Si rimuove con il bottone in banner.
@@ -948,6 +955,9 @@ export default function MarketingContacts() {
   });
   const pipelines = filterData?.pipelines ?? [];
   const listCount = filterData?.listCount ?? 0;
+  // Mobile: senza liste la scheda «Liste» (e quindi lo scambio di schede) sparisce;
+  // un indirizzo con ?tab=lists mostra la prima.
+  const senzaListeMobile = isMobile && !!filterData && listCount === 0;
 
   // Contattabilità sull'INTERO database azienda: count esatti head-only in
   // parallelo (mai fetch-e-conta). Su decine di migliaia di contatti i KPI
@@ -1621,12 +1631,12 @@ export default function MarketingContacts() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 max-sm:space-y-3">
       {/* Banner preset (?filter=stale|stale_2h) — deep-link da dashboard */}
       {stalePresetActive && (
-        <div className="flex flex-col gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 sm:flex-row sm:items-center sm:justify-between max-sm:flex-row max-sm:items-center max-sm:justify-between max-sm:rounded-lg max-sm:px-3 max-sm:py-1.5 max-sm:text-xs">
           <div className="flex items-center gap-2">
-            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-amber-200 text-amber-800 text-xs font-bold">!</span>
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-amber-200 text-amber-800 text-xs font-bold max-sm:hidden">!</span>
             <span>
               <strong>Filtro attivo:</strong>{" "}
               {stalePreset === "stale_2h"
@@ -1637,38 +1647,44 @@ export default function MarketingContacts() {
           <Button
             variant="outline"
             size="sm"
-            className="h-7 self-start border-amber-300 bg-white text-amber-900 hover:bg-amber-100 sm:self-auto"
+            className="tap-compact h-7 shrink-0 self-start max-sm:self-center border-amber-300 bg-white text-amber-900 hover:bg-amber-100 sm:self-auto"
             onClick={clearStalePreset}
           >
-            Mostra tutti i contatti
+            {/* Mobile: il filtro si toglie con una parola, il banner resta su una riga. */}
+            <span className="sm:hidden">Togli</span>
+            <span className="hidden sm:inline">Mostra tutti i contatti</span>
           </Button>
         </div>
       )}
 
       {meseRange && (
-        <div className="flex flex-col gap-2 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-2 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 sm:flex-row sm:items-center sm:justify-between max-sm:flex-row max-sm:items-center max-sm:justify-between max-sm:rounded-lg max-sm:px-3 max-sm:py-1.5 max-sm:text-xs">
           <span><strong>Filtro mese attivo:</strong> contatti creati a {meseRange.label}</span>
           <Button
             variant="outline"
             size="sm"
-            className="h-7 self-start border-blue-300 bg-white text-blue-900 hover:bg-blue-100 sm:self-auto"
+            className="tap-compact h-7 shrink-0 self-start max-sm:self-center border-blue-300 bg-white text-blue-900 hover:bg-blue-100 sm:self-auto"
             onClick={clearMeseFilter}
           >
-            Mostra tutti i contatti
+            {/* Mobile: il filtro si toglie con una parola, il banner resta su una riga. */}
+            <span className="sm:hidden">Togli</span>
+            <span className="hidden sm:inline">Mostra tutti i contatti</span>
           </Button>
         </div>
       )}
 
       {sourceFilter && (
-        <div className="flex flex-col gap-2 rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-900 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-2 rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-900 sm:flex-row sm:items-center sm:justify-between max-sm:flex-row max-sm:items-center max-sm:justify-between max-sm:rounded-lg max-sm:px-3 max-sm:py-1.5 max-sm:text-xs">
           <span><strong>Filtro fonte attivo:</strong> {sourceFilter}</span>
           <Button
             variant="outline"
             size="sm"
-            className="h-7 self-start border-indigo-300 bg-white text-indigo-900 hover:bg-indigo-100 sm:self-auto"
+            className="tap-compact h-7 shrink-0 self-start max-sm:self-center border-indigo-300 bg-white text-indigo-900 hover:bg-indigo-100 sm:self-auto"
             onClick={clearSourceFilter}
           >
-            Mostra tutti i contatti
+            {/* Mobile: il filtro si toglie con una parola, il banner resta su una riga. */}
+            <span className="sm:hidden">Togli</span>
+            <span className="hidden sm:inline">Mostra tutti i contatti</span>
           </Button>
         </div>
       )}
@@ -1678,17 +1694,19 @@ export default function MarketingContacts() {
           «Qualità dei contatti», la tabella partiva a metà dello schermo. */}
       <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3">
         <div className="flex min-w-0 items-center gap-2.5">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200">
+          {/* Telefono e tablet no: l'icona arancione prendeva il posto delle schede. */}
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200 max-lg:hidden">
             <ContactRound className="h-4 w-4" />
           </div>
           <h1 className="text-lg font-bold text-slate-950 sm:text-xl">Contatti</h1>
-          {!isLoading && activeTab === "all" && (
+          {!isLoading && (activeTab === "all" || senzaListeMobile) && (
             <Badge className="bg-orange-100 tabular-nums text-orange-700 hover:bg-orange-100">{totalCount.toLocaleString("it-IT")}</Badge>
           )}
-          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as ContactsTab)} className="ml-2 hidden sm:block">
+          {/* Anche su telefono sulla riga del titolo: prima avevano una riga tutta loro. */}
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as ContactsTab)} className={cn("ml-1 sm:ml-2", senzaListeMobile && "hidden")}>
             <TabsList className="h-8 gap-0.5 rounded-lg bg-slate-100 p-0.5">
-              <TabsTrigger value="all" className="h-7 rounded-md px-3 text-xs data-[state=active]:bg-white data-[state=active]:text-orange-700 data-[state=active]:shadow-sm">Tutti</TabsTrigger>
-              <TabsTrigger value="lists" className="h-7 gap-1.5 rounded-md px-3 text-xs data-[state=active]:bg-white data-[state=active]:text-orange-700 data-[state=active]:shadow-sm">
+              <TabsTrigger value="all" className="tap-compact h-7 rounded-md px-3 text-xs max-sm:px-2 data-[state=active]:bg-white data-[state=active]:text-orange-700 data-[state=active]:shadow-sm">Tutti</TabsTrigger>
+              <TabsTrigger value="lists" className="tap-compact h-7 gap-1.5 rounded-md px-3 text-xs max-sm:px-2 data-[state=active]:bg-white data-[state=active]:text-orange-700 data-[state=active]:shadow-sm">
                 Liste
                 {listCount > 0 && <Badge variant="secondary" className="h-4 px-1.5 text-[10px]">{listCount}</Badge>}
               </TabsTrigger>
@@ -1700,10 +1718,11 @@ export default function MarketingContacts() {
           {canExportClients && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="hidden h-9 border-slate-200 bg-white hover:bg-slate-50 sm:flex" disabled={exporting || isLoading}>
-                  <Download className="mr-2 h-4 w-4" />
-                  {exporting ? "Esportando..." : selectedIds.size > 0 ? `Esporta (${selectedIds.size})` : "Esporta"}
-                  <ChevronDown className="ml-1 h-3 w-3" />
+                {/* Tablet: a icona, così titolo, schede e azioni stanno su una riga. */}
+                <Button variant="outline" size="sm" className="hidden h-9 border-slate-200 bg-white hover:bg-slate-50 sm:flex" disabled={exporting || isLoading} aria-label="Esporta">
+                  <Download className="mr-2 h-4 w-4 max-lg:mr-0" />
+                  <span className="max-lg:hidden">{exporting ? "Esportando..." : selectedIds.size > 0 ? `Esporta (${selectedIds.size})` : "Esporta"}</span>
+                  <ChevronDown className="ml-1 h-3 w-3 max-lg:hidden" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
@@ -1719,59 +1738,21 @@ export default function MarketingContacts() {
               </DropdownMenuContent>
             </DropdownMenu>
           )}
-          <Button variant="outline" size="sm" className="hidden h-9 border-slate-200 bg-white hover:bg-slate-50 sm:flex" onClick={() => setImportOpen(true)} disabled={!canEditContacts}>
-            <Upload className="mr-2 h-4 w-4" /> Importa
+          <Button variant="outline" size="sm" className="hidden h-9 border-slate-200 bg-white hover:bg-slate-50 sm:flex" onClick={() => setImportOpen(true)} disabled={!canEditContacts} aria-label="Importa">
+            <Upload className="mr-2 h-4 w-4 max-lg:mr-0" /> <span className="max-lg:hidden">Importa</span>
           </Button>
-          {/* Mobile: ... menu */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" className="h-8 w-8 border-slate-200 bg-white/80 sm:hidden">
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setImportOpen(true)} disabled={!canEditContacts}>
-                <Upload className="mr-2 h-4 w-4" /> Importa
-              </DropdownMenuItem>
-              {/* Niente export su telefono: vale per tutti i formati, non
-                  solo per il CSV che avevo protetto per primo. E niente
-                  export senza «Esporta Clienti». */}
-              {!isMobile && canExportClients && (
-                <>
-                  <DropdownMenuItem onClick={() => doExport("csv")} disabled={exporting}>
-                    <Download className="mr-2 h-4 w-4" /> Esporta CSV
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => doExport("xlsx")} disabled={exporting}>
-                    <Download className="mr-2 h-4 w-4" /> Esporta XLSX
-                  </DropdownMenuItem>
-                </>
-              )}
-              <DropdownMenuItem onClick={() => setFieldsSheetOpen(true)}>
-                <Settings2 className="mr-2 h-4 w-4" /> Gestisci campi
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {/* Mobile no: il menu «…» aveva solo Importa e Gestisci campi (colonne
+              della tabella, che su telefono non c'è): lavoro da scrivania. */}
           {/* Mobile: CTA compatta (richiesta utente: bottone più piccolo). */}
-          <Button className="h-8 shrink-0 bg-gradient-to-r from-orange-500 to-amber-500 px-2.5 text-xs text-white shadow-sm shadow-orange-200 hover:from-orange-600 hover:to-amber-600 sm:h-9 sm:px-4 sm:text-sm" onClick={() => { setEditingContact(null); setDialogOpen(true); }} disabled={!canEditContacts}>
+          <Button className="tap-compact h-8 shrink-0 bg-gradient-to-r from-orange-500 to-amber-500 px-2.5 text-xs text-white shadow-sm shadow-orange-200 hover:from-orange-600 hover:to-amber-600 sm:h-9 sm:px-4 sm:text-sm" onClick={() => { setEditingContact(null); setDialogOpen(true); }} disabled={!canEditContacts}>
             <Plus className="h-4 w-4 sm:mr-1" />
-            <span className="hidden sm:inline">Aggiungi contatto</span>
-            <span className="ml-1 sm:hidden">Aggiungi</span>
+            <span className="hidden lg:inline">Aggiungi contatto</span>
+            <span className="ml-1 lg:hidden">Aggiungi</span>
           </Button>
         </div>
       </div>
 
-      {/* Schede su telefono: sotto il titolo, a tutta larghezza. */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as ContactsTab)} className="sm:hidden">
-        <TabsList className="grid h-9 w-full grid-cols-2 rounded-lg bg-slate-100 p-0.5">
-          <TabsTrigger value="all" className="h-8 rounded-md text-xs data-[state=active]:bg-white data-[state=active]:text-orange-700">Tutti</TabsTrigger>
-          <TabsTrigger value="lists" className="h-8 gap-1.5 rounded-md text-xs data-[state=active]:bg-white data-[state=active]:text-orange-700">
-            Liste
-            {listCount > 0 && <Badge variant="secondary" className="h-4 px-1.5 text-[10px]">{listCount}</Badge>}
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
-
-      {activeTab === "lists" ? (
+      {activeTab === "lists" && !senzaListeMobile ? (
         <ContactListsView
           onApplyDynamic={(f) => {
             setFilters(f);
@@ -1782,41 +1763,72 @@ export default function MarketingContacts() {
         />
       ) : (
         <>
-          {/* Mini dashboard mobile: 4 KPI compatti al posto del cockpit qualità
-              (richiesta utente: su mobile solo numeri essenziali + elenco).
-              Il tap filtra la lista come le chip desktop; ri-tap = rimuove. */}
-          <div className="grid grid-cols-4 gap-1.5 sm:hidden">
-            {([
-              { key: "all", label: "Totale", value: reachStats?.total, activeCls: "border-slate-400 bg-slate-100 text-slate-900" },
-              { key: "contactable", label: "Contattabili", value: reachStats?.reachable, activeCls: "border-emerald-300 bg-emerald-50 text-emerald-700" },
-              { key: "has_email", label: "Email", value: reachStats?.withEmail, activeCls: "border-sky-300 bg-sky-50 text-sky-700" },
-              { key: "no_contact", label: "No contatto", value: reachStats?.unreachable, activeCls: "border-red-300 bg-red-50 text-red-700" },
-            ] as const).map(({ key, label, value, activeCls }) => {
-              const active = qualityFilter === key;
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setQualityFilter(active && key !== "all" ? "all" : key)}
-                  className={`rounded-xl border px-1 py-2 text-center transition-colors ${
-                    active ? activeCls : "border-slate-200 bg-white text-slate-700"
-                  }`}
-                >
-                  <p className="text-base font-bold leading-none tabular-nums">
-                    {value != null ? value.toLocaleString("it-IT") : "—"}
-                  </p>
-                  <p className="mt-1 truncate text-[10px] leading-none text-muted-foreground">{label}</p>
-                </button>
-              );
-            })}
-          </div>
+          {/* Telefono e tablet (sotto i 1024px): ricerca e bottone dei filtri su una riga. I quattro riquadri
+              Totale/Contattabili/Email/No contatto e i bottoni «Filtri» e
+              «Ordina» sotto la ricerca sono diventati pillole nel pannello:
+              la lista parte subito sotto le schede. */}
+          <CercaConFiltri
+            className="lg:hidden"
+            valore={searchInput}
+            onCambia={(v) => { setSearchInput(v); setPage(1); }}
+            segnaposto="Cerca contatti"
+            filtriAttivi={filtriMobileAttivi}
+            onApriFiltri={() => setFiltriMobileAperti(true)}
+          />
+          <PannelloFiltri
+            aperto={filtriMobileAperti}
+            onAperto={setFiltriMobileAperti}
+            attivi={filtriMobileAttivi}
+            // Un solo aggiornamento dell'indirizzo: due di fila (vista, poi
+            // pagina) e il secondo riscriveva il primo con la vista vecchia.
+            onAzzera={() => { setFilters(EMPTY_CONTACT_FILTERS); setQualityFilter("all"); }}
+            risultati={totalCount}
+          >
+            <PilloleFiltro
+              titolo="Mostra"
+              valore={qualityFilter}
+              onScegli={(v) => setQualityFilter(v)}
+              scelte={[
+                { value: "all", label: "Tutti", n: reachStats?.total },
+                { value: "contactable", label: "Contattabili", n: reachStats?.reachable },
+                { value: "has_email", label: "Con email", n: reachStats?.withEmail },
+                { value: "has_phone", label: "Con telefono", n: reachStats?.withPhone },
+                { value: "no_contact", label: "Non contattabili", n: reachStats?.unreachable },
+                { value: "issues", label: "Da sistemare" },
+                { value: "optout", label: "No marketing" },
+                { value: "stale", label: "Da ricontattare" },
+              ]}
+            />
+            <PilloleFiltro
+              titolo="Ordine"
+              valore={sortDirection}
+              onScegli={(v) => setURLParams({ sortDirection: v, page: 1 })}
+              scelte={[
+                { value: "desc", label: "Più recenti" },
+                { value: "asc", label: "Meno recenti" },
+              ]}
+            />
+            {/* Filtri a condizioni arrivati da una lista o dal computer: qui
+                solo il numero e il modo di toglierli, il costruttore resta
+                da scrivania. */}
+            {activeFilterCount > 0 && (
+              <div className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2">
+                <span className="text-xs text-muted-foreground">
+                  {activeFilterCount === 1 ? "1 filtro da lista" : `${activeFilterCount} filtri da lista`}
+                </span>
+                <Button variant="ghost" size="sm" className="tap-compact h-7 px-2 text-xs" onClick={() => handleApplyFilters(EMPTY_CONTACT_FILTERS)}>
+                  Togli
+                </Button>
+              </div>
+            )}
+          </PannelloFiltri>
 
           {/* UNA barra sopra la tabella: contattabilità (numeri esatti su tutto
               il database, cliccabili: filtrano la lista, ri-clic = tutti),
               ricerca e filtri, viste rapide. Prima erano il riquadro «Qualità
               dei contatti» più la barra filtri; i quattro riquadri colorati
               contavano solo la pagina corrente e ripetevano le viste rapide. */}
-          <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div className="hidden rounded-xl border border-slate-200 bg-white shadow-sm lg:block">
             {/* 24/09/2026, su indicazione di Florin: due righe invece di quattro.
                 Il numero dei contattabili stava due volte (titolo e primo
                 chip): ora il titolo stesso è il filtro. Le percentuali stanno
@@ -1957,8 +1969,9 @@ export default function MarketingContacts() {
             </div>
           </div>
 
-          {/* Mobile: card list */}
-          <div className="sm:hidden flex flex-col gap-2">
+          {/* Telefono e tablet: righe. A 820px la tabella del computer andava
+              a capo su tre righe per nome e tagliava le colonne. */}
+          <div className="lg:hidden flex flex-col gap-2">
             {isLoading ? (
               <div className="divide-y overflow-hidden rounded-lg border bg-card">
                 {Array.from({ length: 10 }).map((_, i) => (
@@ -1988,32 +2001,29 @@ export default function MarketingContacts() {
                     c.company_name && c.company_name !== fullName
                       ? c.company_name
                       : (c.email ?? c.phone ?? "");
+                  // Il tocco apre la scheda: prima apriva un'anteprima a tutto
+                  // schermo con gli stessi dati e il bottone «Apri scheda completa».
                   return (
-                    <div
+                    <RigaMobile
                       key={c.id}
-                      onClick={() => setPreviewContact(c)}
-                      className="flex cursor-pointer items-center gap-2.5 px-3 py-2 active:bg-muted"
-                    >
-                      <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white ${color}`}>
-                        {initials}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-[13px] font-medium leading-tight">{fullName}</p>
-                        {secondary && (
-                          <p className="truncate text-[11px] leading-tight text-muted-foreground">{secondary}</p>
-                        )}
-                      </div>
-                      <div className="flex shrink-0 items-center gap-1.5">
-                        {c.opp_status === "open" && <span className="h-2 w-2 rounded-full bg-emerald-500" aria-label="Opportunità aperta" />}
-                        {c.opp_status === "won" && <span className="h-2 w-2 rounded-full bg-blue-500" aria-label="Opportunità vinta" />}
-                        {issues.length > 0 && (
-                          <span className="inline-flex items-center gap-0.5 rounded bg-amber-100 px-1 py-0.5 text-[10px] font-semibold text-amber-700">
-                            <AlertTriangle className="h-3 w-3" />
-                            {issues.length}
+                      to={`${routePrefix}/contatti/${c.id}`}
+                      sinistra={
+                        <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white ${color}`}>
+                          {initials}
+                        </span>
+                      }
+                      titolo={fullName}
+                      sottotitolo={secondary || undefined}
+                      stato={
+                        c.opp_status === "open" || c.opp_status === "won" || issues.length > 0 ? (
+                          <span className="inline-flex items-center gap-1.5">
+                            {c.opp_status === "open" && <span className="h-2 w-2 rounded-full bg-emerald-500" aria-label="Opportunità aperta" />}
+                            {c.opp_status === "won" && <span className="h-2 w-2 rounded-full bg-blue-500" aria-label="Opportunità vinta" />}
+                            {issues.length > 0 && <span className="font-medium text-amber-600">⚠ {issues.length}</span>}
                           </span>
-                        )}
-                      </div>
-                    </div>
+                        ) : undefined
+                      }
+                    />
                   );
                 })}
               </div>
@@ -2033,7 +2043,7 @@ export default function MarketingContacts() {
           </div>
 
           {/* Desktop: table */}
-          <div className="hidden sm:block">
+          <div className="hidden lg:block">
           {isLoading ? (
             <div className="divide-y rounded-lg border">
               {Array.from({ length: 8 }).map((_, i) => (

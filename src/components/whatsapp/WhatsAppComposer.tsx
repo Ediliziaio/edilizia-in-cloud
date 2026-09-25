@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { cn } from "@/lib/utils";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -136,10 +137,11 @@ export function WhatsAppComposer({ phone, onSend, isSending, className, contactF
 
   if (noActiveNumber) {
     return (
-      <Alert className={className}>
+      // Mobile: una riga sola (erano quattro righe in un riquadro).
+      <Alert className={cn(className, "max-sm:py-2 max-sm:[&>svg]:top-2")}>
         <AlertTriangle className="h-4 w-4" />
-        <AlertDescription className="text-xs">
-          Nessun numero WhatsApp attivo. Collega/attiva un numero nel Centro WhatsApp per inviare messaggi.
+        <AlertDescription className="text-xs max-sm:text-[11px]">
+          Nessun numero WhatsApp attivo<span className="max-sm:hidden">. Collega/attiva un numero nel Centro WhatsApp per inviare messaggi.</span>
         </AlertDescription>
       </Alert>
     );
