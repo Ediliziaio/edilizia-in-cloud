@@ -661,6 +661,8 @@ function dataLunga(giorno: string): string {
 export interface RapportoCostruito {
   subject: string;
   html: string;
+  /** Lo stesso contenuto senza testata né contenitore: la sezione dell'email unica del mattino. */
+  corpo: string;
   priorita: Priorita[];
   critici: number;
   attivi: number;
@@ -744,11 +746,7 @@ export function costruisciRapporto(r: DatiRapporto, urlConsole: string): Rapport
   const data = dataLunga(r.giorno);
   const subject = `Report marketing — ${dataBreve(`${r.giorno}T12:00:00Z`)} · ${priorita.length} priorità · ${critici} ${critici === 1 ? "brand critico" : "brand critici"}`;
 
-  const html = `<div style="max-width:640px;margin:0 auto;padding:20px;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1f2937;font-size:14px;line-height:1.5;">
-    <p style="margin:0;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#6b7280;">Report marketing</p>
-    <h1 style="margin:2px 0 14px;font-size:20px;color:#111827;">${esc(data.charAt(0).toUpperCase() + data.slice(1))}</h1>
-
-    ${titoletto("Riepilogo generale")}
+  const corpo = `${titoletto("Riepilogo generale")}
     ${riepilogo}
 
     ${separatore}
@@ -764,8 +762,14 @@ export function costruisciRapporto(r: DatiRapporto, urlConsole: string): Rapport
     ${economico}
 
     <p style="margin:18px 0 0;"><a href="${esc(urlConsole)}" style="color:#2563eb;font-weight:600;">Apri la console completa</a></p>
-    <p style="margin:14px 0 0;font-size:11px;color:#9ca3af;">Ogni mattina alle 06:00, sui dati fino a ieri. CPL e CAC contano solo la spesa delle campagne Lead Generation: le campagne di notorietà, interazione e traffico che non portano lead sono a parte. CAC = spesa lead del mese ÷ contratti vinti nel mese. ROAS = valore vinto nel mese ÷ spesa lead del mese. Tasso di chiusura = contratti vinti ÷ sopralluoghi, ultimi 30 giorni.</p>
+    <p style="margin:14px 0 0;font-size:11px;color:#9ca3af;">Ogni mattina alle 06:00, sui dati fino a ieri. CPL e CAC contano solo la spesa delle campagne Lead Generation: le campagne di notorietà, interazione e traffico che non portano lead sono a parte. CAC = spesa lead del mese ÷ contratti vinti nel mese. ROAS = valore vinto nel mese ÷ spesa lead del mese. Tasso di chiusura = contratti vinti ÷ sopralluoghi, ultimi 30 giorni.</p>`;
+
+  const html = `<div style="max-width:640px;margin:0 auto;padding:20px;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1f2937;font-size:14px;line-height:1.5;">
+    <p style="margin:0;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#6b7280;">Report marketing</p>
+    <h1 style="margin:2px 0 14px;font-size:20px;color:#111827;">${esc(data.charAt(0).toUpperCase() + data.slice(1))}</h1>
+
+    ${corpo}
   </div>`;
 
-  return { subject, html, priorita, critici, attivi: attivi.length };
+  return { subject, html, corpo, priorita, critici, attivi: attivi.length };
 }
