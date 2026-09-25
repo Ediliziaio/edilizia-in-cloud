@@ -1,38 +1,46 @@
 /**
- * src/lib/serramenti/ecobonus.ts — calcolo Ecobonus + Cashflow 10 anni.
+ * src/lib/serramenti/ecobonus.ts — calcolo della detrazione + Cashflow 10 anni.
  *
- * Ecobonus 50% (Bonus Casa, ex-art.16 DL 63/2013):
- *  - Detrazione IRPEF 50% per sostituzione serramenti con riqualificazione
- *    energetica (Uw inferiore a soglie zona climatica).
- *  - Massimo 60.000 € di spesa per unità immobiliare (art.14 DL 63/2013).
- *  - Recupero in 10 quote annuali di pari importo.
- *
- * Ecobonus 65% (Ecobonus tradizionale, art.14):
- *  - Per interventi specifici di riqualificazione energetica significativa.
- *  - Soglie Uw stringenti (zona climatica).
- *  - In molti casi declassato al 50% dal 2025.
+ * Aliquote e tetto vengono dal catalogo condiviso src/lib/preventivi/incentivi.ts
+ * (quadro 2026): 50% sull'abitazione principale, 36% sulle altre, tetto di spesa
+ * 96.000 € per unità, recupero in 10 quote annuali di pari importo.
+ * L'Ecobonus 65% non esiste più dal 2025: un preventivo non deve prometterlo.
  *
  * NOTA: questo modulo serve solo a stimare il vantaggio fiscale. Le aliquote
  * effettive e i requisiti normativi vanno verificati al momento dell'invio
  * della pratica ENEA dal consulente.
  */
+import { INCENTIVI_SERRAMENTI } from "@/lib/preventivi/incentivi";
+
 export interface InputEcobonus {
   imponibile_eur: number;          // imponibile lavori (no IVA o con IVA, dipende dalla scelta)
-  aliquota: 50 | 65;                // % di detrazione
-  spesa_massima_eur?: number;       // tetto detraibile (default 60.000 €)
+  aliquota: number;                 // % di detrazione, una di ALIQUOTE_DETRAZIONE_SERRAMENTI
+  spesa_massima_eur?: number;       // tetto di spesa (default: massimale del catalogo)
   reddito_irpef_anno?: number;      // imponibile IRPEF annuo del contribuente (per verifica capienza)
 }
 
 export interface OutputEcobonus {
   base_calcolo: number;             // min(imponibile, spesa_massima)
-  aliquota: number;                 // 50 o 65
+  aliquota: number;                 // 50 o 36
   detrazione_totale: number;         // base × aliquota
   rata_annuale: number;              // detrazione / 10
   anni_recupero: number;             // 10
   capienza_ok: boolean | null;       // true se reddito >= rata annua, null se non noto
 }
 
-const DEFAULT_TETTO = 60_000;
+/** Le aliquote proponibili oggi (catalogo incentivi, «Nessuna» esclusa: è l'interruttore). */
+export const ALIQUOTE_DETRAZIONE_SERRAMENTI = INCENTIVI_SERRAMENTI.filter((i) => i.pct > 0);
+
+/**
+ * L'aliquota da mostrare per un valore salvato: una di quelle proponibili, oppure
+ * il 50% (anche per un 65% di prima del 2025, che non si può più proporre).
+ */
+export function aliquotaDetrazioneSerramenti(salvata: number | null | undefined): number {
+  const n = Number(salvata);
+  return ALIQUOTE_DETRAZIONE_SERRAMENTI.some((i) => i.pct === n) ? n : 50;
+}
+
+const DEFAULT_TETTO = INCENTIVI_SERRAMENTI[0].massimale ?? 96_000;
 
 export function calcolaEcobonus(input: InputEcobonus): OutputEcobonus {
   const tetto = input.spesa_massima_eur ?? DEFAULT_TETTO;

@@ -31,6 +31,13 @@ Saltare il punto 3 è ciò che ha prodotto le 360 voci divergenti: nessuno se ne
 accorge finché il controllo non diventa rosso, e a quel punto il disallineamento
 è di mesi.
 
+**Un file in `supabase/migrations/` va in produzione al primo push, qualunque
+cosa dica il suo commento.** Il controllo Supabase Preview applica ogni file che
+non trova nel registro: il 25 settembre 2026 sono entrate così
+`20260924125854_sr_quote_model_snapshot` e `20260924134009_tet_quote_intervention_snapshot`,
+che si dichiaravano «NOT deployed». Una migrazione non pronta resta fuori dalla
+cartella; una pronta si applica con `apply_migration` e si riallinea prima del push.
+
 **Due file non possono avere la stessa versione.** La versione è la chiave
 primaria di `schema_migrations`: se due migrazioni condividono il numero, il
 push si ferma con `duplicate key`. Prima di scegliere un timestamp, verificare

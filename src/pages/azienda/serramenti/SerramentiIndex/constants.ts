@@ -38,8 +38,8 @@ export const SCHEMI_PAGAMENTO_LABELS: Record<string, string> = {
 
 export const BONUS_OPTIONS: Array<{ value: string; label: string }> = [
   { value: "any", label: "Tutti" },
-  { value: "50", label: "Ecobonus 50%" },
-  { value: "65", label: "Ecobonus 65%" },
+  { value: "50", label: "Detrazione 50%" },
+  { value: "36", label: "Detrazione 36%" },
   { value: "none", label: "Senza bonus" },
 ];
 
