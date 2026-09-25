@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Search, X, CalendarDays, CheckCircle2, ChevronDown } from "lucide-react";
+import { Search, X, CalendarDays, CheckCircle2, SlidersHorizontal } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -64,7 +64,10 @@ export function OrdersFilters({
   const advancedFiltersCount = [
     statusFilter !== "all",
     paymentFilter !== "all",
-    yearFilter !== "all",
+    // «corrente» (anno in corso + aperte precedenti) è il valore di partenza,
+    // non un filtro scelto: contato come attivo, su mobile i filtri si
+    // aprivano da soli e il badge diceva sempre «1».
+    yearFilter !== "all" && yearFilter !== "corrente",
     monthFilter !== "all",
   ].filter(Boolean).length;
 
@@ -72,7 +75,7 @@ export function OrdersFilters({
   const [advancedOpen, setAdvancedOpen] = useState(advancedFiltersCount > 0);
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm">
+    <div className="rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
       {/* Search + In Corso + Toggle filtri avanzati (mobile) — sempre visibili */}
       <div className="flex items-center gap-2">
         <div className="relative flex-1 min-w-0">
@@ -81,16 +84,33 @@ export function OrdersFilters({
             placeholder="Cerca commessa…"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="h-10 border-slate-200 pl-10 shadow-none"
+            className="h-10 border-slate-200 pl-10 shadow-none max-sm:h-9 max-sm:bg-white"
             aria-label="Cerca per codice, descrizione o cliente"
           />
         </div>
+        {/* Mobile: i filtri (stato, pagamento, anno, mese) dietro un bottone
+            sulla stessa riga, chiusi; prima avevano una riga loro. */}
+        <Button
+          variant={advancedOpen ? "secondary" : "outline"}
+          size="sm"
+          onClick={() => setAdvancedOpen((v) => !v)}
+          className="tap-compact relative h-9 w-9 shrink-0 bg-white p-0 sm:hidden"
+          aria-expanded={advancedOpen}
+          aria-label="Filtri"
+        >
+          <SlidersHorizontal className="h-4 w-4" />
+          {advancedFiltersCount > 0 && (
+            <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-orange-500 text-[10px] font-bold text-white">
+              {advancedFiltersCount}
+            </span>
+          )}
+        </Button>
         {/* In Corso toggle — visibile sempre */}
         <Button
           variant={hideCompleted ? "default" : "outline"}
           size="sm"
           onClick={() => onHideCompletedChange(!hideCompleted)}
-          className="h-10 shrink-0"
+          className="tap-compact h-10 shrink-0 max-sm:h-9 max-sm:w-9 max-sm:p-0"
           aria-label="Mostra solo commesse in corso"
           title="In Corso"
         >
@@ -98,31 +118,11 @@ export function OrdersFilters({
           <span className="hidden sm:inline">In Corso</span>
         </Button>
         {hasAnyFilter && (
-          <Button variant="ghost" size="icon" onClick={onClearAllFilters} className="h-10 w-10 text-muted-foreground/60 hover:text-muted-foreground shrink-0" aria-label="Cancella tutti i filtri">
+          <Button variant="ghost" size="icon" onClick={onClearAllFilters} className="tap-compact h-10 w-10 text-muted-foreground/60 hover:text-muted-foreground shrink-0 max-sm:h-9 max-sm:w-7" aria-label="Cancella tutti i filtri">
             <X className="h-3.5 w-3.5" />
           </Button>
         )}
       </div>
-
-      {/* Toggle filtri avanzati mobile only — desktop ha sempre i filtri visibili */}
-      <button
-        type="button"
-        onClick={() => setAdvancedOpen((v) => !v)}
-        className="mt-2 sm:hidden flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
-        aria-expanded={advancedOpen}
-        aria-label="Apri filtri avanzati"
-      >
-        <span className="flex items-center gap-1.5">
-          <CalendarDays className="h-3.5 w-3.5 text-slate-400" />
-          Filtri avanzati
-          {advancedFiltersCount > 0 && (
-            <span className="bg-orange-500 text-white text-[10px] rounded-full w-4 h-4 inline-flex items-center justify-center font-bold">
-              {advancedFiltersCount}
-            </span>
-          )}
-        </span>
-        <ChevronDown className={cn("h-3.5 w-3.5 text-slate-400 transition-transform", advancedOpen && "rotate-180")} />
-      </button>
 
       {/* Filtri avanzati: collapsed mobile (controllato), sempre visibili desktop */}
       <div className={cn("grid grid-cols-2 gap-2 mt-2 sm:flex sm:flex-row sm:gap-2.5 sm:mt-2.5 sm:items-center", !advancedOpen && "hidden sm:flex")}>

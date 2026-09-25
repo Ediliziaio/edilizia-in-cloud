@@ -5,7 +5,7 @@ import { Eye, Pencil, Trash2, X, ChevronDown, HardHat, MoreVertical } from "luci
 import { useTableSort } from "@/hooks/useTableSort";
 import { SortableTableHead } from "@/components/ui/sortable-table-head";
 import { format } from "date-fns";
-import { formatCurrency } from "@/lib/formatters";
+import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -172,61 +172,41 @@ export const OrdersTable = React.memo(function OrdersTable({
           const vatRate = order.vat_rate ?? 22;
           const totalIvato = order.total_amount * (1 + vatRate / 100);
           return (
+            // Due colonne: a sinistra codice e stato, descrizione, cliente; a
+            // destra il totale e quanto manda incassare. Prima tre righe con
+            // 16px di margine: una commessa prendeva 130px, ora ~64.
             <Link
               key={order.id}
               to={`/azienda/ordini/${order.id}`}
-              className="flex flex-col gap-2 px-4 py-4 hover:bg-muted/50 active:bg-muted transition-colors"
+              className="flex items-center gap-3 px-3 py-2.5 hover:bg-muted/50 active:bg-muted transition-colors"
             >
-              {/* Riga 1: codice + badges */}
-              <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5 min-w-0">
-                  <span className="font-bold text-sm">{order.order_code || "—"}</span>
+                  <span className="shrink-0 font-mono text-[11px] font-semibold text-muted-foreground">{order.order_code || "—"}</span>
                   {order.order_type === "appaltatore_lavoro" && (
-                    <Badge
-                      variant="outline"
-                      className="text-[10px] px-1.5 py-0 shrink-0 border-amber-500 text-amber-700 bg-amber-50 dark:bg-amber-950/40"
-                      aria-label="Lavoro per appaltatore"
-                    >
-                      <HardHat className="h-2.5 w-2.5 mr-0.5" />
-                      Lavoro
-                    </Badge>
+                    <HardHat className="h-3 w-3 shrink-0 text-amber-600" aria-label="Lavoro per appaltatore" />
+                  )}
+                  {order.status && (
+                    <span className="flex min-w-0 items-center gap-1 text-[11px]" style={{ color: order.status.color }}>
+                      <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: order.status.color }} />
+                      <span className="truncate">{order.status.name}</span>
+                    </span>
                   )}
                 </div>
-                {order.status && (
-                  <Badge
-                    variant="outline"
-                    className="text-[10px] px-1.5 py-0 shrink-0"
-                    style={{ borderColor: order.status.color, color: order.status.color }}
-                  >
-                    {order.status.name}
-                  </Badge>
-                )}
-              </div>
-              {/* Riga 2: descrizione + cliente */}
-              <div className="min-w-0">
-                <p className="text-sm font-medium truncate">{order.description || "—"}</p>
+                <p className="truncate text-[13px] font-medium leading-snug">{order.description || "—"}</p>
                 {order.customer && (
-                  <p className="text-xs text-muted-foreground mt-0.5">
+                  <p className="truncate text-[11px] text-muted-foreground">
                     {order.customer.first_name} {order.customer.last_name}
                   </p>
                 )}
               </div>
-              {/* Riga 3: pagamento + totale */}
-              <div className="flex items-end justify-between gap-2">
-                <div>
-                  {due > 0 ? (
-                    <span className="text-xs text-orange-600 dark:text-orange-400 font-medium">
-                      Da ricevere: {formatCurrency(due)}
-                    </span>
-                  ) : collected > 0 ? (
-                    <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
-                      ✓ Saldato
-                    </span>
-                  ) : (
-                    <span className="text-xs text-muted-foreground">Nessun pagamento</span>
-                  )}
-                </div>
-                <p className="font-bold text-base leading-tight shrink-0">{formatCurrency(totalIvato)}</p>
+              <div className="shrink-0 text-right tabular-nums">
+                <p className="text-sm font-bold leading-tight">{formatCurrency(totalIvato)}</p>
+                {due > 0 ? (
+                  <p className="text-[11px] font-medium text-orange-600 dark:text-orange-400">da ricevere {formatCurrencyCompact(due)}</p>
+                ) : collected > 0 ? (
+                  <p className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">✓ Saldato</p>
+                ) : null}
               </div>
             </Link>
           );

@@ -56,9 +56,10 @@ export function OrdineDetailHeader({
   const isAppaltatoreLavoro = orderType === "appaltatore_lavoro";
   const navigate = useNavigate();
   return (
-    <div className="bg-white border-b border-slate-200 px-3 sm:px-6 py-3 sm:py-5">
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-1 text-xs text-slate-400 mb-2 sm:mb-3 flex-wrap">
+    <div className="bg-white border-b border-slate-200 px-3 sm:px-6 py-3 sm:py-5 max-sm:py-2.5">
+      {/* Breadcrumb (mobile no: la freccia indietro dell'app c'è già, e il
+          codice sta nella riga sotto il titolo) */}
+      <div className="hidden sm:flex items-center gap-1 text-xs text-slate-400 mb-2 sm:mb-3 flex-wrap">
         <span
           className="cursor-pointer hover:text-orange-500 font-medium"
           onClick={() => navigate("/azienda/ordini")}
@@ -77,9 +78,9 @@ export function OrdineDetailHeader({
         )}
       </div>
       {/* Title row */}
-      <div className="flex items-start justify-between gap-3 sm:gap-4 flex-col sm:flex-row sm:flex-wrap">
+      <div className="flex items-start justify-between gap-3 sm:gap-4 flex-col sm:flex-row sm:flex-wrap max-sm:gap-2">
         <div className="flex items-start gap-2.5 sm:gap-3 min-w-0 w-full sm:w-auto">
-          <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white flex items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
+          <div className="hidden sm:flex h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
             <ClipboardList className="h-4 w-4 sm:h-5 sm:w-5" />
           </div>
           <div className="min-w-0 flex-1">
@@ -87,6 +88,7 @@ export function OrdineDetailHeader({
               {descrizione || "Commessa senza descrizione"}
             </h1>
             <p className="text-xs sm:text-sm text-slate-500 mt-0.5 truncate">
+              <span className="sm:hidden font-mono font-semibold text-slate-600">{orderCode} · </span>
               {(() => { try { return format(new Date(dataCreazione), "dd MMM yyyy", { locale: it }); } catch { return "—"; } })()} ·{" "}
               <span className="font-medium text-slate-700">{nomeCliente}</span>
             </p>
@@ -97,7 +99,7 @@ export function OrdineDetailHeader({
           <QuotePrimaryButton
             size="sm"
             onClick={onRegistraIncasso}
-            className="flex-1 sm:flex-none whitespace-nowrap"
+            className="tap-compact flex-1 sm:flex-none whitespace-nowrap max-sm:h-9"
           >
             <Banknote className="h-3.5 w-3.5" />
             Registra incasso
@@ -109,7 +111,7 @@ export function OrdineDetailHeader({
               variant="outline"
               size="sm"
               onClick={onModifica}
-              className="text-xs shrink-0 w-9 px-0 sm:w-auto sm:px-3"
+              className="tap-compact text-xs shrink-0 w-9 px-0 sm:w-auto sm:px-3 max-sm:h-9"
               aria-label="Modifica commessa"
             >
               <Pencil className="h-3.5 w-3.5 sm:mr-1" />
@@ -122,7 +124,7 @@ export function OrdineDetailHeader({
               <Button
                 variant="outline"
                 size="icon"
-                className="sm:hidden h-9 w-9"
+                className="tap-compact sm:hidden h-9 w-9"
                 aria-label="Altre azioni commessa"
               >
                 <MoreVertical className="h-4 w-4" />

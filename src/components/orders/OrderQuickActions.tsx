@@ -213,7 +213,7 @@ export function OrderQuickActions({
 
   return (
     <div role="region" aria-label="Azioni rapide commessa" className="bg-white border-b border-gray-100 px-3 sm:px-6 py-2">
-      <div className="flex flex-wrap items-center gap-1.5">
+      <div className="flex flex-wrap items-center gap-1.5 max-sm:flex-nowrap">
         <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground mr-1 hidden sm:inline">
           Azioni rapide
         </span>
@@ -239,13 +239,35 @@ export function OrderQuickActions({
           })}
         </div>
 
+        {/* Mobile: le azioni da cantiere a portata di pollice, in pillole su
+            una riga che scorre; il resto sta in «Altro». */}
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto [scrollbar-width:none] sm:hidden">
+          {actions.filter((a) => ["call", "whatsapp", "appt", "files"].includes(a.id)).map((a) => {
+            const Icon = a.icon;
+            return (
+              <Button
+                key={a.id}
+                variant="outline"
+                size="sm"
+                className="tap-compact h-8 shrink-0 gap-1 rounded-full px-2.5 text-xs"
+                onClick={a.onClick}
+                disabled={a.disabled}
+              >
+                <Icon className={cn("h-3.5 w-3.5", a.iconClass)} />
+                {a.label}
+              </Button>
+            );
+          })}
+        </div>
+
         {/* Dropdown "Azioni" — animato (fade/zoom/slide dallo shadcn) e raggruppato.
             Contiene TUTTO sotto xl; su xl mostra solo le azioni non-primary. */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="h-8 gap-1.5 group">
-              <Zap className="h-3.5 w-3.5 text-primary" />
-              <span className="xl:hidden">Azioni</span>
+            <Button variant="outline" size="sm" className="tap-compact h-8 gap-1.5 group max-sm:shrink-0 max-sm:rounded-full max-sm:px-2.5">
+              <Zap className="h-3.5 w-3.5 text-primary max-sm:hidden" />
+              <span className="sm:hidden">Altro</span>
+              <span className="hidden sm:inline xl:hidden">Azioni</span>
               <span className="hidden xl:inline">Altre azioni</span>
               <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
             </Button>
@@ -278,7 +300,8 @@ export function OrderQuickActions({
         </DropdownMenu>
 
         {/* Silvio: CTA AI distinta, spinta a destra su desktop */}
-        {askSilvio && <div className="xl:ml-auto">{askSilvio}</div>}
+        {/* Mobile no: c'è già il bottone Silvio al centro della barra in basso. */}
+        {askSilvio && <div className="xl:ml-auto max-sm:hidden">{askSilvio}</div>}
       </div>
 
       {(hasPhone || hasEmail) && customer && (

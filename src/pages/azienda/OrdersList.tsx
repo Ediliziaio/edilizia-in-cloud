@@ -1694,15 +1694,18 @@ function OrdersListInner() {
 
   return (
     // pb-20 rimosso: la bottom nav mobile non è più overlay (è sotto il main) — erano 160px di vuoto
-    <div className="flex flex-col gap-4 sm:gap-6">
+    <div className="flex flex-col gap-4 sm:gap-6 max-sm:gap-3">
       {/* Header — titolo a sinistra e comandi a destra sulla stessa riga, tutti
           alti 32 px e col testo piccolo (23/09/2026, Florin: prima «Nuova
           Commessa» andava a capo e la testata occupava due righe). Si va a capo
           solo quando lo spazio non basta: conta la larghezza della pagina, non
           dello schermo, perché la barra laterale aperta se ne prende un pezzo. */}
-      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-3 sm:px-4 py-2.5 sm:py-3 shadow-sm flex flex-wrap items-center justify-between gap-x-4 gap-y-2.5">
+      {/* Mobile: senza riquadro né icona, titolo e «Nuovo» su una riga. I
+          filtri stanno accanto alla ricerca; il menu ⋮ offriva solo
+          «Importa», che da telefono non serve. */}
+      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-3 sm:px-4 py-2.5 sm:py-3 shadow-sm flex flex-wrap items-center justify-between gap-x-4 gap-y-2.5 max-sm:rounded-none max-sm:border-0 max-sm:bg-none max-sm:p-0 max-sm:shadow-none">
         <div className="flex items-center gap-2.5 min-w-[8rem] flex-1">
-          <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-lg bg-gradient-to-br from-orange-500 to-amber-400 text-white flex items-center justify-center shrink-0 shadow-[0_3px_10px_rgba(249,115,22,0.28)]">
+          <div className="hidden h-8 w-8 sm:flex sm:h-9 sm:w-9 rounded-lg bg-gradient-to-br from-orange-500 to-amber-400 text-white items-center justify-center shrink-0 shadow-[0_3px_10px_rgba(249,115,22,0.28)]">
             <Package className="h-4 w-4" />
           </div>
           <div className="min-w-0">
@@ -1736,7 +1739,7 @@ function OrdersListInner() {
             size="sm"
             onClick={() => setSidebarOpen(true)}
             aria-label="Apri filtri avanzati"
-            className="h-8 px-2.5 text-xs"
+            className="h-8 px-2.5 text-xs max-sm:hidden"
           >
             <SlidersHorizontal className="h-3.5 w-3.5 sm:mr-1" />
             <span className="hidden sm:inline">Filtri</span>
@@ -1831,7 +1834,7 @@ function OrdersListInner() {
           </DropdownMenu>
           )}
 
-          {(!isCommercialistaMode || !isMobile) && (
+          {!isMobile && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="icon" className="h-8 w-8" aria-label="Altre azioni">
@@ -1872,7 +1875,7 @@ function OrdersListInner() {
             <Button
               onClick={() => setShowOrderTypeDialog(true)}
               size="sm"
-              className="h-8 px-3 text-xs font-semibold bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-500/20 hover:from-orange-600 hover:to-amber-500 hover:shadow-md hover:shadow-orange-500/25"
+              className="tap-compact h-8 px-3 text-xs font-semibold bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-500/20 hover:from-orange-600 hover:to-amber-500 hover:shadow-md hover:shadow-orange-500/25 max-sm:h-9"
             >
               <Plus className="h-3.5 w-3.5 mr-1" />
               <span className="hidden sm:inline">Nuova Commessa</span>
@@ -1882,7 +1885,7 @@ function OrdersListInner() {
             <Button
               asChild
               size="sm"
-              className="h-8 px-3 text-xs font-semibold bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-500/20 hover:from-orange-600 hover:to-amber-500 hover:shadow-md hover:shadow-orange-500/25"
+              className="tap-compact h-8 px-3 text-xs font-semibold bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-500/20 hover:from-orange-600 hover:to-amber-500 hover:shadow-md hover:shadow-orange-500/25 max-sm:h-9"
             >
               <Link to="/azienda/ordini/nuovo">
                 <Plus className="h-3.5 w-3.5 mr-1" />
@@ -1911,7 +1914,7 @@ function OrdersListInner() {
           blocco ricco a richiesta con stato ricordato. Chi apre la pagina per
           TROVARE una commessa non paga più il pedaggio; chi vuole l'analisi la
           apre una volta e la ritrova aperta. */}
-      <section className="order-1 flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm shadow-sm sm:order-none">
+      <section className="order-1 flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm shadow-sm sm:order-none max-sm:px-3 max-sm:py-2 max-sm:text-[13px]">
         <div className="flex items-baseline gap-1.5">
           <span className="text-lg font-bold leading-none tabular-nums">{isEconomicStatsLoading ? "…" : stats.totalOrders}</span>
           <span className="text-muted-foreground">commesse</span>
@@ -1936,7 +1939,7 @@ function OrdersListInner() {
         <button
           type="button"
           onClick={toggleAnalisi}
-          className="ml-auto inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          className="ml-auto inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground max-sm:hidden"
         >
           <PieChart className="h-3.5 w-3.5" />
           {analisiAperta ? "Nascondi analisi" : "Analisi"}
@@ -2213,7 +2216,9 @@ function OrdersListInner() {
       {/* Audit UX 2026-09: erano 4 card da 225px con hover da bottone ma SENZA
           click (affordance ingannevole). Stessi numeri in una riga da ~44px,
           senza fingere di essere cliccabili. */}
-      <section className="order-2 flex flex-wrap items-center gap-x-5 gap-y-1.5 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm shadow-sm sm:order-none">
+      {/* Mobile no: quattro numeri non cliccabili su due righe, che la lista
+          e il filtro «In corso» dicono già. */}
+      <section className="order-2 flex flex-wrap items-center gap-x-5 gap-y-1.5 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm shadow-sm sm:order-none max-sm:hidden">
         <span className="inline-flex items-center gap-1.5">
           <Hammer className="h-3.5 w-3.5 text-orange-600" />
           <span className="text-muted-foreground">Da completare</span>
@@ -2379,10 +2384,11 @@ function OrdersListInner() {
               onStatusChange={handleStatusChange}
             />
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-4 max-sm:space-y-0">
               {/* 🆕 Sort selector — server-side sort dell'intero dataset
                   (non solo della pagina visibile). Persisted in localStorage. */}
-              <div className="grid grid-cols-2 items-center gap-2 px-1 sm:flex sm:flex-wrap">
+              {/* Mobile no: resta l'ordine di partenza (più recenti in cima). */}
+              <div className="grid grid-cols-2 items-center gap-2 px-1 sm:flex sm:flex-wrap max-sm:hidden">
                 <span className="col-span-2 text-xs font-medium text-muted-foreground sm:col-span-1">Ordina:</span>
                 <Select value={sortField} onValueChange={(v) => { setSortField(v as typeof sortField); setPage(1); }}>
                   <SelectTrigger className="h-9 w-full text-xs sm:h-8 sm:w-auto sm:min-w-[180px]">

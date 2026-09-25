@@ -65,7 +65,8 @@ export function EsposizioneFlotta({
         </span>
         <span className="text-lg font-bold text-white">−{formatCurrencyCompact(totale)}</span>
       </div>
-      <p className="mt-0.5 text-xs text-blue-50/70">
+      {/* Mobile: titolo, cifra e cantieri bastano; la spiegazione no. */}
+      <p className="mt-0.5 text-xs text-blue-50/70 max-sm:hidden">
         {aperte.length === 1 ? "1 commessa aperta ha" : `${aperte.length} commesse aperte hanno`} pagato più di
         quanto incassato — soldi tuoi nel cantiere.
       </p>

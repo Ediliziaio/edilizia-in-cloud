@@ -75,7 +75,9 @@
   /* Opt-out puntuale dal min 44×44 per icone inline in righe dense (lista chat,
      azioni sul messaggio, righe conversazioni Silvio): gonfiarle a 44px rompeva il
      layout della riga. L'hit-area resta decorosa via padding nel componente. */
-  button.tap-compact {
+  button.tap-compact,
+  a.tap-compact,
+  [role="button"].tap-compact {
     min-height: 0;
     min-width: 0;
   }
