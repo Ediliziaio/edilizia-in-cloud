@@ -124,6 +124,9 @@ export const SALES_AREAS: readonly SalesArea[] = [
     intervention("parquet", "Recupero parquet", "Levigatura, riparazioni e nuova finitura.", "Superficie e stato", "Riparazioni", "Levigatura", "Finitura"),
     intervention("pareti", "Rivestimenti a parete", "Posa su superfici verticali.", "Superfici", "Materiale e formato", "Supporto e preparazione", "Tagli e posa"),
     intervention("esterni", "Pavimentazioni esterne", "Superfici esterne e relative preparazioni.", "Superficie e utilizzo", "Pendenze e sottofondo", "Materiali", "Posa e drenaggio"),
+    intervention("posa-parquet", "Posa parquet", "Parquet prefinito o massello sul supporto giusto.", "Superficie e fondo", "Prefinito o massello", "Disegno e giunti", "Posa e raccordi"),
+    intervention("scale", "Rivestimento scale", "Pedate, alzate e profili su misura per la scala.", "Misure dei gradini", "Materiale e sicurezza", "Profili e bordo", "Posa e raccordi"),
+    intervention("levigatura", "Levigatura marmo e cotto", "Recupero di marmo, cotto e graniglia esistenti.", "Materiale e stato", "Ciclo di lavorazione", "Finitura", "Trattamento e cura"),
   ] },
   { id: "piscine", title: "Piscine", sourceModule: "piscine", summary: "Nuove realizzazioni, rinnovi, impianti e cura stagionale.", interventions: [
     intervention("nuova", "Nuova piscina", "Struttura, impianti e finiture della nuova piscina.", "Dimensioni e terreno", "Struttura", "Impianti", "Finiture e accessori"),

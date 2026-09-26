@@ -59,7 +59,7 @@ export const MODULE68_EXPECTED: Record<AuditArea, readonly string[]> = {
   climatizzazione: ["monosplit", "multisplit", "canalizzato", "sostituzione", "manutenzione", "vmc"],
   termoidraulica: ["caldaia", "pompa-calore", "ibrido", "radiante", "terminali", "idrico", "acqua-calda", "manutenzione", "conto-termico", "full-electric", "pellet", "solare-termico", "trattamento-acqua"],
   elettrico: ["completo", "adeguamento", "punti", "quadro", "domotica", "videocitofonia", "ricarica", "antifurto", "illuminazione", "automazioni", "rete-dati"],
-  pavimenti: ["sovrapposizione", "rifacimento", "resina", "parquet", "pareti", "esterni"],
+  pavimenti: ["sovrapposizione", "rifacimento", "resina", "parquet", "pareti", "esterni", "posa-parquet", "scale", "levigatura"],
   piscine: ["nuova", "ristrutturazione", "rivestimento", "impianti", "accessori", "manutenzione"],
   facciate: ["cappotto", "rifacimento", "balconi", "tinteggiatura", "interno", "riparazioni"],
 };

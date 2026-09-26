@@ -4,7 +4,7 @@ import { CAPITOLI_EDILI } from "@/components/preventivi/pdf/ordineCapitoli";
 import { PAV_EDITORIAL, PAV_OPERATIONAL_IMAGES, type PavEditorialPair } from "./pavEditorialContent";
 export { PAV_EDITORIAL } from "./pavEditorialContent";
 
-export const FULL_PAV_MODULES = ["sovrapposizione", "rifacimento", "resina", "parquet", "pareti", "esterni"] as const;
+export const FULL_PAV_MODULES = ["sovrapposizione", "rifacimento", "resina", "parquet", "pareti", "esterni", "posa-parquet", "scale", "levigatura"] as const;
 export type FullPavModuleId = typeof FULL_PAV_MODULES[number];
 export const isFullPavModuleId = (id: string): id is FullPavModuleId => FULL_PAV_MODULES.some(value => value === id);
 export const PAV_MODULE_TITLES = Object.fromEntries(FULL_PAV_MODULES.map(id => [id, PAV_EDITORIAL[id].title])) as Record<FullPavModuleId, string>;

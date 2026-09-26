@@ -244,6 +244,12 @@ export const INTERVENTION_LIMITS: Record<string, string> = {
     "Preparazione e impermeabilizzazione del supporto non sono comprese nella sola posa se non indicate.",
   "pavimenti/esterni":
     "Pendenze, drenaggi e resistenza del sottofondo vanno verificati. Non basta scegliere un materiale per esterno.",
+  "pavimenti/posa-parquet":
+    "Il fondo va verificato per planarità e umidità; incollato o flottante sono soluzioni diverse. Il legno lavora: i giunti di dilatazione sono necessari, non un optional.",
+  "pavimenti/scale":
+    "Pedate e alzate si rilevano gradino per gradino: raramente sono identiche. Struttura, corrimano e parapetti sono a parte salvo voce esplicita.",
+  "pavimenti/levigatura":
+    "Il risultato dipende dallo stato del materiale: macchie penetrate e dislivelli possono restare. Marmo e cotto hanno cicli diversi; si valuta su zona campione.",
   "piscine/nuova":
     "Indagini sul terreno, opere esterne e allacci devono essere definiti. Dimensioni e dotazioni non si desumono dall'immagine.",
   "piscine/ristrutturazione":

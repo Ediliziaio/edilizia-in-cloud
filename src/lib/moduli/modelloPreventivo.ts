@@ -75,6 +75,7 @@ export const TIPO_INTERVENTO_DEL_MODELLO: Record<ModuloConModelli, Readonly<Reco
   pavimenti: {
     sovrapposizione: "sovrapposizione", rifacimento: "rifacimento", resina: "resina_microcemento",
     parquet: "levigatura_lucidatura", pareti: "nuova_posa", esterni: "nuova_posa",
+    "posa-parquet": "nuova_posa", scale: "nuova_posa", levigatura: "levigatura_lucidatura",
   },
   piscine: {
     nuova: "nuova_costruzione", ristrutturazione: "ristrutturazione", rivestimento: "ristrutturazione",
