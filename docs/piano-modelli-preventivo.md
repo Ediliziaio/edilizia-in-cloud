@@ -20,7 +20,7 @@ Ogni sessione aggiorna la sua riga a fine lotto.
 | 3 | Pergole e tende (area nuova) | 5 | ✅ fatto | eaa1bcf7c |
 | 4 | Ristrutturazioni | 5 | ✅ fatto | (in commit) |
 | 5 | Tetti | 3 | ✅ fatto | (in commit) |
-| 6 | Elettrico | 4 | da fare | |
+| 6 | Elettrico | 4 | ✅ fatto | (in commit) |
 | 7 | Termoidraulica | 3 | da fare | |
 | 8 | Pavimenti | 3 | da fare | |
 | 9 | Serramenti | 2 | da fare | |

@@ -62,6 +62,7 @@ export const TIPO_INTERVENTO_DEL_MODELLO: Record<ModuloConModelli, Readonly<Reco
   elettrico: {
     completo: "nuovo_impianto", adeguamento: "adeguamento_norma", punti: "ampliamento", quadro: "adeguamento_norma",
     domotica: "domotica", videocitofonia: "ampliamento", ricarica: "ampliamento",
+    antifurto: "ampliamento", illuminazione: "ampliamento", automazioni: "domotica", "rete-dati": "ampliamento",
   },
   termoidraulico: {
     caldaia: "sostituzione_generatore", "pompa-calore": "sostituzione_generatore", ibrido: "sostituzione_generatore",

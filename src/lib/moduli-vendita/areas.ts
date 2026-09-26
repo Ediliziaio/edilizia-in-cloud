@@ -109,6 +109,10 @@ export const SALES_AREAS: readonly SalesArea[] = [
     intervention("domotica", "Domotica e automazioni", "Controllo coordinato degli elementi dell'edificio.", "Funzioni richieste", "Dispositivi", "Integrazioni", "Configurazione e consegna"),
     intervention("videocitofonia", "Videocitofonia", "Postazioni esterne e interne.", "Ingressi e utenze", "Postazioni", "Cablaggi", "Installazione e configurazione"),
     intervention("ricarica", "Ricarica veicoli elettrici", "Punto di ricarica e infrastruttura necessaria.", "Potenza disponibile", "Dispositivo", "Linea e protezioni", "Installazione e configurazione"),
+    intervention("antifurto", "Antifurto e videosorveglianza", "Centrale, sensori e telecamere sugli accessi reali.", "Aree e accessi", "Sensori e telecamere", "Centrale e avvisi", "Configurazione e prova"),
+    intervention("illuminazione", "Illuminazione", "Punti luce, comandi e apparecchi per ogni ambiente.", "Mappa della luce", "Apparecchi e comandi", "Esterni e alimentazioni", "Posa e regolazioni"),
+    intervention("automazioni", "Cancelli e portoni automatici", "Motore, comandi e sicurezze sul cancello reale.", "Cancello e peso", "Motore e alimentazione", "Sicurezze del movimento", "Comandi e sblocco"),
+    intervention("rete-dati", "Rete dati e antenna", "Prese dati, cablaggio e antenna sulla casa reale.", "Punti dati", "Cablaggio e categoria", "Centro stella", "Antenna e segnale"),
   ] },
   { id: "pavimenti", title: "Pavimenti e rivestimenti", sourceModule: "pavimenti", summary: "Posa, rifacimenti, resine e recupero delle superfici.", interventions: [
     intervention("sovrapposizione", "Posa su fondo esistente", "Nuova pavimentazione conservando il fondo compatibile.", "Superficie e supporto", "Materiale e formato", "Preparazione", "Posa e finiture"),

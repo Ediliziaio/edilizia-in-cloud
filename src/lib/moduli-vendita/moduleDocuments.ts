@@ -218,6 +218,14 @@ export const INTERVENTION_LIMITS: Record<string, string> = {
     "Riutilizzo dei cablaggi e compatibilità con accessi esistenti vanno verificati. Le opere sulle parti comuni sono da concordare.",
   "elettrico/ricarica":
     "Potenza disponibile, gestione carichi e percorso della linea precedono la scelta. Aumenti di potenza non sono automaticamente inclusi.",
+  "elettrico/antifurto":
+    "La videosorveglianza comporta obblighi su informativa, segnaletica e aree riprese, da verificare. Canoni, cloud e collegamento a vigilanza non sono inclusi salvo voce esplicita.",
+  "elettrico/illuminazione":
+    "Predisporre un punto luce e fornire l'apparecchio sono voci distinte. Resa e temperatura di colore dipendono dagli apparecchi scelti, non dalle foto.",
+  "elettrico/automazioni":
+    "Le protezioni del movimento vanno previste secondo le regole in vigore. Struttura del cancello, opere murarie e videocitofonia sono a parte salvo voce esplicita.",
+  "elettrico/rete-dati":
+    "La copertura Wi-Fi dipende da muri, apparati e dispositivi, non dal solo numero di prese. Apparati del gestore e access point sono a parte salvo voce esplicita.",
   "pavimenti/sovrapposizione":
     "La posa è subordinata alla compatibilità del supporto. Rettifiche di porte, soglie e quote vanno valutate.",
   "pavimenti/rifacimento":
