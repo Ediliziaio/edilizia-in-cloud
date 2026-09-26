@@ -493,6 +493,104 @@ const TOOLS: ToolDef[] = [
     },
   },
   {
+    name: "crea_commessa",
+    description: "Crea una commessa/cantiere. Bastano la descrizione; opzionali numero e importo del contratto. La numerazione automatica e i dettagli (cliente, fasi) si completano poi dall'app.",
+    scope: "orders:write",
+    inputSchema: {
+      type: "object",
+      properties: {
+        descrizione: { type: "string", description: "Descrizione della commessa (obbligatoria)" },
+        numero: { type: "string", description: "Codice/numero commessa (opzionale; se vuoto si assegna dall'app)" },
+        importo: { type: "number", description: "Importo del contratto in euro (opzionale)" },
+        company: { type: "string", description: "Nome o UUID azienda (chiavi piattaforma)" },
+      },
+      required: ["descrizione"],
+      additionalProperties: false,
+    },
+    handler: async (admin, ctx, args) => {
+      const company = await resolveCompany(admin, ctx, args);
+      const descrizione = str(args.descrizione);
+      if (!descrizione) throw new ToolError("descrizione obbligatoria");
+      const importo = num(args.importo);
+      const { data, error } = await admin.from("orders").insert({
+        company_id: company.id,
+        description: descrizione,
+        order_code: str(args.numero),
+        total_amount: importo != null && importo >= 0 ? importo : 0,
+      }).select("id, order_code, description, total_amount, status").single();
+      if (error) throw error;
+      return { creata: true, azienda: company.name, commessa: data };
+    },
+  },
+  {
+    name: "lista_listino",
+    description: "Elenca le voci del listino/prezzario dell'azienda (nome, categoria, unità, prezzo di vendita).",
+    scope: "products:read",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Testo nel nome della voce" },
+        categoria: { type: "string", description: "Filtro per categoria (es. serramenti, edile, elettrico…)" },
+        limit: { type: "number", description: "Max risultati (default 30, max 100)" },
+        company: { type: "string", description: "Nome o UUID azienda (chiavi piattaforma)" },
+      },
+      additionalProperties: false,
+    },
+    handler: async (admin, ctx, args) => {
+      const company = await resolveCompany(admin, ctx, args);
+      let q = admin.from("article_families")
+        .select("id, nome, vertical, unit_of_measure, prezzo_base_vendita, vat_rate")
+        .eq("company_id", company.id)
+        .order("created_at", { ascending: false })
+        .limit(intLimit(args.limit, 30, 100));
+      const query = str(args.query);
+      if (query) q = q.ilike("nome", `%${query.replace(/[,()%_]/g, " ").trim()}%`);
+      const categoria = str(args.categoria);
+      if (categoria) q = q.eq("vertical", categoria);
+      const { data, error } = await q;
+      if (error) throw error;
+      return { azienda: company.name, voci: data ?? [] };
+    },
+  },
+  {
+    name: "carica_voce_listino",
+    description: "Aggiunge una voce al listino dell'azienda: nome (obbligatorio), categoria, unità di misura e prezzo di vendita.",
+    scope: "products:write",
+    inputSchema: {
+      type: "object",
+      properties: {
+        nome: { type: "string", description: "Nome della voce (obbligatorio)" },
+        categoria: { type: "string", description: "Categoria/verticale (es. edile, serramenti, elettrico…); default: generico" },
+        unita: { type: "string", description: "Unità di misura (pz, mq, ml, h…); default: pz" },
+        prezzo_vendita: { type: "number", description: "Prezzo di vendita in euro" },
+        prezzo_acquisto: { type: "number", description: "Prezzo di acquisto/costo in euro (opzionale)" },
+        iva: { type: "number", description: "Aliquota IVA % (default 22)" },
+        company: { type: "string", description: "Nome o UUID azienda (chiavi piattaforma)" },
+      },
+      required: ["nome"],
+      additionalProperties: false,
+    },
+    handler: async (admin, ctx, args) => {
+      const company = await resolveCompany(admin, ctx, args);
+      const nome = str(args.nome);
+      if (!nome) throw new ToolError("nome obbligatorio");
+      const vendita = num(args.prezzo_vendita);
+      const acquisto = num(args.prezzo_acquisto);
+      const iva = num(args.iva);
+      const { data, error } = await admin.from("article_families").insert({
+        company_id: company.id,
+        vertical: str(args.categoria) ?? "generico",
+        nome,
+        unit_of_measure: str(args.unita) ?? "pz",
+        prezzo_base_vendita: vendita != null && vendita >= 0 ? vendita : null,
+        prezzo_base_acquisto: acquisto != null && acquisto >= 0 ? acquisto : null,
+        vat_rate: iva != null && iva >= 0 ? iva : 22,
+      }).select("id, nome, vertical, unit_of_measure, prezzo_base_vendita, vat_rate").single();
+      if (error) throw error;
+      return { creata: true, azienda: company.name, voce: data };
+    },
+  },
+  {
     name: "invia_email",
     description: "Invia un'email transazionale dalla piattaforma (mittente e deliverability gestiti da Edilizia in Cloud). Usa con criterio: l'invio è reale.",
     scope: "email:send",
@@ -582,7 +680,9 @@ Deno.serve(async (req) => {
 
   // ── Autenticazione API key ────────────────────────────────────────────────
   const bearer = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
-  const apiKey = req.headers.get("x-api-key") ?? (bearer?.startsWith("eic_") ? bearer : null);
+  // x-api-key: qualunque prefisso (si autentica per hash). Authorization: Bearer:
+  // le chiavi piattaforma sono eic_…, quelle emesse dall'azienda sk_… (apiKeyUtils).
+  const apiKey = req.headers.get("x-api-key") ?? (/^(eic_|sk_)/.test(bearer ?? "") ? bearer : null);
   if (!apiKey) {
     return new Response(JSON.stringify(rpcError(null, -32001, "API key mancante: header x-api-key (o Authorization: Bearer eic_...)")), { status: 401, headers: jsonHeaders });
   }
