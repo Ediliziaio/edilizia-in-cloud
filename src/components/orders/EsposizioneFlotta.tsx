@@ -58,32 +58,35 @@ export function EsposizioneFlotta({
   const peggiori = aperte.slice(0, 3);
 
   return (
-    <div className="mt-2 sm:mt-3 rounded-xl border border-red-400/30 bg-red-500/10 p-2.5 sm:p-3">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-red-200">
-          Cantieri che stai finanziando tu
+    // Telefono: una riga sola — «Finanzi tu» e la cifra a sinistra, i cantieri
+    // (toccabili) che scorrono di lato. Era un riquadro di 120px sopra l'elenco.
+    <div className="mt-2 sm:mt-3 rounded-xl border border-red-400/30 bg-red-500/10 p-2.5 sm:p-3 max-sm:mt-0 max-sm:flex max-sm:items-center max-sm:gap-2 max-sm:p-2">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 max-sm:shrink-0 max-sm:flex-col max-sm:gap-0">
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-red-200 max-sm:text-[10px]">
+          <span className="max-sm:hidden">Cantieri che stai finanziando tu</span>
+          <span className="sm:hidden">Finanzi tu</span>
         </span>
-        <span className="text-lg font-bold text-white">−{formatCurrencyCompact(totale)}</span>
+        <span className="text-lg font-bold text-white max-sm:text-base max-sm:leading-tight">−{formatCurrencyCompact(totale)}</span>
       </div>
       {/* Mobile: titolo, cifra e cantieri bastano; la spiegazione no. */}
       <p className="mt-0.5 text-xs text-blue-50/70 max-sm:hidden">
         {aperte.length === 1 ? "1 commessa aperta ha" : `${aperte.length} commesse aperte hanno`} pagato più di
         quanto incassato — soldi tuoi nel cantiere.
       </p>
-      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+      <div className="mt-1.5 flex flex-wrap items-center gap-1.5 max-sm:mt-0 max-sm:min-w-0 max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:[scrollbar-width:none] max-sm:[&::-webkit-scrollbar]:hidden">
         {peggiori.map((r) => (
           <Link
             key={r.id}
             to={`/azienda/ordini/${r.id}`}
             title={r.description ?? undefined}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/10 px-2 py-1 text-xs text-white transition-colors hover:bg-white/20"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/10 px-2 py-1 text-xs text-white transition-colors hover:bg-white/20 max-sm:shrink-0"
           >
             <span className="font-medium">{r.order_code ?? "—"}</span>
             <span className="font-semibold text-red-200">−{formatCurrencyCompact(Math.abs(Number(r.saldo) || 0))}</span>
           </Link>
         ))}
         {aperte.length > peggiori.length && (
-          <span className="text-[11px] text-blue-50/70">+{aperte.length - peggiori.length} altre</span>
+          <span className="text-[11px] text-blue-50/70 max-sm:shrink-0">+{aperte.length - peggiori.length} altre</span>
         )}
       </div>
     </div>

@@ -1916,7 +1916,7 @@ function OrdersListInner() {
           è l'unico pezzo azionabile del blocco. empty:hidden — se il componente
           non ha nulla da dire (rende null), sparisce anche la cornice scura. */}
       {!analisiAperta && orderPerms.canViewOrderAmounts && orderPerms.canViewCosts && (
-        <div className="order-1 rounded-2xl bg-[#173b67] px-3 pb-3 empty:hidden sm:order-none [&:not(:has(*))]:hidden">
+        <div className="order-1 rounded-2xl bg-[#173b67] px-3 pb-3 empty:hidden sm:order-none [&:not(:has(*))]:hidden max-sm:p-1.5">
           <EsposizioneFlotta
             companyId={effectiveCompany?.id}
             excludeStatusIds={[lastStatusId]}
