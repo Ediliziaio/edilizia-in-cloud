@@ -30,6 +30,8 @@ import StripePaymentsCard from "@/components/integrations/StripePaymentsCard";
 // Popup components per integrazioni in modalità "popup"
 import GbpConnectionCard from "@/components/integrations/GbpConnectionCard";
 import GoogleAdsConnectionCard from "@/components/integrations/GoogleAdsConnectionCard";
+import ConnettoreAiPopup from "@/components/integrations/ConnettoreAiPopup";
+import { useApiKeys } from "@/hooks/useApiKeys";
 import { MetaIntegrationWizard } from "@/components/integrations/MetaIntegrationWizard";
 import { MetaTroubleshootDialog } from "@/components/integrations/MetaTroubleshootDialog";
 // Nuovo catalogo + grid
@@ -86,6 +88,13 @@ function makeMetaWizardWrapper(
 export default function SettingsIntegrations() {
   const { effectiveCompany, user, role } = useAuth();
   const companyId = (effectiveCompany as any)?.id;
+
+  // Assistente AI: quante chiavi (connessioni) attive e non scadute.
+  const { data: aiKeys = [] } = useApiKeys(companyId);
+  const aiKeysAttive = useMemo(
+    () => aiKeys.filter((k) => k.is_active && (!k.expires_at || new Date(k.expires_at) > new Date())).length,
+    [aiKeys],
+  );
   const userId = user?.id;
   const permissions = usePermissions();
   // Conti correnti e incassi con carta servono con tesoreria, preventivi o
@@ -283,6 +292,12 @@ export default function SettingsIntegrations() {
       detail: firstEmail?.email_address ?? null,
     };
 
+    // Assistente AI (Claude · ChatGPT): connesso se c'è una chiave attiva.
+    result["assistente-ai"] = {
+      status: aiKeysAttive > 0 ? "connected" : "disconnected",
+      detail: aiKeysAttive > 0 ? `${aiKeysAttive} ${aiKeysAttive === 1 ? "connessione" : "connessioni"}` : null,
+    };
+
     return result;
   }, [
     waConfig,
@@ -290,6 +305,7 @@ export default function SettingsIntegrations() {
     gbpConnection,
     googleAdsIntegration,
     emailConnections,
+    aiKeysAttive,
   ]);
 
   // ── KPI: X di Y connesse ──────────────────────────────────────────────────
@@ -336,6 +352,7 @@ export default function SettingsIntegrations() {
     () => ({
       "google-business": GbpPopupContent,
       "google-ads": GoogleAdsPopupContent,
+      "assistente-ai": ConnettoreAiPopup,
     }),
     [],
   );

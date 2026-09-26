@@ -74,6 +74,7 @@ export const API_SCOPE_GROUPS: ApiScopeGroup[] = [
     description: "Accesso al catalogo prodotti",
     scopes: [
       { id: "products:read", label: "Leggi prodotti", description: "Visualizza catalogo e prezzi" },
+      { id: "products:write", label: "Modifica listino", description: "Aggiunge voci al listino/prezzario aziendale" },
     ],
   },
   {
@@ -82,6 +83,16 @@ export const API_SCOPE_GROUPS: ApiScopeGroup[] = [
     description: "Accesso alle statistiche",
     scopes: [
       { id: "reports:read", label: "Leggi report", description: "Accedi a statistiche e KPI" },
+      // stats:read è lo scope che lo strumento MCP «statistiche_azienda» controlla.
+      { id: "stats:read", label: "Statistiche azienda", description: "KPI, fatturato e conteggi via assistente AI" },
+    ],
+  },
+  {
+    id: "comunicazione",
+    label: "Comunicazione",
+    description: "Invio email dall'assistente AI",
+    scopes: [
+      { id: "email:send", label: "Invia email", description: "Invio REALE di email — dallo strumento AI o via API" },
     ],
   },
   {
