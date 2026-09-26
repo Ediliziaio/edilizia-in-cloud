@@ -43,6 +43,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PoweredByBadge } from "@/components/shared/PoweredByBadge";
 import { CampoBottomNav } from "@/components/campo/CampoBottomNav";
+import { CampanellaCampo } from "@/components/campo/CampanellaCampo";
+import { NotificationsRealtime } from "@/hooks/useNotifications";
+import { linkPerCampo } from "@/lib/notifiche/linkCampo";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
 import {
   Sidebar,
@@ -306,6 +309,7 @@ export default function CampoLayout() {
                 Area {roleLabel}
               </p>
             </div>
+            <CampanellaCampo />
             <Button
               variant="ghost"
               size="icon"
@@ -329,7 +333,11 @@ export default function CampoLayout() {
                 </>
               )}
             </div>
+            <CampanellaCampo className="ml-auto" />
           </header>
+
+          {/* Avvisi in tempo reale (toast): i link dell'ufficio diventano quelli del campo. */}
+          <NotificationsRealtime trasformaLink={linkPerCampo} />
 
           {/* Page Content */}
           <main className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden md:overflow-visible px-3 py-3 sm:px-4 md:p-6 ${inFlussoCompilazione ? "pb-4" : "pb-28"} md:pb-6`}>

@@ -4,7 +4,7 @@
  * Accessibile a TUTTI i ruoli
  */
 import { useState, useRef, useEffect, useMemo } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { motivoPasswordRifiutata } from "@/lib/auth/cambioPassword";
@@ -122,8 +122,11 @@ export default function MioProfilo() {
   const isMobile = useIsMobile();
   const schedaSoloDesktop = tabParam === "calendari" || tabParam === "email";
   // Telefono: le notifiche stanno in Impostazioni → Notifiche, una pagina sola
-  // (26/09/2026); qui erano un doppione con le stesse preferenze.
-  const notificheAltrove = isMobile && tabParam === "notifiche";
+  // (26/09/2026); qui erano un doppione con le stesse preferenze. Solo
+  // nell'ufficio: il campo usa questa stessa pagina (CampoImpostazioni) e
+  // /azienda a operai e subappaltatori è chiusa.
+  const inUfficio = useLocation().pathname.startsWith("/azienda");
+  const notificheAltrove = isMobile && inUfficio && tabParam === "notifiche";
   const navigate = useNavigate();
   useEffect(() => {
     if (notificheAltrove) navigate("/azienda/impostazioni/notifiche", { replace: true });
