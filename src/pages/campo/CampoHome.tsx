@@ -25,6 +25,7 @@ import { useIsCampo } from "@/hooks/useIsCampo";
 import { useCampoAssignments } from "@/hooks/campo/useCampoAssignments";
 import { CampoCrewAgenda } from "@/components/campo/CampoCrewAgenda";
 import { CampoOggi } from "@/components/campo/CampoOggi";
+import { InterventiCampo } from "@/components/campo/InterventiCampo";
 import { useMiaGiornata } from "@/hooks/campo/useCampoGiornata";
 import { CampoPunchActions } from "@/components/campo/CampoPunchActions";
 import { useCampoDayTime } from "@/hooks/campo/useCampoDayTime";
@@ -173,6 +174,7 @@ export default function CampoHome() {
         <div className="space-y-3 md:space-y-6">
           {/* 🆕 GAP 5b: prompt rapportini di OGGI non ancora compilati (priorità alta) */}
           {isOperaio && <RapportiniDaCompilareOggi />}
+          {(isOperaio || isSubappaltatore) && <InterventiCampo />}
           {isOperaio && <CantieriAssegnati />}
           {isOperaio && <MioMezzoCampoCard />}
           {isSubappaltatore && <CantieriSub />}

@@ -154,6 +154,8 @@ export interface TicketDetail {
   order_id: string | null;
   impianto_id?: string | null;
   assigned_to: string | null;
+  /** Squadra mandata sull'intervento (external_teams interna). */
+  squadra_id?: string | null;
   category: string | null;
   internal_notes: string | null;
   /** Campi "intervento" — erano esclusivi di InterventiDetail, ora qui per unificazione. */

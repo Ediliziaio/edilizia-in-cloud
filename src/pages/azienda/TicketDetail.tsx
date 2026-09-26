@@ -96,7 +96,7 @@ export default function TicketDetail() {
         .from("tickets")
         .select(`
           id, subject, status, priority, tipo, fonte, created_at, customer_id, order_id,
-          assigned_to, category, internal_notes,
+          assigned_to, squadra_id, category, internal_notes,
           a_pagamento, motivo_gratuito, importo_preventivato, importo_finale,
           pagato, data_pagamento, metodo_pagamento, note_pagamento, merce_richiesta,
           ore_effettive, costo_orario_applicato, costo_trasferta, costo_materiale, scadenza_id,
@@ -197,6 +197,25 @@ export default function TicketDetail() {
         .limit(200);
       if (error) throw error;
       return (data || []).filter((p) => p.first_name || p.last_name);
+    },
+    enabled: !!effectiveCompany?.id,
+    staleTime: 10 * 60 * 1000,
+  });
+
+  // Le squadre interne: sull'intervento si può mandare una squadra intera invece
+  // di una persona sola. Chi ne fa parte lo vede nell'app di cantiere.
+  const { data: squadre = [] } = useQuery({
+    queryKey: ["squadre-interne", effectiveCompany?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("external_teams")
+        .select("id, name")
+        .eq("company_id", effectiveCompany!.id)
+        .eq("kind", "interna")
+        .eq("is_active", true)
+        .order("name");
+      if (error) throw error;
+      return (data ?? []) as { id: string; name: string }[];
     },
     enabled: !!effectiveCompany?.id,
     staleTime: 10 * 60 * 1000,
@@ -614,6 +633,28 @@ export default function TicketDetail() {
                   </SelectContent>
                 </Select>
               </div>
+              {/* Squadra: si può mandare una squadra intera. Chi ne fa parte
+                  vede l'intervento nell'app di cantiere, con data e indirizzo. */}
+              {squadre.length > 0 && (
+                <div className="flex items-center justify-between gap-2">
+                  <label className="text-xs text-muted-foreground shrink-0">Squadra</label>
+                  <Select
+                    value={ticket.squadra_id || "nessuna"}
+                    onValueChange={(v) => updateTicketMutation.mutate({ squadra_id: v === "nessuna" ? null : v })}
+                    disabled={updateTicketMutation.isPending}
+                  >
+                    <SelectTrigger className="tap-compact w-[160px] h-8 text-xs">
+                      <SelectValue placeholder="Nessuna squadra" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="nessuna">Nessuna squadra</SelectItem>
+                      {squadre.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               <Separator />
 

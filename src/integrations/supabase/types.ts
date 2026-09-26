@@ -89722,6 +89722,7 @@ export type Database = {
           priority: Database["public"]["Enums"]["ticket_priority"]
           richiami_count: number
           scadenza_id: string | null
+          squadra_id: string | null
           status: Database["public"]["Enums"]["ticket_status"]
           subject: string
           tipo: string | null
@@ -89773,6 +89774,7 @@ export type Database = {
           priority?: Database["public"]["Enums"]["ticket_priority"]
           richiami_count?: number
           scadenza_id?: string | null
+          squadra_id?: string | null
           status?: Database["public"]["Enums"]["ticket_status"]
           subject: string
           tipo?: string | null
@@ -89824,6 +89826,7 @@ export type Database = {
           priority?: Database["public"]["Enums"]["ticket_priority"]
           richiami_count?: number
           scadenza_id?: string | null
+          squadra_id?: string | null
           status?: Database["public"]["Enums"]["ticket_status"]
           subject?: string
           tipo?: string | null
@@ -102967,6 +102970,7 @@ export type Database = {
       campo_mezzi_giornata: { Args: { p_order_id: string }; Returns: Json }
       campo_mia_giornata: { Args: { p_dal?: string | null; p_giorni?: number | null }; Returns: Json }
       campo_mie_fasi: { Args: { p_order_id: string }; Returns: Json }
+      campo_miei_interventi: { Args: { p_dal?: string | null; p_giorni?: number | null }; Returns: Json }
       campo_mio_ruolo: { Args: { p_order_id: string }; Returns: Json }
       campo_note_cantiere: { Args: { p_order_id: string }; Returns: Json }
       campo_squadra_rapportino: {
