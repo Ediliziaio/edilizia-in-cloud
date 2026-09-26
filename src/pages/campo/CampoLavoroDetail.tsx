@@ -2,12 +2,12 @@
  * Dettaglio ordine/cantiere assegnato all'operaio o subappaltatore.
  * Verifica accesso tramite order_campo_assignments — sicurezza obbligatoria.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ImgRiservata } from "@/components/common/ImgRiservata";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { NoteCantiereCampo } from "@/components/campo/NoteCantiereCampo";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import {
   ArrowLeft, MapPin, Phone, Plus, AlertCircle,
@@ -203,6 +203,25 @@ function withTimeout<T>(promise: PromiseLike<T>, timeoutMs: number, fallback: T,
     timer = setTimeout(() => { onTimeout?.(); resolve(fallback); }, timeoutMs);
   });
   return Promise.race([Promise.resolve(promise), timeout]).finally(() => clearTimeout(timer));
+}
+
+interface FaseMia {
+  id: string;
+  nome: string;
+  dal: string | null;
+  al: string | null;
+  /** Ci sono io (persona o ditta sulla fase). */
+  tu: boolean;
+  /** La mia squadra, se la fa la mia squadra. */
+  squadra: string | null;
+}
+
+/** «15 ott – 21 ott», «dal 15 ott», «fino al 21 ott». */
+function periodoFase(f: Pick<FaseMia, "dal" | "al">): string {
+  const g = (d: string) => format(parseISO(d), "d MMM", { locale: it });
+  if (f.dal && f.al) return f.dal === f.al ? g(f.dal) : `${g(f.dal)} – ${g(f.al)}`;
+  if (f.dal) return `dal ${g(f.dal)}`;
+  return f.al ? `fino al ${g(f.al)}` : "";
 }
 
 export default function CampoLavoroDetail() {
@@ -418,6 +437,20 @@ export default function CampoLavoroDetail() {
       }));
     },
   });
+
+  // Le date delle fasi e quali toccano a me (io o la mia squadra).
+  const { data: mieFasi = [] } = useQuery({
+    queryKey: ["campo-mie-fasi", orderId],
+    enabled: !!orderId && activeTab === "descrizione",
+    staleTime: 60_000,
+    queryFn: async (): Promise<FaseMia[]> => {
+      const { data, error } = await supabase.rpc("campo_mie_fasi", { p_order_id: orderId! });
+      if (error) throw error;
+      return (data ?? []) as unknown as FaseMia[];
+    },
+  });
+  const faseMia = useMemo(() => new Map(mieFasi.map((f) => [f.id, f])), [mieFasi]);
+  const quanteMie = mieFasi.filter((f) => f.tu || f.squadra).length;
 
   // Rapportini dell'utente su questo ordine
   const { data: rapportini = [] } = useQuery<CampoRapportinoRow[]>({
@@ -811,7 +844,14 @@ export default function CampoLavoroDetail() {
             {fasiCommessa.length > 0 && (
               <div className="bg-background border border-border rounded-2xl p-4 shadow-sm">
                 <div className="mb-3 flex items-center justify-between">
-                  <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Fasi di lavoro</p>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Fasi di lavoro</p>
+                    {quanteMie > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        {quanteMie === 1 ? "Quella colorata è la tua" : `Le ${quanteMie} colorate sono le tue`}
+                      </p>
+                    )}
+                  </div>
                   <span className="text-xs font-semibold text-primary">
                     {fasiCommessa.filter(f => f.status === "completata").length}/{fasiCommessa.length} completate
                   </span>
@@ -820,8 +860,13 @@ export default function CampoLavoroDetail() {
                   {fasiCommessa.map((fase) => {
                     const done = fase.status === "completata";
                     const pct = done ? 100 : fase.percentuale;
+                    const mia = faseMia.get(fase.id);
+                    const miaDavvero = !!mia && (mia.tu || !!mia.squadra);
                     return (
-                      <div key={fase.id}>
+                      <div
+                        key={fase.id}
+                        className={miaDavvero ? "-mx-2 rounded-xl border border-violet-200 bg-violet-50/70 px-2 py-2 dark:border-violet-900 dark:bg-violet-950/30" : undefined}
+                      >
                         <div className="mb-1 flex items-center justify-between gap-2">
                           <div className="flex min-w-0 items-center gap-2">
                             {done ? (
@@ -833,9 +878,18 @@ export default function CampoLavoroDetail() {
                                 }`}
                               />
                             )}
-                            <p className={`min-w-0 truncate text-sm ${done ? "text-muted-foreground line-through" : "font-medium text-foreground"}`}>
-                              {fase.name}
-                            </p>
+                            <div className="min-w-0">
+                              <p className={`min-w-0 truncate text-sm ${done ? "text-muted-foreground line-through" : "font-medium text-foreground"}`}>
+                                {fase.name}
+                              </p>
+                              {(mia?.dal || mia?.al || miaDavvero) && (
+                                <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+                                  {(mia?.dal || mia?.al) && <span className="tabular-nums">{periodoFase(mia!)}</span>}
+                                  {mia?.tu && <span className="font-semibold text-violet-700 dark:text-violet-300">Tu</span>}
+                                  {mia?.squadra && <span className="font-semibold text-orange-700 dark:text-orange-300">{mia.squadra}</span>}
+                                </p>
+                              )}
+                            </div>
                           </div>
                           <span className={`shrink-0 text-xs font-bold ${done ? "text-green-600" : "text-primary"}`}>
                             {pct}%

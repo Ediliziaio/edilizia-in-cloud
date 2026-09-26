@@ -2,13 +2,12 @@ import { cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useOrderWorkPhases, type AddAssignmentPayload } from "@/hooks/useOrderWorkPhases";
 
-const mocks = vi.hoisted(() => ({ from: vi.fn(), invalidate: vi.fn(), warning: vi.fn(), error: vi.fn() }));
+const mocks = vi.hoisted(() => ({ from: vi.fn(), invalidate: vi.fn(), warning: vi.fn(), error: vi.fn(), employees: undefined as unknown }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: mocks.from } }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "company" } }) }));
-vi.mock("@/utils/logger", () => ({ logger: { error: vi.fn() } }));
 vi.mock("sonner", () => ({ toast: { warning: mocks.warning, error: mocks.error } }));
 vi.mock("@tanstack/react-query", () => ({
-  useQuery: () => ({ data: undefined as undefined, isLoading: false, isError: false, refetch: vi.fn() }),
+  useQuery: ({ queryKey }: { queryKey: unknown[] }) => ({ data: queryKey[0] === "employees_active" ? mocks.employees : undefined, isLoading: false, isError: false, refetch: vi.fn() }),
   useQueryClient: () => ({ invalidateQueries: mocks.invalidate }),
   useMutation: (config: { mutationFn: (arg: unknown) => Promise<unknown>; onSuccess?: (result: unknown) => void; onError?: (error: unknown) => void }) => ({
     mutateAsync: async (arg: unknown) => {
@@ -44,22 +43,24 @@ describe("Collegamento assegnazione e app Campo (API simulate)", () => {
     await result.current.addAssignment.mutateAsync({ ...payload, executor_type: "esterno", employee_id: null as null, external_team_id: "team" });
     expect(assignments.insert).toHaveBeenCalledOnce();
   });
-  it("conserva la manodopera e avvisa se l'inserimento dell'accesso fallisce", async () => {
-    const labor = builder(null); const employee = builder({ data: { user_id: "user" }, error: null as null });
-    const campo = builder({ data: null as null, error: null as null }, { error: { message: "policy" } });
-    mocks.from.mockImplementation((table: string) => table === "order_employees" ? labor : table === "employees" ? employee : campo);
+  it("una persona messa su una fase: il browser salva solo il lavoro, l'accesso all'app lo dà il database", async () => {
+    const labor = builder(null); const altro = builder(null);
+    mocks.from.mockImplementation((table: string) => table === "order_employees" ? labor : altro);
     const { result } = renderHook(() => useOrderWorkPhases("order"));
     await result.current.addAssignment.mutateAsync(payload);
     expect(labor.insert).toHaveBeenCalledTimes(1);
-    expect(mocks.warning).toHaveBeenCalledWith(expect.stringContaining("accesso app Campo da verificare"), expect.any(Object));
+    expect(mocks.from).not.toHaveBeenCalledWith("order_campo_assignments");
+    expect(mocks.invalidate).toHaveBeenCalledWith({ queryKey: ["order-campo-assignments", "order"] });
     expect(mocks.invalidate).toHaveBeenCalledWith({ queryKey: ["campo-lavori-assegnati"] });
   });
-  it("non duplica un accesso Campo già esistente", async () => {
-    const labor = builder(null); const employee = builder({ data: { user_id: "user" }, error: null as null });
-    const campo = builder({ data: { id: "existing" }, error: null as null });
-    mocks.from.mockImplementation((table: string) => table === "order_employees" ? labor : table === "employees" ? employee : campo);
-    const { result } = renderHook(() => useOrderWorkPhases("order")); await result.current.addAssignment.mutateAsync(payload);
-    expect(campo.insert).not.toHaveBeenCalled(); expect(mocks.warning).not.toHaveBeenCalled();
+  it("avvisa in parole semplici se la persona non ha l'app", async () => {
+    const labor = builder(null);
+    mocks.from.mockReturnValue(labor);
+    mocks.employees = [{ id: "employee", label: "Mario Rossi", campoUserId: null }];
+    const { result } = renderHook(() => useOrderWorkPhases("order"));
+    await result.current.addAssignment.mutateAsync(payload);
+    expect(mocks.warning).toHaveBeenCalledWith("Mario Rossi è al lavoro, ma non ha l'app", expect.objectContaining({ description: expect.stringContaining("Non vedrà questa commessa sul telefono") }));
+    mocks.employees = undefined;
   });
   it("non tenta di creare accessi se la riga di manodopera non viene salvata", async () => {
     const labor = builder(null, { error: new Error("errore primario") }); mocks.from.mockReturnValue(labor);

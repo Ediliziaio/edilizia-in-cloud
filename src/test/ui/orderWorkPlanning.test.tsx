@@ -25,7 +25,8 @@ vi.mock("@/hooks/useOrderWorkPhases", () => ({
     materialsByPhase: new Map(), unassignedMaterials: [] as unknown[], setMaterialPhase: { mutate: vi.fn() }, splitMaterial: { mutate: vi.fn() },
   }),
 }));
-vi.mock("@/components/orders/OrderLaborCosts", () => ({ OrderLaborCosts: ({ editable }: { editable: boolean }) => <div>Accessi Campo {editable ? "modificabili" : "sola lettura"}</div> }));
+vi.mock("@/components/orders/OrderLaborCosts", () => ({ OrderLaborCosts: ({ editable, parte }: { editable: boolean; parte?: string }) => <div>Ditte {parte} {editable ? "modificabili" : "sola lettura"}</div> }));
+vi.mock("@/components/orders/AppCantiere", () => ({ AppCantiere: ({ modificabile }: { modificabile: boolean }) => <div>Nell'app {modificabile ? "capocantiere modificabile" : "sola lettura"}</div> }));
 vi.mock("@/components/orders/CreatePurchaseOrderButton", () => ({ CreatePurchaseOrderButton: () => <button>Crea OdA</button> }));
 // Squadre della commessa (26/09): qui conta il blocco delle lavorazioni.
 vi.mock("@/components/manodopera/SquadreCommessa", () => ({
@@ -55,7 +56,7 @@ afterEach(cleanup);
 const draw = () => render(<OrderWorkPhases orderId="order" />);
 const chooseEmployee = () => {
   HTMLElement.prototype.scrollIntoView = vi.fn();
-  fireEvent.keyDown(screen.getByRole("combobox", { name: "Seleziona esecutore" }), { key: "ArrowDown" });
+  fireEvent.keyDown(screen.getByRole("combobox", { name: "Scegli chi" }), { key: "ArrowDown" });
   fireEvent.click(screen.getByRole("option", { name: "Mario Rossi" }));
 };
 
@@ -63,8 +64,8 @@ describe("Lavorazioni e squadra", () => {
   it("il nuovo selettore esterno non offre le squadre di dipendenti", () => {
     HTMLElement.prototype.scrollIntoView = vi.fn(); draw();
     fireEvent.click(screen.getAllByRole("button", { name: "Persona o ditta" })[0]);
-    fireEvent.click(screen.getByRole("button", { name: "Ditta esterna" }));
-    fireEvent.keyDown(screen.getByRole("combobox", { name: "Seleziona esecutore" }), { key: "ArrowDown" });
+    fireEvent.click(screen.getByRole("button", { name: "Una ditta" }));
+    fireEvent.keyDown(screen.getByRole("combobox", { name: "Scegli chi" }), { key: "ArrowDown" });
     expect(screen.getByRole("option", { name: "Edil Alfa" })).toBeInTheDocument();
     expect(screen.queryByRole("option", { name: "Squadra dipendenti" })).not.toBeInTheDocument();
   });
@@ -72,12 +73,14 @@ describe("Lavorazioni e squadra", () => {
     state.unassigned = [assignment({ id: "old", source: "team", executor_type: "esterno", employee_id: null, external_team_id: "si", phase_id: null })];
     draw(); expect(screen.getByText("Squadra dipendenti")).toBeInTheDocument();
   });
-  it("apre accessi e referenti dall'azione rapida senza mutazioni", () => {
-    HTMLElement.prototype.scrollIntoView = vi.fn(); draw();
-    const details = screen.getByText(/Accesso all.app e ditte in subappalto/).closest("details");
-    expect(details).not.toHaveAttribute("open");
-    fireEvent.click(screen.getByRole("button", { name: "Accesso all'app e ditte in subappalto" }));
-    expect(details).toHaveAttribute("open"); expect(state.add).not.toHaveBeenCalled();
+  it("l'app non è una sezione a parte: chi vede il cantiere sta dentro Lavori e squadre", () => {
+    draw();
+    expect(screen.queryByText(/Accesso all.app e ditte in subappalto/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Accesso all.app/ })).not.toBeInTheDocument();
+    expect(screen.getByText("Nell'app capocantiere modificabile")).toBeInTheDocument();
+    // le ditte in subappalto restano, da sole (DURC e contratto)
+    expect(screen.getByText("Ditte ditte modificabili")).toBeInTheDocument();
+    expect(state.add).not.toHaveBeenCalled();
   });
   it("separa il consuntivo iniziale dalla nuova assegnazione", () => {
     draw(); fireEvent.click(screen.getAllByRole("button", { name: "Persona o ditta" })[0]);
@@ -105,7 +108,8 @@ describe("Lavorazioni e squadra", () => {
     expect(screen.queryByRole("button", { name: "Persona o ditta" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Elimina fase" })).not.toBeInTheDocument();
     expect(screen.getByLabelText("Data inizio prevista")).toBeDisabled();
-    expect(screen.getByText("Accessi Campo sola lettura")).toBeInTheDocument();
+    expect(screen.getByText("Ditte ditte sola lettura")).toBeInTheDocument();
+    expect(screen.getByText("Nell'app sola lettura")).toBeInTheDocument();
   });
   it("distingue errore da cantiere vuoto", () => {
     state.error = true; draw(); expect(screen.getByText(/Impossibile caricare le lavorazioni/)).toBeInTheDocument();
@@ -134,10 +138,10 @@ describe("Lavorazioni e squadra", () => {
   it("apre l'assegnazione sul lavoro, non sui costi, e distingue gli esterni", () => {
     draw(); fireEvent.click(screen.getAllByRole("button", { name: "Persona o ditta" })[0]);
     const dialog = screen.getByRole("dialog");
-    expect(within(dialog).getByLabelText("Lavorazione da assegnare")).toHaveValue("");
-    fireEvent.click(within(dialog).getByRole("button", { name: "Ditta esterna" }));
+    expect(within(dialog).getByLabelText("Fase")).toHaveValue("");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Una ditta" }));
     expect(within(dialog).queryByLabelText("Ore già registrate (facoltativo)")).not.toBeInTheDocument();
-    expect(within(dialog).getByText(/non abilita automaticamente un account/)).toBeInTheDocument();
+    expect(within(dialog).getByText("Se la ditta ha l'app, vede la commessa per tutta la durata dei lavori.")).toBeInTheDocument();
     expect(state.add).not.toHaveBeenCalled();
   });
   it("conserva creazione manuale e modelli senza salvataggi all'apertura", () => {
@@ -153,14 +157,14 @@ describe("Lavorazioni e squadra", () => {
     state.phases = [phase({ assignments: [] })]; draw();
     fireEvent.click(screen.getAllByRole("button", { name: "Persona o ditta" })[0]);
     chooseEmployee();
-    fireEvent.change(screen.getByLabelText("Lavorazione da assegnare"), { target: { value: "p1" } });
+    fireEvent.change(screen.getByLabelText("Fase"), { target: { value: "p1" } });
     fireEvent.click(screen.getByRole("button", { name: "Conferma assegnazione" }));
     expect(state.add).toHaveBeenCalledWith(expect.objectContaining({ executor_type: "interno", employee_id: "e1", external_team_id: null,
       phase_id: "p1", cost_preventivo: 0, cost_consuntivo: 0, hours: null, is_paid: false }), expect.any(Object));
   });
   it("non crea una seconda riga della stessa persona sulla stessa fase", () => {
     draw(); fireEvent.click(screen.getAllByRole("button", { name: "Persona o ditta" })[0]);
-    chooseEmployee(); fireEvent.change(screen.getByLabelText("Lavorazione da assegnare"), { target: { value: "p1" } });
+    chooseEmployee(); fireEvent.change(screen.getByLabelText("Fase"), { target: { value: "p1" } });
     fireEvent.click(screen.getByRole("button", { name: "Conferma assegnazione" }));
     expect(state.add).not.toHaveBeenCalled();
   });

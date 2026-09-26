@@ -8,6 +8,7 @@
  * cantiere a chi ce l'ha; toglierla toglie solo gli accessi dati dalla squadra.
  */
 import { useState, type DragEvent } from "react";
+import { AZIONE_TENUE } from "@/lib/manodopera/colori";
 import { Link } from "react-router-dom";
 import { Crown, GripVertical, Pencil, Plus, Smartphone, X } from "lucide-react";
 import { toast } from "sonner";
@@ -115,7 +116,7 @@ export function SquadreCommessa({
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed px-4 py-3 text-sm text-muted-foreground">
           <span>Nessuna squadra su tutta la commessa. Puoi anche mettere una squadra solo su una fase, dentro la fase.</span>
           {modificabile && (
-            <Button size="sm" variant="outline" onClick={() => onAggiungiAperto(true)}>Aggiungi squadra</Button>
+            <Button size="sm" variant="outline" className={AZIONE_TENUE.squadra} onClick={() => onAggiungiAperto(true)}>Aggiungi squadra</Button>
           )}
         </div>
         <SquadraCommessaDialog aperto={aggiungiAperto} onAperto={onAggiungiAperto} orderId={orderId} />
@@ -374,7 +375,7 @@ export function SquadreFase({
       {modificabile && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button size="sm" variant="outline" className="h-8 gap-1 rounded-full border-dashed px-3" disabled={metti.isPending}>
+            <Button size="sm" variant="outline" className={cn("h-8 gap-1 rounded-full px-3", AZIONE_TENUE.squadra)} disabled={metti.isPending}>
               <Plus className="h-3.5 w-3.5" aria-hidden="true" />Squadra
             </Button>
           </DropdownMenuTrigger>

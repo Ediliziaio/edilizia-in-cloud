@@ -3,7 +3,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { logger } from "@/utils/logger";
 import { refreshWorkQueries } from "@/lib/orders/refreshWorkQueries";
 
 export type PhaseStatus = "da_iniziare" | "in_corso" | "completata";
@@ -453,45 +452,13 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
         });
         if (error) throw error;
 
-        // UNIFICAZIONE delle due porte (senso inverso): il dipendente messo
-        // in fase deve poter aprire la commessa dall'app campo. Se la sua
-        // scheda ha l'account collegato, si crea l'assegnazione cantiere
-        // mancante. Best-effort: un intoppo qui non annulla l'esecutore.
-        try {
-          const { data: emp, error: empError } = await db
-            .from("employees")
-            .select("user_id")
-            .eq("id", a.employee_id)
-            .maybeSingle();
-          if (empError) throw empError;
-          if (emp?.user_id && companyId) {
-            const { data: giaAssegnato, error: assignmentError } = await db
-              .from("order_campo_assignments")
-              .select("id")
-              .eq("order_id", orderId)
-              .eq("user_id", emp.user_id)
-              .limit(1)
-              .maybeSingle();
-            if (assignmentError) throw assignmentError;
-            if (!giaAssegnato) {
-              const { error: campoError } = await db.from("order_campo_assignments").insert({
-                company_id: companyId,
-                order_id: orderId,
-                user_id: emp.user_id,
-                role_type: "employee",
-                is_capocantiere: false,
-              });
-              if (campoError) throw campoError;
-            }
-          } else if (!emp?.user_id) {
-            toast.warning("Dipendente assegnato senza account Campo", {
-              description: "Il lavoro è assegnato. Collega un account alla scheda dipendente per consentirgli di inviare rapportini dall'app.",
-            });
-          }
-        } catch (e) {
-          logger.error("[addAssignment] assegnazione campo non creata:", e);
-          toast.warning("Manodopera assegnata, ma accesso app Campo da verificare", {
-            description: "La riga è stata salvata. Controlla la sezione App Campo senza ripetere l'assegnazione.",
+        // Chi è messo su una fase trova la commessa nell'app da solo, nei
+        // giorni della fase: lo fa il database (commessa_allinea_accessi).
+        // Qui solo l'avviso quando la persona l'app non ce l'ha.
+        const persona = employees.find((e) => e.id === a.employee_id);
+        if (persona && !persona.campoUserId) {
+          toast.warning(`${persona.label} è al lavoro, ma non ha l'app`, {
+            description: "Non vedrà questa commessa sul telefono. Puoi dargli l'app dalla sua scheda in Manodopera.",
           });
         }
       } else {

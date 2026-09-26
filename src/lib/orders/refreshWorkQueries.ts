@@ -7,7 +7,7 @@ export function refreshWorkQueries(qc: QueryClient, orderId: string | null | und
     "order_work_phases", "order-phases-progress", "order-schedule-health",
     "order-employees", "order-external-teams", "oes-employees", "oes-external-teams",
     "order-campo-assignments", "order-items-materials", "order-campo-rapportini",
-    "campo-lavoro", "campo-fasi-commessa", "campo-ruolo", "campo-squadra",
+    "campo-lavoro", "campo-fasi-commessa", "campo-mie-fasi", "note-cantiere", "campo-ruolo", "campo-squadra",
     "campo-rapportini-ordine", "campo-rapportino-gia-oggi", "campo-lavoro-rapportino-oggi",
   ];
   const sharedKeys = [

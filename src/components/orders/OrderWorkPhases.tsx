@@ -51,6 +51,8 @@ import { cn } from "@/lib/utils";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { OrderLaborCosts } from "@/components/orders/OrderLaborCosts";
+import { AppCantiere } from "@/components/orders/AppCantiere";
+import { AZIONE_PIENA, AZIONE_TENUE } from "@/lib/manodopera/colori";
 import { CreatePurchaseOrderButton } from "@/components/orders/CreatePurchaseOrderButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -137,6 +139,7 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports }: OrderWork
   const squadreAttive = [...new Map(squadre.filter((x) => x.attiva && !x.finita).map((x) => [x.squadra_id, x])).values()];
   const operaiInSquadra = new Set(squadreAttive.flatMap((x) => x.componenti.map((c) => c.id))).size;
   const squadreGenerali = squadre.filter((x) => !x.phase_id);
+  const nomiSquadre = useMemo(() => new Map(squadre.map((x) => [x.squadra_id, x.nome])), [squadre]);
   // Per ogni fase: le sue squadre e le sue note (una lettura sola per tutte le fasi).
   const squadrePerFase = useMemo(() => {
     const m = new Map<string, SquadraInCommessa[]>();
@@ -182,7 +185,6 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports }: OrderWork
   const [newPhaseOpen, setNewPhaseOpen] = useState(false);
   const [filter, setFilter] = useState<WorkFilter>("all");
   const [search, setSearch] = useState("");
-  const accessDetails = useRef<HTMLDetailsElement>(null);
   const phaseList = useRef<HTMLDivElement>(null);
   const today = format(new Date(), "yyyy-MM-dd");
   const fasiConSquadra = useMemo(() => new Set(squadre.filter((x) => x.phase_id).map((x) => x.phase_id as string)), [squadre]);
@@ -251,12 +253,12 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports }: OrderWork
             {/* Tre cose sole, sempre nello stesso ordine: le fasi, chi lavora,
                 e (a parte) persone e ditte con i costi. */}
             {canEditOrders && (
-              <Button size="sm" variant="outline" className="max-sm:hidden" onClick={() => setNewPhaseOpen(true)}>
+              <Button size="sm" variant="outline" className={cn("max-sm:hidden", AZIONE_PIENA.fase)} onClick={() => setNewPhaseOpen(true)}>
                 <ListPlus className="mr-1 h-4 w-4" />Fasi di lavoro
               </Button>
             )}
             {puoSquadre && (
-              <Button size="sm" variant="outline" onClick={() => setAggiungiSquadra(true)}>
+              <Button size="sm" variant="outline" className={AZIONE_PIENA.squadra} onClick={() => setAggiungiSquadra(true)}>
                 <UsersRound className="mr-1 h-4 w-4" />Squadra
               </Button>
             )}
@@ -269,6 +271,7 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports }: OrderWork
               existingAssignments={[...unassigned, ...phases.flatMap(p => p.assignments)]}
               triggerLabel="Persona o ditta"
               triggerVariant="outline"
+              triggerClassName={AZIONE_PIENA.persona}
               onAdd={(payload, opts) => addAssignment.mutate(payload, opts)}
             />
             <Dialog open={newPhaseOpen} onOpenChange={(o) => (o ? setNewPhaseOpen(true) : closePhaseDialog())}>
@@ -397,12 +400,6 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports }: OrderWork
               {" · "}<b className="font-semibold text-slate-900">{note.length}</b> {note.length === 1 ? "nota" : "note"}
             </span>
             <span className="flex items-center gap-1 sm:ml-auto">
-              <Button variant="ghost" size="sm" className="h-8" aria-label="Accesso all'app e ditte in subappalto" onClick={() => {
-                if (!accessDetails.current) return;
-                accessDetails.current.open = true;
-                accessDetails.current.querySelector("summary")?.focus();
-                accessDetails.current.scrollIntoView({ behavior: "smooth", block: "start" });
-              }}>Accesso all'app</Button>
               {onOpenReports && <Button variant="ghost" size="sm" className="h-8" aria-label="Vai ai rapportini" onClick={onOpenReports}>Rapportini</Button>}
               {summary.attention > 0 && <Button variant="ghost" size="sm" className="h-8 text-amber-700" onClick={() => {
                 setFilter("attention"); setSearch(""); phaseList.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -473,6 +470,11 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports }: OrderWork
             onFasi={() => setNewPhaseOpen(true)}
             onSquadra={() => setAggiungiSquadra(true)}
           />
+        )}
+
+        {/* Chi vede il cantiere nell'app e il capocantiere: segue chi lavora. */}
+        {!isLoading && !isError && !(phases.length === 0 && unassigned.length === 0 && squadre.length === 0) && (
+          <AppCantiere orderId={orderId} modificabile={puoSquadre} nomiSquadre={nomiSquadre} />
         )}
 
         <section aria-labelledby="note-operai" className="space-y-2">
@@ -573,14 +575,8 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports }: OrderWork
           </>
         )}
 
-        {/* ── Capocantiere, operai, subappalti e cantiere (sistema operativo) ── */}
-        <details ref={accessDetails} className="scroll-mt-24 rounded-lg border">
-          <summary className="cursor-pointer p-3 text-sm font-semibold">Accesso all'app e ditte in subappalto <span className="ml-1 font-normal text-muted-foreground">· capocantiere, chi vede il cantiere sul telefono, DURC e SAL</span></summary>
-          <div className="border-t p-3">
-          <p className="mb-3 text-xs text-muted-foreground">Chi è in una squadra riceve l'accesso da solo quando la squadra è sulla commessa. Qui aggiungi a mano chi non è in una squadra e i referenti delle ditte.</p>
-          <OrderLaborCosts orderId={orderId} editable={canEditOrders} embedded />
-          </div>
-        </details>
+        {/* Le ditte in subappalto (DURC e contratto), solo se ce ne sono. */}
+        <OrderLaborCosts orderId={orderId} editable={canEditOrders} embedded parte="ditte" />
       </CardContent>
     </Card>
   );
@@ -1036,6 +1032,7 @@ function PhaseCard({
                       phases={allPhases}
                       existingAssignments={allAssignments}
                       triggerLabel="Persona o ditta"
+                      triggerClassName={cn("h-8 rounded-full px-3", AZIONE_TENUE.persona)}
                       onAdd={onAddAssignment}
                     />}
                   </div>
@@ -1321,6 +1318,8 @@ interface AddAssignmentDialogProps {
   triggerLabel?: string;
   /** Variante del bottone trigger (default "outline"). */
   triggerVariant?: "default" | "outline";
+  /** Colore del bottone (vedi lib/manodopera/colori). */
+  triggerClassName?: string;
   /** Aperto da fuori (es. dal menu «Aggiungi»): senza bottone proprio. */
   aperto?: boolean;
   onAperto?: (o: boolean) => void;
@@ -1352,6 +1351,7 @@ function AddAssignmentDialog({
   existingAssignments = [],
   triggerLabel = "Persona o ditta",
   triggerVariant = "outline",
+  triggerClassName,
   aperto,
   onAperto,
   onAdd,
@@ -1526,7 +1526,7 @@ function AddAssignmentDialog({
       }}
     >
       {!controllato && <DialogTrigger asChild>
-        <Button variant={triggerVariant} size="sm">
+        <Button variant={triggerVariant} size="sm" className={triggerClassName}>
           <Plus className="mr-1 h-4 w-4" />
           {triggerLabel}
         </Button>
@@ -1534,19 +1534,19 @@ function AddAssignmentDialog({
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
           <DialogTitle className="pr-6">Assegna una persona o una ditta</DialogTitle>
-          <DialogDescription>Per la manodopera di una lavorazione: un dipendente o una ditta esterna. Le squadre si aggiungono con «Aggiungi squadra». Budget e costi sono facoltativi.</DialogDescription>
+          <DialogDescription>Chi fa il lavoro: un tuo operaio o una ditta. Una squadra intera si mette col bottone «Squadra». I costi sono facoltativi.</DialogDescription>
         </DialogHeader>
 
         <fieldset disabled={submitting} className="min-w-0 space-y-4">
-          <label className="block space-y-1.5 text-sm font-medium">Lavorazione
-            <select aria-label="Lavorazione da assegnare" value={selectedPhase} onChange={e => setSelectedPhase(e.target.value)} className="h-10 w-full rounded-md border bg-background px-3 text-sm">
-              <option value="">Intera commessa · senza fase</option>
+          <label className="block space-y-1.5 text-sm font-medium">Fase
+            <select aria-label="Fase" value={selectedPhase} onChange={e => setSelectedPhase(e.target.value)} className="h-10 w-full rounded-md border bg-background px-3 text-sm">
+              <option value="">Tutta la commessa, senza fase</option>
               {phases.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </label>
           {/* Tipo toggle */}
           <div className="space-y-1.5">
-            <Label>Tipo esecutore</Label>
+            <Label>Chi è</Label>
             <div className="grid grid-cols-2 gap-2">
               <Button
                 type="button"
@@ -1560,7 +1560,7 @@ function AddAssignmentDialog({
                 className="h-auto min-h-11 justify-start whitespace-normal px-2 py-2 text-left text-xs sm:text-sm"
               >
                 <User className="mr-1.5 h-4 w-4" />
-                Dipendente
+                Un operaio
               </Button>
               <Button
                 type="button"
@@ -1574,15 +1574,15 @@ function AddAssignmentDialog({
                 className="h-auto min-h-11 justify-start whitespace-normal px-2 py-2 text-left text-xs sm:text-sm"
               >
                 <Users className="mr-1.5 h-4 w-4" />
-                Ditta esterna
+                Una ditta
               </Button>
             </div>
           </div>
 
           {/* Executor picker */}
-          {tipo === "interno" && <p className="text-xs text-muted-foreground">Le squadre si creano in <a className="underline underline-offset-2" href="/azienda/manodopera?tab=operai&vista=squadre">Manodopera e Mezzi → Squadre</a> e si mettono sulla commessa con «Aggiungi squadra». Qui assegni una sola persona a una lavorazione.</p>}
+          {tipo === "interno" && <p className="text-xs text-muted-foreground">Qui metti una persona sola. Le squadre si creano in <a className="underline underline-offset-2" href="/azienda/manodopera?tab=operai&vista=squadre">Manodopera e Mezzi → Squadre</a>.</p>}
           <div className="space-y-1.5">
-            <Label>{tipo === "interno" ? "Dipendente" : "Squadra / subappaltatore"}</Label>
+            <Label>{tipo === "interno" ? "Operaio" : "Ditta"}</Label>
             <Select value={executorId} onValueChange={(v) => {
               setExecutorId(v);
               setVarianteId("");
@@ -1600,7 +1600,7 @@ function AddAssignmentDialog({
                 applyTariffa(tariffaSel, tariffaQty, vs[0]?.costo ?? tariffaSel.prezzo_costo ?? null);
               }
             }}>
-              <SelectTrigger aria-label="Seleziona esecutore">
+              <SelectTrigger aria-label="Scegli chi">
                 <SelectValue
                   placeholder={
                     options.length === 0
@@ -1621,13 +1621,19 @@ function AddAssignmentDialog({
             </Select>
           </div>
 
-          <p className="rounded-lg bg-muted/40 p-3 text-xs text-muted-foreground">{tipo === "interno"
-            ? employees.find(e => e.id === executorId)?.campoUserId === null
-              ? "Account Campo non collegato. Puoi assegnare il lavoro, ma per i rapportini dall'app occorre collegare un account alla scheda dipendente."
-              : employees.find(e => e.id === executorId)?.campoUserId
-                ? "Account Campo collegato. Al salvataggio viene verificata anche l'assegnazione dell'accesso al cantiere."
-                : "L'assegnazione può collegare il dipendente all'app Campo se dispone di un account. Verifica gli accessi nella sezione App Campo."
-            : "L'affidamento alla squadra non abilita automaticamente un account: assegna anche il referente nella sezione App Campo per i rapportini."}</p>
+          {/* Chi lavora vede la commessa nell'app: si dice prima di salvare. */}
+          {(() => {
+            const scelto = tipo === "interno" ? employees.find(e => e.id === executorId) : undefined;
+            const quando = selectedPhase ? "nei giorni della fase" : "per tutta la durata dei lavori";
+            if (scelto && !scelto.campoUserId) {
+              return <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">{scelto.label} non ha l'app: lavorerà qui ma non vedrà la commessa sul telefono. Puoi dargli l'app dalla sua scheda in Manodopera.</p>;
+            }
+            return <p className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900">{scelto
+              ? `${scelto.label} vedrà la commessa nell'app ${quando}.`
+              : tipo === "interno"
+                ? `Chi metti qui vede la commessa nell'app ${quando}, se ha l'app.`
+                : `Se la ditta ha l'app, vede la commessa ${quando}.`}</p>;
+          })()}
 
           {canViewCosts && <details className="rounded-lg border p-3">
             <summary className="cursor-pointer text-sm font-medium">Budget, costi e listino (facoltativo)</summary>

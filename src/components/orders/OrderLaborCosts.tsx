@@ -11,6 +11,7 @@ import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { usePermissions } from "@/hooks/usePermissions";
 import { refreshWorkQueries } from "@/lib/orders/refreshWorkQueries";
 import { campoRoles, campoAssignmentError } from "@/lib/orders/campoAssignmentForm";
+import { accessiCommessaKey, caricaAccessiCommessa } from "@/hooks/useAccessiCommessa";
 import { toast } from "sonner";
 import { formatDateIt, formatCurrency } from "@/lib/formatters";
 import { costoOrarioDipendente } from "@/lib/costoOrarioDipendente";
@@ -80,9 +81,12 @@ interface OrderLaborCostsProps {
   editable?: boolean;
   /** Se true, rende solo il contenuto senza Card/header (per incorporarlo dentro un'altra sezione, es. Lavorazioni per fase). */
   embedded?: boolean;
+  /** «ditte»: solo le ditte in subappalto (DURC e SAL), senza accessi all'app —
+   *  chi vede il cantiere e il capocantiere stanno in «Lavori e squadre». */
+  parte?: "tutto" | "ditte";
 }
 
-export function OrderLaborCosts({ orderId, editable = true, embedded = false }: OrderLaborCostsProps) {
+export function OrderLaborCosts({ orderId, editable = true, embedded = false, parte = "tutto" }: OrderLaborCostsProps) {
   const { effectiveCompany, role } = useAuth();
   const effectiveCompanyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
@@ -133,20 +137,10 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false }: 
     .sort((a, b) => ({ scaduto: 0, scadenza: 1, mancante: 2 })[a.level] - ({ scaduto: 0, scadenza: 1, mancante: 2 })[b.level]);
 
   const { data: assegnazioni = [], isLoading: loadingAssegnazioni, isError: assignmentsError, refetch: retryAssignments } = useQuery<CampoAssignment[]>({
-    queryKey: ["order-campo-assignments", orderId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("order_campo_assignments")
-        // Hint obbligatorio: order_campo_assignments ha DUE FK verso profiles
-        // (user_id e assigned_by) → senza hint PostgREST risponde 400 PGRST201
-        // e i costi manodopera restavano vuoti.
-        .select("*, profile:profiles!order_campo_assignments_user_id_fkey(id, first_name, last_name, email)")
-        .eq("order_id", orderId)
-        .order("created_at", { ascending: true });
-      if (error) throw error;
-      return (data ?? []) as CampoAssignment[];
-    },
-    enabled: !!orderId,
+    // Stessa lettura di «Lavori e squadre» (useAccessiCommessa): una forma sola in cache.
+    queryKey: accessiCommessaKey(orderId),
+    queryFn: () => caricaAccessiCommessa(orderId),
+    enabled: !!orderId && parte === "tutto",
   });
 
   const { data: utentiCampoRaw = [], isLoading: loadingUsers, isError: usersError } = useCompanyStaffUsers(campoDialogOpen ? effectiveCompanyId : null, "all");
@@ -263,6 +257,91 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false }: 
   const assegnazioniOperai = assegnazioni.filter((a) => a.role_type === "employee");
   const assegnazioniSub = assegnazioni.filter((a) => a.role_type === "subcontractor");
 
+  const ditte = (
+    <>
+            {subError && <div role="alert" className="text-sm text-destructive">Affidamenti non disponibili. <Button variant="outline" size="sm" onClick={() => retrySub()}>Riprova affidamenti</Button></div>}
+            {loadingSub && <p className="text-sm text-muted-foreground">Caricamento affidamenti…</p>}
+            {durcAlerts.length > 0 && (
+              <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 space-y-1.5">
+                <div className="flex items-center gap-2 text-sm font-semibold text-amber-900">
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                  Attenzione DURC subappaltatori in commessa
+                </div>
+                <ul className="space-y-0.5 text-xs text-amber-800">
+                  {durcAlerts.map((a) => (
+                    <li key={a.id}>
+                      <span className="font-medium">{a.nome}</span>:{" "}
+                      {a.level === "scaduto"
+                        ? `DURC SCADUTO${a.days != null ? ` da ${Math.abs(a.days)}gg` : ""}`
+                        : a.level === "scadenza"
+                          ? `DURC in scadenza tra ${a.days}gg`
+                          : "DURC non presente in scheda"}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {subappaltatori.length > 0 && (
+              <div className="space-y-2">
+                {subappaltatori.map((sub) => {
+                  const lordo = sub.totale_sal_lordo ?? 0;
+                  const contr = sub.importo_contrattuale ?? 0;
+                  const pct = contr > 0 ? Math.min(100, Math.round((lordo / contr) * 100)) : 0;
+                  return (
+                    <div key={sub.id} className="border rounded-lg p-3 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold truncate">{sub.ragione_sociale}</p>
+                          {sub.tipo_lavori && <p className="text-xs text-muted-foreground">{sub.tipo_lavori}</p>}
+                        </div>
+                        <DurcBadge scadenza={sub.durc_scadenza} />
+                      </div>
+                      {contr > 0 && (
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-xs text-muted-foreground">
+                            <span>Contratto eseguito</span>
+                            <span className="font-medium">{pct}%</span>
+                          </div>
+                          <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                            <div className="h-full bg-orange-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                          </div>
+                          {canViewCosts && (
+                          <div className="flex justify-between text-xs text-muted-foreground">
+                            <span>{formatCurrency(lordo)} / {formatCurrency(contr)}</span>
+                            {(sub.ritenute_in_corso ?? 0) > 0 && (
+                              <span className="text-amber-600 font-medium">{formatCurrency(sub.ritenute_in_corso)} ritenuta</span>
+                            )}
+                          </div>
+                          )}
+                        </div>
+                      )}
+                      <Button asChild variant="ghost" size="sm" className="h-7 text-xs w-full">
+                        <Link to={`/azienda/subappaltatori/${sub.id}`}>
+                          <ExternalLink className="h-3 w-3 mr-1" /> Gestisci
+                        </Link>
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {!subError && !loadingSub && subappaltatori.length === 0 && (
+              <p className="text-sm text-muted-foreground py-2">Nessun affidamento con scheda DURC/SAL collegato. Le squadre operative e i relativi costi sono nelle lavorazioni qui sopra.</p>
+            )}
+    </>
+  );
+
+  if (parte === "ditte") {
+    if (!subError && !loadingSub && subappaltatori.length === 0) return null;
+    return (
+      <section aria-label="Ditte in subappalto" className="space-y-2">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Ditte in subappalto · DURC e avanzamento del contratto</h3>
+        {ditte}
+      </section>
+    );
+  }
+
   const body = (
     <div className="space-y-4">
         {/* ── Capocantiere Responsabile ─────────────────────────── */}
@@ -340,76 +419,7 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false }: 
 
           {/* ── Subappaltatori ──────────────────────────────────── */}
           <TabsContent value="teams" className="space-y-3 mt-4">
-            {subError && <div role="alert" className="text-sm text-destructive">Affidamenti non disponibili. <Button variant="outline" size="sm" onClick={() => retrySub()}>Riprova affidamenti</Button></div>}
-            {loadingSub && <p className="text-sm text-muted-foreground">Caricamento affidamenti…</p>}
-            {durcAlerts.length > 0 && (
-              <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 space-y-1.5">
-                <div className="flex items-center gap-2 text-sm font-semibold text-amber-900">
-                  <AlertTriangle className="h-4 w-4 shrink-0" />
-                  Attenzione DURC subappaltatori in commessa
-                </div>
-                <ul className="space-y-0.5 text-xs text-amber-800">
-                  {durcAlerts.map((a) => (
-                    <li key={a.id}>
-                      <span className="font-medium">{a.nome}</span>:{" "}
-                      {a.level === "scaduto"
-                        ? `DURC SCADUTO${a.days != null ? ` da ${Math.abs(a.days)}gg` : ""}`
-                        : a.level === "scadenza"
-                          ? `DURC in scadenza tra ${a.days}gg`
-                          : "DURC non presente in scheda"}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            {subappaltatori.length > 0 && (
-              <div className="space-y-2">
-                {subappaltatori.map((sub) => {
-                  const lordo = sub.totale_sal_lordo ?? 0;
-                  const contr = sub.importo_contrattuale ?? 0;
-                  const pct = contr > 0 ? Math.min(100, Math.round((lordo / contr) * 100)) : 0;
-                  return (
-                    <div key={sub.id} className="border rounded-lg p-3 space-y-2">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold truncate">{sub.ragione_sociale}</p>
-                          {sub.tipo_lavori && <p className="text-xs text-muted-foreground">{sub.tipo_lavori}</p>}
-                        </div>
-                        <DurcBadge scadenza={sub.durc_scadenza} />
-                      </div>
-                      {contr > 0 && (
-                        <div className="space-y-1">
-                          <div className="flex justify-between text-xs text-muted-foreground">
-                            <span>Contratto eseguito</span>
-                            <span className="font-medium">{pct}%</span>
-                          </div>
-                          <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                            <div className="h-full bg-orange-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
-                          </div>
-                          {canViewCosts && (
-                          <div className="flex justify-between text-xs text-muted-foreground">
-                            <span>{formatCurrency(lordo)} / {formatCurrency(contr)}</span>
-                            {(sub.ritenute_in_corso ?? 0) > 0 && (
-                              <span className="text-amber-600 font-medium">{formatCurrency(sub.ritenute_in_corso)} ritenuta</span>
-                            )}
-                          </div>
-                          )}
-                        </div>
-                      )}
-                      <Button asChild variant="ghost" size="sm" className="h-7 text-xs w-full">
-                        <Link to={`/azienda/subappaltatori/${sub.id}`}>
-                          <ExternalLink className="h-3 w-3 mr-1" /> Gestisci
-                        </Link>
-                      </Button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {!subError && !loadingSub && subappaltatori.length === 0 && (
-              <p className="text-sm text-muted-foreground py-2">Nessun affidamento con scheda DURC/SAL collegato. Le squadre operative e i relativi costi sono nelle lavorazioni qui sopra.</p>
-            )}
+            {ditte}
           </TabsContent>
 
           {/* ── Assegnazioni Cantiere ───────────────────────────── */}

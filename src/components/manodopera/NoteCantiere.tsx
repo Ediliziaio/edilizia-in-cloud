@@ -5,6 +5,7 @@
  * ogni nota: chi l'ha già letta nell'app.
  */
 import { useEffect, useMemo, useState } from "react";
+import { AZIONE_TENUE } from "@/lib/manodopera/colori";
 import { AlertTriangle, Check, Loader2, MessageSquarePlus, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -124,8 +125,8 @@ export function NoteCantiere({
       {modificabile && (
         <Button
           size="sm"
-          variant={compatta ? "ghost" : "outline"}
-          className={cn("gap-1.5", compatta && "h-8 px-2 text-orange-700 hover:text-orange-800")}
+          variant="outline"
+          className={cn("gap-1.5", AZIONE_TENUE.nota, compatta && "h-8 rounded-full px-3")}
           onClick={() => setAperta("nuova")}
         >
           <MessageSquarePlus className="h-4 w-4" aria-hidden="true" />

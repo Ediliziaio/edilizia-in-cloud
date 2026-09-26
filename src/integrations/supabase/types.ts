@@ -55921,6 +55921,8 @@ export type Database = {
           assigned_by: string | null
           company_id: string
           created_at: string | null
+          da_lavori: boolean
+          da_squadra_id: string | null
           data_fine_prevista: string | null
           data_inizio: string | null
           id: string
@@ -55934,6 +55936,8 @@ export type Database = {
           assigned_by?: string | null
           company_id: string
           created_at?: string | null
+          da_lavori?: boolean
+          da_squadra_id?: string | null
           data_fine_prevista?: string | null
           data_inizio?: string | null
           id?: string
@@ -55947,6 +55951,8 @@ export type Database = {
           assigned_by?: string | null
           company_id?: string
           created_at?: string | null
+          da_lavori?: boolean
+          da_squadra_id?: string | null
           data_fine_prevista?: string | null
           data_inizio?: string | null
           id?: string
@@ -100536,6 +100542,10 @@ export type Database = {
         Args: { _contact_id?: string; _profile_id?: string }
         Returns: string
       }
+      commessa_capocantiere: {
+        Args: { p_order_id: string; p_user_id: string | null }
+        Returns: undefined
+      }
       commessa_salva: {
         Args: {
           p_bonus?: Json
@@ -102944,6 +102954,7 @@ export type Database = {
         Args: { p_dati: Json; p_nota_id: string | null; p_order_id: string }
         Returns: string
       }
+      campo_mie_fasi: { Args: { p_order_id: string }; Returns: Json }
       campo_note_cantiere: { Args: { p_order_id: string }; Returns: Json }
       campo_nota_letta: { Args: { p_nota_id: string }; Returns: undefined }
       personale_costo: { Args: { p_profilo_id: string }; Returns: Json }

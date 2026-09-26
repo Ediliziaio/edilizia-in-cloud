@@ -37,6 +37,10 @@ export function WorkAssignmentRow({ assignment: a, employees, externalTeams, pha
   const { canEditOrders, canViewCosts, canManagePayments } = usePermissions();
   const internal = a.executor_type === "interno";
   const name = resolveExecutorLabel(a, employees, externalTeams);
+  // Chi è al lavoro vede la commessa nell'app nei giorni della fase: qui si
+  // vede subito chi l'app non ce l'ha.
+  const persona = internal ? employees.find(e => e.id === a.employee_id) : undefined;
+  const senzaApp = !!persona && !persona.campoUserId;
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -90,10 +94,14 @@ export function WorkAssignmentRow({ assignment: a, employees, externalTeams, pha
           {/* Mobile: tipo e ore in una riga di testo (badge e ore andavano a capo). */}
           <p className="text-xs text-muted-foreground sm:hidden">
             {internal ? `Dipendente · ${a.hours ?? 0} h registrate` : "Ditta esterna · affidamento"}
+            {senzaApp && <span className="font-medium text-amber-700"> · senza app</span>}
           </p>
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground max-sm:hidden">
             <Badge variant="secondary">{internal ? "Dipendente" : "Ditta esterna"}</Badge>
             {internal && <span className="inline-flex items-center gap-1"><Clock3 className="h-3 w-3" />{a.hours ?? 0} h registrate</span>}
+            {senzaApp
+              ? <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-800">Senza app: non vede la commessa</Badge>
+              : persona && <span className="text-emerald-700">{a.phase_id ? "La vede nell'app nei giorni della fase" : "La vede nell'app"}</span>}
             {!internal && <span>Affidamento esterno</span>}
           </div>
           {a.notes && <p className="whitespace-pre-wrap break-words text-xs text-muted-foreground">{a.notes}</p>}
