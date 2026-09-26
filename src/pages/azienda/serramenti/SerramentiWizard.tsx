@@ -250,10 +250,14 @@ export default function SerramentiWizard() {
       throw new Error("Questo modello non è ancora collegato al salvataggio. Usa il preventivatore generale oppure completa l'attivazione.");
     }
     if (loadingPdfTemplate || templateError) throw new Error("Attendi il caricamento del modello aziendale prima di creare il preventivo.");
-    const [{ createFullSerramentiTemplate }, { loadLocalSerramentiTemplate }] = await Promise.all([
+    const [{ createFullSerramentiTemplate }, { loadLocalSerramentiTemplate }, { sincronizzaModelliAzienda }] = await Promise.all([
       import("@/lib/moduli-vendita/fullSerramentiModules"), import("@/lib/moduli-vendita/localSerramentiTemplates"),
+      import("@/lib/moduli-vendita/archivioModelli"),
     ]);
     const companyId = effectiveCompany.id;
+    // Il modello personalizzato è dell'azienda: può averlo salvato un collega da
+    // un altro computer. Se il database non risponde resta la copia di questo browser.
+    await sincronizzaModelliAzienda(companyId).catch((): void => undefined);
     const { data: currentTemplate, error: readError } = await supabase.from("sr_template_pdf").select("*").eq("company_id", companyId).maybeSingle();
     if (readError) throw new Error("Impossibile verificare il modello aziendale. Riprova prima di creare il preventivo.");
     const localCopy = loadLocalSerramentiTemplate(companyId, requestedModel);
@@ -667,7 +671,7 @@ export default function SerramentiWizard() {
     <div className="pb-28 md:pb-20">
       {modelDefinition && <div className="mx-auto max-w-6xl px-4 pt-4"><div className="rounded-xl border border-orange-200 bg-orange-50 p-4 text-sm">
         <p className="font-semibold">{modelDefinition.title}</p>
-        <p className="mt-1 text-muted-foreground">{isNew ? "Il PDF userà la personalizzazione salvata in questo browser, se presente, altrimenti il modello standard. Prodotti e prezzi arrivano dal tuo listino." : "Il modello PDF è conservato in questo preventivo. Le modifiche successive ai modelli non ne sostituiscono testi e impostazioni."}</p>
+        <p className="mt-1 text-muted-foreground">{isNew ? "Il PDF userà il modello personalizzato dall'azienda, se c'è, altrimenti quello standard. Prodotti e prezzi arrivano dal tuo listino." : "Il modello PDF è conservato in questo preventivo. Le modifiche successive ai modelli non ne sostituiscono testi e impostazioni."}</p>
         <p className="mt-2 text-xs">Cliente e cantiere → Prodotti e servizi → Prezzi, sconti e PDF</p>
         {isNew && !modelSupport.supported && <p role="alert" className="mt-3 rounded border border-amber-300 bg-amber-50 p-3">Il salvataggio di questo intervento richiede l'attivazione del database. Non inserire dati finché il collegamento non è attivo.</p>}
       </div></div>}

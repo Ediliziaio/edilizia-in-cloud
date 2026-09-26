@@ -74,7 +74,7 @@ export async function aggiungiAttivitaRapportino(
     orderId = resolved.cantiere_id;
   }
 
-  const dataLavoro = args.data_lavoro ?? new Date().toISOString().substring(0, 10);
+  const dataLavoro = args.data_lavoro ?? new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome" }).format(new Date());
 
   const { data: existing } = await ctx.supabase
     .from("campo_rapportini")

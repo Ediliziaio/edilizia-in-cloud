@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { isFacLocalImage, isFullFacModuleId, type FullFacModuleId, type FullFacTemplate } from "./fullFacModules";
+import { archivioModelliAzienda } from "./archivioModelli";
 
 export interface LocalFacTemplate { version: 1; companyId: string; moduleId: FullFacModuleId; savedAt: string; template: FullFacTemplate }
 export type FacStoragePort = Pick<Storage, "getItem" | "setItem">;
@@ -54,7 +55,7 @@ export function assertFacTemplate(template: unknown, companyId: string, id: Full
   const defaults = parsed.data.pdf_blocchi.modulo_defaults;
   if (!defaults || !blocks.safeParse(defaults).success) throw new Error("Contenuto di serie non leggibile. Conserva la copia locale e chiedi assistenza.");
 }
-export function loadLocalFacTemplate(companyId: string, id: FullFacModuleId, storage: FacStoragePort = localStorage): LocalFacTemplate | null {
+export function loadLocalFacTemplate(companyId: string, id: FullFacModuleId, storage: FacStoragePort = archivioModelliAzienda): LocalFacTemplate | null {
   let raw: string | null;
   try { raw = storage.getItem(localFacTemplateKey(companyId, id)); }
   catch { throw new Error("Il browser non consente di leggere la copia locale. Nessun dato è stato modificato."); }
@@ -68,7 +69,7 @@ export function loadLocalFacTemplate(companyId: string, id: FullFacModuleId, sto
   return record;
 }
 /** Synchronous read/compare/write; Web Locks at the panel boundary serialize cooperating tabs. */
-export function saveLocalFacTemplate(companyId: string, id: FullFacModuleId, template: FullFacTemplate, expectedSavedAt: string | null, storage: FacStoragePort = localStorage): LocalFacTemplate {
+export function saveLocalFacTemplate(companyId: string, id: FullFacModuleId, template: FullFacTemplate, expectedSavedAt: string | null, storage: FacStoragePort = archivioModelliAzienda): LocalFacTemplate {
   assertFacTemplate(template, companyId, id);
   const current = loadLocalFacTemplate(companyId, id, storage);
   if ((current?.savedAt ?? null) !== expectedSavedAt) throw new Error("Il modulo è stato modificato in un'altra scheda. Riaprilo prima di salvare; la bozza resta aperta.");

@@ -48,6 +48,34 @@ export function moduleSourceTag(moduleKey: string, progettoId: string): string {
   return `modulo:${moduleKey}:${progettoId}`;
 }
 
+/**
+ * La riga di `quotes` è solo il documento di firma di un preventivo di modulo:
+ * il preventivo vero (voci, prezzi, commessa) sta nella tabella del modulo.
+ * Non va elencata né convertita come un preventivo classico.
+ */
+export function eRigaDiModulo(source: string | null | undefined): boolean {
+  return typeof source === "string" && source.startsWith("modulo:");
+}
+
+/** Chiave del bridge → pagina del modulo (le stesse chiavi di fea-completa-firma). */
+const PAGINE_MODULO: Record<string, { nome: string; base: string }> = {
+  rst: { nome: "Ristrutturazione", base: "/azienda/ristrutturazione" },
+  bagni: { nome: "Bagni", base: "/azienda/bagni" },
+  tetti: { nome: "Tetti", base: "/azienda/tetti" },
+  clm: { nome: "Climatizzazione", base: "/azienda/climatizzazione" },
+  ele: { nome: "Elettrico", base: "/azienda/elettrico" },
+  idr: { nome: "Termoidraulico", base: "/azienda/termoidraulico" },
+  pav: { nome: "Pavimenti", base: "/azienda/pavimenti" },
+  pis: { nome: "Piscine", base: "/azienda/piscine" },
+};
+
+/** Il preventivo del modulo a cui appartiene la riga (null se non è una riga di modulo). */
+export function preventivoDelModulo(source: string | null | undefined): { nome: string; href: string } | null {
+  const trovato = /^modulo:([a-z]+):([0-9a-f-]{36})$/.exec(String(source ?? ""));
+  const pagina = trovato ? PAGINE_MODULO[trovato[1]] : undefined;
+  return trovato && pagina ? { nome: pagina.nome, href: `${pagina.base}/${trovato[2]}/modifica` } : null;
+}
+
 /** Quote collegata al progetto modulo (null se mai preparata). */
 export async function getModuleQuote(
   companyId: string,

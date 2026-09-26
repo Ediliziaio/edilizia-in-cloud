@@ -19,6 +19,7 @@
  * via `toDataUrl` perché react-pdf supporta solo JPG/PNG e alcune foto possono
  * essere WEBP: la conversione canvas le rende sicure per il renderer.
  */
+import { templateDelPreventivo } from "@/lib/moduli/modelloPreventivo";
 import { useState, type ReactElement } from "react";
 import type { DocumentProps } from "@react-pdf/renderer";
 import { toast } from "sonner";
@@ -139,7 +140,8 @@ export async function enrichTermoidraulicoPdf(opts: IdrPdfPayload): Promise<IdrP
   const companyId = progetto.company_id;
 
   // 1) Template: fresco da DB se non passato (riflette l'ultimo salvataggio).
-  const template = opts.template ?? (await getIdrTemplatePdf(companyId));
+  // Il modello dell'intervento congelato nel preventivo, se c'è (lib/moduli/modelloPreventivo).
+  const template = await templateDelPreventivo("termoidraulico", progetto, opts.template, getIdrTemplatePdf);
 
   // 2) Company (anagrafica per intestazione/contatti). Best-effort.
   let company: IdrPdfCompany | null = opts.company ?? null;
@@ -277,18 +279,50 @@ export async function enrichTermoidraulicoPdf(opts: IdrPdfPayload): Promise<IdrP
 }
 
 /**
+ * Il documento del preventivo: quello dei moduli edili, oppure il Conto Termico
+ * 3.0 o la Casa Full Electric se il preventivo nasce da quei modelli. Anteprima,
+ * download e firma online passano tutti da qui.
+ */
+export async function elementoPdf(enriched: IdrPdfEnriched): Promise<ReactElement> {
+  const React = await import("react");
+  const [{ eContoTermico }, { eFullElectric }] = await Promise.all([
+    import("@/lib/contoTermico/pdfDelPreventivo"),
+    import("@/lib/fullElectric/pdfDelPreventivo"),
+  ]);
+  const inline = async (percorsi: Record<string, string | undefined | null>) => Object.fromEntries(await Promise.all(
+    Object.entries(percorsi).map(async ([posto, url]) => [posto, url ? await toDataUrl(url) : null] as const),
+  ));
+  if (eFullElectric(enriched)) {
+    const [{ FullElectricPDF }, { datiPdfFullElectric, fotoFullElectric }, { leggiDatiFullElectric }] = await Promise.all([
+      import("@/components/termoidraulico/fullElectric/FullElectricPDF"),
+      import("@/lib/fullElectric/pdfDelPreventivo"),
+      import("@/lib/fullElectric/dati"),
+    ]);
+    const foto = await inline(fotoFullElectric(leggiDatiFullElectric(enriched.progetto.full_electric).componenti));
+    return React.createElement(FullElectricPDF, { data: datiPdfFullElectric(enriched, foto) });
+  }
+  if (eContoTermico(enriched)) {
+    const [{ ContoTermicoPDF }, { datiPdfContoTermico, fotoDelPreventivo }, { leggiDatiContoTermico }] = await Promise.all([
+      import("@/components/termoidraulico/contoTermico/ContoTermicoPDF"),
+      import("@/lib/contoTermico/pdfDelPreventivo"),
+      import("@/lib/contoTermico/dati"),
+    ]);
+    const foto = await inline(fotoDelPreventivo(leggiDatiContoTermico(enriched.progetto.conto_termico).tipo));
+    return React.createElement(ContoTermicoPDF, { data: datiPdfContoTermico(enriched, foto) });
+  }
+  const { TermoidraulicoPDF } = await import("@/components/termoidraulico/TermoidraulicoPDF");
+  return React.createElement(TermoidraulicoPDF, enriched);
+}
+
+/**
  * Renderizza il PDF e ritorna un blob URL — per l'ANTEPRIMA LIVE in dialog (iframe).
  * Il chiamante è responsabile di revocare l'URL (URL.revokeObjectURL) quando cambia
  * o al unmount. Non apre tab né scarica: serve solo la sorgente per l'iframe.
  */
 export async function renderIdrPreviewBlobUrl(opts: IdrPdfPayload): Promise<string> {
   const enriched = await enrichTermoidraulicoPdf(opts);
-  const [{ pdf }, { TermoidraulicoPDF }, React] = await Promise.all([
-    import("@react-pdf/renderer"),
-    import("@/components/termoidraulico/TermoidraulicoPDF"),
-    import("react"),
-  ]);
-  const element = React.createElement(TermoidraulicoPDF, enriched);
+  const { pdf } = await import("@react-pdf/renderer");
+  const element = await elementoPdf(enriched);
   const blob = await pdf(element as unknown as ReactElement<DocumentProps>).toBlob();
   return URL.createObjectURL(blob);
 }
@@ -312,12 +346,8 @@ export function useTermoidraulicoPDF() {
         return { ok: false };
       }
       const enriched = await enrichTermoidraulicoPdf(opts);
-      const [{ pdf }, { TermoidraulicoPDF }, React] = await Promise.all([
-        import("@react-pdf/renderer"),
-        import("@/components/termoidraulico/TermoidraulicoPDF"),
-        import("react"),
-      ]);
-      const element = React.createElement(TermoidraulicoPDF, enriched);
+      const { pdf } = await import("@react-pdf/renderer");
+      const element = await elementoPdf(enriched);
       const blob = await pdf(element as unknown as ReactElement<DocumentProps>).toBlob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -352,12 +382,8 @@ export function useTermoidraulicoPDF() {
         return;
       }
       const enriched = await enrichTermoidraulicoPdf(opts);
-      const [{ pdf }, { TermoidraulicoPDF }, React] = await Promise.all([
-        import("@react-pdf/renderer"),
-        import("@/components/termoidraulico/TermoidraulicoPDF"),
-        import("react"),
-      ]);
-      const element = React.createElement(TermoidraulicoPDF, enriched);
+      const { pdf } = await import("@react-pdf/renderer");
+      const element = await elementoPdf(enriched);
       const blob = await pdf(element as unknown as ReactElement<DocumentProps>).toBlob();
       const url = URL.createObjectURL(blob);
       const win = window.open(url, "_blank");

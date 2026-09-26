@@ -18,51 +18,13 @@
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { verificaPermessoAzienda } from "../_shared/permessoAzienda.ts";
 
 function json(data: unknown, status: number, req: Request): Response {
   return new Response(JSON.stringify(data), {
     status,
     headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
   });
-}
-
-async function verifyAccess(
-  supabase: SupabaseClient,
-  userId: string,
-  companyId: string,
-): Promise<void> {
-  const { data: roles } = await supabase
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", userId);
-  const isSuperAdmin = Array.isArray(roles) && roles.some((r) => r.role === "super_admin");
-  if (isSuperAdmin) return;
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("company_id")
-    .eq("id", userId)
-    .maybeSingle();
-  if (profile?.company_id === companyId) return;
-
-  const { data: mca } = await supabase
-    .from("multi_company_access")
-    .select("id")
-    .eq("user_id", userId)
-    .eq("company_id", companyId)
-    .maybeSingle();
-  if (mca) return;
-
-  const { data: imp } = await supabase
-    .from("active_impersonations")
-    .select("id")
-    .eq("admin_user_id", userId)
-    .eq("target_company_id", companyId)
-    .gt("expires_at", new Date().toISOString())
-    .maybeSingle();
-  if (imp) return;
-
-  throw new Error("Non autorizzato: accesso negato a questa azienda");
 }
 
 // ── Template definitions ──────────────────────────────────────────────────────
@@ -281,7 +243,9 @@ Deno.serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    await verifyAccess(admin, userId, companyId);
+    await verificaPermessoAzienda(
+      admin, userId, companyId, ["can_edit_settings_bundle", "can_edit_settings_pricing"], "modificare i pacchetti",
+    );
     const result = await installBundles(admin, companyId, vertical);
 
     return json({ ok: true, ...result }, 200, req);

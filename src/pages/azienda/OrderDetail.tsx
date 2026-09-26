@@ -1879,7 +1879,11 @@ function OrderDetailInner() {
               />
             )}
             {/* Fatture e documenti fiscali della commessa: stavano nella
-                Panoramica, lontani da incassi e scadenze a cui appartengono. */}
+                Panoramica, lontani da incassi e scadenze a cui appartengono.
+                Il database li mostra a chi vede gli importi della commessa o
+                ha «Fatturazione», e li crea solo con «Fatturazione» (i DDT
+                anche con commesse o magazzino): qui la stessa regola. */}
+            {(permissions.canViewOrderAmounts || permissions.canViewBilling) && (
             <QuoteCard
               title={
                 <span className="flex items-center gap-2">
@@ -1959,6 +1963,7 @@ function OrderDetailInner() {
                 {/* Bottoni a dimensione naturale (prima grid-cols-4 li stirava
                       su tutta la card larga desktop). flex-wrap li tiene compatti. */}
                 <div className="flex flex-wrap gap-2 [&>button]:flex-1 sm:[&>button]:flex-none">
+                  {permissions.canViewBilling && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -1975,6 +1980,8 @@ function OrderDetailInner() {
                     <Receipt className="h-3.5 w-3.5 mr-1" />
                     Fattura
                   </Button>
+                  )}
+                  {permissions.canViewBilling && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -1991,6 +1998,8 @@ function OrderDetailInner() {
                     <FileText className="h-3.5 w-3.5 mr-1" />
                     Proforma
                   </Button>
+                  )}
+                  {(permissions.canViewBilling || permissions.canEditOrders || permissions.canViewWarehouse) && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -2007,6 +2016,8 @@ function OrderDetailInner() {
                     <Truck className="h-3.5 w-3.5 mr-1" />
                     DDT
                   </Button>
+                  )}
+                  {permissions.canViewBilling && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -2023,9 +2034,11 @@ function OrderDetailInner() {
                     <FileWarning className="h-3.5 w-3.5 mr-1" />
                     N. Credito
                   </Button>
+                  )}
                 </div>
               </div>
             </QuoteCard>
+            )}
           </TabsContent>
 
           {/* Un solo percorso operativo su desktop e mobile. Nessuna duplicazione dei dati. */}

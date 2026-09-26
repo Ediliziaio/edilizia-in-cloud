@@ -20,6 +20,8 @@ export interface IdrComputoVoce {
   fonte?: string | null;
 }
 export interface IdrProgetto {
+  /** Il modello della libreria congelato nel preventivo (lib/moduli/modelloPreventivo). */
+  modello_snapshot?: import("@/lib/moduli/modelloPreventivo").ModelloPreventivo<IdrTemplatePdf> | null;
   id: string; company_id: string; code: string | null; stato: IdrStato; tipo_intervento: string | null;
   numero_terminali: number | null; tipo_generatore: string | null;
   cliente_nome: string | null; cliente_cognome: string | null; cliente_email: string | null; cliente_telefono: string | null;
@@ -36,6 +38,10 @@ export interface IdrProgetto {
    * scrive solo se l'azienda l'ha acceso (preventivo_impostazioni.prezzo_finale_a_mano).
    */
   prezzo_manuale?: number | null;
+  /** Dati del Conto Termico 3.0 (modello «conto-termico»): si leggono con leggiDatiContoTermico. */
+  conto_termico?: Partial<import("@/lib/contoTermico/dati").DatiContoTermico> | null;
+  /** Dati del modello Casa Full Electric (idr_progetti.full_electric); null per gli altri. */
+  full_electric?: Partial<import("@/lib/fullElectric/dati").DatiFullElectric> | null;
   totale_imponibile: number; totale: number; note: string | null;
 }
 export interface IdrProgettoMedia { id: string; progetto_id: string; company_id: string; tipo: string; url: string; caption: string | null; ordine: number; }

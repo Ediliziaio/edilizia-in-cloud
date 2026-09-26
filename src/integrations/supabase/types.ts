@@ -30780,6 +30780,7 @@ export type Database = {
           name: string
           preview_text: string | null
           recipient_filter: Json | null
+          reinvio_di: string | null
           resend_to_unopened: boolean
           scheduled_at: string | null
           segment_json: Json | null
@@ -30819,6 +30820,7 @@ export type Database = {
           name: string
           preview_text?: string | null
           recipient_filter?: Json | null
+          reinvio_di?: string | null
           resend_to_unopened?: boolean
           scheduled_at?: string | null
           segment_json?: Json | null
@@ -30858,6 +30860,7 @@ export type Database = {
           name?: string
           preview_text?: string | null
           recipient_filter?: Json | null
+          reinvio_di?: string | null
           resend_to_unopened?: boolean
           scheduled_at?: string | null
           segment_json?: Json | null
@@ -30916,6 +30919,13 @@ export type Database = {
             columns: ["folder_id"]
             isOneToOne: false
             referencedRelation: "email_folders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_campaigns_reinvio_di_fkey"
+            columns: ["reinvio_di"]
+            isOneToOne: true
+            referencedRelation: "email_campaigns"
             referencedColumns: ["id"]
           },
           {
@@ -67691,6 +67701,8 @@ export type Database = {
           created_at: string | null
           delivery_terms_text: string | null
           description: string | null
+          email_impresa: string | null
+          firmatario_impresa: string | null
           font_family: string | null
           font_size_base: number
           footer_text: string | null
@@ -67740,8 +67752,10 @@ export type Database = {
           show_watermark: boolean | null
           table_borders: string
           table_zebra: boolean
+          telefono_impresa: string | null
           text_color: string | null
           thumbnail_url: string | null
+          timbro_firma_url: string | null
           updated_at: string | null
           watermark_text: string | null
         }
@@ -67759,6 +67773,8 @@ export type Database = {
           created_at?: string | null
           delivery_terms_text?: string | null
           description?: string | null
+          email_impresa?: string | null
+          firmatario_impresa?: string | null
           font_family?: string | null
           font_size_base?: number
           footer_text?: string | null
@@ -67808,8 +67824,10 @@ export type Database = {
           show_watermark?: boolean | null
           table_borders?: string
           table_zebra?: boolean
+          telefono_impresa?: string | null
           text_color?: string | null
           thumbnail_url?: string | null
+          timbro_firma_url?: string | null
           updated_at?: string | null
           watermark_text?: string | null
         }
@@ -67827,6 +67845,8 @@ export type Database = {
           created_at?: string | null
           delivery_terms_text?: string | null
           description?: string | null
+          email_impresa?: string | null
+          firmatario_impresa?: string | null
           font_family?: string | null
           font_size_base?: number
           footer_text?: string | null
@@ -67876,8 +67896,10 @@ export type Database = {
           show_watermark?: boolean | null
           table_borders?: string
           table_zebra?: boolean
+          telefono_impresa?: string | null
           text_color?: string | null
           thumbnail_url?: string | null
+          timbro_firma_url?: string | null
           updated_at?: string | null
           watermark_text?: string | null
         }

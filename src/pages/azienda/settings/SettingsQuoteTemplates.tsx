@@ -286,19 +286,36 @@ interface TemplateCardProps {
   kindMeta: typeof KIND_META[QuoteTemplateKind];
   logoSrcFor: (t: Partial<QuoteTemplate>) => string | undefined;
   effectiveCompanyName?: string;
+  /** Il colore del marchio dell'azienda: nelle anteprime vale come nel PDF. */
+  brandColor?: string | null;
   templates: QuoteTemplate[];
   onEdit: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
 }
 
-function TemplateCard({ tmpl, kindMeta, logoSrcFor, effectiveCompanyName, templates, onEdit, onDuplicate, onDelete }: TemplateCardProps) {
+/** Il timbro sta nel contenitore riservato dei modelli: si vede con un link a scadenza. */
+function AnteprimaTimbro({ percorso }: { percorso: string }) {
+  const [link, setLink] = useState<string | null>(null);
+  useEffect(() => {
+    let vivo = true;
+    setLink(null);
+    void supabase.storage.from("quote-template-assets").createSignedUrl(percorso, 60 * 60).then(({ data }) => {
+      if (vivo) setLink(data?.signedUrl ?? null);
+    });
+    return () => { vivo = false; };
+  }, [percorso]);
+  if (!link) return <div className="h-16 w-40 rounded-md border border-dashed bg-muted/40" aria-hidden="true" />;
+  return <img src={link} alt="Timbro e firma dell'impresa" className="h-16 max-w-[200px] rounded-md border bg-white object-contain p-1" />;
+}
+
+function TemplateCard({ tmpl, kindMeta, logoSrcFor, effectiveCompanyName, brandColor, templates, onEdit, onDuplicate, onDelete }: TemplateCardProps) {
   const kind = (tmpl.kind as QuoteTemplateKind | undefined) ?? 'offerta';
 
   // Anteprima specifica per kind
   const renderPreview = () => {
     if (kind === 'offerta') {
-      const preview = resolveQuoteTemplatePreview(tmpl, templates);
+      const preview = resolveQuoteTemplatePreview(tmpl, templates, brandColor);
       return <QuoteTemplatePreview template={preview} companyName={effectiveCompanyName} logoSrc={logoSrcFor(tmpl)} coverSrc={getLogoPublicUrl(preview.cover_image_url)} scale={0.42} />;
     }
     if (kind === 'copertina' && tmpl.cover_image_url) {
@@ -886,6 +903,35 @@ export default function SettingsQuoteTemplates() {
     }
   };
 
+  // Timbro e firma dell'impresa (25/09/2026): si carica una volta nel modello e il
+  // PDF lo stampa nel riquadro «Per l'impresa» di ogni preventivo. Nel contenitore
+  // riservato dei modelli, nella cartella dell'azienda: la firma non è pubblica.
+  const [timbroUploading, setTimbroUploading] = useState(false);
+  const handleTimbroUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !effectiveCompany?.id) return;
+    if (file.size > 2 * 1024 * 1024) { toast.error("Max 2MB"); return; }
+    if (!ALLOWED_LOGO_TYPES.has(file.type)) {
+      toast.error("Carica il timbro in PNG o JPG");
+      e.target.value = "";
+      return;
+    }
+    setTimbroUploading(true);
+    try {
+      const ext = file.type === "image/png" ? "png" : "jpg";
+      const path = `${effectiveCompany.id}/template-timbro-${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from("quote-template-assets").upload(path, file, { upsert: true });
+      if (error) throw error;
+      updateForm({ timbro_firma_url: path });
+      toast.success("Timbro caricato: salva il modello per usarlo nei preventivi");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Errore caricamento timbro");
+    } finally {
+      setTimbroUploading(false);
+      e.target.value = "";
+    }
+  };
+
   // Refs per merge tag (inserimento alla posizione cursore)
   const coverTitleRef = useRef<HTMLInputElement>(null);
   const coverSubtitleRef = useRef<HTMLInputElement>(null);
@@ -1142,6 +1188,7 @@ export default function SettingsQuoteTemplates() {
                     kindMeta={KIND_META[((tmpl.kind as QuoteTemplateKind | undefined) ?? 'offerta')]}
                     logoSrcFor={logoSrcFor}
                     effectiveCompanyName={effectiveCompany?.name}
+                    brandColor={effectiveCompany?.brand_primary_color}
                     templates={templates}
                     onEdit={() => handleEdit(tmpl)}
                     onDuplicate={() => handleDuplicate(tmpl)}
@@ -1881,6 +1928,68 @@ export default function SettingsQuoteTemplates() {
                     <Label>{el.label}</Label>
                   </div>
                 ))}
+                {/* Contatti dell'impresa stampati nel preventivo (25/09/2026): prima usciva
+                    sempre la mail del profilo aziendale, che può essere di una persona. */}
+                {form.show_company_details !== false && (
+                  <div className="border-t pt-3 space-y-2">
+                    <Label className="text-sm font-medium">Contatti dell'impresa nel preventivo</Label>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <div className="space-y-1">
+                        <Label htmlFor="email_impresa" className="text-xs text-muted-foreground">Email</Label>
+                        <Input
+                          id="email_impresa"
+                          type="email"
+                          value={form.email_impresa ?? ''}
+                          onChange={e => updateForm({ email_impresa: e.target.value })}
+                          placeholder={effectiveCompany?.email || 'info@azienda.it'}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="telefono_impresa" className="text-xs text-muted-foreground">Telefono</Label>
+                        <Input
+                          id="telefono_impresa"
+                          type="tel"
+                          value={form.telefono_impresa ?? ''}
+                          onChange={e => updateForm({ telefono_impresa: e.target.value })}
+                          placeholder={effectiveCompany?.phone || '0123 456789'}
+                        />
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">
+                      Escono sotto «L'impresa» e nel modulo di recesso. Vuoti: si usano quelli del profilo aziendale.
+                    </p>
+                  </div>
+                )}
+                {/* Timbro e firma dell'impresa (25/09/2026): caricati una volta, escono già
+                    firmati nel riquadro «Per l'impresa» di ogni preventivo di questo modello. */}
+                <div className="border-t pt-3 space-y-2">
+                  <Label className="text-sm font-medium">Timbro e firma dell'impresa</Label>
+                  <div className="flex flex-wrap items-center gap-3">
+                    {form.timbro_firma_url && <AnteprimaTimbro percorso={form.timbro_firma_url} />}
+                    <label className="cursor-pointer inline-flex items-center gap-2 px-3 py-1.5 border rounded-md text-sm hover:bg-muted transition-colors">
+                      <Upload className="h-4 w-4" />
+                      {timbroUploading ? "Caricamento..." : form.timbro_firma_url ? "Cambia immagine" : "Carica immagine"}
+                      <input type="file" accept="image/png,image/jpeg" className="hidden" onChange={handleTimbroUpload} disabled={timbroUploading} />
+                    </label>
+                    {form.timbro_firma_url && (
+                      <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => updateForm({ timbro_firma_url: null })}>
+                        <Trash2 className="h-4 w-4 mr-1" />Rimuovi
+                      </Button>
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="firmatario_impresa" className="text-xs text-muted-foreground">Chi firma per l'impresa</Label>
+                    <Input
+                      id="firmatario_impresa"
+                      value={form.firmatario_impresa ?? ''}
+                      onChange={e => updateForm({ firmatario_impresa: e.target.value })}
+                      placeholder="Es. Mario Rossi, legale rappresentante"
+                    />
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    Timbro e firma insieme, meglio un PNG con il fondo trasparente. Esce nel riquadro «Per l'impresa» di ogni preventivo di questo modello: il cliente lo riceve già firmato da voi. È una firma grafica, non una firma digitale.
+                  </p>
+                </div>
                 <div className="border-t pt-3 space-y-3">
                   <div className="flex items-center gap-3">
                     <Switch checked={form.show_watermark ?? false} onCheckedChange={v => updateForm({ show_watermark: v })} />
@@ -2203,7 +2312,7 @@ export default function SettingsQuoteTemplates() {
                   <div className="flex min-w-max justify-center">
                     {formKind === 'offerta' ? (
                       <QuoteTemplatePreview
-                        template={resolveQuoteTemplatePreview(form, templates)}
+                        template={resolveQuoteTemplatePreview(form, templates, effectiveCompany?.brand_primary_color)}
                         companyName={effectiveCompany?.name}
                         logoSrc={logoSrcFor(form)}
                         coverSrc={getLogoPublicUrl(resolveQuoteTemplatePreview(form, templates).cover_image_url)}
@@ -2238,7 +2347,10 @@ export default function SettingsQuoteTemplates() {
                         const { data, error } = await supabase.functions.invoke("generate-quote-pdf", {
                           body: {
                             preview_mode: true,
-                            template_data: form,
+                            // L'azienda del modello anche per un modello nuovo, non ancora
+                            // salvato: la funzione legge logo, copertina e timbro solo dalla
+                            // sua cartella (e solo se chi chiama ci può entrare).
+                            template_data: { ...form, company_id: form.company_id ?? effectiveCompany?.id },
                             company_name: effectiveCompany?.name,
                             preview_signature: true,
                           },

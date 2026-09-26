@@ -437,8 +437,8 @@ export function RistrutturazioneTemplateEditor({ embedded = false, localModule }
         setLocalSaved(true);
       } else await upsert.mutateAsync(patch);
       setDirty(false);
-      toast.success(localModule ? "Modulo salvato in locale" : "Template salvato", {
-        description: localModule ? "Copia indipendente in questo browser. Non ancora collegata ai preventivi." : "Verrà applicato ai nuovi preventivi ristrutturazione.",
+      toast.success(localModule ? "Modello salvato" : "Template salvato", {
+        description: localModule ? "Salvato per l'azienda: lo usano i nuovi preventivi con questo intervento." : "Verrà applicato ai nuovi preventivi ristrutturazione.",
       });
     } catch (e) {
       toast.error("Salvataggio non riuscito", {
@@ -1203,7 +1203,7 @@ if (field === "subtitle") { set("cover_subtitle", (value ?? "")); } }}   placeho
                 className="gap-1.5 bg-orange-500 hover:bg-orange-600"
               >
                 {upsert.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                {localModule ? "Salva modulo in locale" : "Salva template"}
+                {localModule ? "Salva modello" : "Salva template"}
               </Button>
             </div>
           </TemplateEditorSaveBar>
@@ -1517,7 +1517,7 @@ function ImageUploadField({ label, hint, value, companyId, onChange, aspect = "a
     try {
       if (localOnly) {
         onChange(await readLocalTemplateImage(file));
-        toast.success("Immagine aggiunta in locale");
+        toast.success("Immagine aggiunta");
         return;
       }
       const ext = file.name.includes(".") ? file.name.split(".").pop()!.toLowerCase() : "bin";

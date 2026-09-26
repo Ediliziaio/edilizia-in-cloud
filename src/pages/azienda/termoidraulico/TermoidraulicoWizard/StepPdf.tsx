@@ -36,6 +36,10 @@ import {
   type IdrPdfCompany, renderIdrPreviewBlobUrl } from "@/hooks/useTermoidraulicoPDF";
 import type { IdrProgetto, IdrComputoVoce, IdrProgettoMedia } from "@/types/termoidraulico";
 import { InviaFirmaCard } from "@/components/moduli/InviaFirmaCard";
+import { MODELLO_CONTO_TERMICO } from "@/lib/contoTermico/pdfDelPreventivo";
+import { leggiDatiContoTermico } from "@/lib/contoTermico/dati";
+import { MODELLO_FULL_ELECTRIC } from "@/lib/fullElectric/pdfDelPreventivo";
+import { leggiDatiFullElectric } from "@/lib/fullElectric/dati";
 
 import { useIsMobile } from "@/hooks/use-mobile";
 interface Props {
@@ -135,6 +139,13 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
   const clienteLabel =
     [progetto.cliente_nome, progetto.cliente_cognome].filter(Boolean).join(" ") || "Cliente da definire";
   const ivaPct = Number(progetto.iva_pct ?? 10);
+  // Il Conto Termico ha il suo documento: oltre alle pagine di ogni preventivo
+  // servono il contributo e le spese annue, senza i quali i conti restano vuoti.
+  const contoTermico = progetto.modello_snapshot?.modelId === MODELLO_CONTO_TERMICO;
+  const datiCt = contoTermico ? leggiDatiContoTermico(progetto.conto_termico) : null;
+  // La Casa Full Electric racconta bollette ed energia: senza, restano pagine a zero.
+  const fullElectric = progetto.modello_snapshot?.modelId === MODELLO_FULL_ELECTRIC;
+  const datiFe = fullElectric ? leggiDatiFullElectric(progetto.full_electric) : null;
 
   // ─── Checklist (non bloccante, eccetto computo vuoto) ──────────────────────
   const checks: ChecklistItem[] = [
@@ -158,6 +169,30 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
       label: "Totale preventivo calcolato",
       hint: totali.totale <= 0 ? "Verifica quantità e prezzi nel computo" : undefined,
     },
+    ...(datiCt ? [
+      {
+        ok: datiCt.contributo > 0,
+        label: "Contributo del Conto Termico",
+        hint: datiCt.contributo > 0 ? undefined : "Scrivilo in Prezzi e sconti: è la stima del simulatore del GSE",
+      },
+      {
+        ok: datiCt.spesa_annua_attuale > datiCt.spesa_annua_nuova,
+        label: "Spese annue di oggi e di domani",
+        hint: datiCt.spesa_annua_attuale > datiCt.spesa_annua_nuova ? undefined : "Senza, il PDF non mostra il risparmio negli anni",
+      },
+    ] : []),
+    ...(datiFe ? [
+      {
+        ok: datiFe.spesa_gas + datiFe.spesa_luce > 0,
+        label: "Bollette di oggi (gas e luce)",
+        hint: datiFe.spesa_gas + datiFe.spesa_luce > 0 ? undefined : "Scrivile in Prezzi e sconti: senza, il PDF non mostra il risparmio",
+      },
+      {
+        ok: datiFe.produzione_kwh > 0 && datiFe.consumo_kwh > 0,
+        label: "Produzione e consumi di domani",
+        hint: datiFe.produzione_kwh > 0 && datiFe.consumo_kwh > 0 ? undefined : "Dalla simulazione del fotovoltaico: servono all'energia mese per mese",
+      },
+    ] : []),
     {
       ok: Boolean((template?.chi_siamo ?? "").trim()) || (template?.usp ?? []).some((u) => (u.titolo ?? "").trim()),
       label: "Presentazione impresa (chi siamo / USP)",
@@ -325,7 +360,8 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
         </div>
       )}
 
-      {/* Come mostrare il computo nel PDF — scelta PER QUESTO PREVENTIVO (non template) */}
+      {/* Come mostrare il computo nel PDF — scelta PER QUESTO PREVENTIVO (non template).
+          Vale anche per la pagina «voce per voce» del Conto Termico. */}
       {/* Telefono no: l'impaginazione del computo si sceglie dal computer
           (come nel preventivo classico); il PDF usa l'ultima scelta fatta. */}
       {!computoVuoto && (
@@ -419,8 +455,11 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
             <h2 className="text-sm font-semibold text-slate-900">Scarica il preventivo</h2>
           </div>
           <p className="text-[11px] text-muted-foreground max-sm:hidden">
-            PDF A4 brandizzato pronto da allegare via email o stampare: copertina, presentazione
-            impresa, computo per capitoli, foto, cronoprogramma e condizioni.
+            {contoTermico
+              ? "PDF A4 pronto da allegare via email o stampare: copertina, chi siamo e garanzie, cosa vuol dire il Conto Termico, cosa installiamo voce per voce, foto, contributo, risparmio e beneficio negli anni, recensioni, passaggi, condizioni e firma."
+              : fullElectric
+                ? "PDF A4 pronto da allegare via email o stampare: copertina, chi siamo, il sistema pezzo per pezzo, cosa installiamo voce per voce, foto, energia mese per mese, bollette prima e dopo, incentivi, beneficio negli anni, ambiente, recensioni, passaggi, condizioni e firma."
+                : "PDF A4 brandizzato pronto da allegare via email o stampare: copertina, presentazione impresa, computo per capitoli, foto, cronoprogramma e condizioni."}
           </p>
 
           {computoVuoto ? (

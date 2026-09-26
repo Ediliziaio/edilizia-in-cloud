@@ -125,8 +125,8 @@ describe("da chiamare oggi e urgenze", () => {
       urgenze: ["WhatsApp Numero appuntamenti +39 350 178 2744: staccato", "la casella info@x.it non spedisce"],
       daChiamare: [{ chi: "Rossi Serramenti", canale: "email", motivo: "interessato", quando: "ieri", telefono: "348 123 4567" }],
     });
-    expect(titolo.startsWith("⚠ Outreach")).toBe(true);
-    expect(righe[0].etichetta).toBe("⚠ Urgenze");
+    expect(titolo.startsWith("Da guardare — Outreach")).toBe(true);
+    expect(righe[0].etichetta).toBe("Urgenze");
     expect(testo.startsWith("URGENZE\n• WhatsApp Numero appuntamenti")).toBe(true);
     expect(testo.indexOf("URGENZE")).toBeLessThan(testo.indexOf("DA CHIAMARE OGGI"));
   });
@@ -168,7 +168,8 @@ describe("positive sulle persone contattate, ultimi 30 giorni", () => {
   });
 
   it("la funzione del riepilogo legge il conto dal database, chiusa ad anon", () => {
-    const funzione = readFileSync(resolve(process.cwd(), "supabase/functions/outreach-riepilogo/index.ts"), "utf8");
+    // La raccolta sta nel modulo condiviso dal 25/09/2026 (la usa anche l'email del mattino).
+    const funzione = readFileSync(resolve(process.cwd(), "supabase/functions/_shared/outreachRiepilogoDati.ts"), "utf8");
     expect(funzione).toContain('admin.rpc("outreach_positive_30_giorni")');
     const sql = readFileSync(resolve(process.cwd(), "supabase/migrations/20280924130000_outreach_positive_30_giorni.sql"), "utf8");
     expect(sql).toContain("revoke all on function public.outreach_positive_30_giorni() from public, anon, authenticated;");

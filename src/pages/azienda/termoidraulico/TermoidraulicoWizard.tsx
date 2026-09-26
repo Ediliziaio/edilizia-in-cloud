@@ -36,6 +36,7 @@ import { cn } from "@/lib/utils";
 import {
   useTermoidraulicoProgetto,
   useUpsertProgetto,
+  getIdrTemplatePdf,
 } from "@/hooks/useTermoidraulicoProgetto";
 import type { IdrProgetto } from "@/types/termoidraulico";
 import {
@@ -43,11 +44,15 @@ import {
   compactText, type IdrWizardStepKey,
 } from "./TermoidraulicoWizard/helpers";
 import type { IdrFormPatch } from "./TermoidraulicoWizard/types";
+import { useSupportoModelloPreventivo } from "@/hooks/useSupportoModelliPreventivo";
+import { TIPO_INTERVENTO_DEL_MODELLO, creaModelloPreventivo, interventoDelModulo, leggiModelloPreventivo } from "@/lib/moduli/modelloPreventivo";
 import StepCliente from "./TermoidraulicoWizard/StepCliente";
 import StepImmobile from "./TermoidraulicoWizard/StepImmobile";
 import StepComputo from "./TermoidraulicoWizard/StepComputo";
 import StepMedia from "./TermoidraulicoWizard/StepMedia";
 import StepEconomia from "./TermoidraulicoWizard/StepEconomia";
+import { DATI_CONTO_TERMICO_INIZIALI } from "@/lib/contoTermico/dati";
+import { DATI_FULL_ELECTRIC_INIZIALI } from "@/lib/fullElectric/dati";
 import StepPdf from "./TermoidraulicoWizard/StepPdf";
 
 const STEP_ICONS: Record<IdrWizardStepKey, React.FC<React.SVGProps<SVGSVGElement>>> = {
@@ -67,6 +72,9 @@ export default function TermoidraulicoWizard() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const isNew = !id;
+  // ?modello=… : il preventivo nasce da un intervento della libreria (come Tetti).
+  const requestedModel = searchParams.get("modello");
+  const modelSupport = useSupportoModelloPreventivo("termoidraulico");
   const { user, effectiveCompany } = useAuth();
   const [resumeDismissed, setResumeDismissed] = useState(false);
   const [exitDialogOpen, setExitDialogOpen] = useState(false);
@@ -106,9 +114,39 @@ export default function TermoidraulicoWizard() {
 
   const { data: detail, isLoading, isError, refetch } = useTermoidraulicoProgetto(id);
   const upsertMut = useUpsertProgetto();
+  const savedModel = useMemo<{ snapshot: ReturnType<typeof leggiModelloPreventivo>; error: string | null }>(() => {
+    try { return { snapshot: detail ? leggiModelloPreventivo("termoidraulico", detail.progetto.modello_snapshot, detail.progetto.company_id) : null, error: null }; }
+    catch (error) { return { snapshot: null, error: error instanceof Error ? error.message : "Modello non valido" }; }
+  }, [detail]);
+  const model = interventoDelModulo("termoidraulico", isNew ? requestedModel : savedModel.snapshot?.modelId);
 
   // Local form state (campi del progetto).
-  const [form, setForm] = useState<IdrFormPatch>({});
+  const [form, setForm] = useState<IdrFormPatch>(() => model ? { tipo_intervento: TIPO_INTERVENTO_DEL_MODELLO.termoidraulico[model.id] } : {});
+  const createInput = async (): Promise<IdrFormPatch> => {
+    if (!requestedModel) return form;
+    if (!model || !modelSupport.supported || !effectiveCompany?.id) throw new Error("Il salvataggio di questo intervento deve essere attivato nel database. Nessuna offerta generica è stata creata.");
+    const companyId = effectiveCompany.id;
+    const [{ createFullIdrTemplate, isFullIdrModuleId }, { loadLocalIdrTemplate }, { sincronizzaModelliAzienda }] = await Promise.all([
+      import("@/lib/moduli-vendita/fullIdrModules"), import("@/lib/moduli-vendita/localIdrTemplates"),
+      import("@/lib/moduli-vendita/archivioModelli"),
+    ]);
+    if (!isFullIdrModuleId(model.id)) throw new Error("Questo intervento non ha un modello completo. Nessuna offerta generica è stata creata.");
+    // Il modello personalizzato è dell'azienda: può averlo salvato un collega da
+    // un altro computer. Se il database non risponde resta la copia di questo browser.
+    await sincronizzaModelliAzienda(companyId).catch((): void => undefined);
+    const base = await getIdrTemplatePdf(companyId);
+    const source = loadLocalIdrTemplate(companyId, model.id)?.template ?? createFullIdrTemplate(base, model.id);
+    // Conto Termico: il contributo non è una detrazione. Senza azzerarla, il
+    // predefinito dell'azienda (spesso 50%) finiva nel documento.
+    // Casa Full Electric: gli incentivi (detrazione sul fotovoltaico, Conto Termico
+    // sulla pompa di calore) stanno nei suoi dati, non nella detrazione del preventivo.
+    const contoTermico = model.id === "conto-termico"
+      ? { detrazione_pct: 0, massimale_detrazione: null, conto_termico: form.conto_termico ?? DATI_CONTO_TERMICO_INIZIALI }
+      : model.id === "full-electric"
+        ? { detrazione_pct: 0, massimale_detrazione: null, full_electric: form.full_electric ?? DATI_FULL_ELECTRIC_INIZIALI }
+        : {};
+    return { ...form, ...contoTermico, tipo_intervento: TIPO_INTERVENTO_DEL_MODELLO.termoidraulico[model.id], modello_snapshot: creaModelloPreventivo("termoidraulico", companyId, model.id, source) };
+  };
   // L'ultimo form a video. Quando un salvataggio torna, «salvato» vale solo se
   // nel frattempo non si è scritto altro: azzerare «dirty» comunque perdeva le
   // modifiche fatte durante la richiesta, perché l'autosave non ripartiva.
@@ -242,17 +280,17 @@ export default function TermoidraulicoWizard() {
     () => Math.round(((currentStepIndex + 1) / IDR_WIZARD_STEPS.length) * 100),
     [currentStepIndex],
   );
-  const completion = useMemo(
-    () => stepCompletion(form, detail?.computo),
-    [form, detail?.computo],
-  );
+  // Col modello il tipo d'intervento è già scelto: lo step Immobile si completa
+  // coi dati del cantiere, non col tipo preimpostato. Senza useMemo, come Tetti:
+  // il compilatore di React non riesce a conservarlo con il modello tra le dipendenze.
+  const completion = stepCompletion(model ? { ...form, tipo_intervento: null } : form, detail?.computo);
 
   const handleSaveAndContinue = async () => {
     // Nuovo progetto: crea passando tutto il form, poi naviga al record creato.
     if (isNew) {
       setCreating(true);
       try {
-        const created = await upsertMut.mutateAsync({ ...form });
+        const created = await upsertMut.mutateAsync(await createInput());
         navigate(`/azienda/termoidraulico/${created.id}/modifica`, { replace: true });
       } catch (e) {
         toast.error("Creazione progetto fallita", {
@@ -318,13 +356,18 @@ export default function TermoidraulicoWizard() {
     );
   }
 
+  if (savedModel.error || (isNew && requestedModel && !model)) return <div role="alert" className="space-y-3 p-6"><h1 className="text-xl font-semibold">Intervento non disponibile</h1><p>{savedModel.error ?? "Il tipo di intervento richiesto non è riconosciuto."}</p><Button onClick={() => navigate("/azienda/marketing/preventivi?tab=moduli&area=termoidraulica")}>Scegli un intervento</Button></div>;
+
   const statoMeta = IDR_STATI_LABEL[(detail?.progetto.stato as IdrProgetto["stato"]) ?? "bozza"];
 
   return (
     <div className="pb-28 md:pb-20">
+      {model && <section className="mx-auto max-w-6xl space-y-2 p-4"><h1 className="text-xl font-semibold">Preventivo · {model.title}</h1><p className="text-sm text-muted-foreground">{model.summary}</p><p className="text-xs">Cliente → Immobile → Lavorazioni e prodotti → Prezzi e sconti → PDF dell'intervento</p>
+        {isNew && !modelSupport.supported && <p role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm">{modelSupport.isLoading ? "Verifica del salvataggio…" : "Percorso predisposto: il salvataggio richiede ancora l'attivazione del database. Non inserire dati finché il collegamento non è attivo."}</p>}
+      </section>}
       {/* Sticky header */}
       {/* ── Riprendi bozza: su "nuovo", se esiste una bozza propria ── */}
-      <AlertDialog open={Boolean(isNew && ultimaBozza && !resumeDismissed)}>
+      <AlertDialog open={Boolean(isNew && !requestedModel && ultimaBozza && !resumeDismissed)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Hai un preventivo in bozza</AlertDialogTitle>
@@ -374,7 +417,7 @@ export default function TermoidraulicoWizard() {
             <AlertDialogAction
               onClick={async () => {
                 try {
-                  await upsertMut.mutateAsync({ ...form });
+                  await upsertMut.mutateAsync(isNew ? await createInput() : { ...form });
                   toast.success("Bozza salvata — la ritrovi nella lista");
                 } catch (e) {
                   toast.error("Salvataggio bozza fallito", { description: e instanceof Error ? e.message : undefined });
@@ -402,7 +445,7 @@ export default function TermoidraulicoWizard() {
             <div className="flex items-center gap-2 flex-wrap max-md:gap-y-0.5">
               <Hammer className="h-4 w-4 text-orange-600 max-md:hidden" />
               <span className="font-semibold text-sm max-md:order-1 max-md:text-[15px]">
-                {isNew ? "Nuovo progetto" : detail?.progetto.code ?? "Progetto"}
+                {isNew ? model?.title ?? "Nuovo progetto" : detail?.progetto.code ?? "Progetto"}
               </span>
               {!isNew && compactText(detail?.progetto.cliente_nome, detail?.progetto.cliente_cognome) && (
                 <Badge variant="outline" className="text-[10px] max-md:order-4 max-md:border-0 max-md:p-0 max-md:text-xs max-md:font-normal max-md:text-muted-foreground">
@@ -527,10 +570,12 @@ export default function TermoidraulicoWizard() {
           {/* Step content */}
           <main className="col-span-12 space-y-4 md:col-span-9 lg:col-span-10">
             {currentStep === "cliente" && (
-              <StepCliente form={form} onChange={onChange} />
+              <fieldset disabled={Boolean(isNew && requestedModel && !modelSupport.supported)} className="min-w-0">
+                <StepCliente form={form} onChange={onChange} />
+              </fieldset>
             )}
             {currentStep === "immobile" && (
-              <StepImmobile form={form} onChange={onChange} />
+              <StepImmobile form={form} onChange={onChange} model={model} />
             )}
             {currentStep === "computo" && id && detail && (
               // key = id stabile del progetto: monta una volta col computo iniziale
@@ -543,13 +588,14 @@ export default function TermoidraulicoWizard() {
                 scontoPct={Number(form.sconto_pct ?? detail.progetto.sconto_pct ?? 0)}
                 ivaPct={Number(form.iva_pct ?? detail.progetto.iva_pct ?? 10)}
                 prezzoManuale={form.prezzo_manuale !== undefined ? form.prezzo_manuale : detail.progetto.prezzo_manuale ?? null}
+                model={model}
               />
             )}
             {currentStep === "media" && id && detail && (
               <StepMedia progettoId={id} media={detail.media} />
             )}
             {currentStep === "economia" && detail && (
-              <StepEconomia form={form} onChange={onChange} computo={detail.computo} />
+              <StepEconomia form={form} onChange={onChange} computo={detail.computo} model={model} />
             )}
             {currentStep === "pdf" && id && detail && (
               // Merge progetto salvato + edit correnti del form (sconto/IVA/
@@ -587,7 +633,7 @@ export default function TermoidraulicoWizard() {
               </Button>
               <Button
                 onClick={handleSaveAndContinue}
-                disabled={upsertMut.isPending || creating}
+                disabled={upsertMut.isPending || creating || Boolean(isNew && requestedModel && !modelSupport.supported)}
                 className="min-h-11 flex-1 bg-orange-500 hover:bg-orange-600 gap-1 sm:flex-none md:min-h-0"
               >
                 {(upsertMut.isPending || creating) ? (

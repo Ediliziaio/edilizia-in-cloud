@@ -412,7 +412,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Quanto costa il modulo? Ci sono costi extra per DDT emessi?",
-      a: "Il modulo DDT Digitali è incluso nei piani Professional e Business. Numero di DDT illimitato, app autista illimitata, conservazione cloud 10 anni inclusa. Nessun costo per DDT emesso, nessun vincolo pluriennale. Cancelli quando vuoi.",
+      a: "Il modulo DDT Digitali è incluso nei piani Gestionale, Professionista e Impresa AI. Numero di DDT illimitato, app autista illimitata, conservazione cloud 10 anni inclusa. Nessun costo per DDT emesso, nessun vincolo pluriennale. Cancelli quando vuoi.",
     },
   ],
 
@@ -464,7 +464,7 @@ const config: FunzionalitaPageConfig = {
     {
       to: "/prezzi",
       title: "Prezzi e Piani",
-      text: "Modulo DDT Digitali incluso nei piani Professional e Business.",
+      text: "Modulo DDT Digitali incluso nei piani Gestionale, Professionista e Impresa AI.",
     },
   ],
 

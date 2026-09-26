@@ -103,9 +103,14 @@ function PrezzoFinaleAManoCard({ companyId }: { companyId: string }) {
 function MarginiPdfTab({
   companyId,
   categorie,
+  puoModificareListino,
 }: {
   companyId: string;
   categorie: Categoria[];
+  /** Margini, PDF, numerazione e margine per categoria li cambia chi può
+   *  modificare il listino: è la regola del database dal 26/09/2026. Per gli
+   *  altri la scheda resta in sola lettura (niente falso «aggiornato»). */
+  puoModificareListino: boolean;
 }) {
   const queryClient = useQueryClient();
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
@@ -216,15 +221,17 @@ function MarginiPdfTab({
   }, []);
 
   const triggerAutoSave = useCallback(() => {
+    if (!puoModificareListino) return;
     setDirty(true);
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       // buildPayload reads from stateRef which is always up-to-date
       saveMutation.mutate(buildPayload());
     }, 600);
-  }, [buildPayload, saveMutation]);
+  }, [buildPayload, saveMutation, puoModificareListino]);
 
   const handleManualSave = () => {
+    if (!puoModificareListino) return;
     clearTimeout(debounceRef.current);
     saveMutation.mutate(buildPayload());
   };
@@ -241,6 +248,15 @@ function MarginiPdfTab({
           <AlertDescription>Errore nel caricamento. Ricarica la pagina.</AlertDescription>
         </Alert>
       )}
+      {!puoModificareListino && (
+        <Alert>
+          <AlertDescription>
+            Stai consultando le impostazioni: le cambia chi ha il permesso «Listino &amp; Prezzi» in modifica.
+          </AlertDescription>
+        </Alert>
+      )}
+      {/* disabled su un fieldset spegne ogni campo e pulsante che contiene. */}
+      <fieldset disabled={!puoModificareListino} className="m-0 min-w-0 space-y-6 border-0 p-0">
       <div className="flex justify-end">
         <Button
           size="sm"
@@ -407,7 +423,9 @@ function MarginiPdfTab({
                   defaultValue={cat.margine_target_percentuale ?? ""}
                   className="w-24"
                   min="0" max="100"
+                  disabled={!puoModificareListino}
                   onBlur={async (e) => {
+                    if (!puoModificareListino) return;
                     const val = e.target.value.trim() === "" ? null : parseFloat(e.target.value);
                     // Niente write/toast se il valore non è cambiato o non è valido (apri/chiudi senza modifiche).
                     if (val !== null && !Number.isFinite(val)) return;
@@ -426,6 +444,7 @@ function MarginiPdfTab({
           </CardContent>
         </Card>
       )}
+      </fieldset>
     </div>
   );
 }
@@ -526,7 +545,7 @@ export default function SettingsMargini() {
           <TabsTrigger value="governance">Governance</TabsTrigger>
         </TabsList>
         <TabsContent value="margini" className="mt-6">
-          <MarginiPdfTab companyId={companyId} categorie={categorie} />
+          <MarginiPdfTab companyId={companyId} categorie={categorie} puoModificareListino={isAdmin} />
         </TabsContent>
         <TabsContent value="governance" className="mt-6">
           <GovernanceThresholdsCard companyId={companyId} isAdmin={isAdmin} />

@@ -114,6 +114,8 @@ export type FvTipoServizio =
 // ─── Entità DB ──────────────────────────────────────────────────────────────
 
 export interface FvProgetto {
+  /** Il modello della libreria congelato nel preventivo (lib/moduli/modelloPreventivo). */
+  modello_snapshot?: import("@/lib/moduli/modelloPreventivo").ModelloPreventivo<Record<string, unknown>> | null;
   id: string;
   company_id: string;
   cliente_id: string | null;

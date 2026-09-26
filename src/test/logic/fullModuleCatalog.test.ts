@@ -6,7 +6,7 @@ import { SALES_AREAS } from "@/lib/moduli-vendita/areas";
 describe("Catalogo delle edizioni originali", () => {
   it("indica soltanto i moduli implementati e tutte le immagini esistono", () => {
     const all = SALES_AREAS.flatMap(area => area.interventions.map(module => `${area.id}/${module.id}`));
-    expect(all).toHaveLength(68);
+    expect(all).toHaveLength(70);
     expect(Object.keys(FULL_MODULE_COVERS).sort()).toEqual(all.sort());
     for (const url of Object.values(FULL_MODULE_COVERS)) expect(existsSync(`public${url}`)).toBe(true);
   });

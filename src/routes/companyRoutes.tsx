@@ -7,6 +7,7 @@ import { Route, Navigate, useLocation, useParams } from "react-router-dom";
 // meta' file, altrimenti la regola no-use-before-define (che tiene lontani i
 // "Cannot access before initialization" nei componenti) segnala un falso positivo.
 import { COMPANY_ROLES, withCompanyPermission } from "./company/_shared";
+import { canAccessMediaLibrary } from "@/lib/mediaLibrary";
 import { useAuth, COMPANY_CHOSEN_KEY } from "@/contexts/AuthContext";
 
 /** Redirect /azienda/interventi/:id → /azienda/assistenza/:id (unificazione) */
@@ -173,35 +174,35 @@ const FotovoltaicoDettaglio = lazy(() => import("@/pages/azienda/fotovoltaico/Fo
 // Modulo Preventivatore Serramenti
 const SerramentiIndex = lazy(() => import("@/pages/azienda/serramenti/SerramentiIndex"));
 const SerramentiWizard = lazy(() => import("@/pages/azienda/serramenti/SerramentiWizard"));
-// Modulo Ristrutturazione (gating come Serramenti: permission-based, no feature flag DB)
+// Modulo Ristrutturazione (permesso + modulo nel piano, come gli altri)
 const RistrutturazioneIndex = lazy(() => import("@/pages/azienda/ristrutturazione/RistrutturazioneIndex"));
 const RistrutturazioneWizard = lazy(() => import("@/pages/azienda/ristrutturazione/RistrutturazioneWizard"));
 const RistrutturazioneListino = lazy(() => import("@/pages/azienda/ristrutturazione/RistrutturazioneListino"));
-// Modulo Bagni (clone Ristrutturazione: permission-based, no feature flag DB)
+// Modulo Bagni (clone Ristrutturazione; permesso + modulo nel piano)
 const BagniIndex = lazy(() => import("@/pages/azienda/bagni/BagniIndex"));
 const BagniWizard = lazy(() => import("@/pages/azienda/bagni/BagniWizard"));
 const BagniListino = lazy(() => import("@/pages/azienda/bagni/BagniListino"));
-// Modulo Tetti (clone Ristrutturazione: permission-based, no feature flag DB)
+// Modulo Tetti (clone Ristrutturazione; permesso + modulo nel piano)
 const TettiIndex = lazy(() => import("@/pages/azienda/tetti/TettiIndex"));
 const TettiWizard = lazy(() => import("@/pages/azienda/tetti/TettiWizard"));
 const TettiListino = lazy(() => import("@/pages/azienda/tetti/TettiListino"));
-// Modulo Climatizzazione (clone Ristrutturazione: permission-based, no feature flag DB)
+// Modulo Climatizzazione (clone Ristrutturazione; permesso + modulo nel piano)
 const ClimatizzazioneIndex = lazy(() => import("@/pages/azienda/climatizzazione/ClimatizzazioneIndex"));
 const ClimatizzazioneWizard = lazy(() => import("@/pages/azienda/climatizzazione/ClimatizzazioneWizard"));
 const ClimatizzazioneListino = lazy(() => import("@/pages/azienda/climatizzazione/ClimatizzazioneListino"));
-// Modulo Elettrico/Domotica (clone Ristrutturazione: permission-based, no feature flag DB)
+// Modulo Elettrico/Domotica (clone Ristrutturazione; permesso + modulo nel piano)
 const ElettricoIndex = lazy(() => import("@/pages/azienda/elettrico/ElettricoIndex"));
 const ElettricoWizard = lazy(() => import("@/pages/azienda/elettrico/ElettricoWizard"));
 const ElettricoListino = lazy(() => import("@/pages/azienda/elettrico/ElettricoListino"));
-// Modulo Termoidraulico (clone Ristrutturazione: permission-based, no feature flag DB)
+// Modulo Termoidraulico (clone Ristrutturazione; permesso + modulo nel piano)
 const TermoidraulicoIndex = lazy(() => import("@/pages/azienda/termoidraulico/TermoidraulicoIndex"));
 const TermoidraulicoWizard = lazy(() => import("@/pages/azienda/termoidraulico/TermoidraulicoWizard"));
 const TermoidraulicoListino = lazy(() => import("@/pages/azienda/termoidraulico/TermoidraulicoListino"));
-// Modulo Pavimenti & Resine (clone Ristrutturazione: permission-based, no feature flag DB)
+// Modulo Pavimenti & Resine (clone Ristrutturazione; permesso + modulo nel piano)
 const PavimentiIndex = lazy(() => import("@/pages/azienda/pavimenti/PavimentiIndex"));
 const PavimentiWizard = lazy(() => import("@/pages/azienda/pavimenti/PavimentiWizard"));
 const PavimentiListino = lazy(() => import("@/pages/azienda/pavimenti/PavimentiListino"));
-// Modulo Piscine (clone Ristrutturazione: permission-based, no feature flag DB)
+// Modulo Piscine (clone Ristrutturazione; permesso + modulo nel piano)
 const PiscineIndex = lazy(() => import("@/pages/azienda/piscine/PiscineIndex"));
 const PiscineWizard = lazy(() => import("@/pages/azienda/piscine/PiscineWizard"));
 const PiscineListino = lazy(() => import("@/pages/azienda/piscine/PiscineListino"));
@@ -591,11 +592,14 @@ export default function CompanyRoutesContainer() {
         <Route path="upgrade" element={isIOSNativePlatform ? <IosBillingBlocked /> : <UpgradePage />} />
         {/* v8.6.63 — Showcase Feature Preview Mode (per QA / demo commerciale) */}
         <Route path="preview-demo" element={<DemoPreviewShowcase />} />
-        {/* Dashboard Builder v1 — custom dashboards (gated: dashboard_builder_v1) */}
-        <Route path="dashboards" element={<FeatureRoute featureKey="dashboard_builder_v1"><ErrorBoundary title="Errore dashboards"><DashboardsList /></ErrorBoundary></FeatureRoute>} />
-        <Route path="dashboards/nuova" element={<FeatureRoute featureKey="dashboard_builder_v1"><ErrorBoundary title="Errore builder"><DashboardBuilder /></ErrorBoundary></FeatureRoute>} />
-        <Route path="dashboards/:id" element={<FeatureRoute featureKey="dashboard_builder_v1"><ErrorBoundary title="Errore dashboard"><DashboardView /></ErrorBoundary></FeatureRoute>} />
-        <Route path="dashboards/:id/modifica" element={<FeatureRoute featureKey="dashboard_builder_v1"><ErrorBoundary title="Errore builder"><DashboardBuilder /></ErrorBoundary></FeatureRoute>} />
+        {/* Dashboard Builder v1 — custom dashboards (gated: dashboard_builder_v1).
+            Sono il Cruscotto: stesso permesso di /cruscotto/gestisci. Prima
+            bastava il flag, acceso di serie, e chiunque metteva in un widget
+            cassa, fatturato e crediti scaduti (25/09/2026). */}
+        <Route path="dashboards" element={withCompanyPermission("canViewCruscotto", <FeatureRoute featureKey="dashboard_builder_v1"><ErrorBoundary title="Errore dashboards"><DashboardsList /></ErrorBoundary></FeatureRoute>)} />
+        <Route path="dashboards/nuova" element={withCompanyPermission("canViewCruscotto", <FeatureRoute featureKey="dashboard_builder_v1"><ErrorBoundary title="Errore builder"><DashboardBuilder /></ErrorBoundary></FeatureRoute>)} />
+        <Route path="dashboards/:id" element={withCompanyPermission("canViewCruscotto", <FeatureRoute featureKey="dashboard_builder_v1"><ErrorBoundary title="Errore dashboard"><DashboardView /></ErrorBoundary></FeatureRoute>)} />
+        <Route path="dashboards/:id/modifica" element={withCompanyPermission("canViewCruscotto", <FeatureRoute featureKey="dashboard_builder_v1"><ErrorBoundary title="Errore builder"><DashboardBuilder /></ErrorBoundary></FeatureRoute>)} />
         <Route path="commesse" element={<Navigate to="/azienda/ordini" replace />} />
         <Route path="commesse/:id" element={<LegacyCommessaRedirect />} />
         <Route path="commesse/:id/diario" element={<LegacyCommessaDiaryRedirect />} />
@@ -645,9 +649,17 @@ export default function CompanyRoutesContainer() {
         <Route path="cedolini-personali" element={<Navigate to="/azienda/attivita?tab=cedolini" replace />} />
         <Route path="errori" element={<Navigate to="/azienda/ordini?tab=anomalie" replace />} />
         {/* MP-CLEANUP: rotta messaggistica-beta rimossa — dominio eliminato. */}
-        <Route path="chat" element={withCompanyPermission("canViewPersone", <ChatHub />)} />
-        <Route path="silvio-ai" element={withCompanyPermission("canViewPersone", <SilvioAIPage />)} />
-        <Route path="contenuti-multimediali" element={withCompanyPermission("canViewMarketing", <ContenutiMultimediali />)} />
+        {/* Chat e Silvio sono di tutto lo staff (25/09/2026). Chiedevano
+            «Personale»: 86 persone su 91 trovavano «Accesso negato» dal pulsante
+            della chat in testata su mobile, da quello centrale di Silvio e da
+            «espandi» della chat di Silvio, che vive nella chat interna. Cosa
+            legge Silvio lo decidono i permessi dei suoi strumenti. */}
+        <Route path="chat" element={<ChatHub />} />
+        <Route path="silvio-ai" element={<SilvioAIPage />} />
+        {/* EiC Drive: la stessa regola del menu e della pagina (canAccessMediaLibrary,
+            che mette in OR i permessi delle aree che hanno file). Prima la rotta
+            chiedeva il marketing: 20 persone vedevano la voce e trovavano «Accesso negato». */}
+        <Route path="contenuti-multimediali" element={withCompanyPermission("canViewMarketing", <ContenutiMultimediali />, canAccessMediaLibrary)} />
         {/* MP-AIE-03: Azioni proposte AI (yellow/red da Silvio + 18 personas).
             2026-05-27 (audit role-based): gated dietro canViewMarketing — le
             proposte mostrano CRM/lead/preventivi quindi commerciale/admin sì,
@@ -885,251 +897,270 @@ export default function CompanyRoutesContainer() {
         <Route path="sms-marketing/template" element={<Navigate to="/azienda/sms?tab=template" replace />} />
         <Route path="marketing/analisi-preventivi" element={<Navigate to="/azienda/marketing/preventivi?tab=analisi" replace />} />
         <Route path="marketing/sales-os" element={withCompanyPermission("canViewSalesOs", <FeatureRoute featureKey="sales_os"><SalesOSDashboard /></FeatureRoute>)} />
-        {/* Modulo Fotovoltaico — gated da feature flag modulo_fotovoltaico_attivo */}
+        {/* Modulo Fotovoltaico — permesso del ruolo, come gli altri moduli di
+            vendita (prima solo il flag: elenco e dettaglio dei preventivi FV,
+            con clienti e importi, erano aperti a tutto lo staff), più la
+            funzione di piano modulo_fotovoltaico_attivo. */}
         <Route path="marketing/fotovoltaico" element={
-          <FeatureRoute featureKey="modulo_fotovoltaico_attivo">
-            <ErrorBoundary title="Errore modulo Fotovoltaico"><FotovoltaicoIndex /></ErrorBoundary>
-          </FeatureRoute>
+          withCompanyPermission(
+            "canViewMarketingOpportunities",
+            <FeatureRoute featureKey="modulo_fotovoltaico_attivo">
+              <ErrorBoundary title="Errore modulo Fotovoltaico"><FotovoltaicoIndex /></ErrorBoundary>
+            </FeatureRoute>,
+          )
         } />
         <Route path="marketing/fotovoltaico/nuovo" element={
-          <FeatureRoute featureKey="modulo_fotovoltaico_attivo">
-            <ErrorBoundary title="Errore wizard Fotovoltaico"><FotovoltaicoWizard /></ErrorBoundary>
-          </FeatureRoute>
+          withCompanyPermission(
+            "canEditMarketingOpportunities",
+            <FeatureRoute featureKey="modulo_fotovoltaico_attivo">
+              <ErrorBoundary title="Errore wizard Fotovoltaico"><FotovoltaicoWizard /></ErrorBoundary>
+            </FeatureRoute>,
+          )
         } />
         {/* /componenti PRIMA di /:id per non essere catturata dal match dinamico */}
         <Route path="marketing/fotovoltaico/componenti" element={
-          <FeatureRoute featureKey="modulo_fotovoltaico_attivo">
-            <ErrorBoundary title="Errore Componenti FV"><ComponentiFv /></ErrorBoundary>
-          </FeatureRoute>
+          withCompanyPermission(
+            "canViewMarketingOpportunities",
+            <FeatureRoute featureKey="modulo_fotovoltaico_attivo">
+              <ErrorBoundary title="Errore Componenti FV"><ComponentiFv /></ErrorBoundary>
+            </FeatureRoute>,
+          )
         } />
         <Route path="marketing/fotovoltaico/:id" element={
-          <FeatureRoute featureKey="modulo_fotovoltaico_attivo">
-            <ErrorBoundary title="Errore dettaglio Fotovoltaico"><FotovoltaicoDettaglio /></ErrorBoundary>
-          </FeatureRoute>
+          withCompanyPermission(
+            "canViewMarketingOpportunities",
+            <FeatureRoute featureKey="modulo_fotovoltaico_attivo">
+              <ErrorBoundary title="Errore dettaglio Fotovoltaico"><FotovoltaicoDettaglio /></ErrorBoundary>
+            </FeatureRoute>,
+          )
         } />
         <Route path="marketing/fotovoltaico/:id/modifica" element={
-          <FeatureRoute featureKey="modulo_fotovoltaico_attivo">
-            <ErrorBoundary title="Errore wizard Fotovoltaico"><FotovoltaicoWizard /></ErrorBoundary>
-          </FeatureRoute>
+          withCompanyPermission(
+            "canEditMarketingOpportunities",
+            <FeatureRoute featureKey="modulo_fotovoltaico_attivo">
+              <ErrorBoundary title="Errore wizard Fotovoltaico"><FotovoltaicoWizard /></ErrorBoundary>
+            </FeatureRoute>,
+          )
         } />
+        {/* Moduli di vendita: permesso del ruolo + modulo nel piano (FeatureRoute),
+            come il Fotovoltaico. Senza il modulo nel piano si vede l'anteprima. */}
         {/* Modulo Preventivatore Serramenti */}
         <Route path="serramenti" element={
           withCompanyPermission(
             "canViewMarketingOpportunities",
-            <ErrorBoundary title="Errore modulo Serramenti"><SerramentiIndex /></ErrorBoundary>,
+            <FeatureRoute featureKey="modulo_serramenti_attivo"><ErrorBoundary title="Errore modulo Serramenti"><SerramentiIndex /></ErrorBoundary></FeatureRoute>,
           )
         } />
         <Route path="serramenti/nuovo" element={
           withCompanyPermission(
             "canEditMarketingOpportunities",
-            <ErrorBoundary title="Errore wizard Serramenti"><SerramentiWizard /></ErrorBoundary>,
+            <FeatureRoute featureKey="modulo_serramenti_attivo"><ErrorBoundary title="Errore wizard Serramenti"><SerramentiWizard /></ErrorBoundary></FeatureRoute>,
           )
         } />
         <Route path="serramenti/:id/modifica" element={
           withCompanyPermission(
             "canEditMarketingOpportunities",
-            <ErrorBoundary title="Errore wizard Serramenti"><SerramentiWizard /></ErrorBoundary>,
+            <FeatureRoute featureKey="modulo_serramenti_attivo"><ErrorBoundary title="Errore wizard Serramenti"><SerramentiWizard /></ErrorBoundary></FeatureRoute>,
           )
         } />
-        {/* Modulo Ristrutturazione — stesso guard di Serramenti (permission-based,
-            nessun FeatureRoute/feature flag DB): visibile e usabile da subito. */}
+        {/* Modulo Ristrutturazione */}
         <Route path="ristrutturazione" element={
           withCompanyPermission(
             "canViewMarketingOpportunities",
-            <ErrorBoundary title="Errore modulo Ristrutturazione"><RistrutturazioneIndex /></ErrorBoundary>,
+            <FeatureRoute featureKey="modulo_ristrutturazione_attivo"><ErrorBoundary title="Errore modulo Ristrutturazione"><RistrutturazioneIndex /></ErrorBoundary></FeatureRoute>,
           )
         } />
         <Route path="ristrutturazione/listino" element={
           withCompanyPermission(
             "canViewMarketingOpportunities",
-            <ErrorBoundary title="Errore listino Ristrutturazione"><RistrutturazioneListino /></ErrorBoundary>,
+            <FeatureRoute featureKey="modulo_ristrutturazione_attivo"><ErrorBoundary title="Errore listino Ristrutturazione"><RistrutturazioneListino /></ErrorBoundary></FeatureRoute>,
           )
         } />
         <Route path="ristrutturazione/nuovo" element={
           withCompanyPermission(
             "canEditMarketingOpportunities",
-            <ErrorBoundary title="Errore wizard Ristrutturazione"><RistrutturazioneWizard /></ErrorBoundary>,
+            <FeatureRoute featureKey="modulo_ristrutturazione_attivo"><ErrorBoundary title="Errore wizard Ristrutturazione"><RistrutturazioneWizard /></ErrorBoundary></FeatureRoute>,
           )
         } />
         <Route path="ristrutturazione/:id/modifica" element={
           withCompanyPermission(
             "canEditMarketingOpportunities",
-            <ErrorBoundary title="Errore wizard Ristrutturazione"><RistrutturazioneWizard /></ErrorBoundary>,
+            <FeatureRoute featureKey="modulo_ristrutturazione_attivo"><ErrorBoundary title="Errore wizard Ristrutturazione"><RistrutturazioneWizard /></ErrorBoundary></FeatureRoute>,
           )
         } />
-        {/* Modulo Bagni — stesso guard di Ristrutturazione/Serramenti (permission-based). */}
+        {/* Modulo Bagni */}
         <Route path="bagni" element={
           withCompanyPermission(
             "canViewMarketingOpportunities",
-            <ErrorBoundary title="Errore modulo Bagni"><BagniIndex /></ErrorBoundary>,
+            <FeatureRoute featureKey="modulo_bagni_attivo"><ErrorBoundary title="Errore modulo Bagni"><BagniIndex /></ErrorBoundary></FeatureRoute>,
           )
         } />
         <Route path="bagni/listino" element={
           withCompanyPermission(
             "canViewMarketingOpportunities",
-            <ErrorBoundary title="Errore listino Bagni"><BagniListino /></ErrorBoundary>,
+            <FeatureRoute featureKey="modulo_bagni_attivo"><ErrorBoundary title="Errore listino Bagni"><BagniListino /></ErrorBoundary></FeatureRoute>,
           )
         } />
         <Route path="bagni/nuovo" element={
           withCompanyPermission(
             "canEditMarketingOpportunities",
-            <ErrorBoundary title="Errore wizard Bagni"><BagniWizard /></ErrorBoundary>,
+            <FeatureRoute featureKey="modulo_bagni_attivo"><ErrorBoundary title="Errore wizard Bagni"><BagniWizard /></ErrorBoundary></FeatureRoute>,
           )
         } />
         <Route path="bagni/:id/modifica" element={
           withCompanyPermission(
             "canEditMarketingOpportunities",
-            <ErrorBoundary title="Errore wizard Bagni"><BagniWizard /></ErrorBoundary>,
+            <FeatureRoute featureKey="modulo_bagni_attivo"><ErrorBoundary title="Errore wizard Bagni"><BagniWizard /></ErrorBoundary></FeatureRoute>,
           )
         } />
-        {/* Modulo Tetti — stesso guard di Ristrutturazione/Bagni (permission-based). */}
+        {/* Modulo Tetti */}
         <Route path="tetti" element={
           withCompanyPermission(
             "canViewMarketingOpportunities",
-            <ErrorBoundary title="Errore modulo Tetti"><TettiIndex /></ErrorBoundary>,
+            <FeatureRoute featureKey="modulo_tetti_attivo"><ErrorBoundary title="Errore modulo Tetti"><TettiIndex /></ErrorBoundary></FeatureRoute>,
           )
         } />
         <Route path="tetti/listino" element={
           withCompanyPermission(
             "canViewMarketingOpportunities",
-            <ErrorBoundary title="Errore listino Tetti"><TettiListino /></ErrorBoundary>,
+            <FeatureRoute featureKey="modulo_tetti_attivo"><ErrorBoundary title="Errore listino Tetti"><TettiListino /></ErrorBoundary></FeatureRoute>,
           )
         } />
         <Route path="tetti/nuovo" element={
           withCompanyPermission(
             "canEditMarketingOpportunities",
-            <ErrorBoundary title="Errore wizard Tetti"><TettiWizard /></ErrorBoundary>,
+            <FeatureRoute featureKey="modulo_tetti_attivo"><ErrorBoundary title="Errore wizard Tetti"><TettiWizard /></ErrorBoundary></FeatureRoute>,
           )
         } />
         <Route path="tetti/:id/modifica" element={
           withCompanyPermission(
             "canEditMarketingOpportunities",
-            <ErrorBoundary title="Errore wizard Tetti"><TettiWizard /></ErrorBoundary>,
+            <FeatureRoute featureKey="modulo_tetti_attivo"><ErrorBoundary title="Errore wizard Tetti"><TettiWizard /></ErrorBoundary></FeatureRoute>,
           )
         } />
-        {/* Modulo Climatizzazione — stesso guard di Ristrutturazione/Bagni (permission-based). */}
+        {/* Modulo Climatizzazione */}
         <Route path="climatizzazione" element={
           withCompanyPermission(
             "canViewMarketingOpportunities",
-            <ErrorBoundary title="Errore modulo Climatizzazione"><ClimatizzazioneIndex /></ErrorBoundary>,
+            <FeatureRoute featureKey="modulo_climatizzazione_attivo"><ErrorBoundary title="Errore modulo Climatizzazione"><ClimatizzazioneIndex /></ErrorBoundary></FeatureRoute>,
           )
         } />
         <Route path="climatizzazione/listino" element={
           withCompanyPermission(
             "canViewMarketingOpportunities",
-            <ErrorBoundary title="Errore listino Climatizzazione"><ClimatizzazioneListino /></ErrorBoundary>,
+            <FeatureRoute featureKey="modulo_climatizzazione_attivo"><ErrorBoundary title="Errore listino Climatizzazione"><ClimatizzazioneListino /></ErrorBoundary></FeatureRoute>,
           )
         } />
         <Route path="climatizzazione/nuovo" element={
           withCompanyPermission(
             "canEditMarketingOpportunities",
-            <ErrorBoundary title="Errore wizard Climatizzazione"><ClimatizzazioneWizard /></ErrorBoundary>,
+            <FeatureRoute featureKey="modulo_climatizzazione_attivo"><ErrorBoundary title="Errore wizard Climatizzazione"><ClimatizzazioneWizard /></ErrorBoundary></FeatureRoute>,
           )
         } />
         <Route path="climatizzazione/:id/modifica" element={
           withCompanyPermission(
             "canEditMarketingOpportunities",
-            <ErrorBoundary title="Errore wizard Climatizzazione"><ClimatizzazioneWizard /></ErrorBoundary>,
+            <FeatureRoute featureKey="modulo_climatizzazione_attivo"><ErrorBoundary title="Errore wizard Climatizzazione"><ClimatizzazioneWizard /></ErrorBoundary></FeatureRoute>,
           )
         } />
-        {/* Modulo Elettrico/Domotica — stesso guard di Ristrutturazione/Bagni (permission-based). */}
+        {/* Modulo Elettrico/Domotica */}
         <Route path="elettrico" element={
           withCompanyPermission(
             "canViewMarketingOpportunities",
-            <ErrorBoundary title="Errore modulo Elettrico"><ElettricoIndex /></ErrorBoundary>,
+            <FeatureRoute featureKey="modulo_elettrico_attivo"><ErrorBoundary title="Errore modulo Elettrico"><ElettricoIndex /></ErrorBoundary></FeatureRoute>,
           )
         } />
         <Route path="elettrico/listino" element={
           withCompanyPermission(
             "canViewMarketingOpportunities",
-            <ErrorBoundary title="Errore listino Elettrico"><ElettricoListino /></ErrorBoundary>,
+            <FeatureRoute featureKey="modulo_elettrico_attivo"><ErrorBoundary title="Errore listino Elettrico"><ElettricoListino /></ErrorBoundary></FeatureRoute>,
           )
         } />
         <Route path="elettrico/nuovo" element={
           withCompanyPermission(
             "canEditMarketingOpportunities",
-            <ErrorBoundary title="Errore wizard Elettrico"><ElettricoWizard /></ErrorBoundary>,
+            <FeatureRoute featureKey="modulo_elettrico_attivo"><ErrorBoundary title="Errore wizard Elettrico"><ElettricoWizard /></ErrorBoundary></FeatureRoute>,
           )
         } />
         <Route path="elettrico/:id/modifica" element={
           withCompanyPermission(
             "canEditMarketingOpportunities",
-            <ErrorBoundary title="Errore wizard Elettrico"><ElettricoWizard /></ErrorBoundary>,
+            <FeatureRoute featureKey="modulo_elettrico_attivo"><ErrorBoundary title="Errore wizard Elettrico"><ElettricoWizard /></ErrorBoundary></FeatureRoute>,
           )
         } />
-        {/* Modulo Termoidraulico — stesso guard di Ristrutturazione/Bagni (permission-based). */}
+        {/* Modulo Termoidraulico */}
         <Route path="termoidraulico" element={
           withCompanyPermission(
             "canViewMarketingOpportunities",
-            <ErrorBoundary title="Errore modulo Termoidraulico"><TermoidraulicoIndex /></ErrorBoundary>,
+            <FeatureRoute featureKey="modulo_termoidraulico_attivo"><ErrorBoundary title="Errore modulo Termoidraulico"><TermoidraulicoIndex /></ErrorBoundary></FeatureRoute>,
           )
         } />
         <Route path="termoidraulico/listino" element={
           withCompanyPermission(
             "canViewMarketingOpportunities",
-            <ErrorBoundary title="Errore listino Termoidraulico"><TermoidraulicoListino /></ErrorBoundary>,
+            <FeatureRoute featureKey="modulo_termoidraulico_attivo"><ErrorBoundary title="Errore listino Termoidraulico"><TermoidraulicoListino /></ErrorBoundary></FeatureRoute>,
           )
         } />
         <Route path="termoidraulico/nuovo" element={
           withCompanyPermission(
             "canEditMarketingOpportunities",
-            <ErrorBoundary title="Errore wizard Termoidraulico"><TermoidraulicoWizard /></ErrorBoundary>,
+            <FeatureRoute featureKey="modulo_termoidraulico_attivo"><ErrorBoundary title="Errore wizard Termoidraulico"><TermoidraulicoWizard /></ErrorBoundary></FeatureRoute>,
           )
         } />
         <Route path="termoidraulico/:id/modifica" element={
           withCompanyPermission(
             "canEditMarketingOpportunities",
-            <ErrorBoundary title="Errore wizard Termoidraulico"><TermoidraulicoWizard /></ErrorBoundary>,
+            <FeatureRoute featureKey="modulo_termoidraulico_attivo"><ErrorBoundary title="Errore wizard Termoidraulico"><TermoidraulicoWizard /></ErrorBoundary></FeatureRoute>,
           )
         } />
-        {/* Modulo Pavimenti & Resine — stesso guard di Ristrutturazione/Bagni (permission-based). */}
+        {/* Modulo Pavimenti & Resine */}
         <Route path="pavimenti" element={
           withCompanyPermission(
             "canViewMarketingOpportunities",
-            <ErrorBoundary title="Errore modulo Pavimenti"><PavimentiIndex /></ErrorBoundary>,
+            <FeatureRoute featureKey="modulo_pavimenti_attivo"><ErrorBoundary title="Errore modulo Pavimenti"><PavimentiIndex /></ErrorBoundary></FeatureRoute>,
           )
         } />
         <Route path="pavimenti/listino" element={
           withCompanyPermission(
             "canViewMarketingOpportunities",
-            <ErrorBoundary title="Errore listino Pavimenti"><PavimentiListino /></ErrorBoundary>,
+            <FeatureRoute featureKey="modulo_pavimenti_attivo"><ErrorBoundary title="Errore listino Pavimenti"><PavimentiListino /></ErrorBoundary></FeatureRoute>,
           )
         } />
         <Route path="pavimenti/nuovo" element={
           withCompanyPermission(
             "canEditMarketingOpportunities",
-            <ErrorBoundary title="Errore wizard Pavimenti"><PavimentiWizard /></ErrorBoundary>,
+            <FeatureRoute featureKey="modulo_pavimenti_attivo"><ErrorBoundary title="Errore wizard Pavimenti"><PavimentiWizard /></ErrorBoundary></FeatureRoute>,
           )
         } />
         <Route path="pavimenti/:id/modifica" element={
           withCompanyPermission(
             "canEditMarketingOpportunities",
-            <ErrorBoundary title="Errore wizard Pavimenti"><PavimentiWizard /></ErrorBoundary>,
+            <FeatureRoute featureKey="modulo_pavimenti_attivo"><ErrorBoundary title="Errore wizard Pavimenti"><PavimentiWizard /></ErrorBoundary></FeatureRoute>,
           )
         } />
-        {/* Modulo Piscine — stesso guard di Ristrutturazione/Bagni (permission-based). */}
+        {/* Modulo Piscine */}
         <Route path="piscine" element={
           withCompanyPermission(
             "canViewMarketingOpportunities",
-            <ErrorBoundary title="Errore modulo Piscine"><PiscineIndex /></ErrorBoundary>,
+            <FeatureRoute featureKey="modulo_piscine_attivo"><ErrorBoundary title="Errore modulo Piscine"><PiscineIndex /></ErrorBoundary></FeatureRoute>,
           )
         } />
         <Route path="piscine/listino" element={
           withCompanyPermission(
             "canViewMarketingOpportunities",
-            <ErrorBoundary title="Errore listino Piscine"><PiscineListino /></ErrorBoundary>,
+            <FeatureRoute featureKey="modulo_piscine_attivo"><ErrorBoundary title="Errore listino Piscine"><PiscineListino /></ErrorBoundary></FeatureRoute>,
           )
         } />
         <Route path="piscine/nuovo" element={
           withCompanyPermission(
             "canEditMarketingOpportunities",
-            <ErrorBoundary title="Errore wizard Piscine"><PiscineWizard /></ErrorBoundary>,
+            <FeatureRoute featureKey="modulo_piscine_attivo"><ErrorBoundary title="Errore wizard Piscine"><PiscineWizard /></ErrorBoundary></FeatureRoute>,
           )
         } />
         <Route path="piscine/:id/modifica" element={
           withCompanyPermission(
             "canEditMarketingOpportunities",
-            <ErrorBoundary title="Errore wizard Piscine"><PiscineWizard /></ErrorBoundary>,
+            <FeatureRoute featureKey="modulo_piscine_attivo"><ErrorBoundary title="Errore wizard Piscine"><PiscineWizard /></ErrorBoundary></FeatureRoute>,
           )
         } />
         <Route path="marketing/preventivi" element={withCompanyPermission("canViewPreventivi", <FeatureRoute featureKey="preventivi_crm"><Preventivi /></FeatureRoute>)} />
@@ -1143,7 +1174,8 @@ export default function CompanyRoutesContainer() {
             Redirect per non rompere vecchi link/segnalibri. */}
         <Route path="marketing/firma-elettronica" element={<Navigate to="/azienda/firma-elettronica" replace />} />
         {/* Sprint B — Varianti Costo Manodopera: vista admin-only gated da can_view_margins */}
-        <Route path="marketing/preventivi/:id/margini" element={withCompanyPermission("canViewCosts", <FeatureRoute featureKey="preventivi_crm"><QuoteMargini /></FeatureRoute>)} />
+        {/* Margini del preventivo: margini oppure costi, come il link nel preventivo. */}
+        <Route path="marketing/preventivi/:id/margini" element={withCompanyPermission("canViewCosts", <FeatureRoute featureKey="preventivi_crm"><QuoteMargini /></FeatureRoute>, (p) => p.isAdmin || p.canViewMargins || p.canViewCosts)} />
         
         <Route path="impostazioni" element={<SettingsLayout />}>
           {/* v8.6.70 — Mobile: hub griglia icone; Desktop: redirect a mio-profilo */}
@@ -1260,7 +1292,7 @@ export default function CompanyRoutesContainer() {
           <Route path="ai-test-lab" element={<AITestLab />} />
           <Route path="firma-elettronica" element={withCompanyPermission("canViewSettingsIntegrations", <SettingsFirmaElettronica />)} />
           {/* v8.6.71 — Sopralluoghi spostato qui dentro SettingsLayout */}
-          <Route path="sopralluoghi" element={<SettingsSopralluoghi />} />
+          <Route path="sopralluoghi" element={withCompanyPermission("canViewSettingsCustomization", <SettingsSopralluoghi />)} />
           {/* v8.6.57 — Unico endpoint con tab interni (provider esterni + nativa).
               Il legacy path /fatturazione-nativa redirige a /fatturazione?tab=nativa
               per backward-compat (link diretti, bookmark utenti). */}
@@ -1272,7 +1304,9 @@ export default function CompanyRoutesContainer() {
             element={
               isIOSNativePlatform
                 ? <IosBillingBlocked />
-                : withCompanyPermission("canViewBilling", <SettingsSubscriptionBilling />)
+                // L'abbonamento a EiC lo gestisce l'amministratore, come il menu
+                // (visibile solo a lui) e il portale Stripe (customer-portal).
+                : withCompanyPermission("canViewBilling", <SettingsSubscriptionBilling />, (p) => p.isAdmin)
             }
           />
           <Route path="form-builder" element={withCompanyPermission("canViewSettingsCustomization", <SettingsFormBuilder />)} />

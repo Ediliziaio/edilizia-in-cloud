@@ -38,7 +38,7 @@ import {
 import { BLOCCHI, type ChiaveBlocco } from "../../../../supabase/functions/_shared/blocchiPreventivo";
 import { MODULO_RECESSO } from "../../../../supabase/functions/_shared/condizioniStandard";
 import type { PaginaConTestata } from "../../../../supabase/functions/_shared/testatePagine";
-import { giorniDellaDurata, senzaNumeroDavanti, spezzaAccento } from "./testoDocumento";
+import { giorniDellaDurata, perArticoli, senzaNumeroDavanti, spezzaAccento } from "./testoDocumento";
 import { altezzaTesto, righeDiTesto, testoDaHtml, type FamigliaPdf } from "./misuraTesto";
 import type {
   DocEdileBlocco, DocEdileCapitolo, DocEdileDati, DocEdileFase, DocEdileFoto, DocEdileFotoBlocco, DocEdileVoceElenco,
@@ -606,28 +606,6 @@ function TabellaCapitolo({ tema, cap, indice, mostraMargine, mostraPrezzi, mostr
       {cap.voci.slice(1).map(riga)}
     </View>
   );
-}
-
-/**
- * Le condizioni, articolo per articolo: ogni titolo con il suo testo, così
- * l'impaginazione non lascia un titolo solo in fondo alla pagina. La prima riga,
- * se è il titolo generale, si toglie: la pagina ha già il suo.
- */
-function perArticoli(
-  righe: DocEdileDati["modello"]["condizioniLegali"],
-  { senzaClausoleDaFirmare = false } = {},
-): Array<typeof righe> {
-  const utili = righe.length > 0 && righe[0].tipo === "h1" ? righe.slice(1) : righe;
-  const gruppi: Array<typeof righe> = [];
-  for (const r of utili) {
-    if ((r.tipo === "h1" || r.tipo === "h2") || gruppi.length === 0) gruppi.push([]);
-    gruppi[gruppi.length - 1].push(r);
-  }
-  // L'elenco delle clausole da approvare a parte sta sulla pagina della firma,
-  // accanto alla seconda firma: qui sarebbe una ripetizione, e da sola si
-  // portava via una pagina intera.
-  if (!senzaClausoleDaFirmare) return gruppi;
-  return gruppi.filter((g) => !/1341|approvare specificamente/i.test(g[0]?.testo ?? ""));
 }
 
 /**

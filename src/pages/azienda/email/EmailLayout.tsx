@@ -53,6 +53,7 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { spiegaErroreCasella } from "@/lib/email/spiegaErroreCasella";
 
 export type FolderFilter =
   | { type: "system"; key: "inbox" | "sent" | "drafts" | "starred" | "spam" | "trash" | "archive" }
@@ -402,7 +403,7 @@ export function EmailLayout({
                   : "bg-emerald-50 text-emerald-700",
               )}
             >
-              {forceSync.isPending ? "Sync…" : "Sync"}
+              {forceSync.isPending ? "Aggiorno…" : "Aggiornata"}
             </span>
           </div>
           {connections && connections.length > 0 && (
@@ -721,25 +722,9 @@ function EmailMailboxToolbar({
   );
 }
 
-/** Traduce gli errori tecnici di sync email in un messaggio comprensibile per l'utente. */
+/** L'errore di una casella in parole semplici: la frase sta in @/lib/email/spiegaErroreCasella (condivisa con le altre pagine della posta). */
 function describeEmailSyncError(raw: string): string {
-  const e = (raw || "").toLowerCase();
-  if (e.includes("refresh_token_missing") || e.includes("invalid_grant")) {
-    return "Accesso a Google scaduto o revocato";
-  }
-  if (e.includes("token_refresh_failed")) {
-    return "Impossibile rinnovare l'accesso alla casella";
-  }
-  if (e.includes("tokens_not_found")) {
-    return "Credenziali della casella non disponibili";
-  }
-  if (e.includes("429") || e.includes("rate") || e.includes("quota")) {
-    return "Troppe richieste a Google: riprova tra qualche minuto";
-  }
-  if (e.includes("gmail_list") || e.includes("gmail_get")) {
-    return "Gmail ha rifiutato la richiesta";
-  }
-  return "Errore di sincronizzazione";
+  return spiegaErroreCasella(raw) || "Questa casella non si aggiorna più. Premi «Riconnetti» per sistemarla.";
 }
 
 function folderTitleText(filter: FolderFilter): string {

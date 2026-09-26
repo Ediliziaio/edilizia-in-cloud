@@ -1,20 +1,9 @@
--- Allegati di Silvio: il percorso <azienda>/<utente>/<file> era rifiutato.
+-- Allegati di Silvio nella cartella dell'azienda (applicata il 25/09/2026).
 --
--- La pagina Silvio AI e il pannello laterale di Silvio caricano in
--- `silvio-uploads` con il percorso documentato nel codice,
--- `<company_id>/<user_id>/<timestamp>-<nome>`, e l'estrazione dei PDF
--- (`silvio-extract-pdf`) accetta solo percorsi che iniziano con l'azienda.
--- Le policy sul bucket, invece, volevano l'utente come PRIMA cartella: ogni
--- caricamento dalla pagina di Silvio finiva in «new row violates row-level
--- security policy» (403). Nel bucket, il 25/09/2026, c'erano 3 file in tutto,
--- l'ultimo di maggio: nessun contratto, DDT o foto era mai arrivato a Silvio da
--- lì.
---
--- Resta valido il vecchio percorso <user_id>/<file> (lo usa la chat del team).
--- Il nuovo è ammesso solo se la seconda cartella è chi carica e se l'utente
--- può accedere all'azienda della prima (azienda principale, accesso
--- multi-azienda attivo, commercialista, super admin: user_can_access_company).
--- Il CASE evita il cast a uuid di una cartella che uuid non è.
+-- File ricostruito il 25/09/2026 da supabase_migrations.schema_migrations.statements:
+-- la migrazione era stata applicata via MCP senza salvare il file, e Supabase
+-- Preview era rosso («Remote migration versions not found»). Il testo qui sotto
+-- è identico a quello registrato nel database.
 
 DROP POLICY IF EXISTS silvio_uploads_company_insert ON storage.objects;
 CREATE POLICY silvio_uploads_company_insert ON storage.objects
@@ -34,7 +23,6 @@ CREATE POLICY silvio_uploads_company_insert ON storage.objects
     )
   );
 
--- Lettura: serve al browser per il link firmato dell'anteprima dell'allegato.
 DROP POLICY IF EXISTS silvio_uploads_owner_read ON storage.objects;
 CREATE POLICY silvio_uploads_owner_read ON storage.objects
   FOR SELECT TO authenticated

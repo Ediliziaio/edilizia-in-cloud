@@ -15,11 +15,14 @@
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth } from "../_shared/auth.ts";
 import { resolveEffectiveCompanyId, canAccessCompany } from "../_shared/effectiveCompany.ts";
+import { modelloFotovoltaico } from "../_shared/modelloFotovoltaico.ts";
 
 interface FvSolarLeadInput {
   cliente_id?: string | null;
   /** Opportunità CRM di provenienza — collega il progetto al deal (parità serramenti). */
   opportunita_crm_id?: string | null;
+  /** Il modello dell'intervento della libreria, se il preventivo nasce da lì (_shared/modelloFotovoltaico.ts). */
+  modello_snapshot?: unknown;
   archetipo: "privato_prima" | "privato_seconda" | "privato_isee" | "pmi";
   titolo: string;
   indirizzo: string;
@@ -121,9 +124,12 @@ Deno.serve(async (req: Request) => {
     supabaseAdmin = auth.supabaseAdmin;
 
     const payload = (await req.json()) as FvSolarLeadInput;
+    // Il modello dell'intervento va nel progetto, non nel registro delle chiamate:
+    // può pesare qualche MB (le foto del modello).
+    const { modello_snapshot: modelloRichiesto, ...payloadDaRegistrare } = payload;
     const errore = validateInput(payload);
     if (errore) {
-      await logFunction(supabaseAdmin, "fv-onboarding-cliente", null, userId, null, payload, 400, errore, Date.now() - startTime);
+      await logFunction(supabaseAdmin, "fv-onboarding-cliente", null, userId, null, payloadDaRegistrare, 400, errore, Date.now() - startTime);
       return errorResponse(errore, 400, corsHeaders);
     }
 
@@ -145,7 +151,7 @@ Deno.serve(async (req: Request) => {
       ? bodyCompanyId
       : await resolveEffectiveCompanyId(supabaseAdmin, userId);
     if (!company_id) {
-      await logFunction(supabaseAdmin, "fv-onboarding-cliente", null, userId, null, payload, 403, "no company_id", Date.now() - startTime);
+      await logFunction(supabaseAdmin, "fv-onboarding-cliente", null, userId, null, payloadDaRegistrare, 403, "no company_id", Date.now() - startTime);
       return errorResponse("Company non identificata", 403, corsHeaders);
     }
 
@@ -164,7 +170,7 @@ Deno.serve(async (req: Request) => {
     });
     if (featErr) {
       // Non sapere non vuol dire «non attivo»: si dice il vero e si riprova.
-      await logFunction(supabaseAdmin, "fv-onboarding-cliente", company_id, userId, null, payload, 503, `verifica modulo non riuscita: ${featErr.message}`, Date.now() - startTime);
+      await logFunction(supabaseAdmin, "fv-onboarding-cliente", company_id, userId, null, payloadDaRegistrare, 503, `verifica modulo non riuscita: ${featErr.message}`, Date.now() - startTime);
       return errorResponse("Non riesco a verificare il modulo Fotovoltaico: riprova tra poco", 503, corsHeaders);
     }
     let moduloAttivo = false;
@@ -173,8 +179,16 @@ Deno.serve(async (req: Request) => {
       moduloAttivo = lvl != null && lvl !== "disabled" && lvl !== "hidden";
     }
     if (!moduloAttivo) {
-      await logFunction(supabaseAdmin, "fv-onboarding-cliente", company_id, userId, null, payload, 403, "modulo fotovoltaico non attivo", Date.now() - startTime);
+      await logFunction(supabaseAdmin, "fv-onboarding-cliente", company_id, userId, null, payloadDaRegistrare, 403, "modulo fotovoltaico non attivo", Date.now() - startTime);
       return errorResponse("Modulo Fotovoltaico non attivo per questa azienda", 403, corsHeaders);
+    }
+
+    // Il modello dell'intervento: della stessa azienda e dello stesso intervento,
+    // altrimenti niente progetto. Mai un preventivo «di modello» senza il suo modello.
+    const modello = modelloFotovoltaico(modelloRichiesto, company_id);
+    if (modello === false) {
+      await logFunction(supabaseAdmin, "fv-onboarding-cliente", company_id, userId, null, payloadDaRegistrare, 400, "modello dell'intervento non valido", Date.now() - startTime);
+      return errorResponse("Il modello dell'intervento non è valido o è di un'altra azienda: il preventivo non è stato creato.", 400, corsHeaders);
     }
 
     // Genera numero progressivo
@@ -189,6 +203,7 @@ Deno.serve(async (req: Request) => {
         company_id,
         cliente_id: payload.cliente_id ?? null,
         opportunita_crm_id: payload.opportunita_crm_id ?? null,
+        ...(modello ? { modello_snapshot: modello } : {}),
         numero,
         titolo: payload.titolo,
         // Snapshot recapiti cliente (per ripristino bozza, anche senza CRM).
@@ -225,7 +240,7 @@ Deno.serve(async (req: Request) => {
       .single();
 
     if (errCreate) {
-      await logFunction(supabaseAdmin, "fv-onboarding-cliente", company_id, userId, null, payload, 500, errCreate.message, Date.now() - startTime);
+      await logFunction(supabaseAdmin, "fv-onboarding-cliente", company_id, userId, null, payloadDaRegistrare, 500, errCreate.message, Date.now() - startTime);
       throw errCreate;
     }
 
@@ -242,7 +257,7 @@ Deno.serve(async (req: Request) => {
       payload: { archetipo: payload.archetipo, prima_casa: payload.prima_casa },
     });
 
-    await logFunction(supabaseAdmin, "fv-onboarding-cliente", company_id, userId, progettoId, payload, 200, null, Date.now() - startTime);
+    await logFunction(supabaseAdmin, "fv-onboarding-cliente", company_id, userId, progettoId, payloadDaRegistrare, 200, null, Date.now() - startTime);
 
     return jsonResponse(
       {

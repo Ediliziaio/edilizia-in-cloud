@@ -30,6 +30,7 @@
  * template condiviso, basta un bump qui per far ridistribuire la function.
  */
 
+import { modelloFotovoltaico } from "../_shared/modelloFotovoltaico.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { buildMergeContext, substituteMergeTags } from "../_shared/quoteTemplateComposer.ts";
 import { aziendaAccessibile, requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
@@ -122,7 +123,7 @@ Deno.serve(async (req: Request) => {
     const { data: prog, error: progErr } = await supabaseAdmin
       .from("fv_progetti")
       .select(
-        "id, company_id, numero, titolo, archetipo, indirizzo, comune, provincia, cap, latitudine, longitudine, tipologia_immobile, prima_casa, consumo_annuo_kwh, costo_kwh_attuale, profilo_consumo, fonte_dati_tetto, qualita_dati_tetto, imagery_date, ore_sole_annue, superficie_tetto_disponibile_mq, perdita_ombreggiamento_pct, numero_pannelli_scelti, potenza_kwp, con_accumulo, capacita_accumulo_kwh, con_ottimizzatori, produzione_annua_kwh, autoconsumo_pct, prezzo_vendita_iva_inclusa, payback_anni, npv_25_anni, risparmio_anno1, created_at, created_by, cliente_nome, cliente_cognome, cliente_email, cliente_telefono, scenario_finanziamento, finanziamento_tabella_id, finanziamento_durata_mesi, finanziamento_rata_eur, finanziamento_taeg, finanziamento_tan, finanziamento_totale_dovuto_eur, kit_bundle_id, kit_nome, kit_prezzo, prezzo_vendita_manuale, sconto_valore, modalita_pagamento, iva_aliquota",
+        "id, company_id, numero, titolo, archetipo, indirizzo, comune, provincia, cap, latitudine, longitudine, tipologia_immobile, prima_casa, consumo_annuo_kwh, costo_kwh_attuale, profilo_consumo, fonte_dati_tetto, qualita_dati_tetto, imagery_date, ore_sole_annue, superficie_tetto_disponibile_mq, perdita_ombreggiamento_pct, numero_pannelli_scelti, potenza_kwp, con_accumulo, capacita_accumulo_kwh, con_ottimizzatori, produzione_annua_kwh, autoconsumo_pct, prezzo_vendita_iva_inclusa, payback_anni, npv_25_anni, risparmio_anno1, created_at, created_by, cliente_nome, cliente_cognome, cliente_email, cliente_telefono, scenario_finanziamento, finanziamento_tabella_id, finanziamento_durata_mesi, finanziamento_rata_eur, finanziamento_taeg, finanziamento_tan, finanziamento_totale_dovuto_eur, kit_bundle_id, kit_nome, kit_prezzo, prezzo_vendita_manuale, sconto_valore, modalita_pagamento, iva_aliquota, modello_snapshot",
       )
       .eq("id", p.progetto_id)
       .maybeSingle();
@@ -198,8 +199,15 @@ Deno.serve(async (req: Request) => {
     // cartella di questa azienda. Logo e copertina restano link dentro l'HTML
     // salvato, che si riapre nei mesi: la firma vale un anno, come i vecchi link,
     // ma riparte a ogni generazione. Le altre foto diventano base64 qui sotto.
+    // Il preventivo nato da un intervento della libreria usa il modello congelato
+    // alla creazione (fv_progetti.modello_snapshot), non quello aziendale di oggi.
+    // Un modello rovinato ferma il PDF: mai il documento generico al suo posto.
+    const modelloDelPreventivo = modelloFotovoltaico(prog.modello_snapshot, prog.company_id);
+    if (modelloDelPreventivo === false) {
+      return errorResponse("Il modello di questo preventivo non è valido: il PDF non è stato generato.", 409, corsHeaders);
+    }
     const template = await firmaImmaginiModello(
-      templateRes.data ?? {},
+      modelloDelPreventivo?.template ?? templateRes.data ?? {},
       CAMPI_IMMAGINE_FOTOVOLTAICO,
       firmatarioStorage(supabaseAdmin, 60 * 60 * 24 * 365),
       prog.company_id,

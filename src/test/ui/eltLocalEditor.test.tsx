@@ -20,7 +20,6 @@ vi.mock("@/hooks/useElettricoPDF", () => ({ useElettricoPDF: () => ({ previewPDF
 vi.mock("@/components/elettrico/ElettricoLivePreviewPanel", () => ({ ElettricoLivePreviewPanel: (): null => null }));
 vi.mock("@/components/elettrico/ElettricoTemplatePreviewDialog", () => ({ ElettricoTemplatePreviewDialog: (): null => null }));
 vi.mock("@/components/preventivi/StandardTextTemplatePicker", () => ({ StandardTextTemplatePicker: (): null => null }));
-vi.mock("@/components/preventivi/CopertinaAnteprima", () => ({ CopertinaAnteprima: (): null => null }));
 vi.mock("@/components/preventivi/AiSalesProfileForm", () => ({ AiSalesProfileForm: (): null => null }));
 vi.mock("@/components/preventivi/AiTemplateReviewDialog", () => ({ AiTemplateReviewDialog: (): null => null }));
 vi.mock("sonner", () => ({ toast: { success: calls.success, error: calls.error } }));
@@ -36,7 +35,7 @@ describe("Elettrico: modelli originali locali", () => {
   it("distingue il primo salvataggio dalle vere modifiche e riconosce il ripristino", () => {
     const onDirty = vi.fn();
     const save = mount("domotica", vi.fn(), "page_cover", onDirty);
-    const button = screen.getByRole("button", { name: "Salva modulo in locale" });
+    const button = screen.getByRole("button", { name: "Salva modello" });
     expect(onDirty).toHaveBeenLastCalledWith(false);
     expect(screen.getByText("Nuovo modulo · non ancora salvato")).toBeInTheDocument();
     expect(button).toBeEnabled();
@@ -60,7 +59,7 @@ describe("Elettrico: modelli originali locali", () => {
     const onDirty = vi.fn();
     mount("quadro", vi.fn(), "page_cover", onDirty, true);
     expect(onDirty).toHaveBeenLastCalledWith(false);
-    expect(screen.getByRole("button", { name: "Salva modulo in locale" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Salva modello" })).toBeDisabled();
   });
   it.each(FULL_ELT_MODULES)("%s conserva identità, anteprima e confine locale", async id => {
     const save = mount(id);
@@ -71,7 +70,7 @@ describe("Elettrico: modelli originali locali", () => {
     expect(data.computo).toHaveLength(3);
     expect(JSON.stringify(data.computo)).not.toMatch(/Demolizione tramezzi|Posa pavimento/);
     expect(data.template.pdf_blocchi.modulo_intervento).toBe(id);
-    fireEvent.click(screen.getByRole("button", { name: "Salva modulo in locale" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     await waitFor(() => expect(save).toHaveBeenCalledOnce());
     expect(save.mock.calls[0][0].id).toBe("local-elettrico-" + id);
     expect(calls.remote).not.toHaveBeenCalled(); expect(calls.storage).not.toHaveBeenCalled();
@@ -93,9 +92,9 @@ describe("Elettrico: modelli originali locali", () => {
   it("un errore di salvataggio conserva il form e consente di riprovare", () => {
     const save = vi.fn(() => { throw new Error("Conflitto con altra scheda"); });
     mount("quadro", save);
-    fireEvent.click(screen.getByRole("button", { name: "Salva modulo in locale" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     expect(calls.error).toHaveBeenCalledWith("Salvataggio non riuscito", { description: "Conflitto con altra scheda" });
-    expect(screen.getByRole("button", { name: "Salva modulo in locale" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Salva modello" })).toBeEnabled();
     fireEvent.click(screen.getByRole("button", { name: "Anteprima PDF" }));
     expect(calls.preview.mock.calls[0][0].template.cover_title).toBe(template("quadro").cover_title);
     expect(calls.remote).not.toHaveBeenCalled();
@@ -108,8 +107,8 @@ describe("Elettrico: modelli originali locali", () => {
     expect(input).toBeTruthy();
     fireEvent.change(input, { target: { files: [new File(["img"], "foto.png", { type: "image/png" })] } });
     await waitFor(() => expect(calls.image).toHaveBeenCalledOnce());
-    await waitFor(() => expect(calls.success).toHaveBeenCalledWith("Immagine aggiunta in locale"));
-    fireEvent.click(screen.getByRole("button", { name: "Salva modulo in locale" }));
+    await waitFor(() => expect(calls.success).toHaveBeenCalledWith("Immagine aggiunta"));
+    fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     expect(save.mock.calls[0][0].pdf_cover_image_url).toBe("data:image/png;base64,local");
     expect(save.mock.calls[0][0].cover_image_url).toBe("data:image/png;base64,local");
     expect(calls.storage).not.toHaveBeenCalled();

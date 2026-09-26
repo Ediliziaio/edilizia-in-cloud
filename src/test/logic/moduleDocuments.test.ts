@@ -23,10 +23,11 @@ const seed = (c = "company-a", m = "vasca-doccia") =>
   createModuleDocument(c, "bagni", m, company);
 beforeEach(() => localStorage.clear());
 describe("documenti dei moduli per intervento", () => {
-  it("copre 68 interventi di 11 aree, con 55 nuovi modelli oltre ai 13 esistenti", () => {
-    expect(DOCUMENT_MODULE_COUNT).toBe(68);
+  // 69 dal 25/09/2026 col Conto Termico 3.0, 70 con la Casa Full Electric (Termoidraulico).
+  it("copre 70 interventi di 11 aree, con 57 nuovi modelli oltre ai 13 esistenti", () => {
+    expect(DOCUMENT_MODULE_COUNT).toBe(70);
     expect(Object.keys(AREA_DESIGN)).toHaveLength(11);
-    expect(Object.keys(INTERVENTION_LIMITS)).toHaveLength(55);
+    expect(Object.keys(INTERVENTION_LIMITS)).toHaveLength(57);
   });
   it.each(
     SALES_AREAS.flatMap((a) =>
@@ -77,7 +78,10 @@ describe("documenti dei moduli per intervento", () => {
     expect(
       loadModuleDocument("company-b", "bagni", "vasca-doccia")?.document.title,
     ).not.toBe("Il mio bagno");
-    expect(localStorage.length).toBe(3);
+    // Tre modelli distinti. Dal 25/09 nel browser c'è anche l'elenco dei modelli
+    // «da mandare online» (archivioModelli.ts): si contano solo i modelli.
+    const chiavi = Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i));
+    expect(chiavi.filter((k) => k?.startsWith("eic:module-document:"))).toHaveLength(3);
   });
   it("rifiuta salvataggi concorrenti, dati corrotti e aziende diverse", () => {
     const a = seed();

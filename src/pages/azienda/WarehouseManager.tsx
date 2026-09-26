@@ -17,7 +17,7 @@ import {
   Users,
   ShieldAlert,
 } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -101,9 +101,12 @@ const emptyForm = (): WarehouseInsert => ({
 
 export default function WarehouseManager() {
   const navigate = useNavigate();
-  const { role } = useAuth();
-  const isAdmin = role === "company_admin" || role === "super_admin";
-  const isRoleLoading = role == null;
+  // Amministratore dell'azienda su cui si lavora (anche via accesso
+  // multi-azienda) o super admin, come decide usePermissions: il ruolo grezzo
+  // escludeva chi è amministratore solo nell'azienda scelta.
+  const permessi = usePermissions();
+  const isAdmin = permessi.isAdmin;
+  const isRoleLoading = permessi.isLoading;
   const {
     warehouses,
     isLoading,

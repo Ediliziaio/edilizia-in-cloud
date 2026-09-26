@@ -148,6 +148,10 @@ import {
 
 // MP-MKT-001: INITIAL estratto in ./FotovoltaicoWizard/constants.ts
 import { INITIAL, PAGAMENTO_PRESETS } from "./FotovoltaicoWizard/constants";
+import { Button } from "@/components/ui/button";
+import type { FvTemplate } from "@/components/fotovoltaico/FotovoltaicoTemplateEditor";
+import { useSupportoModelloPreventivo } from "@/hooks/useSupportoModelliPreventivo";
+import { creaModelloPreventivo, interventoDelModulo, leggiModelloPreventivo } from "@/lib/moduli/modelloPreventivo";
 
 const formatEur = (n: number) =>
   `€ ${n.toLocaleString("it-IT", { maximumFractionDigits: 0 })}`;
@@ -246,6 +250,12 @@ function FotovoltaicoWizard() {
   // Opportunità CRM di provenienza: aggancia il progetto FV all'opportunità
   // (fv_progetti.opportunita_crm_id) alla creazione, in parità con SerramentiWizard.
   const urlOpportunityId = searchParams.get("opportunity_id");
+  // ?modello=… : il preventivo nasce da un intervento della libreria («Aggiunta
+  // accumulo», «Manutenzione e verifica»…). Il modello si congela alla creazione
+  // del progetto e il PDF usa quello (lib/moduli/modelloPreventivo).
+  const requestedModel = searchParams.get("modello");
+  const modelloRichiesto = interventoDelModulo("fotovoltaico", requestedModel);
+  const modelSupport = useSupportoModelloPreventivo("fotovoltaico");
 
   // Restore draft da localStorage al primo render (solo per progetti nuovi
   // o quando il browser è stato chiuso a metà). Se il progetto è già firmato,
@@ -377,6 +387,11 @@ function FotovoltaicoWizard() {
   const { data: fvTemplate } = useTemplatePdf();
   const { data: serviziCatalogo = [] } = useServiziCatalogo();
   const { data: progettoEsistente } = useProgetto(progettoId ?? undefined);
+  const modelloSalvato = useMemo<{ snapshot: ReturnType<typeof leggiModelloPreventivo>; error: string | null }>(() => {
+    try { return { snapshot: progettoEsistente ? leggiModelloPreventivo("fotovoltaico", progettoEsistente.modello_snapshot, progettoEsistente.company_id) : null, error: null }; }
+    catch (error) { return { snapshot: null, error: error instanceof Error ? error.message : "Modello non valido" }; }
+  }, [progettoEsistente]);
+  const intervento = progettoId ? interventoDelModulo("fotovoltaico", modelloSalvato.snapshot?.modelId) : modelloRichiesto;
   const { data: manodoperaEsistente } = useManodoperaProgetto(progettoId ?? undefined);
   const { data: serviziEsistente } = useServiziProgetto(progettoId ?? undefined);
   // Componenti già salvati: servono per ri-idratare i "Prodotti extra"
@@ -767,6 +782,26 @@ function FotovoltaicoWizard() {
     setLastSaveAt(new Date());
   }, []);
 
+  /** Il modello dell'intervento scelto, da congelare nel progetto (null senza ?modello=). */
+  const modelloDaCongelare = async () => {
+    if (!requestedModel) return null;
+    if (!modelloRichiesto || !modelSupport.supported || !effectiveCompanyId) {
+      throw new Error("Il salvataggio di questo intervento deve essere attivato nel database. Nessuna offerta generica è stata creata.");
+    }
+    if (fvTemplate === undefined) throw new Error("Attendi il caricamento del modello aziendale prima di creare il preventivo.");
+    const [{ createFullFvTemplate, isFullFvModuleId }, { loadLocalFvTemplate }, { sincronizzaModelliAzienda }] = await Promise.all([
+      import("@/lib/moduli-vendita/fullFvModules"), import("@/lib/moduli-vendita/localFvTemplates"),
+      import("@/lib/moduli-vendita/archivioModelli"),
+    ]);
+    if (!isFullFvModuleId(modelloRichiesto.id)) throw new Error("Questo intervento non ha un modello completo. Nessuna offerta generica è stata creata.");
+    // Il modello personalizzato è dell'azienda: può averlo salvato un collega da
+    // un altro computer. Se il database non risponde resta la copia di questo browser.
+    await sincronizzaModelliAzienda(effectiveCompanyId).catch((): void => undefined);
+    const source = loadLocalFvTemplate(effectiveCompanyId, modelloRichiesto.id)?.template
+      ?? createFullFvTemplate((fvTemplate ?? {}) as FvTemplate, effectiveCompanyId, modelloRichiesto.id);
+    return creaModelloPreventivo("fotovoltaico", effectiveCompanyId, modelloRichiesto.id, source);
+  };
+
   // ─── Step 2 → onboarding cliente (crea progetto in DB) ────────────────────
   const handleSalvaStep2 = async (): Promise<boolean> => {
     if (!data.indirizzo || data.latitudine == null || data.longitudine == null) return false;
@@ -775,6 +810,7 @@ function FotovoltaicoWizard() {
     try {
       const titolo = `${data.cliente_nome} ${data.cliente_cognome}`.trim();
       if (!progettoId) {
+        const modello_snapshot = await modelloDaCongelare();
         const { data: result, error } = await supabase.functions.invoke(
           "fv-onboarding-cliente",
           {
@@ -796,6 +832,9 @@ function FotovoltaicoWizard() {
               // questi due campi il preventivo FV non risultava collegato.
               cliente_id: data.cliente_id ?? null,
               opportunita_crm_id: urlOpportunityId ?? null,
+              // Il modello dell'intervento nasce col progetto: mai un preventivo
+              // «di modello» salvato senza il suo modello.
+              modello_snapshot,
               archetipo: data.archetipo,
               indirizzo: data.indirizzo,
               comune: data.comune || undefined,
@@ -1807,7 +1846,7 @@ function FotovoltaicoWizard() {
   const numero = (progettoEsistente as { numero?: string } | undefined)?.numero;
   const titoloHeader = progettoId
     ? `Progetto ${numero ?? "fotovoltaico"}`
-    : "Nuovo progetto fotovoltaico";
+    : modelloRichiesto ? `Nuovo preventivo · ${modelloRichiesto.title}` : "Nuovo progetto fotovoltaico";
   const subtitleHeader = data.cliente_nome || data.indirizzo
     ? `${[data.cliente_nome, data.cliente_cognome].filter(Boolean).join(" ")}${data.indirizzo ? " · " + data.indirizzo : ""}`
     : "Compila la fase 1 per iniziare";
@@ -1826,6 +1865,8 @@ function FotovoltaicoWizard() {
     : progettoId
       ? "In compilazione"
       : "Bozza";
+
+  if (modelloSalvato.error || (!id && requestedModel && !modelloRichiesto)) return <div role="alert" className="space-y-3 p-6"><h1 className="text-xl font-semibold">Intervento non disponibile</h1><p>{modelloSalvato.error ?? "Il tipo di intervento richiesto non è riconosciuto."}</p><Button onClick={() => navigate("/azienda/marketing/preventivi?tab=moduli&area=fotovoltaico")}>Scegli un intervento</Button></div>;
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -1882,8 +1923,14 @@ function FotovoltaicoWizard() {
         }
       />
 
+      {intervento && <section className="mx-auto w-full max-w-6xl space-y-1 px-4 pt-4" aria-label={`Intervento ${intervento.title}`}>
+        <p className="font-semibold">Preventivo · {intervento.title}</p>
+        <p className="text-sm text-muted-foreground">{intervento.summary} Il PDF usa il modello dell'azienda per questo intervento{progettoId ? ", conservato nel preventivo" : ""}.</p>
+        {!progettoId && !modelSupport.supported && <p role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm">{modelSupport.isLoading ? "Verifica del salvataggio…" : "Percorso predisposto: il salvataggio richiede ancora l'attivazione del database. Non inserire dati finché il collegamento non è attivo."}</p>}
+      </section>}
+
       {/* ── Riprendi bozza: su /nuovo, se esiste una bozza DB dell'utente ── */}
-      <AlertDialog open={Boolean(!id && !progettoId && ultimaBozza && !resumeDismissed && !readOnlyMode)}>
+      <AlertDialog open={Boolean(!id && !progettoId && !requestedModel && ultimaBozza && !resumeDismissed && !readOnlyMode)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Hai un preventivo in bozza</AlertDialogTitle>

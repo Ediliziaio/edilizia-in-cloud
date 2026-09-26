@@ -74,6 +74,8 @@ export const SALES_AREAS: readonly SalesArea[] = [
     intervention("idrico", "Impianto idrico-sanitario", "Distribuzione dell'acqua e scarichi.", "Punti di utilizzo", "Reti e percorsi", "Materiali e accessori", "Opere murarie e verifiche"),
     intervention("acqua-calda", "Acqua calda sanitaria", "Produzione e accumulo di acqua calda.", "Utenze e fabbisogno", "Generatore o scaldacqua", "Accumulo", "Collegamenti e posa"),
     intervention("manutenzione", "Riparazione e manutenzione", "Diagnosi, ricambi e interventi sull'impianto.", "Guasto o servizio richiesto", "Ore e uscita", "Ricambi", "Verifiche finali"),
+    intervention("conto-termico", "Conto Termico 3.0", "Pompa di calore o generatore rinnovabile con il contributo del GSE.", "Impianto da sostituire", "Generatore proposto", "Contributo GSE", "Risparmio negli anni"),
+    intervention("full-electric", "Casa Full Electric", "Pompa di calore, induzione, fotovoltaico e batteria: la casa senza gas.", "Consumi e bollette di oggi", "Sistema proposto", "Energia e bollette di domani", "Incentivi e beneficio negli anni"),
   ] },
   { id: "elettrico", title: "Elettrico e domotica", sourceModule: "elettrico", summary: "Impianti, punti luce, automazioni e ricarica elettrica.", interventions: [
     intervention("completo", "Impianto elettrico completo", "Rete elettrica organizzata per ambienti e circuiti.", "Ambienti e dotazioni", "Punti e circuiti", "Quadri e protezioni", "Posa e verifiche"),
@@ -119,11 +121,4 @@ export function matchesSalesArea(area: SalesArea, query: string) {
   const normalize = (text: string) => text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("it-IT");
   const haystack = normalize([area.title, area.summary, ...area.interventions.flatMap(item => [item.title, item.summary, ...item.fields])].join(" "));
   return normalize(query).trim().split(/\s+/).filter(Boolean).every(word => haystack.includes(word));
-}
-export function salesAreaHref(params: URLSearchParams, area?: SalesArea, intervention?: SalesIntervention) {
-  const next = new URLSearchParams(params);
-  next.set("tab", "moduli"); next.delete("vista_moduli");
-  if (area) next.set("area", area.id); else next.delete("area");
-  if (area && intervention && area.interventions.some(item => item.id === intervention.id)) next.set("intervento", intervention.id); else next.delete("intervento");
-  return `?${next.toString()}`;
 }

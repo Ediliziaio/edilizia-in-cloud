@@ -2220,6 +2220,7 @@ export const CONDITION_CATALOG: ConditionDefinition[] = [
         { value: 'maggiore_uguale', label: '≥ maggiore o uguale a' }, { value: 'minore_uguale', label: '≤ minore o uguale a' },
         { value: 'vuoto', label: 'è vuoto' }, { value: 'non_vuoto', label: 'non è vuoto' },
         { value: 'inizia_con', label: 'inizia con' }, { value: 'finisce_con', label: 'finisce con' },
+        { value: 'da_oggi', label: 'è oggi o dopo (date)' }, { value: 'prima_di_oggi', label: 'è prima di oggi (date)' },
       ]},
       { id: 'valore', label: 'Valore di confronto', type: 'text', required: false, supportsVariables: true, placeholder: 'Es: 5000', helpText: 'Non necessario per "è vuoto" / "non è vuoto"' },
       { id: 'label', label: 'Etichetta condizione (per il canvas)', type: 'text', required: false, placeholder: 'Es: Valore > 5000€', helpText: 'Testo mostrato sul nodo nel canvas' },

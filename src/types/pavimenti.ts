@@ -20,6 +20,8 @@ export interface PavComputoVoce {
   fonte?: string | null;
 }
 export interface PavProgetto {
+  /** Il modello della libreria congelato nel preventivo (lib/moduli/modelloPreventivo). */
+  modello_snapshot?: import("@/lib/moduli/modelloPreventivo").ModelloPreventivo<PavTemplatePdf> | null;
   id: string; company_id: string; code: string | null; stato: PavStato; tipo_intervento: string | null;
   numero_ambienti: number | null; tipo_materiale: string | null;
   cliente_nome: string | null; cliente_cognome: string | null; cliente_email: string | null; cliente_telefono: string | null;

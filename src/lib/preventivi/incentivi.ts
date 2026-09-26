@@ -1,7 +1,8 @@
 /**
  * Incentivi fiscali edilizi — catalogo preset + calcolo del detraibile con
  * MASSIMALE di spesa. Condiviso tra i verticali (Ristrutturazione, Bagni,
- * Tetti, Climatizzazione, Elettrico, Termoidraulico, Pavimenti, Piscine).
+ * Tetti, Climatizzazione, Elettrico, Termoidraulico, Pavimenti, Piscine,
+ * Serramenti).
  *
  * ⚠️ QUADRO 2026 (aggiornato 2026-07): le vecchie aliquote separate NON
  * esistono più — niente Ecobonus 65%, niente Sismabonus 70/80/85%, il Bonus
@@ -74,6 +75,13 @@ export const INCENTIVI_BAGNI: readonly Incentivo[] = [
 export const INCENTIVI_TETTI: readonly Incentivo[] = [
   PRIMA_CASA_50("Rifacimento/coibentazione del tetto sull'abitazione principale."),
   ALTRE_36("Rifacimento/coibentazione su abitazione diversa dalla principale."),
+  NESSUNO,
+];
+
+/** Preset serramenti: finestre, oscuranti e porte, anche con requisiti ENEA (aliquote unificate 2026). */
+export const INCENTIVI_SERRAMENTI: readonly Incentivo[] = [
+  PRIMA_CASA_50("Sostituzione di infissi sull'abitazione principale — aliquota 2026, tetto 96.000 € per unità."),
+  ALTRE_36("Sostituzione di infissi su abitazione diversa dalla principale — aliquota 2026, tetto 96.000 €."),
   NESSUNO,
 ];
 

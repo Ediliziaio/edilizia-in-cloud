@@ -405,7 +405,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Quanto costa? Ci sono limiti sui movimenti?",
-      a: "Prima Nota è inclusa nei piani Professional e Business di Edilizia in Cloud. Connessioni PSD2 illimitate, movimenti illimitati fino a 10.000/mese, conservazione decennale inclusa, export commercialista senza costi aggiuntivi.",
+      a: "Prima Nota è inclusa nei piani Professionista e Impresa AI di Edilizia in Cloud. Connessioni PSD2 illimitate, movimenti illimitati fino a 10.000/mese, conservazione decennale inclusa, export commercialista senza costi aggiuntivi.",
     },
   ],
 
@@ -422,7 +422,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/margini-cantiere", title: "Margini Cantiere", text: "Costi/ricavi imputati al cantiere per analisi margine live." },
     { to: "/funzionalita/cruscotto-aziendale", title: "Cruscotto Aziendale", text: "Cassa, fatturato, margini nel dashboard direzionale." },
     { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
-    { to: "/prezzi", title: "Prezzi e Piani", text: "Prima Nota inclusa nei piani Professional e Business." },
+    { to: "/prezzi", title: "Prezzi e Piani", text: "Prima Nota inclusa nei piani Professionista e Impresa AI." },
   ],
 
   finalCtaH2: "Smetti di ricopiare l'estratto conto. Inizia a chiudere il mese in 1 ora.",

@@ -53,9 +53,11 @@ describe("editor: la foto delle pagine", () => {
     expect(screen.getByText("di serie")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /Togli la foto/ }));
     expect(salvato()).toEqual({ pagina_percorso: { foto: [], senzaFoto: true } });
-    // Dal 25/09/2026 testi e immagini si ripristinano separatamente.
+    // Il pulsante si chiama «Ripristina immagine standard» dal 25/09/2026 (prima
+    // «Torna alla foto di serie»): conta che la foto torni quella di serie.
     fireEvent.click(screen.getByRole("button", { name: /Ripristina immagine standard/ }));
     expect(salvato()).toEqual({});
+    expect(screen.getByText("di serie")).toBeTruthy();
   });
 
   it("Fotovoltaico: la foto delle garanzie si sceglie dalla libreria", () => {

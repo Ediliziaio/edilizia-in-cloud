@@ -58,7 +58,7 @@ function TettiModulesWorkspace({ companyId, base }: { companyId: string; base: T
   };
   const notice = <div className="flex gap-2 rounded-lg border border-sky-200 bg-sky-50 p-3 text-xs leading-relaxed text-sky-950">
     <Monitor className="mt-0.5 h-4 w-4 shrink-0" />
-    <p><strong>Modelli locali indipendenti.</strong> Si salvano solo in questo browser, per questa azienda. Non sono condivisi con la squadra e non sono ancora collegati alla creazione dei preventivi. Il modello aziendale online resta invariato.</p>
+    <p><strong>Modelli dell'azienda.</strong> Si salvano online e li vedono tutti i colleghi. Quando si crea un preventivo Tetti con uno di questi interventi, il PDF usa il modello personalizzato. Il template aziendale resta invariato.</p>
   </div>;
   if (selected) return <div className="space-y-4">
     <Button variant="outline" size="sm" onClick={() => open(null)}><ArrowLeft className="mr-2 h-4 w-4" />Tutti i moduli Tetti</Button>
@@ -80,7 +80,7 @@ function TettiModulesWorkspace({ companyId, base }: { companyId: string; base: T
         let error = false;
         try { saved = loadLocalTettiTemplate(companyId, item.id); } catch { error = true; }
         return <article key={item.id} className="flex flex-col rounded-xl border bg-background p-5">
-          <div className="mb-4 flex items-center justify-between gap-2"><span className="flex h-9 w-9 items-center justify-center rounded-lg bg-orange-50 text-sm font-semibold text-orange-700">{String(index + 1).padStart(2, "0")}</span><span className={"text-xs " + (error ? "text-red-700" : saved ? "text-emerald-700" : "text-muted-foreground")}>{error ? "Copia locale da verificare" : saved ? "Salvato in locale" : "Pronto da personalizzare"}</span></div>
+          <div className="mb-4 flex items-center justify-between gap-2"><span className="flex h-9 w-9 items-center justify-center rounded-lg bg-orange-50 text-sm font-semibold text-orange-700">{String(index + 1).padStart(2, "0")}</span><span className={"text-xs " + (error ? "text-red-700" : saved ? "text-emerald-700" : "text-muted-foreground")}>{error ? "Modello da verificare" : saved ? "Salvato" : "Pronto da personalizzare"}</span></div>
           <h3 className="text-base font-semibold">{item.title}</h3><p className="mt-2 text-sm leading-relaxed text-muted-foreground">{item.summary}</p>
           <p className="mb-4 mt-3 flex items-center gap-1.5 text-xs text-muted-foreground"><CheckCircle2 className="h-3.5 w-3.5" />Copertina, testi, esclusioni e FAQ dedicati</p>
           <Button aria-label={`Configura ${item.title}`} className="mt-auto w-full justify-between" variant={saved ? "outline" : "default"} disabled={!canEdit} onClick={() => open(item.id)}>Configura modulo<ArrowRight className="ml-2 h-4 w-4 shrink-0" /></Button>
@@ -101,7 +101,7 @@ function LocalModuleEditor({ companyId, moduleId, base, onDirtyChange }: {
     try {
       const record = loadLocalTettiTemplate(companyId, moduleId);
       return { record, template: record?.template ?? createFullTettiTemplate(base, moduleId), error: null };
-    } catch (error) { return { record: null, template: null, error: error instanceof Error ? error.message : "Copia locale non leggibile." }; }
+    } catch (error) { return { record: null, template: null, error: error instanceof Error ? error.message : "Modello non leggibile." }; }
   });
   const revision = useRef(initial.record?.savedAt ?? null);
   const [upgraded, setUpgraded] = useState<TetTemplatePdf | null>(null);

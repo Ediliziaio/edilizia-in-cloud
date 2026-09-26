@@ -405,11 +405,11 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Posso integrare SMS Marketing con il mio CRM esistente?",
-      a: "Sì se è il CRM Edilizia in Cloud (consigliato). Per CRM esterni, API REST disponibili nel piano Business per integrazione bidirezionale (anagrafica clienti, consensi, eventi trigger). Sistema gestisce sync automatico.",
+      a: "Sì se è il CRM Edilizia in Cloud (consigliato). Per CRM esterni, API REST disponibili nel piano Impresa AI per integrazione bidirezionale (anagrafica clienti, consensi, eventi trigger). Sistema gestisce sync automatico.",
     },
     {
       q: "Quanto costa il modulo? Ci sono limiti?",
-      a: "SMS Marketing è incluso nei piani Professional e Business di Edilizia in Cloud. Setup mittente personalizzato e onboarding inclusi. SMS a consumo trasparente (0,038-0,055€/SMS) senza minimi mensili o vincoli. Cancelli quando vuoi.",
+      a: "SMS Marketing è incluso nei piani Professionista e Impresa AI di Edilizia in Cloud. Setup mittente personalizzato e onboarding inclusi. SMS a consumo trasparente (0,038-0,055€/SMS) senza minimi mensili o vincoli. Cancelli quando vuoi.",
     },
   ],
 
@@ -426,7 +426,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/gestione-cantieri", title: "Gestione Cantieri", text: "SMS automatici al cliente per milestone cantiere." },
     { to: "/funzionalita/portale-clienti", title: "Portale Clienti", text: "Notifiche SMS link diretto al portale clienti." },
     { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
-    { to: "/prezzi", title: "Prezzi e Piani", text: "SMS Marketing incluso nei piani Professional e Business." },
+    { to: "/prezzi", title: "Prezzi e Piani", text: "SMS Marketing incluso nei piani Professionista e Impresa AI." },
   ],
 
   finalCtaH2: "Smetti di mandare email che nessuno legge. Inizia a far arrivare i messaggi.",

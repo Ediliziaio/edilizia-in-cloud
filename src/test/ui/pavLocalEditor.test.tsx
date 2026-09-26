@@ -19,7 +19,6 @@ vi.mock("@/hooks/usePavimentiPDF", () => ({ usePavimentiPDF: () => ({ previewPDF
 vi.mock("@/components/pavimenti/PavimentiLivePreviewPanel", () => ({ PavimentiLivePreviewPanel: () : null => null }));
 vi.mock("@/components/pavimenti/PavimentiTemplatePreviewDialog", () => ({ PavimentiTemplatePreviewDialog: () : null => null }));
 vi.mock("@/components/preventivi/StandardTextTemplatePicker", () => ({ StandardTextTemplatePicker: () : null => null }));
-vi.mock("@/hooks/useKitMarchio", () => ({ useKitMarchio: calls.remote }));
 vi.mock("@/components/preventivi/AiSalesProfileForm", () => ({ AiSalesProfileForm: () : null => null }));
 vi.mock("@/components/preventivi/AiTemplateReviewDialog", () => ({ AiTemplateReviewDialog: () : null => null }));
 vi.mock("sonner", () => ({ toast: { success: calls.success, error: calls.error } }));
@@ -37,10 +36,10 @@ describe("Pavimenti: modelli originali locali", () => {
     const onDirtyChange = vi.fn();
     const t = template("resina");
     render(<MemoryRouter initialEntries={["/?section=page_cover"]}><PavimentiTemplateEditor embedded localModule={{ id: "resina", template: t, saved: false, save, onDirtyChange }} /></MemoryRouter>);
-    const saveButton = screen.getByRole("button", { name: "Salva modulo in locale" });
+    const saveButton = screen.getByRole("button", { name: "Salva modello" });
     expect(onDirtyChange).toHaveBeenLastCalledWith(false);
     expect(saveButton).toBeEnabled();
-    expect(screen.getByText("Modello originale · non ancora salvato in locale")).toBeInTheDocument();
+    expect(screen.getByText("Modello originale · non ancora salvato")).toBeInTheDocument();
     const leave = () => { const event = new Event("beforeunload", { cancelable: true }); window.dispatchEvent(event); return event.defaultPrevented; };
     expect(leave()).toBe(false);
     const hero = screen.getByRole("textbox", { name: "Titolo copertina" });
@@ -71,7 +70,7 @@ describe("Pavimenti: modelli originali locali", () => {
     expect(data.localOnly).toBe(true);
     expect(JSON.stringify(data.computo)).not.toMatch(/Demolizione tramezzi|impianto elettrico certificato/);
     expect(data.template.pdf_blocchi.modulo_intervento).toBe(id);
-    fireEvent.click(screen.getByRole("button", { name: "Salva modulo in locale" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     await waitFor(() => expect(save).toHaveBeenCalledOnce());
     expect(save.mock.calls[0][0].id).toBe("local-pavimenti-" + id);
     expect(calls.remote).not.toHaveBeenCalled(); expect(calls.storage).not.toHaveBeenCalled();
@@ -87,7 +86,7 @@ describe("Pavimenti: modelli originali locali", () => {
     const save = vi.fn();
     const t = Object.assign(template("parquet"), { pdf_cover_hero: "Il mio legno", pdf_cover_image_url: "/module-art/pavimenti.jpg", pdf_cover_overlay_opacity: 47, finanziamento_promo: { attivo: false, rate: 36, tan_pct: 2 } });
     render(<MemoryRouter><PavimentiTemplateEditor embedded localModule={{ id: "parquet", template: t, saved: false, save, onDirtyChange: vi.fn() }} /></MemoryRouter>);
-    fireEvent.click(screen.getByRole("button", { name: "Salva modulo in locale" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     await waitFor(() => expect(save).toHaveBeenCalledOnce());
     expect(save.mock.calls[0][0]).toMatchObject({ pdf_cover_hero: "Il mio legno", pdf_cover_overlay_opacity: 47, finanziamento_promo: { rate: 36, tan_pct: 2 } });
     expect(calls.remote).not.toHaveBeenCalled();
@@ -99,7 +98,7 @@ describe("Pavimenti: modelli originali locali", () => {
     const input = document.querySelector('input[type="file"]')!;
     fireEvent.change(input, { target: { files: [new File(["png"], "logo.png", { type: "image/png" })] } });
     await waitFor(() => expect(calls.image).toHaveBeenCalledOnce());
-    fireEvent.click(screen.getByRole("button", { name: "Salva modulo in locale" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     await waitFor(() => expect(save).toHaveBeenCalledOnce());
     expect(save.mock.calls[0][0].logo_url).toBe("data:image/png;base64,local");
     expect(calls.storage).not.toHaveBeenCalled();
@@ -108,7 +107,7 @@ describe("Pavimenti: modelli originali locali", () => {
   it("applica uno stile senza sostituire o cancellare la foto scelta", async () => {
     const save = mount("pareti");
     fireEvent.click(screen.getByTitle("Sfondo bianco pulito, titolo grosso in alto, niente distrazioni"));
-    fireEvent.click(screen.getByRole("button", { name: "Salva modulo in locale" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     await waitFor(() => expect(save).toHaveBeenCalledOnce());
     expect(save.mock.calls[0][0].cover_image_url).toBe("/module-art/pavimenti-pareti.jpg");
     expect(save.mock.calls[0][0].pdf_cover_image_url).toBe("/module-art/pavimenti-pareti.jpg");

@@ -410,7 +410,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Quanto costa? Ci sono vincoli contrattuali?",
-      a: "Il modulo Gestione Cantieri è incluso in tutti i piani Edilizia in Cloud, da 49€/mese per il piano Starter. Nessun costo di attivazione, nessun vincolo di durata, cancelli quando vuoi. Onboarding 1-a-1 e supporto italiano sempre inclusi.",
+      a: "Il modulo Gestione Cantieri è incluso in tutti i piani Edilizia in Cloud, anche nel piano gratuito Scopri (fino a 3 commesse attive). Nessun costo di attivazione, nessun vincolo di durata, cancelli quando vuoi. Onboarding 1-a-1 e supporto italiano sempre inclusi.",
     },
   ],
 
@@ -462,7 +462,7 @@ const config: FunzionalitaPageConfig = {
     {
       to: "/prezzi",
       title: "Prezzi e Piani",
-      text: "Piani trasparenti da 49€/mese. Beta dedicata con prezzo bloccato. Cancelli quando vuoi.",
+      text: "Piano gratuito Scopri e 31 giorni di prova. Beta dedicata con prezzo bloccato. Cancelli quando vuoi.",
     },
   ],
 

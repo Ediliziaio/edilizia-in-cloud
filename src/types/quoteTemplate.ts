@@ -96,6 +96,15 @@ export interface QuoteTemplate {
   payment_terms_text: string;
   delivery_terms_text: string;
   bank_details: string;
+  /** Mail e telefono dell'impresa stampati nel preventivo; vuoti = quelli del profilo aziendale. */
+  email_impresa?: string | null;
+  telefono_impresa?: string | null;
+  /**
+   * Timbro e firma dell'impresa (percorso in quote-template-assets, nella cartella
+   * dell'azienda) e chi firma: il PDF li stampa nel riquadro «Per l'impresa».
+   */
+  timbro_firma_url?: string | null;
+  firmatario_impresa?: string | null;
   // Copertina personalizzata + termini contrattuali/legali
   cover_image_url: string | null;
   cover_title: string | null;

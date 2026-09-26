@@ -411,7 +411,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Quanto costa? È compreso o è add-on?",
-      a: "Il modulo Manutenzione Impianti è incluso nei piani Professional e Business di Edilizia in Cloud. Numero di impianti illimitato, app tecnico illimitata, fatturazione SDI illimitata. Cancelli quando vuoi senza vincoli pluriennali.",
+      a: "Il modulo Manutenzione Impianti è incluso nei piani Professionista e Impresa AI di Edilizia in Cloud. Numero di impianti illimitato, app tecnico illimitata, fatturazione SDI illimitata. Cancelli quando vuoi senza vincoli pluriennali.",
     },
   ],
 
@@ -463,7 +463,7 @@ const config: FunzionalitaPageConfig = {
     {
       to: "/prezzi",
       title: "Prezzi e Piani",
-      text: "Modulo Manutenzione incluso nei piani Professional e Business.",
+      text: "Modulo Manutenzione incluso nei piani Professionista e Impresa AI.",
     },
   ],
 

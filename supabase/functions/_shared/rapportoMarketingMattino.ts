@@ -14,9 +14,10 @@
  *   - CAC = spesa lead generation del mese ÷ contratti vinti nel mese;
  *   - ROAS = valore dei contratti vinti nel mese ÷ spesa lead generation del mese;
  *   - tasso di chiusura = contratti vinti ÷ sopralluoghi, sugli ultimi 30 giorni;
- *   - colore del brand: 🔴 se ha un allarme grave aperto o se Meta manca o è
- *     scaduto; 🟠 se ha altri allarmi aperti, la spesa non leggibile, il CPL
- *     sopra il target o nessun contratto nel mese; 🟢 altrimenti. Il semaforo
+ *   - stato del brand (una parola colorata, niente icone): CRITICO se ha un
+ *     allarme grave aperto o se Meta manca o è scaduto; DA GUARDARE se ha altri
+ *     allarmi aperti, la spesa non leggibile, il CPL sopra il target o nessun
+ *     contratto nel mese; OK altrimenti. Il semaforo
  *     del motore non serve a questo: basta un componente rosso, e il 21/09
  *     l'esecuzione lo era per tutti;
  *   - un dato che manca si scrive «non disponibile» col motivo, mai un trattino.
@@ -230,7 +231,12 @@ export function coloreBrand(c: ClienteRapporto): Colore {
   return "verde";
 }
 
-const PALLINO: Record<Colore, string> = { rosso: "🔴", arancione: "🟠", verde: "🟢", pausa: "⚪" };
+// Niente icone nelle email (founder, 25/09/2026): lo stato è una parola colorata.
+const ETICHETTA_STATO: Record<Colore, [string, string]> = {
+  rosso: ["CRITICO", "#b91c1c"], arancione: ["DA GUARDARE", "#c2410c"], verde: ["OK", "#047857"], pausa: ["IN PAUSA", "#6b7280"],
+};
+const etichettaStato = (c: Colore) =>
+  `<span style="color:${ETICHETTA_STATO[c][1]};font-size:12px;letter-spacing:0.04em;">${ETICHETTA_STATO[c][0]}</span>`;
 const ORDINE: Record<Colore, number> = { rosso: 0, arancione: 1, verde: 2, pausa: 3 };
 
 /** Lavorazione commerciale insufficiente: tanti lead fermi o indice di esecuzione basso. */
@@ -632,12 +638,12 @@ function schedaBrand(c: ClienteRapporto): string {
   if (colore === "verde") {
     const ind = indicatori(c);
     return `<div>
-      <p style="margin:0;font-size:15px;"><strong>${PALLINO.verde} ${nome}</strong></p>${contratto}
+      <p style="margin:0;font-size:15px;"><strong>${nome}</strong> ${etichettaStato("verde")}</p>${contratto}
       <p style="margin:4px 0 0;">Lead ieri <strong>${intero(num(c.lead_grezzi_giorno))}</strong> · CPL <strong>${ind.cpl != null ? euro(ind.cpl, 2) : "n.d."}</strong>${haValore(c.cpl_target) ? ` (target ${euro(num(c.cpl_target), 2)})` : ""} · Contratti nel mese <strong>${intero(num(c.vendite_mese))}</strong></p>
     </div>`;
   }
   return `<div>
-    <p style="margin:0;font-size:15px;"><strong>${PALLINO[colore]} ${nome}</strong></p>${contratto}
+    <p style="margin:0;font-size:15px;"><strong>${nome}</strong> ${etichettaStato(colore)}</p>${contratto}
     <p style="margin:4px 0 0;"><em>Sintesi:</em> ${esc(sintesi(c))}</p>
     ${sezioneCampagne(c)}
     ${sezioneAwareness(c)}
@@ -655,6 +661,8 @@ function dataLunga(giorno: string): string {
 export interface RapportoCostruito {
   subject: string;
   html: string;
+  /** Lo stesso contenuto senza testata né contenitore: la sezione dell'email unica del mattino. */
+  corpo: string;
   priorita: Priorita[];
   critici: number;
   attivi: number;
@@ -697,7 +705,7 @@ export function costruisciRapporto(r: DatiRapporto, urlConsole: string): Rapport
 
   const bloccoIeri = ieri.length
     ? titoletto("Le priorità di ieri") + elenco(ieri.map((p) =>
-      `<li style="margin:2px 0;">${p.risolta ? "✅" : "⏳"} <strong>${esc(p.cliente.toUpperCase())}</strong> — ${esc(p.titolo)}: ${esc(p.stato)}</li>`))
+      `<li style="margin:2px 0;"><strong>${esc(p.cliente.toUpperCase())}</strong> — ${esc(p.titolo)}: <span style="color:${p.risolta ? "#047857" : "#c2410c"};">${esc(p.stato)}</span></li>`))
     : "";
 
   const bloccoPriorita = priorita.length
@@ -710,7 +718,7 @@ export function costruisciRapporto(r: DatiRapporto, urlConsole: string): Rapport
     : `<p style="margin:0;color:#047857;">Nessuna priorità: non ci sono allarmi aperti sui brand attivi.</p>`;
 
   const bloccoPausa = inPausa.length
-    ? separatore + `<p style="margin:0;font-size:15px;"><strong>${PALLINO.pausa} CLIENTI IN PAUSA</strong></p>` +
+    ? separatore + `<p style="margin:0;font-size:15px;"><strong>CLIENTI IN PAUSA</strong></p>` +
       inPausa.map((c) => `<p style="margin:8px 0 0;"><strong>${esc(c.cliente_nome.toUpperCase())}</strong></p>` + elenco([
         riga("Stato", "in pausa"),
         riga("Lead ieri", intero(num(c.lead_grezzi_giorno))),
@@ -736,11 +744,7 @@ export function costruisciRapporto(r: DatiRapporto, urlConsole: string): Rapport
   const data = dataLunga(r.giorno);
   const subject = `Report marketing — ${dataBreve(`${r.giorno}T12:00:00Z`)} · ${priorita.length} priorità · ${critici} ${critici === 1 ? "brand critico" : "brand critici"}`;
 
-  const html = `<div style="max-width:640px;margin:0 auto;padding:20px;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1f2937;font-size:14px;line-height:1.5;">
-    <p style="margin:0;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#6b7280;">Report marketing</p>
-    <h1 style="margin:2px 0 14px;font-size:20px;color:#111827;">${esc(data.charAt(0).toUpperCase() + data.slice(1))}</h1>
-
-    ${titoletto("Riepilogo generale")}
+  const corpo = `${titoletto("Riepilogo generale")}
     ${riepilogo}
 
     ${separatore}
@@ -756,8 +760,14 @@ export function costruisciRapporto(r: DatiRapporto, urlConsole: string): Rapport
     ${economico}
 
     <p style="margin:18px 0 0;"><a href="${esc(urlConsole)}" style="color:#2563eb;font-weight:600;">Apri la console completa</a></p>
-    <p style="margin:14px 0 0;font-size:11px;color:#9ca3af;">Ogni mattina alle 06:00, sui dati fino a ieri. CPL e CAC contano solo la spesa delle campagne Lead Generation: le campagne di notorietà, interazione e traffico che non portano lead sono a parte. CAC = spesa lead del mese ÷ contratti vinti nel mese. ROAS = valore vinto nel mese ÷ spesa lead del mese. Tasso di chiusura = contratti vinti ÷ sopralluoghi, ultimi 30 giorni.</p>
+    <p style="margin:14px 0 0;font-size:11px;color:#9ca3af;">Ogni mattina alle 06:00, sui dati fino a ieri. CPL e CAC contano solo la spesa delle campagne Lead Generation: le campagne di notorietà, interazione e traffico che non portano lead sono a parte. CAC = spesa lead del mese ÷ contratti vinti nel mese. ROAS = valore vinto nel mese ÷ spesa lead del mese. Tasso di chiusura = contratti vinti ÷ sopralluoghi, ultimi 30 giorni.</p>`;
+
+  const html = `<div style="max-width:640px;margin:0 auto;padding:20px;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1f2937;font-size:14px;line-height:1.5;">
+    <p style="margin:0;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#6b7280;">Report marketing</p>
+    <h1 style="margin:2px 0 14px;font-size:20px;color:#111827;">${esc(data.charAt(0).toUpperCase() + data.slice(1))}</h1>
+
+    ${corpo}
   </div>`;
 
-  return { subject, html, priorita, critici, attivi: attivi.length };
+  return { subject, html, corpo, priorita, critici, attivi: attivi.length };
 }

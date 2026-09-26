@@ -1,13 +1,15 @@
 import { useState } from "react";
 import { Eye, FileText, Image as ImageIcon } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
-import { DEFAULT_TEMPLATE, type QuoteTemplate } from "@/types/quoteTemplate";
+import { DEFAULT_TEMPLATE } from "@/types/quoteTemplate";
 import type { QuoteItemPro } from "@/types/quoteItem";
 import { recalcPhaseAmounts, paymentPlanError, type QuotePaymentPhase } from "@/lib/preventivi/paymentTerms";
 import { substituteMergeTags, type MergeContext } from "../../../supabase/functions/_shared/quoteTemplateComposer";
+import type { AnteprimaModello } from "@/lib/quoteTemplatePreview";
 
 export interface QuoteLivePreviewProps {
-  template: Partial<QuoteTemplate>;
+  /** Il modello risolto coi blocchi collegati (colore della copertina compreso). */
+  template: AnteprimaModello;
   companyName: string;
   clientName: string;
   clientAddress?: string;
@@ -63,6 +65,8 @@ export function QuoteLivePreviewPanel(props: QuoteLivePreviewProps) {
   };
   const copy = (text: string | null | undefined) => substituteMergeTags(text ?? "", context).replace(/\*/g, "");
   const primary = t.primary_color;
+  // La copertina nel colore della copertina collegata, se scelto: come il PDF.
+  const fondoCopertina = props.template.colore_copertina ?? primary;
   const meta = <div className="grid grid-cols-2 gap-4 border-t border-current/15 pt-4 text-xs">
     {t.show_client_details && <div><p className="mb-1 opacity-60">PREPARATO PER</p><p className="font-semibold">{props.clientName || "Nome del cliente"}</p><p className="mt-1 whitespace-pre-line opacity-75">{props.clientAddress}</p></div>}
     <div><p className="mb-1 opacity-60">IL TUO PROGETTO</p><p className="font-semibold">{props.title || "Titolo del progetto"}</p><p className="mt-1 opacity-75">{props.siteAddress}</p>{t.show_validity_date && <p className="mt-2 opacity-75">Validità: {props.validityDays} giorni</p>}</div>
@@ -81,7 +85,7 @@ export function QuoteLivePreviewPanel(props: QuoteLivePreviewProps) {
       </div>
       <div className="max-h-[min(55vh,calc(100dvh-400px))] overflow-y-auto overscroll-contain bg-slate-100 p-3" tabIndex={0} aria-label="Documento in anteprima">
         <article className="min-h-[420px] break-words bg-white shadow-sm" style={{ color: t.text_color, fontFamily: t.font_family === 'times' ? 'Georgia, serif' : 'Arial, sans-serif' }}>
-          {page === 'cover' ? <div className="relative flex min-h-[490px] flex-col justify-between overflow-hidden p-7 text-white" style={{ backgroundColor: primary }}>
+          {page === 'cover' ? <div className="relative flex min-h-[490px] flex-col justify-between overflow-hidden p-7 text-white" style={{ backgroundColor: fondoCopertina }}>
             {t.show_cover_image && props.coverSrc && failedCover !== props.coverSrc && <><img alt="" src={props.coverSrc} onError={() => setFailedCover(props.coverSrc ?? null)} className="absolute inset-0 h-full w-full object-cover" /><div className="absolute inset-0 bg-gradient-to-b from-slate-950/45 via-slate-950/40 to-slate-950/95" /></>}
             <div className="relative">{logo}<p className="text-xs font-semibold tracking-widest">{props.companyName}</p><p className="mt-2 text-[10px] uppercase tracking-[.2em]">Proposta commerciale</p></div>
             <div className="relative mt-16"><h3 className="text-3xl font-semibold leading-tight">{copy(t.cover_title) || props.title || 'Il tuo progetto, la nostra proposta'}</h3><p className="mb-8 mt-4 whitespace-pre-line text-sm leading-relaxed text-white/85">{copy(t.cover_subtitle || t.cover_tagline)}</p>{meta}</div>

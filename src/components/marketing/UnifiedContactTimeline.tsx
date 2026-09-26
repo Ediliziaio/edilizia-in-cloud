@@ -115,7 +115,6 @@ export function UnifiedContactTimeline({
   contactEmail?: string | null;
 }) {
   const [filter, setFilter] = useState<FilterCategory>("all");
-  const bottomRef = useRef<HTMLDivElement>(null);
 
   const queryOpts = { enabled: !!contactId, refetchInterval: 30000, refetchIntervalInBackground: false };
 
@@ -330,8 +329,9 @@ export function UnifiedContactTimeline({
     const events: TimelineEvent[] = [];
 
     for (const act of activities) {
-      // Le attività "message_sent" duplicano la bolla del messaggio → nascoste.
-      if (act.activity_type === "message_sent") continue;
+      // Le attività "message_sent" duplicano la bolla del messaggio, e
+      // "note_added" la nota stessa (che qui c'è per intero) → nascoste.
+      if (act.activity_type === "message_sent" || act.activity_type === "note_added") continue;
       events.push({
         id: `act-${act.id}`,
         type: act.activity_type,
@@ -519,10 +519,16 @@ export function UnifiedContactTimeline({
     return groups;
   }, [filtered]);
 
-  // Auto-scroll in fondo quando arrivano nuovi messaggi.
+  // Si parte dall'ultimo messaggio, come in chat; quando ne arriva uno nuovo si
+  // segue solo se si era già in fondo. Scroll sul contenitore e non
+  // scrollIntoView, che faceva scorrere anche la pagina intorno (25/09/2026).
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const inFondoRef = useRef(true);
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ block: "end" });
-  }, [grouped.length, filtered.length]);
+    const el = scrollRef.current;
+    if (el && inFondoRef.current) el.scrollTop = el.scrollHeight;
+  }, [grouped.length, filtered.length, isLoading]);
+  const [noteAperte, setNoteAperte] = useState<Set<string>>(new Set());
 
   return (
     <div className="flex flex-col h-full">
@@ -558,7 +564,15 @@ export function UnifiedContactTimeline({
 
       {/* Chat content */}
       {/* Mobile: fondo chiaro da chat, lo spazio sopra lo scrittore è la conversazione. */}
-      <div className="flex-1 overflow-auto p-4 max-w-2xl mx-auto w-full max-sm:bg-slate-50 max-sm:px-3">
+      <div
+        ref={scrollRef}
+        onScroll={(e) => {
+          const el = e.currentTarget;
+          inFondoRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+        }}
+        className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 py-3 max-sm:bg-slate-50"
+      >
+        <div className="max-w-2xl mx-auto w-full">
         {isLoading ? (
           <div className="space-y-3">
             {[1, 2, 3].map((i) => (
@@ -595,7 +609,7 @@ export function UnifiedContactTimeline({
                       <div key={event.id} className={cn("flex", out ? "justify-end" : "justify-start")}>
                         <div
                           className={cn(
-                            "max-w-[80%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap break-words shadow-sm",
+                            "max-w-[78%] rounded-2xl px-3 py-1.5 text-[13px] leading-snug whitespace-pre-wrap break-words shadow-sm",
                             out
                               ? "bg-emerald-600 text-white rounded-br-sm"
                               : "bg-muted text-foreground rounded-bl-sm",
@@ -618,7 +632,41 @@ export function UnifiedContactTimeline({
                     );
                   }
 
-                  // ── Evento di sistema (nota / appuntamento / chiamata / attività) → riga piccola centrata ──
+                  // ── Nota → riquadro leggibile per intero (il riepilogo AI della
+                  //    chat è una nota: nella riga compatta non si leggeva) ──
+                  if (event.category === "note") {
+                    const testo = event.description ?? "";
+                    const lunga = testo.split("\n").length > 6 || testo.length > 420;
+                    const aperta = noteAperte.has(event.id);
+                    return (
+                      <div key={event.id} className="flex justify-center">
+                        <div className="w-full max-w-[92%] rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2 text-amber-950">
+                          <div className="flex items-center gap-1.5 text-[10px] font-medium text-amber-700">
+                            <StickyNote className="h-3 w-3 shrink-0" />
+                            <span className="truncate">{event.title}</span>
+                          </div>
+                          <p className={cn("mt-1 text-[12px] leading-snug whitespace-pre-wrap break-words", lunga && !aperta && "line-clamp-6")}>
+                            {testo || "(vuota)"}
+                          </p>
+                          {lunga && (
+                            <button
+                              type="button"
+                              className="mt-0.5 text-[11px] font-medium text-amber-700 hover:underline"
+                              onClick={() => setNoteAperte((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(event.id)) next.delete(event.id); else next.add(event.id);
+                                return next;
+                              })}
+                            >
+                              {aperta ? "Mostra meno" : "Mostra tutto"}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  // ── Evento di sistema (appuntamento / chiamata / attività) → riga piccola centrata ──
                   return (
                     <div key={event.id} className="flex justify-center">
                       <div className="flex items-center gap-1.5 max-w-[90%] rounded-full bg-muted/40 px-2.5 py-1 text-[10px] text-muted-foreground max-sm:text-[11px]">
@@ -634,9 +682,9 @@ export function UnifiedContactTimeline({
                 })}
               </div>
             ))}
-            <div ref={bottomRef} />
           </div>
         )}
+        </div>
       </div>
     </div>
   );

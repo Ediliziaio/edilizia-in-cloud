@@ -19,7 +19,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
-import { assignSenders, cadenzaCasella, chiusuraEsclusione, dailyCapWithVariance, esclusioneIndirizzo, remainingToday, sentToday, type Assignment, type SenderState, statoPerPrimiContatti, unaAssegnazionePerCasella, unaEmailPerDestinatario } from "../_shared/outreach-dispatch-logic.ts";
+import { assignSenders, cadenzaCasella, chiusuraEsclusione, dailyCapWithVariance, esclusioneIndirizzo, remainingToday, sentToday, stickyDaStorico, type Assignment, type SenderState, statoPerPrimiContatti, unaAssegnazionePerCasella, unaEmailPerDestinatario } from "../_shared/outreach-dispatch-logic.ts";
 import { risolviPosta } from "../_shared/outreach-email-check.ts";
 import { componiCorpo, haFraseUscita } from "../_shared/outreach-uscita.ts";
 import { renderTemplate, contactToVars, hashSeed, htmlToPlainText } from "../_shared/outreach-template.ts";
@@ -1168,6 +1168,25 @@ serveConMetricheRapida("outreach-dispatch", async (req) => {
           if (r.sent_at) ultimoInvioByEnrollment.set(r.enrollment_id, new Date(r.sent_at));
         }
       } catch { /* pre-migrazione grafo: nessuno sticky */ }
+      // Ripresa (iscrizione nuova, stesso brand): nessun invio suo, la casella
+      // la dà l'ultimo invio del brand a quel contatto. Solo per i non-primi
+      // contatti: uno sconosciuto non ha storia da cercare.
+      const senzaSticky = queue.filter((q) => q.enrollment_id && q.contact_id && q.primo_contatto !== true
+        && !stickyByEnrollment.has(q.enrollment_id));
+      if (senzaSticky.length) {
+        try {
+          const contatti = [...new Set(senzaSticky.map((q) => q.contact_id as string))];
+          const storico: Array<{ contact_id: string | null; brand_id: string | null; sender_account_id: string | null; sent_at: string | null }> = [];
+          for (let i = 0; i < contatti.length; i += 150) {
+            const { data } = await supabase.from("outreach_send_queue")
+              .select("contact_id,brand_id,sender_account_id,sent_at")
+              .in("contact_id", contatti.slice(i, i + 150)).eq("status", "sent").eq("channel", "email")
+              .not("sender_account_id", "is", null);
+            storico.push(...((data ?? []) as typeof storico));
+          }
+          for (const [enr, sid] of stickyDaStorico(senzaSticky, storico)) stickyByEnrollment.set(enr, sid);
+        } catch { /* senza storia la ripresa prende una casella libera */ }
+      }
     }
     // Primi contatti già spediti oggi, per casella: è il budget «nuovi al
     // giorno» del brand (new_per_day), separato dal tetto totale.

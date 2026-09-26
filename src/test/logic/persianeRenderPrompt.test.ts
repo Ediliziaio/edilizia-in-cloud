@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { buildPersianeRenderConfig } from "@/modules/render-persiane/lib/persianeRenderConfig";
 import { normalizePersianeSceneAnalysis } from "@/modules/render-persiane/lib/persianeSceneAnalysis";
-import { buildPersianePrompt } from "@/modules/render-persiane/lib/persianePromptBuilder";
+import { buildPersianePrompt } from "../../../shared/render-persiane/persianePromptBuilder";
 import type { ConfigurazionePersiane } from "@/modules/render-persiane/lib/types";
 
 function baseConfig(overrides: Partial<ConfigurazionePersiane> = {}): ConfigurazionePersiane {

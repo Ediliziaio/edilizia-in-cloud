@@ -54,7 +54,7 @@ import {
 // MP-09: auto-delegate al Council orchestrator quando la query è multi-area
 import { classifyQuery, type QueryClassification } from "../_shared/queryClassifier.ts";
 import { dominiPerAree, indiceAreeCaricabili } from "../_shared/silvioTools.ts";
-import { ruoloPrincipaleSilvio } from "../_shared/ruoloSilvio.ts";
+import { ruoloPrincipaleSilvio, usaPermessiStaff } from "../_shared/ruoloSilvio.ts";
 import { dichiaraAzioneNonEseguita, RICHIAMO_AZIONE_NON_ESEGUITA } from "../_shared/azioneDichiarata.ts";
 
 const SILVIO_SENDER_ID = "00000000-0000-0000-0000-000000000002";
@@ -613,7 +613,9 @@ serve(async (req: Request) => {
           return null;
         })
         : Promise.resolve(null);
-    const staffPermsPromise = primaryRole === "company_staff"
+    // Venditore, call center, operaio e subappaltatore lavorano coi permessi
+    // della riga come lo staff: prima si caricavano solo per company_staff.
+    const staffPermsPromise = usaPermessiStaff(primaryRole)
       ? Promise.resolve(
         supabaseAdmin
           .from("staff_permissions")
@@ -877,10 +879,10 @@ serve(async (req: Request) => {
         involvedAreas: classification.involved_areas,
       })
       : null;
-    // RBAC granulare per-utente (MVP): per lo staff carichiamo la riga
-    // staff_permissions e la passiamo al filtro tool — un permesso can_view_*
-    // esplicitamente false nasconde i tool del dominio corrispondente (vedi
-    // DOMAIN_STAFF_PERMISSION in silvioTools). Admin: nessun filtro extra.
+    // RBAC granulare per-utente: per chi lavora coi permessi della riga
+    // (usaPermessiStaff) carichiamo staff_permissions e la passiamo al filtro
+    // tool — un'area coi permessi esplicitamente false nasconde i suoi tool
+    // (vedi areaSpentaPerPermessi in silvioTools). Admin: nessun filtro extra.
     let staffPermissions: Record<string, unknown> | null = null;
     if (staffPermsPromise) {
       try {

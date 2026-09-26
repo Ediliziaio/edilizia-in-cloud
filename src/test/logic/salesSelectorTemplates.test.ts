@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { SALES_AREAS } from "@/lib/moduli-vendita/areas";
-import { modelSettingsHref } from "@/components/marketing/preventivi/moduli/salesSelector";
 import { normalizeQuoteTemplatesParams } from "@/lib/settingsQuoteTemplatesRoute";
 import { SERRAMENTI_TEMPLATE_MODULES } from "@/lib/moduli-vendita/serramentiTemplateModules";
 import { TETTI_TEMPLATE_MODULES } from "@/lib/moduli-vendita/tettiTemplateModules";
@@ -30,33 +29,25 @@ const editorModels: Record<string, readonly string[]> = {
   cappotto: FULL_FAC_MODULES,
 };
 
-describe("destinazioni reali Personalizza PDF", () => {
-  it.each(SALES_AREAS.flatMap(area => area.interventions.map(item => ({ area, item, name: `${area.id}/${item.id}` }))))("$name esiste nell'editor destinatario e sopravvive alla normalizzazione URL", ({ area, item }) => {
-    const href = modelSettingsHref(area, item);
-    expect(href).not.toBeNull();
-    const url = new URL(href!, "https://example.test");
-    expect(url.pathname).toBe("/azienda/impostazioni/template-preventivi");
-    expect(url.searchParams.get("tab")).toBe("moduli-vendita");
-    expect(url.searchParams.get("section")).toBe("page_cover");
-    const slug = url.searchParams.get("modulo")!;
-    expect(editorModels[slug]).toBeDefined();
-    expect(editorModels[slug]).toContain(url.searchParams.get("modello"));
-    expect(url.searchParams.get("modello")).toBe(item.id);
-    expect(normalizeQuoteTemplatesParams(url.searchParams)).toBeNull();
+/** Il link della libreria a un modello, come lo costruisce ModuleTemplateLibrary. */
+const linkDelModello = (modulo: string, modello: string) => new URL(
+  `/azienda/impostazioni/template-preventivi?tab=moduli-vendita&modulo=${modulo}&modello=${modello}&section=page_cover`,
+  "https://example.test",
+);
+
+describe("ogni intervento ha il suo modello nell'editor della libreria", () => {
+  it.each(SALES_AREAS.flatMap(area => area.interventions.map(item => ({ area, item, name: `${area.id}/${item.id}` }))))("$name esiste nell'editor destinatario e il link sopravvive alla normalizzazione URL", ({ area, item }) => {
+    // La libreria risolve il modulo da sourceModule e il modello dagli interventi.
+    expect(editorModels[area.sourceModule]).toBeDefined();
+    expect(editorModels[area.sourceModule]).toContain(item.id);
+    expect(normalizeQuoteTemplatesParams(linkDelModello(area.sourceModule, item.id).searchParams)).toBeNull();
   });
 
   it.each([
     ["ristrutturazioni", "ristrutturazione"],
     ["termoidraulica", "termoidraulico"],
     ["facciate", "cappotto"],
-  ])("mappa l'area %s allo slug impostazioni %s", (id, slug) => {
-    const area = SALES_AREAS.find(item => item.id === id)!;
-    expect(new URL(modelSettingsHref(area, area.interventions[0])!, "https://example.test").searchParams.get("modulo")).toBe(slug);
-  });
-
-  it("non genera link per interventi o aree non registrati", () => {
-    const area = SALES_AREAS[0];
-    expect(modelSettingsHref(area, { ...area.interventions[0], id: "inesistente" })).toBeNull();
-    expect(modelSettingsHref({ ...area, id: "inesistente" }, area.interventions[0])).toBeNull();
+  ])("l'area %s apre l'editor %s (area.id non è lo slug delle impostazioni)", (id, slug) => {
+    expect(SALES_AREAS.find(item => item.id === id)!.sourceModule).toBe(slug);
   });
 });

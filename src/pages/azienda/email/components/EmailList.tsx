@@ -694,7 +694,7 @@ function ListEmptyState({ filter }: { filter: EmailFilter }) {
   } else if (isInbox) {
     icon = Inbox;
     title = "Inbox vuota";
-    desc = "Nessun messaggio in attesa. Le nuove email arriveranno qui ogni 10 minuti dopo il polling.";
+    desc = "Nessun messaggio in attesa. Le nuove email arrivano qui da sole, ogni 10 minuti.";
   } else if (isStarred) {
     icon = Star;
     title = "Nessun thread importante";

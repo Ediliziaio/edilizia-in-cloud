@@ -419,7 +419,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Il Cruscotto è incluso nei piani Edilizia in Cloud?",
-      a: "Il Cruscotto Aziendale è incluso nei piani Professional e Business. Niente costi extra. Setup in 48 ore con onboarding 1-a-1 incluso, configurazione KPI personalizzati durante l'onboarding.",
+      a: "Il Cruscotto Aziendale è incluso nei piani Professionista e Impresa AI. Niente costi extra. Setup in 48 ore con onboarding 1-a-1 incluso, configurazione KPI personalizzati durante l'onboarding.",
     },
   ],
 

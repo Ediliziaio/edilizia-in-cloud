@@ -78,6 +78,24 @@ async function fetchCampaignContacts(
   return { contacts, error: null };
 }
 
+/** Chi ha ricevuto la campagna originale e non l'ha aperta, a pagine da mille. */
+async function fetchDestinatariReinvio(
+  adminClient: any,
+  campagnaOriginale: string,
+): Promise<{ contacts: any[]; error: { message: string } | null }> {
+  const PAGE_SIZE = 1000;
+  const contacts: any[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await adminClient
+      .rpc("email_destinatari_reinvio", { p_campagna: campagnaOriginale })
+      .range(from, from + PAGE_SIZE - 1);
+    if (error) return { contacts, error };
+    contacts.push(...((data ?? []) as any[]));
+    if (!data || data.length < PAGE_SIZE) break;
+  }
+  return { contacts, error: null };
+}
+
 async function claimCampaignOutboxJob(
   adminClient: any,
   job: {
@@ -359,12 +377,17 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { contacts, error: contactsError } = await fetchCampaignContacts(
-      adminClient,
-      companyId,
-      campaign.segment_json,
-      campaign.recipient_filter,
-    );
+    // Reinvio a chi non ha aperto (email_prepara_reinvii, 25/09/2026): i
+    // destinatari sono quelli della campagna originale che non l'hanno aperta,
+    // non il segmento.
+    const { contacts, error: contactsError } = campaign.reinvio_di
+      ? await fetchDestinatariReinvio(adminClient, campaign.reinvio_di)
+      : await fetchCampaignContacts(
+        adminClient,
+        companyId,
+        campaign.segment_json,
+        campaign.recipient_filter,
+      );
     if (contactsError) {
       await adminClient.from("email_campaigns").update({ status: "failed" }).eq("id", campaignId);
       return new Response(

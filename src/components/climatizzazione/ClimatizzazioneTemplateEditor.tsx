@@ -434,8 +434,8 @@ export function ClimatizzazioneTemplateEditor({ embedded = false, localModule }:
         setSavedLocally(true);
       } else await upsert.mutateAsync(patch);
       setDirty(false);
-      toast.success(localModule ? "Modulo salvato in locale" : "Template salvato", {
-        description: localModule ? "Copia indipendente in questo browser." : "Verrà applicato ai nuovi preventivi climatizzazione.",
+      toast.success(localModule ? "Modello salvato" : "Template salvato", {
+        description: localModule ? "Salvato per l'azienda: lo usano i nuovi preventivi con questo intervento." : "Verrà applicato ai nuovi preventivi climatizzazione.",
       });
     } catch (e) {
       toast.error("Salvataggio non riuscito", {
@@ -667,7 +667,7 @@ export function ClimatizzazioneTemplateEditor({ embedded = false, localModule }:
             <div>
               <p className="text-sm font-semibold">{localModule ? "Testi pronti per questo intervento" : "Scrivi il template con l’AI"}</p>
               <p className="text-[12px] text-muted-foreground">
-                {localModule ? "Personalizza le pagine e verifica il PDF originale prima di salvare la copia locale." : "Genera una bozza dei testi, poi rifinisci e salva."}
+                {localModule ? "Personalizza le pagine e verifica il PDF originale prima di salvare il modello." : "Genera una bozza dei testi, poi rifinisci e salva."}
               </p>
             </div>
           </div>
@@ -1186,7 +1186,7 @@ if (field === "eyebrow") { set("pdf_cover_eyebrow", (value ?? "") || null); } }}
                 className="gap-1.5 bg-orange-500 hover:bg-orange-600"
               >
                 {upsert.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                {localModule ? "Salva modulo in locale" : "Salva template"}
+                {localModule ? "Salva modello" : "Salva template"}
               </Button>
             </div>
           </TemplateEditorSaveBar>
@@ -1394,7 +1394,7 @@ function ImageUploadField({ label, hint, value, companyId, onChange, aspect = "a
     }
     setUploading(true);
     try {
-      if (localOnly) { onChange(await readLocalTemplateImage(file)); toast.success("Immagine aggiunta in locale"); return; }
+      if (localOnly) { onChange(await readLocalTemplateImage(file)); toast.success("Immagine aggiunta"); return; }
       const ext = file.name.includes(".") ? file.name.split(".").pop()!.toLowerCase() : "bin";
       // folder[1] DEVE essere company_id (policy storage company-scoped).
       const path = `${companyId}/climatizzazione/template/${crypto.randomUUID()}.${ext}`;

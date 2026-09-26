@@ -1314,6 +1314,7 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
           inCorso={creazioneInCorso}
           onChiudi={() => setNuovaArea(false)}
           onCrea={(areaStd, tipologie) => void creaArea(areaStd, tipologie)}
+          onAreaDaModello={(area) => cambiaSelezione({ area })}
         />
       )}
 

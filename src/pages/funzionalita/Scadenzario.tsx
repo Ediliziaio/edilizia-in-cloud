@@ -406,7 +406,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Quanto costa? Ci sono limiti su numero di solleciti?",
-      a: "Lo Scadenzario è incluso nei piani Professional e Business di Edilizia in Cloud. Numero illimitato di scadenze e solleciti email. WhatsApp Business e SMS hanno costi a consumo trasparenti (a partire da 0,03€ per messaggio).",
+      a: "Lo Scadenzario è incluso nei piani Professionista e Impresa AI di Edilizia in Cloud. Numero illimitato di scadenze e solleciti email. WhatsApp Business e SMS hanno costi a consumo trasparenti (a partire da 0,03€ per messaggio).",
     },
   ],
 
@@ -423,7 +423,7 @@ const config: FunzionalitaPageConfig = {
     { to: "/funzionalita/automazioni", title: "Automazioni", text: "Sequenze multi-step di sollecito programmate e personalizzate." },
     { to: "/funzionalita/cruscotto-aziendale", title: "Cruscotto Aziendale", text: "DSO, aging e sofferenze nel dashboard direzionale." },
     { to: "/per/imprese-edili", title: "Software per Imprese di Costruzione", text: "Tutta la piattaforma orientata alle imprese edili italiane." },
-    { to: "/prezzi", title: "Prezzi e Piani", text: "Scadenzario incluso nei piani Professional e Business." },
+    { to: "/prezzi", title: "Prezzi e Piani", text: "Scadenzario incluso nei piani Professionista e Impresa AI." },
   ],
 
   finalCtaH2: "Smetti di chiamare clienti per soldi. Inizia a incassare 30 giorni prima.",

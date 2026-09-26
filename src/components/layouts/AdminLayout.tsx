@@ -168,8 +168,8 @@ const allNavItems: AdminNavItem[] = [
   { title: "Funzionalità Azienda", url: "/admin/feature-flags", icon: Blocks, permission: "can_manage_companies", subcategory: "sa_prodotto" },
   // Libreria Prezzari Regionali — curata dal super-admin, condivisa con le aziende.
   { title: "Prezzari regionali", url: "/admin/prezzari-regionali", icon: Library, permission: "can_manage_companies", subcategory: "sa_listini" },
-  // Libreria Template Articoli — curata dal super-admin, importabile dalle aziende nel Listino.
-  { title: "Template Articoli", url: "/admin/template-articoli", icon: Library, permission: "can_manage_companies", subcategory: "sa_listini" },
+  // Libreria listino — curata dal super-admin: modelli di area, prodotti singoli, marche e serie.
+  { title: "Libreria listino", url: "/admin/template-articoli", icon: Library, permission: "can_manage_companies", subcategory: "sa_listini" },
   // Manodopera (costo orario) — tariffe orarie edili ufficiali, curate dal super-admin.
   { title: "Manodopera (costo orario)", url: "/admin/manodopera-tariffe", icon: HardHat, permission: "can_manage_companies", subcategory: "sa_listini" },
   { title: "Annunci", url: "/admin/annunci", icon: Megaphone, permission: "can_view_platform_stats", subcategory: "sa_prodotto" },
@@ -885,7 +885,7 @@ export function AdminLayout() {
         {isSettingsRoute && <AdminMobileSettingsNav />}
 
         <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3 pb-28 bg-muted/30">
-          <ErrorBoundary title="Errore nel caricamento della pagina">
+          <ErrorBoundary title="Errore nel caricamento della pagina" resetKey={location.pathname}>
             <Outlet />
           </ErrorBoundary>
         </main>
@@ -920,7 +920,7 @@ export function AdminLayout() {
             </div>
           </header>
           <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-6 bg-muted/30">
-            <ErrorBoundary title="Errore nel caricamento della pagina">
+            <ErrorBoundary title="Errore nel caricamento della pagina" resetKey={location.pathname}>
               <Outlet />
             </ErrorBoundary>
           </main>

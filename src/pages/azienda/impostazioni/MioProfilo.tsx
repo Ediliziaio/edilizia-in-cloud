@@ -7,6 +7,8 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { motivoPasswordRifiutata } from "@/lib/auth/cambioPassword";
+import { logger } from "@/utils/logger";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -46,8 +48,8 @@ import {
 } from "@/hooks/useUserNotificationPrefs";
 // v8.6.36 — MySurveysTab rimosso dal profilo (non era semantica corretta:
 // è una LISTA OPERATIVA di sopralluoghi assegnati, non un'impostazione
-// personale). Il componente resta disponibile per future dashboard widget.
-// import { MySurveysTab } from "@/components/sopralluoghi/MySurveysTab";
+// personale). Il componente, mai più usato, è uscito dal codice il 25/09/2026:
+// se serve per un widget, è nella storia git (components/sopralluoghi/MySurveysTab).
 
 // ── Role labels ──
 const ROLE_LABELS: Record<string, string> = {
@@ -264,10 +266,13 @@ export default function MioProfilo() {
     try {
       const { error } = await supabase.auth.updateUser({ password: newPw });
       if (error) throw error;
+      // Scelta da lui: se aveva una password provvisoria, non va più cambiata.
+      const { error: erroreObbligo } = await supabase.rpc("staff_update_own_password_flag", { _must_change: false });
+      if (erroreObbligo) logger.error("[password] obbligo di cambio non tolto:", erroreObbligo);
       setNewPw(""); setConfirmPw("");
       toast.success("Password aggiornata!");
     } catch (err: any) {
-      toast.error(err.message);
+      toast.error(motivoPasswordRifiutata(err), { duration: 10000 });
     } finally { setChangingPw(false); }
   };
 

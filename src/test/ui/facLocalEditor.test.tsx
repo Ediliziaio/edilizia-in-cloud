@@ -7,8 +7,19 @@ import { createFullFacTemplate, FULL_FAC_MODULES, type FullFacModuleId, type Ful
 import { loadLocalFacTemplate, saveLocalFacTemplate } from "@/lib/moduli-vendita/localFacTemplates";
 import { clearFacDraft, getFacDraft } from "@/components/facciate/facDraftRecovery";
 
-const calls = vi.hoisted(() => ({ remote: vi.fn(() => { throw new Error("Online access forbidden"); }), image: vi.fn(), preview: vi.fn() }));
+const calls = vi.hoisted(() => ({ remote: vi.fn(() => { throw new Error("Online access forbidden"); }), image: vi.fn(), preview: vi.fn(), archivio: vi.fn() }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: new Proxy({}, { get: calls.remote }) }));
+// Dal 25/09 i modelli si salvano per l'azienda (archivioModelli.ts, tabella
+// modelli_libreria_azienda): l'editor non chiama mai il database da sé, passa
+// dall'archivio. Qui l'archivio scrive solo nel browser e registra il salvataggio.
+vi.mock("@/lib/moduli-vendita/archivioModelli", () => ({
+  archivioModelliAzienda: {
+    getItem: (chiave: string) => localStorage.getItem(chiave),
+    setItem: (chiave: string, valore: string) => { calls.archivio(chiave); localStorage.setItem(chiave, valore); },
+  },
+  modelliDaMandareOnline: (): string[] => [],
+  sincronizzaModelliAzienda: async () => ({ scaricati: 0, caricati: 0, daMandareOnline: [] as string[] }),
+}));
 vi.mock("@/lib/moduli-vendita/localTemplateImage", () => ({ readLocalTemplateImage: calls.image }));
 vi.mock("@/components/shared/PdfBlobLivePreviewPanel", () => ({ PdfBlobLivePreviewPanel: (props: { depsKey: string }) => { calls.preview(props.depsKey); return <div aria-label="PDF natif" />; } }));
 beforeEach(() => { localStorage.clear(); for (const id of FULL_FAC_MODULES) clearFacDraft("company-a", id); vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} }); });
@@ -34,9 +45,9 @@ describe("dedicated Facciate native editor", () => {
     fireEvent.click(screen.getByRole("link", { name: "Sidebar serramenti" }));
     expect(screen.getByLabelText("Route")).toHaveTextContent("area=serramenti");
     expect(confirm).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Salva modulo in locale" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     await waitFor(() => expect(loadLocalFacTemplate("company-a", id)).not.toBeNull());
-    expect(screen.getByRole("button", { name: "Salva modulo in locale" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Salva modello" })).toBeDisabled();
   });
   it("clears dirty when a new edit is undone without pretending the module was saved", () => {
     mount();
@@ -46,7 +57,7 @@ describe("dedicated Facciate native editor", () => {
     fireEvent.change(title, { target: { value: make().cover_title } });
     expect(screen.getByText("Nuovo modulo non ancora salvato")).toBeVisible();
     expect(getFacDraft("company-a", "cappotto")).toBeUndefined();
-    expect(screen.getByRole("button", { name: "Salva modulo in locale" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Salva modello" })).toBeEnabled();
   });
   it("updates old missing photos only by explicit action, keeping local copy dirty until saved", async () => {
     const t = make(), defaults = t.pdf_blocchi.modulo_defaults as Record<string, unknown>;
@@ -54,11 +65,11 @@ describe("dedicated Facciate native editor", () => {
     t.pdf_blocchi.protezione = { ...previous, titolo: "Testo da conservare", foto: [], senzaFoto: true };
     defaults.protezione = { ...previous, foto: [], senzaFoto: true };
     saveLocalFacTemplate("company-a", "cappotto", t, null); mount();
-    expect(screen.getByRole("button", { name: "Salva modulo in locale" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Salva modello" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Completa le foto Facciate" }));
-    expect(screen.getByRole("button", { name: "Salva modulo in locale" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Salva modello" })).toBeEnabled();
     expect((loadLocalFacTemplate("company-a", "cappotto")?.template.pdf_blocchi.protezione as { foto: string[] }).foto).toEqual([]);
-    fireEvent.click(screen.getByRole("button", { name: "Salva modulo in locale" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     await waitFor(() => expect(loadLocalFacTemplate("company-a", "cappotto")?.template.pdf_blocchi.protezione).toMatchObject({ titolo: "Testo da conservare", senzaFoto: false }));
   });
   it("recovers interrupted drafts without adopting a newer tab's revision", async () => {
@@ -70,7 +81,7 @@ describe("dedicated Facciate native editor", () => {
     saveLocalFacTemplate("company-a", "cappotto", concurrent, first.savedAt);
     mount();
     expect(screen.getByRole("textbox", { name: "Titolo copertina" })).toHaveValue("Bozza da recuperare");
-    fireEvent.click(screen.getByRole("button", { name: "Salva modulo in locale" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("altra scheda"));
     expect(loadLocalFacTemplate("company-a", "cappotto")?.template.cover_title).toBe("Altra scheda");
   });
@@ -79,8 +90,8 @@ describe("dedicated Facciate native editor", () => {
     const title = screen.getByRole("textbox", { name: "Titolo copertina" });
     expect(title.tagName).toBe("TEXTAREA"); expect(title).toHaveValue(make(id).cover_title);
     fireEvent.change(title, { target: { value: `Titolo ${id}\nSeconda riga` } });
-    fireEvent.click(screen.getByRole("button", { name: "Salva modulo in locale" }));
-    await waitFor(() => expect(screen.getByRole("button", { name: "Salva modulo in locale" })).toBeDisabled());
+    fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Salva modello" })).toBeDisabled());
     expect(loadLocalFacTemplate("company-a", id)?.template.cover_title).toBe(`Titolo ${id}\nSeconda riga`);
     first.unmount(); mount(id); expect(screen.getByRole("textbox", { name: "Titolo copertina" })).toHaveValue(`Titolo ${id}\nSeconda riga`);
     expect(calls.remote).not.toHaveBeenCalled();
@@ -95,7 +106,7 @@ describe("dedicated Facciate native editor", () => {
     fireEvent.click(screen.getByRole("button", { name: "Ordine e pagine" }));
     expect(screen.getByRole("button", { name: "Aggiungi una pagina vostra" })).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Nascondi Come funziona" }));
-    fireEvent.click(screen.getByRole("button", { name: "Salva modulo in locale" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     await waitFor(() => expect(loadLocalFacTemplate("company-a", "cappotto")).not.toBeNull());
     const saved = loadLocalFacTemplate("company-a", "cappotto")!.template;
     expect(saved.pdf_ordine_capitoli?.find(p => p.chiave === "comeFunziona")?.visibile).toBe(false);
@@ -106,7 +117,7 @@ describe("dedicated Facciate native editor", () => {
     mount("interno"); fireEvent.click(screen.getByRole("button", { name: "Domande e risposte" }));
     expect(screen.getAllByRole("textbox", { name: /^Domanda \d/ })).toHaveLength(8);
     fireEvent.change(screen.getByRole("textbox", { name: "Risposta 8" }), { target: { value: "Risposta personalizzata" } });
-    fireEvent.click(screen.getByRole("button", { name: "Salva modulo in locale" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     await waitFor(() => expect(loadLocalFacTemplate("company-a", "interno")?.template.faq[7].risposta).toBe("Risposta personalizzata"));
     expect(calls.remote).not.toHaveBeenCalled();
   });
@@ -117,18 +128,18 @@ describe("dedicated Facciate native editor", () => {
     await waitFor(() => expect(calls.image).toHaveBeenCalledWith(file));
     await waitFor(() => expect(screen.getByAltText("Immagine copertina")).toHaveAttribute("src", "data:image/png;base64,AAAA"));
     fireEvent.click(screen.getByRole("button", { name: "Rimuovi immagine copertina" }));
-    fireEvent.click(screen.getByRole("button", { name: "Salva modulo in locale" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     await waitFor(() => expect(loadLocalFacTemplate("company-a", "cappotto")?.template.pdf_cover_image_url).toBeNull());
     expect(loadLocalFacTemplate("company-a", "cappotto")?.template.cover_image_url).toBeNull(); expect(calls.remote).not.toHaveBeenCalled();
   });
   it("retains dirty work after revision conflict or quota failure", async () => {
     mount(); saveLocalFacTemplate("company-a", "cappotto", make(), null);
-    fireEvent.click(screen.getByRole("button", { name: "Salva modulo in locale" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("altra scheda"));
-    expect(screen.getByRole("button", { name: "Salva modulo in locale" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Salva modello" })).toBeEnabled();
     cleanup(); mount("balconi", () => { throw new Error("Quota esaurita"); });
     fireEvent.change(screen.getByRole("textbox", { name: "Titolo copertina" }), { target: { value: "Bozza con quota esaurita" } });
-    fireEvent.click(screen.getByRole("button", { name: "Salva modulo in locale" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Quota esaurita"));
     expect(screen.getByText("Modifiche non salvate")).toBeVisible();
   });
@@ -140,8 +151,8 @@ describe("dedicated Facciate native editor", () => {
     expect(confirm).not.toHaveBeenCalled(); expect(screen.getByLabelText("Route")).toHaveTextContent("section=page_percorso");
     fireEvent.click(screen.getByRole("button", { name: "Vai ai bagni" })); expect(confirm).toHaveBeenCalledOnce();
     expect(screen.getByLabelText("Route")).toHaveTextContent("area=facciate");
-    fireEvent.click(screen.getByRole("button", { name: "Salva modulo in locale" }));
-    await waitFor(() => expect(screen.getByRole("button", { name: "Salva modulo in locale" })).toBeDisabled());
+    fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Salva modello" })).toBeDisabled());
     const cleanReload = new Event("beforeunload", { cancelable: true }); window.dispatchEvent(cleanReload); expect(cleanReload.defaultPrevented).toBe(false);
     fireEvent.click(screen.getByRole("button", { name: "Vai ai bagni" })); expect(screen.getByLabelText("Route")).toHaveTextContent("area=bagni");
   });

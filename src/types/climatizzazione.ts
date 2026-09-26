@@ -20,6 +20,8 @@ export interface ClmComputoVoce {
   fonte?: string | null;
 }
 export interface ClmProgetto {
+  /** Il modello della libreria congelato nel preventivo (lib/moduli/modelloPreventivo). */
+  modello_snapshot?: import("@/lib/moduli/modelloPreventivo").ModelloPreventivo<ClmTemplatePdf> | null;
   id: string; company_id: string; code: string | null; stato: ClmStato; tipo_intervento: string | null;
   numero_unita_interne: number | null; tipologia_impianto: string | null;
   cliente_nome: string | null; cliente_cognome: string | null; cliente_email: string | null; cliente_telefono: string | null;

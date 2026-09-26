@@ -403,8 +403,7 @@ export async function buildMockPdfData(opts: {
   } : null;
 
   return {
-    // Il modello firmato: l'anteprima del modulo ne legge solo testi e numeri,
-    // ma quello non firmato serve soltanto a firmarlo.
+    // Dalla copia firmata anche i testi di esempio: il modello non firmato serve solo a firmarlo.
     detail: opts.moduleId ? applySerramentiModulePreview(detail, tpl ?? {}, opts.moduleId) : detail,
     template: inlinedTemplate as SrTemplatePdfRow | null,
     company: {

@@ -71,9 +71,11 @@ describe("fix impaginazione/encoding PDF edge (audit)", () => {
       expect(source).toContain("f.widthOfTextAtSize(winAnsiSafe(s), size)");
     });
 
-    it("guardia fondo pagina prima di box finanziamento e QR firma", () => {
+    it("guardia fondo pagina prima del box finanziamento; il QR della firma non si stampa più", () => {
       expect(source).toContain("newPageIfNeeded(80)");
-      expect(source).toContain("newPageIfNeeded(100)");
+      // Dal 25/09/2026 il QR della firma online nel PDF non c'è (deciso da Florin):
+      // il cliente firma dal link che riceve.
+      expect(source).not.toContain("qrcode(");
     });
 
     it("footing IVA: totale derivato + residuo sull'aliquota maggiore (mai negativa)", () => {
@@ -110,16 +112,20 @@ describe("fix impaginazione/encoding PDF edge (audit)", () => {
   });
 
   describe("genera-pdf-rapportino", () => {
-    // Dal 25/09/2026 il disegno sta in render.ts (index.ts legge e salva): la
-    // tabella rifà l'intestazione a ogni pagina nuova, anche dentro una riga
-    // spezzata perché più alta di una pagina.
+    // Dal 25/09/2026 il disegno sta in render.ts: una sola funzione table() per tutte
+    // le tabelle, che ridisegna l'intestazione delle colonne a ogni salto pagina.
     const source = read("supabase/functions/genera-pdf-rapportino/render.ts");
 
     it("ridisegna l'intestazione della tabella materiali al salto pagina", () => {
       expect(source).toContain("const header = () => {");
+      expect(source).toContain("const table = (labels: string[], widths: number[], values: string[][]) => {");
+      // una riga normale che non ci sta passa intera alla pagina dopo, con l'intestazione
       expect(source).toContain("if (rowHeight <= H - 68 - bottom - 23 && y - rowHeight < bottom) { nextPage(); header(); }");
+      // una riga più alta di una pagina si spezza, e ogni pezzo riparte con l'intestazione
       expect(source).toContain("if (y - 25 < bottom) { nextPage(); header(); }");
       expect(source).toContain("if (offset < count) { nextPage(); header(); }");
+      // e i materiali passano da lì
+      expect(source).toMatch(/section\("Materiali utilizzati", 65\);\s*table\(\["Materiale", "Quantità", "Unità", "Registrazione"\]/);
     });
   });
 });

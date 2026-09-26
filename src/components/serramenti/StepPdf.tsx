@@ -347,11 +347,10 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso }: Props)
         icon={<Link2 className="h-4 w-4" />}
         className="max-md:hidden"
       >
-        {p.modello_snapshot && <p role="status" className="mb-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Questo modello è collegato al PDF A4. Il collegamento alla pagina di firma è ancora da completare: usa il PDF scaricabile, senza generare una pagina con un modello diverso.</p>}
         <div className="flex flex-col sm:flex-row gap-2">
           <Button
             onClick={() => generaPdfMut.mutate()}
-            disabled={!ready || generaPdfMut.isPending || !!p.modello_snapshot}
+            disabled={!ready || generaPdfMut.isPending}
             className="flex-1 bg-orange-500 hover:bg-orange-600 gap-2"
           >
             {generaPdfMut.isPending

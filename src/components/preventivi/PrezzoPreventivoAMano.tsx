@@ -29,13 +29,15 @@ interface Props {
   onCommit: (valore: number | null) => void;
   /** Nel classico l'opzione deve essere individuabile anche se non abilitata. */
   showDisabledHint?: boolean;
+  /** Il modello lo chiede comunque (Conto Termico: il prezzo si scrive a mano). */
+  sempre?: boolean;
 }
 
-export function PrezzoPreventivoAMano({ id, companyId, value, sommaVoci, onCommit, showDisabledHint = false }: Props) {
+export function PrezzoPreventivoAMano({ id, companyId, value, sommaVoci, onCommit, showDisabledHint = false, sempre = false }: Props) {
   const { data: attivo = false, isLoading, isError } = usePrezzoFinaleAMano(companyId);
   const scritto = Number(value ?? 0) > 0;
   // Telefono no: un riquadro che spiega una funzione spenta e manda alle impostazioni.
-  if (!attivo && !scritto) return showDisabledHint ? (
+  if (!attivo && !scritto && !sempre) return showDisabledHint ? (
     <div className="rounded-lg border border-dashed p-3 text-sm max-sm:hidden">
       <p className="font-medium">Prezzo manuale dell'offerta</p>
       <p className="mt-1 text-xs text-muted-foreground">

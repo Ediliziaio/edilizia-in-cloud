@@ -5,6 +5,7 @@
  * dell'editor: importarle da lì si porterebbe dietro tutto @react-pdf (740 kB)
  * nella pagina dell'editor, che oggi lo carica solo quando si genera il PDF.
  */
+import type { DocEdileModello } from "./documentoEdileTipi";
 
 /**
  * «Il *progetto* per la tua casa.» → tre pezzi, quello fra asterischi va in
@@ -42,4 +43,26 @@ export function giorniDellaDurata(durata: string | null | undefined): number | n
   if (m[3].startsWith("sett")) return medio * 7;
   if (m[3].startsWith("mes")) return medio * 30;
   return medio;
+}
+
+/**
+ * Le condizioni, articolo per articolo: ogni titolo con il suo testo, così
+ * l'impaginazione non lascia un titolo solo in fondo alla pagina. La prima riga,
+ * se è il titolo generale, si toglie: la pagina ha già il suo.
+ */
+export function perArticoli(
+  righe: DocEdileModello["condizioniLegali"],
+  { senzaClausoleDaFirmare = false } = {},
+): Array<typeof righe> {
+  const utili = righe.length > 0 && righe[0].tipo === "h1" ? righe.slice(1) : righe;
+  const gruppi: Array<typeof righe> = [];
+  for (const r of utili) {
+    if ((r.tipo === "h1" || r.tipo === "h2") || gruppi.length === 0) gruppi.push([]);
+    gruppi[gruppi.length - 1].push(r);
+  }
+  // L'elenco delle clausole da approvare a parte sta sulla pagina della firma,
+  // accanto alla seconda firma: qui sarebbe una ripetizione, e da sola si
+  // portava via una pagina intera.
+  if (!senzaClausoleDaFirmare) return gruppi;
+  return gruppi.filter((g) => !/1341|approvare specificamente/i.test(g[0]?.testo ?? ""));
 }

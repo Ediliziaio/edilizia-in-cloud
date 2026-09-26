@@ -56,6 +56,35 @@ const AREE_CRM = [
 /** Codice che consegna un file al browser (downloadQuotePdf: lo scarico del PDF preventivo, spostato in src/lib). */
 const SCARICO = /exportToCSV\(|exportToXLSX\(|\.download\s*=|downloadFile\(|downloadQuotePdf\(|scaricaCsv\(|<ExportButton\b|writeBuffer\(|doc\.save\(|saveAs\(/;
 
+/**
+ * Le funzioni comuni (src/lib, src/hooks, src/utils) che consegnano un file:
+ * chiamarle è come scaricare. Senza, uno scaricamento spostato in una funzione
+ * comune (come downloadQuotePdf, 25/09/2026) spariva dal controllo.
+ */
+function funzioniCheScaricano(): string[] {
+  const tutti = (dir: string): string[] => existsSync(dir)
+    ? readdirSync(dir).flatMap((n) => {
+      const p = join(dir, n);
+      return statSync(p).isDirectory() ? tutti(p) : /\.tsx?$/.test(n) && !/\.test\./.test(n) ? [p] : [];
+    })
+    : [];
+  const diretto = /\.download\s*=|saveAs\(|writeFile\(/;
+  const nomi = new Set<string>();
+  for (const file of ["src/lib", "src/hooks", "src/utils"].flatMap((d) => tutti(join(ROOT, d)))) {
+    const testo = readFileSync(file, "utf8");
+    if (!diretto.test(testo)) continue;
+    const inizi = [...testo.matchAll(/export (?:async )?function (\w+)|export const (\w+)\s*=\s*(?:async\s*)?\(/g)];
+    inizi.forEach((m, k) => {
+      const corpo = testo.slice(m.index, k + 1 < inizi.length ? inizi[k + 1].index : testo.length);
+      if (diretto.test(corpo)) nomi.add(m[1] ?? m[2]);
+    });
+  }
+  return [...nomi];
+}
+const FUNZIONI_CHE_SCARICANO = funzioniCheScaricano();
+const scarica = (testo: string) => SCARICO.test(testo) ||
+  FUNZIONI_CHE_SCARICANO.some((nome) => new RegExp(`\\b${nome}\\(`).test(testo));
+
 /** Portano fuori righe di persone del CRM: permesso e registro. File → oggetti registrati. */
 const CON_PERMESSO_E_REGISTRO: Record<string, string[]> = {
   "src/pages/azienda/marketing/MarketingContacts.tsx": ["contatti"],
@@ -78,6 +107,7 @@ const SENZA_RIGHE_DI_CLIENTI: Record<string, string> = {
   "src/components/reporting/facebook-ads/ExportDialog.tsx": "rendimento delle campagne pubblicitarie, nessuna persona",
   "src/components/reporting/shared/ReportExportMenu.tsx": "chi lo usa esporta una riga per operatore o venditore (vedi il test sotto)",
   "src/components/email-marketing/EmailTopCampaignsTable.tsx": "statistiche per campagna, nessun destinatario",
+  "src/pages/azienda/marketing/simulatore/SimulatoreEditor.tsx": "voci e conti di una simulazione di contratto, nessun elenco di persone",
 };
 
 function sorgenti(percorso: string): string[] {
@@ -93,7 +123,14 @@ function sorgenti(percorso: string): string[] {
 }
 
 describe("esportazioni del CRM: «Esporta Clienti» e registro", () => {
-  const conScarico = AREE_CRM.flatMap(sorgenti).filter((f) => SCARICO.test(leggi(f)));
+  const conScarico = AREE_CRM.flatMap(sorgenti).filter((f) => scarica(leggi(f)));
+
+  it("riconosce anche gli scaricamenti fatti da una funzione comune", () => {
+    for (const nome of ["downloadQuotePdf", "scaricaCsv", "exportToXLSX", "downloadFile", "exportSimulazioneXlsx"]) {
+      expect(FUNZIONI_CHE_SCARICANO, nome).toContain(nome);
+    }
+    expect(conScarico).toContain("src/pages/azienda/marketing/QuoteDetail.tsx");
+  });
 
   it("ogni esportazione delle aree CRM è classificata", () => {
     const nonClassificate = conScarico.filter((f) => !(f in CON_PERMESSO_E_REGISTRO) && !(f in SENZA_RIGHE_DI_CLIENTI));

@@ -1,9 +1,14 @@
 import type { TetEditorialPair } from "./fullTettiFactory";
+import { FAQ_CONTO_TERMICO } from "@/lib/contoTermico/testi";
+import { FAQ_FULL_ELECTRIC } from "@/lib/fullElectric/testi";
 
 interface IdrEditorial {
   hero: string; subtitle: string; cover: string; detail: string; context: string; scope: string;
   specs: TetEditorialPair[]; stages: TetEditorialPair[]; faq: TetEditorialPair[];
   rows: [string, string, number][];
+  /** «Perché sceglierci» e garanzie scritti per l'intervento; senza, si compongono da specs e stages. */
+  usp?: TetEditorialPair[];
+  garanzie?: TetEditorialPair[];
 }
 
 /** One editorial brief per intervention, not a renamed whole-house installation. */
@@ -67,5 +72,35 @@ export const IDR_REMAINING_EDITORIAL = {
     stages: [["Raccolta delle informazioni", "Raccogliamo sintomi, dati dell'apparecchio e condizioni di accesso."], ["Verifica sul posto", "Svolgiamo le sole attività diagnostiche o manutentive concordate."], ["Proposta di intervento", "Se servono ulteriori opere o ricambi, li descriviamo e richiediamo conferma prima di procedere."], ["Riepilogo del servizio", "Consegniamo esito, limiti e indicazioni riferite alle attività effettivamente svolte."]],
     faq: [["L'uscita garantisce la riparazione?", "No. Una diagnosi può richiedere attività o ricambi ulteriori, da approvare separatamente."], ["I ricambi sono compresi?", "Solo quelli identificati nel computo. Nessun ricambio generico è incluso automaticamente."], ["Il prezzo copre tutte le ore?", "Il servizio deve specificare attività, tempo incluso e modalità per eventuali estensioni."], ["Posso richiedere un servizio periodico?", "Periodicità, attività e durata vanno definite in una proposta dedicata; non sono implicite."], ["Viene verificato l'intero impianto?", "Solo il perimetro concordato e accessibile. Le parti non controllate devono essere indicate."], ["Cosa succede se il guasto non è riproducibile?", "Si registrano condizioni osservate e limiti della diagnosi, concordando gli eventuali passi successivi."], ["La foto mostra il lavoro che verrà eseguito?", "È un'illustrazione. L'attività effettiva è quella descritta nella proposta."], ["È prevista reperibilità urgente?", "Solo se espressamente concordata con condizioni e disponibilità; non viene promessa dal modello."]],
     rows: [["Uscita", "Accesso programmato sull'apparecchio dimostrativo indicato", 60], ["Servizio", "Attività diagnostiche o manutentive descritte, senza ricambi", 120], ["Riepilogo", "Registrazione dei riscontri e delle attività residue", 20]],
+  },
+  // Il Conto Termico 3.0 (regole in src/lib/contoTermico): il PDF è
+  // ContoTermicoPDF, che legge da qui copertina, domande e passaggi.
+  "conto-termico": {
+    hero: "Il calore di casa.\nCon l'aiuto dello Stato.",
+    subtitle: "Pompa di calore o generatore rinnovabile al posto del vecchio impianto, con il contributo del GSE e il conto di quanto resta a te.",
+    cover: "/pdf-stock/termoidraulico/pompa-di-calore.jpg", detail: "/module-art/termoidraulica.jpg", context: "/pdf-stock/comune/consegna-documenti.jpg",
+    scope: "La proposta riguarda il generatore, i collegamenti e le attività elencate. Il contributo del Conto Termico è stimato: l'importo definitivo lo stabilisce il GSE. Distribuzione, terminali, opere murarie e adeguamenti elettrici non sono compresi se non elencati.",
+    specs: [["Impianto da sostituire", "Il Conto Termico chiede un impianto di riscaldamento funzionante che viene sostituito: si identifica prima dei lavori."], ["Generatore proposto", "Potenza ed efficienza stagionale (SCOP) risultano dalla scheda tecnica del modello: sono i dati con cui il GSE calcola il contributo."], ["Contributo e modalità", "Si concorda se il contributo arriva dal GSE al cliente o se l'impresa lo sconta in fattura con il mandato all'incasso."], ["Documenti per il GSE", "Foto prima e dopo, fatture, bonifici, schede e certificato di smaltimento si raccolgono durante i lavori."]],
+    stages: [["Sopralluogo e requisiti", "Verifichiamo l'impianto da sostituire, la casa e i requisiti del nuovo generatore."], ["Firma e installazione", "Confermi la proposta; smontiamo e smaltiamo il vecchio generatore e installiamo il nuovo."], ["Domanda al GSE", "Entro 90 giorni dalla fine dei lavori, con foto, fatture e documenti tecnici."], ["Il contributo", "Accettata la domanda, il GSE paga il contributo, oppure lo sconta l'impresa in fattura se hai scelto così."]],
+    // Le stesse domande del documento: una sola fonte, src/lib/contoTermico/testi.ts.
+    faq: FAQ_CONTO_TERMICO.map(({ domanda, risposta }) => [domanda, risposta] as TetEditorialPair),
+    rows: [["Sistema", "Pompa di calore aria-acqua con modulo idronico e bollitore della configurazione dimostrativa", 9800], ["Installazione", "Smontaggio e smaltimento del vecchio generatore, collegamenti e messa in funzione", 2300], ["Pratica GSE", "Raccolta dei documenti e invio della domanda al GSE", 400]],
+    // Composti da specs e stages, qui uscivano frasi fuori posto («Compatibilità
+    // prima dell'ordine» spiegata col modo di ricevere il contributo).
+    usp: [["Il contributo, messo in chiaro", "Nel preventivo trovi il contributo stimato, quanto resta a te e quando arriva: i numeri sono gli stessi in ogni pagina."], ["Un generatore scelto sui requisiti", "Potenza ed efficienza stagionale (SCOP) sono i dati con cui il GSE calcola il contributo: li verifichiamo sulla scheda tecnica prima dell'ordine."], ["I documenti, raccolti durante i lavori", "Foto prima e dopo, fatture, schede e certificato di smaltimento: quello che serve alla domanda al GSE non si ricostruisce dopo."]],
+    garanzie: [["Garanzia del produttore", "Sul generatore vale la garanzia del produttore, alle condizioni della sua documentazione."], ["Impianto a regola d'arte", "A fine lavori rilasciamo la dichiarazione di conformità prevista per le opere eseguite."], ["Documenti per il GSE", "Foto, fatture, schede tecniche e certificato di smaltimento restano a te, pronti per la domanda e per eventuali controlli."], ["Assistenza definita", "Contatti e documenti restano a te; manutenzione e servizi aggiuntivi sono quelli concordati."]],
+  },
+  "full-electric": {
+    hero: "La casa senza gas.\nTutta elettrica, dal tuo tetto.",
+    subtitle: "Pompa di calore, induzione, fotovoltaico e batteria: un solo progetto e una sola bolletta.",
+    cover: "/pdf-stock/fotovoltaico/villa-tetto-coppi.jpg", detail: "/pdf-stock/fotovoltaico/tecnica-percorso-energia.jpg", context: "/pdf-stock/fotovoltaico/sopralluogo.jpg",
+    scope: "La proposta riguarda i componenti, i collegamenti e le attività elencate. Produzione, consumi e risparmi sono stime; gli incentivi dipendono dai requisiti e dalle regole in vigore. Opere murarie, adeguamenti della rete e aumenti di potenza non sono compresi se non elencati.",
+    specs: [["Consumi e bollette di oggi", "Gas e luce di un anno: da qui si misura quanto cambia con la casa tutta elettrica."], ["Il sistema proposto", "Potenza del fotovoltaico, capacità della batteria e pompa di calore risultano dalle schede dei modelli proposti."], ["Energia e bollette di domani", "Produzione, quota consumata in casa e bolletta rimasta sono stime scritte nel preventivo."], ["Incentivi e rientro", "Detrazione e Conto Termico valgono su componenti diversi; il rientro tiene conto di entrambi."]],
+    stages: [["Sopralluogo e consumi", "Guardiamo tetto, locale tecnico e impianto di oggi, e leggiamo con te le bollette di gas e luce."], ["Progetto e pratiche", "Dimensioniamo impianto e batteria sui tuoi consumi e prepariamo connessione alla rete e pratiche per gli incentivi."], ["Installazione coordinata", "Fotovoltaico, batteria, pompa di calore e induzione in giorni concordati, un lavoro alla volta."], ["Attivazione e addio al gas", "Colleghiamo l'impianto, avviamo la pompa di calore e ti spieghiamo l'app; poi il contratto del gas si chiude."]],
+    // Le stesse domande del documento: una sola fonte, src/lib/fullElectric/testi.ts.
+    faq: FAQ_FULL_ELECTRIC.map(({ domanda, risposta }) => [domanda, risposta] as TetEditorialPair),
+    rows: [["Fotovoltaico e batteria", "Impianto fotovoltaico con batteria di accumulo della configurazione dimostrativa", 14200], ["Pompa di calore", "Pompa di calore aria-acqua per riscaldamento e acqua calda, installazione compresa", 10300], ["Cucina e impianto elettrico", "Piano a induzione e adeguamento della linea elettrica", 1500]],
+    usp: [["Un solo progetto", "Fotovoltaico, batteria, pompa di calore e induzione dimensionati insieme sui tuoi consumi, non quattro preventivi da mettere d'accordo."], ["I numeri, messi in chiaro", "Produzione, bollette prima e dopo, incentivi e rientro: stime scritte, pagina per pagina, sugli stessi dati."], ["Dalla pratica all'app", "Connessione alla rete, pratiche per gli incentivi e l'app per seguire l'energia di casa."]],
+    garanzie: [["Garanzia del produttore", "Su moduli, inverter, batteria e pompa di calore valgono le garanzie dei produttori, alle condizioni della loro documentazione."], ["Impianto a regola d'arte", "A fine lavori rilasciamo le dichiarazioni di conformità previste per le opere eseguite."], ["Pratiche seguite", "Connessione alla rete e pratiche per gli incentivi compresi nella proposta: le seguiamo noi, con i tuoi documenti."], ["Assistenza definita", "Contatti e documenti restano a te; manutenzione e servizi aggiuntivi sono quelli concordati."]],
   },
 } satisfies Record<string, IdrEditorial>;

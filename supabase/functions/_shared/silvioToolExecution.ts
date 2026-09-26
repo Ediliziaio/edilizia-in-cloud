@@ -16,11 +16,13 @@ import {
   DEFAULT_TOOL_ALLOWED_ROLES,
   DOMAIN_STAFF_PERMISSION,
   SILVIO_TOOLS,
+  areaSpentaPerPermessi,
   type Channel,
   type RiskLevel,
   type SilvioTool,
   type ToolContext,
 } from "./silvioTools.ts";
+import { usaPermessiStaff } from "./ruoloSilvio.ts";
 
 export interface ToolExecutionResult {
   success: boolean;
@@ -111,7 +113,9 @@ export async function executeToolWithRouting(
   // I permessi si leggono UNA volta e servono a due gate diversi: questo
   // (l'area intera), e piu sotto quello sulle RIGHE e sulle COLONNE.
   let staffPerms: Record<string, unknown> | null = null;
-  if (ctx.primaryRole === "company_staff") {
+  // Tutti i ruoli che nell'app lavorano coi permessi della riga (venditore,
+  // call center, operaio, subappaltatore), non solo company_staff.
+  if (usaPermessiStaff(ctx.primaryRole)) {
     staffPerms = ctx.staffPermissions ?? null;
     if (!staffPerms) {
       // Non passati dal chiamante: li leggiamo noi. Una query in più è
@@ -129,13 +133,13 @@ export async function executeToolWithRouting(
       }
     }
   }
-  if (ctx.primaryRole === "company_staff" && tool.domain) {
+  if (usaPermessiStaff(ctx.primaryRole) && tool.domain) {
     const permKey = DOMAIN_STAFF_PERMISSION[tool.domain];
     if (permKey) {
-      const perms = staffPerms;
       // Nessuna riga permessi = nessuna restrizione esplicita (comportamento
-      // storico dell'app): si nega solo quando il permesso è esplicitamente false.
-      if (perms && perms[permKey] === false) {
+      // storico dell'app): si nega solo quando i permessi che aprono l'area
+      // sono tutti esplicitamente false.
+      if (areaSpentaPerPermessi(staffPerms, tool.domain)) {
         await logAudit(ctx, tool, toolName, {
           inputPayload: sanitize(input),
           outputPayload: null,
@@ -425,7 +429,7 @@ async function loadStaffScope(
   ctx: ToolContext,
   perms: Record<string, unknown> | null,
 ): Promise<StaffScope | null> {
-  if (ctx.primaryRole !== "company_staff" || !perms) return null;
+  if (!usaPermessiStaff(ctx.primaryRole) || !perms) return null;
   // Due modalita' ristrette sulle commesse, entrambe da rispettare:
   // "solo quelle assegnate a me" e "solo quelle del mio magazzino".
   const commesseRistrette = perms.only_assigned === true || perms.only_my_warehouse === true;

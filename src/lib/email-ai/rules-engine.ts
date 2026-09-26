@@ -4,8 +4,11 @@
  * Logica PURA (nessun DB, nessuna rete): data un'email + una lista di regole,
  * trova la prima regola che matcha e traduce le sue azioni in ClassificationResult.
  *
- * Usato sia client (src/lib/email-ai/classifier.ts) sia edge (gemello Deno in
- * _shared/email-ai-cascade.ts). Mantieni i due in sync.
+ * I tipi li usa la pagina delle regole (EmailRulesSettings); le funzioni le prova
+ * solo rules-engine.test.ts. La cascata del server (_shared/email-ai-cascade.ts) ha
+ * un valutatore suo, che applica soltanto «categoria» e «collega_entita»: priorità,
+ * silenzia, marca da fare, etichetta, notifica e salta AI si calcolano qui e
+ * nessuno le esegue (25/09/2026).
  *
  * Precedenza (MP-05 §4): le regole sono valutate per `priorita` crescente
  * (più basso = prima); a parità, la più specifica (più condizioni). La prima

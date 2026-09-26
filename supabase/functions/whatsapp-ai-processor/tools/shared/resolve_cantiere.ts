@@ -132,7 +132,7 @@ async function loadCantiereById(ctx: ToolCtx, orderId: string): Promise<ResolveC
 }
 
 async function loadActiveCantieri(ctx: ToolCtx): Promise<OrderRow[]> {
-  const today = new Date().toISOString().substring(0, 10);
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome" }).format(new Date());
   const { data: cantieri } = await ctx.supabase
     .from("orders")
     .select("id, description, order_code, indirizzo_lavori, status, work_start_date, work_end_date")

@@ -167,7 +167,8 @@ describe("preventivo generico: l'impaginato classico parla la lingua del documen
 
   it("gli altri impaginati (moderno, minimale, bold) restano com'erano", () => {
     expect(src).toContain('page.drawText("OFFERTA", { x: contentX, y, size: 26, font: fontBold, color: textC });');
-    expect(src).toMatch(/if \(classicPremium\) \{\n\s+\/\/ Come il computo del documento edile/);
+    // L'intestazione della tabella del classico: la fascia nel colore dell'azienda (25/09/2026).
+    expect(src).toMatch(/if \(classicPremium\) \{\n\s+\/\/ Una fascia nel colore dell'azienda con le etichette in bianco/);
   });
 });
 
@@ -184,7 +185,7 @@ describe("modulo di recesso e pagina della firma in tutti i documenti", () => {
   it("i quattro motori allegano il modulo solo quando l'azienda lo accende", () => {
     expect(leggi("src/components/preventivi/pdf/DocumentoEdilePDF.tsx")).toContain("MODULO_RECESSO.dichiarazione(dati.codice)");
     expect(leggi("src/components/preventivi/pdf/adattatoreEdile.ts")).toContain("conRecesso: t.modulo_recesso_attivo === true,");
-    // Le pagine del fotovoltaico si aggiungono con append(nome, html) dal 25/09/2026.
+    // Le pagine del Fotovoltaico si aggiungono con append(id, …) (ogni pagina porta il suo nome).
     expect(leggi("supabase/functions/_shared/fvHtmlTemplate.ts")).toContain('if (haModuloRecesso(d)) append("recesso", pageModuloRecesso(d, ++pageN, TOTAL));');
     expect(leggi("supabase/functions/_shared/fvHtmlTemplate.ts")).toContain("return haPaginaCondizioni(d) && d.template?.modulo_recesso_attivo === true;");
     expect(leggi("supabase/functions/fv-genera-pdf/index.ts")).toContain("modulo_recesso_attivo: template.modulo_recesso_attivo === true,");

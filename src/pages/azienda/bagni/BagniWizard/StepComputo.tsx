@@ -25,6 +25,8 @@ import type { BgnComputoVoce, BgnUnitaMisura } from "@/types/bagni";
 import type { ComputoVoceLocal } from "@/types/computo";
 import ComputoEditor from "@/components/bagni/ComputoEditor/ComputoEditor";
 import { PACCHETTI_BAGNO, buildPacchettoRows, type Pacchetto } from "@/lib/bagni/pacchetti";
+import type { SalesIntervention } from "@/lib/moduli-vendita/areas";
+import { LavorazioniDelModello } from "@/components/moduli/InterventoScelto";
 
 interface Props {
   progettoId: string;
@@ -33,12 +35,14 @@ interface Props {
   ivaPct: number;
   /** Prezzo scritto a mano in Economia: il riepilogo del computo parte da quello. */
   prezzoManuale?: number | null;
+  /** L'intervento della libreria, se il preventivo nasce da un modello. */
+  model?: SalesIntervention;
 }
 
 const LISTINO_SETTINGS_HREF =
   "/azienda/bagni/listino";
 
-export default function StepComputo({ progettoId, initialComputo, scontoPct, ivaPct, prezzoManuale = null }: Props) {
+export default function StepComputo({ progettoId, initialComputo, scontoPct, ivaPct, prezzoManuale = null, model }: Props) {
   const companyId = useEffectiveCompanyId();
   const saveMut = useSaveComputo(progettoId);
 
@@ -206,6 +210,7 @@ export default function StepComputo({ progettoId, initialComputo, scontoPct, iva
         )}
       </div>
 
+      {model && <LavorazioniDelModello intervento={model} />}
       {/* Hint listino vuoto */}
       {/* Telefono no: il listino si imposta da computer, e le voci libere ci sono comunque. */}
       {listinoVuoto && (

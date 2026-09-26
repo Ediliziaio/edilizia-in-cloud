@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { ConversazioniTab } from "@/components/agenti/ConversazioniTab";
+import { AgenteWhatsAppLeadPanel } from "@/components/agenti/AgenteWhatsAppLeadPanel";
 import { useAiAgentsBasePath } from "@/hooks/useAiAgentsBasePath";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { callElevenLabsProxy } from "@/modules/ai-agents/hooks/useElevenLabsProxy";
@@ -419,6 +420,9 @@ export default function AgentDetailPage() {
               <label className="text-sm font-medium mb-1 block">Primo messaggio</label>
               <Textarea value={editPrimoMsg} onChange={(e) => setEditPrimoMsg(e.target.value)} rows={3} />
             </div>
+            {agent.tipo === "whatsapp" && companyId && (
+              <AgenteWhatsAppLeadPanel agentId={agent.id} companyId={companyId} toolsConfig={agent.tools_config} stato={agent.stato ?? null} />
+            )}
             {isVoice && (
               <Card>
                 <CardHeader className="pb-2">

@@ -3,8 +3,9 @@
  * Estratto da FotovoltaicoWizard.tsx (MP-MKT-001).
  *
  * Definisce shape del wizard (WizardData) + persistenza locale (PersistedDraft).
- * I tipi fotovoltaici-specific (FvArchetipo, FvTariffaTipo, FvProfiloAutoconsumoCodice,
- * FvTabDef) sono in `@/types/fotovoltaico` — qui solo lo state wizard.
+ * I tipi fotovoltaici-specific (FvArchetipo, FvTariffaTipo, FvProfiloAutoconsumoCodice)
+ * sono in `@/lib/fotovoltaico/tipi`, FvTabDef in `@/lib/fotovoltaico/wizardUI` —
+ * qui solo lo state wizard.
  */
 import type {
   FvArchetipo, FvProfiloAutoconsumoCodice, FvTariffaTipo,

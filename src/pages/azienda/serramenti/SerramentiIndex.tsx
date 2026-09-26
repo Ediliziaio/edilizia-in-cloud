@@ -214,9 +214,9 @@ export default function SerramentiIndex() {
       const mq = Number(p.metri_quadri_totali ?? 0);
       if (mMin != null && Number.isFinite(mMin) && mq < mMin) return false;
       if (mMax != null && Number.isFinite(mMax) && mq > mMax) return false;
-      // Bonus Ecobonus
-      if (bonusFiltro === "50" && p.detrazione_aliquota !== 50) return false;
-      if (bonusFiltro === "65" && p.detrazione_aliquota !== 65) return false;
+      // Detrazione fiscale (aliquote 2026 da incentivi.ts)
+      if (bonusFiltro === "50" && Number(p.detrazione_aliquota) !== 50) return false;
+      if (bonusFiltro === "36" && Number(p.detrazione_aliquota) !== 36) return false;
       // 0 = detrazione esclusa di proposito: conta come «senza bonus».
       if (bonusFiltro === "none" && Number(p.detrazione_aliquota) > 0) return false;
       // Schema pagamento

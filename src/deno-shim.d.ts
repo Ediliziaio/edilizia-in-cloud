@@ -64,3 +64,12 @@ declare const Deno: {
     options?: { nameServer?: { ipAddr: string; port?: number }; signal?: AbortSignal },
   ): Promise<unknown>;
 };
+
+/**
+ * Il client Supabase che le edge function importano da esm.sh: per il controllo
+ * dei tipi è lo stesso pacchetto npm dell'app. Serve ai moduli di _shared che i
+ * test importano (email-ai-cascade.ts ne usa il tipo SupabaseClient).
+ */
+declare module "https://esm.sh/@supabase/supabase-js@2" {
+  export * from "@supabase/supabase-js";
+}

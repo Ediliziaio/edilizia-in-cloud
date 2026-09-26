@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -6,6 +7,7 @@ import {
   useConversazioneTimeline,
   useConversazioneOverlay,
   useConversazioniCerca,
+  useAssistenteConversazione,
   type CanaleConversazione,
   type ConversazioneListItem,
 } from "@/hooks/useConversazioni";
@@ -19,6 +21,7 @@ import { cn } from "@/lib/utils";
 import {
   Mail, MessageSquare, MessageCircle, StickyNote, Search, Inbox, Instagram, Facebook,
   AlertCircle, ChevronLeft, User, Briefcase, RefreshCw, UserCheck, CheckCircle2, RotateCcw, Info,
+  Bot, PauseCircle, ExternalLink, Phone, Check, CheckCheck, X,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
@@ -52,6 +55,36 @@ function formatOra(ts: string | null): string {
   return new Intl.DateTimeFormat("it-IT", {
     day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
   }).format(d);
+}
+
+function giornoDi(ts: string | null): string {
+  if (!ts) return "";
+  const d = new Date(ts);
+  return Number.isNaN(d.getTime()) ? "" : d.toDateString();
+}
+
+/** «Oggi», «Ieri» o «25 settembre 2026», come nella chat del Team. */
+function etichettaGiorno(ts: string | null): string {
+  if (!ts) return "";
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return "";
+  const oggi = new Date();
+  const ieri = new Date(oggi.getFullYear(), oggi.getMonth(), oggi.getDate() - 1);
+  if (d.toDateString() === oggi.toDateString()) return "Oggi";
+  if (d.toDateString() === ieri.toDateString()) return "Ieri";
+  return new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "long", year: "numeric" }).format(d);
+}
+
+/** «modello · ✗ non consegnato: problema di pagamento…» → «Non consegnato: problema di pagamento…». */
+function motivoMancataConsegna(esito: string): string {
+  const t = esito.replace(/^modello\s*·\s*/i, "").replace(/^[×✕✗]\s*/, "").trim();
+  return t ? t.charAt(0).toUpperCase() + t.slice(1) : "Non consegnato";
+}
+
+function oraDi(ts: string | null): string {
+  if (!ts) return "";
+  const d = new Date(ts);
+  return Number.isNaN(d.getTime()) ? "" : new Intl.DateTimeFormat("it-IT", { hour: "2-digit", minute: "2-digit" }).format(d);
 }
 
 interface Props {
@@ -90,18 +123,35 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
     return () => document.body.classList.remove(cls);
   }, [selectedItem]);
 
+  const schedaHref = selectedItem
+    ? selectedItem.entita_tipo === "contatto"
+      ? `/azienda/marketing/contatti/${selectedItem.entita_id}`
+      : `/azienda/clienti/${selectedItem.entita_id}`
+    : "";
+
   const { data: timeline = [], isLoading: timelineLoading } = useConversazioneTimeline(
     selectedItem?.entita_tipo ?? null,
     selectedItem?.entita_id ?? null,
   );
 
-  // Auto-scroll all'ultimo messaggio quando si apre una conversazione o ne arriva
-  // uno nuovo (timeline ordinata ASC → il più recente è in fondo). Solo scroll, no
-  // setState → nessun re-render / lint set-state-in-effect.
-  const bottomRef = useRef<HTMLDivElement>(null);
+  // La chat parte dall'ultimo messaggio, come WhatsApp: all'apertura si va in
+  // fondo, e quando arriva un messaggio nuovo si segue solo se si era già in
+  // fondo (chi sta rileggendo quelli vecchi non viene strappato via).
+  // Scroll diretto sul contenitore: scrollIntoView faceva scorrere anche la
+  // pagina intorno. Solo scroll, niente setState.
+  const threadRef = useRef<HTMLDivElement>(null);
+  const inFondoRef = useRef(true);
+  const apertaRef = useRef<string | null>(null);
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ block: "end" });
-  }, [timeline, selectedKey]);
+    const el = threadRef.current;
+    if (!el) return;
+    const nuovaConversazione = apertaRef.current !== selectedKey;
+    if (nuovaConversazione || inFondoRef.current) {
+      el.scrollTop = el.scrollHeight;
+      inFondoRef.current = true;
+    }
+    if (!timelineLoading) apertaRef.current = selectedKey;
+  }, [timeline, selectedKey, timelineLoading]);
 
   // Realtime: aggiornamento istantaneo dell'inbox.
   //  • `conversazioni` (già nella publication): cambi stato/assegnazione/letto fatti
@@ -193,6 +243,30 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
     );
   };
 
+  // L'agente WhatsApp (25/09/2026): chi prende la chat lo mette in pausa, e
+  // l'agente smette di rispondere a quel contatto finché qualcuno non lo riattiva.
+  const assistente = useAssistenteConversazione(
+    companyId,
+    selectedItem?.entita_tipo ?? null,
+    selectedItem?.entita_id ?? null,
+  );
+  const cambiaPausaAssistente = () => {
+    if (!selectedItem || !assistente.data) return;
+    const pausa = !assistente.data.inPausa;
+    overlay.mutate(
+      {
+        entitaTipo: selectedItem.entita_tipo,
+        entitaId: selectedItem.entita_id,
+        patch: {
+          bot_in_pausa: pausa,
+          bot_in_pausa_motivo: pausa ? "Presa in carico da una persona" : null,
+          bot_in_pausa_il: pausa ? new Date().toISOString() : null,
+        },
+      },
+      { onSuccess: () => toast.success(pausa ? "Assistente in pausa: la conversazione la segui tu" : "Assistente riattivato") },
+    );
+  };
+
   const assegnaAMe = () => {
     if (!selectedItem || !user?.id) return;
     const mine = selectedItem.assegnato_a === user.id;
@@ -210,7 +284,7 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
     <div className="h-full flex overflow-hidden rounded-xl border bg-card">
       {/* ═══ Sidebar lista ═══ */}
       <aside className={cn(
-        "w-full md:w-[340px] md:min-w-[300px] min-h-0 border-r flex flex-col bg-background",
+        "w-full md:w-[300px] md:min-w-[260px] 2xl:w-[340px] min-h-0 border-r flex flex-col bg-background",
         selectedItem ? "hidden md:flex" : "flex",
       )}>
         <div className="p-3 border-b">
@@ -379,58 +453,94 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
           </div>
         ) : (
           <>
-            <header className="h-14 px-3 sm:px-4 border-b flex items-center gap-3 bg-background shrink-0">
-              <Button variant="ghost" size="icon" className="md:hidden -ml-1" aria-label="Torna alla lista" onClick={() => setSelectedKey(null)}>
-                <ChevronLeft className="h-5 w-5" />
-              </Button>
-              <Avatar className="h-9 w-9">
-                <AvatarFallback className={cn("text-xs", selectedItem.entita_tipo === "cliente" ? "bg-indigo-100 text-indigo-700" : "bg-primary/10 text-primary")}>
-                  {iniziali(selectedItem.nome, selectedItem.email)}
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0 flex-1">
-                <div className="font-semibold text-sm truncate flex items-center gap-2">
-                  {selectedItem.nome || selectedItem.email || "Senza nome"}
-                  <Badge variant="secondary" className="gap-1 shrink-0">
-                    {selectedItem.entita_tipo === "cliente" ? <Briefcase className="h-3 w-3" /> : <User className="h-3 w-3" />}
-                    {selectedItem.entita_tipo === "cliente" ? "Cliente" : "Contatto"}
-                  </Badge>
+            {/* Nome e recapiti su tutta la larghezza, azioni sotto: prima i
+                pulsanti si mangiavano lo spazio e il nome usciva «Florin An…». */}
+            <header className="px-3 sm:px-4 py-2 border-b bg-background shrink-0 space-y-1.5">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <Button variant="ghost" size="icon" className="md:hidden -ml-1 h-8 w-8 shrink-0" aria-label="Torna alla lista" onClick={() => setSelectedKey(null)}>
+                  <ChevronLeft className="h-5 w-5" />
+                </Button>
+                <Link to={schedaHref} className="shrink-0" aria-label="Apri la scheda del contatto">
+                  <Avatar className="h-9 w-9">
+                    <AvatarFallback className={cn("text-xs", selectedItem.entita_tipo === "cliente" ? "bg-indigo-100 text-indigo-700" : "bg-primary/10 text-primary")}>
+                      {iniziali(selectedItem.nome, selectedItem.email)}
+                    </AvatarFallback>
+                  </Avatar>
+                </Link>
+                <div className="min-w-0 flex-1">
+                  <Link
+                    to={schedaHref}
+                    className="font-semibold text-sm hover:underline flex items-center gap-1.5 min-w-0"
+                    title="Apri la scheda completa"
+                  >
+                    <span className="truncate">{selectedItem.nome || selectedItem.email || "Senza nome"}</span>
+                    <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" />
+                  </Link>
+                  <div className="text-xs text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                    {selectedItem.telefono && (
+                      <a href={`tel:${selectedItem.telefono}`} className="inline-flex items-center gap-1 hover:text-foreground">
+                        <Phone className="h-3 w-3" />{selectedItem.telefono}
+                      </a>
+                    )}
+                    {selectedItem.email && (
+                      <span className="inline-flex items-center gap-1 min-w-0"><Mail className="h-3 w-3 shrink-0" /><span className="truncate">{selectedItem.email}</span></span>
+                    )}
+                  </div>
                 </div>
-                <div className="text-xs text-muted-foreground truncate flex items-center gap-3">
-                  {selectedItem.email && <span className="inline-flex items-center gap-1"><Mail className="h-3 w-3" />{selectedItem.email}</span>}
-                  {selectedItem.telefono && <span className="inline-flex items-center gap-1"><MessageSquare className="h-3 w-3" />{selectedItem.telefono}</span>}
-                </div>
+                <Badge variant="secondary" className="gap-1 shrink-0">
+                  {selectedItem.entita_tipo === "cliente" ? <Briefcase className="h-3 w-3" /> : <User className="h-3 w-3" />}
+                  {selectedItem.entita_tipo === "cliente" ? "Cliente" : "Contatto"}
+                </Badge>
               </div>
-              {/* Azioni GHL: scheda (sotto xl) / assegna a me / chiudi-riapri */}
-              <div className="flex items-center gap-1 shrink-0">
+              {/* Azioni GHL: scheda (sotto xl) / pausa assistente / assegna a me / chiudi-riapri */}
+              <div className="flex flex-wrap items-center gap-1">
                 <Button
-                  variant="ghost" size="icon" className="h-8 w-8 xl:hidden"
-                  aria-label="Apri scheda contatto"
+                  variant="ghost" size="sm" className="h-7 gap-1.5 text-xs xl:hidden"
                   onClick={() => setSchedaOpen(true)}
                 >
-                  <Info className="h-4 w-4" />
+                  <Info className="h-3.5 w-3.5" /> Scheda
                 </Button>
+                {selectedItem.entita_tipo === "contatto" && assistente.data?.haAgente && (
+                  <Button
+                    variant={assistente.data.inPausa ? "secondary" : "ghost"}
+                    size="sm" className="h-7 gap-1.5 text-xs"
+                    onClick={cambiaPausaAssistente} disabled={overlay.isPending}
+                    title={assistente.data.inPausa
+                      ? `L'assistente non risponde a questo contatto${assistente.data.motivo ? ` (${assistente.data.motivo})` : ""}. Clicca per riattivarlo.`
+                      : "Metti in pausa l'assistente WhatsApp per questo contatto"}
+                  >
+                    {assistente.data.inPausa ? <PauseCircle className="h-3.5 w-3.5" /> : <Bot className="h-3.5 w-3.5" />}
+                    {assistente.data.inPausa ? "Assistente in pausa" : "Pausa assistente"}
+                  </Button>
+                )}
                 <Button
                   variant={selectedItem.assegnato_a === user?.id ? "secondary" : "ghost"}
-                  size="sm" className="h-8 gap-1.5 text-xs"
+                  size="sm" className="h-7 gap-1.5 text-xs"
                   onClick={assegnaAMe} disabled={overlay.isPending}
                 >
                   <UserCheck className="h-3.5 w-3.5" />
-                  <span className="hidden lg:inline">{selectedItem.assegnato_a === user?.id ? "Assegnata a te" : "Assegna a me"}</span>
+                  {selectedItem.assegnato_a === user?.id ? "Assegnata a te" : "Assegna a me"}
                 </Button>
                 {selectedItem.stato === "chiusa" ? (
-                  <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => aggiornaStato("aperta")} disabled={overlay.isPending}>
-                    <RotateCcw className="h-3.5 w-3.5" /><span className="hidden lg:inline">Riapri</span>
+                  <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs" onClick={() => aggiornaStato("aperta")} disabled={overlay.isPending}>
+                    <RotateCcw className="h-3.5 w-3.5" />Riapri
                   </Button>
                 ) : (
-                  <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => aggiornaStato("chiusa")} disabled={overlay.isPending}>
-                    <CheckCircle2 className="h-3.5 w-3.5" /><span className="hidden lg:inline">Chiudi</span>
+                  <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs" onClick={() => aggiornaStato("chiusa")} disabled={overlay.isPending}>
+                    <CheckCircle2 className="h-3.5 w-3.5" />Chiudi
                   </Button>
                 )}
               </div>
             </header>
 
-            <ScrollArea className="flex-1 min-h-0 px-3 sm:px-4 py-4">
+            <div
+              ref={threadRef}
+              onScroll={(e) => {
+                const el = e.currentTarget;
+                inFondoRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+              }}
+              className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 sm:px-6 lg:px-10 py-3 bg-slate-50 dark:bg-gray-950"
+            >
               {timelineLoading ? (
                 <div className="space-y-3 max-w-3xl mx-auto">
                   {Array.from({ length: 5 }).map((_, i) => (
@@ -440,7 +550,9 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
               ) : timeline.length === 0 ? (
                 <div className="text-center text-sm text-muted-foreground py-10">Nessun messaggio in questa conversazione.</div>
               ) : (
-                <div className="space-y-3 max-w-3xl mx-auto">
+                // min-h-full + justify-end: con pochi messaggi stanno in basso
+                // vicino alla barra, come nella chat del Team.
+                <div className="flex min-h-full flex-col justify-end gap-1.5">
                   {timeline.length > shownCount && (
                     <div className="text-center pb-1">
                       <Button
@@ -451,7 +563,7 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
                       </Button>
                     </div>
                   )}
-                  {timeline.slice(-shownCount).map((m, i) => {
+                  {timeline.slice(-shownCount).map((m, i, visibili) => {
                     // Il canale non basta: "whatsapp" copre sia quello
                     // ufficiale (Meta) sia quello locale. Li distingue la
                     // tabella d'origine — e per il locale `oggetto` porta il
@@ -461,33 +573,68 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
                     const meta = CANALE_META[m.canale] ?? CANALE_META.email;
                     const etichetta = locale ? "WA Locale" : meta.label;
                     const out = m.direzione === "out";
+                    // Per l'email `oggetto` è l'oggetto; per il WhatsApp
+                    // ufficiale è l'esito («modello · ✓✓ letto», «× non consegnato: …»).
+                    const oggetto = (m.oggetto ?? "").trim();
+                    const eEmail = m.canale === "email";
+                    const nonConsegnato = !eEmail && !locale && /non consegnat|fallit|rifiutat/i.test(oggetto);
+                    const letto = !eEmail && /letto/i.test(oggetto);
+                    const consegnato = !eEmail && /consegnat/i.test(oggetto) && !nonConsegnato;
+                    const modello = !eEmail && /modello/i.test(oggetto);
+                    const prima = visibili[i - 1];
+                    const nuovoGiorno = !prima || giornoDi(prima.ts) !== giornoDi(m.ts);
                     return (
-                      <div key={`${m.ref_id}-${i}`} className={cn("flex", out ? "justify-end" : "justify-start")}>
-                        <div className={cn("max-w-[80%] rounded-2xl px-3.5 py-2 shadow-sm border", out ? "bg-primary text-primary-foreground border-primary/20" : "bg-background")}>
-                          <div className={cn("flex flex-wrap items-center gap-x-1.5 mb-1 text-[10px] font-medium uppercase tracking-wide", out ? "text-primary-foreground/70" : "text-muted-foreground")}>
-                            <meta.Icon className="h-3 w-3 shrink-0" />{etichetta}
-                            {m.oggetto && (
-                              locale ? (
-                                // Nome e numero del mittente: con piu' schede
-                                // collegate e' cio' che distingue chi ha scritto.
-                                <span className="normal-case font-normal" title={`Inviato dal numero ${m.oggetto}`}>
-                                  · da {m.oggetto}
-                                </span>
-                              ) : (
-                                <span className="normal-case font-normal truncate max-w-[200px]">· {m.oggetto}</span>
-                              )
-                            )}
+                      <div key={`${m.ref_id}-${i}`}>
+                        {nuovoGiorno && (
+                          <div className="flex justify-center my-3">
+                            <span className="bg-white dark:bg-[#202c33] text-[#54656f] dark:text-gray-400 text-[11px] font-medium px-2.5 py-0.5 rounded-lg shadow-sm">
+                              {etichettaGiorno(m.ts)}
+                            </span>
                           </div>
-                          <p className="text-sm whitespace-pre-wrap break-words">{m.testo || (m.media_url ? "[allegato]" : "—")}</p>
-                          <div className={cn("text-[10px] mt-1 text-right", out ? "text-primary-foreground/60" : "text-muted-foreground")}>{formatOra(m.ts)}</div>
+                        )}
+                        <div className={cn("flex", out ? "justify-end" : "justify-start")}>
+                          <div
+                            className={cn(
+                              "relative max-w-[75%] min-w-[96px] rounded-lg px-2.5 py-1.5 shadow-sm",
+                              out
+                                ? "bg-[#d9fdd3] dark:bg-[#005c4b] text-foreground rounded-tr-none"
+                                : "bg-white dark:bg-[#202c33] text-foreground rounded-tl-none border-l-4 border-l-blue-500 border-y border-r border-y-blue-100 border-r-blue-100 dark:border-blue-900/40",
+                            )}
+                          >
+                            {(eEmail && oggetto) && (
+                              <p className="text-[11px] font-semibold text-[#54656f] dark:text-gray-300 truncate mb-0.5">{oggetto}</p>
+                            )}
+                            {modello && <p className="text-[10px] font-medium text-[#667781] mb-0.5">Modello WhatsApp</p>}
+                            {locale && oggetto && <p className="text-[10px] text-[#667781] mb-0.5">WA Locale · da {oggetto}</p>}
+                            <p className="text-[13px] leading-snug whitespace-pre-wrap break-words pr-[4.5rem]">
+                              {m.testo || (m.media_url ? "[allegato]" : "—")}
+                            </p>
+                            {nonConsegnato && (
+                              <p className="mt-1 text-[11px] font-medium text-red-600 dark:text-red-400 pr-[4.5rem]">
+                                {motivoMancataConsegna(oggetto)}
+                              </p>
+                            )}
+                            <span
+                              className="absolute bottom-1 right-2 flex items-center gap-0.5 text-[10px] text-[#667781] dark:text-gray-400"
+                              title={`${etichetta} · ${formatOra(m.ts)}`}
+                            >
+                              <meta.Icon className="h-2.5 w-2.5" />
+                              {oraDi(m.ts)}
+                              {out && !eEmail && !locale && (
+                                nonConsegnato ? <X className="h-3 w-3 text-red-500" />
+                                  : letto ? <CheckCheck className="h-3.5 w-3.5 text-blue-500" />
+                                  : consegnato ? <CheckCheck className="h-3.5 w-3.5" />
+                                  : <Check className="h-3 w-3" />
+                              )}
+                            </span>
+                          </div>
                         </div>
                       </div>
                     );
                   })}
-                  <div ref={bottomRef} aria-hidden="true" />
                 </div>
               )}
-            </ScrollArea>
+            </div>
 
             <ConversazioneComposer
               key={keyOf(selectedItem)}
@@ -502,7 +649,7 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
 
       {/* ═══ Pannello laterale scheda (GHL-style) — fisso da xl in su ═══ */}
       {selectedItem && (
-        <div className="hidden min-h-0 w-72 shrink-0 border-l xl:flex xl:w-80">
+        <div className="hidden min-h-0 w-72 shrink-0 border-l xl:flex 2xl:w-80">
           <ContactDetailPanel entitaTipo={selectedItem.entita_tipo} entitaId={selectedItem.entita_id} />
         </div>
       )}

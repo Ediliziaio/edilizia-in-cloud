@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -9,6 +10,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { QUOTE_STATUS_CONFIG } from "@/lib/quoteStatus";
 import { useSignatureActions } from "@/hooks/useSignatureActions";
 import { duplicaPreventivo } from "@/lib/quotes/duplicaPreventivo";
+import { eRigaDiModulo, preventivoDelModulo } from "@/lib/moduli/quoteBridge";
 import { fetchQuotePdf, downloadQuotePdf } from "@/lib/preventivi/quotePdfDownload";
 import {
   DropdownMenu,
@@ -45,6 +47,12 @@ export default function QuoteDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
+  // Creare o aprire la commessa è la parte Cantieri: chi lavora solo in
+  // Marketing & Vendita (il venditore, di serie) non vede questi pulsanti,
+  // che lo porterebbero su pagine negate (25/09/2026).
+  const permessi = usePermissions();
+  const puoCreareCommessa = permessi.isAdmin || permessi.canEditOrders;
+  const puoVedereCommessa = permessi.isAdmin || permessi.canViewOrders;
   const queryClient = useQueryClient();
   const [generating, setGenerating] = useState(false);
   const [sendDialogOpen, setSendDialogOpen] = useState(false);
@@ -268,6 +276,11 @@ export default function QuoteDetail() {
   }
 
   const sc = QUOTE_STATUS_CONFIG[quote.status as keyof typeof QUOTE_STATUS_CONFIG] || QUOTE_STATUS_CONFIG.bozza;
+  // Documento di firma di un preventivo di modulo (Tetti, Bagni…): voci, prezzi e
+  // commessa stanno nel modulo. Modificarlo, duplicarlo o convertirlo da qui
+  // lavorava su un preventivo classico vuoto (commessa senza righe).
+  const rigaDiModulo = eRigaDiModulo(quote.source);
+  const moduloDellaRiga = preventivoDelModulo(quote.source);
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -317,12 +330,16 @@ export default function QuoteDetail() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => eseguiCopia(false)}>
-                  <Copy className="h-4 w-4 mr-2" /> Duplica preventivo
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => eseguiCopia(true)}>
-                  <GitBranch className="h-4 w-4 mr-2" /> Nuova revisione
-                </DropdownMenuItem>
+                {!rigaDiModulo && (
+                  <>
+                    <DropdownMenuItem onClick={() => eseguiCopia(false)}>
+                      <Copy className="h-4 w-4 mr-2" /> Duplica preventivo
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => eseguiCopia(true)}>
+                      <GitBranch className="h-4 w-4 mr-2" /> Nuova revisione
+                    </DropdownMenuItem>
+                  </>
+                )}
                 <DropdownMenuItem
                   disabled={!quote.client_email || inviandoPdf}
                   onClick={() => inviaPdfSemplice(quote.client_email, quote.validity_days)}
@@ -334,7 +351,7 @@ export default function QuoteDetail() {
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   className="text-destructive focus:text-destructive"
-                  disabled={cestinando}
+                  disabled={cestinando || rigaDiModulo}
                   onClick={() => setConfermaCestino(true)}
                 >
                   <Trash2 className="h-4 w-4 mr-2" /> Sposta nel cestino
@@ -359,7 +376,7 @@ export default function QuoteDetail() {
               </AlertDialogContent>
             </AlertDialog>
 
-            {quote.status === "bozza" && (
+            {quote.status === "bozza" && !rigaDiModulo && (
               <Button
                 variant="outline"
                 onClick={() => navigate(`/azienda/marketing/preventivi/${id}/modifica`)}
@@ -382,7 +399,7 @@ export default function QuoteDetail() {
               </button>
             )}
 
-            {quote.status === "accettata" && (
+            {quote.status === "accettata" && !rigaDiModulo && puoCreareCommessa && (
               <button
                 type="button"
                 onClick={handleConvertToCantiere}
@@ -396,7 +413,7 @@ export default function QuoteDetail() {
               </button>
             )}
 
-            {quote.status === "accettata" && (
+            {quote.status === "accettata" && !rigaDiModulo && puoCreareCommessa && (
               // Telefono no: la strada «rivedi prima» è da scrivania, resta «Converti in Cantiere».
               <Button
                 variant="outline"
@@ -410,7 +427,7 @@ export default function QuoteDetail() {
             )}
 
             {/* Back-link: commessa già generata da questo preventivo (qualsiasi stato) */}
-            {linkedOrder && (
+            {linkedOrder && puoVedereCommessa && (
               <Button
                 variant="outline"
                 onClick={() => navigate(`/azienda/ordini/${linkedOrder.id}`)}
@@ -449,6 +466,20 @@ export default function QuoteDetail() {
           </>
         }
       />
+
+      {rigaDiModulo && (
+        <div role="status" className="flex flex-col gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950 sm:flex-row sm:items-center sm:justify-between">
+          <p>
+            Questa è la copia di firma di un preventivo {moduloDellaRiga ? <strong>{moduloDellaRiga.nome}</strong> : "di un modulo"}:
+            voci, prezzi e commessa si gestiscono dal preventivo del modulo.
+          </p>
+          {moduloDellaRiga && (
+            <Button variant="outline" className="h-9 shrink-0 bg-white" onClick={() => navigate(moduloDellaRiga.href)}>
+              Apri il preventivo {moduloDellaRiga.nome}
+            </Button>
+          )}
+        </div>
+      )}
 
       <Tabs defaultValue="offerta">
         {/* Telefono: tre schede a tutta larghezza (Offerta, Cliente, Attività);

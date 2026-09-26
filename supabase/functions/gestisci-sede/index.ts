@@ -1,6 +1,7 @@
 import { getCorsHeaders } from '../_shared/headers.ts'
 import { requireAuth } from '../_shared/auth.ts'
 import { verifyCompanyAccess } from '../_shared/companyAuth.ts'
+import { verificaPermessoAzienda } from '../_shared/permessoAzienda.ts'
 
 // v8.6.42 — Rimosso 'cantiere': i cantieri sono `orders`, non sedi. La
 // migration di safety (UPDATE+CHECK) downgrade i record esistenti a 'altro'
@@ -185,31 +186,15 @@ async function ensureSinglePrimary(supabase: any, companyId: string) {
 }
 
 async function ensureCanManageSedi(supabase: any, userId: string, companyId: string) {
-  const [{ data: roles }, { data: access }, { data: permissions }] = await Promise.all([
-    supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', userId),
-    supabase
-      .from('multi_company_access')
-      .select('access_role')
-      .eq('user_id', userId)
-      .eq('company_id', companyId)
-      .maybeSingle(),
-    supabase
-      .from('staff_permissions')
-      .select('can_edit_settings, can_edit_settings_orders')
-      .eq('user_id', userId)
-      .eq('company_id', companyId)
-      .maybeSingle(),
-  ])
-
-  const roleNames = new Set((roles ?? []).map((row: { role: string }) => row.role))
-  if (roleNames.has('super_admin') || roleNames.has('company_admin')) return
-  if (access?.access_role === 'company_admin') return
-  if (permissions?.can_edit_settings === true || permissions?.can_edit_settings_orders === true) return
-
-  throw new Error('Permesso insufficiente per modificare le sedi')
+  // Chi può modificare le sedi di QUESTA azienda: l'amministratore della sua
+  // azienda o da accesso multi-azienda attivo, o lo staff con le impostazioni.
+  // Fino al 26/09/2026 bastava essere amministratore di un'azienda qualsiasi:
+  // chi lo era nella propria entrava da staff in un'altra e passava anche lì.
+  try {
+    await verificaPermessoAzienda(supabase, userId, companyId, ['can_edit_settings', 'can_edit_settings_orders'], 'modificare le sedi')
+  } catch {
+    throw new Error('Permesso insufficiente per modificare le sedi')
+  }
 }
 
 async function ensureSedeIsNotLinked(supabase: any, companyId: string, sedeId: string) {

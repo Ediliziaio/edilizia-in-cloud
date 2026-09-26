@@ -125,9 +125,13 @@ export default function TettiWizard() {
     if (!requestedModel) return form;
     if (!model || !modelSupport.supported || !effectiveCompany?.id) throw new Error("Il salvataggio di questo intervento deve essere attivato nel database. Nessuna offerta generica è stata creata.");
     const companyId = effectiveCompany.id;
-    const [{ createFullTettiTemplate }, { loadLocalTettiTemplate }] = await Promise.all([
+    const [{ createFullTettiTemplate }, { loadLocalTettiTemplate }, { sincronizzaModelliAzienda }] = await Promise.all([
       import("@/lib/moduli-vendita/fullTettiModules"), import("@/lib/moduli-vendita/localTettiTemplates"),
+      import("@/lib/moduli-vendita/archivioModelli"),
     ]);
+    // Il modello personalizzato è dell'azienda: può averlo salvato un collega da
+    // un altro computer. Se il database non risponde resta la copia di questo browser.
+    await sincronizzaModelliAzienda(companyId).catch((): void => undefined);
     const base = await getTetTemplatePdf(companyId);
     const source = loadLocalTettiTemplate(companyId, model.id)?.template ?? createFullTettiTemplate(base, model.id);
     return { ...form, tipo_intervento: TET_INTERVENTION_TYPES[model.id], modello_snapshot: makeTetQuoteModel(companyId, model.id, source) };

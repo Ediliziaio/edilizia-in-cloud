@@ -19,6 +19,7 @@
  * via `toDataUrl` perché react-pdf supporta solo JPG/PNG e alcune foto possono
  * essere WEBP: la conversione canvas le rende sicure per il renderer.
  */
+import { templateDelPreventivo } from "@/lib/moduli/modelloPreventivo";
 import { useState, type ReactElement } from "react";
 import type { DocumentProps } from "@react-pdf/renderer";
 import { toast } from "sonner";
@@ -139,7 +140,8 @@ export async function enrichBagniPdf(opts: BgnPdfPayload): Promise<BgnPdfEnriche
   const companyId = progetto.company_id;
 
   // 1) Template: fresco da DB se non passato (riflette l'ultimo salvataggio).
-  const template = opts.template ?? (await getBgnTemplatePdf(companyId));
+  // Il modello dell'intervento congelato nel preventivo, se c'è (lib/moduli/modelloPreventivo).
+  const template = await templateDelPreventivo("bagni", progetto, opts.template, getBgnTemplatePdf);
 
   // 2) Company (anagrafica per intestazione/contatti). Best-effort.
   let company: BgnPdfCompany | null = opts.company ?? null;

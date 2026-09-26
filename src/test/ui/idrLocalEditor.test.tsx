@@ -19,7 +19,6 @@ vi.mock("@/hooks/useTermoidraulicoPDF", () => ({ useTermoidraulicoPDF: () => ({ 
 vi.mock("@/components/termoidraulico/TermoidraulicoLivePreviewPanel", () => ({ TermoidraulicoLivePreviewPanel: () : null => null }));
 vi.mock("@/components/termoidraulico/TermoidraulicoTemplatePreviewDialog", () => ({ TermoidraulicoTemplatePreviewDialog: () : null => null }));
 vi.mock("@/components/preventivi/StandardTextTemplatePicker", () => ({ StandardTextTemplatePicker: () : null => null }));
-vi.mock("@/components/preventivi/CopertinaAnteprima", () => ({ CopertinaAnteprima: () : null => null }));
 vi.mock("@/components/preventivi/AiSalesProfileForm", () => ({ AiSalesProfileForm: () : null => null }));
 vi.mock("@/components/preventivi/AiTemplateReviewDialog", () => ({ AiTemplateReviewDialog: () : null => null }));
 vi.mock("sonner", () => ({ toast: { success: calls.success, error: calls.error } }));
@@ -41,7 +40,7 @@ describe("Termoidraulico: modelli originali locali", () => {
     expect(data.computo).toHaveLength(3);
     expect(JSON.stringify(data.computo)).not.toMatch(/Demolizione tramezzi|Posa pavimento/);
     expect(data.template.pdf_blocchi.modulo_intervento).toBe(id);
-    fireEvent.click(screen.getByRole("button", { name: "Salva modulo in locale" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     await waitFor(() => expect(save).toHaveBeenCalledOnce());
     expect(save.mock.calls[0][0].id).toBe("local-termoidraulica-" + id);
     expect(calls.remote).not.toHaveBeenCalled(); expect(calls.storage).not.toHaveBeenCalled();
@@ -58,5 +57,5 @@ it("un modello appena aperto non segnala modifiche mai fatte", () => {
   mount("acqua-calda");
   expect(screen.getByText("Modello pronto · non ancora salvato")).toBeInTheDocument();
   expect(screen.queryByText(/Modifiche non salvate/)).not.toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Salva modulo in locale" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Salva modello" })).toBeEnabled();
 });

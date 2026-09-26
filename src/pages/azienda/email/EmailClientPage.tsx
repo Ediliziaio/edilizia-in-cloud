@@ -485,7 +485,7 @@ function EmailConnectingState({
               Verifico le caselle email
             </h2>
             <p className="mt-2 max-w-md text-sm leading-6 text-slate-600">
-              Sto controllando connessioni, permessi e stato OAuth. La pagina mostra subito un percorso utile anche se Supabase risponde lentamente.
+              Sto controllando le tue caselle email: ci vuole qualche secondo.
             </p>
             <div className="mt-5 flex flex-wrap gap-2">
               <Button asChild variant="outline" className="rounded-xl border-blue-200 bg-white">
@@ -505,9 +505,9 @@ function EmailConnectingState({
 
           <div className="grid gap-3">
             {[
-              { label: "Connessioni OAuth", status: "controllo in corso" },
-              { label: "Inbox personale", status: "verifica RLS e company" },
-              { label: "Regia AI", status: "pronta dopo sync" },
+              { label: "Caselle collegate", status: "controllo in corso" },
+              { label: "Posta in arrivo", status: "controllo in corso" },
+              { label: "Aiuto dell'AI", status: "pronto dopo il primo controllo" },
             ].map((item, index) => (
               <div
                 key={item.label}
@@ -567,7 +567,7 @@ function EmptyConnectionsState({
   const benefits = isAdmin ? adminBenefits : aziendaBenefits;
   const heroDescription = isAdmin
     ? "Il centro email Superadmin per il team interno: Gmail, Outlook e IMAP/SMTP in un'unica vista, con AI che separa ticket clienti, lead in arrivo, fatture e operations."
-    : "EiC diventa il tuo centro email operativo: Gmail, Outlook e IMAP/SMTP in un'unica vista, con cartelle per ogni casella, ricerca, invio e AI che riconosce priorità, lead e preventivi.";
+    : "EiC diventa il tuo centro email operativo: Gmail, Outlook e le altre caselle (Aruba, Libero…) in un'unica vista, con cartelle per ogni casella, ricerca, invio e AI che riconosce priorità, lead e preventivi.";
 
   return (
     <Card className="overflow-hidden border-blue-100 bg-gradient-to-br from-white via-blue-50/40 to-orange-50/40 shadow-sm">
@@ -622,7 +622,7 @@ function EmptyConnectionsState({
             </Button>
           </div>
           <p className="mt-4 text-[11px] text-slate-500">
-            Gmail, Outlook e IMAP/SMTP custom · inbox personale isolata per utente · AI per priorità e riepiloghi.
+            Gmail, Outlook e le altre caselle · ognuno vede solo la sua posta · l'AI segnala le priorità e riassume.
           </p>
         </div>
 

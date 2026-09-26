@@ -263,7 +263,7 @@ function TariffaVariantiSection({
   tariffaId, costoDefault, tariffaSquadraId,
 }: { tariffaId: string; costoDefault: number | null; tariffaSquadraId?: string | null }) {
   const { data: perms } = useUserPermissions();
-  if (!perms?.can_view_costs) return null;
+  if (!perms.can_view_costs) return null;
   return (
     <TariffaVariantiEditor
       tariffaId={tariffaId}
@@ -1169,6 +1169,9 @@ function TariffeTable({
   items: Tariffa[];
   /** id squadra → nome, per il badge "listino di chi". */
   squadraName?: Record<string, string>;
+  /** Amministratore o permesso di modificare il listino: vede costi e margini
+   *  e modifica le voci. Chi ha solo il permesso di vederlo le consulta: il
+   *  database gli rifiuterebbe ogni modifica (dal 26/09/2026). */
   isAdmin: boolean;
   /** Soglia minima di margine (% governance) per il semaforo. */
   soglia: number;
@@ -1207,6 +1210,7 @@ function TariffeTable({
 
   /** Tutta la riga apre Modifica — tranne i controlli veri (switch, menu, checkbox). */
   const rowClick = (t: Tariffa) => (e: React.MouseEvent) => {
+    if (!isAdmin) return;
     const el = e.target as HTMLElement;
     if (el.closest('button, a, input, [role="checkbox"], [role="switch"], [role="menu"], [role="menuitem"]')) return;
     onEdit(t);
@@ -1221,11 +1225,13 @@ function TariffeTable({
         <TableHeader>
           <TableRow>
             <TableHead className="w-[40px]">
-              <Checkbox
-                checked={headerChecked}
-                onCheckedChange={(v) => onToggleSelectAll(visibleIds, v === true)}
-                aria-label="Seleziona tutte le voci visibili"
-              />
+              {isAdmin && (
+                <Checkbox
+                  checked={headerChecked}
+                  onCheckedChange={(v) => onToggleSelectAll(visibleIds, v === true)}
+                  aria-label="Seleziona tutte le voci visibili"
+                />
+              )}
             </TableHead>
             <SortableTableHead column="attivo" label="Stato" sortConfig={sortConfig} onSort={toggleSort} className="w-[64px]" />
             <SortableTableHead column="nome" label="Nome" sortConfig={sortConfig} onSort={toggleSort} />
@@ -1260,14 +1266,16 @@ function TariffeTable({
                 key={t.id}
                 data-state={isSelected ? "selected" : undefined}
                 onClick={rowClick(t)}
-                className={`cursor-pointer ${!isAttivo ? "opacity-60" : ""}`}
+                className={`${isAdmin ? "cursor-pointer" : ""} ${!isAttivo ? "opacity-60" : ""}`}
               >
                 <TableCell>
-                  <Checkbox
-                    checked={isSelected}
-                    onCheckedChange={() => onToggleSelect(t.id)}
-                    aria-label={`Seleziona ${t.nome}`}
-                  />
+                  {isAdmin && (
+                    <Checkbox
+                      checked={isSelected}
+                      onCheckedChange={() => onToggleSelect(t.id)}
+                      aria-label={`Seleziona ${t.nome}`}
+                    />
+                  )}
                 </TableCell>
                 <TableCell>
                   <TooltipProvider delayDuration={200}>
@@ -1276,12 +1284,13 @@ function TariffeTable({
                         <div className="flex items-center">
                           <Switch
                             checked={isAttivo}
+                            disabled={!isAdmin}
                             onCheckedChange={() => onToggleAttivo(t)}
                           />
                         </div>
                       </TooltipTrigger>
                       <TooltipContent>
-                        {isAttivo ? "Archivia tariffa" : "Riattiva tariffa"}
+                        {!isAdmin ? (isAttivo ? "Attiva" : "Archiviata") : isAttivo ? "Archivia tariffa" : "Riattiva tariffa"}
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
@@ -1370,32 +1379,40 @@ function TariffeTable({
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => onEdit(t)}>
-                        <Pencil className="h-4 w-4 mr-2" />Modifica
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => onDuplica(t)}>
-                        <Copy className="h-4 w-4 mr-2" />Duplica
-                      </DropdownMenuItem>
+                      {isAdmin && (
+                        <>
+                          <DropdownMenuItem onClick={() => onEdit(t)}>
+                            <Pencil className="h-4 w-4 mr-2" />Modifica
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => onDuplica(t)}>
+                            <Copy className="h-4 w-4 mr-2" />Duplica
+                          </DropdownMenuItem>
+                        </>
+                      )}
                       <DropdownMenuItem onClick={() => onShowUsage(t)}>
                         <Link2 className="h-4 w-4 mr-2" />Dove è usata
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => onAnalisi(t)}>
-                        <Calculator className="h-4 w-4 mr-2" />Analisi prezzo
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => onToggleAttivo(t)}>
-                        {isAttivo ? (
-                          <><Archive className="h-4 w-4 mr-2" />Archivia</>
-                        ) : (
-                          <><RotateCcw className="h-4 w-4 mr-2" />Riattiva</>
-                        )}
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        className="text-destructive focus:text-destructive"
-                        onClick={() => onDelete(t.id)}
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" />Elimina
-                      </DropdownMenuItem>
+                      {isAdmin && (
+                        <>
+                          <DropdownMenuItem onClick={() => onAnalisi(t)}>
+                            <Calculator className="h-4 w-4 mr-2" />Analisi prezzo
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => onToggleAttivo(t)}>
+                            {isAttivo ? (
+                              <><Archive className="h-4 w-4 mr-2" />Archivia</>
+                            ) : (
+                              <><RotateCcw className="h-4 w-4 mr-2" />Riattiva</>
+                            )}
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={() => onDelete(t.id)}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />Elimina
+                          </DropdownMenuItem>
+                        </>
+                      )}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </TableCell>
@@ -1868,34 +1885,39 @@ export default function SettingsTariffe() {
                 className="border-orange-200 hover:bg-orange-50 hover:border-orange-300 hover:text-orange-700 dark:border-orange-900/50 dark:hover:bg-orange-950/40"
               >
                 <Layers3 className="h-4 w-4 mr-1.5" />
-                Importa / Esporta
+                {isAdmin ? "Importa / Esporta" : "Esporta"}
                 <ChevronDown className="h-4 w-4 ml-1 opacity-60" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-64">
-              <DropdownMenuLabel>Aggiungi in blocco</DropdownMenuLabel>
-              <DropdownMenuItem onClick={() => setStandardOpen(true)} className="gap-2 cursor-pointer">
-                <Zap className="h-4 w-4 text-orange-500 shrink-0" />
-                <div className="flex flex-col">
-                  <span>Catalogo standard</span>
-                  <span className="text-xs text-muted-foreground">Voci tipiche del tuo settore</span>
-                </div>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setImportOpen(true)} className="gap-2 cursor-pointer">
-                <FileSpreadsheet className="h-4 w-4 text-orange-500 shrink-0" />
-                <div className="flex flex-col">
-                  <span>Importa prezziario</span>
-                  <span className="text-xs text-muted-foreground">Carica un CSV o Excel</span>
-                </div>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setImportRegionaleOpen(true)} className="gap-2 cursor-pointer">
-                <Library className="h-4 w-4 text-orange-500 shrink-0" />
-                <div className="flex flex-col">
-                  <span>Importa da prezzario regionale</span>
-                  <span className="text-xs text-muted-foreground">Voci dai prezzari ufficiali regionali</span>
-                </div>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
+              {/* Aggiungere voci è modificare il listino: chi lo vede e basta esporta soltanto. */}
+              {isAdmin && (
+                <>
+                  <DropdownMenuLabel>Aggiungi in blocco</DropdownMenuLabel>
+                  <DropdownMenuItem onClick={() => setStandardOpen(true)} className="gap-2 cursor-pointer">
+                    <Zap className="h-4 w-4 text-orange-500 shrink-0" />
+                    <div className="flex flex-col">
+                      <span>Catalogo standard</span>
+                      <span className="text-xs text-muted-foreground">Voci tipiche del tuo settore</span>
+                    </div>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setImportOpen(true)} className="gap-2 cursor-pointer">
+                    <FileSpreadsheet className="h-4 w-4 text-orange-500 shrink-0" />
+                    <div className="flex flex-col">
+                      <span>Importa prezziario</span>
+                      <span className="text-xs text-muted-foreground">Carica un CSV o Excel</span>
+                    </div>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setImportRegionaleOpen(true)} className="gap-2 cursor-pointer">
+                    <Library className="h-4 w-4 text-orange-500 shrink-0" />
+                    <div className="flex flex-col">
+                      <span>Importa da prezzario regionale</span>
+                      <span className="text-xs text-muted-foreground">Voci dai prezzari ufficiali regionali</span>
+                    </div>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              )}
               <DropdownMenuLabel>Esporta</DropdownMenuLabel>
               <DropdownMenuItem
                 onClick={exportCsv}
@@ -1910,13 +1932,15 @@ export default function SettingsTariffe() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button
-            size="sm"
-            onClick={openNew}
-            className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 text-white shadow-sm"
-          >
-            <Plus className="h-4 w-4 mr-1.5" />Nuova voce
-          </Button>
+          {isAdmin && (
+            <Button
+              size="sm"
+              onClick={openNew}
+              className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 text-white shadow-sm"
+            >
+              <Plus className="h-4 w-4 mr-1.5" />Nuova voce
+            </Button>
+          )}
         </div>
       </div>
 
@@ -2101,20 +2125,24 @@ export default function SettingsTariffe() {
                 <div>
                   <h3 className="font-semibold">Nessuna voce ancora</h3>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Inizia creando le voci standard del tuo settore o aggiungine una nuova.
+                    {isAdmin
+                      ? "Inizia creando le voci standard del tuo settore o aggiungine una nuova."
+                      : "Le voci le aggiunge chi ha il permesso di modificare il listino."}
                   </p>
                 </div>
-                <div className="flex justify-center gap-2 flex-wrap">
-                  <Button variant="outline" onClick={() => setStandardOpen(true)}>
-                    <Zap className="h-4 w-4 mr-2" />Usa il catalogo standard
-                  </Button>
-                  <Button variant="outline" onClick={() => setImportOpen(true)}>
-                    <FileSpreadsheet className="h-4 w-4 mr-2" />Importa prezziario
-                  </Button>
-                  <Button onClick={openNew}>
-                    <Plus className="h-4 w-4 mr-2" />Nuova voce
-                  </Button>
-                </div>
+                {isAdmin && (
+                  <div className="flex justify-center gap-2 flex-wrap">
+                    <Button variant="outline" onClick={() => setStandardOpen(true)}>
+                      <Zap className="h-4 w-4 mr-2" />Usa il catalogo standard
+                    </Button>
+                    <Button variant="outline" onClick={() => setImportOpen(true)}>
+                      <FileSpreadsheet className="h-4 w-4 mr-2" />Importa prezziario
+                    </Button>
+                    <Button onClick={openNew}>
+                      <Plus className="h-4 w-4 mr-2" />Nuova voce
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           ) : tariffeForActiveGroup.length === 0 ? (

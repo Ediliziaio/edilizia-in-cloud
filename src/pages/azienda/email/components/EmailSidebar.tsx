@@ -507,7 +507,7 @@ function SyncStatusPanel({
         )}>
           {hasError
             ? "Riconnetti la casella in errore"
-            : `Ultimo sync ${lastSyncLabel}`}
+            : `Ultimo controllo ${lastSyncLabel}`}
         </p>
       </div>
     </div>

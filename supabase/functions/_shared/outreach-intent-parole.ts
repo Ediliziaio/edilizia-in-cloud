@@ -86,3 +86,30 @@ export function rispostaColSoloNumero(testo: string | null | undefined): boolean
   const resto = numeri.reduce((acc, n) => acc.replace(n, " "), t).replace(/[^\p{L}\s]/gu, " ").trim();
   return resto.split(/\s+/).filter(Boolean).length <= 6;
 }
+
+// ── «Più avanti»: non è un no, è un «non adesso» ───────────────────────────
+// Dal 25/09/2026 le nostre email lo propongono come risposta («scrivimi più
+// avanti e mi faccio sentire tra qualche mese»): chi lo scrive va ricontattato,
+// non perso fra gli «altro».
+const RE_PIU_AVANTI = [
+  /\bpi[uù]\s+avanti\b/i,
+  /\bpi[uù]\s+in\s+l[aà]\b/i,
+  /\bnon\s+(?:adesso|ora|per\s+ora|in\s+questo\s+momento)\b/i,
+  /\b(?:per\s+ora|al\s+momento|adesso)\s+no\b/i,
+  /\b(?:tra|fra)\s+(?:qualche|un\s+paio\s+di|due|tre|quattro|sei)\s+mes[ei]\b/i,
+  /\b(?:ri)?sentiamoci\b/i,
+  /\bricontatt\w*\s+(?:tra|fra|dopo|a\s+\p{L}+)/iu,
+];
+
+/** La risposta dice «non adesso» (e non chiede di essere cancellato). */
+export function rispostaPiuAvanti(testo: string | null | undefined): boolean {
+  let t = senzaCitazione(String(testo ?? "").replace(/&nbsp;| /gi, " "));
+  const firma = INIZIO_FIRMA.exec(t);
+  if (firma) t = t.slice(0, firma.index);
+  t = t.replace(/\s+/g, " ").trim();
+  if (!t) return false;
+  if (intentDaParoleChiave("", t) === "unsubscribe") return false;
+  // «Non ricontattatemi (più)» è un basta, anche se le regole dell'opt-out non lo vedono.
+  if (/\bnon\s+(?:mi\s+|ci\s+)?(?:ri)?contatt/i.test(t)) return false;
+  return RE_PIU_AVANTI.some((re) => re.test(t));
+}

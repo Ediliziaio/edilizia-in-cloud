@@ -107,7 +107,6 @@ catch (err) {
 | `create-employee-user` | Admin | Crea utente dipendente con ruolo operaio |
 | `create-salesperson-user` | Admin | Crea utente venditore con accesso portale |
 | `create-super-admin` | Internal | Promuove utente a super admin |
-| `invite-admin` | Admin | Invia invito admin via email |
 | `accept-admin-invite` | Public link | Accetta invito e crea account |
 | `delete-company-user` | Admin | Elimina utente da una company |
 | `reset-customer-password` | Admin | Reset password cliente |
@@ -118,7 +117,7 @@ catch (err) {
 | `secure-impersonation` | SuperAdmin | Impersonazione sicura di altri utenti |
 | `sign-in-as-user` | SuperAdmin | Login come utente specifico |
 | `upsert-admin-session` | Internal | Crea/aggiorna sessione admin |
-| `cleanup-sessions` | Cron (daily) | Pulizia sessioni scadute |
+| `pulisci_sessioni_utente()` (SQL) | Cron `sessioni-utente-pulizia` | Pulizia sessioni ferme da 90 giorni, tiene l'ultima di ogni utente |
 | `manage-super-admins` | SuperAdmin | Gestione lista super admin |
 | `manage-platform-users` | SuperAdmin | Gestione utenti piattaforma |
 | `manage-permission-template` | Admin | Template permessi ruoli |
@@ -133,9 +132,7 @@ catch (err) {
 | `generate-sal-pdf` | Client | PDF SAL (HTML → print) |
 | `generate-giornale-pdf` | Client | PDF Giornale Lavori |
 | `generate-cedolino-pdf` | Client | PDF cedolino stipendio |
-| `generate-landing-image` | Internal | Immagine OG per landing |
 | `salva-versione-preventivo` | Client | Versioning snapshot preventivo |
-| `genera-link-preventivo` | Client | Genera link pubblico preventivo |
 | `genera-pos` | Client | Genera POS (Piano Operativo Sicurezza) |
 | `genera-duvri` | Client | Genera DUVRI sicurezza cantiere |
 | `duplicate-order` | Client | Duplica ordine/cantiere |
@@ -153,7 +150,6 @@ catch (err) {
 | `billing-sync` | Cron | Sincronizzazione stato fatture |
 | `billing-webhook` | Webhook | Notifiche billing (replay window: 5min) |
 | `export-contabile` | Client | Export prima nota (CSV/XML Zucchetti/TeamSystem) |
-| `admin-export-financials` | Admin | Export finanziario aggregato per mese |
 | `create-checkout-session` | Client | Crea sessione pagamento Stripe |
 | `customer-portal` | Client | Portale clienti Stripe |
 | `stripe-webhook` | Webhook (Stripe) | Gestisce eventi Stripe (pagamenti, abbonamenti) |
@@ -194,13 +190,11 @@ catch (err) {
 | `send-contact-message` | Public | Modulo contatto pubblico |
 | `send-nps-survey` | Cron | Invia survey NPS agli admin |
 | `nps-survey-respond` | Public link | Registra risposta NPS (no auth) |
-| `send-optin-confirmation` | Client | Double opt-in GDPR (GAP-15) |
 | `send-partner-notification` | Internal/Cron | Notifiche ai partner |
-| `resend-to-unopened` | Client | Reinvia campagna a chi non ha aperto (BUG-06) |
+| `email_prepara_reinvii()` (SQL) | Cron `email-reinvii-non-aperti` | Dopo 48 ore crea la copia per chi non ha aperto; la spedisce send-email-campaign |
 | `email-provider-webhook` | Webhook | Normalizza eventi da provider email diversi |
 | `email-tracking` | Pixel/link | Tracking aperture email (1x1 GIF) |
 | `process-scheduled-campaigns` | Cron | Processa campagne email schedulate (BUG-05) |
-| `internal-campaign-manager` | Internal | Gestione interna campagne |
 | `quote-expiry-reminder` | Cron | Reminder scadenza preventivi (IMP07) |
 
 #### 📱 WhatsApp
@@ -210,10 +204,8 @@ catch (err) {
 | `whatsapp-connect` | Client | Connessione account WhatsApp Business |
 | `whatsapp-broadcast` | Client | Invia broadcast WhatsApp a lista contatti |
 | `whatsapp-templates` | Client | Gestione template messaggi WhatsApp |
-| `whatsapp-status` | Client | Stato connessione WhatsApp |
 | `whatsapp-webhook` | Webhook (Meta) | Riceve messaggi in ingresso |
 | `send-whatsapp-reply` | Client | Invia risposta WhatsApp singola |
-| `analyze-message` | Internal | Analisi AI messaggio in arrivo |
 
 #### 🤖 AI & Agenti
 
@@ -249,11 +241,9 @@ catch (err) {
 | `track-user-session` | Client | Tracking sessione utente |
 | `form-render` | Public | Render form pubblico |
 | `form-submit` | Public | Submit form pubblico |
-| `determine-ab-winner` | Cron | Determina vincitore A/B test |
+| `email_ab_scegli_vincitori()` (SQL) | Cron `email-ab-vincitori` | Determina vincitore A/B test da aperture e clic |
 | `check-lifecycle-events` | Cron | Controllo eventi lifecycle utente |
 | `process-automation` | Internal | Esecuzione automazioni marketing |
-| `process-internal-automation` | Internal | Automazioni interne azienda |
-| `task-automation-trigger` | Webhook DB | Trigger automazioni da task (SEC-013) |
 | `check-scheduled-triggers` | Cron | Verifica trigger schedulati |
 
 #### 📍 Cantieri & HR
@@ -279,7 +269,6 @@ catch (err) {
 | `maps-proxy` | Client | Proxy Google Maps (protegge API key) |
 | `verify-custom-domain` | Client | Verifica dominio email personalizzato |
 | `api-gateway` | Client | Gateway API esterno per integrazioni terze |
-| `authenticate-api-key` | External | Autenticazione via API key per integrazioni |
 | `send-webhook` | Client | Invia webhook a endpoint esterni |
 | `test-integration` | Client | Test connessione integrazione |
 | `telnyx-proxy` | Client | Proxy Telnyx (telefonia) |
@@ -306,7 +295,8 @@ Le seguenti funzioni vengono invocate da pg_cron o Supabase scheduled functions:
 | `auto-topup-trigger` | Ogni ora | `cron secret` |
 | `bank-sync-all-companies` | Ogni 4 ore | `cron secret` |
 | `bank-check-expiry` | Giornaliero | — |
-| `cleanup-sessions` | Giornaliero | `INTERNAL_CRON_SECRET` |
+| `pulisci_sessioni_utente()` (SQL) | Giornaliero 03:47 | — |
+| `check-wa-notifiche` | Ogni 15 minuti | `proactive_cron_secret` dal Vault |
 | `compute-health-scores` | Giornaliero | `cron secret` (service_role) |
 | `generate-recurring-costs` | Mensile | — |
 | `meta-token-refresh` | Giornaliero | — |
@@ -314,8 +304,8 @@ Le seguenti funzioni vengono invocate da pg_cron o Supabase scheduled functions:
 | `process-dunning` | Giornaliero | — |
 | `quote-expiry-reminder` | Giornaliero | — |
 | `send-nps-survey` | Settimanale | — |
-| `task-automation-trigger` | Webhook DB | `INTERNAL_CRON_SECRET` |
-| `determine-ab-winner` | Settimanale | `CRON_SECRET` (optional) |
+| `email_ab_scegli_vincitori()` (SQL) | Ogni ora | — |
+| `email_prepara_reinvii()` (SQL) | Ogni 30 minuti | — |
 | `check-lifecycle-events` | Giornaliero | — |
 
 ---
@@ -445,8 +435,7 @@ Lazy-loaded su route (React.lazy):
 |----------|-----------------|
 | `secure-impersonation` | SuperAdmin role check |
 | `sign-in-as-user` | SuperAdmin role check |
-| `cleanup-sessions` | `INTERNAL_CRON_SECRET` |
-| `task-automation-trigger` | `INTERNAL_CRON_SECRET` (SEC-013) |
+| `check-wa-notifiche` | segreti dei cron o chiave di servizio (`chiamataInternaValida`) |
 | `compute-health-scores` | `cron secret` obbligatorio (service_role) |
 | `billing-webhook` | Replay window 5min |
 | `gestisci-sede` | `requireAuth` + `verifyCompanyAccess` |

@@ -415,11 +415,11 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Quante foto posso archiviare?",
-      a: "Illimitate. Nei piani Professional e Business non ci sono limiti al numero di foto archiviate, conservazione decennale inclusa. Le imprese più strutturate arrivano a 100.000+ foto archiviate, sempre cercabili in 5 secondi.",
+      a: "Illimitate. Nei piani Professionista e Impresa AI non ci sono limiti al numero di foto archiviate, conservazione decennale inclusa. Le imprese più strutturate arrivano a 100.000+ foto archiviate, sempre cercabili in 5 secondi.",
     },
     {
       q: "Il modulo è incluso nei piani Edilizia in Cloud?",
-      a: "Sì. Foto Cantiere è incluso nei piani Professional e Business. Numero cantieri illimitato, foto illimitate, archivio decennale incluso, app mobile capocantiere inclusa. Niente costi extra per foto archiviata o scaricata.",
+      a: "Sì. Foto Cantiere è incluso nei piani Professionista e Impresa AI. Numero cantieri illimitato, foto illimitate, archivio decennale incluso, app mobile capocantiere inclusa. Niente costi extra per foto archiviata o scaricata.",
     },
   ],
 

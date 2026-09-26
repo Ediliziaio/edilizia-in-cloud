@@ -213,9 +213,9 @@ Deno.serve(async (req) => {
       renderSlug ? `Render page: ${renderSlug}` : null,
       pagePath ? `Pagina: ${pagePath}` : null,
       referrerInfo
-        ? `🤝 Referral partner: ${referrerInfo.name} (codice ${referrerInfo.code})`
+        ? `Referral partner: ${referrerInfo.name} (codice ${referrerInfo.code})`
         : referralCode
-          ? `🤝 Referral codice: ${referralCode} (partner non trovato)`
+          ? `Referral codice: ${referralCode} (partner non trovato)`
           : null,
       `Consenso marketing: ${marketingConsent ? "si" : "no"}`,
     ].filter(Boolean).join("\n");
@@ -482,7 +482,7 @@ Deno.serve(async (req) => {
             ${pagePath ? `<tr><td style="padding:6px 0;color:#64748b">Pagina</td><td style="padding:6px 0">${escapeHtml(pagePath)}</td></tr>` : ""}
             ${renderSlug ? `<tr><td style="padding:6px 0;color:#64748b">Render</td><td style="padding:6px 0">${escapeHtml(renderSlug)}</td></tr>` : ""}
             <tr><td style="padding:6px 0;color:#64748b">Richieste totali</td><td style="padding:6px 0"><strong>${totalRequests}</strong></td></tr>
-            ${referrerInfo ? `<tr><td style="padding:6px 0;color:#64748b">🤝 Referral partner</td><td style="padding:6px 0"><strong>${escapeHtml(referrerInfo.name)}</strong> (${escapeHtml(referrerInfo.code)})</td></tr>` : referralCode ? `<tr><td style="padding:6px 0;color:#64748b">🤝 Referral codice</td><td style="padding:6px 0">${escapeHtml(referralCode)} (partner non trovato)</td></tr>` : ""}
+            ${referrerInfo ? `<tr><td style="padding:6px 0;color:#64748b">Referral partner</td><td style="padding:6px 0"><strong>${escapeHtml(referrerInfo.name)}</strong> (${escapeHtml(referrerInfo.code)})</td></tr>` : referralCode ? `<tr><td style="padding:6px 0;color:#64748b">Referral codice</td><td style="padding:6px 0">${escapeHtml(referralCode)} (partner non trovato)</td></tr>` : ""}
             <tr><td style="padding:6px 0;color:#64748b">Source</td><td style="padding:6px 0">${escapeHtml(source)}</td></tr>
             <tr><td style="padding:6px 0;color:#64748b">Marketing consent</td><td style="padding:6px 0">${marketingConsent ? "sì" : "no"}</td></tr>
           </table>

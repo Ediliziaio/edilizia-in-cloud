@@ -25,6 +25,7 @@ import { campiPersonalizzatiDelModello, valoriDelModello } from "../_shared/vari
 import { conLinkCliccabili, fusoDelFlusso, invioEmailDaRimandare, MINUTI_RINVIO_EMAIL, mittenteDiRiserva, mittenteRifiutatoDalProvider, numeroWhatsApp, schedaAndataAvanti, senzaSpazioPrimaDellaVirgola, soloIndirizzo } from "../_shared/sequenzaContatto.ts";
 import { mittenteDelPasso, dominiAmmessi, soloDominiDellAzienda } from "../_shared/mittenteAutomazione.ts";
 import { calendarioDelGiorno, giornoAmmesso, leggiSettimane } from "../_shared/attesaCalendario.ts";
+import { confrontoConOggi } from "../_shared/condizioniData.ts";
 import { romaVersoUtc, urlGestione } from "../_shared/appuntamentiPubblici.ts";
 import { isInternalRequest, isSuperAdminEmailAllowed, requireAuth, requireCompanyAccess, requireInternalSecret, resolveUserEmail } from "../_shared/auth.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
@@ -39,6 +40,7 @@ import {
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { brandEmailBody } from "../_shared/brandEmailBody.ts";
 import { loadContactCustomFieldResolver, applyContactCustomFields } from "../_shared/contactCustomFields.ts";
+import { nomeAzienda, nomeSaluto } from "../_shared/outreach-template.ts";
 import { costruisciVariabiliCommessa, scegliFatturaDaAllegare, sostituisciVariabiliCommessa } from "../_shared/variabiliCommessa.ts";
 
 import { serveConMetriche } from "../_shared/withMetrics.ts";
@@ -1146,6 +1148,10 @@ async function executeCondition(supabase: any, cfg: Record<string, any>, entityI
       case "minore": case "lt": return Number(actual) < Number(value);
       case "maggiore_uguale": case "gte": return Number(actual) >= Number(value);
       case "minore_uguale": case "lte": return Number(actual) <= Number(value);
+      // Date (25/09/2026): «ha un appuntamento da oggi in poi?». Un appuntamento
+      // passato resta «confermato», quindi lo stato da solo non basta.
+      case "da_oggi": return confrontoConOggi(actual, "da_oggi");
+      case "prima_di_oggi": return confrontoConOggi(actual, "prima_di_oggi");
       default: return false;
     }
   };
@@ -4617,6 +4623,12 @@ async function resolveContactText(
     // telefono (notifiche «manda questo WhatsApp a …»).
     telefono_whatsapp: numeroWhatsApp(contact?.phone),
     azienda: contact?.company_name ?? "",
+    // Il nome da usare nel saluto: «Danilo», oppure niente quando nel campo
+    // nome c'è la ragione sociale (93% dei contatti dell'outreach). Prima usciva
+    // «Ciao BONADIMAN SERRAMENTI SRL,» — 25/09/2026. Vuoto = «Ciao,».
+    nome_saluto: nomeSaluto({ first_name: contact?.first_name, company_name: contact?.company_name }),
+    // «Rossi Serramenti» al posto di «ROSSI SERRAMENTI S.R.L.».
+    azienda_breve: nomeAzienda(contact?.company_name),
   };
 
   // Appuntamento: si legge solo se il testo lo nomina davvero, per non fare

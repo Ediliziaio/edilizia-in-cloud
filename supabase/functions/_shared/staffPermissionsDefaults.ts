@@ -79,6 +79,86 @@ export const STAFF_PERMISSION_DEFAULTS: Record<string, boolean | string[]> = {
   pipeline_visibili: [],
 };
 
+/**
+ * Preset per ruolo: gli stessi di ROLE_PRESETS nel client
+ * (src/components/users/permissionsDefaults.ts). Il test
+ * staffPermissionsEdgeParity li confronta: un preset cambiato da una parte
+ * sola lo fa diventare rosso. Prima i preset vivevano solo nel client, e chi
+ * riceveva un accesso da una funzione del server nasceva con tutto spento.
+ * Le can_edit_* operative le deriva il trigger permessi_modifica_segue_visibilita.
+ */
+export const STAFF_ROLE_PRESETS: Record<string, Record<string, boolean | string[]>> = {
+  company_admin: {},
+  company_staff: {
+    can_view_dashboard: true,
+    can_view_orders: true,
+    can_view_warehouse: true, can_manage_warehouse_items: true,
+    can_view_mezzi: true,
+    can_view_calendar: true, can_view_all_team_calendar: true,
+    can_view_customers: true,
+    can_view_tickets: true,
+    can_view_interventi: true,
+    can_view_manutenzione: true,
+    can_view_employees: true, can_view_persone: true, can_view_users: true,
+    can_view_giornale_lavori: true,
+    can_view_formazione: true,
+    can_view_firma_elettronica: true,
+    can_view_billing: true, can_view_prima_nota: true,
+    can_view_costs: true,
+    can_manage_payments: true, can_manage_suppliers: true,
+  },
+  // Il venditore, di serie, vede solo Marketing & Vendita (25/09/2026).
+  salesperson: {
+    can_view_formazione: true,
+    can_view_marketing_dashboard: true,
+    can_view_marketing_contacts: true,
+    can_view_marketing_opportunities: true,
+    can_view_preventivi: true,
+    can_view_sopralluoghi: true,
+    can_view_marketing_activities: true,
+    can_view_marketing_appointments: true,
+    can_view_marketing_reports: true,
+    can_view_reputazione: true,
+    can_view_sales_os: true,
+    can_view_marketing: true,
+    visible_areas: ["commerciale"],
+  },
+  call_center: {
+    can_view_dashboard: true,
+    can_view_calendar: true,
+    can_view_customers: true,
+    can_view_users: true,
+    can_view_marketing_contacts: true,
+    can_view_marketing_opportunities: true,
+    can_view_preventivi: true,
+    can_view_sopralluoghi: true,
+    can_view_marketing_activities: true,
+    can_view_marketing_appointments: true,
+    can_view_marketing: true,
+    can_view_formazione: true,
+    visible_areas: ["commerciale"],
+  },
+  employee: {
+    can_view_calendar: true,
+    can_view_giornale_lavori: true,
+    can_view_formazione: true,
+    can_view_order_amounts: false,
+    only_assigned: true,
+    visible_areas: ["cantiere"],
+  },
+  subcontractor: {
+    can_view_orders: true,
+    can_view_calendar: true,
+    can_view_customers: true,
+    can_view_subappaltatori: true,
+    can_view_formazione: true,
+    can_view_firma_elettronica: true,
+    can_view_order_amounts: false,
+    only_assigned: true,
+    visible_areas: ["cantiere"],
+  },
+};
+
 // pipeline_visibili è uuid[] in DB: una stringa che non è un id farebbe
 // fallire l'INSERT dell'utente intero.
 const ID_PIPELINE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

@@ -192,7 +192,9 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
   return (
     <div className="space-y-3">
       {/* Ciclo di chiusura: invio tracciato + firma online + reminder automatico
-          (bridge sulla tabella quotes — vedi src/lib/moduli/quoteBridge.ts). */}
+          (bridge sulla tabella quotes — vedi src/lib/moduli/quoteBridge.ts).
+          Il PDF che va in firma è generaPdfBlob: lo stesso A4, col modello
+          dell'intervento se il preventivo ne ha uno (resolveTetQuoteTemplate). */}
       {progetto.id && progetto.company_id && (
         <InviaFirmaCard
           companyId={progetto.company_id}
@@ -208,8 +210,8 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
           validityDays={template?.default_validita_giorni ?? undefined}
           pdfDisponibile={!computoVuoto}
           onIndietro={onIndietro}
-          disabled={computoVuoto || Boolean(progetto.modello_snapshot)}
-          disabledReason={progetto.modello_snapshot ? "Per questo intervento usa il PDF A4: il collegamento alla firma è da completare." : "Aggiungi voci al computo prima di inviare il preventivo."}
+          disabled={computoVuoto}
+          disabledReason="Aggiungi voci al computo prima di inviare il preventivo."
           generaPdfBlob={async () => {
             const url = await renderTetPreviewBlobUrl(payload);
             const blob = await (await fetch(url)).blob();

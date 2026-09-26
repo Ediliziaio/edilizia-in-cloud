@@ -20,10 +20,14 @@ import {
 import { Waves, MapPin } from "lucide-react";
 import type { PisProgetto } from "@/types/piscine";
 import type { PisFormPatch } from "./types";
+import type { SalesIntervention } from "@/lib/moduli-vendita/areas";
+import { InterventoScelto } from "@/components/moduli/InterventoScelto";
 
 interface Props {
   form: Partial<PisProgetto>;
   onChange: <K extends keyof PisFormPatch>(key: K, value: PisFormPatch[K]) => void;
+  /** L'intervento della libreria, se il preventivo nasce da un modello. */
+  model?: SalesIntervention;
 }
 
 /** Tipi di intervento tipici per una piscina. */
@@ -78,7 +82,7 @@ const toInt = (raw: string): number | null => {
   return v == null ? null : Math.trunc(v);
 };
 
-export default function StepImmobile({ form, onChange }: Props) {
+export default function StepImmobile({ form, onChange, model }: Props) {
   const isMobile = useIsMobile();
   return (
     <Card>
@@ -101,7 +105,7 @@ export default function StepImmobile({ form, onChange }: Props) {
         <div className="grid grid-cols-12 gap-3">
           <div className="col-span-12 sm:col-span-6">
             <Label className="text-xs">Tipo di intervento</Label>
-            <Select
+            {model ? <InterventoScelto intervento={model} /> : <Select
               value={form.tipo_intervento ?? ""}
               onValueChange={(v) => onChange("tipo_intervento", v)}
             >
@@ -113,7 +117,7 @@ export default function StepImmobile({ form, onChange }: Props) {
                   <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
                 ))}
               </SelectContent>
-            </Select>
+            </Select>}
           </div>
           <div className="col-span-12 sm:col-span-6">
             <Label className="text-xs">Tipo di piscina</Label>

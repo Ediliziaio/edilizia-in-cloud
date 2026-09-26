@@ -60,7 +60,7 @@ function Workspace({ companyId, base }: { companyId: string; base: Partial<SrTem
     else { next.delete("modello"); next.delete("section"); }
     setParams(next);
   };
-  const notice = <div className="flex gap-2 rounded-lg border border-sky-200 bg-sky-50 p-3 text-xs leading-relaxed text-sky-950"><Monitor className="h-4 w-4 shrink-0" /><p><strong>Modelli locali indipendenti.</strong> Salvati solo in questo browser, per questa azienda. Non sono ancora collegati al preventivatore né condivisi con la squadra. Il modello online non viene modificato.</p></div>;
+  const notice = <div className="flex gap-2 rounded-lg border border-sky-200 bg-sky-50 p-3 text-xs leading-relaxed text-sky-950"><Monitor className="h-4 w-4 shrink-0" /><p><strong>Modelli dell'azienda.</strong> Si salvano online e li vedono tutti i colleghi. Quando crei un preventivo Serramenti con uno di questi interventi, il PDF usa il suo modello; i prodotti restano quelli di tutto il listino, porte e zanzariere comprese. Il template aziendale resta invariato.</p></div>;
   if (selected) return <div className="space-y-4">
     <Button variant="outline" size="sm" onClick={() => open(null)}><ArrowLeft className="mr-2 h-4 w-4" />Tutti i moduli Serramenti</Button>
     {selected === "generale" ? <><p className="rounded-lg border p-3 text-sm">Template generale esistente: il suo salvataggio aggiorna il modello aziendale online.</p>{canEdit && <SerramentiTemplateEditor embedded />}</>
@@ -76,11 +76,11 @@ function Workspace({ companyId, base }: { companyId: string; base: Partial<SrTem
       try {
         const record = loadLocalSerramentiTemplate(companyId, m.id);
         if (record) {
-          status = fullEdition && !isFullSerramentiTemplate(record.template) ? "Aggiornamento completo disponibile" : "Salvato in locale";
+          status = fullEdition && !isFullSerramentiTemplate(record.template) ? "Aggiornamento completo disponibile" : "Salvato";
           // Explicit image removal must not be silently reversed in the catalog.
           if (isFullSerramentiTemplate(record.template)) cover = record.template.pdf_cover_image_url;
         }
-      } catch { status = "Copia locale da verificare"; }
+      } catch { status = "Modello da verificare"; }
       return <article key={m.id} className="flex flex-col overflow-hidden rounded-xl border bg-background">
         <div className="relative flex h-36 items-end justify-between overflow-hidden p-4 text-white" style={{ backgroundColor: m.color }}>
           {cover && <img src={cover} alt={`Immagine illustrativa — ${m.title}`} loading="lazy" className="absolute inset-0 h-full w-full object-cover object-top" />}
@@ -102,7 +102,7 @@ function Workspace({ companyId, base }: { companyId: string; base: Partial<SrTem
 function LocalEditor({ companyId, moduleId, base, onDirtyChange }: { companyId: string; moduleId: SerramentiTemplateModuleId; base: Partial<SrTemplatePdfRow>; onDirtyChange: (dirty: boolean) => void }) {
   const [initial] = useState(() => {
     try { const record = loadLocalSerramentiTemplate(companyId, moduleId); return { record, template: record?.template ?? createFullSerramentiTemplate(base, moduleId), error: null as string | null }; }
-    catch (error) { return { record: null, template: null, error: error instanceof Error ? error.message : "Copia locale non leggibile." }; }
+    catch (error) { return { record: null, template: null, error: error instanceof Error ? error.message : "Modello non leggibile." }; }
   });
   const revision = useRef(initial.record?.savedAt ?? null);
   const [upgraded, setUpgraded] = useState<Partial<SrTemplatePdfRow> | null>(null);
