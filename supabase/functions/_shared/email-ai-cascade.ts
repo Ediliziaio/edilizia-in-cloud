@@ -7,9 +7,10 @@
  * (classifier, headers, regex-rules), che nessuna pagina usava, è stata tolta il
  * 25/09/2026: header e regex stanno solo qui.
  *
- * Il valutatore delle regole dell'utente ha un gemello in src/lib/email-ai/rules-engine.ts,
- * che calcola anche priorità, silenzia, marca da fare, etichetta, notifica e salta
- * AI: qui si applicano solo «categoria» e «collega_entita».
+ * Le regole dell'utente (email_regole) si valutano solo qui (valutaRegole): la
+ * categoria entra nella classificazione, «Silenzia», «Marca da fare» e la priorità
+ * le esegue applicaEffettiRegola. In src/lib/email-ai/rules-engine.ts restano i
+ * tipi con cui la pagina delle regole le scrive.
  */
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -54,7 +55,7 @@ export interface EmailInput {
   attachment_types?: string[];
 }
 
-// MP-EMAIL-AI-05 — Tipi regola (gemello di src/lib/email-ai/rules-engine.ts)
+// MP-EMAIL-AI-05 — Tipi regola (la pagina li scrive coi tipi di src/lib/email-ai/rules-engine.ts)
 export interface Condizione { campo: string; operatore: string; valore: string; }
 export interface Azione { tipo: string; valore?: unknown; }
 export interface Regola {
@@ -502,11 +503,35 @@ async function loadRegole(supabase: SupabaseClient, companyId: string): Promise<
   return (data as Regola[]) || [];
 }
 
-/** Traduce le azioni di una regola in ClassificationResult. */
-function azioniToResult(azioni: Azione[], regolaNome: string): ClassificationResult {
-  let categoria: EmailCategoria = "altro";
+/**
+ * Le azioni di una regola che non decidono la categoria (26/09/2026, deciso con
+ * Florin). La priorità usa i valori della posta in arrivo, come email-triage-ai.
+ */
+export interface EffettiRegola {
+  priorita?: "alta" | "media" | "bassa";
+  /** Segna l'email come letta: non conta più tra le non lette. */
+  silenzia?: boolean;
+  /** La contrassegna con la stella («Contrassegnata»). */
+  marca_da_fare?: boolean;
+}
+
+/** La prima regola attiva dell'azienda che corrisponde all'email. */
+export interface EsitoRegola {
+  regola_id: string;
+  regola_nome: string;
+  /** La classificazione, se la regola assegna categoria o entità; null = la decide il resto della cascata. */
+  risultato: ClassificationResult | null;
+  effetti: EffettiRegola;
+}
+
+const PRIORITA_POSTA = new Set(["alta", "media", "bassa"]);
+
+/** Separa le azioni di una regola: la classificazione (se c'è) e gli effetti. */
+function azioniDellaRegola(azioni: Azione[], regolaNome: string): Pick<EsitoRegola, "risultato" | "effetti"> {
+  let categoria: EmailCategoria | null = null;
   let entita_tipo: EntitaTipo | null = null;
   let entita_id: string | null = null;
+  const effetti: EffettiRegola = {};
   for (const az of azioni || []) {
     if (az.tipo === "categoria" && typeof az.valore === "string") categoria = az.valore as EmailCategoria;
     if (az.tipo === "collega_entita" && az.valore && typeof az.valore === "object") {
@@ -514,42 +539,115 @@ function azioniToResult(azioni: Azione[], regolaNome: string): ClassificationRes
       if (v.tipo) entita_tipo = v.tipo as EntitaTipo;
       if (v.id) entita_id = v.id;
     }
+    if (az.tipo === "priorita" && typeof az.valore === "string" && PRIORITA_POSTA.has(az.valore)) {
+      effetti.priorita = az.valore as EffettiRegola["priorita"];
+    }
+    if (az.tipo === "silenzia") effetti.silenzia = true;
+    if (az.tipo === "marca_da_fare") effetti.marca_da_fare = true;
   }
+  if (categoria === null && entita_tipo === null) return { risultato: null, effetti };
   return {
-    categoria, entita_tipo, entita_id,
-    confidenza: 1.0, classificato_da: "regola", da_rivedere: false,
-    matched_by: `regola:${regolaNome}`,
+    risultato: {
+      categoria: categoria ?? "altro", entita_tipo, entita_id,
+      confidenza: 1.0, classificato_da: "regola", da_rivedere: false,
+      matched_by: `regola:${regolaNome}`,
+    },
+    effetti,
   };
 }
 
 /**
- * Esegue L1 deterministico su una email. Ritorna null se nessuna regola scatta.
- * Ordine (MP-05 §4): regole utente → mittenti_noti → CRM → header → regex.
+ * La prima regola attiva che corrisponde all'email: priorità crescente, a parità
+ * la più specifica (più condizioni). Pura: la provano i test di src/test/logic.
  */
-export async function classificaDeterministica(
+export function valutaRegole(email: EmailInput, regole: Regola[]): EsitoRegola | null {
+  const ordinate = regole
+    .filter((r) => r.stato === "attiva")
+    .sort((a, b) =>
+      a.priorita !== b.priorita ? a.priorita - b.priorita : (b.condizioni?.length || 0) - (a.condizioni?.length || 0)
+    );
+  for (const regola of ordinate) {
+    if (evaluateRule(email, regola)) {
+      return { regola_id: regola.id, regola_nome: regola.nome, ...azioniDellaRegola(regola.azioni, regola.nome) };
+    }
+  }
+  return null;
+}
+
+/**
+ * Esegue sulla riga di email_inbox quello che la regola chiede, una volta sola per
+ * email: il cron L1 ripassa ogni 5 minuti sulle email ancora senza categoria, e
+ * senza regola_applicata_at rimetterebbe la stella o il «letta» che l'utente ha
+ * appena tolto. La priorità va anche in regola_priorita: il trigger
+ * email_inbox_priorita_della_regola la difende dalle scritture dell'AI.
+ * Ritorna true se è stata questa chiamata ad applicarla.
+ */
+export async function applicaEffettiRegola(
+  supabase: SupabaseClient,
+  emailId: string,
+  regola: EsitoRegola,
+): Promise<boolean> {
+  const modifica: Record<string, unknown> = { regola_applicata_at: new Date().toISOString() };
+  if (regola.effetti.silenzia) modifica.is_read = true;
+  if (regola.effetti.marca_da_fare) modifica.is_starred = true;
+  if (regola.effetti.priorita) {
+    modifica.regola_priorita = regola.effetti.priorita;
+    modifica.ai_priority = regola.effetti.priorita;
+  }
+  const { data, error } = await supabase
+    .from("email_inbox")
+    .update(modifica)
+    .eq("id", emailId)
+    .is("regola_applicata_at", null)
+    .select("id");
+  if (error) {
+    console.warn(JSON.stringify({ fn: "email-ai-cascade", msg: "regola_non_applicata", email_id: emailId, error: error.message }));
+    return false;
+  }
+  if (!Array.isArray(data) || data.length === 0) return false;
+  // Contatore dei match della regola: una volta per email, come gli effetti.
+  try {
+    await supabase.rpc("bump_email_regola_match", { p_regola_id: regola.regola_id });
+  } catch {
+    // best-effort: il contatore non ferma la classificazione
+  }
+  return true;
+}
+
+/**
+ * Esegue L1 deterministico su una email.
+ * Ordine (MP-05 §4): regole utente → mittenti_noti → CRM → header → regex.
+ *
+ * `regola` è la prima regola dell'azienda che corrisponde, anche quando non decide
+ * la categoria (solo «Silenzia», «Marca da fare», priorità): allora la categoria la
+ * decide il resto della cascata (fino al 26/09/2026 finiva in «altro»). Gli effetti
+ * li esegue chi chiama, con applicaEffettiRegola.
+ * `risultato` null = nessuna classificazione: l'email scende a L3.
+ */
+export async function classificaConRegole(
   supabase: SupabaseClient,
   companyId: string,
   email: EmailInput,
-): Promise<ClassificationResult | null> {
+): Promise<{ risultato: ClassificationResult | null; regola: EsitoRegola | null }> {
   const from = normalizeEmail(email.from_email || "");
-  if (!from) return null;
+  if (!from) return { risultato: null, regola: null };
   const dominio = email.fromDomain || extractDomain(from);
 
   // 0) REGOLE UTENTE (MP-05) — massima precedenza, costo zero
-  const regole = await loadRegole(supabase, companyId);
-  if (regole.length > 0) {
-    const sorted = regole.sort((a, b) =>
-      a.priorita !== b.priorita ? a.priorita - b.priorita : (b.condizioni?.length || 0) - (a.condizioni?.length || 0),
-    );
-    for (const regola of sorted) {
-      if (evaluateRule(email, regola)) {
-        // Best-effort: incrementa contatore match (non bloccante)
-        supabase.rpc("bump_email_regola_match", { p_regola_id: regola.id }).then(() => {}, () => {});
-        return azioniToResult(regola.azioni, regola.nome);
-      }
-    }
-  }
+  const regola = valutaRegole(email, await loadRegole(supabase, companyId));
+  if (regola?.risultato) return { risultato: regola.risultato, regola };
 
+  return { risultato: await classificaSenzaRegole(supabase, companyId, from, dominio, email), regola };
+}
+
+/** I gradini dopo le regole dell'utente: mittenti noti, CRM, header, regex. */
+async function classificaSenzaRegole(
+  supabase: SupabaseClient,
+  companyId: string,
+  from: string,
+  dominio: string,
+  email: EmailInput,
+): Promise<ClassificationResult | null> {
   // a) mittenti_noti
   const noto = await lookupMittenteNoto(supabase, companyId, from, dominio);
   if (noto) {

@@ -258,8 +258,9 @@ export function useEmailRegole() {
 
 export function useSaveEmailRegola() {
   const qc = useQueryClient();
+  const companyId = useEffectiveCompanyId();
   return useMutation({
-    mutationFn: async (regola: Partial<EmailRegola> & { company_id?: string }) => {
+    mutationFn: async (regola: Partial<EmailRegola>) => {
       const payload = {
         nome: regola.nome,
         origine: regola.origine ?? "manuale",
@@ -274,7 +275,14 @@ export function useSaveEmailRegola() {
         if (error) throw error;
         return { id: regola.id };
       }
-      const { data, error } = await (supabase as any).from("email_regole").insert(payload).select("id").single();
+      // company_id è obbligatorio e senza valore predefinito: fino al 26/09/2026 non
+      // si mandava, e ogni regola nuova falliva (in tutte le aziende: zero regole).
+      if (!companyId) throw new Error("Nessuna azienda selezionata.");
+      const { data, error } = await (supabase as any)
+        .from("email_regole")
+        .insert({ ...payload, company_id: companyId })
+        .select("id")
+        .single();
       if (error) throw error;
       return { id: data.id };
     },

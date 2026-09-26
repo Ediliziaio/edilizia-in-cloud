@@ -43,13 +43,13 @@ const OPERATORI: { value: OperatoreCondizione; label: string }[] = [
   { value: "inizia_con", label: "inizia con" },
   { value: "regex", label: "regex" },
 ];
+// Le esegue il server (email-ai-cascade.ts, applicaEffettiRegola): silenzia =
+// letta, marca da fare = stella, priorità = ai_priority che l'AI non cambia.
 const TIPI_AZIONE: { value: TipoAzione; label: string }[] = [
   { value: "categoria", label: "Assegna categoria" },
   { value: "priorita", label: "Imposta priorità" },
-  { value: "silenzia", label: "Silenzia" },
-  { value: "marca_da_fare", label: "Marca da fare" },
-  { value: "etichetta", label: "Etichetta" },
-  { value: "salta_ai", label: "Salta AI (L3)" },
+  { value: "silenzia", label: "Silenzia (segna come letta)" },
+  { value: "marca_da_fare", label: "Marca da fare (stella)" },
 ];
 
 const emptyRegola = (): Partial<EmailRegola> => ({
@@ -75,7 +75,11 @@ export function EmailRulesSettings() {
 
   const handleSave = async () => {
     if (!editing || !editing.nome?.trim()) return;
-    await save.mutateAsync(editing);
+    try {
+      await save.mutateAsync(editing);
+    } catch {
+      return; // l'errore lo mostra il toast di useSaveEmailRegola; il dialogo resta aperto
+    }
     setOpen(false);
     setEditing(null);
   };
@@ -247,7 +251,10 @@ function RuleEditorDialog({
         {/* Azioni */}
         <div>
           <div className="flex items-center justify-between mb-2">
-            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">…allora fai</label>
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">…allora fai</label>
+              <p className="text-[11px] text-muted-foreground">Senza «Assegna categoria» la categoria la sceglie la classificazione automatica.</p>
+            </div>
             <Button variant="ghost" size="sm" className="h-7 gap-1"
               onClick={() => upd({ azioni: [...azioni, { tipo: "priorita", valore: "alta" }] })}>
               <Plus className="h-3.5 w-3.5" /> Azione
@@ -272,14 +279,11 @@ function RuleEditorDialog({
                   <Select value={String(a.valore ?? "alta")} onValueChange={(v) => updAz(i, { valore: v })}>
                     <SelectTrigger className="h-9 flex-1"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="bassa">Bassa</SelectItem>
-                      <SelectItem value="normale">Normale</SelectItem>
                       <SelectItem value="alta">Alta</SelectItem>
-                      <SelectItem value="urgente">Urgente</SelectItem>
+                      <SelectItem value="media">Media</SelectItem>
+                      <SelectItem value="bassa">Bassa</SelectItem>
                     </SelectContent>
                   </Select>
-                ) : a.tipo === "etichetta" ? (
-                  <Input value={String(a.valore ?? "")} onChange={(e) => updAz(i, { valore: e.target.value })} placeholder="nome etichetta" className="h-9 flex-1" />
                 ) : (
                   <span className="flex-1 text-xs text-muted-foreground px-2">nessun parametro</span>
                 )}
@@ -308,7 +312,6 @@ function defaultAzValue(tipo: TipoAzione): unknown {
   switch (tipo) {
     case "categoria": return "fornitore";
     case "priorita": return "alta";
-    case "etichetta": return "";
     default: return undefined;
   }
 }
