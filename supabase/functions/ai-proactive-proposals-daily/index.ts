@@ -715,11 +715,20 @@ async function detectTicketNonAssegnato(
 
     // 2) Trova tecnici della company con il loro workload corrente.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: techRoles } = await (supa as any)
-      .from("user_roles")
-      .select("user_id")
-      .eq("company_id", companyId)
-      .in("role", ["tecnico", "company_staff", "company_admin"]);
+    // user_roles NON ha company_id: l'azienda di una persona è profiles.company_id.
+    // Prima la query falliva in silenzio (colonna inesistente) e techIds era
+    // sempre vuoto → nessuna proposta. "tecnico" non è un ruolo valido: si usano
+    // i ruoli reali dello staff (26/09/2026).
+    const { data: techProfili } = await (supa as any)
+      .from("profiles").select("id").eq("company_id", companyId);
+    const techProfiloIds = ((techProfili ?? []) as Array<{ id: string }>).map((r) => r.id);
+    const { data: techRoles } = techProfiloIds.length
+      ? await (supa as any)
+          .from("user_roles")
+          .select("user_id")
+          .in("user_id", techProfiloIds)
+          .in("role", ["company_staff", "company_admin"])
+      : { data: [] as Array<{ user_id: string }> };
 
     const techIds = ((techRoles ?? []) as Array<{ user_id: string }>).map((r) => r.user_id);
     if (techIds.length === 0) {
@@ -1047,15 +1056,24 @@ Deno.serve(async (req) => {
   for (const co of (companies ?? []) as CompanyRow[]) {
     summary.companies_scanned += 1;
 
-    // Risolvi un user_id valido per la company (admin o primo staff)
+    // Risolvi un user_id valido per la company (admin o primo staff).
+    // user_roles NON ha company_id: l'azienda è profiles.company_id. Prima la
+    // query falliva (colonna inesistente) e defaultUserId restava vuoto → per
+    // ogni azienda si saltava tutto (26/09/2026).
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: roleRow } = await (supa as any)
-      .from("user_roles")
-      .select("user_id")
-      .eq("company_id", co.id)
-      .in("role", ["company_admin", "company_staff"])
-      .limit(1)
-      .maybeSingle();
+    const { data: coProfili } = await (supa as any)
+      .from("profiles").select("id").eq("company_id", co.id);
+    const coProfiloIds = ((coProfili ?? []) as Array<{ id: string }>).map((r) => r.id);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: roleRow } = coProfiloIds.length
+      ? await (supa as any)
+          .from("user_roles")
+          .select("user_id")
+          .in("user_id", coProfiloIds)
+          .in("role", ["company_admin", "company_staff"])
+          .limit(1)
+          .maybeSingle()
+      : { data: null };
     const defaultUserId = (roleRow as UserRoleRow | null)?.user_id;
     if (!defaultUserId) {
       summary.errors.push({ company_id: co.id, error: "no admin user found" });

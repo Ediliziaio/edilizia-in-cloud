@@ -15,6 +15,7 @@
  * Auth: utente JWT (verifica ownership via RLS naturale del select).
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { requireCompanyAccess } from "../_shared/auth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -75,6 +76,16 @@ Deno.serve(async (req) => {
 
   if (!surveyR.data) return jsonRes({ ok: false, error: "Survey not found" }, 404);
   const survey = surveyR.data;
+
+  // Il report esce col service role (niente RLS): senza questo controllo qualunque
+  // utente autenticato otteneva il PDF di un sopralluogo di un'altra azienda con
+  // il solo id (26/09/2026). Deve poter accedere all'azienda del sopralluogo.
+  try {
+    await requireCompanyAccess(supabase, userId, survey.company_id, CORS);
+  } catch (e) {
+    if (e instanceof Response) return e;
+    throw e;
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: template } = await (supabase as any)

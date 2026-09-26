@@ -191,14 +191,23 @@ Deno.serve(async (req) => {
     const defaultUserCache = new Map<string, string | null>();
     async function getDefaultUserId(cId: string): Promise<string | null> {
       if (defaultUserCache.has(cId)) return defaultUserCache.get(cId) ?? null;
-      const { data: rl } = await supabase
-        .from("user_roles")
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .select("user_id")
-        .eq("company_id", cId)
-        .in("role", ["company_admin", "company_staff"])
-        .limit(1)
-        .maybeSingle();
+      // user_roles NON ha company_id: l'azienda di una persona è
+      // profiles.company_id. Prima la query falliva in silenzio (colonna
+      // inesistente) e uid restava null → nessuna proposta (26/09/2026).
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: prof } = await (supabase as any)
+        .from("profiles").select("id").eq("company_id", cId);
+      const profIds = ((prof ?? []) as Array<{ id: string }>).map((r) => r.id);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: rl } = profIds.length
+        ? await (supabase as any)
+            .from("user_roles")
+            .select("user_id")
+            .in("user_id", profIds)
+            .in("role", ["company_admin", "company_staff"])
+            .limit(1)
+            .maybeSingle()
+        : { data: null };
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const uid = (rl as any)?.user_id ?? null;
       defaultUserCache.set(cId, uid);

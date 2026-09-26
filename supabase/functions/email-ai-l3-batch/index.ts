@@ -45,9 +45,9 @@ import {
 } from "../_shared/email-ai-cascade.ts";
 
 import { serveConMetricheRapida } from "../_shared/withMetricsRapida.ts";
+import { chiamataInternaValida } from "../_shared/chiamataInterna.ts";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const CRON_SECRET = Deno.env.get("PROACTIVE_CRON_SECRET") || "";
 
 // Configurazione batch (può finire in DB se variabile)
 const BATCH_SIZE = 18; // batch ottimale Haiku (≤ 200K context)
@@ -144,14 +144,18 @@ serveConMetricheRapida("email-ai-l3-batch", async (req) => {
   try {
     const body = await req.json();
 
-    // Auth: cron OR jwt
-    const cronAuth = req.headers.get("x-cron-secret");
-    const isCron = CRON_SECRET && cronAuth === CRON_SECRET;
-    if (!isCron) {
-      const authHeader = req.headers.get("Authorization");
-      if (!authHeader) return json({ error: "Auth required" }, 401, corsHeaders);
+    // Auth: cron/servizio (segreto del cron o chiave di servizio esatta, senza
+    // leggere il ruolo da un JWT non firmato — la funzione è verify_jwt=false),
+    // oppure super_admin a mano. Prima bastava un JWT valido qualunque per
+    // riclassificare le email di qualunque azienda (26/09/2026).
+    if (!chiamataInternaValida(req)) {
+      const authHeader = req.headers.get("Authorization") ?? "";
       const { data: u } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
-      if (!u.user) return json({ error: "Invalid token" }, 401, corsHeaders);
+      const uid = u?.user?.id;
+      const { data: sa } = uid
+        ? await supabase.from("user_roles").select("role").eq("user_id", uid).eq("role", "super_admin").maybeSingle()
+        : { data: null };
+      if (!sa) return json({ error: "forbidden" }, 403, corsHeaders);
     }
 
     // ─── Selezione email da batchare ──────────────────────────────────────
