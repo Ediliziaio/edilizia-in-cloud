@@ -204,6 +204,12 @@ export const INTERVENTION_LIMITS: Record<string, string> = {
     "Il contributo del GSE è stimato: l'importo definitivo lo stabilisce il GSE. Distribuzione, terminali e opere non elencate sono esclusi.",
   "termoidraulica/full-electric":
     "Produzione, consumi e risparmi sono stime; gli incentivi dipendono dai requisiti. Opere, aumenti di potenza e adeguamenti non elencati sono esclusi.",
+  "termoidraulica/pellet":
+    "Lo scarico dei fumi va realizzato secondo le regole in vigore. Una stufa ad aria non scalda i termosifoni; canna fumaria e presa d'aria si verificano sul posto.",
+  "termoidraulica/solare-termico":
+    "Il solare copre parte del fabbisogno: in inverno serve l'integrazione del generatore. Resa ed esposizione si verificano; nessun risparmio è garantito dal solo impianto.",
+  "termoidraulica/trattamento-acqua":
+    "Il trattamento migliora aspetti specifici dell'acqua, non la rende di per sé potabile. Analisi, scarico della rigenerazione e alimentazione si verificano prima.",
   "elettrico/completo":
     "Opere murarie, finiture, impianti speciali e apparecchi illuminanti devono essere esplicitamente elencati.",
   "elettrico/adeguamento":

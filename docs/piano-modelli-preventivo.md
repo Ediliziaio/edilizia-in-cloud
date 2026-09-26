@@ -21,7 +21,7 @@ Ogni sessione aggiorna la sua riga a fine lotto.
 | 4 | Ristrutturazioni | 5 | ✅ fatto | (in commit) |
 | 5 | Tetti | 3 | ✅ fatto | (in commit) |
 | 6 | Elettrico | 4 | ✅ fatto | (in commit) |
-| 7 | Termoidraulica | 3 | da fare | |
+| 7 | Termoidraulica | 3 | ✅ fatto | (in commit) |
 | 8 | Pavimenti | 3 | da fare | |
 | 9 | Serramenti | 2 | da fare | |
 | 10 | Facciate col preventivatore | 3 + 6 collegati | da fare | |

@@ -70,6 +70,7 @@ export const TIPO_INTERVENTO_DEL_MODELLO: Record<ModuloConModelli, Readonly<Reco
     "acqua-calda": "sostituzione_generatore", manutenzione: "manutenzione_straordinaria",
     "conto-termico": "sostituzione_generatore",
     "full-electric": "sostituzione_generatore",
+    pellet: "sostituzione_generatore", "solare-termico": "ampliamento", "trattamento-acqua": "ampliamento",
   },
   pavimenti: {
     sovrapposizione: "sovrapposizione", rifacimento: "rifacimento", resina: "resina_microcemento",

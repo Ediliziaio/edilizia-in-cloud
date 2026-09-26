@@ -100,6 +100,9 @@ export const SALES_AREAS: readonly SalesArea[] = [
     intervention("manutenzione", "Riparazione e manutenzione", "Diagnosi, ricambi e interventi sull'impianto.", "Guasto o servizio richiesto", "Ore e uscita", "Ricambi", "Verifiche finali"),
     intervention("conto-termico", "Conto Termico 3.0", "Pompa di calore o generatore rinnovabile con il contributo del GSE.", "Impianto da sostituire", "Generatore proposto", "Contributo GSE", "Risparmio negli anni"),
     intervention("full-electric", "Casa Full Electric", "Pompa di calore, induzione, fotovoltaico e batteria: la casa senza gas.", "Consumi e bollette di oggi", "Sistema proposto", "Energia e bollette di domani", "Incentivi e beneficio negli anni"),
+    intervention("pellet", "Stufe e caldaie a pellet", "Generatore a pellet ad aria o ad acqua, con scarico fumi.", "Uso e potenza", "Ad aria o ad acqua", "Scarico fumi e aria", "Installazione e avviamento"),
+    intervention("solare-termico", "Solare termico", "Collettori e accumulo per l'acqua calda, integrati col generatore.", "Fabbisogno di acqua calda", "Tetto ed esposizione", "Accumulo e integrazione", "Installazione e avviamento"),
+    intervention("trattamento-acqua", "Trattamento dell'acqua", "Addolcitore e filtri sull'acqua reale di casa.", "Analisi dell'acqua", "Apparecchio adatto", "Collegamenti e scarico", "Installazione e avviamento"),
   ] },
   { id: "elettrico", title: "Elettrico e domotica", sourceModule: "elettrico", summary: "Impianti, punti luce, automazioni e ricarica elettrica.", interventions: [
     intervention("completo", "Impianto elettrico completo", "Rete elettrica organizzata per ambienti e circuiti.", "Ambienti e dotazioni", "Punti e circuiti", "Quadri e protezioni", "Posa e verifiche"),
