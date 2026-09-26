@@ -19,6 +19,8 @@ import {
   Camera, X, Minus, Plus, Loader2, Send,
 } from "lucide-react";
 import { toast } from "sonner";
+import { MezziFineGiornata, righeDaSalvare, type RigaMezzoGiornata } from "@/components/campo/MezziFineGiornata";
+import type { Json } from "@/integrations/supabase/types";
 import { notifyRapportinoPdf } from "@/lib/campo/rapportinoPdf";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -122,6 +124,8 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
   const [fasiDichiarate, setFasiDichiarate] = useState<Record<string, number>>({});
   // Materiali usati oggi: key (order_item id o "libero_<n>") → nome+quantità
   const [materialiSel, setMaterialiSel] = useState<Record<string, RapportinoMaterialDraft>>({});
+  // Mezzi e attrezzi di oggi: usati e dove restano stasera (si salvano col rapportino)
+  const [mezziSel, setMezziSel] = useState<Record<string, RigaMezzoGiornata>>({});
   const [materialeLibero, setMaterialeLibero] = useState("");
   const [fotoPreviews, setFotoPreviews] = useState<string[]>([]);
   const [fotoUrls, setFotoUrls] = useState<string[]>([]);
@@ -578,6 +582,24 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
         void notifyRapportinoPdf(inserted.id, orderId, queryClient);
       }
 
+      // Mezzi e attrezzi di oggi: dove restano stasera e i km. Il rapportino è
+      // già salvato: se questo non riesce, lo si dice senza farlo rimandare.
+      const righeMezzi = righeDaSalvare(mezziSel);
+      if (righeMezzi.length > 0) {
+        const { error: mezziError } = await supabase.rpc("campo_mezzi_fine_giornata", {
+          p_order_id: orderId,
+          p_giorno: workDay,
+          p_righe: righeMezzi as unknown as Json,
+          p_rapportino_id: inserted?.id ?? null,
+        });
+        if (mezziError) {
+          console.warn("[CampoRapportino] mezzi di fine giornata non salvati:", mezziError);
+          toast.warning("Rapportino inviato, ma mezzi e attrezzi non sono stati segnati", {
+            description: "Avvisa l'ufficio di dove hai lasciato gli attrezzi.",
+          });
+        }
+      }
+
       // Notifica al responsabile (assigned_to, fallback created_by).
       // Errori silenziosi: la notifica non deve mai bloccare l'invio.
       if (inserted?.id) {
@@ -635,6 +657,8 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
       queryClient.invalidateQueries({ queryKey: ["order-phases-progress", orderId] });
       queryClient.invalidateQueries({ queryKey: ["order-schedule-health", orderId] });
       queryClient.invalidateQueries({ queryKey: ["campo-fasi-commessa", orderId] });
+      queryClient.invalidateQueries({ queryKey: ["campo-mezzi-giornata", orderId] });
+      queryClient.invalidateQueries({ queryKey: ["mezzi"] });
       navigate(`/campo/lavoro/${orderId}`);
     },
     onError: (err: unknown) => {
@@ -1158,6 +1182,9 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
                 </button>
               </div>
             </div>
+
+            {/* ── Mezzi e attrezzi di oggi: usati e dove restano stasera ── */}
+            {orderId && <MezziFineGiornata orderId={orderId} valori={mezziSel} onChange={setMezziSel} />}
 
           </>
         )}

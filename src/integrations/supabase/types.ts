@@ -102960,6 +102960,11 @@ export type Database = {
         Args: { p_giorno?: string | null; p_order_id: string }
         Returns: Json
       }
+      campo_mezzi_fine_giornata: {
+        Args: { p_giorno: string; p_order_id: string; p_rapportino_id?: string | null; p_righe: Json }
+        Returns: number
+      }
+      campo_mezzi_giornata: { Args: { p_order_id: string }; Returns: Json }
       campo_mia_giornata: { Args: { p_dal?: string | null; p_giorni?: number | null }; Returns: Json }
       campo_mie_fasi: { Args: { p_order_id: string }; Returns: Json }
       campo_mio_ruolo: { Args: { p_order_id: string }; Returns: Json }
