@@ -16,6 +16,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { AvvisiPerEvento } from "@/components/notifications/AvvisiPerEvento";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -56,7 +57,9 @@ const CHANNELS: ChannelMeta[] = [
     description: "Notifica push gratuita via bot Telegram. Richiede legare l'account al bot della tua azienda.",
     icon: Send,
     color: "text-blue-600 bg-blue-50",
-    available: true,
+    // Il 26/09/2026 l'interruttore non si salvava (l'upsert non ha i campi
+    // Telegram) e nessun codice lega l'account al bot: era un comando finto.
+    available: false,
   },
   {
     key: "whatsapp",
@@ -271,28 +274,35 @@ export default function SettingsNotifiche() {
   return (
     // Da 768 senza margine proprio né centratura: il margine lo dà la cornice
     // delle impostazioni (prima si sommava) e le altre pagine partono a sinistra.
-    <div className="space-y-4 p-4 md:p-0 max-w-3xl mx-auto md:mx-0">
+    // Telefono: colonna con spazi fissi (il titolo nascosto non lascia un buco) e
+    // senza il margine proprio, che si sommava a quello della cornice.
+    <div className="space-y-4 p-4 md:p-0 max-w-3xl mx-auto md:mx-0 max-sm:flex max-sm:flex-col max-sm:gap-3 max-sm:space-y-0 max-sm:p-0">
       {/* Header — da 768 c'è già la testata delle impostazioni con lo stesso
           titolo e la stessa frase. */}
-      <div className="flex items-start gap-3 md:hidden">
+      {/* Telefono: il titolo c'è già nella barra in alto. */}
+      <div className="flex items-start gap-3 md:hidden max-sm:hidden">
         <div className="shrink-0 h-10 w-10 rounded-lg bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center">
           <Bell className="h-5 w-5 text-violet-600 dark:text-violet-400" />
         </div>
         <div className="flex-1 min-w-0">
           <h1 className="text-2xl font-bold tracking-tight">Notifiche</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Decidi su quali canali vuoi ricevere i messaggi automatici dell'app (briefing, reminder,
-            alert). I messaggi configurati dal tuo company_admin rispettano queste preferenze.
+            Gli avvisi nella campanella e i canali dei messaggi automatici (briefing, promemoria).
+            I messaggi programmati dall'amministratore rispettano queste preferenze.
           </p>
         </div>
       </div>
 
+      {/* Gli avvisi che partono davvero: la campanella rimanda qui («Preferenze»). */}
+      <AvvisiPerEvento />
+
       {/* ── SEZIONE COMPANY_ADMIN: notifiche AZIENDALI ──────────────────
           Solo visibile a chi è admin. Sopra alle preferenze personali
           perché l'admin gestisce PRIMA le notifiche per gli altri,
-          POI le sue. */}
+          POI le sue. Telefono no: i messaggi programmati sono automazioni,
+          che si creano da computer o tablet. */}
       {isAdmin && (
-        <Card>
+        <Card className="max-sm:hidden">
           <CardHeader className="pb-3">
             <div className="flex items-start justify-between gap-2">
               <div className="flex-1 min-w-0">
@@ -302,7 +312,7 @@ export default function SettingsNotifiche() {
                 </CardTitle>
                 <p className="text-xs text-slate-500 mt-0.5">
                   Messaggi automatici programmati che invii ai tuoi utenti — operai, staff, admin.
-                  Visibili anche in /azienda/automazioni con il builder avanzato.
+                  Li trovi anche in Automazioni, con l'editor completo.
                 </p>
               </div>
               <Button
@@ -392,7 +402,7 @@ export default function SettingsNotifiche() {
 
       {/* Separator per chiarezza tra sezione admin e personale */}
       {isAdmin && (
-        <div className="flex items-center gap-3 my-1">
+        <div className="flex items-center gap-3 my-1 max-sm:hidden">
           <div className="flex-1 h-px bg-slate-200" />
           <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Le tue preferenze personali</span>
           <div className="flex-1 h-px bg-slate-200" />
@@ -400,7 +410,7 @@ export default function SettingsNotifiche() {
       )}
 
       {/* Info box */}
-      <Card className="bg-violet-50/40 border-violet-200">
+      <Card className="bg-violet-50/40 border-violet-200 max-sm:hidden">
         <CardContent className="p-3 flex items-start gap-2">
           <Info className="h-4 w-4 text-violet-600 mt-0.5 shrink-0" />
           <p className="text-xs text-slate-700 leading-relaxed">
@@ -413,10 +423,10 @@ export default function SettingsNotifiche() {
 
       {/* Channels (toggles) */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Canali abilitati</CardTitle>
+        <CardHeader className="max-sm:px-3 max-sm:pb-2 max-sm:pt-3">
+          <CardTitle className="text-base">Canali dei messaggi automatici</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2">
+        <CardContent className="space-y-2 max-sm:px-3 max-sm:pb-3">
           {CHANNELS.map((ch) => {
             const Icon = ch.icon;
             const isEnabled = ch.key === "silvio_chat" ? silvioChatEnabled
@@ -431,14 +441,14 @@ export default function SettingsNotifiche() {
               <div
                 key={ch.key}
                 className={cn(
-                  "flex items-start gap-3 rounded-lg border p-3",
+                  "flex items-start gap-3 rounded-lg border p-3 max-sm:gap-2.5 max-sm:p-2.5",
                   !ch.available && "opacity-60 bg-slate-50/50",
                 )}
               >
-                <div className={cn("h-9 w-9 rounded-lg flex items-center justify-center shrink-0", ch.color)}>
+                <div className={cn("h-9 w-9 rounded-lg flex items-center justify-center shrink-0 max-sm:h-8 max-sm:w-8", ch.color)}>
                   <Icon className="h-4 w-4" />
                 </div>
-                <div className="flex-1 min-w-0">
+                <div className="flex-1 min-w-0 max-sm:pt-1.5">
                   <div className="flex items-center gap-2">
                     <p className="font-medium text-sm">{ch.label}</p>
                     {!ch.available && <Badge variant="outline" className="text-[10px]">Prossimamente</Badge>}
@@ -446,12 +456,14 @@ export default function SettingsNotifiche() {
                       <Badge variant="outline" className="text-[10px] text-amber-700 border-amber-300">Non verificato</Badge>
                     )}
                   </div>
-                  <p className="text-xs text-slate-500 mt-0.5">{ch.description}</p>
+                  {/* Telefono: il nome del canale basta. */}
+                  <p className="text-xs text-slate-500 mt-0.5 max-sm:hidden">{ch.description}</p>
                   {ch.comingSoonNote && (
-                    <p className="text-[11px] text-violet-600 mt-1 italic">{ch.comingSoonNote}</p>
+                    <p className="text-[11px] text-violet-600 mt-1 italic max-sm:hidden">{ch.comingSoonNote}</p>
                   )}
                   {ch.key === "email" && emailEnabled && (
-                    <div className="mt-2 max-w-xs">
+                    // Telefono no: facoltativa, basta l'email del profilo.
+                    <div className="mt-2 max-w-xs max-sm:hidden">
                       <Label className="text-[11px] text-slate-500">Email alternativa (opzionale)</Label>
                       <Input
                         type="email"
@@ -472,7 +484,7 @@ export default function SettingsNotifiche() {
                         placeholder="+393331234567"
                         className="h-8 text-sm mt-0.5"
                       />
-                      <p className="text-[10px] text-slate-400 mt-0.5">
+                      <p className="text-[10px] text-slate-400 mt-0.5 max-sm:hidden">
                         Deve essere un numero attivo su WhatsApp e raggiungibile dal bot Business dell'azienda.
                       </p>
                     </div>
@@ -487,7 +499,7 @@ export default function SettingsNotifiche() {
                         <>
                           <Label className="text-[11px] text-slate-500">Per ricevere su Telegram:</Label>
                           <ol className="text-[11px] text-slate-600 list-decimal list-inside space-y-0.5">
-                            <li>Chiedi al tuo company_admin il bot Telegram aziendale</li>
+                            <li>Chiedi all'amministratore il bot Telegram dell'azienda</li>
                             <li>Apri il bot e invia <code className="bg-slate-100 px-1 rounded">/start</code></li>
                             <li>Segui le istruzioni di verifica</li>
                           </ol>
@@ -500,6 +512,7 @@ export default function SettingsNotifiche() {
                   )}
                 </div>
                 <Switch
+                  className="max-sm:mt-1"
                   checked={isEnabled}
                   disabled={!ch.available}
                   onCheckedChange={(v) => {
@@ -517,19 +530,19 @@ export default function SettingsNotifiche() {
 
       {/* Fallback chain (riordinabile) */}
       <Card>
-        <CardHeader>
+        <CardHeader className="max-sm:px-3 max-sm:pb-2 max-sm:pt-3">
           <CardTitle className="text-base">Ordine di preferenza</CardTitle>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <p className="text-xs text-slate-500 mt-0.5 max-sm:hidden">
             Il sistema prova prima il canale in cima. Se non disponibile o disabilitato, passa al successivo.
           </p>
         </CardHeader>
-        <CardContent className="space-y-1.5">
+        <CardContent className="space-y-1.5 max-sm:px-3 max-sm:pb-3">
           {order.map((key, idx) => {
             const ch = channelByKey.get(key);
             if (!ch) return null;
             const Icon = ch.icon;
             return (
-              <div key={key} className="flex items-center gap-2 rounded-lg border bg-card p-2">
+              <div key={key} className="flex items-center gap-2 rounded-lg border bg-card p-2 max-sm:py-1">
                 <span className="text-[11px] font-bold tabular-nums text-slate-400 w-5 text-center">
                   {idx + 1}
                 </span>
@@ -537,11 +550,11 @@ export default function SettingsNotifiche() {
                   <Icon className="h-3.5 w-3.5" />
                 </div>
                 <span className="text-sm font-medium flex-1">{ch.label}</span>
-                {!ch.available && <Badge variant="outline" className="text-[10px]">Prossimamente</Badge>}
+                {!ch.available && <Badge variant="outline" className="text-[10px] max-sm:hidden">Prossimamente</Badge>}
                 <Button
                   size="icon"
                   variant="ghost"
-                  className="h-6 w-6"
+                  className="tap-compact h-6 w-6 max-md:h-8 max-md:w-8"
                   onClick={() => moveChannel(idx, "up")}
                   disabled={idx === 0}
                   aria-label="Sposta su"
@@ -551,7 +564,7 @@ export default function SettingsNotifiche() {
                 <Button
                   size="icon"
                   variant="ghost"
-                  className="h-6 w-6"
+                  className="tap-compact h-6 w-6 max-md:h-8 max-md:w-8"
                   onClick={() => moveChannel(idx, "down")}
                   disabled={idx === order.length - 1}
                   aria-label="Sposta giù"
@@ -566,16 +579,16 @@ export default function SettingsNotifiche() {
 
       {/* Quiet hours */}
       <Card>
-        <CardHeader>
+        <CardHeader className="max-sm:px-3 max-sm:pb-2 max-sm:pt-3">
           <CardTitle className="text-base flex items-center gap-2">
             <MoonStar className="h-4 w-4 text-violet-600" />
             Orari di silenzio
           </CardTitle>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <p className="text-xs text-slate-500 mt-0.5 max-sm:hidden">
             Tra questi orari il sistema non manda notifiche. Lascia vuoto per ricevere sempre.
           </p>
         </CardHeader>
-        <CardContent className="grid grid-cols-2 gap-3">
+        <CardContent className="grid grid-cols-2 gap-3 max-sm:px-3 max-sm:pb-3">
           <div>
             <Label className="text-xs">Dalle</Label>
             <Input
@@ -599,7 +612,7 @@ export default function SettingsNotifiche() {
 
       {/* Save */}
       <div className="flex justify-end sticky bottom-0 bg-background py-2">
-        <Button onClick={() => saveMut.mutate()} disabled={saveMut.isPending} className="gap-2">
+        <Button onClick={() => saveMut.mutate()} disabled={saveMut.isPending} className="gap-2 max-sm:w-full">
           <Save className="h-4 w-4" />
           {saveMut.isPending ? "Salvataggio..." : "Salva preferenze"}
         </Button>

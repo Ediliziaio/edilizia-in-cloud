@@ -4,7 +4,7 @@
  * Accessibile a TUTTI i ruoli
  */
 import { useState, useRef, useEffect, useMemo } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { motivoPasswordRifiutata } from "@/lib/auth/cambioPassword";
@@ -16,7 +16,7 @@ import { it } from "date-fns/locale";
 import {
   Camera, User, Save, Loader2, Phone, Mail, Lock, Eye, EyeOff,
   Shield, Check, X, CalendarDays, RefreshCw, Unlink, Clock, Bell,
-  BellRing, MessageSquare, FileText, Briefcase, Calendar, AlarmClock,
+  MessageSquare, FileText, Briefcase, Calendar, AlarmClock,
   Inbox, UserPlus, BellOff, MailCheck, Settings2, EyeOff as EyeOffIcon,
   AlertTriangle,
 } from "lucide-react";
@@ -101,6 +101,13 @@ const PREFERENZE_ONORATE: ReadonlySet<string> = new Set([
   "push_new_task",       // task_assigned_in_app   → SurveyAssignDialog
   "email_task_due",      // task_due_soon_email    → task-riepilogo-email
   "email_task_overdue",  // task_overdue_email     → task-riepilogo-email
+  // Dal 26/09/2026. I promemoria giornalieri delle attività le leggevano già
+  // (migrazione 20280903110000) ma qui risultavano spente; i messaggi di
+  // Conversazioni le leggono da avvisa_messaggi_conversazioni().
+  "push_task_due",       // task_due_soon_in_app   → promemoria attività
+  "push_task_overdue",   // task_overdue_in_app    → promemoria attività
+  "push_new_message",    // message_whatsapp_in_app       → WhatsApp, SMS, Messenger, Instagram
+  "push_email_received", // message_email_received_in_app → email in Conversazioni
 ]);
 
 export default function MioProfilo() {
@@ -114,7 +121,15 @@ export default function MioProfilo() {
   // computer (25/09/2026); un indirizzo che punta lì apre il profilo.
   const isMobile = useIsMobile();
   const schedaSoloDesktop = tabParam === "calendari" || tabParam === "email";
-  const activeTab: ProfileTab = isProfileTab(tabParam) && !(isMobile && schedaSoloDesktop) ? tabParam : "profilo";
+  // Telefono: le notifiche stanno in Impostazioni → Notifiche, una pagina sola
+  // (26/09/2026); qui erano un doppione con le stesse preferenze.
+  const notificheAltrove = isMobile && tabParam === "notifiche";
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (notificheAltrove) navigate("/azienda/impostazioni/notifiche", { replace: true });
+  }, [notificheAltrove, navigate]);
+  const activeTab: ProfileTab =
+    isProfileTab(tabParam) && !(isMobile && schedaSoloDesktop) && !notificheAltrove ? tabParam : "profilo";
   const handleTabChange = (tab: string) => {
     const next = new URLSearchParams(searchParams);
     next.set("tab", tab);
@@ -585,12 +600,13 @@ export default function MioProfilo() {
   // Il riepilogo conta solo le notifiche che partono davvero: un "9 email"
   // che comprende sette eventi mai inviati sarebbe un numero falso.
   const notifCounts = useMemo(() => {
-    let email = 0, push = 0;
+    let email = 0, push = 0, totaleEmail = 0, totalePush = 0;
     for (const k of PREFERENZE_ONORATE) {
-      if (!notifPrefs[k as FormPrefKey]) continue;
-      if (k.startsWith("email_")) email++; else push++;
+      const accesa = Boolean(notifPrefs[k as FormPrefKey]);
+      if (k.startsWith("email_")) { totaleEmail++; if (accesa) email++; }
+      else { totalePush++; if (accesa) push++; }
     }
-    return { email, push, totaleEmail: 3, totalePush: 1 };
+    return { email, push, totaleEmail, totalePush };
   }, [notifPrefs]);
 
   /** Toggle con persistenza ottimistica: aggiorna subito UI, fa upsert,
@@ -701,7 +717,7 @@ export default function MioProfilo() {
               <TabsTrigger value="email" className="h-9 shrink-0 gap-1 sm:gap-1.5 whitespace-nowrap px-2 sm:px-3 text-xs sm:text-sm max-sm:hidden">
                 <Mail className="h-3.5 w-3.5" /> Email
               </TabsTrigger>
-              <TabsTrigger value="notifiche" className="h-9 shrink-0 gap-1 sm:gap-1.5 whitespace-nowrap px-2 sm:px-3 text-xs sm:text-sm">
+              <TabsTrigger value="notifiche" className="h-9 shrink-0 gap-1 sm:gap-1.5 whitespace-nowrap px-2 sm:px-3 text-xs sm:text-sm max-md:hidden">
                 <Bell className="h-3.5 w-3.5" /> Notifiche
               </TabsTrigger>
             </TabsList>
@@ -1140,9 +1156,10 @@ export default function MioProfilo() {
                     <Bell className="h-4 w-4" /> Preferenze notifiche
                   </CardTitle>
                   <CardDescription className="max-sm:hidden">
-                    Oggi partono davvero solo gli avvisi sulle attività. Gli altri
-                    eventi sono in elenco ma spenti: li vedi qui perché arriveranno,
-                    non perché siano già attivi.
+                    Oggi partono davvero gli avvisi dei messaggi in Conversazioni e
+                    delle attività. Gli altri eventi sono in elenco ma spenti: li vedi
+                    qui perché arriveranno, non perché siano già attivi. «App» è la
+                    campanella in alto.
                   </CardDescription>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
@@ -1150,7 +1167,7 @@ export default function MioProfilo() {
                     <Mail className="h-3 w-3" /> {notifCounts.email} di {notifCounts.totaleEmail} email
                   </Badge>
                   <Badge variant="secondary" className="gap-1 text-xs">
-                    <BellRing className="h-3 w-3" /> {notifCounts.push} di {notifCounts.totalePush} push
+                    <Bell className="h-3 w-3" /> {notifCounts.push} di {notifCounts.totalePush} in app
                   </Badge>
                 </div>
               </div>
@@ -1167,9 +1184,9 @@ export default function MioProfilo() {
                   disabled={savePrefs.isPending}
                   className="h-8 w-full gap-1.5 text-xs sm:w-auto"
                 >
-                  <BellRing className="h-3 w-3 shrink-0" />
-                  <span className="truncate sm:hidden">Attiva push</span>
-                  <span className="hidden sm:inline">Attiva i push disponibili</span>
+                  <Bell className="h-3 w-3 shrink-0" />
+                  <span className="truncate sm:hidden">Attiva in app</span>
+                  <span className="hidden sm:inline">Attiva gli avvisi in app</span>
                 </Button>
                 <Button
                   size="sm"
@@ -1207,7 +1224,8 @@ export default function MioProfilo() {
               <div className="grid grid-cols-[1fr_52px_52px] sm:grid-cols-[1fr_72px_72px] gap-2 px-3 sm:px-4 pt-3 pb-2 border-b text-xs font-medium text-muted-foreground uppercase tracking-wide max-sm:pt-2 max-sm:text-[10px]">
                 <div>Evento</div>
                 <div className="text-center flex items-center justify-center gap-1"><Mail className="h-3 w-3" /> Email</div>
-                <div className="text-center flex items-center justify-center gap-1"><BellRing className="h-3 w-3" /> Push</div>
+                {/* «App» è la campanella (le colonne *_in_app): le push sul telefono non ci sono ancora. */}
+                <div className="text-center flex items-center justify-center gap-1"><Bell className="h-3 w-3" /> App</div>
               </div>
 
               {/* Categoria: Ordini & cantieri */}
@@ -1239,25 +1257,23 @@ export default function MioProfilo() {
               <NotifGroupHeader icon={MessageSquare} label="Comunicazione" />
               <NotifMatrixRow
                 icon={MessageSquare}
-                label="Nuovo messaggio chat / WhatsApp"
-                desc="Messaggi diretti e menzioni nelle chat interne e WhatsApp"
+                label="Messaggio da un contatto"
+                desc="WhatsApp, SMS, Messenger o Instagram in Conversazioni: a chi ha la conversazione, se non è di nessuno agli amministratori"
                 emailChecked={notifPrefs.email_new_message}
                 pushChecked={notifPrefs.push_new_message}
                 onEmailToggle={() => toggleNotif("email_new_message")}
                 onPushToggle={() => toggleNotif("push_new_message")}
                 emailAttiva={false}
-                pushAttiva={false}
               />
               <NotifMatrixRow
                 icon={Inbox}
-                label="Email ricevuta"
-                desc="Nuove email nella casella collegata (Gmail / Outlook / IMAP)"
+                label="Email da un contatto"
+                desc="Email di un contatto o cliente in Conversazioni, con le stesse regole dei messaggi"
                 emailChecked={notifPrefs.email_email_received}
                 pushChecked={notifPrefs.push_email_received}
                 onEmailToggle={() => toggleNotif("email_email_received")}
                 onPushToggle={() => toggleNotif("push_email_received")}
                 emailAttiva={false}
-                pushAttiva={false}
               />
 
               {/* Categoria: Calendario & attività */}
@@ -1301,7 +1317,6 @@ export default function MioProfilo() {
                 pushChecked={notifPrefs.push_task_due}
                 onEmailToggle={() => toggleNotif("email_task_due")}
                 onPushToggle={() => toggleNotif("push_task_due")}
-                pushAttiva={false}
               />
               {/* Questa email parte davvero (task-riepilogo-email la manda con
                   default acceso) ma non era esposta da nessuna parte: si
@@ -1314,7 +1329,6 @@ export default function MioProfilo() {
                 pushChecked={notifPrefs.push_task_overdue}
                 onEmailToggle={() => toggleNotif("email_task_overdue")}
                 onPushToggle={() => toggleNotif("push_task_overdue")}
-                pushAttiva={false}
               />
 
               {/* Categoria: Lead & vendita */}
@@ -1372,9 +1386,8 @@ export default function MioProfilo() {
             </CardContent>
           </Card>
 
-          <p className="text-[11px] text-muted-foreground px-1">
-            Le modifiche vengono salvate automaticamente. Per ricevere notifiche push sul browser,
-            assicurati di aver dato il permesso quando richiesto dal browser.
+          <p className="text-[11px] text-muted-foreground px-1 max-sm:hidden">
+            Le modifiche vengono salvate automaticamente.
           </p>
         </TabsContent>
       </Tabs>

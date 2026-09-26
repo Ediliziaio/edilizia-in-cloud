@@ -160,7 +160,7 @@ export default function SettingsMobileHub() {
         onChange={(e) => setFiltro(e.target.value)}
         placeholder="Cerca un'impostazione…"
         aria-label="Cerca un'impostazione"
-        className="w-full h-9 rounded-lg border border-border/60 bg-background px-3 text-base placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary md:hidden"
+        className="w-full h-9 rounded-lg border border-border/60 bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary md:hidden"
       />
 
       {q && sezioniFiltrate.length === 0 && (
