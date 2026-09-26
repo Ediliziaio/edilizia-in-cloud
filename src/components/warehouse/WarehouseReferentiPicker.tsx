@@ -290,7 +290,7 @@ export function WarehouseReferentiPicker({
                         Personale
                       </a>{" "}
                       o subappaltatori da{" "}
-                      <a href="/azienda/subappaltatori" className="underline font-medium">
+                      <a href="/azienda/manodopera?tab=subappaltatori" className="underline font-medium">
                         Subappaltatori
                       </a>
                       .

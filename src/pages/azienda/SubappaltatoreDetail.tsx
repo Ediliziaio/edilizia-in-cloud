@@ -771,7 +771,7 @@ export default function SubappaltatoreDetail() {
     return (
       <div className="text-center py-12">
         <p className="text-muted-foreground">Subappaltatore non trovato</p>
-        <Button variant="link" onClick={() => navigate('/azienda/subappaltatori')}>Torna alla lista</Button>
+        <Button variant="link" onClick={() => navigate('/azienda/manodopera?tab=subappaltatori')}>Torna alla lista</Button>
       </div>
     );
   }
@@ -809,7 +809,7 @@ export default function SubappaltatoreDetail() {
       <div className="rounded-2xl border border-slate-200 bg-white px-4 py-5 shadow-sm sm:px-6 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between max-sm:gap-2">
           <div className="flex min-w-0 items-start gap-3">
-        <Button variant="ghost" size="icon" className="max-sm:hidden" onClick={() => navigate('/azienda/subappaltatori')}>
+        <Button variant="ghost" size="icon" className="max-sm:hidden" onClick={() => navigate('/azienda/manodopera?tab=subappaltatori')}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div className="flex-1 min-w-0">

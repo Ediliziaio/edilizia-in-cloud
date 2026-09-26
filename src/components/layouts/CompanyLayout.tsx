@@ -9,6 +9,7 @@ import { etichettaRuoloAzienda, puoScegliereSettore } from "@/lib/auth/ruoloAzie
 import { usePermissions, type Permissions } from "@/hooks/usePermissions";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { useStatoPiano } from "@/hooks/useStatoPiano";
+import { useSchedeManodopera } from "@/hooks/useSchedeManodopera";
 import { useBranding } from "@/hooks/useBranding";
 import { useBrandSettings } from "@/hooks/useBrandSettings";
 import { applyBrandTheme, clearBrandTheme } from "@/lib/brandTheme";
@@ -288,6 +289,7 @@ const SCOPRI_LOCKED_ROUTES = [
   "/azienda/magazzino",
   "/azienda/giornale-lavori",
   "/azienda/subappaltatori",
+  "/azienda/manodopera",
   "/azienda/sicurezza-cantiere",
   "/azienda/render",
   "/azienda/agenti-ai",
@@ -316,6 +318,9 @@ const COMMERCIALISTA_ALLOWED_URLS = new Set([
   "/azienda/magazzino",
   "/azienda/clienti",
   "/azienda/subappaltatori",
+  // Manodopera e Mezzi: al commercialista resta la sola scheda Subappaltatori
+  // (operai e mezzi sono spenti nei suoi permessi).
+  "/azienda/manodopera",
   // "/azienda/firma-elettronica" rimosso — richiede ora canViewFirmaElettronica (non per il commercialista).
   "/azienda/assistenza",
   "/azienda/manutenzione",
@@ -1008,6 +1013,7 @@ const CompanySidebar = memo(function CompanySidebar() {
   // restituisce i permessi REALI dell'utente target (letti da staff_permissions),
   // così la sidebar riflette esattamente quello che vedrebbe quell'utente.
   const permissions = usePermissions();
+  const { schede: schedeManodopera } = useSchedeManodopera();
   // Le regole del piano (super admin, azienda demo, piano completo o limitato)
   // stanno in useStatoPiano: le stesse valgono per le impostazioni.
   const {
@@ -1219,6 +1225,9 @@ const CompanySidebar = memo(function CompanySidebar() {
       }
       if (item.demoCompanyOnly && !isDemoBaseline) return false;
       if (item.multiCompanyOnly && !hasMultipleCompanies) return false;
+      // Manodopera e Mezzi: tre schede, ognuna col suo permesso e la sua parte
+      // di piano; la voce c'è se almeno una scheda è disponibile.
+      if (item.url === "/azienda/manodopera") return schedeManodopera.length > 0;
       if (item.url === "/azienda/cruscotto") {
         if (
           !permissions.canViewCruscotto &&
@@ -1256,7 +1265,7 @@ const CompanySidebar = memo(function CompanySidebar() {
       }
       return true;
     }));
-  }, [permissions, gatingLoading, isModuleEnabled, billingMode, getFeatureAccessLevel, isLimitedPlan, isDemoBaseline, limitsLoading, currentPlan, isCommercialistaMode, hasMultipleCompanies]);
+  }, [permissions, gatingLoading, isModuleEnabled, billingMode, getFeatureAccessLevel, isLimitedPlan, isDemoBaseline, limitsLoading, currentPlan, isCommercialistaMode, hasMultipleCompanies, schedeManodopera]);
 
   useEffect(() => {
     if (!gatingLoading) {

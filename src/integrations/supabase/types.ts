@@ -83620,6 +83620,8 @@ export type Database = {
           can_edit_warehouse: boolean | null
           can_edit_mezzi: boolean
           can_view_mezzi: boolean
+          can_edit_operai: boolean
+          can_view_operai: boolean
           can_export_clients: boolean
           can_manage_payments: boolean
           can_manage_portal: boolean
@@ -83723,6 +83725,8 @@ export type Database = {
           can_edit_warehouse?: boolean | null
           can_edit_mezzi?: boolean
           can_view_mezzi?: boolean
+          can_edit_operai?: boolean
+          can_view_operai?: boolean
           can_export_clients?: boolean
           can_manage_payments?: boolean
           can_manage_portal?: boolean
@@ -83826,6 +83830,8 @@ export type Database = {
           can_edit_warehouse?: boolean | null
           can_edit_mezzi?: boolean
           can_view_mezzi?: boolean
+          can_edit_operai?: boolean
+          can_view_operai?: boolean
           can_export_clients?: boolean
           can_manage_payments?: boolean
           can_manage_portal?: boolean
@@ -102816,6 +102822,58 @@ export type Database = {
         Returns: string
       }
       lookup_user_by_email: { Args: { p_email: string }; Returns: string }
+      manodopera_oggi: {
+        Args: { p_company_id: string; p_giorno?: string }
+        Returns: {
+          assenza: string | null
+          cantiere: string | null
+          cantiere_id: string | null
+          cognome: string
+          colore_avatar: string | null
+          fuori_zona: boolean
+          mansione: string | null
+          nome: string
+          ore_lavorate: number | null
+          previsto: string | null
+          previsto_id: string | null
+          prima_entrata: string | null
+          profilo_id: string
+          stato: string
+          ultima_ora: string | null
+          ultima_uscita: string | null
+          ultimo_tipo: string | null
+        }[]
+      }
+      manodopera_operai: {
+        Args: { p_company_id: string }
+        Returns: {
+          attivo: boolean
+          cantieri_attivi: number
+          cognome: string
+          colore_avatar: string | null
+          costo_orario: number | null
+          costo_orario_scritto: boolean
+          data_assunzione: string | null
+          documenti_in_scadenza: number
+          documenti_scaduti: number
+          email: string | null
+          employee_id: string | null
+          foto_url: string | null
+          ha_accesso_app: boolean
+          id: string
+          mansione: string | null
+          mezzi: string | null
+          nome: string
+          prossima_scadenza: string | null
+          telefono: string | null
+          tipo_contratto: string | null
+        }[]
+      }
+      manodopera_operaio: { Args: { p_profilo_id: string }; Returns: Json }
+      manodopera_salva_operaio: {
+        Args: { p_company_id: string; p_dati: Json; p_profilo_id: string | null }
+        Returns: string
+      }
       mark_all_notifications_read: {
         Args: { p_company_id: string }
         Returns: undefined

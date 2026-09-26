@@ -240,7 +240,8 @@ const CompanyCustomerDetail = lazy(() => import("@/pages/azienda/CompanyCustomer
 const CashFlowForecast = lazy(() => import("@/pages/azienda/CashFlowForecast"));
 const Warehouse = lazy(() => import("@/pages/azienda/Warehouse"));
 const WarehouseManager = lazy(() => import("@/pages/azienda/WarehouseManager"));
-const MezziList = lazy(() => import("@/pages/azienda/MezziList"));
+const ManodoperaPage = lazy(() => import("@/pages/azienda/manodopera/ManodoperaPage"));
+const OperaioDetail = lazy(() => import("@/pages/azienda/manodopera/OperaioDetail"));
 const MezzoDetail = lazy(() => import("@/pages/azienda/MezzoDetail"));
 const CompanyCosts = lazy(() => import("@/pages/azienda/CompanyCosts"));
 const AnalisiAcquisti = lazy(() => import("@/pages/azienda/AnalisiAcquisti"));
@@ -374,7 +375,6 @@ const DDTRicezioneDetail = lazy(() => import("@/pages/azienda/DDTRicezioneDetail
 const SicurezzaCantiere = lazy(() => import("@/pages/azienda/SicurezzaCantiere"));
 const PosEditor = lazy(() => import("@/pages/azienda/sicurezza/PosEditor"));
 const GiornaleLavori = lazy(() => import("@/pages/azienda/GiornaleLavori"));
-const SubappaltatoriPage = lazy(() => import("@/pages/azienda/SubappaltatoriPage"));
 const SubappaltatoreDetail = lazy(() => import("@/pages/azienda/SubappaltatoreDetail"));
 // MarginalitaCantieri now rendered as tab inside OrdersList — lazy import removed
 const TicketsList = lazy(() => import("@/pages/azienda/TicketsList"));
@@ -612,7 +612,11 @@ export default function CompanyRoutesContainer() {
         <Route path="ordini/:id/modifica" element={withCompanyPermissionOrCommercialista("canEditOrders", <CommercialistaOrderEditGuard><EditOrder /></CommercialistaOrderEditGuard>)} />
         <Route path="magazzino" element={withCompanyPermissionOrCommercialista("canViewWarehouse", <ErrorBoundary title="Errore nel caricamento magazzino"><Warehouse /></ErrorBoundary>)} />
         <Route path="magazzino/gestione" element={withCompanyPermissionOrCommercialista("canEditWarehouse", <CommercialistaWriteGuard fallback="/azienda/magazzino"><WarehouseManager /></CommercialistaWriteGuard>)} />
-        <Route path="mezzi" element={withCompanyPermission("canViewMezzi", <ErrorBoundary title="Errore nel caricamento dei mezzi"><MezziList /></ErrorBoundary>)} />
+        {/* Manodopera e Mezzi (26/09): Operai, Subappaltatori, Mezzi in schede; le
+            vecchie pagine elenco rimandano alla scheda, i dettagli restano. */}
+        <Route path="manodopera" element={<ErrorBoundary title="Errore in Manodopera e Mezzi"><ManodoperaPage /></ErrorBoundary>} />
+        <Route path="manodopera/operai/:id" element={withCompanyPermission("canViewOperai", <ErrorBoundary title="Errore nella scheda dell'operaio"><OperaioDetail /></ErrorBoundary>)} />
+        <Route path="mezzi" element={<Navigate to="/azienda/manodopera?tab=mezzi" replace />} />
         <Route path="mezzi/:id" element={withCompanyPermission("canViewMezzi", <ErrorBoundary title="Errore nella scheda del mezzo"><MezzoDetail /></ErrorBoundary>)} />
         <Route path="calendario" element={withCompanyPermission("canViewCalendar", <ErrorBoundary title="Errore nel caricamento calendario"><Calendar /></ErrorBoundary>)} />
         <Route path="clienti" element={withCompanyPermission("canViewCustomers", <ErrorBoundary title="Errore nel caricamento clienti"><CustomersList /></ErrorBoundary>)} />
@@ -763,7 +767,7 @@ export default function CompanyRoutesContainer() {
         <Route path="sicurezza-cantiere" element={withCompanyPermission("canViewSicurezzaCantiere", <FeatureRoute featureKey="cantieri_avanzati"><SicurezzaCantiere /></FeatureRoute>)} />
         <Route path="sicurezza-cantiere/pos/:id" element={withCompanyPermission("canViewSicurezzaCantiere", <FeatureRoute featureKey="cantieri_avanzati"><ErrorBoundary title="Errore nel POS"><PosEditor /></ErrorBoundary></FeatureRoute>)} />
         <Route path="giornale-lavori" element={withCompanyPermission("canViewGiornaleLavori", <FeatureRoute featureKey="cantieri_avanzati"><GiornaleLavori /></FeatureRoute>)} />
-        <Route path="subappaltatori" element={withCompanyPermission("canViewSubappaltatori", <FeatureRoute featureKey="cantieri_avanzati"><SubappaltatoriPage /></FeatureRoute>)} />
+        <Route path="subappaltatori" element={<Navigate to="/azienda/manodopera?tab=subappaltatori" replace />} />
         <Route path="subappaltatori/:id" element={withCompanyPermission("canViewSubappaltatori", <FeatureRoute featureKey="cantieri_avanzati"><SubappaltatoreDetail /></FeatureRoute>)} />
         <Route path="marginalita" element={<Navigate to="/azienda/ordini?tab=marginalita" replace />} />
         {/* Unified Automazioni page — flow builder visuale + template gallery */}

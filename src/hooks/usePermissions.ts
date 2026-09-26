@@ -19,6 +19,10 @@ export interface Permissions {
   canViewMezzi: boolean;
   /** Modifica dei mezzi: segue la visibilità salvo «Sola lettura» (trigger in DB). */
   canEditMezzi: boolean;
+  /** Operai in Manodopera e Mezzi: elenco, presenze del giorno, scheda. */
+  canViewOperai: boolean;
+  /** Modifica degli operai: segue la visibilità salvo «Sola lettura» (trigger in DB). */
+  canEditOperai: boolean;
   canViewCalendar: boolean;
   canViewCustomers: boolean;
   canEditCustomers: boolean;
@@ -161,6 +165,8 @@ export const STAFF_PERMISSIONS_SELECT_KEYS = [
   "can_edit_warehouse",
   "can_view_mezzi",
   "can_edit_mezzi",
+  "can_view_operai",
+  "can_edit_operai",
   "can_view_calendar",
   "can_view_customers",
   "can_edit_customers",
@@ -256,6 +262,7 @@ const ALL_PERMISSIONS: Permissions = {
   canViewOrderAmounts: true,
   canViewWarehouse: true, canEditWarehouse: true, canViewCalendar: true,
   canViewMezzi: true, canEditMezzi: true,
+  canViewOperai: true, canEditOperai: true,
   canViewCustomers: true, canEditCustomers: true, canViewEmployees: true,
   canViewTickets: true, canEditTickets: true, canViewForecast: true,
   canViewSettings: true, canViewUsers: true,
@@ -307,6 +314,7 @@ const NO_PERMISSIONS: Permissions = {
   canViewOrderAmounts: false,
   canViewWarehouse: false, canEditWarehouse: false, canViewCalendar: false,
   canViewMezzi: false, canEditMezzi: false,
+  canViewOperai: false, canEditOperai: false,
   canViewCustomers: false, canEditCustomers: false, canViewEmployees: false,
   canViewTickets: false, canEditTickets: false, canViewForecast: false,
   canViewSettings: false, canViewUsers: false,
@@ -369,6 +377,8 @@ const COMMERCIALISTA_PERMISSIONS: Permissions = {
   canViewWarehouse: true, canEditWarehouse: false,
   // Il parco mezzi è gestione interna dell'impresa: al commercialista no.
   canViewMezzi: false, canEditMezzi: false,
+  // Presenze e costi degli operai sono gestione interna: al commercialista no.
+  canViewOperai: false, canEditOperai: false,
   canViewCalendar: true,
   canViewCustomers: true, canEditCustomers: false,
   canViewSubappaltatori: true,
@@ -462,6 +472,8 @@ function mapDbRowToPermissions(row: Record<string, unknown> | null | undefined):
     canEditWarehouse:  g("can_edit_warehouse"),
     canViewMezzi:      g("can_view_mezzi"),
     canEditMezzi:      g("can_edit_mezzi"),
+    canViewOperai:     g("can_view_operai"),
+    canEditOperai:     g("can_edit_operai"),
     canViewCalendar:   g("can_view_calendar"),
     canViewCustomers:  g("can_view_customers"),
     canEditCustomers:  g("can_edit_customers"),

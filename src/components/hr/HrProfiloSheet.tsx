@@ -335,6 +335,17 @@ export function HrProfiloSheet({ open, onOpenChange, profilo, allProfili }: Prop
                         </div>
                         <Switch checked={watch("attivo") ?? true} onCheckedChange={(checked) => setValue("attivo", checked)} />
                       </div>
+                      <div className="col-span-2 flex items-center justify-between rounded-md border px-3 py-2 max-sm:order-last">
+                        <div>
+                          <Label htmlFor="hr-lavora-in-cantiere">Lavora in cantiere</Label>
+                          <p className="text-xs text-muted-foreground max-sm:hidden">Compare fra gli operai in Manodopera e Mezzi e si può mettere al lavoro nelle commesse.</p>
+                        </div>
+                        <Switch
+                          id="hr-lavora-in-cantiere"
+                          checked={watch("lavora_in_cantiere") ?? false}
+                          onCheckedChange={(checked) => setValue("lavora_in_cantiere", checked)}
+                        />
+                      </div>
                     </div>
                   </div>
 

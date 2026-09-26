@@ -46,7 +46,6 @@ import {
   SquarePen,
   Star,
   Calculator,
-  Truck,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { ModuleKey } from "@/hooks/useSubscriptionLimits";
@@ -140,9 +139,11 @@ export const macroAreas: MacroArea[] = [
       // "acquisto" dentro Commesse (stessa destinazione a cui puntava questa
       // voce). Doppia porta per lo stesso posto = menu piu' lungo e basta.
       { title: "Magazzino", url: "/azienda/magazzino", icon: Warehouse, permissionKey: "canViewWarehouse", moduleKey: "warehouse" },
-      { title: "Mezzi e attrezzature", url: "/azienda/mezzi", icon: Truck, permissionKey: "canViewMezzi", moduleKey: "mezzi" },
+      // Operai, Subappaltatori e Mezzi in una voce sola, con tre schede (26/09):
+      // ognuna ha il suo permesso, e la voce si vede se almeno una è
+      // disponibile (regola in lib/manodopera/schede, applicata da CompanyLayout).
+      { title: "Manodopera e Mezzi", url: "/azienda/manodopera", icon: HardHat },
       { title: "Clienti", url: "/azienda/clienti", icon: Users, permissionKey: "canViewCustomers", moduleKey: "customers" },
-      { title: "Subappaltatori", url: "/azienda/subappaltatori", icon: HardHat, permissionKey: "canViewSubappaltatori", featureKey: "subappaltatori" },
       { title: "Firma Elettronica", url: "/azienda/firma-elettronica", icon: FileSignature, permissionKey: "canViewFirmaElettronica", featureKey: "firma_fea" },
       // ─── Pianificazione ───
       // Assistenza ora aggrega tutto: ticket di supporto + interventi sul campo.
@@ -293,7 +294,7 @@ export const internalNavItems: NavItem[] = [
   { title: "Dashboard", url: "/azienda", icon: LayoutDashboard, permissionKey: "canViewDashboard", category: "internal", subcategory: "gi_operazioni" },
   { title: "Commesse", url: "/azienda/ordini", icon: ClipboardList, permissionKey: "canViewOrders", moduleKey: "orders", category: "internal", subcategory: "gi_operazioni" },
   { title: "Magazzino", url: "/azienda/magazzino", icon: Warehouse, permissionKey: "canViewWarehouse", moduleKey: "warehouse", category: "internal", subcategory: "gi_operazioni" },
-  { title: "Mezzi e attrezzature", url: "/azienda/mezzi", icon: Truck, permissionKey: "canViewMezzi", moduleKey: "mezzi", category: "internal", subcategory: "gi_operazioni" },
+  { title: "Manodopera e Mezzi", url: "/azienda/manodopera", icon: HardHat, category: "internal", subcategory: "gi_operazioni" },
   { title: "Calendario", url: "/azienda/calendario", icon: CalendarDays, permissionKey: "canViewCalendar", moduleKey: "calendar", category: "internal", subcategory: "gi_operazioni" },
   { title: "Clienti", url: "/azienda/clienti", icon: Users, permissionKey: "canViewCustomers", moduleKey: "customers", category: "internal", subcategory: "gi_supporto" },
   { title: "Ticket Clienti", url: "/azienda/assistenza", icon: HeadphonesIcon, permissionKey: "canViewTickets", moduleKey: "tickets", category: "internal", subcategory: "gi_supporto" },

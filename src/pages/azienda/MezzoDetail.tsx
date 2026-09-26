@@ -80,7 +80,7 @@ export default function MezzoDetail() {
         </p>
         <div className="flex justify-center gap-2">
           {error && <Button variant="outline" onClick={() => refetch()}>Riprova</Button>}
-          <Button asChild><Link to="/azienda/mezzi">Torna ai mezzi</Link></Button>
+          <Button asChild><Link to="/azienda/manodopera?tab=mezzi">Torna ai mezzi</Link></Button>
         </div>
       </div>
     );
@@ -100,7 +100,7 @@ export default function MezzoDetail() {
   return (
     <div className="space-y-3 sm:space-y-4">
       {/* Mobile no: la freccia indietro è già nella barra in alto. */}
-      <Link to="/azienda/mezzi" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground max-sm:hidden">
+      <Link to="/azienda/manodopera?tab=mezzi" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground max-sm:hidden">
         <ArrowLeft className="h-4 w-4" aria-hidden="true" />Mezzi e attrezzature
       </Link>
 
@@ -281,7 +281,7 @@ export default function MezzoDetail() {
             <AlertDialogCancel>Annulla</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => elimina.mutate(mezzo.id, { onSuccess: () => navigate("/azienda/mezzi") })}
+              onClick={() => elimina.mutate(mezzo.id, { onSuccess: () => navigate("/azienda/manodopera?tab=mezzi") })}
             >
               Elimina
             </AlertDialogAction>

@@ -50,6 +50,8 @@ export function useCreateHrProfilo() {
           contatto_emergenza_telefono: data.contatto_emergenza_telefono,
           luogo_nascita: data.luogo_nascita,
           nazionalita: data.nazionalita || "Italiana",
+          // Operaio di cantiere: il database gli crea anche la scheda del costo.
+          lavora_in_cantiere: data.lavora_in_cantiere ?? false,
         } as any)
         .select("id")
         .single();

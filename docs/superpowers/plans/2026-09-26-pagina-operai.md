@@ -76,3 +76,16 @@ Regole: si assegna una **squadra o un operaio** a una **commessa** per **giorni*
 4. Documenti scaduti/DURC: avvisare, non bloccare (proposta).
 5. La ditta dichiara nell'app i suoi uomini con tesserino, facoltativo (proposta).
 6. Personale = HR, Manodopera = cantieri; «Gestione Staff» in Impostazioni sparisce (proposta).
+
+## 6. Stato
+
+- **Fase 0** — fatta e pubblicata il 26/09 (8965d5d3a): una scheda per operaio, presenze che seguono correzioni e cancellazioni, costo orario con i contributi.
+- **Fase 1** — fatta il 26/09, migrazione `20280927101500_manodopera_permesso_operai` applicata e registrata; frontend in commit locale, **non pubblicato** (serve l'ok del founder).
+  - Permesso «Operai» (`can_view_operai`/`can_edit_operai`), acceso a chi vedeva dipendenti o Personale (10 persone) e nel ruolo Ufficio; spento per il commercialista.
+  - Le tabelle del Personale restano chiuse: l'ufficio legge gli operai con `manodopera_operai`, `manodopera_oggi`, `manodopera_operaio` e scrive con `manodopera_salva_operaio` (controllano il permesso, niente IBAN/PIN/contatti privati; stipendio solo a chi modifica).
+  - Menu: «Manodopera e Mezzi» al posto di «Mezzi e attrezzature» e «Subappaltatori»; la voce c'è se almeno una scheda è aperta (`lib/manodopera/schede.ts`, stessa regola per menu e pagina). `/azienda/mezzi` e `/azienda/subappaltatori` rimandano alla scheda; i dettagli restano.
+  - Scheda Operai: «Giornata» (chi è al lavoro, in pausa, uscito, assente, chi non ha timbrato, cantiere timbrato o previsto; giorni precedenti con le frecce; si aggiorna ogni minuto) ed «Elenco» (costo orario, documenti, mezzo, cantieri, app). Scheda operaio `/azienda/manodopera/operai/:id` con presenze di 31 giorni, costo, cantieri, documenti, mezzi, «Dagli l'app» (solo amministratori).
+  - Personale: interruttore «Lavora in cantiere» nella scheda del profilo.
+  - Da sapere: la Demo 2 ha timbrature fino al 25/09 ma giornate calcolate solo fino al 06/09; le ore si contano anche dalle timbrature, quindi la pagina è giusta lo stesso.
+- **Squadre con nome e responsabile** (richiesta del 26/09): nella fase 4; il responsabile può essere della squadra o un'altra persona dell'azienda.
+
