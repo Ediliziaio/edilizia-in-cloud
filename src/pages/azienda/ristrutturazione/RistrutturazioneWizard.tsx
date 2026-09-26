@@ -333,7 +333,7 @@ export default function RistrutturazioneWizard() {
             <Button size="sm" variant="outline" onClick={() => refetch()} className="gap-1">
               <Loader2 className="h-3.5 w-3.5" /> Riprova
             </Button>
-            <Button size="sm" variant="ghost" onClick={() => navigate("/azienda/ristrutturazione")} className="gap-1">
+            <Button size="sm" variant="ghost" onClick={() => navigate("/azienda/marketing/preventivi")} className="gap-1">
               <ArrowLeft className="h-3.5 w-3.5" /> Torna ai progetti
             </Button>
           </div>
@@ -397,7 +397,7 @@ export default function RistrutturazioneWizard() {
             <AlertDialogCancel>Continua a compilare</AlertDialogCancel>
             <AlertDialogAction
               className="bg-slate-500 hover:bg-slate-600"
-              onClick={() => navigate("/azienda/ristrutturazione")}
+              onClick={() => navigate("/azienda/marketing/preventivi")}
             >
               Esci senza salvare
             </AlertDialogAction>
@@ -410,7 +410,7 @@ export default function RistrutturazioneWizard() {
                   toast.error("Salvataggio bozza fallito", { description: e instanceof Error ? e.message : undefined });
                   return;
                 }
-                navigate("/azienda/ristrutturazione");
+                navigate("/azienda/marketing/preventivi");
               }}
             >
               Salva bozza ed esci
@@ -425,7 +425,7 @@ export default function RistrutturazioneWizard() {
           attaccata alla barra dell'app. */}
       <div className="sticky top-0 z-30 border-b bg-background/95 shadow-sm backdrop-blur max-md:-mx-3 max-md:-mt-3 max-md:-top-3 md:-top-6">
         <div className="container mx-auto flex max-w-6xl items-center gap-2 p-2.5 sm:gap-3 sm:p-3">
-          <Button variant="ghost" size="icon" onClick={() => { if (isNew && dirty) { setExitDialogOpen(true); return; } navigate("/azienda/ristrutturazione"); }} className="h-10 w-10 shrink-0">
+          <Button variant="ghost" size="icon" onClick={() => { if (isNew && dirty) { setExitDialogOpen(true); return; } navigate("/azienda/marketing/preventivi"); }} className="h-10 w-10 shrink-0">
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className="flex-1 min-w-0">
