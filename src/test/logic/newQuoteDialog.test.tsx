@@ -97,7 +97,7 @@ describe("popup unico di creazione preventivi", () => {
   it("apre ogni intervento Serramenti col suo modello, e resta il preventivo generale", () => {
     // Dal 25/09/2026 anche avvolgibili, zanzariere e porte (prima solo tre su sette).
     mount("area=serramenti");
-    expect(screen.getAllByRole("link", { name: /^Apri preventivatore/ })).toHaveLength(7);
+    expect(screen.getAllByRole("link", { name: /^Apri preventivatore/ })).toHaveLength(9);
     expect(screen.queryByLabelText(/^Intervento non disponibile/)).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: /^Apri preventivatore Zanzariere/ })).toHaveAttribute("href", "/azienda/serramenti/nuovo?modello=zanzariere");
     expect(screen.getByRole("link", { name: /^Preventivo Serramenti generale/ })).toHaveAttribute("href", "/azienda/serramenti/nuovo");

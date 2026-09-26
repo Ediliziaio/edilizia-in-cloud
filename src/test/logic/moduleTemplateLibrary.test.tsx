@@ -102,7 +102,7 @@ describe("libreria completa dei moduli", () => {
   it("distingue edizioni complete, copie vecchie e modelli ancora essenziali", () => {
     saveLocalSerramentiTemplate("company-a", "finestre", createSerramentiModuleTemplate({ company_id: "company-a" }, "finestre"), null);
     mount("&modulo=serramenti");
-    expect(screen.getAllByText("PDF con pagine dedicate")).toHaveLength(7);
+    expect(screen.getAllByText("PDF con pagine dedicate")).toHaveLength(9);
     expect(screen.queryAllByText("Edizione essenziale · da completare")).toHaveLength(0);
     expect(screen.getByText("Edizione completa disponibile · aggiorna la copia")).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "Copertina illustrativa — Avvolgibili e cassonetti" })).toHaveAttribute("src", "/module-art/serramenti-avvolgibili-cover.jpg");

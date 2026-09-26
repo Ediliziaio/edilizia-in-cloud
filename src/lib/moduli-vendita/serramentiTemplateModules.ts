@@ -44,6 +44,18 @@ export const SERRAMENTI_TEMPLATE_MODULES = [
     works: ["Rilievo coordinato delle aperture", "Fornitura dei prodotti elencati per vano", "Installazione delle componenti previste", "Verifica delle aperture e delle interferenze"],
     excluded: "Ogni prodotto è incluso soltanto nei vani indicati. Lavorazioni comuni e ripristini devono essere esplicitati, evitando duplicazioni di costo.",
     question: "Tutti i vani avranno gli stessi prodotti?", answer: "Non necessariamente. Il riepilogo deve associare a ciascun vano i prodotti scelti e separare le lavorazioni comuni dalle singole forniture.", sample: "Finestra a due ante", price: 950 },
+  { id: "portoni-garage", title: "Portoni garage", subtitle: "Il garage, aperto con un gesto.", color: "#3a4a58",
+    summary: "Sezionale, basculante o scorrevole, con motore e sicurezze definiti.",
+    needs: ["Scegliere il tipo adatto al vano", "Motorizzare in sicurezza", "Definire coibentazione e tenuta"],
+    works: ["Rilievo del vano e dello spazio interno", "Fornitura del portone descritto", "Installazione di guide, motore e sicurezze", "Regolazione, prova e sblocco manuale"],
+    excluded: "Opere murarie, controtelaio, linea elettrica dedicata e automazioni smart sono inclusi solo se elencati. Le sicurezze del movimento vanno previste secondo le regole in vigore.",
+    question: "È compresa la motorizzazione?", answer: "Solo se elencata. Motore, telecomandi, fotocellule, bordo sensibile e collegamento elettrico si specificano e si quotano; lo sblocco manuale è parte della configurazione.", sample: "Portone sezionale coibentato motorizzato", price: 1650 },
+  { id: "grate", title: "Grate e inferriate", subtitle: "Sicurezza alle aperture, senza rinunciare alla luce.", color: "#4a4038",
+    summary: "Fisse o apribili, con via di fuga e ancoraggio verificati.",
+    needs: ["Proteggere finestre e accessi", "Mantenere una via di fuga dove serve", "Fissare su un supporto solido"],
+    works: ["Rilievo di vani e supporti", "Fornitura delle grate descritte", "Installazione degli ancoraggi previsti", "Prova di apertura, chiusura e sblocco interno"],
+    excluded: "Ripristini murari attorno ai fissaggi e opere sul cappotto sono inclusi solo se elencati. Nessuna classe antieffrazione è presunta: va documentata per il prodotto scelto.",
+    question: "Le grate sono antieffrazione certificate?", answer: "La sola presenza non basta: una classe certificata va documentata per prodotto e posa. Sulle vie di fuga si prevede l'apertura dall'interno senza chiave.", sample: "Grata apribile a battente", price: 480 },
 ] as const;
 export type SerramentiTemplateModuleId = typeof SERRAMENTI_TEMPLATE_MODULES[number]["id"];
 export const findSerramentiTemplateModule = (id: string | null | undefined) => SERRAMENTI_TEMPLATE_MODULES.find(m => m.id === id);

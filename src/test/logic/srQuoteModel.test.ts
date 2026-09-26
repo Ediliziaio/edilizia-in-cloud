@@ -82,7 +82,7 @@ describe("model-specific catalog suggestions", () => {
     // 25/09/2026: anche avvolgibili, zanzariere e porte aprono il preventivatore.
     // Il modello suggerisce, non limita: chi parte da «finestre» aggiunge anche porte
     // o zanzariere da «Tutto il listino dell'area» o dalla ricerca.
-    expect(SR_OPERATIONAL_MODELS).toHaveLength(7);
+    expect(SR_OPERATIONAL_MODELS).toHaveLength(9);
     expect(suggestedModelTypes(types, "avvolgibili").map(t => t.standard?.nome)).toEqual(["Tapparelle", "Cassonetti", "Accessori"]);
     expect(suggestedModelTypes(types, "zanzariere").map(t => t.standard?.nome)).toEqual(["Zanzariere"]);
     expect(suggestedModelTypes(types, "porte-ingresso").map(t => t.standard?.nome)).toEqual(["Porte blindate"]);

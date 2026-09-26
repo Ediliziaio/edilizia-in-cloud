@@ -59,6 +59,8 @@ export const FULL_MODULE_COVERS: Readonly<Record<string, string>> = {
   "serramenti/porte-ingresso": "/module-art/serramenti-porte-ingresso-cover.jpg",
   "serramenti/porte-interne": "/module-art/serramenti-porte-interne-cover.jpg",
   "serramenti/combinato": "/module-art/serramenti-combinato-cover-v3.jpg",
+  "serramenti/portoni-garage": "/pdf-stock/serramenti/installazione.jpg",
+  "serramenti/grate": "/pdf-stock/serramenti/risultato.jpg",
   "tetti/ripasso": "/module-art/tetti.jpg",
   "tetti/rifacimento": "/module-art/tetti.jpg",
   "tetti/riparazioni": "/module-art/tetti-riparazioni-cover.jpg",

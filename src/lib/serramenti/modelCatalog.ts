@@ -12,6 +12,10 @@ const SUGGESTED_TYPES: Record<SrQuoteModelId, readonly string[]> = {
   "porte-ingresso": ["Porte blindate"],
   "porte-interne": ["Porte da interno"],
   combinato: ["Serramenti", "Persiane e scuri", "Zanzariere", "Tapparelle", "Cassonetti"],
+  // Portoni e grate non hanno una tipologia dedicata nella tassonomia standard:
+  // si parte dal bucket generico e si aggiunge dal listino completo dell'area.
+  "portoni-garage": ["Serramenti"],
+  grate: ["Serramenti"],
 };
 export function suggestedModelTypes(types: TipologiaListino[], modelId?: SrQuoteModelId): TipologiaListino[] {
   if (!modelId) return [];

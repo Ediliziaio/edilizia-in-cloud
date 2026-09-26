@@ -26,6 +26,8 @@ export const SALES_AREAS: readonly SalesArea[] = [
     intervention("porte-ingresso", "Porte d'ingresso e blindate", "Ingresso, chiusure e rivestimenti personalizzati.", "Dimensioni e apertura", "Prestazioni e serratura", "Rivestimenti e accessori", "Rimozione e posa"),
     intervention("porte-interne", "Porte interne", "Porte a battente, scorrevoli e relativi accessori.", "Vano e misure", "Apertura e telaio", "Finiture e maniglie", "Posa e ripristini"),
     intervention("combinato", "Intervento combinato", "Struttura prevista per riunire più lavorazioni della stessa area in una sola offerta.", "Interventi da includere", "Abbinamenti per vano", "Lavorazioni comuni", "Riepilogo unico"),
+    intervention("portoni-garage", "Portoni garage", "Sezionale, basculante o scorrevole con motore e sicurezze.", "Vano e spazio interno", "Tipo e pannelli", "Motore e sicurezze", "Posa e sblocco manuale"),
+    intervention("grate", "Grate e inferriate", "Grate fisse o apribili per la sicurezza delle aperture.", "Vani e accessi", "Fissa o apribile", "Disegno e serratura", "Ancoraggi e posa"),
   ] },
   { id: "tetti", title: "Tetti", sourceModule: "tetti", summary: "Rifacimenti, ripasso, isolamento e manutenzione delle coperture.", interventions: [
     intervention("rifacimento", "Rifacimento completo del tetto", "Dalla rimozione della copertura alla nuova stratigrafia.", "Superficie e geometria", "Stratigrafia e manto", "Demolizioni e smaltimenti", "Accessi e opere provvisionali"),
