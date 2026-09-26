@@ -28,6 +28,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.4";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { getToolsForChannel, TOOL_CONTRACT_LEGEND, toolsToOpenAISpec } from "../_shared/silvioTools.ts";
 import { executeToolsParallel } from "../_shared/silvioToolExecution.ts";
+import { ruoliNellAzienda } from "../_shared/amministraAzienda.ts";
+import { ruoloPrincipaleSilvio } from "../_shared/ruoloSilvio.ts";
 // 🛡️ Anti chain-of-thought leak — strip tool names + opener narrativi prima
 // di rispondere su Telegram.
 import { sanitizeAnswer } from "../_shared/structuredOutput.ts";
@@ -222,7 +224,7 @@ Deno.serve(async (req) => {
   }
 
   // ── AI processing con loop tool calling ──
-  const userRole = await getUserRole(supabase, mapping.user_id);
+  const userRole = await getUserRole(supabase, mapping.user_id, mapping.company_id);
   const personaKey = (mapping.active_persona_key as string) || botConfig.default_persona_key || "silvio";
 
   // Carica history (ultimi N messaggi)
@@ -468,14 +470,17 @@ async function verifyCode(supabase: any, mappingId: string, code: string): Promi
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getUserRole(supabase: any, userId: string | null): Promise<string> {
+async function getUserRole(supabase: any, userId: string | null, companyId: string): Promise<string> {
   if (!userId) return "guest";
-  const { data } = await supabase
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", userId)
-    .maybeSingle();
-  return data?.role ?? "company_staff";
+  // Il ruolo nell'azienda del bot (26/09/2026): i ruoli globali facevano
+  // dell'amministratore della propria azienda un amministratore anche nel bot
+  // di un'azienda dove era entrato come staff. Stessa scala della chat.
+  // (Prima .maybeSingle() andava anche in errore con più ruoli.)
+  const ruoli = await ruoliNellAzienda(supabase, userId, companyId);
+  // Nessun ruolo in questa azienda (utente bloccato, o accesso revocato):
+  // "guest" — solo gli strumenti aperti a tutti. Prima il ripiego era
+  // "company_staff", che avrebbe dato gli strumenti da staff a chi non li ha.
+  return ruoli.length > 0 ? ruoloPrincipaleSilvio(ruoli) : "guest";
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

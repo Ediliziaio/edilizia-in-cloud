@@ -5,7 +5,7 @@ import { emailCredenziali } from "../_shared/emailCredenziali.ts";
 
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { buildStaffPermissionsRecord } from "../_shared/staffPermissionsDefaults.ts";
-import { aziendaAccessibile } from "../_shared/auth.ts";
+import { amministraAzienda } from "../_shared/amministraAzienda.ts";
 import { messaggioErroreAuth } from "../_shared/authErrorMessage.ts";
 
 interface CreateEmployeeUserRequest {
@@ -67,7 +67,10 @@ Deno.serve(async (req) => {
     // Il confronto era con l'azienda scritta nel profilo: chi era entrato in una
     // seconda azienda dal selettore si vedeva rifiutare la creazione, pur
     // essendone amministratore a tutti gli effetti.
-    if (!isSuperAdmin && !(await aziendaAccessibile(supabaseAdmin, caller.id, employee.company_id))) {
+    // 26/09/2026: e ne dev'essere AMMINISTRATORE. Il ruolo company_admin non
+    // ha azienda: l'amministratore della propria azienda, entrato in un'altra
+    // come staff, lì creava account con password e permessi a sua scelta.
+    if (!isSuperAdmin && !(await amministraAzienda(supabaseAdmin, caller.id, employee.company_id))) {
       throw new Error("Permessi insufficienti");
     }
 

@@ -17,6 +17,7 @@
  * azioni che scrivono non deve essere in sola lettura.
  */
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { amministraAzienda } from "../_shared/amministraAzienda.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { extractJsonFromLLM } from "../_shared/extractJson.ts";
@@ -41,7 +42,10 @@ async function verificaPermesso(db: Db, userId: string, companyId: string, scriv
     .from("staff_permissions").select("sola_lettura").eq("user_id", userId).eq("company_id", companyId).maybeSingle();
   if (sp?.sola_lettura === true) {
     const { data: ruoli } = await db.from("user_roles").select("role").eq("user_id", userId);
-    const admin = (ruoli ?? []).some((r: { role: string }) => r.role === "company_admin" || r.role === "super_admin");
+    const superAdmin = (ruoli ?? []).some((r: { role: string }) => r.role === "super_admin");
+    // L'amministratore di QUESTA azienda (26/09/2026): prima bastava esserlo di
+    // un'azienda qualsiasi per superare la sola lettura anche qui.
+    const admin = superAdmin || (await amministraAzienda(db, userId, companyId));
     if (!admin) throw errorResponse("Sei in sola lettura: non puoi creare né approvare un POS", 403, cors);
   }
 }

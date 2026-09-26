@@ -52,10 +52,14 @@ const TUTTI = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
 // Le istruzioni senza i commenti, che raccontano anche com'era prima.
 const codice = (sql: string) => sql.replace(/--.*$/gm, "");
 
-/** ogni CREATE POLICY … ; con nome e testo */
+/**
+ * Ogni CREATE POLICY … ; con nome e testo. Maiuscolo o minuscolo, tabella con o
+ * senza schema: le migrazioni recenti scrivono quasi tutte `create policy x on
+ * tabella` in minuscolo, e il guardiano in fondo deve vederle.
+ */
 function policy(sql: string): { nome: string; tabella: string; testo: string }[] {
   const out: { nome: string; tabella: string; testo: string }[] = [];
-  const re = /CREATE POLICY ("[^"]+"|\w+) ON (\w+\.\w+)([\s\S]*?);\n/g;
+  const re = /create\s+policy\s+("[^"]+"|\w+)\s+on\s+((?:\w+\.)?\w+)([\s\S]*?);[ \t]*(?:\n|$)/gi;
   let m: RegExpExecArray | null;
   while ((m = re.exec(codice(sql)))) out.push({ nome: m[1].replace(/"/g, ""), tabella: m[2], testo: m[3] });
   return out;
@@ -290,6 +294,14 @@ describe("guardiano", () => {
         .map((p) => `${f}: ${p.nome}`),
     );
     expect(colpevoli, "usare e_amministratore_di(azienda) o company_id IN (SELECT unnest(aziende_amministrate()))").toEqual([]);
+  });
+
+  it("il guardiano legge anche le policy scritte in minuscolo e senza schema", () => {
+    const minuscolo = "create policy x on quotes for select to authenticated\n  using (has_role(auth.uid(), 'company_admin'::app_role));\n";
+    const trovate = policy(minuscolo);
+    expect(trovate).toHaveLength(1);
+    expect(trovate[0].tabella).toBe("quotes");
+    expect(ADMIN_SENZA_AZIENDA(trovate[0].testo)).toBe(true);
   });
 
   it("il guardiano riconosce il ruolo nudo e lascia passare il grado dell'accesso", () => {

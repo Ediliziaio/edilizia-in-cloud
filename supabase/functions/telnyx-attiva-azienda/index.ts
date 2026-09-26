@@ -6,6 +6,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/headers.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { richiediAmministratoreAzienda } from "../_shared/amministraAzienda.ts";
 
 interface RequestBody { company_id: string }
 interface TelnyxAttivaResponse { success: boolean; telnyx_account_id: string }
@@ -35,7 +36,10 @@ Deno.serve(async (req: Request) => {
     // SEC (P0): solo un membro della company (admin) può attivarla — no cross-tenant
     try {
       const { userId } = await requireAuth(req, corsHeaders);
-      await requireCompanyAccess(adminClient, userId, company_id, corsHeaders, { allowedRoles: ["company_admin", "super_admin"] });
+      // Amministratore di QUESTA azienda (26/09/2026): il ruolo globale da solo
+      // faceva attivare l'account anche a chi qui è entrato come staff.
+      const accesso = await requireCompanyAccess(adminClient, userId, company_id, corsHeaders);
+      await richiediAmministratoreAzienda(adminClient, userId, company_id, corsHeaders, accesso);
     } catch (e) {
       if (e instanceof Response) return e;
       throw e;

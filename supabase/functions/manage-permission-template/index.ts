@@ -10,7 +10,7 @@ Deno.serve(async (req) => {
   const corsH = getCorsHeaders(req);
   try {
     const { userId, supabaseAdmin } = await requireAuth(req, corsH);
-    await requireRole(supabaseAdmin, userId, ["company_admin", "super_admin"], corsH);
+    const ruolo = await requireRole(supabaseAdmin, userId, ["company_admin", "super_admin"], corsH);
 
     const body = await req.json();
     const { action } = body; // list, create, update, delete, apply
@@ -22,8 +22,10 @@ Deno.serve(async (req) => {
       .eq("id", userId)
       .single();
 
-    // Super admins can pass company_id explicitly for impersonation
-    const companyId = profile?.company_id || body.company_id;
+    // Super admins can pass company_id explicitly for impersonation.
+    // Solo loro (26/09/2026): un company_admin senza azienda nel profilo
+    // passava qualunque company_id.
+    const companyId = profile?.company_id || (ruolo === "super_admin" ? body.company_id : null);
 
     if (!companyId) {
       return new Response(JSON.stringify({ error: "No company found" }), {
