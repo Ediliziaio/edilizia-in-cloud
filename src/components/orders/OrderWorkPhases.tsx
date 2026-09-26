@@ -52,6 +52,8 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { OrderLaborCosts } from "@/components/orders/OrderLaborCosts";
 import { AppCantiere } from "@/components/orders/AppCantiere";
+import { CantiereLogistica } from "@/components/orders/CantiereLogistica";
+import { useMezziLavoro, type MezzoDellaPersona } from "@/hooks/useCantiereLogistica";
 import { AZIONE_PIENA, AZIONE_TENUE } from "@/lib/manodopera/colori";
 import { CreatePurchaseOrderButton } from "@/components/orders/CreatePurchaseOrderButton";
 import { Button } from "@/components/ui/button";
@@ -140,6 +142,15 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports }: OrderWork
   const operaiInSquadra = new Set(squadreAttive.flatMap((x) => x.componenti.map((c) => c.id))).size;
   const squadreGenerali = squadre.filter((x) => !x.phase_id);
   const nomiSquadre = useMemo(() => new Map(squadre.map((x) => [x.squadra_id, x.nome])), [squadre]);
+  // I mezzi di chi lavora su una fase stanno dentro la fase.
+  const { data: mezziLavoro } = useMezziLavoro(orderId);
+  const mezziPerFase = useMemo(() => {
+    const m = new Map<string, MezzoDellaPersona[]>();
+    for (const x of mezziLavoro?.con_le_persone ?? []) {
+      for (const f of x.fasi ?? []) m.set(f, [...(m.get(f) ?? []), x]);
+    }
+    return m;
+  }, [mezziLavoro]);
   // Per ogni fase: le sue squadre e le sue note (una lettura sola per tutte le fasi).
   const squadrePerFase = useMemo(() => {
     const m = new Map<string, SquadraInCommessa[]>();
@@ -462,6 +473,9 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports }: OrderWork
       </CardHeader>
 
       <CardContent className="space-y-5 px-3 pb-3 sm:px-6 sm:pb-6">
+        {/* Dove si trova, quanta strada dalla sede, mezzi e attrezzi */}
+        <CantiereLogistica orderId={orderId} />
+
         {/* Commessa appena aperta: tre passi, invece di tre riquadri vuoti. */}
         {!isLoading && !isError && phases.length === 0 && unassigned.length === 0 && squadre.length === 0 && (
           <GuidaCantiere
@@ -554,6 +568,7 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports }: OrderWork
                 onDeleteAssignment={(id, source) => deleteAssignment.mutateAsync({ id, source })}
                 squadreFase={squadrePerFase.get(phase.id) ?? []}
                 noteFase={notePerFase.get(phase.id)?.length ?? 0}
+                mezziFase={mezziPerFase.get(phase.id) ?? []}
                 puoSquadre={puoSquadre}
                 fasiOpzioni={phaseOptions}
               />
@@ -668,6 +683,8 @@ interface PhaseCardProps {
   squadreFase: SquadraInCommessa[];
   /** Quante note per gli operai su questa fase. */
   noteFase: number;
+  /** Mezzi e attrezzi di chi lavora su questa fase. */
+  mezziFase: MezzoDellaPersona[];
   puoSquadre: boolean;
   fasiOpzioni: { id: string; name: string }[];
 }
@@ -692,6 +709,7 @@ function PhaseCard({
   onDeleteAssignment,
   squadreFase,
   noteFase,
+  mezziFase,
   puoSquadre,
   fasiOpzioni,
 }: PhaseCardProps) {
@@ -1058,6 +1076,23 @@ function PhaseCard({
                   )}
                 </div>
               </div>
+
+              {/* ── Mezzi e attrezzi di chi fa la fase ── */}
+              {mezziFase.length > 0 && (
+                <div className="flex flex-wrap items-start gap-2">
+                  <span className="w-24 shrink-0 pt-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground max-sm:w-full max-sm:pt-0">
+                    Mezzi
+                  </span>
+                  <div className="flex min-w-0 flex-1 flex-wrap gap-1.5">
+                    {mezziFase.map((m) => (
+                      <span key={m.id} className={cn("inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs", AZIONE_TENUE.mezzo)}>
+                        <b className="font-semibold">{m.nome}</b>
+                        <span className="opacity-80">· {m.persona}{m.a_bordo.length > 0 ? `, con ${m.a_bordo.join(", ")}` : ""}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* ── Note per gli operai di questa fase ── */}
               <div className="flex flex-wrap items-start gap-2">

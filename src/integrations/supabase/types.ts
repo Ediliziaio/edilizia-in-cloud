@@ -100547,6 +100547,7 @@ export type Database = {
         Args: { p_order_id: string; p_user_id: string | null }
         Returns: undefined
       }
+      commessa_mezzi_lavoro: { Args: { p_order_id: string }; Returns: Json }
       commessa_salva: {
         Args: {
           p_bonus?: Json

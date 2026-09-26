@@ -26,6 +26,10 @@ vi.mock("@/hooks/useOrderWorkPhases", () => ({
   }),
 }));
 vi.mock("@/components/orders/OrderLaborCosts", () => ({ OrderLaborCosts: ({ editable, parte }: { editable: boolean; parte?: string }) => <div>Ditte {parte} {editable ? "modificabili" : "sola lettura"}</div> }));
+vi.mock("@/components/orders/CantiereLogistica", () => ({ CantiereLogistica: () => <div>Il cantiere</div> }));
+vi.mock("@/hooks/useCantiereLogistica", () => ({ useMezziLavoro: () => ({ data: { sul_cantiere: [], con_le_persone: [
+  { id: "m1", nome: "Ducato bianco", tipo: "furgone", targa: "GF 482 KD", persona: "Luca Ferrari", fasi: ["p1"], a_bordo: ["Livella laser"], altrove: null },
+] } }) }));
 vi.mock("@/components/orders/AppCantiere", () => ({ AppCantiere: ({ modificabile }: { modificabile: boolean }) => <div>Nell'app {modificabile ? "capocantiere modificabile" : "sola lettura"}</div> }));
 vi.mock("@/components/orders/CreatePurchaseOrderButton", () => ({ CreatePurchaseOrderButton: () => <button>Crea OdA</button> }));
 // Squadre della commessa (26/09): qui conta il blocco delle lavorazioni.
@@ -185,6 +189,12 @@ describe("Lavorazioni e squadra", () => {
     expect(screen.getByText("Squadre della fase")).toBeInTheDocument();
     expect(screen.getByText("Note della fase p1")).toBeInTheDocument();
     expect(screen.getByText("Note della commessa")).toBeInTheDocument();
+    // i mezzi di chi fa la fase stanno nella fase
+    expect(screen.getByText("Mezzi")).toBeInTheDocument();
+    expect(screen.getByText("Ducato bianco")).toBeInTheDocument();
+    expect(screen.getByText("· Luca Ferrari, con Livella laser")).toBeInTheDocument();
+    // e in cima c'è il cantiere: indirizzo, strada dalla sede, mezzi
+    expect(screen.getByText("Il cantiere")).toBeInTheDocument();
   });
   it("una commessa vuota mostra i tre passi invece dei riquadri vuoti", () => {
     state.phases = []; state.unassigned = []; draw();
