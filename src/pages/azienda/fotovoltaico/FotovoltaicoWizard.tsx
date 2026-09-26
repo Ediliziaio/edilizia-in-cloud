@@ -1923,9 +1923,10 @@ function FotovoltaicoWizard() {
         }
       />
 
-      {intervento && <section className="mx-auto w-full max-w-6xl space-y-1 px-4 pt-4" aria-label={`Intervento ${intervento.title}`}>
-        <p className="font-semibold">Preventivo · {intervento.title}</p>
-        <p className="text-sm text-muted-foreground">{intervento.summary} Il PDF usa il modello dell'azienda per questo intervento{progettoId ? ", conservato nel preventivo" : ""}.</p>
+      {/* Telefono: niente testata dell'intervento; resta solo l'avviso, se c'è. */}
+      {intervento && <section className={`mx-auto w-full max-w-6xl space-y-1 px-4 pt-4 max-sm:space-y-0 max-sm:px-0 max-sm:pt-0 max-sm:pb-3${!progettoId && !modelSupport.supported ? "" : " max-sm:hidden"}`} aria-label={`Intervento ${intervento.title}`}>
+        <p className="font-semibold max-sm:hidden">Preventivo · {intervento.title}</p>
+        <p className="text-sm text-muted-foreground max-sm:hidden">{intervento.summary} Il PDF usa il modello dell'azienda per questo intervento{progettoId ? ", conservato nel preventivo" : ""}.</p>
         {!progettoId && !modelSupport.supported && <p role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm">{modelSupport.isLoading ? "Verifica del salvataggio…" : "Percorso predisposto: il salvataggio richiede ancora l'attivazione del database. Non inserire dati finché il collegamento non è attivo."}</p>}
       </section>}
 

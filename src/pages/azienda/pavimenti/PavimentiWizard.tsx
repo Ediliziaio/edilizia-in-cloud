@@ -351,7 +351,8 @@ export default function PavimentiWizard() {
 
   return (
     <div className="pb-28 md:pb-20">
-      {model && <section className="mx-auto max-w-6xl space-y-2 p-4"><h1 className="text-xl font-semibold">Preventivo · {model.title}</h1><p className="text-sm text-muted-foreground">{model.summary}</p><p className="text-xs">Cliente → Immobile → Lavorazioni e prodotti → Prezzi e sconti → PDF dell'intervento</p>
+      {/* Telefono: niente testata del modello (il nome è nel passo dell'intervento); resta solo l'avviso, se c'è. */}
+      {model && <section className={cn("mx-auto max-w-6xl space-y-2 p-4 max-sm:space-y-0 max-sm:p-0 max-sm:pb-3", !(isNew && !modelSupport.supported) && "max-sm:hidden")}><div className="space-y-2 max-sm:hidden"><h1 className="text-xl font-semibold">Preventivo · {model.title}</h1><p className="text-sm text-muted-foreground">{model.summary}</p><p className="text-xs">Cliente → Immobile → Lavorazioni e prodotti → Prezzi e sconti → PDF dell'intervento</p></div>
         {isNew && !modelSupport.supported && <p role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm">{modelSupport.isLoading ? "Verifica del salvataggio…" : "Percorso predisposto: il salvataggio richiede ancora l'attivazione del database. Non inserire dati finché il collegamento non è attivo."}</p>}
       </section>}
       {/* Sticky header */}

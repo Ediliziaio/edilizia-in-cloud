@@ -58,11 +58,12 @@ export function FullElectricEconomia({ dati, onChange, prezzoIvaInclusa, ivaPct 
         <CardTitle className="flex items-center gap-1.5 text-sm">
           <Zap className="h-4 w-4 text-orange-600" /> Casa Full Electric
         </CardTitle>
-        <p className="text-[11px] text-muted-foreground">
+        {/* Telefono: niente spiegazione, i campi e il riquadro verde bastano. */}
+        <p className="text-[11px] text-muted-foreground max-sm:hidden">
           Energia e bollette non le calcola il preventivo: scrivile dal tuo software o dalla simulazione. Il prezzo è quello del preventivo, IVA inclusa: {euro(prezzoIvaInclusa)}.
         </p>
       </CardHeader>
-      <CardContent className="space-y-5">
+      <CardContent className="space-y-5 max-sm:space-y-4">
         {/* In cima: è quello che si guarda mentre si scrivono prezzo e stime. */}
         <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
           <p className="text-xs font-semibold text-emerald-900">Cosa ottiene il cliente</p>
@@ -94,7 +95,7 @@ export function FullElectricEconomia({ dati, onChange, prezzoIvaInclusa, ivaPct 
                 aria-pressed={presenti.has(t)}
                 onClick={() => alterna(t)}
                 className={cn(
-                  "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                  "tap-compact rounded-full border px-3 py-1 text-xs font-medium transition-colors max-md:h-8",
                   presenti.has(t) ? "border-orange-300 bg-orange-50 text-orange-800" : "border-slate-200 bg-white text-slate-600 hover:border-orange-200",
                 )}
               >
@@ -110,7 +111,7 @@ export function FullElectricEconomia({ dati, onChange, prezzoIvaInclusa, ivaPct 
                   onBlur={(e) => e.target.value.trim() !== p.titolo && aggiornaPezzo(p.tipo, { titolo: e.target.value.trim() || COMPONENTI_FULL_ELECTRIC[p.tipo] })} />
               </div>
               <div className="space-y-1">
-                <Label htmlFor={`fe-${p.tipo}-dettaglio`} className="text-[11px] text-muted-foreground">Dettaglio (modello, potenza…)</Label>
+                <Label htmlFor={`fe-${p.tipo}-dettaglio`} className="text-[11px] text-muted-foreground max-sm:sr-only">Dettaglio (modello, potenza…)</Label>
                 <Input id={`fe-${p.tipo}-dettaglio`} defaultValue={p.dettaglio} placeholder="Es. 14 moduli da 430 W" className="h-8 text-xs"
                   onBlur={(e) => e.target.value.trim() !== p.dettaglio && aggiornaPezzo(p.tipo, { dettaglio: e.target.value.trim() })} />
               </div>
@@ -137,7 +138,8 @@ export function FullElectricEconomia({ dati, onChange, prezzoIvaInclusa, ivaPct 
             <CampoNumero id="fe-prezzo-immissione" etichetta="Energia venduta alla rete" valore={dati.prezzo_immissione} suffisso="€/kWh" onCommit={(v) => cambia({ prezzo_immissione: Math.max(0, v ?? 0) })} />
             <CampoNumero id="fe-quota-fissa" etichetta="Quote fisse della luce" valore={dati.quota_fissa || null} suffisso="€/anno" onCommit={(v) => cambia({ quota_fissa: Math.max(0, v ?? 0) })} />
           </div>
-          <p className="text-[11px] text-muted-foreground">
+          {/* Telefono no: bollette e copertura sono già nel riquadro verde in cima. */}
+          <p className="text-[11px] text-muted-foreground max-sm:hidden">
             {`Con questi numeri: ${kwh(r.energia.autoconsumo)} dal tetto, ${kwh(r.energia.dallaRete)} dalla rete, ${kwh(r.energia.immessa)} venduti. Bolletta di domani ${euro(r.bollette.domani.totale)} contro ${euro(r.bollette.oggi.totale)} di oggi.`}
           </p>
           {senzaProduzione || oltreIConsumi ? (

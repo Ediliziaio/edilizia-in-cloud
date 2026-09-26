@@ -468,14 +468,19 @@ export default function QuoteDetail() {
       />
 
       {rigaDiModulo && (
-        <div role="status" className="flex flex-col gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950 sm:flex-row sm:items-center sm:justify-between">
-          <p>
-            Questa è la copia di firma di un preventivo {moduloDellaRiga ? <strong>{moduloDellaRiga.nome}</strong> : "di un modulo"}:
-            voci, prezzi e commessa si gestiscono dal preventivo del modulo.
+        // Telefono: una riga sola, testo breve e «Apri».
+        <div role="status" className="flex flex-col gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950 sm:flex-row sm:items-center sm:justify-between max-sm:flex-row max-sm:items-center max-sm:gap-2 max-sm:p-2 max-sm:text-xs">
+          <p className="max-sm:min-w-0 max-sm:flex-1">
+            <span className="max-sm:hidden">
+              Questa è la copia di firma di un preventivo {moduloDellaRiga ? <strong>{moduloDellaRiga.nome}</strong> : "di un modulo"}:
+              voci, prezzi e commessa si gestiscono dal preventivo del modulo.
+            </span>
+            <span className="sm:hidden">Copia di firma: si modifica dal preventivo {moduloDellaRiga?.nome ?? "del modulo"}.</span>
           </p>
           {moduloDellaRiga && (
-            <Button variant="outline" className="h-9 shrink-0 bg-white" onClick={() => navigate(moduloDellaRiga.href)}>
-              Apri il preventivo {moduloDellaRiga.nome}
+            <Button variant="outline" className="tap-compact h-9 shrink-0 bg-white max-sm:h-8 max-sm:px-3 max-sm:text-xs" onClick={() => navigate(moduloDellaRiga.href)}>
+              <span className="max-sm:hidden">Apri il preventivo {moduloDellaRiga.nome}</span>
+              <span className="sm:hidden">Apri</span>
             </Button>
           )}
         </div>

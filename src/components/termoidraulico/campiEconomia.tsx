@@ -42,7 +42,8 @@ export function CampoNumero({ id, etichetta, valore, onCommit, suffisso, aiuto }
         />
         {suffisso ? <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-muted-foreground">{suffisso}</span> : null}
       </div>
-      {aiuto ? <p className="text-[10px] leading-snug text-muted-foreground">{aiuto}</p> : null}
+      {/* Telefono: niente testo d'aiuto sotto il campo. */}
+      {aiuto ? <p className="text-[10px] leading-snug text-muted-foreground max-sm:hidden">{aiuto}</p> : null}
     </div>
   );
 }
@@ -66,8 +67,9 @@ export function Scelta<T extends string | number | null>({ valore, opzioni, onCh
           type="button"
           aria-pressed={valore === o.valore}
           onClick={() => onChange(o.valore)}
+          // Sotto i 768px: 32px (senza tap-compact la regola globale del tocco la portava a 44).
           className={cn(
-            "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+            "tap-compact rounded-full border px-3 py-1 text-xs font-medium transition-colors max-md:h-8",
             valore === o.valore ? "border-orange-300 bg-orange-50 text-orange-800" : "border-slate-200 bg-white text-slate-600 hover:border-orange-200",
           )}
         >

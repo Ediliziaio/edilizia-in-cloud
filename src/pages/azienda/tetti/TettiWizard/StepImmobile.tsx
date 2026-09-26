@@ -93,10 +93,11 @@ export default function StepImmobile({ form, onChange, model }: Props) {
         {/* Tipo intervento */}
         <div>
           <Label className="text-xs">Tipo di intervento</Label>
-          {model ? <div className="mt-1 rounded-lg border bg-muted/30 p-3">
+          {/* Telefono: solo il nome dell'intervento, come InterventoScelto negli altri moduli. */}
+          {model ? <div className="mt-1 rounded-lg border bg-muted/30 p-3 max-sm:py-2">
             <p className="font-medium">{model.title}</p>
-            <p className="mt-1 text-xs text-muted-foreground">Intervento scelto all'inizio del preventivo.</p>
-            <ul className="mt-2 space-y-1 text-sm">{model.needs.map(need => <li key={need}>• {need}</li>)}</ul>
+            <p className="mt-1 text-xs text-muted-foreground max-sm:hidden">Intervento scelto all'inizio del preventivo.</p>
+            <ul className="mt-2 space-y-1 text-sm max-sm:hidden">{model.needs.map(need => <li key={need}>• {need}</li>)}</ul>
           </div> : <Select
             value={form.tipo_intervento ?? ""}
             onValueChange={(v) => onChange("tipo_intervento", v)}
