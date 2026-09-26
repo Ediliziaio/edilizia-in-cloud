@@ -11,7 +11,7 @@ export function useApiKeys(companyId: string | undefined) {
       if (!companyId) return [];
       const { data, error } = await supabase
         .from("api_keys")
-        .select("id, company_id, name, key_prefix, scopes, is_active, last_used_at, expires_at, created_by, created_at, updated_at, revoked_at, rate_limit_per_minute, rate_limit_per_day")
+        .select("id, company_id, name, key_prefix, scopes, is_active, last_used_at, expires_at, created_by, created_at, updated_at, revoked_at, rate_limit_per_minute, rate_limit_per_day, sensitive_actions_per_day")
         .eq("company_id", companyId)
         .order("created_at", { ascending: false });
       if (error) throw error;

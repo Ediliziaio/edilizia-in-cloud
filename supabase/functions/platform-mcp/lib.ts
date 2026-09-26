@@ -9,9 +9,19 @@ export interface KeyCtx {
   scopes: string[];
   rate_limit_per_minute: number;
   rate_limit_per_day: number;
+  /** Tetto giornaliero di azioni sensibili (invii reali, strumenti a costo AI):
+   *  separato — e più basso — del rate limit generale. Vedi isSensitiveScope. */
+  sensitive_actions_per_day: number;
   /** Chi ha emesso la chiave: le scritture che richiedono un autore
    *  (es. p_user_id delle RPC) vengono attribuite a lui. */
   created_by: string;
+}
+
+/** Uno scope "sensibile" = azione con invio reale o costo AI. Queste chiamate
+ *  hanno un tetto giornaliero dedicato (KeyCtx.sensitive_actions_per_day), a
+ *  parte dal rate limit generale, per contenere costi e abusi. */
+export function isSensitiveScope(scope: string | null): boolean {
+  return scope === "actions:sensitive" || scope === "email:send";
 }
 
 export interface ToolDef {

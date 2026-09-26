@@ -14,6 +14,9 @@ export interface ApiKey {
   revoked_at: string | null;
   rate_limit_per_minute: number;
   rate_limit_per_day: number;
+  /** Tetto giornaliero di azioni sensibili (invii reali, strumenti a costo AI),
+   *  separato dal rate limit generale. Default 100 lato database. */
+  sensitive_actions_per_day: number;
 }
 
 export interface ApiScopeGroup {

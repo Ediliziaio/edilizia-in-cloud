@@ -28,7 +28,7 @@ import { getCorsHeaders } from "../_shared/headers.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import {
   type KeyCtx, type ToolDef, ToolError,
-  sha256Hex, hasScope, str, num, intLimit, resolveCompany,
+  sha256Hex, hasScope, isSensitiveScope, str, num, intLimit, resolveCompany,
 } from "./lib.ts";
 import { SILVIO_TOOLS } from "./silvioTools.ts";
 
@@ -571,6 +571,11 @@ const TOOLS_MANUALI: ToolDef[] = [
 // Tool scritti a mano + ponte verso il catalogo silvio_tool_* (silvioTools.ts).
 const TOOLS: ToolDef[] = [...TOOLS_MANUALI, ...SILVIO_TOOLS];
 
+// Endpoint (mcp:<tool>) degli strumenti SENSIBILI: invii reali e strumenti a
+// costo AI. Hanno un tetto giornaliero dedicato (sensitive_actions_per_day),
+// contato sulle chiamate riuscite in api_usage_log.
+const SENSITIVE_ENDPOINTS = TOOLS.filter((t) => isSensitiveScope(t.scope)).map((t) => `mcp:${t.name}`);
+
 // ── JSON-RPC / MCP plumbing ─────────────────────────────────────────────────
 
 type Json = Record<string, unknown>;
@@ -618,7 +623,7 @@ Deno.serve(async (req) => {
   }
   const keyHash = await sha256Hex(apiKey);
   const { data: keyRow } = await admin.from("api_keys")
-    .select("id, company_id, name, scopes, is_active, expires_at, rate_limit_per_minute, rate_limit_per_day, created_by")
+    .select("id, company_id, name, scopes, is_active, expires_at, rate_limit_per_minute, rate_limit_per_day, sensitive_actions_per_day, created_by")
     .eq("key_hash", keyHash)
     .maybeSingle();
   if (!keyRow) {
@@ -637,6 +642,7 @@ Deno.serve(async (req) => {
     scopes: (keyRow.scopes as string[]) ?? [],
     rate_limit_per_minute: keyRow.rate_limit_per_minute ?? 60,
     rate_limit_per_day: keyRow.rate_limit_per_day ?? 5000,
+    sensitive_actions_per_day: keyRow.sensitive_actions_per_day ?? 100,
     created_by: keyRow.created_by,
   };
 
@@ -728,6 +734,26 @@ Deno.serve(async (req) => {
           content: [{ type: "text", text: `Limite giornaliero superato (${ctx.rate_limit_per_day}/giorno).` }],
           isError: true,
         })), { headers: jsonHeaders });
+      }
+
+      // Tetto giornaliero delle AZIONI SENSIBILI (invii reali, strumenti a costo
+      // AI): separato e più basso del limite generale, per contenere costi e
+      // abusi. Conta le sensibili RIUSCITE (status 200) di questa chiave nelle
+      // ultime 24 h; blocca la prossima se ha già raggiunto il tetto.
+      if (isSensitiveScope(tool.scope) && SENSITIVE_ENDPOINTS.length > 0) {
+        const { count: sensitiveCount } = await admin.from("api_usage_log")
+          .select("*", { count: "exact", head: true })
+          .eq("api_key_id", ctx.id)
+          .eq("status_code", 200)
+          .in("endpoint", SENSITIVE_ENDPOINTS)
+          .gte("created_at", oneDayAgo);
+        if ((sensitiveCount ?? 0) >= ctx.sensitive_actions_per_day) {
+          await log(429, null);
+          return new Response(JSON.stringify(rpcResult(id, {
+            content: [{ type: "text", text: `Tetto giornaliero di azioni sensibili raggiunto (${ctx.sensitive_actions_per_day}/giorno: invii reali e strumenti a costo AI). Riprova domani o alza il limite della chiave.` }],
+            isError: true,
+          })), { headers: jsonHeaders });
+        }
       }
 
       try {
