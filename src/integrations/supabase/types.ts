@@ -102927,6 +102927,7 @@ export type Database = {
           p_capocantiere?: boolean
           p_dal?: string | null
           p_order_id: string
+          p_phase_id?: string | null
           p_squadra_id: string
         }
         Returns: undefined
@@ -102934,9 +102935,17 @@ export type Database = {
       manodopera_squadre: { Args: { p_company_id: string }; Returns: Json }
       manodopera_squadre_commessa: { Args: { p_order_id: string }; Returns: Json }
       manodopera_togli_squadra_da_commessa: {
-        Args: { p_order_id: string; p_squadra_id: string }
+        Args: { p_order_id: string; p_phase_id?: string | null; p_squadra_id: string }
         Returns: undefined
       }
+      note_cantiere_elenco: { Args: { p_order_id: string }; Returns: Json }
+      note_cantiere_elimina: { Args: { p_nota_id: string }; Returns: undefined }
+      note_cantiere_salva: {
+        Args: { p_dati: Json; p_nota_id: string | null; p_order_id: string }
+        Returns: string
+      }
+      campo_note_cantiere: { Args: { p_order_id: string }; Returns: Json }
+      campo_nota_letta: { Args: { p_nota_id: string }; Returns: undefined }
       personale_costo: { Args: { p_profilo_id: string }; Returns: Json }
       personale_salva_costo: {
         Args: { p_dati: Json; p_profilo_id: string }

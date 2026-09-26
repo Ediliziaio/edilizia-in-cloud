@@ -2,14 +2,19 @@ import type { PhaseAssignment, WorkPhase } from "@/hooks/useOrderWorkPhases";
 
 export type WorkFilter = "all" | "in_corso" | "da_iniziare" | "completata" | "attention";
 
-export function phaseNeedsAttention(phase: WorkPhase, today: string): boolean {
+/**
+ * Una fase va organizzata se non ha chi la fa, date o è scaduta. «Chi la fa»
+ * sono anche le squadre messe sulla fase (26/09/2026): fasiConSquadra.
+ */
+export function phaseNeedsAttention(phase: WorkPhase, today: string, fasiConSquadra?: ReadonlySet<string>): boolean {
+  const qualcunoLaFa = phase.assignments.length > 0 || !!fasiConSquadra?.has(phase.id);
   return phase.status !== "completata" && (
-    phase.assignments.length === 0 || !phase.start_date || !phase.end_date ||
+    !qualcunoLaFa || !phase.start_date || !phase.end_date ||
     phase.end_date < today || phase.end_date < phase.start_date
   );
 }
 
-export function summarizeWork(phases: WorkPhase[], unassigned: PhaseAssignment[], today: string) {
+export function summarizeWork(phases: WorkPhase[], unassigned: PhaseAssignment[], today: string, fasiConSquadra?: ReadonlySet<string>) {
   const assignments = [...unassigned, ...phases.flatMap(p => p.assignments)];
   const employees = new Set(assignments.filter(a => a.executor_type === "interno")
     .map(a => a.employee_id ?? a.id));
@@ -20,13 +25,13 @@ export function summarizeWork(phases: WorkPhase[], unassigned: PhaseAssignment[]
     teams: teams.size,
     active: phases.filter(p => p.status === "in_corso").length,
     completed: phases.filter(p => p.status === "completata").length,
-    attention: phases.filter(p => phaseNeedsAttention(p, today)).length,
+    attention: phases.filter(p => phaseNeedsAttention(p, today, fasiConSquadra)).length,
   };
 }
 
-export function matchesWorkFilter(phase: WorkPhase, filter: WorkFilter, today: string) {
+export function matchesWorkFilter(phase: WorkPhase, filter: WorkFilter, today: string, fasiConSquadra?: ReadonlySet<string>) {
   return filter === "all" || (filter === "attention"
-    ? phaseNeedsAttention(phase, today)
+    ? phaseNeedsAttention(phase, today, fasiConSquadra)
     : phase.status === filter);
 }
 

@@ -240,6 +240,11 @@ export interface SquadraInCommessa {
   nome: string;
   colore: string | null;
   attiva: boolean;
+  /** Fase fatta dalla squadra; null = tutta la commessa. */
+  phase_id: string | null;
+  fase: string | null;
+  /** Le date seguono quelle della fase. */
+  segue_fase: boolean;
   dal: string | null;
   al: string | null;
   capocantiere: boolean;
@@ -262,6 +267,8 @@ type ArgsJson = Database["public"]["Functions"]["manodopera_salva_squadra"]["Arg
 
 function aggiornaDopoSquadre(qc: ReturnType<typeof useQueryClient>) {
   qc.invalidateQueries({ queryKey: chiaviOperai.tutti });
+  // Le note hanno i destinatari presi dalle squadre sulla commessa.
+  qc.invalidateQueries({ queryKey: ["note-cantiere"] });
   // L'app di cantiere e la commessa leggono gli accessi dati dalla squadra.
   qc.invalidateQueries({ queryKey: ["order-campo-assignments"] });
   qc.invalidateQueries({ queryKey: ["external_teams_active"] });
@@ -342,13 +349,14 @@ export function useSquadreCommessa(orderId: string | undefined) {
 export function useSquadraSuCommessa() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (v: { orderId: string; squadraId: string; dal: string | null; al: string | null; capocantiere: boolean }) => {
+    mutationFn: async (v: { orderId: string; squadraId: string; dal: string | null; al: string | null; capocantiere: boolean; phaseId?: string | null }) => {
       const { error } = await supabase.rpc("manodopera_squadra_su_commessa", {
         p_order_id: v.orderId,
         p_squadra_id: v.squadraId,
         p_dal: v.dal,
         p_al: v.al,
         p_capocantiere: v.capocantiere,
+        p_phase_id: v.phaseId ?? null,
       });
       if (error) throw error;
     },
@@ -379,10 +387,11 @@ export function useSpostaOperaio() {
 export function useTogliSquadraDaCommessa() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (v: { orderId: string; squadraId: string }) => {
+    mutationFn: async (v: { orderId: string; squadraId: string; phaseId?: string | null }) => {
       const { error } = await supabase.rpc("manodopera_togli_squadra_da_commessa", {
         p_order_id: v.orderId,
         p_squadra_id: v.squadraId,
+        p_phase_id: v.phaseId ?? null,
       });
       if (error) throw error;
     },
@@ -491,6 +500,79 @@ export function useSalvaCostoPersona(profiloId: string) {
       // Le commesse leggono il costo orario per la manodopera.
       qc.invalidateQueries({ queryKey: ["employees_active"] });
     },
+  });
+}
+
+// ── Note per gli operai ──────────────────────────────────────────────────────
+
+export type PerChiNota = "tutti" | "squadra" | "persona";
+
+export interface NotaCantiere {
+  id: string;
+  phase_id: string | null;
+  fase: string | null;
+  per: PerChiNota;
+  squadra_id: string | null;
+  squadra: string | null;
+  squadra_colore: string | null;
+  hr_profilo_id: string | null;
+  persona: string | null;
+  testo: string;
+  importante: boolean;
+  autore: string | null;
+  creata_il: string;
+  modificata_il: string | null;
+  /** Quanti devono leggerla nell'app. */
+  destinatari: number;
+  letta_da: { nome: string; il: string }[];
+}
+
+export interface DatiNota {
+  testo: string;
+  per: PerChiNota;
+  squadra_id?: string | null;
+  hr_profilo_id?: string | null;
+  phase_id?: string | null;
+  importante?: boolean;
+}
+
+export function useNoteCantiere(orderId: string | undefined) {
+  return useQuery({
+    queryKey: ["note-cantiere", orderId],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("note_cantiere_elenco", { p_order_id: orderId! });
+      if (error) throw error;
+      return (data ?? []) as unknown as NotaCantiere[];
+    },
+    enabled: !!orderId,
+    staleTime: 30_000,
+  });
+}
+
+export function useSalvaNota(orderId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, dati }: { id: string | null; dati: DatiNota }) => {
+      const { data, error } = await supabase.rpc("note_cantiere_salva", {
+        p_order_id: orderId,
+        p_nota_id: id,
+        p_dati: dati as unknown as ArgsJson,
+      });
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["note-cantiere", orderId] }),
+  });
+}
+
+export function useEliminaNota(orderId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.rpc("note_cantiere_elimina", { p_nota_id: id });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["note-cantiere", orderId] }),
   });
 }
 

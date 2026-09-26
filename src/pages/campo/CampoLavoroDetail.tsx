@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { ImgRiservata } from "@/components/common/ImgRiservata";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { NoteCantiereCampo } from "@/components/campo/NoteCantiereCampo";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import {
@@ -770,6 +771,8 @@ export default function CampoLavoroDetail() {
 
       {/* Contenuto tab */}
       <div className="space-y-3 px-3 py-3 md:space-y-4 md:px-4 md:py-4">
+        {/* Le istruzioni dell'ufficio vengono prima di tutto: si leggono entrando. */}
+        {orderId && <NoteCantiereCampo orderId={orderId} />}
 	        <CampoCloseDayCard
 	          isOperaio={isOperaio}
 	          hasTimbrato={hasTimbratoQui}

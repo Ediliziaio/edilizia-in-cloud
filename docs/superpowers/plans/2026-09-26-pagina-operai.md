@@ -107,4 +107,10 @@ Regole: si assegna una **squadra o un operaio** a una **commessa** per **giorni*
   - Un operaio si sposta da una squadra all'altra trascinandolo o dal menu del suo nome («Sposta in…», «Togli dalla squadra»), con «Annulla» nell'avviso (`manodopera_sposta_operaio`).
   - Sicurezza: una squadra non dà più accessi ad account di un'altra azienda (`account_della_azienda`). La Demo 2 aveva 7 schede collegate agli account della Demo 1 (residuo della copia): staccate, tolti i 2 accessi nati così. Resta 1 caso nella Demo 1 da guardare; 6 schede `employees` fuori Demo 2 collegate altrove non toccate.
   - Pannello accessi all'app: date per esteso, nome di ripiego, frasi semplici.
+- **Fasi, squadre sulle fasi, note per gli operai (26/09, sera)** — migrazione `20280927184500_lavori_squadre_fasi_note` (la 180000 era già presa da un altro lavoro), applicata e registrata.
+  - «Lavori e squadre» parte dalle FASI: in cima «Fasi di lavoro», «Squadra», «Persona o ditta»; riepilogo «10 fasi · 3 squadre · 8 operai · 4 note»; commessa vuota = guida in tre passi (fasi → chi le fa → istruzioni). Filtri e ricerca solo oltre 6 fasi.
+  - Ogni fase: in testa date e «chi la fa» (squadre colorate, persone, ditte) e quante note; dentro Quando, Chi la fa (+ Squadra, + Persona o ditta), Note per gli operai, materiali. Stato e menu (Rinomina, Elimina) a destra. «Ditta esterna» al posto di «squadra esterna».
+  - Squadra su una fase: `squadre_commesse.phase_id` + `segue_fase` (le date seguono la fase via trigger); un accesso all'app per persona e commessa, dalla prima all'ultima data. Una squadra su una fase conta come «chi la fa» (non chiede più di organizzarla).
+  - Note: `note_cantiere` (commessa o fase; per tutti, una squadra, una persona; importante) + `note_cantiere_letture`. Ufficio: `note_cantiere_elenco/salva/elimina`, «letta da N su M» con i nomi. App: «Istruzioni dall'ufficio» in cima alla pagina del lavoro (`campo_note_cantiere`, `campo_nota_letta`), avviso sul telefono per le note nuove.
+  - Demo 2, ORD-2026-030: 10 fasi con date e squadre, 4 note.
 

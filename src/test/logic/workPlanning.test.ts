@@ -39,3 +39,12 @@ describe("Pianificazione cantiere", () => {
     expect(wouldDuplicateAssignment([current, other], other, null)).toBe(true);
   });
 });
+
+describe("una squadra sulla fase conta come chi la fa (26/09/2026)", () => {
+  it("la fase con date e una squadra non va più «organizzata»", async () => {
+    const { phaseNeedsAttention } = await import("@/lib/orders/workPlanning");
+    const fase = { id: "f1", name: "Demolizioni", status: "da_iniziare", start_date: "2099-10-15", end_date: "2099-10-21", assignments: [] } as unknown as Parameters<typeof phaseNeedsAttention>[0];
+    expect(phaseNeedsAttention(fase, "2099-09-26")).toBe(true);
+    expect(phaseNeedsAttention(fase, "2099-09-26", new Set(["f1"]))).toBe(false);
+  });
+});

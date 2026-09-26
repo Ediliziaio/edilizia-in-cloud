@@ -16,6 +16,9 @@ import {
   Split,
   Search,
   CalendarDays,
+  MessageSquare,
+  MoreHorizontal,
+  UsersRound,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
@@ -84,8 +87,12 @@ import {
 } from "@/components/ui/alert-dialog";
 import { EmptyRow } from "./EmptyRow";
 import { InternalTeamShifts } from "./InternalTeamShifts";
-import { SquadreCommessa } from "@/components/manodopera/SquadreCommessa";
-import { useSquadreCommessa } from "@/hooks/useOperai";
+import { SquadreCommessa, SquadreFase } from "@/components/manodopera/SquadreCommessa";
+import { NoteCantiere } from "@/components/manodopera/NoteCantiere";
+import { useNoteCantiere, useSquadreCommessa, type NotaCantiere, type SquadraInCommessa } from "@/hooks/useOperai";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const eur = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: true });
 
@@ -126,8 +133,22 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports }: OrderWork
   const puoSquadre = canEditOrders || canEditOperai;
   const [aggiungiSquadra, setAggiungiSquadra] = useState(false);
   const { data: squadre = [] } = useSquadreCommessa(orderId);
-  const squadreAttive = squadre.filter((x) => x.attiva && !x.finita);
+  const { data: note = [] } = useNoteCantiere(orderId);
+  const squadreAttive = [...new Map(squadre.filter((x) => x.attiva && !x.finita).map((x) => [x.squadra_id, x])).values()];
   const operaiInSquadra = new Set(squadreAttive.flatMap((x) => x.componenti.map((c) => c.id))).size;
+  const squadreGenerali = squadre.filter((x) => !x.phase_id);
+  // Per ogni fase: le sue squadre e le sue note (una lettura sola per tutte le fasi).
+  const squadrePerFase = useMemo(() => {
+    const m = new Map<string, SquadraInCommessa[]>();
+    for (const x of squadre) if (x.phase_id) m.set(x.phase_id, [...(m.get(x.phase_id) ?? []), x]);
+    return m;
+  }, [squadre]);
+  const notePerFase = useMemo(() => {
+    const m = new Map<string, NotaCantiere[]>();
+    for (const n of note) if (n.phase_id) m.set(n.phase_id, [...(m.get(n.phase_id) ?? []), n]);
+    return m;
+  }, [note]);
+  const [personaAperta, setPersonaAperta] = useState(false);
   const {
     phases,
     unassigned,
@@ -164,9 +185,10 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports }: OrderWork
   const accessDetails = useRef<HTMLDetailsElement>(null);
   const phaseList = useRef<HTMLDivElement>(null);
   const today = format(new Date(), "yyyy-MM-dd");
-  const summary = summarizeWork(phases, unassigned, today);
+  const fasiConSquadra = useMemo(() => new Set(squadre.filter((x) => x.phase_id).map((x) => x.phase_id as string)), [squadre]);
+  const summary = summarizeWork(phases, unassigned, today, fasiConSquadra);
   const phaseOptions = phases.map(p => ({ id: p.id, name: p.name }));
-  const visiblePhases = phases.filter(p => matchesWorkFilter(p, filter, today) && p.name.toLocaleLowerCase("it").includes(search.trim().toLocaleLowerCase("it")));
+  const visiblePhases = phases.filter(p => matchesWorkFilter(p, filter, today, fasiConSquadra) && p.name.toLocaleLowerCase("it").includes(search.trim().toLocaleLowerCase("it")));
   const [newPhaseName, setNewPhaseName] = useState("");
   const [selectedTemplateKey, setSelectedTemplateKey] = useState<string | null>(null);
   const selectedTemplate = PHASE_TEMPLATES.find((t) => t.key === selectedTemplateKey) ?? null;
@@ -222,19 +244,23 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports }: OrderWork
             <HardHat className="h-5 w-5 text-primary" />
             Lavori e squadre
           </CardTitle>
-          <p className="text-sm text-muted-foreground max-sm:hidden">Chi lavora su questa commessa, su quali lavorazioni e con quali tempi.</p>
+          <p className="text-sm text-muted-foreground max-sm:hidden">Le fasi del lavoro, chi le fa e le istruzioni per gli operai.</p>
           </div>
 
           {(canEditOrders || puoSquadre) && <div className="flex flex-wrap items-center gap-2">
+            {/* Tre cose sole, sempre nello stesso ordine: le fasi, chi lavora,
+                e (a parte) persone e ditte con i costi. */}
+            {canEditOrders && (
+              <Button size="sm" variant="outline" className="max-sm:hidden" onClick={() => setNewPhaseOpen(true)}>
+                <ListPlus className="mr-1 h-4 w-4" />Fasi di lavoro
+              </Button>
+            )}
             {puoSquadre && (
-              <Button size="sm" onClick={() => setAggiungiSquadra(true)} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:from-orange-600 hover:to-amber-600">
-                <Plus className="mr-1 h-4 w-4" />Aggiungi squadra
+              <Button size="sm" variant="outline" onClick={() => setAggiungiSquadra(true)}>
+                <UsersRound className="mr-1 h-4 w-4" />Squadra
               </Button>
             )}
             {canEditOrders && <>
-            {/* La via semplice viene PRIMA: chi lavora e quanto costa, anche a
-                corpo, senza dover creare fasi. Le fasi restano per i cantieri
-                che ne hanno bisogno. */}
             <AddAssignmentDialog
               phaseId={null}
               employees={employees}
@@ -246,17 +272,10 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports }: OrderWork
               onAdd={(payload, opts) => addAssignment.mutate(payload, opts)}
             />
             <Dialog open={newPhaseOpen} onOpenChange={(o) => (o ? setNewPhaseOpen(true) : closePhaseDialog())}>
-              {/* Mobile: le lavorazioni si pianificano al computer. */}
-              <DialogTrigger asChild>
-                <Button size="sm" variant="outline" className="max-sm:hidden">
-                  <ListPlus className="mr-1 h-4 w-4" />
-                  Lavorazioni
-                </Button>
-              </DialogTrigger>
               <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
                 <DialogHeader>
-                  <DialogTitle>Aggiungi lavorazioni</DialogTitle>
-                  <DialogDescription>Crea una lavorazione oppure usa un modello. Le assegnazioni già presenti vengono conservate.</DialogDescription>
+                  <DialogTitle>Fasi di lavoro</DialogTitle>
+                  <DialogDescription>Parti da un modello o scrivi le fasi una alla volta. Poi, in ogni fase, scegli chi la fa.</DialogDescription>
                 </DialogHeader>
 
                 <div className="space-y-4">
@@ -370,11 +389,12 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports }: OrderWork
         {!isLoading && !isError && (
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-600">
             <span className="tabular-nums">
-              <b className="font-semibold text-slate-900">{squadreAttive.length}</b> {squadreAttive.length === 1 ? "squadra" : "squadre"}
+              <b className="font-semibold text-slate-900">{phases.length}</b> {phases.length === 1 ? "fase" : "fasi"}
+              {summary.active > 0 && <> ({summary.active} in corso)</>}
+              {" · "}<b className="font-semibold text-slate-900">{squadreAttive.length}</b> {squadreAttive.length === 1 ? "squadra" : "squadre"}
               {" · "}<b className="font-semibold text-slate-900">{operaiInSquadra}</b> {operaiInSquadra === 1 ? "operaio" : "operai"}
-              {summary.employees > 0 && <> · <b className="font-semibold text-slate-900">{summary.employees}</b> {summary.employees === 1 ? "persona" : "persone"} nelle lavorazioni</>}
-              {" · "}<b className="font-semibold text-slate-900">{summary.teams}</b> {summary.teams === 1 ? "ditta esterna" : "ditte esterne"}
-              {" · "}<b className="font-semibold text-slate-900">{phases.length}</b> {phases.length === 1 ? "lavorazione" : "lavorazioni"}
+              {summary.teams > 0 && <> · <b className="font-semibold text-slate-900">{summary.teams}</b> {summary.teams === 1 ? "ditta" : "ditte"}</>}
+              {" · "}<b className="font-semibold text-slate-900">{note.length}</b> {note.length === 1 ? "nota" : "note"}
             </span>
             <span className="flex items-center gap-1 sm:ml-auto">
               <Button variant="ghost" size="sm" className="h-8" aria-label="Accesso all'app e ditte in subappalto" onClick={() => {
@@ -444,13 +464,40 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports }: OrderWork
         )}
       </CardHeader>
 
-      <CardContent className="space-y-3 px-3 pb-3 sm:px-6 sm:pb-6">
-        <section aria-labelledby="lavori-squadre" className="space-y-2">
-          <h3 id="lavori-squadre" className="text-xs font-semibold uppercase tracking-wide text-slate-500">Squadre</h3>
-          <SquadreCommessa orderId={orderId} modificabile={puoSquadre} aggiungiAperto={aggiungiSquadra} onAggiungiAperto={setAggiungiSquadra} />
+      <CardContent className="space-y-5 px-3 pb-3 sm:px-6 sm:pb-6">
+        {/* Commessa appena aperta: tre passi, invece di tre riquadri vuoti. */}
+        {!isLoading && !isError && phases.length === 0 && unassigned.length === 0 && squadre.length === 0 && (
+          <GuidaCantiere
+            puoFasi={canEditOrders}
+            puoSquadre={puoSquadre}
+            onFasi={() => setNewPhaseOpen(true)}
+            onSquadra={() => setAggiungiSquadra(true)}
+          />
+        )}
+
+        <section aria-labelledby="note-operai" className="space-y-2">
+          <h3 id="note-operai" className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <MessageSquare className="h-3.5 w-3.5" aria-hidden="true" />Note per gli operai · tutta la commessa
+          </h3>
+          <NoteCantiere orderId={orderId} fasi={phaseOptions} modificabile={puoSquadre} />
         </section>
 
-        <h3 className="pt-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Lavorazioni e costi della manodopera</h3>
+        {/* Le squadre su tutta la commessa, se ci sono; se non ci sono ma
+            nemmeno fasi, l'invito a metterne una sta nella guida qui sopra. */}
+        {(squadreGenerali.length > 0 || (squadre.length === 0 && (phases.length > 0 || unassigned.length > 0))) && (
+          <section aria-labelledby="lavori-squadre" className="space-y-2">
+            <h3 id="lavori-squadre" className="text-xs font-semibold uppercase tracking-wide text-slate-500">Squadre su tutta la commessa</h3>
+            <SquadreCommessa orderId={orderId} modificabile={puoSquadre} aggiungiAperto={aggiungiSquadra} onAggiungiAperto={setAggiungiSquadra} />
+          </section>
+        )}
+        {!(squadreGenerali.length > 0 || (squadre.length === 0 && (phases.length > 0 || unassigned.length > 0))) && (
+          // la finestra «Squadra» serve anche quando la sezione non c'è ancora
+          <SquadreCommessa orderId={orderId} modificabile={puoSquadre} aggiungiAperto={aggiungiSquadra} onAggiungiAperto={setAggiungiSquadra} soloFinestra />
+        )}
+
+        {(phases.length > 0 || unassigned.length > 0 || isLoading || isError) && (
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Fasi di lavoro</h3>
+        )}
         <div ref={phaseList} className="scroll-mt-24" />
         {isLoading ? (
           <div className="flex items-center justify-center gap-2 py-10 text-muted-foreground">
@@ -467,14 +514,11 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports }: OrderWork
             </Button>
           </div>
         ) : phases.length === 0 && unassigned.length === 0 ? (
-          // Riga compatta: a commessa senza lavorazioni questo blocco occupava
-          // 663px. L'azione resta, sulla stessa riga.
-          <EmptyRow icon={HardHat}>
-            Nessuna lavorazione. Servono se vuoi dividere il lavoro in fasi o segnare quanto costa la manodopera (anche di una ditta esterna).
-          </EmptyRow>
+          // La guida qui sopra spiega già da dove partire.
+          null
         ) : (
           <>
-            {phases.length > 0 && <div className="space-y-3 pb-1">
+            {phases.length > 6 && <div className="space-y-3 pb-1">
               <div className="flex flex-wrap gap-1.5" aria-label="Filtra lavorazioni">
                 {([["all", "Tutte"], ["in_corso", "In corso"], ["da_iniziare", "Da iniziare"], ["attention", "Da organizzare"], ["completata", "Completate"]] as const).map(([value, label]) =>
                   <Button key={value} size="sm" variant={filter === value ? "secondary" : "ghost"} aria-pressed={filter === value} onClick={() => setFilter(value)}>{label}</Button>)}
@@ -506,6 +550,10 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports }: OrderWork
                   saveAssignment(id, source, patch)
                 }
                 onDeleteAssignment={(id, source) => deleteAssignment.mutateAsync({ id, source })}
+                squadreFase={squadrePerFase.get(phase.id) ?? []}
+                noteFase={notePerFase.get(phase.id)?.length ?? 0}
+                puoSquadre={puoSquadre}
+                fasiOpzioni={phaseOptions}
               />
             ))}
 
@@ -535,6 +583,52 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports }: OrderWork
         </details>
       </CardContent>
     </Card>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Commessa appena aperta: come si organizza il cantiere, in tre passi  */
+/* ------------------------------------------------------------------ */
+
+function GuidaCantiere({ puoFasi, puoSquadre, onFasi, onSquadra }: {
+  puoFasi: boolean;
+  puoSquadre: boolean;
+  onFasi: () => void;
+  onSquadra: () => void;
+}) {
+  const passi = [
+    { n: 1, titolo: "Dividi il lavoro in fasi", testo: "Demolizioni, impianti, posa… da un modello o una alla volta, con le date." },
+    { n: 2, titolo: "In ogni fase, scegli chi la fa", testo: "Una squadra, una persona o una ditta. Chi ha l'app si trova il cantiere sul telefono." },
+    { n: 3, titolo: "Lascia le istruzioni", testo: "Note per tutti, per una squadra o per una persona: le leggono nell'app e sai chi le ha lette." },
+  ];
+  return (
+    <div className="rounded-2xl border border-orange-200 bg-orange-50/50 p-4">
+      <p className="text-sm font-semibold text-slate-900">Come si organizza questo cantiere</p>
+      <ol className="mt-3 grid gap-3 sm:grid-cols-3">
+        {passi.map((p) => (
+          <li key={p.n} className="flex gap-2.5">
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-orange-500 text-xs font-bold text-white">{p.n}</span>
+            <span className="text-sm">
+              <span className="block font-medium text-slate-900">{p.titolo}</span>
+              <span className="block text-slate-600">{p.testo}</span>
+            </span>
+          </li>
+        ))}
+      </ol>
+      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+        {puoFasi && (
+          <Button size="sm" onClick={onFasi} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:from-orange-600 hover:to-amber-600">
+            <ListPlus className="mr-1 h-4 w-4" />Scegli le fasi
+          </Button>
+        )}
+        {puoSquadre && (
+          <span className="text-sm text-slate-600">
+            Lavoro semplice, senza fasi?{" "}
+            <button type="button" onClick={onSquadra} className="font-medium text-orange-700 hover:underline">Metti una squadra su tutta la commessa</button>
+          </span>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -574,6 +668,12 @@ interface PhaseCardProps {
   ) => void;
   onUpdateAssignment: (id: string, source: AssignmentSource, patch: AssignmentPatch) => Promise<unknown>;
   onDeleteAssignment: (id: string, source: AssignmentSource) => Promise<unknown>;
+  /** Squadre che fanno questa fase. */
+  squadreFase: SquadraInCommessa[];
+  /** Quante note per gli operai su questa fase. */
+  noteFase: number;
+  puoSquadre: boolean;
+  fasiOpzioni: { id: string; name: string }[];
 }
 
 function PhaseCard({
@@ -594,8 +694,13 @@ function PhaseCard({
   onAddAssignment,
   onUpdateAssignment,
   onDeleteAssignment,
+  squadreFase,
+  noteFase,
+  puoSquadre,
+  fasiOpzioni,
 }: PhaseCardProps) {
   const { canEditOrders, canViewCosts } = usePermissions();
+  const [eliminaAperto, setEliminaAperto] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(phase.name);
   const [progressOpen, setProgressOpen] = useState(false);
@@ -644,6 +749,20 @@ function PhaseCard({
     };
     return { start: fmt(phase.start_date), end: fmt(phase.end_date) };
   }, [phase.start_date, phase.end_date]);
+
+  // Chi la fa: squadre della fase, poi persone e ditte (le righe dei costi).
+  const chiLaFa = useMemo(() => {
+    const out: { chiave: string; nome: string; colore: string | null }[] = squadreFase.map((q) => ({
+      chiave: `s-${q.squadra_id}`, nome: q.nome, colore: q.colore ?? "#94A3B8",
+    }));
+    for (const a of phase.assignments) {
+      const nome = a.source === "employee"
+        ? employees.find((e) => e.id === a.employee_id)?.label
+        : externalTeams.find((t) => t.id === a.external_team_id)?.label;
+      out.push({ chiave: `${a.source}-${a.id}`, nome: nome ?? (a.source === "employee" ? "Dipendente" : "Ditta"), colore: null });
+    }
+    return out;
+  }, [squadreFase, phase.assignments, employees, externalTeams]);
 
   const commitName = () => {
     const name = nameDraft.trim();
@@ -759,19 +878,35 @@ function PhaseCard({
               );
             })()}
 
-            {/* Riepilogo compatto: leggibile anche a fase chiusa */}
-            <span className="basis-full text-xs text-muted-foreground tabular-nums">
-              {phase.assignments.length} esecutori
-              {materials.length > 0 ? ` · ${materials.length} materiali` : ""}
-              {canViewCosts ? ` · Budget ${eur.format(phaseTotals.prev)} · Costo ${eur.format(phaseTotals.cons)}` : ""}
-              {plannedDates.start ? ` · dal ${plannedDates.start}` : ""}
-              {plannedDates.end ? ` al ${plannedDates.end}` : ""}
-            </span>
-            {phase.status !== "completata" && <div className="flex basis-full flex-wrap gap-2 text-xs">
-              {phase.assignments.length === 0 && <span className="text-amber-700">Da assegnare</span>}
-              {(!phase.start_date || !phase.end_date) && <span className="inline-flex items-center gap-1 text-muted-foreground"><CalendarDays className="h-3 w-3" />Date da completare</span>}
-              {phase.end_date && phase.end_date < format(new Date(), "yyyy-MM-dd") && <span className="text-rose-600">Scadenza superata</span>}
-            </div>}
+            {/* Riepilogo leggibile a fase chiusa: quando e chi la fa. I costi
+                stanno dentro, in «Costi della manodopera». */}
+            <div className="flex basis-full flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+              <span className="inline-flex items-center gap-1 tabular-nums">
+                <CalendarDays className="h-3 w-3" aria-hidden="true" />
+                {plannedDates.start || plannedDates.end
+                  ? `${plannedDates.start ? `dal ${plannedDates.start}` : ""}${plannedDates.end ? ` al ${plannedDates.end}` : ""}`.trim()
+                  : "senza date"}
+              </span>
+              <span className="inline-flex min-w-0 flex-wrap items-center gap-1">
+                <UsersRound className="h-3 w-3" aria-hidden="true" />
+                {chiLaFa.length === 0
+                  ? <span className={phase.status !== "completata" ? "text-amber-700" : undefined}>nessuno la fa ancora</span>
+                  : chiLaFa.map((c, i) => (
+                    <span key={c.chiave} className="inline-flex items-center gap-1 text-slate-700">
+                      {i > 0 && <span className="text-muted-foreground">·</span>}
+                      {c.colore && <span className="h-2 w-2 rounded-full" style={{ backgroundColor: c.colore }} aria-hidden="true" />}
+                      {c.nome}
+                    </span>
+                  ))}
+              </span>
+              {noteFase > 0 && (
+                <span className="inline-flex items-center gap-1"><MessageSquare className="h-3 w-3" aria-hidden="true" />{noteFase === 1 ? "1 nota" : `${noteFase} note`}</span>
+              )}
+              {materials.length > 0 && <span>{materials.length === 1 ? "1 materiale" : `${materials.length} materiali`}</span>}
+              {phase.status !== "completata" && phase.end_date && phase.end_date < format(new Date(), "yyyy-MM-dd") && (
+                <span className="text-rose-600">scadenza superata</span>
+              )}
+            </div>
           </div>
 
           {/* Controlli a destra: fuori dalla zona cliccabile */}
@@ -779,24 +914,11 @@ function PhaseCard({
             className="flex flex-wrap items-center gap-2"
             onClick={(e) => e.stopPropagation()}
           >
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 shrink-0 text-muted-foreground"
-              onClick={() => {
-                setNameDraft(phase.name);
-                setEditingName(true);
-              }}
-              aria-label="Modifica nome fase"
-            >
-              <Pencil className="h-3.5 w-3.5" />
-            </Button>
-
             <Select
               value={phase.status}
               onValueChange={(v) => onUpdatePhase({ status: v as PhaseStatus })}
             >
-              <SelectTrigger className="h-8 w-[150px]">
+              <SelectTrigger className="h-8 w-[140px]" aria-label={`Stato di ${phase.name}`}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -808,30 +930,34 @@ function PhaseCard({
               </SelectContent>
             </Select>
 
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-muted-foreground hover:text-rose-600"
-                  aria-label="Elimina fase"
-                >
-                  <Trash2 className="h-4 w-4" />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" aria-label={`Altre azioni per ${phase.name}`}>
+                  <MoreHorizontal className="h-4 w-4" />
                 </Button>
-              </AlertDialogTrigger>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={() => { setNameDraft(phase.name); setEditingName(true); }}>
+                  <Pencil className="mr-2 h-4 w-4" />Rinomina
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="text-rose-600 focus:text-rose-700" onSelect={() => setEliminaAperto(true)}>
+                  <Trash2 className="mr-2 h-4 w-4" />Elimina fase
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <AlertDialog open={eliminaAperto} onOpenChange={setEliminaAperto}>
               <AlertDialogContent>
                 <AlertDialogHeader>
                   <AlertDialogTitle>Eliminare la fase?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Eliminare la fase «{phase.name}»? Le assegnazioni e i materiali collegati restano nella commessa, senza fase. La fase eliminata non è recuperabile.
+                    Eliminare la fase «{phase.name}»? Persone, ditte e materiali restano nella commessa, senza fase; le squadre e le note di questa fase se ne vanno con lei.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Annulla</AlertDialogCancel>
-                  <AlertDialogAction
-                    className="bg-rose-600 hover:bg-rose-700"
-                    onClick={onDeletePhase}
-                  >
+                  <AlertDialogAction className="bg-rose-600 hover:bg-rose-700" onClick={onDeletePhase}>
                     Elimina
                   </AlertDialogAction>
                 </AlertDialogFooter>
@@ -853,13 +979,13 @@ function PhaseCard({
             className="overflow-hidden"
           >
             <CardContent id={`phase-body-${phase.id}`} className="space-y-4 px-3 pb-4 pt-0 sm:px-4">
-              {/* ── Date previste della fase (start_date / end_date) ── */}
+              {/* ── Quando ── */}
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                  Date previste
+                <span className="w-24 shrink-0 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground max-sm:w-full">
+                  Quando
                 </span>
                 <label className="flex items-center gap-1 text-xs text-muted-foreground">
-                  Inizio
+                  dal
                   <Input
                     type="date"
                     disabled={!canEditOrders}
@@ -875,7 +1001,7 @@ function PhaseCard({
                   />
                 </label>
                 <label className="flex items-center gap-1 text-xs text-muted-foreground">
-                  Fine
+                  al
                   <Input
                     type="date"
                     disabled={!canEditOrders}
@@ -890,37 +1016,61 @@ function PhaseCard({
                     aria-label="Data fine prevista"
                   />
                 </label>
-                <span className="text-[11px] text-muted-foreground">
-                  Alimentano l'avviso materiali in partenza.
-                </span>
+                {squadreFase.length > 0 && (
+                  <span className="text-[11px] text-muted-foreground">Le squadre della fase seguono queste date.</span>
+                )}
               </div>
 
-              {phase.assignments.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Nessun esecutore assegnato</p>
-              ) : (
-                <div className="space-y-2">
-                  {phase.assignments.map((a) => (
-                    <AssignmentRow
-                      key={`${a.source}-${a.id}`}
-                      assignment={a}
+              {/* ── Chi la fa: squadre, poi persone e ditte ── */}
+              <div className="flex flex-wrap items-start gap-2">
+                <span className="w-24 shrink-0 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground max-sm:w-full max-sm:pt-0">
+                  Chi la fa
+                </span>
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <SquadreFase orderId={orderId} fase={{ id: phase.id, name: phase.name }} modificabile={puoSquadre} />
+                    {canEditOrders && <AddAssignmentDialog
+                      phaseId={phase.id}
                       employees={employees}
                       externalTeams={externalTeams}
                       phases={allPhases}
-                      onUpdate={(patch) => onUpdateAssignment(a.id, a.source, patch)}
-                      onDelete={() => onDeleteAssignment(a.id, a.source)}
-                    />
-                  ))}
+                      existingAssignments={allAssignments}
+                      triggerLabel="Persona o ditta"
+                      onAdd={onAddAssignment}
+                    />}
+                  </div>
+                  {phase.assignments.length > 0 && (
+                    <div className="space-y-2">
+                      {phase.assignments.map((a) => (
+                        <AssignmentRow
+                          key={`${a.source}-${a.id}`}
+                          assignment={a}
+                          employees={employees}
+                          externalTeams={externalTeams}
+                          phases={allPhases}
+                          onUpdate={(patch) => onUpdateAssignment(a.id, a.source, patch)}
+                          onDelete={() => onDeleteAssignment(a.id, a.source)}
+                        />
+                      ))}
+                      {canViewCosts && (phaseTotals.prev > 0 || phaseTotals.cons > 0) && (
+                        <p className="text-xs text-muted-foreground tabular-nums">
+                          Manodopera della fase: budget {eur.format(phaseTotals.prev)} · costo {eur.format(phaseTotals.cons)}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
 
-              {canEditOrders && <AddAssignmentDialog
-                phaseId={phase.id}
-                employees={employees}
-                externalTeams={externalTeams}
-                phases={allPhases}
-                existingAssignments={allAssignments}
-                onAdd={onAddAssignment}
-              />}
+              {/* ── Note per gli operai di questa fase ── */}
+              <div className="flex flex-wrap items-start gap-2">
+                <span className="w-24 shrink-0 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground max-sm:w-full max-sm:pt-0">
+                  Note per gli operai
+                </span>
+                <div className="min-w-0 flex-1">
+                  <NoteCantiere orderId={orderId} phaseId={phase.id} fasi={fasiOpzioni} modificabile={puoSquadre} compatta />
+                </div>
+              </div>
 
               {/* ── Materiali della fase (order_items.phase_id) ── */}
               {(materials.length > 0 || unassignedMaterials.length > 0) && (
@@ -1171,6 +1321,9 @@ interface AddAssignmentDialogProps {
   triggerLabel?: string;
   /** Variante del bottone trigger (default "outline"). */
   triggerVariant?: "default" | "outline";
+  /** Aperto da fuori (es. dal menu «Aggiungi»): senza bottone proprio. */
+  aperto?: boolean;
+  onAperto?: (o: boolean) => void;
   onAdd: (
     payload: AddAssignmentPayload,
     opts?: { onSuccess?: () => void; onError?: () => void }
@@ -1197,15 +1350,20 @@ function AddAssignmentDialog({
   externalTeams,
   phases,
   existingAssignments = [],
-  triggerLabel = "Assegna a questa lavorazione",
+  triggerLabel = "Persona o ditta",
   triggerVariant = "outline",
+  aperto,
+  onAperto,
   onAdd,
 }: AddAssignmentDialogProps) {
   const { canViewCosts, canViewMargins, canEditOrders } = usePermissions();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
-  const [open, setOpen] = useState(false);
+  const [openInterno, setOpenInterno] = useState(false);
+  const controllato = aperto !== undefined;
+  const open = controllato ? aperto : openInterno;
+  const setOpen = (o: boolean) => (controllato ? onAperto?.(o) : setOpenInterno(o));
   const [tipo, setTipo] = useState<ExecutorType>("interno");
   const [executorId, setExecutorId] = useState<string>("");
   const [selectedPhase, setSelectedPhase] = useState(phaseId ?? "");
@@ -1367,12 +1525,12 @@ function AddAssignmentDialog({
         if (!o) reset();
       }}
     >
-      <DialogTrigger asChild>
-        <Button variant={triggerVariant} size="sm" className="mt-1">
+      {!controllato && <DialogTrigger asChild>
+        <Button variant={triggerVariant} size="sm">
           <Plus className="mr-1 h-4 w-4" />
           {triggerLabel}
         </Button>
-      </DialogTrigger>
+      </DialogTrigger>}
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
           <DialogTitle className="pr-6">Assegna una persona o una ditta</DialogTitle>

@@ -9,7 +9,7 @@
  */
 import { useState, type DragEvent } from "react";
 import { Link } from "react-router-dom";
-import { Crown, GripVertical, Pencil, Smartphone, X } from "lucide-react";
+import { Crown, GripVertical, Pencil, Plus, Smartphone, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -24,9 +24,10 @@ import { AvatarOperaio } from "@/components/manodopera/AvatarOperaio";
 import { SquadraCommessaDialog } from "@/components/manodopera/SquadraCommessaDialog";
 import { usePermissions } from "@/hooks/usePermissions";
 import {
-  messaggioErroreOperai, useSpostaOperaio, useSquadreCommessa, useTogliSquadraDaCommessa,
+  messaggioErroreOperai, useSpostaOperaio, useSquadraSuCommessa, useSquadre, useSquadreCommessa, useTogliSquadraDaCommessa,
   type PersonaSquadra, type SquadraInCommessa,
 } from "@/hooks/useOperai";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatDateIt } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 
@@ -44,15 +45,20 @@ export function SquadreCommessa({
   modificabile,
   aggiungiAperto,
   onAggiungiAperto,
+  soloFinestra = false,
 }: {
   orderId: string;
   modificabile: boolean;
   aggiungiAperto: boolean;
   onAggiungiAperto: (v: boolean) => void;
+  /** Solo la finestra «Aggiungi squadra», senza elenco (commessa ancora vuota). */
+  soloFinestra?: boolean;
 }) {
   const perms = usePermissions();
   const vedeOperai = perms.canViewOperai === true || perms.isAdmin;
-  const { data = [], isLoading, error } = useSquadreCommessa(orderId);
+  const { data: tutte = [], isLoading, error } = useSquadreCommessa(orderId);
+  // Qui le squadre su tutta la commessa; quelle su una fase stanno nella fase.
+  const data = tutte.filter((s) => !s.phase_id);
   const togli = useTogliSquadraDaCommessa();
   const sposta = useSpostaOperaio();
   const [date, setDate] = useState<SquadraInCommessa | null>(null);
@@ -62,9 +68,13 @@ export function SquadreCommessa({
   // Il menu del nome si apre al clic, non alla pressione: così si può trascinare.
   const [menu, setMenu] = useState<string | null>(null);
 
+  if (soloFinestra) {
+    return <SquadraCommessaDialog aperto={aggiungiAperto} onAperto={onAggiungiAperto} orderId={orderId} />;
+  }
   if (error) return null;
 
-  const attive = data.filter((s) => s.attiva);
+  // Si sposta verso qualunque squadra della commessa, anche quelle su una fase.
+  const attive = [...new Map(tutte.filter((s) => s.attiva).map((s) => [s.squadra_id, s])).values()];
 
   const spostaIn = (persona: PersonaSquadra, verso: SquadraInCommessa | null) => {
     const nome = `${persona.nome} ${persona.cognome}`;
@@ -103,7 +113,7 @@ export function SquadreCommessa({
     return (
       <>
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed px-4 py-3 text-sm text-muted-foreground">
-          <span>Nessuna squadra su questa commessa. Con una squadra, i suoi operai si trovano il cantiere nell'app.</span>
+          <span>Nessuna squadra su tutta la commessa. Puoi anche mettere una squadra solo su una fase, dentro la fase.</span>
           {modificabile && (
             <Button size="sm" variant="outline" onClick={() => onAggiungiAperto(true)}>Aggiungi squadra</Button>
           )}
@@ -283,7 +293,8 @@ export function SquadreCommessa({
 /** Una riga per la Panoramica: quali squadre lavorano qui e da quando. */
 export function SquadreInBreve({ orderId }: { orderId: string }) {
   const { data = [], error } = useSquadreCommessa(orderId);
-  const attive = data.filter((s) => s.attiva && !s.finita);
+  // Una squadra una volta sola, anche se è su più fasi.
+  const attive = [...new Map(data.filter((s) => s.attiva && !s.finita).map((s) => [s.squadra_id, s])).values()];
   if (error || attive.length === 0) return null;
   return (
     <p className="text-sm text-slate-700">
@@ -291,9 +302,99 @@ export function SquadreInBreve({ orderId }: { orderId: string }) {
       {attive.map((s, i) => (
         <span key={s.squadra_id}>
           {i > 0 && ", "}
-          <span className="font-medium">{s.nome}</span> <span className="text-muted-foreground">({periodoSquadra(s)})</span>
+          <span className="font-medium">{s.nome}</span>{" "}
+          <span className="text-muted-foreground">({s.phase_id ? `fase ${s.fase ?? ""}`.trim() : periodoSquadra(s)})</span>
         </span>
       ))}
     </p>
   );
 }
+
+/**
+ * «Chi la fa», dentro una fase: le squadre che fanno quella fase. Una squadra
+ * messa qui segue le date della fase; i suoi operai si trovano il cantiere
+ * nell'app per quei giorni.
+ */
+export function SquadreFase({
+  orderId,
+  fase,
+  modificabile,
+}: {
+  orderId: string;
+  fase: { id: string; name: string };
+  modificabile: boolean;
+}) {
+  const { data = [] } = useSquadreCommessa(orderId);
+  const { data: tutte = [] } = useSquadre();
+  const metti = useSquadraSuCommessa();
+  const togli = useTogliSquadraDaCommessa();
+  const qui = data.filter((s) => s.phase_id === fase.id);
+  const giaQui = new Set(qui.map((s) => s.squadra_id));
+  const scegliibili = tutte.filter((s) => !giaQui.has(s.id));
+
+  const aggiungi = (id: string, nome: string) =>
+    metti.mutate(
+      { orderId, squadraId: id, dal: null, al: null, capocantiere: false, phaseId: fase.id },
+      {
+        onSuccess: () => toast.success(`${nome} fa «${fase.name}»`, { description: "Segue le date della fase." }),
+        onError: (err) => toast.error(messaggioErroreOperai(err, "Non sono riuscito ad aggiungerla. Riprova tra qualche secondo.")),
+      },
+    );
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {qui.map((s) => (
+        <Tooltip key={s.squadra_id}>
+          <TooltipTrigger asChild>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white py-1 pl-2.5 pr-1 text-sm ring-1 ring-slate-200">
+              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: s.colore ?? "#94A3B8" }} aria-hidden="true" />
+              <span className="font-medium text-slate-800">{s.nome}</span>
+              {!s.segue_fase && (s.dal || s.al) && <span className="text-xs text-muted-foreground">({periodoSquadra(s)})</span>}
+              {modificabile ? (
+                <button
+                  type="button"
+                  className="tap-compact ml-0.5 rounded-full p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                  aria-label={`Togli ${s.nome} da ${fase.name}`}
+                  onClick={() => togli.mutate(
+                    { orderId, squadraId: s.squadra_id, phaseId: fase.id },
+                    { onError: (err) => toast.error(messaggioErroreOperai(err, "Non sono riuscito a toglierla.")) },
+                  )}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              ) : <span className="w-1" />}
+            </span>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-xs">
+            {s.componenti.length ? s.componenti.map((c) => `${c.nome} ${c.cognome}`).join(", ") : "Squadra senza operai"}
+            {s.responsabile && ` · resp. ${s.responsabile.nome} ${s.responsabile.cognome}`}
+          </TooltipContent>
+        </Tooltip>
+      ))}
+      {modificabile && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button size="sm" variant="outline" className="h-8 gap-1 rounded-full border-dashed px-3" disabled={metti.isPending}>
+              <Plus className="h-3.5 w-3.5" aria-hidden="true" />Squadra
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            {scegliibili.length === 0 ? (
+              <DropdownMenuItem asChild>
+                <Link to="/azienda/manodopera?tab=operai&vista=squadre">{tutte.length === 0 ? "Crea la prima squadra" : "Tutte le squadre sono già qui"}</Link>
+              </DropdownMenuItem>
+            ) : scegliibili.map((s) => (
+              <DropdownMenuItem key={s.id} onSelect={() => aggiungi(s.id, s.nome)}>
+                <span className="mr-2 h-2.5 w-2.5 rounded-full" style={{ backgroundColor: s.colore ?? "#94A3B8" }} aria-hidden="true" />
+                {s.nome}
+                <span className="ml-2 text-xs text-muted-foreground">{s.componenti.length} operai</span>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+      {!modificabile && qui.length === 0 && <span className="text-sm text-muted-foreground">Nessuna squadra</span>}
+    </div>
+  );
+}
+
