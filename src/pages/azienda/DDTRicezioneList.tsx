@@ -385,10 +385,11 @@ export default function DDTRicezioneList() {
   }, [ddtList, counts]);
 
   return (
-    <div className="space-y-5">
-      {/* ─── Header ──────────────────────────────────────────────── */}
+    <div className="space-y-5 max-sm:space-y-3">
+      {/* ─── Header ── telefono: il titolo lo dice già la scheda «DDT»; restano
+          filtri e «Nuovo», senza esportazioni. ─────────────────────── */}
       <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-3 sm:px-6 py-3 sm:py-5 shadow-sm flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
-        <div className="flex items-start gap-2.5 sm:gap-3 min-w-0">
+        <div className="flex items-start gap-2.5 sm:gap-3 min-w-0 max-sm:hidden">
           <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white flex items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
             <FileCheck className="h-4 w-4 sm:h-5 sm:w-5" />
           </div>
@@ -399,11 +400,11 @@ export default function DDTRicezioneList() {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap max-sm:w-full max-sm:flex-nowrap">
           {/* Export */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" className="max-sm:hidden">
                 <Download className="h-4 w-4 mr-1.5" />
                 <span className="hidden sm:inline">Esporta</span>
                 <ChevronDown className="h-3.5 w-3.5 ml-1" />
@@ -447,7 +448,7 @@ export default function DDTRicezioneList() {
                 <div className="space-y-1">
                   <Label className="text-xs">Fornitore</Label>
                   <Select value={filterSupplier} onValueChange={setFilterSupplier}>
-                    <SelectTrigger className="h-10 md:h-9 text-base md:text-xs"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="h-10 md:h-9 text-sm md:text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Tutti i fornitori</SelectItem>
                       {suppliers.filter((s) => s.is_active).map((s) => (
@@ -459,17 +460,17 @@ export default function DDTRicezioneList() {
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
                     <Label className="text-xs flex items-center gap-1"><CalendarIcon className="h-3 w-3" />DDT dal</Label>
-                    <Input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className="h-10 md:h-9 text-base md:text-xs" />
+                    <Input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className="h-10 md:h-9 text-sm md:text-xs" />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">DDT al</Label>
-                    <Input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className="h-10 md:h-9 text-base md:text-xs" />
+                    <Input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className="h-10 md:h-9 text-sm md:text-xs" />
                   </div>
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Non conformità</Label>
                   <Select value={filterHasDamages} onValueChange={(v) => setFilterHasDamages(v as "all" | "yes" | "no")}>
-                    <SelectTrigger className="h-10 md:h-9 text-base md:text-xs"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="h-10 md:h-9 text-sm md:text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Tutti</SelectItem>
                       <SelectItem value="yes">Con danni / non conformi</SelectItem>
@@ -480,7 +481,7 @@ export default function DDTRicezioneList() {
                 <div className="space-y-1">
                   <Label className="text-xs">Allegati</Label>
                   <Select value={filterHasAttachments} onValueChange={(v) => setFilterHasAttachments(v as "all" | "yes" | "no")}>
-                    <SelectTrigger className="h-10 md:h-9 text-base md:text-xs"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="h-10 md:h-9 text-sm md:text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Tutti</SelectItem>
                       <SelectItem value="yes">Con allegati</SelectItem>
@@ -496,7 +497,7 @@ export default function DDTRicezioneList() {
             onClick={() => setNewOpen(true)}
             size="sm"
             disabled={availablePOs.length === 0}
-            className="shrink-0 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-500/20 hover:from-orange-600 hover:to-amber-500 hover:shadow-md hover:shadow-orange-500/25"
+            className="shrink-0 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-500/20 hover:from-orange-600 hover:to-amber-500 hover:shadow-md hover:shadow-orange-500/25 max-sm:flex-1"
           >
             <Plus className="h-4 w-4 mr-1" />
             <span className="hidden sm:inline">Nuovo DDT</span>
@@ -505,8 +506,9 @@ export default function DDTRicezioneList() {
         </div>
       </div>
 
-      {/* ─── KPI Cards ──────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+      {/* ─── KPI Cards ── telefono no: gli stessi numeri sono nelle schede sotto
+          (Tutti, Attesi, Parziali, Verificati, Non conformi). ───────── */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 max-sm:hidden">
         <OperationalKpiCard
           icon={FileCheck}
           label="DDT totali"
