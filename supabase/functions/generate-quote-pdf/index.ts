@@ -1,5 +1,7 @@
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { preventivoVisibile } from "../_shared/preventivoVisibile.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
 import { PDFDocument, rgb, StandardFonts, degrees } from "https://esm.sh/pdf-lib@1.17.1";
 // Libreria template componibile: carica i blocchi linkati + sostituisce merge tag
@@ -268,6 +270,16 @@ Deno.serve(async (req) => {
       // Accesso all'azienda del preventivo: azienda principale, accesso
       // multi-azienda o super admin. Prima chi lavora su più aziende prendeva 403.
       await requireCompanyAccess(supabaseAdmin, userId, quote.company_id, corsH);
+      // E deve poter vedere QUEL preventivo, con le regole dell'app: la RLS di quotes letta
+      // col suo token. L'azienda da sola lasciava generare il PDF di qualsiasi preventivo
+      // al cliente del portale, all'utente bloccato e allo staff senza permesso.
+      const comeChiChiama = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
+        global: { headers: { Authorization: req.headers.get("Authorization") ?? "" } },
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      if (!(await preventivoVisibile(comeChiChiama, quote.id))) {
+        return errorResponse("Preventivo non trovato", 404, corsH);
+      }
 
       // Copia di firma di un preventivo di modulo (source «modulo:…», vedi
       // src/lib/moduli/quoteBridge.ts): il PDF è quello del modulo, caricato dal

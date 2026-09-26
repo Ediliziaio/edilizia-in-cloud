@@ -1,5 +1,7 @@
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { preventivoVisibile } from "../_shared/preventivoVisibile.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
@@ -38,6 +40,19 @@ Deno.serve(async (req) => {
     // prima chi lavora su più aziende prendeva 403, dopo che un modulo aveva già
     // caricato il PDF.
     await requireCompanyAccess(supabaseAdmin, userId, quote.company_id, corsH);
+    // E deve poter vedere QUEL preventivo (RLS di quotes col suo token), prima di ogni
+    // scrittura. L'azienda da sola lasciava a chiunque ne facesse parte (cliente del
+    // portale, bloccato col token ancora valido, staff senza permesso) annullare le
+    // firme in corso e cambiare link e scadenza prima che generate-quote-pdf dicesse
+    // di no; e per i preventivi dei moduli, col PDF già pronto, il PDF non si chiede
+    // proprio: l'invio partiva a qualunque indirizzo.
+    const comeChiChiama = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
+      global: { headers: { Authorization: req.headers.get("Authorization") ?? "" } },
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    if (!(await preventivoVisibile(comeChiChiama, quote.id))) {
+      return errorResponse("Preventivo non trovato", 404, corsH);
+    }
 
     // Determine recipient
     // Lo sconto era controllato solo nel browser (QuoteDiscountControl): qui
