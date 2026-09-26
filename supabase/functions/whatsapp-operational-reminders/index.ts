@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/headers.ts";
 import { normalizeOperationalSettings } from "../whatsapp-ai-processor/settings.ts";
-import { cronSecretValido } from "../_shared/cronAuth.ts";
+import { chiamataInternaValida, rispostaNonAutorizzata } from "../_shared/chiamataInterna.ts";
 
 interface ReminderRunBody {
   force?: boolean;
@@ -26,19 +26,6 @@ interface EmployeeRow {
   last_name: string | null;
   phone: string | null;
   phone_whatsapp: string | null;
-}
-
-function extractJwtRole(authHeader: string): string | null {
-  if (!authHeader.startsWith("Bearer ")) return null;
-  const jwt = authHeader.substring(7);
-  const parts = jwt.split(".");
-  if (parts.length !== 3) return null;
-  try {
-    const payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
-    return typeof payload.role === "string" ? payload.role : null;
-  } catch {
-    return null;
-  }
 }
 
 function romeParts(now = new Date()) {
@@ -96,18 +83,12 @@ Deno.serve(async (req) => {
   }
 
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const authHeader = req.headers.get("Authorization") ?? "";
-  const roleClaim = extractJwtRole(authHeader);
-  const authorized =
-    authHeader === `Bearer ${serviceKey}` ||
-    roleClaim === "service_role" ||
-    cronSecretValido(req);
-
-  if (!authorized) {
-    return new Response(JSON.stringify({ error: "unauthorized" }), {
-      status: 401,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+  // Solo il cron o un'altra nostra funzione: segreto del cron, oppure
+  // Authorization: Bearer <chiave di servizio> uguale carattere per carattere.
+  // NON si legge il ruolo dal JWT: con verify_jwt = false un token con
+  // role: service_role se lo scrive chiunque (buco chiuso il 26/09/2026).
+  if (!chiamataInternaValida(req)) {
+    return rispostaNonAutorizzata(corsHeaders);
   }
 
   const body = (await req.json().catch(() => ({}))) as ReminderRunBody;
