@@ -34,6 +34,14 @@ export const AREA_DESIGN: Record<
     scope:
       "Le superfici e le lavorazioni comprese sono quelle indicate in metri quadri nel computo.",
   },
+  pergole: {
+    color: "#4d5b47",
+    intro: "Ombra, riparo e spazi esterni vivibili tutto l'anno.",
+    checks:
+      "Spazio, appoggi, esposizione al vento e scarico dell'acqua.",
+    scope:
+      "Struttura, copertura e accessori sono quelli del computo. Pratiche e opere edili restano a parte se non elencate.",
+  },
   bagni: {
     color: "#6b5546",
     intro: "Il tuo bagno, con scelte coordinate e un perimetro chiaro.",
@@ -122,6 +130,16 @@ export const INTERVENTION_LIMITS: Record<string, string> = {
     "Si tratta la causa prima della finitura. Riparazioni esterne, barriere alla risalita e drenaggi sono interventi separati. Alcuni risultati dipendono dall'uso.",
   "pareti-soffitti/acustica":
     "L'isolamento attenua, non azzera, e agisce sulla via del rumore indicata. Interventi sulla sorgente (pavimento di sopra, impianti) sono a parte.",
+  "pergole/pergola-bioclimatica":
+    "Struttura, motori e accessori sono quelli del computo. Autorizzazioni, fondazioni e opere murarie restano a parte. Vento e neve hanno limiti dichiarati dal produttore.",
+  "pergole/pergola-telo":
+    "Struttura e telo sono quelli elencati. Con vento forte il telo va chiuso. Pratiche e opere edili sono a parte se non computate.",
+  "pergole/tende-sole":
+    "Le tende sono quelle delle aperture indicate. I fissaggi si scelgono sul supporto reale, cappotto compreso. Autorizzazioni condominiali e rinforzi sono a parte.",
+  "pergole/vetrate":
+    "Chiudere un balcone può incidere su volumi e pratiche: si verifica sul caso e sul Comune. Autorizzazioni e incarichi tecnici sono a parte se non elencati.",
+  "pergole/carport":
+    "Struttura, copertura e fondazioni sono quelle del computo. Permessi, calcoli e pavimentazioni restano a parte. Carichi di vento e neve sono dichiarati.",
   "bagni/completo":
     "Spostamenti degli impianti fuori dal bagno, porte e arredi non elencati richiedono una voce separata.",
   "bagni/vasca-doccia":
@@ -263,7 +281,7 @@ export function documentImage(area: string, module: string) {
     return `/module-art/${area}-${module}.jpg`;
   if (area === "facciate" && module === "interno")
     return areaImage("ristrutturazioni");
-  if (area === "pareti-soffitti") return areaImage("ristrutturazioni");
+  if (area === "pareti-soffitti" || area === "pergole") return areaImage("ristrutturazioni");
   return areaImage(area);
 }
 export function createModuleDocument(

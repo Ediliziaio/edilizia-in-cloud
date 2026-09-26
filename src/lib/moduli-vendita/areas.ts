@@ -51,6 +51,13 @@ export const SALES_AREAS: readonly SalesArea[] = [
     intervention("umidita", "Umidità e muffa", "Diagnosi della causa, risanamento del muro e finitura traspirante.", "Origine dell'umidità", "Superfici interessate", "Ciclo di risanamento", "Limiti e indicazioni d'uso"),
     intervention("acustica", "Isolamento acustico", "Contropareti e soffitti fonoisolanti sul rumore reale.", "Tipo di rumore", "Via del suono", "Stratigrafia", "Risultato atteso"),
   ] },
+  { id: "pergole", title: "Pergole e tende", sourceModule: "ristrutturazione", summary: "Pergole, tende da sole, vetrate e tettoie per gli spazi esterni.", interventions: [
+    intervention("pergola-bioclimatica", "Pergola bioclimatica", "Lamelle orientabili, motori e scarico dell'acqua.", "Spazio e appoggi", "Copertura e comandi", "Acqua e vento", "Accessori"),
+    intervention("pergola-telo", "Pergola con telo", "Struttura leggera con telo avvolgibile o a pacchetto.", "Zona da coprire", "Telo e sistema", "Tensione e vento", "Comandi"),
+    intervention("tende-sole", "Tende da sole", "Tende a bracci, a cassonetto o verticali su misura.", "Misure delle aperture", "Tipo e tessuto", "Fissaggi e supporto", "Comandi"),
+    intervention("vetrate", "Vetrate e chiusure balcone", "Vetrate panoramiche e chiusure di balconi e logge.", "Lati da chiudere", "Sistema e requisiti", "Pratiche e vincoli", "Ferramenta"),
+    intervention("carport", "Carport e tettoie", "Coperture per auto, legna o ingressi.", "Spazio e uso", "Copertura", "Fondazioni e ancoraggi", "Scarico dell'acqua"),
+  ] },
   { id: "bagni", title: "Bagni", sourceModule: "bagni", summary: "Dal bagno completo alla sostituzione di vasca, doccia o sanitari.", interventions: [
     intervention("completo", "Ristrutturazione completa del bagno", "Demolizioni, impianti, rivestimenti e arredi coordinati.", "Rilievo e disposizione", "Impianti", "Sanitari e rivestimenti", "Demolizioni e posa"),
     intervention("vasca-doccia", "Da vasca a doccia", "Trasformazione della zona vasca in una nuova doccia.", "Vano disponibile", "Piatto e box doccia", "Scarichi e rubinetteria", "Rivestimenti e ripristini"),

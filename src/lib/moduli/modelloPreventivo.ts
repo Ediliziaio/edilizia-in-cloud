@@ -84,6 +84,8 @@ export const TIPO_INTERVENTO_DEL_MODELLO: Record<ModuloConModelli, Readonly<Reco
     "tinteggiatura-interna": "ristrutturazione_parziale", "carta-da-parati": "ristrutturazione_parziale",
     cartongesso: "ristrutturazione_parziale", controsoffitti: "ristrutturazione_parziale",
     decorativi: "ristrutturazione_parziale", umidita: "ristrutturazione_parziale", acustica: "ristrutturazione_parziale",
+    "pergola-bioclimatica": "ristrutturazione_parziale", "pergola-telo": "ristrutturazione_parziale", "tende-sole": "ristrutturazione_parziale",
+    vetrate: "ristrutturazione_parziale", carport: "ristrutturazione_parziale",
   },
 };
 

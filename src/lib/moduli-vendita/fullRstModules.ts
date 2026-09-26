@@ -10,18 +10,21 @@ import { ristrutturazioneCommercialeContent } from "./fullRistrutturazioneCommer
 import { ristrutturazioneSpaziContent } from "./fullRistrutturazioneSpazi";
 import { ristrutturazioneComputoContent } from "./fullRistrutturazioneComputo";
 import { tinteggiaturaInternaContent, cartaDaParatiContent, cartongessoContent, controsoffittiContent, decorativiContent, umiditaMuffaContent, acusticaContent } from "./fullParetiSoffitti";
+import { pergolaBioclimaticaContent, pergolaTeloContent, tendeSoleContent, vetrateChiusureContent, carportContent } from "./fullPergole";
 
 export const FULL_RST_MODULES = ["completa", "parziale", "commerciale", "spazi", "computo"] as const;
 // Area «Pareti e soffitti» (Lotto 2): stesso motore Ristrutturazioni, id propri.
 export const FULL_PARETI_SOFFITTI_MODULES = ["tinteggiatura-interna", "carta-da-parati", "cartongesso", "controsoffitti", "decorativi", "umidita", "acustica"] as const;
-export type FullRstModuleId = typeof FULL_RST_MODULES[number] | typeof FULL_PARETI_SOFFITTI_MODULES[number];
-export const RST_MODULE_TITLES: Record<FullRstModuleId, string> = { completa: "Ristrutturazione completa", parziale: "Ristrutturazione parziale", commerciale: "Negozi e uffici", spazi: "Redistribuzione degli spazi", computo: "Intervento a computo", "tinteggiatura-interna": "Tinteggiatura interna", "carta-da-parati": "Carta da parati", cartongesso: "Pareti in cartongesso", controsoffitti: "Controsoffitti e velette", decorativi: "Finiture decorative", umidita: "Umidità e muffa", acustica: "Isolamento acustico" };
-const CONTENT: Record<FullRstModuleId, import("./fullTettiFactory").TetEditorialContent> = { completa: ristrutturazioneCompletaContent, parziale: ristrutturazioneParzialeContent, commerciale: ristrutturazioneCommercialeContent, spazi: ristrutturazioneSpaziContent, computo: ristrutturazioneComputoContent, "tinteggiatura-interna": tinteggiaturaInternaContent, "carta-da-parati": cartaDaParatiContent, cartongesso: cartongessoContent, controsoffitti: controsoffittiContent, decorativi: decorativiContent, umidita: umiditaMuffaContent, acustica: acusticaContent };
+// Area «Pergole e tende» (Lotto 3): stesso motore Ristrutturazioni, id propri.
+export const FULL_PERGOLE_MODULES = ["pergola-bioclimatica", "pergola-telo", "tende-sole", "vetrate", "carport"] as const;
+export type FullRstModuleId = typeof FULL_RST_MODULES[number] | typeof FULL_PARETI_SOFFITTI_MODULES[number] | typeof FULL_PERGOLE_MODULES[number];
+export const RST_MODULE_TITLES: Record<FullRstModuleId, string> = { completa: "Ristrutturazione completa", parziale: "Ristrutturazione parziale", commerciale: "Negozi e uffici", spazi: "Redistribuzione degli spazi", computo: "Intervento a computo", "tinteggiatura-interna": "Tinteggiatura interna", "carta-da-parati": "Carta da parati", cartongesso: "Pareti in cartongesso", controsoffitti: "Controsoffitti e velette", decorativi: "Finiture decorative", umidita: "Umidità e muffa", acustica: "Isolamento acustico", "pergola-bioclimatica": "Pergola bioclimatica", "pergola-telo": "Pergola con telo", "tende-sole": "Tende da sole", vetrate: "Vetrate e chiusure balcone", carport: "Carport e tettoie" };
+const CONTENT: Record<FullRstModuleId, import("./fullTettiFactory").TetEditorialContent> = { completa: ristrutturazioneCompletaContent, parziale: ristrutturazioneParzialeContent, commerciale: ristrutturazioneCommercialeContent, spazi: ristrutturazioneSpaziContent, computo: ristrutturazioneComputoContent, "tinteggiatura-interna": tinteggiaturaInternaContent, "carta-da-parati": cartaDaParatiContent, cartongesso: cartongessoContent, controsoffitti: controsoffittiContent, decorativi: decorativiContent, umidita: umiditaMuffaContent, acustica: acusticaContent, "pergola-bioclimatica": pergolaBioclimaticaContent, "pergola-telo": pergolaTeloContent, "tende-sole": tendeSoleContent, vetrate: vetrateChiusureContent, carport: carportContent };
 export type FullRstTemplate = RstTemplatePdf & RstCoverPatch & {
   pdf_cover_eyebrow: string | null; pdf_cover_hero: string | null; pdf_cover_subhero: string | null;
   pdf_cover_subhero_template?: string | null;
 };
-export const isFullRstModuleId = (id: string): id is FullRstModuleId => (FULL_RST_MODULES as readonly string[]).includes(id) || (FULL_PARETI_SOFFITTI_MODULES as readonly string[]).includes(id);
+export const isFullRstModuleId = (id: string): id is FullRstModuleId => (FULL_RST_MODULES as readonly string[]).includes(id) || (FULL_PARETI_SOFFITTI_MODULES as readonly string[]).includes(id) || (FULL_PERGOLE_MODULES as readonly string[]).includes(id);
 
 /** Each edition supplies the complete original editor/renderer schema, not the generic document. */
 export function createFullRstTemplate(base: RstTemplatePdf, id: FullRstModuleId): FullRstTemplate {
@@ -123,7 +126,44 @@ export function buildRstModulePreview(companyId: string, template: RstTemplatePd
       ["Finitura", "Stuccatura e carteggiatura, pronta alla pittura", "mq", 16, 7],
     ],
   };
-  const paretiRows = PARETI[id];
+  const PERGOLE: Partial<Record<FullRstModuleId, Array<[string, string, RstComputoVoce["unita_misura"], number, number]>>> = {
+    "pergola-bioclimatica": [
+      ["Sopralluogo", "Rilievo dello spazio esterno, degli appoggi e dello scarico dell'acqua", "corpo", 1, 250],
+      ["Struttura", "Pergola bioclimatica in alluminio con lamelle orientabili, colore a scelta", "mq", 18, 320],
+      ["Ancoraggi", "Fissaggi a terra o a parete dimensionati sul supporto e sul vento", "corpo", 1, 600],
+      ["Comandi", "Motorizzazione delle lamelle con sensore di pioggia e vento", "corpo", 1, 900],
+      ["Avviamento", "Collegamenti, prova dei comandi e dello scarico, consegna", "corpo", 1, 350],
+    ],
+    "pergola-telo": [
+      ["Sopralluogo", "Rilievo della zona da coprire, degli appoggi e dell'esposizione", "corpo", 1, 200],
+      ["Struttura", "Pergola con telo avvolgibile impermeabile, profili in alluminio", "mq", 15, 260],
+      ["Ancoraggi", "Fissaggi a parete o autoportanti dimensionati sul supporto", "corpo", 1, 500],
+      ["Comandi", "Motorizzazione del telo con sensore vento", "corpo", 1, 700],
+      ["Avviamento", "Montaggio, tensione del telo e prova di apertura", "corpo", 1, 300],
+    ],
+    "tende-sole": [
+      ["Sopralluogo", "Misura delle aperture, verifica dei supporti e dell'esposizione", "corpo", 1, 150],
+      ["Fornitura", "Tenda a bracci con cassonetto, tessuto tecnico a scelta", "cad", 2, 780],
+      ["Fissaggi", "Staffe e tasselli adatti al supporto, idonei anche a cappotto", "cad", 2, 90],
+      ["Comandi", "Motorizzazione con telecomando e sensore vento", "cad", 2, 260],
+      ["Installazione", "Montaggio in quota, collegamenti e prova", "corpo", 1, 250],
+    ],
+    vetrate: [
+      ["Sopralluogo", "Rilievo dei lati da chiudere e verifica dei requisiti", "corpo", 1, 300],
+      ["Fornitura", "Vetrata panoramica a tutto vetro con ante impacchettabili", "mq", 12, 480],
+      ["Ferramenta", "Guide, carrelli e serrature del sistema scelto", "corpo", 1, 700],
+      ["Installazione", "Montaggio delle guide, posa dei vetri e regolazione", "mq", 12, 90],
+      ["Sigillature", "Tenuta ad acqua e aria e prova di apertura", "corpo", 1, 350],
+    ],
+    carport: [
+      ["Sopralluogo", "Rilievo dello spazio, del terreno e dello scarico dell'acqua", "corpo", 1, 250],
+      ["Fondazioni", "Plinti in calcestruzzo per gli appoggi della struttura", "cad", 4, 220],
+      ["Struttura", "Carport per un'auto in alluminio o acciaio zincato", "mq", 15, 240],
+      ["Copertura", "Pannelli coibentati con pendenza e fissaggi", "mq", 15, 85],
+      ["Scarico", "Canale di gronda e discesa dell'acqua al punto concordato", "corpo", 1, 300],
+    ],
+  };
+  const paretiRows = PARETI[id] ?? PERGOLE[id];
   const rows: Array<[string, string, RstComputoVoce["unita_misura"], number, number]> = paretiRows ? paretiRows : id === "computo" ? [
     ["Preparazioni", "Ambito A: protezioni delle superfici conservate e dei percorsi indicati", "corpo", 1, 400],
     ["Rimozioni", "Ambito A: rimozione della pavimentazione nelle zone individuate", "mq", 25, 12],

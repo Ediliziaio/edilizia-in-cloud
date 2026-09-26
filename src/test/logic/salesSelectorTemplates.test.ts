@@ -4,7 +4,7 @@ import { normalizeQuoteTemplatesParams } from "@/lib/settingsQuoteTemplatesRoute
 import { SERRAMENTI_TEMPLATE_MODULES } from "@/lib/moduli-vendita/serramentiTemplateModules";
 import { TETTI_TEMPLATE_MODULES } from "@/lib/moduli-vendita/tettiTemplateModules";
 import { FULL_FV_MODULES } from "@/lib/moduli-vendita/fullFvModules";
-import { FULL_RST_MODULES, FULL_PARETI_SOFFITTI_MODULES } from "@/lib/moduli-vendita/fullRstModules";
+import { FULL_RST_MODULES, FULL_PARETI_SOFFITTI_MODULES, FULL_PERGOLE_MODULES } from "@/lib/moduli-vendita/fullRstModules";
 import { FULL_BGN_MODULES } from "@/lib/moduli-vendita/fullBgnModules";
 import { FULL_IDR_MODULES } from "@/lib/moduli-vendita/fullIdrModules";
 import { FULL_CLM_MODULES } from "@/lib/moduli-vendita/fullClmModules";
@@ -19,7 +19,7 @@ const editorModels: Record<string, readonly string[]> = {
   serramenti: SERRAMENTI_TEMPLATE_MODULES.map(item => item.id),
   tetti: TETTI_TEMPLATE_MODULES.map(item => item.id),
   fotovoltaico: FULL_FV_MODULES,
-  ristrutturazione: [...FULL_RST_MODULES, ...FULL_PARETI_SOFFITTI_MODULES],
+  ristrutturazione: [...FULL_RST_MODULES, ...FULL_PARETI_SOFFITTI_MODULES, ...FULL_PERGOLE_MODULES],
   bagni: FULL_BGN_MODULES,
   termoidraulico: FULL_IDR_MODULES,
   climatizzazione: FULL_CLM_MODULES,
