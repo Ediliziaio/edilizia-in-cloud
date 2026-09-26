@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { resolveWhatsAppSender } from "../_shared/resolveWhatsAppSender.ts";
 import { getCorsHeaders, secureHeaders } from "../_shared/headers.ts";
 import { assertMetaCompanyAdminAccess, getErrorMessage, getErrorStatus } from "../_shared/metaAuth.ts";
+import { chiamataInternaValida } from "../_shared/chiamataInterna.ts";
 
 type TemplateComponent = {
   type?: string;
@@ -17,29 +18,41 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // Due strade: chiamata interna (cron/altra nostra funzione col service role
+    // o il cron secret) oppure un utente super-admin/admin dell'azienda col suo
+    // JWT. L'interna serve a creare template a nome dell'azienda dai flussi di
+    // onboarding, dove non c'è una sessione utente.
+    const interna = chiamataInternaValida(req);
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: secureHeaders,
-      });
-    }
 
-    const supabaseUser = createClient(
+    const adminClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } }
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    const token = authHeader.replace("Bearer ", "");
-    const { data: { user }, error: claimsError } = await supabaseUser.auth.getUser(token);
-    if (claimsError || !user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: secureHeaders,
-      });
+    let userId: string | null = null;
+    if (!interna) {
+      if (!authHeader?.startsWith("Bearer ")) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401,
+          headers: secureHeaders,
+        });
+      }
+      const supabaseUser = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_ANON_KEY")!,
+        { global: { headers: { Authorization: authHeader } } }
+      );
+      const token = authHeader.replace("Bearer ", "");
+      const { data: { user }, error: claimsError } = await supabaseUser.auth.getUser(token);
+      if (claimsError || !user) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401,
+          headers: secureHeaders,
+        });
+      }
+      userId = user.id;
     }
-    const userId = user.id;
 
     const body = await req.json();
     // wa_number_id: numero/WABA specifico su cui operare (template per-WABA, niente mischiate).
@@ -53,12 +66,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    const adminClient = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
-
-    await assertMetaCompanyAdminAccess(adminClient, userId, company_id);
+    // Il permesso lo verifica solo la strada utente: la chiamata interna è già
+    // nostra e passa il company_id esplicito.
+    if (!interna) await assertMetaCompanyAdminAccess(adminClient, userId!, company_id);
 
     // Get WhatsApp config (need waba_id for template API) — sul NUMERO/WABA scelto
     // (wa_number_id), così i template non si mischiano tra numeri/aziende diverse.
