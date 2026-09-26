@@ -21,8 +21,11 @@ import { cn } from "@/lib/utils";
 import {
   Mail, MessageSquare, MessageCircle, StickyNote, Search, Inbox, Instagram, Facebook,
   AlertCircle, ChevronLeft, User, Briefcase, RefreshCw, UserCheck, CheckCircle2, RotateCcw, Info,
-  Bot, PauseCircle, ExternalLink, Phone, Check, CheckCheck, X,
+  Bot, PauseCircle, ExternalLink, Phone, Check, CheckCheck, X, MoreHorizontal,
 } from "lucide-react";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import ConversazioneComposer from "./ConversazioneComposer";
@@ -454,13 +457,16 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
         ) : (
           <>
             {/* Nome e recapiti su tutta la larghezza, azioni sotto: prima i
-                pulsanti si mangiavano lo spazio e il nome usciva «Florin An…». */}
+                pulsanti si mangiavano lo spazio e il nome usciva «Florin An…».
+                Telefono: una riga sola (‹, avatar, nome col telefono, «⋯» con
+                le azioni). Con la riga di bottoni sotto la testata prendeva
+                ~175px su 812, e ogni bottone lì diventa di 44px. */}
             <header className="px-3 sm:px-4 py-2 border-b bg-background shrink-0 space-y-1.5">
               <div className="flex items-center gap-2.5 min-w-0">
                 <Button variant="ghost" size="icon" className="md:hidden -ml-1 h-8 w-8 shrink-0" aria-label="Torna alla lista" onClick={() => setSelectedKey(null)}>
                   <ChevronLeft className="h-5 w-5" />
                 </Button>
-                <Link to={schedaHref} className="shrink-0" aria-label="Apri la scheda del contatto">
+                <Link to={schedaHref} className="tap-compact shrink-0" aria-label="Apri la scheda del contatto">
                   <Avatar className="h-9 w-9">
                     <AvatarFallback className={cn("text-xs", selectedItem.entita_tipo === "cliente" ? "bg-indigo-100 text-indigo-700" : "bg-primary/10 text-primary")}>
                       {iniziali(selectedItem.nome, selectedItem.email)}
@@ -470,7 +476,7 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
                 <div className="min-w-0 flex-1">
                   <Link
                     to={schedaHref}
-                    className="font-semibold text-sm hover:underline flex items-center gap-1.5 min-w-0"
+                    className="tap-compact font-semibold text-sm hover:underline flex items-center gap-1.5 min-w-0"
                     title="Apri la scheda completa"
                   >
                     <span className="truncate">{selectedItem.nome || selectedItem.email || "Senza nome"}</span>
@@ -478,22 +484,54 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
                   </Link>
                   <div className="text-xs text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-0.5">
                     {selectedItem.telefono && (
-                      <a href={`tel:${selectedItem.telefono}`} className="inline-flex items-center gap-1 hover:text-foreground">
+                      <a href={`tel:${selectedItem.telefono}`} className="tap-compact inline-flex items-center gap-1 hover:text-foreground">
                         <Phone className="h-3 w-3" />{selectedItem.telefono}
                       </a>
                     )}
                     {selectedItem.email && (
-                      <span className="inline-flex items-center gap-1 min-w-0"><Mail className="h-3 w-3 shrink-0" /><span className="truncate">{selectedItem.email}</span></span>
+                      <span className="inline-flex items-center gap-1 min-w-0 max-md:hidden"><Mail className="h-3 w-3 shrink-0" /><span className="truncate">{selectedItem.email}</span></span>
                     )}
                   </div>
                 </div>
-                <Badge variant="secondary" className="gap-1 shrink-0">
+                <Badge variant="secondary" className="gap-1 shrink-0 max-md:hidden">
                   {selectedItem.entita_tipo === "cliente" ? <Briefcase className="h-3 w-3" /> : <User className="h-3 w-3" />}
                   {selectedItem.entita_tipo === "cliente" ? "Cliente" : "Contatto"}
                 </Badge>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="tap-compact h-9 w-9 shrink-0 md:hidden" aria-label="Azioni sulla conversazione">
+                      <MoreHorizontal className="h-5 w-5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuItem onClick={() => setSchedaOpen(true)}>
+                      <Info className="h-4 w-4 mr-2" /> Scheda
+                    </DropdownMenuItem>
+                    {selectedItem.entita_tipo === "contatto" && assistente.data?.haAgente && (
+                      <DropdownMenuItem onClick={cambiaPausaAssistente} disabled={overlay.isPending}>
+                        {assistente.data.inPausa
+                          ? <><Bot className="h-4 w-4 mr-2" /> Riattiva l'assistente</>
+                          : <><PauseCircle className="h-4 w-4 mr-2" /> Metti in pausa l'assistente</>}
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem onClick={assegnaAMe} disabled={overlay.isPending}>
+                      <UserCheck className="h-4 w-4 mr-2" />
+                      {selectedItem.assegnato_a === user?.id ? "Togli l'assegnazione" : "Assegna a me"}
+                    </DropdownMenuItem>
+                    {selectedItem.stato === "chiusa" ? (
+                      <DropdownMenuItem onClick={() => aggiornaStato("aperta")} disabled={overlay.isPending}>
+                        <RotateCcw className="h-4 w-4 mr-2" /> Riapri
+                      </DropdownMenuItem>
+                    ) : (
+                      <DropdownMenuItem onClick={() => aggiornaStato("chiusa")} disabled={overlay.isPending}>
+                        <CheckCircle2 className="h-4 w-4 mr-2" /> Chiudi
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
               {/* Azioni GHL: scheda (sotto xl) / pausa assistente / assegna a me / chiudi-riapri */}
-              <div className="flex flex-wrap items-center gap-1">
+              <div className="flex flex-wrap items-center gap-1 max-md:hidden">
                 <Button
                   variant="ghost" size="sm" className="h-7 gap-1.5 text-xs xl:hidden"
                   onClick={() => setSchedaOpen(true)}
