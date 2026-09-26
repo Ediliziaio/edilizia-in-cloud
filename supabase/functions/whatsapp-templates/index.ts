@@ -3,6 +3,9 @@ import { resolveWhatsAppSender } from "../_shared/resolveWhatsAppSender.ts";
 import { getCorsHeaders, secureHeaders } from "../_shared/headers.ts";
 import { assertMetaCompanyAdminAccess, getErrorMessage, getErrorStatus } from "../_shared/metaAuth.ts";
 import { chiamataInternaValida } from "../_shared/chiamataInterna.ts";
+import { getMetaCredentials } from "../_shared/getMetaCredentials.ts";
+import { caricaMediaSuMeta, estensioneDaMime, formatoHeaderDaMime } from "../_shared/metaMediaUpload.ts";
+import { base64ToBytes } from "../_shared/base64.ts";
 
 type TemplateComponent = {
   type?: string;
@@ -106,6 +109,42 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ── CARICA MEDIA INTESTAZIONE ──
+    // Foto/video/PDF per l'intestazione del template. Meta, in creazione, vuole
+    // un «handle» (non un URL): si carica il file sull'app e si prende l'handle.
+    // In più teniamo una copia pubblica nel bucket, che è il link che ogni
+    // invio del modello allega (Meta all'invio vuole un link, non l'handle).
+    if (action === "carica_media_header") {
+      const { file_base64, mime, filename } = body as { file_base64?: string; mime?: string; filename?: string };
+      const formato = formatoHeaderDaMime(String(mime ?? ""));
+      if (!file_base64 || !formato) {
+        return new Response(JSON.stringify({ error: "Serve un file immagine, video o PDF." }), { status: 400, headers: secureHeaders });
+      }
+      let bytes: Uint8Array;
+      try { bytes = base64ToBytes(file_base64); } catch { bytes = new Uint8Array(); }
+      if (bytes.length === 0 || bytes.length > 16 * 1024 * 1024) {
+        return new Response(JSON.stringify({ error: "Il file è vuoto o supera 16 MB." }), { status: 400, headers: secureHeaders });
+      }
+      const { metaAppId } = await getMetaCredentials();
+      if (!metaAppId) {
+        return new Response(JSON.stringify({ error: "Configurazione Meta incompleta: manca l'ID dell'app." }), { status: 500, headers: secureHeaders });
+      }
+      const ext = estensioneDaMime(String(mime));
+      const nome = (typeof filename === "string" && filename.trim()) ? filename.trim() : `header.${ext}`;
+      const esito = await caricaMediaSuMeta(metaAppId, accessToken, bytes, nome, String(mime));
+      if (!esito.ok || !esito.handle) {
+        return new Response(JSON.stringify({ error: esito.errore ?? "Caricamento su Meta non riuscito." }), { status: 502, headers: secureHeaders });
+      }
+      const percorso = `${company_id}/${crypto.randomUUID()}.${ext}`;
+      const { error: eUp } = await adminClient.storage.from("whatsapp-template-media")
+        .upload(percorso, bytes, { contentType: String(mime), upsert: false });
+      if (eUp) {
+        return new Response(JSON.stringify({ error: `Salvataggio del file non riuscito: ${eUp.message}` }), { status: 500, headers: secureHeaders });
+      }
+      const { data: pub } = adminClient.storage.from("whatsapp-template-media").getPublicUrl(percorso);
+      return new Response(JSON.stringify({ handle: esito.handle, url: pub?.publicUrl ?? null, format: formato }), { status: 200, headers: secureHeaders });
+    }
+
     // ── CREATE template ──
     if (action === "create") {
       const { template } = body;
@@ -117,6 +156,11 @@ Deno.serve(async (req) => {
       }
 
       const components = addTemplateExamples(template.components as TemplateComponent[]);
+      // Link pubblico del media dell'intestazione (dal passo «carica_media_header»),
+      // che ogni invio del modello allegherà. null quando l'intestazione è di testo.
+      const headerMediaUrl = typeof (body as { header_media_url?: string }).header_media_url === "string"
+        ? (body as { header_media_url?: string }).header_media_url!.trim() || null
+        : null;
       const res = await fetch(
         `https://graph.facebook.com/v21.0/${wabaId}/message_templates`,
         {
@@ -156,6 +200,7 @@ Deno.serve(async (req) => {
           components,
           status: "PENDING",
           variableMapping: variable_mapping ?? null,
+          headerMediaUrl,
         });
       }
 
@@ -285,6 +330,8 @@ async function persistTemplateRow(
     components: TemplateComponent[];
     status: string;
     variableMapping: Record<string, string> | null;
+    /** Link del media dell'intestazione: `undefined` = non toccarlo (modifica), `null`/stringa = impostalo (creazione). */
+    headerMediaUrl?: string | null;
   },
 ): Promise<void> {
   try {
@@ -295,6 +342,9 @@ async function persistTemplateRow(
     const variablesCount = new Set(
       [...bodyText.matchAll(/\{\{(\d+)\}\}/g)].map((m) => m[1]),
     ).size;
+    // Il formato dell'intestazione si legge dai componenti (TEXT/IMAGE/VIDEO/DOCUMENT).
+    const headerComp = (args.components || []).find((c) => c.type === "HEADER");
+    const headerFormat = typeof headerComp?.format === "string" ? headerComp.format.toUpperCase() : null;
 
     await adminClient.from("wa_meta_templates").upsert({
       company_id: args.companyId,
@@ -306,6 +356,9 @@ async function persistTemplateRow(
       components_json: args.components,
       variables_count: variablesCount,
       variable_mapping: args.variableMapping,
+      header_format: headerFormat,
+      // Solo se passato: la modifica lo omette e il link resta quello di prima.
+      ...(args.headerMediaUrl !== undefined ? { header_media_url: args.headerMediaUrl } : {}),
       synced_at: new Date().toISOString(),
     }, { onConflict: "wa_number_id,template_name,template_language" });
   } catch (e) {
