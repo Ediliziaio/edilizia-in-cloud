@@ -5,10 +5,15 @@ import { PAV_EDITORIAL, PAV_OPERATIONAL_IMAGES, type PavEditorialPair } from "./
 export { PAV_EDITORIAL } from "./pavEditorialContent";
 
 export const FULL_PAV_MODULES = ["sovrapposizione", "rifacimento", "resina", "parquet", "pareti", "esterni", "posa-parquet", "scale", "levigatura"] as const;
-export type FullPavModuleId = typeof FULL_PAV_MODULES[number];
-export const isFullPavModuleId = (id: string): id is FullPavModuleId => FULL_PAV_MODULES.some(value => value === id);
-export const PAV_MODULE_TITLES = Object.fromEntries(FULL_PAV_MODULES.map(id => [id, PAV_EDITORIAL[id].title])) as Record<FullPavModuleId, string>;
-export const PAV_MODULE_COVERS = Object.fromEntries(FULL_PAV_MODULES.map(id => [id, PAV_EDITORIAL[id].cover])) as Record<FullPavModuleId, string>;
+// L'area Giardini (Lotto 11) gira sullo stesso motore Pavimenti: quattro modelli in più,
+// gemelli di pavimenti/esterni. Restano un'area a sé, ma condividono factory e tabella pav_progetti.
+export const FULL_GIARDINI_MODULES = ["giardino", "verde", "irrigazione", "recinzioni"] as const;
+export type FullGiardiniModuleId = typeof FULL_GIARDINI_MODULES[number];
+const PAV_ENGINE_MODULES = [...FULL_PAV_MODULES, ...FULL_GIARDINI_MODULES] as const;
+export type FullPavModuleId = typeof PAV_ENGINE_MODULES[number];
+export const isFullPavModuleId = (id: string): id is FullPavModuleId => PAV_ENGINE_MODULES.some(value => value === id);
+export const PAV_MODULE_TITLES = Object.fromEntries(PAV_ENGINE_MODULES.map(id => [id, PAV_EDITORIAL[id].title])) as Record<FullPavModuleId, string>;
+export const PAV_MODULE_COVERS = Object.fromEntries(PAV_ENGINE_MODULES.map(id => [id, PAV_EDITORIAL[id].cover])) as Record<FullPavModuleId, string>;
 
 export function createFullPavTemplate(base: Partial<PavTemplatePdf> & Pick<PavTemplatePdf, "company_id">, id: FullPavModuleId): PavTemplatePdf {
   const c = PAV_EDITORIAL[id];

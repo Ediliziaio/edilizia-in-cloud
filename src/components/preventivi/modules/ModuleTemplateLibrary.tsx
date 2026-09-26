@@ -88,7 +88,7 @@ function savedStatus(company: string | null, area: string, module: string) {
     const nativeSaved =
       area === "climatizzazione" && isFullClmModuleId(module) ? loadLocalClmTemplate(company, module) :
       area === "elettrico" && isFullEltModuleId(module) ? loadLocalEltTemplate(company, module) :
-      area === "pavimenti" && isFullPavModuleId(module) ? loadLocalPavTemplate(company, module) :
+      (area === "pavimenti" || area === "giardini") && isFullPavModuleId(module) ? loadLocalPavTemplate(company, module) :
       area === "piscine" && isFullPscModuleId(module) ? loadLocalPscTemplate(company, module) : undefined;
     if (nativeSaved !== undefined) return nativeSaved ? "Salvato" : loadModuleDocument(company, area, module) ? "Nuova edizione disponibile · bozza precedente conservata" : "Da personalizzare";
     if (area === "termoidraulica" && isFullIdrModuleId(module)) return loadLocalIdrTemplate(company, module) ? "Salvato" : "Da personalizzare";
@@ -231,7 +231,7 @@ export default function ModuleTemplateLibrary({
           <Climatizzazione moduleId={module.id} />
         ) : area.id === "elettrico" && isFullEltModuleId(module.id) && params.get("edizione") !== "precedente" ? (
           <Elettrico moduleId={module.id} />
-        ) : area.id === "pavimenti" && isFullPavModuleId(module.id) && params.get("edizione") !== "precedente" ? (
+        ) : (area.id === "pavimenti" || area.id === "giardini") && isFullPavModuleId(module.id) && params.get("edizione") !== "precedente" ? (
           <Pavimenti moduleId={module.id} />
         ) : area.id === "piscine" && isFullPscModuleId(module.id) && params.get("edizione") !== "precedente" ? (
           <Piscine moduleId={module.id} />

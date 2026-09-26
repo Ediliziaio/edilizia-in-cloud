@@ -23,7 +23,7 @@ import { FULL_BGN_MODULES, createFullBgnTemplate } from "@/lib/moduli-vendita/fu
 import { FULL_CLM_MODULES, createFullClmTemplate } from "@/lib/moduli-vendita/fullClmModules";
 import { FULL_ELT_MODULES, createFullEltTemplate } from "@/lib/moduli-vendita/fullEltModules";
 import { FULL_IDR_MODULES, createFullIdrTemplate } from "@/lib/moduli-vendita/fullIdrModules";
-import { FULL_PAV_MODULES, createFullPavTemplate } from "@/lib/moduli-vendita/fullPavModules";
+import { FULL_PAV_MODULES, FULL_GIARDINI_MODULES, createFullPavTemplate } from "@/lib/moduli-vendita/fullPavModules";
 import { FULL_PSC_MODULES, createFullPscTemplate } from "@/lib/moduli-vendita/fullPscModules";
 import { FULL_RST_MODULES, FULL_PARETI_SOFFITTI_MODULES, FULL_PERGOLE_MODULES, FULL_FACCIATE_MODULES, createFullRstTemplate } from "@/lib/moduli-vendita/fullRstModules";
 import { FULL_FV_MODULES, createFullFvTemplate } from "@/lib/moduli-vendita/fullFvModules";
@@ -47,7 +47,7 @@ const MODULI: Record<ModuloConModelli, { dir: string; H: string; ids: readonly s
   climatizzazione: { dir: "climatizzazione", H: "Climatizzazione", ids: FULL_CLM_MODULES, crea: (id) => createFullClmTemplate(base as ClmTemplatePdf, id as typeof FULL_CLM_MODULES[number]) },
   elettrico: { dir: "elettrico", H: "Elettrico", ids: FULL_ELT_MODULES, crea: (id) => createFullEltTemplate(base as EleTemplatePdf, id as typeof FULL_ELT_MODULES[number]) },
   termoidraulico: { dir: "termoidraulico", H: "Termoidraulico", ids: FULL_IDR_MODULES, crea: (id) => createFullIdrTemplate(base as IdrTemplatePdf, id as typeof FULL_IDR_MODULES[number]) },
-  pavimenti: { dir: "pavimenti", H: "Pavimenti", ids: FULL_PAV_MODULES, crea: (id) => createFullPavTemplate({ company_id: AZIENDA }, id as typeof FULL_PAV_MODULES[number]) },
+  pavimenti: { dir: "pavimenti", H: "Pavimenti", ids: [...FULL_PAV_MODULES, ...FULL_GIARDINI_MODULES], crea: (id) => createFullPavTemplate({ company_id: AZIENDA }, id as typeof FULL_PAV_MODULES[number]) },
   piscine: { dir: "piscine", H: "Piscine", ids: FULL_PSC_MODULES, crea: (id) => createFullPscTemplate(base as PisTemplatePdf, id as typeof FULL_PSC_MODULES[number]) },
   ristrutturazione: { dir: "ristrutturazione", H: "Ristrutturazione", ids: [...FULL_RST_MODULES, ...FULL_PARETI_SOFFITTI_MODULES, ...FULL_PERGOLE_MODULES, ...FULL_FACCIATE_MODULES], crea: (id) => createFullRstTemplate(base as RstTemplatePdf, id as typeof FULL_RST_MODULES[number]) },
 };

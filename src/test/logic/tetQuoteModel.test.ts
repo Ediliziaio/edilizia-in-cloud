@@ -59,7 +59,7 @@ describe("registro unico dei preventivatori", () => {
     // preventivatori edili (lib/moduli/modelloPreventivo: 6+6+7+10+6+6+10+7 Pareti +5 Pergole, con
     // Conto Termico e Casa Full Electric nel Termoidraulico) e i cinque del
     // Fotovoltaico. Dal Lotto 10 anche le Facciate (motore Ristrutturazioni): tutte le aree connesse.
-    expect(connected).toHaveLength(105);
+    expect(connected).toHaveLength(109);
     expect(connected.filter(b => b.engine === "tetti")).toHaveLength(9);
     expect(connected.filter(b => b.engine === "serramenti")).toHaveLength(9);
     expect(connected.filter(b => b.engine === "fotovoltaico")).toHaveLength(5);

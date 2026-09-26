@@ -59,7 +59,7 @@ describe("popup unico di creazione preventivi", () => {
     mount();
     expect(screen.getByRole("dialog")).toHaveAccessibleName("Che preventivo vuoi creare?");
     expect(screen.getByTestId("route")).toHaveTextContent("/azienda/marketing/preventivi");
-    expect(screen.getAllByRole("button", { name: /^Scegli area/ })).toHaveLength(13);
+    expect(screen.getAllByRole("button", { name: /^Scegli area/ })).toHaveLength(14);
     expect(screen.getByRole("link", { name: /^Preventivo classico/ })).toHaveAttribute("href", "/azienda/marketing/preventivi/nuovo");
     expect(screen.queryByRole("link", { name: /PDF|Impostazioni/ })).not.toBeInTheDocument();
   });
@@ -109,7 +109,14 @@ describe("popup unico di creazione preventivi", () => {
     fireEvent.click(screen.getByRole("link", { name: "Apri preventivatore Da vasca a doccia" }));
     expect(screen.getByTestId("route")).toHaveTextContent("/azienda/bagni/nuovo?modello=vasca-doccia&contact_id=c1");
   });
-  it.each([["termoidraulica", 13], ["elettrico", 11], ["ristrutturazioni", 10], ["fotovoltaico", 5]] as const)("apre i preventivatori %s coi loro %i interventi", (area, quanti) => {
+  it("porta gli interventi Giardini al preventivatore Pavimenti col modello scelto", () => {
+    // Giardini è un'area a sé sul motore Pavimenti: la creazione resta semplice, apre lo stesso preventivatore.
+    mount("area=giardini&contact_id=c1");
+    expect(screen.getAllByRole("link", { name: /^Apri preventivatore/ })).toHaveLength(4);
+    fireEvent.click(screen.getByRole("link", { name: "Apri preventivatore Realizzazione giardino" }));
+    expect(screen.getByTestId("route")).toHaveTextContent("/azienda/pavimenti/nuovo?modello=giardino&contact_id=c1");
+  });
+  it.each([["termoidraulica", 13], ["elettrico", 11], ["ristrutturazioni", 10], ["giardini", 4], ["fotovoltaico", 5]] as const)("apre i preventivatori %s coi loro %i interventi", (area, quanti) => {
     mount(`area=${area}`);
     expect(screen.getAllByRole("link", { name: /^Apri preventivatore/ })).toHaveLength(quanti);
   });

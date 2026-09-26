@@ -68,6 +68,18 @@ Creare per ognuno **cover 1536×1024** + **dettaglio 1600×900** + rigenerare la
 | `piscine/impianti` | pdf-stock/piscine/locale-tecnico.jpg | Locale tecnico piscina: pompa, filtro, quadro |
 | `piscine/manutenzione` | pdf-stock/piscine/collaudo.jpg | Manutenzione piscina: controllo acqua e pulizia |
 
+### Giardini (Lotto 11 — area nuova, oggi su foto esterni riusate)
+| area/id | oggi usa | soggetto copertina |
+|---|---|---|
+| `giardini/giardino` | module-art/pavimenti-esterni.jpg | Giardino nuovo appena realizzato: prato, aiuole ed essenze, villetta sullo sfondo |
+| `giardini/verde` | pavimenti-esterni-controllo-pendenza-v1.jpg | Manutenzione del verde: sfalcio del prato e potatura di una siepe, giardino curato |
+| `giardini/irrigazione` | module-art/pavimenti-esterni.jpg | Impianto di irrigazione interrato: irrigatori a scomparsa in funzione sul prato |
+| `giardini/recinzioni` | pavimenti-esterni-controllo-pendenza-v1.jpg | Recinzione nuova con cancello, pali e pannelli sul confine di una villetta |
+
+Per ognuno: **cover 1536×1024** + **dettaglio 1600×900** + **miniatura 480×720**. Oggi le
+quattro copertine riusano due foto esterni di Pavimenti (miniature già generate); immagini
+dedicate le distinguerebbero nel selettore. Non urgente: i modelli funzionano già.
+
 > ~26 modelli. Non è urgente (le immagini attuali funzionano), ma dedicate + coerenti
 > alzano lo standard. Se vuoi, li facciamo a lotti come i modelli.
 

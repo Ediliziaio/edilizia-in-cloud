@@ -130,6 +130,12 @@ export const SALES_AREAS: readonly SalesArea[] = [
     intervention("scale", "Rivestimento scale", "Pedate, alzate e profili su misura per la scala.", "Misure dei gradini", "Materiale e sicurezza", "Profili e bordo", "Posa e raccordi"),
     intervention("levigatura", "Levigatura marmo e cotto", "Recupero di marmo, cotto e graniglia esistenti.", "Materiale e stato", "Ciclo di lavorazione", "Finitura", "Trattamento e cura"),
   ] },
+  { id: "giardini", title: "Giardini e verde", sourceModule: "pavimenti", summary: "Nuovo verde, manutenzione, irrigazione e recinzioni per gli spazi esterni.", interventions: [
+    intervention("giardino", "Realizzazione giardino", "Preparazione del terreno, prato ed essenze per il nuovo verde.", "Spazio e uso", "Terreno e drenaggio", "Prato ed essenze", "Opere a contorno"),
+    intervention("verde", "Manutenzione del verde", "Sfalci, potature e cure stagionali sul giardino reale.", "Il verde presente", "Interventi e frequenze", "Stagione e residui", "Programma"),
+    intervention("irrigazione", "Impianto di irrigazione", "Settori, portate e centralina sul giardino reale.", "Aree da irrigare", "Acqua disponibile", "Settori e programmi", "Scavo e collaudo"),
+    intervention("recinzioni", "Recinzioni e cancelli", "Pali, pannelli e cancelli sul confine verificato.", "Confine e terreno", "Materiale e altezza", "Accessi e cancelli", "Fondazioni e posa"),
+  ] },
   { id: "piscine", title: "Piscine", sourceModule: "piscine", summary: "Nuove realizzazioni, rinnovi, impianti e cura stagionale.", interventions: [
     intervention("nuova", "Nuova piscina", "Struttura, impianti e finiture della nuova piscina.", "Dimensioni e terreno", "Struttura", "Impianti", "Finiture e accessori"),
     intervention("ristrutturazione", "Ristrutturazione piscina", "Rinnovo della struttura esistente.", "Stato e dimensioni", "Opere strutturali previste", "Impianti da adeguare", "Finiture"),
