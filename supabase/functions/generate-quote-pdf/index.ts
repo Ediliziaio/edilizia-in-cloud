@@ -328,7 +328,7 @@ Deno.serve(async (req) => {
           : Promise.resolve({ data: null }),
         supabaseAdmin
           .from("quote_pdf_attachments")
-          .select("*, quote_pdf_materials(name, storage_path)")
+          .select("*, quote_pdf_materials(name, storage_path, company_id)")
           .eq("quote_id", quote_id)
           .order("sort_order"),
       ]);
@@ -2651,7 +2651,13 @@ Deno.serve(async (req) => {
     // ─── Merge attached PDFs (skip in preview mode) ───
     if (!isPreview && opzione("pdf_includi_schede_tecniche")) {
       for (const att of attachmentRows) {
-        const filePath = att.quote_pdf_materials?.storage_path;
+        // Solo le schede tecniche dell'azienda del preventivo: il file si scarica col
+        // service role, e un allegato non deve portare nel PDF il materiale di
+        // un'altra azienda (lo impedisce anche il trigger del 26/09/2026 sul database).
+        if (att.quote_pdf_materials?.company_id !== quote.company_id) continue;
+        // Si scarica il percorso, non l'azienda del materiale: anche il file deve stare
+        // nella cartella del preventivo, con la regola di logo e timbro (percorsoDellAzienda).
+        const filePath = percorsoDellAzienda(att.quote_pdf_materials?.storage_path, quote.company_id);
         if (!filePath) continue;
         try {
           const { data: fileData, error: dlErr } = await supabaseAdmin.storage.from("quote-materials").download(filePath);
