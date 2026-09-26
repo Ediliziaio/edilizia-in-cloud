@@ -8,7 +8,7 @@
  */
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bot, Check, Copy, KeyRound, Loader2, ShieldCheck, Sparkles } from "lucide-react";
+import { Bot, Check, Copy, KeyRound, Loader2, RefreshCw, ShieldCheck, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -76,6 +76,16 @@ export default function ConnettoreAiPopup({ onClose }: { onClose: () => void }) 
     () => chiavi.filter((k) => k.is_active && (!k.expires_at || new Date(k.expires_at) > new Date())),
     [chiavi],
   );
+
+  // Promemoria di rotazione: se la connessione più vecchia è attiva da oltre 90
+  // giorni, conviene crearne una nuova e revocare la vecchia (buona igiene delle
+  // chiavi). Mesi interi, per un messaggio leggibile.
+  const mesiChiavePiuVecchia = useMemo(() => {
+    if (chiaviAttive.length === 0) return 0;
+    const piuVecchia = Math.min(...chiaviAttive.map((k) => new Date(k.created_at).getTime()));
+    return Math.floor((Date.now() - piuVecchia) / (30 * 24 * 60 * 60 * 1000));
+  }, [chiaviAttive]);
+  const consigliaRotazione = mesiChiavePiuVecchia >= 3;
 
   const collega = async () => {
     if (!puoGestire) return;
@@ -160,6 +170,19 @@ export default function ConnettoreAiPopup({ onClose }: { onClose: () => void }) 
           <AlertDescription className="text-xs">
             Hai già {chiaviAttive.length === 1 ? "una connessione attiva" : `${chiaviAttive.length} connessioni attive`}.
             Puoi crearne un'altra qui sotto, oppure gestirle (revoca, rinnovo) in{" "}
+            <button className="underline" onClick={() => { onClose(); navigate("/azienda/impostazioni/api"); }}>
+              Impostazioni → API
+            </button>.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {consigliaRotazione && (
+        <Alert className="border-amber-200 bg-amber-50/60 dark:bg-amber-950/20">
+          <RefreshCw className="h-4 w-4 text-amber-600" />
+          <AlertDescription className="text-xs text-amber-900 dark:text-amber-200">
+            Una connessione è attiva da oltre {mesiChiavePiuVecchia} mesi. Per sicurezza conviene ogni tanto crearne una
+            nuova e revocare la vecchia in{" "}
             <button className="underline" onClick={() => { onClose(); navigate("/azienda/impostazioni/api"); }}>
               Impostazioni → API
             </button>.
