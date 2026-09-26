@@ -17,8 +17,8 @@ Ogni sessione aggiorna la sua riga a fine lotto.
 | 0 | Preparazione (aree multiple, impronte, miniature) | – | ✅ fatto | 8dd56d37b |
 | 1 | Serramenti: documento che si compone da solo | – | da fare | |
 | 2 | Pareti e soffitti (area nuova) | 7 | ✅ fatto | 4aedaa3de |
-| 3 | Pergole e tende (area nuova) | 5 | ✅ fatto | (in commit) |
-| 4 | Ristrutturazioni | 5 | da fare | |
+| 3 | Pergole e tende (area nuova) | 5 | ✅ fatto | eaa1bcf7c |
+| 4 | Ristrutturazioni | 5 | ✅ fatto | (in commit) |
 | 5 | Tetti | 3 | da fare | |
 | 6 | Elettrico | 4 | da fare | |
 | 7 | Termoidraulica | 3 | da fare | |

@@ -116,6 +116,16 @@ export const INTERVENTION_LIMITS: Record<string, string> = {
     "Non si presume che una parete sia demolibile: le verifiche sul progetto precedono la definizione delle opere.",
   "ristrutturazioni/computo":
     "Fa fede l'elenco delle voci con quantità e unità di misura. Le opere non descritte non sono automaticamente incluse.",
+  "ristrutturazioni/cucina":
+    "Mobili ed elettrodomestici sono esclusi se non elencati: si predispongono gli attacchi. Spostare finestre o muri è una valutazione separata.",
+  "ristrutturazioni/sottotetto":
+    "L'abitabilità dipende da altezze e regole del Comune, verificate prima. Incarico tecnico, calcoli sui carichi e pratiche sono a parte.",
+  "ristrutturazioni/aperture-portanti":
+    "Calcoli, progetto strutturale e pratica sono di un tecnico incaricato, a parte. L'esecuzione segue il progetto; infissi e finiture nell'apertura sono esclusi se non elencati.",
+  "ristrutturazioni/condominio":
+    "Delibere e ripartizione tra condòmini sono del condominio. Facciata esterna e impianti comuni sono a parte se non elencati.",
+  "ristrutturazioni/montascale":
+    "Opere edili (fosse, appoggi), pratiche e verifiche per le detrazioni sono a parte. La fattibilità dipende dalla scala reale, verificata al sopralluogo.",
   "pareti-soffitti/tinteggiatura-interna":
     "Il prezzo riguarda le superfici indicate in metri quadri. Stuccature, carteggiature e mani di fondo sono comprese solo dove elencate.",
   "pareti-soffitti/carta-da-parati":

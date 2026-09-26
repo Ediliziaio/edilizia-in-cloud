@@ -11,15 +11,16 @@ import { ristrutturazioneSpaziContent } from "./fullRistrutturazioneSpazi";
 import { ristrutturazioneComputoContent } from "./fullRistrutturazioneComputo";
 import { tinteggiaturaInternaContent, cartaDaParatiContent, cartongessoContent, controsoffittiContent, decorativiContent, umiditaMuffaContent, acusticaContent } from "./fullParetiSoffitti";
 import { pergolaBioclimaticaContent, pergolaTeloContent, tendeSoleContent, vetrateChiusureContent, carportContent } from "./fullPergole";
+import { cucinaContent, sottotettoContent, aperturePortantiContent, condominioContent, montascaleContent } from "./fullRistrutturazioneExtra";
 
-export const FULL_RST_MODULES = ["completa", "parziale", "commerciale", "spazi", "computo"] as const;
+export const FULL_RST_MODULES = ["completa", "parziale", "commerciale", "spazi", "computo", "cucina", "sottotetto", "aperture-portanti", "condominio", "montascale"] as const;
 // Area «Pareti e soffitti» (Lotto 2): stesso motore Ristrutturazioni, id propri.
 export const FULL_PARETI_SOFFITTI_MODULES = ["tinteggiatura-interna", "carta-da-parati", "cartongesso", "controsoffitti", "decorativi", "umidita", "acustica"] as const;
 // Area «Pergole e tende» (Lotto 3): stesso motore Ristrutturazioni, id propri.
 export const FULL_PERGOLE_MODULES = ["pergola-bioclimatica", "pergola-telo", "tende-sole", "vetrate", "carport"] as const;
 export type FullRstModuleId = typeof FULL_RST_MODULES[number] | typeof FULL_PARETI_SOFFITTI_MODULES[number] | typeof FULL_PERGOLE_MODULES[number];
-export const RST_MODULE_TITLES: Record<FullRstModuleId, string> = { completa: "Ristrutturazione completa", parziale: "Ristrutturazione parziale", commerciale: "Negozi e uffici", spazi: "Redistribuzione degli spazi", computo: "Intervento a computo", "tinteggiatura-interna": "Tinteggiatura interna", "carta-da-parati": "Carta da parati", cartongesso: "Pareti in cartongesso", controsoffitti: "Controsoffitti e velette", decorativi: "Finiture decorative", umidita: "Umidità e muffa", acustica: "Isolamento acustico", "pergola-bioclimatica": "Pergola bioclimatica", "pergola-telo": "Pergola con telo", "tende-sole": "Tende da sole", vetrate: "Vetrate e chiusure balcone", carport: "Carport e tettoie" };
-const CONTENT: Record<FullRstModuleId, import("./fullTettiFactory").TetEditorialContent> = { completa: ristrutturazioneCompletaContent, parziale: ristrutturazioneParzialeContent, commerciale: ristrutturazioneCommercialeContent, spazi: ristrutturazioneSpaziContent, computo: ristrutturazioneComputoContent, "tinteggiatura-interna": tinteggiaturaInternaContent, "carta-da-parati": cartaDaParatiContent, cartongesso: cartongessoContent, controsoffitti: controsoffittiContent, decorativi: decorativiContent, umidita: umiditaMuffaContent, acustica: acusticaContent, "pergola-bioclimatica": pergolaBioclimaticaContent, "pergola-telo": pergolaTeloContent, "tende-sole": tendeSoleContent, vetrate: vetrateChiusureContent, carport: carportContent };
+export const RST_MODULE_TITLES: Record<FullRstModuleId, string> = { completa: "Ristrutturazione completa", parziale: "Ristrutturazione parziale", commerciale: "Negozi e uffici", spazi: "Redistribuzione degli spazi", computo: "Intervento a computo", "tinteggiatura-interna": "Tinteggiatura interna", "carta-da-parati": "Carta da parati", cartongesso: "Pareti in cartongesso", controsoffitti: "Controsoffitti e velette", decorativi: "Finiture decorative", umidita: "Umidità e muffa", acustica: "Isolamento acustico", "pergola-bioclimatica": "Pergola bioclimatica", "pergola-telo": "Pergola con telo", "tende-sole": "Tende da sole", vetrate: "Vetrate e chiusure balcone", carport: "Carport e tettoie", cucina: "Rifacimento cucina", sottotetto: "Mansarda e sottotetto", "aperture-portanti": "Aperture nei muri portanti", condominio: "Parti comuni del condominio", montascale: "Montascale e piattaforme" };
+const CONTENT: Record<FullRstModuleId, import("./fullTettiFactory").TetEditorialContent> = { completa: ristrutturazioneCompletaContent, parziale: ristrutturazioneParzialeContent, commerciale: ristrutturazioneCommercialeContent, spazi: ristrutturazioneSpaziContent, computo: ristrutturazioneComputoContent, "tinteggiatura-interna": tinteggiaturaInternaContent, "carta-da-parati": cartaDaParatiContent, cartongesso: cartongessoContent, controsoffitti: controsoffittiContent, decorativi: decorativiContent, umidita: umiditaMuffaContent, acustica: acusticaContent, "pergola-bioclimatica": pergolaBioclimaticaContent, "pergola-telo": pergolaTeloContent, "tende-sole": tendeSoleContent, vetrate: vetrateChiusureContent, carport: carportContent, cucina: cucinaContent, sottotetto: sottotettoContent, "aperture-portanti": aperturePortantiContent, condominio: condominioContent, montascale: montascaleContent };
 export type FullRstTemplate = RstTemplatePdf & RstCoverPatch & {
   pdf_cover_eyebrow: string | null; pdf_cover_hero: string | null; pdf_cover_subhero: string | null;
   pdf_cover_subhero_template?: string | null;
@@ -163,7 +164,45 @@ export function buildRstModulePreview(companyId: string, template: RstTemplatePd
       ["Scarico", "Canale di gronda e discesa dell'acqua al punto concordato", "corpo", 1, 300],
     ],
   };
-  const paretiRows = PARETI[id] ?? PERGOLE[id];
+  const EXTRA: Partial<Record<FullRstModuleId, Array<[string, string, RstComputoVoce["unita_misura"], number, number]>>> = {
+    cucina: [
+      ["Preparazioni", "Protezioni della zona cucina e dei percorsi", "corpo", 1, 350],
+      ["Impianti", "Nuovi punti acqua, scarico e prese nel layout concordato", "corpo", 1, 1800],
+      ["Impianti", "Linea elettrica dedicata per il piano a induzione", "corpo", 1, 450],
+      ["Finiture", "Fornitura e posa del rivestimento paraschizzi", "mq", 6, 60],
+      ["Finiture", "Fornitura e posa del pavimento nella zona indicata", "mq", 16, 55],
+      ["Finiture", "Preparazione e tinteggiatura delle pareti della cucina", "mq", 40, 12],
+    ],
+    sottotetto: [
+      ["Preparazioni", "Protezioni e accessi per il recupero del sottotetto", "corpo", 1, 600],
+      ["Isolamento", "Coibentazione della falda con correzione dei ponti termici", "mq", 45, 55],
+      ["Aperture", "Fornitura e posa di finestre da tetto", "cad", 2, 900],
+      ["Impianti", "Impianto elettrico e terminali di riscaldamento della mansarda", "corpo", 1, 3200],
+      ["Finiture", "Contropareti, pavimento e tinteggiatura del sottotetto", "mq", 45, 70],
+    ],
+    "aperture-portanti": [
+      ["Preparazioni", "Puntellazioni provvisorie e protezioni come da progetto", "corpo", 1, 900],
+      ["Rinforzo", "Realizzazione della cerchiatura metallica secondo il progetto strutturale", "corpo", 1, 3800],
+      ["Rimozioni", "Taglio e demolizione controllata della muratura", "mq", 4, 180],
+      ["Ripristini", "Chiusure, intonaci e soglie attorno all'apertura", "corpo", 1, 700],
+      ["Finiture", "Rasatura e tinteggiatura delle superfici raccordate", "mq", 20, 12],
+    ],
+    condominio: [
+      ["Preparazioni", "Protezione dei passaggi comuni e organizzazione delle fasi", "corpo", 1, 800],
+      ["Rimozioni", "Rimozione delle finiture ammalorate di androne e vano scale", "mq", 60, 15],
+      ["Opere", "Rasatura e ripristino delle superfici delle parti comuni", "mq", 60, 28],
+      ["Finiture", "Tinteggiatura di androne, scale e ballatoi indicati", "mq", 220, 12],
+      ["Consegna", "Pulizia finale delle parti comuni interessate", "corpo", 1, 450],
+    ],
+    montascale: [
+      ["Sopralluogo", "Rilievo della scala, delle curve e dell'alimentazione", "corpo", 1, 300],
+      ["Fornitura", "Montascale a poltroncina con guida su misura per scala curva", "corpo", 1, 9500],
+      ["Ancoraggi", "Fissaggi della guida alla struttura della scala", "corpo", 1, 600],
+      ["Collegamenti", "Linea elettrica dedicata e messa in servizio", "corpo", 1, 500],
+      ["Collaudo", "Prova, istruzioni d'uso e consegna", "corpo", 1, 250],
+    ],
+  };
+  const paretiRows = PARETI[id] ?? PERGOLE[id] ?? EXTRA[id];
   const rows: Array<[string, string, RstComputoVoce["unita_misura"], number, number]> = paretiRows ? paretiRows : id === "computo" ? [
     ["Preparazioni", "Ambito A: protezioni delle superfici conservate e dei percorsi indicati", "corpo", 1, 400],
     ["Rimozioni", "Ambito A: rimozione della pavimentazione nelle zone individuate", "mq", 25, 12],

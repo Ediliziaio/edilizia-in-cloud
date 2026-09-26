@@ -11,10 +11,10 @@ import { SALES_AREAS, findSalesArea, matchesSalesArea } from "@/lib/moduli-vendi
 import { MODULI_VENDITA } from "@/lib/moduli-vendita/config";
 
 describe("tassonomia area → intervento", () => {
-  it("definisce 13 aree e 82 interventi senza identificatori duplicati", () => {
+  it("definisce 13 aree e 87 interventi senza identificatori duplicati", () => {
     expect(SALES_AREAS).toHaveLength(13);
     expect(new Set(SALES_AREAS.map(area => area.id)).size).toBe(13);
-    expect(SALES_AREAS.flatMap(area => area.interventions)).toHaveLength(82);
+    expect(SALES_AREAS.flatMap(area => area.interventions)).toHaveLength(87);
     for (const area of SALES_AREAS) {
       expect(MODULI_VENDITA.some(module => module.slug === area.sourceModule)).toBe(true);
       expect(new Set(area.interventions.map(item => item.id)).size).toBe(area.interventions.length);

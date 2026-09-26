@@ -51,7 +51,7 @@ export type AuditArea = keyof typeof MODULE68_FACTORIES;
 export const MODULE68_EXPECTED: Record<AuditArea, readonly string[]> = {
   serramenti: ["finestre", "persiane", "avvolgibili", "zanzariere", "porte-ingresso", "porte-interne", "combinato"],
   tetti: ["rifacimento", "ripasso", "riparazioni", "isolamento", "impermeabilizzazione", "lattoneria"],
-  ristrutturazioni: ["completa", "parziale", "commerciale", "spazi", "computo"],
+  ristrutturazioni: ["completa", "parziale", "commerciale", "spazi", "computo", "cucina", "sottotetto", "aperture-portanti", "condominio", "montascale"],
   "pareti-soffitti": ["tinteggiatura-interna", "carta-da-parati", "cartongesso", "controsoffitti", "decorativi", "umidita", "acustica"],
   pergole: ["pergola-bioclimatica", "pergola-telo", "tende-sole", "vetrate", "carport"],
   bagni: ["completo", "vasca-doccia", "doccia", "sanitari", "accessibilita", "rinnovo"],

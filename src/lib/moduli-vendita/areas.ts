@@ -41,6 +41,11 @@ export const SALES_AREAS: readonly SalesArea[] = [
     intervention("commerciale", "Negozi e uffici", "Rinnovo degli spazi destinati all'attività.", "Uso e superfici", "Distribuzione degli spazi", "Impianti e allestimenti", "Vincoli operativi e fasi"),
     intervention("spazi", "Redistribuzione degli spazi", "Demolizioni, nuove pareti e opere connesse.", "Stato attuale e progetto", "Pareti e aperture", "Spostamenti impianti", "Ripristini e finiture"),
     intervention("computo", "Intervento a computo", "Composizione libera per capitoli e quantità.", "Capitoli", "Voci e unità di misura", "Quantità e lavorazioni", "Inclusioni ed esclusioni"),
+    intervention("cucina", "Rifacimento cucina", "Impianti, rivestimenti e predisposizioni per la nuova cucina.", "Nuovo layout", "Impianti da spostare", "Rivestimenti e pavimento", "Predisposizioni"),
+    intervention("sottotetto", "Mansarda e sottotetto", "Recupero abitabile: isolamento, luce e impianti.", "Requisiti di abitabilità", "Isolamento della falda", "Finestre e impianti", "Finiture"),
+    intervention("aperture-portanti", "Aperture nei muri portanti", "Nuove aperture con rinforzo, su progetto del tecnico.", "Muro da aprire", "Progetto e calcoli", "Rinforzo (cerchiatura)", "Ripristini"),
+    intervention("condominio", "Parti comuni del condominio", "Androni, scale e parti comuni, per fasi.", "Parti comuni interessate", "Accessi e sicurezza", "Fasi", "Referente"),
+    intervention("montascale", "Montascale e piattaforme", "Montascale, servoscala e piattaforme elevatrici.", "Esigenza d'uso", "Scala reale", "Alimentazione", "Collaudo"),
   ] },
   { id: "pareti-soffitti", title: "Pareti e soffitti", sourceModule: "ristrutturazione", summary: "Pittura, carta da parati, cartongesso e risanamento delle pareti.", interventions: [
     intervention("tinteggiatura-interna", "Tinteggiatura interna", "Preparazione del fondo e mani di finitura sulle pareti indicate.", "Superfici da tinteggiare", "Stato del fondo", "Tinta e finitura", "Protezioni e pulizia"),
