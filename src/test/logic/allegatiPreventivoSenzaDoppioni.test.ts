@@ -200,26 +200,29 @@ describe("avvisoSchedeNonAllegate: cosa legge chi salva", () => {
     expect(avvisoSchedeNonAllegate([])).toBeNull();
   });
 
-  it("una scheda di un'altra azienda, col messaggio vero del trigger", () => {
+  it("una scheda col file di un'altra azienda, col messaggio vero del trigger", () => {
+    // Si parla del file: la scheda l'utente la vede fra le sue, è il file che sta altrove.
     expect(avvisoSchedeNonAllegate([scheda("m-1", "Scheda copiata", dalTrigger)])).toEqual({
       conteggio: "una scheda tecnica non allegata",
-      descrizione: "La scheda tecnica «Scheda copiata» non è di questa azienda: non si può allegare.",
+      descrizione: "Il file della scheda tecnica «Scheda copiata» non è di questa azienda: non si può allegare.",
     });
   });
 
   it("più schede, e il nome che l'utente non può vedere", () => {
     expect(avvisoSchedeNonAllegate([scheda("m-1", "A", dalTrigger), scheda("m-2", "B", dalTrigger)])).toEqual({
       conteggio: "2 schede tecniche non allegate",
-      descrizione: "Le schede tecniche «A» e «B» non sono di questa azienda: non si possono allegare.",
+      descrizione: "I file delle schede tecniche «A» e «B» non sono di questa azienda: non si possono allegare.",
     });
     expect(avvisoSchedeNonAllegate([scheda("m-1", null, dalTrigger)])?.descrizione)
-      .toBe("Una scheda tecnica non è di questa azienda: non si può allegare.");
+      .toBe("Il file di una scheda tecnica non è di questa azienda: non si può allegare.");
+    expect(avvisoSchedeNonAllegate([scheda("m-1", "A", dalTrigger), scheda("m-2", null, dalTrigger)])?.descrizione)
+      .toBe("I file di 2 schede tecniche non sono di questa azienda: non si possono allegare.");
   });
 
   it("un altro errore non viene spacciato per «di un'altra azienda»", () => {
     const rete = { code: "", message: "TypeError: Failed to fetch" };
     expect(avvisoSchedeNonAllegate([scheda("m-1", "A", dalTrigger), scheda("m-2", "B", rete)])?.descrizione).toBe(
-      "La scheda tecnica «A» non è di questa azienda: non si può allegare. " +
+      "Il file della scheda tecnica «A» non è di questa azienda: non si può allegare. " +
       "La scheda tecnica «B» non è stata allegata. Connessione persa. Controlla la rete e riprova.",
     );
   });
@@ -268,7 +271,7 @@ function gestoreVero(file: string, nome: string, contesto: Record<string, unknow
   return contesto.gestore as () => Promise<void>;
 }
 
-function creazioneRapida() {
+function creazioneRapida(selectedMaterials = ["m-buona", "m-copiata"]) {
   const toast = { success: vi.fn(), error: vi.fn(), warning: vi.fn() };
   const resetForm = vi.fn();
   const navigate = vi.fn();
@@ -277,7 +280,7 @@ function creazioneRapida() {
     contact: { first_name: "Mario", last_name: "Bianchi" },
     title: "Preventivo", notes: "", validityDays: 30, discountPercent: 0,
     items: [{ name: "Box doccia", description: "", quantity: 1, unit_price: 500, discount_percent: 0, vat_rate: 22, unit_of_measure: "pz", article_template_id: null }],
-    selectedMaterials: ["m-buona", "m-copiata"],
+    selectedMaterials,
     materials: [{ id: "m-buona", name: "Scheda buona", category: null }, { id: "m-copiata", name: "Scheda copiata", category: null }],
     supabase, allegaSchedeTecniche, avvisoSchedeNonAllegate,
     toast, resetForm, navigate, routePrefix: "/azienda/marketing",
@@ -304,7 +307,7 @@ describe("Opportunità → Crea preventivo rapido: nessun preventivo doppio", ()
     expect(db.righe).toHaveLength(1);
     expect(db.allegati).toEqual([{ quote_id: "q-nuovo-1", material_id: "m-buona", sort_order: 0 }]);
     expect(f.toast.warning).toHaveBeenCalledWith("Preventivo creato in bozza: una scheda tecnica non allegata", {
-      description: "La scheda tecnica «Scheda copiata» non è di questa azienda: non si può allegare.",
+      description: "Il file della scheda tecnica «Scheda copiata» non è di questa azienda: non si può allegare.",
       duration: 10000,
     });
     expect(f.toast.error).not.toHaveBeenCalled();
@@ -319,11 +322,23 @@ describe("Opportunità → Crea preventivo rapido: nessun preventivo doppio", ()
     expect(db.preventivi).toHaveLength(1);
     expect(db.inserimentiAllegati).toBe(0);
     expect(f.resetForm).toHaveBeenCalledTimes(1);
+    // Le schede vengono dopo le righe: non sono entrate nemmeno loro, e il messaggio lo dice.
     expect(f.toast.error).toHaveBeenCalledWith("Preventivo creato, ma senza i prodotti", expect.objectContaining({
+      description: "I prodotti e le schede tecniche non sono stati salvati: apri il preventivo per aggiungerli, invece di crearne un altro.",
       action: expect.objectContaining({ label: "Apri preventivo" }),
     }));
     const [, opzioni] = f.toast.error.mock.calls[0] as [string, { action: { onClick: () => void } }];
     opzioni.action.onClick();
     expect(f.navigate).toHaveBeenCalledWith("/azienda/marketing/preventivi/q-nuovo-1");
+  });
+
+  it("righe rifiutate senza schede scelte: il messaggio parla solo dei prodotti", async () => {
+    db.righeRifiutate = true;
+    const f = creazioneRapida([]);
+    await f.salva();
+    expect(db.preventivi).toHaveLength(1);
+    expect(f.toast.error).toHaveBeenCalledWith("Preventivo creato, ma senza i prodotti", expect.objectContaining({
+      description: "I prodotti non sono stati salvati: apri il preventivo per aggiungerli, invece di crearne un altro.",
+    }));
   });
 });

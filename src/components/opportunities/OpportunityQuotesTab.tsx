@@ -391,14 +391,15 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
       resetForm();
     } catch (err: any) {
       if (creatoId) {
-        // Il preventivo c'è già ma senza le sue righe (gli allegati non
-        // lanciano): il modulo si chiude, perché un nuovo «Salva» ne creerebbe
-        // un secondo. Si completa aprendolo.
+        // Il preventivo c'è già ma senza le sue righe, e quindi senza le schede,
+        // che vengono dopo (gli allegati non lanciano): il modulo si chiude,
+        // perché un nuovo «Salva» ne creerebbe un secondo. Si completa aprendolo.
         const creato = creatoId;
+        const mancano = selectedMaterials.length > 0 ? "I prodotti e le schede tecniche" : "I prodotti";
         queryClient.invalidateQueries({ queryKey: ["quotes_by_contact", contactId, companyId] });
         resetForm();
         toast.error("Preventivo creato, ma senza i prodotti", {
-          description: "I prodotti non sono stati salvati: apri il preventivo per aggiungerli, invece di crearne un altro.",
+          description: `${mancano} non sono stati salvati: apri il preventivo per aggiungerli, invece di crearne un altro.`,
           duration: 10000,
           action: { label: "Apri preventivo", onClick: () => navigate(`${routePrefix}/preventivi/${creato}`) },
         });

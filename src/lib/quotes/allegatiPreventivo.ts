@@ -58,13 +58,11 @@ export async function allegaSchedeTecniche(
   });
 }
 
-/** Il soggetto della frase: La scheda tecnica «A» · Le schede tecniche «A» e «B» · Una scheda tecnica (se il nome non si vede). */
-function soggetto(schede: SchedaNonAllegata[]): string {
-  const una = schede.length === 1;
-  if (schede.some((s) => !s.nome)) return una ? "Una scheda tecnica" : `${schede.length} schede tecniche`;
+/** «A» · «A» e «B» · null se un nome non si vede. */
+function nomiTraVirgolette(schede: SchedaNonAllegata[]): string | null {
+  if (schede.some((s) => !s.nome)) return null;
   const nomi = schede.map((s) => `«${s.nome}»`);
-  const elenco = una ? nomi[0] : `${nomi.slice(0, -1).join(", ")} e ${nomi[nomi.length - 1]}`;
-  return `${una ? "La scheda tecnica" : "Le schede tecniche"} ${elenco}`;
+  return nomi.length === 1 ? nomi[0] : `${nomi.slice(0, -1).join(", ")} e ${nomi[nomi.length - 1]}`;
 }
 
 /**
@@ -83,12 +81,23 @@ export function avvisoSchedeNonAllegate(
   const altre = nonAllegate.filter((s) => !eSchedaDiUnAltraAzienda(s.errore));
   const frasi: string[] = [];
   if (diAltre.length > 0) {
+    // Si parla del file, non della scheda: chi salva vede solo le schede della
+    // sua azienda, e il rifiuto che gli capita è quello del file rimasto nella
+    // cartella di un'altra (una scheda copiata da un'azienda all'altra).
     const una = diAltre.length === 1;
-    frasi.push(`${soggetto(diAltre)} ${una ? "non è" : "non sono"} di questa azienda: ${una ? "non si può" : "non si possono"} allegare.`);
+    const nomi = nomiTraVirgolette(diAltre);
+    const soggetto = una
+      ? (nomi ? `Il file della scheda tecnica ${nomi}` : "Il file di una scheda tecnica")
+      : (nomi ? `I file delle schede tecniche ${nomi}` : `I file di ${diAltre.length} schede tecniche`);
+    frasi.push(`${soggetto} ${una ? "non è" : "non sono"} di questa azienda: ${una ? "non si può" : "non si possono"} allegare.`);
   }
   if (altre.length > 0) {
     const una = altre.length === 1;
-    frasi.push(`${soggetto(altre)} ${una ? "non è stata allegata" : "non sono state allegate"}. ${userErrorMessage(altre[0].errore)}`);
+    const nomi = nomiTraVirgolette(altre);
+    const soggetto = una
+      ? (nomi ? `La scheda tecnica ${nomi}` : "Una scheda tecnica")
+      : (nomi ? `Le schede tecniche ${nomi}` : `${altre.length} schede tecniche`);
+    frasi.push(`${soggetto} ${una ? "non è stata allegata" : "non sono state allegate"}. ${userErrorMessage(altre[0].errore)}`);
   }
   return { conteggio, descrizione: frasi.join(" ") };
 }
