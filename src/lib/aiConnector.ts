@@ -9,7 +9,14 @@
  * Due livelli, come li ha descritti l'utente:
  * - «consulente»: legge ed estrae (contatti, opportunità, attività, commesse,
  *   statistiche) — non cambia niente;
- * - «operativo»: in più agisce (crea contatti/opportunità/attività, invia email).
+ * - «operativo»: in più agisce (crea contatti/opportunità/attività/commesse,
+ *   listino, proposte d'ordine). Gli invii veri solo con l'opt-in separato.
+ *
+ * Client (verificato il 26/09/2026 sulle guide ufficiali): la chiave va in un
+ * header, e oggi lo accettano Claude Code, Claude Desktop (via mcp-remote) e
+ * claude.ai solo per le organizzazioni con «Request headers» (beta). ChatGPT
+ * accetta soltanto connettori con accesso OAuth: finché il server non lo offre,
+ * con ChatGPT non si collega.
  *
  * Gli scope corrispondono uno a uno a quelli che gli strumenti del server
  * controllano (vedi supabase/functions/platform-mcp/index.ts).
@@ -71,7 +78,7 @@ export const LIVELLI: { id: LivelloConnettore; titolo: string; descrizione: stri
   {
     id: "operativo",
     titolo: "Operativo (lettura + azioni)",
-    descrizione: "Oltre a leggere: crea contatti, opportunità, attività e commesse, carica voci di listino e invia email.",
+    descrizione: "Oltre a leggere: crea contatti, opportunità, attività e commesse, carica voci di listino e prepara proposte d'ordine.",
     esempi: [
       "Crea un contatto per Mario Rossi e un'opportunità da 12.000 €",
       "Apri una commessa «Ristrutturazione via Roma 5» da 45.000 €",
@@ -80,7 +87,7 @@ export const LIVELLI: { id: LivelloConnettore; titolo: string; descrizione: stri
   },
 ];
 
-/** L'endpoint del server MCP: lo stesso per Claude e ChatGPT. */
+/** L'endpoint del server MCP: lo stesso per tutti i client. */
 export { MCP_ENDPOINT };
 
 /** Comando per Claude Code. */
@@ -94,19 +101,24 @@ export function configClaudeDesktop(chiave: string): string {
 }
 
 /**
- * Passi per ChatGPT. I connettori/MCP remoti sono nella modalità sviluppatore
- * di ChatGPT (piani a pagamento): si aggiunge l'URL del server e l'header con la
- * chiave. Lo stesso endpoint MCP di Claude.
+ * Passi per claude.ai (web, app desktop e telefono condividono i connettori).
+ * La chiave in un header si può inserire solo dove l'organizzazione ha
+ * «Request headers» (beta di Anthropic, per ora non per tutti): la aggiunge il
+ * proprietario dell'organizzazione, una volta, e vale per tutti i membri.
  */
-export function passiChatGpt(chiave: string): { url: string; header: string; note: string[] } {
+export function passiClaudeWeb(chiave: string): { url: string; header: string; note: string[] } {
   return {
     url: MCP_ENDPOINT,
     header: `x-api-key: ${chiave}`,
     note: [
-      "In ChatGPT apri Impostazioni → Connettori (o «Modalità sviluppatore»).",
-      "Aggiungi un connettore MCP remoto con l'URL qui sopra.",
-      "Come autenticazione scegli «Header» e incolla la riga x-api-key.",
-      "Salva: da una nuova chat troverai gli strumenti di Edilizia in Cloud.",
+      "Il proprietario dell'organizzazione Claude apre Impostazioni organizzazione → Connettori → Aggiungi → Personalizzato.",
+      "Incolla l'URL qui sotto e, in «Request headers», il nome x-api-key con la chiave come valore.",
+      "Se «Request headers» non c'è, la tua organizzazione non ha ancora questa opzione: usa Claude Desktop o Claude Code.",
+      "Una volta aggiunto, il connettore si usa anche dall'app Claude sul telefono.",
     ],
   };
 }
+
+/** ChatGPT accetta solo connettori con accesso OAuth (niente chiavi negli header). */
+export const NOTA_CHATGPT =
+  "ChatGPT per ora non si collega: accetta solo connettori con accesso OAuth, che il gestionale non offre ancora. Nel frattempo usa Claude.";

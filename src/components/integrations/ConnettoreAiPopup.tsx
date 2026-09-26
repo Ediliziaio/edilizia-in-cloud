@@ -2,7 +2,7 @@
  * Popup «Collega a Claude · ChatGPT» nella pagina Integrazioni.
  *
  * Un clic crea (una volta) una chiave limitata all'azienda e mostra come
- * incollarla in Claude o in ChatGPT. Il livello decide se l'assistente può solo
+ * incollarla in Claude (ChatGPT vuole l'accesso OAuth: vedi src/lib/aiConnector.ts). Il livello decide se l'assistente può solo
  * leggere o anche agire (vedi src/lib/aiConnector.ts). La gestione avanzata
  * (revoca, rotazione, altre chiavi) resta in Impostazioni → API.
  */
@@ -20,9 +20,10 @@ import { cn } from "@/lib/utils";
 import {
   LIVELLI,
   MCP_ENDPOINT,
+  NOTA_CHATGPT,
   comandoClaudeCode,
   configClaudeDesktop,
-  passiChatGpt,
+  passiClaudeWeb,
   scopePerLivello,
   type LivelloConnettore,
 } from "@/lib/aiConnector";
@@ -104,11 +105,11 @@ export default function ConnettoreAiPopup({ onClose }: { onClose: () => void }) 
     }
   };
 
-  // ── Chiave appena creata: le istruzioni per Claude e ChatGPT ────────────────
+  // ── Chiave appena creata: le istruzioni per i client Claude ─────────────────
   if (chiaveNuova) {
-    const chatgpt = passiChatGpt(chiaveNuova);
+    const claudeWeb = passiClaudeWeb(chiaveNuova);
     return (
-      <div className="space-y-4">
+      <div className="min-w-0 space-y-4">
         <Alert className="border-emerald-200 bg-emerald-50/60 dark:bg-emerald-950/20">
           <ShieldCheck className="h-4 w-4 text-emerald-600" />
           <AlertDescription className="text-xs text-emerald-900 dark:text-emerald-200">
@@ -123,7 +124,7 @@ export default function ConnettoreAiPopup({ onClose }: { onClose: () => void }) 
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="claude" className="text-xs sm:text-sm">Claude Code</TabsTrigger>
             <TabsTrigger value="desktop" className="text-xs sm:text-sm">Claude Desktop</TabsTrigger>
-            <TabsTrigger value="chatgpt" className="text-xs sm:text-sm">ChatGPT</TabsTrigger>
+            <TabsTrigger value="web" className="text-xs sm:text-sm">claude.ai</TabsTrigger>
           </TabsList>
 
           <TabsContent value="claude" className="mt-3 space-y-2">
@@ -133,19 +134,19 @@ export default function ConnettoreAiPopup({ onClose }: { onClose: () => void }) 
 
           <TabsContent value="desktop" className="mt-3 space-y-2">
             <p className="text-xs text-muted-foreground">
-              Claude Desktop → Impostazioni → Sviluppatore → Modifica config. Aggiungi:
+              Claude Desktop → Impostazioni → Sviluppatore → Modifica config. Aggiungi (serve Node.js sul computer):
             </p>
             <BloccoCopia testo={configClaudeDesktop(chiaveNuova)} />
           </TabsContent>
 
-          <TabsContent value="chatgpt" className="mt-3 space-y-2">
+          <TabsContent value="web" className="mt-3 space-y-2">
             <ol className="ml-4 list-decimal space-y-1 text-xs text-muted-foreground">
-              {chatgpt.note.map((n) => (
+              {claudeWeb.note.map((n) => (
                 <li key={n}>{n}</li>
               ))}
             </ol>
-            <BloccoCopia testo={chatgpt.url} etichetta="URL del connettore" />
-            <BloccoCopia testo={chatgpt.header} etichetta="Header di autenticazione" />
+            <BloccoCopia testo={claudeWeb.url} etichetta="URL del connettore" />
+            <BloccoCopia testo={claudeWeb.header} etichetta="Request header" />
           </TabsContent>
         </Tabs>
 
@@ -158,10 +159,10 @@ export default function ConnettoreAiPopup({ onClose }: { onClose: () => void }) 
 
   // ── Schermata iniziale: scegli il livello e collega ─────────────────────────
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 space-y-4">
       <p className="text-sm text-muted-foreground">
-        Collega il gestionale a <strong>Claude</strong> o <strong>ChatGPT</strong>: l'assistente lavora solo sui dati
-        della tua azienda. Scegli cosa può fare.
+        Collega il gestionale a <strong>Claude</strong>: l'assistente lavora solo sui dati della tua azienda. Scegli
+        cosa può fare.
       </p>
 
       {chiaviAttive.length > 0 && (
@@ -238,8 +239,10 @@ export default function ConnettoreAiPopup({ onClose }: { onClose: () => void }) 
         </label>
       )}
 
+      <p className="text-[11px] text-muted-foreground">{NOTA_CHATGPT}</p>
+
       <p className="text-[11px] text-muted-foreground">
-        Endpoint: <code className="rounded bg-muted px-1">{MCP_ENDPOINT}</code>
+        Endpoint: <code className="break-all rounded bg-muted px-1">{MCP_ENDPOINT}</code>
       </p>
 
       {!puoGestire ? (

@@ -28,7 +28,7 @@ import { getCorsHeaders } from "../_shared/headers.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import {
   type KeyCtx, type ToolDef, ToolError,
-  sha256Hex, hasScope, isSensitiveScope, str, num, intLimit, resolveCompany,
+  sha256Hex, hasScope, isSensitiveScope, str, num, intLimit, resolveCompany, UUID_RE,
 } from "./lib.ts";
 import { SILVIO_TOOLS } from "./silvioTools.ts";
 
@@ -421,32 +421,67 @@ const TOOLS_MANUALI: ToolDef[] = [
   },
   {
     name: "crea_commessa",
-    description: "Crea una commessa/cantiere. Bastano la descrizione; opzionali numero e importo del contratto. La numerazione automatica e i dettagli (cliente, fasi) si completano poi dall'app.",
+    description: "Crea una commessa/cantiere come dall'app: numero progressivo dell'azienda, stato iniziale configurato, importo come imponibile. Bastano la descrizione; opzionali numero, importo e aliquota IVA. Cliente, fasi e piano di pagamento si completano poi dall'app.",
     scope: "orders:write",
     inputSchema: {
       type: "object",
       properties: {
         descrizione: { type: "string", description: "Descrizione della commessa (obbligatoria)" },
-        numero: { type: "string", description: "Codice/numero commessa (opzionale; se vuoto si assegna dall'app)" },
-        importo: { type: "number", description: "Importo del contratto in euro (opzionale)" },
+        numero: { type: "string", description: "Codice commessa (opzionale; se vuoto si usa il prossimo numero dell'azienda)" },
+        importo: { type: "number", description: "Imponibile del contratto in euro (opzionale)" },
+        iva: { type: "number", description: "Aliquota IVA % (default 22)" },
         company: { type: "string", description: "Nome o UUID azienda (chiavi piattaforma)" },
       },
       required: ["descrizione"],
       additionalProperties: false,
     },
+    // Stessa strada dell'app (src/lib/moduli/convertiInCommessa.ts): un inserimento
+    // diretto in `orders` lasciava la commessa senza codice e senza stato
+    // configurabile, quindi fuori dalle viste per stato.
     handler: async (admin, ctx, args) => {
       const company = await resolveCompany(admin, ctx, args);
       const descrizione = str(args.descrizione);
       if (!descrizione) throw new ToolError("descrizione obbligatoria");
       const importo = num(args.importo);
-      const { data, error } = await admin.from("orders").insert({
-        company_id: company.id,
-        description: descrizione,
-        order_code: str(args.numero),
-        total_amount: importo != null && importo >= 0 ? importo : 0,
-      }).select("id, order_code, description, total_amount, status").single();
-      if (error) throw error;
-      return { creata: true, azienda: company.name, commessa: data };
+      const totale = importo != null && importo >= 0 ? Math.round(importo * 100) / 100 : 0;
+      const iva = num(args.iva);
+
+      let codice = str(args.numero);
+      if (!codice) {
+        const { data: prossimo, error: errNumero } = await admin.rpc("prossimo_numero_commessa", { p_company_id: company.id });
+        if (errNumero) throw new ToolError(`Numero commessa non disponibile: ${errNumero.message}`);
+        codice = (prossimo as string | null) ?? null;
+      }
+      const { data: stato } = await admin.from("order_statuses")
+        .select("id").eq("company_id", company.id)
+        .order("is_default", { ascending: false }).order("position", { ascending: true })
+        .limit(1).maybeSingle();
+      if (!stato?.id) throw new ToolError("L'azienda non ha ancora gli stati commessa: impostali nell'app in Commesse → Stati e riprova.");
+
+      const { data: esito, error } = await admin.rpc("create_order_atomic", {
+        p_order_data: {
+          company_id: company.id,
+          order_code: codice,
+          description: descrizione,
+          total_amount: totale,
+          deposit_amount: 0,
+          balance_amount: totale,
+          payment_type: "standard",
+          current_status_id: stato.id,
+          vat_rate: iva != null && iva >= 0 && iva <= 100 ? iva : 22,
+          internal_notes: "Creata dall'assistente AI (connettore)",
+        },
+        p_items: [],
+        p_salesperson: null,
+        p_user_id: ctx.created_by,
+        p_installments: [],
+      });
+      if (error) throw new ToolError(error.message);
+      const id = (esito as { id?: string } | null)?.id;
+      if (!id) throw new ToolError("La commessa non è stata creata");
+      const { data: commessa } = await admin.from("orders")
+        .select("id, order_code, description, total_amount, vat_rate, status").eq("id", id).maybeSingle();
+      return { creata: true, azienda: company.name, commessa };
     },
   },
   {
@@ -587,8 +622,23 @@ function rpcError(id: unknown, code: number, message: string): Json {
   return { jsonrpc: "2.0", id, error: { code, message } };
 }
 
+/** Annotazioni MCP. I client le usano per decidere quando chiedere conferma:
+ *  ChatGPT tratta come scrittura (e fa confermare) ogni strumento senza
+ *  readOnlyHint, anche le semplici letture. */
+function annotazioni(t: ToolDef) {
+  if (!t.scope || t.scope.endsWith(":read")) return { readOnlyHint: true, openWorldHint: false };
+  return {
+    readOnlyHint: false,
+    // «aggiorna_*» sovrascrive dati esistenti; gli altri strumenti aggiungono soltanto.
+    destructiveHint: t.name.startsWith("aggiorna_"),
+    idempotentHint: false,
+    // Invii reali: il messaggio esce dal gestionale verso persone esterne.
+    openWorldHint: isSensitiveScope(t.scope),
+  };
+}
+
 function toolToMcp(t: ToolDef) {
-  return { name: t.name, description: t.description, inputSchema: t.inputSchema };
+  return { name: t.name, description: t.description, inputSchema: t.inputSchema, annotations: annotazioni(t) };
 }
 
 // ── Server ───────────────────────────────────────────────────────────────────

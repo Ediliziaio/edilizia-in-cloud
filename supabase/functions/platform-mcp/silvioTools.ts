@@ -19,7 +19,7 @@
 import { type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { type KeyCtx, type ToolDef, ToolError, resolveCompany } from "./lib.ts";
 
-type TipoParam = "string" | "number" | "boolean" | "date" | "timestamp" | "time" | "uuid" | "uuid[]" | "json";
+type TipoParam = "string" | "number" | "boolean" | "date" | "timestamp" | "time" | "uuid" | "uuid[]" | "json" | "righe";
 
 interface Param {
   /** Nome esposto all'AI. Il nome RPC è `p_<arg>` salvo `rpc` esplicito. */
@@ -28,6 +28,13 @@ interface Param {
   tipo: TipoParam;
   descrizione: string;
   obbligatorio?: boolean;
+  /** Valore inviato alla RPC quando l'AI non lo passa (anche `null`). Serve per
+   *  gli argomenti che in SQL non hanno DEFAULT: senza, PostgREST non trova la
+   *  funzione («Could not find the function…») appena l'AI li omette. */
+  predefinito?: unknown;
+  /** Solo per l'AI: non va alla RPC (lo consuma `prepara`, es. un nome da
+   *  risolvere in UUID). */
+  interno?: boolean;
 }
 
 interface SilvioSpec {
@@ -40,6 +47,9 @@ interface SilvioSpec {
   params?: Param[];
   /** Aggiunge p_user_id = chi ha emesso la chiave. */
   injectUser?: boolean;
+  /** Ritocca gli argomenti prima della RPC, sempre dentro l'azienda della
+   *  chiave: risolve nomi in UUID che l'AI non ha modo di conoscere. */
+  prepara?: (admin: SupabaseClient, companyId: string, args: Record<string, unknown>) => Promise<void>;
 }
 
 function schemaTipo(t: TipoParam): Record<string, unknown> {
@@ -48,6 +58,7 @@ function schemaTipo(t: TipoParam): Record<string, unknown> {
     case "boolean": return { type: "boolean" };
     case "uuid[]": return { type: "array", items: { type: "string" } };
     case "json": return { type: "object" };
+    case "righe": return { type: "array", items: { type: "object" } };
     // date (YYYY-MM-DD), timestamp (ISO), time (HH:MM), uuid, string
     default: return { type: "string" };
   }
@@ -60,6 +71,10 @@ function coerce(v: unknown, t: TipoParam): unknown {
     case "number": return typeof v === "number" && Number.isFinite(v) ? v : undefined;
     case "boolean": return typeof v === "boolean" ? v : undefined;
     case "json": return typeof v === "object" ? v : undefined;
+    case "righe": {
+      const righe = Array.isArray(v) ? v.filter((r) => r !== null && typeof r === "object" && !Array.isArray(r)) : [];
+      return righe.length ? righe : undefined;
+    }
     case "uuid[]": return Array.isArray(v) ? v.filter((x) => typeof x === "string" && x) : undefined;
     default: return typeof v === "string" && v.trim() !== "" ? v.trim() : undefined;
   }
@@ -83,13 +98,17 @@ function makeSilvioTool(spec: SilvioSpec): ToolDef {
     inputSchema: { type: "object", properties, required: required.length ? required : undefined, additionalProperties: false },
     handler: async (admin: SupabaseClient, ctx: KeyCtx, args: Record<string, unknown>) => {
       const company = await resolveCompany(admin, ctx, args);
+      const input = { ...args };
+      if (spec.prepara) await spec.prepara(admin, company.id, input);
       const rpcArgs: Record<string, unknown> = { p_company_id: company.id };
       if (spec.injectUser) rpcArgs.p_user_id = ctx.created_by;
       for (const p of spec.params ?? []) {
-        const val = coerce(args[p.arg], p.tipo);
+        if (p.interno) continue;
+        let val = coerce(input[p.arg], p.tipo);
         if (val === undefined) {
           if (p.obbligatorio) throw new ToolError(`Parametro '${p.arg}' obbligatorio`);
-          continue;
+          if (p.predefinito === undefined) continue;
+          val = p.predefinito;
         }
         rpcArgs[p.rpc ?? `p_${p.arg}`] = val;
       }
@@ -98,6 +117,38 @@ function makeSilvioTool(spec: SilvioSpec): ToolDef {
       return { azienda: company.name, risultato: data };
     },
   };
+}
+
+// ── Preparazioni (nomi → UUID, sempre dentro l'azienda della chiave) ────────
+
+/** Proposta d'ordine: l'AI conosce i fornitori per nome (lo strumento
+ *  «fornitori» non espone gli UUID), quindi il fornitore si risolve qui. Un
+ *  fornitore_id passato a mano deve comunque essere dell'azienda. */
+async function preparaPropostaOrdine(admin: SupabaseClient, companyId: string, args: Record<string, unknown>) {
+  const id = typeof args.fornitore_id === "string" ? args.fornitore_id.trim() : "";
+  const nome = typeof args.fornitore === "string" ? args.fornitore.trim() : "";
+  if (id) {
+    const { data } = await admin.from("suppliers").select("id").eq("company_id", companyId).eq("id", id).maybeSingle();
+    if (!data) throw new ToolError("fornitore_id non trovato tra i fornitori dell'azienda");
+  } else if (nome) {
+    const { data } = await admin.from("suppliers").select("id, name, is_active")
+      .eq("company_id", companyId).ilike("name", `%${nome}%`).limit(6);
+    const attivi = (data ?? []).filter((f) => f.is_active !== false);
+    if (attivi.length === 0) throw new ToolError(`Nessun fornitore «${nome}»: usa lo strumento «fornitori» per vedere i nomi.`);
+    if (attivi.length > 1) throw new ToolError(`Più fornitori corrispondono a «${nome}»: ${attivi.map((f) => f.name).join(", ")}. Indica il nome esatto.`);
+    args.fornitore_id = attivi[0].id;
+  } else {
+    throw new ToolError("Indica il fornitore: «fornitore» (nome) oppure «fornitore_id».");
+  }
+  // Totale non indicato: somma quantità × prezzo delle righe, se ci sono i numeri.
+  if (typeof args.totale_eur !== "number" && Array.isArray(args.articoli)) {
+    let totale = 0;
+    for (const r of args.articoli as Record<string, unknown>[]) {
+      const q = Number(r?.quantita), p = Number(r?.prezzo);
+      if (Number.isFinite(q) && Number.isFinite(p)) totale += q * p;
+    }
+    if (totale > 0) args.totale_eur = Math.round(totale * 100) / 100;
+  }
 }
 
 // ── FASE 1 — Lettura e analisi (nessuna scrittura) ──────────────────────────
@@ -124,7 +175,7 @@ const FASE_1_LETTURA: SilvioSpec[] = [
     params: [{ arg: "orizzonte_giorni", rpc: "p_horizon_days", tipo: "number", descrizione: "Orizzonte in giorni" }] },
   { name: "serie_grafico", rpc: "silvio_tool_serie_grafico", scope: "stats:read",
     description: "Serie temporale di una metrica per grafici.",
-    params: [{ arg: "metrica", rpc: "p_metric", tipo: "string", descrizione: "Nome metrica", obbligatorio: true },
+    params: [{ arg: "metrica", rpc: "p_metric", tipo: "string", descrizione: "fatturato_mensile (default) | venduto_mensile | incassi_mensili | cantieri_per_stato | documenti_per_tipo | preventivi_per_stato | lead_per_fonte | scadenze_incassi" },
              { arg: "mesi", rpc: "p_mesi", tipo: "number", descrizione: "Quanti mesi" }] },
   { name: "top_clienti", rpc: "silvio_tool_top_customers", scope: "stats:read",
     description: "I migliori clienti per valore.",
@@ -212,7 +263,7 @@ const FASE_2_AZIONI: SilvioSpec[] = [
              { arg: "ricorda_il", rpc: "p_remind_on", tipo: "date", descrizione: "Data promemoria YYYY-MM-DD" }] },
   { name: "crea_reclamo", rpc: "silvio_tool_create_complaint", scope: "contacts:write",
     description: "Registra un reclamo di un cliente.",
-    params: [{ arg: "fonte", rpc: "p_source", tipo: "string", descrizione: "Canale: email | whatsapp | telegram | web_form | phone | review_google | review_facebook | visit_in_person | manual (default manual)" },
+    params: [{ arg: "fonte", rpc: "p_source", tipo: "string", descrizione: "Canale: email | whatsapp | telegram | web_form | phone | review_google | review_facebook | visit_in_person | manual (default manual)", predefinito: "manual" },
              { arg: "testo", rpc: "p_raw_text", tipo: "string", descrizione: "Testo del reclamo", obbligatorio: true },
              { arg: "nome_cliente", rpc: "p_customer_name", tipo: "string", descrizione: "Nome cliente" },
              { arg: "email", rpc: "p_customer_email", tipo: "string", descrizione: "Email cliente" },
@@ -225,21 +276,23 @@ const FASE_2_AZIONI: SilvioSpec[] = [
              { arg: "email", rpc: "p_contact_email", tipo: "string", descrizione: "Email" },
              { arg: "indirizzo", rpc: "p_contact_address", tipo: "string", descrizione: "Indirizzo" },
              { arg: "interesse", rpc: "p_vertical_interest", tipo: "string", descrizione: "Interesse (es. serramenti)" }] },
+  // Gli argomenti senza DEFAULT in SQL (cantiere, motivo, totale) hanno un
+  // predefinito: omessi dall'AI, la RPC non veniva trovata.
   { name: "proposta_ordine_fornitore", rpc: "silvio_tool_crea_proposta_ordine_fornitore", scope: "warehouse:write", injectUser: true,
-    description: "Crea una PROPOSTA di ordine a fornitore (bozza, non inviata).",
-    params: [{ arg: "fornitore_id", rpc: "p_supplier_id", tipo: "uuid", descrizione: "UUID fornitore", obbligatorio: true },
-             { arg: "cantiere_id", rpc: "p_for_cantiere_id", tipo: "uuid", descrizione: "UUID cantiere" },
-             { arg: "articoli", rpc: "p_items", tipo: "json", descrizione: "Righe {descrizione, quantita, prezzo}" },
-             { arg: "motivo", rpc: "p_proposal_reason", tipo: "string", descrizione: "Perché" },
-             { arg: "totale_eur", rpc: "p_total_amount_eur", tipo: "number", descrizione: "Totale stimato €" }] },
-  { name: "blocca_slot_calendario", rpc: "silvio_tool_blocca_slot_calendario", scope: "appointments:write", injectUser: true,
-    description: "Blocca uno slot in agenda (indisponibilità).",
-    params: [{ arg: "inizio", rpc: "p_inizio", tipo: "timestamp", descrizione: "Inizio ISO", obbligatorio: true },
-             { arg: "fine", rpc: "p_fine", tipo: "timestamp", descrizione: "Fine ISO", obbligatorio: true },
-             { arg: "motivo", rpc: "p_motivo", tipo: "string", descrizione: "Motivo" }] },
+    description: "Crea una PROPOSTA di ordine a fornitore (bozza da approvare nell'app, non viene inviata). Indica il fornitore per nome (come lo restituisce lo strumento «fornitori») e le righe.",
+    prepara: preparaPropostaOrdine,
+    params: [{ arg: "fornitore", tipo: "string", descrizione: "Nome del fornitore (in alternativa a fornitore_id)", interno: true },
+             { arg: "fornitore_id", rpc: "p_supplier_id", tipo: "uuid", descrizione: "UUID fornitore (se già noto)" },
+             { arg: "articoli", rpc: "p_items", tipo: "righe", descrizione: "Righe da ordinare: [{descrizione, quantita, prezzo}]", obbligatorio: true },
+             { arg: "cantiere_id", rpc: "p_for_cantiere_id", tipo: "uuid", descrizione: "UUID della commessa/cantiere di destinazione (opzionale)", predefinito: null },
+             { arg: "motivo", rpc: "p_proposal_reason", tipo: "string", descrizione: "Perché serve l'ordine", predefinito: "Proposta preparata dall'assistente AI" },
+             { arg: "totale_eur", rpc: "p_total_amount_eur", tipo: "number", descrizione: "Totale stimato € (se omesso: somma quantità × prezzo)", predefinito: null }] },
+  // blocca_slot_calendario tolto: silvio_tool_blocca_slot_calendario non blocca un
+  // vero slot, accoda un'email senza destinatario in silvio_outbound_messages che
+  // il dispatcher scarta sempre (provato il 26/09).
   { name: "registra_assenza", rpc: "silvio_tool_registra_assenza", scope: "hr:write", injectUser: true,
-    description: "Registra un'assenza di un dipendente.",
-    params: [{ arg: "dipendente_id", rpc: "p_employee_id", tipo: "uuid", descrizione: "UUID dipendente", obbligatorio: true },
+    description: "Registra un'assenza di un dipendente. L'id del dipendente si trova con lo strumento «dipendenti_oggi».",
+    params: [{ arg: "dipendente_id", rpc: "p_employee_id", tipo: "uuid", descrizione: "UUID dipendente (da «dipendenti_oggi»)", obbligatorio: true },
              { arg: "data_inizio", rpc: "p_data_inizio", tipo: "date", descrizione: "Dal YYYY-MM-DD", obbligatorio: true },
              { arg: "data_fine", rpc: "p_data_fine", tipo: "date", descrizione: "Al YYYY-MM-DD", obbligatorio: true },
              { arg: "tipo", rpc: "p_tipo_assenza", tipo: "string", descrizione: "Tipo: ferie | permesso_retribuito | malattia | infortunio | maternita | congedo_studio | sciopero | permesso_legge_104 | rol | altro", obbligatorio: true },
