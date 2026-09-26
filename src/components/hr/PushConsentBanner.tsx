@@ -24,8 +24,10 @@ export function PushConsentBanner({ onDismiss }: PushConsentBannerProps) {
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-blue-900">Attiva le notifiche</p>
+        {/* Solo quello che parte davvero: gli avvisi di documenti in scadenza per
+            la persona non esistono ancora (26/09/2026). */}
         <p className="text-xs text-blue-700 mt-0.5">
-          Ricevi un avviso quando un documento sta per scadere (patente, visita medica, ecc.)
+          Gli avvisi arrivano sul telefono anche ad app chiusa.
         </p>
         <div className="flex items-center gap-2 mt-3">
           <Button

@@ -8,9 +8,15 @@
  * Body: { user_id?: string, user_ids?: string[], title: string, body?: string, url?: string, tag?: string }
  * Per ogni iscrizione push dell'utente (tabella push_subscriptions) inoltra a
  * send-push-notification, che fa l'invio VAPID vero e proprio.
+ *
+ * 26/09/2026: gli invii partono tutti insieme (prima uno dopo l'altro, dentro
+ * gli 8 secondi che pg_net concede) e a pg_net si risponde subito
+ * (serveConMetricheRapida): una funzione lenta ferma la coda di tutti i cron.
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { chiamataInternaValida } from "../_shared/chiamataInterna.ts";
+import { serveConMetricheRapida } from "../_shared/withMetricsRapida.ts";
 
 // Access token FCM HTTP v1 dal service account (JWT RS256 → oauth2). Niente
 // dipendenze: WebCrypto basta.
@@ -32,14 +38,14 @@ async function tokenFcm(sa: { client_email: string; private_key: string; token_u
   return (await res.json()).access_token as string;
 }
 
-Deno.serve(async (req: Request) => {
+serveConMetricheRapida("push-notifica", async (req: Request) => {
   const corsH = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsH });
   const json = (status: number, payload: unknown) =>
     new Response(JSON.stringify(payload), { status, headers: { ...corsH, "Content-Type": "application/json" } });
 
-  const secret = Deno.env.get("INTERNAL_CRON_SECRET");
-  if (!secret || req.headers.get("x-cron-secret") !== secret) {
+  // Il segreto del cron (quello che manda campo_push_invia) o la chiave di servizio.
+  if (!chiamataInternaValida(req)) {
     return json(401, { error: "Non autorizzato" });
   }
 
@@ -62,24 +68,29 @@ Deno.serve(async (req: Request) => {
     if (error) return json(500, { error: error.message });
 
     let inviate = 0, scadute = 0;
-    for (const s of (iscrizioni ?? []) as Array<{ id: string; endpoint: string; p256dh: string; auth_key: string }>) {
-      try {
+    const esiti = await Promise.allSettled(
+      ((iscrizioni ?? []) as Array<{ id: string; endpoint: string; p256dh: string; auth_key: string }>).map(async (s) => {
         const res = await fetch(`${url}/functions/v1/send-push-notification`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}`, apikey: serviceKey },
           body: JSON.stringify({
             endpoint: s.endpoint, p256dh: s.p256dh, auth_key: s.auth_key,
-            title, body: body.body ?? "", url: body.url ?? "/campo", tag: body.tag ?? "campo",
+            title, body: body.body ?? "", url: body.url ?? "/", tag: body.tag ?? "campo",
           }),
         });
-        if (res.ok) inviate++;
-        else if (res.status === 404 || res.status === 410) {
+        if (res.ok) {
+          inviate++;
+        } else if (res.status === 404 || res.status === 410) {
           // Iscrizione morta (browser disinstallato, permesso tolto): via.
-          await admin.from("push_subscriptions").delete().eq("id", s.id); scadute++;
+          await admin.from("push_subscriptions").delete().eq("id", s.id);
+          scadute++;
+        } else {
+          console.warn("[push-notifica] invio non riuscito:", res.status);
         }
-      } catch (e) {
-        console.warn("[push-notifica] invio fallito:", e instanceof Error ? e.message : e);
-      }
+      }),
+    );
+    for (const e of esiti) {
+      if (e.status === "rejected") console.warn("[push-notifica] invio fallito:", e.reason instanceof Error ? e.reason.message : e.reason);
     }
     // ── App nativa (Capacitor): token FCM in push_tokens. Serve il service account
     //    Firebase nel secret FCM_SERVICE_ACCOUNT_JSON; senza, si conta e basta.

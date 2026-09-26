@@ -19,6 +19,7 @@ import { AlarmClock, Bell, CheckSquare, Clock, Inbox, MessageSquare, type Lucide
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
+import { NotificheSuQuestoDispositivo } from "@/components/notifications/NotificheSuQuestoDispositivo";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   useSaveUserNotifPrefs,
@@ -103,11 +104,15 @@ export function AvvisiPerEvento() {
           <Bell className="h-4 w-4 text-violet-600" /> Avvisi
         </CardTitle>
         <p className="text-xs text-muted-foreground max-sm:hidden">
-          Arrivano nella campanella in alto. Le modifiche si salvano da sole.
+          Arrivano nella campanella in alto e, se lo accendi, anche sul telefono. Le modifiche si salvano da sole.
         </p>
       </CardHeader>
       <CardContent className="p-0">
         <ul className="divide-y border-t">
+          {/* Prima di tutto: arrivano anche ad app chiusa? (per questo dispositivo) */}
+          <li className="px-6 py-2.5 max-sm:px-3 max-sm:py-2">
+            <NotificheSuQuestoDispositivo />
+          </li>
           {AVVISI.map(({ chiave, icona: Icona, etichetta, dettaglio }) => {
             const acceso = inCorso[chiave] ?? Boolean(prefs?.[chiave]);
             return (
