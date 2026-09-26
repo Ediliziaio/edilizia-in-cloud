@@ -14,6 +14,10 @@
  *      { mode: "backfill", company_id?: uuid, limit?: number, dry_run?: boolean }
  *      → ritorna { processed, l1_hits, l1_misses, perc_l1 }
  *
+ * Le regole dell'azienda (email_regole) oltre alla categoria segnano l'email come
+ * letta, la contrassegnano con la stella o ne fissano la priorità: lo fa
+ * applicaEffettiRegola, una volta sola per email (26/09/2026).
+ *
  * Auth:
  *   - Singola: Authorization Bearer (utente loggato)
  *   - Backfill: x-cron-secret (PROACTIVE_CRON_SECRET) o super_admin JWT
@@ -24,7 +28,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import {
-  classificaDeterministica,
+  classificaConRegole,
+  applicaEffettiRegola,
   persistClassification,
   learnSender,
   extractSnippet,
@@ -113,7 +118,7 @@ async function runSingle(supabase: any, emailId: string, cors: Record<string, st
   const { data: email, error } = await supabase
     .from("email_inbox")
     .select(
-      "id, company_id, from_email, from_name, subject, raw_text, raw_html, headers, categoria",
+      "id, company_id, from_email, from_name, to_email, cc_emails, subject, raw_text, raw_html, headers, attachments, categoria, regola_applicata_at",
     )
     .eq("id", emailId)
     .single();
@@ -149,7 +154,10 @@ async function runSingle(supabase: any, emailId: string, cors: Record<string, st
     attachment_types: attachments.map((a: any) => String(a?.mime || a?.filename || "")),
   };
 
-  const result = await classificaDeterministica(supabase, email.company_id, input);
+  const { risultato: result, regola } = await classificaConRegole(supabase, email.company_id, input);
+  const regolaApplicata = regola && !email.regola_applicata_at
+    ? await applicaEffettiRegola(supabase, email.id, regola)
+    : false;
 
   if (result) {
     await persistClassification(supabase, email.id, result);
@@ -160,6 +168,7 @@ async function runSingle(supabase: any, emailId: string, cors: Record<string, st
       email_id: email.id,
       result,
       persisted: true,
+      regola_applicata: regolaApplicata,
       goes_to: null,
     }, 200, cors);
   }
@@ -170,6 +179,7 @@ async function runSingle(supabase: any, emailId: string, cors: Record<string, st
     email_id: email.id,
     result: null,
     persisted: false,
+    regola_applicata: regolaApplicata,
     goes_to: "L3",
   }, 200, cors);
 }
@@ -184,7 +194,7 @@ async function runBackfill(supabase: any, body: BackfillBody, cors: Record<strin
   let query = supabase
     .from("email_inbox")
     .select(
-      "id, company_id, from_email, from_name, to_email, cc_emails, subject, raw_text, raw_html, headers, attachments",
+      "id, company_id, from_email, from_name, to_email, cc_emails, subject, raw_text, raw_html, headers, attachments, regola_applicata_at",
     )
     .is("categoria", null)
     .order("received_at", { ascending: false })
@@ -225,7 +235,10 @@ async function runBackfill(supabase: any, body: BackfillBody, cors: Record<strin
       attachment_types: attachments.map((a: any) => String(a?.mime || a?.filename || "")),
     };
 
-    const result = await classificaDeterministica(supabase, email.company_id, input);
+    const { risultato: result, regola } = await classificaConRegole(supabase, email.company_id, input);
+    if (regola && !email.regola_applicata_at && !dry) {
+      await applicaEffettiRegola(supabase, email.id, regola);
+    }
 
     if (result) {
       hits++;

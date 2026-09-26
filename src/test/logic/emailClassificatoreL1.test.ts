@@ -14,7 +14,7 @@
 
 import { describe, it, expect } from "vitest";
 import {
-  classificaDeterministica as classificaSulServer,
+  classificaConRegole,
   type EmailInput,
 } from "../../../supabase/functions/_shared/email-ai-cascade";
 import { EMAIL_FIXTURES, countL1Expected } from "../fixtures/emailClassificatore";
@@ -63,8 +63,9 @@ function databaseFinto(riga: (tabella: string, filtri: Filtri) => Riga = () => n
 
 type DatabaseFinto = ReturnType<typeof databaseFinto>;
 
-const classificaDeterministica = (email: EmailInput, db: DatabaseFinto) =>
-  classificaSulServer(db as unknown as Parameters<typeof classificaSulServer>[0], "azienda-di-prova", email);
+/** La classificazione L1, come la salva email-ai-l1-classify (le regole le provano i test di emailRegole). */
+const classificaDeterministica = async (email: EmailInput, db: DatabaseFinto) =>
+  (await classificaConRegole(db as unknown as Parameters<typeof classificaConRegole>[0], "azienda-di-prova", email)).risultato;
 
 /** Nessun mittente noto, nessun match CRM: scattano solo header e regex. */
 const emptyContext = databaseFinto();
