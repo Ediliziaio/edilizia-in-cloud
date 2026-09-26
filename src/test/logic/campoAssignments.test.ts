@@ -24,6 +24,7 @@ function arrange(results: Record<string, { data?: unknown; error?: unknown }>) {
 describe("Unione incarichi Campo: non un fallback esclusivo", () => {
   it("sub: A diretto, B da contratto, C da squadra, tutti disponibili", async () => {
     arrange({ order_campo_assignments: { data: [row("A")] }, subappaltatori: { data: [{ id: "s" }] },
+      subappaltatori_sicurezza: { data: [{ id: "ss" }] },
       contratti_subappalto: { data: [row("B")] }, external_teams: { data: [{ id: "t" }] }, order_external_teams: { data: [row("C")] } });
     const resolved = await loadCampoAssignments("u", "c");
     expect(resolved.map(a => a.order_id)).toEqual(["A", "B", "C"]);
@@ -37,8 +38,16 @@ describe("Unione incarichi Campo: non un fallback esclusivo", () => {
     expect(resolved[0].sources).toHaveLength(3);
   });
   it("non trasforma una squadra o un contratto in nomina del capo", async () => {
-    arrange({ subappaltatori: { data: [{ id: "s" }] }, contratti_subappalto: { data: [{ ...row("A"), is_capocantiere: true }] } });
+    arrange({ subappaltatori: { data: [{ id: "s" }] }, subappaltatori_sicurezza: { data: [{ id: "ss" }] },
+      contratti_subappalto: { data: [{ ...row("A"), is_capocantiere: true }] } });
     expect((await loadCampoAssignments("u", "c"))[0].is_capocantiere).toBe(false);
+  });
+  it("non vede i contratti se l'anagrafica di sicurezza non è legata al suo login", async () => {
+    // 26/09/2026: i contratti si cercavano con gli id di subappaltatori, ma puntano a
+    // subappaltatori_sicurezza. Senza scheda collegata non si chiede nessun contratto.
+    const calls = arrange({ subappaltatori: { data: [{ id: "s" }] }, contratti_subappalto: { data: [row("B")] } });
+    expect((await loadCampoAssignments("u", "c")).map(a => a.order_id)).toEqual([]);
+    expect(calls.contratti_subappalto).toBeUndefined();
   });
   it("scarta record senza ordine leggibile, disallineati o di altra azienda", async () => {
     arrange({ order_campo_assignments: { data: [row("A"), row("X", "in_corso", "other"), { ...row("B"), order: null as null }, { ...row("C"), order_id: "mismatch" }] } });
@@ -59,7 +68,8 @@ describe("Unione incarichi Campo: non un fallback esclusivo", () => {
     expect(await hasRapportinoAssignment("C", "u", "c")).toBe(true);
   });
   it("applica filtri identità/azienda e non carica costi", async () => {
-    const calls = arrange({ employees: { data: [{ id: "e" }] }, subappaltatori: { data: [{ id: "s" }, { id: "s2" }] }, external_teams: { data: [{ id: "t" }] } });
+    const calls = arrange({ employees: { data: [{ id: "e" }] }, subappaltatori: { data: [{ id: "s" }, { id: "s2" }] },
+      subappaltatori_sicurezza: { data: [{ id: "ss" }, { id: "ss2" }] }, external_teams: { data: [{ id: "t" }] } });
     await loadCampoAssignments("u", "c", { orderId: "A" });
     for (const table of ["order_campo_assignments", "employees", "subappaltatori"]) {
       expect(calls[table].eq).toHaveBeenCalledWith("user_id", "u");
@@ -71,10 +81,13 @@ describe("Unione incarichi Campo: non un fallback esclusivo", () => {
       expect(calls[table].select.mock.calls[0][0]).not.toMatch(/\*|total_cost|hourly_rate|importo/);
     }
     expect(calls.contratti_subappalto.eq).toHaveBeenCalledWith("stato", "attivo");
-    expect(calls.contratti_subappalto.in).toHaveBeenCalledWith("subappaltatore_id", ["s", "s2"]);
+    // Il contratto punta all'anagrafica di sicurezza, legata al login dal subappaltatore del campo.
+    expect(calls.subappaltatori_sicurezza.in).toHaveBeenCalledWith("campo_subappaltatore_id", ["s", "s2"]);
+    expect(calls.subappaltatori_sicurezza.eq).toHaveBeenCalledWith("company_id", "c");
+    expect(calls.contratti_subappalto.in).toHaveBeenCalledWith("subappaltatore_id", ["ss", "ss2"]);
   });
-  it.each(["order_campo_assignments", "employees", "subappaltatori", "order_employees", "contratti_subappalto", "external_teams", "order_external_teams"])("un errore su %s non viene presentato come elenco vuoto", async table => {
-    arrange({ employees: { data: [{ id: "e" }] }, subappaltatori: { data: [{ id: "s" }] }, external_teams: { data: [{ id: "t" }] }, [table]: { error: new Error("network/policy") } });
+  it.each(["order_campo_assignments", "employees", "subappaltatori", "order_employees", "subappaltatori_sicurezza", "contratti_subappalto", "external_teams", "order_external_teams"])("un errore su %s non viene presentato come elenco vuoto", async table => {
+    arrange({ employees: { data: [{ id: "e" }] }, subappaltatori: { data: [{ id: "s" }] }, subappaltatori_sicurezza: { data: [{ id: "ss" }] }, external_teams: { data: [{ id: "t" }] }, [table]: { error: new Error("network/policy") } });
     await expect(loadCampoAssignments("u", "c")).rejects.toThrow("network/policy");
   });
   it("senza azienda o utente non esegue una ricerca generica", async () => {

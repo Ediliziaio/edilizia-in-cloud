@@ -62,18 +62,27 @@ export async function loadCampoAssignments(
     (async () => {
       if (!subs.data?.length) return;
       const subIds = subs.data.map(s => s.id);
-      let contractsQuery = supabase.from("contratti_subappalto").select(ASSIGNMENT_SELECT)
-        .in("subappaltatore_id", subIds).eq("company_id", companyId)
-        .eq("stato", "attivo").eq("order.company_id", companyId);
-      if (options.orderId) contractsQuery = contractsQuery.eq("order_id", options.orderId);
-      const [contracts, teams] = await Promise.all([
-        contractsQuery,
+      // I contratti puntano all'anagrafica di sicurezza (subappaltatori_sicurezza),
+      // legata al login con campo_subappaltatore_id. Cercarli con gli id di
+      // subappaltatori non trovava mai niente (26/09/2026: 26 contratti, 0
+      // visibili nel campo). Le squadre esterne invece puntano già a subappaltatori.
+      const [schede, teams] = await Promise.all([
+        supabase.from("subappaltatori_sicurezza").select("id")
+          .eq("company_id", companyId).in("campo_subappaltatore_id", subIds),
         supabase.from("external_teams").select("id")
           .eq("company_id", companyId).in("subappaltatore_id", subIds),
       ]);
-      if (contracts.error) throw contracts.error;
+      if (schede.error) throw schede.error;
       if (teams.error) throw teams.error;
-      sources.push({ kind: "contract", rows: (contracts.data ?? []) as unknown as AssignmentRow[] });
+      if (schede.data?.length) {
+        let contractsQuery = supabase.from("contratti_subappalto").select(ASSIGNMENT_SELECT)
+          .in("subappaltatore_id", schede.data.map(s => s.id)).eq("company_id", companyId)
+          .eq("stato", "attivo").eq("order.company_id", companyId);
+        if (options.orderId) contractsQuery = contractsQuery.eq("order_id", options.orderId);
+        const contracts = await contractsQuery;
+        if (contracts.error) throw contracts.error;
+        sources.push({ kind: "contract", rows: (contracts.data ?? []) as unknown as AssignmentRow[] });
+      }
       if (!teams.data?.length) return;
       let teamsQuery = supabase.from("order_external_teams").select(ASSIGNMENT_SELECT)
         .in("external_team_id", teams.data.map(t => t.id)).eq("order.company_id", companyId);
