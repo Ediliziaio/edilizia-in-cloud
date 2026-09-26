@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -237,6 +237,29 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
       });
     }
   };
+
+  // Dagli avvisi della campanella: ?filo=<entita_tipo>:<entita_id> apre quel filo
+  // come un tocco nella lista (quindi lo segna letto, e il trigger chiude anche
+  // l'avviso). Il parametro si toglie subito: la freccia indietro torna alla lista.
+  const [params, setParams] = useSearchParams();
+  const [filoDaAprire, setFiloDaAprire] = useState<string | null>(null);
+  useEffect(() => {
+    const filo = params.get("filo");
+    if (!filo) return;
+    setFiloDaAprire(filo);
+    const altri = new URLSearchParams(params);
+    altri.delete("filo");
+    setParams(altri, { replace: true });
+  }, [params, setParams]);
+  useEffect(() => {
+    if (!filoDaAprire) return;
+    const c = lista.find((x) => keyOf(x) === filoDaAprire);
+    if (!c) return; // la lista arriva dopo: si riprova quando cambia
+    setFiloDaAprire(null);
+    handleSelect(c);
+    // handleSelect cambia a ogni render; conta solo quando arrivano lista o filo.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lista, filoDaAprire]);
 
   const aggiornaStato = (stato: "aperta" | "chiusa") => {
     if (!selectedItem) return;

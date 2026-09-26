@@ -50,6 +50,8 @@ type FilterMode = "all" | "unread";
 const typeConfig: Record<string, { icon: typeof Bell; bg: string; fg: string }> = {
   ticket_new: { icon: MessageSquare, bg: "bg-blue-50 ring-blue-200", fg: "text-blue-600" },
   ticket_reply: { icon: MessageSquare, bg: "bg-blue-50 ring-blue-200", fg: "text-blue-600" },
+  // Messaggio arrivato in Conversazioni (WhatsApp, email, SMS, Messenger…).
+  conversazione_messaggio: { icon: MessageSquare, bg: "bg-emerald-50 ring-emerald-200", fg: "text-emerald-600" },
   order_status_changed: { icon: Package, bg: "bg-orange-50 ring-orange-200", fg: "text-orange-600" },
   task_assigned: { icon: CheckSquare, bg: "bg-purple-50 ring-purple-200", fg: "text-purple-600" },
   task_due: { icon: CheckSquare, bg: "bg-purple-50 ring-purple-200", fg: "text-purple-600" },
@@ -72,6 +74,8 @@ const entityTypeLabels: Record<string, string> = {
   ticket: "Ticket",
   task: "Attività",
   contact: "Contatto",
+  contatto: "Contatto",
+  cliente: "Cliente",
   opportunity: "Opportunità",
   project: "Progetto",
   invoice: "Fattura",
