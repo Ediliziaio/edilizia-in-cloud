@@ -8,11 +8,12 @@
  */
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bot, Check, Copy, KeyRound, Loader2, RefreshCw, ShieldCheck, Sparkles } from "lucide-react";
+import { Bot, Check, Copy, KeyRound, Loader2, RefreshCw, ShieldCheck, Sparkles, Unlink } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useApiKeys, useCreateApiKey } from "@/hooks/useApiKeys";
+import { useOAuthGrants, useRevokeOAuthGrant, type OAuthGrant } from "@/hooks/useOAuthGrants";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -68,6 +69,8 @@ export default function ConnettoreAiPopup({ onClose }: { onClose: () => void }) 
 
   const { data: chiavi = [] } = useApiKeys(companyId);
   const creaChiave = useCreateApiKey(companyId);
+  const { data: assistenti = [] } = useOAuthGrants(companyId);
+  const revoca = useRevokeOAuthGrant(companyId);
 
   const [livello, setLivello] = useState<LivelloConnettore>("consulente");
   const [invii, setInvii] = useState(false);
@@ -100,6 +103,18 @@ export default function ConnettoreAiPopup({ onClose }: { onClose: () => void }) 
       setChiaveNuova(raw);
     } catch (e) {
       toast.error("Collegamento non riuscito", {
+        description: e instanceof Error ? e.message : "Riprova tra qualche secondo.",
+      });
+    }
+  };
+
+  const revocaAssistente = async (g: OAuthGrant) => {
+    if (!puoGestire) return;
+    try {
+      await revoca.mutateAsync(g.id);
+      toast.success(`Collegamento revocato: ${g.client_name ?? "Assistente AI"}`);
+    } catch (e) {
+      toast.error("Revoca non riuscita", {
         description: e instanceof Error ? e.message : "Riprova tra qualche secondo.",
       });
     }
@@ -164,6 +179,43 @@ export default function ConnettoreAiPopup({ onClose }: { onClose: () => void }) 
         Collega il gestionale a <strong>Claude</strong>: l'assistente lavora solo sui dati della tua azienda. Scegli
         cosa può fare.
       </p>
+
+      {assistenti.length > 0 && (
+        <div className="rounded-xl border p-2">
+          <p className="px-1 pb-1 text-xs font-medium text-muted-foreground">
+            Assistenti collegati ({assistenti.length})
+          </p>
+          <ul className="space-y-1">
+            {assistenti.map((g) => (
+              <li key={g.id} className="flex items-center gap-2 rounded-lg bg-muted/40 px-2 py-1.5">
+                <Sparkles className="h-4 w-4 shrink-0 text-primary" />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium">{g.client_name ?? "Assistente AI"}</span>
+                  <span className="block text-[11px] text-muted-foreground">
+                    {g.livello === "operativo" ? "Operativo" : "Consulente"}
+                    {g.invii ? " · invii" : ""}
+                    {g.last_used_at
+                      ? ` · usato il ${new Date(g.last_used_at).toLocaleDateString("it-IT")}`
+                      : " · mai usato"}
+                  </span>
+                </span>
+                {puoGestire && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="tap-compact h-8 shrink-0 gap-1 text-destructive hover:text-destructive"
+                    onClick={() => revocaAssistente(g)}
+                    disabled={revoca.isPending}
+                  >
+                    <Unlink className="h-3.5 w-3.5" /> Revoca
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {chiaviAttive.length > 0 && (
         <Alert>
