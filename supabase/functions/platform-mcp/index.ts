@@ -788,6 +788,17 @@ Deno.serve(async (req) => {
           isError: true,
         })), { headers: jsonHeaders });
       }
+      const oneDayAgo = new Date(Date.now() - 86_400_000).toISOString();
+      const { count: dayCount } = await admin.from("api_usage_log")
+        .select("*", { count: "exact", head: true })
+        .eq("api_key_id", ctx.id).gte("created_at", oneDayAgo);
+      if ((dayCount ?? 0) >= ctx.rate_limit_per_day) {
+        await log(429, null);
+        return new Response(JSON.stringify(rpcResult(id, {
+          content: [{ type: "text", text: `Limite giornaliero superato (${ctx.rate_limit_per_day}/giorno).` }],
+          isError: true,
+        })), { headers: jsonHeaders });
+      }
 
       try {
         const result = await tool.handler(admin, ctx, args);
