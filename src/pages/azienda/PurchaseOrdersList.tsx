@@ -403,17 +403,19 @@ export default function PurchaseOrdersList() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-sm:space-y-3">
       <QuotePageHeader
         title="Ordini d'Acquisto"
         subtitle="Documenti fornitore collegati a commesse, DDT, magazzino di arrivo e inventario."
         icon={<ShoppingCart className="h-5 w-5" />}
-        className="bg-gradient-to-br from-white via-white to-orange-50/40"
+        className="testata-pagina bg-gradient-to-br from-white via-white to-orange-50/40"
+        titoloSoloDaComputer
         actions={
           <>
+            {/* Telefono no: niente esportazioni. */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" className="max-sm:hidden">
                   <Download className="h-4 w-4 mr-1.5" />
                   <span className="hidden sm:inline">Esporta</span>
                   <ChevronDown className="h-3.5 w-3.5 ml-1" />
@@ -489,7 +491,7 @@ export default function PurchaseOrdersList() {
               </PopoverContent>
             </Popover>
 
-            <QuotePrimaryButton onClick={() => setNewOpen(true)} size="sm">
+            <QuotePrimaryButton onClick={() => setNewOpen(true)} size="sm" className="max-sm:flex-1 max-sm:justify-center">
               <Plus className="h-4 w-4" />
               <span className="hidden sm:inline">Nuovo OdA</span>
               <span className="sm:hidden">Nuovo</span>
@@ -500,7 +502,9 @@ export default function PurchaseOrdersList() {
 
       {/* KPI — cliccabili: ognuno filtra la lista sotto, cosi' il numero
           porta direttamente agli ordini che lo compongono. */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      {/* Telefono no: gli stessi numeri e gli stessi filtri sono nelle schede sotto
+          («In ritardo 10», «Da mandare 8»…). */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-sm:hidden">
         <OperationalKpiCard
           label="In ritardo"
           value={kpis.lateCount}
