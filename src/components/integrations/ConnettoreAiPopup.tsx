@@ -69,6 +69,7 @@ export default function ConnettoreAiPopup({ onClose }: { onClose: () => void }) 
   const creaChiave = useCreateApiKey(companyId);
 
   const [livello, setLivello] = useState<LivelloConnettore>("consulente");
+  const [invii, setInvii] = useState(false);
   const [chiaveNuova, setChiaveNuova] = useState<string | null>(null);
 
   const chiaviAttive = useMemo(
@@ -84,7 +85,7 @@ export default function ConnettoreAiPopup({ onClose }: { onClose: () => void }) 
       ? `${base} · ${new Date().toLocaleDateString("it-IT")}`
       : base;
     try {
-      const raw = await creaChiave.mutateAsync({ name: nome, scopes: scopePerLivello(livello), expiryOption: "never" });
+      const raw = await creaChiave.mutateAsync({ name: nome, scopes: scopePerLivello(livello, invii), expiryOption: "never" });
       setChiaveNuova(raw);
     } catch (e) {
       toast.error("Collegamento non riuscito", {
@@ -194,6 +195,25 @@ export default function ConnettoreAiPopup({ onClose }: { onClose: () => void }) 
           );
         })}
       </div>
+
+      {/* Invii reali / strumenti a pagamento: solo se lo attiva, e solo su «operativo». */}
+      {livello === "operativo" && (
+        <label className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50/60 p-3 dark:bg-amber-950/20">
+          <input
+            type="checkbox"
+            className="mt-0.5 h-4 w-4 accent-amber-600"
+            checked={invii}
+            onChange={(e) => setInvii(e.target.checked)}
+          />
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-medium">Permetti invii reali e strumenti a pagamento</span>
+            <span className="block text-xs text-muted-foreground">
+              Manda email, follow-up e solleciti veri e usa gli strumenti con costo AI. Spento di serie: lascialo così se
+              vuoi che l'assistente prepari ma non invii nulla.
+            </span>
+          </span>
+        </label>
+      )}
 
       <p className="text-[11px] text-muted-foreground">
         Endpoint: <code className="rounded bg-muted px-1">{MCP_ENDPOINT}</code>

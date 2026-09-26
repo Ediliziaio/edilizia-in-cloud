@@ -26,6 +26,11 @@
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
+import {
+  type KeyCtx, type ToolDef, ToolError,
+  sha256Hex, hasScope, str, num, intLimit, resolveCompany,
+} from "./lib.ts";
+import { SILVIO_TOOLS } from "./silvioTools.ts";
 
 const SUPPORTED_PROTOCOL_VERSIONS = ["2025-06-18", "2025-03-26", "2024-11-05"];
 const LATEST_PROTOCOL = "2025-06-18";
@@ -38,90 +43,12 @@ Usa prima "lista_aziende" (se disponibile) per scoprire le aziende, poi opera co
 Valori: gli importi sono in euro (numero), le date in formato YYYY-MM-DD.
 Stati opportunità: open | won | lost. Stati attività: da_fare | in_corso | completata.`;
 
-// ── Tipi ─────────────────────────────────────────────────────────────────────
-
-interface KeyCtx {
-  id: string;
-  company_id: string | null;
-  name: string;
-  scopes: string[];
-  rate_limit_per_minute: number;
-  rate_limit_per_day: number;
-  /** Super admin/utente che ha emesso la chiave: le scritture che richiedono
-   *  un autore (es. tasks.created_by NOT NULL) vengono attribuite a lui. */
-  created_by: string;
-}
-
-interface ToolDef {
-  name: string;
-  description: string;
-  scope: string | null; // null = nessuno scope richiesto
-  inputSchema: Record<string, unknown>;
-  handler: (admin: SupabaseClient, ctx: KeyCtx, args: Record<string, unknown>) => Promise<unknown>;
-}
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-async function sha256Hex(input: string): Promise<string> {
-  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
-  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-function hasScope(ctx: KeyCtx, scope: string | null): boolean {
-  if (!scope) return true;
-  const scopes = ctx.scopes ?? [];
-  if (scopes.includes("*")) return true;
-  if (scopes.includes(scope)) return true;
-  // "contacts:write" implica anche "contacts:read"
-  const [res, action] = scope.split(":");
-  return action === "read" && scopes.includes(`${res}:write`);
-}
-
-function str(v: unknown): string | null {
-  return typeof v === "string" && v.trim() !== "" ? v.trim() : null;
-}
-function num(v: unknown): number | null {
-  return typeof v === "number" && Number.isFinite(v) ? v : null;
-}
-function intLimit(v: unknown, def: number, max: number): number {
-  const n = typeof v === "number" ? Math.floor(v) : def;
-  return Math.min(Math.max(n > 0 ? n : def, 1), max);
-}
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/** Risolve l'azienda su cui operare: chiave scoped → la sua; piattaforma → arg. */
-async function resolveCompany(
-  admin: SupabaseClient,
-  ctx: KeyCtx,
-  args: Record<string, unknown>,
-): Promise<{ id: string; name: string }> {
-  if (ctx.company_id) {
-    const { data } = await admin.from("companies").select("id, name").eq("id", ctx.company_id).maybeSingle();
-    if (!data) throw new ToolError("Azienda della chiave non trovata");
-    return data as { id: string; name: string };
-  }
-  const raw = str(args.company);
-  if (!raw) throw new ToolError('Parametro "company" obbligatorio per le chiavi piattaforma (nome o UUID azienda). Usa lista_aziende per scoprirle.');
-  if (UUID_RE.test(raw)) {
-    const { data } = await admin.from("companies").select("id, name").eq("id", raw).maybeSingle();
-    if (!data) throw new ToolError(`Nessuna azienda con id ${raw}`);
-    return data as { id: string; name: string };
-  }
-  const { data: matches } = await admin.from("companies").select("id, name").ilike("name", `%${raw}%`).limit(5);
-  if (!matches || matches.length === 0) throw new ToolError(`Nessuna azienda che contenga "${raw}" nel nome`);
-  if (matches.length > 1) {
-    throw new ToolError(`Più aziende corrispondono a "${raw}": ${matches.map((m) => m.name).join(", ")}. Specifica meglio o usa l'UUID.`);
-  }
-  return matches[0] as { id: string; name: string };
-}
-
-/** Errore "di dominio" da mostrare all'AI (non un bug del server). */
-class ToolError extends Error {}
+// Tipi e helper (KeyCtx, ToolDef, ToolError, resolveCompany, str/num/…) sono in
+// ./lib.ts, condivisi con silvioTools.ts.
 
 // ── Registry dei tool ────────────────────────────────────────────────────────
 
-const TOOLS: ToolDef[] = [
+const TOOLS_MANUALI: ToolDef[] = [
   {
     name: "guida_piattaforma",
     description: "Spiega come usare questa API: convenzioni, ambiti, elenco capacità. Chiamala se hai dubbi.",
@@ -640,6 +567,9 @@ const TOOLS: ToolDef[] = [
     },
   },
 ];
+
+// Tool scritti a mano + ponte verso il catalogo silvio_tool_* (silvioTools.ts).
+const TOOLS: ToolDef[] = [...TOOLS_MANUALI, ...SILVIO_TOOLS];
 
 // ── JSON-RPC / MCP plumbing ─────────────────────────────────────────────────
 

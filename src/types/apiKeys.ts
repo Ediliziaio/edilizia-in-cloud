@@ -43,11 +43,45 @@ export const API_SCOPE_GROUPS: ApiScopeGroup[] = [
   },
   {
     id: "orders",
-    label: "Ordini",
-    description: "Accesso al modulo ordini",
+    label: "Commesse",
+    description: "Accesso alle commesse/cantieri",
     scopes: [
-      { id: "orders:read", label: "Leggi ordini", description: "Visualizza lista e dettaglio ordini" },
-      { id: "orders:write", label: "Modifica ordini", description: "Crea, aggiorna ed elimina ordini" },
+      { id: "orders:read", label: "Leggi commesse", description: "Riepiloghi, flusso, cantieri a rischio" },
+      { id: "orders:write", label: "Crea commesse", description: "Crea commesse via assistente AI" },
+    ],
+  },
+  {
+    id: "quotes",
+    label: "Preventivi",
+    description: "Preventivi e follow-up",
+    scopes: [
+      { id: "quotes:read", label: "Leggi preventivi", description: "Riepiloghi, da ricontattare, probabilità di chiusura" },
+    ],
+  },
+  {
+    id: "warehouse",
+    label: "Magazzino & fornitori",
+    description: "Scorte, stockout, fornitori, proposte d'ordine",
+    scopes: [
+      { id: "warehouse:read", label: "Leggi magazzino", description: "Stato scorte, stockout, fornitori" },
+      { id: "warehouse:write", label: "Proposte d'ordine", description: "Crea proposte di ordine a fornitore (bozze)" },
+    ],
+  },
+  {
+    id: "hr",
+    label: "Personale",
+    description: "Team, presenze, assenze",
+    scopes: [
+      { id: "hr:read", label: "Leggi personale", description: "Team, dipendenti di oggi" },
+      { id: "hr:write", label: "Registra assenze", description: "Registra assenze dei dipendenti" },
+    ],
+  },
+  {
+    id: "safety",
+    label: "Sicurezza & documenti",
+    description: "DURC, scadenze documentali, subappaltatori",
+    scopes: [
+      { id: "safety:read", label: "Leggi sicurezza", description: "DURC, documenti in scadenza, subappaltatori" },
     ],
   },
   {
@@ -90,9 +124,18 @@ export const API_SCOPE_GROUPS: ApiScopeGroup[] = [
   {
     id: "comunicazione",
     label: "Comunicazione",
-    description: "Invio email dall'assistente AI",
+    description: "Posta in arrivo e invio email",
     scopes: [
+      { id: "email:read", label: "Leggi posta da lavorare", description: "Email in arrivo che richiedono risposta/azione" },
       { id: "email:send", label: "Invia email", description: "Invio REALE di email — dallo strumento AI o via API" },
+    ],
+  },
+  {
+    id: "azioni_sensibili",
+    label: "Azioni con invio o costo",
+    description: "Strumenti dell'assistente che inviano davvero o hanno un costo AI",
+    scopes: [
+      { id: "actions:sensitive", label: "Invii e strumenti a pagamento", description: "Invia messaggi/solleciti reali, strumenti con costo AI — spento di serie" },
     ],
   },
   {

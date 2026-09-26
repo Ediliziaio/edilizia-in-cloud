@@ -24,6 +24,12 @@ const SCOPE_LETTURA = [
   "tasks:read",
   "orders:read",
   "products:read",
+  "quotes:read",
+  "warehouse:read",
+  "hr:read",
+  "safety:read",
+  "email:read",
+  "appointments:read",
   "stats:read",
 ] as const;
 
@@ -33,14 +39,22 @@ const SCOPE_AZIONI = [
   "tasks:write",
   "orders:write",
   "products:write",
+  "warehouse:write",
+  "hr:write",
+  "appointments:write",
+] as const;
+
+// Invii reali e strumenti a pagamento: solo se l'azienda lo attiva
+// esplicitamente (spento di serie anche nel livello operativo).
+const SCOPE_SENSIBILI = [
+  "actions:sensitive",
   "email:send",
 ] as const;
 
 /** Gli scope da assegnare alla chiave per il livello scelto. */
-export function scopePerLivello(livello: LivelloConnettore): string[] {
-  return livello === "operativo"
-    ? [...SCOPE_LETTURA, ...SCOPE_AZIONI]
-    : [...SCOPE_LETTURA];
+export function scopePerLivello(livello: LivelloConnettore, includiSensibili = false): string[] {
+  const base = livello === "operativo" ? [...SCOPE_LETTURA, ...SCOPE_AZIONI] : [...SCOPE_LETTURA];
+  return includiSensibili && livello === "operativo" ? [...base, ...SCOPE_SENSIBILI] : base;
 }
 
 export const LIVELLI: { id: LivelloConnettore; titolo: string; descrizione: string; esempi: string[] }[] = [
