@@ -34,6 +34,9 @@ export const SALES_AREAS: readonly SalesArea[] = [
     intervention("isolamento", "Isolamento tetto e sottotetto", "Coibentazione della copertura o del solaio sottotetto.", "Superficie e supporto", "Materiale e spessore", "Raccordi e continuità", "Finiture e accessibilità"),
     intervention("impermeabilizzazione", "Coperture piane e terrazzi", "Preparazione e impermeabilizzazione delle superfici.", "Superficie e pendenze", "Stato del supporto", "Sistema impermeabilizzante", "Scarichi e risvolti"),
     intervention("lattoneria", "Grondaie e lattoneria", "Canali, pluviali, scossaline e raccordi.", "Sviluppi in metri lineari", "Materiale e sezioni", "Raccordi e pezzi speciali", "Accessi e montaggio"),
+    intervention("amianto", "Bonifica amianto", "Rimozione o incapsulamento del cemento-amianto, con procedura e smaltimento.", "Superfici da bonificare", "Stato delle lastre", "Rimozione o incapsulamento", "Smaltimento e documenti"),
+    intervention("linea-vita", "Linea vita e anticaduta", "Ancoraggi e percorsi certificati per accedere in sicurezza alla copertura.", "Percorsi e ancoraggi", "Struttura di fissaggio", "Posa e raccordi", "Elaborato e certificazione"),
+    intervention("lucernari", "Lucernari e finestre da tetto", "Aperture nel manto con raccordi a tenuta, oscuranti e finiture.", "Numero e posizione", "Tipo di manto", "Raccordi impermeabili", "Oscuranti e sguinci"),
   ] },
   { id: "ristrutturazioni", title: "Ristrutturazioni", sourceModule: "ristrutturazione", summary: "Lavori completi o parziali, organizzati per ambienti e capitoli.", interventions: [
     intervention("completa", "Ristrutturazione completa", "Un progetto coordinato per l'intera abitazione.", "Ambienti e superfici", "Demolizioni e opere edili", "Impianti e finiture", "Fasi, inclusioni ed esclusioni"),

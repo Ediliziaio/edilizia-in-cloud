@@ -84,7 +84,7 @@ describe("popup unico di creazione preventivi", () => {
   it("porta Ripasso al suo wizard e conserva soltanto il contesto CRM", () => {
     mount("contact_id=c1&opportunity_id=o1&section=page_cover&modello=sbagliato");
     fireEvent.click(screen.getByRole("button", { name: "Scegli area Tetti" }));
-    expect(screen.getAllByRole("link", { name: /^Apri preventivatore/ })).toHaveLength(6);
+    expect(screen.getAllByRole("link", { name: /^Apri preventivatore/ })).toHaveLength(9);
     fireEvent.click(screen.getByRole("link", { name: "Apri preventivatore Ripasso del tetto" }));
     expect(screen.getByTestId("route")).toHaveTextContent("/azienda/tetti/nuovo?modello=ripasso&contact_id=c1&opportunity_id=o1");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -115,7 +115,7 @@ describe("popup unico di creazione preventivi", () => {
   });
   it("distingue accesso all'area da disponibilità del salvataggio", () => {
     state.support.supported = false; mount("area=tetti");
-    expect(screen.getAllByText("Salvataggio da attivare")).toHaveLength(6);
+    expect(screen.getAllByText("Salvataggio da attivare")).toHaveLength(9);
     expect(screen.queryByText("Apri preventivatore", { exact: true })).not.toBeInTheDocument();
   });
   it.each(["loading", "visibleLoading", "error"] as const)("non presenta accessi confermati durante %s", key => {

@@ -50,7 +50,7 @@ export type AuditArea = keyof typeof MODULE68_FACTORIES;
 /** Independent acceptance inventory: deleting a model from both app lists must still fail. */
 export const MODULE68_EXPECTED: Record<AuditArea, readonly string[]> = {
   serramenti: ["finestre", "persiane", "avvolgibili", "zanzariere", "porte-ingresso", "porte-interne", "combinato"],
-  tetti: ["rifacimento", "ripasso", "riparazioni", "isolamento", "impermeabilizzazione", "lattoneria"],
+  tetti: ["rifacimento", "ripasso", "riparazioni", "isolamento", "impermeabilizzazione", "lattoneria", "amianto", "linea-vita", "lucernari"],
   ristrutturazioni: ["completa", "parziale", "commerciale", "spazi", "computo", "cucina", "sottotetto", "aperture-portanti", "condominio", "montascale"],
   "pareti-soffitti": ["tinteggiatura-interna", "carta-da-parati", "cartongesso", "controsoffitti", "decorativi", "umidita", "acustica"],
   pergole: ["pergola-bioclimatica", "pergola-telo", "tende-sole", "vetrate", "carport"],

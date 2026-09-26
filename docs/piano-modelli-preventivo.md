@@ -19,7 +19,7 @@ Ogni sessione aggiorna la sua riga a fine lotto.
 | 2 | Pareti e soffitti (area nuova) | 7 | ✅ fatto | 4aedaa3de |
 | 3 | Pergole e tende (area nuova) | 5 | ✅ fatto | eaa1bcf7c |
 | 4 | Ristrutturazioni | 5 | ✅ fatto | (in commit) |
-| 5 | Tetti | 3 | da fare | |
+| 5 | Tetti | 3 | ✅ fatto | (in commit) |
 | 6 | Elettrico | 4 | da fare | |
 | 7 | Termoidraulica | 3 | da fare | |
 | 8 | Pavimenti | 3 | da fare | |

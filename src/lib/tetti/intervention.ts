@@ -8,4 +8,7 @@ export const TET_INTERVENTION_TYPES: Record<TettiTemplateModuleId, string> = {
   isolamento: "coibentazione",
   impermeabilizzazione: "impermeabilizzazione",
   lattoneria: "lattoneria",
+  amianto: "bonifica_amianto",
+  "linea-vita": "linea_vita",
+  lucernari: "lucernari",
 };

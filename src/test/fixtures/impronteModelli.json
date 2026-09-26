@@ -80,9 +80,12 @@
   "termoidraulica/pompa-calore": "6715d1744f57f823845eba341b6e07f894c0fe5ad8aa66f27e9af0af98ba9cc0",
   "termoidraulica/radiante": "c426798a908f878213f90795790b115752b277fa882cc411e0f2a41c5192f6ea",
   "termoidraulica/terminali": "412d889e25d5400a8c92ff2ae46d6cb24ecfc11a717f0a21683bec8b935c8152",
+  "tetti/amianto": "296ee9bd76f7001e5352c4331a8318182847b35c0a1fd1503a8ba4955d1e7878",
   "tetti/impermeabilizzazione": "b896c0b9bae35e020648ba887f5df695664126c081537a083003b5c26da588b4",
   "tetti/isolamento": "c20f793eb1d9633f95d59254ced5aa1d8140b027215b7d8a3376aec369846784",
   "tetti/lattoneria": "6b2713a86275e4eae493cc3e300c5b5ac3dbc3017b22476a57cd9002f6a77b6b",
+  "tetti/linea-vita": "8463b90452fbe23a1d4caf8afcf4d2d5dce8251f11276ba693b15c2a9a30463d",
+  "tetti/lucernari": "1a77b89dd03ba3afda947410c57cfc1a1e55264b51107ed667b3978e6852ba15",
   "tetti/rifacimento": "7d0ea256557b77bcb5f41b5123d119b2cf97be2a8efe8dd6e10eb716b85d89ba",
   "tetti/riparazioni": "ffecf00c6f35b172b9da564331b0f3a77d68bc7d1d422d536e38454891567e9f",
   "tetti/ripasso": "c447b664ba6e828c71786ec7b399cf430900b3b60cb04a942263852a34f1cd02"
