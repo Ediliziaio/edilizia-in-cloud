@@ -84,9 +84,13 @@ export const TIPO_INTERVENTO_DEL_MODELLO: Record<ModuloConModelli, Readonly<Reco
   },
 };
 
-/** Gli interventi della libreria per un preventivatore (Impostazioni → Moduli vendita). */
+/**
+ * Gli interventi della libreria per un preventivatore (Impostazioni → Moduli vendita).
+ * Un preventivatore può ospitare più aree (es. Ristrutturazioni + Pareti e soffitti +
+ * Pergole): si prendono gli interventi di TUTTE le aree con quel sourceModule.
+ */
 export function interventiDelModulo(modulo: ModuloConModelloPreventivo): readonly SalesIntervention[] {
-  return SALES_AREAS.find((area) => area.sourceModule === modulo)?.interventions ?? [];
+  return SALES_AREAS.filter((area) => area.sourceModule === modulo).flatMap((area) => area.interventions);
 }
 
 /** L'intervento richiesto (?modello=…) o salvato nel preventivo; undefined se non esiste. */
