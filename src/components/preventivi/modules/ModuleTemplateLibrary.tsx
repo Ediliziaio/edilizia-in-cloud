@@ -100,7 +100,7 @@ function savedStatus(company: string | null, area: string, module: string) {
       if (loadLocalBgnTemplate(company, module)) return "Salvato";
       return loadModuleDocument(company, area, module) ? "Edizione completa disponibile · bozza precedente conservata" : "Da personalizzare";
     }
-    if (area === "ristrutturazioni" && isFullRstModuleId(module)) {
+    if ((area === "ristrutturazioni" || area === "pareti-soffitti") && isFullRstModuleId(module)) {
       if (loadLocalRstTemplate(company, module)) return "Salvato";
       return loadModuleDocument(company, area, module) ? "Edizione completa disponibile · bozza precedente conservata" : "Da personalizzare";
     }
@@ -225,7 +225,7 @@ export default function ModuleTemplateLibrary({
           <Tetti />
         ) : area.id === "fotovoltaico" && isFullFvModuleId(module.id) && params.get("edizione") !== "precedente" ? (
           <Fotovoltaico moduleId={module.id} />
-        ) : area.id === "ristrutturazioni" && isFullRstModuleId(module.id) && params.get("edizione") !== "precedente" ? (
+        ) : (area.id === "ristrutturazioni" || area.id === "pareti-soffitti") && isFullRstModuleId(module.id) && params.get("edizione") !== "precedente" ? (
           <Ristrutturazioni moduleId={module.id} />
         ) : area.id === "bagni" && isFullBgnModuleId(module.id) && params.get("edizione") !== "precedente" ? (
           <Bagni moduleId={module.id} />

@@ -141,12 +141,12 @@ describe("libreria completa dei moduli", () => {
     expect(localStorage.length).toBe(0);
     expect(state.remoteWrite).not.toHaveBeenCalled();
   });
-  it("mostra 11 aree senza modificare preferenze o copie locali", () => {
+  it("mostra 12 aree senza modificare preferenze o copie locali", () => {
     mount();
     expect(screen.getAllByRole("button", { name: /Apri area/ })).toHaveLength(
-      11,
+      12,
     );
-    expect(screen.getAllByRole("switch")).toHaveLength(10);
+    expect(screen.getAllByRole("switch")).toHaveLength(11);
     expect(localStorage.length).toBe(0);
     expect(state.remoteWrite).not.toHaveBeenCalled();
   });

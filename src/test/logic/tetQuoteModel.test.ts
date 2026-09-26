@@ -56,10 +56,10 @@ describe("registro unico dei preventivatori", () => {
       }
     }
     // Tetti 6, Serramenti 7 e, dal 25/09/2026, tutti gli interventi dei sette
-    // preventivatori edili (lib/moduli/modelloPreventivo: 6+6+7+10+6+6+5, con
+    // preventivatori edili (lib/moduli/modelloPreventivo: 6+6+7+10+6+6+5+7 Pareti, con
     // Conto Termico e Casa Full Electric nel Termoidraulico) e i cinque del
     // Fotovoltaico. Fuori solo le Facciate, senza preventivatore.
-    expect(connected).toHaveLength(64);
+    expect(connected).toHaveLength(71);
     expect(connected.filter(b => b.engine === "tetti")).toHaveLength(6);
     expect(connected.filter(b => b.engine === "serramenti")).toHaveLength(7);
     expect(connected.filter(b => b.engine === "fotovoltaico")).toHaveLength(5);

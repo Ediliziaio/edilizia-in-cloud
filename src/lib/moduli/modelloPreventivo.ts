@@ -81,6 +81,9 @@ export const TIPO_INTERVENTO_DEL_MODELLO: Record<ModuloConModelli, Readonly<Reco
   ristrutturazione: {
     completa: "ristrutturazione_completa", parziale: "ristrutturazione_parziale", commerciale: "ristrutturazione_completa",
     spazi: "ristrutturazione_parziale", computo: "altro",
+    "tinteggiatura-interna": "ristrutturazione_parziale", "carta-da-parati": "ristrutturazione_parziale",
+    cartongesso: "ristrutturazione_parziale", controsoffitti: "ristrutturazione_parziale",
+    decorativi: "ristrutturazione_parziale", umidita: "ristrutturazione_parziale", acustica: "ristrutturazione_parziale",
   },
 };
 

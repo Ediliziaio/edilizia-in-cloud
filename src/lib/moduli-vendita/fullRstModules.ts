@@ -9,16 +9,19 @@ import { ristrutturazioneParzialeContent } from "./fullRistrutturazioneParziale"
 import { ristrutturazioneCommercialeContent } from "./fullRistrutturazioneCommerciale";
 import { ristrutturazioneSpaziContent } from "./fullRistrutturazioneSpazi";
 import { ristrutturazioneComputoContent } from "./fullRistrutturazioneComputo";
+import { tinteggiaturaInternaContent, cartaDaParatiContent, cartongessoContent, controsoffittiContent, decorativiContent, umiditaMuffaContent, acusticaContent } from "./fullParetiSoffitti";
 
 export const FULL_RST_MODULES = ["completa", "parziale", "commerciale", "spazi", "computo"] as const;
-export type FullRstModuleId = typeof FULL_RST_MODULES[number];
-export const RST_MODULE_TITLES: Record<FullRstModuleId, string> = { completa: "Ristrutturazione completa", parziale: "Ristrutturazione parziale", commerciale: "Negozi e uffici", spazi: "Redistribuzione degli spazi", computo: "Intervento a computo" };
-const CONTENT = { completa: ristrutturazioneCompletaContent, parziale: ristrutturazioneParzialeContent, commerciale: ristrutturazioneCommercialeContent, spazi: ristrutturazioneSpaziContent, computo: ristrutturazioneComputoContent };
+// Area «Pareti e soffitti» (Lotto 2): stesso motore Ristrutturazioni, id propri.
+export const FULL_PARETI_SOFFITTI_MODULES = ["tinteggiatura-interna", "carta-da-parati", "cartongesso", "controsoffitti", "decorativi", "umidita", "acustica"] as const;
+export type FullRstModuleId = typeof FULL_RST_MODULES[number] | typeof FULL_PARETI_SOFFITTI_MODULES[number];
+export const RST_MODULE_TITLES: Record<FullRstModuleId, string> = { completa: "Ristrutturazione completa", parziale: "Ristrutturazione parziale", commerciale: "Negozi e uffici", spazi: "Redistribuzione degli spazi", computo: "Intervento a computo", "tinteggiatura-interna": "Tinteggiatura interna", "carta-da-parati": "Carta da parati", cartongesso: "Pareti in cartongesso", controsoffitti: "Controsoffitti e velette", decorativi: "Finiture decorative", umidita: "Umidità e muffa", acustica: "Isolamento acustico" };
+const CONTENT: Record<FullRstModuleId, import("./fullTettiFactory").TetEditorialContent> = { completa: ristrutturazioneCompletaContent, parziale: ristrutturazioneParzialeContent, commerciale: ristrutturazioneCommercialeContent, spazi: ristrutturazioneSpaziContent, computo: ristrutturazioneComputoContent, "tinteggiatura-interna": tinteggiaturaInternaContent, "carta-da-parati": cartaDaParatiContent, cartongesso: cartongessoContent, controsoffitti: controsoffittiContent, decorativi: decorativiContent, umidita: umiditaMuffaContent, acustica: acusticaContent };
 export type FullRstTemplate = RstTemplatePdf & RstCoverPatch & {
   pdf_cover_eyebrow: string | null; pdf_cover_hero: string | null; pdf_cover_subhero: string | null;
   pdf_cover_subhero_template?: string | null;
 };
-export const isFullRstModuleId = (id: string): id is FullRstModuleId => (FULL_RST_MODULES as readonly string[]).includes(id);
+export const isFullRstModuleId = (id: string): id is FullRstModuleId => (FULL_RST_MODULES as readonly string[]).includes(id) || (FULL_PARETI_SOFFITTI_MODULES as readonly string[]).includes(id);
 
 /** Each edition supplies the complete original editor/renderer schema, not the generic document. */
 export function createFullRstTemplate(base: RstTemplatePdf, id: FullRstModuleId): FullRstTemplate {
@@ -69,7 +72,59 @@ export function createFullRstTemplate(base: RstTemplatePdf, id: FullRstModuleId)
 /** Shared by sidebar, dialog, standalone preview and offline QA. No project is saved. */
 export function buildRstModulePreview(companyId: string, template: RstTemplatePdf, id: FullRstModuleId): { progetto: RstProgetto; computo: RstComputoVoce[]; media: RstProgettoMedia[]; template: RstTemplatePdf } {
   if (!isFullRstModuleId(id)) throw new Error("Modulo Ristrutturazioni non disponibile.");
-  const rows: Array<[string, string, RstComputoVoce["unita_misura"], number, number]> = id === "computo" ? [
+  const PARETI: Partial<Record<FullRstModuleId, Array<[string, string, RstComputoVoce["unita_misura"], number, number]>>> = {
+    "tinteggiatura-interna": [
+      ["Preparazioni", "Protezione dei pavimenti, degli infissi e dei mobili nelle stanze indicate", "corpo", 1, 250],
+      ["Preparazione fondo", "Stuccatura di fori e crepe e carteggiatura delle superfici da tinteggiare", "mq", 120, 6],
+      ["Preparazione fondo", "Applicazione della mano di fondo isolante dove prevista", "mq", 120, 3.5],
+      ["Tinteggiatura", "Due mani di idropittura lavabile su pareti e soffitti indicati", "mq", 120, 9],
+      ["Consegna", "Rimozione delle protezioni e pulizia delle aree trattate", "corpo", 1, 180],
+    ],
+    "carta-da-parati": [
+      ["Preparazioni", "Protezione della stanza e smontaggio delle placche elettriche", "corpo", 1, 200],
+      ["Preparazione fondo", "Rasatura e primer della parete da rivestire", "mq", 14, 12],
+      ["Fornitura", "Carta da parati in tessuto non tessuto, con lo sfrido del disegno", "mq", 17, 28],
+      ["Posa", "Posa allineata della carta con raccordi su angoli e prese", "mq", 14, 22],
+      ["Consegna", "Pulizia, ritiro degli scarti e rimontaggio delle placche", "corpo", 1, 150],
+    ],
+    cartongesso: [
+      ["Preparazioni", "Protezione dei pavimenti e dei passaggi nella zona di montaggio", "corpo", 1, 200],
+      ["Struttura", "Orditura metallica per parete divisoria, con rinforzi nei punti di carico", "mq", 12, 22],
+      ["Isolante", "Lana minerale nell'intercapedine per isolamento acustico", "mq", 12, 9],
+      ["Lastre", "Doppia lastra per lato, idonea alla stanza indicata", "mq", 12, 26],
+      ["Finitura", "Stuccatura e carteggiatura dei giunti, pronta alla pittura", "mq", 24, 7],
+    ],
+    controsoffitti: [
+      ["Preparazioni", "Protezione dei pavimenti e dei mobili sotto la zona di lavoro", "corpo", 1, 250],
+      ["Struttura", "Orditura metallica appesa per controsoffitto, con i rinforzi previsti", "mq", 18, 24],
+      ["Predisposizioni", "Fori e alimentazioni per i faretti a incasso e la botola d'ispezione", "corpo", 1, 350],
+      ["Lastre", "Chiusura con lastra di cartongesso e veletta perimetrale", "mq", 18, 28],
+      ["Finitura", "Stuccatura e carteggiatura dei giunti, pronta alla pittura", "mq", 18, 8],
+    ],
+    decorativi: [
+      ["Preparazioni", "Protezione accurata di pavimenti, infissi e bordi", "corpo", 1, 300],
+      ["Preparazione fondo", "Rasatura di finezza e primer del ciclo decorativo", "mq", 20, 16],
+      ["Finitura decorativa", "Applicazione a più strati dell'effetto scelto, approvato su campione", "mq", 20, 55],
+      ["Protezione", "Finitura protettiva sulle superfici d'uso previste", "mq", 20, 12],
+      ["Consegna", "Rimozione delle protezioni e pulizia", "corpo", 1, 200],
+    ],
+    umidita: [
+      ["Preparazioni", "Protezione della stanza e sopralluogo diagnostico", "corpo", 1, 300],
+      ["Rimozione", "Rimozione dell'intonaco ammalorato fino al vivo", "mq", 15, 22],
+      ["Risanamento", "Applicazione dell'intonaco deumidificante traspirante", "mq", 15, 45],
+      ["Finitura", "Pittura traspirante sulle superfici risanate", "mq", 15, 11],
+      ["Consegna", "Pulizia e indicazioni d'uso per prevenire il ritorno", "corpo", 1, 150],
+    ],
+    acustica: [
+      ["Preparazioni", "Protezione della stanza e individuazione della via del rumore", "corpo", 1, 300],
+      ["Struttura", "Controparete fonoisolante con struttura disaccoppiata dal muro", "mq", 16, 30],
+      ["Isolante", "Materiale fonoassorbente nell'intercapedine", "mq", 16, 14],
+      ["Lastre", "Doppia lastra fonoisolante con trattamento dei giunti e delle prese", "mq", 16, 30],
+      ["Finitura", "Stuccatura e carteggiatura, pronta alla pittura", "mq", 16, 7],
+    ],
+  };
+  const paretiRows = PARETI[id];
+  const rows: Array<[string, string, RstComputoVoce["unita_misura"], number, number]> = paretiRows ? paretiRows : id === "computo" ? [
     ["Preparazioni", "Ambito A: protezioni delle superfici conservate e dei percorsi indicati", "corpo", 1, 400],
     ["Rimozioni", "Ambito A: rimozione della pavimentazione nelle zone individuate", "mq", 25, 12],
     ["Supporti", "Ambito A: preparazione del supporto nelle superfici previste", "mq", 25, 18],

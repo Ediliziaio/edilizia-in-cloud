@@ -42,6 +42,15 @@ export const SALES_AREAS: readonly SalesArea[] = [
     intervention("spazi", "Redistribuzione degli spazi", "Demolizioni, nuove pareti e opere connesse.", "Stato attuale e progetto", "Pareti e aperture", "Spostamenti impianti", "Ripristini e finiture"),
     intervention("computo", "Intervento a computo", "Composizione libera per capitoli e quantità.", "Capitoli", "Voci e unità di misura", "Quantità e lavorazioni", "Inclusioni ed esclusioni"),
   ] },
+  { id: "pareti-soffitti", title: "Pareti e soffitti", sourceModule: "ristrutturazione", summary: "Pittura, carta da parati, cartongesso e risanamento delle pareti.", interventions: [
+    intervention("tinteggiatura-interna", "Tinteggiatura interna", "Preparazione del fondo e mani di finitura sulle pareti indicate.", "Superfici da tinteggiare", "Stato del fondo", "Tinta e finitura", "Protezioni e pulizia"),
+    intervention("carta-da-parati", "Carta da parati", "Preparazione del muro e posa allineata del disegno.", "Pareti da rivestire", "Stato del fondo", "Tipo di carta e motivo", "Raccordi e giunzioni"),
+    intervention("cartongesso", "Pareti in cartongesso", "Pareti e contropareti a secco, con isolante e predisposizioni.", "Posizione e funzione", "Tipo di lastra", "Impianti da predisporre", "Isolamento e finitura"),
+    intervention("controsoffitti", "Controsoffitti e velette", "Abbassamenti in cartongesso per luce, impianti e isolamento.", "Quota e funzione", "Struttura e lastre", "Luci e ispezioni", "Finitura di consegna"),
+    intervention("decorativi", "Finiture decorative", "Stucco veneziano, microcemento e resine a parete.", "Superfici e effetto", "Preparazione del fondo", "Campione e ciclo", "Protezione finale"),
+    intervention("umidita", "Umidità e muffa", "Diagnosi della causa, risanamento del muro e finitura traspirante.", "Origine dell'umidità", "Superfici interessate", "Ciclo di risanamento", "Limiti e indicazioni d'uso"),
+    intervention("acustica", "Isolamento acustico", "Contropareti e soffitti fonoisolanti sul rumore reale.", "Tipo di rumore", "Via del suono", "Stratigrafia", "Risultato atteso"),
+  ] },
   { id: "bagni", title: "Bagni", sourceModule: "bagni", summary: "Dal bagno completo alla sostituzione di vasca, doccia o sanitari.", interventions: [
     intervention("completo", "Ristrutturazione completa del bagno", "Demolizioni, impianti, rivestimenti e arredi coordinati.", "Rilievo e disposizione", "Impianti", "Sanitari e rivestimenti", "Demolizioni e posa"),
     intervention("vasca-doccia", "Da vasca a doccia", "Trasformazione della zona vasca in una nuova doccia.", "Vano disponibile", "Piatto e box doccia", "Scarichi e rubinetteria", "Rivestimenti e ripristini"),

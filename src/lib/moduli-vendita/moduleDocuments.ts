@@ -26,6 +26,14 @@ export const AREA_DESIGN: Record<
     scope:
       "Ogni ambiente e ogni lavorazione inclusa devono comparire nel computo.",
   },
+  "pareti-soffitti": {
+    color: "#4a4a52",
+    intro: "Pareti e soffitti curati: colore, materia e superfici sane.",
+    checks:
+      "Stato del fondo, umidità visibile, superfici comprese e protezioni.",
+    scope:
+      "Le superfici e le lavorazioni comprese sono quelle indicate in metri quadri nel computo.",
+  },
   bagni: {
     color: "#6b5546",
     intro: "Il tuo bagno, con scelte coordinate e un perimetro chiaro.",
@@ -100,6 +108,20 @@ export const INTERVENTION_LIMITS: Record<string, string> = {
     "Non si presume che una parete sia demolibile: le verifiche sul progetto precedono la definizione delle opere.",
   "ristrutturazioni/computo":
     "Fa fede l'elenco delle voci con quantità e unità di misura. Le opere non descritte non sono automaticamente incluse.",
+  "pareti-soffitti/tinteggiatura-interna":
+    "Il prezzo riguarda le superfici indicate in metri quadri. Stuccature, carteggiature e mani di fondo sono comprese solo dove elencate.",
+  "pareti-soffitti/carta-da-parati":
+    "La carta segue il fondo: rasature e preparazioni del muro sono comprese solo se computate. Metratura e sfrido dipendono dal disegno scelto.",
+  "pareti-soffitti/cartongesso":
+    "Il cablaggio elettrico, l'idraulica e la tinteggiatura sono esclusi se non elencati. I carichi da appendere vanno indicati per predisporre i rinforzi.",
+  "pareti-soffitti/controsoffitti":
+    "Corpi illuminanti e impianti a monte sono esclusi se non computati: qui si predispone la sede. L'abbassamento riduce l'altezza della stanza.",
+  "pareti-soffitti/decorativi":
+    "L'effetto approvato su campione è il riferimento. Piccole variazioni sono proprie di una finitura a mano. Risanamenti del fondo restano a parte.",
+  "pareti-soffitti/umidita":
+    "Si tratta la causa prima della finitura. Riparazioni esterne, barriere alla risalita e drenaggi sono interventi separati. Alcuni risultati dipendono dall'uso.",
+  "pareti-soffitti/acustica":
+    "L'isolamento attenua, non azzera, e agisce sulla via del rumore indicata. Interventi sulla sorgente (pavimento di sopra, impianti) sono a parte.",
   "bagni/completo":
     "Spostamenti degli impianti fuori dal bagno, porte e arredi non elencati richiedono una voce separata.",
   "bagni/vasca-doccia":
@@ -241,6 +263,7 @@ export function documentImage(area: string, module: string) {
     return `/module-art/${area}-${module}.jpg`;
   if (area === "facciate" && module === "interno")
     return areaImage("ristrutturazioni");
+  if (area === "pareti-soffitti") return areaImage("ristrutturazioni");
   return areaImage(area);
 }
 export function createModuleDocument(

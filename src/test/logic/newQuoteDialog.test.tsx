@@ -59,7 +59,7 @@ describe("popup unico di creazione preventivi", () => {
     mount();
     expect(screen.getByRole("dialog")).toHaveAccessibleName("Che preventivo vuoi creare?");
     expect(screen.getByTestId("route")).toHaveTextContent("/azienda/marketing/preventivi");
-    expect(screen.getAllByRole("button", { name: /^Scegli area/ })).toHaveLength(10);
+    expect(screen.getAllByRole("button", { name: /^Scegli area/ })).toHaveLength(11);
     expect(screen.getByRole("link", { name: /^Preventivo classico/ })).toHaveAttribute("href", "/azienda/marketing/preventivi/nuovo");
     expect(screen.queryByRole("link", { name: /PDF|Impostazioni/ })).not.toBeInTheDocument();
   });
