@@ -8,7 +8,12 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { preventivoVisibile, type ClienteDiChiChiama } from "../../../supabase/functions/_shared/preventivoVisibile";
+import {
+  preventivoModificabile,
+  preventivoVisibile,
+  type ClienteDiChiChiama,
+  type ClienteRpcDiChiChiama,
+} from "../../../supabase/functions/_shared/preventivoVisibile";
 
 const cliente = (risposta: { data: unknown; error: unknown }, chiamate: string[] = []): ClienteDiChiChiama => ({
   from: (tabella) => {
@@ -45,6 +50,37 @@ describe("preventivoVisibile", () => {
   it("no senza id, senza nemmeno chiedere", async () => {
     const chiamate: string[] = [];
     expect(await preventivoVisibile(cliente({ data: { id: "x" }, error: null }, chiamate), "")).toBe(false);
+    expect(chiamate).toEqual([]);
+  });
+});
+
+const clienteRpc = (risposta: { data: unknown; error: unknown }, chiamate: string[] = []): ClienteRpcDiChiChiama => ({
+  rpc: (funzione, argomenti) => {
+    chiamate.push(`${funzione} ${argomenti.p_quote_id}`);
+    return Promise.resolve(risposta);
+  },
+});
+
+describe("preventivoModificabile", () => {
+  it("sì solo quando la funzione del database risponde true, per quel preventivo", async () => {
+    const chiamate: string[] = [];
+    expect(await preventivoModificabile(clienteRpc({ data: true, error: null }, chiamate), "q1")).toBe(true);
+    expect(chiamate).toEqual(["preventivo_modificabile q1"]);
+  });
+
+  it("no quando la policy di modifica non lo permette", async () => {
+    expect(await preventivoModificabile(clienteRpc({ data: false, error: null }), "q1")).toBe(false);
+  });
+
+  it("no su errore o risposta strana: nel dubbio non si manda", async () => {
+    expect(await preventivoModificabile(clienteRpc({ data: true, error: { message: "permission denied" } }), "q1")).toBe(false);
+    expect(await preventivoModificabile(clienteRpc({ data: "true", error: null }), "q1")).toBe(false);
+    expect(await preventivoModificabile(clienteRpc({ data: null, error: null }), "q1")).toBe(false);
+  });
+
+  it("no senza id, senza nemmeno chiedere", async () => {
+    const chiamate: string[] = [];
+    expect(await preventivoModificabile(clienteRpc({ data: true, error: null }, chiamate), "")).toBe(false);
     expect(chiamate).toEqual([]);
   });
 });

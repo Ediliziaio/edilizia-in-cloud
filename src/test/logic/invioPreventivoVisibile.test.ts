@@ -22,7 +22,7 @@ const CONTROLLO = "if (!(await preventivoVisibile(comeChiChiama, quote.id))) {";
 
 describe("send-quote-signature controlla il preventivo con le regole di chi chiama", () => {
   it("col token della richiesta e la chiave anon, non col service role", () => {
-    expect(invio).toContain('import { preventivoVisibile } from "../_shared/preventivoVisibile.ts";');
+    expect(invio).toMatch(/import \{[^}]*\bpreventivoVisibile\b[^}]*\} from "\.\.\/_shared\/preventivoVisibile\.ts";/);
     expect(invio).toMatch(
       /const comeChiChiama = createClient\(Deno\.env\.get\("SUPABASE_URL"\)!, Deno\.env\.get\("SUPABASE_ANON_KEY"\)!, \{\s+global: \{ headers: \{ Authorization: req\.headers\.get\("Authorization"\) \?\? "" \} \},/,
     );

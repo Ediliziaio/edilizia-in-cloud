@@ -48,6 +48,19 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    // I preventivi si mandano al cliente solo da send-quote-signature (26/09/2026): lì si
+    // controlla che chi chiama possa MODIFICARE il preventivo (preventivo_modificabile), lo
+    // sconto approvato, e si congela il PDF. Qui bastava far parte dell'azienda (anche un
+    // cliente del portale, o un bloccato col token ancora valido) per riscrivere stato, link
+    // ed email del cliente e mandare il link di firma a qualunque indirizzo. L'app non la
+    // chiama mai con "quote" (0 richieste di questo tipo nel registro FEA).
+    if (tipo_documento === "quote") {
+      return new Response(
+        JSON.stringify({ error: "Per mandare un preventivo usa l'invio del preventivo (send-quote-signature)." }),
+        { status: 400, headers: { ...corsH, "Content-Type": "application/json" } }
+      );
+    }
+
     if (!["b2b", "b2c"].includes(tipo_firmatario)) {
       return new Response(
         JSON.stringify({ error: "tipo_firmatario non valido: b2b o b2c" }),
