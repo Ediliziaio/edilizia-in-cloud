@@ -130,6 +130,17 @@ button:not(.border-0):not(.border-none) {
   border-style: solid;
 }
 
+/* Lo stesso reset `button{border:0}` rimette anche il COLORE del bordo al
+   valore iniziale, cioè il colore del testo: un bottone con un bordo ma senza
+   colore scritto (righe di un elenco `divide-y`, riquadri `border-b`) veniva
+   diviso da linee nere, per esempio le righe dell'agenda del Calendario. Qui
+   il colore torna quello dei bordi del tema. Selettore nudo (0-0-1): batte il
+   reset per ordine (questo CSS arriva dopo quello inline) e perde contro le
+   utility di colore (0-1-0), che quindi restano come sono. */
+button {
+  border-color: hsl(var(--border));
+}
+
 /* ── Fix bordo trigger Select (Radix) ──────────────────────────────────────────
    I trigger dei Select sono <button>: il reset globale `button { border: 0 }`
    (non in @layer, quindi vince sulle utility Tailwind) ne azzerava il bordo,
