@@ -10,8 +10,8 @@ vi.mock("@tanstack/react-query", () => ({ useQuery: () => ({ data: state.mezzi }
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 
 const mezzo = (id: string, nome: string, extra: Record<string, unknown> = {}) => ({
-  id, nome, tipo: "attrezzatura", targa: null, veicolo: false, contatore: null, contatore_unita: null,
-  dove_ora: "con_te", su_mezzo: null, segnato_oggi: false, ...extra,
+  id, nome, tipo: "attrezzatura", targa: null as string | null, veicolo: false, contatore: null as number | null,
+  contatore_unita: null as string | null, dove_ora: "con_te", su_mezzo: null as string | null, segnato_oggi: false, ...extra,
 });
 
 let ultimo: Record<string, RigaMezzoGiornata> = {};
