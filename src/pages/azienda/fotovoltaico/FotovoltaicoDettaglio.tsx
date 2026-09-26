@@ -226,7 +226,7 @@ export default function FotovoltaicoDettaglio() {
     if (!confirm("Annullare questo progetto?")) return;
     try {
       await elimina.mutateAsync(progetto.id);
-      navigate("/azienda/marketing/fotovoltaico");
+      navigate("/azienda/marketing/preventivi");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e));
     }

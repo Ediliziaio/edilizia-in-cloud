@@ -32,6 +32,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -44,6 +45,7 @@ import {
   FileUp,
   Inbox,
   Plus,
+  Library,
 } from "lucide-react";
 
 import {
@@ -56,11 +58,14 @@ import { QuoteFromCaptureDialog } from "@/components/quotes/QuoteFromCaptureDial
 import { SmartDocumentInboxDialog } from "@/components/documenti/SmartDocumentInboxDialog";
 import { SmartDocumentImportModal } from "@/components/documenti/SmartDocumentImportModal";
 import { NewQuoteDialog } from "@/components/marketing/preventivi/moduli/NewQuoteDialog";
+import { useModuliVendita } from "@/lib/moduli-vendita";
 import { UnifiedPreventiviList } from "@/components/marketing/preventivi/UnifiedPreventiviList";
 
 import AnalisiPreventivi from "./AnalisiPreventivi";
 import QuoteApprovals from "./QuoteApprovals";
 
+// I moduli con un «Listino lavorazioni» dedicato (rotta /azienda/<modulo>/listino).
+const LISTINO_SLUGS = new Set(["ristrutturazione", "bagni", "tetti", "climatizzazione", "elettrico", "termoidraulico", "pavimenti", "piscine"]);
 const ALLOWED_USER_TABS = new Set(["lista"]);
 
 export default function Preventivi() {
@@ -68,6 +73,19 @@ export default function Preventivi() {
   const permissions = usePermissions();
   const companyId = effectiveCompany?.id;
   const navigate = useNavigate();
+  // I «Listini lavorazioni» dei moduli attivi, spostati qui dopo il ritiro delle pagine-hub di modulo.
+  const { moduli: moduliVendita } = useModuliVendita();
+  const listiniModuli = moduliVendita.filter((m) => LISTINO_SLUGS.has(m.modulo.slug) && m.isEnabled);
+  const renderListiniItems = () =>
+    listiniModuli.map((m) => {
+      const Icon = m.modulo.icon;
+      return (
+        <DropdownMenuItem key={m.modulo.slug} onClick={() => navigate(`${m.modulo.href}/listino`)}>
+          <Icon className="mr-2 h-4 w-4 opacity-70" />
+          {m.modulo.nome}
+        </DropdownMenuItem>
+      );
+    });
   const [searchParams, setSearchParams] = useSearchParams();
   const [showNewQuote, setShowNewQuote] = useState(false);
   // Old selector links now open the popup above the same unified list.
@@ -204,6 +222,20 @@ export default function Preventivi() {
           <div className="flex items-center justify-between gap-2 sm:hidden">
             <h1 className="text-lg font-bold text-slate-900">Preventivi</h1>
             <div className="flex items-center gap-1.5">
+              {listiniModuli.length > 0 && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="icon" className="tap-compact h-8 w-8" aria-label="Listini lavorazioni">
+                      <Library className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-60">
+                    <DropdownMenuLabel>Listini lavorazioni</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {renderListiniItems()}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="icon" className="tap-compact h-8 w-8" aria-label="Crea preventivo da foto, audio o documento">
@@ -272,6 +304,23 @@ export default function Preventivi() {
                   </DropdownMenuContent>
                 </DropdownMenu>
 
+                {listiniModuli.length > 0 && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm" className="h-10 sm:h-9 flex-1 sm:flex-initial" aria-label="Listini lavorazioni">
+                        <Library className="h-4 w-4 sm:mr-2" />
+                        <span className="hidden sm:inline">Listini</span>
+                        <span className="sm:hidden ml-1.5 text-xs">Listini</span>
+                        <ChevronDown className="h-3.5 w-3.5 ml-1 opacity-60" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-64">
+                      <DropdownMenuLabel>Listini lavorazioni</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      {renderListiniItems()}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
                 {(permissions.canEditPreventivi || permissions.canEditMarketingOpportunities) && <NewQuoteDialog open={quoteDialogOpen} onOpenChange={handleQuoteDialog} params={searchParams}
                   trigger={<Button size="sm" className="h-11 sm:h-10"><Plus className="mr-1.5 h-4 w-4" />Nuovo preventivo</Button>} />}
               </>
