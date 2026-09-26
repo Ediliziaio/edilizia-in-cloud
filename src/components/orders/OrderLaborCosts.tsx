@@ -13,6 +13,7 @@ import { refreshWorkQueries } from "@/lib/orders/refreshWorkQueries";
 import { campoRoles, campoAssignmentError } from "@/lib/orders/campoAssignmentForm";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
+import { costoOrarioDipendente } from "@/lib/costoOrarioDipendente";
 import { differenceInDays, parseISO } from "date-fns";
 
 import { Button } from "@/components/ui/button";
@@ -187,7 +188,7 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false }: 
         if (formRoleType === "employee") {
           const { data: emp, error: employeeError } = await supabase
             .from("employees")
-            .select("id, costo_orario")
+            .select("id, costo_orario, gross_salary, inps_rate, monthly_hours, ore_settimana")
             .eq("company_id", effectiveCompanyId!)
             .eq("user_id", formUserId)
             .maybeSingle();
@@ -206,7 +207,9 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false }: 
                 order_id: orderId,
                 employee_id: emp.id,
                 phase_id: null,
-                hourly_rate: Number(emp.costo_orario) || 0,
+                // Stessa formula del database: tariffa scritta a mano, oppure
+                // lordo più contributi sulle ore del mese (prima: 0 se vuota).
+                hourly_rate: costoOrarioDipendente(emp),
                 hours_worked: 0,
                 total_cost: 0,
               });

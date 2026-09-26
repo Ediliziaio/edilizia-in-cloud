@@ -42484,6 +42484,7 @@ export type Database = {
           giorni_lavorativi: string[] | null
           iban: string | null
           id: string
+          lavora_in_cantiere: boolean
           indirizzo: string | null
           livello_ccnl: string | null
           luogo_nascita: string | null
@@ -42543,6 +42544,7 @@ export type Database = {
           giorni_lavorativi?: string[] | null
           iban?: string | null
           id?: string
+          lavora_in_cantiere?: boolean
           indirizzo?: string | null
           livello_ccnl?: string | null
           luogo_nascita?: string | null
@@ -42602,6 +42604,7 @@ export type Database = {
           giorni_lavorativi?: string[] | null
           iban?: string | null
           id?: string
+          lavora_in_cantiere?: boolean
           indirizzo?: string | null
           livello_ccnl?: string | null
           luogo_nascita?: string | null

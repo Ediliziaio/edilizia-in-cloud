@@ -104,13 +104,12 @@ function EmployeesInner() {
           first_name: data.first_name, last_name: data.last_name,
           email: data.email || null, phone: data.phone || null,
           gross_salary: data.gross_salary, net_salary: data.net_salary,
-          // €/h per i costi automatici dai rapportini: l'override se digitato,
-          // altrimenti il costo calcolato dallo stipendio (stessa formula del dialog)
-          costo_orario: (data.costo_orario && data.costo_orario > 0)
-            ? data.costo_orario
-            : (data.gross_salary > 0 && data.monthly_hours > 0
-                ? Math.round((data.gross_salary / data.monthly_hours) * 100) / 100
-                : null),
+          // €/h scritto a mano, se c'è. Altrimenti resta vuoto e il costo lo
+          // calcola il database (costo_orario_dipendente: lordo più contributi
+          // sulle ore del mese). Prima qui si salvava lordo ÷ ore, senza i
+          // contributi, e contava come tariffa scritta a mano: la formula
+          // giusta non scattava mai e i costi di manodopera risultavano bassi.
+          costo_orario: (data.costo_orario && data.costo_orario > 0) ? data.costo_orario : null,
           monthly_hours: data.monthly_hours, is_active: data.is_active,
           area: data.area || null,
         }).eq("id", data.id).eq("company_id", effectiveCompanyId!).select("id");
@@ -122,13 +121,12 @@ function EmployeesInner() {
           first_name: data.first_name, last_name: data.last_name,
           email: data.email || null, phone: data.phone || null,
           gross_salary: data.gross_salary, net_salary: data.net_salary,
-          // €/h per i costi automatici dai rapportini: l'override se digitato,
-          // altrimenti il costo calcolato dallo stipendio (stessa formula del dialog)
-          costo_orario: (data.costo_orario && data.costo_orario > 0)
-            ? data.costo_orario
-            : (data.gross_salary > 0 && data.monthly_hours > 0
-                ? Math.round((data.gross_salary / data.monthly_hours) * 100) / 100
-                : null),
+          // €/h scritto a mano, se c'è. Altrimenti resta vuoto e il costo lo
+          // calcola il database (costo_orario_dipendente: lordo più contributi
+          // sulle ore del mese). Prima qui si salvava lordo ÷ ore, senza i
+          // contributi, e contava come tariffa scritta a mano: la formula
+          // giusta non scattava mai e i costi di manodopera risultavano bassi.
+          costo_orario: (data.costo_orario && data.costo_orario > 0) ? data.costo_orario : null,
           monthly_hours: data.monthly_hours, is_active: data.is_active,
           role_type: data.role_type || 'operaio',
           area: data.area || null,
