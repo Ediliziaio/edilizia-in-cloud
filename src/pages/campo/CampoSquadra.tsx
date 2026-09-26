@@ -1,5 +1,6 @@
 /**
- * CampoSquadra — «chi c'è oggi» per il capocantiere (e per l'ufficio).
+ * CampoSquadra — «chi c'è oggi»: il capocantiere vede tutto il cantiere, il
+ * caposquadra la sua squadra (e l'ufficio tutto).
  * Legge la RPC campo_squadra_oggi: per ogni persona assegnata al cantiere,
  * entrata/uscita di oggi, se è ancora dentro, le ore fatte e se ha mandato il
  * rapportino. Le timbrature altrui sono chiuse dalla RLS: passa dalla funzione.
@@ -20,6 +21,8 @@ interface RigaSquadra {
   nome: string;
   ruolo: "dipendente" | "sub";
   is_capocantiere: boolean;
+  /** La squadra della persona su questo cantiere. */
+  squadra?: string | null;
   entrata: string | null;
   uscita: string | null;
   in_cantiere: boolean;
@@ -89,12 +92,12 @@ export default function CampoSquadra() {
             </>
           ) : isError ? (
             <p className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
-              {error instanceof Error && /capocantiere|ufficio/i.test(error.message)
-                ? "Solo il capocantiere di questo cantiere può vedere la squadra."
+              {error instanceof Error && /capocantiere|caposquadra|ufficio/i.test(error.message)
+                ? "Solo il capocantiere e il caposquadra possono vedere chi c'è oggi."
                 : "Non riesco a leggere la squadra. Riprova tra poco."}
             </p>
           ) : squadra.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">Nessuno assegnato a questo cantiere.</p>
+            <p className="py-6 text-center text-sm text-muted-foreground">Oggi qui non è previsto nessuno.</p>
           ) : (
             squadra.map((r, i) => (
               <div key={r.user_id ?? `senza-app-${i}`} className="flex items-center gap-3 rounded-xl border bg-muted/40 p-3">
@@ -107,6 +110,7 @@ export default function CampoSquadra() {
                     <p className="truncate text-sm font-semibold">{r.nome || "Senza nome"}</p>
                     {r.is_capocantiere && <Badge variant="outline" className="h-4 px-1.5 text-[10px] border-primary/30 text-primary">Capo</Badge>}
                     {r.ruolo === "sub" && <Badge variant="outline" className="h-4 px-1.5 text-[10px]">Sub</Badge>}
+                    {r.squadra && <span className="text-[11px] text-muted-foreground">{r.squadra}</span>}
                   </div>
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {r.in_cantiere

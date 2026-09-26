@@ -181,21 +181,23 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
     queryKey: ["campo-ruolo", orderId, user?.id],
     enabled: !!orderId && !!user?.id && !!companyId,
     staleTime: 300_000,
-    queryFn: async (): Promise<{ isCapocantiere: boolean; esisteCapo: boolean }> => {
-      const { data, error } = await supabase
-        .from("order_campo_assignments")
-        .select("user_id, is_capocantiere")
-        .eq("order_id", orderId!)
-        .eq("company_id", companyId!);
+    queryFn: async (): Promise<{ isCapocantiere: boolean; esisteCapo: boolean; isCaposquadra: boolean }> => {
+      // Capocantiere della commessa, caposquadra di una squadra che ci lavora.
+      const { data, error } = await supabase.rpc("campo_mio_ruolo", { p_order_id: orderId! });
       if (error) throw error;
-      const righe = (data ?? []) as Array<{ user_id: string; is_capocantiere: boolean | null }>;
+      const r = (data ?? {}) as { capocantiere?: boolean; esiste_capo?: boolean; caposquadra?: boolean };
       return {
-        isCapocantiere: righe.some(r => r.user_id === user!.id && !!r.is_capocantiere),
-        esisteCapo: righe.some(r => !!r.is_capocantiere),
+        isCapocantiere: !!r.capocantiere,
+        esisteCapo: !!r.esiste_capo,
+        isCaposquadra: !!r.caposquadra,
       };
     },
   });
   const isCapocantiere = ruoloCampo?.isCapocantiere ?? false;
+  const isCaposquadra = ruoloCampo?.isCaposquadra ?? false;
+  // Il rapportino di squadra lo fa il capocantiere (tutto il cantiere) o il
+  // caposquadra (la sua squadra): tanti operai il telefono non lo usano.
+  const faSquadra = isCapocantiere || isCaposquadra;
   // FALLBACK di adozione: finché la commessa non ha un capocantiere nominato
   // vale il comportamento storico (chiunque dichiara le %) — le commesse
   // esistenti non si bloccano; il rigore scatta con la nomina.
@@ -207,57 +209,25 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
   // Il costo si calcola per OGNI dipendente elencato, non per l'autore.
   type MembroSquadra = {
     key: string;
-    employee_id?: string;
-    subappaltatore_id?: string;
+    employee_id?: string | null;
+    subappaltatore_id?: string | null;
     nome: string;
+    /** Squadra del membro; «Ditta» per i subappaltatori, null per chi è da solo. */
+    squadra?: string | null;
+    sono_io?: boolean;
+    /** Ha già mandato il suo rapportino: non si conta due volte. */
+    rapportino_inviato?: boolean;
   };
   const [presenzeSel, setPresenzeSel] = useState<Record<string, CampoHoursDraft>>({});
   const { data: squadra = [] } = useQuery({
-    queryKey: ["campo-squadra", orderId],
-    enabled: !!orderId && isCapocantiere,
+    queryKey: ["campo-squadra", orderId, workDay],
+    enabled: !!orderId && faSquadra,
     staleTime: 300_000,
     queryFn: async (): Promise<MembroSquadra[]> => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const db = supabase as any;
-      const [empRes, subRes, campoRes] = await Promise.all([
-        db.from("order_employees")
-          .select("employee_id, employees(id, first_name, last_name, user_id)")
-          .eq("order_id", orderId),
-        db.from("subappaltatori_sicurezza")
-          .select("id, ragione_sociale")
-          .eq("order_id", orderId),
-        // Hint obbligatorio: due FK verso profiles (user_id, assigned_by) → senza
-        // hint PostgREST risponde 400 PGRST201 e gli assegnati mancavano.
-        db.from("order_campo_assignments")
-          .select("user_id, profiles!order_campo_assignments_user_id_fkey(first_name, last_name)")
-          .eq("order_id", orderId),
-      ]);
-      const visti = new Set<string>();
-      const utentiDipendenti = new Set<string>();
-      const membri: MembroSquadra[] = [];
-      for (const r of (empRes.data ?? []) as Array<{ employee_id: string; employees: { id: string; first_name: string; last_name: string; user_id: string | null } | null }>) {
-        if (!r.employees || visti.has(r.employee_id)) continue;
-        visti.add(r.employee_id);
-        if (r.employees.user_id) utentiDipendenti.add(r.employees.user_id);
-        membri.push({
-          key: `emp-${r.employee_id}`,
-          employee_id: r.employee_id,
-          nome: `${r.employees.first_name} ${r.employees.last_name}`.trim(),
-        });
-      }
-      for (const sub of (subRes.data ?? []) as Array<{ id: string; ragione_sociale: string }>) {
-        membri.push({ key: `sub-${sub.id}`, subappaltatore_id: sub.id, nome: sub.ragione_sociale });
-      }
-      // Assegnati al cantiere senza scheda dipendente: presenza registrabile
-      // (senza costo orario finché la scheda non c'è) — meglio vederli che
-      // fingere che non fossero in cantiere.
-      for (const r of (campoRes.data ?? []) as Array<{ user_id: string; profiles: { first_name: string | null; last_name: string | null } | null }>) {
-        if (utentiDipendenti.has(r.user_id)) continue;
-        const nome = `${r.profiles?.first_name ?? ""} ${r.profiles?.last_name ?? ""}`.trim();
-        if (!nome) continue;
-        membri.push({ key: `usr-${r.user_id}`, nome });
-      }
-      return membri;
+      // Capocantiere: tutto il cantiere del giorno. Caposquadra: la sua squadra.
+      const { data, error } = await supabase.rpc("campo_squadra_rapportino", { p_order_id: orderId!, p_giorno: workDay });
+      if (error) throw error;
+      return (data ?? []) as unknown as MembroSquadra[];
     },
   });
   const togglePresenza = (m: MembroSquadra) => {
@@ -456,7 +426,7 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
         throw new Error("Non puoi inviare rapportini per un lavoro non assegnato");
       }
       const materialiPayload = buildRapportinoMaterials(materialiSel);
-      const orePayload = validateRapportinoHours(oreLavorate, oreStraordinario, isCapocantiere ? presenzeSel : {});
+      const orePayload = validateRapportinoHours(oreLavorate, oreStraordinario, faSquadra ? presenzeSel : {});
 
       // Fasi dichiarate dall'operaio: [{phase_id, percentuale}] (Fase C)
       const fasiLavorate = Object.entries(fasiDichiarate).map(([phase_id, percentuale]) => ({
@@ -519,7 +489,7 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
           ...(fasiLavorate.length > 0 ? { fasi_lavorate: fasiLavorate } : {}),
           // Squadra del giorno (solo capocantiere): chi c'era e quante ore.
           // I subappaltatori sono presenza registrata, non costo orario.
-          ...(isCapocantiere && Object.keys(presenzeSel).length > 0
+          ...(faSquadra && Object.keys(presenzeSel).length > 0
             ? {
                 presenze: squadra
                   .filter(m => m.key in presenzeSel)
@@ -936,34 +906,49 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
               </div>
             )}
 
-            {/* ── Squadra del giorno (solo capocantiere): chi c'era oggi ── */}
-            {isCapocantiere && squadra.length > 0 && (
+            {/* ── Squadra del giorno: il capocantiere per tutto il cantiere,
+                il caposquadra per la sua squadra ── */}
+            {faSquadra && squadra.length > 0 && (
               <div className="rounded-2xl border bg-background p-4 shadow-sm">
                 <p className="text-sm font-semibold text-foreground">{workDay === today ? "Chi ha lavorato oggi?" : "Chi ha lavorato in questa giornata?"}</p>
                 <p className="mb-3 text-xs text-muted-foreground">
-                  Tocca chi era in cantiere: le ore dei dipendenti diventano costo
-                  di commessa all'approvazione. I subappaltatori sono registrati
-                  come presenza (il loro costo è nel contratto).
+                  {isCapocantiere
+                    ? "Tocca chi era in cantiere e scrivi le sue ore. Chi ha già mandato il suo rapportino non va segnato di nuovo."
+                    : "Tocca chi della tua squadra era in cantiere e scrivi le sue ore. Chi ha già mandato il suo rapportino non va segnato di nuovo."}
                 </p>
-                <div className="flex flex-wrap gap-2">
-                  {squadra.map(m => {
-                    const selected = m.key in presenzeSel;
-                    return (
-                      <button
-                        key={m.key}
-                        type="button"
-                        onClick={() => togglePresenza(m)}
-                        className={`min-h-11 rounded-full border px-3 py-2 text-sm transition-colors ${
-                          selected
-                            ? "border-primary bg-primary/10 font-semibold text-primary"
-                            : "border-border bg-muted text-muted-foreground"
-                        }`}
-                      >
-                        {m.nome}
-                        {m.subappaltatore_id ? " · sub" : ""}
-                      </button>
-                    );
-                  })}
+                <div className="space-y-3">
+                  {[...new Set(squadra.map(m => m.squadra ?? ""))].map(gruppo => (
+                    <div key={gruppo || "da-soli"}>
+                      {gruppo && <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{gruppo}</p>}
+                      <div className="flex flex-wrap gap-2">
+                        {squadra.filter(m => (m.squadra ?? "") === gruppo).map(m => {
+                          const selected = m.key in presenzeSel;
+                          if (m.rapportino_inviato) {
+                            return (
+                              <span key={m.key} className="min-h-11 rounded-full border border-dashed px-3 py-2 text-sm text-muted-foreground">
+                                {m.nome} · ha mandato il suo
+                              </span>
+                            );
+                          }
+                          return (
+                            <button
+                              key={m.key}
+                              type="button"
+                              aria-pressed={selected}
+                              onClick={() => togglePresenza(m)}
+                              className={`min-h-11 rounded-full border px-3 py-2 text-sm transition-colors ${
+                                selected
+                                  ? "border-primary bg-primary/10 font-semibold text-primary"
+                                  : "border-border bg-muted text-muted-foreground"
+                              }`}
+                            >
+                              {m.nome}{m.sono_io ? " (tu)" : ""}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
                 </div>
                 {Object.keys(presenzeSel).length > 0 && (
                   <p role="status" className="mt-3 rounded-lg bg-primary/5 p-3 text-xs text-muted-foreground">
@@ -1281,7 +1266,7 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
             {/* Firma dell'autore su OGNI rapportino: finisce nel PDF generato
                 all'invio. Facoltativa, ma il pad qui la rende un gesto solo. */}
             <FirmaPad
-              label={isCapocantiere ? "Firma del capocantiere (facoltativa)" : "Firma dell'operaio (facoltativa)"}
+              label={isCapocantiere ? "Firma del capocantiere (facoltativa)" : isCaposquadra ? "Firma del caposquadra (facoltativa)" : "Firma dell'operaio (facoltativa)"}
               onChange={setFirmaOperaio}
             />
           </>

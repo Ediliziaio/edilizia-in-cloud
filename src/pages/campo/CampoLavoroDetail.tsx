@@ -7,6 +7,7 @@ import { ImgRiservata } from "@/components/common/ImgRiservata";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { NoteCantiereCampo } from "@/components/campo/NoteCantiereCampo";
+import { ChiLavoraCampo } from "@/components/campo/ChiLavoraCampo";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import {
@@ -840,6 +841,9 @@ export default function CampoLavoroDetail() {
               />
             </div>
 
+            {/* Con chi lavori: squadra, caposquadra, capocantiere */}
+            {orderId && <ChiLavoraCampo orderId={orderId} />}
+
             {/* Fasi di lavoro della commessa */}
             {fasiCommessa.length > 0 && (
               <div className="bg-background border border-border rounded-2xl p-4 shadow-sm">
@@ -918,14 +922,20 @@ export default function CampoLavoroDetail() {
                 <p className="font-semibold text-foreground">
                   {customer.first_name} {customer.last_name}
                 </p>
-                {customer.phone && (
-                  <a
-                    href={`tel:${customer.phone}`}
-                    className="flex items-center gap-2 mt-2 text-primary text-sm"
-                  >
-                    <Phone className="w-4 h-4" />
-                    <span>{customer.phone}</span>
-                  </a>
+                {/* Il cliente parla con una persona sola: il telefono lo vede
+                    il capocantiere, gli altri passano da lui. */}
+                {assignment?.is_capocantiere ? (
+                  customer.phone && (
+                    <a
+                      href={`tel:${customer.phone}`}
+                      className="flex items-center gap-2 mt-2 text-primary text-sm"
+                    >
+                      <Phone className="w-4 h-4" />
+                      <span>{customer.phone}</span>
+                    </a>
+                  )
+                ) : (
+                  <p className="mt-1 text-xs text-muted-foreground">Per parlare col cliente passa dal capocantiere.</p>
                 )}
               </div>
             )}

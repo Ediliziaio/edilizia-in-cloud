@@ -100098,6 +100098,7 @@ export type Database = {
           ore: number
           rapportino_inviato: boolean
           ruolo: string
+          squadra: string | null
           uscita: string
           user_id: string
         }[]
@@ -102954,8 +102955,18 @@ export type Database = {
         Args: { p_dati: Json; p_nota_id: string | null; p_order_id: string }
         Returns: string
       }
+      campo_chi_lavora: {
+        Args: { p_giorno?: string | null; p_order_id: string }
+        Returns: Json
+      }
+      campo_mia_giornata: { Args: { p_dal?: string | null; p_giorni?: number | null }; Returns: Json }
       campo_mie_fasi: { Args: { p_order_id: string }; Returns: Json }
+      campo_mio_ruolo: { Args: { p_order_id: string }; Returns: Json }
       campo_note_cantiere: { Args: { p_order_id: string }; Returns: Json }
+      campo_squadra_rapportino: {
+        Args: { p_giorno?: string | null; p_order_id: string }
+        Returns: Json
+      }
       campo_nota_letta: { Args: { p_nota_id: string }; Returns: undefined }
       personale_costo: { Args: { p_profilo_id: string }; Returns: Json }
       personale_salva_costo: {
