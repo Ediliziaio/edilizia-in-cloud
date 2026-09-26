@@ -10,6 +10,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { QUOTE_STATUS_CONFIG } from "@/lib/quoteStatus";
 import { useSignatureActions } from "@/hooks/useSignatureActions";
 import { duplicaPreventivo } from "@/lib/quotes/duplicaPreventivo";
+import { avvisoSchedeNonAllegate } from "@/lib/quotes/allegatiPreventivo";
 import { eRigaDiModulo, preventivoDelModulo } from "@/lib/moduli/quoteBridge";
 import { fetchQuotePdf, downloadQuotePdf } from "@/lib/preventivi/quotePdfDownload";
 import {
@@ -158,12 +159,18 @@ export default function QuoteDetail() {
     if (!id || !companyId || duplicando) return;
     setDuplicando(true);
     try {
-      const nuovoId = await duplicaPreventivo(id, companyId, { comeRevisione });
-      toast.success(comeRevisione ? "Nuova revisione creata" : "Preventivo duplicato", {
-        description: comeRevisione
-          ? "La revisione parte in bozza, agganciata a questo preventivo."
-          : "La copia parte in bozza: aprila e adattala.",
-      });
+      const { id: nuovoId, nonAllegate } = await duplicaPreventivo(id, companyId, { comeRevisione });
+      const titolo = comeRevisione ? "Nuova revisione creata" : "Preventivo duplicato";
+      const avviso = avvisoSchedeNonAllegate(nonAllegate);
+      if (avviso) {
+        toast.warning(`${titolo}: ${avviso.conteggio}`, { description: avviso.descrizione, duration: 10000 });
+      } else {
+        toast.success(titolo, {
+          description: comeRevisione
+            ? "La revisione parte in bozza, agganciata a questo preventivo."
+            : "La copia parte in bozza: aprila e adattala.",
+        });
+      }
       navigate(`/azienda/marketing/preventivi/${nuovoId}/modifica`);
     } catch (e) {
       toast.error("Operazione non riuscita", {

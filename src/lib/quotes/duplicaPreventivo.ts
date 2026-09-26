@@ -11,6 +11,7 @@
  * builder cosi' la gerarchia padre/figlio delle voci si ricostruisce intera.
  */
 import { supabase } from "@/integrations/supabase/client";
+import { allegaSchedeTecniche, type SchedaNonAllegata } from "@/lib/quotes/allegatiPreventivo";
 
 /** Gli errori PostgREST sono oggetti semplici: si estrae un messaggio leggibile. */
 function comeErrore(e: unknown, fallback: string): Error {
@@ -114,15 +115,23 @@ export function costruisciPayloadRighe(
   }));
 }
 
+export interface EsitoCopia {
+  /** Id del nuovo preventivo. */
+  id: string;
+  /** Le schede tecniche dell'originale che il database non ha lasciato allegare alla copia. */
+  nonAllegate: SchedaNonAllegata[];
+}
+
 /**
- * Esegue la duplicazione per davvero. Ritorna l'id del nuovo preventivo.
+ * Esegue la duplicazione per davvero. Ritorna l'id del nuovo preventivo e le
+ * schede tecniche rimaste fuori (avvisoSchedeNonAllegate le mette in parole).
  * Fallisce rumorosamente: chi chiama mostra il toast.
  */
 export async function duplicaPreventivo(
   quoteId: string,
   companyId: string,
   opts: OpzioniCopia,
-): Promise<string> {
+): Promise<EsitoCopia> {
   const { data: originale, error: eQuote } = await supabase
     .from("quotes")
     .select("*")
@@ -153,6 +162,22 @@ export async function duplicaPreventivo(
     (originale as Record<string, unknown>).id = radiceId;
   }
 
+  // Righe e allegati si leggono PRIMA di creare la copia: se una lettura non
+  // riesce ci si ferma senza aver creato niente, e chi riprova non fa doppioni.
+  const { data: righe, error: eRighe } = await supabase
+    .from("quote_items")
+    .select("*")
+    .eq("quote_id", quoteId)
+    .order("sort_order");
+  if (eRighe) throw comeErrore(eRighe, "Lettura righe non riuscita");
+
+  // Allegati PDF selezionati: si copiano i riferimenti, non i file.
+  const { data: allegati, error: eAllegati } = await supabase
+    .from("quote_pdf_attachments")
+    .select("material_id, sort_order, quote_pdf_materials(name)")
+    .eq("quote_id", quoteId);
+  if (eAllegati) throw comeErrore(eAllegati, "Lettura schede tecniche non riuscita");
+
   const payloadQuote = costruisciCopiaQuote(originale as Record<string, unknown>, opts);
 
   // created_by e' NOT NULL senza default: la copia la firma chi la crea.
@@ -172,13 +197,6 @@ export async function duplicaPreventivo(
     .single();
   if (eIns || !nuovo) throw comeErrore(eIns, "Creazione copia non riuscita");
 
-  const { data: righe, error: eRighe } = await supabase
-    .from("quote_items")
-    .select("*")
-    .eq("quote_id", quoteId)
-    .order("sort_order");
-  if (eRighe) throw comeErrore(eRighe, "Lettura righe non riuscita");
-
   if ((righe ?? []).length > 0) {
     const { error: eRpc } = await supabase.rpc("save_quote_items_atomic", {
       p_quote_id: nuovo.id,
@@ -188,20 +206,19 @@ export async function duplicaPreventivo(
     if (eRpc) throw comeErrore(eRpc, "Copia righe non riuscita");
   }
 
-  // Allegati PDF selezionati: si copiano i riferimenti, non i file.
-  const { data: allegati } = await supabase
-    .from("quote_pdf_attachments")
-    .select("material_id, sort_order")
-    .eq("quote_id", quoteId);
-  if ((allegati ?? []).length > 0) {
-    await supabase.from("quote_pdf_attachments").insert(
-      (allegati ?? []).map((a) => ({
-        quote_id: nuovo.id,
-        material_id: a.material_id,
-        sort_order: a.sort_order,
-      })),
-    );
-  }
+  // Prima l'errore del database non si guardava: bastava una scheda rifiutata
+  // (dal 26/09 quella di un'altra azienda) e la copia le perdeva tutte, in
+  // silenzio. Ora le buone entrano e le altre tornano a chi chiama, che lo
+  // dice. Niente eccezione: la copia ormai esiste, e chi riprova ne farebbe
+  // un'altra.
+  const nonAllegate = await allegaSchedeTecniche(
+    nuovo.id as string,
+    (allegati ?? []).map((a) => ({
+      material_id: a.material_id,
+      sort_order: a.sort_order,
+      nome: a.quote_pdf_materials?.name ?? null,
+    })),
+  );
 
-  return nuovo.id as string;
+  return { id: nuovo.id as string, nonAllegate };
 }

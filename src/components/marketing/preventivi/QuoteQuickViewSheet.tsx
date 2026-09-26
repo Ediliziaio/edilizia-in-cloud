@@ -16,6 +16,7 @@ import {
 import { formatCurrency } from "@/lib/formatters";
 import { toast } from "sonner";
 import { duplicaPreventivo } from "@/lib/quotes/duplicaPreventivo";
+import { avvisoSchedeNonAllegate } from "@/lib/quotes/allegatiPreventivo";
 import { QUOTE_STATUS_CONFIG, type QuoteStatus } from "@/lib/quoteStatus";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 
@@ -63,8 +64,13 @@ export function QuoteQuickViewSheet({ quoteId, open, onOpenChange }: Props) {
     if (!quoteId || !companyId || duplicando) return;
     setDuplicando(true);
     try {
-      const nuovoId = await duplicaPreventivo(quoteId, companyId, { comeRevisione: false });
-      toast.success("Preventivo duplicato", { description: "La copia parte in bozza: aprila e adattala." });
+      const { id: nuovoId, nonAllegate } = await duplicaPreventivo(quoteId, companyId, { comeRevisione: false });
+      const avviso = avvisoSchedeNonAllegate(nonAllegate);
+      if (avviso) {
+        toast.warning(`Preventivo duplicato: ${avviso.conteggio}`, { description: avviso.descrizione, duration: 10000 });
+      } else {
+        toast.success("Preventivo duplicato", { description: "La copia parte in bozza: aprila e adattala." });
+      }
       navigate(`/azienda/marketing/preventivi/${nuovoId}/modifica`);
     } catch (e) {
       toast.error("Duplicazione non riuscita", { description: e instanceof Error ? e.message : String(e) });
