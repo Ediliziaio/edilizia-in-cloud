@@ -123,10 +123,13 @@
 
    Qui ripristiniamo solo lo STILE, non la larghezza: i bottoni senza utility di
    bordo restano senza bordo (larghezza 0 dal reset), quelli che ne dichiarano
-   uno finalmente lo mostrano. Regola non layerizzata e con specificita' 0-2-1,
-   cosi' vince sul reset `button` (0-0-1) indipendentemente dall'ordine di
-   caricamento. Stessa tecnica gia' usata qui sotto per i trigger dei Select. */
-button:not(.border-0):not(.border-none) {
+   uno finalmente lo mostrano.
+
+   Specificità 0-0-1 (i :not dentro :where non contano): batte il reset inline
+   `button` (0-0-1) perché questo CSS arriva dopo, e perde contro le utility di
+   stile (`border-dashed`, 0-1-0). Con 0-2-1, com'era fino al 26/09/2026, un
+   bottone tratteggiato restava pieno (i complementi dei serramenti). */
+button:where(:not(.border-0):not(.border-none)) {
   border-style: solid;
 }
 

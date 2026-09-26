@@ -16,7 +16,10 @@ const buttonVariants = cva(
          *  ogni area sceglieva un colore suo (blu, verde, arancio). */
         brand: "bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-sm hover:from-orange-600 hover:to-amber-500",
         destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
-        outline: "!border !border-solid !border-input bg-background hover:bg-accent hover:text-accent-foreground",
+        // Niente `!`: servivano (b55758bd4) contro il reset inline di index.html,
+        // ma index.css ora ridà ai bottoni stile e colore del bordo, e i `!`
+        // cancellavano ogni bordo passato via className (tratteggi, colori).
+        outline: "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
         secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
