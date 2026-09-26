@@ -95,6 +95,12 @@ import {
   uploadPortalMaterial,
 } from "@/lib/portalLearningApi";
 import { cn } from "@/lib/utils";
+import {
+  avanzamentoCorso,
+  leggiModuliSpuntati,
+  moduliDaMostrare,
+  salvaModuliSpuntati,
+} from "@/lib/formazione/avanzamentoCorsi";
 
 type PortalCourseStatus = "bozza" | "pubblicato" | "revisione";
 type PortalArea = "sicurezza" | "procedure" | "commerciale" | "onboarding" | "tecnica";
@@ -4204,6 +4210,13 @@ function PeopleProgressPanel({
   );
 }
 
+/** Le stesse parole di «La mia formazione»: a 0% si inizia, non si riprende. */
+function azioneCorso(avanzamento: number): string {
+  if (avanzamento >= 100) return "Rivedi";
+  if (avanzamento > 0) return "Riprendi";
+  return "Inizia";
+}
+
 /** «Demo Azienda S.r.l.» → «Demo Azienda»: nel nome del portale la forma giuridica stona. */
 function nomeSenzaFormaGiuridica(nome: string): string {
   const pulito = nome
@@ -4261,9 +4274,27 @@ function PortalPreview({
   const [learnerCourseId, setLearnerCourseId] = useState(
     requestedCourse?.id ?? course?.id ?? learnerCourses[0]?.id ?? "",
   );
-  const [completedPreviewModules, setCompletedPreviewModules] = useState<Record<string, boolean>>(
-    () => loadPortalLearnerState(companyId, userId).completedModules,
-  );
+  // Avanzamento della persona (non del corso): stessa regola e stesso archivio
+  // di «La mia formazione» (lib/formazione/avanzamentoCorsi). I moduli spuntati
+  // stanno nel browser in una chiave per corso; l'avanzamento vero nel database.
+  // Prima i moduli non fatti valevano il loro `completedRate` — un dato del
+  // corso — e la stessa persona vedeva 72% qui e 0% nell'altra pagina.
+  const [versioneModuliSpuntati, setVersioneModuliSpuntati] = useState(0);
+  const [avanzamentoSalvato, setAvanzamentoSalvato] = useState<Record<string, number>>({});
+  const completedPreviewModules = useMemo(() => {
+    const mappa: Record<string, boolean> = {};
+    for (const item of learnerCourses) {
+      const idModuli = item.modules.map((module) => module.id);
+      const mostrati = moduliDaMostrare(
+        leggiModuliSpuntati(companyId, userId, item.id),
+        avanzamentoSalvato[item.id] ?? 0,
+        idModuli,
+      );
+      for (const id of mostrati) mappa[`${item.id}:${id}`] = true;
+    }
+    return mappa;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- versioneModuliSpuntati: rilettura dopo un salvataggio
+  }, [learnerCourses, companyId, userId, avanzamentoSalvato, versioneModuliSpuntati]);
   const [acknowledgedPreviewItems, setAcknowledgedPreviewItems] = useState<Record<string, string>>(
     () => loadPortalLearnerState(companyId, userId).acknowledgements,
   );
@@ -4283,20 +4314,19 @@ function PortalPreview({
       module: PortalModule,
       courseId = activeLearnerCourse?.id ?? "",
       completedState = completedPreviewModules,
-    ) => (completedState[`${courseId}:${module.id}`] ? 100 : module.completedRate),
+    ) => (completedState[`${courseId}:${module.id}`] ? 100 : 0),
     [activeLearnerCourse?.id, completedPreviewModules],
   );
   const getCourseCompletion = useCallback(
     (targetCourse?: PortalCourse, completedState = completedPreviewModules) =>
-      targetCourse?.modules.length
-        ? Math.round(
-            targetCourse.modules.reduce(
-              (sum, module) => sum + getPreviewModuleCompletion(module, targetCourse.id, completedState),
-              0,
-            ) / targetCourse.modules.length,
+      targetCourse
+        ? avanzamentoCorso(
+            targetCourse.modules.length,
+            targetCourse.modules.filter((module) => completedState[`${targetCourse.id}:${module.id}`]).length,
+            avanzamentoSalvato[targetCourse.id] ?? 0,
           )
-        : targetCourse?.completion ?? 0,
-    [completedPreviewModules, getPreviewModuleCompletion],
+        : 0,
+    [avanzamentoSalvato, completedPreviewModules],
   );
   const previewCourseCompletion = getCourseCompletion(activeLearnerCourse);
   const isActiveModuleCompleted = activeModule ? getPreviewModuleCompletion(activeModule) >= 100 : false;
@@ -4544,9 +4574,9 @@ function PortalPreview({
   };
 
   useEffect(() => {
-    const storedState = loadPortalLearnerState(companyId, userId);
-    setCompletedPreviewModules(storedState.completedModules);
-    setAcknowledgedPreviewItems(storedState.acknowledgements);
+    // Dal vecchio stato locale del Portale si riprendono solo le prese visione:
+    // i moduli spuntati ora stanno nell'archivio comune con «La mia formazione».
+    setAcknowledgedPreviewItems(loadPortalLearnerState(companyId, userId).acknowledgements);
   }, [companyId, userId]);
 
   useEffect(() => {
@@ -4555,14 +4585,15 @@ function PortalPreview({
       window.localStorage.setItem(
         getPortalLearnerStateKey(companyId, userId),
         JSON.stringify({
-          completedModules: completedPreviewModules,
+          // I moduli qui non si scrivono più (vedi leggiModuliSpuntati).
+          completedModules: {},
           acknowledgements: acknowledgedPreviewItems,
         } satisfies PortalLearnerState),
       );
     } catch {
       // Se lo storage locale non e disponibile, la preview resta comunque utilizzabile.
     }
-  }, [acknowledgedPreviewItems, companyId, completedPreviewModules, userId]);
+  }, [acknowledgedPreviewItems, companyId, userId]);
 
   useEffect(() => {
     if (!companyId || !userId || learnerCourses.length === 0) return;
@@ -4574,27 +4605,12 @@ function PortalPreview({
       "Caricamento avanzamento Portale troppo lento.",
     )
       .then((enrollments) => {
-        if (!active || enrollments.length === 0) return;
-
-        const byCourseId = new Map(learnerCourses.map((item) => [item.id, item]));
-        const restoredModules: Record<string, boolean> = {};
-
-        enrollments.forEach((enrollment) => {
-          const enrolledCourse = byCourseId.get(enrollment.courseId);
-          if (!enrolledCourse || enrolledCourse.modules.length === 0) return;
-
-          const completedCount =
-            enrollment.progressPercent >= 100
-              ? enrolledCourse.modules.length
-              : Math.floor((enrollment.progressPercent / 100) * enrolledCourse.modules.length);
-
-          enrolledCourse.modules.slice(0, completedCount).forEach((module) => {
-            restoredModules[`${enrolledCourse.id}:${module.id}`] = true;
-          });
-        });
-
-        if (Object.keys(restoredModules).length === 0) return;
-        setCompletedPreviewModules((prev) => ({ ...restoredModules, ...prev }));
+        if (!active) return;
+        // Solo il numero: quali moduli mostrare spuntati lo decide
+        // moduliDaMostrare, come in «La mia formazione».
+        const salvati: Record<string, number> = {};
+        for (const enrollment of enrollments) salvati[enrollment.courseId] = enrollment.progressPercent ?? 0;
+        setAvanzamentoSalvato(salvati);
       })
       .catch(() => {
         // Fallback locale: non mostriamo errori all'utente per un dato di avanzamento accessorio.
@@ -4670,22 +4686,21 @@ function PortalPreview({
 
   const completeActiveModule = () => {
     if (!activeLearnerCourse || !activeModule) return;
-    const nextCompletedModules = {
-      ...completedPreviewModules,
-      [`${activeLearnerCourse.id}:${activeModule.id}`]: true,
-    };
-    const nextProgress = activeLearnerCourse.modules.length
-      ? Math.round(
-          activeLearnerCourse.modules.reduce(
-            (sum, module) => sum + getPreviewModuleCompletion(module, activeLearnerCourse.id, nextCompletedModules),
-            0,
-          ) / activeLearnerCourse.modules.length,
-        )
-      : 0;
-    const willCompleteCourse = activeLearnerCourse.modules.every((module) =>
-      getPreviewModuleCompletion(module, activeLearnerCourse.id, nextCompletedModules) >= 100,
-    );
-    setCompletedPreviewModules(nextCompletedModules);
+    const idModuli = activeLearnerCourse.modules.map((module) => module.id);
+    const prossimi = [
+      ...new Set([
+        ...idModuli.filter((id) => completedPreviewModules[`${activeLearnerCourse.id}:${id}`]),
+        activeModule.id,
+      ]),
+    ];
+    const nextProgress = avanzamentoCorso(idModuli.length, prossimi.length);
+    const willCompleteCourse = prossimi.length >= idModuli.length;
+    salvaModuliSpuntati(companyId, userId, activeLearnerCourse.id, prossimi);
+    setVersioneModuliSpuntati((versione) => versione + 1);
+    setAvanzamentoSalvato((prev) => ({
+      ...prev,
+      [activeLearnerCourse.id]: Math.max(prev[activeLearnerCourse.id] ?? 0, nextProgress),
+    }));
     persistLearnerProgress(activeLearnerCourse, nextProgress);
     recordLearnerActivity(activeLearnerCourse, "module_completed", {
       moduleId: activeModule.id,
@@ -4794,13 +4809,13 @@ function PortalPreview({
             <span className="h-1.5 flex-1 rounded-full bg-white/20">
               <span
                 className="block h-1.5 rounded-full bg-orange-400"
-                style={{ width: `${Math.max(previewCourseCompletion, 4)}%` }}
+                style={{ width: `${previewCourseCompletion}%` }}
               />
             </span>
             <span className="text-[11px] tabular-nums text-blue-100">{previewCourseCompletion}%</span>
           </span>
         </span>
-        <span className="shrink-0 text-xs font-semibold">Riprendi</span>
+        <span className="shrink-0 text-xs font-semibold">{azioneCorso(previewCourseCompletion)}</span>
       </button>
       <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm max-sm:hidden">
         <div className="grid gap-5 bg-gradient-to-br from-blue-950 via-blue-900 to-slate-900 p-5 text-white lg:grid-cols-[minmax(0,1.1fr)_360px] lg:p-6">
@@ -4826,13 +4841,15 @@ function PortalPreview({
           </div>
 
           <div className="rounded-3xl border border-white/10 bg-white/10 p-4 backdrop-blur">
-            <p className="text-xs font-semibold uppercase tracking-wide text-blue-100">Continua da dove eri rimasto</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-blue-100">
+              {previewCourseCompletion > 0 && previewCourseCompletion < 100 ? "Continua da dove eri rimasto" : "Il tuo corso"}
+            </p>
             <h3 className="mt-2 line-clamp-2 text-xl font-bold">{activeLearnerCourse.title}</h3>
             <p className="mt-2 line-clamp-3 text-sm leading-6 text-blue-100">{activeLearnerCourse.description}</p>
             <div className="mt-4 rounded-full bg-white/20 p-1">
               <div
                 className="h-2 rounded-full bg-orange-400"
-                style={{ width: `${Math.max(previewCourseCompletion, 8)}%` }}
+                style={{ width: `${previewCourseCompletion}%` }}
               />
             </div>
             <Button
@@ -4842,7 +4859,7 @@ function PortalPreview({
               }
             >
               <PlayCircle className="mr-2 h-4 w-4" />
-              Riprendi corso
+              {azioneCorso(previewCourseCompletion)} corso
             </Button>
           </div>
         </div>

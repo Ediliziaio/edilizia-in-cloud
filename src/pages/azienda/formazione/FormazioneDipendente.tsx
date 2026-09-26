@@ -51,6 +51,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import {
+  avanzamentoCorso,
+  chiaveModuliSpuntati,
+  leggiModuliSpuntati,
+  moduliDaMostrare,
+  salvaModuliSpuntati,
+} from "@/lib/formazione/avanzamentoCorsi";
+import {
   createPortalMaterialSignedUrl,
   listPortalCourseEnrollments,
   listPortalCourses,
@@ -109,30 +116,9 @@ function AssetTypeIcon({ type, className }: { type: PortalAssetType; className?:
   }
 }
 
-function lsKey(companyId: string, userId: string, courseId: string) {
-  return `portale-formazione:${companyId}:${userId}:${courseId}`;
-}
-
-function loadCompletedModules(companyId: string | null, userId: string | null, courseId: string): string[] {
-  if (!companyId || !userId || typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(lsKey(companyId, userId, courseId));
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as unknown;
-    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === "string") : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveCompletedModules(companyId: string | null, userId: string | null, courseId: string, ids: string[]) {
-  if (!companyId || !userId || typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(lsKey(companyId, userId, courseId), JSON.stringify(ids));
-  } catch {
-    /* quota / private mode: ignora, il DB resta la fonte di verità */
-  }
-}
+// Moduli spuntati e avanzamento: regola e chiave del browser stanno in
+// lib/formazione/avanzamentoCorsi, condivise col Portale.
+const lsKey = chiaveModuliSpuntati;
 
 /** Materiali "visti" del corso (per auto-completamento modulo). */
 function loadViewed(companyId: string | null, userId: string | null, courseId: string): string[] {
@@ -209,6 +195,22 @@ export default function FormazioneDipendente() {
     return map;
   }, [enrollmentsQuery.data]);
 
+  // Stessa regola del Portale (lib/formazione/avanzamentoCorsi): il massimo tra
+  // i moduli spuntati su questo dispositivo e l'avanzamento salvato. `selectedId`
+  // tra le dipendenze: tornando dal corso i moduli spuntati sono cambiati.
+  const avanzamentoPerCorso = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const c of published) {
+      const salvato = enrollmentByCourse.get(c.id)?.progressPercent ?? 0;
+      const idModuli = c.modules.map((m) => m.id);
+      const mostrati = moduliDaMostrare(leggiModuliSpuntati(companyId, userId, c.id), salvato, idModuli);
+      map.set(c.id, avanzamentoCorso(idModuli.length, mostrati.length, salvato));
+    }
+    return map;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- selectedId: rilettura dopo il player
+  }, [published, enrollmentByCourse, companyId, userId, selectedId]);
+  const avanzamentoDi = (courseId: string) => avanzamentoPerCorso.get(courseId) ?? 0;
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return published;
@@ -225,12 +227,12 @@ export default function FormazioneDipendente() {
     let inProgress = 0;
     for (const c of published) {
       const e = enrollmentByCourse.get(c.id);
-      const p = e?.progressPercent ?? 0;
+      const p = avanzamentoPerCorso.get(c.id) ?? 0;
       if (p >= 100 || e?.status === "completato") completed += 1;
       else if (p > 0 || e?.status === "in_corso") inProgress += 1;
     }
     return { total: published.length, completed, inProgress };
-  }, [published, enrollmentByCourse]);
+  }, [published, enrollmentByCourse, avanzamentoPerCorso]);
 
   const selected = selectedId ? published.find((c) => c.id === selectedId) ?? null : null;
 
@@ -261,7 +263,7 @@ export default function FormazioneDipendente() {
   const assignedTodo = filtered
     .filter((c) => {
       const e = enrollmentByCourse.get(c.id);
-      return !!e?.assignedBy && (e?.progressPercent ?? 0) < 100;
+      return !!e?.assignedBy && avanzamentoDi(c.id) < 100;
     })
     .sort((a, b) => {
       const ad = enrollmentByCourse.get(a.id)?.dueAt ?? null;
@@ -278,14 +280,14 @@ export default function FormazioneDipendente() {
     (c) =>
       !assignedIds.has(c.id) &&
       isMandatoryArea(c.area) &&
-      (enrollmentByCourse.get(c.id)?.progressPercent ?? 0) < 100,
+      avanzamentoDi(c.id) < 100,
   );
   const mandatoryTodoIds = new Set(mandatoryTodo.map((c) => c.id));
   const rest = filtered
     .filter((c) => !assignedIds.has(c.id) && !mandatoryTodoIds.has(c.id))
     .sort((a, b) => {
-      const aDone = (enrollmentByCourse.get(a.id)?.progressPercent ?? 0) >= 100 ? 1 : 0;
-      const bDone = (enrollmentByCourse.get(b.id)?.progressPercent ?? 0) >= 100 ? 1 : 0;
+      const aDone = avanzamentoDi(a.id) >= 100 ? 1 : 0;
+      const bDone = avanzamentoDi(b.id) >= 100 ? 1 : 0;
       if (aDone !== bDone) return aDone - bDone;
       return a.title.localeCompare(b.title);
     });
@@ -380,6 +382,7 @@ export default function FormazioneDipendente() {
                     key={course.id}
                     course={course}
                     enrollment={enrollmentByCourse.get(course.id)}
+                    progress={avanzamentoDi(course.id)}
                     mandatory={isMandatoryArea(course.area)}
                     now={nowTs}
                     onOpen={() => setSelectedId(course.id)}
@@ -404,6 +407,7 @@ export default function FormazioneDipendente() {
                     key={course.id}
                     course={course}
                     enrollment={enrollmentByCourse.get(course.id)}
+                    progress={avanzamentoDi(course.id)}
                     mandatory
                     now={nowTs}
                     onOpen={() => setSelectedId(course.id)}
@@ -422,6 +426,7 @@ export default function FormazioneDipendente() {
                     key={course.id}
                     course={course}
                     enrollment={enrollmentByCourse.get(course.id)}
+                    progress={avanzamentoDi(course.id)}
                     mandatory={isMandatoryArea(course.area)}
                     now={nowTs}
                     onOpen={() => setSelectedId(course.id)}
@@ -445,17 +450,19 @@ const ELENCO_CORSI =
 function CourseCard({
   course,
   enrollment,
+  progress,
   mandatory,
   now,
   onOpen,
 }: {
   course: PortalLearningCourse;
   enrollment?: PortalLearningEnrollment;
+  /** Avanzamento con la regola comune (avanzamentoCorso), non solo il database. */
+  progress: number;
   mandatory?: boolean;
   now: number;
   onOpen: () => void;
 }) {
-  const progress = enrollment?.progressPercent ?? 0;
   const area = AREA_META[course.area];
   const st = statusTone(progress, enrollment);
   const materials = course.assets.length;
@@ -583,21 +590,17 @@ function CoursePlayer({
   const totalModules = course.modules.length;
 
   const avanzamentoSalvato = enrollment?.progressPercent ?? 0;
-  const [completed, setCompleted] = useState<string[]>(() => {
-    const stored = loadCompletedModules(companyId, userId, course.id);
-    if (stored.length === 0 && avanzamentoSalvato >= 100) {
-      return course.modules.map((m) => m.id);
-    }
-    // scarta id non più esistenti (moduli rimossi dall'admin)
-    const validi = stored.filter((id) => course.modules.some((m) => m.id === id));
-    // I moduli spuntati stanno nel browser: su un altro dispositivo (il
-    // telefono) non ci sono, e il corso al 78% nell'elenco si apriva a «0/3 ·
-    // 0%». Si riparte dall'avanzamento salvato, coi primi moduli spuntati.
-    if (validi.length === 0 && avanzamentoSalvato > 0 && totalModules > 0) {
-      return course.modules.slice(0, Math.floor((avanzamentoSalvato / 100) * totalModules)).map((m) => m.id);
-    }
-    return validi;
-  });
+  // I moduli spuntati stanno nel browser: su un altro dispositivo (il
+  // telefono) non ci sono, e il corso nell'elenco al 67% si apriva a «0/3 ·
+  // 0%». Si riparte dall'avanzamento salvato, coi primi moduli spuntati (regola
+  // comune col Portale: moduliDaMostrare).
+  const [completed, setCompleted] = useState<string[]>(() =>
+    moduliDaMostrare(
+      leggiModuliSpuntati(companyId, userId, course.id),
+      avanzamentoSalvato,
+      course.modules.map((m) => m.id),
+    ),
+  );
   const [saving, setSaving] = useState(false);
   const [viewed, setViewed] = useState<string[]>(() => loadViewed(companyId, userId, course.id));
   const [viewer, setViewer] = useState<{
@@ -609,20 +612,15 @@ function CoursePlayer({
 
   // Come il database (savePortalCourseEnrollment tiene il massimo): la
   // percentuale non scende sotto quella salvata, che è quella dell'elenco.
-  const progress =
-    totalModules === 0
-      ? completed.length > 0 || avanzamentoSalvato >= 100
-        ? 100
-        : 0
-      : Math.max(Math.round((completed.length / totalModules) * 100), avanzamentoSalvato);
+  const progress = avanzamentoCorso(totalModules, completed.length, avanzamentoSalvato);
 
   const area = AREA_META[course.area];
   const courseAssets = course.assets.filter((a) => !a.moduleId);
 
   const persist = async (ids: string[]) => {
-    saveCompletedModules(companyId, userId, course.id, ids);
+    salvaModuliSpuntati(companyId, userId, course.id, ids);
     if (!companyId || !userId) return;
-    const pct = totalModules === 0 ? (ids.length > 0 ? 100 : 0) : Math.round((ids.length / totalModules) * 100);
+    const pct = avanzamentoCorso(totalModules, ids.length);
     setSaving(true);
     try {
       await savePortalCourseEnrollment(companyId, userId, course.id, pct);
