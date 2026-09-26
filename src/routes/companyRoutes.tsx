@@ -377,12 +377,11 @@ const PosEditor = lazy(() => import("@/pages/azienda/sicurezza/PosEditor"));
 const GiornaleLavori = lazy(() => import("@/pages/azienda/GiornaleLavori"));
 const SubappaltatoreDetail = lazy(() => import("@/pages/azienda/SubappaltatoreDetail"));
 // MarginalitaCantieri now rendered as tab inside OrdersList — lazy import removed
-const TicketsList = lazy(() => import("@/pages/azienda/TicketsList"));
+const AssistenzaPage = lazy(() => import("@/pages/azienda/AssistenzaPage"));
 const TicketDetail = lazy(() => import("@/pages/azienda/TicketDetail"));
 const CreateCompanyTicket = lazy(() => import("@/pages/azienda/CreateCompanyTicket"));
 // InterventiList/InterventiDetail rimossi: funzionalità unificata in TicketsList/TicketDetail
 const ChiusuraIntervento = lazy(() => import("@/pages/azienda/ChiusuraIntervento"));
-const ManutenzioneList = lazy(() => import("@/pages/azienda/ManutenzioneList"));
 const ImpiantoDetail = lazy(() => import("@/pages/azienda/ImpiantoDetail"));
 const StoricoImpianto = lazy(() => import("@/pages/azienda/StoricoImpianto"));
 
@@ -629,7 +628,9 @@ export default function CompanyRoutesContainer() {
             reindirizzamento per i vecchi segnalibri. Le manutenzioni hanno la
             loro pagina, gli interventi il filtro "Interventi". */}
         <Route path="assistenza-lavori" element={<Navigate to="/azienda/assistenza" replace />} />
-        <Route path="assistenza" element={withCompanyPermission("canViewTickets", <ErrorBoundary title="Errore nel caricamento assistenza"><TicketsList /></ErrorBoundary>)} />
+        {/* Assistenza aggrega Richieste + Manutenzione a schede (?vista=). Visibile
+            con canViewTickets O canViewManutenzione. */}
+        <Route path="assistenza" element={withCompanyPermission("canViewTickets", <ErrorBoundary title="Errore nel caricamento assistenza"><AssistenzaPage /></ErrorBoundary>, (p) => p.canViewTickets || p.canViewManutenzione)} />
         <Route path="assistenza/nuovo" element={withCompanyPermission("canEditTickets", <ErrorBoundary title="Errore nella creazione ticket"><CreateCompanyTicket /></ErrorBoundary>)} />
         <Route path="assistenza/:id" element={withCompanyPermission("canViewTickets", <ErrorBoundary title="Errore nel dettaglio ticket"><TicketDetail /></ErrorBoundary>)} />
         <Route path="assistenza/:id/chiudi" element={withCompanyPermission("canEditTickets", <FeatureRoute featureKey="cantieri_avanzati"><ChiusuraIntervento /></FeatureRoute>)} />
@@ -638,7 +639,8 @@ export default function CompanyRoutesContainer() {
         <Route path="interventi/nuovo" element={<Navigate to="/azienda/assistenza/nuovo?tipo=intervento" replace />} />
         <Route path="interventi/:id" element={<InterventoDetailRedirect />} />
         <Route path="interventi/:id/chiudi" element={<InterventoChiusuraRedirect />} />
-        <Route path="manutenzione" element={withCompanyPermission("canViewManutenzione", <FeatureRoute featureKey="cantieri_avanzati"><ManutenzioneList /></FeatureRoute>)} />
+        {/* Manutenzione è ora una scheda dentro Assistenza. */}
+        <Route path="manutenzione" element={<Navigate to="/azienda/assistenza?vista=manutenzioni" replace />} />
         <Route path="manutenzione/impianto/:id" element={withCompanyPermission("canViewManutenzione", <FeatureRoute featureKey="cantieri_avanzati"><ImpiantoDetail /></FeatureRoute>)} />
         <Route path="impianti/:impiantoId/storico" element={withCompanyPermission("canViewManutenzione", <FeatureRoute featureKey="cantieri_avanzati"><StoricoImpianto /></FeatureRoute>)} />
         <Route path="previsionale" element={withCompanyPermission("canViewForecast", <CashFlowForecast />)} />

@@ -96,7 +96,9 @@ function GaranziaScadenzaBadge({ date }: { date: string | null }) {
   return <Badge className="text-xs bg-green-100 text-green-800">Garanzia ok</Badge>;
 }
 
-export default function ManutenzioneList() {
+/** `incorporata`: la pagina sta dentro Assistenza (scheda «Manutenzioni»), quindi
+ *  non ripete la testata grande — solo il bottone «Nuovo Impianto». */
+export default function ManutenzioneList({ incorporata = false }: { incorporata?: boolean } = {}) {
   const { effectiveCompany, user } = useAuth();
   const permissions = usePermissions();
   const queryClient = useQueryClient();
@@ -328,28 +330,42 @@ export default function ManutenzioneList() {
   return (
     // Niente p-6: il margine lo dà già il layout (sul telefono era già p-0).
     <div className="space-y-6 max-sm:space-y-3">
-      {/* Header */}
-      <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex min-w-0 items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
-              <Settings className="h-5 w-5" />
-            </div>
-            <div className="min-w-0">
-              <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">Manutenzione<span className="max-sm:hidden"> Programmata</span></h1>
-              <p className="mt-0.5 text-sm text-slate-500">Impianti, contratti e piani manutenzione clienti.</p>
-            </div>
-          </div>
+      {/* Header — dentro Assistenza la testata grande la dà già la pagina:
+          qui resta solo il bottone per aggiungere un impianto. */}
+      {incorporata ? (
+        <div className="flex justify-end">
           <Button
             onClick={() => setWizardOpen(true)}
-            className="self-start gap-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600 sm:self-auto"
+            className="gap-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600"
           >
             <Plus className="h-4 w-4" />
             <span className="max-sm:hidden">Nuovo Impianto</span>
             <span className="sm:hidden">Nuovo</span>
           </Button>
         </div>
-      </div>
+      ) : (
+        <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex min-w-0 items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
+                <Settings className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
+                <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">Manutenzione<span className="max-sm:hidden"> Programmata</span></h1>
+                <p className="mt-0.5 text-sm text-slate-500">Impianti, contratti e piani manutenzione clienti.</p>
+              </div>
+            </div>
+            <Button
+              onClick={() => setWizardOpen(true)}
+              className="self-start gap-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600 sm:self-auto"
+            >
+              <Plus className="h-4 w-4" />
+              <span className="max-sm:hidden">Nuovo Impianto</span>
+              <span className="sm:hidden">Nuovo</span>
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Mobile: le scadenze e i canoni; impianti e contratti hanno il numero
           sulla loro scheda. */}

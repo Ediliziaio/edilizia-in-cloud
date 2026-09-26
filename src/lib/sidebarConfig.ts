@@ -41,7 +41,6 @@ import {
   LayoutGrid,
   ShieldAlert,
   Image,
-  Settings,
   GraduationCap,
   SquarePen,
   Star,
@@ -145,14 +144,15 @@ export const macroAreas: MacroArea[] = [
       { title: "Manodopera e Mezzi", url: "/azienda/manodopera", icon: HardHat },
       { title: "Clienti", url: "/azienda/clienti", icon: Users, permissionKey: "canViewCustomers", moduleKey: "customers" },
       { title: "Firma Elettronica", url: "/azienda/firma-elettronica", icon: FileSignature, permissionKey: "canViewFirmaElettronica", featureKey: "firma_fea" },
-      // ─── Pianificazione ───
-      // Assistenza ora aggrega tutto: ticket di supporto + interventi sul campo.
-      // "Interventi" come voce separata è stata rimossa — accessibile via tab/filtro
-      // all'interno di /azienda/assistenza.
-      { title: "Assistenza", url: "/azienda/assistenza", icon: LifeBuoy, permissionKey: "canViewTickets", moduleKey: "tickets", groupLabel: "Pianificazione" },
-      { title: "Manutenzione", url: "/azienda/manutenzione", icon: Settings, permissionKey: "canViewManutenzione", featureKey: "manutenzione_modulo", groupLabel: "Pianificazione" },
+      // Assistenza aggrega richieste (ticket + interventi), Manutenzione (impianti,
+      // contratti, scadenze) e la vista in calendario: una porta sola, a schede
+      // dentro /azienda/assistenza?vista=. La voce si vede con canViewTickets O
+      // canViewManutenzione (regola in CompanyLayout, come per Manodopera).
+      // Il titolo di gruppo «Pianificazione» è stato tolto (26/09/2026).
+      { title: "Assistenza", url: "/azienda/assistenza", icon: LifeBuoy, permissionKey: "canViewTickets", moduleKey: "tickets" },
       { title: "Calendario", url: "/azienda/calendario", icon: CalendarDays, permissionKey: "canViewCalendar", moduleKey: "calendar" },
-      // ─── Controllo ───
+      // La sicurezza del cantiere passerà nella scheda «Sicurezza» di ogni
+      // commessa; la voce resta finché quel travaso non è completo (fase 3).
       { title: "Sicurezza Cantiere", url: "/azienda/sicurezza-cantiere", icon: ShieldAlert, permissionKey: "canViewSicurezzaCantiere", featureKey: "cantieri_avanzati" },
     ],
   },

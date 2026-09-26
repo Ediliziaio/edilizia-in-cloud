@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, lazy, Suspense } from "react";
 import { TICKET_STATI, TICKET_STATI_CHIUSI, TICKET_FASI } from "@/types/tickets";
 import { calcolaFermo, CLASSI_FERMO } from "@/lib/assistenzaSla";
 import { AssistenzaPipeline } from "@/components/tickets/AssistenzaPipeline";
@@ -55,6 +55,7 @@ import {
   Columns3,
   PhoneCall,
   SlidersHorizontal,
+  Settings,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
@@ -175,6 +176,11 @@ function compareSortValues(a: string | number, b: string | number): number {
   return String(a).localeCompare(String(b), "it", { numeric: true, sensitivity: "base" });
 }
 
+// La scheda «Manutenzioni» vive nella stessa fila di Tutti/Supporto/Interventi:
+// quando è attiva (?vista=manutenzioni) al posto della lista ticket mostriamo
+// impianti, contratti e scadenze — senza una seconda barra di schede.
+const ManutenzioneList = lazy(() => import("@/pages/azienda/ManutenzioneList"));
+
 const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
   const { effectiveCompany, user } = useAuth();
   const permissions = usePermissions();
@@ -202,11 +208,20 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
   const [bulkAssignee, setBulkAssignee] = useState(KEEP_VALUE);
   const [fetchLimit, setFetchLimit] = useState(TICKETS_FETCH_LIMIT);
   // Filtro tipo da URL (?tipo=intervento) o default = all (retrocompatibilità redirect)
+  // «Manutenzioni» è una scheda accanto ai tipi: la riconosciamo da ?vista.
+  const vistaManutenzioni = searchParams.get("vista") === "manutenzioni" && permissions.canViewManutenzione === true;
   const tipoFilter = searchParams.get("tipo") ?? "all";
   const setTipoFilter = (v: string) => {
     const next = new URLSearchParams(searchParams);
+    next.delete("vista"); // tornando su un tipo si esce dalle manutenzioni
     if (v === "all") next.delete("tipo");
     else next.set("tipo", v);
+    setSearchParams(next, { replace: true });
+  };
+  const apriManutenzioni = () => {
+    const next = new URLSearchParams(searchParams);
+    next.set("vista", "manutenzioni");
+    next.delete("tipo");
     setSearchParams(next, { replace: true });
   };
   const { unreadByTicket, totalUnread } = useUnreadTicketCounts();
@@ -644,17 +659,18 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
       {/* Mobile: il tipo sta nel pannello dei filtri (una riga di pillole in meno). */}
       <div className="flex gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm max-sm:hidden">
         {[
-          { value: "all",        label: "Tutti",         icon: ClipboardList },
-          { value: "supporto",   label: "Supporto",      icon: LifeBuoy },
-          { value: "intervento", label: "Interventi",    icon: Wrench },
-          { value: "emergenza",  label: "Emergenze",     icon: AlertTriangle },
-        ].map(tab => {
+          { value: "all",           label: "Tutti",        icon: ClipboardList, mostra: true,  manut: false },
+          { value: "supporto",      label: "Supporto",     icon: LifeBuoy,      mostra: true,  manut: false },
+          { value: "intervento",    label: "Interventi",   icon: Wrench,        mostra: true,  manut: false },
+          { value: "emergenza",     label: "Emergenze",    icon: AlertTriangle, mostra: true,  manut: false },
+          { value: "manutenzione",  label: "Manutenzioni", icon: Settings,      mostra: permissions.canViewManutenzione === true, manut: true },
+        ].filter(tab => tab.mostra).map(tab => {
           const Icon = tab.icon;
-          const active = tipoFilter === tab.value;
+          const active = tab.manut ? vistaManutenzioni : (!vistaManutenzioni && tipoFilter === tab.value);
           return (
             <button
               key={tab.value}
-              onClick={() => setTipoFilter(tab.value)}
+              onClick={() => (tab.manut ? apriManutenzioni() : setTipoFilter(tab.value))}
               className={cn(
                 "tap-compact flex shrink-0 items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-medium transition-all whitespace-nowrap max-sm:h-8 max-sm:rounded-full max-sm:border max-sm:px-3 max-sm:py-0 max-sm:text-xs",
                 active
@@ -668,6 +684,12 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
           );
         })}
       </div>
+
+      {vistaManutenzioni ? (
+        <Suspense fallback={<Skeleton className="h-64 w-full rounded-2xl" />}>
+          <ManutenzioneList incorporata />
+        </Suspense>
+      ) : (<>
 
       {/* Testata navy famiglia (come Costi/Commesse/Personale): i cinque numeri
           dell'assistenza, ognuno un filtro veloce cliccabile. I segnali d'azione
@@ -1163,6 +1185,7 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
         onClear={clearSelection}
         isPending={updateTicketsMutation.isPending}
       />
+      </>)}
     </div>
   );
 });

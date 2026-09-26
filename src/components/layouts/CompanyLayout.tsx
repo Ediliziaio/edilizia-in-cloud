@@ -1228,6 +1228,11 @@ const CompanySidebar = memo(function CompanySidebar() {
       // Manodopera e Mezzi: tre schede, ognuna col suo permesso e la sua parte
       // di piano; la voce c'è se almeno una scheda è disponibile.
       if (item.url === "/azienda/manodopera") return schedeManodopera.length > 0;
+      // Assistenza aggrega Richieste e Manutenzione: la voce c'è se si può
+      // vedere almeno una delle due (26/09/2026).
+      if (item.url === "/azienda/assistenza") {
+        return permissions.canViewTickets === true || permissions.canViewManutenzione === true;
+      }
       if (item.url === "/azienda/cruscotto") {
         if (
           !permissions.canViewCruscotto &&
