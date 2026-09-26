@@ -340,7 +340,7 @@ export function CustomerSheetsExportDialog({ open, onOpenChange }: CustomerSheet
             doc.text(o.created_at ? format(new Date(o.created_at), "dd/MM/yy") : "—", 450, y);
             doc.text(
               o.total_amount != null
-                ? `€ ${Number(o.total_amount).toLocaleString("it-IT", { minimumFractionDigits: 2 })}`
+                ? `€ ${Number(o.total_amount).toLocaleString("it-IT", { minimumFractionDigits: 2, useGrouping: true })}`
                 : "—",
               555, y, { align: "right" },
             );

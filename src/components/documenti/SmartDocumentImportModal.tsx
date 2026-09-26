@@ -725,8 +725,9 @@ export function SmartDocumentImportModal({
               </>
             )}
           </DialogTitle>
+          {/* Mobile: niente spiegazione, basta il riquadro per scegliere il file. */}
           {step === 1 && (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground max-sm:hidden">
               Carica un PDF, una foto, un Excel o un file computo. L'AI lo classifica,
               prova a estrarre i dati e lo porta al modulo corretto senza farti
               ricaricare il documento.
@@ -737,7 +738,7 @@ export function SmartDocumentImportModal({
         {step === 1 && (
           <div className="space-y-4">
             <div
-              className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer ${
+              className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer max-sm:p-5 ${
                 dragOver ? "border-orange-400 bg-orange-50" : "border-slate-200 hover:border-slate-300"
               }`}
               onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
@@ -772,9 +773,11 @@ export function SmartDocumentImportModal({
                 </div>
               ) : (
                 <>
-                  <Upload className="h-10 w-10 mx-auto text-slate-300 mb-3" />
-                  <p className="text-sm font-medium">Trascina qui un documento</p>
-                  <p className="text-xs text-muted-foreground mt-1">
+                  <Upload className="h-10 w-10 mx-auto text-slate-300 mb-3 max-sm:mb-2 max-sm:h-8 max-sm:w-8" />
+                  {/* Sul telefono non si trascina: si tocca il riquadro. */}
+                  <p className="text-sm font-medium max-sm:hidden">Trascina qui un documento</p>
+                  <p className="text-sm font-medium sm:hidden">Tocca per scegliere il file</p>
+                  <p className="text-xs text-muted-foreground mt-1 max-sm:hidden">
                     PDF, immagine, Excel, XPWE o DCF — Max {formatBytes(MAX_SIZE)}
                   </p>
                 </>
@@ -782,7 +785,7 @@ export function SmartDocumentImportModal({
             </div>
 
             <div className="flex justify-end">
-              <Button onClick={handleStartClassify} disabled={!file}>
+              <Button onClick={handleStartClassify} disabled={!file} className="max-sm:w-full">
                 <Sparkles className="h-4 w-4 mr-1" /> Analizza e prepara importazione
               </Button>
             </div>
@@ -800,12 +803,15 @@ export function SmartDocumentImportModal({
         )}
 
         {step === 3 && result && (
-          <div className="grid gap-4 overflow-y-auto pr-1 lg:grid-cols-[minmax(0,300px)_minmax(0,1fr)]">
-            <SmartFilePreview file={file} resultFile={result.file} previewUrl={previewUrl} />
-            <div className="space-y-4">
-            {/* Hero risultato */}
+          <div className="grid gap-4 overflow-y-auto pr-1 lg:grid-cols-[minmax(0,300px)_minmax(0,1fr)] max-sm:gap-3 max-sm:pr-0">
+            {/* Mobile: il file l'ha appena scelto, l'anteprima non serve. */}
+            <div className="max-sm:hidden">
+              <SmartFilePreview file={file} resultFile={result.file} previewUrl={previewUrl} />
+            </div>
+            <div className="space-y-4 max-sm:space-y-3">
+            {/* Hero risultato — mobile: una riga (icona, tipo, affidabilità). */}
             <div
-              className={`text-center py-4 rounded-xl border ${
+              className={`text-center py-4 rounded-xl border max-sm:flex max-sm:items-center max-sm:gap-3 max-sm:px-3 max-sm:py-2.5 max-sm:text-left ${
                 riskLevel === "error"
                   ? "bg-red-50 border-red-200"
                   : riskLevel === "warn"
@@ -813,14 +819,16 @@ export function SmartDocumentImportModal({
                     : "bg-gradient-to-br from-orange-50 to-amber-50 border-orange-100"
               }`}
             >
-              <div className="text-5xl mb-2">{DOC_TYPE_EMOJI[result.doc_type] ?? "📄"}</div>
-              <p className="text-xs text-muted-foreground uppercase tracking-wide">
+              <div className="text-5xl mb-2 max-sm:mb-0 max-sm:text-2xl">{DOC_TYPE_EMOJI[result.doc_type] ?? "📄"}</div>
+              <div className="max-sm:min-w-0 max-sm:flex-1">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide max-sm:hidden">
                 Tipo documento rilevato
               </p>
-              <p className="text-xl font-semibold text-slate-800 mt-0.5">
+              <p className="text-xl font-semibold text-slate-800 mt-0.5 max-sm:mt-0 max-sm:truncate max-sm:text-base">
                 {DOC_TYPE_LABEL[result.doc_type] ?? result.doc_type}
               </p>
-              <div className="mt-2 flex items-center justify-center gap-2">
+              </div>
+              <div className="mt-2 flex items-center justify-center gap-2 max-sm:mt-0 max-sm:shrink-0">
                 <Badge
                   variant="outline"
                   className={
@@ -831,10 +839,10 @@ export function SmartDocumentImportModal({
                         : "border-red-400 text-red-700"
                   }
                 >
-                  Confidence: {(result.confidence * 100).toFixed(0)}%
+                  <span className="max-sm:hidden">Confidence: </span>{(result.confidence * 100).toFixed(0)}%
                 </Badge>
                 {result.parser_used && (
-                  <Badge variant="secondary">
+                  <Badge variant="secondary" className="max-sm:hidden">
                     {result.parser_used === "router_only" ? "solo classificazione" : "parser attivo"}
                   </Badge>
                 )}
@@ -848,7 +856,7 @@ export function SmartDocumentImportModal({
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
                     Conferma destinazione
                   </p>
-                  <p className="text-sm text-slate-700">
+                  <p className="text-sm text-slate-700 max-sm:hidden">
                     Se l'AI ha sbagliato, scegli il modulo corretto prima di proseguire.
                   </p>
                 </div>
@@ -872,13 +880,13 @@ export function SmartDocumentImportModal({
               </Select>
               {!selectedMatchesAi && (
                 <p className="text-xs text-amber-700">
-                  Procedo come {selectedDocLabel}: uso il modulo dedicato e conservo il job AI come audit.
+                  Procedo come {selectedDocLabel}<span className="max-sm:hidden">: uso il modulo dedicato e conservo il job AI come audit</span>.
                 </p>
               )}
             </div>
 
-            {/* Reasoning */}
-            <div className="text-sm bg-slate-50 rounded-lg p-3">
+            {/* Reasoning — mobile no: spiegazione, non serve per proseguire. */}
+            <div className="text-sm bg-slate-50 rounded-lg p-3 max-sm:hidden">
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">
                 Perché?
               </p>
@@ -920,18 +928,18 @@ export function SmartDocumentImportModal({
               </div>
             )}
 
-            {/* AI meta */}
-            <p className="text-[10px] text-muted-foreground text-right">
+            {/* AI meta — mobile no: modello, tempi e costo sono dati tecnici. */}
+            <p className="text-[10px] text-muted-foreground text-right max-sm:hidden">
               {result.analysis_id ? `job ${result.analysis_id.slice(0, 8)} · ` : ""}
               {result.ai_meta.model_used} · {(result.ai_meta.elapsed_ms / 1000).toFixed(1)}s · €{result.ai_meta.cost_billed_eur.toFixed(4)}
             </p>
 
-            {/* CTA */}
+            {/* CTA — mobile: il passo avanti riempie la riga. */}
             <div className="flex justify-between gap-2 pt-2 border-t">
               <Button variant="outline" onClick={handleClose}>
                 Chiudi
               </Button>
-              <Button onClick={handleAction} className="gap-1">
+              <Button onClick={handleAction} className="gap-1 max-sm:flex-1">
                 {actionPlan?.label ?? "Continua"}
                 {actionPlan?.kind === "redirect" && <ExternalLink className="h-4 w-4" />}
                 {actionPlan?.kind === "computo_review" && <ArrowRight className="h-4 w-4" />}
@@ -969,21 +977,21 @@ export function SmartDocumentImportModal({
             {/* Dati estratti — JSON tree readable */}
             <div className="flex-1 overflow-auto border rounded-lg p-3 bg-slate-50/50">
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
-                Dati estratti (JSON strutturato)
+                Dati estratti<span className="max-sm:hidden"> (JSON strutturato)</span>
               </p>
               {renderValue(deepResult.ddt ?? deepResult.extracted ?? {})}
             </div>
 
             {/* Footer meta + actions */}
             <div className="flex items-center justify-between border-t pt-3">
-              <div className="text-[10px] text-muted-foreground">
+              <div className="text-[10px] text-muted-foreground max-sm:hidden">
                 {deepResult.ai_meta.model_used} · {(deepResult.ai_meta.elapsed_ms / 1000).toFixed(1)}s · €{deepResult.ai_meta.cost_billed_eur.toFixed(4)}
                 {deepResult.confidence != null && (
                   <span className="ml-2">· confidence {(deepResult.confidence * 100).toFixed(0)}%</span>
                 )}
               </div>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => {
+              <div className="flex gap-2 max-sm:w-full">
+                <Button variant="outline" size="sm" className="max-sm:hidden" onClick={() => {
                   const payload = JSON.stringify(deepResult.ddt ?? deepResult.extracted ?? {}, null, 2);
                   navigator.clipboard?.writeText(payload).then(
                     () => toast.success("JSON copiato negli appunti"),
@@ -998,7 +1006,7 @@ export function SmartDocumentImportModal({
                     Cerco collegamenti…
                   </div>
                 )}
-                <Button onClick={handleClose}>
+                <Button onClick={handleClose} className="max-sm:flex-1">
                   <CheckCircle2 className="h-4 w-4 mr-1" /> Fatto
                 </Button>
               </div>
@@ -1017,7 +1025,7 @@ export function SmartDocumentImportModal({
                 </p>
                 <p className="text-slate-800 font-medium">
                   {linkerResult.supplier_match.name}
-                  <span className="ml-2 text-xs text-blue-600">
+                  <span className="ml-2 text-xs text-blue-600 max-sm:hidden">
                     ({linkerResult.supplier_match.match_kind === "vat_exact" ? "match P.IVA esatto" : "match nome fuzzy"})
                   </span>
                 </p>
@@ -1025,8 +1033,9 @@ export function SmartDocumentImportModal({
             )}
 
             {/* Best reasoning AI */}
+            {/* Mobile no: è la spiegazione dell'AI, non serve per scegliere. */}
             {linkerResult.best_reasoning && (
-              <div className="bg-orange-50 border border-orange-100 rounded-lg p-3 text-sm">
+              <div className="bg-orange-50 border border-orange-100 rounded-lg p-3 text-sm max-sm:hidden">
                 <p className="text-xs font-semibold text-orange-700 uppercase tracking-wide mb-1">
                   💡 Cosa ha capito l'AI
                 </p>
@@ -1109,7 +1118,8 @@ export function SmartDocumentImportModal({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => navigate(linkerResult.doc_type === "ddt" ? "/azienda/operativo/fornitori" : "/azienda")}
+                  // «/azienda/operativo/fornitori» non esiste: i fornitori stanno nelle impostazioni.
+                  onClick={() => navigate(linkerResult.doc_type === "ddt" ? "/azienda/impostazioni/fornitori" : "/azienda")}
                 >
                   Apri sezione gestione →
                 </Button>
@@ -1171,8 +1181,8 @@ export function SmartDocumentImportModal({
                               📁 Commessa: <em>{String(s.summary.order_description)}</em>
                             </p>
                           ) : null}
-                          <p className="text-xs text-muted-foreground italic">{s.reasoning}</p>
-                          <div className="flex gap-3 mt-1.5 text-[10px] text-slate-500">
+                          <p className="text-xs text-muted-foreground italic max-sm:hidden">{s.reasoning}</p>
+                          <div className="flex gap-3 mt-1.5 text-[10px] text-slate-500 max-sm:hidden">
                             <span>Fornitore: {(s.scores.layer1_supplier * 100).toFixed(0)}%</span>
                             <span>Heuristic: {(s.scores.layer2_heuristic * 100).toFixed(0)}%</span>
                             <span>AI: {(s.scores.layer3_ai * 100).toFixed(0)}%</span>
@@ -1199,16 +1209,16 @@ export function SmartDocumentImportModal({
 
             {/* Footer */}
             <div className="flex items-center justify-between border-t pt-3">
-              <p className="text-[10px] text-muted-foreground">
+              <p className="text-[10px] text-muted-foreground max-sm:hidden">
                 Policy: soglia auto {(linkerResult.policy.auto_execute_threshold * 100).toFixed(0)}%
                 {linkerResult.policy.always_confirm && " · sempre conferma"}
                 {linkerResult.ai_meta && ` · ${linkerResult.ai_meta.model_used} · €${linkerResult.ai_meta.cost_billed_eur.toFixed(4)}`}
               </p>
-              <div className="flex gap-2">
+              <div className="flex gap-2 max-sm:w-full">
                 <Button variant="outline" onClick={() => setStep(4)}>
                   ← Dati
                 </Button>
-                <Button onClick={handleClose}>
+                <Button onClick={handleClose} className="max-sm:flex-1">
                   <CheckCircle2 className="h-4 w-4 mr-1" /> Fatto
                 </Button>
               </div>

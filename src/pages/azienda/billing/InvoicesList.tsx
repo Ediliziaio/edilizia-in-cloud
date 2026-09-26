@@ -13,12 +13,14 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Search, MoreVertical, FileText, CreditCard, Loader2, RefreshCw, Link2, Eye, BarChart3, Download, Cloud, FileCode, Inbox, AlertTriangle, CircleAlert, Receipt, Send } from "lucide-react";
+import { Search, MoreVertical, FileText, CreditCard, Loader2, RefreshCw, Link2, Eye, BarChart3, Download, Cloud, FileCode, Inbox, AlertTriangle, CircleAlert, Send } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency } from "@/lib/formatters";
 import BillingReports from "./BillingReports";
 
 import { useIsMobile } from "@/hooks/use-mobile";
+import { cn } from "@/lib/utils";
+import { CercaConFiltri, KpiMobili, PannelloFiltri, PilloleFiltro } from "@/components/mobile/FiltriMobile";
 /**
  * Freschezza dell'ultima sincronizzazione: tempo relativo leggibile
  * ("12 min fa", "3 h fa", "2 gg fa") + flag `stale` se il dato ha più di 24h,
@@ -68,8 +70,10 @@ function syncFreshness(iso?: string | null): { label: string; stale: boolean } |
  * passata viene mostrata come Scaduta — coerente coi KPI e con la UX di Fatture
  * in Cloud — anche se il gestionale d'origine la riporta ancora come "Emessa".
  */
-function effectiveStatus(inv: { status: string; due_date?: string | null; paid_amount?: number | null; total?: number | null }): string {
+function effectiveStatus(inv: { status: string; due_date?: string | null; paid_amount?: number | null; total?: number | null; document_type?: string | null }): string {
   if (["paid", "cancelled", "draft"].includes(inv.status)) return inv.status;
+  // Una nota di credito è uno storno: non "scade" (prima risultava Scaduta da 150 giorni).
+  if (inv.document_type === "credit_note") return inv.status;
   const residuo = Number(inv.total ?? 0) - Number(inv.paid_amount ?? 0);
   if (inv.due_date && new Date(inv.due_date) < new Date() && residuo > 0.005) return "overdue";
   return inv.status;
@@ -159,6 +163,10 @@ export default function InvoicesList() {
   const [monthFilter, setMonthFilter] = useState<string | null>(null);
   // Tab tipo documento stile Fatture in Cloud.
   const [docTab, setDocTab] = useState<DocTab>("fatture");
+  // Mobile: tipo, stato e mese stanno in un pannello dal basso (prima erano
+  // quattro righe di linguette e la striscia dei mesi sopra la lista).
+  const [filtriMobileAperti, setFiltriMobileAperti] = useState(false);
+  const nFiltriMobile = [docTab !== "fatture", statusFilter !== "all", monthFilter !== null].filter(Boolean).length;
 
   // Anni con documenti: una query da due righe (la più vecchia e la più
   // recente). Serve perché la lista ora scarica UN anno per volta: ricavare gli
@@ -506,32 +514,18 @@ export default function InvoicesList() {
   const fmtEur = (n: number) => formatCurrency(n);
 
   return (
-    <div className="space-y-6">
-      {/* No provider banner */}
-      {!isLoading && !integration && !isMobile && (
-        <Card className="border-primary/30 bg-primary/5">
-          <CardContent className="pt-4 pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <Link2 className="h-5 w-5 text-primary shrink-0" />
-              <div>
-                <p className="font-medium">Connetti il tuo gestionale di fatturazione</p>
-                <p className="text-sm text-muted-foreground">Collega Fatture in Cloud, Fattura24, Aruba o Invoicetronic per importare automaticamente le fatture.</p>
-              </div>
-            </div>
-            <Button variant="outline" className="shrink-0" onClick={() => navigate("/azienda/impostazioni/fatturazione")}>
-              Configura
-            </Button>
-          </CardContent>
-        </Card>
-      )}
+    <div className="space-y-6 max-sm:space-y-3">
+      {/* Senza gestionale collegato niente fascia blu sopra il titolo con
+          «Sincronizza» spento accanto: da tablet al posto di Sincronizza c'è
+          «Collega gestionale» (vedi sotto). */}
 
       {/* Header — in colonna su mobile: con provider connesso la riga superava i 375px */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      {/* Mobile: titolo, anno e sincronizza su una riga; via icona, gestionale e «Sync x min fa». */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between max-sm:flex-row max-sm:items-center max-sm:justify-between max-sm:gap-2">
         <div className="flex items-center gap-2">
-          <FileText className="h-7 w-7 text-primary" />
-          <h1 className="text-2xl font-bold">Fatturazione</h1>
+          <h1 className="text-2xl font-bold max-sm:text-lg">Fatturazione</h1>
           {integration && (
-            <Badge variant="outline" className="ml-2 text-xs">
+            <Badge variant="outline" className="ml-2 text-xs max-sm:hidden">
               {PROVIDER_LABELS[integration.provider] || integration.provider}
             </Badge>
           )}
@@ -541,7 +535,7 @@ export default function InvoicesList() {
             value={yearFilter}
             onChange={(e) => { setYearFilter(e.target.value); setMonthFilter(null); }}
             aria-label="Anno"
-            className="h-9 rounded-md border border-input bg-background px-3 text-sm font-semibold shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className="h-9 rounded-md border border-input bg-background px-3 text-sm font-semibold shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring max-sm:h-8 max-sm:px-2 max-sm:text-xs"
           >
             <option value="all">Tutti gli anni</option>
             {Array.from(new Set([currentYear, ...years])).map((y) => (
@@ -553,7 +547,7 @@ export default function InvoicesList() {
             if (!f) return null;
             return (
               <span
-                className={`inline-flex items-center gap-1 text-xs ${f.stale ? "text-amber-600 font-medium" : "text-muted-foreground"}`}
+                className={`inline-flex items-center gap-1 text-xs max-sm:hidden ${f.stale ? "text-amber-600 font-medium" : "text-muted-foreground"}`}
                 title={`Ultima sincronizzazione: ${format(new Date(integration.last_sync_at!), "dd/MM/yyyy HH:mm", { locale: it })}`}
               >
                 {f.stale && <AlertTriangle className="h-3 w-3 shrink-0" />}
@@ -561,9 +555,25 @@ export default function InvoicesList() {
               </span>
             );
           })()}
-          <Button onClick={syncInvoices} disabled={syncing || !integration}>
-            {syncing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-            Sincronizza
+          {!isLoading && !integration && (
+            <Button
+              variant="outline"
+              className="gap-2 max-sm:hidden"
+              title="Fatture in Cloud, Fattura24, Aruba o Invoicetronic: le fatture arrivano da sole"
+              onClick={() => navigate("/azienda/impostazioni/fatturazione")}
+            >
+              <Link2 className="h-4 w-4" />Collega gestionale
+            </Button>
+          )}
+          {/* Mobile: solo l'icona (arancio se l'ultimo sync ha più di un giorno). */}
+          <Button
+            onClick={syncInvoices}
+            disabled={syncing || !integration}
+            aria-label="Sincronizza"
+            className={cn("max-sm:h-8 max-sm:w-8 max-sm:px-0", syncFreshness(integration?.last_sync_at)?.stale && "max-sm:bg-amber-500", !isLoading && !integration && "sm:hidden")}
+          >
+            {syncing ? <Loader2 className="h-4 w-4 mr-2 animate-spin max-sm:mr-0" /> : <RefreshCw className="h-4 w-4 mr-2 max-sm:mr-0" />}
+            <span className="max-sm:hidden">Sincronizza</span>
           </Button>
         </div>
       </div>
@@ -596,35 +606,30 @@ export default function InvoicesList() {
 
       {/* Top-level view tabs */}
       <Tabs defaultValue="fatture" className="w-full">
-        <TabsList>
-          <TabsTrigger value="fatture" className="gap-1.5">
-            <FileText className="h-4 w-4" /> Fatture
+        <TabsList className="max-sm:grid max-sm:h-9 max-sm:w-full max-sm:grid-cols-2">
+          <TabsTrigger value="fatture" className="tap-compact gap-1.5 max-sm:text-xs">
+            <FileText className="h-4 w-4 max-sm:hidden" /> Fatture
           </TabsTrigger>
-          <TabsTrigger value="report" className="gap-1.5">
-            <BarChart3 className="h-4 w-4" /> Report
+          <TabsTrigger value="report" className="tap-compact gap-1.5 max-sm:text-xs">
+            <BarChart3 className="h-4 w-4 max-sm:hidden" /> Report
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="fatture" className="space-y-6 mt-4">
+        <TabsContent value="fatture" className="space-y-6 mt-4 max-sm:mt-3 max-sm:space-y-3">
           {/* Testata navy di famiglia — "Da incassare" e "Fatture scadute"
               restano azionabili: cliccandole filtrano la lista, ri-cliccare
               torna a "Tutte". */}
+          {/* Da 1280, se c'è credito scaduto, numeri e «Recupero crediti»
+              stanno affiancati: uno sotto l'altro spingevano l'elenco delle
+              fatture a mille pixel dalla cima. Senza il titoletto «Quanto hai
+              fatturato, quanto ti devono», che ripeteva quello della pagina. */}
+          <div className={cn("grid gap-6 max-sm:hidden", recupero.totale > 0.005 && "xl:grid-cols-2")}>
           <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
-            <div className="bg-[#173b67] p-4 text-white sm:p-5">
-              <div className="flex items-start gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)] sm:h-11 sm:w-11">
-                  <Receipt className="h-4 w-4 sm:h-5 sm:w-5" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-orange-100 sm:text-xs">Fatturazione</p>
-                  <h2 className="mt-0.5 text-base font-semibold text-white sm:text-xl">Quanto hai fatturato, quanto ti devono</h2>
-                </div>
-              </div>
-              <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-5 sm:gap-3 xl:grid-cols-4">
+            <div className="h-full bg-[#173b67] p-4 text-white sm:p-5">
+              <div className={cn("grid grid-cols-2 gap-2 sm:gap-3", recupero.totale > 0.005 ? "xl:h-full xl:content-center" : "xl:grid-cols-4")}>
                 <NavyStatCard
                   label="Da incassare"
                   value={fmtEur(kpis.receivable)}
-                  sub="clicca per filtrare le aperte"
                   icon={CircleAlert}
                   tone="text-orange-100"
                   onClick={() => setStatusFilter((f) => (f === "unpaid" ? "all" : "unpaid"))}
@@ -656,8 +661,9 @@ export default function InvoicesList() {
           {/* RECUPERO CREDITI — appare solo se c'è credito scaduto. Traduce il
               numero rosso "36 scadute" in azione: quanto è vecchio il credito
               (aging) e chi ti deve di più (top debitori cliccabili). */}
+          {/* Mobile no: doppione del numero «Scadute», che già filtra la lista. */}
           {recupero.totale > 0.005 && (
-            <Card className="border-amber-300/60 bg-amber-50/40 dark:bg-amber-950/10">
+            <Card className="border-amber-300/60 bg-amber-50/40 dark:bg-amber-950/10 max-sm:hidden">
               <CardContent className="pt-4 pb-4 space-y-3">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-sm font-semibold flex items-center gap-1.5">
@@ -718,9 +724,31 @@ export default function InvoicesList() {
               </CardContent>
             </Card>
           )}
+          </div>
 
-          {/* Tab tipo documento (stile Fatture in Cloud) */}
-          <div className="flex flex-wrap items-center gap-1 border-b">
+          {/* Mobile: due numeri che filtrano la lista, al posto del riquadro blu
+              con quattro numeri, icone e spiegazioni. Dopo il riquadro e non
+              prima: da primo figlio nascosto spostava il desktop di 8px. */}
+          <KpiMobili
+            className="sm:hidden"
+            voci={[
+              {
+                label: "Da incassare",
+                valore: fmtEur(kpis.receivable),
+                onClick: () => setStatusFilter((f) => (f === "unpaid" ? "all" : "unpaid")),
+                attivo: statusFilter === "unpaid",
+              },
+              {
+                label: "Scadute",
+                valore: String(kpis.overdueCount),
+                tono: kpis.overdueCount > 0 ? "text-rose-600" : undefined,
+                onClick: () => setStatusFilter((f) => (f === "overdue" ? "all" : "overdue")),
+                attivo: statusFilter === "overdue",
+              },
+            ]}
+          />
+          {/* Tab tipo documento (stile Fatture in Cloud). Mobile: nel pannello filtri. */}
+          <div className="flex flex-wrap items-center gap-1 border-b max-sm:hidden">
             {([
               { key: "fatture" as DocTab, label: "Fatture", n: docCounts.fatture },
               { key: "note_credito" as DocTab, label: "Note di Credito", n: docCounts.note_credito },
@@ -746,7 +774,8 @@ export default function InvoicesList() {
           </div>
 
           {/* Striscia mesi (stile Fatture in Cloud): n° doc + € per mese dell'anno, cliccabile per filtrare */}
-          <div className="space-y-1.5">
+          {/* Mobile no: la lista è già divisa per mese; il mese si sceglie nei filtri. */}
+          <div className="space-y-1.5 max-sm:hidden">
             <div className="flex items-center justify-between px-0.5">
               <span className="text-xs font-medium text-muted-foreground">
                 Panoramica {stripYear} · <span className="text-foreground font-semibold">{stripTotal.count}</span> doc · <span className="text-foreground font-semibold tabular-nums">{formatCurrency(stripTotal.total)}</span>
@@ -793,8 +822,17 @@ export default function InvoicesList() {
             </div>
           </div>
 
+          {/* Mobile: ricerca con accanto il bottone dei filtri. */}
+          <CercaConFiltri
+            className="sm:hidden"
+            valore={search}
+            onCambia={setSearch}
+            segnaposto="Cerca cliente o numero"
+            filtriAttivi={nFiltriMobile}
+            onApriFiltri={() => setFiltriMobileAperti(true)}
+          />
           {/* Filters */}
-          <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex flex-col sm:flex-row gap-3 max-sm:hidden">
             <Tabs value={statusFilter} onValueChange={setStatusFilter} className="w-full sm:w-auto">
               <TabsList className="flex-wrap h-auto">
                 <TabsTrigger value="all">Tutte</TabsTrigger>
@@ -829,8 +867,8 @@ export default function InvoicesList() {
             /* Empty state ricco: icona + testo guida + CTA contestuale
                (Sincronizza se connesso, Connetti se manca il provider,
                Azzera filtri se sono i filtri a nascondere tutto). */
-            <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
-              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
+            <div className="flex flex-col items-center justify-center gap-3 py-16 text-center max-sm:py-6">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted max-sm:hidden">
                 {invoices.length === 0 ? <Inbox className="h-7 w-7 text-muted-foreground" /> : <Search className="h-7 w-7 text-muted-foreground" />}
               </div>
               {invoices.length === 0 ? (
@@ -849,11 +887,18 @@ export default function InvoicesList() {
                   <>
                     <div>
                       <p className="font-medium">Nessuna fattura</p>
-                      <p className="text-sm text-muted-foreground">Connetti un gestionale (Fatture in Cloud, Aruba…) per importare le fatture.</p>
+                      {/* Il gestionale si collega solo da computer o tablet (25/09/2026). */}
+                      {isMobile ? (
+                        <p className="text-xs text-muted-foreground">Il gestionale si collega da computer o tablet.</p>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">Connetti un gestionale (Fatture in Cloud, Aruba…) per importare le fatture.</p>
+                      )}
                     </div>
-                    <Button variant="outline" onClick={() => navigate("/azienda/impostazioni/fatturazione")}>
-                      <Link2 className="h-4 w-4 mr-2" /> Connetti un gestionale
-                    </Button>
+                    {!isMobile && (
+                      <Button variant="outline" onClick={() => navigate("/azienda/impostazioni/fatturazione")}>
+                        <Link2 className="h-4 w-4 mr-2" /> Connetti un gestionale
+                      </Button>
+                    )}
                   </>
                 )
               ) : (
@@ -870,50 +915,62 @@ export default function InvoicesList() {
             </div>
           ) : (
             <>
-            {/* Mobile card list — raggruppata per mese */}
-            <div className="sm:hidden space-y-4">
+            {/* Mobile: una riga da ~52px per fattura (cliente, numero · data ·
+                scadenza, importo e stato), col mese come riga sottile. Prima:
+                riquadri per mese e righe da 84px con badge e gestionale. */}
+            <div className="sm:hidden overflow-hidden rounded-lg border bg-card">
               {grouped.map((g) => (
-                <div key={g.key} className="border rounded-lg overflow-hidden">
-                  <div className="flex items-center justify-between px-4 py-2 bg-muted/60 border-b">
-                    <span className="text-sm font-semibold">{g.label}</span>
-                    <span className="text-xs text-muted-foreground">{g.rows.length} fatt. · {formatCurrency(g.total)}</span>
+                <div key={g.key}>
+                  <div className="flex items-center justify-between bg-muted/60 px-3 py-1 text-[11px] font-semibold text-muted-foreground">
+                    <span>{g.label}</span>
+                    <span className="tabular-nums">{formatCurrency(g.total)}</span>
                   </div>
-                  <div className="divide-y">
+                  {/* divide-border: sui <button> il bordo non prende il colore del tema (veniva nero). */}
+                  <div className="divide-y divide-border">
                     {g.rows.map((inv) => {
-                      const cfg = STATUS_CONFIG[effectiveStatus(inv)] || STATUS_CONFIG.draft;
+                      const eff = effectiveStatus(inv);
+                      const cfg = STATUS_CONFIG[eff] || STATUS_CONFIG.draft;
+                      const isCredit = inv.document_type === "credit_note";
+                      const gg = !isCredit && !["paid", "cancelled"].includes(inv.status) ? giorniScaduta(inv.due_date) : null;
+                      const residuo = Number(inv.total || 0) - Number(inv.paid_amount || 0);
+                      const saldata = !isCredit && (inv.status === "paid" || (Number(inv.paid_amount || 0) > 0 && residuo <= 0.005));
+                      const parziale = !isCredit && !saldata && Number(inv.paid_amount || 0) > 0.005;
                       return (
-                        <div key={inv.id} className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-muted/50 active:bg-muted cursor-pointer" onClick={() => navigate(`/azienda/fatturazione/${inv.id}`)}>
+                        <button
+                          key={inv.id}
+                          type="button"
+                          onClick={() => navigate(`/azienda/fatturazione/${inv.id}`)}
+                          className="tap-compact flex w-full items-center gap-2.5 px-3 py-2.5 text-left active:bg-muted"
+                        >
                           <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-mono text-xs">{inv.invoice_number || "—"}</span>
-                              <Badge variant="secondary" className={`text-xs ${cfg.color}`}>{cfg.label}</Badge>
-                              {inv.external_provider && (
-                                <span className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground">
-                                  <Cloud className="h-2.5 w-2.5" />{PROVIDER_LABELS[inv.external_provider] || inv.external_provider}
-                                </span>
-                              )}
+                            <div className="truncate text-[13px] font-semibold leading-tight">{inv.client_company_name || "—"}</div>
+                            <div className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground">
+                              {inv.invoice_number ? `N. ${inv.invoice_number} · ` : ""}
+                              {inv.issue_date ? format(new Date(inv.issue_date), "dd/MM", { locale: it }) : "—"}
+                              {gg ? <span className="font-medium text-rose-600"> · da {gg} gg</span> : ""}
                             </div>
-                            <p className="font-medium text-sm mt-0.5 truncate">{inv.client_company_name}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {inv.issue_date ? format(new Date(inv.issue_date), "dd/MM/yy", { locale: it }) : "—"}
-                              {(() => {
-                                const gg = !["paid", "cancelled"].includes(inv.status) ? giorniScaduta(inv.due_date) : null;
-                                if (gg) return <span className="font-medium text-rose-600"> · scaduta da {gg} gg</span>;
-                                return inv.due_date ? ` · scad. ${format(new Date(inv.due_date), "dd/MM/yy", { locale: it })}` : "";
-                              })()}
-                            </p>
                           </div>
-                          <div className="text-right shrink-0 text-sm">
-                            <ImportoInfo inv={inv} />
+                          <div className="shrink-0 text-right">
+                            <div className={cn("text-[13px] font-semibold leading-tight tabular-nums", isCredit && "text-rose-600")}>
+                              {isCredit ? "−" : ""}{formatCurrency(Number(inv.total || 0))}
+                            </div>
+                            <div className={cn(
+                              "mt-0.5 text-[11px] leading-tight",
+                              saldata ? "text-green-600" : parziale ? "text-amber-600" : eff === "overdue" ? "text-rose-600" : "text-muted-foreground",
+                            )}>
+                              {isCredit ? "Nota di credito" : saldata ? "Saldata" : parziale ? `Residuo ${formatCurrency(residuo)}` : cfg.label}
+                            </div>
                           </div>
-                        </div>
+                        </button>
                       );
                     })}
                   </div>
                 </div>
               ))}
             </div>
-            {/* Desktop table — intestazioni di mese con subtotale */}
+            {/* Desktop table — intestazioni di mese con subtotale. Sotto 1280
+                senza «Origine» e senza le iniziali del cliente: a 1024 la
+                tabella usciva di 20px. */}
             <div className="hidden sm:block rounded-lg border overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -924,7 +981,7 @@ export default function InvoicesList() {
                     <th className="text-left p-3 font-medium">Scadenza</th>
                     <th className="text-right p-3 font-medium">Importo</th>
                     <th className="text-left p-3 font-medium">Stato</th>
-                    <th className="text-left p-3 font-medium">Origine</th>
+                    <th className="hidden text-left p-3 font-medium xl:table-cell">Origine</th>
                     <th className="p-3 w-10"></th>
                   </tr>
                 </thead>
@@ -943,7 +1000,7 @@ export default function InvoicesList() {
                             <td className="p-3 font-mono text-xs">{inv.invoice_number || "—"}</td>
                             <td className="p-3">
                               <div className="flex items-center gap-2">
-                                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-semibold text-muted-foreground">
+                                <span className="hidden h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-semibold text-muted-foreground xl:flex">
                                   {clienteInitials(inv.client_company_name)}
                                 </span>
                                 <span className="font-medium">{inv.client_company_name || "—"}</span>
@@ -952,7 +1009,7 @@ export default function InvoicesList() {
                             <td className="p-3 text-muted-foreground">{inv.issue_date ? format(new Date(inv.issue_date), "dd/MM/yy", { locale: it }) : "—"}</td>
                             <td className="p-3">
                               {(() => {
-                                const gg = !["paid", "cancelled"].includes(inv.status) ? giorniScaduta(inv.due_date) : null;
+                                const gg = inv.document_type !== "credit_note" && !["paid", "cancelled"].includes(inv.status) ? giorniScaduta(inv.due_date) : null;
                                 return gg
                                   ? <span className="text-xs font-medium text-rose-600">Scaduta da {gg} {gg === 1 ? "giorno" : "giorni"}</span>
                                   : <span className="text-muted-foreground">{inv.due_date ? format(new Date(inv.due_date), "dd/MM/yy", { locale: it }) : "—"}</span>;
@@ -979,7 +1036,7 @@ export default function InvoicesList() {
                                 })()}
                               </div>
                             </td>
-                            <td className="p-3">
+                            <td className="hidden p-3 xl:table-cell">
                               {inv.external_provider ? (
                                 <Badge variant="outline" className="text-xs gap-1 font-normal">
                                   <Cloud className="h-3 w-3 text-muted-foreground" />
@@ -1029,10 +1086,60 @@ export default function InvoicesList() {
           )}
         </TabsContent>
 
-        <TabsContent value="report" className="mt-4">
-          <BillingReports embedded />
+        <TabsContent value="report" className="mt-4 max-sm:mt-3">
+          {/* L'anno è quello della testata (niente secondo selettore, anche
+              da tablet: erano due «2026» uno sotto l'altro). */}
+          <BillingReports embedded anno={yearFilter} />
         </TabsContent>
       </Tabs>
+
+      {/* Mobile: tipo di documento, stato e mese in un pannello dal basso. */}
+      <PannelloFiltri
+        aperto={filtriMobileAperti}
+        onAperto={setFiltriMobileAperti}
+        attivi={nFiltriMobile}
+        onAzzera={() => { setDocTab("fatture"); setStatusFilter("all"); setMonthFilter(null); }}
+        risultati={filtered.length}
+      >
+        <PilloleFiltro
+          titolo="Documenti"
+          valore={docTab}
+          onScegli={(v) => { setDocTab(v); setMonthFilter(null); }}
+          scelte={[
+            { value: "fatture" as DocTab, label: "Fatture", n: docCounts.fatture },
+            { value: "note_credito" as DocTab, label: "Note di credito", n: docCounts.note_credito },
+            { value: "proforma" as DocTab, label: "Pro forma", n: docCounts.proforma },
+            { value: "cestino" as DocTab, label: "Cestino", n: docCounts.cestino },
+          ].filter((c) => c.n > 0 || c.value === docTab || c.value === "fatture")}
+        />
+        <PilloleFiltro
+          titolo="Stato"
+          valore={statusFilter}
+          onScegli={setStatusFilter}
+          scelte={[
+            { value: "all", label: "Tutte" },
+            { value: "unpaid", label: "Da incassare" },
+            { value: "overdue", label: "Scadute" },
+            { value: "paid", label: "Pagate" },
+            { value: "draft", label: "Bozze" },
+            { value: "issued", label: "Emesse" },
+            { value: "sent", label: "Inviate" },
+          ]}
+        />
+        {yearFilter !== "all" && (
+          <PilloleFiltro
+            titolo={`Mese ${stripYear}`}
+            valore={monthFilter ?? "tutti"}
+            onScegli={(v) => setMonthFilter(v === "tutti" ? null : v)}
+            scelte={[
+              { value: "tutti", label: "Tutto l'anno" },
+              ...MONTH_ABBR
+                .map((m, idx) => ({ value: String(idx + 1).padStart(2, "0"), label: m }))
+                .filter((m) => (monthStrip[m.value]?.count ?? 0) > 0 || m.value === monthFilter),
+            ]}
+          />
+        )}
+      </PannelloFiltri>
     </div>
   );
 }

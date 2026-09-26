@@ -1428,7 +1428,8 @@ function OrderDetailInner() {
                 indirizzoLavori={order.indirizzo_lavori}
               />
               <div className="space-y-4">
-                <Card>
+                {/* Mobile no: rimandava alla scheda Cantiere, che è lì accanto. */}
+                <Card className="max-sm:hidden">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base">
                       Organizzazione del cantiere
@@ -1592,7 +1593,7 @@ function OrderDetailInner() {
                   (i) => i.status === "in_magazzino",
                 ).length;
                 return (
-                  <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 rounded-lg border bg-muted/30 px-4 py-3">
+                  <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 rounded-lg border bg-muted/30 px-4 py-3 max-sm:gap-x-3 max-sm:px-3 max-sm:py-2">
                     <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
                       <span className="text-muted-foreground">
                         <strong className="text-foreground">
@@ -1615,7 +1616,8 @@ function OrderDetailInner() {
                     </div>
                     <div className="text-sm">
                       <span className="text-muted-foreground">
-                        Costo sulle righe articolo{" "}
+                        <span className="max-sm:hidden">Costo sulle righe articolo</span>
+                        <span className="sm:hidden">Costo</span>{" "}
                       </span>
                       <strong className="tabular-nums">
                         {formatCurrency(tot)}
@@ -1677,7 +1679,10 @@ function OrderDetailInner() {
                 }))}
               />
             )}
-            <OrderSerialsTrackingCard orderId={id!} orderItems={orderItems} />
+            {/* Seriali e garanzie: da computer (a mano, articolo per articolo). */}
+            <div className="max-sm:hidden">
+              <OrderSerialsTrackingCard orderId={id!} orderItems={orderItems} />
+            </div>
           </TabsContent>
 
           {/* Tab: Finanza */}
@@ -1755,9 +1760,11 @@ function OrderDetailInner() {
                 quando l'acconto non copre i fornitori. Additiva, non tocca il
                 Conto economico. Richiede ANCHE canViewCosts: il costo
                 materiali dei fornitori è metà del suo messaggio. */}
+            {/* Mobile no: è una stima d'ufficio (materiali contro acconto). */}
             {permissions.canViewOrderAmounts &&
               permissions.canViewCosts &&
               (collectedGross > 0 || costoMaterialiGross > 0) && (
+                <div className="max-sm:hidden">
                 <QuoteCard
                   title={
                     <span className="flex items-center gap-2">
@@ -1847,9 +1854,14 @@ function OrderDetailInner() {
                     </p>
                   </div>
                 </QuoteCard>
+                </div>
               )}
 
-            <OrderErrors orderId={id!} />
+            {/* Errori e perdite: il riquadro parla dell'azienda (ultimi 12 mesi)
+                e si registra al computer. */}
+            <div className="max-sm:hidden">
+              <OrderErrors orderId={id!} />
+            </div>
             <div id="section-ritenute" className="scroll-mt-24">
               <RitenuteTab orderId={id!} />
             </div>

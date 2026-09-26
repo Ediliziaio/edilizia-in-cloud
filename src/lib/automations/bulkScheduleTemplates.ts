@@ -78,7 +78,7 @@ export const BULK_SCHEDULE_TEMPLATES: BulkScheduleTemplate[] = [
   {
     id: "riepilogo_titolare_mattutino",
     name: "Riepilogo titolare 08:00",
-    description: "Ogni mattina alle 8 ai company_admin: cantieri aperti, operai oggi, crediti scaduti, appuntamenti 48h.",
+    description: "Ogni mattina alle 8 agli amministratori: cantieri aperti, operai oggi, crediti scaduti, appuntamenti 48h.",
     icon: "👔",
     category: "operativo",
     priority: 8,
@@ -97,7 +97,7 @@ export const BULK_SCHEDULE_TEMPLATES: BulkScheduleTemplate[] = [
   {
     id: "alert_crediti_settimanale",
     name: "Alert crediti scaduti — lunedì",
-    description: "Ogni lunedì alle 9:00 ai company_admin: stato crediti scaduti per pianificare i solleciti.",
+    description: "Ogni lunedì alle 9:00 agli amministratori: stato crediti scaduti per pianificare i solleciti.",
     icon: "💸",
     category: "finanza",
     priority: 7,
@@ -116,7 +116,7 @@ export const BULK_SCHEDULE_TEMPLATES: BulkScheduleTemplate[] = [
   {
     id: "reminder_chiusura_settimana",
     name: "Riepilogo settimanale venerdì",
-    description: "Venerdì alle 17:00 ai company_admin con sintesi settimana + cose chiuse / aperte.",
+    description: "Venerdì alle 17:00 agli amministratori con sintesi settimana + cose chiuse / aperte.",
     icon: "📅",
     category: "operativo",
     priority: 6,
@@ -136,7 +136,7 @@ export const BULK_SCHEDULE_TEMPLATES: BulkScheduleTemplate[] = [
   {
     id: "promemoria_durc_mensile",
     name: "Reminder DURC mensile",
-    description: "Il 1° di ogni mese alle 9:00 ai company_admin per ricordare di verificare i DURC fornitori/subappaltatori.",
+    description: "Il 1° di ogni mese alle 9:00 agli amministratori per ricordare di verificare i DURC fornitori/subappaltatori.",
     icon: "📋",
     category: "compliance",
     priority: 5,

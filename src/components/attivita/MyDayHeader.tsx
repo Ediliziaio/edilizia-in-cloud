@@ -1,13 +1,15 @@
 import { useMyTaskCount } from "@/hooks/useMyTaskCount";
 import { useAuth } from "@/contexts/AuthContext";
 import { AlertTriangle, CalendarDays, Clock } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 interface MyDayHeaderProps {
   estimatedHoursToday?: number;
+  /** Dentro «Attività» il saluto è già nella testata della pagina. */
+  senzaSaluto?: boolean;
 }
 
-export function MyDayHeader({ estimatedHoursToday }: MyDayHeaderProps) {
+export function MyDayHeader({ estimatedHoursToday, senzaSaluto = false }: MyDayHeaderProps) {
   const { profile } = useAuth();
   const { data: count } = useMyTaskCount();
 
@@ -15,65 +17,42 @@ export function MyDayHeader({ estimatedHoursToday }: MyDayHeaderProps) {
   const saluto = ora < 12 ? "Buongiorno" : ora < 18 ? "Buon pomeriggio" : "Buonasera";
   const nome = profile?.first_name || "utente";
 
+  const numeri = [
+    { label: "Da fare oggi", value: String(count?.dueToday ?? 0), icon: CalendarDays, colore: "text-primary", allarme: false },
+    { label: "Scadute", value: String(count?.overdue ?? 0), icon: AlertTriangle, colore: "text-destructive", allarme: !!count?.overdue },
+    { label: "Totale aperte", value: String(count?.total ?? 0), icon: Clock, colore: "text-muted-foreground", allarme: false },
+    ...(estimatedHoursToday != null && estimatedHoursToday > 0
+      ? [{ label: "Stimate oggi", value: `~${estimatedHoursToday}h`, icon: Clock, colore: "text-primary", allarme: false }]
+      : []),
+  ];
+
   return (
-    <div className="space-y-4">
-      <div>
-        <h2 className="text-xl font-semibold">{saluto}, {nome} 👋</h2>
-        <p className="text-sm text-muted-foreground">
-          {new Date().toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}
-        </p>
-      </div>
+    <div className="space-y-3">
+      {!senzaSaluto && (
+        <div>
+          <h2 className="text-xl font-semibold">{saluto}, {nome} 👋</h2>
+          <p className="text-sm text-muted-foreground">
+            {new Date().toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}
+          </p>
+        </div>
+      )}
 
-      <div className={`grid grid-cols-1 gap-3 ${estimatedHoursToday ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="rounded-lg bg-primary/10 p-2">
-              <CalendarDays className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">{count?.dueToday ?? 0}</p>
-              <p className="text-xs text-muted-foreground">Da fare oggi</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className={count?.overdue ? "border-destructive/30" : ""}>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="rounded-lg bg-destructive/10 p-2">
-              <AlertTriangle className="h-5 w-5 text-destructive" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">{count?.overdue ?? 0}</p>
-              <p className="text-xs text-muted-foreground">Scadute</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="rounded-lg bg-muted p-2">
-              <Clock className="h-5 w-5 text-muted-foreground" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">{count?.total ?? 0}</p>
-              <p className="text-xs text-muted-foreground">Totale aperte</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {estimatedHoursToday != null && estimatedHoursToday > 0 && (
-          <Card className="border-primary/20">
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className="rounded-lg bg-primary/10 p-2">
-                <Clock className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">~{estimatedHoursToday}h</p>
-                <p className="text-xs text-muted-foreground">Stimate oggi</p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+      {/* Pastiglie come i contatori di «Tutte le attività»: erano tre riquadri
+          da un terzo di pagina, a 1440px 380px l'uno con dentro un numero. */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        {numeri.map((n) => (
+          <div
+            key={n.label}
+            className={cn(
+              "flex items-center gap-2 rounded-lg border bg-card px-2.5 py-1.5 shadow-sm",
+              n.allarme && "border-destructive/30",
+            )}
+          >
+            <n.icon className={cn("h-4 w-4 shrink-0", n.colore)} />
+            <span className="text-base font-bold tabular-nums leading-none">{n.value}</span>
+            <span className="text-xs text-muted-foreground">{n.label}</span>
+          </div>
+        ))}
       </div>
     </div>
   );

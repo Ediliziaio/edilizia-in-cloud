@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { MoveHorizontal } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface Props {
   /** Nome prop preferito. */
@@ -14,6 +15,11 @@ interface Props {
   afterLabel?: string;
   className?: string;
   compact?: boolean;
+  /**
+   * L'originale a sinistra della maniglia e il render a destra (predefinito),
+   * come dicono «Prima / Dopo» e le etichette. Con `false` il render sta a
+   * sinistra: le etichette seguono comunque le immagini.
+   */
   beforeOnLeft?: boolean;
 }
 
@@ -26,7 +32,7 @@ export function BeforeAfterSlider({
   afterLabel = "Render AI",
   className = "",
   compact = false,
-  beforeOnLeft = false,
+  beforeOnLeft = true,
 }: Props) {
   const before = beforeUrl ?? beforeSrc ?? "";
   const after = afterUrl ?? afterSrc ?? "";
@@ -34,6 +40,10 @@ export function BeforeAfterSlider({
   const overlayImage = beforeOnLeft ? before : after;
   const baseAlt = beforeOnLeft ? afterLabel : beforeLabel;
   const overlayAlt = beforeOnLeft ? beforeLabel : afterLabel;
+  // L'immagine sovrapposta occupa la parte a sinistra della maniglia: tutta
+  // a destra (100) si vede solo lei, tutta a sinistra (0) solo quella sotto.
+  const posizioneOriginale = beforeOnLeft ? 100 : 0;
+  const posizioneRender = beforeOnLeft ? 0 : 100;
 
   const [position, setPosition] = useState(50);
   const [beforeRatio, setBeforeRatio] = useState<number | undefined>();
@@ -229,22 +239,34 @@ export function BeforeAfterSlider({
 
   return (
     <div className="space-y-2">
+      {/* Telefono: un selettore solo (originale · confronto · render) al posto
+          di due bottoni grandi; la maniglia resta trascinabile. */}
       {!compact && (
-      <div className="grid grid-cols-2 gap-2 sm:hidden">
-        <button
-          type="button"
-          className="min-h-11 rounded-lg border border-border bg-background px-3 text-sm font-medium active:scale-[0.99]"
-          onClick={() => setPosition(0)}
-        >
-          Solo originale
-        </button>
-        <button
-          type="button"
-          className="min-h-11 rounded-lg border border-border bg-background px-3 text-sm font-medium active:scale-[0.99]"
-          onClick={() => setPosition(100)}
-        >
-          Solo render
-        </button>
+      <div className="grid grid-cols-3 gap-0.5 rounded-lg bg-muted p-0.5 sm:hidden" role="group" aria-label="Cosa mostrare">
+        {([
+          ["originale", beforeLabel, posizioneOriginale],
+          ["confronto", "Confronta", 50],
+          ["render", afterLabel, posizioneRender],
+        ] as const).map(([chiave, etichetta, valore]) => {
+          const attiva =
+            chiave === "confronto"
+              ? position !== posizioneOriginale && position !== posizioneRender
+              : position === valore;
+          return (
+            <button
+              key={chiave}
+              type="button"
+              aria-pressed={attiva}
+              onClick={() => setPosition(valore)}
+              className={cn(
+                "h-10 min-w-0 truncate rounded-md px-2 text-[13px] font-medium transition-colors",
+                attiva ? "bg-background text-foreground shadow-sm" : "text-muted-foreground",
+              )}
+            >
+              {etichetta}
+            </button>
+          );
+        })}
       </div>
       )}
 
@@ -271,11 +293,12 @@ export function BeforeAfterSlider({
           </div>
         )}
 
+        {/* La dissolvenza d'ingresso va al render, sotto o sopra che stia. */}
         {baseImage && (
           <img loading="lazy"
             src={baseImage}
             alt={baseAlt}
-            className={`absolute inset-0 h-full w-full ${baseObjectFit} block`}
+            className={`absolute inset-0 h-full w-full ${baseObjectFit} block ${beforeOnLeft ? `transition-opacity duration-300 ${afterReady ? "opacity-100" : "opacity-0"}` : ""}`}
             style={baseObjectPosition ? { objectPosition: baseObjectPosition } : undefined}
             draggable={false}
           />
@@ -289,7 +312,7 @@ export function BeforeAfterSlider({
             <img loading="lazy"
               src={overlayImage}
               alt={overlayAlt}
-              className={`absolute inset-0 h-full w-full ${overlayObjectFit} block transition-opacity duration-300 ${afterReady ? "opacity-100" : "opacity-0"}`}
+              className={`absolute inset-0 h-full w-full ${overlayObjectFit} block ${beforeOnLeft ? "" : `transition-opacity duration-300 ${afterReady ? "opacity-100" : "opacity-0"}`}`}
               style={overlayObjectPosition ? { objectPosition: overlayObjectPosition } : undefined}
               draggable={false}
             />
@@ -321,11 +344,26 @@ export function BeforeAfterSlider({
           </div>
         </div>
 
-        <div className="pointer-events-none absolute bottom-2 left-2 rounded bg-black/60 px-2 py-0.5 text-xs text-white">
-          {beforeLabel}
+        {/* Ogni etichetta sta sul lato della sua immagine (prima il render
+            stava a sinistra con scritto «Originale») e sparisce quando la
+            maniglia copre quel lato. */}
+        <div
+          className={cn(
+            "pointer-events-none absolute bottom-2 left-2 rounded px-2 py-0.5 text-xs text-white transition-opacity max-sm:text-[11px]",
+            beforeOnLeft ? "bg-black/60" : "bg-primary/80",
+            position < 12 && "opacity-0",
+          )}
+        >
+          {overlayAlt}
         </div>
-        <div className="pointer-events-none absolute bottom-2 right-2 rounded bg-primary/80 px-2 py-0.5 text-xs text-white">
-          {afterLabel}
+        <div
+          className={cn(
+            "pointer-events-none absolute bottom-2 right-2 rounded px-2 py-0.5 text-xs text-white transition-opacity max-sm:text-[11px]",
+            beforeOnLeft ? "bg-primary/80" : "bg-black/60",
+            position > 88 && "opacity-0",
+          )}
+        >
+          {baseAlt}
         </div>
       </div>
     </div>

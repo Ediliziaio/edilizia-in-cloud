@@ -43,7 +43,8 @@ export function BulkScheduleTemplateGallery({ onSelect, onSkip }: Props) {
     <div className="space-y-3">
       <div className="space-y-1">
         <h3 className="text-sm font-semibold">Parti da un template?</h3>
-        <p className="text-xs text-muted-foreground">
+        {/* Da tablet basta il titolo: la frase ripeteva cosa fa il click. */}
+        <p className="text-xs text-muted-foreground sm:hidden">
           7 messaggi pronti per i casi più comuni. Click → personalizza nello step successivo.
         </p>
       </div>
@@ -85,7 +86,10 @@ export function BulkScheduleTemplateGallery({ onSelect, onSkip }: Props) {
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground mt-1 leading-snug">{t.description}</p>
-                  <div className="mt-1.5 flex items-center gap-2 text-[10px] text-slate-400">
+                  {/* Espressione cron e chiave del destinatario («0 7 * * 1-5 ·
+                      all_workers») sono dati tecnici: il quando e il chi li dice
+                      già la descrizione. Tolti da tablet in su. */}
+                  <div className="mt-1.5 flex items-center gap-2 text-[10px] text-slate-400 sm:hidden">
                     <code className="font-mono">{t.config.cron}</code>
                     <span>·</span>
                     <span>{t.config.target.type}</span>

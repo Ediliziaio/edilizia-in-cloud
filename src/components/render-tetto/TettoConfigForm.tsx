@@ -196,11 +196,12 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
   ];
 
   return (
-    <div className="space-y-6">
-      <div className="rounded-lg border bg-muted/30 p-4">
+    <div className="space-y-6 max-md:space-y-4">
+      {/* Telefono: i controlli tecnici del render (etichette del prompt) restano al computer. */}
+      <div className="rounded-lg border bg-muted/30 p-4 max-md:hidden">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <Label className="text-sm font-semibold">Controlli tecnici del render</Label>
+            <Label className="text-sm font-semibold max-md:text-[13px]">Controlli tecnici del render</Label>
             <p className="mt-1 text-xs text-muted-foreground">
               Il render protegge geometria, falde non target, dettagli d'acqua, scossaline e accessori non selezionati.
             </p>
@@ -219,12 +220,12 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
       {/* ── Tipo intervento ────────────────────────────────────────────── */}
       <div className="space-y-3">
         <div>
-          <Label className="text-sm font-semibold">Tipo intervento *</Label>
-          <p className="text-xs text-muted-foreground mt-1">
+          <Label className="text-sm font-semibold max-md:text-[13px]">Tipo intervento *</Label>
+          <p className="text-xs text-muted-foreground mt-1 max-md:hidden">
             Definisce cosa puo cambiare davvero nel render e cosa deve restare intatto.
           </p>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2 max-sm:grid-cols-2 max-sm:gap-1.5">
           {INTERVENTI_TETTO.map(item => {
             const selected = (value.tipo_intervento ?? "sostituzione_manto") === item.value;
             return (
@@ -235,12 +236,12 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
                 } ${disabled ? "opacity-50 pointer-events-none" : ""}`}
                 onClick={() => !disabled && setIntervento(item.value)}
               >
-                <CardContent className="p-3 space-y-1">
+                <CardContent className="p-3 space-y-1 max-md:p-2.5">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-semibold">{item.label}</span>
-                    {selected && <Badge className="text-[10px] px-1.5 py-0">Attivo</Badge>}
+                    <span className="text-xs font-semibold max-md:text-[13px] max-md:leading-tight">{item.label}</span>
+                    {selected && <Badge className="text-[10px] px-1.5 py-0 max-md:hidden">Attivo</Badge>}
                   </div>
-                  <p className="text-[10px] text-muted-foreground leading-tight">{item.desc}</p>
+                  <p className="text-[10px] text-muted-foreground leading-tight max-md:hidden">{item.desc}</p>
                 </CardContent>
               </Card>
             );
@@ -250,8 +251,8 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
 
       {/* ── Target falde ───────────────────────────────────────────────── */}
       <div className="space-y-3">
-        <Label className="text-sm font-semibold">Falde target *</Label>
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
+        <Label className="text-sm font-semibold max-md:text-[13px]">Falde target *</Label>
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2 max-sm:grid-cols-2 max-sm:gap-1.5">
           {TARGET_FALDE.map(item => {
             const selected = (value.target?.scope ?? "tutto_tetto") === item.value;
             return (
@@ -262,9 +263,9 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
                 } ${disabled ? "opacity-50 pointer-events-none" : ""}`}
                 onClick={() => !disabled && setTarget("scope", item.value)}
               >
-                <CardContent className="p-3 space-y-1">
-                  <span className="text-xs font-semibold">{item.label}</span>
-                  <p className="text-[10px] text-muted-foreground leading-tight">{item.desc}</p>
+                <CardContent className="p-3 space-y-1 max-md:p-2.5">
+                  <span className="text-xs font-semibold max-md:text-[13px] max-md:leading-tight">{item.label}</span>
+                  <p className="text-[10px] text-muted-foreground leading-tight max-md:hidden">{item.desc}</p>
                 </CardContent>
               </Card>
             );
@@ -272,7 +273,7 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
         </div>
         {(value.target?.scope ?? "tutto_tetto") === "zona_specifica" && (
           <div className="space-y-1.5">
-            <Label className="text-xs">Descrizione zona</Label>
+            <Label className="text-xs max-md:text-[11px]">Descrizione zona</Label>
             <Input
               value={value.target?.descrizione_zona ?? ""}
               onChange={e => setTarget("descrizione_zona", e.target.value)}
@@ -285,8 +286,8 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
 
       {/* ── Tipo manto (card grid) ──────────────────────────────────────── */}
       <div className="space-y-2">
-        <Label className="text-sm font-semibold">Tipo copertura *</Label>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        <Label className="text-sm font-semibold max-md:text-[13px]">Tipo copertura *</Label>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-sm:gap-1.5">
           {MANTI.map(m => {
             const selected = value.manto.tipo === m.value;
             return (
@@ -299,17 +300,17 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
                 } ${disabled ? "opacity-50 pointer-events-none" : ""}`}
                 onClick={() => !disabled && handleMantoSelect(m.value)}
               >
-                <CardContent className="p-3 flex flex-col gap-1">
+                <CardContent className="p-3 flex flex-col gap-1 max-md:p-2.5">
                   <div className="flex items-center gap-2">
                     <div
                       className="w-5 h-5 rounded-full border"
                       style={{ backgroundColor: m.defaultColor }}
                     />
-                    <span className="text-xs font-semibold truncate">{m.label}</span>
+                    <span className="text-xs font-semibold truncate max-md:text-[13px]">{m.label}</span>
                   </div>
-                  <p className="text-[10px] text-muted-foreground leading-tight">{m.desc}</p>
+                  <p className="text-[10px] text-muted-foreground leading-tight max-md:hidden">{m.desc}</p>
                   {selected && (
-                    <Badge variant="default" className="text-[10px] w-fit mt-0.5 px-1.5 py-0">
+                    <Badge variant="default" className="text-[10px] w-fit mt-0.5 px-1.5 py-0 max-md:hidden">
                       Selezionato
                     </Badge>
                   )}
@@ -321,9 +322,9 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
       </div>
 
       {/* ── Colore + finitura ───────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-sm:grid-cols-2 max-sm:gap-2">
         <div className="space-y-1.5">
-          <Label>Colore manto</Label>
+          <Label className="max-md:text-[11px]">Colore manto</Label>
           <div className="flex items-center gap-2">
             <Input
               type="color"
@@ -342,7 +343,7 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
           </div>
         </div>
         <div className="space-y-1.5">
-          <Label>Nome colore</Label>
+          <Label className="max-md:text-[11px]">Nome colore</Label>
           <Input
             value={value.manto.colore_nome ?? ""}
             onChange={e => setManto("colore_nome", e.target.value)}
@@ -351,7 +352,7 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
           />
         </div>
         <div className="space-y-1.5">
-          <Label>Finitura</Label>
+          <Label className="max-md:text-[11px]">Finitura</Label>
           <Select value={value.manto.finitura} onValueChange={v => setManto("finitura", v as FinituraMantoTetto)} disabled={disabled}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -362,11 +363,11 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
       </div>
 
       {/* ── Isolamento / sovracopertura ────────────────────────────────── */}
-      <div className="space-y-3 border rounded-lg p-4">
+      <div className="space-y-3 border rounded-lg p-4 max-md:p-3">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <Label className="text-sm font-semibold">Isolamento / sovracopertura</Label>
-            <p className="text-xs text-muted-foreground mt-1">
+            <Label className="text-sm font-semibold max-md:text-[13px]">Isolamento / sovracopertura</Label>
+            <p className="text-xs text-muted-foreground mt-1 max-md:hidden">
               Aggiunge spessore reale a bordo falda, gronde e scossaline senza deformare l'edificio.
             </p>
           </div>
@@ -377,9 +378,9 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
           />
         </div>
         {(value.isolamento?.attivo ?? false) && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-sm:grid-cols-2 max-sm:gap-2">
             <div className="space-y-1.5">
-              <Label className="text-xs">Sistema</Label>
+              <Label className="text-xs max-md:text-[11px]">Sistema</Label>
               <Select
                 value={value.isolamento?.tipo ?? "sarking_legno"}
                 onValueChange={v => setIsolamento("tipo", v as NonNullable<typeof value.isolamento>["tipo"])}
@@ -392,7 +393,7 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Spessore indicativo</Label>
+              <Label className="text-xs max-md:text-[11px]">Spessore indicativo</Label>
               <Select
                 value={String(value.isolamento?.spessore_cm ?? 10)}
                 onValueChange={v => setIsolamento("spessore_cm", Number(v) as NonNullable<typeof value.isolamento>["spessore_cm"])}
@@ -409,9 +410,9 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
       </div>
 
       {/* ── Grondaie ────────────────────────────────────────────────────── */}
-      <div className="space-y-3 border rounded-lg p-4">
+      <div className="space-y-3 border rounded-lg p-4 max-md:p-3">
         <div className="flex items-center justify-between">
-          <Label className="text-sm font-semibold">Grondaie e pluviali</Label>
+          <Label className="text-sm font-semibold max-md:text-[13px]">Grondaie e pluviali</Label>
           <Switch
             checked={value.grondaie.attivo}
             onCheckedChange={v => setGrondaie("attivo", v)}
@@ -419,9 +420,9 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
           />
         </div>
         {value.grondaie.attivo && (
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-4 max-md:gap-2">
             <div className="space-y-1.5">
-              <Label className="text-xs">Materiale</Label>
+              <Label className="text-xs max-md:text-[11px]">Materiale</Label>
               <Select value={value.grondaie.materiale} onValueChange={v => setGrondaie("materiale", v as MaterialeGrondaia)} disabled={disabled}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -430,7 +431,7 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Colore grondaia</Label>
+              <Label className="text-xs max-md:text-[11px]">Colore grondaia</Label>
               <div className="flex items-center gap-2">
                 <Input
                   type="color"
@@ -452,9 +453,9 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
       </div>
 
       {/* ── Lucernari ───────────────────────────────────────────────────── */}
-      <div className="space-y-3 border rounded-lg p-4">
+      <div className="space-y-3 border rounded-lg p-4 max-md:p-3">
         <div className="flex items-center justify-between">
-          <Label className="text-sm font-semibold">Lucernari</Label>
+          <Label className="text-sm font-semibold max-md:text-[13px]">Lucernari</Label>
           <Switch
             checked={value.lucernari.attivo}
             onCheckedChange={v => setLucernari("attivo", v)}
@@ -463,9 +464,9 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
         </div>
         {value.lucernari.attivo && (
           <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 max-md:gap-2">
               <div className="space-y-1.5">
-                <Label className="text-xs">Azione</Label>
+                <Label className="text-xs max-md:text-[11px]">Azione</Label>
                 <Select value={value.lucernari.azione} onValueChange={v => setLucernari("azione", v as "mantieni" | "aggiungi" | "rimuovi")} disabled={disabled}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -477,7 +478,7 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
               </div>
               {value.lucernari.azione === "aggiungi" && (
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Tipo</Label>
+                  <Label className="text-xs max-md:text-[11px]">Tipo</Label>
                   <Select value={value.lucernari.tipo ?? "piatto"} onValueChange={v => setLucernari("tipo", v as TipoLucernario)} disabled={disabled}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
@@ -488,9 +489,9 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
               )}
             </div>
             {value.lucernari.azione === "aggiungi" && (
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4 max-md:gap-2">
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Quantita</Label>
+                  <Label className="text-xs max-md:text-[11px]">Quantita</Label>
                   <Select
                     value={String(value.lucernari.quantita ?? 1)}
                     onValueChange={v => setLucernari("quantita", parseInt(v) as 1 | 2 | 3 | 4)}
@@ -503,7 +504,7 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Posizione</Label>
+                  <Label className="text-xs max-md:text-[11px]">Posizione</Label>
                   <Select
                     value={value.lucernari.posizione ?? "centrale"}
                     onValueChange={v => setLucernari("posizione", v as "centrale" | "laterale_sx" | "laterale_dx" | "distribuiti")}
@@ -525,9 +526,9 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
       </div>
 
       {/* ── Pannelli solari ─────────────────────────────────────────────── */}
-      <div className="space-y-3 border rounded-lg p-4">
+      <div className="space-y-3 border rounded-lg p-4 max-md:p-3">
         <div className="flex items-center justify-between">
-          <Label className="text-sm font-semibold">Pannelli solari</Label>
+          <Label className="text-sm font-semibold max-md:text-[13px]">Pannelli solari</Label>
           <Switch
             checked={value.pannelli_solari?.attivo ?? false}
             onCheckedChange={v => setPannelli("attivo", v)}
@@ -536,9 +537,9 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
         </div>
         {value.pannelli_solari?.attivo && (
           <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 max-md:gap-2">
               <div className="space-y-1.5">
-                <Label className="text-xs">Tipo pannello</Label>
+                <Label className="text-xs max-md:text-[11px]">Tipo pannello</Label>
                 <Select
                   value={value.pannelli_solari.tipo ?? "fotovoltaico_nero"}
                   onValueChange={v => setPannelli("tipo", v as "fotovoltaico_nero" | "fotovoltaico_blu" | "tegola_solare_integrata")}
@@ -553,7 +554,7 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">Quantita</Label>
+                <Label className="text-xs max-md:text-[11px]">Quantita</Label>
                 <Select
                   value={value.pannelli_solari.quantita ?? "medi"}
                   onValueChange={v => setPannelli("quantita", v as "pochi" | "medi" | "tanti")}
@@ -569,7 +570,7 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Posizione</Label>
+              <Label className="text-xs max-md:text-[11px]">Posizione</Label>
               <Select
                 value={value.pannelli_solari.posizione ?? "falda_principale"}
                 onValueChange={v => setPannelli("posizione", v as "falda_sud" | "falda_principale" | "distribuiti")}
@@ -589,13 +590,14 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
 
       {/* ── Note libere ─────────────────────────────────────────────────── */}
       <div className="space-y-1.5">
-        <Label>Note aggiuntive</Label>
+        <Label className="max-md:text-[13px] max-md:font-semibold">Note aggiuntive</Label>
         <Textarea
           value={value.note_libere ?? ""}
           onChange={e => onChange({ ...value, note_libere: e.target.value })}
           placeholder="Specifiche aggiuntive (es. mantieni antenna TV, aggiungi parafulmini...)"
           rows={2}
           disabled={disabled}
+          className="max-md:placeholder:text-[13px]"
         />
       </div>
     </div>

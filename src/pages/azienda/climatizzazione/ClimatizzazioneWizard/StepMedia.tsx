@@ -219,12 +219,14 @@ export default function StepMedia({ progettoId, media }: Props) {
   const busy = uploading || upsertMut.isPending;
 
   return (
-    <div className="space-y-3">
+    // Telefono: colonna con spazi fissi, così il titolo nascosto non lascia un buco in cima.
+    <div className="space-y-3 max-sm:flex max-sm:flex-col max-sm:gap-3 max-sm:space-y-0">
       {/* Header + azione upload */}
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
+        {/* Telefono: il titolo lo dice già il passo in alto. */}
+        <div className="max-sm:hidden">
           <h2 className="text-sm font-semibold text-slate-900">Foto e allegati</h2>
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-[11px] text-muted-foreground max-sm:hidden">
             Stato attuale, render di progetto, lavori simili e documenti. Compaiono nel preventivo PDF.
           </p>
         </div>
@@ -245,7 +247,7 @@ export default function StepMedia({ progettoId, media }: Props) {
           <Button
             type="button"
             size="sm"
-            className="gap-1.5 bg-orange-500 hover:bg-orange-600"
+            className={cn("gap-1.5 bg-orange-500 hover:bg-orange-600", ordered.length === 0 && "max-sm:hidden")}
             disabled={uploading || !companyId}
             onClick={() => fileInputRef.current?.click()}
           >
@@ -255,8 +257,21 @@ export default function StepMedia({ progettoId, media }: Props) {
         </div>
       </div>
 
+      {/* Telefono: al posto del riquadro vuoto un'area grande da toccare, che apre
+          fotocamera o galleria (il bottone in alto sparisce finché non c'è nulla). */}
+      {ordered.length === 0 && (
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading || !companyId}
+          className="flex h-36 w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-orange-200 bg-orange-50/40 text-orange-700 disabled:opacity-60 sm:hidden"
+        >
+          {uploading ? <Loader2 className="h-7 w-7 animate-spin" /> : <Camera className="h-7 w-7" />}
+          <span className="text-[13px] font-medium">Scatta o carica foto</span>
+        </button>
+      )}
       {ordered.length === 0 ? (
-        <Card>
+        <Card className="max-sm:hidden">
           <CardContent className="p-0">
             <EmptyState
               icon={ImageIcon}
@@ -272,7 +287,8 @@ export default function StepMedia({ progettoId, media }: Props) {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 max-sm:grid-cols-2 max-sm:gap-2">
+          {/* Telefono: due per riga, foto e didascalia; il cestino sta sulla foto. */}
           {ordered.map((m, index) => (
             <MediaCard
               key={m.id}
@@ -291,7 +307,7 @@ export default function StepMedia({ progettoId, media }: Props) {
       )}
 
       {ordered.length > 0 && (
-        <p className="text-center text-[11px] text-muted-foreground">
+        <p className="text-center text-[11px] text-muted-foreground max-sm:hidden">
           {ordered.length} {ordered.length === 1 ? "file" : "file"} · PNG, JPG, WEBP o PDF · max 8 MB
         </p>
       )}
@@ -328,7 +344,7 @@ function MediaCard({
 
   return (
     <Card className="overflow-hidden">
-      <CardContent className="space-y-2.5 p-2.5">
+      <CardContent className="space-y-2.5 p-2.5 max-sm:space-y-1.5 max-sm:p-1.5">
         {/* Anteprima */}
         <div className="relative aspect-[4/3] overflow-hidden rounded-lg border bg-muted/40">
           {pdf ? (
@@ -351,11 +367,24 @@ function MediaCard({
           ) : null}
           <Badge
             variant="outline"
-            className={cn("absolute left-1.5 top-1.5 gap-1 text-[10px] backdrop-blur", meta.badge)}
+            className={cn("absolute left-1.5 top-1.5 gap-1 text-[10px] backdrop-blur max-sm:hidden", meta.badge)}
           >
             <TipoIcon className="h-3 w-3" />
             {meta.label}
           </Badge>
+          {/* Telefono: il tipo lo dice la tendina sotto (via l'etichetta sulla foto)
+              e il cestino sta qui, al posto della riga di azioni con le frecce. */}
+          <Button
+            type="button"
+            size="icon"
+            variant="secondary"
+            className="tap-compact absolute right-1 top-1 h-7 w-7 bg-white/90 text-rose-600 shadow-sm hover:bg-white sm:hidden"
+            disabled={disabled}
+            onClick={onDelete}
+            aria-label="Elimina"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
         </div>
 
         {/* Tipo */}
@@ -385,7 +414,7 @@ function MediaCard({
         />
 
         {/* Azioni */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between max-sm:hidden">
           <div className="flex items-center gap-1">
             <Button
               type="button"

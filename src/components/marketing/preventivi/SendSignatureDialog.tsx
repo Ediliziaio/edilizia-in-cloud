@@ -113,15 +113,16 @@ export function SendSignatureDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Invia per Firma Elettronica</DialogTitle>
-          <DialogDescription>
-            Invia l'offerta {quoteNumber} al cliente: ricevera il link sicuro e il codice OTP per firmare.
+          <DialogDescription className="max-sm:sr-only">
+            Invia l'offerta {quoteNumber} al cliente: riceverà il link sicuro e il codice OTP per firmare.
           </DialogDescription>
         </DialogHeader>
 
         {!sent ? (
           <>
-            <div className="space-y-4 py-2">
-              <div className="space-y-2">
+            {/* Telefono: nome e validità sulla stessa riga, il messaggio in fondo. */}
+            <div className="space-y-4 py-2 max-sm:grid max-sm:grid-cols-3 max-sm:gap-3 max-sm:space-y-0 max-sm:py-0">
+              <div className="space-y-2 max-sm:order-1 max-sm:col-span-3">
                 <Label htmlFor="sig-email">Email destinatario *</Label>
                 <Input
                   id="sig-email"
@@ -132,7 +133,7 @@ export function SendSignatureDialog({
                 />
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-2 max-sm:order-2 max-sm:col-span-2">
                 <Label htmlFor="sig-name">Nome destinatario</Label>
                 <Input
                   id="sig-name"
@@ -142,8 +143,8 @@ export function SendSignatureDialog({
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="sig-message">Messaggio personalizzato (opzionale)</Label>
+              <div className="space-y-2 max-sm:order-4 max-sm:col-span-3">
+                <Label htmlFor="sig-message"><span className="max-sm:hidden">Messaggio personalizzato (opzionale)</span><span className="sm:hidden">Messaggio</span></Label>
                 <Textarea
                   id="sig-message"
                   value={message}
@@ -153,8 +154,8 @@ export function SendSignatureDialog({
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="sig-days">Validità (giorni)</Label>
+              <div className="space-y-2 max-sm:order-3">
+                <Label htmlFor="sig-days"><span className="max-sm:hidden">Validità (giorni)</span><span className="sm:hidden">Validità gg</span></Label>
                 <Input
                   id="sig-days"
                   type="number"
@@ -168,7 +169,8 @@ export function SendSignatureDialog({
             </div>
 
             <DialogFooter>
-              <Button variant="outline" onClick={() => onOpenChange(false)}>
+              {/* Telefono no: c'è la X. */}
+              <Button variant="outline" onClick={() => onOpenChange(false)} className="max-sm:hidden">
                 Annulla
               </Button>
               <Button onClick={handleSend} disabled={isSending || !email.trim()}>
@@ -187,7 +189,7 @@ export function SendSignatureDialog({
               <CheckCircle className="h-12 w-12 text-primary" />
               <p className="font-medium">Offerta inviata con successo!</p>
               <p className="text-sm text-muted-foreground">
-                Il cliente ricevera il link sicuro e il codice OTP per visualizzare e firmare l'offerta.
+                Il cliente riceverà il link sicuro e il codice OTP per visualizzare e firmare l'offerta.
               </p>
             </div>
 

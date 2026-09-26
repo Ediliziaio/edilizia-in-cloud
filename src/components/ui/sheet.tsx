@@ -4,6 +4,7 @@ import { X } from "lucide-react";
 import * as React from "react";
 
 import { cn } from "@/lib/utils";
+import { focusInizialeMobile } from "@/lib/focusInizialeMobile";
 
 const Sheet = SheetPrimitive.Root;
 
@@ -60,10 +61,10 @@ interface SheetContentProps
     VariantProps<typeof sheetVariants> {}
 
 const SheetContent = React.forwardRef<React.ElementRef<typeof SheetPrimitive.Content>, SheetContentProps>(
-  ({ side = "right", className, children, ...props }, ref) => (
+  ({ side = "right", className, children, onOpenAutoFocus, ...props }, ref) => (
     <SheetPortal>
       <SheetOverlay />
-      <SheetPrimitive.Content ref={ref} className={cn(sheetVariants({ side }), className)} {...props}>
+      <SheetPrimitive.Content ref={ref} className={cn(sheetVariants({ side }), className)} onOpenAutoFocus={focusInizialeMobile(onOpenAutoFocus)} {...props}>
         {/* Handle visivo da bottom-sheet: comunica che il pannello sale dal basso e si chiude */}
         {side === "bottom" && (
           <div aria-hidden="true" className="mx-auto -mt-2 mb-2 h-1.5 w-12 shrink-0 rounded-full bg-muted" />
@@ -85,7 +86,7 @@ const SheetHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElemen
 SheetHeader.displayName = "SheetHeader";
 
 const SheetFooter = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className={cn("flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2", className)} {...props} />
+  <div className={cn("flex flex-row flex-wrap max-sm:gap-2 max-sm:[&>*]:flex-1 sm:flex-nowrap sm:justify-end sm:space-x-2", className)} {...props} />
 );
 SheetFooter.displayName = "SheetFooter";
 

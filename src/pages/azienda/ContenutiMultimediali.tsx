@@ -1,9 +1,10 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 
 const PdfToolkitDialog = lazy(() =>
   import("@/components/documenti/PdfToolkitDialog").then((m) => ({ default: m.PdfToolkitDialog })),
 );
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { linkContatto, linkOpportunita } from "@/lib/marketing/linkCrm";
 import { useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
@@ -13,6 +14,8 @@ import {
   Calculator,
   CalendarClock,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   Clock3,
   CreditCard,
   Database as DatabaseIcon,
@@ -27,6 +30,7 @@ import {
   Link2,
   Loader2,
   Lock,
+  MoreHorizontal,
   Package,
   RefreshCw,
   Search,
@@ -45,6 +49,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -55,8 +60,10 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { CercaConFiltri, KpiMobili, PannelloFiltri, PilloleFiltro, RigaMobile } from "@/components/mobile/FiltriMobile";
 import { SmartDocumentImportModal } from "@/components/documenti/SmartDocumentImportModal";
 import { SmartDocumentInboxDialog } from "@/components/documenti/SmartDocumentInboxDialog";
 import { useAuth } from "@/contexts/AuthContext";
@@ -319,9 +326,9 @@ const TAB_DESCRIPTIONS: Record<DriveTab, string> = {
   preventivi: "Offerte, proposte e documenti commerciali",
   fiscale: "Fatture, DDT, ricevute e note",
   cantieri: "Foto, verbali, SAL e documenti di commessa",
-  crm: "Clienti, contatti, opportunita e lead",
+  crm: "Clienti, contatti, opportunità e lead",
   foto_media: "Foto, video e asset multimediali",
-  riservati: "Contratti, identita e documenti sensibili",
+  riservati: "Contratti, identità e documenti sensibili",
   altro: "File generici non ancora classificati",
 };
 
@@ -390,8 +397,8 @@ function entityLabel(table: string | null | undefined): string | null {
     profiles: "Contatto",
     purchase_orders: "Ordine acquisto",
     suppliers: "Fornitore",
-    opportunities: "Opportunita",
-    marketing_opportunities: "Opportunita",
+    opportunities: "Opportunità",
+    marketing_opportunities: "Opportunità",
     marketing_contacts: "Contatto marketing",
     marketing_documents: "Documento CRM",
     email_inbox: "Email ricevuta",
@@ -411,6 +418,25 @@ function entityLabel(table: string | null | undefined): string | null {
     documenti_subappaltatore: "Documento subappaltatore",
   };
   return labels[table] ?? table.replace(/_/g, " ");
+}
+
+/** Dove si apre il record a cui è collegato il documento (se ha una pagina). */
+function percorsoRecordCollegato(tabella: string | null, id: string | null): string | null {
+  if (!tabella || !id) return null;
+  switch (tabella) {
+    case "orders":
+      return `/azienda/ordini/${encodeURIComponent(id)}`;
+    case "customers":
+      return `/azienda/clienti/${encodeURIComponent(id)}`;
+    case "quotes":
+      return `/azienda/marketing/preventivi/${encodeURIComponent(id)}`;
+    case "marketing_contacts":
+      return linkContatto("/azienda/marketing", id);
+    case "marketing_opportunities":
+      return linkOpportunita("/azienda/marketing", id);
+    default:
+      return null;
+  }
 }
 
 function formatDate(value: string | null): string {
@@ -435,6 +461,29 @@ function formatDuration(ms: number | null): string | null {
   if (!ms || ms <= 0) return null;
   if (ms < 1000) return `${ms} ms`;
   return `${(ms / 1000).toFixed(ms >= 10_000 ? 0 : 1)} s`;
+}
+
+/** Il tipo di documento, se dice qualcosa in più dell'area («render» sotto «Render» no). */
+function tipoSeDiversoDallArea(item: Pick<MediaLibraryItem, "docType" | "areaLabel">): string | null {
+  const tipo = item.docType.replace(/_/g, " ").trim();
+  if (!tipo || tipo.toLowerCase() === item.areaLabel.trim().toLowerCase()) return null;
+  return tipo;
+}
+
+/**
+ * «Render infissi · bagno legno»: la verticale e, se dice qualcosa, il nome
+ * della foto di partenza. Prima «Render infissi e68fe4e8», col codice della
+ * sessione che non diceva niente (la data è già nella riga).
+ */
+function nomeRender(row: { vertical: string | null; original_photo_url: string | null }): string {
+  const base = `Render ${row.vertical ?? "AI"}`;
+  const foto = pathFileName(row.original_photo_url, "")
+    .replace(/\.[a-z0-9]+$/i, "")
+    .replace(/^\d{10,}[_-]?/, "")
+    .replace(/^original$/i, "")
+    .replace(/[_-]+/g, " ")
+    .trim();
+  return foto ? `${base} · ${foto}` : base;
 }
 
 function compactFacts(values: Array<string | null | undefined>): string[] {
@@ -830,10 +879,10 @@ async function loadMediaItems(companyId: string, options: MediaLibraryLoadOption
       storagePath: storagePathFromMaybeUrl(row.file_url, "marketing-attachments") ?? row.file_url,
       actorId: row.uploaded_by,
       actorLabel: actorLabel(actorLabels, row.uploaded_by),
-      linkedEntityLabel: row.opportunity_id ? "Opportunita" : "Contatto marketing",
+      linkedEntityLabel: row.opportunity_id ? "Opportunità" : "Contatto marketing",
       linkedEntityTable: row.opportunity_id ? "marketing_opportunities" : "marketing_contacts",
       linkedEntityId: row.opportunity_id ?? row.contact_id,
-      metadataFacts: compactFacts([row.opportunity_id ? "Associato a opportunita" : "Associato a contatto"]),
+      metadataFacts: compactFacts([row.opportunity_id ? "Associato a opportunità" : "Associato a contatto"]),
     }),
   );
 
@@ -918,8 +967,9 @@ async function loadMediaItems(companyId: string, options: MediaLibraryLoadOption
         metadataFacts: compactFacts([
           row.title ? `Titolo: ${row.title}` : null,
           typeof row.total === "number" ? `Totale: ${row.total.toLocaleString("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" })}` : null,
-          row.opportunity_id ? `Opportunita: ${row.opportunity_id}` : null,
-          row.contact_id ? `Contatto: ${row.contact_id}` : null,
+          // Il codice interno (uuid) non diceva niente a chi legge.
+          row.opportunity_id ? "Opportunità collegata" : null,
+          row.contact_id ? "Contatto collegato" : null,
           row.status ? `Stato preventivo: ${row.status}` : null,
         ]),
       }),
@@ -947,23 +997,28 @@ async function loadMediaItems(companyId: string, options: MediaLibraryLoadOption
     }),
   );
 
-  const renderSessionItems = renderSessionRows.map((row) =>
-    buildMediaLibraryItem({
+  const renderSessionItems = renderSessionRows.map((row) => {
+    // Si apre il render fatto; la foto di partenza solo se il render non c'è
+    // (prima era il contrario: «Apri» su un render mostrava la foto del cliente).
+    const risultato = firstExternalUrl(row.result_urls);
+    const originaleInArchivio: string | null =
+      row.original_photo_url && !isExternalUrl(row.original_photo_url) ? row.original_photo_url : null;
+    return buildMediaLibraryItem({
       id: `render-session:${row.id}`,
       source: "render",
-      fileName: `Render ${row.vertical ?? "AI"} ${row.id.slice(0, 8)}`,
+      fileName: nomeRender(row),
       docType: "render",
       status: row.status,
       createdAt: row.created_at,
       completedAt: row.processing_completed_at,
       fileSize: null,
       mimeType: "image/*",
-      storageBucket: row.original_photo_url && !isExternalUrl(row.original_photo_url) ? "render-originals" : null,
-      storagePath: row.original_photo_url && !isExternalUrl(row.original_photo_url) ? row.original_photo_url : null,
-      externalUrl: firstExternalUrl(row.result_urls) ?? (isExternalUrl(row.original_photo_url) ? row.original_photo_url : null),
+      storageBucket: !risultato && originaleInArchivio ? "render-originals" : null,
+      storagePath: !risultato ? originaleInArchivio : null,
+      externalUrl: risultato ?? (isExternalUrl(row.original_photo_url) ? row.original_photo_url : null),
       actorId: row.created_by,
       actorLabel: actorLabel(actorLabels, row.created_by),
-      linkedEntityLabel: row.opportunity_id ? "Opportunita" : row.contact_id ? "Contatto marketing" : null,
+      linkedEntityLabel: row.opportunity_id ? "Opportunità" : row.contact_id ? "Contatto marketing" : null,
       linkedEntityTable: row.opportunity_id ? "marketing_opportunities" : row.contact_id ? "marketing_contacts" : null,
       linkedEntityId: row.opportunity_id ?? row.contact_id,
       metadataFacts: compactFacts([
@@ -971,8 +1026,8 @@ async function loadMediaItems(companyId: string, options: MediaLibraryLoadOption
         row.result_urls?.length ? `Output generati: ${row.result_urls.length}` : null,
       ]),
       errorMessage: row.error_message,
-    }),
-  );
+    });
+  });
 
   const serramentiMediaItems = serramentiMediaRows.map((row) =>
     buildMediaLibraryItem({
@@ -1143,6 +1198,11 @@ export default function ContenutiMultimediali() {
   const [authExpired, setAuthExpired] = useState(false);
   const [droppedFile, setDroppedFile] = useState<File | null>(null);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
+  // Mobile: cartella nel pannello filtri, 25 documenti per pagina, dettaglio dal basso.
+  const [filtriMobiliAperti, setFiltriMobiliAperti] = useState(false);
+  const [paginaMobile, setPaginaMobile] = useState(1);
+  const [dettaglioMobile, setDettaglioMobile] = useState<MediaLibraryItem | null>(null);
+  const schermoStretto = useSchermoStretto();
 
   const {
     data: mediaLoadResult = EMPTY_MEDIA_LOAD_RESULT,
@@ -1260,6 +1320,31 @@ export default function ContenutiMultimediali() {
     setSelectedId(null);
   };
 
+  // Mobile: pagine da 25 righe (niente elenco con lo scorrimento interno) e
+  // cartelle come pillole nel pannello filtri, solo quelle con dei documenti.
+  const PER_PAGINA_MOBILE = 25;
+  const pagineMobili = Math.max(1, Math.ceil(filteredItems.length / PER_PAGINA_MOBILE));
+  const paginaMobileValida = Math.min(paginaMobile, pagineMobili);
+  const righeMobili = filteredItems.slice((paginaMobileValida - 1) * PER_PAGINA_MOBILE, paginaMobileValida * PER_PAGINA_MOBILE);
+  const cartellaMobile = activeCustomFolder ? `c:${activeCustomFolder.id}` : activeTab;
+  const scelteCartelleMobili = [
+    ...TABS.filter((tab) => tab === "tutti" || tab === activeTab || (countsByTab[tab] ?? 0) > 0).map((tab) => ({
+      value: tab as string,
+      label: TAB_LABELS[tab],
+      n: countsByTab[tab] ?? 0,
+    })),
+    ...customFolders.map((folder) => ({
+      value: `c:${folder.id}`,
+      label: folder.name,
+      n: countsByCustomFolder.get(folder.id) ?? 0,
+    })),
+  ];
+  const scegliCartellaMobile = (value: string) => {
+    if (value.startsWith("c:")) selectCustomFolder(value.slice(2));
+    else selectSystemFolder(value as DriveTab);
+    setPaginaMobile(1);
+  };
+
   const updateNewFolderName = (value: string) => {
     setNewFolderName(value);
     setNewFolderMatchQuery((current) => {
@@ -1337,6 +1422,11 @@ export default function ContenutiMultimediali() {
     }
 
     setOpeningId(item.id);
+    // La scheda si apre subito, dentro il clic: aperta dopo l'attesa del link
+    // firmato (che può anche riprovare per qualche secondo) Safari su iPhone la
+    // blocca come popup. Il documento ci entra appena il link è pronto.
+    const scheda = window.open("", "_blank");
+    if (scheda) scheda.opener = null;
     try {
       const { data, error: signedError } = await retryWithBackoff(
         () => supabase.storage.from(target.storageBucket).createSignedUrl(target.storagePath, 3600),
@@ -1354,8 +1444,10 @@ export default function ContenutiMultimediali() {
         throw new Error(signedError?.message ?? "URL firmato non generato");
       }
 
-      window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+      if (scheda) scheda.location.replace(data.signedUrl);
+      else window.location.assign(data.signedUrl);
     } catch (err) {
+      scheda?.close();
       toast.error("Non riesco ad aprire il file", {
         description: err instanceof Error ? err.message : "Verifica permessi e bucket del documento.",
       });
@@ -1388,43 +1480,49 @@ export default function ContenutiMultimediali() {
   }
 
   return (
-    <div className="space-y-5 pb-20 md:pb-0">
-      <div className="flex flex-col gap-4 rounded-md border bg-background p-5 md:flex-row md:items-start md:justify-between">
+    // max-sm:pb-0: sul telefono lo spazio per la barra in basso lo lascia già il layout.
+    <div className="space-y-5 pb-20 md:pb-0 max-sm:space-y-3 max-sm:pb-0">
+      {/* Titolo e «Carica» su una riga, senza riquadro né descrizione, come
+          già sul telefono. Da tablet c'erano quattro bottoni che andavano su
+          due righe: «Nuova cartella» è già il + della colonna Cartelle, Inbox
+          AI e strumenti PDF stanno nel menu «⋯» (sul telefono restano fuori). */}
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between max-sm:flex-row max-sm:items-center max-sm:justify-between max-sm:gap-2">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <div className="flex h-10 w-10 items-center justify-center rounded-md bg-orange-500 text-white">
-              <FolderOpen className="h-5 w-5" />
-            </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight">EiC Drive</h1>
-              <p className="text-sm text-muted-foreground">
-                Drive aziendale per documenti, foto, computi, allegati e import AI.
-              </p>
+              <h1 className="text-2xl font-bold tracking-tight max-sm:text-lg max-sm:leading-6">EiC Drive</h1>
             </div>
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => setShowFolderDialog(true)}>
-            <FolderPlus className="mr-2 h-4 w-4" />
-            Nuova cartella
-          </Button>
-          <Button variant="outline" onClick={() => setShowSmartInbox(true)}>
-            <Inbox className="mr-2 h-4 w-4" />
-            Inbox AI
-          </Button>
-          <Button variant="outline" onClick={() => setShowPdfTools(true)}>
-            <FileText className="mr-2 h-4 w-4" />
-            Strumenti PDF
-          </Button>
-          <Button onClick={() => setShowSmartImport(true)}>
-            <UploadCloud className="mr-2 h-4 w-4" />
-            Carica documento
+        <div className="flex flex-wrap gap-2 max-sm:shrink-0">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon" className="max-sm:hidden" aria-label="Altre azioni" title="Altre azioni">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem className="gap-2" onSelect={() => setShowSmartInbox(true)}>
+                <Inbox className="h-4 w-4" /> Inbox AI
+              </DropdownMenuItem>
+              <DropdownMenuItem className="gap-2" onSelect={() => setShowPdfTools(true)}>
+                <FileText className="h-4 w-4" /> Strumenti PDF
+              </DropdownMenuItem>
+              <DropdownMenuItem className="gap-2" onSelect={() => setShowFolderDialog(true)}>
+                <FolderPlus className="h-4 w-4" /> Nuova cartella
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button onClick={() => setShowSmartImport(true)} className="tap-compact max-sm:h-8 max-sm:px-3 max-sm:text-xs">
+            <UploadCloud className="mr-2 h-4 w-4 max-sm:mr-1.5" />
+            <span className="max-sm:hidden">Carica documento</span>
+            <span className="sm:hidden">Carica</span>
           </Button>
         </div>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-5">
+      <div className="grid gap-3 md:grid-cols-5 max-sm:hidden">
         <MetricCard label="Documenti" value={summary.total} icon={Archive} loading={isInitialMediaLoading} />
         <MetricCard label="Inbox AI" value={summary.aiInbox} icon={Brain} loading={isInitialMediaLoading} />
         <MetricCard label="Da verificare" value={summary.reviewRequired} icon={AlertTriangle} tone="warning" loading={isInitialMediaLoading} />
@@ -1432,7 +1530,23 @@ export default function ContenutiMultimediali() {
         <MetricCard label="Riservati" value={summary.reserved} icon={ShieldCheck} tone="restricted" loading={isInitialMediaLoading} />
       </div>
 
-      <IntegrationCoveragePanel coverage={integrationCoverage} loading={isInitialMediaLoading} />
+      {/* Mobile: due numeri; «Da classificare» apre la cartella omonima.
+          Dopo i riquadri del desktop: da primo figlio nascosto li sposterebbe. */}
+      <KpiMobili
+        className="sm:hidden"
+        voci={[
+          { label: "Documenti", valore: isInitialMediaLoading ? "…" : String(summary.total) },
+          {
+            label: "Da classificare",
+            valore: isInitialMediaLoading ? "…" : String(countsByTab.da_classificare ?? 0),
+            tono: (countsByTab.da_classificare ?? 0) > 0 ? "text-amber-600" : undefined,
+            onClick: () => scegliCartellaMobile(!activeCustomFolder && activeTab === "da_classificare" ? "tutti" : "da_classificare"),
+            attivo: !activeCustomFolder && activeTab === "da_classificare",
+          },
+        ]}
+      />
+
+      <IntegrationCoveragePanel coverage={integrationCoverage} loading={isInitialMediaLoading} className="max-sm:hidden" />
 
       {sourceWarnings.length > 0 ? (
         <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
@@ -1440,7 +1554,7 @@ export default function ContenutiMultimediali() {
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
             <div>
               <div className="font-medium">Archivio caricato parzialmente</div>
-              <p className="mt-1 text-xs leading-relaxed">
+              <p className="mt-1 text-xs leading-relaxed max-sm:hidden">
                 Alcune fonti non hanno risposto: {sourceWarnings.join(" · ")}. I documenti disponibili restano consultabili.
               </p>
             </div>
@@ -1448,7 +1562,10 @@ export default function ContenutiMultimediali() {
         </div>
       ) : null}
 
-      <div className="grid gap-4 xl:grid-cols-[260px_minmax(0,1fr)_360px]">
+      {/* Cartelle accanto all'elenco già da 768 (prima fino a 1280 stavano
+          sopra, a tutta larghezza, e l'elenco partiva mezza pagina più giù);
+          il dettaglio va sotto finché non c'è posto per la terza colonna. */}
+      <div className="grid gap-4 md:grid-cols-[200px_minmax(0,1fr)] lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[260px_minmax(0,1fr)_360px] max-sm:hidden">
         <Card className="h-fit">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between gap-2">
@@ -1646,14 +1763,170 @@ export default function ContenutiMultimediali() {
           </CardContent>
         </Card>
 
-        <MediaDetailPanel
-          item={selectedItem}
-          opening={selectedItem ? openingId === selectedItem.id : false}
-          onOpen={selectedItem ? () => openSignedDocument(selectedItem) : undefined}
-          onImport={() => setShowSmartImport(true)}
-          onInbox={() => setShowSmartInbox(true)}
-        />
+        <div className="min-w-0 md:col-span-2 xl:col-span-1">
+          <MediaDetailPanel
+            anteprima={!schermoStretto}
+            item={selectedItem}
+            opening={selectedItem ? openingId === selectedItem.id : false}
+            onOpen={selectedItem ? () => openSignedDocument(selectedItem) : undefined}
+            onImport={() => setShowSmartImport(true)}
+            onInbox={() => setShowSmartInbox(true)}
+          />
+        </div>
       </div>
+
+      {/* Mobile: ricerca con la cartella nel pannello filtri, documenti a righe
+          da ~52px (nome; area e data; stato solo se c'è da fare), dettaglio in
+          un foglio dal basso. Niente colonna cartelle, niente pannello fisso. */}
+      <div className="space-y-2 sm:hidden">
+        <CercaConFiltri
+          valore={query}
+          onCambia={(v) => { setQuery(v); setPaginaMobile(1); }}
+          segnaposto={activeCustomFolder || activeTab !== "tutti" ? `Cerca in ${activeFolderTitle}` : "Cerca documento"}
+          filtriAttivi={activeCustomFolder || activeTab !== "tutti" ? 1 : 0}
+          onApriFiltri={() => setFiltriMobiliAperti(true)}
+        />
+        {isLoading ? (
+          <div className="divide-y divide-border overflow-hidden rounded-lg border bg-card">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <div key={index} className="space-y-1.5 px-3 py-2.5">
+                <Skeleton className="h-3.5 w-2/3" />
+                <Skeleton className="h-3 w-1/3" />
+              </div>
+            ))}
+          </div>
+        ) : authExpired ? (
+          <EmptyState
+            inline
+            icon={AlertTriangle}
+            title="Sessione scaduta"
+            action={{ label: "Vai al login", onClick: () => navigate("/login?redirect=/azienda/contenuti-multimediali"), variant: "default" }}
+          />
+        ) : error ? (
+          <EmptyState
+            inline
+            icon={AlertTriangle}
+            title="Archivio non caricato"
+            action={{ label: "Riprova", onClick: () => refetch(), variant: "outline" }}
+          />
+        ) : filteredItems.length === 0 ? (
+          <p className="py-4 text-center text-xs text-muted-foreground">
+            {rawItems.length === 0 ? "Il Drive è vuoto" : query ? "Nessun documento trovato" : "Nessun documento in questa cartella"}
+          </p>
+        ) : (
+          <div className="divide-y divide-border overflow-hidden rounded-lg border bg-card">
+            {righeMobili.map((item) => (
+              <RigaMobile
+                key={item.id}
+                sinistra={<MiniaturaDocumento item={item} className="h-8 w-8" />}
+                titolo={item.fileName}
+                sottotitolo={[item.areaLabel, item.lastActivityAt ? formatDate(item.lastActivityAt) : null].filter(Boolean).join(" · ")}
+                stato={
+                  item.statusTone === "warning" || item.statusTone === "error" || item.statusTone === "processing" ? (
+                    <span className={item.statusTone === "processing" ? "text-blue-600" : item.statusTone === "error" ? "text-rose-600" : "text-amber-600"}>
+                      {statusLabel(item)}
+                    </span>
+                  ) : undefined
+                }
+                onClick={() => setDettaglioMobile(item)}
+              />
+            ))}
+          </div>
+        )}
+        {pagineMobili > 1 && (
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] text-muted-foreground">
+              {(paginaMobileValida - 1) * PER_PAGINA_MOBILE + 1}–{Math.min(paginaMobileValida * PER_PAGINA_MOBILE, filteredItems.length)} di {filteredItems.length}
+            </span>
+            <div className="flex gap-1">
+              <Button
+                variant="outline"
+                size="icon"
+                className="tap-compact h-8 w-8"
+                aria-label="Pagina precedente"
+                disabled={paginaMobileValida <= 1}
+                onClick={() => setPaginaMobile(paginaMobileValida - 1)}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                className="tap-compact h-8 w-8"
+                aria-label="Pagina successiva"
+                disabled={paginaMobileValida >= pagineMobili}
+                onClick={() => setPaginaMobile(paginaMobileValida + 1)}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <PannelloFiltri
+        aperto={filtriMobiliAperti}
+        onAperto={setFiltriMobiliAperti}
+        attivi={activeCustomFolder || activeTab !== "tutti" ? 1 : 0}
+        onAzzera={() => scegliCartellaMobile("tutti")}
+        risultati={filteredItems.length}
+      >
+        <PilloleFiltro titolo="Cartella" valore={cartellaMobile} onScegli={scegliCartellaMobile} scelte={scelteCartelleMobili} />
+      </PannelloFiltri>
+
+      {/* Mobile: il documento dal basso con i dati che servono e «Apri file». */}
+      <Sheet open={!!dettaglioMobile} onOpenChange={(o) => { if (!o) setDettaglioMobile(null); }}>
+        <SheetContent side="bottom" className="max-h-[85dvh] overflow-y-auto rounded-t-2xl px-4 pb-6">
+          {dettaglioMobile && (
+            <>
+              <SheetHeader className="text-left">
+                <SheetTitle className="break-words pr-6 text-base leading-tight">{dettaglioMobile.fileName}</SheetTitle>
+                <SheetDescription className="sr-only">Dettaglio del documento</SheetDescription>
+              </SheetHeader>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {/* Niente doppioni (tipo uguale all'area) né «n.d.» quando manca la dimensione. */}
+                {[
+                  dettaglioMobile.areaLabel,
+                  tipoSeDiversoDallArea(dettaglioMobile),
+                  dettaglioMobile.fileSize ? formatFileSize(dettaglioMobile.fileSize) : null,
+                  dettaglioMobile.lastActivityAt ? formatDate(dettaglioMobile.lastActivityAt) : null,
+                ].filter(Boolean).join(" · ")}
+              </p>
+              <AnteprimaImmagine key={dettaglioMobile.id} item={dettaglioMobile} className="mt-3 max-h-[45dvh]" />
+              <p className="mt-3 text-xs text-muted-foreground">
+                {statusLabel(dettaglioMobile)}
+                {dettaglioMobile.linkedEntityLabel ? (
+                  percorsoRecordCollegato(dettaglioMobile.linkedEntityTable, dettaglioMobile.linkedEntityId) ? (
+                    <>
+                      {" · collegato a "}
+                      <Link
+                        to={percorsoRecordCollegato(dettaglioMobile.linkedEntityTable, dettaglioMobile.linkedEntityId)!}
+                        className="font-medium text-primary underline underline-offset-2"
+                      >
+                        {dettaglioMobile.linkedEntityLabel}
+                      </Link>
+                    </>
+                  ) : (
+                    ` · collegato a ${dettaglioMobile.linkedEntityLabel}`
+                  )
+                ) : ""}
+                {dettaglioMobile.actorLabel ? ` · ${dettaglioMobile.actorLabel}` : ""}
+              </p>
+              {dettaglioMobile.errorMessage ? (
+                <p className="mt-2 text-xs text-amber-700">{dettaglioMobile.errorMessage}</p>
+              ) : null}
+              <Button
+                className="mt-4 h-10 w-full"
+                onClick={() => openSignedDocument(dettaglioMobile)}
+                disabled={openingId === dettaglioMobile.id || resolveMediaLibraryOpenTarget(dettaglioMobile).kind === "missing"}
+              >
+                {openingId === dettaglioMobile.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Eye className="mr-2 h-4 w-4" />}
+                Apri file
+              </Button>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
 
       <SmartDocumentInboxDialog
         open={showSmartInbox}
@@ -1851,7 +2124,9 @@ function FolderNavButton({
             {count}
           </Badge>
         </span>
-        <span className="mt-0.5 line-clamp-2 block text-[11px] font-normal leading-snug opacity-80">{description}</span>
+        {/* Sotto 1280 la colonna è di 200-220px: la spiegazione sotto ogni
+            cartella andava su tre righe e tagliava i nomi («Da clas…»). */}
+        <span className="mt-0.5 line-clamp-2 block text-[11px] font-normal leading-snug opacity-80 max-xl:hidden">{description}</span>
       </span>
     </button>
   );
@@ -1898,9 +2173,11 @@ function MetricCard({
 function IntegrationCoveragePanel({
   coverage,
   loading = false,
+  className,
 }: {
   coverage: MediaLibraryIntegrationCoverage[];
   loading?: boolean;
+  className?: string;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const connected = coverage.filter((source) => source.state === "connected").length;
@@ -1914,7 +2191,7 @@ function IntegrationCoveragePanel({
   const badgeLabel = loading ? "Verifica in corso" : missingRequired === 0 ? "Copertura completa" : `${missingRequired} da collegare`;
 
   return (
-    <Card className="border-dashed bg-muted/20 shadow-none">
+    <Card className={cn("border-dashed bg-muted/20 shadow-none", className)}>
       <CardContent className="space-y-3 p-3">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="flex min-w-0 items-center gap-3">
@@ -2063,7 +2340,6 @@ function MediaRow({
   onSelect: () => void;
   onOpen: () => void;
 }) {
-  const Icon = iconForItem(item);
   const StatusIcon = statusIcon(item.statusTone);
   const activityLabel = item.actorLabel ? `${item.actionLabel} da ${item.actorLabel}` : item.actionLabel;
   const canOpen = resolveMediaLibraryOpenTarget(item).kind !== "missing";
@@ -2086,9 +2362,7 @@ function MediaRow({
       )}
     >
       <div className="flex min-w-0 items-start gap-3">
-        <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-md border bg-background">
-          <Icon className="h-5 w-5 text-muted-foreground" />
-        </div>
+        <MiniaturaDocumento key={item.id} item={item} className="mt-0.5 h-10 w-10" iconaClassName="h-5 w-5" />
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <p className="truncate font-medium">{item.fileName}</p>
@@ -2097,11 +2371,13 @@ function MediaRow({
               {statusLabel(item)}
             </Badge>
           </div>
+          {/* Niente doppioni: il tipo solo se diverso dall'area («Render · render»),
+              la dimensione solo se c'è (non «n.d.»). */}
           <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
             <span>{item.areaLabel}</span>
-            <span>{item.docType.replace(/_/g, " ")}</span>
+            {tipoSeDiversoDallArea(item) ? <span>{tipoSeDiversoDallArea(item)}</span> : null}
             <span>{item.integrationLabel}</span>
-            <span>{formatFileSize(item.fileSize)}</span>
+            {item.fileSize ? <span>{formatFileSize(item.fileSize)}</span> : null}
             <span>{formatDate(item.lastActivityAt)}</span>
             <span>{activityLabel}</span>
             {item.linkedEntityLabel ? <span>Collegato a {item.linkedEntityLabel}</span> : null}
@@ -2128,12 +2404,15 @@ function MediaDetailPanel({
   onOpen,
   onImport,
   onInbox,
+  anteprima = true,
 }: {
   item: MediaLibraryItem | null;
   opening: boolean;
   onOpen?: () => void;
   onImport: () => void;
   onInbox: () => void;
+  /** Falso sul telefono, dove il pannello è nascosto: l'immagine non si scarica. */
+  anteprima?: boolean;
 }) {
   if (!item) {
     return (
@@ -2184,11 +2463,13 @@ function MediaDetailPanel({
           </div>
         </div>
 
+        {anteprima ? <AnteprimaImmagine key={item.id} item={item} /> : null}
+
         <div className="grid grid-cols-2 gap-2 text-sm">
           <DetailStat label="Tipo" value={item.docType.replace(/_/g, " ")} />
           <DetailStat label="Dimensione" value={formatFileSize(item.fileSize)} />
           <DetailStat label="Origine" value={item.integrationLabel} />
-          <DetailStat label="Ultima attivita" value={formatDate(item.lastActivityAt)} />
+          <DetailStat label="Ultima attività" value={formatDate(item.lastActivityAt)} />
         </div>
 
         {typeof item.confidence === "number" ? (
@@ -2203,27 +2484,21 @@ function MediaDetailPanel({
         <div className="rounded-md border bg-muted/20 p-3 text-sm">
           <div className="mb-3 flex items-center gap-2 font-medium">
             <DatabaseIcon className="h-4 w-4 text-orange-500" />
-            Carta identita documento
+            Carta d'identità del documento
           </div>
           <div className="space-y-3">
+            {/* Il record collegato si apre da qui; nome della tabella e uuid
+                (che erano scritti accanto) non dicevano niente a chi legge. */}
             <DetailLine
               icon={Link2}
               label="Collegato a"
-              value={
-                item.linkedEntityLabel
-                  ? `${item.linkedEntityLabel}${item.linkedEntityTable ? ` (${item.linkedEntityTable})` : ""}`
-                  : "Da collegare a cliente, preventivo, commessa o record operativo."
-              }
+              value={item.linkedEntityLabel ?? "Da collegare a cliente, preventivo, commessa o record operativo."}
+              to={item.linkedEntityLabel ? percorsoRecordCollegato(item.linkedEntityTable, item.linkedEntityId) : null}
             />
             <DetailLine icon={UserRound} label="Caricato da" value={item.actorLabel ?? item.actorId ?? "Autore non registrato"} />
             <DetailLine icon={Sparkles} label="Azione" value={item.actionLabel} />
             <DetailLine icon={CalendarClock} label="Quando" value={formatDate(item.lastActivityAt)} />
           </div>
-          {item.linkedEntityId ? (
-            <div className="mt-3 rounded-md bg-background px-2 py-1.5 text-[11px] text-muted-foreground">
-              ID collegato: <span className="font-mono">{item.linkedEntityId}</span>
-            </div>
-          ) : null}
         </div>
 
         <div className="rounded-md border p-3 text-sm">
@@ -2280,6 +2555,152 @@ function MediaDetailPanel({
   );
 }
 
+/** Sotto i 640px (`max-sm`): lì la griglia da computer c'è ma è nascosta. */
+function useSchermoStretto(): boolean {
+  const query = "(max-width: 639px)";
+  const [stretto, setStretto] = useState(
+    () => typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia(query).matches,
+  );
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") return;
+    const mql = window.matchMedia(query);
+    const cambia = () => setStretto(mql.matches);
+    mql.addEventListener?.("change", cambia);
+    return () => mql.removeEventListener?.("change", cambia);
+  }, []);
+  return stretto;
+}
+
+type TrasformazioneImmagine = { width: number; height?: number; resize: "cover" | "contain"; quality: number };
+
+/** Miniatura delle righe: 96px bastano per 40px anche sugli schermi densi. */
+const MINIATURA: TrasformazioneImmagine = { width: 96, height: 96, resize: "cover", quality: 60 };
+/** Anteprima nella scheda: abbastanza grande da leggerla, non il file intero (un render è 2 MB). */
+const ANTEPRIMA: TrasformazioneImmagine = { width: 900, resize: "contain", quality: 75 };
+
+function eImmagineDrive(item: MediaLibraryItem): boolean {
+  return (item.mimeType ?? "").startsWith("image/") || /\.(jpe?g|png|webp|gif|avif)$/i.test(item.fileName);
+}
+
+/** Da «…/storage/v1/object/public/<bucket>/<file>» all'indirizzo ridimensionato da Supabase. */
+function urlPubblicoRidimensionato(url: string, t: TrasformazioneImmagine): string | null {
+  const segnaposto = "/storage/v1/object/public/";
+  const i = url.indexOf(segnaposto);
+  if (i < 0) return null;
+  const file = url.slice(i + segnaposto.length).split("?")[0];
+  const parametri = new URLSearchParams({ width: String(t.width), resize: t.resize, quality: String(t.quality) });
+  if (t.height) parametri.set("height", String(t.height));
+  return `${url.slice(0, i)}/storage/v1/render/image/public/${file}?${parametri.toString()}`;
+}
+
+/**
+ * Indirizzo ridimensionato di un'immagine del Drive: per i file in archivio un
+ * link firmato di dieci minuti (con la stessa trasformazione dei render), per
+ * quelli pubblici l'indirizzo di Supabase che ridimensiona. `ancheOriginale`:
+ * per un indirizzo esterno che non si può ridimensionare, usa l'originale.
+ */
+function useIndirizzoImmagine(
+  item: MediaLibraryItem,
+  t: TrasformazioneImmagine,
+  ancheOriginale: boolean,
+  aSchermo = true,
+): string | null {
+  const target = resolveMediaLibraryOpenTarget(item);
+  const attiva = aSchermo && eImmagineDrive(item) && target.kind !== "missing";
+  const { data } = useQuery({
+    queryKey: ["drive-immagine", item.id, t.width, t.height ?? 0, t.resize],
+    enabled: attiva,
+    staleTime: 9 * 60 * 1000,
+    queryFn: async () => {
+      if (target.kind === "external") {
+        return urlPubblicoRidimensionato(target.url, t) ?? (ancheOriginale ? target.url : null);
+      }
+      if (target.kind !== "storage") return null;
+      const { data: firmato } = await supabase.storage
+        .from(target.storageBucket)
+        .createSignedUrl(target.storagePath, 600, { transform: t });
+      return firmato?.signedUrl ?? null;
+    },
+  });
+  return attiva ? data ?? null : null;
+}
+
+/**
+ * Vero quando l'elemento è (quasi) a schermo. Un elemento nascosto (la griglia
+ * da computer sul telefono, e viceversa) non ci arriva mai: niente richieste.
+ */
+function useASchermo<T extends Element>(): [RefObject<T | null>, boolean] {
+  const ref = useRef<T>(null);
+  const [aSchermo, setASchermo] = useState(() => typeof IntersectionObserver === "undefined");
+  useEffect(() => {
+    const elemento = ref.current;
+    if (!elemento || aSchermo) return;
+    const osservatore = new IntersectionObserver(
+      (voci) => {
+        if (voci.some((voce) => voce.isIntersecting)) {
+          setASchermo(true);
+          osservatore.disconnect();
+        }
+      },
+      { rootMargin: "200px" },
+    );
+    osservatore.observe(elemento);
+    return () => osservatore.disconnect();
+  }, [aSchermo]);
+  return [ref, aSchermo];
+}
+
+/**
+ * Accanto al nome: la miniatura se è un'immagine (render, foto di cantiere),
+ * altrimenti l'icona del tipo. Stessa misura, così le righe restano allineate.
+ */
+function MiniaturaDocumento({
+  item,
+  className,
+  iconaClassName = "h-4 w-4",
+}: {
+  item: MediaLibraryItem;
+  className?: string;
+  iconaClassName?: string;
+}) {
+  const Icona = iconForItem(item);
+  const [ref, aSchermo] = useASchermo<HTMLSpanElement>();
+  const indirizzo = useIndirizzoImmagine(item, MINIATURA, false, aSchermo);
+  const [nonCaricata, setNonCaricata] = useState(false);
+  return (
+    <span
+      ref={ref}
+      className={cn("flex shrink-0 items-center justify-center overflow-hidden rounded-md border bg-background", className)}
+      aria-hidden="true"
+    >
+      {indirizzo && !nonCaricata ? (
+        <img src={indirizzo} alt="" decoding="async" onError={() => setNonCaricata(true)} className="h-full w-full object-cover" />
+      ) : (
+        <Icona className={cn("text-muted-foreground", iconaClassName)} />
+      )}
+    </span>
+  );
+}
+
+/**
+ * L'immagine dentro la scheda del documento (render, foto di cantiere, foto
+ * aziendali): si guarda senza aprirla fuori. Se non si carica, sparisce.
+ */
+function AnteprimaImmagine({ item, className }: { item: MediaLibraryItem; className?: string }) {
+  const indirizzo = useIndirizzoImmagine(item, ANTEPRIMA, true);
+  const [nonCaricata, setNonCaricata] = useState(false);
+  if (!indirizzo || nonCaricata) return null;
+  return (
+    <img
+      src={indirizzo}
+      alt={item.fileName}
+      loading="lazy"
+      onError={() => setNonCaricata(true)}
+      className={cn("max-h-72 w-full rounded-lg border bg-muted object-contain", className)}
+    />
+  );
+}
+
 function DetailStat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-md border bg-background p-3">
@@ -2289,13 +2710,19 @@ function DetailStat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function DetailLine({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) {
+function DetailLine({ icon: Icon, label, value, to }: { icon: LucideIcon; label: string; value: string; to?: string | null }) {
   return (
     <div className="flex items-start gap-2">
       <Icon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
       <div className="min-w-0">
         <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</div>
-        <div className="break-words font-medium">{value}</div>
+        {to ? (
+          <Link to={to} className="break-words font-medium text-primary underline-offset-2 hover:underline">
+            {value}
+          </Link>
+        ) : (
+          <div className="break-words font-medium">{value}</div>
+        )}
       </div>
     </div>
   );

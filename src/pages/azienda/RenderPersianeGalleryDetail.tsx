@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import { RenderPdfDownloadButton } from "@/components/render/RenderPdfDownloadButton";
+import { MandaRenderMobile } from "@/components/render/MandaRenderMobile";
 import { RenderCrmSummaryCard } from "@/components/render/RenderCrmSummaryCard";
 import { downloadRenderImage } from "@/lib/render/downloadRenderImage";
 import { ensurePersianeRenderConfig } from "@/modules/render-persiane/lib/persianeRenderConfig";
@@ -147,7 +148,7 @@ export default function RenderPersianeGalleryDetail() {
   const StatusIcon = statusCfg.icon;
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
+    <div className="space-y-6 max-w-5xl mx-auto max-md:space-y-3">
       <div className="flex items-center gap-3">
         <Button
           variant="ghost"
@@ -157,8 +158,8 @@ export default function RenderPersianeGalleryDetail() {
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="flex-1">
-          <h1 className="text-xl font-bold">Dettaglio render persiane</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-xl font-bold max-md:text-lg">Dettaglio render persiane</h1>
+          <p className="text-sm text-muted-foreground max-md:text-[11px]">
             {format(new Date(session.created_at), "d MMMM yyyy, HH:mm", { locale: it })}
           </p>
         </div>
@@ -201,15 +202,17 @@ export default function RenderPersianeGalleryDetail() {
 
       {session.status === "completed" && resultUrl && originalUrl && (
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Confronto prima / dopo</CardTitle>
+          <CardHeader className="pb-3 max-md:hidden">
+            <CardTitle className="text-base max-md:text-[13px]">Confronto prima / dopo</CardTitle>
             <p className="text-xs text-muted-foreground">
               Il confronto mantiene il rapporto reale della foto originale.
             </p>
           </CardHeader>
           <CardContent>
             <BeforeAfterSlider beforeUrl={originalUrl} afterUrl={resultUrl} />
-            <div className="grid grid-cols-2 gap-2 mt-4 sm:grid-cols-4">
+            {/* Telefono: «Manda al cliente» (l'immagine col foglio di condivisione) al posto di link WhatsApp, Condividi, PDF e Scarica. */}
+            {isMobile && resultUrl && <MandaRenderMobile resultUrl={resultUrl} nomeFile="render-persiane" className="mt-3 w-full" />}
+            <div className="grid grid-cols-2 gap-2 mt-4 sm:grid-cols-4 max-md:hidden">
               <Button
                 variant="outline"
                 size="sm"
@@ -250,7 +253,7 @@ export default function RenderPersianeGalleryDetail() {
       {(session.status !== "completed" || !originalUrl) && session.original_photo_url && (
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
+            <CardTitle className="text-base flex items-center gap-2 max-md:text-[13px]">
               <Image className="h-4 w-4" />
               Foto originale
             </CardTitle>
@@ -279,7 +282,9 @@ export default function RenderPersianeGalleryDetail() {
               alt="Render AI Persiane"
               className="w-full max-h-[75vh] object-contain rounded-lg"
             />
-            <div className="grid grid-cols-2 gap-2 mt-4 sm:grid-cols-4">
+            {/* Telefono: «Manda al cliente» (l'immagine col foglio di condivisione) al posto di link WhatsApp, Condividi, PDF e Scarica. */}
+            {isMobile && resultUrl && <MandaRenderMobile resultUrl={resultUrl} nomeFile="render-persiane" className="mt-3 w-full" />}
+            <div className="grid grid-cols-2 gap-2 mt-4 sm:grid-cols-4 max-md:hidden">
               <RenderPdfDownloadButton
                 afterUrl={resultUrl}
                 title="Render AI Persiane"
@@ -309,7 +314,7 @@ export default function RenderPersianeGalleryDetail() {
         <div className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm">Scenario letto dalla facciata</CardTitle>
+              <CardTitle className="text-sm max-md:text-[13px]">Scenario letto dalla facciata</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex flex-wrap gap-2">
@@ -343,7 +348,7 @@ export default function RenderPersianeGalleryDetail() {
           <div className="space-y-4">
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm">Scelte applicate</CardTitle>
+                <CardTitle className="text-sm max-md:text-[13px]">Scelte applicate</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="flex flex-wrap gap-2">

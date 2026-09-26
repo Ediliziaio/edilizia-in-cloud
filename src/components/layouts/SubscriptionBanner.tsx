@@ -16,8 +16,13 @@ import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOpenBillingPortal } from "@/hooks/useBilling";
 import { useBillingActivationGate } from "@/hooks/useBillingActivationGate";
+import { useState } from "react";
 import { AlertTriangle, Clock, XCircle, CreditCard, Loader2, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useIsMobile } from "@/hooks/use-mobile";
+import {
+  Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle,
+} from "@/components/ui/sheet";
 
 type BannerVariant = "info" | "warning" | "danger";
 
@@ -25,9 +30,20 @@ interface BannerConfig {
   variant: BannerVariant;
   icon: React.ReactNode;
   message: string;
+  /** Su mobile l'avviso e' un popup: serve un titolo corto e il resto sotto. */
+  titolo: string;
+  dettaglio: string;
   ctaLabel?: string;
   ctaAction?: "upgrade" | "portal" | "support" | "renew" | "dati";
+  /**
+   * Il testo del popup sul telefono, dove l'abbonamento non si attiva, non si
+   * paga e non si rinnova (regola dell'utente, 25/09/2026: «solo da desktop»).
+   */
+  dettaglioMobile?: string;
 }
+
+/** Sul telefono piano, pagamento e rinnovo non si toccano: resta l'avviso. */
+const AZIONI_SOLO_DA_COMPUTER = new Set<BannerConfig["ctaAction"]>(["upgrade", "renew", "portal"]);
 
 /**
  * Anagrafica incompleta: la fattura dell'abbonamento non si può emettere. Prima
@@ -38,11 +54,14 @@ const BANNER_DATI_FATTURAZIONE: BannerConfig = {
   variant: "warning",
   icon: <Building2 className="h-4 w-4 shrink-0" />,
   message: "Mancano i dati di fatturazione dell'azienda (ragione sociale, P.IVA, sede legale): servono per la fattura.",
+  titolo: "Mancano i dati di fatturazione",
+  dettaglio: "Ragione sociale, partita IVA e sede legale servono per emettere la fattura dell'abbonamento.",
   ctaLabel: "Completa",
   ctaAction: "dati",
 };
 
 export function SubscriptionBanner() {
+  const isMobile = useIsMobile();
   const navigate = useNavigate();
   const { isImpersonating, effectiveCompany } = useAuth();
   const { companyStatus, trialDaysLeft, trialExpired } = useSubscriptionLimits({ includeUsageCounts: false });
@@ -97,6 +116,27 @@ export function SubscriptionBanner() {
   };
   const s = styles[config.variant];
 
+  // Su mobile niente fascia fissa: si prendeva 137 px su 812 in OGNI pagina,
+  // cioe' un sesto dello schermo, prima ancora del contenuto. Diventa un
+  // popup che sale dal basso una volta per sessione. Lo stato puramente
+  // informativo (prova in corso con giorni davanti) su mobile non si mostra
+  // affatto: e' consultabile in Impostazioni → Abbonamento.
+  if (isMobile) {
+    if (config.variant === "info") return null;
+    const configMobile: BannerConfig = AZIONI_SOLO_DA_COMPUTER.has(config.ctaAction)
+      ? { ...config, ctaLabel: undefined, ctaAction: undefined, dettaglio: config.dettaglioMobile ?? config.dettaglio }
+      : config;
+    return (
+      <AvvisoAbbonamentoMobile
+        key={`${effectiveCompany.id}:${config.titolo}`}
+        config={configMobile}
+        chiave={`${effectiveCompany.id}:${config.titolo}`}
+        onCta={handleCta}
+        inCorso={openPortal.isPending && config.ctaAction === "portal"}
+      />
+    );
+  }
+
   return (
     <div className={`px-4 py-2.5 flex items-center justify-between gap-3 border-b flex-wrap ${s.bg}`}>
       <div className={`flex items-center gap-2 min-w-0 ${s.text}`}>
@@ -120,6 +160,66 @@ export function SubscriptionBanner() {
   );
 }
 
+/**
+ * L'avviso su mobile: un pannello dal basso, una volta per sessione e per
+ * stato. Chiuso con «Più tardi» non torna finché non si riapre l'app; se lo
+ * stato cambia (da «pagamento non riuscito» a «sospeso») torna, perche' e' un
+ * avviso diverso.
+ */
+function AvvisoAbbonamentoMobile({
+  config, chiave, onCta, inCorso,
+}: {
+  config: BannerConfig;
+  chiave: string;
+  onCta: () => void;
+  inCorso: boolean;
+}) {
+  const storageKey = `avviso-abbonamento-visto:${chiave}`;
+  // Letto una volta al montaggio; se lo stato cambia il genitore rimonta il
+  // componente (key = chiave), quindi il nuovo avviso riparte da capo.
+  const [aperto, setAperto] = useState(() => {
+    try { return sessionStorage.getItem(storageKey) !== "1"; } catch { return true; }
+  });
+
+  const chiudi = () => {
+    try { sessionStorage.setItem(storageKey, "1"); } catch { /* storage bloccato */ }
+    setAperto(false);
+  };
+
+  const grave = config.variant === "danger";
+
+  return (
+    <Sheet open={aperto} onOpenChange={(o) => { if (!o) chiudi(); }}>
+      <SheetContent side="bottom" className="rounded-t-2xl px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+        <SheetHeader className="text-left space-y-2">
+          <div className={`flex items-center gap-2 ${grave ? "text-destructive" : "text-orange-600"}`}>
+            {config.icon}
+            <SheetTitle className={grave ? "text-destructive" : "text-orange-700"}>{config.titolo}</SheetTitle>
+          </div>
+          <SheetDescription className="text-sm leading-relaxed">{config.dettaglio}</SheetDescription>
+        </SheetHeader>
+        <div className="mt-5 flex gap-2">
+          {config.ctaLabel && config.ctaAction ? (
+            <Button variant="outline" className="h-11" onClick={chiudi}>Più tardi</Button>
+          ) : (
+            <Button variant="outline" className="h-11 flex-1" onClick={chiudi}>Ho capito</Button>
+          )}
+          {config.ctaLabel && config.ctaAction && (
+            <Button
+              className={`h-11 flex-1 ${grave ? "bg-destructive hover:bg-destructive/90 text-destructive-foreground" : ""}`}
+              onClick={() => { chiudi(); onCta(); }}
+              disabled={inCorso}
+            >
+              {inCorso ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : null}
+              {config.ctaLabel}
+            </Button>
+          )}
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
 function resolveBannerConfig(
   status: string,
   trialDaysLeft: number | null,
@@ -131,6 +231,9 @@ function resolveBannerConfig(
         variant: "danger",
         icon: <XCircle className="h-4 w-4 shrink-0" />,
         message: "Il periodo di prova è scaduto. Attiva un piano per continuare.",
+        titolo: "Periodo di prova scaduto",
+        dettaglio: "Attiva un piano per continuare a usare la piattaforma.",
+        dettaglioMobile: "Il piano si attiva dal computer.",
         ctaLabel: "Attiva piano",
         ctaAction: "upgrade",
       };
@@ -140,6 +243,9 @@ function resolveBannerConfig(
         variant: "warning",
         icon: <AlertTriangle className="h-4 w-4 shrink-0" />,
         message: `Il tuo periodo di prova scade tra ${trialDaysLeft} giorn${trialDaysLeft === 1 ? "o" : "i"}.`,
+        titolo: "La prova sta per finire",
+        dettaglio: `Scade tra ${trialDaysLeft} giorn${trialDaysLeft === 1 ? "o" : "i"}: scegli un piano per non perdere l'accesso.`,
+        dettaglioMobile: `Scade tra ${trialDaysLeft} giorn${trialDaysLeft === 1 ? "o" : "i"}: il piano si sceglie dal computer.`,
         ctaLabel: "Attiva piano",
         ctaAction: "upgrade",
       };
@@ -148,6 +254,8 @@ function resolveBannerConfig(
       variant: "info",
       icon: <Clock className="h-4 w-4 shrink-0" />,
       message: `Stai usando il piano di prova. Rimangono ${trialDaysLeft ?? "?"} giorni.`,
+      titolo: "Piano di prova",
+      dettaglio: `Rimangono ${trialDaysLeft ?? "?"} giorni.`,
       ctaLabel: "Scegli un piano",
       ctaAction: "upgrade",
     };
@@ -157,6 +265,9 @@ function resolveBannerConfig(
       variant: "danger",
       icon: <CreditCard className="h-4 w-4 shrink-0" />,
       message: "Errore pagamento — pagamento non riuscito. Aggiorna il metodo entro 7 giorni per evitare la sospensione.",
+      titolo: "Pagamento non riuscito",
+      dettaglio: "Aggiorna il metodo di pagamento entro 7 giorni per evitare la sospensione.",
+      dettaglioMobile: "Aggiorna il metodo di pagamento dal computer entro 7 giorni per evitare la sospensione.",
       ctaLabel: "Aggiorna pagamento",
       ctaAction: "portal",
     };
@@ -166,6 +277,9 @@ function resolveBannerConfig(
       variant: "danger",
       icon: <AlertTriangle className="h-4 w-4 shrink-0" />,
       message: "Errore pagamento — abbonamento sospeso. Email, WhatsApp, AI, render e firma sono disattivati: rinnova per riattivarli.",
+      titolo: "Abbonamento sospeso",
+      dettaglio: "Email, WhatsApp, AI, render e firma sono disattivati. Rinnova per riattivarli.",
+      dettaglioMobile: "Email, WhatsApp, AI, render e firma sono disattivati. L'abbonamento si rinnova dal computer.",
       ctaLabel: "Rinnova",
       ctaAction: "renew",
     };
@@ -175,6 +289,9 @@ function resolveBannerConfig(
       variant: "danger",
       icon: <XCircle className="h-4 w-4 shrink-0" />,
       message: "Errore pagamento — abbonamento scaduto. Rinnova per riattivare la piattaforma.",
+      titolo: "Abbonamento scaduto",
+      dettaglio: "Rinnova per riattivare la piattaforma.",
+      dettaglioMobile: "L'abbonamento si rinnova dal computer.",
       ctaLabel: "Rinnova",
       ctaAction: "renew",
     };
@@ -184,6 +301,9 @@ function resolveBannerConfig(
       variant: "warning",
       icon: <Clock className="h-4 w-4 shrink-0" />,
       message: "Abbonamento in cancellazione. Continuerà ad essere attivo fino alla data di scadenza.",
+      titolo: "Abbonamento in cancellazione",
+      dettaglio: "Resta attivo fino alla data di scadenza.",
+      dettaglioMobile: "Resta attivo fino alla data di scadenza; si riattiva dal computer.",
       ctaLabel: "Riattiva",
       ctaAction: "portal",
     };

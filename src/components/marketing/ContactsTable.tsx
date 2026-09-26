@@ -187,7 +187,7 @@ function renderStaticCell(col: { key: string; label: string }, c: MarketingConta
     case "phone":
       return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.phone || "—"}</TableCell>;
     case "email":
-      return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.email || "—"}</TableCell>;
+      return <TableCell key={col.key} className={`max-w-[200px] truncate text-muted-foreground text-sm xl:max-w-none ${cls}`} title={c.email || undefined}>{c.email || "—"}</TableCell>;
     case "company_name":
       return <TableCell key={col.key} className={`text-muted-foreground text-sm ${cls}`}>{c.company_name || "—"}</TableCell>;
     case "created_at":
@@ -297,6 +297,13 @@ export const ContactsTable = memo(function ContactsTable({
 
   const visibleCols = allCols.filter((c) => isVisible(c.key));
   const borderClass = "border-r border-border/30";
+  // La tabella si vede da 1024: con le colonne di serie era larga 1032px e a
+  // 1024 scorreva di lato per 300px. Azienda da 1280, Creato da 1536 (se
+  // scelte nel menu Colonne); sotto, celle più strette e email tagliata.
+  const perLarghezza: Record<string, string> = {
+    company_name: "hidden xl:table-cell",
+    created_at: "hidden 2xl:table-cell",
+  };
 
   return (
     <div className="space-y-3">
@@ -337,7 +344,7 @@ export const ContactsTable = memo(function ContactsTable({
       )}
 
       <div className="rounded-md border">
-        <Table>
+        <Table className="[&_td]:px-3 [&_th]:px-3 2xl:[&_td]:px-4 2xl:[&_th]:px-4">
           <TableHeader>
             <TableRow>
               <TableHead className={`w-[40px] ${borderClass}`}>
@@ -349,7 +356,7 @@ export const ContactsTable = memo(function ContactsTable({
                 return (
                   <TableHead
                     key={col.key}
-                    className={`py-2 ${!isLast ? borderClass : ""} ${sortable ? "cursor-pointer select-none hover:bg-muted/50" : ""}`}
+                    className={`py-2 ${!isLast ? borderClass : ""} ${sortable ? "cursor-pointer select-none hover:bg-muted/50" : ""} ${perLarghezza[col.key] ?? ""}`}
                     onClick={() => sortable && handleSort(col)}
                   >
                     <div className="flex items-center text-xs">
@@ -390,7 +397,7 @@ export const ContactsTable = memo(function ContactsTable({
                   </TableCell>
                   {visibleCols.map((col, i) => {
                     const isLast = i === visibleCols.length - 1;
-                    const cls = `py-1.5 ${!isLast ? borderClass : ""}`;
+                    const cls = `py-1.5 ${!isLast ? borderClass : ""} ${perLarghezza[col.key] ?? ""}`;
 
                     // Custom field
                     if (col.key.startsWith("cf_")) {

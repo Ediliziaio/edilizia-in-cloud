@@ -323,15 +323,17 @@ export function CaricaDocumentiDialog({
           )}
         </div>
 
-        <DialogFooter className="flex-col-reverse sm:flex-row gap-2 sm:justify-between">
-          <Button type="button" variant="ghost" disabled={inCorso} onClick={() => inputRef.current?.click()}>
-            <Plus className="h-4 w-4 mr-1" /> Aggiungi file
+        {/* Mobile: una riga sola — «+» per aggiungere file e «Carica» che la
+            riempie; Annulla/Chiudi c'è già (la X e il gesto verso il basso). */}
+        <DialogFooter className="flex-col-reverse sm:flex-row gap-2 sm:justify-between max-sm:flex-row max-sm:flex-nowrap max-sm:[&>*]:flex-none">
+          <Button type="button" variant="ghost" disabled={inCorso} onClick={() => inputRef.current?.click()} aria-label="Aggiungi file" className="max-sm:w-11 max-sm:px-0">
+            <Plus className="h-4 w-4 mr-1 max-sm:mr-0" /><span aria-hidden="true" className="max-sm:hidden">Aggiungi file</span>
           </Button>
-          <div className="flex flex-col-reverse sm:flex-row gap-2">
-            <Button type="button" variant="outline" disabled={inCorso} onClick={() => onOpenChange(false)}>
+          <div className="flex flex-col-reverse sm:flex-row gap-2 max-sm:flex-1 max-sm:flex-row">
+            <Button type="button" variant="outline" disabled={inCorso} onClick={() => onOpenChange(false)} className="max-sm:hidden">
               {voci.some((v) => v.stato === "fatto") ? "Chiudi" : "Annulla"}
             </Button>
-            <Button type="button" disabled={inCorso || daCaricare === 0} onClick={() => void caricaTutti()}>
+            <Button type="button" disabled={inCorso || daCaricare === 0} onClick={() => void caricaTutti()} className="max-sm:flex-1">
               {inCorso ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : errori > 0 ? (

@@ -185,10 +185,12 @@ export function AdMediaUploader({ companyId, onUploaded, hint }: Props) {
     }
   };
 
+  // Telefono: una riga (icona, «Aggiungi una foto», Scegli file); niente
+  // «trascina qui», che col dito non si fa, né il nome facoltativo.
   return (
-    <Card>
-      <CardContent className="space-y-3 p-4">
-        <div>
+    <Card className="max-sm:border-0 max-sm:bg-transparent max-sm:shadow-none">
+      <CardContent className="space-y-3 p-4 max-sm:p-0">
+        <div className="max-sm:hidden">
           <Label className="mb-1 block text-xs">Nome immagine (opzionale)</Label>
           <Input
             value={name}
@@ -209,7 +211,7 @@ export function AdMediaUploader({ companyId, onUploaded, hint }: Props) {
             const file = e.dataTransfer.files[0];
             if (file) void handleFile(file);
           }}
-          className={`flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-6 text-center transition ${
+          className={`flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-6 text-center transition max-sm:flex-row max-sm:justify-start max-sm:gap-2.5 max-sm:rounded-lg max-sm:p-2.5 max-sm:text-left ${
             dragOver ? "border-orange-400 bg-orange-50" : "border-slate-300 bg-slate-50"
           }`}
         >
@@ -231,15 +233,18 @@ export function AdMediaUploader({ companyId, onUploaded, hint }: Props) {
             </div>
           ) : (
             <>
-              <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-200 text-slate-500">
-                <ImageIcon className="h-6 w-6" />
+              <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-200 text-slate-500 max-sm:mb-0 max-sm:h-9 max-sm:w-9 max-sm:shrink-0 max-sm:rounded-lg">
+                <ImageIcon className="h-6 w-6 max-sm:h-4 max-sm:w-4" />
               </div>
-              <p className="text-sm font-semibold text-slate-700">
-                Trascina un'immagine qui o clicca per scegliere
-              </p>
-              <p className="mt-1 text-xs text-slate-500">
-                {hint ?? "PNG, JPG, WebP · max 10 MB · consigliato min 600px lato corto"}
-              </p>
+              <div className="max-sm:min-w-0 max-sm:flex-1">
+                <p className="text-sm font-semibold text-slate-700 max-sm:text-[13px]">
+                  <span className="max-sm:hidden">Trascina un'immagine qui o clicca per scegliere</span>
+                  <span className="sm:hidden">Aggiungi una foto</span>
+                </p>
+                <p className="mt-1 text-xs text-slate-500 max-sm:mt-0 max-sm:truncate max-sm:text-[11px]">
+                  {hint ?? "PNG, JPG, WebP · max 10 MB · consigliato min 600px lato corto"}
+                </p>
+              </div>
             </>
           )}
 
@@ -257,7 +262,7 @@ export function AdMediaUploader({ companyId, onUploaded, hint }: Props) {
             type="button"
             variant="outline"
             size="sm"
-            className="mt-3"
+            className="mt-3 max-sm:mt-0 max-sm:shrink-0"
             disabled={isUploading}
             onClick={() => inputRef.current?.click()}
           >

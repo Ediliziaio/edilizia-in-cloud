@@ -33,7 +33,9 @@ describe("Pianificazione nelle azioni rapide", () => {
     render(<OrderQuickActions {...base} />);
     expect(screen.queryByRole("button", { name: "Nuova attività" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Applica flusso" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Appuntamento" })).toBeInTheDocument();
+    // Due volte: tra le azioni del computer e fra le icone del telefono (quale
+    // si vede lo decide il CSS, che jsdom non applica).
+    expect(screen.getAllByRole("button", { name: "Appuntamento" }).length).toBeGreaterThan(0);
   });
   it("rende raggiungibile Gestisci flusso dal menu", async () => {
     const manage = vi.fn();

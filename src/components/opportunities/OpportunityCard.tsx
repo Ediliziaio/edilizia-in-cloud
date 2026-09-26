@@ -188,12 +188,12 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
           <RichiestaRipetutaBadge dati={opportunity.richiesta_ripetuta} compatta />
           {opportunity.status === 'open' && <DealHealthBadge opportunity={opportunity} compact />}
           {updatedAgo && (
-            <span className="shrink-0 text-[9px] text-muted-foreground whitespace-nowrap">Agg. {updatedAgo}</span>
+            <span className="shrink-0 text-[9px] text-muted-foreground whitespace-nowrap max-md:text-[11px]">Agg. {updatedAgo}</span>
           )}
         </div>
         <div className="flex items-center gap-2 mt-0.5">
           <span className="text-[11px] font-semibold text-primary">{valueStr}</span>
-          {phoneVal && <span className="text-[10px] text-muted-foreground truncate">{phoneVal}</span>}
+          {phoneVal && <span className="text-[10px] text-muted-foreground truncate max-md:text-[11px]">{phoneVal}</span>}
         </div>
       </div>
     );
@@ -309,7 +309,7 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
 
         {/* Updated at + days in stage */}
         {!isOverlay && (
-          <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+          <div className="flex items-center gap-2 text-[10px] text-muted-foreground max-md:text-[11px]">
             {opportunity.updated_at && (
               <div className="flex items-center gap-1">
                 <Clock className="h-2.5 w-2.5" />

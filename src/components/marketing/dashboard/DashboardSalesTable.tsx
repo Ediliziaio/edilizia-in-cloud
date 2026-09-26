@@ -94,11 +94,11 @@ export const DashboardSalesTable = memo(function DashboardSalesTable({ sales, is
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="text-[10px] sm:text-xs">Commerciale</TableHead>
-                <TableHead className="text-[10px] sm:text-xs text-right">App.</TableHead>
-                <TableHead className="text-[10px] sm:text-xs text-right">Vinti</TableHead>
-                <TableHead className="text-[10px] sm:text-xs text-right">Fatturato</TableHead>
-                <TableHead className="text-[10px] sm:text-xs text-right">%</TableHead>
+                <TableHead className="text-[10px] sm:text-xs max-md:text-[11px]">Commerciale</TableHead>
+                <TableHead className="text-[10px] sm:text-xs text-right max-md:text-[11px]">App.</TableHead>
+                <TableHead className="text-[10px] sm:text-xs text-right max-md:text-[11px]">Vinti</TableHead>
+                <TableHead className="text-[10px] sm:text-xs text-right max-md:text-[11px]">Fatturato</TableHead>
+                <TableHead className="text-[10px] sm:text-xs text-right max-md:text-[11px]">%</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -106,11 +106,11 @@ export const DashboardSalesTable = memo(function DashboardSalesTable({ sales, is
                 const closeRate = r.appointments_done > 0 ? Math.round((r.contracts_won / r.appointments_done) * 100) : 0;
                 return (
                   <TableRow key={r.user_id}>
-                    <TableCell className="text-[10px] sm:text-xs font-medium py-1.5 max-w-[100px] truncate">{r.name}</TableCell>
-                    <TableCell className="text-[10px] sm:text-xs text-right py-1.5">{fmt(r.appointments_done)}</TableCell>
-                    <TableCell className="text-[10px] sm:text-xs text-right font-semibold py-1.5">{fmt(r.contracts_won)}</TableCell>
-                    <TableCell className="text-[10px] sm:text-xs text-right font-semibold py-1.5">{fmtCur(r.revenue)}</TableCell>
-                    <TableCell className="text-[10px] sm:text-xs text-right py-1.5">{closeRate}%</TableCell>
+                    <TableCell className="text-[10px] sm:text-xs font-medium py-1.5 max-w-[100px] truncate max-md:text-[11px]">{r.name}</TableCell>
+                    <TableCell className="text-[10px] sm:text-xs text-right py-1.5 max-md:text-[11px]">{fmt(r.appointments_done)}</TableCell>
+                    <TableCell className="text-[10px] sm:text-xs text-right font-semibold py-1.5 max-md:text-[11px]">{fmt(r.contracts_won)}</TableCell>
+                    <TableCell className="text-[10px] sm:text-xs text-right font-semibold py-1.5 max-md:text-[11px]">{fmtCur(r.revenue)}</TableCell>
+                    <TableCell className="text-[10px] sm:text-xs text-right py-1.5 max-md:text-[11px]">{closeRate}%</TableCell>
                   </TableRow>
                 );
               })}
@@ -130,7 +130,7 @@ export const DashboardSalesTable = memo(function DashboardSalesTable({ sales, is
             <CardTitle className="text-base">Performance Commerciali</CardTitle>
           </div>
           {rows.length > 0 && (
-            <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+            <div className="flex items-center gap-3 text-[10px] text-muted-foreground max-md:text-[11px]">
               <span>Media team: {fmtCur(avgRevenue)} | Chiusura {Math.round(avgCloseRate)}% | Show {Math.round(avgShowRate)}%</span>
             </div>
           )}

@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import { RenderPdfDownloadButton } from "@/components/render/RenderPdfDownloadButton";
+import { MandaRenderMobile } from "@/components/render/MandaRenderMobile";
 import { RenderCrmSummaryCard } from "@/components/render/RenderCrmSummaryCard";
 import { downloadRenderImage } from "@/lib/render/downloadRenderImage";
 import {
@@ -131,15 +132,15 @@ export default function RenderPavimentoGalleryDetail() {
   const config = session.config as Record<string, unknown> | null;
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
+    <div className="space-y-6 max-w-4xl mx-auto max-md:space-y-3">
       {/* Header */}
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={() => navigate("/azienda/render/pavimento/gallery")}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="flex-1">
-          <h1 className="text-xl font-bold">Dettaglio render pavimento</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-xl font-bold max-md:text-lg">Dettaglio render pavimento</h1>
+          <p className="text-sm text-muted-foreground max-md:text-[11px]">
             {format(new Date(session.created_at), "d MMMM yyyy, HH:mm", { locale: it })}
           </p>
         </div>
@@ -182,8 +183,8 @@ export default function RenderPavimentoGalleryDetail() {
       {/* Before/After slider */}
       {session.status === "completed" && resultUrl && originalUrl && (
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Confronto prima/dopo</CardTitle>
+          <CardHeader className="pb-3 max-md:hidden">
+            <CardTitle className="text-base max-md:text-[13px]">Confronto prima/dopo</CardTitle>
             <p className="text-xs text-muted-foreground">Trascina il cursore per confrontare</p>
           </CardHeader>
           <CardContent>
@@ -192,7 +193,9 @@ export default function RenderPavimentoGalleryDetail() {
               afterUrl={resultUrl}
               className="aspect-video"
             />
-            <div className="flex gap-2 mt-4 justify-end">
+            {/* Telefono: «Manda al cliente» (l'immagine col foglio di condivisione) al posto di link WhatsApp, Condividi, PDF e Scarica. */}
+            {isMobile && resultUrl && <MandaRenderMobile resultUrl={resultUrl} nomeFile="render-pavimento" className="mt-3 w-full" />}
+            <div className="flex gap-2 mt-4 justify-end max-md:hidden">
               <Button
                 variant="outline"
                 size="sm"
@@ -235,7 +238,9 @@ export default function RenderPavimentoGalleryDetail() {
         <Card>
           <CardContent className="p-4">
             <img loading="lazy" src={resultUrl} alt="Render AI Pavimento" className="w-full rounded-lg" />
-            <div className="flex gap-2 mt-4 justify-end">
+            {/* Telefono: «Manda al cliente» (l'immagine col foglio di condivisione) al posto di link WhatsApp, Condividi, PDF e Scarica. */}
+            {isMobile && resultUrl && <MandaRenderMobile resultUrl={resultUrl} nomeFile="render-pavimento" className="mt-3 w-full" />}
+            <div className="flex gap-2 mt-4 justify-end max-md:hidden">
               <RenderPdfDownloadButton
                 afterUrl={resultUrl}
                 title="Render AI Pavimento"
@@ -256,7 +261,7 @@ export default function RenderPavimentoGalleryDetail() {
       {session.status !== "completed" && session.original_photo_url && (
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
+            <CardTitle className="text-base flex items-center gap-2 max-md:text-[13px]">
               <Image className="h-4 w-4" />
               Foto originale
             </CardTitle>
@@ -290,7 +295,7 @@ export default function RenderPavimentoGalleryDetail() {
       {config && (
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm">Configurazione pavimento</CardTitle>
+            <CardTitle className="text-sm max-md:text-[13px]">Configurazione pavimento</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">

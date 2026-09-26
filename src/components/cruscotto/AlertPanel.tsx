@@ -109,7 +109,7 @@ export function AlertPanel({ marketingAlerts, operations, finance, todayData, bi
   if (!alerts.length) return (
     <div className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-xl px-5 py-3 flex items-center gap-2">
       <CheckCircle2 className="w-4 h-4 text-green-600" />
-      <span className="text-sm font-medium text-green-700 dark:text-green-400">0 Alert attivi — Tutto sotto controllo</span>
+      <span className="text-sm font-medium text-green-700 dark:text-green-400">Nessun avviso — tutto sotto controllo</span>
     </div>
   );
 
@@ -120,7 +120,8 @@ export function AlertPanel({ marketingAlerts, operations, finance, todayData, bi
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
           <AlertTriangle className="w-3.5 h-3.5" />
-          {alerts.length} Alert{alerts.length > 1 ? "s" : ""}
+          {/* In italiano: era «2 Alerts». */}
+          {alerts.length} {alerts.length > 1 ? "avvisi" : "avviso"}
         </span>
         {alerts.length > 3 && (
           <Button variant="ghost" size="sm" className="text-xs h-7 gap-1" onClick={() => setShowAll(!showAll)}>
@@ -134,14 +135,15 @@ export function AlertPanel({ marketingAlerts, operations, finance, todayData, bi
           <div
             key={alert.id}
             className={cn(
-              "rounded-xl px-4 py-3 flex items-start gap-3 transition-colors",
+              // Mobile: titolo e freccia; la spiegazione e il testo del bottone no.
+              "rounded-xl px-4 py-3 flex items-start gap-3 transition-colors max-sm:items-center max-sm:px-3 max-sm:py-2",
               alert.level === "critical" && "bg-destructive/8 border border-destructive/20",
               alert.level === "warning" && "bg-amber-500/8 border border-amber-500/20",
               alert.level === "info" && "bg-blue-500/8 border border-blue-500/20",
             )}
           >
             <AlertTriangle className={cn(
-              "w-4 h-4 shrink-0 mt-0.5",
+              "w-4 h-4 shrink-0 mt-0.5 max-sm:mt-0",
               alert.level === "critical" && "text-destructive",
               alert.level === "warning" && "text-amber-600",
               alert.level === "info" && "text-blue-600",
@@ -153,16 +155,17 @@ export function AlertPanel({ marketingAlerts, operations, finance, todayData, bi
                 alert.level === "warning" && "text-amber-700 dark:text-amber-400",
                 alert.level === "info" && "text-blue-700 dark:text-blue-400",
               )}>{alert.title}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{alert.body}</p>
+              <p className="text-xs text-muted-foreground mt-0.5 max-sm:hidden">{alert.body}</p>
             </div>
             <Button
               variant="ghost"
               size="sm"
               className="shrink-0 text-xs h-7 gap-1"
               onClick={() => navigate(alert.link)}
+              aria-label={alert.cta}
             >
-              {alert.cta}
-              <ChevronRight className="w-3 h-3" />
+              <span className="max-sm:hidden">{alert.cta}</span>
+              <ChevronRight className="w-3 h-3 max-sm:h-4 max-sm:w-4" />
             </Button>
           </div>
         ))}

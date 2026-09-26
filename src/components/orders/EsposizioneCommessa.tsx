@@ -201,7 +201,7 @@ export function EsposizioneCommessa({
 
   return (
     <Card id={anchorId} className={`scroll-mt-24 border-l-4 ${clienteFinanzia ? "border-l-emerald-500" : "border-l-red-500"}`}>
-      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-3">
+      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-3 max-sm:p-3 max-sm:pb-2">
         <CardTitle className="flex items-center gap-2 text-base">
           <HandCoins className={`h-4 w-4 ${clienteFinanzia ? "text-emerald-500" : "text-red-500"}`} />
           Chi finanzia il cantiere
@@ -217,8 +217,9 @@ export function EsposizioneCommessa({
           {clienteFinanzia ? "+" : "−"}{formatCurrencyCompact(Math.abs(saldoOggi))}
         </Badge>
       </CardHeader>
-      <CardContent className="space-y-3">
-        <p className={`text-[13px] leading-snug ${clienteFinanzia ? "text-emerald-700" : "text-red-600"}`}>
+      {/* Mobile: il segno nella testata e i quattro numeri; frase e grafico al computer. */}
+      <CardContent className="space-y-3 max-sm:p-3 max-sm:pt-0">
+        <p className={`text-[13px] leading-snug max-sm:hidden ${clienteFinanzia ? "text-emerald-700" : "text-red-600"}`}>
           {clienteFinanzia ? (
             <>
               Fin qui il cantiere lo finanzia il cliente: incassato{" "}
@@ -235,7 +236,7 @@ export function EsposizioneCommessa({
 
         {/* Grafico mensile — solo se c'è una storia da raccontare (≥2 mesi) */}
         {serieMensile.length >= 2 && (
-          <div>
+          <div className="max-sm:hidden">
             <div className="mb-1 flex flex-wrap items-center justify-end gap-3 text-[11px]">
               <span className="inline-flex items-center gap-1 text-slate-600"><span className="h-2 w-2 rounded-full bg-emerald-500" /> Incassi</span>
               <span className="inline-flex items-center gap-1 text-slate-600"><span className="h-2 w-2 rounded-full bg-rose-500" /> Uscite</span>

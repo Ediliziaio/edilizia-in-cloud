@@ -121,7 +121,8 @@ export function RitenuteTab({ orderId }: Props) {
     return (
       <div className="space-y-3">
         <RitenuteAttiveLine orderId={orderId} />
-        <p className="rounded-lg border border-dashed px-4 py-3 text-sm text-muted-foreground">
+        {/* Mobile: una sezione vuota da spiegare non serve. */}
+        <p className="rounded-lg border border-dashed px-4 py-3 text-sm text-muted-foreground max-sm:hidden">
           Nessun subappalto su questa commessa: le ritenute di garanzia compariranno
           qui quando colleghi un contratto di subappalto.
         </p>

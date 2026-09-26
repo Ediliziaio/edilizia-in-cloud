@@ -108,31 +108,32 @@ export function RenderCrmSummaryCard({
 
   return (
     <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-sm flex items-center gap-2">
+      <CardHeader className="pb-3 max-md:p-3 max-md:pb-2">
+        <CardTitle className="text-sm flex items-center gap-2 max-md:text-[13px]">
           <Link2 className="h-4 w-4" />
           Collegamenti render
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="space-y-3 max-md:space-y-2 max-md:p-3 max-md:pt-0">
         {hasAny ? (
-          <div className="grid gap-2 sm:grid-cols-3">
-            <div className="rounded-lg border bg-muted/20 p-3">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          // Telefono: tre righe «etichetta — valore» invece di tre riquadri impilati.
+          <div className="grid gap-2 sm:grid-cols-3 max-sm:gap-0 max-sm:divide-y max-sm:overflow-hidden max-sm:rounded-lg max-sm:border">
+            <div className="rounded-lg border bg-muted/20 p-3 max-sm:flex max-sm:min-w-0 max-sm:items-center max-sm:justify-between max-sm:gap-3 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:px-3 max-sm:py-2">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground max-md:shrink-0 max-md:text-[11px] max-md:font-medium max-md:normal-case max-md:tracking-normal">
                 Creato da
               </p>
-              <p className="mt-1 flex items-center gap-1.5 text-sm font-medium">
-                <UserRound className="h-3.5 w-3.5 text-primary" />
+              <p className="mt-1 flex items-center gap-1.5 text-sm font-medium max-md:mt-0 max-md:min-w-0 max-md:truncate max-md:text-[13px]">
+                <UserRound className="h-3.5 w-3.5 text-primary max-md:hidden" />
                 {meta?.createdByName ?? "Non disponibile"}
               </p>
             </div>
-            <div className="rounded-lg border bg-muted/20 p-3">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <div className="rounded-lg border bg-muted/20 p-3 max-sm:flex max-sm:min-w-0 max-sm:items-center max-sm:justify-between max-sm:gap-3 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:px-3 max-sm:py-2">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground max-md:shrink-0 max-md:text-[11px] max-md:font-medium max-md:normal-case max-md:tracking-normal">
                 Contatto
               </p>
               {meta?.contactName && currentContactId ? (
-                <div className="mt-1 flex items-center justify-between gap-2">
-                  <p className="truncate text-sm font-medium">{meta.contactName}</p>
+                <div className="mt-1 flex items-center justify-between gap-2 max-md:mt-0 max-md:min-w-0">
+                  <p className="truncate text-sm font-medium max-md:text-[13px]">{meta.contactName}</p>
                   <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
                     <Link to={`/azienda/marketing/contatti/${currentContactId}`}>
                       <ExternalLink className="h-3.5 w-3.5" />
@@ -140,25 +141,25 @@ export function RenderCrmSummaryCard({
                   </Button>
                 </div>
               ) : (
-                <p className="mt-1 text-sm text-muted-foreground">Non collegato</p>
+                <p className="mt-1 text-sm text-muted-foreground max-md:mt-0 max-md:text-[13px]">Non collegato</p>
               )}
             </div>
-            <div className="rounded-lg border bg-muted/20 p-3">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <div className="rounded-lg border bg-muted/20 p-3 max-sm:flex max-sm:min-w-0 max-sm:items-center max-sm:justify-between max-sm:gap-3 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:px-3 max-sm:py-2">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground max-md:shrink-0 max-md:text-[11px] max-md:font-medium max-md:normal-case max-md:tracking-normal">
                 Opportunità
               </p>
               {meta?.opportunityName ? (
-                <p className="mt-1 flex items-center gap-1.5 truncate text-sm font-medium">
-                  <BriefcaseBusiness className="h-3.5 w-3.5 text-primary" />
+                <p className="mt-1 flex items-center gap-1.5 truncate text-sm font-medium max-md:mt-0 max-md:min-w-0 max-md:text-[13px]">
+                  <BriefcaseBusiness className="h-3.5 w-3.5 text-primary max-md:hidden" />
                   {meta.opportunityName}
                 </p>
               ) : (
-                <p className="mt-1 text-sm text-muted-foreground">Non collegata</p>
+                <p className="mt-1 text-sm text-muted-foreground max-md:mt-0 max-md:text-[13px]">Non collegata</p>
               )}
             </div>
           </div>
         ) : (
-          <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+          <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground max-md:px-3 max-md:py-2 max-md:text-[13px]">
             Nessun contatto o opportunità collegata a questo render.
           </div>
         )}

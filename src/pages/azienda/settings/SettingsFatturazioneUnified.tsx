@@ -21,8 +21,9 @@ import { useSearchParams } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Loader2, Plug, FileSignature, Lock, ArrowRight } from "lucide-react";
+import { Loader2, Plug, FileSignature, Lock, ArrowRight, Monitor } from "lucide-react";
 import { useBillingMode } from "@/contexts/BillingModeContext";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 // Code-split: le 2 pagine sono pesanti (574 + 1162 righe).
 // Carico solo il tab visibile + l'altro on-demand.
@@ -42,6 +43,10 @@ export default function SettingsFatturazioneUnified() {
   const tabParam = params.get("tab") ?? "";
   const activeTab = VALID_TABS.has(tabParam) ? tabParam : "esterna";
   const { isNative, isLoading } = useBillingMode();
+  // Il sistema di fatturazione si imposta solo da computer o tablet (regola
+  // dell'utente, 25/09/2026): dal telefono si emettono e si guardano le
+  // fatture, ma modalità, gestionale collegato e configurazione SDI no.
+  const isMobile = useIsMobile();
 
   const setTab = (value: string) => {
     const next = new URLSearchParams(params);
@@ -54,6 +59,22 @@ export default function SettingsFatturazioneUnified() {
       "La modalità di fatturazione attiva è 'Provider esterno'. Per modificare la configurazione elettronica nativa devi prima passare alla modalità 'Nativa SDI' dal tab 'Provider esterni'.",
     [],
   );
+
+  if (isMobile) {
+    return (
+      <div className="flex items-start gap-3 rounded-xl border bg-card p-3">
+        <Monitor className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+        <div className="min-w-0">
+          <p className="text-sm font-medium">Si imposta da computer o tablet</p>
+          {!isLoading && (
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {isNative ? "Oggi usi la fatturazione elettronica nativa (SDI)." : "Oggi usi un gestionale esterno."}
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

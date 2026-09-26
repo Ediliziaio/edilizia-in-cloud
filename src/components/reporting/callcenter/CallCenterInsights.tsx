@@ -91,8 +91,9 @@ export function CallCenterInsights({ kpi }: Props) {
   const insights = generateInsights(kpi);
   if (!insights.length) return null;
 
+  // Telefono: gli insight testuali restano al computer (le azioni sono già nella diagnosi).
   return (
-    <Card>
+    <Card className="max-sm:hidden">
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2">
           <Lightbulb className="h-4 w-4" />

@@ -18,6 +18,7 @@
  */
 import React from "react";
 import type { JSX } from "react";
+import { cn } from "@/lib/utils";
 
 export interface ChatMarkdownSource {
   id: string;          // "S1", "S2"
@@ -129,13 +130,23 @@ function renderBlocks(text: string): React.ReactNode[] {
   const flushPara = (paraLines: string[]) => {
     if (paraLines.length === 0) return;
     out.push(
+      // A capo singolo = riga nuova, come in ogni chat. Unite con uno spazio,
+      // «Cosa: … / Quando: … / Assegnata a: …» diventavano un unico blocco.
       <p key={`p-${key++}`} className="my-1 leading-relaxed">
-        {renderInline(paraLines.join(" "))}
+        {paraLines.map((riga, idx) => (
+          <React.Fragment key={idx}>
+            {idx > 0 && <br />}
+            {renderInline(riga)}
+          </React.Fragment>
+        ))}
       </p>,
     );
   };
 
   let para: string[] = [];
+  // «Fonti» in fondo alla risposta: su mobile è una nota a piè di pagina,
+  // non un titolo in grassetto con un elenco grande quanto il testo.
+  let inFonti = false;
 
   while (i < lines.length) {
     const line = lines[i];
@@ -173,6 +184,17 @@ function renderBlocks(text: string): React.ReactNode[] {
     if (/^---+$/.test(trimmed) || /^\*\*\*+$/.test(trimmed)) {
       flushPara(para); para = [];
       out.push(<hr key={`hr-${key++}`} className="my-2 border-slate-200" />);
+      i++; continue;
+    }
+
+    if (/^(?:#{1,6}\s*)?\**\s*fonti\s*\**:?\s*\**$/i.test(trimmed)) {
+      flushPara(para); para = [];
+      inFonti = true;
+      out.push(
+        <p key={`fonti-${key++}`} className="mt-2 mb-0.5 text-sm font-semibold text-slate-800 max-sm:mt-1.5 max-sm:text-[11px] max-sm:font-medium max-sm:uppercase max-sm:tracking-wide max-sm:text-slate-400">
+          Fonti
+        </p>,
+      );
       i++; continue;
     }
 
@@ -251,12 +273,13 @@ function renderBlocks(text: string): React.ReactNode[] {
           ListTag,
           {
             key: `list-${key++}`,
-            className: ordered
-              ? "my-1 ml-5 list-decimal space-y-0.5"
-              : "my-1 ml-5 list-disc space-y-0.5",
+            className: cn(
+              ordered ? "my-1 ml-5 list-decimal space-y-0.5" : "my-1 ml-5 list-disc space-y-0.5",
+              inFonti && "max-sm:ml-4 max-sm:text-[11px] max-sm:leading-snug max-sm:text-slate-500",
+            ),
           },
           items.map((it, idx) => (
-            <li key={idx} className="leading-relaxed">{renderInline(it)}</li>
+            <li key={idx} className={cn("leading-relaxed", inFonti && "max-sm:leading-snug")}>{renderInline(it)}</li>
           )),
         ),
       );

@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { OrderSelectCombobox } from "@/components/warehouse/OrderSelectCombobox";
 import { useAllHrProfili } from "@/hooks/useOrganigramma";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   allegaLibretto, caricaFileMezzo, leggiDocumentoConAI, rimuoviFileMezzo, useMezzi, useSalvaMezzo,
   type MezzoInput,
@@ -71,6 +72,8 @@ interface LibrettoLetto {
 }
 
 function MezzoForm({ mezzo, onOpenChange, onSalvato }: Omit<Props, "open">) {
+  // Mobile: niente tastiera aperta appena si apre il foglio (copre metà form).
+  const isMobile = useIsMobile();
   const companyId = useEffectiveCompanyId();
   const salva = useSalvaMezzo();
   const { data: profili = [] } = useAllHrProfili();
@@ -182,13 +185,13 @@ function MezzoForm({ mezzo, onOpenChange, onSalvato }: Omit<Props, "open">) {
     >
       <DialogHeader>
         <DialogTitle>{mezzo ? "Modifica mezzo" : "Nuovo mezzo o attrezzatura"}</DialogTitle>
-        <DialogDescription>
+        <DialogDescription className="max-sm:sr-only">
           Basta il nome per iniziare: documenti, scadenze e tagliandi si aggiungono dalla scheda.
         </DialogDescription>
       </DialogHeader>
 
-      <div className="space-y-4">
-        <div className="rounded-xl border border-dashed border-orange-200 bg-orange-50/50 p-3">
+      <div className="space-y-4 max-sm:space-y-3">
+        <div className="rounded-xl border border-dashed border-orange-200 bg-orange-50/50 p-3 max-sm:p-2.5">
           <input
             ref={inputLibretto}
             type="file"
@@ -198,12 +201,12 @@ function MezzoForm({ mezzo, onOpenChange, onSalvato }: Omit<Props, "open">) {
             aria-label="Carica il libretto di circolazione"
           />
           <div className="flex items-center justify-between gap-3">
-            <p className="text-sm text-slate-700">
+            <p className="text-sm text-slate-700 max-sm:text-xs">
               {libretto
                 ? "Libretto caricato: lo allego al mezzo quando salvi."
-                : "Hai il libretto? Carica una foto o il PDF e compilo io targa, marca, modello e telaio."}
+                : <><span className="max-sm:hidden">Hai il libretto? Carica una foto o il PDF e compilo io targa, marca, modello e telaio.</span><span className="sm:hidden">Fotografa il libretto: compilo io i dati.</span></>}
             </p>
-            <Button type="button" size="sm" variant="outline" className="shrink-0 bg-white" onClick={() => inputLibretto.current?.click()} disabled={leggendo}>
+            <Button type="button" size="sm" variant="outline" className="shrink-0 bg-white max-sm:h-8 max-sm:text-xs" onClick={() => inputLibretto.current?.click()} disabled={leggendo}>
               {leggendo ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <ScanLine className="mr-1 h-4 w-4 text-orange-500" />}
               {leggendo ? "Leggo…" : libretto ? "Cambia" : "Leggi il libretto"}
             </Button>
@@ -217,11 +220,11 @@ function MezzoForm({ mezzo, onOpenChange, onSalvato }: Omit<Props, "open">) {
             value={form.nome}
             onChange={(e) => set("nome", e.target.value)}
             placeholder="es. Ducato bianco, Miniescavatore Kubota"
-            autoFocus
+            autoFocus={!isMobile}
           />
         </div>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 max-sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor="mezzo-tipo">Tipo</Label>
             <Select value={form.tipo ?? "furgone"} onValueChange={(v) => cambiaTipo(v as MezzoTipo)}>
@@ -290,7 +293,7 @@ function MezzoForm({ mezzo, onOpenChange, onSalvato }: Omit<Props, "open">) {
           </Select>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 max-sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor="mezzo-possesso">Possesso</Label>
             <Select value={form.possesso ?? "proprieta"} onValueChange={(v) => set("possesso", v as MezzoInput["possesso"])}>
@@ -329,7 +332,7 @@ function MezzoForm({ mezzo, onOpenChange, onSalvato }: Omit<Props, "open">) {
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">Chi lo ha in carico lo vede dal telefono, con assicurazione e libretto.</p>
+            <p className="text-xs text-muted-foreground max-sm:hidden">Chi lo ha in carico lo vede dal telefono, con assicurazione e libretto.</p>
           </div>
           <div className="space-y-1.5">
             <Label>Cantiere (commessa)</Label>
@@ -365,7 +368,7 @@ function MezzoForm({ mezzo, onOpenChange, onSalvato }: Omit<Props, "open">) {
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground max-sm:hidden">
                 {haAttrezziSopra
                   ? "Su questo mezzo sono caricati degli attrezzi: non si può caricarlo su un altro."
                   : "Per gli attrezzi che viaggiano su un furgone: così si sa cosa c'è a bordo."}
@@ -374,9 +377,10 @@ function MezzoForm({ mezzo, onOpenChange, onSalvato }: Omit<Props, "open">) {
           )}
         </div>
 
-        <div className="space-y-3 rounded-xl border bg-muted/30 p-3">
+        {/* Mobile no: i costi d'acquisto e le rate si segnano al computer. */}
+        <div className="space-y-3 rounded-xl border bg-muted/30 p-3 max-sm:hidden">
           <p className="text-sm font-medium">Costi</p>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 max-sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="mezzo-valore">Valore d'acquisto (€)</Label>
               <Input
@@ -417,7 +421,7 @@ function MezzoForm({ mezzo, onOpenChange, onSalvato }: Omit<Props, "open">) {
       </div>
 
       <DialogFooter className="gap-2">
-        <Button variant="outline" onClick={() => onOpenChange(false)}>Annulla</Button>
+        <Button variant="outline" className="max-sm:hidden" onClick={() => onOpenChange(false)}>Annulla</Button>
         <Button onClick={invia} disabled={!nomeValido || salva.isPending || leggendo}>
           {salva.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           {mezzo ? "Salva" : "Crea mezzo"}

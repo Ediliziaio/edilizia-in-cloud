@@ -62,9 +62,10 @@ export default function SopralluoghiList() {
 
   return (
     <div className="mx-auto max-w-6xl p-0 sm:p-2 md:p-6 space-y-3 sm:space-y-4">
-      {/* Header — compatto mobile: title + icon + CTA "Nuovo" full-width */}
+      {/* Header — telefono: resta solo «Nuovo sopralluogo» a tutta riga; il
+          titolo lo dice già la scheda in alto e le impostazioni sono dal computer. */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 max-sm:hidden">
           <div className="h-9 w-9 sm:h-12 sm:w-12 rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center text-white shadow-lg shrink-0">
             <ClipboardList className="h-4 w-4 sm:h-6 sm:w-6" />
           </div>
@@ -80,7 +81,7 @@ export default function SopralluoghiList() {
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center">
           {/* Modelli dei sopralluoghi: prima stavano tra le impostazioni dei preventivi. */}
           {(permessi.isAdmin || permessi.canViewSettingsCustomization) && (
-            <Button asChild variant="outline" className="gap-2 w-full sm:w-auto">
+            <Button asChild variant="outline" className="gap-2 w-full sm:w-auto max-sm:hidden">
               <Link to="/azienda/impostazioni/sopralluoghi">
                 <Settings className="h-4 w-4" />
                 Impostazioni
@@ -103,9 +104,9 @@ export default function SopralluoghiList() {
         </div>
       </div>
 
-      {/* Filters — mobile: search full + status select full */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-        <div className="relative flex-1 w-full sm:min-w-[240px]">
+      {/* Filtri — telefono: ricerca e stato sulla stessa riga. */}
+      <div className="flex flex-row items-center gap-2">
+        <div className="relative flex-1 w-full min-w-0 sm:min-w-[240px]">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
             placeholder="Cerca sopralluogo…"
@@ -116,7 +117,7 @@ export default function SopralluoghiList() {
           />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-full sm:w-44 h-10 sm:h-9 text-sm">
+          <SelectTrigger className="w-full sm:w-44 h-10 sm:h-9 text-sm max-sm:w-32 max-sm:shrink-0">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

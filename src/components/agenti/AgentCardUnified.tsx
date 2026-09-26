@@ -94,6 +94,8 @@ interface Props {
   onDuplicate: (id: string) => void;
   onNavigateConversations: (id: string) => void;
   isToggling?: boolean;
+  /** Telefono: gli agenti si guardano; accendere, configurare, duplicare ed eliminare si fa dal computer. */
+  soloLettura?: boolean;
 }
 
 export function AgentCardUnified({
@@ -105,6 +107,7 @@ export function AgentCardUnified({
   onDuplicate,
   onNavigateConversations,
   isToggling = false,
+  soloLettura = false,
 }: Props) {
   const tipoCfg = TIPO_CONFIG[agente.tipo] ?? TIPO_CONFIG.interno;
   const statoCfg = STATO_CONFIG[agente.stato] ?? STATO_CONFIG.bozza;
@@ -136,7 +139,7 @@ export function AgentCardUnified({
             </div>
           </div>
 
-          <div className="flex items-center gap-1">
+          <div className={`flex items-center gap-1 ${soloLettura ? "hidden" : ""}`}>
             {/* Toggle play/pause */}
             {agente.stato !== "archiviato" && (
               <Button
@@ -193,7 +196,7 @@ export function AgentCardUnified({
         </div>
       </div>
 
-      <CardContent className="p-4 cursor-pointer" onClick={onClick}>
+      <CardContent className={soloLettura ? "p-4" : "p-4 cursor-pointer"} onClick={soloLettura ? undefined : onClick}>
         {/* Status badge */}
         <div className="flex items-center gap-2 mb-2">
           <Badge variant={statoCfg.variant} className="text-[10px] gap-1">

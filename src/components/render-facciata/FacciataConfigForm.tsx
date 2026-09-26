@@ -11,6 +11,8 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { DettagliTelefono } from "@/components/render/DettagliTelefono";
 import {
   Building2,
   Layers,
@@ -108,13 +110,15 @@ function cardClass(active: boolean) {
 
 export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfigFormProps) {
   const update = (partial: Partial<ConfigurazioneFacciata>) => onChange({ ...config, ...partial });
+  const isMobile = useIsMobile();
 
   return (
-    <div className="space-y-4">
-      {analysis && (
+    <div className="space-y-4 max-md:space-y-3">
+      {/* Telefono: la lettura dell'edificio è già al passo «Analisi». */}
+      {analysis && !isMobile && (
         <Card className="border-orange-200 bg-orange-50/40">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm flex items-center gap-2">
+          <CardHeader className="pb-3 max-md:p-3 max-md:pb-2">
+            <CardTitle className="text-sm flex items-center gap-2 max-md:text-[13px]">
               <Building2 className="h-4 w-4 text-orange-600" />
               Analisi edificio esistente
             </CardTitle>
@@ -146,23 +150,23 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
       )}
 
       <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm flex items-center gap-2">
+        <CardHeader className="pb-3 max-md:p-3 max-md:pb-2">
+          <CardTitle className="text-sm flex items-center gap-2 max-md:text-[13px]">
             <Building2 className="h-4 w-4 text-orange-600" />
             Tipo di intervento
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+        <CardContent className="max-md:p-3 max-md:pt-0">
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3 max-sm:grid-cols-2 max-sm:gap-1.5">
             {INTERVENTION_OPTIONS.map((option) => (
               <button
                 type="button"
                 key={option.value}
-                className={`rounded-xl border p-4 text-left transition ${cardClass(config.tipo_intervento === option.value)}`}
+                className={`rounded-xl border p-4 text-left transition max-md:p-2.5 ${cardClass(config.tipo_intervento === option.value)}`}
                 onClick={() => update({ tipo_intervento: option.value })}
               >
-                <p className="text-sm font-semibold">{option.label}</p>
-                <p className="mt-1 text-xs text-muted-foreground">{option.desc}</p>
+                <p className="text-sm font-semibold max-md:text-[13px] max-md:leading-tight">{option.label}</p>
+                <p className="mt-1 text-xs text-muted-foreground max-md:hidden">{option.desc}</p>
               </button>
             ))}
           </div>
@@ -170,9 +174,9 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
       </Card>
 
       <Card>
-        <CardHeader className="pb-3">
+        <CardHeader className="pb-3 max-md:p-3 max-md:pb-2">
           <div className="flex items-center justify-between gap-3">
-            <CardTitle className="text-sm flex items-center gap-2">
+            <CardTitle className="text-sm flex items-center gap-2 max-md:text-[13px]">
               <Paintbrush className="h-4 w-4 text-orange-600" />
               Intonaco / tinteggiatura
             </CardTitle>
@@ -183,10 +187,10 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
           </div>
         </CardHeader>
         {config.intonaco.attivo && (
-          <CardContent className="space-y-4">
-            <div className="grid gap-3 md:grid-cols-[180px,1fr,140px]">
+          <CardContent className="space-y-4 max-md:space-y-3 max-md:p-3 max-md:pt-0">
+            <div className="grid gap-3 md:grid-cols-[180px,1fr,140px] max-md:gap-2">
               <div>
-                <Label className="text-xs">Colore</Label>
+                <Label className="text-xs max-md:text-[11px]">Colore</Label>
                 <div className="mt-1 flex items-center gap-2">
                   <input
                     type="color"
@@ -202,8 +206,9 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
                 </div>
               </div>
               <div>
-                <Label className="text-xs">Nome / RAL</Label>
-                <div className="mt-1 grid gap-2 md:grid-cols-2">
+                <Label className="text-xs max-md:text-[11px]">Nome / RAL</Label>
+                {/* Telefono: nome e RAL affiancati. */}
+                <div className="mt-1 grid gap-2 md:grid-cols-2 max-md:grid-cols-2">
                   <Input
                     value={config.intonaco.colore_nome ?? ""}
                     onChange={(e) => update({ intonaco: { ...config.intonaco, colore_nome: e.target.value } })}
@@ -219,7 +224,7 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
                 </div>
               </div>
               <div>
-                <Label className="text-xs">Zona</Label>
+                <Label className="text-xs max-md:text-[11px]">Zona</Label>
                 <Select
                   value={config.intonaco.zona}
                   onValueChange={(value) => update({ intonaco: { ...config.intonaco, zona: value as ConfigurazioneFacciata["intonaco"]["zona"] } })}
@@ -239,17 +244,17 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
             </div>
 
             <div>
-              <Label className="text-xs">Finitura</Label>
-              <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+              <Label className="text-xs max-md:text-[11px]">Finitura</Label>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3 max-sm:grid-cols-2 max-sm:gap-1.5">
                 {FINISH_OPTIONS.map((finish) => (
                   <button
                     type="button"
                     key={finish.value}
-                    className={`rounded-xl border p-3 text-left transition ${cardClass(config.intonaco.finitura === finish.value)}`}
+                    className={`rounded-xl border p-3 text-left transition max-md:p-2.5 ${cardClass(config.intonaco.finitura === finish.value)}`}
                     onClick={() => update({ intonaco: { ...config.intonaco, finitura: finish.value } })}
                   >
-                    <p className="text-sm font-semibold">{finish.label}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">{finish.desc}</p>
+                    <p className="text-sm font-semibold max-md:text-[13px] max-md:leading-tight">{finish.label}</p>
+                    <p className="mt-1 text-xs text-muted-foreground max-md:hidden">{finish.desc}</p>
                   </button>
                 ))}
               </div>
@@ -259,9 +264,9 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
       </Card>
 
       <Card>
-        <CardHeader className="pb-3">
+        <CardHeader className="pb-3 max-md:p-3 max-md:pb-2">
           <div className="flex items-center justify-between gap-3">
-            <CardTitle className="text-sm flex items-center gap-2">
+            <CardTitle className="text-sm flex items-center gap-2 max-md:text-[13px]">
               <Layers className="h-4 w-4 text-orange-600" />
               Rivestimenti e zone applicative
             </CardTitle>
@@ -272,23 +277,23 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
           </div>
         </CardHeader>
         {config.rivestimento.attivo && (
-          <CardContent className="space-y-4">
-            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          <CardContent className="space-y-4 max-md:space-y-3 max-md:p-3 max-md:pt-0">
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3 max-sm:grid-cols-2 max-sm:gap-1.5">
               {CLADDING_OPTIONS.map((material) => (
                 <button
                   type="button"
                   key={material.value}
-                  className={`rounded-xl border p-3 text-left transition ${cardClass(config.rivestimento.tipo === material.value)}`}
+                  className={`rounded-xl border p-3 text-left transition max-md:p-2.5 ${cardClass(config.rivestimento.tipo === material.value)}`}
                   onClick={() => update({ rivestimento: { ...config.rivestimento, tipo: material.value } })}
                 >
-                  <p className="text-sm font-semibold">{material.label}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">{material.desc}</p>
+                  <p className="text-sm font-semibold max-md:text-[13px] max-md:leading-tight">{material.label}</p>
+                  <p className="mt-1 text-xs text-muted-foreground max-md:hidden">{material.desc}</p>
                 </button>
               ))}
             </div>
-            <div className="grid gap-3 md:grid-cols-3">
+            <div className="grid gap-3 md:grid-cols-3 max-md:grid-cols-2 max-md:gap-2">
               <div>
-                <Label className="text-xs">Zona applicazione</Label>
+                <Label className="text-xs max-md:text-[11px]">Zona applicazione</Label>
                 <Select
                   value={config.rivestimento.zona}
                   onValueChange={(value) => update({ rivestimento: { ...config.rivestimento, zona: value as ConfigurazioneFacciata["rivestimento"]["zona"] } })}
@@ -306,7 +311,7 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
                 </Select>
               </div>
               <div>
-                <Label className="text-xs">Posa / composizione</Label>
+                <Label className="text-xs max-md:text-[11px]">Posa / composizione</Label>
                 <Select
                   value={config.rivestimento.posa ?? "corsi_regolari"}
                   onValueChange={(value) => update({ rivestimento: { ...config.rivestimento, posa: value as NonNullable<ConfigurazioneFacciata["rivestimento"]["posa"]> } })}
@@ -324,7 +329,7 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
                 </Select>
               </div>
               <div>
-                <Label className="text-xs">Colore fuga / giunto</Label>
+                <Label className="text-xs max-md:text-[11px]">Colore fuga / giunto</Label>
                 <Input
                   value={config.rivestimento.fuga_colore ?? ""}
                   onChange={(e) => update({ rivestimento: { ...config.rivestimento, fuga_colore: e.target.value } })}
@@ -338,9 +343,9 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
       </Card>
 
       <Card>
-        <CardHeader className="pb-3">
+        <CardHeader className="pb-3 max-md:p-3 max-md:pb-2">
           <div className="flex items-center justify-between gap-3">
-            <CardTitle className="text-sm flex items-center gap-2">
+            <CardTitle className="text-sm flex items-center gap-2 max-md:text-[13px]">
               <Thermometer className="h-4 w-4 text-orange-600" />
               Cappotto termico
             </CardTitle>
@@ -351,10 +356,10 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
           </div>
         </CardHeader>
         {config.cappotto.attivo && (
-          <CardContent className="space-y-4">
-            <div className="grid gap-3 md:grid-cols-4">
+          <CardContent className="space-y-4 max-md:space-y-3 max-md:p-3 max-md:pt-0">
+            <div className="grid gap-3 md:grid-cols-4 max-md:grid-cols-2 max-md:gap-2">
               <div>
-                <Label className="text-xs">Spessore</Label>
+                <Label className="text-xs max-md:text-[11px]">Spessore</Label>
                 <Select
                   value={String(config.cappotto.spessore_cm)}
                   onValueChange={(value) => update({ cappotto: { ...config.cappotto, spessore_cm: Number(value) as ConfigurazioneFacciata["cappotto"]["spessore_cm"] } })}
@@ -372,7 +377,7 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
                 </Select>
               </div>
               <div>
-                <Label className="text-xs">Sistema</Label>
+                <Label className="text-xs max-md:text-[11px]">Sistema</Label>
                 <Select
                   value={config.cappotto.sistema}
                   onValueChange={(value) => update({ cappotto: { ...config.cappotto, sistema: value as ConfigurazioneFacciata["cappotto"]["sistema"] } })}
@@ -388,7 +393,7 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
                 </Select>
               </div>
               <div>
-                <Label className="text-xs">Zona</Label>
+                <Label className="text-xs max-md:text-[11px]">Zona</Label>
                 <Select
                   value={config.cappotto.zona ?? "tutta"}
                   onValueChange={(value) => update({ cappotto: { ...config.cappotto, zona: value as NonNullable<ConfigurazioneFacciata["cappotto"]["zona"]> } })}
@@ -406,7 +411,7 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
                 </Select>
               </div>
               <div>
-                <Label className="text-xs">Colore finitura</Label>
+                <Label className="text-xs max-md:text-[11px]">Colore finitura</Label>
                 <div className="mt-1 flex items-center gap-2">
                   <input
                     type="color"
@@ -426,20 +431,23 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
         )}
       </Card>
 
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm flex items-center gap-2">
+      {/* Telefono: cornici, davanzali, gronde e ringhiere hanno già «mantieni»:
+          stanno in una riga chiusa. */}
+      <Card className="max-md:border-0 max-md:bg-transparent max-md:shadow-none">
+        <CardHeader className="pb-3 max-md:hidden">
+          <CardTitle className="text-sm flex items-center gap-2 max-md:text-[13px]">
             <Columns2 className="h-4 w-4 text-orange-600" />
             Elementi architettonici e dettagli
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 max-md:p-0">
+          <DettagliTelefono titolo="Elementi architettonici e dettagli">
           <div className="grid gap-3 lg:grid-cols-2">
-            <div className="rounded-xl border p-4 space-y-3">
-              <p className="text-sm font-semibold">Cornici e marcapiani</p>
-              <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-xl border p-4 space-y-3 max-md:p-3">
+              <p className="text-sm font-semibold max-md:text-[13px]">Cornici e marcapiani</p>
+              <div className="grid gap-3 sm:grid-cols-2 max-sm:grid-cols-2 max-sm:gap-2">
                 <div>
-                  <Label className="text-xs">Cornici finestre</Label>
+                  <Label className="text-xs max-md:text-[11px]">Cornici finestre</Label>
                   <Select
                     value={config.elementi.cornici_finestre.azione}
                     onValueChange={(value) => update({ elementi: { ...config.elementi, cornici_finestre: { ...config.elementi.cornici_finestre, azione: value as ConfigurazioneFacciata["elementi"]["cornici_finestre"]["azione"] } } })}
@@ -453,7 +461,7 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
                   </Select>
                 </div>
                 <div>
-                  <Label className="text-xs">Marcapiani</Label>
+                  <Label className="text-xs max-md:text-[11px]">Marcapiani</Label>
                   <Select
                     value={config.elementi.marcapiani.azione}
                     onValueChange={(value) => update({ elementi: { ...config.elementi, marcapiani: { ...config.elementi.marcapiani, azione: value as ConfigurazioneFacciata["elementi"]["marcapiani"]["azione"] } } })}
@@ -467,7 +475,7 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
                   </Select>
                 </div>
               </div>
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-2 max-sm:grid-cols-2 max-sm:gap-2">
                 <Input
                   value={config.elementi.cornici_finestre.colore_hex ?? ""}
                   onChange={(e) => update({ elementi: { ...config.elementi, cornici_finestre: { ...config.elementi.cornici_finestre, colore_hex: e.target.value } } })}
@@ -483,11 +491,11 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
               </div>
             </div>
 
-            <div className="rounded-xl border p-4 space-y-3">
-              <p className="text-sm font-semibold">Davanzali, zoccolatura, gronde</p>
-              <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-xl border p-4 space-y-3 max-md:p-3">
+              <p className="text-sm font-semibold max-md:text-[13px]">Davanzali, zoccolatura, gronde</p>
+              <div className="grid gap-3 sm:grid-cols-3 max-sm:grid-cols-2 max-sm:gap-2">
                 <div>
-                  <Label className="text-xs">Davanzali</Label>
+                  <Label className="text-xs max-md:text-[11px]">Davanzali</Label>
                   <Select
                     value={config.elementi.davanzali.azione}
                     onValueChange={(value) => update({ elementi: { ...config.elementi, davanzali: { ...config.elementi.davanzali, azione: value as ConfigurazioneFacciata["elementi"]["davanzali"]["azione"] } } })}
@@ -500,7 +508,7 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
                   </Select>
                 </div>
                 <div>
-                  <Label className="text-xs">Zoccolatura</Label>
+                  <Label className="text-xs max-md:text-[11px]">Zoccolatura</Label>
                   <Select
                     value={config.elementi.zoccolatura.azione}
                     onValueChange={(value) => update({ elementi: { ...config.elementi, zoccolatura: { ...config.elementi.zoccolatura, azione: value as ConfigurazioneFacciata["elementi"]["zoccolatura"]["azione"] } } })}
@@ -514,7 +522,7 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
                   </Select>
                 </div>
                 <div>
-                  <Label className="text-xs">Gronde</Label>
+                  <Label className="text-xs max-md:text-[11px]">Gronde</Label>
                   <Select
                     value={config.elementi.gronde.azione}
                     onValueChange={(value) => update({ elementi: { ...config.elementi, gronde: { ...config.elementi.gronde, azione: value as ConfigurazioneFacciata["elementi"]["gronde"]["azione"] } } })}
@@ -527,7 +535,7 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
                   </Select>
                 </div>
               </div>
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-3 max-sm:grid-cols-2 max-sm:gap-2">
                 <Input
                   value={config.elementi.davanzali.materiale ?? ""}
                   onChange={(e) => update({ elementi: { ...config.elementi, davanzali: { ...config.elementi.davanzali, materiale: e.target.value as ConfigurazioneFacciata["elementi"]["davanzali"]["materiale"] } } })}
@@ -550,11 +558,11 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
             </div>
           </div>
 
-          <div className="rounded-xl border p-4 space-y-3">
-            <p className="text-sm font-semibold">Balconi e ringhiere</p>
+          <div className="rounded-xl border p-4 space-y-3 max-md:p-3">
+            <p className="text-sm font-semibold max-md:text-[13px]">Balconi e ringhiere</p>
             <div className="grid gap-3 sm:grid-cols-[220px,1fr]">
               <div>
-                <Label className="text-xs">Azione ringhiere</Label>
+                <Label className="text-xs max-md:text-[11px]">Azione ringhiere</Label>
                 <Select
                   value={config.elementi.balconi_ringhiere.azione}
                   onValueChange={(value) => update({ elementi: { ...config.elementi, balconi_ringhiere: { ...config.elementi.balconi_ringhiere, azione: value as ConfigurazioneFacciata["elementi"]["balconi_ringhiere"]["azione"] } } })}
@@ -567,7 +575,7 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
                 </Select>
               </div>
               <div>
-                <Label className="text-xs">Colore ringhiere</Label>
+                <Label className="text-xs max-md:text-[11px]">Colore ringhiere</Label>
                 <Input
                   value={config.elementi.balconi_ringhiere.colore_hex ?? ""}
                   onChange={(e) => update({ elementi: { ...config.elementi, balconi_ringhiere: { ...config.elementi.balconi_ringhiere, colore_hex: e.target.value } } })}
@@ -577,24 +585,29 @@ export function FacciataConfigForm({ config, analysis, onChange }: FacciataConfi
               </div>
             </div>
           </div>
+          </DettagliTelefono>
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm flex items-center gap-2">
+        <CardHeader className="pb-3 max-md:p-3 max-md:pb-2">
+          <CardTitle className="text-sm flex items-center gap-2 max-md:text-[13px]">
             <Ruler className="h-4 w-4 text-orange-600" />
             Note operative e vincoli
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-3 max-md:p-3 max-md:pt-0">
           <Textarea
             value={config.note_libere ?? ""}
             onChange={(e) => update({ note_libere: e.target.value })}
             rows={4}
-            placeholder="Esempio: rivestimento solo al piano terra, facciata superiore invariata; cornici sottili e pulite; ringhiere solo verniciate, senza cambiare disegno."
+            placeholder={isMobile
+              ? "Es. rivestimento solo al piano terra, ringhiere solo verniciate…"
+              : "Esempio: rivestimento solo al piano terra, facciata superiore invariata; cornici sottili e pulite; ringhiere solo verniciate, senza cambiare disegno."}
+            className="max-md:min-h-[88px] max-md:placeholder:text-[13px]"
           />
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3 text-sm text-emerald-900">
+          {/* Telefono: la spiegazione del prompt resta al computer. */}
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3 text-sm text-emerald-900 max-md:hidden">
             <div className="flex items-center gap-2 font-medium">
               <ShieldCheck className="h-4 w-4" />
               Cosa proteggerà il prompt

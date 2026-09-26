@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { CreateListDialog } from "./CreateListDialog";
 import type { ContactFilters } from "./ContactFiltersSheet";
 import { countActiveContactFilters } from "./ContactFiltersSheet";
+import { RigaMobile } from "@/components/mobile/FiltriMobile";
 
 /** Quanti iscritti mostrare per pagina nel dettaglio di una lista. */
 const MEMBRI_PER_PAGINA = 50;
@@ -351,7 +352,8 @@ export function ContactListsView({ onApplyDynamic }: { onApplyDynamic?: (filters
   // Lists grid view
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      {/* Mobile no: creare e riallineare le liste è lavoro da scrivania. */}
+      <div className="flex flex-wrap items-center justify-between gap-2 max-sm:hidden">
         <p className="text-sm text-muted-foreground">
           {lists.length} {lists.length === 1 ? "lista" : "liste"}
           {listeAutomatiche > 0 && `, di cui ${listeAutomatiche} che si aggiornano da sole`}
@@ -372,15 +374,39 @@ export function ContactListsView({ onApplyDynamic }: { onApplyDynamic?: (filters
       {isLoading ? (
         <div className="text-center py-12 text-muted-foreground">Caricamento...</div>
       ) : lists.length === 0 ? (
-        <div className="text-center py-16 space-y-3">
-          <List className="h-12 w-12 mx-auto text-muted-foreground/40" />
-          <p className="text-muted-foreground">Nessuna lista creata</p>
-          <Button variant="outline" onClick={() => { setEditingList(null); setDialogOpen(true); }}>
+        <div className="text-center py-16 space-y-3 max-sm:py-8">
+          <List className="h-12 w-12 mx-auto text-muted-foreground/40 max-sm:hidden" />
+          <p className="text-muted-foreground max-sm:text-[13px]">Nessuna lista creata</p>
+          <Button variant="outline" className="max-sm:hidden" onClick={() => { setEditingList(null); setDialogOpen(true); }}>
             <Plus className="h-4 w-4 mr-1" /> Crea la tua prima lista
           </Button>
         </div>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <>
+        {/* Mobile: una riga per lista (nome e contatti o filtri); il tocco fa
+            come la scheda del computer. Descrizione, regola e data restano lì. */}
+        <div className="divide-y divide-border overflow-hidden rounded-lg border bg-card sm:hidden">
+          {lists.map((list) => (
+            <RigaMobile
+              key={list.id}
+              titolo={list.name}
+              sottotitolo={
+                list.filters
+                  ? `Dinamica · ${countActiveContactFilters(list.filters)} ${countActiveContactFilters(list.filters) === 1 ? "filtro" : "filtri"}`
+                  : list.regola
+                    ? "Si aggiorna da sola"
+                    : undefined
+              }
+              valore={list.filters ? undefined : list.member_count.toLocaleString("it-IT")}
+              onClick={() =>
+                list.filters
+                  ? onApplyDynamic?.(list.filters)
+                  : setSelectedList({ id: list.id, name: list.name, description: list.description, regola: list.regola })
+              }
+            />
+          ))}
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 max-sm:hidden">
           {lists.map((list) => (
             <Card
               key={list.id}
@@ -441,6 +467,7 @@ export function ContactListsView({ onApplyDynamic }: { onApplyDynamic?: (filters
             </Card>
           ))}
         </div>
+        </>
       )}
 
       <CreateListDialog

@@ -191,7 +191,7 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
           </p>
         </DialogHeader>
 
-        <div className="space-y-4 min-h-[240px]">
+        <div className="space-y-4 min-h-[240px] max-sm:min-h-0 max-sm:space-y-3">
           {/* Step 1 */}
           {step === 1 && (
             <>
@@ -244,11 +244,11 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
                 <span className="font-medium">Aggiungi piano di manutenzione</span>
               </label>
               {hasPiano && (
-                <div className="space-y-3 pl-7">
+                <div className="space-y-3 pl-7 max-sm:pl-0">
                   <div className="space-y-1.5">
                     <Label>Titolo piano</Label>
                     <Input value={titoloManutenzione} onChange={(e) => setTitoloManutenzione(e.target.value)} />
-                    <p className="text-xs text-muted-foreground mt-1">
+                    <p className="text-xs text-muted-foreground mt-1 max-sm:hidden">
                       Puoi aggiungere un contratto a pagamento nel passo successivo.
                       Il piano funziona anche senza contratto.
                     </p>
@@ -291,7 +291,7 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
                 <span className="font-medium">Crea contratto di manutenzione</span>
               </label>
               {hasContratto && (
-                <div className="space-y-3 pl-7">
+                <div className="space-y-3 pl-7 max-sm:pl-0">
                   <div className="space-y-1.5">
                     <Label>Nome contratto</Label>
                     <Input value={nomeContratto} onChange={(e) => setNomeContratto(e.target.value)} placeholder="Es. Manutenzione Caldaia Annuale" />
@@ -392,10 +392,11 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
         </div>
 
         <DialogFooter className="flex justify-between">
-          <Button variant="outline" onClick={step === 1 ? handleClose : () => setStep((s) => s - 1)}>
+          {/* Mobile: al primo passo «Annulla» è la X; il bottone avanti riempie la riga. */}
+          <Button variant="outline" className={step === 1 ? "max-sm:hidden" : undefined} onClick={step === 1 ? handleClose : () => setStep((s) => s - 1)}>
             {step === 1 ? "Annulla" : <><ChevronLeft className="h-4 w-4 mr-1" />Indietro</>}
           </Button>
-          <div className="flex gap-2">
+          <div className="flex gap-2 max-sm:[&>button]:w-full">
             {step < 3 ? (
               <Button onClick={() => setStep((s) => s + 1)} disabled={step === 1 && !canNext1}>
                 Avanti <ChevronRight className="h-4 w-4 ml-1" />

@@ -578,7 +578,8 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
               placeholder="Oggetto del messaggio"
               className="h-9"
             />
-            <div className="mt-1.5">
+            {/* Mobile: niente riga dei modelli («Nessun template — crea il primo»). */}
+            <div className="mt-1.5 max-sm:hidden">
               <EmailTemplatePicker
                 onApply={(t) => {
                   setSubject(t.subject);
@@ -594,7 +595,7 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
           </div>
 
           <div>
-            <Label className="text-xs">Messaggio</Label>
+            <Label className="text-xs max-sm:hidden">Messaggio</Label>
             <RichTextEditor
               value={bodyHtml}
               onChange={(html, text) => {
@@ -735,7 +736,7 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
             size="sm"
             onClick={() => onOpenChange(false)}
             disabled={isSending}
-            className="rounded-lg text-slate-600 hover:bg-slate-100"
+            className="rounded-lg text-slate-600 hover:bg-slate-100 max-sm:hidden"
           >
             <X className="h-3.5 w-3.5 mr-1" />
             Chiudi

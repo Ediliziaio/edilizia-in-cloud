@@ -312,7 +312,7 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
   return (
     <div className="border-t bg-white dark:bg-[#202c33] shrink-0">
       {/* Selettore canale: piccolo, la barra deve rubare poco alla chat. */}
-      <div className="flex items-center gap-0.5 px-3 pt-1.5 overflow-x-auto">
+      <div className="flex items-center gap-0.5 px-3 pt-1.5 overflow-x-auto max-md:[scrollbar-width:none]">
         {CANALI.map((c) => (
           <button
             key={c.key}
@@ -320,7 +320,7 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
             disabled={c.disabled}
             onClick={() => setCanale(c.key)}
             className={cn(
-              "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors shrink-0",
+              "tap-compact inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors shrink-0 max-md:h-8",
               canale === c.key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted",
               c.disabled && "opacity-40 cursor-not-allowed",
             )}
@@ -356,7 +356,7 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
             placeholder="Oggetto…"
             value={subject}
             onChange={(e) => setSubject(e.target.value.slice(0, 200))}
-            className="h-9 text-base sm:h-8 sm:text-sm"
+            className="h-8 text-sm"
           />
           <div className="flex items-end gap-2">
             <Textarea
@@ -484,14 +484,18 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
         const etichetta = piattaforma === "instagram" ? "Instagram" : "Messenger";
         return (
           <div className="px-3 pb-2 pt-1.5 space-y-1.5">
-            <p className="text-[11px] text-muted-foreground">
+            {/* Mobile: il canale lo dice già la pillola selezionata sopra. */}
+            <p className="text-[11px] text-muted-foreground max-md:hidden">
               {etichetta}{id?.username ? ` · @${id.username}` : id?.nome ? ` · ${id.nome}` : ""}
               {aperta && " · puoi rispondere fino a 24 ore dal suo ultimo messaggio"}
             </p>
             {!aperta && (
               <div className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-[11px] text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
-                Sono passate più di 24 ore dal suo ultimo messaggio: Meta non permette di rispondere da qui
-                finché non scrive di nuovo. Puoi rispondere dall'app di {etichetta}.
+                <span className="md:hidden">Oltre 24 ore dal suo ultimo messaggio: rispondi dall'app di {etichetta}.</span>
+                <span className="max-md:hidden">
+                  Sono passate più di 24 ore dal suo ultimo messaggio: Meta non permette di rispondere da qui
+                  finché non scrive di nuovo. Puoi rispondere dall'app di {etichetta}.
+                </span>
               </div>
             )}
             <div className="flex items-end gap-2">

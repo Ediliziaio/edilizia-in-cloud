@@ -393,7 +393,7 @@ export function MetaLeadFormBuilder({
                   maxLength={60}
                   placeholder="Vuoi un preventivo chiaro?"
                 />
-                <p className="mt-0.5 text-[10px] text-slate-500">{value.introHeadline.length}/60</p>
+                <p className="mt-0.5 text-[10px] text-slate-500 max-md:text-[11px]">{value.introHeadline.length}/60</p>
               </div>
               <div>
                 <Label className="mb-1 block text-xs font-semibold">Descrizione</Label>
@@ -404,7 +404,7 @@ export function MetaLeadFormBuilder({
                   placeholder="Compila il modulo: ti contattiamo entro 24h con una proposta su misura."
                   className="min-h-20"
                 />
-                <p className="mt-0.5 text-[10px] text-slate-500">{value.introBody.length}/600</p>
+                <p className="mt-0.5 text-[10px] text-slate-500 max-md:text-[11px]">{value.introBody.length}/600</p>
               </div>
             </>
           )}
@@ -445,7 +445,7 @@ export function MetaLeadFormBuilder({
                     <Icon className={cn("h-4 w-4 shrink-0", checked ? "text-blue-600" : "text-slate-400")} />
                     <span className="flex-1 truncate">{opt.label}</span>
                     {opt.recommended && !checked && (
-                      <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-[9px] text-emerald-700">★</Badge>
+                      <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-[9px] text-emerald-700 max-md:text-[11px]">★</Badge>
                     )}
                     {checked && <Check className="h-3.5 w-3.5 text-blue-600" />}
                   </button>
@@ -508,7 +508,7 @@ export function MetaLeadFormBuilder({
               </p>
             ) : (
               <div className="space-y-2">
-                <p className="text-[10px] font-semibold uppercase text-slate-500">
+                <p className="text-[10px] font-semibold uppercase text-slate-500 max-md:text-[11px]">
                   Ordine domande nel form
                 </p>
                 {value.questions.map((q, idx) => (
@@ -727,7 +727,7 @@ function FormTypeCard({
         )}
       </div>
       <p className="text-xs text-slate-600">{description}</p>
-      <div className="mt-2 flex flex-wrap gap-1 text-[10px]">
+      <div className="mt-2 flex flex-wrap gap-1 text-[10px] max-md:text-[11px]">
         <Badge variant="outline">⏱ {timeToFill}</Badge>
         <Badge variant="outline">{qualityHint}</Badge>
       </div>
@@ -766,13 +766,13 @@ function QuestionRow({
     )}>
       <div className="flex items-center gap-2">
         <GripVertical className="h-3.5 w-3.5 shrink-0 text-slate-300" />
-        <Badge variant="outline" className="shrink-0 text-[9px]">
+        <Badge variant="outline" className="shrink-0 text-[9px] max-md:text-[11px]">
           {isPrefilled ? "Meta" : "Custom"}
         </Badge>
         <p className="min-w-0 flex-1 truncate text-sm font-medium text-slate-900">
           {isPrefilled ? prefilledLabel : custom?.label}
         </p>
-        {custom?.required && <Badge className="bg-rose-500 text-[9px] text-white">obbligatoria</Badge>}
+        {custom?.required && <Badge className="bg-rose-500 text-[9px] text-white max-md:text-[11px]">obbligatoria</Badge>}
         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onMoveUp} disabled={index === 0}>
           <ChevronUp className="h-3 w-3" />
         </Button>
@@ -791,7 +791,7 @@ function QuestionRow({
       {expanded && custom && (
         <div className="mt-3 space-y-2 border-t border-violet-200 pt-3">
           <div>
-            <Label className="mb-1 block text-[10px] font-semibold">Domanda</Label>
+            <Label className="mb-1 block text-[10px] font-semibold max-md:text-[11px]">Domanda</Label>
             <Input
               value={custom.label}
               onChange={(e) => onUpdateCustom({ label: e.target.value.slice(0, 200) })}
@@ -800,7 +800,7 @@ function QuestionRow({
           </div>
           <div className="grid gap-2 sm:grid-cols-2">
             <div>
-              <Label className="mb-1 block text-[10px] font-semibold">Tipo risposta</Label>
+              <Label className="mb-1 block text-[10px] font-semibold max-md:text-[11px]">Tipo risposta</Label>
               <Select
                 value={custom.type}
                 onValueChange={(v: CustomQuestionType) => onUpdateCustom({ type: v })}
@@ -824,14 +824,14 @@ function QuestionRow({
           </div>
           {custom.type === "multiple_choice" && (
             <div>
-              <Label className="mb-1 block text-[10px] font-semibold">Opzioni di risposta (una per riga)</Label>
+              <Label className="mb-1 block text-[10px] font-semibold max-md:text-[11px]">Opzioni di risposta (una per riga)</Label>
               <Textarea
                 value={(custom.options ?? []).join("\n")}
                 onChange={(e) => onUpdateCustom({ options: e.target.value.split("\n").map((s) => s.trim()).filter(Boolean).slice(0, 10) })}
                 placeholder="Opzione 1&#10;Opzione 2&#10;Opzione 3"
                 className="min-h-20 font-mono text-xs"
               />
-              <p className="mt-0.5 text-[10px] text-slate-500">Max 10 opzioni</p>
+              <p className="mt-0.5 text-[10px] text-slate-500 max-md:text-[11px]">Max 10 opzioni</p>
             </div>
           )}
         </div>

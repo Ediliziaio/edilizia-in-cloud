@@ -77,7 +77,8 @@ function MetricCard({
   chipTone = "neutral",
   highlight,
   semaforo,
-}: MetricCardProps) {
+  className,
+}: MetricCardProps & { className?: string }) {
   // Margine: tinta semantica derivata dal token chart (sfondo 8% + bordo 30%).
   const hsl = semaforo ? `hsl(${semaforoVar(semaforo)})` : undefined;
   const semaforoStyle = hsl
@@ -89,8 +90,10 @@ function MetricCard({
   return (
     <div
       className={cn(
-        "rounded-xl border bg-card p-4 transition-colors",
+        // Telefono: nome, cifra e nota; senza icona.
+        "rounded-xl border bg-card p-4 transition-colors max-sm:px-3 max-sm:py-2",
         highlight && "border-primary/30 bg-primary/5 ring-1 ring-primary/15 dark:bg-primary/10",
+        className,
       )}
       style={semaforoStyle}
     >
@@ -100,7 +103,7 @@ function MetricCard({
         </span>
         <span
           className={cn(
-            "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg",
+            "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg max-sm:hidden",
             CHIP[chipTone],
           )}
           // Per il margine il chip riprende il colore semantico chart.
@@ -111,7 +114,7 @@ function MetricCard({
       </div>
       <p
         className={cn(
-          "mt-2 text-xl font-semibold leading-tight tabular-nums sm:text-2xl",
+          "mt-2 text-xl font-semibold leading-tight tabular-nums sm:text-2xl max-sm:mt-0.5 max-sm:text-base",
           highlight && "text-primary",
         )}
         style={hsl ? { color: hsl } : undefined}
@@ -119,7 +122,7 @@ function MetricCard({
         {value}
       </p>
       {hint ? (
-        <p className="mt-0.5 text-xs text-muted-foreground tabular-nums">{hint}</p>
+        <p className="mt-0.5 text-xs text-muted-foreground tabular-nums max-sm:text-[11px]">{hint}</p>
       ) : null}
     </div>
   );
@@ -146,7 +149,7 @@ export function SimKpiBar({ risultato, ivaRate }: SimKpiBarProps) {
 
   return (
     <div className="space-y-2.5">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 max-sm:gap-2">
         <MetricCard
           label="Costo totale"
           value={formatCurrency(risultato.costo_totale)}
@@ -182,6 +185,8 @@ export function SimKpiBar({ risultato, ivaRate }: SimKpiBarProps) {
           hint={risultato.rata_mensile != null ? "al mese" : "nessun finanziamento"}
           icon={CalendarClock}
           chipTone={risultato.rata_mensile != null ? "primary" : "neutral"}
+          // Telefono: senza finanziamento la rata («—») non occupa una riga da sola.
+          className={risultato.rata_mensile == null ? "max-sm:hidden" : undefined}
         />
       </div>
 

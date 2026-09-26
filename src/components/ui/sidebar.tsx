@@ -40,15 +40,39 @@ function useSidebar() {
   return context;
 }
 
+/**
+ * Vero sotto la larghezza data. Parte subito col valore reale (come
+ * useIsMobile) per non far lampeggiare la barra al primo disegno.
+ */
+function useSottoLarghezza(px: number | undefined) {
+  const [sotto, setSotto] = React.useState<boolean>(() =>
+    px !== undefined && typeof window !== "undefined" ? window.innerWidth < px : false,
+  );
+  React.useEffect(() => {
+    if (px === undefined) return;
+    const mql = window.matchMedia(`(max-width: ${px - 1}px)`);
+    const onChange = () => setSotto(window.innerWidth < px);
+    mql.addEventListener?.("change", onChange);
+    onChange();
+    return () => mql.removeEventListener?.("change", onChange);
+  }, [px]);
+  return sotto;
+}
+
 const SidebarProvider = React.forwardRef<
   HTMLDivElement,
   React.ComponentProps<"div"> & {
     defaultOpen?: boolean;
     open?: boolean;
     onOpenChange?: (open: boolean) => void;
+    /** Sotto questa larghezza la barra è un pannello a scomparsa invece che
+     *  fissa (di base: sotto i 768px, come useIsMobile). */
+    pannelloSotto?: number;
   }
->(({ defaultOpen = true, open: openProp, onOpenChange: setOpenProp, className, style, children, ...props }, ref) => {
-  const isMobile = useIsMobile();
+>(({ defaultOpen = true, open: openProp, onOpenChange: setOpenProp, pannelloSotto, className, style, children, ...props }, ref) => {
+  const isTelefono = useIsMobile();
+  const sottoSoglia = useSottoLarghezza(pannelloSotto);
+  const isMobile = pannelloSotto === undefined ? isTelefono : sottoSoglia;
   const [openMobile, setOpenMobile] = React.useState(false);
 
   // This is the internal state of the sidebar.

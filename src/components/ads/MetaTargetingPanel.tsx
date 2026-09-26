@@ -108,7 +108,7 @@ export function MetaTargetingPanel({
               Aggiungi <strong>paesi, regioni, città</strong> o ZIP. Per le città puoi impostare un raggio individuale (1–80 km).
             </p>
           </div>
-          <Badge variant="outline" className="border-blue-200 bg-blue-50 text-[10px] text-blue-700">
+          <Badge variant="outline" className="border-blue-200 bg-blue-50 text-[10px] text-blue-700 max-md:text-[11px]">
             {value.geoLocations.filter((g) => !g.excluded).length} inclusi
             {value.geoLocations.some((g) => g.excluded) && (
               <> · {value.geoLocations.filter((g) => g.excluded).length} esclusi</>
@@ -321,7 +321,7 @@ export function MetaTargetingPanel({
               Cerca interessi reali da Meta (ristrutturazione, casa, mutuo, fotovoltaico...). Massimo 25.
             </p>
           </div>
-          <Badge variant="outline" className="border-fuchsia-200 bg-fuchsia-50 text-[10px] text-fuchsia-700">
+          <Badge variant="outline" className="border-fuchsia-200 bg-fuchsia-50 text-[10px] text-fuchsia-700 max-md:text-[11px]">
             {value.interestTags.length} inclusi
             {value.excludedInterestTags.length > 0 && (
               <> · {value.excludedInterestTags.length} esclusi</>
@@ -470,12 +470,12 @@ function LocationSearchInput({
           <MapPin className="h-3.5 w-3.5 text-slate-400" />
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm text-slate-900">{r.name}</p>
-            <p className="truncate text-[10px] text-slate-500">
+            <p className="truncate text-[10px] text-slate-500 max-md:text-[11px]">
               {r.path?.join(" › ") ?? r.type}
               {r.country_name && !r.path?.length && ` · ${r.country_name}`}
             </p>
           </div>
-          <Badge variant="outline" className="shrink-0 text-[9px]">
+          <Badge variant="outline" className="shrink-0 text-[9px] max-md:text-[11px]">
             {r.type}
           </Badge>
         </div>
@@ -509,7 +509,7 @@ function InterestSearchInput({
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm text-slate-900">{r.name}</p>
             {r.audience_size_lower && (
-              <p className="text-[10px] text-slate-500">
+              <p className="text-[10px] text-slate-500 max-md:text-[11px]">
                 ~ {formatAudience(r.audience_size_lower)}–{formatAudience(r.audience_size_upper ?? r.audience_size_lower)} persone globali
               </p>
             )}
@@ -550,7 +550,7 @@ function LocaleSearchInput({
           <Badge
             key={s.key}
             variant="secondary"
-            className="cursor-pointer text-[10px]"
+            className="cursor-pointer text-[10px] max-md:text-[11px]"
             onClick={() => onChange(selected.filter((l) => l.key !== s.key))}
           >
             {s.name}
@@ -645,7 +645,7 @@ function SearchInput({ placeholder, icon, companyId, adAccountId, type, onSelect
       {open && results.length > 0 && (
         <div className="absolute z-50 mt-1 max-h-72 w-full overflow-auto rounded-md border border-slate-200 bg-white shadow-lg">
           {fallback && (
-            <div className="border-b border-amber-200 bg-amber-50 px-3 py-1.5 text-[10px] text-amber-800">
+            <div className="border-b border-amber-200 bg-amber-50 px-3 py-1.5 text-[10px] text-amber-800 max-md:text-[11px]">
               Catalogo locale (Meta API non connessa). Connetti l'account Meta in Impostazioni per risultati live.
             </div>
           )}
@@ -726,7 +726,7 @@ function PlacementGroup({
         <h4 className="text-sm font-semibold text-slate-950">{title}</h4>
         <button
           type="button"
-          className="text-[10px] font-medium text-blue-600 hover:underline"
+          className="text-[10px] font-medium text-blue-600 hover:underline max-md:text-[11px]"
           onClick={() => onChange(allSelected ? [] : positions.map((p) => p.v))}
         >
           {allSelected ? "Deseleziona tutto" : "Seleziona tutto"}

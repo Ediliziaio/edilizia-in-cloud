@@ -55,16 +55,16 @@ export function MezzoSegnalazioniSection({ mezzoId, unita, puoModificare }: Prop
   };
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 max-sm:space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-muted-foreground">Quello che manda dal telefono chi ha il mezzo.</p>
-        <div className="flex rounded-lg border p-0.5 text-sm" role="tablist" aria-label="Tipo di segnalazioni">
+        <p className="text-sm text-muted-foreground max-sm:hidden">Quello che manda dal telefono chi ha il mezzo.</p>
+        <div className="flex rounded-lg border p-0.5 text-sm max-sm:w-full max-sm:text-xs" role="tablist" aria-label="Tipo di segnalazioni">
           <button
             type="button"
             role="tab"
             aria-selected={!soloKm}
             onClick={() => setSoloKm(false)}
-            className={`rounded-md px-3 py-1 ${!soloKm ? "bg-slate-900 text-white" : "text-muted-foreground"}`}
+            className={`tap-compact rounded-md px-3 py-1 max-sm:flex-1 ${!soloKm ? "bg-slate-900 text-white" : "text-muted-foreground"}`}
           >
             Guasti e danni ({problemi.length})
           </button>
@@ -73,7 +73,7 @@ export function MezzoSegnalazioniSection({ mezzoId, unita, puoModificare }: Prop
             role="tab"
             aria-selected={soloKm}
             onClick={() => setSoloKm(true)}
-            className={`rounded-md px-3 py-1 ${soloKm ? "bg-slate-900 text-white" : "text-muted-foreground"}`}
+            className={`tap-compact rounded-md px-3 py-1 max-sm:flex-1 ${soloKm ? "bg-slate-900 text-white" : "text-muted-foreground"}`}
           >
             Km ({letture.length})
           </button>
@@ -88,8 +88,8 @@ export function MezzoSegnalazioniSection({ mezzoId, unita, puoModificare }: Prop
           <button type="button" className="font-semibold underline" onClick={() => refetch()}>Riprova</button>
         </div>
       ) : visibili.length === 0 ? (
-        <div className="rounded-xl border border-dashed py-10 text-center text-sm text-muted-foreground">
-          {soloKm ? <Gauge className="mx-auto mb-2 h-8 w-8 opacity-40" /> : <Wrench className="mx-auto mb-2 h-8 w-8 opacity-40" />}
+        <div className="rounded-xl border border-dashed py-10 text-center text-sm text-muted-foreground max-sm:py-4">
+          {soloKm ? <Gauge className="mx-auto mb-2 h-8 w-8 opacity-40 max-sm:hidden" /> : <Wrench className="mx-auto mb-2 h-8 w-8 opacity-40 max-sm:hidden" />}
           {soloKm ? "Nessun aggiornamento dei km dal campo." : "Nessun guasto o danno segnalato."}
         </div>
       ) : (
@@ -170,10 +170,10 @@ export function MezzoSegnalazioniSection({ mezzoId, unita, puoModificare }: Prop
               onChange={(e) => setNota(e.target.value)}
               placeholder="es. sostituito il sensore in officina"
             />
-            <p className="text-xs text-muted-foreground">Se c'è stato un intervento in officina, segnalo anche in «Tagliandi e interventi» con il costo.</p>
+            <p className="text-xs text-muted-foreground max-sm:hidden">Se c'è stato un intervento in officina, segnalo anche in «Tagliandi e interventi» con il costo.</p>
           </div>
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setDaChiudere(null)}>Annulla</Button>
+            <Button variant="outline" className="max-sm:hidden" onClick={() => setDaChiudere(null)}>Annulla</Button>
             <Button onClick={chiudi} disabled={aggiorna.isPending}>
               {aggiorna.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Chiudi
             </Button>

@@ -31,26 +31,45 @@ export function ManualTreasuryPanel({ autoOpenCreate = false, onAfterCreate }: {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 max-sm:space-y-2">
+      {/* Mobile: titolo corto e «+» a sola icona. */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Wallet className="h-4 w-4 text-muted-foreground" />
-          <h3 className="text-sm font-semibold">Conti / casse manuali</h3>
-          <span className="text-xs text-muted-foreground">(senza collegamento bancario)</span>
+          <Wallet className="h-4 w-4 text-muted-foreground max-sm:hidden" />
+          <h3 className="text-sm font-semibold max-sm:text-[13px]">Conti / casse manuali</h3>
+          <span className="text-xs text-muted-foreground max-sm:hidden">(senza collegamento bancario)</span>
         </div>
-        <Button size="sm" variant="outline" onClick={() => { resetForm(); setCreateOpen(true); }}>
-          <Plus className="h-4 w-4 mr-1" /> Aggiungi conto/cassa
+        <Button size="sm" variant="outline" onClick={() => { resetForm(); setCreateOpen(true); }} aria-label="Aggiungi conto/cassa" className="tap-compact max-sm:h-8 max-sm:w-8 max-sm:px-0">
+          <Plus className="h-4 w-4 mr-1 max-sm:mr-0" /> <span className="max-sm:hidden">Aggiungi conto/cassa</span>
         </Button>
       </div>
 
       {isLoading ? (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}</div>
       ) : accounts.length === 0 ? (
-        <Card><CardContent className="py-6 text-center text-sm text-muted-foreground">
-          Nessun conto manuale. Creane uno per gestire saldo e movimenti senza collegare la banca — alimenta previsionali, tesoreria e controllo di gestione.
+        <Card className="max-sm:border-0 max-sm:bg-transparent max-sm:shadow-none"><CardContent className="py-6 text-center text-sm text-muted-foreground max-sm:p-0 max-sm:text-left max-sm:text-xs">
+          Nessun conto manuale.<span className="max-sm:hidden"> Creane uno per gestire saldo e movimenti senza collegare la banca — alimenta previsionali, tesoreria e controllo di gestione.</span>
         </CardContent></Card>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <>
+        {/* Mobile: un conto per riga, si tocca per i movimenti (via matita e bottone). */}
+        <div className="divide-y divide-border overflow-hidden rounded-lg border bg-card sm:hidden">
+          {accounts.map((a) => (
+            <button
+              key={a.id}
+              type="button"
+              onClick={() => setSheetAccount(a)}
+              className="tap-compact flex w-full items-center gap-2.5 px-3 py-2.5 text-left active:bg-muted"
+            >
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[13px] font-semibold leading-tight">{a.display_name || a.account_name || "Conto"}</p>
+                {a.iban && <p className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground">{a.iban}</p>}
+              </div>
+              <p className={`shrink-0 text-[13px] font-semibold tabular-nums ${Number(a.current_balance) >= 0 ? "" : "text-destructive"}`}>{formatCurrency(Number(a.current_balance ?? 0))}</p>
+            </button>
+          ))}
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 max-sm:hidden">
           {accounts.map((a) => (
             <Card key={a.id} className="overflow-hidden">
               <CardContent className="p-4 space-y-2">
@@ -72,6 +91,7 @@ export function ManualTreasuryPanel({ autoOpenCreate = false, onAfterCreate }: {
             </Card>
           ))}
         </div>
+        </>
       )}
 
       {/* Crea / Modifica */}
@@ -79,7 +99,7 @@ export function ManualTreasuryPanel({ autoOpenCreate = false, onAfterCreate }: {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>{editing ? "Modifica conto/cassa" : "Nuovo conto/cassa manuale"}</DialogTitle>
-            <DialogDescription>Il saldo si aggiorna da apertura + movimenti e alimenta tesoreria, previsionali e controllo di gestione.</DialogDescription>
+            <DialogDescription className="max-sm:sr-only">Il saldo si aggiorna da apertura + movimenti e alimenta tesoreria, previsionali e controllo di gestione.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div><Label className="text-xs">Nome *</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Es. Banca Intesa c/c oppure Cassa contanti" /></div>
@@ -87,7 +107,7 @@ export function ManualTreasuryPanel({ autoOpenCreate = false, onAfterCreate }: {
             <div><Label className="text-xs">Saldo di apertura €</Label><Input inputMode="decimal" value={form.opening} onChange={(e) => setForm({ ...form, opening: e.target.value })} placeholder="0,00" /></div>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => { setCreateOpen(false); setEditing(null); resetForm(); }}>Annulla</Button>
+            <Button variant="ghost" onClick={() => { setCreateOpen(false); setEditing(null); resetForm(); }} className="max-sm:hidden">Annulla</Button>
             <Button onClick={editing ? submitEdit : submitCreate} disabled={createAccount.isPending || updateAccount.isPending || !form.name.trim()}>
               {editing ? "Salva" : "Crea conto"}
             </Button>

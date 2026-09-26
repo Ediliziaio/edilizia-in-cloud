@@ -3,7 +3,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CalendarClock, Plus, Loader2, Search, Filter, X, Download } from "lucide-react";
+import { Plus, Loader2, Search, Filter, X, Download, ChevronLeft, ChevronRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,6 +21,7 @@ import FattureDaRegistrareCard from "@/components/scadenzario/FattureDaRegistrar
 import { startOfMonth, endOfMonth, addDays, format } from "date-fns";
 
 import { useIsMobile } from "@/hooks/use-mobile";
+import { CercaConFiltri, KpiMobili, PannelloFiltri, PilloleFiltro } from "@/components/mobile/FiltriMobile";
 const DATE_PRESETS = [
   { label: "Questo mese", value: "questo_mese" },
   { label: "Prossimi 30gg", value: "30gg" },
@@ -64,6 +65,9 @@ export default function Scadenzario() {
   const [filterStatus, setFilterStatus] = useState("");
 
   const hasActiveFilters = datePreset || filterTipo || filterStatus;
+  // Mobile: linguette, periodo e tipo in un pannello dal basso.
+  const [filtriMobileAperti, setFiltriMobileAperti] = useState(false);
+  const nFiltriMobile = [tab !== "tutte", !!datePreset && datePreset !== "all", !!filterTipo && filterTipo !== "all"].filter(Boolean).length;
 
   const clearFilters = useCallback(() => {
     setDatePreset("");
@@ -126,7 +130,9 @@ export default function Scadenzario() {
     dateFrom: serverDateRange?.from ?? null,
     dateTo: serverDateRange?.to ?? null,
     search: searchServer || null,
-  }), [tabDirection, tabStatus, filterStatus, serverDateRange, searchServer]);
+    soloScadute: tab === "scadute",
+    tipo: filterTipo && filterTipo !== "all" ? filterTipo : null,
+  }), [tabDirection, tabStatus, filterStatus, serverDateRange, searchServer, tab, filterTipo]);
 
   const { scadenze, isLoading, totalCount, totalPages, summary, isSummaryLoading, markPaid, create, cancel } = useScadenzario(page, pageSize, serverFilters);
   const { effectiveCompany } = useAuth();
@@ -209,16 +215,16 @@ export default function Scadenzario() {
   }, [tab, totalCount, summary]);
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="space-y-6 max-sm:space-y-3">
+      {/* Header — mobile: titolo 18px, anno e «Nuova» piccoli sulla stessa riga
+          (prima il bottone usciva dallo schermo: pagina larga 488px). */}
+      <div className="flex items-center justify-between max-sm:gap-2">
         <div className="flex items-center gap-2">
-          <CalendarClock className="h-7 w-7 text-primary" />
-          <h1 className="text-2xl font-bold">Scadenzario</h1>
+          <h1 className="text-2xl font-bold max-sm:text-lg">Scadenzario</h1>
         </div>
         <div className="flex items-center gap-2">
           <Select value={yearFilter} onValueChange={(v) => { setYearFilter(v); setPage(1); }}>
-            <SelectTrigger className="h-9 w-[140px] font-semibold" aria-label="Anno"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-9 w-[140px] font-semibold max-sm:h-8 max-sm:w-[84px] max-sm:text-xs" aria-label="Anno"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Tutti gli anni</SelectItem>
               {Array.from({ length: 6 }, (_, i) => String(currentYear - i)).map((y) => (
@@ -226,35 +232,66 @@ export default function Scadenzario() {
               ))}
             </SelectContent>
           </Select>
-          <Button onClick={() => setNewOpen(true)} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
-            <Plus className="h-4 w-4 mr-1" /> Nuova Scadenza
+          <Button onClick={() => setNewOpen(true)} className="tap-compact bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-8 max-sm:px-3 max-sm:text-xs">
+            <Plus className="h-4 w-4 mr-1" /> <span className="max-sm:hidden">Nuova Scadenza</span><span className="sm:hidden">Nuova</span>
           </Button>
         </div>
       </div>
 
-      {/* KPIs */}
-      <ScadenzarioKPIs summary={summary} isLoading={isSummaryLoading} />
+      {/* KPIs — mobile: due numeri (lo scaduto da incassare filtra le scadute). */}
+      <ScadenzarioKPIs summary={summary} isLoading={isSummaryLoading} className="max-sm:hidden" />
+      {summary && (
+        <KpiMobili
+          className="sm:hidden"
+          voci={[
+            {
+              label: "Scaduto da incassare",
+              valore: new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: true }).format(summary.scadute_entrata_amount ?? summary.scadute_amount ?? 0),
+              tono: (summary.scadute_entrata_amount ?? summary.scadute_amount ?? 0) > 0 ? "text-rose-600" : undefined,
+              onClick: () => { setTab((t) => (t === "scadute" ? "tutte" : "scadute")); setPage(1); },
+              attivo: tab === "scadute",
+            },
+            {
+              label: "Prossimi 30 giorni",
+              valore: new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: true }).format(summary.prossimi_30gg_amount ?? 0),
+            },
+          ]}
+        />
+      )}
 
       {/* Fatture passive caricate in chat (Silvio) da confermare */}
       <FattureDaRegistrareCard companyId={companyId} />
 
+      {/* Mobile: ricerca e bottone dei filtri (linguette, periodo e tipo nel pannello). */}
+      <CercaConFiltri
+        className="sm:hidden"
+        valore={search}
+        onCambia={(v) => { setSearch(v); setPage(1); }}
+        filtriAttivi={nFiltriMobile}
+        onApriFiltri={() => setFiltriMobileAperti(true)}
+      />
+
       {/* Tabs + Search + Filters toggle */}
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-          <Tabs value={tab} onValueChange={(v) => { setTab(v); setPage(1); }} className="flex-1">
-            <TabsList className="flex flex-wrap h-auto gap-1 p-1 w-full justify-start">
-              {/* Conteggi su tutti i tab (year-scoped, dalla summary server-side). */}
-              <TabsTrigger value="tutte">Tutte ({counts.tutte})</TabsTrigger>
-              <TabsTrigger value="da_incassare">Da Incassare ({counts.da_incassare})</TabsTrigger>
-              <TabsTrigger value="da_pagare">Da Pagare ({counts.da_pagare})</TabsTrigger>
+      <div className="flex flex-col gap-3 max-sm:hidden">
+        {/* Linguette su una riga sola e ricerca accanto se ci stanno, sotto se
+            no: a 1024 le linguette andavano su due righe dentro il riquadro. */}
+        <div className="flex flex-wrap items-center gap-3">
+          <Tabs value={tab} onValueChange={(v) => { setTab(v); setPage(1); }}>
+            <TabsList className="flex h-auto gap-1 p-1 justify-start">
+              {/* Conteggi su tutti i tab (year-scoped, dalla summary server-side).
+                  Sotto 1280 resta solo quello delle scadute: con tutti i numeri la
+                  riga era 753px e a 768/1024 usciva dal riquadro. */}
+              <TabsTrigger value="tutte">Tutte<span className="hidden xl:inline">&nbsp;({counts.tutte})</span></TabsTrigger>
+              <TabsTrigger value="da_incassare">Da Incassare<span className="hidden xl:inline">&nbsp;({counts.da_incassare})</span></TabsTrigger>
+              <TabsTrigger value="da_pagare">Da Pagare<span className="hidden xl:inline">&nbsp;({counts.da_pagare})</span></TabsTrigger>
               <TabsTrigger value="scadute">
                 Scadute {counts.scadute > 0 && <span className="ml-1 text-destructive font-bold">({counts.scadute})</span>}
               </TabsTrigger>
-              <TabsTrigger value="pagate">Pagate ({counts.pagate})</TabsTrigger>
+              <TabsTrigger value="pagate">Pagate<span className="hidden xl:inline">&nbsp;({counts.pagate})</span></TabsTrigger>
               <TabsTrigger value="adempimenti">Adempimenti Fiscali</TabsTrigger>
             </TabsList>
           </Tabs>
-          <div className="flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-2">
             <div className="relative w-full sm:w-56">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
@@ -375,17 +412,80 @@ export default function Scadenzario() {
               onAdd={() => setNewOpen(true)}
               onRowClick={(s) => { if (s.invoice_id) navigate(`/azienda/fatturazione/${s.invoice_id}`); }}
             />
-            <TablePagination
-              currentPage={page}
-              totalPages={totalPages}
-              pageSize={pageSize}
-              totalItems={totalCount}
-              onPageChange={setPage}
-              onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
-            />
+            {/* Mobile: solo precedente/successiva (via righe per pagina e salti). Il
+                contenitore c'è solo quando la paginazione compare, per non
+                lasciare un margine vuoto sul desktop. */}
+            {totalCount > 25 && (
+              <div className="max-sm:hidden">
+                <TablePagination
+                  currentPage={page}
+                  totalPages={totalPages}
+                  pageSize={pageSize}
+                  totalItems={totalCount}
+                  onPageChange={setPage}
+                  onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
+                />
+              </div>
+            )}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between sm:hidden">
+                <Button variant="outline" size="icon" className="tap-compact h-8 w-8" disabled={page <= 1} onClick={() => setPage(page - 1)} aria-label="Pagina precedente">
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="text-xs tabular-nums text-muted-foreground">{page} di {totalPages}</span>
+                <Button variant="outline" size="icon" className="tap-compact h-8 w-8" disabled={page >= totalPages} onClick={() => setPage(page + 1)} aria-label="Pagina successiva">
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
           </>
         )
       )}
+
+      {/* Mobile: cosa mostrare, periodo e tipo. Adempimenti fiscali e date
+          personalizzate restano al desktop. */}
+      <PannelloFiltri
+        aperto={filtriMobileAperti}
+        onAperto={setFiltriMobileAperti}
+        attivi={nFiltriMobile}
+        onAzzera={() => { setTab("tutte"); clearFilters(); }}
+        risultati={isLoading ? undefined : totalCount}
+      >
+        <PilloleFiltro
+          titolo="Mostra"
+          valore={tab === "adempimenti" ? "tutte" : tab}
+          onScegli={(v) => { setTab(v); setPage(1); }}
+          scelte={[
+            { value: "tutte", label: "Tutte", n: counts.tutte },
+            { value: "da_incassare", label: "Da incassare", n: counts.da_incassare },
+            { value: "da_pagare", label: "Da pagare", n: counts.da_pagare },
+            { value: "scadute", label: "Scadute", n: counts.scadute },
+            { value: "pagate", label: "Pagate", n: counts.pagate },
+          ]}
+        />
+        <PilloleFiltro
+          titolo="Periodo"
+          valore={datePreset && datePreset !== "custom" ? datePreset : "all"}
+          onScegli={(v) => { setDatePreset(v === "all" ? "" : v); setPage(1); }}
+          scelte={[
+            { value: "all", label: yearFilter === "all" ? "Tutti gli anni" : `Tutto il ${yearFilter}` },
+            ...DATE_PRESETS.filter((p) => p.value !== "custom"),
+          ]}
+        />
+        <PilloleFiltro
+          titolo="Tipo"
+          valore={filterTipo || "all"}
+          onScegli={(v) => { setFilterTipo(v === "all" ? "" : v); setPage(1); }}
+          scelte={[
+            { value: "all", label: "Tutti" },
+            { value: "incasso_cliente", label: "Incasso cliente" },
+            { value: "pagamento_fornitore", label: "Fornitore" },
+            { value: "costo_aziendale", label: "Costo aziendale" },
+            { value: "scadenza_fiscale", label: "Fiscale" },
+            { value: "altro", label: "Altro" },
+          ]}
+        />
+      </PannelloFiltri>
 
       {/* Dialogs */}
       <MarkPaidDialog

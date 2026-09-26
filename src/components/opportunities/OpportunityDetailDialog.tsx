@@ -43,6 +43,7 @@ import { it } from "date-fns/locale";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
+import { cn } from "@/lib/utils";
 import { syncTagsToContact, removeTagFromContact } from "@/hooks/useTagSync";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import { useLossReasons } from "@/hooks/useLossReasons";
@@ -82,6 +83,10 @@ type Tab = "details" | "notes" | "appointments" | "registro" | "activities" | "d
 // restavano bordati — da qui l'incoerenza visiva.
 const SELECT_TRIGGER_CLS =
   "h-10 sm:h-8 text-sm !border !border-solid !border-input bg-background hover:!border-primary/60 hover:bg-accent/40 transition-colors";
+
+// Mobile: le schede che restano nella fila. Appuntamento si apre dall'icona in
+// alto; attività, documenti e preventivi dal computer o dalla scheda contatto.
+const MOBILE_TABS = new Set<string>(["details", "registro", "notes"]);
 
 export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stages, initialTab, canEdit = true }: Props) {
   const navigate = useNavigate();
@@ -645,7 +650,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
     { key: "appointments", label: "Prenota/aggiorna appuntamento", mobileLabel: "Appuntamento", icon: <CalendarDays className="h-4 w-4" />, enabled: true },
     { key: "registro", label: "Registro attività", mobileLabel: "Registro", icon: <History className="h-4 w-4" />, enabled: true },
     { key: "activities", label: "Attività", icon: <Activity className="h-4 w-4" />, enabled: true },
-    { key: "notes", label: totaleNote ? `Appunti (${totaleNote})` : "Appunti", icon: <StickyNote className="h-4 w-4" />, enabled: true },
+    { key: "notes", label: totaleNote ? `Appunti (${totaleNote})` : "Appunti", mobileLabel: totaleNote ? `Appunti ${totaleNote}` : "Appunti", icon: <StickyNote className="h-4 w-4" />, enabled: true },
     { key: "documents", label: "Documenti", icon: <Folder className="h-4 w-4" />, enabled: true },
     { key: "quotes", label: "Preventivi", icon: <FileText className="h-4 w-4" />, enabled: true },
   ];
@@ -695,7 +700,9 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
             </div>
             {/* Trigger rapidi contatto: chiama (centralino) · email · whatsapp */}
             {opportunity.contact_id && (
-              <div className="flex items-center gap-0.5 shrink-0 mt-1 w-full overflow-x-auto scrollbar-none [&>*]:shrink-0 sm:mt-0 sm:w-auto sm:overflow-visible">
+              // Mobile: chiama, scrivi, registra chiamata e appuntamento a icona;
+              // «Preventivo» riempie il resto della riga.
+              <div className="flex items-center gap-0.5 shrink-0 mt-1 w-full overflow-x-auto scrollbar-none [&>*]:shrink-0 sm:mt-0 sm:w-auto sm:overflow-visible max-sm:gap-1">
                 {contactPhone && (
                   <button
                     type="button"
@@ -703,7 +710,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                       if (softphone) softphone.startCall(contactPhone, { name: fullName, contactId: opportunity.contact_id });
                       else window.open(`tel:${contactPhone}`, "_self");
                     }}
-                    className="h-9 w-9 sm:h-8 sm:w-8 inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-emerald-50 hover:text-emerald-600 transition-colors"
+                    className="tap-compact h-9 w-9 sm:h-8 sm:w-8 inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-emerald-50 hover:text-emerald-600 transition-colors"
                     aria-label="Chiama contatto"
                     title={`Chiama ${contactPhone}`}
                   >
@@ -714,7 +721,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                   <button
                     type="button"
                     onClick={() => setQuickSend({ open: true, channel: "email" })}
-                    className="h-9 w-9 sm:h-8 sm:w-8 inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-violet-50 hover:text-violet-600 transition-colors"
+                    className="tap-compact h-9 w-9 sm:h-8 sm:w-8 inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-violet-50 hover:text-violet-600 transition-colors"
                     aria-label="Invia email"
                     title={`Email a ${contactEmail}`}
                   >
@@ -725,7 +732,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                   <button
                     type="button"
                     onClick={() => setQuickSend({ open: true, channel: "whatsapp" })}
-                    className="h-9 w-9 sm:h-8 sm:w-8 inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-emerald-50 hover:text-emerald-600 transition-colors"
+                    className="tap-compact h-9 w-9 sm:h-8 sm:w-8 inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-emerald-50 hover:text-emerald-600 transition-colors"
                     aria-label="Invia SMS o WhatsApp"
                     title="Invia SMS o WhatsApp"
                   >
@@ -737,8 +744,17 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                   contactId={opportunity.contact_id}
                   userId={user?.id}
                   opportunityId={opportunity.id}
-                  className="h-9 sm:h-8"
+                  className="h-9 sm:h-8 tap-compact max-sm:w-9 max-sm:!border-0 max-sm:bg-transparent max-sm:px-0 max-sm:text-muted-foreground"
                 />
+                {/* Mobile: l'appuntamento a icona, la scheda «Appuntamento» non sta nella fila. */}
+                <button
+                  type="button"
+                  onClick={() => setTab("appointments")}
+                  className="tap-compact sm:hidden h-9 w-9 inline-flex items-center justify-center rounded-md text-muted-foreground active:bg-muted"
+                  aria-label="Appuntamento"
+                >
+                  <CalendarDays className="h-4 w-4" />
+                </button>
                 <span className="mx-0.5 hidden sm:block h-5 w-px bg-border" aria-hidden />
                 {/* Crea preventivo direttamente dal deal — link contatto/opportunità preservato */}
                 <NewPreventivoMenu
@@ -746,6 +762,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                   contactId={opportunity.contact_id ?? null}
                   size="sm"
                   label="Preventivo"
+                  className="max-sm:flex-1 max-sm:shadow-none max-sm:hover:translate-y-0"
                 />
               </div>
             )}
@@ -773,7 +790,11 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                     if (!t.enabled) { toast.info(`${t.label}: in arrivo`); return; }
                     setTab(t.key);
                   }}
-                  className={`shrink-0 sm:w-full flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 text-xs whitespace-nowrap sm:whitespace-normal transition-colors text-left rounded-lg sm:rounded-none ${
+                  // Mobile: tre schede a tutta larghezza (Dettagli, Registro,
+                  // Appunti); le altre sette scorrevano di lato fuori schermo.
+                  className={`shrink-0 sm:w-full flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 text-xs whitespace-nowrap sm:whitespace-normal transition-colors text-left rounded-lg sm:rounded-none tap-compact max-sm:flex-1 max-sm:justify-center max-sm:py-2 ${
+                    MOBILE_TABS.has(t.key) ? "" : "max-sm:hidden"
+                  } ${
                     tab === t.key
                       ? "bg-primary/10 text-primary font-medium sm:border-r-2 sm:border-primary border-b-2 sm:border-b-0 border-primary"
                       : "text-muted-foreground hover:bg-muted/50"
@@ -781,7 +802,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                   aria-label={t.label}
                   aria-current={tab === t.key ? "page" : undefined}
                 >
-                  {t.icon}
+                  <span className="max-sm:hidden">{t.icon}</span>
                   <span className="leading-tight sm:hidden">{t.mobileLabel || t.label}</span>
                   <span className="leading-tight hidden sm:inline">{t.label}</span>
                 </button>
@@ -793,12 +814,14 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
           <ScrollArea className="flex-1">
             <div className="p-4 sm:p-5">
               {tab === "details" && (
-                <div className="space-y-5 sm:space-y-6">
-                  {/* Contatto Dettagli */}
-                  <div>
+                <div className="space-y-5 sm:space-y-6 max-lg:flex max-lg:flex-col max-lg:gap-4 max-lg:space-y-0 sm:max-lg:gap-6">
+                  {/* Contatto Dettagli — telefono e tablet: in fondo (prima vengono
+                      fase, valore e prossima azione); sul telefono solo nome, email e
+                      telefono, l'anagrafica completa è nella scheda contatto. */}
+                  <div className="max-lg:order-3">
                     <div className="flex items-center justify-between mb-2.5 sm:mb-3 gap-2">
                       <h3 className="text-sm font-semibold">Contatto</h3>
-                      <label className="flex items-center gap-1.5 text-[11px] sm:text-xs text-muted-foreground cursor-pointer shrink-0">
+                      <label className="flex items-center gap-1.5 text-[11px] sm:text-xs text-muted-foreground cursor-pointer shrink-0 max-sm:hidden">
                         <Checkbox checked={hideEmpty} onCheckedChange={(c) => setHideEmpty(!!c)} className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                         <span className="hidden sm:inline">Nascondi campi vuoti</span>
                         <span className="sm:hidden">Nascondi vuoti</span>
@@ -931,7 +954,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                       )}
 
                       {contact && !pendingContactId && !showNewContactForm && (
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-2 gap-2 max-sm:hidden">
                           <div className="space-y-1">
                             <Label className="text-xs text-muted-foreground">Nome</Label>
                             <Input value={contactFirstName} onChange={(e) => setContactFirstName(e.target.value)} disabled={!canEditOpportunity} className="h-10 sm:h-8 text-sm" />
@@ -964,14 +987,14 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                       )}
 
                       {(!hideEmpty || contactAddress) && !showNewContactForm && (
-                        <div className="space-y-1">
+                        <div className="space-y-1 max-sm:hidden">
                           <Label className="text-xs text-muted-foreground">Indirizzo</Label>
                           <Input value={contactAddress} onChange={(e) => setContactAddress(e.target.value)} placeholder="Via e numero civico" className="h-10 sm:h-8 text-sm" />
                         </div>
                       )}
 
                       {(!hideEmpty || contactCity) && !showNewContactForm && (
-                        <div className="space-y-1">
+                        <div className="space-y-1 max-sm:hidden">
                           <Label className="text-xs text-muted-foreground">Città</Label>
                           <Input value={contactCity} onChange={(e) => setContactCity(e.target.value)} className="h-10 sm:h-8 text-sm" />
                           <p className="text-[10px] text-muted-foreground">Provincia e regione si compilano da sole dalla città.</p>
@@ -979,7 +1002,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                       )}
 
                       {(!hideEmpty || contactProvince || contactRegion) && !showNewContactForm && (
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-2 gap-2 max-sm:hidden">
                           <div className="space-y-1">
                             <Label className="text-xs text-muted-foreground">Provincia</Label>
                             <Input value={contactProvince} onChange={(e) => setContactProvince(e.target.value)} placeholder="Es: RM" className="h-10 sm:h-8 text-sm" />
@@ -1001,10 +1024,10 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                     </div>
                   </div>
 
-                  <Separator />
+                  <Separator className="max-lg:hidden" />
 
                   {/* Opportunità Dettagli */}
-                  <div>
+                  <div className="max-lg:order-1">
                     <h3 className="text-sm font-semibold mb-2.5 sm:mb-3">Opportunità</h3>
                     <div className="space-y-2.5 sm:space-y-3">
                       <div className="space-y-1">
@@ -1013,7 +1036,8 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div className="space-y-1">
+                        {/* Mobile no: la sequenza (pipeline) si cambia dal computer. */}
+                        <div className="space-y-1 max-sm:hidden">
                           <Label className="text-xs text-muted-foreground">Sequenza</Label>
                           {canEditOpportunity && pipelines.length > 1 ? (
                             <Select
@@ -1059,7 +1083,8 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {/* Stato e valore affiancati anche su telefono: due campi corti. */}
+                      <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">Stato</Label>
                           <Select value={status} onValueChange={handleStatusChange}>
@@ -1072,7 +1097,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                           </Select>
                         </div>
                         <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground">Valore dell'opportunità (€)</Label>
+                          <Label className="text-xs text-muted-foreground"><span className="max-sm:hidden">Valore dell'opportunità (€)</span><span className="sm:hidden">Valore €</span></Label>
                           <Input value={value} onChange={(e) => setValue(e.target.value)} type="number" inputMode="decimal" className="h-10 sm:h-8 text-sm" />
                         </div>
                       </div>
@@ -1112,7 +1137,8 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                             </SelectContent>
                           </Select>
                         </div>
-                        <div className="space-y-1">
+                        {/* Mobile no: follower e call center si assegnano dal computer. */}
+                        <div className="space-y-1 max-sm:hidden">
                           <Label className="text-xs text-muted-foreground">Follower</Label>
                           <Select value={staff.some((s: any) => s.id === followerId) ? followerId : "none"} onValueChange={(v) => setFollowerId(v === "none" ? "" : v)}>
                             <SelectTrigger className={SELECT_TRIGGER_CLS}><SelectValue placeholder="Nessuno" /></SelectTrigger>
@@ -1122,7 +1148,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                             </SelectContent>
                           </Select>
                         </div>
-                        <div className="space-y-1">
+                        <div className="space-y-1 max-sm:hidden">
                           <Label className="text-xs text-muted-foreground">Call Center</Label>
                           <Select value={callCenterUsers.some((s: any) => s.id === callCenterId) ? callCenterId : "none"} onValueChange={(v) => setCallCenterId(v === "none" ? "" : v)}>
                             <SelectTrigger className={SELECT_TRIGGER_CLS}><SelectValue placeholder="Nessuno" /></SelectTrigger>
@@ -1134,7 +1160,9 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {/* Mobile no: azienda, fonte, etichette e campi personalizzati sono da scrivania;
+                          gli appunti hanno la loro scheda. */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-sm:hidden">
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">Nome dell'azienda</Label>
                           <Input value={companyName} onChange={(e) => setCompanyName(e.target.value)} className="h-10 sm:h-8 text-sm" />
@@ -1145,12 +1173,12 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                         </div>
                       </div>
 
-                      <div className="space-y-1">
+                      <div className="space-y-1 max-sm:hidden">
                         <Label className="text-xs text-muted-foreground">Etichette</Label>
                         <TagSelector selectedTags={oppTags} onTagsChange={setOppTags} />
                       </div>
 
-                      <div className="space-y-1">
+                      <div className="space-y-1 max-sm:hidden">
                         <Label className="text-xs text-muted-foreground">Appunti</Label>
                         {/* Un posto solo (23/09/2026): gli appunti della sezione
                             «Appunti». Qui se ne vede l'ultimo e un clic porta a
@@ -1187,29 +1215,33 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                       </div>
 
                       {/* Custom opportunity fields */}
-                      {oppCustomFields.map((field: any) =>
-                        renderCustomField(field, oppCustomValues, setOppCustomValues)
-                      )}
+                      <div className="space-y-2.5 sm:space-y-3 max-sm:hidden">
+                        {oppCustomFields.map((field: any) =>
+                          renderCustomField(field, oppCustomValues, setOppCustomValues)
+                        )}
+                      </div>
                     </div>
                   </div>
 
-                  <Separator />
+                  <Separator className="max-lg:hidden" />
 
-                  {/* SALES OS: Avanzamento Commerciale */}
-                  <Card className="border-primary/20 bg-primary/5">
-                    <CardHeader className="pb-3 pt-4 px-4">
+                  {/* SALES OS: Avanzamento Commerciale — telefono e tablet: subito
+                      dopo l'opportunità; sul telefono senza riquadro colorato. */}
+                  <Card className="border-primary/20 bg-primary/5 max-lg:order-2 max-sm:border-0 max-sm:bg-transparent max-sm:shadow-none">
+                    <CardHeader className="pb-3 pt-4 px-4 max-sm:px-0 max-sm:pt-0 max-sm:pb-2">
                       <CardTitle className="text-sm font-medium flex items-center gap-2">
                         <Target className="h-4 w-4 text-primary" />
                         Avanzamento Commerciale
                       </CardTitle>
                     </CardHeader>
-                    <CardContent className="space-y-4 px-4 pb-4">
+                    <CardContent className="space-y-4 px-4 pb-4 max-sm:space-y-3 max-sm:px-0 max-sm:pb-0">
 
-                      {/* Riga 1: Data chiusura prevista + Probabilità */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {/* Riga 1: Data chiusura prevista + Probabilità (anche su mobile affiancate) */}
+                      <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground flex items-center gap-1">
-                            Data chiusura prevista
+                          <Label className="text-xs text-muted-foreground flex items-center gap-1 max-sm:h-4">
+                            <span className="max-sm:hidden">Data chiusura prevista</span>
+                            <span className="sm:hidden">Chiusura prevista</span>
                             {!opportunity.expected_close_date && (
                               <span className="text-destructive">*</span>
                             )}
@@ -1233,8 +1265,8 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                           />
                         </div>
                         <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground">
-                            Probabilità % (override)
+                          <Label className="text-xs text-muted-foreground max-sm:flex max-sm:h-4 max-sm:items-center">
+                            Probabilità %<span className="max-sm:hidden"> (override)</span>
                           </Label>
                           <Input
                             type="number"
@@ -1389,7 +1421,8 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                       chiamano «Appunti» perché accanto c'è già il registro
                       delle attività: due registri nella stessa scheda
                       confondevano. */}
-                  <div className="flex items-center gap-2 pt-1">
+                  {/* Mobile no: il titolo è la scheda stessa. */}
+                  <div className="flex items-center gap-2 pt-1 max-sm:hidden">
                     <span className="text-xs font-medium">Appunti</span>
                     <span className="text-[11px] text-muted-foreground">ognuno con data e autore</span>
                   </div>
@@ -1413,9 +1446,9 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                       {addNote.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Aggiungi"}
                     </Button>
                   </div>
-                  <Separator />
+                  <Separator className="max-sm:hidden" />
                   {notes.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-6">Nessun appunto</p>
+                    <p className="text-sm text-muted-foreground text-center py-6 max-sm:py-3 max-sm:text-[13px]">Nessun appunto</p>
                   ) : (
                     <div className="space-y-3">
                       {notes.map((note: any) => (
@@ -1498,10 +1531,11 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
           </ScrollArea>
         </div>
 
-        <Separator />
+        <Separator className={cn(tab !== "details" && "max-sm:hidden")} />
 
-        {/* Footer */}
-        <div className="flex items-center justify-between gap-2 px-3 sm:px-6 py-2.5 sm:py-3 bg-background pb-safe sm:pb-3">
+        {/* Footer — mobile: solo sui Dettagli; su Registro e Appunti «Aggiorna»
+            sembrava salvare l'appunto. */}
+        <div className={cn("flex items-center justify-between gap-2 px-3 sm:px-6 py-2.5 sm:py-3 bg-background pb-safe sm:pb-3", tab !== "details" && "max-sm:hidden")}>
           <div className="hidden sm:flex items-center gap-3 min-w-0">
             <button
               onClick={() => { navigate("/azienda/impostazioni/campi-personalizzati"); onOpenChange(false); }}
@@ -1516,12 +1550,13 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
               {testoCreazione}
             </span>
           </div>
-          <div className="flex items-center gap-1.5 sm:gap-2 ml-auto">
+          <div className="flex items-center gap-1.5 sm:gap-2 ml-auto max-sm:ml-0 max-sm:flex-1">
             <Button variant="ghost" size="icon" onClick={handleDelete} disabled={deleteOpp.isPending || !canEditOpportunity} className="h-10 w-10 sm:h-9 sm:w-9 text-destructive hover:text-destructive shrink-0" aria-label="Elimina opportunità">
               <Trash2 className="h-4 w-4" />
             </Button>
-            <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="h-10 sm:h-9 px-3 sm:px-4">Annulla</Button>
-            <Button size="sm" onClick={handleSave} disabled={isSaving || !canEditOpportunity} className="h-10 sm:h-9 px-4">
+            {/* Mobile no: c'è la freccia in alto. */}
+            <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="h-10 sm:h-9 px-3 sm:px-4 max-sm:hidden">Annulla</Button>
+            <Button size="sm" onClick={handleSave} disabled={isSaving || !canEditOpportunity} className="h-10 sm:h-9 px-4 max-sm:flex-1">
               {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Aggiorna
             </Button>

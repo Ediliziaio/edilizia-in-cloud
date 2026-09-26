@@ -26,7 +26,8 @@ import {
 import { useMarginData } from "@/hooks/useMarginData";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { formatCurrency, formatDate } from "@/lib/formatters";
+import { formatCurrency, formatCurrencyCompact, formatDate } from "@/lib/formatters";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { Hammer, AlertTriangle, Timer } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
@@ -64,6 +65,10 @@ const SEMAFORO_LABEL: Record<Semaforo, string> = {
 export function TabCommesse({ anno }: Props) {
   const [filter, setFilter] = useState<"all" | "in_corso" | "completato">("all");
   const [sortBy, setSortBy] = useState<"preventivo" | "manodopera">("preventivo");
+  // Mobile: numeri senza spiegazioni, filtro di stato e una riga per cantiere
+  // (nome, cliente, margine a fine lavori). Ordinamento, semaforo riassunto,
+  // formula ed esportazione restano al desktop.
+  const isMobile = useIsMobile();
   const statusFilter = filter === "all" ? null : filter;
   const q = useMarginalitaCommesse(anno, statusFilter);
   const { effectiveCompany } = useAuth();
@@ -239,7 +244,7 @@ export function TabCommesse({ anno }: Props) {
           sub={kpi.n_in_perdita > 0 ? "Richiede attenzione" : "Tutte ok"}
           tone={kpi.n_in_perdita > 0 ? "red" : "green"}
         />
-        {quotaStruttura !== null ? (
+        {isMobile ? null : quotaStruttura !== null ? (
           <KPIMini
             label="Quota struttura"
             value={`${formatCurrency(quotaStruttura)}/mese`}
@@ -273,11 +278,11 @@ export function TabCommesse({ anno }: Props) {
             value={filter}
             onValueChange={(v) => v && setFilter(v as typeof filter)}
           >
-            <ToggleGroupItem value="all" variant="outline" size="sm">Tutte</ToggleGroupItem>
-            <ToggleGroupItem value="in_corso" variant="outline" size="sm">In corso</ToggleGroupItem>
-            <ToggleGroupItem value="completato" variant="outline" size="sm">Completate</ToggleGroupItem>
+            <ToggleGroupItem value="all" variant="outline" size="sm" className="tap-compact">Tutte</ToggleGroupItem>
+            <ToggleGroupItem value="in_corso" variant="outline" size="sm" className="tap-compact">In corso</ToggleGroupItem>
+            <ToggleGroupItem value="completato" variant="outline" size="sm" className="tap-compact">Completate</ToggleGroupItem>
           </ToggleGroup>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 max-sm:hidden">
             <span className="text-xs text-muted-foreground">Ordina:</span>
             <ToggleGroup
               type="single"
@@ -291,7 +296,7 @@ export function TabCommesse({ anno }: Props) {
         </div>
 
         {counts && (
-          <div className="flex flex-wrap gap-2 text-xs">
+          <div className="flex flex-wrap gap-2 text-xs max-sm:hidden">
             {(Object.keys(SEMAFORO_LABEL) as Semaforo[]).map((s) => (
               counts[s] > 0 && (
                 <Badge key={s} variant="outline" className={cn("text-[11px]", SEMAFORO_BG[s])}>
@@ -304,8 +309,36 @@ export function TabCommesse({ anno }: Props) {
         )}
       </div>
 
+      {isMobile && righe.length > 0 && (
+        <ul className="divide-y overflow-hidden rounded-xl border bg-card">
+          {righe.map((r) => (
+            <li key={r.id} className="flex items-center gap-2.5 py-2 pl-0 pr-3">
+              <span className={cn("block h-9 w-1 shrink-0 rounded-r", SEMAFORO_COLORS[r.semaforo])} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[13px] font-medium leading-tight">{r.description || r.order_code}</p>
+                <p className="truncate text-[11px] text-muted-foreground">
+                  {r.cliente ?? "—"} · {(r.pct_avanzamento * 100).toFixed(0)}%
+                </p>
+              </div>
+              <div className="shrink-0 text-right tabular-nums">
+                <p className={cn(
+                  "text-[13px] font-semibold leading-tight",
+                  r.margine_atteso !== null && r.margine_atteso < 0 && "text-rose-700",
+                  r.margine_atteso !== null && r.margine_atteso > 0 && "text-emerald-700",
+                )}>
+                  {r.margine_atteso !== null ? formatCurrencyCompact(r.margine_atteso) : "—"}
+                </p>
+                <p className="text-[11px] text-muted-foreground">
+                  {r.margine_atteso_perc !== null ? `${r.margine_atteso_perc.toFixed(0)}%` : "n.v."}
+                </p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
       {/* Tabella commesse */}
-      <Card className="rounded-2xl">
+      <Card className={cn("rounded-2xl", isMobile && righe.length > 0 && "hidden")}>
         <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-3">
           <div>
             <CardTitle className="text-base">Marginalità per cantiere</CardTitle>
@@ -624,10 +657,10 @@ function KPIMini({
   };
   return (
     <Card className={cn("rounded-2xl border-0", palette[tone])}>
-      <CardContent className="p-3">
+      <CardContent className="p-3 max-sm:py-2.5">
         <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
-        <p className="mt-0.5 text-lg font-bold tabular-nums">{value}</p>
-        {sub && <p className="text-[11px] text-muted-foreground">{sub}</p>}
+        <p className="mt-0.5 text-lg font-bold tabular-nums max-sm:text-base">{value}</p>
+        {sub && <p className="text-[11px] text-muted-foreground max-sm:hidden">{sub}</p>}
       </CardContent>
     </Card>
   );

@@ -112,7 +112,7 @@ export function VistiSalvate({ companyId, userId, filtriCorrenti, onApplica }: P
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" className="gap-2" aria-label="Viste salvate">
+          <Button variant="outline" size="sm" className="h-9 gap-2" aria-label="Viste salvate">
             <Bookmark className="h-4 w-4" />
             Viste{viste.length > 0 ? ` (${viste.length})` : ""}
           </Button>

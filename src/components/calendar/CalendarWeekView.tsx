@@ -17,7 +17,7 @@ import { Card } from "@/components/ui/card";
 import { ChevronLeft, ChevronRight, Hammer, Package, Wrench, CalendarClock, Check, Loader2, Settings } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { APPOINTMENT_ICONS, DEFAULT_CALENDAR_EVENT_COLORS, getCalendarEventStyle, mapAppointmentToEditData, appuntamentoAnnullato, type CalendarEventColors } from "@/lib/calendarUtils";
+import { APPOINTMENT_ICONS, DEFAULT_CALENDAR_EVENT_COLORS, getCalendarEventStyle, mapAppointmentToEditData, appuntamentoAnnullato, etichettaCommessa, type CalendarEventColors } from "@/lib/calendarUtils";
 import { EditOrderDatesDialog } from "./EditOrderDatesDialog";
 import { AppointmentDialog, type AppointmentData } from "@/components/appointments/AppointmentDialog";
 import { supabase } from "@/integrations/supabase/client";
@@ -276,7 +276,7 @@ export function CalendarWeekView({
     const label = lr
       ? `🏖 ${lr.employee?.first_name ?? ""} ${lr.employee?.last_name ?? ""}`
       : o
-        ? (o.order_code || o.description?.slice(0, 20) || "Ordine")
+        ? (etichettaCommessa(o) || o.order_code || "Ordine")
         : evt.busySlot?.team_name
           ? `${evt.busySlot.team_name} · ${evt.busySlot.summary || "impegno"}`
           : evt.busySlot?.summary || "Occupato";
@@ -320,9 +320,11 @@ export function CalendarWeekView({
       <div
         className="text-[10px] leading-tight px-1.5 py-0.5 rounded truncate flex items-center gap-1 cursor-pointer border-l-2 text-foreground"
         style={getCalendarEventStyle(coloreEvento)}
+        title={o?.order_code ? `${o.order_code} · ${label}` : undefined}
         onClick={() => o && setEditingOrder(o)}
       >
-        {Icon && <Icon className="h-3 w-3 shrink-0" />}
+        {/* Sotto 1280 l'icona del tipo lascia il posto al nome (il colore c'è già). */}
+        {Icon && <Icon className="h-3 w-3 shrink-0 max-xl:hidden" />}
         <span className="truncate">{label}</span>
         {o && (evt.type === "posa" || evt.type === "lavoro") && (() => {
           const empCount = o.order_employees?.length ?? 0;
@@ -397,7 +399,9 @@ export function CalendarWeekView({
       </div>
 
       <DndContext onDragEnd={handleDragEnd}>
-        <div className="grid grid-cols-[56px_repeat(7,minmax(112px,1fr))] min-w-[880px]">
+        {/* Da 768 colonne da 88px: con 112px la settimana (880px) usciva dal
+            riquadro a 768 e a 1024 e la domenica restava fuori. */}
+        <div className="grid grid-cols-[56px_repeat(7,minmax(112px,1fr))] min-w-[880px] md:grid-cols-[48px_repeat(7,minmax(88px,1fr))] md:min-w-[664px]">
           {/* Header row */}
           <div className="border-b border-r bg-muted/50 p-1" />
           {weekDays.map((day, i) => (
@@ -502,7 +506,7 @@ export function CalendarWeekView({
                         >
                           <Wrench className="h-3 w-3 shrink-0" />
                           <span className="truncate">
-                            {o.work_start_time!.slice(0, 5)}–{(o.work_end_time ?? "").slice(0, 5)} · {o.order_code || o.description?.slice(0, 16) || "Lavori"}
+                            {o.work_start_time!.slice(0, 5)}–{(o.work_end_time ?? "").slice(0, 5)} · {etichettaCommessa(o) || o.order_code || "Lavori"}
                           </span>
                         </div>
                       ))}

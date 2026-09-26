@@ -209,13 +209,14 @@ export function MezzoDocumentiSection({ mezzoId, companyId, puoModificare, targa
   const dataValida = !form.data_scadenza || !form.data_inizio || form.data_scadenza >= form.data_inizio;
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-sm text-muted-foreground">
+    <div className="space-y-3 max-sm:space-y-2">
+      {/* Mobile: niente spiegazione; senza documenti il bottone sta nella riga vuota. */}
+      <div className={`flex items-center justify-between gap-2 max-sm:justify-end ${conStato.length === 0 ? "max-sm:hidden" : ""}`}>
+        <p className="text-sm text-muted-foreground max-sm:hidden">
           Assicurazione, bollo, revisione, contratti: ti avvisiamo prima che scadano.
         </p>
         {puoModificare && (
-          <Button size="sm" onClick={nuovo} className="shrink-0">
+          <Button size="sm" onClick={nuovo} className="shrink-0 max-sm:h-8 max-sm:text-xs">
             <Plus className="mr-1 h-4 w-4" />Aggiungi
           </Button>
         )}
@@ -229,12 +230,12 @@ export function MezzoDocumentiSection({ mezzoId, companyId, puoModificare, targa
           <button type="button" className="font-semibold underline" onClick={() => refetch()}>Riprova</button>
         </div>
       ) : conStato.length === 0 ? (
-        <div className="rounded-xl border border-dashed py-10 text-center text-sm text-muted-foreground">
-          <FileText className="mx-auto mb-2 h-8 w-8 opacity-40" />
-          Nessun documento. Inizia da assicurazione e revisione.
+        <div className="rounded-xl border border-dashed py-10 text-center text-sm text-muted-foreground max-sm:py-4">
+          <FileText className="mx-auto mb-2 h-8 w-8 opacity-40 max-sm:hidden" />
+          Nessun documento<span className="max-sm:hidden">. Inizia da assicurazione e revisione</span>.
           {puoModificare && (
-            <div className="mt-3">
-              <Button size="sm" variant="outline" onClick={nuovo}><Plus className="mr-1 h-4 w-4" />Aggiungi documento</Button>
+            <div className="mt-3 max-sm:mt-2">
+              <Button size="sm" variant="outline" className="max-sm:h-8 max-sm:text-xs" onClick={nuovo}><Plus className="mr-1 h-4 w-4" />Aggiungi documento</Button>
             </div>
           )}
         </div>

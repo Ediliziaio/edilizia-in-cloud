@@ -141,9 +141,22 @@ export function ImportaPrezzarioDialog({
       { fonteId, voci: selezionate, ricaricoPct: ricaricoNum, capitoloId: capitoloId ?? undefined },
       {
         onSuccess: (r) => {
-          toast.success("Voci adottate nel listino", {
-            description: `${r.inserite} ${r.inserite === 1 ? "voce aggiunta" : "voci aggiunte"} con ricarico ${ricaricoNum}%.`,
-          });
+          const quante = `${r.inserite} ${r.inserite === 1 ? "voce aggiunta" : "voci aggiunte"} con ricarico ${ricaricoNum}%.`;
+          // Il prezzario non porta l'unita' di misura per l'84% delle voci, e
+          // il listino la mette a «cad» perche' la colonna non ammette vuoti.
+          // Dirlo: una lavorazione da 12 EUR/m2 entrata come 12 EUR al pezzo
+          // sbaglia il preventivo e non se ne accorge nessuno.
+          if (r.senzaUnita > 0) {
+            toast.warning("Voci adottate — controlla l'unita' di misura", {
+              description:
+                `${quante} Di queste, ${r.senzaUnita} ${r.senzaUnita === 1 ? "non aveva" : "non avevano"} ` +
+                `l'unita' di misura nel prezzario: ${r.senzaUnita === 1 ? "e' stata impostata" : "sono state impostate"} ` +
+                `a «cad». Correggila prima di usarle in un preventivo.`,
+              duration: 10000,
+            });
+          } else {
+            toast.success("Voci adottate nel listino", { description: quante });
+          }
           handleOpenChange(false);
         },
         onError: (e) =>

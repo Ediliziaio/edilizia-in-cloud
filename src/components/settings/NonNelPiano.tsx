@@ -33,9 +33,13 @@ export function NonNelPiano({
           : `«${titolo}» fa parte di ${serve || "un modulo"}, che il piano della tua azienda non comprende.`}
       </p>
       {puoCambiarePiano ? (
-        <Button asChild className="mt-4">
-          <Link to="/azienda/impostazioni/abbonamento">Vedi i piani</Link>
-        </Button>
+        <>
+          {/* Dal telefono il piano non si cambia (regola dell'utente, 25/09/2026). */}
+          <Button asChild className="mt-4 max-md:hidden">
+            <Link to="/azienda/impostazioni/abbonamento">Vedi i piani</Link>
+          </Button>
+          <p className="mt-3 text-xs text-muted-foreground md:hidden">Il piano si cambia dal computer.</p>
+        </>
       ) : (
         <p className="mt-3 text-xs text-muted-foreground">Per attivarlo chiedi all&apos;amministratore dell&apos;azienda.</p>
       )}

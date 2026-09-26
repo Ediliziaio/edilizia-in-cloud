@@ -102,7 +102,8 @@ export function AdsBotChatPanel({ companyId, context }: Props) {
           onClick={() => setIsOpen(true)}
           aria-label="Apri AdsBot"
           title="AdsBot — consulente campagne"
-          className="fixed bottom-24 right-6 z-40 flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-lg transition-transform hover:scale-105 active:scale-95"
+          // Telefono: niente seconda bolla sopra l'elenco, l'assistente è Silvio nella barra in basso.
+          className="fixed bottom-24 right-6 z-40 flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-lg transition-transform hover:scale-105 active:scale-95 max-sm:hidden"
         >
           <Bot className="h-6 w-6" />
           {hasNew && (

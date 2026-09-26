@@ -9,8 +9,11 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import {
   Upload, Image as ImageIcon, Loader2, Zap,
-  CheckCircle2, Download, Share2, RefreshCw, Wand2, Sofa,
+  CheckCircle2, Download, Share2, RefreshCw, Wand2, Sofa, ImagePlus, Camera,
 } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { ZonaFotoMobile } from "@/components/render/ZonaFotoMobile";
+import { MandaRenderMobile } from "@/components/render/MandaRenderMobile";
 
 import { RenderWizardHeader } from "@/components/render/RenderWizardHeader";
 import { StanzaConfigForm, DEFAULT_STANZA_CONFIG } from "@/components/render-stanza/StanzaConfigForm";
@@ -379,8 +382,31 @@ export default function RenderStanzaNew() {
   // RENDER
   // ══════════════════════════════════════════════════════════════════════════════
 
+  const isMobile = useIsMobile();
+  const nuovoRender = () => {
+    setStep(1);
+    setPhoto(null);
+    setPhotoPreview(null);
+    setPhotoPath(null);
+    setSessionId(null);
+    setResultUrls([]);
+    setSavedToGallery(false);
+    setConfig(DEFAULT_STANZA_CONFIG);
+  };
+
+  // A ogni passo si riparte dalla testata (prima si restava a metà pagina).
+  const radiceRef = useRef<HTMLDivElement>(null);
+  const primoPassoRef = useRef(true);
+  useEffect(() => {
+    if (primoPassoRef.current) {
+      primoPassoRef.current = false;
+      return;
+    }
+    radiceRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+  }, [step]);
+
   return (
-    <div className="space-y-6 max-w-2xl mx-auto pb-12">
+    <div ref={radiceRef} className="space-y-6 max-w-2xl mx-auto pb-12 scroll-mt-3 max-md:space-y-3">
       <RenderWizardHeader
         onBack={() => {
           if (step === 1 || step === 4) navigate("/azienda/render/stanza");
@@ -389,13 +415,15 @@ export default function RenderStanzaNew() {
         }}
         eyebrow="Restyling stanza fotorealistico"
         title="Stessa stanza, nuovo stile"
+        mobileTitle="Render Stanza"
         description="Cambia colori, finiture e arredi mantenendo struttura e proporzioni della stanza originale."
         badgeLabel="Render AI — Stanze"
         stepLabels={["Foto", "Configura", "Elaborazione", "Risultati"]}
         currentStep={step}
         accent="violet"
       />
-      <div className="flex justify-end">
+      {/* Telefono: il saldo non occupa una riga (se finisce, avvisa il RenderCreditGate). */}
+      <div className="flex justify-end max-md:hidden">
         <RenderCreditsWidget />
       </div>
 
@@ -406,15 +434,31 @@ export default function RenderStanzaNew() {
           STEP 1 — Foto
       ══════════════════════════════════════════════════════════════════════ */}
       {step === 1 && (
-        <div className="space-y-4">
-          <Card>
-            <CardHeader>
+        <div className="space-y-4 max-md:space-y-3">
+          {isMobile && !photoPreview ? (
+            <>
+              <ZonaFotoMobile
+                onScegli={() => fileRef.current?.click()}
+                suggerimento="Frontale e luminosa, con pareti e pavimento visibili"
+                accento="violet"
+              />
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={handleFileChange}
+              />
+            </>
+          ) : (
+          <Card className="max-md:border-0 max-md:bg-transparent max-md:shadow-none">
+            <CardHeader className="max-md:hidden">
               <CardTitle className="text-base flex items-center gap-2">
                 <Upload className="h-4 w-4" />
                 Foto della stanza
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="max-md:p-0">
               {photoPreview ? (
                 <div className="relative rounded-lg overflow-hidden">
                   <img loading="lazy"
@@ -422,17 +466,19 @@ export default function RenderStanzaNew() {
                     alt="Foto caricata"
                     className="w-full max-h-80 object-cover"
                   />
+                  {/* Telefono: una pastiglia leggera sulla foto invece del bottone pieno. */}
                   <Button
                     variant="secondary"
                     size="sm"
-                    className="absolute top-3 right-3 gap-1.5"
+                    className="absolute top-3 right-3 gap-1.5 max-md:right-2 max-md:top-2 max-md:h-8 max-md:rounded-full max-md:bg-black/55 max-md:px-3 max-md:text-[13px] max-md:text-white max-md:backdrop-blur-sm max-md:hover:bg-black/65"
                     onClick={() => {
                       setPhoto(null);
                       setPhotoPreview(null);
                       setSessionId(null);
                     }}
                   >
-                    <RefreshCw className="h-3.5 w-3.5" />
+                    <RefreshCw className="h-3.5 w-3.5 max-md:hidden" />
+                    <Camera className="hidden h-3.5 w-3.5 max-md:block" />
                     Cambia foto
                   </Button>
                 </div>
@@ -464,9 +510,10 @@ export default function RenderStanzaNew() {
               />
             </CardContent>
           </Card>
+          )}
 
-          {/* Tips */}
-          <Card className="bg-muted/30">
+          {/* Tips — telefono: la riga nella zona foto basta. */}
+          <Card className="bg-muted/30 max-md:hidden">
             <CardContent className="py-3">
               <p className="text-xs font-semibold mb-1.5">Consigli per il miglior risultato</p>
               <ul className="text-xs text-muted-foreground space-y-0.5 list-disc list-inside">
@@ -485,6 +532,8 @@ export default function RenderStanzaNew() {
             onOpportunityChange={setOpportunityId}
           />
 
+          {/* Telefono: compare con la foto (prima era un bottone spento). */}
+          {(!isMobile || photo) && (
           <Button
             className="w-full gap-2 bg-purple-600 hover:bg-purple-700"
             size="lg"
@@ -497,6 +546,7 @@ export default function RenderStanzaNew() {
               <><Wand2 className="h-4 w-4" />Carica e configura</>
             )}
           </Button>
+          )}
         </div>
       )}
 
@@ -504,25 +554,25 @@ export default function RenderStanzaNew() {
           STEP 2 — Configura
       ══════════════════════════════════════════════════════════════════════ */}
       {step === 2 && (
-        <div className="space-y-4">
+        <div className="space-y-4 max-md:space-y-3">
           {/* Foto preview */}
           {photoPreview && (
             <div className="rounded-xl overflow-hidden h-40 relative">
               <img loading="lazy" src={photoPreview} alt="Stanza" className="w-full h-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-              <div className="absolute bottom-2 left-3 text-white text-xs font-medium">Foto caricata</div>
+              <div className="absolute bottom-2 left-3 text-white text-xs font-medium max-md:text-[11px]">Foto caricata</div>
             </div>
           )}
 
           {/* Config form */}
-          <Card>
-            <CardHeader>
+          <Card className="max-md:border-0 max-md:bg-transparent max-md:shadow-none">
+            <CardHeader className="max-md:hidden">
               <CardTitle className="text-base flex items-center gap-2">
                 <Sofa className="h-4 w-4" />
                 Configura la trasformazione
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="max-md:p-0">
               <StanzaConfigForm value={config} onChange={setConfig} companyId={companyId} />
             </CardContent>
           </Card>
@@ -555,9 +605,9 @@ export default function RenderStanzaNew() {
           STEP 4 — Risultati
       ══════════════════════════════════════════════════════════════════════ */}
       {step === 4 && (
-        <div className="space-y-4">
-          {/* Success banner */}
-          <div className="flex items-center gap-3 p-4 rounded-xl bg-green-50 border border-green-200 dark:bg-green-950/20 dark:border-green-900">
+        <div className="space-y-4 max-md:space-y-3">
+          {/* Success banner — telefono: parla l'immagine. */}
+          <div className="flex items-center gap-3 p-4 rounded-xl bg-green-50 border border-green-200 dark:bg-green-950/20 dark:border-green-900 max-md:hidden">
             <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
             <div>
               <p className="font-semibold text-green-800 dark:text-green-400 text-sm">Render completato!</p>
@@ -569,8 +619,8 @@ export default function RenderStanzaNew() {
 
           {/* Before/After */}
           {photoPreview && resultUrls[0] && (
-            <Card className="overflow-hidden">
-              <CardHeader>
+            <Card className="overflow-hidden max-md:rounded-none max-md:border-0 max-md:bg-transparent max-md:shadow-none">
+              <CardHeader className="max-md:hidden">
                 <CardTitle className="text-base">Confronto Prima / Dopo</CardTitle>
               </CardHeader>
               <CardContent className="p-0">
@@ -594,8 +644,18 @@ export default function RenderStanzaNew() {
             </Card>
           )}
 
+          {/* Telefono: nuovo render a icona e «Manda al cliente» (l'immagine, non un link). */}
+          {isMobile && resultUrls[0] && (
+            <div className="flex gap-2">
+              <Button variant="outline" className="w-11 shrink-0 px-0" onClick={nuovoRender} aria-label="Nuovo render">
+                <ImagePlus className="h-4 w-4" />
+              </Button>
+              <MandaRenderMobile resultUrl={resultUrls[0]} nomeFile="render-stanza" className="min-w-0 flex-1" />
+            </div>
+          )}
+
           {/* Actions */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 max-md:hidden">
             <Button variant="outline" className="gap-2" onClick={downloadResult}>
               <Download className="h-4 w-4" />
               Scarica
@@ -608,7 +668,7 @@ export default function RenderStanzaNew() {
 
           <Button
             className="w-full gap-2"
-            variant={savedToGallery ? "secondary" : "default"}
+            variant={savedToGallery ? "secondary" : isMobile ? "outline" : "default"}
             disabled={savedToGallery || savingGallery}
             onClick={saveToGallery}
           >
@@ -621,7 +681,7 @@ export default function RenderStanzaNew() {
             )}
           </Button>
 
-          <Separator />
+          <Separator className="max-md:hidden" />
 
           <RenderResultRefinementPanel
             config={config}
@@ -633,20 +693,12 @@ export default function RenderStanzaNew() {
             regenerateLabel="Genera nuova variante stanza"
           />
 
-          <div className="flex gap-3">
+          {/* Telefono: «Nuovo render» sta accanto a «Manda al cliente», la galleria è nel modulo. */}
+          <div className="flex gap-3 max-md:hidden">
             <Button
               variant="outline"
               className="flex-1"
-              onClick={() => {
-                setStep(1);
-                setPhoto(null);
-                setPhotoPreview(null);
-                setPhotoPath(null);
-                setSessionId(null);
-                setResultUrls([]);
-                setSavedToGallery(false);
-                setConfig(DEFAULT_STANZA_CONFIG);
-              }}
+              onClick={nuovoRender}
             >
               Nuovo render
             </Button>

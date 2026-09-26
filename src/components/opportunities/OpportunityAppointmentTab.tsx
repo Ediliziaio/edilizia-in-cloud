@@ -459,7 +459,7 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
   });
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 max-sm:space-y-3">
       {existingContactAppointment && (
         <div
           className="rounded-lg border border-primary/20 bg-primary/5 p-4 space-y-2 cursor-pointer hover:border-primary/40 transition-colors"
@@ -487,7 +487,8 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
         </div>
       )}
 
-      <Separator />
+      {/* Mobile no: una riga vuota in cima alla scheda. */}
+      <Separator className="max-sm:hidden" />
 
       {/* Calendar select */}
       <div className="space-y-1.5">
@@ -509,7 +510,8 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
       </div>
 
       {/* Address */}
-      <div className="rounded-lg border bg-muted/30 p-3 space-y-3">
+      {/* Mobile: senza riquadro intorno, i campi stanno in fila con gli altri. */}
+      <div className="rounded-lg border bg-muted/30 p-3 space-y-3 max-sm:border-0 max-sm:bg-transparent max-sm:p-0">
         <AddressAutocomplete value={addressData} onChange={setAddressData} />
         {addressData.lat != null && addressData.lng != null && (
           <>
@@ -603,10 +605,10 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
           Stato + Promemoria — stessi campi della dialog appuntamento commessa.
           Lo slot-picker sopra popola automaticamente, ma l'utente può
           override (es. orari 14:23). */}
-      <div className="space-y-3 rounded-lg border bg-muted/20 p-3">
+      <div className="space-y-3 rounded-lg border bg-muted/20 p-3 max-sm:border-0 max-sm:bg-transparent max-sm:p-0">
         <div>
           <Label className="text-sm font-medium">Orario appuntamento</Label>
-          <p className="text-[11px] text-muted-foreground mt-0.5">
+          <p className="text-[11px] text-muted-foreground mt-0.5 max-sm:hidden">
             Imposta inizio e fine; la durata resta sincronizzata.
           </p>
         </div>
@@ -693,7 +695,8 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
+        {/* Mobile no: stato e promemoria restano quelli predefiniti. */}
+        <div className="grid grid-cols-2 gap-2 max-sm:hidden">
           <div className="space-y-1">
             <Label className="text-xs">Stato</Label>
             <Select value={status} onValueChange={setStatus}>

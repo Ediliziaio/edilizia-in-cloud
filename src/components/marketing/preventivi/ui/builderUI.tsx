@@ -39,6 +39,10 @@ interface QuotePageHeaderProps {
   lastModified?: ReactNode;
   /** Tailwind extra */
   className?: string;
+  /** Telefono: azioni sulla riga del titolo (per una o due icone), non su una riga loro. */
+  azioniInRiga?: boolean;
+  /** Telefono: niente titolo quando ripete la scheda già accesa in alto; restano le azioni. */
+  titoloSoloDaComputer?: boolean;
 }
 
 export function QuotePageHeader({
@@ -51,6 +55,8 @@ export function QuotePageHeader({
   chips,
   lastModified,
   className,
+  azioniInRiga,
+  titoloSoloDaComputer,
 }: QuotePageHeaderProps) {
   return (
     <div
@@ -71,8 +77,8 @@ export function QuotePageHeader({
           {lastModified && <span>· {lastModified}</span>}
         </div>
       )}
-      <div className="flex items-start justify-between gap-3 sm:gap-4 flex-wrap">
-        <div className="flex items-start gap-2.5 sm:gap-3 min-w-0 flex-1">
+      <div className={cn("flex items-start justify-between gap-3 sm:gap-4 flex-wrap", azioniInRiga && "max-sm:flex-nowrap max-sm:items-center")}>
+        <div className={cn("flex items-start gap-2.5 sm:gap-3 min-w-0 flex-1", titoloSoloDaComputer && "max-sm:hidden")}>
           {icon && (
             <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white flex items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
               {icon}
@@ -90,7 +96,7 @@ export function QuotePageHeader({
           </div>
         </div>
         {actions && (
-          <div className="flex w-full sm:w-auto shrink-0 flex-wrap items-center justify-end gap-1.5 sm:gap-2">{actions}</div>
+          <div className={cn("flex w-full sm:w-auto shrink-0 flex-wrap items-center justify-end gap-1.5 sm:gap-2", azioniInRiga && "max-sm:w-auto")}>{actions}</div>
         )}
       </div>
     </div>
@@ -113,6 +119,8 @@ interface QuoteCardProps {
   compact?: boolean;
   /** Nasconde l'header anche se title fornito (debug) */
   noHeader?: boolean;
+  /** Telefono: niente titolo quando ripete il passo già acceso in alto. */
+  titoloSoloDaComputer?: boolean;
 }
 
 export function QuoteCard({
@@ -124,6 +132,7 @@ export function QuoteCard({
   className,
   compact,
   noHeader,
+  titoloSoloDaComputer,
 }: QuoteCardProps) {
   return (
     <div
@@ -134,7 +143,7 @@ export function QuoteCard({
       )}
     >
       {!noHeader && (title || action) && (
-        <div className="flex items-center justify-between gap-3 flex-wrap mb-3 sm:mb-4">
+        <div className={cn("flex items-center justify-between gap-3 flex-wrap mb-3 sm:mb-4", titoloSoloDaComputer && "max-sm:hidden")}>
           {title && (
             <div className="min-w-0">
               <h3 className="text-[15px] font-bold text-slate-900 flex items-center gap-2.5">
@@ -375,6 +384,8 @@ export function QuoteChip({
 export interface QuoteStep {
   key: string;
   label: string;
+  /** Etichetta corta per il telefono (tre passi affiancati senza scorrere). */
+  labelBreve?: string;
   icon?: ReactNode;
 }
 
@@ -405,7 +416,9 @@ export function QuoteStepper({
         className,
       )}
     >
-      <div className="flex gap-0 overflow-x-auto">
+      {/* Telefono: i passi dividono la riga in parti uguali (prima scorrevano di
+          lato e il terzo non si vedeva); via la barra «Step 1 di 3» sotto. */}
+      <div className="flex gap-0 overflow-x-auto max-sm:overflow-visible">
         {steps.map((s, i) => {
           const isActive = i === current;
           const isCompleted = completedSteps ? !!completedSteps[i] : i < current;
@@ -419,6 +432,7 @@ export function QuoteStepper({
               disabled={!isClickable}
               className={cn(
                 "shrink-0 flex items-center gap-2 sm:gap-2.5 px-3 sm:px-4 py-2.5 sm:py-3 border-b-[3px] border-transparent whitespace-nowrap transition-all text-sm font-medium",
+                "tap-compact max-sm:min-w-0 max-sm:flex-1 max-sm:shrink max-sm:justify-center max-sm:gap-1.5 max-sm:px-1.5 max-sm:py-2 max-sm:text-xs",
                 "hover:bg-slate-50",
                 isActive && "border-orange-500 text-slate-900 bg-white font-semibold",
                 isCompleted && !isActive && "text-slate-700",
@@ -430,7 +444,7 @@ export function QuoteStepper({
             >
               <span
                 className={cn(
-                  "flex items-center justify-center w-6 h-6 rounded-full border text-[11px] font-bold flex-shrink-0 transition-all",
+                  "flex items-center justify-center w-6 h-6 rounded-full border text-[11px] font-bold flex-shrink-0 transition-all max-sm:h-5 max-sm:w-5 max-sm:text-[10px]",
                   !isActive &&
                     !isCompleted &&
                     "bg-slate-100 border-slate-300 text-slate-500",
@@ -446,13 +460,14 @@ export function QuoteStepper({
                 <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wider hidden sm:inline">
                   Step {i + 1}
                 </span>
-                <span>{s.label}</span>
+                <span className={s.labelBreve ? "max-sm:hidden" : undefined}>{s.label}</span>
+                {s.labelBreve && <span className="sm:hidden">{s.labelBreve}</span>}
               </span>
             </button>
           );
         })}
       </div>
-      <div className="bg-slate-50 px-4 sm:px-6 py-1.5 sm:py-2 flex items-center gap-3 text-xs text-slate-500 border-t border-slate-100">
+      <div className="bg-slate-50 px-4 sm:px-6 py-1.5 sm:py-2 flex items-center gap-3 text-xs text-slate-500 border-t border-slate-100 max-sm:hidden">
         <span className="shrink-0">
           <strong className="text-slate-900">
             Step {current + 1} di {steps.length}
@@ -497,12 +512,13 @@ export function QuoteHubTabs({
   return (
     <div
       className={cn(
-        "border-b border-slate-200 bg-white rounded-t-2xl",
+        "border-b border-slate-200 bg-white rounded-t-2xl max-sm:rounded-none max-sm:bg-transparent",
         className,
       )}
     >
+      {/* Telefono: le schede dividono la riga, più basse e senza icone. */}
       <nav
-        className="-mb-px flex gap-1 sm:gap-2 overflow-x-auto px-2 sm:px-3"
+        className="-mb-px flex gap-1 sm:gap-2 overflow-x-auto px-2 sm:px-3 max-sm:overflow-visible max-sm:px-0"
         role="tablist"
         aria-label="Sezioni preventivi"
       >
@@ -520,6 +536,7 @@ export function QuoteHubTabs({
                 // senza, il testo della label tracimava fuori bound del button
                 // e si sovrapponeva alle tab adiacenti su mobile.
                 "relative flex shrink-0 items-center gap-1.5 px-3 sm:px-4 py-3 text-sm font-medium whitespace-nowrap transition-all border-b-[3px] -mb-px",
+                "tap-compact max-sm:flex-1 max-sm:justify-center max-sm:py-2 max-sm:text-xs",
                 isActive
                   ? "border-orange-500 text-slate-900 font-semibold"
                   : "border-transparent text-slate-500 hover:text-slate-900 hover:bg-slate-50",
@@ -528,7 +545,7 @@ export function QuoteHubTabs({
               {t.icon && (
                 <span
                   className={cn(
-                    "h-4 w-4 shrink-0",
+                    "h-4 w-4 shrink-0 max-sm:hidden",
                     isActive ? "text-orange-500" : "text-slate-400",
                   )}
                 >

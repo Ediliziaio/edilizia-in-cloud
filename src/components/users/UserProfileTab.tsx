@@ -127,13 +127,14 @@ export function UserProfileTab({ user, role, isBlocked, onSave, isLoading }: Use
     <>
       <form onSubmit={handleSubmit} className="space-y-6">
         <Card>
-          <CardHeader>
+          {/* Mobile: niente titolo né avatar, nome ed email sono già in testata. */}
+          <CardHeader className="max-md:hidden">
             <CardTitle>Informazioni Utente</CardTitle>
             <CardDescription>Dati personali e di contatto dell'utente</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-6 max-md:space-y-4 max-md:p-4">
             {/* Avatar + Role */}
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 max-md:hidden">
               <Avatar className="h-16 w-16">
                 <AvatarFallback className="text-lg bg-primary/10 text-primary font-semibold">
                   {initials}
@@ -161,7 +162,7 @@ export function UserProfileTab({ user, role, isBlocked, onSave, isLoading }: Use
             </div>
 
             {/* Fields */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 max-sm:gap-3">
               <div className="space-y-2">
                 <Label htmlFor="firstName">Nome *</Label>
                 <Input id="firstName" value={firstName} onChange={(e) => setFirstName(e.target.value)} disabled={isLoading} />
@@ -189,9 +190,9 @@ export function UserProfileTab({ user, role, isBlocked, onSave, isLoading }: Use
             <div className="pt-2 border-t space-y-3">
               <div>
                 <p className="text-sm font-medium">Password</p>
-                <p className="text-xs text-muted-foreground">Inserisci una nuova password oppure lascia vuoto per generarne una automatica</p>
+                <p className="text-xs text-muted-foreground max-md:hidden">Inserisci una nuova password oppure lascia vuoto per generarne una automatica</p>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 max-sm:gap-2">
                 <div className="relative flex-1 max-w-xs">
                   <Input
                     type={showPassword ? "text" : "password"}
@@ -213,21 +214,23 @@ export function UserProfileTab({ user, role, isBlocked, onSave, isLoading }: Use
                 </div>
                 <Button type="button" variant="outline" size="sm" onClick={handleResetPassword} disabled={resettingPassword}>
                   {resettingPassword ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <KeyRound className="h-4 w-4 mr-2" />}
-                  {newPassword.trim() ? "Imposta Password" : "Genera Password"}
+                  <span className="max-sm:hidden">{newPassword.trim() ? "Imposta Password" : "Genera Password"}</span>
+                  <span className="sm:hidden">{newPassword.trim() ? "Imposta" : "Genera"}</span>
                 </Button>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <div className="flex items-center justify-between">
+        {/* Mobile: la barra compare solo quando c'è qualcosa da salvare. */}
+        <div className={`flex items-center justify-between ${isDirty ? "" : "max-md:hidden"}`}>
           {isDirty ? (
-            <span className="text-xs text-amber-600 font-medium flex items-center gap-1">
+            <span className="text-xs text-amber-600 font-medium flex items-center gap-1 max-md:hidden">
               <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500" />
               Modifiche non salvate
             </span>
           ) : <span />}
-          <Button type="submit" disabled={isLoading || !isDirty}>
+          <Button type="submit" disabled={isLoading || !isDirty} className="max-md:flex-1">
             {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
             Salva Modifiche
           </Button>

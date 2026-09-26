@@ -37,7 +37,8 @@ function statusColor(status: string | null): string {
   }
 }
 
-export default function BroadcastListPage() {
+/** nelHub: dentro la scheda «Broadcast» dell'hub WhatsApp (che c'è solo da 768). */
+export default function BroadcastListPage({ nelHub = false }: { nelHub?: boolean }) {
   const { base: waBase } = useWhatsAppBase();
   const [statusFilter, setStatusFilter] = useState("all");
   const [search, setSearch] = useState("");
@@ -53,27 +54,37 @@ export default function BroadcastListPage() {
     );
   }, [broadcasts, search]);
 
+  const bottoneNuova = (
+    <Button asChild aria-label="Nuova campagna broadcast">
+      <Link to={`${waBase}/broadcast/nuovo`}>
+        <Plus className="mr-2 h-4 w-4" />
+        Nuova campagna
+      </Link>
+    </Button>
+  );
+
   return (
-    <div className="space-y-6 p-4 md:p-6">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">Broadcast WhatsApp</h1>
-          <p className="text-sm text-muted-foreground">
-            Campagne inviate o schedulate. Richiede template Meta APPROVED + numero con scopo marketing.
-          </p>
+    // Da 768 niente p-6: il margine lo dà già il layout (o l'hub).
+    <div className="space-y-6 p-4 md:p-0">
+      {/* Nell'hub titolo, frase («template Meta APPROVED») e il secondo titolo
+          «Campagne» ripetevano la scheda: resta una riga con ricerca, stato e
+          «Nuova campagna». */}
+      {!nelHub && (
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold">Broadcast WhatsApp</h1>
+            <p className="text-sm text-muted-foreground">
+              Campagne inviate o schedulate. Richiede template Meta APPROVED + numero con scopo marketing.
+            </p>
+          </div>
+          {bottoneNuova}
         </div>
-        <Button asChild aria-label="Nuova campagna broadcast">
-          <Link to={`${waBase}/broadcast/nuovo`}>
-            <Plus className="mr-2 h-4 w-4" />
-            Nuova campagna
-          </Link>
-        </Button>
-      </div>
+      )}
 
       <Card>
         <CardHeader className="gap-3 md:flex-row md:items-center md:justify-between">
-          <CardTitle>Campagne</CardTitle>
-          <div className="flex flex-col gap-2 sm:flex-row">
+          {!nelHub && <CardTitle>Campagne</CardTitle>}
+          <div className={`flex flex-col gap-2 sm:flex-row ${nelHub ? "sm:flex-1 sm:items-center" : ""}`}>
             <div className="relative w-full sm:w-72">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" placeholder="Cerca campagna..." />
@@ -91,6 +102,7 @@ export default function BroadcastListPage() {
                 <SelectItem value="cancelled">Annullate</SelectItem>
               </SelectContent>
             </Select>
+            {nelHub && <div className="sm:ml-auto">{bottoneNuova}</div>}
           </div>
         </CardHeader>
         <CardContent>

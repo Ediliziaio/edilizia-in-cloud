@@ -16,6 +16,7 @@ import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { Loader2, CheckCircle2, Settings2, Info, Sparkles, Mic } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { ComputoUploadModal } from "@/components/computo/ComputoUploadModal";
 import { VoiceComputoDialog } from "@/components/computo/VoiceComputoDialog";
 import { useSaveComputo, useEffectiveCompanyId } from "@/hooks/useRistrutturazioneProgetto";
@@ -179,12 +180,14 @@ export default function StepComputo({ progettoId, initialComputo, scontoPct, iva
   }, [saveMut.isPending, dirty, savedOnce]);
 
   return (
-    <div className="space-y-3">
-      {/* Header step + stato salvataggio */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
+    // Telefono: colonna con spazi fissi, così il titolo nascosto non lascia un buco in cima.
+    <div className="space-y-3 max-sm:flex max-sm:flex-col max-sm:gap-3 max-sm:space-y-0">
+      {/* Header step + stato salvataggio (telefono: solo se c'è uno stato da dire) */}
+      <div className={cn("flex flex-wrap items-center justify-between gap-2", !statusLabel && "max-sm:hidden")}>
+        {/* Telefono: il titolo lo dice già il passo in alto. */}
+        <div className="max-sm:hidden">
           <h2 className="text-sm font-semibold text-slate-900">Computo metrico</h2>
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-[11px] text-muted-foreground max-sm:hidden">
             Aggiungi capitoli e voci dai listini. I totali si aggiornano in tempo reale e si salvano da soli.
           </p>
         </div>
@@ -200,8 +203,9 @@ export default function StepComputo({ progettoId, initialComputo, scontoPct, iva
 
       {model && <LavorazioniDelModello intervento={model} />}
       {/* Hint listino vuoto */}
+      {/* Telefono no: il listino si imposta da computer, e le voci libere ci sono comunque. */}
       {listinoVuoto && (
-        <div className="flex items-start gap-2.5 rounded-xl border border-blue-100 bg-blue-50/60 px-3 py-2.5">
+        <div className="flex items-start gap-2.5 rounded-xl border border-blue-100 bg-blue-50/60 px-3 py-2.5 max-sm:hidden">
           <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" />
           <div className="flex-1 text-[11px] text-blue-900">
             <p className="font-medium">Il tuo listino lavorazioni è ancora vuoto.</p>
@@ -225,23 +229,24 @@ export default function StepComputo({ progettoId, initialComputo, scontoPct, iva
           type="button"
           variant="outline"
           size="sm"
-          className="h-8 gap-1.5 text-xs"
+          className="tap-compact h-8 gap-1.5 text-xs max-sm:flex-1"
           disabled={!companyId}
           onClick={() => setImportOpen(true)}
         >
-          <Sparkles className="h-3.5 w-3.5 text-orange-500" /> Importa computo da PDF (AI)
+          <Sparkles className="h-3.5 w-3.5 text-orange-500" /> <span className="max-sm:hidden">Importa computo da PDF (AI)</span><span className="sm:hidden">Importa PDF</span>
         </Button>
         <Button
           type="button"
           variant="outline"
           size="sm"
-          className="h-8 gap-1.5 text-xs"
+          className="tap-compact h-8 gap-1.5 text-xs max-sm:flex-1"
           disabled={!companyId}
           onClick={() => setVoiceOpen(true)}
         >
-          <Mic className="h-3.5 w-3.5 text-violet-500" /> Descrivi a voce (AI)
+          <Mic className="h-3.5 w-3.5 text-violet-500" /> <span className="max-sm:hidden">Descrivi a voce (AI)</span><span className="sm:hidden">Detta a voce</span>
         </Button>
-        <span className="text-[11px] text-muted-foreground">
+        {/* Telefono: due bottoni affiancati, senza la frase di spiegazione. */}
+        <span className="text-[11px] text-muted-foreground max-sm:hidden">
           Carica un computo esistente: l'AI estrae le voci, le rivedi e le aggiungi.
         </span>
       </div>

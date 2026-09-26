@@ -33,7 +33,8 @@ export function ContoTermicoEconomia({ dati, onChange, prezzoIvaInclusa, ivaPct 
         <CardTitle className="flex items-center gap-1.5 text-sm">
           <Flame className="h-4 w-4 text-orange-600" /> Conto Termico 3.0
         </CardTitle>
-        <p className="text-[11px] text-muted-foreground">
+        {/* Telefono: niente spiegazione, i campi e il riquadro verde bastano. */}
+        <p className="text-[11px] text-muted-foreground max-sm:hidden">
           Il contributo non lo calcola il preventivo: scrivi quello del simulatore del GSE. Il prezzo è quello del preventivo, IVA inclusa: {euro(prezzoIvaInclusa)}.
         </p>
       </CardHeader>
@@ -69,7 +70,8 @@ export function ContoTermicoEconomia({ dati, onChange, prezzoIvaInclusa, ivaPct 
           <CampoTesto id="ct-titolo" etichetta="Il nuovo impianto, come lo legge il cliente" valore={dati.titolo} segnaposto="Pompa di calore aria-acqua 8 kW" onCommit={(titolo) => cambia({ titolo })} />
           <CampoTesto id="ct-attuale" etichetta="Cosa si toglie" valore={dati.impianto_attuale} segnaposto="Caldaia a gas del 2008" onCommit={(impianto_attuale) => cambia({ impianto_attuale })} />
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
+        {/* Telefono: due numeri corti, affiancati. */}
+        <div className="grid gap-3 sm:grid-cols-2 max-sm:grid-cols-2">
           <CampoNumero id="ct-contributo" etichetta="Contributo GSE stimato" valore={dati.contributo || null} suffisso="€" onCommit={(v) => cambia({ contributo: Math.max(0, v ?? 0) })}
             aiuto={rate > 1 ? `Sopra ${euro(CONTO_TERMICO.sogliaUnicaRata)}: arriva in ${rate} rate annuali.` : `Fino a ${euro(CONTO_TERMICO.sogliaUnicaRata)} arriva in un'unica soluzione.`} />
           <CampoNumero id="ct-potenza" etichetta="Potenza del generatore" valore={dati.potenza_kw} suffisso="kW" onCommit={(v) => cambia({ potenza_kw: v && v > 0 ? v : null })}
@@ -93,10 +95,10 @@ export function ContoTermicoEconomia({ dati, onChange, prezzoIvaInclusa, ivaPct 
           <CampoNumero id="ct-spesa-oggi" etichetta="Spesa annua oggi (riscaldamento e acqua calda)" valore={dati.spesa_annua_attuale || null} suffisso="€/anno" onCommit={(v) => cambia({ spesa_annua_attuale: Math.max(0, v ?? 0) })} />
           <CampoNumero id="ct-spesa-domani" etichetta="Spesa annua col nuovo impianto (stima)" valore={dati.spesa_annua_nuova || null} suffisso="€/anno" onCommit={(v) => cambia({ spesa_annua_nuova: Math.max(0, v ?? 0) })} />
         </div>
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-3 max-sm:grid-cols-2">
           <CampoNumero id="ct-aumento" etichetta="Aumento energia all'anno" valore={dati.aumento_energia_pct} suffisso="%" onCommit={(v) => cambia({ aumento_energia_pct: Math.min(10, Math.max(0, v ?? 0)) })} />
           <CampoNumero id="ct-anni" etichetta="Anni del conto" valore={dati.anni} suffisso="anni" onCommit={(v) => cambia({ anni: Math.min(30, Math.max(5, Math.round(v ?? 15))) })} />
-          <div className="space-y-1">
+          <div className="space-y-1 max-sm:col-span-2">
             <Label className="text-xs">Confronto con la detrazione</Label>
             <Scelta<number | null>
               valore={dati.detrazione_confronto}

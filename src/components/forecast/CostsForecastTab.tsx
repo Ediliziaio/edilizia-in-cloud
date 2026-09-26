@@ -4,7 +4,7 @@ import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/ui/table-pagination";
 import { format, startOfMonth, endOfMonth, addMonths, isWithinInterval, startOfDay, startOfYear, eachMonthOfInterval } from "date-fns";
 import { it } from "date-fns/locale";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
 import { SortableTableHead } from "@/components/ui/sortable-table-head";
@@ -123,15 +123,17 @@ export function CostsForecastTab({ expectedExpenses, expectedCommissions, expect
   [filteredExpenses, filteredCommissions, filteredSupplier, filteredCosts]);
 
   return (
-    <div className="space-y-6">
-      {/* Hero aggregate card */}
+    // Mobile: colonna flessibile, così i riquadri nascosti non lasciano margini.
+    <div className="space-y-6 max-sm:flex max-sm:flex-col max-sm:gap-3 max-sm:space-y-0">
+      {/* Hero aggregate card — mobile: solo il totale (le voci hanno la loro
+          cifra nelle sezioni qui sotto). */}
       <Card className="border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20">
-        <CardContent className="pt-6 pb-4 flex items-center justify-between">
+        <CardContent className="pt-6 pb-4 flex items-center justify-between max-sm:px-3 max-sm:py-2">
           <div>
-            <p className="text-sm font-medium text-muted-foreground">Totale Uscite Periodo</p>
-            <p className="text-3xl font-bold text-red-600 dark:text-red-400 tabular-nums">{formatCurrency(periodTotal)}</p>
+            <p className="text-sm font-medium text-muted-foreground max-sm:text-[11px]">Totale Uscite Periodo</p>
+            <p className="text-3xl font-bold text-red-600 dark:text-red-400 tabular-nums max-sm:text-base">{formatCurrency(periodTotal)}</p>
           </div>
-          <div className="text-xs text-muted-foreground text-right space-y-0.5">
+          <div className="text-xs text-muted-foreground text-right space-y-0.5 max-sm:hidden">
             <p>Squadre: {formatCurrency(filteredExpenses.reduce((s, e) => s + e.amount, 0))}</p>
             <p>Provvigioni: {formatCurrency(filteredCommissions.reduce((s, c) => s + c.amount, 0))}</p>
             <p>Fornitori: {formatCurrency(filteredSupplier.reduce((s, p) => s + p.amount, 0))}</p>
@@ -151,8 +153,8 @@ export function CostsForecastTab({ expectedExpenses, expectedCommissions, expect
         activePreset={activePreset}
       />
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* Summary Cards. Mobile no: il periodo si sceglie qui sotto. */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-sm:hidden">
         <Card>
           <CardContent className="pt-6">
             <p className="text-sm text-muted-foreground">Uscite questo mese</p>
@@ -187,9 +189,10 @@ export function CostsForecastTab({ expectedExpenses, expectedCommissions, expect
         </Card>
       </div>
 
-      {/* Date preset filters */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex flex-wrap items-center border rounded-md">
+      {/* Date preset filters — mobile: quattro periodi su una riga, senza date
+          personalizzate. In cima (order -1), sopra il totale. */}
+      <div className="flex flex-wrap items-center gap-2 max-sm:-order-1">
+        <div className="flex flex-wrap items-center border rounded-md max-sm:grid max-sm:w-full max-sm:grid-cols-4">
           {([
             { key: "thisMonth", label: "Questo mese" },
             { key: "nextQuarter", label: "Prossimo trimestre" },
@@ -200,10 +203,10 @@ export function CostsForecastTab({ expectedExpenses, expectedCommissions, expect
               key={key}
               variant={activePreset === key ? "default" : "ghost"}
               size="sm"
-              className="h-8 text-xs rounded-none first:rounded-l-md last:rounded-r-md"
+              className="tap-compact h-8 text-xs rounded-none first:rounded-l-md last:rounded-r-md max-sm:px-1 max-sm:text-[11px]"
               onClick={() => applyPreset(key)}
             >
-              {label}
+              {key === "nextQuarter" ? <><span className="max-sm:hidden">{label}</span><span className="sm:hidden">Trimestre</span></> : key === "thisYear" ? <><span className="max-sm:hidden">{label}</span><span className="sm:hidden">Anno</span></> : label}
             </Button>
           ))}
           <Popover open={customPopoverOpen} onOpenChange={setCustomPopoverOpen}>
@@ -211,7 +214,7 @@ export function CostsForecastTab({ expectedExpenses, expectedCommissions, expect
               <Button
                 variant={activePreset === "custom" ? "default" : "ghost"}
                 size="sm"
-                className="h-8 text-xs rounded-none rounded-r-md"
+                className="h-8 text-xs rounded-none rounded-r-md max-sm:hidden"
                 onClick={() => { setActivePreset("custom"); setCustomPopoverOpen(true); }}
               >
                 <CalendarIcon className="h-3.5 w-3.5 mr-1" />
@@ -311,7 +314,7 @@ export function CostsForecastTab({ expectedExpenses, expectedCommissions, expect
       )}
 
       {filteredExpenses.length === 0 && filteredCommissions.length === 0 && filteredSupplier.length === 0 && filteredCosts.length === 0 && (
-        <p className="text-center text-muted-foreground py-8">
+        <p className="text-center text-muted-foreground py-8 max-sm:py-2 max-sm:text-xs">
           {activePreset !== "all" ? "Nessun costo nel periodo selezionato" : "Nessun costo previsto"}
         </p>
       )}
@@ -352,7 +355,8 @@ function StackedExpensesChart({ expenses, commissions, supplierPayments, company
   if (chartData.length === 0 || chartData.every((d) => d.Squadre + d.Provvigioni + d.Fornitori + d["Costi Az."] === 0)) return null;
 
   return (
-    <Card>
+    // Mobile no: barre impilate illeggibili a 375px.
+    <Card className="max-sm:hidden">
       <CardHeader className="pb-2">
         <CardTitle className="text-base">Uscite per Categoria</CardTitle>
       </CardHeader>
@@ -401,17 +405,53 @@ function CostSection({ title, total, headers, rows }: {
 
   const { sortConfig, toggleSort, sortedItems } = useTableSort(rows, accessors);
   const { paginatedItems, currentPage, totalPages, pageSize, totalItems, setPage, setPageSize } = usePagination(sortedItems);
+  // Mobile: chi (squadra, venditore, fornitore o nome del costo) come titolo,
+  // data e ordine sotto, importo a destra.
+  const conOrdine = headers[1] === "Ordine";
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
+    <Card className="max-sm:overflow-hidden">
+      <CardHeader className="pb-3 max-sm:p-3 max-sm:pb-2">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-lg">{title}</CardTitle>
-          <span className="text-sm font-semibold text-red-600">{formatCurrency(total)}</span>
+          <CardTitle className="text-lg max-sm:text-sm">{title}</CardTitle>
+          <span className="text-sm font-semibold text-red-600 max-sm:text-[13px]">{formatCurrency(total)}</span>
         </div>
       </CardHeader>
-      <CardContent>
-        <Table>
+      <CardContent className="max-sm:p-0">
+        <div className="divide-y border-t sm:hidden">
+          {paginatedItems.map((row) => {
+            const last = row.cells.length - 1;
+            const titolo = conOrdine ? row.cells[2] : row.cells[1];
+            const sotto = conOrdine
+              ? [row.cells[0], row.cells[1], ...(last > 3 ? [row.cells[3]] : [])]
+              : [row.cells[0], row.cells[2]];
+            return (
+              <div
+                key={row.key}
+                onClick={() => row.orderId && navigate(`/azienda/ordini/${row.orderId}`)}
+                className={cn("flex items-center gap-2.5 px-3 py-2.5", row.orderId && "cursor-pointer active:bg-muted")}
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[13px] font-semibold leading-tight">{titolo}</p>
+                  <p className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground">{sotto.filter((x) => x && x !== "—").join(" · ")}</p>
+                </div>
+                <span className="shrink-0 text-[13px] font-semibold tabular-nums">{row.cells[last]}</span>
+              </div>
+            );
+          })}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-3 py-2">
+              <Button variant="outline" size="icon" className="tap-compact h-8 w-8" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)} aria-label="Pagina precedente">
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="text-xs tabular-nums text-muted-foreground">{currentPage} di {totalPages}</span>
+              <Button variant="outline" size="icon" className="tap-compact h-8 w-8" disabled={currentPage >= totalPages} onClick={() => setPage(currentPage + 1)} aria-label="Pagina successiva">
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+        </div>
+        <Table className="max-sm:hidden">
           <TableHeader>
             <TableRow>
               {headers.map(h => (
@@ -442,14 +482,20 @@ function CostSection({ title, total, headers, rows }: {
             ))}
           </TableBody>
         </Table>
-        <TablePagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          pageSize={pageSize}
-          totalItems={totalItems}
-          onPageChange={setPage}
-          onPageSizeChange={setPageSize}
-        />
+        {/* Il contenitore c'è solo quando la paginazione compare (niente
+            margine vuoto sul desktop); su telefono c'è quella qui sopra. */}
+        {totalItems > 25 && (
+          <div className="max-sm:hidden">
+            <TablePagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              pageSize={pageSize}
+              totalItems={totalItems}
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+            />
+          </div>
+        )}
       </CardContent>
     </Card>
   );

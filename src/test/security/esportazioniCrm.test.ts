@@ -53,8 +53,8 @@ const AREE_CRM = [
   "src/pages/azienda/settings/SettingsEsportaDati.tsx",
 ];
 
-/** Codice che consegna un file al browser. */
-const SCARICO = /exportToCSV\(|exportToXLSX\(|\.download\s*=|downloadFile\(|scaricaCsv\(|<ExportButton\b|writeBuffer\(|doc\.save\(|saveAs\(/;
+/** Codice che consegna un file al browser (downloadQuotePdf: lo scarico del PDF preventivo, spostato in src/lib). */
+const SCARICO = /exportToCSV\(|exportToXLSX\(|\.download\s*=|downloadFile\(|downloadQuotePdf\(|scaricaCsv\(|<ExportButton\b|writeBuffer\(|doc\.save\(|saveAs\(/;
 
 /**
  * Le funzioni comuni (src/lib, src/hooks, src/utils) che consegnano un file:

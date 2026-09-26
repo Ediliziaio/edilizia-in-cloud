@@ -22,14 +22,8 @@ import { useUpdateOpportunityStage, usePipelines, type RiepilogoOpportunita } fr
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { RigaMobile } from "@/components/mobile/FiltriMobile";
 import { toast } from "sonner";
-
-// Valore compatto per le mini-card di fase (mobile): 733200 → "733k", 1_250_000 → "1,3M".
-function fmtCompactEuro(v: number): string {
-  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1).replace(".", ",").replace(",0", "")}M`;
-  if (v >= 1_000) return `${Math.round(v / 1_000)}k`;
-  return `${Math.round(v)}`;
-}
 
 interface ListProps {
   stages: OpportunityStage[];
@@ -174,14 +168,12 @@ export const OpportunityListView = memo(function OpportunityListView({
 
   // Conteggio e valore per fase dal database: il menu «seleziona per fase» e
   // la striscia mobile contano tutte le opportunità, non le righe caricate.
-  const { stageAgg, totalValue, totaleTutte } = useMemo(() => {
+  const { stageAgg, totaleTutte } = useMemo(() => {
     const agg: Record<string, { count: number; value: number }> = {};
-    let tv = 0;
     for (const [faseId, v] of Object.entries(riepilogo?.per_fase ?? {})) {
       agg[faseId] = { count: v.n, value: v.valore };
-      tv += v.valore;
     }
-    return { stageAgg: agg, totalValue: tv, totaleTutte: riepilogo?.totale ?? opportunities.length };
+    return { stageAgg: agg, totaleTutte: riepilogo?.totale ?? opportunities.length };
   }, [riepilogo, opportunities.length]);
 
   const virtualizer = useVirtualizer({
@@ -201,177 +193,104 @@ export const OpportunityListView = memo(function OpportunityListView({
 
   return (
     <>
-      {/* ── MOBILE: card list con filtro per fase ──
+      {/* ── MOBILE: righe con filtro per fase ──
           Solo su mobile (prima c'erano entrambe e una delle due nascosta dal
-          CSS: su desktop centinaia di schede invisibili nella pagina). */}
+          CSS: su desktop centinaia di schede invisibili nella pagina).
+          Le fasi sono pillole su una riga (nome e numero; erano riquadri da
+          92px con l'importo), le opportunità righe da ~52px: nome, fase e
+          contatto a sinistra, valore e stato a destra. Via le schede da
+          quattro righe con etichette, iniziali del venditore e tag: tutto
+          nella scheda che si apre col tocco. */}
       {isMobile && (
-      <div className="flex flex-col gap-0">
-        {/* Striscia pipeline: una mini-card per fase (nome + n. deal + € in fase),
-            così su mobile si vede la pipeline con le fasi di lavoro, allineata. */}
-        <div className="flex gap-2 overflow-x-auto pb-2 pt-0.5 scrollbar-none">
-          <button
-            type="button"
-            onClick={() => setMobileStageId(null)}
-            className={cn(
-              "flex w-[92px] shrink-0 flex-col gap-0.5 rounded-xl border px-2.5 py-1.5 text-left transition-colors",
-              !mobileStageId
-                ? "border-primary bg-primary/5 shadow-sm"
-                : "border-slate-200 bg-white hover:bg-slate-50"
-            )}
-            aria-pressed={!mobileStageId}
-          >
-            <span className="flex w-full min-w-0 items-center gap-1">
-              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
-              <span className="truncate text-[11px] font-medium text-muted-foreground">Tutte</span>
-            </span>
-            <span className="text-base font-bold leading-none text-foreground tabular-nums">{formatCount(totaleTutte)}</span>
-            <span className="truncate text-[10px] font-medium text-muted-foreground">€ {fmtCompactEuro(totalValue)}</span>
-          </button>
-          {stages.map((stage: any) => {
-            const agg = stageAgg[stage.id] || { count: 0, value: 0 };
-            const active = mobileStageId === stage.id;
+      <div className="flex flex-col gap-2">
+        <div className="flex gap-1.5 overflow-x-auto scrollbar-none" aria-label="Fasi">
+          {[
+            { id: null as string | null, nome: "Tutte", n: totaleTutte },
+            ...stages.map((stage: any) => ({ id: stage.id as string | null, nome: stage.name as string, n: stageAgg[stage.id]?.count ?? 0 })),
+          ].map((fase) => {
+            const attiva = mobileStageId === fase.id;
             return (
               <button
-                key={stage.id}
+                key={fase.id ?? "tutte"}
                 type="button"
-                onClick={() => setMobileStageId(stage.id)}
+                onClick={() => setMobileStageId(fase.id)}
+                aria-pressed={attiva}
                 className={cn(
-                  "flex w-[92px] shrink-0 flex-col gap-0.5 rounded-xl border px-2.5 py-1.5 text-left transition-colors",
-                  active
-                    ? "border-primary bg-primary/5 shadow-sm"
-                    : "border-slate-200 bg-white hover:bg-slate-50"
+                  "tap-compact flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors",
+                  attiva ? "border-slate-900 bg-slate-900 text-white" : "border-border bg-background text-slate-700",
                 )}
-                aria-pressed={active}
               >
-                <span className="flex w-full min-w-0 items-center gap-1">
-                  <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: hashColor(stage.name) }} />
-                  <span className="truncate text-[11px] font-medium text-muted-foreground">{stage.name}</span>
-                </span>
-                <span className="text-base font-bold leading-none text-foreground tabular-nums">{formatCount(agg.count)}</span>
-                <span className="truncate text-[10px] font-medium text-muted-foreground">€ {fmtCompactEuro(agg.value)}</span>
+                {fase.id && <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: hashColor(fase.nome) }} />}
+                {fase.nome}
+                <span className={cn("tabular-nums", attiva ? "text-white/70" : "text-muted-foreground")}>{formatCount(fase.n)}</span>
               </button>
             );
           })}
         </div>
 
-        {/* Cards */}
         {isLoading && mobileOpportunities.length === 0 ? (
-          <div className="flex flex-col gap-2" aria-busy="true">
-            {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 w-full rounded-xl" />)}
+          <div className="divide-y divide-border overflow-hidden rounded-lg border bg-card" aria-busy="true">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-2.5 px-3 py-2.5">
+                <div className="min-w-0 flex-1 space-y-1">
+                  <Skeleton className="h-3.5 w-2/5" />
+                  <Skeleton className="h-3 w-3/5" />
+                </div>
+                <Skeleton className="h-4 w-14 shrink-0" />
+              </div>
+            ))}
           </div>
         ) : mobileOpportunities.length === 0 ? (
-          <div className="text-center text-muted-foreground py-12 text-sm">
+          <p className="py-8 text-center text-[13px] text-muted-foreground">
             Nessuna opportunità in questa fase
-          </div>
+          </p>
         ) : (
-          <div className="flex flex-col gap-2">
+          <>
+          <div className="divide-y divide-border overflow-hidden rounded-lg border bg-card">
             {mobileOpportunities.map((opp: any) => {
               const contact = opp.marketing_contacts;
               const fullName = contact
                 ? `${contact.first_name || ""} ${contact.last_name || ""}`.trim()
-                : opp.name;
-              const contactPhone = contact?.phone;
-              // Venditore prima; se manca, il call center (come nella scheda kanban).
-              const profile = opp.assigned_profile ?? opp.call_center_profile;
-              const ownerInitials = profile
-                ? `${profile.first_name?.[0] || ""}${profile.last_name?.[0] || ""}`.toUpperCase()
-                : null;
-              const ownerName = profile
-                ? `${profile.first_name || ""} ${profile.last_name || ""}`.trim()
-                : null;
+                : "";
+              const titolo = opp.name || fullName || "Senza nome";
               const statusInfo = STATUS_MAP[opp.status] || STATUS_MAP.open;
-              const tags: string[] = opp.tags || [];
-              const isSelected = selectedIds.has(opp.id);
-
+              const coloreStato =
+                opp.status === "won" ? "text-green-700" : opp.status === "lost" ? "text-red-600" : "text-muted-foreground";
               return (
-                <div
+                <RigaMobile
                   key={opp.id}
                   onClick={() => setSelectedOpp(opp)}
-                  className={cn(
-                    "border rounded-xl p-4 cursor-pointer active:scale-[0.99] transition-all bg-card",
-                    isSelected && "border-primary bg-primary/5"
-                  )}
-                >
-                  {/* Top row: name + value */}
-                  <div className="flex items-start justify-between gap-3 mb-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <p className="font-semibold text-sm leading-tight truncate">{opp.name || fullName}</p>
-                        <RichiestaRipetutaBadge dati={opp.richiesta_ripetuta} />
-                      </div>
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <span
-                          className="h-4 w-4 rounded-full flex items-center justify-center text-white text-[8px] font-bold shrink-0"
-                          style={{ backgroundColor: hashColor(fullName || "?") }}
-                        >
-                          {(fullName?.[0] || "?").toUpperCase()}
-                        </span>
-                        <span className="text-xs text-muted-foreground truncate">{fullName || "—"}</span>
-                        {contactPhone && (
-                          <span className="text-xs text-muted-foreground">· {contactPhone}</span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <p className="font-bold text-base leading-tight">
-                        € {Number(opp.value || 0).toLocaleString("it-IT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                      </p>
-                      <Badge className={cn("text-[10px] font-medium border-0 mt-0.5", statusInfo.className)}>
-                        {statusInfo.label}
-                      </Badge>
-                    </div>
-                  </div>
-
-                  {/* Bottom row: stage (clickable per quick-move) + health + owner + tags */}
-                  <div className="flex items-center gap-2 flex-wrap mt-1">
-                    {canEdit ? (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          apriSpostamento(opp);
-                        }}
-                        className="inline-flex items-center gap-1 rounded-md border border-dashed border-primary/40 px-1.5 py-0.5 text-[10px] font-medium text-primary hover:bg-primary/5 active:bg-primary/10 transition-colors"
-                        title="Sposta in un'altra fase"
-                      >
-                        {stageMap[opp.stage_id] || "—"}
-                        <ArrowRight className="h-2.5 w-2.5" />
-                      </button>
-                    ) : (
-                      <Badge variant="outline" className="text-[10px] font-normal py-0">
-                        {stageMap[opp.stage_id] || "—"}
-                      </Badge>
-                    )}
-                    {opp.status === "open" && <DealHealthBadge opportunity={opp} />}
-                    {ownerInitials && (
-                      <div className="flex items-center gap-1 ml-auto">
-                        <span className="h-5 w-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-[9px] font-bold shrink-0">
-                          {ownerInitials}
-                        </span>
-                        <span className="text-[10px] text-muted-foreground">{ownerName}</span>
-                      </div>
-                    )}
-                    {tags.slice(0, 2).map((t) => (
-                      <Badge key={t} variant="secondary" className="text-[10px] py-0">{t}</Badge>
-                    ))}
-                  </div>
-                </div>
+                  sinistra={
+                    opp.status === "open"
+                      ? <DealHealthBadge opportunity={opp} compact className="shrink-0" />
+                      : undefined
+                  }
+                  titolo={titolo}
+                  sottotitolo={[
+                    mobileStageId ? null : stageMap[opp.stage_id],
+                    fullName && fullName !== titolo ? fullName : null,
+                  ].filter(Boolean).join(" · ") || undefined}
+                  // formatCount: punto delle migliaia anche a 4 cifre («6.800», non «6800»).
+                  valore={`€ ${formatCount(Math.round(Number(opp.value || 0)))}`}
+                  stato={opp.status !== "open" ? <span className={coloreStato}>{statusInfo.label}</span> : undefined}
+                />
               );
             })}
-            {(hasMore || isLoadingMore) && (
-              <Button
-                type="button"
-                variant="outline"
-                className="h-11 w-full text-sm"
-                disabled={isLoadingMore}
-                onClick={() => onLoadMore?.()}
-              >
-                {isLoadingMore
-                  ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Carico altre…</>
-                  : <>Mostra altre · {formatCount(mobileOpportunities.length)} di {formatCount(mobileStageId ? (stageAgg[mobileStageId]?.count ?? 0) : totaleTutte)}</>}
-              </Button>
-            )}
           </div>
+          {(hasMore || isLoadingMore) && (
+            <Button
+              type="button"
+              variant="outline"
+              className="tap-compact h-9 w-full text-xs"
+              disabled={isLoadingMore}
+              onClick={() => onLoadMore?.()}
+            >
+              {isLoadingMore
+                ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Carico altre…</>
+                : <>Mostra altre · {formatCount(mobileOpportunities.length)} di {formatCount(mobileStageId ? (stageAgg[mobileStageId]?.count ?? 0) : totaleTutte)}</>}
+            </Button>
+          )}
+          </>
         )}
       </div>
       )}

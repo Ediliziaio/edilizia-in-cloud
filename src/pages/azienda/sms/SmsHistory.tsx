@@ -6,10 +6,11 @@
  */
 
 import { useState } from "react";
+import { RigaMobile } from "@/components/mobile/FiltriMobile";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { Search, ChevronLeft, ChevronRight, MessageSquare } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -49,26 +50,19 @@ export function SmsHistory() {
   };
 
   return (
+    // Telefono: niente titolo (lo dice la scheda), ricerca a tutta larghezza,
+    // i due filtri affiancati e una riga per messaggio.
     <Card>
-      <CardHeader>
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <CardTitle className="flex items-center gap-2">
-            <MessageSquare className="h-5 w-5 text-[#1E3A5F]" />
-            Storico Messaggi
-            {totalCount > 0 && (
-              <span className="ml-2 text-sm font-normal text-muted-foreground">
-                ({new Intl.NumberFormat("it-IT").format(totalCount)} totali)
-              </span>
-            )}
-          </CardTitle>
-
-          {/* Filtri */}
+      <CardHeader className="max-md:p-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 max-md:gap-2">
+          {/* Filtri — anche da tablet senza titolo: «Storico Messaggi» ripeteva la
+              scheda e a 1024 andava a capo in due righe. Il totale resta, a destra. */}
           <div className="flex flex-wrap gap-2">
-            <div className="relative">
+            <div className="relative max-md:basis-full">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Cerca numero o testo…"
-                className="pl-8 w-48 h-9 text-sm"
+                className="pl-8 w-48 h-9 text-sm max-md:w-full"
                 value={search}
                 onChange={(e) => handleSearch(e.target.value)}
               />
@@ -78,7 +72,7 @@ export function SmsHistory() {
               value={filterDirection}
               onValueChange={(v) => { setFilterDirection(v as SmsDirection | "tutti"); setPage(1); }}
             >
-              <SelectTrigger className="h-9 w-32 text-sm">
+              <SelectTrigger className="h-9 w-32 text-sm max-md:w-auto max-md:min-w-0 max-md:flex-1">
                 <SelectValue placeholder="Direzione" />
               </SelectTrigger>
               <SelectContent>
@@ -92,7 +86,7 @@ export function SmsHistory() {
               value={filterStatus}
               onValueChange={(v) => { setFilterStatus(v as SmsStatus | "tutti"); setPage(1); }}
             >
-              <SelectTrigger className="h-9 w-36 text-sm">
+              <SelectTrigger className="h-9 w-36 text-sm max-md:w-auto max-md:min-w-0 max-md:flex-1">
                 <SelectValue placeholder="Stato" />
               </SelectTrigger>
               <SelectContent>
@@ -106,6 +100,11 @@ export function SmsHistory() {
               </SelectContent>
             </Select>
           </div>
+          {totalCount > 0 && (
+            <span className="text-sm text-muted-foreground max-md:hidden">
+              {new Intl.NumberFormat("it-IT").format(totalCount)} messaggi
+            </span>
+          )}
         </div>
       </CardHeader>
 
@@ -115,8 +114,8 @@ export function SmsHistory() {
             <SmsSkeletonLoader rows={8} variant="table" />
           </div>
         ) : messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
-            <MessageSquare className="h-10 w-10 opacity-30" />
+          <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2 max-md:py-6">
+            <MessageSquare className="h-10 w-10 opacity-30 max-md:hidden" />
             <p className="text-sm">Nessun messaggio trovato</p>
           </div>
         ) : (
@@ -131,8 +130,20 @@ export function SmsHistory() {
               <span>Data</span>
             </div>
 
-            {/* Rows */}
-            <div className="divide-y">
+            {/* Rows — telefono: numero, testo, data e stato su una riga */}
+            <div className="divide-y md:hidden">
+              {messages.map((msg) => (
+                <RigaMobile
+                  key={msg.id}
+                  sinistra={<SmsDirectionIcon direction={msg.direction} />}
+                  titolo={<span className="font-mono">{msg.direction === "outbound" ? msg.to_number : msg.from_number}</span>}
+                  sottotitolo={msg.body}
+                  valore={<span className="text-[11px] font-normal text-muted-foreground">{format(new Date(msg.created_at), "dd/MM HH:mm", { locale: it })}</span>}
+                  stato={<SmsStatusBadge status={msg.status} />}
+                />
+              ))}
+            </div>
+            <div className="divide-y max-md:hidden">
               {messages.map((msg) => (
                 <div
                   key={msg.id}

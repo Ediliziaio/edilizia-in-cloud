@@ -73,6 +73,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SILVIO_SKILLS } from "@/lib/silvio-skills";
 import { useVoiceInput } from "@/hooks/useVoiceInput";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 
 const SILVIO_SENDER_ID = "00000000-0000-0000-0000-000000000002";
@@ -87,6 +88,22 @@ const TEXT_EXTENSIONS = [
   ".txt", ".csv", ".tsv", ".md", ".markdown", ".json", ".jsonl", ".log",
   ".xml", ".yaml", ".yml", ".html", ".htm", ".rtf", ".ini", ".conf", ".sql",
 ];
+
+/** Pillola dell'allegato: colore e sigla per tipo, così si riconosce senza leggere il nome. */
+function stileAllegato(file: File, kind: AttachmentKind): { sigla: string; classi: string } {
+  const ext = (file.name.split(".").pop() ?? "").toUpperCase().slice(0, 4);
+  if (kind === "pdf") return { sigla: "PDF", classi: "bg-red-50 text-red-600" };
+  if (kind === "audio") return { sigla: ext || "AUDIO", classi: "bg-violet-50 text-violet-600" };
+  if (["DOC", "DOCX"].includes(ext)) return { sigla: ext, classi: "bg-blue-50 text-blue-600" };
+  if (["XLS", "XLSX", "CSV"].includes(ext)) return { sigla: ext, classi: "bg-emerald-50 text-emerald-600" };
+  return { sigla: ext || "FILE", classi: "bg-slate-100 text-slate-600" };
+}
+
+function pesoFile(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1).replace(".", ",")} MB`;
+}
 
 function detectKind(file: File): AttachmentKind {
   if (file.type.startsWith("image/")) return "image";
@@ -241,6 +258,7 @@ export default function SilvioAIPage() {
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
+  const isMobile = useIsMobile();
   const [sending, setSending] = useState(false);
   // Aperta di default solo da md in su: su mobile è un drawer a tutta altezza
   // che coprirebbe l'hero al primo ingresso nella pagina.
@@ -272,6 +290,7 @@ export default function SilvioAIPage() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const heroFileInputRef = useRef<HTMLInputElement>(null);
   const sendAbortRef = useRef<AbortController | null>(null);
   const deeplinkHandledRef = useRef(false);
   // Istante di mount: solo i messaggi creati DOPO vengono animati (typewriter).
@@ -1019,7 +1038,10 @@ export default function SilvioAIPage() {
     void refetchConvs();
   };
 
-  const showHero = !activeId; // nessuna conversazione selezionata → hero proattivo
+  // Nessuna conversazione → hero proattivo. Con un allegato scelto dalla
+  // graffetta dell'hero si passa al compositore (anteprima + «Cosa devo farci?»),
+  // che all'invio crea la conversazione.
+  const showHero = !activeId && attachments.length === 0;
   const threadVuoto = !!activeId && messages.length === 0 && !loadingMsgs;
 
   // Stato "pensiero" dinamico basato sull'ultima domanda dell'utente
@@ -1102,7 +1124,7 @@ export default function SilvioAIPage() {
     <div className="flex h-full min-h-0 bg-slate-50 overflow-hidden">
       {/* Backdrop mobile */}
       {sidebarOpen && (
-        <div className="fixed inset-0 z-30 bg-black/30 md:hidden" onClick={() => setSidebarOpen(false)} aria-hidden />
+        <div className="fixed inset-0 z-50 bg-black/30 md:hidden" onClick={() => setSidebarOpen(false)} aria-hidden />
       )}
 
       {/* Barra slim (desktop): la larghezza anima in sincrono con l'aside →
@@ -1159,7 +1181,9 @@ export default function SilvioAIPage() {
       {/* Sidebar conversazioni (drawer su mobile, colonna che anima la width su desktop) */}
       <aside
         className={cn(
-          "z-40 w-72 shrink-0 bg-white flex flex-col overflow-hidden",
+          // Mobile z-50: a z-40 la barra in basso dell'app (stesso livello, più
+          // avanti nella pagina) copriva le ultime conversazioni.
+          "z-40 max-md:z-50 w-72 shrink-0 bg-white flex flex-col overflow-hidden",
           "fixed inset-y-0 left-0 md:static transition-[width,transform,opacity] duration-300 ease-in-out",
           sidebarOpen
             ? "translate-x-0 md:w-64 md:opacity-100 border-r border-slate-200"
@@ -1231,9 +1255,10 @@ export default function SilvioAIPage() {
                   </span>
                 )}
               </button>
+              {/* Mobile no: organizzare in cartelle è lavoro da scrivania. */}
               <button
                 onClick={() => void handleNuovaCartella()}
-                className="w-full flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-slate-700 hover:bg-slate-100 transition-colors"
+                className="w-full flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-slate-700 hover:bg-slate-100 transition-colors max-md:hidden"
               >
                 <FolderPlus className="h-4 w-4 text-slate-400" /> Nuova cartella
               </button>
@@ -1278,7 +1303,7 @@ export default function SilvioAIPage() {
                 {!collapsed && (
                   <div className="space-y-0.5 mb-1">
                     {folder.items.length === 0 ? (
-                      <div className="px-2 py-1 text-[11px] italic text-slate-300">Vuota — sposta qui una chat</div>
+                      <div className="px-2 py-1 text-[11px] italic text-slate-300 max-md:hidden">Vuota — sposta qui una chat</div>
                     ) : (
                       folder.items.map(renderConvRow)
                     )}
@@ -1376,7 +1401,7 @@ export default function SilvioAIPage() {
           ) : (
             <div className="flex items-center gap-1.5 min-w-0">
               <span className="font-semibold text-slate-800 text-sm truncate">{activeConv?.titolo ?? "Silvio AI"}</span>
-              <span className="rounded-full bg-orange-100 text-orange-700 text-[10px] font-bold px-2 py-0.5 shrink-0">Beta</span>
+              <span className="hidden sm:inline rounded-full bg-orange-100 text-orange-700 text-[10px] font-bold px-2 py-0.5 shrink-0">Beta</span>
               {activeConv && (
                 <button
                   onClick={() => {
@@ -1420,10 +1445,17 @@ export default function SilvioAIPage() {
              irraggiungibile. min-h-full sul wrapper interno: se il contenuto
              ci sta è centrato, se è più alto scorre normalmente dall'alto. */
           <div className="flex-1 overflow-y-auto">
-            <div className="flex min-h-full w-full flex-col items-center justify-start sm:justify-center gap-4 px-4 py-6 md:gap-6 md:py-10">
-            <AIAssistantInterface onSend={handleSend} disabled={sending} userName={firstName} />
+            <div className="flex min-h-full w-full flex-col items-center justify-start sm:justify-center gap-4 px-2 py-6 sm:px-4 md:gap-6 md:py-10">
+            <input ref={heroFileInputRef} type="file" multiple accept={ATTACH_ACCEPT} className="hidden" onChange={handleFilePick} />
+            <AIAssistantInterface
+              onSend={handleSend}
+              disabled={sending}
+              userName={firstName}
+              onAttach={() => heroFileInputRef.current?.click()}
+            />
             {!onboarded && (
-              <div className="w-full max-w-2xl rounded-xl border border-orange-200 bg-orange-50/70 px-3 py-2.5 text-[13px] leading-snug sm:px-4 sm:py-3 sm:text-sm text-slate-600">
+              // Mobile no: quattro righe di istruzioni sotto i suggerimenti.
+              <div className="hidden sm:block w-full max-w-2xl rounded-xl border border-orange-200 bg-orange-50/70 px-3 py-2.5 text-[13px] leading-snug sm:px-4 sm:py-3 sm:text-sm text-slate-600">
                 <div className="flex items-start gap-2">
                   <Sparkles className="h-4 w-4 text-orange-500 mt-0.5 shrink-0" />
                   <div className="flex-1">
@@ -1512,37 +1544,62 @@ export default function SilvioAIPage() {
 
         {/* Composer (nascosto nell'hero senza conversazione) */}
         {!showHero && (
-          <div className="shrink-0 border-t border-slate-200 bg-white px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+          <div className="shrink-0 border-t border-slate-200 bg-white px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] max-sm:px-2 max-sm:py-2">
             <div className="max-w-3xl mx-auto">
               {/* Azioni che Silvio può eseguire nel sistema (agentico) */}
               <ActionsInlineBar />
               {/* Anteprima allegati */}
               {attachments.length > 0 && (
-                <div className="flex flex-wrap gap-2 mb-2">
-                  {attachments.map((a) => (
-                    <div key={a.id} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-xs">
-                      {a.kind === "image" && a.previewUrl ? (
-                        <img src={a.previewUrl} alt="" className="h-8 w-8 rounded object-cover" />
-                      ) : (
-                        <FileText className="h-4 w-4 text-slate-400" />
-                      )}
-                      <span className="max-w-[140px] truncate text-slate-600">{a.file.name}</span>
-                      {a.uploading ? (
-                        <Loader2 className="h-3 w-3 animate-spin text-slate-400" />
-                      ) : a.uploadError ? (
-                        <span className="text-rose-500">errore</span>
-                      ) : (
-                        <Check className="h-3 w-3 text-emerald-500" />
-                      )}
-                      <button onClick={() => removeAttachment(a.id)} className="text-slate-400 hover:text-rose-500" aria-label="Rimuovi">
-                        <X className="h-3 w-3" />
-                      </button>
-                    </div>
-                  ))}
+                // Pillola: sigla colorata del tipo (o miniatura), nome, e sotto
+                // lo stato con il peso. Prima era una riga grigia «errore ×».
+                <div className="flex gap-2 mb-2 overflow-x-auto [scrollbar-width:none] sm:flex-wrap">
+                  {attachments.map((a) => {
+                    const stile = stileAllegato(a.file, a.kind);
+                    return (
+                      <div
+                        key={a.id}
+                        className={cn(
+                          "flex w-[230px] shrink-0 items-center gap-2.5 rounded-xl border bg-white py-1.5 pl-1.5 pr-1 shadow-sm",
+                          a.uploadError ? "border-rose-200 bg-rose-50/40" : "border-slate-200",
+                        )}
+                      >
+                        {a.kind === "image" && a.previewUrl ? (
+                          <img src={a.previewUrl} alt="" className="h-9 w-9 shrink-0 rounded-lg object-cover" />
+                        ) : (
+                          <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[10px] font-bold tracking-wide", stile.classi)}>
+                            {stile.sigla}
+                          </span>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[13px] font-medium leading-tight text-slate-800">{a.file.name}</p>
+                          <p className={cn("mt-0.5 flex items-center gap-1 text-[11px] leading-tight", a.uploadError ? "text-rose-600" : "text-slate-500")}>
+                            {a.uploading ? (
+                              <><Loader2 className="h-3 w-3 animate-spin" /> Caricamento…</>
+                            ) : a.uploadError ? (
+                              <>Non caricato · riprova</>
+                            ) : (
+                              <><Check className="h-3 w-3 text-emerald-500" /> Pronto · {pesoFile(a.file.size)}</>
+                            )}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeAttachment(a.id)}
+                          className="tap-compact flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                          aria-label={`Togli ${a.file.name}`}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
 
-              <div className="relative flex items-end gap-2 rounded-2xl border border-slate-200 bg-white px-2 py-1.5 shadow-sm focus-within:border-orange-300">
+              {/* Mobile: graffetta, microfono, testo e invio su una riga bassa;
+                  la fotocamera la offre già la graffetta (il selettore di file
+                  del telefono propone «Scatta foto»). */}
+              <div className="relative flex items-end gap-2 rounded-2xl border border-slate-200 bg-white px-2 py-1.5 shadow-sm focus-within:border-orange-300 max-sm:items-center max-sm:gap-0.5 max-sm:rounded-full max-sm:py-1">
                 {showSlash && (
                   <div className="absolute bottom-full left-0 right-0 mb-2 rounded-xl border border-slate-200 bg-white shadow-lg overflow-hidden z-20">
                     <div className="px-3 py-1.5 text-[10px] uppercase tracking-wide text-slate-400 border-b border-slate-100">
@@ -1571,7 +1628,7 @@ export default function SilvioAIPage() {
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   disabled={attachments.length >= MAX_ATTACHMENTS}
-                  className="h-8 w-8 shrink-0 flex items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-40"
+                  className="tap-compact h-8 w-8 shrink-0 flex items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-40"
                   title="Allega documento (DDT, fattura, bolletta…)"
                 >
                   <Paperclip className="h-4 w-4" />
@@ -1579,7 +1636,7 @@ export default function SilvioAIPage() {
                 <button
                   onClick={() => cameraInputRef.current?.click()}
                   disabled={attachments.length >= MAX_ATTACHMENTS}
-                  className="h-8 w-8 shrink-0 flex items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-40 md:hidden"
+                  className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-40"
                   title="Scatta foto"
                 >
                   <Camera className="h-4 w-4" />
@@ -1588,7 +1645,7 @@ export default function SilvioAIPage() {
                   onClick={voice.toggle}
                   disabled={voice.transcribing}
                   className={cn(
-                    "h-8 w-8 shrink-0 flex items-center justify-center rounded-full transition-colors",
+                    "tap-compact h-8 w-8 shrink-0 flex items-center justify-center rounded-full transition-colors",
                     voice.recording
                       ? "text-rose-500 bg-rose-50 animate-pulse"
                       : "text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-40",
@@ -1617,8 +1674,8 @@ export default function SilvioAIPage() {
                   }}
                   rows={1}
                   enterKeyHint="send"
-                  placeholder={attachments.length > 0 ? "Descrivi cosa vuoi che analizzi…" : "Scrivi a Silvio…  (Invio per inviare)"}
-                  className="flex-1 resize-none outline-none text-base md:text-sm text-slate-700 placeholder:text-slate-400 max-h-40 py-1.5"
+                  placeholder={attachments.length > 0 ? (isMobile ? "Cosa devo farci?" : "Descrivi cosa vuoi che analizzi…") : isMobile ? "Scrivi a Silvio…" : "Scrivi a Silvio…  (Invio per inviare)"}
+                  className="flex-1 min-w-0 resize-none outline-none text-base md:text-sm text-slate-700 placeholder:text-slate-400 max-h-40 py-1.5 max-sm:px-1"
                 />
                 {voice.recording && (
                   <span className="shrink-0 self-center text-xs font-medium text-rose-500 tabular-nums">
@@ -1629,7 +1686,7 @@ export default function SilvioAIPage() {
                 {sending ? (
                   <button
                     onClick={handleStop}
-                    className="h-9 w-9 shrink-0 flex items-center justify-center rounded-full bg-slate-800 text-white hover:bg-slate-900"
+                    className="tap-compact h-9 w-9 shrink-0 flex items-center justify-center rounded-full bg-slate-800 text-white hover:bg-slate-900 max-sm:h-8 max-sm:w-8"
                     aria-label="Interrompi"
                     title="Interrompi generazione"
                   >
@@ -1640,7 +1697,7 @@ export default function SilvioAIPage() {
                     onClick={() => void handleComposerSend()}
                     disabled={!draft.trim() && attachments.filter((a) => a.storagePath).length === 0}
                     className={cn(
-                      "h-9 w-9 shrink-0 flex items-center justify-center rounded-full transition-colors",
+                      "tap-compact h-9 w-9 shrink-0 flex items-center justify-center rounded-full transition-colors max-sm:h-8 max-sm:w-8",
                       draft.trim() || attachments.some((a) => a.storagePath)
                         ? "bg-orange-500 text-white hover:bg-orange-600"
                         : "bg-slate-100 text-slate-400 cursor-not-allowed",
@@ -1651,7 +1708,7 @@ export default function SilvioAIPage() {
                   </button>
                 )}
               </div>
-              <p className="mt-1 text-center text-[10px] text-slate-400">
+              <p className="mt-1 text-center text-[10px] text-slate-400 max-sm:hidden">
                 Silvio può sbagliare. Verifica le informazioni importanti.
                 <span className="hidden md:inline"> ⌘K per nuova conversazione.</span>
               </p>
@@ -1834,13 +1891,15 @@ const MessaggioSilvio = memo(function MessaggioSilvio({
 
   return (
     <div className="group flex gap-3">
-      <SilvioAvatar size={32} className="rounded-lg mt-0.5" />
+      {/* Mobile: niente avatar accanto (44px di larghezza tolti al testo). */}
+      <SilvioAvatar size={32} className="rounded-lg mt-0.5 max-sm:hidden" />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
           <span className="text-sm font-semibold text-slate-800">Silvio</span>
           <span className="text-[10px] text-slate-400">{formatOra(m.created_at)}</span>
         </div>
-        <div className="rounded-2xl rounded-tl-sm bg-white border border-slate-200 px-4 py-3 shadow-sm">
+        {/* Mobile: testo a 14px (ereditava 16-17px) e meno margine interno. */}
+        <div className="rounded-2xl rounded-tl-sm bg-white border border-slate-200 px-4 py-3 shadow-sm max-sm:px-3 max-sm:py-2.5 max-sm:text-sm">
           <AiMessageMetaTop meta={meta} />
           {live ? (
             <span className="whitespace-pre-wrap text-sm text-slate-700">

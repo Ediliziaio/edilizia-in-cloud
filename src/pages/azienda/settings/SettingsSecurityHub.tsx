@@ -13,6 +13,7 @@ import { Shield, Activity, ScrollText, Loader2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useIsMobile } from "@/hooks/use-mobile";
 import SettingsPrivacy from "@/pages/azienda/settings/SettingsPrivacy";
 import SettingsSecurityDashboard from "@/pages/azienda/settings/SettingsSecurityDashboard";
 import SettingsActivityLog from "@/pages/azienda/settings/SettingsActivityLog";
@@ -28,6 +29,9 @@ export default function SettingsSecurityHub() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { role } = useAuth();
   const permissions = usePermissions();
+  // Mobile: solo privacy e consensi; cruscotto sicurezza e registro attività
+  // sono analisi da computer.
+  const isMobile = useIsMobile();
 
   const isAdmin = role === "company_admin" || role === "super_admin";
   const canViewPrivacy = isAdmin || permissions.canViewSettingsSecurity;
@@ -44,7 +48,7 @@ export default function SettingsSecurityHub() {
   const tabParam = searchParams.get("tab");
   const resolveDefaultTab = (): SecurityTab => {
     if (isValidTab(tabParam)) {
-      if ((tabParam === "dashboard" || tabParam === "attivita") && !isAdmin) return "privacy";
+      if ((tabParam === "dashboard" || tabParam === "attivita") && (!isAdmin || isMobile)) return "privacy";
       return tabParam;
     }
     return "privacy";
@@ -61,7 +65,7 @@ export default function SettingsSecurityHub() {
       {/* v8.6.71 — mobile: scroll orizzontale invece di compressione (4 tab
           con label lunghe sovrapponevano: Privacy & GDPR /
           Security dashboard / Registro attività). */}
-      <TabsList className="mb-6 w-full sm:w-auto h-auto flex-wrap justify-start gap-1 overflow-x-auto sm:overflow-visible sm:flex-nowrap">
+      <TabsList className="mb-6 w-full sm:w-auto h-auto flex-wrap justify-start gap-1 overflow-x-auto sm:overflow-visible sm:flex-nowrap max-sm:hidden">
         {canViewPrivacy && (
           <TabsTrigger value="privacy" className="flex items-center gap-2">
             <Shield className="h-4 w-4" />

@@ -12,6 +12,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import {
@@ -67,20 +68,23 @@ const toInt = (raw: string): number | null => {
 };
 
 export default function StepImmobile({ form, onChange, model }: Props) {
+  const isMobile = useIsMobile();
   // Derivati roof-specific (puri, nessuno stato): superficie reale di falda + stima lattoneria.
   const piantaMq = form.superficie_pianta_mq;
   const faldaMq = piantaMq != null && piantaMq > 0 ? calcSuperficieFalda(piantaMq, form.pendenza_pct ?? 0) : null;
   const lattoneria = form.perimetro_ml != null && form.perimetro_ml > 0 ? stimaLattoneria(form.perimetro_ml) : null;
   return (
     <Card>
-      <CardContent className="p-4 sm:p-5 space-y-4">
-        <div className="flex items-center gap-2">
-          <div className="h-8 w-8 rounded-md bg-orange-50 text-orange-600 flex items-center justify-center">
+      {/* Telefono: colonna con spazi fissi, così il titolo nascosto non lascia un buco in cima. */}
+      <CardContent className="p-4 sm:p-5 space-y-4 max-sm:flex max-sm:flex-col max-sm:gap-3 max-sm:space-y-0 max-sm:p-3">
+        {/* Telefono: il titolo lo dice già il passo in alto. */}
+        <div className="flex items-center gap-2 max-sm:hidden">
+          <div className="h-8 w-8 rounded-md bg-orange-50 text-orange-600 flex items-center justify-center max-sm:hidden">
             <Home className="h-4 w-4" />
           </div>
           <div>
             <h2 className="text-sm font-semibold text-slate-900">Dati della copertura e cantiere</h2>
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-[11px] text-muted-foreground max-sm:hidden">
               Tipo di intervento, numero di falde, superficie e indirizzo del cantiere.
             </p>
           </div>
@@ -89,10 +93,11 @@ export default function StepImmobile({ form, onChange, model }: Props) {
         {/* Tipo intervento */}
         <div>
           <Label className="text-xs">Tipo di intervento</Label>
-          {model ? <div className="mt-1 rounded-lg border bg-muted/30 p-3">
+          {/* Telefono: solo il nome dell'intervento, come InterventoScelto negli altri moduli. */}
+          {model ? <div className="mt-1 rounded-lg border bg-muted/30 p-3 max-sm:py-2">
             <p className="font-medium">{model.title}</p>
-            <p className="mt-1 text-xs text-muted-foreground">Intervento scelto all'inizio del preventivo.</p>
-            <ul className="mt-2 space-y-1 text-sm">{model.needs.map(need => <li key={need}>• {need}</li>)}</ul>
+            <p className="mt-1 text-xs text-muted-foreground max-sm:hidden">Intervento scelto all'inizio del preventivo.</p>
+            <ul className="mt-2 space-y-1 text-sm max-sm:hidden">{model.needs.map(need => <li key={need}>• {need}</li>)}</ul>
           </div> : <Select
             value={form.tipo_intervento ?? ""}
             onValueChange={(v) => onChange("tipo_intervento", v)}
@@ -121,7 +126,7 @@ export default function StepImmobile({ form, onChange, model }: Props) {
               className="h-9"
             />
           </div>
-          <div className="col-span-12 sm:col-span-6">
+          <div className="col-span-5 sm:col-span-6">
             <Label className="text-xs">Città</Label>
             <Input
               value={form.cantiere_citta ?? ""}
@@ -130,7 +135,7 @@ export default function StepImmobile({ form, onChange, model }: Props) {
               className="h-9"
             />
           </div>
-          <div className="col-span-6 sm:col-span-3">
+          <div className="col-span-3">
             <Label className="text-xs">Provincia</Label>
             <Input
               value={form.cantiere_provincia ?? ""}
@@ -140,7 +145,7 @@ export default function StepImmobile({ form, onChange, model }: Props) {
               className="h-9 uppercase"
             />
           </div>
-          <div className="col-span-6 sm:col-span-3">
+          <div className="col-span-4 sm:col-span-3">
             <Label className="text-xs">CAP</Label>
             <Input
               value={form.cantiere_cap ?? ""}
@@ -183,7 +188,7 @@ export default function StepImmobile({ form, onChange, model }: Props) {
             />
           </div>
           <div className="col-span-6 sm:col-span-3">
-            <Label className="text-xs">Superficie copertura (m²)</Label>
+            <Label className="text-xs">Superficie<span className="max-sm:hidden"> copertura</span> (m²)</Label>
             <Input
               type="number"
               inputMode="decimal"
@@ -222,8 +227,9 @@ export default function StepImmobile({ form, onChange, model }: Props) {
         </div>
 
         {/* ─── Calcolatore copertura (roof-specific) ──────────────────────────── */}
-        <div className="rounded-xl border border-orange-100 bg-orange-50/40 p-3 space-y-3">
-          <div className="flex items-center gap-1.5">
+        {/* Telefono: niente riquadro né titolo, i campi stanno col resto del modulo. */}
+        <div className="rounded-xl border border-orange-100 bg-orange-50/40 p-3 space-y-3 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0">
+          <div className="flex items-center gap-1.5 max-sm:hidden">
             <Calculator className="h-3.5 w-3.5 text-orange-600" />
             <span className="text-xs font-semibold text-slate-800">Calcolatore copertura</span>
           </div>
@@ -231,7 +237,7 @@ export default function StepImmobile({ form, onChange, model }: Props) {
           {/* Calcolatore falde: pianta + pendenza → superficie reale */}
           <div className="grid grid-cols-12 gap-3 items-end">
             <div className="col-span-6 sm:col-span-3">
-              <Label className="text-xs">Superficie in pianta (m²)</Label>
+              <Label className="text-xs"><span className="max-sm:hidden">Superficie in pianta</span><span className="sm:hidden">In pianta</span> (m²)</Label>
               <Input
                 type="number" inputMode="decimal" min={0}
                 value={form.superficie_pianta_mq ?? ""}
@@ -265,7 +271,7 @@ export default function StepImmobile({ form, onChange, model }: Props) {
                   </Button>
                 </div>
               ) : (
-                <p className="text-[10px] text-muted-foreground">
+                <p className="text-[10px] text-muted-foreground max-sm:hidden">
                   Inserisci pianta e pendenza: la falda inclinata è più grande della proiezione in pianta.
                 </p>
               )}
@@ -288,10 +294,10 @@ export default function StepImmobile({ form, onChange, model }: Props) {
                 <p className="text-[11px] text-slate-700">
                   Stima lattoneria:{" "}
                   <span className="font-semibold tabular-nums">≈ {lattoneria.gronde_ml} m</span> di gronde/scossaline e{" "}
-                  <span className="font-semibold tabular-nums">~{lattoneria.pluviali_n}</span> pluviali. Valori di partenza, regolabili nel computo.
+                  <span className="font-semibold tabular-nums">~{lattoneria.pluviali_n}</span> pluviali<span className="max-sm:hidden">. Valori di partenza, regolabili nel computo.</span>
                 </p>
               ) : (
-                <p className="text-[10px] text-muted-foreground">
+                <p className="text-[10px] text-muted-foreground max-sm:hidden">
                   Inserisci il perimetro per una stima rapida di gronde e pluviali.
                 </p>
               )}
@@ -312,13 +318,17 @@ export default function StepImmobile({ form, onChange, model }: Props) {
             <div className="flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50/70 px-3 py-2">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-rose-600" />
               <p className="text-[11px] text-rose-900">
-                Copertura con amianto: obbligo di <strong>piano di lavoro e notifica all'ASL</strong> (D.Lgs. 81/08) e
-                smaltimento da ditta autorizzata. Nel listino trovi il capitolo <strong>"Bonifica e smaltimento amianto"</strong> da
-                aggiungere al computo.
+                <span className="max-sm:hidden">
+                  Copertura con amianto: obbligo di <strong>piano di lavoro e notifica all'ASL</strong> (D.Lgs. 81/08) e
+                  smaltimento da ditta autorizzata. Nel listino trovi il capitolo <strong>"Bonifica e smaltimento amianto"</strong> da
+                  aggiungere al computo.
+                </span>
+                <span className="sm:hidden">Servono <strong>piano di lavoro, notifica all'ASL</strong> e smaltimento da ditta autorizzata.</span>
               </p>
             </div>
           )}
-          <div className="flex items-start gap-2 rounded-lg bg-slate-50 px-3 py-2">
+          {/* Telefono no: promemoria fisso, le voci sono già nel listino. */}
+          <div className="flex items-start gap-2 rounded-lg bg-slate-50 px-3 py-2 max-sm:hidden">
             <HardHat className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
             <p className="text-[11px] text-slate-600">
               Lavori in quota &gt; 2 m: previsti <strong>ponteggio</strong> e <strong>linea vita</strong> (UNI 11578) — voci già
@@ -333,10 +343,10 @@ export default function StepImmobile({ form, onChange, model }: Props) {
           <Textarea
             value={form.note ?? ""}
             onChange={(e) => onChange("note", e.target.value || null)}
-            placeholder="Es. immobile in zona vincolata, condominio con orari cantiere, accesso difficoltoso…"
-            className="min-h-20 text-sm"
+            placeholder={isMobile ? "Vincoli, accessi, orari…" : "Es. immobile in zona vincolata, condominio con orari cantiere, accesso difficoltoso…"}
+            className="min-h-20 text-sm max-sm:min-h-16"
           />
-          <p className="text-[10px] text-muted-foreground mt-0.5">
+          <p className="text-[10px] text-muted-foreground mt-0.5 max-sm:hidden">
             Vincoli edilizi/condominiali e annotazioni utili per il preventivo.
           </p>
         </div>

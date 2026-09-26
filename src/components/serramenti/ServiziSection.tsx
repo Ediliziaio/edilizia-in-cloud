@@ -130,7 +130,7 @@ export function ServiziSection({ progettoId, detail }: Props) {
         position: righe.length,
       });
       toast.success(`${servizio.label} aggiunto`, {
-        description: `Prezzo €${Number(t.prezzo_vendita ?? 0).toLocaleString("it-IT", { minimumFractionDigits: 2 })} dal listino tariffe.`,
+        description: `Prezzo €${Number(t.prezzo_vendita ?? 0).toLocaleString("it-IT", { minimumFractionDigits: 2, useGrouping: true })} dal listino tariffe.`,
       });
       return;
     }
@@ -179,7 +179,7 @@ export function ServiziSection({ progettoId, detail }: Props) {
     // prezzo è stato impostato e da dove proviene.
     toast.success(`${t.nome} aggiunto`, {
       description: t.prezzo_vendita != null
-        ? `Prezzo €${Number(t.prezzo_vendita).toLocaleString("it-IT", { minimumFractionDigits: 2 })} dal listino tariffe.`
+        ? `Prezzo €${Number(t.prezzo_vendita).toLocaleString("it-IT", { minimumFractionDigits: 2, useGrouping: true })} dal listino tariffe.`
         : "Voce creata. Inserisci il prezzo nella riga.",
     });
   };
@@ -199,7 +199,7 @@ export function ServiziSection({ progettoId, detail }: Props) {
           (1 sola o più → si apre picker). Pallino grigio = nessuna tariffa
           (verrà creata voce manuale + toast guida). */}
       <div className="mb-3">
-        <p className="text-[11px] text-muted-foreground mb-1.5">
+        <p className="text-[11px] text-muted-foreground mb-1.5 max-md:hidden">
           Servizi tipici (click per aggiungere):{" "}
           <span className="text-[10px]">
             <span className="inline-flex items-center gap-0.5 ml-1">
@@ -225,7 +225,8 @@ export function ServiziSection({ progettoId, detail }: Props) {
                 key={s.tipo}
                 onClick={() => handleAddQuick(s)}
                 disabled={addMut.isPending}
-                className={`text-xs px-2.5 py-1.5 rounded-full border bg-white transition disabled:opacity-50 inline-flex items-center gap-1.5 ${
+                // tap-compact: senza, la regola dei 44px faceva una pillola per riga sul telefono.
+                className={`tap-compact text-xs px-2.5 py-1.5 rounded-full border bg-white transition disabled:opacity-50 inline-flex items-center gap-1.5 ${
                   hasTariffa
                     ? "border-emerald-200 hover:bg-emerald-50 hover:border-emerald-300"
                     : "border-slate-200 hover:bg-slate-50 hover:border-slate-300"
@@ -253,7 +254,7 @@ export function ServiziSection({ progettoId, detail }: Props) {
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-2 mb-3">
+      <div className="flex flex-row gap-2 mb-3">
         <Button
           onClick={() => setTariffaPickerOpen(true)}
           variant="outline"
@@ -273,10 +274,10 @@ export function ServiziSection({ progettoId, detail }: Props) {
       </div>
 
       {righe.length === 0 ? (
-        <div className="border-2 border-dashed border-slate-200 rounded-md p-4 text-center bg-slate-50/30">
-          <Truck className="h-7 w-7 mx-auto text-slate-300 mb-1.5" />
+        <div className="border-2 border-dashed border-slate-200 rounded-md p-4 text-center bg-slate-50/30 max-md:p-2.5">
+          <Truck className="h-7 w-7 mx-auto text-slate-300 mb-1.5 max-md:hidden" />
           <p className="text-xs text-muted-foreground">
-            Nessun servizio aggiuntivo. Sono <strong>opzionali</strong>: aggiungi solo quelli effettivamente concordati col cliente.
+            Nessun servizio aggiuntivo.<span className="max-md:hidden"> Sono <strong>opzionali</strong>: aggiungi solo quelli effettivamente concordati col cliente.</span>
           </p>
         </div>
       ) : (
@@ -549,7 +550,7 @@ function TariffaPickerDialog({
                       <div className="text-right shrink-0">
                         {t.prezzo_vendita != null && (
                           <p className="text-sm font-bold text-orange-600 tabular-nums">
-                            € {Number(t.prezzo_vendita).toLocaleString("it-IT", { minimumFractionDigits: 2 })}
+                            € {Number(t.prezzo_vendita).toLocaleString("it-IT", { minimumFractionDigits: 2, useGrouping: true })}
                           </p>
                         )}
                       </div>

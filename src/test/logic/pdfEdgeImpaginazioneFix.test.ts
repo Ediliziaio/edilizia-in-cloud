@@ -117,6 +117,7 @@ describe("fix impaginazione/encoding PDF edge (audit)", () => {
     const source = read("supabase/functions/genera-pdf-rapportino/render.ts");
 
     it("ridisegna l'intestazione della tabella materiali al salto pagina", () => {
+      expect(source).toContain("const header = () => {");
       expect(source).toContain("const table = (labels: string[], widths: number[], values: string[][]) => {");
       // una riga normale che non ci sta passa intera alla pagina dopo, con l'intestazione
       expect(source).toContain("if (rowHeight <= H - 68 - bottom - 23 && y - rowHeight < bottom) { nextPage(); header(); }");

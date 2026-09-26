@@ -3,6 +3,7 @@ import { ApiHealthBanner } from "@/components/marketing/ApiHealthBanner";
 import { useContactCustomFields } from "@/hooks/useOpportunityDetailData";
 import { useParams, useNavigate } from "react-router-dom";
 import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
+import { RigaMobile } from "@/components/mobile/FiltriMobile";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { readInvokeError } from "@/lib/readInvokeError";
@@ -15,7 +16,7 @@ import { toast } from "sonner";
 import {
   ArrowLeft, Trash2, Phone, Mail, Star, ChevronDown, ChevronLeft, ChevronRight, Plus, Send, Search,
   Bell, User, X, Filter,
-  Loader2, AlertCircle, MessageSquare, Smartphone, Merge, UserCheck,
+  Loader2, AlertCircle, MessageSquare, Smartphone, Merge, UserCheck, MoreHorizontal,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -95,6 +96,46 @@ function parseEmailList(raw: string): string[] | undefined {
   return list.length > 0 ? list : undefined;
 }
 
+/**
+ * Sotto i 1024px (telefono e tablet) la scheda usa l'impianto a sezioni:
+ * nome e azioni in alto, Attività / Dati / Collegati, pannelli in un foglio
+ * dal basso. Le tre colonne del computer lì non ci stanno: a 820px la colonna
+ * di icone e il pannello Note finivano impilati in mezzo alla pagina.
+ */
+function useSchedaCompatta() {
+  const [compatta, setCompatta] = useState(() => typeof window !== "undefined" && window.innerWidth < 1024);
+  useEffect(() => {
+    const mql = window.matchMedia("(max-width: 1023px)");
+    const aggiorna = () => setCompatta(mql.matches);
+    mql.addEventListener("change", aggiorna);
+    return () => mql.removeEventListener("change", aggiorna);
+  }, []);
+  return compatta;
+}
+
+// La fonte arriva come codice («google_ads», «meta_lead»): prima si leggeva così.
+const FONTI_NOTE: Record<string, string> = {
+  google_ads: "Google Ads",
+  meta_ads: "Meta Ads",
+  meta_lead: "Modulo Meta",
+  facebook: "Facebook",
+  facebook_ads: "Facebook Ads",
+  instagram: "Instagram",
+  whatsapp: "WhatsApp",
+  website: "Sito web",
+  sito: "Sito web",
+  sito_web: "Sito web",
+  referral: "Passaparola",
+  manual: "Inserito a mano",
+  manuale: "Inserito a mano",
+  import: "Importato",
+  cold_import: "Importato",
+};
+function etichettaFonte(fonte: string): string {
+  const chiave = fonte.trim().toLowerCase();
+  return FONTI_NOTE[chiave] ?? fonte.replace(/_/g, " ");
+}
+
 const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingContactDetail(_props, _ref) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -105,7 +146,15 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
   const companyId = effectiveCompany?.id;
   const canEditContacts = permissions.canEditMarketingContacts;
 
-  const [rightTab, setRightTab] = useState<RightTab | null>("notes");
+  const compatta = useSchedaCompatta();
+  // Telefono e tablet: il pannello Note si apriva da solo a ogni scheda e
+  // copriva la pagina (sul computer è la colonna di destra, lì aperto ha senso).
+  const [rightTab, setRightTab] = useState<RightTab | null>(() =>
+    typeof window !== "undefined" && window.innerWidth < 1024 ? null : "notes",
+  );
+  // Mobile: una sezione per volta (Attività, Dati, Collegati) invece di
+  // timeline, anagrafica e pannelli impilati in una pagina lunghissima.
+  const [sezioneMobile, setSezioneMobile] = useState<"attivita" | "dati" | "collegati">("attivita");
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
   const [newNote, setNewNote] = useState("");
@@ -677,6 +726,15 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
     onError: (e: any) => toast.error(e.message),
   });
 
+  // Il canale parte da WhatsApp: a un contatto con la sola email si apriva lo
+  // scrittore WhatsApp («Nessun numero attivo») con la pillola Email spenta.
+  // Si sceglie una volta per contatto, durante il render (niente effetto).
+  const [canaleSceltoPer, setCanaleSceltoPer] = useState<string | null>(null);
+  if (contact && canaleSceltoPer !== contact.id) {
+    setCanaleSceltoPer(contact.id);
+    setMessageChannel(!contact.phone && contact.email ? "email" : "whatsapp");
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -731,6 +789,10 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
   });
 
   const rightPanelOpen = rightTab !== null;
+  // Mobile, sezione Attività con qualcosa da scrivere: pagina alta quanto lo
+  // spazio tra le due barre, cronologia che scorre dentro e scrittore in fondo,
+  // come una chat. Senza, sotto lo scrittore restava mezzo schermo bianco.
+  const chatMobile = compatta && !isPlatformContext && sezioneMobile === "attivita" && !!(contact.phone || contact.email);
 
   // Ultima attività (per Hero stat)
   const lastActivity = activities[0]?.created_at ?? contact.updated_at ?? contact.created_at;
@@ -759,6 +821,13 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
     <div className={cn(
       "flex flex-col min-h-[calc(100dvh-8rem)] md:overflow-hidden bg-background",
       isPlatformContext ? "md:h-[calc(100dvh-8rem)]" : "md:h-full md:min-h-0",
+      // Telefono: 188px = barra in alto (64) + margini di <main> (12 sopra, 112
+      // sotto per la barra flottante). Tablet: 137px come le Opportunità
+      // (barra 56, margini 2×24, riga «Powered by» 33).
+      chatMobile && "h-[calc(100dvh-188px-env(safe-area-inset-top)-env(safe-area-inset-bottom))] min-h-0 md:h-[calc(100dvh-137px)]",
+      // Dati e Collegati: la pagina finisce col contenuto (niente riquadro
+      // bianco fino in fondo, e sul tablet niente altezza fissa che taglia).
+      compatta && !chatMobile && "min-h-0 md:h-auto md:overflow-visible",
     )}>
       <div className="px-3 pt-2">
         <ApiHealthBanner filter={["whatsapp", "email_marketing"]} />
@@ -769,7 +838,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
           DESKTOP: full layout (avatar XL, badges, KPI grid 4 col) */}
       <div className="border-b bg-gradient-to-b from-card to-background shrink-0">
         {/* Breadcrumb + nav — solo desktop */}
-        <div className="hidden md:flex items-center justify-between px-3 sm:px-5 pt-2.5 pb-1.5">
+        <div className="hidden lg:flex items-center justify-between px-3 sm:px-5 pt-2.5 pb-1.5">
           <div className="flex items-center gap-2 min-w-0">
             <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => navigate(`${routePrefix}/contatti`)} title="Torna ai contatti">
               <ArrowLeft className="h-4 w-4" />
@@ -793,131 +862,101 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
           </div>
         </div>
 
-        {/* ─── MOBILE — design pulito stile WhatsApp/Linear ─── */}
-        <div className="md:hidden">
-          {/* Riga 1: back + breadcrumb + nav contatti compact */}
-          <div className="flex items-center justify-between px-3 pt-2 pb-1">
-            <Button variant="ghost" size="icon" className="h-8 w-8 -ml-2" onClick={() => navigate(`${routePrefix}/contatti`)}>
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <div className="flex items-center gap-0.5">
-              {totalContacts > 0 && (
-                <span className="text-[11px] text-muted-foreground mr-1">{currentIdx >= 0 ? currentIdx + 1 : "?"}/{totalContacts}</span>
-              )}
-              <Button variant="ghost" size="icon" className="h-8 w-8" disabled={!prevId} onClick={() => prevId && navigate(`${routePrefix}/contatti/${prevId}`)}>
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button variant="ghost" size="icon" className="h-8 w-8" disabled={!nextId} onClick={() => nextId && navigate(`${routePrefix}/contatti/${nextId}`)}>
-                <ChevronRight className="h-4 w-4" />
-              </Button>
+        {/* ─── MOBILE — come la scheda di un'app contatti: nome, azioni, tre
+            sezioni. Via la riga «indietro · 1/173 · ‹ ›» (la freccia c'è già
+            nella barra in alto), i bottoni alti 48px e i quattro riquadri
+            Score/Opp./Appunt./Attività: numeri che le sezioni ripetono. ─── */}
+        <div className="lg:hidden space-y-2 px-3 pb-2 pt-1">
+          <div className="flex items-center gap-2.5">
+            <Avatar className="h-10 w-10 shrink-0">
+              <AvatarFallback className={cn("text-sm font-bold text-white", getAvatarColor(fullName))}>{initials || "?"}</AvatarFallback>
+            </Avatar>
+            <div className="min-w-0 flex-1">
+              <h1 className="truncate text-lg font-bold leading-tight">{fullName || "Senza nome"}</h1>
+              <p className="truncate text-[11px] text-muted-foreground">
+                {[contact.company_name !== fullName ? contact.company_name : null, contact.city, lastActivityLabel].filter(Boolean).join(" · ")}
+              </p>
+            </div>
+            <LogCallButton companyId={companyId} contactId={id} userId={user?.id} className="tap-compact h-8 w-8 shrink-0 px-0 [&>span]:hidden [&>svg]:mr-0" />
+            {canEditContacts && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 -mr-2">
-                    <span className="text-lg leading-none">⋯</span>
+                  <Button variant="ghost" size="icon" className="tap-compact h-8 w-8 shrink-0" aria-label="Altre azioni">
+                    <MoreHorizontal className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  {canEditContacts && <DropdownMenuItem onClick={() => setMergeOpen(true)}><Merge className="h-3.5 w-3.5 mr-2" /> Unisci contatti</DropdownMenuItem>}
-                  {canEditContacts && <DropdownMenuItem onClick={() => setDeleteOpen(true)} className="text-destructive"><Trash2 className="h-3.5 w-3.5 mr-2" /> Elimina contatto</DropdownMenuItem>}
+                  <DropdownMenuItem onClick={() => setMergeOpen(true)}><Merge className="h-3.5 w-3.5 mr-2" /> Unisci contatti</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setDeleteOpen(true)} className="text-destructive"><Trash2 className="h-3.5 w-3.5 mr-2" /> Elimina contatto</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-            </div>
+            )}
           </div>
 
-          {/* Identity card — avatar + nome BIG + badges + email/phone clickable */}
-          <div className="px-4 pb-3 flex items-center gap-3">
-            <div className="relative shrink-0">
-              <Avatar className="h-14 w-14 ring-2 ring-background shadow-sm">
-                <AvatarFallback className={cn("text-base font-bold text-white", getAvatarColor(fullName))}>{initials || "?"}</AvatarFallback>
-              </Avatar>
-              <span className={cn("absolute -bottom-1 -right-1 inline-flex items-center justify-center h-5 w-5 rounded-full text-[10px] font-bold ring-2 ring-background", tierColor)}>
-                {icpTier}
-              </span>
-            </div>
-            <div className="min-w-0 flex-1">
-              <h1 className="text-base font-bold leading-tight truncate">{fullName || "Senza nome"}</h1>
-              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                {contact.contact_type && (
-                  <Badge variant="secondary" className="text-[9px] h-4 px-1.5 capitalize">{contact.contact_type}</Badge>
-                )}
-                {aiScore != null && (
-                  <Badge className="bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white border-0 text-[9px] h-4 px-1.5 gap-0.5">
-                    <Sparkles className="h-2.5 w-2.5" /> {aiScore}
-                  </Badge>
-                )}
-                <span className="text-[10px] text-muted-foreground">·</span>
-                <span className="text-[10px] text-muted-foreground">{lastActivityLabel}</span>
+          {/* Azioni: chiamata e messaggi a icona, il preventivo a riempire la
+              riga. Solo i canali che il contatto ha (prima c'erano anche quelli
+              spenti, grigi). WhatsApp ed Email aprono lo scrittore qui sotto. */}
+          <div className="flex gap-1.5">
+            {contact.phone && (
+              <a
+                href={`tel:${contact.phone}`}
+                aria-label="Chiama"
+                className={cn("tap-compact flex h-9 w-11 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-white active:bg-emerald-700", isPlatformContext && "flex-1")}
+              >
+                <Phone className="h-4 w-4" />
+              </a>
+            )}
+            {contact.phone && (
+              <button
+                type="button"
+                aria-label="WhatsApp"
+                onClick={() => { setSezioneMobile("attivita"); setMessageChannel("whatsapp"); }}
+                className={cn("tap-compact flex h-9 w-11 shrink-0 items-center justify-center rounded-lg border bg-background active:bg-muted", isPlatformContext && "flex-1")}
+              >
+                <MessageSquare className="h-4 w-4 text-emerald-600" />
+              </button>
+            )}
+            {contact.email && (
+              <button
+                type="button"
+                aria-label="Email"
+                onClick={() => { setSezioneMobile("attivita"); setMessageChannel("email"); }}
+                className={cn("tap-compact flex h-9 w-11 shrink-0 items-center justify-center rounded-lg border bg-background active:bg-muted", isPlatformContext && "flex-1")}
+              >
+                <Mail className="h-4 w-4 text-violet-600" />
+              </button>
+            )}
+            {!isPlatformContext && (
+              <div className="min-w-0 flex-1 [&>button]:w-full [&>a]:w-full">
+                <NewPreventivoMenu contactId={id ?? null} size="sm" label="Nuovo preventivo" className="tap-compact h-9 px-3 text-[13px] shadow-none hover:translate-y-0" />
               </div>
-            </div>
+            )}
           </div>
 
-          {/* Quick action bar — 4 bottoni FULL equal-width senza disabled */}
-          <div className="px-3 pb-2 grid grid-cols-4 gap-2">
-            <a
-              href={contact.phone ? `tel:${contact.phone}` : undefined}
-              className={cn(
-                "h-12 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-active",
-                contact.phone ? "bg-emerald-500 text-white active:bg-emerald-600" : "bg-muted text-muted-foreground/40 pointer-events-none",
-              )}
-            >
-              <Phone className="h-4 w-4" />
-              <span className="text-[9px] font-medium">Chiama</span>
-            </a>
-            <a
-              href={contact.email ? `mailto:${contact.email}` : undefined}
-              className={cn(
-                "h-12 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-active",
-                contact.email ? "bg-violet-500 text-white active:bg-violet-600" : "bg-muted text-muted-foreground/40 pointer-events-none",
-              )}
-            >
-              <Mail className="h-4 w-4" />
-              <span className="text-[9px] font-medium">Email</span>
-            </a>
-            <button
-              type="button"
-              onClick={() => contact.phone && setMessageChannel("whatsapp")}
-              disabled={!contact.phone}
-              className={cn(
-                "h-12 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-active",
-                contact.phone ? "bg-emerald-600 text-white active:bg-emerald-700" : "bg-muted text-muted-foreground/40",
-              )}
-            >
-              <MessageSquare className="h-4 w-4" />
-              <span className="text-[9px] font-medium">WhatsApp</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setRightTab("appointments")}
-              className="h-12 rounded-xl flex flex-col items-center justify-center gap-0.5 bg-amber-100 text-amber-900 active:bg-amber-200"
-            >
-              <CalendarDays className="h-4 w-4" />
-              <span className="text-[9px] font-medium">Appunt.</span>
-            </button>
-          </div>
-
-          {/* KPI strip compatto — 4 inline equal width (no scroll = layout stabile) */}
-          <div className="px-3 pb-2 grid grid-cols-4 gap-1.5">
-            <div className="rounded-lg bg-amber-50 border border-amber-100 px-2 py-1.5 text-center">
-              <p className="text-[8px] text-amber-700 uppercase font-semibold leading-none">Score</p>
-              <p className="text-sm font-bold tabular-nums leading-tight text-amber-900 mt-0.5">{leadScore}</p>
-            </div>
-            <div className="rounded-lg bg-emerald-50 border border-emerald-100 px-2 py-1.5 text-center">
-              <p className="text-[8px] text-emerald-700 uppercase font-semibold leading-none">Opp.</p>
-              <p className="text-sm font-bold tabular-nums leading-tight text-emerald-900 mt-0.5">{kpis?.openOppsCount ?? 0}<span className="text-[9px] font-normal opacity-70">/{kpis?.totalOpps ?? 0}</span></p>
-            </div>
-            <div className="rounded-lg bg-blue-50 border border-blue-100 px-2 py-1.5 text-center">
-              <p className="text-[8px] text-blue-700 uppercase font-semibold leading-none">Appunt.</p>
-              <p className="text-sm font-bold tabular-nums leading-tight text-blue-900 mt-0.5">{kpis?.apptsCount ?? 0}</p>
-            </div>
-            <div className="rounded-lg bg-rose-50 border border-rose-100 px-2 py-1.5 text-center">
-              <p className="text-[8px] text-rose-700 uppercase font-semibold leading-none">Attività</p>
-              <p className="text-sm font-bold tabular-nums leading-tight text-rose-900 mt-0.5">{activities.length}</p>
-            </div>
+          <div className="grid grid-cols-3 gap-0.5 rounded-lg bg-muted p-0.5">
+            {([
+              ["attivita", "Attività"],
+              ["dati", "Dati"],
+              ["collegati", "Collegati"],
+            ] as const).map(([chiave, etichetta]) => (
+              <button
+                key={chiave}
+                type="button"
+                aria-pressed={sezioneMobile === chiave}
+                onClick={() => setSezioneMobile(chiave)}
+                className={cn(
+                  "tap-compact h-7 rounded-md text-xs font-medium transition-colors",
+                  sezioneMobile === chiave ? "bg-background text-foreground shadow-sm" : "text-muted-foreground",
+                )}
+              >
+                {etichetta}
+              </button>
+            ))}
           </div>
         </div>
 
         {/* ─── DESKTOP HERO (md+) ─── */}
-        <div className="hidden md:block px-3 sm:px-5 pb-3">
+        <div className="hidden lg:block px-3 sm:px-5 pb-3">
           <div className="flex items-center gap-5">
             {/* Identity */}
             <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -935,10 +974,10 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                 <div className="flex items-center gap-2 flex-wrap">
                   <h1 className="text-lg sm:text-xl font-bold tracking-tight text-foreground truncate">{fullName || "Senza nome"}</h1>
                   {contact.contact_type && (
-                    <Badge variant="outline" className="text-[10px] h-5 px-1.5 capitalize">{contact.contact_type}</Badge>
+                    <Badge variant="outline" className="text-[10px] h-5 px-1.5 capitalize max-md:text-[11px]">{contact.contact_type}</Badge>
                   )}
                   {aiScore != null && (
-                    <Badge className="bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white border-0 text-[10px] h-5 px-1.5 gap-1">
+                    <Badge className="bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white border-0 text-[10px] h-5 px-1.5 gap-1 max-md:text-[11px]">
                       <Sparkles className="h-2.5 w-2.5" /> AI {aiScore}/100{aiTier ? ` · ${aiTier}` : ""}
                     </Badge>
                   )}
@@ -1019,23 +1058,23 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
           {/* KPI strip 4 col desktop */}
           <div className="mt-3 grid grid-cols-4 gap-2">
             <div className="rounded-lg border bg-card px-3 py-2">
-              <div className="flex items-center justify-between"><span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Lead Score</span><Star className="h-3 w-3 text-amber-500" /></div>
-              <div className="flex items-baseline gap-1.5 mt-1"><span className="text-xl font-bold tabular-nums">{leadScore}</span><span className="text-[10px] text-muted-foreground">/ 100</span></div>
+              <div className="flex items-center justify-between"><span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold max-md:text-[11px]">Lead Score</span><Star className="h-3 w-3 text-amber-500" /></div>
+              <div className="flex items-baseline gap-1.5 mt-1"><span className="text-xl font-bold tabular-nums">{leadScore}</span><span className="text-[10px] text-muted-foreground max-md:text-[11px]">/ 100</span></div>
               <Progress value={leadScore} className="h-1 mt-1" />
             </div>
             <div className="rounded-lg border bg-card px-3 py-2">
-              <div className="flex items-center justify-between"><span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Opp. aperte</span><span className="text-[10px] text-emerald-600 font-bold">●</span></div>
-              <div className="flex items-baseline gap-1.5 mt-1"><span className="text-xl font-bold tabular-nums">{kpis?.openOppsCount ?? 0}</span>{kpis && kpis.totalOpps > 0 && <span className="text-[10px] text-muted-foreground">/ {kpis.totalOpps} tot</span>}</div>
-              <p className="text-[10px] text-muted-foreground mt-1 truncate">{fmtMoney(kpis?.openValue ?? 0)}</p>
+              <div className="flex items-center justify-between"><span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold max-md:text-[11px]">Opp. aperte</span><span className="text-[10px] text-emerald-600 font-bold max-md:text-[11px]">●</span></div>
+              <div className="flex items-baseline gap-1.5 mt-1"><span className="text-xl font-bold tabular-nums">{kpis?.openOppsCount ?? 0}</span>{kpis && kpis.totalOpps > 0 && <span className="text-[10px] text-muted-foreground max-md:text-[11px]">/ {kpis.totalOpps} tot</span>}</div>
+              <p className="text-[10px] text-muted-foreground mt-1 truncate max-md:text-[11px]">{fmtMoney(kpis?.openValue ?? 0)}</p>
             </div>
             <div className="rounded-lg border bg-card px-3 py-2">
-              <div className="flex items-center justify-between"><span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Appuntam.</span><CalendarDays className="h-3 w-3 text-blue-500" /></div>
-              <div className="flex items-baseline gap-1.5 mt-1"><span className="text-xl font-bold tabular-nums">{kpis?.apptsCount ?? 0}</span><span className="text-[10px] text-muted-foreground">totali</span></div>
+              <div className="flex items-center justify-between"><span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold max-md:text-[11px]">Appuntam.</span><CalendarDays className="h-3 w-3 text-blue-500" /></div>
+              <div className="flex items-baseline gap-1.5 mt-1"><span className="text-xl font-bold tabular-nums">{kpis?.apptsCount ?? 0}</span><span className="text-[10px] text-muted-foreground max-md:text-[11px]">totali</span></div>
             </div>
             <div className="rounded-lg border bg-card px-3 py-2">
-              <div className="flex items-center justify-between"><span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Ultima att.</span><Bell className="h-3 w-3 text-rose-500" /></div>
+              <div className="flex items-center justify-between"><span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold max-md:text-[11px]">Ultima att.</span><Bell className="h-3 w-3 text-rose-500" /></div>
               <div className="flex items-baseline gap-1.5 mt-1"><span className="text-sm font-bold leading-tight">{lastActivityLabel}</span></div>
-              <p className="text-[10px] text-muted-foreground mt-1 truncate">{activities.length} attività totali</p>
+              <p className="text-[10px] text-muted-foreground mt-1 truncate max-md:text-[11px]">{activities.length} attività totali</p>
             </div>
           </div>
 
@@ -1052,13 +1091,55 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
         </div>
       </div>
 
-      <div className="flex flex-col-reverse lg:flex-row flex-1 lg:overflow-hidden">
+      {/* Mobile, sezione «Collegati»: i pannelli (opportunità, preventivi,
+          appuntamenti, note…) come righe che aprono il foglio dal basso. Prima
+          si raggiungevano solo dal bottone «Appunt.» e da una fila di pillole. */}
+      {compatta && sezioneMobile === "collegati" && (
+        <div className="divide-y divide-border">
+          {contact.customer_profile_id && (
+            <RigaMobile
+              sinistra={<UserCheck className="h-4 w-4 shrink-0 text-emerald-600" />}
+              titolo="Scheda cliente"
+              className="py-3.5"
+              onClick={() => navigate(`/azienda/clienti/${contact.customer_profile_id}`)}
+            />
+          )}
+          {([
+            { key: "opportunities", n: kpis?.totalOpps },
+            { key: "quotes" },
+            { key: "appointments", n: kpis?.apptsCount },
+            { key: "notes" },
+            { key: "activities" },
+            { key: "documents" },
+            { key: "invoices" },
+          ] as { key: RightTab; n?: number }[]).map(({ key, n }) => {
+            const tab = RIGHT_TABS.find((t) => t.key === key);
+            if (!tab) return null;
+            const Icona = tab.icon;
+            return (
+              <RigaMobile
+                key={key}
+                sinistra={<Icona className="h-4 w-4 shrink-0 text-muted-foreground" />}
+                titolo={key === "appointments" ? "Appuntamenti" : tab.label}
+                valore={n ? n : undefined}
+                className="py-3.5"
+                onClick={() => setRightTab(key)}
+              />
+            );
+          })}
+        </div>
+      )}
+
+      {/* Mobile: flex-none, se no col-reverse spingeva la sezione in fondo allo
+          schermo. Non si nasconde mai: dentro c'è anche il foglio dei pannelli. */}
+      <div className={cn("flex flex-col-reverse lg:flex-row flex-1 lg:overflow-hidden", compatta && (chatMobile ? "min-h-0" : "flex-none"))}>
       {/* ══════════ LEFT COLUMN / Anagrafica
           Desktop (lg+): colonna fissa 340px sinistra, scroll interno.
           Mobile/Tablet: stacked SOTTO la timeline, full width, no scroll interno. */}
-      <div className="flex lg:w-[340px] lg:min-w-[340px] border-t lg:border-t-0 lg:border-r flex-col">
+      <div className={cn("flex lg:w-[340px] lg:min-w-[340px] border-t lg:border-t-0 lg:border-r flex-col", compatta && "border-t-0", compatta && sezioneMobile !== "dati" && "hidden")}>
         {/* Header mobile della sezione anagrafica */}
-        <div className="lg:hidden px-4 py-2 border-b bg-muted/30 sticky top-0 z-10">
+        {/* Mobile no: il titolo è già la sezione «Dati». */}
+        <div className={cn("lg:hidden px-4 py-2 border-b bg-muted/30 sticky top-0 z-10", compatta && "hidden")}>
           <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
             <User className="h-4 w-4 text-muted-foreground" />
             Anagrafica completa
@@ -1066,8 +1147,8 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
         </div>
         <ScrollArea className="flex-1">
           <div className="p-3 space-y-4">
-            {/* Titolare, Follower & Call Center */}
-            <div className="grid grid-cols-2 gap-2">
+            {/* Titolare, Follower & Call Center — tablet: tre in fila, c'è posto. */}
+            <div className="grid grid-cols-2 gap-2 md:max-lg:grid-cols-3">
               <div>
                 <div className="flex items-center gap-1 mb-0.5">
                   <User className="h-3 w-3 text-muted-foreground" />
@@ -1078,7 +1159,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                   onValueChange={(v) => updateField.mutate({ field: "assigned_to", value: v || null })}
                   disabled={!canEditContacts}
                 >
-                  <SelectTrigger className="h-7 text-xs border-dashed"><SelectValue placeholder="Non assegnato" /></SelectTrigger>
+                  <SelectTrigger className="tap-compact h-7 text-xs border-dashed"><SelectValue placeholder="Non assegnato" /></SelectTrigger>
                   <SelectContent>
                     {salespeople.map((s: any) => (
                       <SelectItem key={s.id} value={s.id} className="text-xs">{s.first_name} {s.last_name}</SelectItem>
@@ -1096,7 +1177,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                   onValueChange={(v) => updateField.mutate({ field: "follower_id", value: v || null })}
                   disabled={!canEditContacts}
                 >
-                  <SelectTrigger className="h-7 text-xs border-dashed"><SelectValue placeholder="Nessuno" /></SelectTrigger>
+                  <SelectTrigger className="tap-compact h-7 text-xs border-dashed"><SelectValue placeholder="Nessuno" /></SelectTrigger>
                   <SelectContent>
                     {staff.map((s: any) => (
                       <SelectItem key={s.id} value={s.id} className="text-xs">{s.first_name} {s.last_name}</SelectItem>
@@ -1114,7 +1195,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                   onValueChange={(v) => updateField.mutate({ field: "call_center_id", value: v || null })}
                   disabled={!canEditContacts}
                 >
-                  <SelectTrigger className="h-7 text-xs border-dashed"><SelectValue placeholder="Nessuno" /></SelectTrigger>
+                  <SelectTrigger className="tap-compact h-7 text-xs border-dashed"><SelectValue placeholder="Nessuno" /></SelectTrigger>
                   <SelectContent>
                     {callCenterUsers.map((s: any) => (
                       <SelectItem key={s.id} value={s.id} className="text-xs">{s.first_name} {s.last_name}</SelectItem>
@@ -1182,10 +1263,12 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
             {/* Left column tabs */}
             <Tabs defaultValue="all_fields" className="w-full">
               <TabsList className="w-full h-8 p-0.5">
-                <TabsTrigger value="all_fields" className="flex-1 text-xs h-7">Tutti i campi</TabsTrigger>
-                <TabsTrigger value="dnd" className="flex-1 text-xs h-7">DND</TabsTrigger>
-                <TabsTrigger value="actions" className="flex-1 text-xs h-7">Azioni</TabsTrigger>
-                <TabsTrigger value="listino" className="flex-1 text-xs h-7">Listino</TabsTrigger>
+                <TabsTrigger value="all_fields" className="tap-compact flex-1 text-xs h-7">Tutti i campi</TabsTrigger>
+                <TabsTrigger value="dnd" className="tap-compact flex-1 text-xs h-7">DND</TabsTrigger>
+                {/* Mobile: due schede. Azioni (automazioni sul contatto) e Listino
+                    sono lavoro da scrivania. */}
+                <TabsTrigger value="actions" className="flex-1 text-xs h-7 max-lg:hidden">Azioni</TabsTrigger>
+                <TabsTrigger value="listino" className="flex-1 text-xs h-7 max-lg:hidden">Listino</TabsTrigger>
               </TabsList>
 
               <TabsContent value="listino" className="mt-2">
@@ -1193,8 +1276,8 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
               </TabsContent>
 
               <TabsContent value="all_fields" className="mt-2 space-y-2">
-                {/* Search fields */}
-                <div className="relative">
+                {/* Search fields — mobile no: i campi stanno in una schermata. */}
+                <div className="relative max-lg:hidden">
                   <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
                   <Input
                     placeholder="Cerca campi e cartelle"
@@ -1429,9 +1512,9 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                 </Collapsible>
 
                 {/* Created info */}
-                <div className="pt-2 text-[10px] text-muted-foreground px-1">
+                <div className="pt-2 text-[10px] text-muted-foreground px-1 max-md:text-[11px]">
                   <p>Creato il: {format(new Date(contact.created_at), "dd MMM yyyy, HH:mm", { locale: it })}</p>
-                  {contact.source && <p>Fonte: {contact.source}</p>}
+                  {contact.source && <p>Fonte: {etichettaFonte(contact.source)}</p>}
                 </div>
               </TabsContent>
 
@@ -1453,23 +1536,29 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       {/* ══════════ CENTER COLUMN — Timeline (Hero gestisce header/banner)
           Mobile: altezza limitata 60vh per non spingere troppo in basso l'anagrafica.
           Desktop: prende tutto lo spazio rimanente. */}
-      <div className="flex-1 flex flex-col min-w-0 min-h-0 h-[60vh] lg:h-auto">
+      {/* Mobile: in chat riempie lo schermo; senza scrittore è alta quanto la
+          cronologia (con un tetto), non 60vh fissi di bianco. */}
+      <div className={cn("flex-1 flex flex-col min-w-0 min-h-0 h-[60vh] lg:h-auto", compatta && (chatMobile ? "h-auto" : "h-auto max-h-[62vh] flex-none"), compatta && sezioneMobile !== "attivita" && "hidden")}>
         {/* Azioni rapide sul contatto (registra chiamata manuale, senza centralino) */}
-        <div className="shrink-0 flex items-center justify-end gap-2 border-b bg-white px-3 py-1.5">
+        {/* Mobile no: una riga intera per un bottone, che ora sta accanto al nome. */}
+        <div className="shrink-0 hidden lg:flex items-center justify-end gap-2 border-b bg-white px-3 py-1.5">
           <LogCallButton companyId={companyId} contactId={id} userId={user?.id} />
         </div>
         {/* Unified Timeline — min-h-0 così il timeline si restringe e scrolla
             invece di spingere il composer fuori dal contenitore (bug flexbox). */}
-        <div className="flex-1 min-h-0 overflow-hidden">
+        <div className={cn("flex-1 min-h-0 overflow-hidden", compatta && !chatMobile && "overflow-y-auto")}>
           <UnifiedContactTimeline contactId={id!} companyId={companyId!} contactPhone={contact.phone} contactEmail={contact.email} />
         </div>
 
         {/* Message input bar */}
-        <div className="border-t shrink-0 bg-muted/20">
+        {/* Mobile: senza telefono né email non c'è niente da scrivere (restavano
+            «Template» e un avviso WhatsApp a quattro righe). */}
+        <div className={cn("border-t shrink-0 bg-muted/20", compatta && !contact.phone && !contact.email && "hidden")}>
           {/* Selettore canale a pillole. Il canale attivo ha pillola piena +
               anello colorato; gli altri sono muti. Solo i canali disponibili
               per i recapiti del contatto (email/telefono). */}
-          <div className="flex items-center gap-1.5 px-3 pt-2.5 flex-wrap">
+          {/* Mobile: senza telefono resta solo l'email, una pillola da sola non sceglie niente. */}
+          <div className={cn("flex items-center gap-1.5 px-3 pt-2.5 flex-wrap", compatta && !contact.phone && "hidden")}>
             {([
               contact.email && { key: "email" as const, icon: Mail, label: "Email", active: "bg-violet-100 text-violet-700 ring-1 ring-violet-300" },
               contact.phone && { key: "whatsapp" as const, icon: MessageSquare, label: "WhatsApp", active: "bg-emerald-100 text-emerald-700 ring-1 ring-emerald-300" },
@@ -1485,7 +1574,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                   onClick={() => setMessageChannel(ch.key)}
                   title={ch.title}
                   className={cn(
-                    "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-all",
+                    "tap-compact inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-all",
                     isActive ? ch.active : "text-muted-foreground hover:bg-muted",
                   )}
                 >
@@ -1518,7 +1607,8 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                   onChange={(e) => setEmailSubject(e.target.value.slice(0, 200))}
                   className="border-0 bg-muted/50 shadow-none h-7 text-xs flex-1"
                 />
-                <div className="flex items-center gap-1.5 text-[10px] shrink-0">
+                {/* Mobile no: copia e copia nascosta sono da scrivania. */}
+                <div className="flex items-center gap-1.5 text-[10px] shrink-0 max-md:hidden max-md:text-[11px]">
                   {!emailCcVisible && (
                     <button
                       type="button"
@@ -1542,7 +1632,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
               {/* Cc input (visible only on toggle) */}
               {emailCcVisible && (
                 <div className="flex items-center gap-1">
-                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground w-8 shrink-0">Cc</Label>
+                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground w-8 shrink-0 max-md:text-[11px]">Cc</Label>
                   <Input
                     placeholder="email1@esempio.it, email2@esempio.it"
                     value={emailCc}
@@ -1551,7 +1641,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                   />
                   <button
                     type="button"
-                    className="text-[10px] text-muted-foreground hover:text-foreground shrink-0"
+                    className="text-[10px] text-muted-foreground hover:text-foreground shrink-0 max-md:text-[11px]"
                     onClick={() => { setEmailCcVisible(false); setEmailCc(""); }}
                   >
                     Rimuovi
@@ -1561,7 +1651,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
               {/* Ccn (Bcc) input (visible only on toggle) */}
               {emailBccVisible && (
                 <div className="flex items-center gap-1">
-                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground w-8 shrink-0">Ccn</Label>
+                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground w-8 shrink-0 max-md:text-[11px]">Ccn</Label>
                   <Input
                     placeholder="nascosti@esempio.it (gli altri non vedono questi)"
                     value={emailBcc}
@@ -1570,7 +1660,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                   />
                   <button
                     type="button"
-                    className="text-[10px] text-muted-foreground hover:text-foreground shrink-0"
+                    className="text-[10px] text-muted-foreground hover:text-foreground shrink-0 max-md:text-[11px]"
                     onClick={() => { setEmailBccVisible(false); setEmailBcc(""); }}
                   >
                     Rimuovi
@@ -1602,7 +1692,8 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                 setMessageText(body.slice(0, 5000)); // vale anche per whatsapp_locale
               }}
               align="start"
-              triggerClassName="h-9 md:h-7 gap-1.5 text-xs shrink-0"
+              triggerClassName="tap-compact h-9 md:h-7 gap-1.5 text-xs shrink-0 max-md:w-9 max-md:px-0"
+              soloIconaSuTelefono
             />}
             {messageChannel === "whatsapp" ? (
               <WhatsAppComposer
@@ -1696,16 +1787,19 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       {rightPanelOpen && (
         <>
           {/* Backdrop solo mobile: tap fuori = chiudi */}
-          <div className="fixed inset-0 z-40 bg-black/40 md:hidden" onClick={() => setRightTab(null)} aria-hidden="true" />
-          <div className="fixed inset-x-0 bottom-0 z-50 flex h-[72dvh] flex-col rounded-t-2xl border-t bg-background shadow-2xl md:static md:z-auto md:h-auto md:w-64 md:rounded-none md:border-l md:border-t-0 md:shadow-none">
+          <div className="fixed inset-0 z-40 bg-black/40 lg:hidden" onClick={() => setRightTab(null)} aria-hidden="true" />
+          {/* Mobile: alto quanto il contenuto (fino all'85%) e scorre tutto il
+              foglio; a 72dvh fissi «Nessun preventivo» stava su mezzo schermo bianco. */}
+          <div className={cn("fixed inset-x-0 bottom-0 z-50 flex h-[72dvh] flex-col rounded-t-2xl border-t bg-background shadow-2xl lg:static lg:z-auto lg:h-auto lg:w-64 lg:rounded-none lg:border-l lg:border-t-0 lg:shadow-none", compatta && "h-auto max-h-[85dvh] overflow-y-auto pb-[env(safe-area-inset-bottom)]")}>
           {/* Panel header */}
-          <div className="h-11 border-b flex items-center justify-between px-3 shrink-0">
+          <div className={cn("h-11 border-b flex items-center justify-between px-3 shrink-0", compatta && "sticky top-0 z-10 bg-background")}>
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium">
-                {RIGHT_TABS.find(t => t.key === rightTab)?.label}
+                {/* Compatta: stesso nome della riga toccata in «Collegati». */}
+                {compatta && rightTab === "appointments" ? "Appuntamenti" : RIGHT_TABS.find(t => t.key === rightTab)?.label}
               </span>
               {rightTab === "documents" && (
-                <Button variant="ghost" size="sm" className="h-6 text-[10px] text-primary">
+                <Button variant="ghost" size="sm" className="h-6 text-[10px] text-primary max-md:text-[11px]">
                   <Plus className="h-3 w-3 mr-0.5" /> Aggiungi
                 </Button>
               )}
@@ -1715,23 +1809,8 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
             </Button>
           </div>
 
-          {/* Su mobile: strip orizzontale per passare tra i pannelli (su desktop c'è la colonna icone a destra) */}
-          <div className="flex gap-1 overflow-x-auto scrollbar-none border-b px-2 py-1.5 md:hidden">
-            {RIGHT_TABS.map((tab) => (
-              <button
-                key={tab.key}
-                type="button"
-                onClick={() => setRightTab(tab.key)}
-                className={cn(
-                  "flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
-                  rightTab === tab.key ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
-                )}
-              >
-                <tab.icon className="h-3.5 w-3.5" />
-                {tab.label}
-              </button>
-            ))}
-          </div>
+          {/* Mobile no: la fila di pillole per passare da un pannello all'altro
+              ripeteva le righe della sezione «Collegati». */}
 
           <ScrollArea className="flex-1">
             <div className="p-2.5">
@@ -1927,7 +2006,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                       />
                     </div>
                     {(contact as any).unsubscribed && (
-                      <div className="text-[10px] text-destructive flex items-center gap-1 mt-1">
+                      <div className="text-[10px] text-destructive flex items-center gap-1 mt-1 max-md:text-[11px]">
                         <AlertCircle className="h-3 w-3" />
                         Disiscritto il {(contact as any).unsubscribed_at ? format(new Date((contact as any).unsubscribed_at), "dd/MM/yyyy", { locale: it }) : "data sconosciuta"}
                       </div>
@@ -1942,7 +2021,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       )}
 
       {/* Vertical icon strip — solo desktop (su mobile usa l'hero quick actions) */}
-      <div className="hidden md:flex w-10 border-l flex-col items-center py-2 gap-1 bg-muted/30 shrink-0">
+      <div className="hidden lg:flex w-10 border-l flex-col items-center py-2 gap-1 bg-muted/30 shrink-0">
         {RIGHT_TABS.map((tab) => (
           <Tooltip key={tab.key}>
             <TooltipTrigger asChild>
@@ -2006,11 +2085,11 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
           </DialogHeader>
           <div className="space-y-3">
             <div className="space-y-1">
-              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Ragione sociale</Label>
+              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground max-md:text-[11px]">Ragione sociale</Label>
               <Input value={enrichName} onChange={(e) => setEnrichName(e.target.value)} placeholder="Es. Rossi Costruzioni SRL" className="h-8 text-xs" />
             </div>
             <div className="space-y-1">
-              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Sito web</Label>
+              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground max-md:text-[11px]">Sito web</Label>
               <div className="flex gap-1.5">
                 <Input value={enrichWebsite} onChange={(e) => setEnrichWebsite(e.target.value)} placeholder="https://…" className="h-8 text-xs flex-1" />
                 {enrichWebsite.trim() && (
@@ -2040,7 +2119,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                         <span className="text-muted-foreground truncate flex-1">{c.title}</span>
                         <a
                           href={c.url} target="_blank" rel="noreferrer"
-                          className="text-[10px] text-primary underline shrink-0"
+                          className="text-[10px] text-primary underline shrink-0 max-md:text-[11px]"
                           onClick={(e) => e.stopPropagation()}
                         >
                           apri
@@ -2054,10 +2133,10 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
               )}
             </div>
             <div className="space-y-1">
-              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">P.IVA</Label>
+              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground max-md:text-[11px]">P.IVA</Label>
               <Input value={enrichPiva} onChange={(e) => setEnrichPiva(e.target.value)} placeholder="11 cifre (per VIES e registro imprese)" className="h-8 text-xs" />
             </div>
-            <p className="text-[10px] text-muted-foreground pt-1">Basta uno dei tre campi; più ne dai, meglio incrocia.</p>
+            <p className="text-[10px] text-muted-foreground pt-1 max-md:text-[11px]">Basta uno dei tre campi; più ne dai, meglio incrocia.</p>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1">
               <Button size="sm" className="flex-1 gap-1.5 bg-orange-600 hover:bg-orange-700" disabled={enriching || (!enrichWebsite.trim() && !enrichPiva.trim() && !enrichName.trim())} onClick={runEnrich}>
                 {enriching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Radar className="h-3.5 w-3.5" />} Avvia arricchimento
@@ -2135,7 +2214,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                         <span className="text-xs font-semibold">Segnale d'acquisto</span>
                         <Badge className={cn("h-4 px-1.5 text-[10px]", scoreColor)}>{scoreLabel} · {score}/100</Badge>
                       </div>
-                      {activeSignals.length > 0 && <p className="text-[10px] text-muted-foreground mt-0.5">{activeSignals.join(" · ")}</p>}
+                      {activeSignals.length > 0 && <p className="text-[10px] text-muted-foreground mt-0.5 max-md:text-[11px]">{activeSignals.join(" · ")}</p>}
                     </div>
                   </div>
                 )}
@@ -2162,7 +2241,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                 )}
                 {(r.vies || r.partita_iva) && (
                   <div>
-                    <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 flex items-center gap-1"><Building2 className="h-3 w-3" /> Anagrafica ufficiale (VIES)</p>
+                    <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 flex items-center gap-1 max-md:text-[11px]"><Building2 className="h-3 w-3" /> Anagrafica ufficiale (VIES)</p>
                     {r.partita_iva && row("P.IVA", <>{r.partita_iva} {r.vies?.valid === true ? <Badge className="ml-1 h-4 px-1 text-[9px] bg-emerald-100 text-emerald-700 hover:bg-emerald-100">valida</Badge> : r.vies?.valid === false ? <Badge variant="destructive" className="ml-1 h-4 px-1 text-[9px]">non valida</Badge> : null}</>)}
                     {r.vies?.name && row("Ragione sociale", r.vies.name)}
                     {r.vies?.address && row("Sede legale", r.vies.address)}
@@ -2193,7 +2272,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                   if (rows.length === 0 && soci.length === 0 && amm.length === 0) return null;
                   return (
                     <div>
-                      <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 flex items-center gap-1"><Building2 className="h-3 w-3" /> Visura camerale (registro imprese)</p>
+                      <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 flex items-center gap-1 max-md:text-[11px]"><Building2 className="h-3 w-3" /> Visura camerale (registro imprese)</p>
                       {rows}
                       {amm.length > 0 && row("Amministratori", <span className="flex flex-col gap-0.5">{amm.map((p, i) => <span key={i}>{p.nome}{p.ruolo ? ` — ${p.ruolo}` : ""}</span>)}</span>)}
                       {soci.length > 0 && row("Soci", <span className="flex flex-col gap-0.5">{soci.map((p, i) => <span key={i}>{p.nome}{p.ruolo ? ` — ${p.ruolo}` : ""}</span>)}</span>)}
@@ -2214,8 +2293,8 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                   const landlines = classified.filter((p) => p.type === "landline");
                   return (
                     <div>
-                      <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 flex items-center gap-1"><AtSign className="h-3 w-3" /> Recapiti trovati sul sito</p>
-                      <p className="text-[10px] text-muted-foreground mb-1.5 italic">Numeri normalizzati e filtrati (esclusi P.IVA e sequenze non valide). Verifica sempre prima di contattare.</p>
+                      <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 flex items-center gap-1 max-md:text-[11px]"><AtSign className="h-3 w-3" /> Recapiti trovati sul sito</p>
+                      <p className="text-[10px] text-muted-foreground mb-1.5 italic max-md:text-[11px]">Numeri normalizzati e filtrati (esclusi P.IVA e sequenze non valide). Verifica sempre prima di contattare.</p>
                       {r.emails?.map((e) => <div key={e}>{row("Email", <a href={`mailto:${e}`} className="text-primary underline">{e}</a>)}</div>)}
                       {mobiles.map((p) => (
                         <div key={p.e164}>{row(
@@ -2240,7 +2319,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                 })()}
                 {(r.facebook_url || r.instagram_url || r.linkedin_url) && (
                   <div>
-                    <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 flex items-center gap-1"><Globe className="h-3 w-3" /> Social</p>
+                    <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 flex items-center gap-1 max-md:text-[11px]"><Globe className="h-3 w-3" /> Social</p>
                     {r.linkedin_url && row("LinkedIn", <a href={r.linkedin_url} target="_blank" rel="noreferrer" className="text-primary underline">{r.linkedin_url}</a>)}
                     {r.facebook_url && row("Facebook", <a href={r.facebook_url} target="_blank" rel="noreferrer" className="text-primary underline">{r.facebook_url}</a>)}
                     {r.instagram_url && row("Instagram", <a href={r.instagram_url} target="_blank" rel="noreferrer" className="text-primary underline">{r.instagram_url}</a>)}
@@ -2248,8 +2327,8 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                 )}
                 {(r.intent_signals?.length ?? 0) > 0 && (
                   <div>
-                    <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1">Segnali dal sito</p>
-                    <div className="flex flex-wrap gap-1">{r.intent_signals!.map((s: any) => <Badge key={s} variant="secondary" className="text-[10px]">{s}</Badge>)}</div>
+                    <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 max-md:text-[11px]">Segnali dal sito</p>
+                    <div className="flex flex-wrap gap-1">{r.intent_signals!.map((s: any) => <Badge key={s} variant="secondary" className="text-[10px] max-md:text-[11px]">{s}</Badge>)}</div>
                   </div>
                 )}
                 {!r.vies && !r.firmografici && (r.emails?.length ?? 0) === 0 && (r.phones?.length ?? 0) === 0 && !r.facebook_url && !r.instagram_url && !r.linkedin_url && (

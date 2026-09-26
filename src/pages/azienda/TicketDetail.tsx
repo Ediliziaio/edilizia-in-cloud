@@ -419,14 +419,17 @@ export default function TicketDetail() {
     })();
 
   return (
-    <div className="flex flex-col h-[calc(100vh-200px)] md:h-[calc(100vh-120px)]">
+    // Mobile: altezza libera, la pagina scorre (chat, poi dettagli). Con
+    // l'altezza fissa chat (60vh) e dettagli (50vh) non ci stavano e i
+    // dettagli finivano disegnati sopra la chat (le frecce a metà messaggi).
+    <div className="flex flex-col h-[calc(100vh-200px)] md:h-[calc(100vh-120px)] max-md:h-auto">
       {/* Header migliorato con badge */}
-      <div className="flex items-start gap-4 pb-4">
+      <div className="flex items-start gap-4 pb-4 max-md:relative max-md:flex-wrap max-md:gap-2 max-md:pb-3">
         <Button variant="ghost" size="icon" className="hidden md:inline-flex" onClick={() => navigate("/azienda/assistenza")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex-1 min-w-0 max-md:order-2 max-md:basis-full">
+          <div className="flex items-center gap-2 flex-wrap max-md:gap-1.5 max-md:min-h-9 max-md:pr-[122px]">
             <Badge
               variant="outline"
               className="gap-1 text-[11px]"
@@ -439,27 +442,32 @@ export default function TicketDetail() {
               <TipoIcon className="h-3 w-3" />
               {tipoLabel}
             </Badge>
-            <h1 className="text-xl font-bold truncate">{ticket.subject}</h1>
-            <Badge variant="outline" style={{ backgroundColor: statusColor.bg, color: statusColor.text, borderColor: statusColor.border }}>
+            {/* Mobile: il titolo a capo su due righe (troncato si leggeva «Manca il silico…»). */}
+            <h1 className="text-xl font-bold truncate max-md:order-last max-md:basis-full max-md:whitespace-normal max-md:text-base max-md:leading-snug max-md:line-clamp-2">{ticket.subject}</h1>
+            {/* Da 768px stato e priorità si leggono (e si cambiano) nelle tendine
+                del pannello a sinistra, subito sotto: qui erano un doppione. */}
+            <Badge variant="outline" className="md:hidden" style={{ backgroundColor: statusColor.bg, color: statusColor.text, borderColor: statusColor.border }}>
               {getTicketStatusLabel(ticket.status)}
             </Badge>
-            <Badge variant="outline" style={{ backgroundColor: priorityColor.bg, color: priorityColor.text, borderColor: priorityColor.border }}>
+            <Badge variant="outline" className="md:hidden" style={{ backgroundColor: priorityColor.bg, color: priorityColor.text, borderColor: priorityColor.border }}>
               {getTicketPriorityLabel(ticket.priority)}
             </Badge>
           </div>
-          <p className="text-sm text-muted-foreground mt-0.5">
+          <p className="text-sm text-muted-foreground mt-0.5 max-md:text-xs">
             Aperto {formatRelativeTime(ticket.created_at)}
             {ticket.data_intervento_effettiva && (
               <> · Chiuso il {new Date(ticket.data_intervento_effettiva).toLocaleDateString("it-IT")}</>
             )}
           </p>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        {/* Mobile: i tre bottoni sulla riga dei badge, in alto a destra (prima
+            avevano una riga loro, vuota a sinistra). */}
+        <div className="flex items-center gap-2 shrink-0 max-md:absolute max-md:right-0 max-md:top-0 max-md:gap-1.5 [&>button]:max-md:h-9 [&>button]:max-md:w-9 [&>button]:max-md:p-0">
           {/* Escalation — solo per tipo=supporto */}
           {!isIntervento && (
             <Button
               variant="outline"
-              className="gap-2 text-orange-700 border-orange-300 hover:bg-orange-50"
+              className="tap-compact gap-2 text-orange-700 border-orange-300 hover:bg-orange-50"
               onClick={() => setEscalationOpen(true)}
             >
               <Wrench className="h-4 w-4" />
@@ -469,7 +477,7 @@ export default function TicketDetail() {
           {/* Crea appuntamento calendario */}
           <Button
             variant="outline"
-            className="gap-2"
+            className="tap-compact gap-2"
             onClick={() => setAppointmentOpen(true)}
           >
             <CalendarPlus className="h-4 w-4" />
@@ -479,7 +487,7 @@ export default function TicketDetail() {
           {!isClosed && (
             <Button
               variant="outline"
-              className="gap-2 text-green-700 border-green-300 hover:bg-green-50"
+              className="tap-compact gap-2 text-green-700 border-green-300 hover:bg-green-50"
               onClick={() => chiudiMutation.mutate()}
               disabled={chiudiMutation.isPending}
             >
@@ -493,9 +501,12 @@ export default function TicketDetail() {
       <Separator className="mb-4" />
 
       {/* Layout: mobile stacked, desktop columns with independent scroll */}
-      <div className="flex flex-col md:grid md:grid-cols-3 gap-6 flex-1 min-h-0">
+      {/* Pannello a sinistra a larghezza fissa (280/320/380px): a un terzo di
+          pagina, a 768, era di 224px e le tendine si tagliavano; a 1920 di 560
+          con dentro etichette e tendine corte. */}
+      <div className="flex flex-col md:grid md:grid-cols-[280px_minmax(0,1fr)] lg:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[380px_minmax(0,1fr)] gap-6 flex-1 min-h-0 max-md:flex-none max-md:gap-3">
         {/* Sidebar: on mobile scrolls naturally, on desktop has fixed scroll */}
-        <div className="order-2 md:order-1 overflow-y-auto pr-1 space-y-4 max-h-[50vh] md:max-h-[calc(100vh-220px)]">
+        <div className="order-2 md:order-1 overflow-y-auto pr-1 space-y-4 max-h-[50vh] md:max-h-[calc(100vh-220px)] max-md:max-h-none max-md:overflow-visible max-md:space-y-3 max-md:pr-0">
           {/* Card unificata: Gestione + Contesto */}
           <Card>
             <CardContent className="p-4 space-y-3">
@@ -507,7 +518,7 @@ export default function TicketDetail() {
                   onValueChange={(v) => updateTicketMutation.mutate({ status: v })}
                   disabled={updateTicketMutation.isPending}
                 >
-                  <SelectTrigger className="w-[160px] h-8 text-xs">
+                  <SelectTrigger className="tap-compact w-[160px] h-8 text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="max-h-[380px]">
@@ -570,7 +581,7 @@ export default function TicketDetail() {
                     onValueChange={(v) => updateTicketMutation.mutate({ priority: v })}
                     disabled={updateTicketMutation.isPending}
                   >
-                    <SelectTrigger className="w-[160px] h-8 text-xs">
+                    <SelectTrigger className="tap-compact w-[160px] h-8 text-xs">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -590,7 +601,7 @@ export default function TicketDetail() {
                   onValueChange={(v) => updateTicketMutation.mutate({ assigned_to: v === "unassigned" ? null : v })}
                   disabled={updateTicketMutation.isPending}
                 >
-                  <SelectTrigger className="w-[160px] h-8 text-xs">
+                  <SelectTrigger className="tap-compact w-[160px] h-8 text-xs">
                     <SelectValue placeholder="Non assegnato" />
                   </SelectTrigger>
                   <SelectContent>
@@ -609,18 +620,25 @@ export default function TicketDetail() {
               {/* Cliente */}
               <div className="space-y-1.5">
                 <label className="text-xs text-muted-foreground">Cliente</label>
-                <div className="flex items-center gap-2">
-                  <User className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span className="font-medium text-sm">
-                    {ticket.customer?.first_name} {ticket.customer?.last_name}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Mail className="h-3.5 w-3.5 text-muted-foreground" />
-                  <a href={`mailto:${ticket.customer?.email}`} className="text-xs text-primary hover:underline truncate">
-                    {ticket.customer?.email}
-                  </a>
-                </div>
+                {/* Senza cliente comparivano due icone sole e un link «mailto:undefined». */}
+                {!ticket.customer ? (
+                  <p className="text-xs text-muted-foreground">Nessun cliente collegato</p>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <User className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="font-medium text-sm">
+                      {ticket.customer.first_name} {ticket.customer.last_name}
+                    </span>
+                  </div>
+                )}
+                {ticket.customer?.email && (
+                  <div className="flex items-center gap-2">
+                    <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+                    <a href={`mailto:${ticket.customer.email}`} className="text-xs text-primary hover:underline truncate">
+                      {ticket.customer.email}
+                    </a>
+                  </div>
+                )}
                 {ticket.customer?.phone && (
                   <div className="flex items-center gap-2">
                     <Phone className="h-3.5 w-3.5 text-muted-foreground" />
@@ -797,7 +815,7 @@ export default function TicketDetail() {
           <div className="flex items-center gap-2 flex-wrap rounded-lg border bg-muted/20 px-3 py-2">
             <ListChecks className="h-4 w-4 shrink-0 text-muted-foreground" />
             <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Flusso</span>
-            <span className="text-xs text-muted-foreground">Crea le attività standard dell'assistenza.</span>
+            <span className="text-xs text-muted-foreground max-md:hidden">Crea le attività standard dell'assistenza.</span>
             <div className="ml-auto flex items-center gap-2">
               <Button
                 size="sm"
@@ -829,7 +847,7 @@ export default function TicketDetail() {
                 <Sparkles className="h-3.5 w-3.5 mr-1" />
                 {flussoInCorso ? "Applico…" : "Applica flusso"}
               </Button>
-              <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={() => setEditorFlussoAperto(true)}>
+              <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground max-md:hidden" onClick={() => setEditorFlussoAperto(true)}>
                 Gestisci
               </Button>
             </div>
@@ -854,7 +872,7 @@ export default function TicketDetail() {
         </div>
 
         {/* Chat: on mobile first, on desktop second */}
-        <div className="order-1 md:order-2 md:col-span-2 min-h-0">
+        <div className="order-1 md:order-2 min-h-0">
           <TicketChat
             ticketId={ticket.id}
             messages={messages}

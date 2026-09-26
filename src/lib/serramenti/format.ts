@@ -7,11 +7,14 @@
  * Funzioni PURE — nessuna dipendenza React.
  */
 
+// useGrouping: in italiano il separatore delle migliaia manca sotto le cinque
+// cifre («€ 1234» accanto a «€ 12.345»): qui lo si mette sempre.
 export const formatEuro = (n: number | null | undefined, decimals = 0): string => {
   if (n == null || isNaN(Number(n))) return "—";
   return `€ ${Number(n).toLocaleString("it-IT", {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
+    useGrouping: true,
   })}`;
 };
 
@@ -28,6 +31,7 @@ export const formatNumero = (n: number | null | undefined, decimals = 0): string
   return Number(n).toLocaleString("it-IT", {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
+    useGrouping: true,
   });
 };
 

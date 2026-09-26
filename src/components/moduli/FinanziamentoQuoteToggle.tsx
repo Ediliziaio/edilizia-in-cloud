@@ -43,9 +43,17 @@ export function FinanziamentoQuoteToggle({ rawPromo, total, value, onChange }: P
           Mostra la rata nel PDF
         </span>
         <span className="block text-[10px] text-muted-foreground">
-          {rata > 0
-            ? `“da ${formatCurrency(rata)}/mese” in ${promo.rate} rate${promo.tan_pct > 0 ? ` (TAN ${promo.tan_pct}%)` : " a tasso zero"} — spegni per chi paga subito.`
-            : `Aggiungi voci al computo per calcolare la rata (${promo.rate} rate).`}
+          {rata > 0 ? (
+            <>
+              <span className="max-sm:hidden">
+                {`“da ${formatCurrency(rata)}/mese” in ${promo.rate} rate${promo.tan_pct > 0 ? ` (TAN ${promo.tan_pct}%)` : " a tasso zero"} — spegni per chi paga subito.`}
+              </span>
+              {/* Telefono: la rata e basta. */}
+              <span className="sm:hidden">{`da ${formatCurrency(rata)}/mese · ${promo.rate} rate`}</span>
+            </>
+          ) : (
+            `Aggiungi voci al computo per calcolare la rata (${promo.rate} rate).`
+          )}
         </span>
       </span>
       <Switch checked={checked} onCheckedChange={onChange} />

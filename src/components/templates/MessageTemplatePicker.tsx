@@ -9,6 +9,7 @@
  */
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -31,6 +32,8 @@ interface Props {
   onInsert: (payload: { subject?: string | null; body: string }) => void;
   triggerVariant?: "outline" | "ghost";
   triggerClassName?: string;
+  /** Sotto i 768px il bottone resta solo con l'icona (accanto al campo del messaggio). */
+  soloIconaSuTelefono?: boolean;
   align?: "start" | "end";
 }
 
@@ -41,7 +44,7 @@ const CHANNEL_LABEL: Record<TemplateChannel, string> = {
   nota_interna: "Nota interna",
 };
 
-export function MessageTemplatePicker({ channel, vars, onInsert, triggerVariant = "outline", triggerClassName, align = "start" }: Props) {
+export function MessageTemplatePicker({ channel, vars, onInsert, triggerVariant = "outline", triggerClassName, align = "start", soloIconaSuTelefono = false }: Props) {
   const { templates, create, update, remove, seedExamples, isMutating } = useMessageTemplates(channel);
   const [manageOpen, setManageOpen] = useState(false);
 
@@ -58,8 +61,8 @@ export function MessageTemplatePicker({ channel, vars, onInsert, triggerVariant 
         <DropdownMenuTrigger asChild>
           <Button type="button" variant={triggerVariant} size="sm" className={triggerClassName ?? "h-8 gap-1.5 text-xs"}>
             <FileText className="h-3.5 w-3.5" />
-            Template
-            <ChevronDown className="h-3 w-3 opacity-60" />
+            <span className={soloIconaSuTelefono ? "max-md:hidden" : undefined}>Template</span>
+            <ChevronDown className={cn("h-3 w-3 opacity-60", soloIconaSuTelefono && "max-md:hidden")} />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align={align} className="w-72">

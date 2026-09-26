@@ -22,7 +22,7 @@ export function SolaLetturaToggle({ id, checked, onCheckedChange, disabled, clas
   return (
     <div
       className={cn(
-        "flex items-center justify-between gap-3 p-3 rounded-lg border",
+        "flex items-center justify-between gap-3 p-3 rounded-lg border max-sm:py-2",
         checked ? "border-amber-300 bg-amber-50/60 dark:bg-amber-950/20 dark:border-amber-900/50" : "bg-muted/30",
         className,
       )}
@@ -32,7 +32,8 @@ export function SolaLetturaToggle({ id, checked, onCheckedChange, disabled, clas
           <Lock className="h-4 w-4" />
           {SOLA_LETTURA_LABEL}
         </Label>
-        <p className="text-xs text-muted-foreground">{SOLA_LETTURA_HELP}</p>
+        {/* Mobile: basta l'etichetta, la spiegazione occupava tre righe. */}
+        <p className="text-xs text-muted-foreground max-sm:hidden">{SOLA_LETTURA_HELP}</p>
       </div>
       <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} disabled={disabled} />
     </div>

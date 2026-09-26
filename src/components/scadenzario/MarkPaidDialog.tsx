@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,6 +20,7 @@ interface Props {
 }
 
 export default function MarkPaidDialog({ scadenza, open, onOpenChange, onConfirm, isPending }: Props) {
+  const isMobile = useIsMobile();
   const remaining = scadenza ? scadenza.amount - scadenza.paid_amount : 0;
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState("bonifico");
@@ -50,16 +52,17 @@ export default function MarkPaidDialog({ scadenza, open, onOpenChange, onConfirm
         <DialogHeader>
           <DialogTitle>Registra Pagamento</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4">
-          <div className="rounded-lg bg-muted/50 p-3 text-sm">
-            <p className="font-medium">{scadenza.description}</p>
+        {/* Mobile: campi a due colonne (importo e conto, metodo e data), via le note. */}
+        <div className="space-y-4 max-sm:grid max-sm:grid-cols-2 max-sm:gap-x-2 max-sm:gap-y-3 max-sm:space-y-0">
+          <div className="rounded-lg bg-muted/50 p-3 text-sm max-sm:col-span-2 max-sm:px-3 max-sm:py-2 max-sm:text-xs">
+            <p className="font-medium max-sm:truncate">{scadenza.description}</p>
             <p className="text-muted-foreground">
               Totale: {fmtEur(scadenza.amount)} · Residuo: {fmtEur(remaining)}
             </p>
           </div>
 
           <div className="space-y-2">
-            <Label>Importo pagato</Label>
+            <Label>{isMobile ? "Importo" : "Importo pagato"}</Label>
             <Input
               type="number"
               inputMode="decimal"
@@ -71,7 +74,8 @@ export default function MarkPaidDialog({ scadenza, open, onOpenChange, onConfirm
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          {/* Mobile: il conto sale accanto all'importo (vedi order). */}
+          <div className="grid grid-cols-2 gap-3 max-sm:order-1 max-sm:col-span-2 max-sm:gap-2">
             <div className="space-y-2">
               <Label>Metodo</Label>
               <Select value={method} onValueChange={setMethod}>
@@ -87,7 +91,7 @@ export default function MarkPaidDialog({ scadenza, open, onOpenChange, onConfirm
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Data pagamento</Label>
+              <Label>Data<span className="max-sm:hidden"> pagamento</span></Label>
               <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
             </div>
           </div>
@@ -103,14 +107,14 @@ export default function MarkPaidDialog({ scadenza, open, onOpenChange, onConfirm
             </Select>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-2 max-sm:hidden">
             <Label>Note (opzionale)</Label>
             <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
           </div>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Annulla</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="max-sm:hidden">Annulla</Button>
           <Button
             onClick={() => onConfirm({
               scadenzaId: scadenza.id,

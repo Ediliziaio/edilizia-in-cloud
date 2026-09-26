@@ -533,19 +533,21 @@ export function UnifiedContactTimeline({
   return (
     <div className="flex flex-col h-full">
       {/* Filter bar */}
-      <div className="flex items-center gap-1 px-4 py-2 border-b overflow-x-auto shrink-0">
+      <div className="flex items-center gap-1 px-4 py-2 border-b overflow-x-auto shrink-0 max-sm:px-3 max-sm:py-1.5 max-sm:scrollbar-none">
         {FILTER_OPTIONS.map((opt) => (
           <Button
             key={opt.key}
             variant={filter === opt.key ? "default" : "ghost"}
             size="sm"
-            className="h-6 text-[10px] gap-1 shrink-0"
+            // tap-compact: su telefono la regola dei 44px li gonfiava in blocchi.
+            // Telefono: 11px (a 10px, con i numeri a 9, non si leggevano).
+            className="tap-compact h-6 text-[10px] gap-1 shrink-0 max-sm:h-7 max-sm:text-[11px]"
             onClick={() => setFilter(opt.key)}
           >
             {opt.icon}
             {opt.label}
             {opt.key !== "all" && (
-              <span className="text-[9px] opacity-70">
+              <span className="text-[9px] opacity-70 max-sm:text-[11px]">
                 ({allEvents.filter((e) => e.category === opt.key).length})
               </span>
             )}
@@ -561,13 +563,14 @@ export function UnifiedContactTimeline({
       )}
 
       {/* Chat content */}
+      {/* Mobile: fondo chiaro da chat, lo spazio sopra lo scrittore è la conversazione. */}
       <div
         ref={scrollRef}
         onScroll={(e) => {
           const el = e.currentTarget;
           inFondoRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
         }}
-        className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 py-3"
+        className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 py-3 max-sm:bg-slate-50"
       >
         <div className="max-w-2xl mx-auto w-full">
         {isLoading ? (
@@ -579,10 +582,11 @@ export function UnifiedContactTimeline({
             ))}
           </div>
         ) : grouped.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 gap-2 text-muted-foreground">
+          <div className="flex flex-col items-center justify-center py-16 gap-2 text-muted-foreground max-sm:py-8">
             <MessageSquare className="h-8 w-8 opacity-40" />
             <p className="text-xs font-medium">Nessun messaggio</p>
-            <p className="text-[11px] text-center max-w-[240px]">
+            {/* Mobile no: la spiegazione sotto il vuoto. */}
+            <p className="text-[11px] text-center max-w-[240px] max-sm:hidden">
               Scrivi un messaggio qui sotto. Le risposte del cliente compariranno a sinistra.
             </p>
           </div>
@@ -592,7 +596,7 @@ export function UnifiedContactTimeline({
               <div key={group.label} className="space-y-2">
                 {/* Separatore data */}
                 <div className="flex justify-center">
-                  <span className="text-[10px] font-medium text-muted-foreground bg-muted/60 rounded-full px-2 py-0.5">
+                  <span className="text-[10px] font-medium text-muted-foreground bg-muted/60 rounded-full px-2 py-0.5 max-sm:text-[11px]">
                     {group.label}
                   </span>
                 </div>
@@ -614,7 +618,7 @@ export function UnifiedContactTimeline({
                           <p>{event.description || "(vuoto)"}</p>
                           <div
                             className={cn(
-                              "mt-0.5 flex items-center justify-end gap-1 text-[10px]",
+                              "mt-0.5 flex items-center justify-end gap-1 text-[10px] max-sm:text-[11px]",
                               out ? "text-emerald-100" : "text-muted-foreground",
                             )}
                           >
@@ -665,7 +669,7 @@ export function UnifiedContactTimeline({
                   // ── Evento di sistema (appuntamento / chiamata / attività) → riga piccola centrata ──
                   return (
                     <div key={event.id} className="flex justify-center">
-                      <div className="flex items-center gap-1.5 max-w-[90%] rounded-full bg-muted/40 px-2.5 py-1 text-[10px] text-muted-foreground">
+                      <div className="flex items-center gap-1.5 max-w-[90%] rounded-full bg-muted/40 px-2.5 py-1 text-[10px] text-muted-foreground max-sm:text-[11px]">
                         <span className={cn("h-4 w-4 rounded-full flex items-center justify-center shrink-0", event.color)}>
                           {event.icon}
                         </span>

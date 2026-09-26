@@ -64,6 +64,9 @@ const STEP_ICONS: Record<IdrWizardStepKey, React.FC<React.SVGProps<SVGSVGElement
   pdf: FileText,
 };
 
+/** Telefono: i nomi dei passi nello stepper, corti perché stiano tutti in una riga. */
+const ETICHETTA_BREVE_PASSO: Partial<Record<IdrWizardStepKey, string>> = { immobile: "Impianto" };
+
 export default function TermoidraulicoWizard() {
   const { id } = useParams<{ id?: string }>();
   const navigate = useNavigate();
@@ -359,7 +362,8 @@ export default function TermoidraulicoWizard() {
 
   return (
     <div className="pb-28 md:pb-20">
-      {model && <section className="mx-auto max-w-6xl space-y-2 p-4"><h1 className="text-xl font-semibold">Preventivo · {model.title}</h1><p className="text-sm text-muted-foreground">{model.summary}</p><p className="text-xs">Cliente → Immobile → Lavorazioni e prodotti → Prezzi e sconti → PDF dell'intervento</p>
+      {/* Telefono: niente testata del modello (il nome è nel passo dell'intervento); resta solo l'avviso, se c'è. */}
+      {model && <section className={cn("mx-auto max-w-6xl space-y-2 p-4 max-sm:space-y-0 max-sm:p-0 max-sm:pb-3", !(isNew && !modelSupport.supported) && "max-sm:hidden")}><div className="space-y-2 max-sm:hidden"><h1 className="text-xl font-semibold">Preventivo · {model.title}</h1><p className="text-sm text-muted-foreground">{model.summary}</p><p className="text-xs">Cliente → Immobile → Lavorazioni e prodotti → Prezzi e sconti → PDF dell'intervento</p></div>
         {isNew && !modelSupport.supported && <p role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm">{modelSupport.isLoading ? "Verifica del salvataggio…" : "Percorso predisposto: il salvataggio richiede ancora l'attivazione del database. Non inserire dati finché il collegamento non è attivo."}</p>}
       </section>}
       {/* Sticky header */}
@@ -429,42 +433,49 @@ export default function TermoidraulicoWizard() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <div className="sticky top-0 z-30 border-b bg-background/95 shadow-sm backdrop-blur">
+      {/* Il contenitore che scorre ha 12px (telefono) o 24px (computer) di spazio
+          in alto: con top-0 la testata si fermava lì e nella fessura sopra si
+          vedevano passare i campi. Da telefono è anche a tutta larghezza,
+          attaccata alla barra dell'app. */}
+      <div className="sticky top-0 z-30 border-b bg-background/95 shadow-sm backdrop-blur max-md:-mx-3 max-md:-mt-3 max-md:-top-3 md:-top-6">
         <div className="container mx-auto flex max-w-6xl items-center gap-2 p-2.5 sm:gap-3 sm:p-3">
           <Button variant="ghost" size="icon" onClick={() => { if (isNew && dirty) { setExitDialogOpen(true); return; } navigate("/azienda/termoidraulico"); }} className="h-10 w-10 shrink-0">
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <Hammer className="h-4 w-4 text-orange-600" />
-              <span className="font-semibold text-sm">
+            <div className="flex items-center gap-2 flex-wrap max-md:gap-y-0.5">
+              <Hammer className="h-4 w-4 text-orange-600 max-md:hidden" />
+              <span className="font-semibold text-sm max-md:order-1 max-md:text-[15px]">
                 {isNew ? model?.title ?? "Nuovo progetto" : detail?.progetto.code ?? "Progetto"}
               </span>
               {!isNew && compactText(detail?.progetto.cliente_nome, detail?.progetto.cliente_cognome) && (
-                <Badge variant="outline" className="text-[10px]">
+                <Badge variant="outline" className="text-[10px] max-md:order-4 max-md:border-0 max-md:p-0 max-md:text-xs max-md:font-normal max-md:text-muted-foreground">
                   {compactText(detail?.progetto.cliente_nome, detail?.progetto.cliente_cognome)}
                 </Badge>
               )}
               {!isNew && detail && (
-                <Badge variant="outline" className={cn("text-[10px]", statoMeta.className)}>
+                <Badge variant="outline" className={cn("text-[10px] max-md:order-2 max-md:text-[11px]", statoMeta.className)}>
                   {statoMeta.label}
                 </Badge>
               )}
+              {/* Telefono: codice e stato sulla prima riga, cliente e salvataggio sotto. */}
+              <span aria-hidden className="hidden h-0 basis-full max-md:order-3 max-md:block" />
               {upsertMut.isPending ? (
-                <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                <span className="text-[10px] text-muted-foreground flex items-center gap-1 max-md:order-5 max-md:text-xs">
                   <Loader2 className="h-3 w-3 animate-spin" /> Salvataggio…
                 </span>
               ) : dirty ? (
-                <span className="text-[10px] text-amber-600" title="Le modifiche verranno salvate automaticamente entro 2 secondi">
+                <span className="text-[10px] text-amber-600 max-md:order-5 max-md:text-xs" title="Le modifiche verranno salvate automaticamente entro 2 secondi">
                   ● Modifiche non salvate
                 </span>
               ) : savedLabel ? (
-                <span className="text-[10px] text-emerald-600 flex items-center gap-0.5">
+                <span className="text-[10px] text-emerald-600 flex items-center gap-0.5 max-md:hidden">
                   ✓ {savedLabel}
                 </span>
               ) : null}
             </div>
-            <p className="text-[11px] text-muted-foreground truncate">
+            {/* Telefono: il passo attivo lo dice già lo stepper qui sotto. */}
+            <p className="text-[11px] text-muted-foreground truncate max-md:hidden">
               Step {currentStepIndex + 1} di {IDR_WIZARD_STEPS.length} · {IDR_WIZARD_STEPS[currentStepIndex]?.label}
             </p>
           </div>
@@ -473,10 +484,10 @@ export default function TermoidraulicoWizard() {
           <div className="h-full bg-orange-600 transition-all duration-300" style={{ width: `${progress}%` }} />
         </div>
         {/* Stepper mobile */}
-        <div className="md:hidden overflow-x-auto border-t bg-background/95 px-3 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <nav className="flex min-w-max gap-2" aria-label="Step progetto termoidraulico">
+        <div className="md:hidden overflow-x-auto border-t bg-background/95 px-2 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {/* min-h-0: la regola globale dà 64px a ogni <nav> su telefono (pensata per la barra in basso). */}
+          <nav className="flex min-h-0 w-full min-w-max gap-1" aria-label="Step progetto termoidraulico">
             {IDR_WIZARD_STEPS.map((s, idx) => {
-              const Icon = STEP_ICONS[s.key];
               const isActive = s.key === currentStep;
               const isComplete = completion[s.key];
               const disabled = isNew && idx > 0;
@@ -487,26 +498,19 @@ export default function TermoidraulicoWizard() {
                   onClick={() => !disabled && handleStepClick(s.key)}
                   disabled={disabled}
                   aria-current={isActive ? "step" : undefined}
+                  // Telefono: tutti i passi in una riga, col nome corto: quelli
+                  // fatti in verde, l'attivo pieno, gli altri spenti.
                   className={cn(
-                    "inline-flex min-h-11 min-w-[92px] items-center justify-center gap-1.5 rounded-md border px-3 text-xs transition-colors",
+                    "tap-compact inline-flex h-8 flex-1 items-center justify-center rounded-full border px-1.5 text-[11px] font-medium transition-colors",
                     isActive
-                      ? "border-orange-300 bg-orange-100 text-orange-900 font-semibold"
+                      ? "border-orange-500 bg-orange-500 font-semibold text-white"
                       : isComplete
-                      ? "border-emerald-100 bg-emerald-50 text-emerald-800"
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
                       : "border-border bg-background text-muted-foreground",
                     disabled && "cursor-not-allowed opacity-50",
                   )}
                 >
-                  <span className={cn(
-                    "flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold",
-                    isActive ? "bg-orange-600 text-white" :
-                    isComplete ? "bg-emerald-100 text-emerald-700" :
-                    "bg-muted text-muted-foreground",
-                  )}>
-                    {isComplete && !isActive ? <CheckCircle2 className="h-3.5 w-3.5" /> : idx + 1}
-                  </span>
-                  <Icon className="h-3.5 w-3.5 shrink-0" />
-                  <span className="max-w-[72px] truncate">{s.label}</span>
+                  {ETICHETTA_BREVE_PASSO[s.key] ?? s.label}
                 </button>
               );
             })}
@@ -602,21 +606,31 @@ export default function TermoidraulicoWizard() {
                 progetto={{ ...detail.progetto, ...form }}
                 computo={detail.computo}
                 media={detail.media}
+                onIndietro={handleBack}
+                onVaiAlPasso={(passo) => void handleStepClick(passo)}
               />
             )}
             {currentStep === "pdf" && !(id && detail) && (
               <StepComingSoon step={currentStep} />
             )}
 
-            {/* Navigation footer: su telefono sopra la barra in basso, che altrimenti lo copre. */}
-            <div className="fixed inset-x-3 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-40 flex items-center justify-between gap-2 rounded-2xl border bg-background/95 px-3 py-2.5 shadow-[0_-8px_20px_rgba(15,23,42,0.08)] backdrop-blur md:static md:mx-0 md:rounded-none md:border-0 md:bg-transparent md:px-0 md:py-2 md:shadow-none md:backdrop-blur-0">
+            {/* Navigation footer: su telefono sopra la barra in basso, che altrimenti lo copre.
+                Sticky e non fixed: con un passo corto sta subito sotto il modulo
+                (fisso in fondo lasciava un vuoto a metà schermo), con uno lungo
+                resta attaccato in basso mentre si scorre. Lo sticky si misura dal
+                bordo interno del contenitore che scorre, che su telefono ha già
+                7rem di spazio in fondo (pb-28 in CompanyLayout): -1.5rem lo mette
+                a 5.5rem dal fondo dello schermo, appena sopra la barra in basso.
+                Al passo PDF, sul telefono, la barra la disegna lo step: indietro · PDF · invia. */}
+            <div className={cn("sticky bottom-[calc(env(safe-area-inset-bottom)-1.5rem)] z-40 flex items-center justify-between gap-2 rounded-2xl border bg-background/95 px-3 py-2.5 shadow-[0_-8px_20px_rgba(15,23,42,0.08)] backdrop-blur md:static md:mx-0 md:rounded-none md:border-0 md:bg-transparent md:px-0 md:py-2 md:shadow-none md:backdrop-blur-0", currentStep === "pdf" && id && detail && "max-md:hidden")}>
               <Button
                 variant="outline"
                 onClick={handleBack}
                 disabled={currentStepIndex === 0}
-                className="min-h-11 md:min-h-0"
+                className="min-h-11 md:min-h-0 max-md:w-11 max-md:shrink-0 max-md:px-0"
               >
-                <ArrowLeft className="h-4 w-4 mr-1" /> Indietro
+                {/* Telefono: solo la freccia, il pulsante principale prende la riga. */}
+                <ArrowLeft className="h-4 w-4 mr-1 max-md:mr-0" /> <span className="max-md:sr-only">Indietro</span>
               </Button>
               <Button
                 onClick={handleSaveAndContinue}

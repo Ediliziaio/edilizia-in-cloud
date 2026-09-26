@@ -101,11 +101,13 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
   const hasComputo = computo.length > 0;
 
   return (
-    <div className="space-y-3">
+    // Telefono: colonna con spazi fissi, così il titolo nascosto non lascia un buco in cima.
+    <div className="space-y-3 max-sm:flex max-sm:flex-col max-sm:gap-3 max-sm:space-y-0">
       {/* Header */}
-      <div>
+      {/* Telefono: il titolo lo dice già il passo in alto. */}
+      <div className="max-sm:hidden">
         <h2 className="text-sm font-semibold text-slate-900">Economia</h2>
-        <p className="text-[11px] text-muted-foreground">
+        <p className="text-[11px] text-muted-foreground max-sm:hidden">
           Sconto, IVA, eventuale detrazione fiscale e riepilogo del preventivo.{" "}
           {totali.prezzoManuale ? "I totali partono dal prezzo scritto nei Parametri." : "I totali derivano dal computo."}
         </p>
@@ -115,15 +117,17 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
         <div className="flex items-start gap-2.5 rounded-xl border border-amber-100 bg-amber-50/60 px-3 py-2.5">
           <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
           <p className="text-[11px] text-amber-900">
-            Il computo è ancora vuoto: torna allo step <span className="font-medium">Computo</span> per
-            aggiungere le lavorazioni. Qui vedrai i totali aggregati.
+            <span className="max-sm:hidden">Il computo è ancora vuoto: torna allo step <span className="font-medium">Computo</span> per
+            aggiungere le lavorazioni. Qui vedrai i totali aggregati.</span>
+            <span className="sm:hidden">Computo vuoto: le lavorazioni si aggiungono nel passo Computo.</span>
           </p>
         </div>
       )}
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_minmax(280px,360px)]">
-        {/* ─── Riepilogo per capitolo ─────────────────────────────────────── */}
-        <Card>
+        {/* ─── Riepilogo per capitolo — telefono: nascosto finché è vuoto ─── */}
+        {/* Telefono no: gli stessi capitoli coi totali stanno nel riepilogo del passo PDF. */}
+        <Card className="max-sm:hidden">
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-1.5 text-sm">
               <Euro className="h-4 w-4 text-orange-600" /> Riepilogo per capitolo
@@ -195,21 +199,24 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
                 imponibileLordo={imponibileLordo}
                 tipoLavoro="ristrutturazione"
               />
-              <PctField
-                id="rst-iva"
-                label="IVA"
-                value={form.iva_pct ?? 22}
-                onCommit={(v) => onChange("iva_pct", v)}
-                hint="In edilizia spesso 10% (ristrutturazione) o 4% (prima casa)."
-              />
-              <PctField
-                id="rst-detrazione"
-                label="Detrazione / bonus"
-                value={form.detrazione_pct ?? 0}
-                onCommit={(v) => onChange("detrazione_pct", v)}
-                hint="Opzionale: % di detrazione fiscale (es. 50%) — importo indicativo."
-                icon={BadgePercent}
-              />
+              {/* Telefono: IVA e detrazione affiancate. */}
+              <div className="space-y-3 max-sm:grid max-sm:grid-cols-2 max-sm:gap-2 max-sm:space-y-0">
+                <PctField
+                  id="rst-iva"
+                  label="IVA"
+                  value={form.iva_pct ?? 22}
+                  onCommit={(v) => onChange("iva_pct", v)}
+                  hint="In edilizia spesso 10% (ristrutturazione) o 4% (prima casa)."
+                />
+                <PctField
+                  id="rst-detrazione"
+                  label="Detrazione / bonus"
+                  value={form.detrazione_pct ?? 0}
+                  onCommit={(v) => onChange("detrazione_pct", v)}
+                  hint="Opzionale: % di detrazione fiscale (es. 50%) — importo indicativo."
+                  icon={BadgePercent}
+                />
+              </div>
               {/* Rata nel PDF: compare solo se la promo è configurata nel template,
                   con la rata concreta sul totale corrente (scelta per-preventivo). */}
               <FinanziamentoQuoteToggle
@@ -220,7 +227,7 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
               />
               {/* Preset incentivi ristrutturazione: 1-click → imposta detrazione + massimale di spesa */}
               <div>
-                <p className="mb-1 text-[10px] text-muted-foreground">Incentivi rapidi (con massimale):</p>
+                <p className="mb-1 text-[10px] text-muted-foreground max-sm:hidden">Incentivi rapidi (con massimale):</p>
                 <div className="flex flex-wrap gap-1.5">
                   {INCENTIVI_RISTRUTTURAZIONE.map((inc) => {
                     const active =
@@ -236,7 +243,7 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
                           onChange("massimale_detrazione", inc.massimale);
                         }}
                         className={cn(
-                          "rounded-full border px-2.5 py-1 text-[10px] font-medium transition-colors",
+                          "tap-compact rounded-full border px-2.5 py-1 text-[10px] font-medium transition-colors",
                           active
                             ? "border-emerald-300 bg-emerald-50 text-emerald-700"
                             : "border-slate-200 bg-white text-slate-600 hover:border-emerald-200 hover:bg-emerald-50/50",
@@ -254,7 +261,10 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
           {/* Totali complessivi */}
           <Card className="border-orange-200 bg-gradient-to-b from-orange-50/50 to-transparent">
             <CardContent className="space-y-2 p-4">
-              <SummaryRow label={totali.prezzoManuale ? "Prezzo del preventivo" : "Imponibile (lordo)"} value={imponibileLordo} muted />
+              {/* Telefono: senza sconto è uguale all'imponibile netto, una riga basta. */}
+              <div className={scontoGlobaleEur > 0 ? undefined : "max-sm:hidden"}>
+                <SummaryRow label={totali.prezzoManuale ? "Prezzo del preventivo" : "Imponibile (lordo)"} value={imponibileLordo} muted />
+              </div>
               {scontoGlobaleEur > 0 && (
                 <SummaryRow
                   label={`Sconto globale (${scontoPct.toLocaleString("it-IT")}%)`}
@@ -278,7 +288,7 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
                       {formatCurrency(detraibileEur)}
                     </span>
                   </div>
-                  <p className="mt-0.5 text-[10px] text-emerald-700/80">
+                  <p className="mt-0.5 text-[10px] text-emerald-700/80 max-sm:hidden">
                     {massimale != null
                       ? `Calcolata sul tetto di spesa di ${formatCurrency(massimale)}${oltreMassimale ? " — spesa oltre il massimale" : ""}. `
                       : "Stima su imponibile netto. "}
@@ -290,7 +300,7 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
           </Card>
 
           {/* Margine complessivo */}
-          <Card>
+          <Card className="max-sm:hidden">
             <CardContent className="flex items-center justify-between gap-2 p-4">
               <div className="flex items-center gap-2">
                 <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-600">
@@ -329,7 +339,7 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
 
       {/* ─── Riepilogo per ambiente (computo per stanza) ─── */}
       {perAmbiente.length > 0 && (
-        <Card>
+        <Card className="max-sm:hidden">
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-1.5 text-sm">
               <MapPin className="h-4 w-4 text-orange-600" /> Riepilogo per ambiente
@@ -347,7 +357,7 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
                 ))}
               </tbody>
             </table>
-            <p className="px-4 py-2 text-[10px] text-muted-foreground">
+            <p className="px-4 py-2 text-[10px] text-muted-foreground max-sm:hidden">
               Importi lordi per ambiente (pre sconto globale). Assegna l'ambiente alle voci nello step Computo (dettagli voce).
             </p>
           </CardContent>
@@ -390,7 +400,8 @@ function PctField({ id, label, value, onCommit, hint, icon: Icon }: PctFieldProp
           %
         </span>
       </div>
-      {hint && <p className="text-[10px] text-muted-foreground">{hint}</p>}
+      {/* Telefono no: i suggerimenti sotto i campi. */}
+      {hint && <p className="text-[10px] text-muted-foreground max-sm:hidden">{hint}</p>}
     </div>
   );
 }

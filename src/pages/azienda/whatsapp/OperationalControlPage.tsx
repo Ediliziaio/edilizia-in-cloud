@@ -332,30 +332,24 @@ export default function OperationalControlPage() {
   const pendingCount = openSignals.length + reportsToReview.length + messagesToReview.length;
 
   return (
-    <div className="space-y-6 p-4 md:p-6">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <h2 className="text-2xl font-semibold">Regia WhatsApp Operativa</h2>
-          <p className="text-sm text-muted-foreground">
-            La scrivania dove l'ufficio controlla quello che Silvio riceve da operai, magazzino e subappaltatori.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => controlQuery.refetch()} disabled={controlQuery.isFetching}>
-            {controlQuery.isFetching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-            Aggiorna
-          </Button>
-          <Button variant="outline" onClick={() => navigate("/azienda/whatsapp?tab=numeri")}>
-            Numeri WhatsApp
-          </Button>
-        </div>
+    // Da 768 niente margine proprio: lo dà l'hub (prima si sommava a quello
+    // della card che conteneva la pagina).
+    <div className="space-y-6 p-4 md:p-0">
+      {/* Solo «Aggiorna», a destra: il titolo «Regia WhatsApp Operativa» e la
+          frase ripetevano la scheda, e «Numeri WhatsApp» apriva la scheda Numeri
+          che sta già qui sopra. I due bottoni erano uno sotto l'altro a 1024. */}
+      <div className="flex justify-end">
+        <Button variant="outline" size="sm" onClick={() => controlQuery.refetch()} disabled={controlQuery.isFetching}>
+          {controlQuery.isFetching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+          Aggiorna
+        </Button>
       </div>
 
       <div className="grid gap-3 md:grid-cols-4">
         <MetricCard icon={Clock3} label="Da controllare" value={pendingCount} tone={pendingCount > 0 ? "amber" : "emerald"} />
         <MetricCard icon={AlertTriangle} label="Priorità alte" value={highPriorityMessages + openSignals.length} tone={highPriorityMessages + openSignals.length > 0 ? "amber" : "emerald"} />
         <MetricCard icon={FileText} label="Rapportini WhatsApp" value={data?.reports?.length ?? 0} />
-        <MetricCard icon={Bot} label="Tool AI ok" value={toolSuccessRate == null ? "—" : `${toolSuccessRate}%`} tone={toolSuccessRate != null && toolSuccessRate < 85 ? "amber" : "emerald"} />
+        <MetricCard icon={Bot} label="Azioni AI riuscite" value={toolSuccessRate == null ? "—" : `${toolSuccessRate}%`} tone={toolSuccessRate != null && toolSuccessRate < 85 ? "amber" : "emerald"} />
       </div>
 
       {data?.failures?.length ? (

@@ -2,7 +2,8 @@
  * Impianto visivo del pannello attività: fondo grigio chiaro e SEZIONI a card,
  * ognuna con una barra laterale nei colori del brand (blu navy #1E3A5F /
  * arancio #F97316) alternati, così l'occhio separa i blocchi senza leggere i
- * titoli. `ChipIcona` è l'icona su fondo colorato usata negli header di sezione
+ * titoli (su mobile la barra non c'e' e il riquadro è più stretto: lo spazio
+ * serve al contenuto). `ChipIcona` è l'icona su fondo colorato usata negli header di sezione
  * e accanto ai campi.
  */
 import type { ElementType, ReactNode } from "react";
@@ -10,9 +11,9 @@ import type { ElementType, ReactNode } from "react";
 export type Tono = "blu" | "arancio" | "neutro";
 
 const TONO_BARRA: Record<Tono, string> = {
-  blu: "border-l-[#1E3A5F]",
-  arancio: "border-l-orange-500",
-  neutro: "border-l-slate-300 dark:border-l-slate-600",
+  blu: "sm:border-l-[#1E3A5F]",
+  arancio: "sm:border-l-orange-500",
+  neutro: "sm:border-l-slate-300 sm:dark:border-l-slate-600",
 };
 
 const TONO_CHIP: Record<Tono, string> = {
@@ -35,7 +36,7 @@ export function SezioneCard({
   titolo?: string; icon?: ElementType; tono: Tono; azione?: ReactNode; children: ReactNode; className?: string;
 }) {
   return (
-    <section className={`rounded-xl border border-l-4 bg-card p-4 shadow-sm ${TONO_BARRA[tono]} ${className}`}>
+    <section className={`rounded-xl border bg-card p-3 shadow-sm sm:border-l-4 sm:p-4 ${TONO_BARRA[tono]} ${className}`}>
       {titolo && (
         <div className="mb-3 flex items-center gap-2">
           {icon && <ChipIcona icon={icon} tono={tono} />}

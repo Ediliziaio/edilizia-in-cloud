@@ -641,10 +641,10 @@ export default function QuoteApprovals() {
 
   return (
     <TooltipProvider delayDuration={200}>
-    <div className="space-y-5">
-      {/* Header */}
+    <div className="space-y-5 max-sm:space-y-3">
+      {/* Header — telefono: il titolo lo dice già la scheda in alto; resta il filtro. */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 max-sm:hidden">
           <div className="h-10 w-10 rounded-lg bg-orange-100 dark:bg-orange-950/40 flex items-center justify-center shrink-0">
             <Percent className="h-5 w-5 text-orange-600" />
           </div>
@@ -657,9 +657,9 @@ export default function QuoteApprovals() {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 max-sm:w-full">
           <Select value={spFilter} onValueChange={setSpFilter}>
-            <SelectTrigger className="w-[200px] h-9">
+            <SelectTrigger className="w-[200px] h-9 max-sm:w-full">
               <SelectValue placeholder="Tutti i commerciali" />
             </SelectTrigger>
             <SelectContent>
@@ -675,34 +675,34 @@ export default function QuoteApprovals() {
         </div>
       </div>
 
-      {/* KPI hero */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      {/* KPI hero — telefono: i quattro numeri su una riga, senza icone né note. */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 max-sm:grid-cols-4 max-sm:gap-1.5">
         <Card className="overflow-hidden border-l-4 border-l-orange-500">
-          <CardContent className="p-4">
+          <CardContent className="p-4 max-sm:px-2 max-sm:py-1.5">
             <div className="flex items-center justify-between">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide max-sm:truncate max-sm:text-[10px]">
                 In attesa
               </p>
-              <Clock className="h-4 w-4 text-orange-500" />
+              <Clock className="h-4 w-4 text-orange-500 max-sm:hidden" />
             </div>
-            <p className="text-2xl font-bold mt-1.5">{pending.length}</p>
-            <p className="text-xs text-muted-foreground mt-0.5 truncate">
+            <p className="text-2xl font-bold mt-1.5 max-sm:mt-0 max-sm:text-lg">{pending.length}</p>
+            <p className="text-xs text-muted-foreground mt-0.5 truncate max-sm:hidden">
               {pendingValue > 0 ? formatCurrency(pendingValue) + " da decidere" : "nessuna richiesta"}
             </p>
           </CardContent>
         </Card>
         <Card className="overflow-hidden border-l-4 border-l-emerald-500">
-          <CardContent className="p-4">
+          <CardContent className="p-4 max-sm:px-2 max-sm:py-1.5">
             <div className="flex items-center justify-between">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide max-sm:truncate max-sm:text-[10px]">
                 Approvate
               </p>
-              <Check className="h-4 w-4 text-emerald-500" />
+              <Check className="h-4 w-4 text-emerald-500 max-sm:hidden" />
             </div>
-            <p className="text-2xl font-bold mt-1.5">
+            <p className="text-2xl font-bold mt-1.5 max-sm:mt-0 max-sm:text-lg">
               {approvedCount + counterCount}
             </p>
-            <p className="text-xs text-muted-foreground mt-0.5">
+            <p className="text-xs text-muted-foreground mt-0.5 max-sm:hidden">
               {counterCount > 0
                 ? `${approvedCount} + ${counterCount} contro-proposte`
                 : "nel totale storico"}
@@ -710,15 +710,15 @@ export default function QuoteApprovals() {
           </CardContent>
         </Card>
         <Card className="overflow-hidden border-l-4 border-l-red-500">
-          <CardContent className="p-4">
+          <CardContent className="p-4 max-sm:px-2 max-sm:py-1.5">
             <div className="flex items-center justify-between">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide max-sm:truncate max-sm:text-[10px]">
                 Rifiutate
               </p>
-              <XCircle className="h-4 w-4 text-red-500" />
+              <XCircle className="h-4 w-4 text-red-500 max-sm:hidden" />
             </div>
-            <p className="text-2xl font-bold mt-1.5">{rejectedCount}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
+            <p className="text-2xl font-bold mt-1.5 max-sm:mt-0 max-sm:text-lg">{rejectedCount}</p>
+            <p className="text-xs text-muted-foreground mt-0.5 max-sm:hidden">
               {approvalRate !== null
                 ? `${approvalRate}% approval rate`
                 : "—"}
@@ -726,19 +726,19 @@ export default function QuoteApprovals() {
           </CardContent>
         </Card>
         <Card className="overflow-hidden border-l-4 border-l-primary">
-          <CardContent className="p-4">
+          <CardContent className="p-4 max-sm:px-2 max-sm:py-1.5">
             <div className="flex items-center justify-between">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                Sconto medio autorizzato
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide max-sm:truncate max-sm:text-[10px]">
+                Sconto<span className="max-sm:hidden"> medio autorizzato</span>
               </p>
-              <TrendingDown className="h-4 w-4 text-primary" />
+              <TrendingDown className="h-4 w-4 text-primary max-sm:hidden" />
             </div>
-            <p className="text-2xl font-bold mt-1.5 tabular-nums">
+            <p className="text-2xl font-bold mt-1.5 tabular-nums max-sm:mt-0 max-sm:text-lg">
               {avgApprovedDiscount !== null
                 ? `${avgApprovedDiscount.toFixed(1)}%`
                 : "—"}
             </p>
-            <p className="text-xs text-muted-foreground mt-0.5">
+            <p className="text-xs text-muted-foreground mt-0.5 max-sm:hidden">
               su {approvedCount + counterCount} autorizzat
               {approvedCount + counterCount === 1 ? "a" : "e"}
             </p>

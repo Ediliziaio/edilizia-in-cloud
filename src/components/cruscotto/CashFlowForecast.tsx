@@ -1,7 +1,5 @@
-import { TrendingUp, TrendingDown } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
 import type { FinanceData, CashFlowForecastData } from "@/hooks/useCruscottoData";
 import { useNavigate } from "react-router-dom";
 
@@ -10,16 +8,21 @@ function fmtEur(n: number) {
 }
 
 interface Props {
-  finance: FinanceData;
+  /** Non più mostrato qui: cash flow netto, burn rate e margine sono nel
+   *  «Bilancio mese corrente» accanto (FinanzaCashFlow). */
+  finance?: FinanceData;
   cashFlowForecast: CashFlowForecastData | null;
   isLoading?: boolean;
 }
 
-export function CashFlowForecast({ finance, cashFlowForecast, isLoading }: Props) {
+/**
+ * Incassi attesi a 30/60/90 giorni (scheda Finanza del Cruscotto). Prima si
+ * chiamava «Finanza & Cash Flow» come il blocco accanto e ne ripeteva il cash
+ * flow netto, entrate e uscite, il burn rate e il margine (79,4% da una parte
+ * «lordo», dall'altra «ponderato»): gli stessi numeri due volte a 20cm.
+ */
+export function CashFlowForecast({ cashFlowForecast, isLoading }: Props) {
   const navigate = useNavigate();
-  const burnRate = finance.thisMonthOutflow > 0
-    ? finance.thisMonthOutflow / new Date().getDate()
-    : 0;
 
   if (isLoading) return (
     <Card>
@@ -36,50 +39,18 @@ export function CashFlowForecast({ finance, cashFlowForecast, isLoading }: Props
   return (
     <Card>
       <CardHeader className="pb-2 flex flex-row items-center justify-between">
-        <CardTitle className="text-sm font-semibold">Finanza & Cash Flow</CardTitle>
+        <CardTitle className="text-sm font-semibold">Incassi attesi</CardTitle>
         <button
-          onClick={() => navigate("/azienda/costi")}
+          onClick={() => navigate("/azienda/scadenzario")}
           className="text-xs text-primary hover:text-primary/80 transition-colors"
         >
           Dettaglio →
         </button>
       </CardHeader>
       <CardContent className="space-y-3">
-        {/* Cash Flow Net */}
-        <div className="flex items-center gap-6">
-          <div>
-            <p className="text-xs text-muted-foreground">Cash Flow Netto (mese)</p>
-            <p className={cn("text-2xl font-bold", finance.cashFlowNet >= 0 ? "text-green-600" : "text-destructive")}>
-              {finance.cashFlowNet >= 0 ? "+" : ""}{fmtEur(finance.cashFlowNet)}
-            </p>
-          </div>
-          <div className="flex gap-4">
-            <div className="flex items-center gap-1">
-              <TrendingUp className="w-3.5 h-3.5 text-green-500" />
-              <span className="text-xs text-muted-foreground">{fmtEur(finance.thisMonthIncome)}</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <TrendingDown className="w-3.5 h-3.5 text-destructive" />
-              <span className="text-xs text-muted-foreground">{fmtEur(finance.thisMonthOutflow)}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Burn rate + margin */}
-        <div className="flex gap-6">
-          <div>
-            <p className="text-xs text-muted-foreground">Burn rate</p>
-            <p className="text-sm font-semibold text-foreground">{fmtEur(burnRate)}/gg</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Margine lordo</p>
-            <p className="text-sm font-semibold text-foreground">{finance.marginThisMonth.toFixed(1)}%</p>
-          </div>
-        </div>
-
         {/* Forecast bars */}
         <div className="space-y-2">
-          <p className="text-xs text-muted-foreground font-medium">Incassi attesi (rate di pagamento programmate)</p>
+          <p className="text-xs text-muted-foreground">Rate di pagamento programmate</p>
           {forecast.incoming90 > 0 ? (
             <div className="space-y-2">
               {[
@@ -90,7 +61,7 @@ export function CashFlowForecast({ finance, cashFlowForecast, isLoading }: Props
                 <div key={label} className="space-y-1">
                   <div className="flex justify-between text-xs">
                     <span className="text-muted-foreground">{label}</span>
-                    <span className="font-medium text-foreground">{fmtEur(value)}</span>
+                    <span className="font-medium tabular-nums text-foreground">{fmtEur(value)}</span>
                   </div>
                   <div className="h-2 bg-muted rounded-full overflow-hidden">
                     <div

@@ -42,6 +42,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
+import { BottoneFiltri, PannelloFiltri } from "@/components/mobile/FiltriMobile";
 import { DEFAULT_CALENDAR_EVENT_COLORS, normalizeCalendarEventColors, orderColor, type CalendarEventColorKey, type CalendarColorMode, type CalendarAvvisiPagamento } from "@/lib/calendarUtils";
 import { messaggioRata } from "@/lib/orders/rateEventi";
 
@@ -63,9 +64,13 @@ type CalendarWarehouseItem = {
 
 const calendarViews: CalendarViewType[] = ["month", "week", "day", "gantt", "heatmap"];
 
+// Mobile: solo il mese, che su telefono è un calendario a pallini con sotto
+// l'agenda del giorno toccato (CalendarMonthView). Le griglie orarie di
+// settimana e giorno, il carico e il Gantt su 375px non si leggevano (25/09):
+// restano al computer, e un link a una di quelle viste apre il mese.
 const normalizeCalendarView = (value: string | null | undefined, isMobile: boolean): CalendarViewType => {
   if (!value || !calendarViews.includes(value as CalendarViewType)) return "month";
-  if (isMobile && value === "gantt") return "month";
+  if (isMobile) return "month";
   return value as CalendarViewType;
 };
 
@@ -100,6 +105,7 @@ function CalendarInner() {
   const [appointmentDialogOpen, setAppointmentDialogOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [filtriMobileAperti, setFiltriMobileAperti] = useState(false);
   // Layer visibility state — initialize from localStorage (parse once)
   const savedPrefs = useMemo(() => {
     try { return JSON.parse(localStorage.getItem("calendar-layer-prefs") || "{}"); }
@@ -1181,9 +1187,11 @@ function CalendarInner() {
   return (
     <div className="space-y-4">
       {/* Header compatto: titolo + toggle viste + azioni */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <h1 className="text-2xl font-bold text-foreground">Calendario Lavori</h1>
+      {/* Mobile: titolo, avvisi, filtri e «oggi» su una riga; niente selettore
+          di viste (c'è solo il mese) né «+» (lo ha l'agenda del giorno). */}
+      <div className="flex flex-wrap items-center justify-between gap-3 max-sm:gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <h1 className="text-2xl font-bold text-foreground max-sm:text-lg">Calendario<span className="hidden xl:inline"> Lavori</span></h1>
           {conflictCount > 0 && (
             <Badge
               variant="destructive"
@@ -1195,13 +1203,41 @@ function CalendarInner() {
               {conflictCount} conflitti
             </Badge>
           )}
+          {/* Mobile: al posto del riquadro «Da pianificare». */}
+          {viewStats.unplanned > 0 && (
+            <Badge
+              variant="outline"
+              className="cursor-pointer border-amber-300 bg-amber-50 text-amber-800 sm:hidden"
+              onClick={() => setUnplannedOpen(true)}
+            >
+              {viewStats.unplanned} da pianificare
+            </Badge>
+          )}
         </div>
 
+        {/* Sotto 1280 le cinque viste con etichetta non stavano accanto a
+            titolo e azioni e la testata andava su due righe: lì diventano un
+            menu a tendina, da 1280 restano i bottoni. */}
+        {!isMobile && (
+          <Select value={view} onValueChange={(value) => setView(value as CalendarViewType)}>
+            <SelectTrigger className="h-9 w-[128px] xl:hidden" aria-label="Vista del calendario">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="month">Mese</SelectItem>
+              <SelectItem value="week">Settimana</SelectItem>
+              <SelectItem value="day">Giorno</SelectItem>
+              <SelectItem value="heatmap">Carico</SelectItem>
+              <SelectItem value="gantt">Gantt</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
+        {!isMobile && (
         <ToggleGroup
           type="single"
           value={view}
           onValueChange={(value) => value && setView(value as CalendarViewType)}
-          className="bg-muted rounded-lg p-1"
+          className="bg-muted rounded-lg p-1 hidden xl:flex"
         >
           <ToggleGroupItem value="month" aria-label="Vista Mese" className="gap-1.5 px-2.5">
             <CalendarIcon className="h-4 w-4" />
@@ -1219,18 +1255,22 @@ function CalendarInner() {
             <BarChart3 className="h-4 w-4" />
             <span className="hidden sm:inline text-xs">Carico</span>
           </ToggleGroupItem>
-          {!isMobile && (
-            <ToggleGroupItem value="gantt" aria-label="Vista Gantt" className="gap-1.5 px-2.5">
-              <GanttChart className="h-4 w-4" />
-              <span className="hidden sm:inline text-xs">Gantt</span>
-            </ToggleGroupItem>
-          )}
+          <ToggleGroupItem value="gantt" aria-label="Vista Gantt" className="gap-1.5 px-2.5">
+            <GanttChart className="h-4 w-4" />
+            <span className="hidden sm:inline text-xs">Gantt</span>
+          </ToggleGroupItem>
         </ToggleGroup>
+        )}
 
         <div className="flex items-center gap-2">
+          <BottoneFiltri
+            className="sm:hidden"
+            attivi={[statusFilter, customerFilter, employeeFilter, externalTeamFilter, assignedToFilter].filter(f => f !== "all").length}
+            onClick={() => setFiltriMobileAperti(true)}
+          />
           <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
             <CollapsibleTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-1.5 relative">
+              <Button variant="outline" size="sm" className="gap-1.5 relative max-sm:hidden">
                 <SlidersHorizontal className="h-4 w-4" />
                 <span className="hidden sm:inline">Filtri</span>
                 {hasActiveFilters && (
@@ -1242,40 +1282,42 @@ function CalendarInner() {
             </CollapsibleTrigger>
           </Collapsible>
 
-          <Button variant="outline" size="sm" onClick={goToToday} className="gap-1.5">
+          <Button variant="outline" size="sm" onClick={goToToday} className="gap-1.5 tap-compact max-sm:h-9 max-sm:w-9 max-sm:p-0" aria-label="Oggi">
             <CalendarDays className="h-4 w-4" />
             <span className="hidden sm:inline">Oggi</span>
           </Button>
 
           {/* In sola lettura il calendario si consulta: la policy su appointments rifiuta le scritture. */}
-          <Button variant="default" size="sm" onClick={() => setAppointmentDialogOpen(true)} disabled={permissions.solaLettura} title={permissions.solaLettura ? "Sei in sola lettura" : undefined} className="gap-1.5">
+          <Button variant="default" size="sm" onClick={() => setAppointmentDialogOpen(true)} disabled={permissions.solaLettura} title={permissions.solaLettura ? "Sei in sola lettura" : undefined} className="gap-1.5 max-sm:hidden">
             <Plus className="h-4 w-4 sm:mr-1.5" />
             <span className="hidden sm:inline">Appuntamento</span>
           </Button>
 
+          {/* Bollini «Sync» solo da 1536: altrove rubavano posto alle azioni. */}
           {isGoogleConnected && (
-            <Badge variant="outline" className="gap-1 text-green-600 border-green-300 hidden sm:flex">
+            <Badge variant="outline" className="gap-1 text-green-600 border-green-300 hidden 2xl:flex">
               <CheckCircle2 className="h-3 w-3" />
               <span className="text-xs">Google Sync</span>
             </Badge>
           )}
           {isAppleConnected && (
-            <Badge variant="outline" className="gap-1 text-gray-600 border-gray-300 hidden sm:flex">
+            <Badge variant="outline" className="gap-1 text-gray-600 border-gray-300 hidden 2xl:flex">
               <CheckCircle2 className="h-3 w-3" />
               <span className="text-xs">Apple Sync</span>
             </Badge>
           )}
           {isOutlookConnected && (
-            <Badge variant="outline" className="gap-1 text-indigo-700 border-indigo-300 hidden sm:flex">
+            <Badge variant="outline" className="gap-1 text-indigo-700 border-indigo-300 hidden 2xl:flex">
               <CheckCircle2 className="h-3 w-3" />
               <span className="text-xs">Outlook Sync</span>
             </Badge>
           )}
 
-          {/* Secondary actions dropdown */}
+          {/* Secondary actions dropdown. Mobile no: l'export iCal e la sync
+              manuale restano al computer, i livelli si aprono dai filtri. */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" className="max-sm:hidden">
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -1327,9 +1369,9 @@ function CalendarInner() {
         </div>
       </div>
 
-      {/* Filtri attivi come chip */}
+      {/* Filtri attivi come chip (mobile: il numero è sul bottone dei filtri) */}
       {hasActiveFilters && (
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-1.5 max-sm:hidden">
           {statusFilter !== "all" && (
             <Badge variant="secondary" className="gap-1 pl-2 pr-1 py-1">
               Stato: {statuses.find(s => s.id === statusFilter)?.name ?? statusFilter}
@@ -1376,18 +1418,20 @@ function CalendarInner() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
+      {/* Mobile no: i numeri del mese spingevano il calendario a metà schermo;
+          conflitti e «da pianificare» sono badge accanto al titolo. */}
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-5 max-sm:hidden">
         <div className="rounded-lg border bg-card px-3 py-2">
-          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Lavori pianificati</p>
-          {isStatsLoading ? <Skeleton className="mt-2 h-6 w-12" /> : <p className="mt-1 text-xl font-bold">{viewStats.scheduled}</p>}
+          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Lavori<span className="max-lg:hidden"> pianificati</span></p>
+          {isStatsLoading ? <Skeleton className="mt-2 h-6 w-12" /> : <p className="mt-1 text-xl font-bold tabular-nums">{viewStats.scheduled}</p>}
         </div>
         <div className="rounded-lg border bg-card px-3 py-2">
           <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Giornate lavoro</p>
-          {isStatsLoading ? <Skeleton className="mt-2 h-6 w-12" /> : <p className="mt-1 text-xl font-bold">{viewStats.workDays}</p>}
+          {isStatsLoading ? <Skeleton className="mt-2 h-6 w-12" /> : <p className="mt-1 text-xl font-bold tabular-nums">{viewStats.workDays}</p>}
         </div>
         <div className="rounded-lg border bg-card px-3 py-2">
           <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Appuntamenti</p>
-          {isStatsLoading ? <Skeleton className="mt-2 h-6 w-12" /> : <p className="mt-1 text-xl font-bold">{viewStats.appointments}</p>}
+          {isStatsLoading ? <Skeleton className="mt-2 h-6 w-12" /> : <p className="mt-1 text-xl font-bold tabular-nums">{viewStats.appointments}</p>}
         </div>
         <button
           type="button"
@@ -1398,7 +1442,7 @@ function CalendarInner() {
           )}
         >
           <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Da pianificare</p>
-          {isStatsLoading ? <Skeleton className="mt-2 h-6 w-12" /> : <p className={cn("mt-1 text-xl font-bold", viewStats.unplanned > 0 && "text-amber-700")}>{viewStats.unplanned}</p>}
+          {isStatsLoading ? <Skeleton className="mt-2 h-6 w-12" /> : <p className={cn("mt-1 text-xl font-bold tabular-nums", viewStats.unplanned > 0 && "text-amber-700")}>{viewStats.unplanned}</p>}
         </button>
         <button
           type="button"
@@ -1409,12 +1453,12 @@ function CalendarInner() {
           )}
         >
           <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Conflitti</p>
-          {isStatsLoading ? <Skeleton className="mt-2 h-6 w-12" /> : <p className={cn("mt-1 text-xl font-bold", viewStats.conflicts > 0 && "text-red-700")}>{viewStats.conflicts}</p>}
+          {isStatsLoading ? <Skeleton className="mt-2 h-6 w-12" /> : <p className={cn("mt-1 text-xl font-bold tabular-nums", viewStats.conflicts > 0 && "text-red-700")}>{viewStats.conflicts}</p>}
         </button>
       </div>
 
       {viewStats.ordersWithoutTeam > 0 && (
-        <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+        <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 max-sm:hidden">
           <AlertTriangle className="h-4 w-4 shrink-0" />
           <span>{viewStats.ordersWithoutTeam} lavori pianificati non hanno ancora operai o subappaltatori assegnati.</span>
         </div>
@@ -1484,13 +1528,80 @@ function CalendarInner() {
         </Sheet>
       )}
 
-      {/* Pannello filtri collassabile */}
+      {/* Filtri su telefono: gli stessi del pannello desktop, in un foglio dal
+          basso; da qui si aprono anche livelli e colori. */}
+      <PannelloFiltri
+        aperto={filtriMobileAperti}
+        onAperto={setFiltriMobileAperti}
+        attivi={[statusFilter, customerFilter, employeeFilter, externalTeamFilter, assignedToFilter].filter(f => f !== "all").length}
+        onAzzera={resetFilters}
+      >
+        <div className="grid grid-cols-2 gap-2">
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Stato" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutti gli stati</SelectItem>
+              {statuses.map((status) => (
+                <SelectItem key={status.id} value={status.id}>{status.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={customerFilter} onValueChange={setCustomerFilter}>
+            <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Cliente" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutti i clienti</SelectItem>
+              {uniqueCustomers.map((customer) => (
+                <SelectItem key={customer.id} value={customer.id}>{customer.last_name} {customer.first_name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={employeeFilter} onValueChange={setEmployeeFilter}>
+            <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Operaio" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutti gli operai</SelectItem>
+              {workEmployees.map((emp) => (
+                <SelectItem key={emp.id} value={emp.id}>{emp.last_name} {emp.first_name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={externalTeamFilter} onValueChange={setExternalTeamFilter}>
+            <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Squadra" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutte le squadre</SelectItem>
+              {externalTeams.map((team) => (
+                <SelectItem key={team.id} value={team.id}>{team.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={assignedToFilter} onValueChange={setAssignedToFilter}>
+            <SelectTrigger className="col-span-2 h-9 text-xs"><SelectValue placeholder="Assegnato a" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutti gli utenti</SelectItem>
+              {assignableWorkUsers.map((u) => (
+                <SelectItem key={u.id} value={u.id}>{u.last_name} {u.first_name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full gap-1.5"
+          onClick={() => { setFiltriMobileAperti(false); setMobileLayerOpen(true); }}
+        >
+          <Eye className="h-4 w-4" /> Livelli e colori
+        </Button>
+      </PannelloFiltri>
+
+      {/* Pannello filtri collassabile. Da 640 è una riga di filtri senza
+          riquadro, larghi quanto il testo: a 180px l'uno andavano su due righe
+          anche a 1024. */}
       <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
         <CollapsibleContent>
-          <div className="rounded-lg border bg-card p-4 space-y-3">
-            <div className="grid grid-cols-1 sm:flex sm:flex-wrap items-center gap-3">
+          <div className="rounded-lg border bg-card p-4 space-y-3 sm:space-y-0 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0">
+            <div className="grid grid-cols-1 sm:flex sm:flex-wrap items-center gap-3 sm:gap-2">
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full sm:w-[170px]">
+                <SelectTrigger className="w-full sm:h-9 sm:w-auto sm:gap-2">
                   <SelectValue placeholder="Tutti gli stati" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1507,7 +1618,7 @@ function CalendarInner() {
               </Select>
 
               <Select value={customerFilter} onValueChange={setCustomerFilter}>
-                <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectTrigger className="w-full sm:h-9 sm:w-auto sm:gap-2">
                   <SelectValue placeholder="Tutti i clienti" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1521,7 +1632,7 @@ function CalendarInner() {
               </Select>
 
               <Select value={employeeFilter} onValueChange={setEmployeeFilter}>
-                <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectTrigger className="w-full sm:h-9 sm:w-auto sm:gap-2">
                   <SelectValue placeholder="Tutti gli operai" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1535,7 +1646,7 @@ function CalendarInner() {
               </Select>
 
               <Select value={externalTeamFilter} onValueChange={setExternalTeamFilter}>
-                <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectTrigger className="w-full sm:h-9 sm:w-auto sm:gap-2">
                   <SelectValue placeholder="Tutte le squadre" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1549,7 +1660,7 @@ function CalendarInner() {
               </Select>
 
               <Select value={assignedToFilter} onValueChange={setAssignedToFilter}>
-                <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectTrigger className="w-full sm:h-9 sm:w-auto sm:gap-2">
                   <SelectValue placeholder="Assegnato a" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1570,7 +1681,9 @@ function CalendarInner() {
               )}
             </div>
 
-            <div className="flex items-center gap-2">
+            {/* Da 640 i due conteggi ripetevano i riquadri «Lavori
+                pianificati» e «Da pianificare» qui sopra. */}
+            <div className="flex items-center gap-2 sm:hidden">
               <Badge variant="secondary" className="font-normal">
                 {scheduledOrders.length} {scheduledOrders.length === 1 ? "ordine" : "ordini"}
               </Badge>
@@ -1802,12 +1915,12 @@ function CalendarInner() {
               <AlertTriangle className="h-5 w-5 text-destructive" />
               Conflitti risorse ({conflictCount})
             </SheetTitle>
-            <SheetDescription>
+            <SheetDescription className="max-sm:sr-only">
               Operai, squadre e appuntamenti collegati alle commesse con assegnazioni incoerenti.
             </SheetDescription>
           </SheetHeader>
           {conflicts.length > 0 && (
-            <div className="mt-3 grid grid-cols-3 gap-2">
+            <div className="mt-3 grid grid-cols-3 gap-2 max-sm:hidden">
               <div className="rounded-lg border bg-card px-2 py-1.5">
                 <p className="text-[10px] uppercase text-muted-foreground">Operai</p>
                 <p className="font-semibold">{conflictBreakdown.employees}</p>
@@ -1822,12 +1935,15 @@ function CalendarInner() {
               </div>
             </div>
           )}
-          <div className="flex-1 overflow-y-auto space-y-3 mt-4">
+          {/* Mobile: schede compatte, senza il bottone «Notifica» (sempre spento
+              finché non ci sono le email dei dipendenti, e il suggerimento non si
+              vede col tocco). */}
+          <div className="flex-1 overflow-y-auto space-y-3 mt-4 max-sm:mt-2 max-sm:space-y-2">
             {conflicts.map((conflict, idx) => (
               <div
                 key={`${conflict.date}-${conflict.resourceType}-${conflict.resourceId}-${idx}`}
                 className={cn(
-                  "border rounded-lg p-3 space-y-2",
+                  "border rounded-lg p-3 space-y-2 max-sm:space-y-1.5 max-sm:px-2.5 max-sm:py-2",
                   conflict.severity === "warning"
                     ? "border-amber-300 bg-amber-50"
                     : "border-destructive/30 bg-destructive/5"
@@ -1841,13 +1957,13 @@ function CalendarInner() {
                         {conflict.resourceType === "team" ? "Squadra" : conflict.resourceType === "assignment" ? "Assegnazione" : "Operaio"}
                       </Badge>
                     </div>
-                    <p className="text-xs text-muted-foreground">{conflict.date}</p>
-                    <p className="text-xs text-muted-foreground mt-1">{conflict.reason}</p>
+                    <p className="text-xs text-muted-foreground max-sm:text-[11px]">{conflict.date}</p>
+                    <p className="text-xs text-muted-foreground mt-1 max-sm:mt-0 max-sm:text-[11px]">{conflict.reason}</p>
                   </div>
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <span>
+                        <span className="max-sm:hidden">
                           <Button
                             variant="outline"
                             size="sm"
@@ -1866,7 +1982,7 @@ function CalendarInner() {
                 </div>
                 <div className="space-y-1">
                   {conflict.events.map((evt, ei) => (
-                    <div key={ei} className={`text-xs px-2 py-0.5 rounded flex items-center gap-1.5 ${evt.type === "order" ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300" : "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300"}`}>
+                    <div key={ei} className={`text-xs px-2 py-0.5 rounded flex items-center gap-1.5 max-sm:text-[11px] ${evt.type === "order" ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300" : "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300"}`}>
                       <span>{evt.label}</span>
                     </div>
                   ))}

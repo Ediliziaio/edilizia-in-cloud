@@ -23,6 +23,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { formatCurrency } from "@/lib/formatters";
+import { CampoQuantita } from "./CampoQuantita";
 import type { TariffaPro } from "@/hooks/usePreventivoCosti";
 import type { QuoteItemPro } from "@/types/quoteItem";
 import type {
@@ -212,20 +213,22 @@ export function ArticleConfigurator({
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
-        <Button variant="ghost" size="sm" onClick={onBack}>
+        <Button variant="ghost" size="sm" onClick={onBack} className="max-sm:-ml-2 max-sm:h-8">
           <ArrowLeft className="mr-1 h-4 w-4" /> Prodotti
         </Button>
-        <span className="text-sm text-muted-foreground">›</span>
-        <span className="text-sm font-medium">{article.name}</span>
+        {/* Telefono: il nome è già il titolo del foglio. */}
+        <span className="text-sm text-muted-foreground max-sm:hidden">›</span>
+        <span className="text-sm font-medium max-sm:hidden">{article.name}</span>
         {article.sku && (
-          <span className="text-xs text-muted-foreground">
+          <span className="text-xs text-muted-foreground max-sm:hidden">
             ({article.sku})
           </span>
         )}
       </div>
 
       {article.description && (
-        <p className="text-sm text-muted-foreground">{article.description}</p>
+        // Telefono no: la descrizione del listino si legge dal computer.
+        <p className="text-sm text-muted-foreground max-sm:hidden">{article.description}</p>
       )}
 
       {showMisure && (
@@ -255,18 +258,7 @@ export function ArticleConfigurator({
         </div>
       )}
 
-      <div>
-        <Label htmlFor="quantita">Quantità</Label>
-        <Input
-          id="quantita"
-          type="number"
-          inputMode="numeric"
-          value={quantita}
-          onChange={(e) => setQuantita(e.target.value)}
-          min={1}
-          className="max-w-[140px]"
-        />
-      </div>
+      <CampoQuantita value={quantita} onChange={setQuantita} />
 
       {item.ha_montaggio_automatico && item.posa_linked && (
         <div className="flex items-start gap-2 rounded-md border bg-muted/40 p-3">
@@ -279,7 +271,7 @@ export function ArticleConfigurator({
             <Label htmlFor="includi-posa" className="cursor-pointer">
               Includi montaggio nel preventivo
             </Label>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground max-sm:hidden">
               Il montaggio resterà legato a questo prodotto: cambiando quantità
               o eliminandolo, anche il montaggio verrà aggiornato.
             </p>
@@ -288,14 +280,15 @@ export function ArticleConfigurator({
       )}
 
       <Card>
-        <CardContent className="space-y-2 pt-4">
+        <CardContent className="space-y-2 pt-4 max-sm:space-y-1.5 max-sm:p-3">
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Prezzo unitario</span>
             <span className="font-medium">
               {formatCurrency(unitPriceVendita)}
             </span>
           </div>
-          <div className="flex justify-between text-sm">
+          {/* Telefono: prezzo unitario e totale bastano. */}
+          <div className="flex justify-between text-sm max-sm:hidden">
             <span className="text-muted-foreground">Quantità × prezzo</span>
             <span className="font-medium">{formatCurrency(totaleVendita)}</span>
           </div>
@@ -313,10 +306,11 @@ export function ArticleConfigurator({
       </Card>
 
       <div className="flex justify-end gap-2">
-        <Button variant="outline" onClick={onBack}>
+        {/* Telefono no: «← Prodotti» in alto e la X fanno già da Annulla. */}
+        <Button variant="outline" onClick={onBack} className="max-sm:hidden">
           Annulla
         </Button>
-        <Button disabled={!canConfirm} onClick={handleConfirm}>
+        <Button disabled={!canConfirm} onClick={handleConfirm} className="max-sm:w-full">
           <Check className="mr-1 h-4 w-4" />
           {confirmLabel}
         </Button>

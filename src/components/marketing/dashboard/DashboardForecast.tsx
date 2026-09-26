@@ -57,7 +57,7 @@ export const DashboardForecast = memo(function DashboardForecast({ kpi, isLoadin
                   </div>
                   <div className="text-2xl font-black">{fmtCur(pipeline)}</div>
                   {weightedPipeline > 0 && (
-                    <div className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1">
+                    <div className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1 max-md:text-[11px]">
                       <Scale className="h-3 w-3" />
                       Pesata: {fmtCur(weightedPipeline)}
                     </div>
@@ -75,7 +75,7 @@ export const DashboardForecast = memo(function DashboardForecast({ kpi, isLoadin
                   </div>
                   <div className="text-2xl font-black">{fmtCur(forecast)}</div>
                   {forecast > 0 && (
-                    <div className="text-[10px] text-muted-foreground mt-1">
+                    <div className="text-[10px] text-muted-foreground mt-1 max-md:text-[11px]">
                       Range: {fmtCur(forecastMin)} – {fmtCur(forecastMax)}
                     </div>
                   )}
@@ -118,17 +118,17 @@ export const DashboardForecast = memo(function DashboardForecast({ kpi, isLoadin
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-center">
               <ArrowRightLeft className="h-3.5 w-3.5 mx-auto mb-1 text-muted-foreground" />
               <div className="text-lg font-bold">{leadToAppt}%</div>
-              <div className="text-[10px] text-muted-foreground">Lead → App.</div>
+              <div className="text-[10px] text-muted-foreground max-md:text-[11px]">Lead → App.</div>
             </div>
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-center">
               <ArrowRightLeft className="h-3.5 w-3.5 mx-auto mb-1 text-muted-foreground" />
               <div className="text-lg font-bold">{apptToContract}%</div>
-              <div className="text-[10px] text-muted-foreground">App. → Contratto</div>
+              <div className="text-[10px] text-muted-foreground max-md:text-[11px]">App. → Contratto</div>
             </div>
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-center">
               <ArrowRightLeft className="h-3.5 w-3.5 mx-auto mb-1 text-muted-foreground" />
               <div className="text-lg font-bold">{leadToContract}%</div>
-              <div className="text-[10px] text-muted-foreground">Lead → Contratto</div>
+              <div className="text-[10px] text-muted-foreground max-md:text-[11px]">Lead → Contratto</div>
             </div>
           </div>
 
@@ -142,7 +142,7 @@ export const DashboardForecast = memo(function DashboardForecast({ kpi, isLoadin
                     <Clock className="h-4 w-4 text-orange-500 shrink-0" />
                     <div>
                       <div className="text-sm font-bold">{avgFirstContact}h</div>
-                      <div className="text-[10px] text-muted-foreground">1° Contatto</div>
+                      <div className="text-[10px] text-muted-foreground max-md:text-[11px]">1° Contatto</div>
                     </div>
                   </div>
                 </TooltipTrigger>
@@ -154,7 +154,7 @@ export const DashboardForecast = memo(function DashboardForecast({ kpi, isLoadin
                     <Clock className="h-4 w-4 text-blue-500 shrink-0" />
                     <div>
                       <div className="text-sm font-bold">{avgLeadToWon}gg</div>
-                      <div className="text-[10px] text-muted-foreground">Lead → Won (media)</div>
+                      <div className="text-[10px] text-muted-foreground max-md:text-[11px]">Lead → Won (media)</div>
                     </div>
                   </div>
                 </TooltipTrigger>
@@ -166,7 +166,7 @@ export const DashboardForecast = memo(function DashboardForecast({ kpi, isLoadin
                     <Clock className="h-4 w-4 text-violet-500 shrink-0" />
                     <div>
                       <div className="text-sm font-bold">{medianLeadToWon}gg</div>
-                      <div className="text-[10px] text-muted-foreground">Lead → Won (mediana)</div>
+                      <div className="text-[10px] text-muted-foreground max-md:text-[11px]">Lead → Won (mediana)</div>
                     </div>
                   </div>
                 </TooltipTrigger>
@@ -178,7 +178,7 @@ export const DashboardForecast = memo(function DashboardForecast({ kpi, isLoadin
                     <Clock className="h-4 w-4 text-green-500 shrink-0" />
                     <div>
                       <div className="text-sm font-bold">{avgTimeInPipeline}gg</div>
-                      <div className="text-[10px] text-muted-foreground">Tempo in Pipeline</div>
+                      <div className="text-[10px] text-muted-foreground max-md:text-[11px]">Tempo in Pipeline</div>
                     </div>
                   </div>
                 </TooltipTrigger>

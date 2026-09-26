@@ -103,7 +103,7 @@ export default function MezziList() {
 
   return (
     <div className="space-y-3 sm:space-y-4">
-      <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-3 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-5">
+      <div className="flex flex-col gap-3 testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-3 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-5">
         <div className="flex min-w-0 items-start gap-2.5 sm:gap-3">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)] sm:h-10 sm:w-10">
             <Truck className="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
@@ -127,7 +127,7 @@ export default function MezziList() {
       </div>
 
       {parco && (
-        <p className="px-1 text-sm text-muted-foreground">
+        <p className="px-1 text-sm text-muted-foreground max-sm:hidden">
           {mezzi.length === 1 ? "1 mezzo" : `${mezzi.length} mezzi`}
           {parco.valore > 0 && <> · valore d'acquisto <span className="font-medium text-foreground">{formatCurrency(parco.valore)}</span></>}
           {parco.costoAnno > 0 && <> · costano circa <span className="font-medium text-foreground">{formatCurrency(parco.costoAnno)}</span> l'anno</>}
@@ -225,17 +225,14 @@ export default function MezziList() {
           <button type="button" className="font-semibold underline" onClick={() => refetch()}>Riprova</button>
         </div>
       ) : mezzi.length === 0 ? (
-        <div className="rounded-2xl border border-dashed bg-card px-6 py-14 text-center">
-          <Truck className="mx-auto h-10 w-10 text-muted-foreground/50" aria-hidden="true" />
-          <h2 className="mt-3 text-base font-semibold">Nessun mezzo ancora</h2>
-          <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
+        // Telefono: una riga e basta. Anche da tablet niente secondo bottone
+        // (blu, «Aggiungi il primo mezzo»): «Nuovo mezzo» c'è già in alto.
+        <div className="rounded-2xl border border-dashed bg-card px-6 py-14 text-center max-sm:px-3 max-sm:py-5">
+          <Truck className="mx-auto h-10 w-10 text-muted-foreground/50 max-sm:hidden" aria-hidden="true" />
+          <h2 className="mt-3 text-base font-semibold max-sm:mt-0 max-sm:text-sm max-sm:font-normal max-sm:text-muted-foreground">Nessun mezzo ancora</h2>
+          <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground max-sm:hidden">
             Aggiungi furgoni, mezzi d'opera e attrezzi: poi carichi assicurazione, revisione e tagliandi, e ti avvisiamo prima delle scadenze.
           </p>
-          {puoModificare && (
-            <Button className="mt-4" onClick={() => setNuovoAperto(true)}>
-              <Plus className="mr-1 h-4 w-4" />Aggiungi il primo mezzo
-            </Button>
-          )}
         </div>
       ) : filtrati.length === 0 ? (
         <p className="py-10 text-center text-sm text-muted-foreground">Nessun mezzo corrisponde alla ricerca.</p>

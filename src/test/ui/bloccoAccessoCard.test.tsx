@@ -75,7 +75,8 @@ describe("blocco dell'accesso", () => {
   });
 
   it("c'è anche fra «Ruoli e permessi», dove si tolgono i permessi", () => {
-    const sezionePermessi = sorgenteSchedaUtente.slice(sorgenteSchedaUtente.indexOf('activeTab === "permissions"'));
-    expect(sezionePermessi.slice(0, sezionePermessi.indexOf("<UserRolesPermissionsTab"))).toContain("<BloccoAccessoCard");
+    // Da computer; al telefono sta solo in «Sicurezza» (niente doppione tra schede).
+    const sezionePermessi = sorgenteSchedaUtente.slice(sorgenteSchedaUtente.indexOf('schedaVisibile === "permissions"'));
+    expect(sezionePermessi.slice(0, sezionePermessi.indexOf("<UserRolesPermissionsTab"))).toContain("{!isMobile && <BloccoAccessoCard");
   });
 });

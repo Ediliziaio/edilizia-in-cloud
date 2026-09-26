@@ -4,7 +4,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Landmark, LayoutDashboard, CreditCard, ArrowLeftRight, Link, Link2, RefreshCw, Loader2, TrendingUp, Settings, Receipt } from "lucide-react";
+import { Landmark, LayoutDashboard, CreditCard, ArrowLeftRight, Link, Link2, RefreshCw, Loader2, TrendingUp, Settings, Receipt, ChevronDown } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -21,6 +22,12 @@ import { ManualTreasuryPanel } from "@/components/tesoreria/ManualTreasuryPanel"
 import { useManualTreasury } from "@/hooks/useManualTreasury";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { cn } from "@/lib/utils";
+
+// Mobile: tre schede su otto (connessioni, riconciliazione, previsioni, note
+// spese e impostazioni restano al desktop).
+const TREASURY_TABS_MOBILE = new Set(["overview", "conti", "transazioni"]);
 
 const TREASURY_TABS = new Set([
   "overview",
@@ -46,6 +53,7 @@ function getErrorMessage(error: unknown) {
 
 export default function Tesoreria() {
   const { effectiveCompany } = useAuth();
+  const isMobile = useIsMobile();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const [syncing, setSyncing] = useState(false);
@@ -188,8 +196,8 @@ export default function Tesoreria() {
 
   if (!hasConnections && !hasManualAccounts) {
     return (
-      <div className="space-y-6">
-        <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
+      <div className="space-y-6 max-sm:space-y-3">
+        <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
           <div className="flex min-w-0 items-start gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
               <Landmark className="h-5 w-5" />
@@ -200,22 +208,24 @@ export default function Tesoreria() {
             </div>
           </div>
         </div>
-        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-muted-foreground/30 bg-muted/20 py-16 gap-5 text-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+        {/* Mobile: titolo e bottone, senza riquadro tratteggiato, icona,
+            spiegazione ed etichette. */}
+        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-muted-foreground/30 bg-muted/20 py-16 gap-5 text-center max-sm:gap-3 max-sm:border-0 max-sm:bg-transparent max-sm:py-2">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 max-sm:hidden">
             <Landmark className="h-8 w-8 text-primary" />
           </div>
           <div className="space-y-2 max-w-md">
-            <h2 className="text-xl font-semibold">Collega il tuo conto bancario</h2>
-            <p className="text-muted-foreground text-sm">
+            <h2 className="text-xl font-semibold max-sm:text-base">Collega il tuo conto bancario</h2>
+            <p className="text-muted-foreground text-sm max-sm:hidden">
               Connetti il tuo conto tramite Open Banking (PSD2) per visualizzare saldi, transazioni e riconciliare automaticamente i movimenti. Il collegamento si gestisce in Impostazioni → Integrazioni.
             </p>
           </div>
-          <div className="flex flex-wrap gap-2 justify-center text-xs text-muted-foreground">
+          <div className="flex flex-wrap gap-2 justify-center text-xs text-muted-foreground max-sm:hidden">
             <Badge variant="outline">Open Banking · PSD2</Badge>
             <Badge variant="outline">Sicuro e crittografato</Badge>
             <Badge variant="outline">Aggiornamento automatico</Badge>
           </div>
-          <Button onClick={() => navigate("/azienda/impostazioni/integrazioni")} className="mt-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
+          <Button onClick={() => navigate("/azienda/impostazioni/integrazioni")} className="mt-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:mt-0 max-sm:h-9 max-sm:text-xs">
             <Link className="h-4 w-4 mr-2" />
             Collega primo conto
           </Button>
@@ -224,8 +234,8 @@ export default function Tesoreria() {
         {/* Alternativa senza banca: conti/casse manuali con import CSV/Excel o AI.
             Appena l'utente ne crea uno, hasManualAccounts diventa true e si apre
             la tesoreria completa a tab (saldi, previsionali, controllo di gestione). */}
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
-          <div className="mb-3">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6 max-sm:p-3">
+          <div className="mb-3 max-sm:hidden">
             <h2 className="text-base font-semibold text-slate-900">Non usi l'Open Banking? Gestisci a mano</h2>
             <p className="text-sm text-muted-foreground">
               Crea un conto o una cassa manuale e carica i movimenti a mano, oppure importa l'estratto conto da CSV/Excel o da una foto/PDF letta dall'AI. Alimenta comunque tesoreria, previsionali e controllo di gestione.
@@ -237,9 +247,22 @@ export default function Tesoreria() {
     );
   }
 
+  // Mobile: un indirizzo verso una scheda che qui non c'è apre la panoramica.
+  const schedaVisibile = isMobile && !TREASURY_TABS_MOBILE.has(activeTab) ? "overview" : activeTab;
+  const soloDesktop = (tab: string) => (TREASURY_TABS_MOBILE.has(tab) ? "" : "max-sm:hidden");
+  // Tra 640 e 1280 le otto linguette andavano su due righe: Connessioni, Note
+  // spese e Impostazioni (si aprono di rado) finiscono in «Altro», che prende
+  // il nome della scheda quando è aperta una di loro.
+  const SCHEDE_ALTRO = [
+    { value: "connessioni", label: "Connessioni", icon: Link },
+    { value: "note-spese", label: "Note Spese", icon: Receipt },
+    { value: "impostazioni", label: "Impostazioni", icon: Settings },
+  ];
+  const schedaInAltro = SCHEDE_ALTRO.find((s) => s.value === schedaVisibile);
+
   return (
-    <div className="space-y-6">
-      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
+    <div className="space-y-6 max-sm:space-y-3">
+      <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex min-w-0 items-start gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
@@ -252,55 +275,85 @@ export default function Tesoreria() {
               </p>
             </div>
           </div>
+          {/* Mobile: via l'etichetta «Open Banking», sincronizza a sola icona. */}
           <div className="flex items-center gap-3">
-            <Badge variant="outline" className="text-xs">{hasConnections ? "Open Banking · PSD2" : "Gestione manuale"}</Badge>
+            <Badge variant="outline" className="text-xs max-sm:hidden">{hasConnections ? "Open Banking · PSD2" : "Gestione manuale"}</Badge>
             {hasConnections && (
-              <Button onClick={handleSync} disabled={syncing} size="sm" className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
-                {syncing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-                Sincronizza
+              <Button onClick={handleSync} disabled={syncing} size="sm" aria-label="Sincronizza" className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-8 max-sm:w-8 max-sm:px-0">
+                {syncing ? <Loader2 className="h-4 w-4 mr-2 animate-spin max-sm:mr-0" /> : <RefreshCw className="h-4 w-4 mr-2 max-sm:mr-0" />}
+                <span className="max-sm:hidden">Sincronizza</span>
               </Button>
             )}
           </div>
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
+      <Tabs value={schedaVisibile} onValueChange={handleTabChange} className="space-y-6 max-sm:space-y-3">
         {/* Mobile: riga singola scrollabile invece di flex-wrap (8 tab = muro
             di 3-4 righe su 375px). */}
-        <TabsList className="flex h-auto w-full flex-nowrap overflow-x-auto scrollbar-hide justify-start gap-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm sm:flex-wrap sm:overflow-visible [&>button]:shrink-0">
-          <TabsTrigger value="overview" className="gap-2">
-            <LayoutDashboard className="h-4 w-4" /> Overview
+        {/* Mobile: tre linguette affiancate da 32px, senza icone. */}
+        {/* Da 640: icone delle linguette solo da 1536 (senza, a 1280 ci stanno
+            tutte e otto su una riga). */}
+        <TabsList className="flex h-auto w-full flex-nowrap overflow-x-auto scrollbar-hide justify-start gap-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm sm:flex-wrap sm:overflow-visible [&>button]:shrink-0 sm:max-2xl:[&_[role=tab]>svg]:hidden max-sm:grid max-sm:grid-cols-3 max-sm:rounded-lg max-sm:p-1 max-sm:shadow-none max-sm:[&_svg]:hidden">
+          <TabsTrigger value="overview" className="tap-compact gap-2 max-sm:h-8 max-sm:text-xs">
+            <LayoutDashboard className="h-4 w-4" /> <span className="max-sm:hidden">Overview</span><span className="sm:hidden">Panoramica</span>
           </TabsTrigger>
-          <TabsTrigger value="conti" className="gap-2">
+          <TabsTrigger value="conti" className="tap-compact gap-2 max-sm:h-8 max-sm:text-xs">
             <CreditCard className="h-4 w-4" /> Conti
           </TabsTrigger>
-          <TabsTrigger value="transazioni" className="gap-2">
-            <ArrowLeftRight className="h-4 w-4" /> Transazioni
+          <TabsTrigger value="transazioni" className="tap-compact gap-2 max-sm:h-8 max-sm:text-xs">
+            <ArrowLeftRight className="h-4 w-4" /> <span className="max-sm:hidden">Transazioni</span><span className="sm:hidden">Movimenti</span>
           </TabsTrigger>
-          <TabsTrigger value="connessioni" className="gap-2">
+          <TabsTrigger value="connessioni" className={cn("gap-2", soloDesktop("connessioni"), "hidden xl:inline-flex")}>
             <Link className="h-4 w-4" /> Connessioni
           </TabsTrigger>
-          <TabsTrigger value="riconciliazione" className="gap-2">
+          <TabsTrigger value="riconciliazione" className={cn("gap-2", soloDesktop("riconciliazione"))}>
             <Link2 className="h-4 w-4" /> Riconciliazione
           </TabsTrigger>
-          <TabsTrigger value="previsioni" className="gap-2">
+          <TabsTrigger value="previsioni" className={cn("gap-2", soloDesktop("previsioni"))}>
             <TrendingUp className="h-4 w-4" /> Previsioni
           </TabsTrigger>
-          <TabsTrigger value="note-spese" className="gap-2">
+          <TabsTrigger value="note-spese" className={cn("gap-2", soloDesktop("note-spese"), "hidden xl:inline-flex")}>
             <Receipt className="h-4 w-4" /> Note Spese
           </TabsTrigger>
-          <TabsTrigger value="impostazioni" className="gap-2">
+          <TabsTrigger value="impostazioni" className={cn("gap-2", soloDesktop("impostazioni"), "hidden xl:inline-flex")}>
             <Settings className="h-4 w-4" /> Impostazioni
           </TabsTrigger>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className={cn(
+                  "inline-flex items-center gap-1 whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium transition-all hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring max-sm:hidden xl:hidden",
+                  schedaInAltro && "bg-background text-foreground shadow-sm",
+                )}
+              >
+                {schedaInAltro ? schedaInAltro.label : "Altro"}
+                <ChevronDown className="h-3.5 w-3.5" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              {SCHEDE_ALTRO.map((s) => (
+                <DropdownMenuItem
+                  key={s.value}
+                  className={cn("gap-2", s.value === schedaVisibile && "font-semibold")}
+                  onSelect={() => handleTabChange(s.value)}
+                >
+                  <s.icon className="h-4 w-4" />
+                  {s.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </TabsList>
 
         <TabsContent value="overview">
           <TreasuryOverview companyId={effectiveCompany?.id || ""} refreshKey={refreshKey} onNavigateToTransactions={() => handleTabChange("transazioni")} />
         </TabsContent>
         <TabsContent value="conti">
-          <div className="space-y-8">
+          <div className="space-y-8 max-sm:space-y-4">
             {hasConnections && <BankAccountsList companyId={effectiveCompany?.id || ""} refreshKey={refreshKey} />}
-            {hasConnections && <div className="border-t border-slate-100" />}
+            {hasConnections && <div className="border-t border-slate-100 max-sm:hidden" />}
             <ManualTreasuryPanel />
           </div>
         </TabsContent>

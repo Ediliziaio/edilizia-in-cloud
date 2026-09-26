@@ -43,31 +43,31 @@ export const ContactDndTab = forwardRef<HTMLDivElement, ContactDndTabProps>(func
         <div className="flex items-center justify-between">
           <Label className="text-xs font-semibold">Consenso marketing</Label>
           {consenso === true ? (
-            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-600">
+            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-600 max-md:text-[11px]">
               <ShieldCheck className="h-3 w-3" /> Dato
             </span>
           ) : consenso === false ? (
-            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-destructive">
+            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-destructive max-md:text-[11px]">
               <ShieldX className="h-3 w-3" /> Negato
             </span>
           ) : (
-            <span className="text-[10px] text-muted-foreground">Mai registrato</span>
+            <span className="text-[10px] text-muted-foreground max-md:text-[11px]">Mai registrato</span>
           )}
         </div>
         {consenso !== null && contact?.marketing_consent_at && (
-          <p className="text-[10px] text-muted-foreground">
+          <p className="text-[10px] text-muted-foreground max-md:text-[11px]">
             Registrato il {dataIt(contact.marketing_consent_at)}
             {contact.marketing_consent_source ? ` · ${contact.marketing_consent_source}` : ""}
           </p>
         )}
         <div className="flex gap-1.5">
           {consenso !== true && (
-            <Button size="sm" variant="outline" className="h-6 text-[10px] px-2" onClick={() => registraConsenso(true)}>
+            <Button size="sm" variant="outline" className="h-6 text-[10px] px-2 max-md:text-[11px]" onClick={() => registraConsenso(true)}>
               Registra consenso
             </Button>
           )}
           {consenso !== false && (
-            <Button size="sm" variant="outline" className="h-6 text-[10px] px-2 text-destructive" onClick={() => registraConsenso(false)}>
+            <Button size="sm" variant="outline" className="h-6 text-[10px] px-2 text-destructive max-md:text-[11px]" onClick={() => registraConsenso(false)}>
               {consenso === true ? "Revoca" : "Segna negato"}
             </Button>
           )}
@@ -76,7 +76,7 @@ export const ContactDndTab = forwardRef<HTMLDivElement, ContactDndTabProps>(func
 
       <div>
         <Label className="text-xs font-semibold">Do Not Disturb</Label>
-        <p className="text-[10px] text-muted-foreground mt-0.5">
+        <p className="text-[10px] text-muted-foreground mt-0.5 max-md:text-[11px]">
           Disattiva i canali di comunicazione per questo contatto.
         </p>
       </div>
@@ -101,7 +101,7 @@ export const ContactDndTab = forwardRef<HTMLDivElement, ContactDndTabProps>(func
       </div>
 
       {contact?.unsubscribed && (
-        <div className="text-[10px] text-destructive flex items-center gap-1 pt-2 border-t">
+        <div className="text-[10px] text-destructive flex items-center gap-1 pt-2 border-t max-md:text-[11px]">
           <AlertCircle className="h-3 w-3" />
           Disiscritto il{" "}
           {contact.unsubscribed_at
@@ -112,7 +112,7 @@ export const ContactDndTab = forwardRef<HTMLDivElement, ContactDndTabProps>(func
 
       {anyOptout && (
         <div className="rounded-md bg-muted/50 p-2 mt-2 space-y-1.5">
-          <p className="text-[10px] text-muted-foreground">
+          <p className="text-[10px] text-muted-foreground max-md:text-[11px]">
             I canali disattivati non verranno usati nelle automazioni e campagne.
             {contact?.optout_at ? ` Ultimo opt-out: ${dataIt(contact.optout_at)}.` : ""}
           </p>
@@ -121,13 +121,13 @@ export const ContactDndTab = forwardRef<HTMLDivElement, ContactDndTabProps>(func
               placeholder="Motivo opt-out (opzionale)…"
               value={motivoBozza ?? contact?.optout_reason ?? ""}
               onChange={(e) => setMotivoBozza(e.target.value)}
-              className="h-6 text-[10px]"
+              className="h-6 text-[10px] max-md:text-[11px]"
             />
             {motivoBozza !== null && motivoBozza !== (contact?.optout_reason ?? "") && (
               <Button
                 size="sm"
                 variant="secondary"
-                className="h-6 text-[10px] px-2"
+                className="h-6 text-[10px] px-2 max-md:text-[11px]"
                 onClick={() => { onUpdate("optout_reason", motivoBozza.trim() || null); setMotivoBozza(null); }}
               >
                 Salva

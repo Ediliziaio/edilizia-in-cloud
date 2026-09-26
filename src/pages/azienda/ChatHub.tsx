@@ -34,13 +34,13 @@ export default function ChatHub({ companyIdOverride }: ChatHubProps = {}) {
   // I margini negativi annullano il padding di <main> per non sprecare altezza:
   // -mx-3 il p-3 mobile, -mb-24 parte del pb-28 sopra la bottom-nav.
   return (
-    <div className="h-full min-h-0 overflow-hidden flex flex-col -mx-3 -mb-24 sm:mx-0 sm:mb-0">
+    <div data-chat-hub className="h-full min-h-0 overflow-hidden flex flex-col -mx-3 -mb-24 sm:mx-0 sm:mb-0">
       <Tabs
         value={tab}
         onValueChange={(v) => setTab(v as "conversazioni" | "team")}
         className="flex flex-col flex-1 min-h-0"
       >
-        <TabsList className="shrink-0 self-start mb-2">
+        <TabsList data-chat-hub-tabs className="shrink-0 self-start mb-2 md:mx-3 md:mt-2">
           <TabsTrigger value="conversazioni" className="gap-1.5">
             <MessagesSquare className="h-4 w-4" /> Conversazioni
           </TabsTrigger>

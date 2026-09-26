@@ -116,7 +116,7 @@ export function QuoteFinancingPanel({ quoteTotal, value, onChange }: Props) {
 
   return (
     <Card className="rounded-2xl">
-      <CardHeader className="pb-3">
+      <CardHeader className="pb-3 max-sm:p-3">
         <CardTitle className="flex items-center justify-between text-base">
           <span className="flex items-center gap-2">
             <CreditCard className="h-4 w-4 text-muted-foreground" />
@@ -124,11 +124,12 @@ export function QuoteFinancingPanel({ quoteTotal, value, onChange }: Props) {
           </span>
           <div className="flex items-center gap-2">
             <Switch checked={enabled} onCheckedChange={setEnabled} />
-            <Label className="text-sm">{enabled ? "Inclusa nel preventivo" : "Non inclusa"}</Label>
+            {/* Telefono: basta l'interruttore, la scritta mandava il titolo su due righe. */}
+            <Label className="text-sm max-sm:hidden">{enabled ? "Inclusa nel preventivo" : "Non inclusa"}</Label>
           </div>
         </CardTitle>
         {!enabled && (
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-muted-foreground max-sm:hidden">
             Attiva per mostrare al cliente una proposta di rata mensile basata sulle tabelle
             finanziarie configurate. Aiuta a chiudere preventivi sopra €5.000.
           </p>

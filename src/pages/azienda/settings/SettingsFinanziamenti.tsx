@@ -316,12 +316,16 @@ export default function SettingsFinanziamenti() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  {/* Da 768 a 1280 meno colonne (nelle Impostazioni a 1024 lo
+                      spazio è 686px, la tabella ne chiedeva 962): finanziaria,
+                      condizione e durate da 1280, righe da 1536. Sul telefono
+                      restano tutte, come prima. */}
                   <TableHead>Prodotto</TableHead>
-                  <TableHead>Finanziaria</TableHead>
-                  <TableHead>Cond.</TableHead>
-                  <TableHead className="text-right">Righe</TableHead>
+                  <TableHead className="md:max-xl:hidden">Finanziaria</TableHead>
+                  <TableHead className="md:max-xl:hidden">Cond.</TableHead>
+                  <TableHead className="text-right md:max-2xl:hidden">Righe</TableHead>
                   <TableHead>Range importi</TableHead>
-                  <TableHead>Durate (mesi)</TableHead>
+                  <TableHead className="md:max-xl:hidden">Durate (mesi)</TableHead>
                   <TableHead>Validità</TableHead>
                   <TableHead>Stato</TableHead>
                   <TableHead className="text-right">Azioni</TableHead>
@@ -361,15 +365,15 @@ export default function SettingsFinanziamenti() {
                         {t.nome_prodotto}
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="md:max-xl:hidden">
                       {t.finanziaria_nome ?? (
                         <span className="text-muted-foreground italic">—</span>
                       )}
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
+                    <TableCell className="text-sm text-muted-foreground md:max-xl:hidden">
                       {t.codice_condizione ?? "—"}
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">
+                    <TableCell className="text-right tabular-nums md:max-2xl:hidden">
                       {t.righe_count}
                     </TableCell>
                     <TableCell className="text-sm whitespace-nowrap">
@@ -377,7 +381,7 @@ export default function SettingsFinanziamenti() {
                         ? `€ ${formatEur(t.importo_min)} – ${formatEur(t.importo_max)}`
                         : "—"}
                     </TableCell>
-                    <TableCell className="text-sm">
+                    <TableCell className="text-sm md:max-xl:hidden">
                       {t.durate_disponibili.length > 0
                         ? t.durate_disponibili.join(", ")
                         : "—"}

@@ -13,6 +13,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -73,16 +74,19 @@ const toInt = (raw: string): number | null => {
 };
 
 export default function StepImmobile({ form, onChange, model }: Props) {
+  const isMobile = useIsMobile();
   return (
     <Card>
-      <CardContent className="p-4 sm:p-5 space-y-4">
-        <div className="flex items-center gap-2">
-          <div className="h-8 w-8 rounded-md bg-amber-50 text-amber-600 flex items-center justify-center">
+      {/* Telefono: colonna con spazi fissi, così il titolo nascosto non lascia un buco in cima. */}
+      <CardContent className="p-4 sm:p-5 space-y-4 max-sm:flex max-sm:flex-col max-sm:gap-3 max-sm:space-y-0 max-sm:p-3">
+        {/* Telefono: il titolo lo dice già il passo in alto. */}
+        <div className="flex items-center gap-2 max-sm:hidden">
+          <div className="h-8 w-8 rounded-md bg-amber-50 text-amber-600 flex items-center justify-center max-sm:hidden">
             <Zap className="h-4 w-4" />
           </div>
           <div>
             <h2 className="text-sm font-semibold text-slate-900">Dati impianto e cantiere</h2>
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-[11px] text-muted-foreground max-sm:hidden">
               Tipo di intervento, livello impianto, n. punti e indirizzo del cantiere.
             </p>
           </div>
@@ -137,7 +141,7 @@ export default function StepImmobile({ form, onChange, model }: Props) {
               className="h-9"
             />
           </div>
-          <div className="col-span-12 sm:col-span-6">
+          <div className="col-span-5 sm:col-span-6">
             <Label className="text-xs">Città</Label>
             <Input
               value={form.cantiere_citta ?? ""}
@@ -146,7 +150,7 @@ export default function StepImmobile({ form, onChange, model }: Props) {
               className="h-9"
             />
           </div>
-          <div className="col-span-6 sm:col-span-3">
+          <div className="col-span-3">
             <Label className="text-xs">Provincia</Label>
             <Input
               value={form.cantiere_provincia ?? ""}
@@ -156,7 +160,7 @@ export default function StepImmobile({ form, onChange, model }: Props) {
               className="h-9 uppercase"
             />
           </div>
-          <div className="col-span-6 sm:col-span-3">
+          <div className="col-span-4 sm:col-span-3">
             <Label className="text-xs">CAP</Label>
             <Input
               value={form.cantiere_cap ?? ""}
@@ -243,10 +247,10 @@ export default function StepImmobile({ form, onChange, model }: Props) {
           <Textarea
             value={form.note ?? ""}
             onChange={(e) => onChange("note", e.target.value || null)}
-            placeholder="Es. posizione quadro/contatore, tracce a vista vietate, necessità certificazione DM 37/08, condominio con orari cantiere…"
-            className="min-h-20 text-sm"
+            placeholder={isMobile ? "Vincoli, accessi, orari…" : "Es. posizione quadro/contatore, tracce a vista vietate, necessità certificazione DM 37/08, condominio con orari cantiere…"}
+            className="min-h-20 text-sm max-sm:min-h-16"
           />
-          <p className="text-[10px] text-muted-foreground mt-0.5">
+          <p className="text-[10px] text-muted-foreground mt-0.5 max-sm:hidden">
             Vincoli edilizi/condominiali e annotazioni utili per il preventivo (es. dichiarazione di conformità).
           </p>
         </div>

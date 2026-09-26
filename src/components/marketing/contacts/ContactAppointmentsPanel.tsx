@@ -77,7 +77,7 @@ export function ContactAppointmentsPanel({ contactId, companyId, contactName, ca
         onClick={() => openEdit(apt)}
       >
         <p className="text-[11px] font-medium truncate">{apt.title}</p>
-        <p className="text-[10px] text-muted-foreground">
+        <p className="text-[10px] text-muted-foreground max-md:text-[11px]">
           {format(new Date(apt.appointment_date), "d MMM yyyy", { locale: it })}
           {apt.appointment_time && ` · ${apt.appointment_time.substring(0, 5)}`}
         </p>
@@ -86,11 +86,11 @@ export function ContactAppointmentsPanel({ contactId, companyId, contactName, ca
             {statusMeta.label}
           </Badge>
           {(apt as any).marketing_calendars?.name && (
-            <span className="text-[9px] text-muted-foreground">{(apt as any).marketing_calendars.name}</span>
+            <span className="text-[9px] text-muted-foreground max-md:text-[11px]">{(apt as any).marketing_calendars.name}</span>
           )}
         </div>
         {apt.formatted_address && (
-          <p className="text-[9px] text-muted-foreground truncate">{apt.formatted_address}</p>
+          <p className="text-[9px] text-muted-foreground truncate max-md:text-[11px]">{apt.formatted_address}</p>
         )}
       </div>
     );
@@ -110,14 +110,14 @@ export function ContactAppointmentsPanel({ contactId, companyId, contactName, ca
 
       {upcoming.length > 0 && (
         <div className="space-y-1.5">
-          <p className="text-[10px] font-semibold text-muted-foreground uppercase">Prossimi</p>
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase max-md:text-[11px]">Prossimi</p>
           {upcoming.map(renderApt)}
         </div>
       )}
 
       {past.length > 0 && (
         <div className="space-y-1.5">
-          <p className="text-[10px] font-semibold text-muted-foreground uppercase">Passati</p>
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase max-md:text-[11px]">Passati</p>
           {past.map(renderApt)}
         </div>
       )}

@@ -9,7 +9,7 @@ import { useState } from "react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { Plus, Pencil, Trash2, Zap } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
@@ -62,29 +62,17 @@ export function SmsAutomations() {
 
   return (
     <>
+      {/* Come la scheda Campagne: il bottone sopra a destra e la lista nella
+          card. Via il titolo «Automazioni SMS» (è il nome della scheda), il
+          bottone blu notte diverso da tutti gli altri e il secondo «Crea
+          automazione» nel riquadro vuoto. Questa scheda c'è solo da 768. */}
+      <div className="mb-3 flex justify-end">
+        <Button size="sm" onClick={() => { setEditTarget(null); setFormOpen(true); }}>
+          <Plus className="h-4 w-4 mr-1" />
+          Nuova automazione
+        </Button>
+      </div>
       <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <Zap className="h-5 w-5 text-[#F97316]" />
-              Automazioni SMS
-              {automations.length > 0 && (
-                <Badge variant="secondary" className="ml-1">
-                  {automations.length}
-                </Badge>
-              )}
-            </CardTitle>
-            <Button
-              size="sm"
-              className="bg-[#1E3A5F] hover:bg-[#162d4a] text-white"
-              onClick={() => { setEditTarget(null); setFormOpen(true); }}
-            >
-              <Plus className="h-4 w-4 mr-1.5" />
-              Nuova automazione
-            </Button>
-          </div>
-        </CardHeader>
-
         <CardContent className="p-0">
           {isLoading ? (
             <div className="p-4">
@@ -96,14 +84,6 @@ export function SmsAutomations() {
               <p className="text-sm text-center max-w-xs">
                 Nessuna automazione configurata. Crea la prima regola per inviare SMS in automatico sugli eventi della tua azienda.
               </p>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => { setEditTarget(null); setFormOpen(true); }}
-              >
-                <Plus className="h-4 w-4 mr-1.5" />
-                Crea automazione
-              </Button>
             </div>
           ) : (
             <div className="divide-y">

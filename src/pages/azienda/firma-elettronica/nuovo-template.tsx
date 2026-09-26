@@ -54,7 +54,9 @@ export default function NuovoTemplate() {
   };
 
   return (
-    <div className="p-6 max-w-2xl mx-auto space-y-6">
+    // Da tablet in su il margine lo dà già il layout, e il modulo parte da
+    // sinistra come il titolo delle altre pagine invece di restare al centro.
+    <div className="p-6 max-w-2xl mx-auto space-y-6 sm:mx-0 sm:max-w-3xl sm:p-0">
       {/* Header */}
       <div className="flex items-center gap-3">
         <Button

@@ -8,8 +8,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import {
   Upload, Image as ImageIcon, Loader2, Zap,
-  CheckCircle2, Download, Share2, RefreshCw, Wand2, Grid3X3,
+  CheckCircle2, Download, Share2, RefreshCw, Wand2, Grid3X3, ImagePlus, Camera,
 } from "lucide-react";
+import { ZonaFotoMobile } from "@/components/render/ZonaFotoMobile";
+import { MandaRenderMobile } from "@/components/render/MandaRenderMobile";
 
 import { RenderWizardHeader } from "@/components/render/RenderWizardHeader";
 import { PavimentoConfigForm } from "@/components/render-pavimento/PavimentoConfigForm";
@@ -355,12 +357,35 @@ export default function RenderPavimentoNew() {
     window.open(`https://wa.me/?text=${text}`, "_blank");
   }, [resultUrls]);
 
+  // Telefono: «Nuovo render» accanto a «Manda al cliente» riparte dalla foto.
+  const nuovoRender = () => {
+    setStep(1);
+    setPhoto(null);
+    setPhotoPreview(null);
+    setAnalisi(null);
+    setAnalysisError(undefined);
+    setSessionId(null);
+    setResultUrls([]);
+    setConfig(DEFAULT_PAVIMENTO_CONFIG);
+  };
+
+  // A ogni passo si riparte dalla testata (prima si restava a metà pagina).
+  const radiceRef = useRef<HTMLDivElement>(null);
+  const primoPassoRef = useRef(true);
+  useEffect(() => {
+    if (primoPassoRef.current) {
+      primoPassoRef.current = false;
+      return;
+    }
+    radiceRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+  }, [step]);
+
   // ══════════════════════════════════════════════════════════════════════════
   // RENDER
   // ══════════════════════════════════════════════════════════════════════════
 
   return (
-    <div className="space-y-6 max-w-2xl mx-auto pb-12">
+    <div ref={radiceRef} className="space-y-6 max-w-2xl mx-auto pb-12 scroll-mt-3 max-md:space-y-3">
       <RenderWizardHeader
         onBack={() => {
           if (step === 1 || step === 4) navigate("/azienda/render/pavimento");
@@ -369,13 +394,15 @@ export default function RenderPavimentoNew() {
         }}
         eyebrow="Sostituzione pavimento fotorealistica"
         title="Stessa stanza, nuovo pavimento"
+        mobileTitle="Render Pavimento"
         description="Cambia il pavimento senza toccare arredi e prospettiva: gres, parquet, resina, marmo."
         badgeLabel="Render AI — Pavimenti"
         stepLabels={["Foto", "Configura", "Elaborazione", "Risultati"]}
         currentStep={step}
         accent="emerald"
       />
-      <div className="flex justify-end">
+      {/* Telefono: il saldo non occupa una riga (se finisce, avvisa il RenderCreditGate). */}
+      <div className="flex justify-end max-md:hidden">
         <RenderCreditsWidget />
       </div>
 
@@ -386,15 +413,31 @@ export default function RenderPavimentoNew() {
           STEP 1 -- Foto
       ══════════════════════════════════════════════════════════════════ */}
       {step === 1 && (
-        <div className="space-y-4">
-          <Card>
-            <CardHeader>
+        <div className="space-y-4 max-md:space-y-3">
+          {isMobile && !photoPreview ? (
+            <>
+              <ZonaFotoMobile
+                onScegli={() => fileRef.current?.click()}
+                suggerimento="Prospettica e luminosa, con il pavimento ben visibile"
+                accento="amber"
+              />
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={handleFileChange}
+              />
+            </>
+          ) : (
+          <Card className="max-md:border-0 max-md:bg-transparent max-md:shadow-none">
+            <CardHeader className="max-md:hidden">
               <CardTitle className="text-base flex items-center gap-2">
                 <Upload className="h-4 w-4" />
                 Foto stanza con pavimento attuale
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="max-md:p-0">
               {photoPreview ? (
                 <div className="relative rounded-lg overflow-hidden">
                   <img loading="lazy"
@@ -402,10 +445,11 @@ export default function RenderPavimentoNew() {
                     alt="Foto caricata"
                     className="w-full max-h-80 object-cover"
                   />
+                  {/* Telefono: una pastiglia leggera sulla foto invece del bottone pieno. */}
                   <Button
                     variant="secondary"
                     size="sm"
-                    className="absolute top-3 right-3 gap-1.5"
+                    className="absolute top-3 right-3 gap-1.5 max-md:right-2 max-md:top-2 max-md:h-8 max-md:rounded-full max-md:bg-black/55 max-md:px-3 max-md:text-[13px] max-md:text-white max-md:backdrop-blur-sm max-md:hover:bg-black/65"
                     onClick={() => {
                       setPhoto(null);
                       setPhotoPreview(null);
@@ -413,7 +457,8 @@ export default function RenderPavimentoNew() {
                       setAnalysisError(undefined);
                     }}
                   >
-                    <RefreshCw className="h-3.5 w-3.5" />
+                    <RefreshCw className="h-3.5 w-3.5 max-md:hidden" />
+                    <Camera className="hidden h-3.5 w-3.5 max-md:block" />
                     Cambia foto
                   </Button>
                 </div>
@@ -445,8 +490,10 @@ export default function RenderPavimentoNew() {
               />
             </CardContent>
           </Card>
+          )}
 
-          <Card className="bg-muted/30">
+          {/* Consigli — telefono: la riga nella zona foto basta. */}
+          <Card className="bg-muted/30 max-md:hidden">
             <CardContent className="py-3">
               <p className="text-xs font-semibold mb-1.5">Consigli per il miglior risultato</p>
               <ul className="text-xs text-muted-foreground space-y-0.5 list-disc list-inside">
@@ -464,6 +511,8 @@ export default function RenderPavimentoNew() {
             onOpportunityChange={setOpportunityId}
           />
 
+          {/* Telefono: compare con la foto (prima era un bottone spento). */}
+          {(!isMobile || photo) && (
           <Button
             className="w-full gap-2 bg-amber-600 hover:bg-amber-700"
             size="lg"
@@ -476,6 +525,7 @@ export default function RenderPavimentoNew() {
               <><Wand2 className="h-4 w-4" />Analizza con AI e configura</>
             )}
           </Button>
+          )}
         </div>
       )}
 
@@ -483,13 +533,13 @@ export default function RenderPavimentoNew() {
           STEP 2 -- Configura
       ══════════════════════════════════════════════════════════════════ */}
       {step === 2 && (
-        <div className="space-y-4">
+        <div className="space-y-4 max-md:space-y-3">
           {/* Foto preview compatta */}
           {photoPreview && (
             <div className="rounded-xl overflow-hidden h-40 relative">
               <img loading="lazy" src={photoPreview} alt="Stanza" className="w-full h-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-              <div className="absolute bottom-2 left-3 text-white text-xs font-medium">Foto caricata</div>
+              <div className="absolute bottom-2 left-3 text-white text-xs font-medium max-md:text-[11px]">Foto caricata</div>
             </div>
           )}
 
@@ -533,8 +583,8 @@ export default function RenderPavimentoNew() {
                     ["Battiscopa", analisi.battiscopa_presente ? "Presente" : "Assente"],
                   ].map(([label, val]) => (
                     <div key={label} className="bg-muted/50 rounded-md p-2">
-                      <p className="text-[10px] text-muted-foreground">{label}</p>
-                      <p className="text-xs font-medium capitalize">{val}</p>
+                      <p className="text-[10px] text-muted-foreground max-md:text-[11px]">{label}</p>
+                      <p className="text-xs font-medium capitalize max-md:text-[13px]">{val}</p>
                     </div>
                   ))}
                 </div>
@@ -543,14 +593,14 @@ export default function RenderPavimentoNew() {
           )}
 
           {/* Config form */}
-          <Card>
-            <CardHeader>
+          <Card className="max-md:border-0 max-md:bg-transparent max-md:shadow-none">
+            <CardHeader className="max-md:hidden">
               <CardTitle className="text-base flex items-center gap-2">
                 <Grid3X3 className="h-4 w-4" />
                 Configurazione pavimento
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="max-md:p-0">
               <PavimentoConfigForm
                 value={config}
                 onChange={setConfig}
@@ -588,8 +638,9 @@ export default function RenderPavimentoNew() {
           STEP 4 -- Risultati
       ══════════════════════════════════════════════════════════════════ */}
       {step === 4 && resultUrls.length > 0 && (
-        <div className="space-y-4">
-          <Card className="border-green-500/30 bg-green-50/30">
+        <div className="space-y-4 max-md:space-y-3">
+          {/* Telefono: parla l'immagine. */}
+          <Card className="border-green-500/30 bg-green-50/30 max-md:hidden">
             <CardContent className="py-4 flex items-center gap-3">
               <CheckCircle2 className="h-5 w-5 text-green-600" />
               <div>
@@ -603,12 +654,12 @@ export default function RenderPavimentoNew() {
 
           {/* Before/After slider */}
           {photoPreview && (
-            <Card>
-              <CardHeader className="pb-3">
+            <Card className="max-md:border-0 max-md:bg-transparent max-md:shadow-none">
+              <CardHeader className="pb-3 max-md:hidden">
                 <CardTitle className="text-base">Confronto prima/dopo</CardTitle>
                 <p className="text-xs text-muted-foreground">Trascina il cursore per confrontare</p>
               </CardHeader>
-              <CardContent>
+              <CardContent className="max-md:p-0">
                 <BeforeAfterSlider
                   beforeUrl={photoPreview}
                   afterUrl={resultUrls[0]}
@@ -618,8 +669,8 @@ export default function RenderPavimentoNew() {
             </Card>
           )}
 
-          {/* Render result */}
-          <Card>
+          {/* Render result — telefono: c'è già «Render AI» nel confronto. */}
+          <Card className="max-md:hidden">
             <CardContent className="p-4">
               <img loading="lazy"
                 src={resultUrls[0]}
@@ -629,8 +680,18 @@ export default function RenderPavimentoNew() {
             </CardContent>
           </Card>
 
+          {/* Telefono: nuovo render a icona e «Manda al cliente» (l'immagine, non un link). */}
+          {isMobile && (
+            <div className="flex gap-2">
+              <Button variant="outline" className="w-11 shrink-0 px-0" onClick={nuovoRender} aria-label="Nuovo render">
+                <ImagePlus className="h-4 w-4" />
+              </Button>
+              <MandaRenderMobile resultUrl={resultUrls[0]} nomeFile="render-pavimento" className="min-w-0 flex-1" />
+            </div>
+          )}
+
           {/* Actions */}
-          <div className="flex gap-2">
+          <div className="flex gap-2 max-md:hidden">
             <Button variant="outline" className="flex-1 gap-2" onClick={shareWhatsApp}>
               <Share2 className="h-4 w-4" />
               WhatsApp
@@ -655,7 +716,7 @@ export default function RenderPavimentoNew() {
 
           <Button
             variant="outline"
-            className="w-full"
+            className="w-full max-md:hidden"
             onClick={() => navigate("/azienda/render/pavimento")}
           >
             Torna alla dashboard

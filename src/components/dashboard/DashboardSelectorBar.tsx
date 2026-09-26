@@ -223,6 +223,9 @@ interface DashboardSelectorBarProps {
   onSelectCustomDash?: (id: string) => void;
   /** Slot per azioni aggiuntive (periodo, refresh, modifica) — destra */
   actions?: React.ReactNode;
+  /** Solo il bottone del selettore, senza la barra col titolo: da tablet il
+   *  Cruscotto lo mette accanto al titolo della testata invece di ripeterlo. */
+  soloSelettore?: boolean;
 }
 
 // ── Componente principale ─────────────────────────────────────────────────────
@@ -231,6 +234,7 @@ export function DashboardSelectorBar({
   activeDashId = null,
   onSelectCustomDash,
   actions,
+  soloSelettore = false,
 }: DashboardSelectorBarProps) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -313,146 +317,151 @@ export function DashboardSelectorBar({
     });
   };
 
+  const selettore = (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-9 gap-2 font-normal shrink-0"
+          aria-label="Seleziona dashboard"
+        >
+          <LayoutGrid className="h-4 w-4 text-muted-foreground" />
+          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+        </Button>
+      </PopoverTrigger>
+
+      <PopoverContent align="start" className="w-[calc(100vw-2rem)] sm:w-80 p-2" sideOffset={6}>
+        {/* Ricerca */}
+        <div className="relative mb-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+          <Input
+            placeholder="Cerca una dashboard"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-8 h-9 text-sm"
+            autoFocus
+          />
+        </div>
+
+        {/* Aggiungi */}
+        <button
+          type="button"
+          onClick={() => { setOpen(false); navigate("/azienda/cruscotto/gestisci"); }}
+          className="flex items-center gap-2 w-full px-3 py-2 text-sm font-medium text-primary hover:bg-primary/5 rounded-md transition-colors"
+        >
+          <Plus className="h-4 w-4" />
+          Aggiungi dashboard
+        </button>
+
+        <div className="my-1.5 border-t" />
+
+        <div className="space-y-1 max-h-80 overflow-y-auto">
+          {/* Dashboard di sistema */}
+          {permissions.isLoading ? (
+            <p className="px-3 py-3 text-sm text-center text-muted-foreground">
+              Caricamento dashboard…
+            </p>
+          ) : visibleSystem.length > 0 && (
+            <div>
+              <p className="px-3 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                Predefinite
+              </p>
+              {visibleSystem.map((s) => {
+                const Icon = s.icon;
+                const isActive = isSystemActive(location.pathname, s.url);
+                return (
+                  <Link
+                    key={s.id}
+                    to={s.url}
+                    onClick={() => { setSearch(""); setOpen(false); }}
+                    className={cn(
+                      "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors",
+                      isActive ? "bg-primary/10 text-foreground" : "hover:bg-muted/60 text-foreground",
+                    )}
+                  >
+                    <div className={cn(
+                      "flex h-8 w-8 shrink-0 items-center justify-center rounded-md border",
+                      isActive ? "bg-primary/10 border-primary/20" : "bg-muted border-border",
+                    )}>
+                      <Icon className={cn("h-4 w-4", isActive ? "text-primary" : "text-muted-foreground")} />
+                    </div>
+                    <span className="text-sm font-medium truncate">{s.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Separatore */}
+          {visibleSystem.length > 0 && dashboards.length > 0 && (
+            <div className="my-1 border-t" />
+          )}
+
+          {/* Dashboard personalizzate */}
+          {dashboardsError ? (
+            <p className="px-3 py-3 text-sm text-center text-destructive">
+              Non riesco a caricare le dashboard. Riapri il menu tra qualche secondo.
+            </p>
+          ) : dashboardsLoading ? (
+            <p className="px-3 py-3 text-sm text-center text-muted-foreground">
+              Caricamento personalizzate…
+            </p>
+          ) : dashboards.length === 0 ? (
+            <p className="px-3 py-3 text-sm text-center text-muted-foreground">
+              Nessuna dashboard personalizzata
+            </p>
+          ) : mine.length === 0 && shared.length === 0 && search ? (
+            <p className="px-3 py-3 text-sm text-center text-muted-foreground">
+              Nessun risultato per "{search}"
+            </p>
+          ) : (
+            <>
+              <PickerSection
+                title="Le mie dashboard"
+                items={mine}
+                activeDashId={activeDashId}
+                onSelect={handleSelectCustom}
+                onSetDefault={handleSetDefault}
+                onDelete={(e, d) => { e.stopPropagation(); setDeleteTarget(d); }}
+                defaultPendingId={defaultPendingId}
+                deletePendingId={deletePendingId}
+              />
+              <PickerSection
+                title="Condiviso con me"
+                items={shared}
+                activeDashId={activeDashId}
+                onSelect={handleSelectCustom}
+                onSetDefault={handleSetDefault}
+                onDelete={(e, d) => { e.stopPropagation(); setDeleteTarget(d); }}
+                defaultPendingId={defaultPendingId}
+                deletePendingId={deletePendingId}
+              />
+            </>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="mt-1.5 pt-1.5 border-t">
+          <button
+            type="button"
+            onClick={() => { setOpen(false); navigate("/azienda/cruscotto/gestisci"); }}
+            className="flex items-center gap-2 w-full px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-md transition-colors"
+          >
+            <Settings className="h-3.5 w-3.5" />
+            Gestisci dashboard
+          </button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+
   return (
     <>
+      {soloSelettore ? selettore : (
       <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 border-b bg-background shrink-0 min-w-0">
         {/* Picker */}
-        <Popover open={open} onOpenChange={setOpen}>
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-9 gap-2 font-normal shrink-0"
-              aria-label="Seleziona dashboard"
-            >
-              <LayoutGrid className="h-4 w-4 text-muted-foreground" />
-              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-            </Button>
-          </PopoverTrigger>
-
-          <PopoverContent align="start" className="w-[calc(100vw-2rem)] sm:w-80 p-2" sideOffset={6}>
-            {/* Ricerca */}
-            <div className="relative mb-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
-              <Input
-                placeholder="Cerca una dashboard"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-8 h-9 text-sm"
-                autoFocus
-              />
-            </div>
-
-            {/* Aggiungi */}
-            <button
-              type="button"
-              onClick={() => { setOpen(false); navigate("/azienda/cruscotto/gestisci"); }}
-              className="flex items-center gap-2 w-full px-3 py-2 text-sm font-medium text-primary hover:bg-primary/5 rounded-md transition-colors"
-            >
-              <Plus className="h-4 w-4" />
-              Aggiungi dashboard
-            </button>
-
-            <div className="my-1.5 border-t" />
-
-            <div className="space-y-1 max-h-80 overflow-y-auto">
-              {/* Dashboard di sistema */}
-              {permissions.isLoading ? (
-                <p className="px-3 py-3 text-sm text-center text-muted-foreground">
-                  Caricamento dashboard…
-                </p>
-              ) : visibleSystem.length > 0 && (
-                <div>
-                  <p className="px-3 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                    Predefinite
-                  </p>
-                  {visibleSystem.map((s) => {
-                    const Icon = s.icon;
-                    const isActive = isSystemActive(location.pathname, s.url);
-                    return (
-                      <Link
-                        key={s.id}
-                        to={s.url}
-                        onClick={() => { setSearch(""); setOpen(false); }}
-                        className={cn(
-                          "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors",
-                          isActive ? "bg-primary/10 text-foreground" : "hover:bg-muted/60 text-foreground",
-                        )}
-                      >
-                        <div className={cn(
-                          "flex h-8 w-8 shrink-0 items-center justify-center rounded-md border",
-                          isActive ? "bg-primary/10 border-primary/20" : "bg-muted border-border",
-                        )}>
-                          <Icon className={cn("h-4 w-4", isActive ? "text-primary" : "text-muted-foreground")} />
-                        </div>
-                        <span className="text-sm font-medium truncate">{s.label}</span>
-                      </Link>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Separatore */}
-              {visibleSystem.length > 0 && dashboards.length > 0 && (
-                <div className="my-1 border-t" />
-              )}
-
-              {/* Dashboard personalizzate */}
-              {dashboardsError ? (
-                <p className="px-3 py-3 text-sm text-center text-destructive">
-                  Non riesco a caricare le dashboard. Riapri il menu tra qualche secondo.
-                </p>
-              ) : dashboardsLoading ? (
-                <p className="px-3 py-3 text-sm text-center text-muted-foreground">
-                  Caricamento personalizzate…
-                </p>
-              ) : dashboards.length === 0 ? (
-                <p className="px-3 py-3 text-sm text-center text-muted-foreground">
-                  Nessuna dashboard personalizzata
-                </p>
-              ) : mine.length === 0 && shared.length === 0 && search ? (
-                <p className="px-3 py-3 text-sm text-center text-muted-foreground">
-                  Nessun risultato per "{search}"
-                </p>
-              ) : (
-                <>
-                  <PickerSection
-                    title="Le mie dashboard"
-                    items={mine}
-                    activeDashId={activeDashId}
-                    onSelect={handleSelectCustom}
-                    onSetDefault={handleSetDefault}
-                    onDelete={(e, d) => { e.stopPropagation(); setDeleteTarget(d); }}
-                    defaultPendingId={defaultPendingId}
-                    deletePendingId={deletePendingId}
-                  />
-                  <PickerSection
-                    title="Condiviso con me"
-                    items={shared}
-                    activeDashId={activeDashId}
-                    onSelect={handleSelectCustom}
-                    onSetDefault={handleSetDefault}
-                    onDelete={(e, d) => { e.stopPropagation(); setDeleteTarget(d); }}
-                    defaultPendingId={defaultPendingId}
-                    deletePendingId={deletePendingId}
-                  />
-                </>
-              )}
-            </div>
-
-            {/* Footer */}
-            <div className="mt-1.5 pt-1.5 border-t">
-              <button
-                type="button"
-                onClick={() => { setOpen(false); navigate("/azienda/cruscotto/gestisci"); }}
-                className="flex items-center gap-2 w-full px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-md transition-colors"
-              >
-                <Settings className="h-3.5 w-3.5" />
-                Gestisci dashboard
-              </button>
-            </div>
-          </PopoverContent>
-        </Popover>
+        {selettore}
 
         {/* Titolo — v8.6.64 era h1, ma in pagine con DashboardPageHeader (che ha
             il vero h1 semantico) causava doppio h1. Ridotto a span/p stilizzato. */}
@@ -461,6 +470,7 @@ export function DashboardSelectorBar({
         {/* Slot azioni a destra */}
         {actions && <div className="flex items-center gap-2 shrink-0 max-w-[62vw] overflow-x-auto sm:max-w-none">{actions}</div>}
       </div>
+      )}
 
       {/* Dialog conferma eliminazione */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>

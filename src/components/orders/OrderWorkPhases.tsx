@@ -214,7 +214,7 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports }: OrderWork
             <HardHat className="h-5 w-5 text-primary" />
             Lavori e squadra
           </CardTitle>
-          <p className="text-sm text-muted-foreground">Chi interviene, su quale lavoro e con quali tempi.</p>
+          <p className="text-sm text-muted-foreground max-sm:hidden">Chi interviene, su quale lavoro e con quali tempi.</p>
           </div>
 
           {canEditOrders && <div className="flex flex-wrap items-center gap-2">
@@ -232,8 +232,9 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports }: OrderWork
               onAdd={(payload, opts) => addAssignment.mutate(payload, opts)}
             />
             <Dialog open={newPhaseOpen} onOpenChange={(o) => (o ? setNewPhaseOpen(true) : closePhaseDialog())}>
+              {/* Mobile: le lavorazioni si pianificano al computer. */}
               <DialogTrigger asChild>
-                <Button size="sm" variant="outline">
+                <Button size="sm" variant="outline" className="max-sm:hidden">
                   <ListPlus className="mr-1 h-4 w-4" />
                   Aggiungi lavorazioni
                 </Button>
@@ -362,7 +363,8 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports }: OrderWork
           }}><AlertTriangle className="mr-1.5 h-4 w-4" />Verifica {summary.attention} lavorazioni</Button>}
         </div>
 
-        {!isLoading && !isError && <div className={cn("grid grid-cols-2 gap-2", phases.length > 0 && "lg:grid-cols-4")}>
+        {/* Mobile no: persone e squadre si contano nell'elenco qui sotto. */}
+        {!isLoading && !isError && <div className={cn("grid grid-cols-2 gap-2 max-sm:hidden", phases.length > 0 && "lg:grid-cols-4")}>
           {[
             ...(phases.length ? [["Lavorazioni", phases.length, `${summary.active} in corso · ${summary.completed} completate`]] : []),
             ["Dipendenti", summary.employees, "Persone nelle assegnazioni"],
@@ -380,7 +382,7 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports }: OrderWork
         {/* Totals strip — solo quando c'e' qualcosa da sommare: tre "0,00 €"
             sopra lo stato vuoto erano rumore che spingeva in basso il resto. */}
         {canViewCosts && !isLoading && !isError && (phases.length > 0 || unassigned.length > 0) && (
-        <details className="rounded-lg border p-3">
+        <details className="rounded-lg border p-3 max-sm:hidden">
         <summary className="cursor-pointer text-sm font-medium">Riepilogo costi della manodopera</summary>
         <p className="my-2 text-xs text-muted-foreground">Somma delle assegnazioni. Il costo registrato non indica da solo lavoro approvato o pagamento eseguito.</p>
         <div className="grid grid-cols-1 gap-2 rounded-lg border bg-muted/40 p-3 text-center sm:grid-cols-3">
@@ -1100,11 +1102,11 @@ function UnassignedCard({
               </Badge>
             )}
           </div>
-          {canViewCosts && <span className="text-xs text-muted-foreground tabular-nums">
+          {canViewCosts && <span className="text-xs text-muted-foreground tabular-nums max-sm:hidden">
             Budget {eur.format(subtotals.prev)} · Costo {eur.format(subtotals.cons)}
           </span>}
         </div>
-        <p className="text-xs text-muted-foreground">{hasPhases ? "Queste assegnazioni non appartengono a una lavorazione specifica. Usa Gestisci per collegarle a una fase." : "Dipendenti e squadre esterne assegnati al lavoro, anche senza suddivisione in fasi."}</p>
+        <p className="text-xs text-muted-foreground max-sm:hidden">{hasPhases ? "Queste assegnazioni non appartengono a una lavorazione specifica. Usa Gestisci per collegarle a una fase." : "Dipendenti e squadre esterne assegnati al lavoro, anche senza suddivisione in fasi."}</p>
       </CardHeader>
 
       <CardContent className="space-y-2 px-3 pb-3 pt-0 sm:px-6 sm:pb-6">

@@ -62,19 +62,21 @@ export function RichTextEditor({
         <ToolbarBtn icon={Bold} title="Grassetto (Ctrl+B)" onClick={() => exec("bold")} />
         <ToolbarBtn icon={Italic} title="Corsivo (Ctrl+I)" onClick={() => exec("italic")} />
         <ToolbarBtn icon={Underline} title="Sottolineato (Ctrl+U)" onClick={() => exec("underline")} />
+        {/* Mobile: una riga sola con grassetto/corsivo/sottolineato, elenchi e
+            link. Titoli, citazione e annulla/ripeti restano al desktop. */}
         <Divider />
-        <ToolbarBtn icon={Heading1} title="Titolo H1" onClick={() => exec("formatBlock", "<h1>")} />
-        <ToolbarBtn icon={Heading2} title="Titolo H2" onClick={() => exec("formatBlock", "<h2>")} />
-        <ToolbarBtn icon={AlignLeft} title="Paragrafo" onClick={() => exec("formatBlock", "<p>")} />
-        <Divider />
+        <ToolbarBtn icon={Heading1} title="Titolo H1" onClick={() => exec("formatBlock", "<h1>")} className="max-sm:hidden" />
+        <ToolbarBtn icon={Heading2} title="Titolo H2" onClick={() => exec("formatBlock", "<h2>")} className="max-sm:hidden" />
+        <ToolbarBtn icon={AlignLeft} title="Paragrafo" onClick={() => exec("formatBlock", "<p>")} className="max-sm:hidden" />
+        <Divider className="max-sm:hidden" />
         <ToolbarBtn icon={List} title="Elenco puntato" onClick={() => exec("insertUnorderedList")} />
         <ToolbarBtn icon={ListOrdered} title="Elenco numerato" onClick={() => exec("insertOrderedList")} />
-        <ToolbarBtn icon={Quote} title="Citazione" onClick={() => exec("formatBlock", "<blockquote>")} />
+        <ToolbarBtn icon={Quote} title="Citazione" onClick={() => exec("formatBlock", "<blockquote>")} className="max-sm:hidden" />
         <Divider />
         <ToolbarBtn icon={LinkIcon} title="Inserisci link" onClick={handleLink} />
-        <Divider />
-        <ToolbarBtn icon={Undo} title="Annulla (Ctrl+Z)" onClick={() => exec("undo")} />
-        <ToolbarBtn icon={Redo} title="Ripeti (Ctrl+Shift+Z)" onClick={() => exec("redo")} />
+        <Divider className="max-sm:hidden" />
+        <ToolbarBtn icon={Undo} title="Annulla (Ctrl+Z)" onClick={() => exec("undo")} className="max-sm:hidden" />
+        <ToolbarBtn icon={Redo} title="Ripeti (Ctrl+Shift+Z)" onClick={() => exec("redo")} className="max-sm:hidden" />
       </div>
 
       <div className="relative">
@@ -102,8 +104,8 @@ export function RichTextEditor({
 }
 
 function ToolbarBtn({
-  icon: Icon, title, onClick,
-}: { icon: React.ComponentType<{ className?: string }>; title: string; onClick: () => void }) {
+  icon: Icon, title, onClick, className,
+}: { icon: React.ComponentType<{ className?: string }>; title: string; onClick: () => void; className?: string }) {
   return (
     <Button
       type="button"
@@ -111,7 +113,7 @@ function ToolbarBtn({
       size="icon"
       onMouseDown={(e) => e.preventDefault()} // non perde focus editor
       onClick={onClick}
-      className="h-7 w-7"
+      className={cn("tap-compact h-9 w-9 sm:h-7 sm:w-7", className)}
       title={title}
     >
       <Icon className="h-3.5 w-3.5" />
@@ -119,6 +121,6 @@ function ToolbarBtn({
   );
 }
 
-function Divider() {
-  return <span className="w-px h-5 bg-border mx-0.5" />;
+function Divider({ className }: { className?: string }) {
+  return <span className={cn("w-px h-5 bg-border mx-0.5", className)} />;
 }

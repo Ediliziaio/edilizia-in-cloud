@@ -192,7 +192,7 @@ export function HrProfiloSheet({ open, onOpenChange, profilo, allProfili }: Prop
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full sm:max-w-2xl p-0 flex flex-col">
-        <SheetHeader className="border-b border-slate-100 px-6 pb-4 pt-6">
+        <SheetHeader className="border-b border-slate-100 px-6 pb-4 pt-6 max-sm:px-4 max-sm:pb-3 max-sm:pt-4">
           {isEditing && profilo ? (
             <div className="flex items-center gap-3.5 pr-8">
               <div
@@ -232,8 +232,11 @@ export function HrProfiloSheet({ open, onOpenChange, profilo, allProfili }: Prop
           )}
         </SheetHeader>
 
+        {/* Mobile: due schede su quattro (anagrafica e documenti); ruolo e
+            assenze restano al computer. Su un profilo nuovo i documenti non si
+            possono ancora caricare: niente schede, solo l'anagrafica. */}
         <Tabs value={tab} onValueChange={setTab} className="flex-1 flex flex-col min-h-0">
-          <TabsList className="mx-6 mt-4 grid h-auto w-auto grid-cols-4 gap-1 rounded-xl bg-slate-100/80 p-1">
+          <TabsList className={cn("mx-6 mt-4 grid h-auto w-auto grid-cols-4 gap-1 rounded-xl bg-slate-100/80 p-1 max-sm:mx-4 max-sm:mt-3 max-sm:grid-cols-2", !isEditing && "max-sm:hidden")}>
             {[
               { value: "anagrafica", label: "Anagrafica", icon: User, disabled: false },
               { value: "ruolo", label: "Ruolo", icon: Target, disabled: !isEditing },
@@ -244,9 +247,13 @@ export function HrProfiloSheet({ open, onOpenChange, profilo, allProfili }: Prop
                 key={value}
                 value={value}
                 disabled={disabled}
-                className="flex flex-col items-center gap-1 rounded-lg py-2 text-xs font-medium text-slate-500 transition data-[state=active]:bg-white data-[state=active]:text-orange-700 data-[state=active]:shadow-sm sm:flex-row sm:gap-1.5"
+                className={cn(
+                  "flex flex-col items-center gap-1 rounded-lg py-2 text-xs font-medium text-slate-500 transition data-[state=active]:bg-white data-[state=active]:text-orange-700 data-[state=active]:shadow-sm sm:flex-row sm:gap-1.5",
+                  "tap-compact max-sm:h-8 max-sm:py-0",
+                  (value === "ruolo" || value === "assenze") && "max-sm:hidden",
+                )}
               >
-                <Icon className="h-4 w-4" />
+                <Icon className="h-4 w-4 max-sm:hidden" />
                 <span>{label}</span>
               </TabsTrigger>
             ))}
@@ -255,53 +262,56 @@ export function HrProfiloSheet({ open, onOpenChange, profilo, allProfili }: Prop
           {/* ── ANAGRAFICA ──────────────────────────────────────────────── */}
           <TabsContent value="anagrafica" className="flex-1 min-h-0 m-0">
             <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col h-full">
-              <ScrollArea className="flex-1 px-6">
-                <div className="space-y-6 py-4">
+              {/* Mobile: nome e cognome, email e telefono, mansione e reparto,
+                  contratto e assunzione, profilo attivo. Gli altri campi restano
+                  nel modulo (e si salvano com'erano) ma si modificano al computer. */}
+              <ScrollArea className="flex-1 px-6 max-sm:px-4">
+                <div className="space-y-6 py-4 max-sm:flex max-sm:flex-col max-sm:space-y-3 max-sm:py-3">
                   {/* Dati Personali */}
                   <div>
-                    <h4 className="text-sm font-semibold text-muted-foreground mb-3">DATI PERSONALI</h4>
-                    <div className="grid grid-cols-2 gap-3">
+                    <h4 className="text-sm font-semibold text-muted-foreground mb-3 max-sm:hidden">DATI PERSONALI</h4>
+                    <div className="grid grid-cols-2 gap-3 max-sm:gap-2">
                       <div><Label>Nome *</Label><Input {...register("nome")} required /></div>
                       <div><Label>Cognome *</Label><Input {...register("cognome")} required /></div>
-                      <div><Label>Codice Fiscale</Label><Input {...register("codice_fiscale")} /></div>
-                      <div>
+                      <div className="max-sm:hidden"><Label>Codice Fiscale</Label><Input {...register("codice_fiscale")} /></div>
+                      <div className="max-sm:hidden">
                         <Label>Sesso</Label>
                         <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...register("sesso")}>
                           <option value="">—</option><option value="M">M</option><option value="F">F</option><option value="Altro">Altro</option>
                         </select>
                       </div>
-                      <div><Label>Data Nascita</Label><Input type="date" {...register("data_nascita")} /></div>
-                      <div><Label>Luogo Nascita</Label><Input {...register("luogo_nascita")} /></div>
-                      <div><Label>Nazionalità</Label><Input {...register("nazionalita")} /></div>
-                      <div><Label>Stato civile</Label><Input {...register("stato_civile")} /></div>
+                      <div className="max-sm:hidden"><Label>Data Nascita</Label><Input type="date" {...register("data_nascita")} /></div>
+                      <div className="max-sm:hidden"><Label>Luogo Nascita</Label><Input {...register("luogo_nascita")} /></div>
+                      <div className="max-sm:hidden"><Label>Nazionalità</Label><Input {...register("nazionalita")} /></div>
+                      <div className="max-sm:hidden"><Label>Stato civile</Label><Input {...register("stato_civile")} /></div>
                     </div>
                   </div>
 
-                  <Separator />
+                  <Separator className="max-sm:hidden" />
 
                   {/* Residenza & Recapiti */}
                   <div>
-                    <h4 className="text-sm font-semibold text-muted-foreground mb-3">RESIDENZA & RECAPITI</h4>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="col-span-2"><Label>Indirizzo</Label><Input {...register("indirizzo")} /></div>
-                      <div><Label>Città</Label><Input {...register("citta_residenza")} /></div>
-                      <div><Label>CAP</Label><Input {...register("cap_residenza")} /></div>
+                    <h4 className="text-sm font-semibold text-muted-foreground mb-3 max-sm:hidden">RESIDENZA & RECAPITI</h4>
+                    <div className="grid grid-cols-2 gap-3 max-sm:gap-2">
+                      <div className="col-span-2 max-sm:hidden"><Label>Indirizzo</Label><Input {...register("indirizzo")} /></div>
+                      <div className="max-sm:hidden"><Label>Città</Label><Input {...register("citta_residenza")} /></div>
+                      <div className="max-sm:hidden"><Label>CAP</Label><Input {...register("cap_residenza")} /></div>
                       <div><Label>Email</Label><Input type="email" {...register("email")} /></div>
                       <div><Label>Telefono</Label><Input {...register("telefono")} /></div>
-                      <div><Label>Email privata</Label><Input type="email" {...register("email_privata")} /></div>
-                      <div><Label>Telefono privato</Label><Input {...register("telefono_privato")} /></div>
+                      <div className="max-sm:hidden"><Label>Email privata</Label><Input type="email" {...register("email_privata")} /></div>
+                      <div className="max-sm:hidden"><Label>Telefono privato</Label><Input {...register("telefono_privato")} /></div>
                     </div>
                   </div>
 
-                  <Separator />
+                  <Separator className="max-sm:hidden" />
 
-                  {/* Organigramma */}
-                  <div>
-                    <h4 className="text-sm font-semibold text-muted-foreground mb-3">ORGANIGRAMMA</h4>
-                    <div className="grid grid-cols-2 gap-3">
+                  {/* Organigramma — mobile: in fondo, così «Profilo attivo» chiude il modulo. */}
+                  <div className="max-sm:order-1">
+                    <h4 className="text-sm font-semibold text-muted-foreground mb-3 max-sm:hidden">ORGANIGRAMMA</h4>
+                    <div className="grid grid-cols-2 gap-3 max-sm:gap-2">
                       <div><Label>Mansione</Label><Input {...register("mansione")} /></div>
                       <div><Label>Reparto</Label><Input {...register("reparto")} /></div>
-                      <div className="col-span-2">
+                      <div className="col-span-2 max-sm:hidden">
                         <Label>Responsabile</Label>
                         <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...register("responsabile_id")}>
                           <option value="">Nessuno (root)</option>
@@ -310,54 +320,54 @@ export function HrProfiloSheet({ open, onOpenChange, profilo, allProfili }: Prop
                           ))}
                         </select>
                       </div>
-                      <div>
+                      <div className="max-sm:hidden">
                         <Label>Sede HR</Label>
                         <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...register("sede_id")}>
                           <option value="">Nessuna sede</option>
                           {sedi.map((s) => (<option key={s.id} value={s.id}>{s.nome}{!s.attiva ? " (inattiva)" : ""}</option>))}
                         </select>
                       </div>
-                      <div><Label>Colore Avatar</Label><Input type="color" {...register("colore_avatar")} className="h-10 p-1" /></div>
-                      <div className="col-span-2 flex items-center justify-between rounded-md border px-3 py-2">
+                      <div className="max-sm:hidden"><Label>Colore Avatar</Label><Input type="color" {...register("colore_avatar")} className="h-10 p-1" /></div>
+                      <div className="col-span-2 flex items-center justify-between rounded-md border px-3 py-2 max-sm:order-last">
                         <div>
                           <Label>Profilo attivo</Label>
-                          <p className="text-xs text-muted-foreground">I profili inattivi restano nello storico ma non compaiono nei flussi operativi.</p>
+                          <p className="text-xs text-muted-foreground max-sm:hidden">I profili inattivi restano nello storico ma non compaiono nei flussi operativi.</p>
                         </div>
                         <Switch checked={watch("attivo") ?? true} onCheckedChange={(checked) => setValue("attivo", checked)} />
                       </div>
                     </div>
                   </div>
 
-                  <Separator />
+                  <Separator className="max-sm:hidden" />
 
                   {/* Contratto */}
                   <div>
-                    <h4 className="text-sm font-semibold text-muted-foreground mb-3">CONTRATTO</h4>
-                    <div className="grid grid-cols-2 gap-3">
+                    <h4 className="text-sm font-semibold text-muted-foreground mb-3 max-sm:hidden">CONTRATTO</h4>
+                    <div className="grid grid-cols-2 gap-3 max-sm:gap-2">
                       <div>
                         <Label>Tipo Contratto</Label>
                         <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...register("tipo_contratto")}>
                           {TIPO_CONTRATTO_OPTIONS.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
                         </select>
                       </div>
-                      <div><Label>CCNL</Label><Input {...register("ccnl")} /></div>
-                      <div><Label>Livello</Label><Input {...register("livello_ccnl")} /></div>
-                      <div><Label>Matricola</Label><Input {...register("matricola")} /></div>
+                      <div className="max-sm:hidden"><Label>CCNL</Label><Input {...register("ccnl")} /></div>
+                      <div className="max-sm:hidden"><Label>Livello</Label><Input {...register("livello_ccnl")} /></div>
+                      <div className="max-sm:hidden"><Label>Matricola</Label><Input {...register("matricola")} /></div>
                       <div><Label>Data Assunzione</Label><Input type="date" {...register("data_assunzione")} /></div>
-                      <div><Label>Data Cessazione</Label><Input type="date" {...register("data_cessazione")} /></div>
-                      <div className="col-span-2"><Label>IBAN</Label><Input {...register("iban")} /></div>
+                      <div className="max-sm:hidden"><Label>Data Cessazione</Label><Input type="date" {...register("data_cessazione")} /></div>
+                      <div className="col-span-2 max-sm:hidden"><Label>IBAN</Label><Input {...register("iban")} /></div>
                     </div>
                     {isEditing && (
-                      <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
+                      <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1 max-sm:hidden">
                         <Info className="h-3 w-3" /> Carica il contratto firmato nella scheda <b>Documenti &amp; Scadenze</b>.
                       </p>
                     )}
                   </div>
 
-                  <Separator />
+                  <Separator className="max-sm:hidden" />
 
                   {/* Orario */}
-                  <div>
+                  <div className="max-sm:hidden">
                     <h4 className="text-sm font-semibold text-muted-foreground mb-3">ORARIO DI LAVORO</h4>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
@@ -374,10 +384,10 @@ export function HrProfiloSheet({ open, onOpenChange, profilo, allProfili }: Prop
                     </div>
                   </div>
 
-                  <Separator />
+                  <Separator className="max-sm:hidden" />
 
                   {/* Ferie */}
-                  <div>
+                  <div className="max-sm:hidden">
                     <h4 className="text-sm font-semibold text-muted-foreground mb-3">FERIE & PERMESSI</h4>
                     <div className="grid grid-cols-2 gap-3">
                       <div><Label>Ferie Annuali (gg)</Label><Input type="number" step="0.5" {...register("ferie_anno_giorni", { valueAsNumber: true })} /></div>
@@ -389,10 +399,10 @@ export function HrProfiloSheet({ open, onOpenChange, profilo, allProfili }: Prop
                     </div>
                   </div>
 
-                  <Separator />
+                  <Separator className="max-sm:hidden" />
 
                   {/* Contatto Emergenza */}
-                  <div>
+                  <div className="max-sm:hidden">
                     <h4 className="text-sm font-semibold text-muted-foreground mb-3">CONTATTO EMERGENZA</h4>
                     <div className="grid grid-cols-2 gap-3">
                       <div><Label>Nome</Label><Input {...register("contatto_emergenza_nome")} /></div>
@@ -400,10 +410,10 @@ export function HrProfiloSheet({ open, onOpenChange, profilo, allProfili }: Prop
                     </div>
                   </div>
 
-                  <Separator />
+                  <Separator className="max-sm:hidden" />
 
                   {/* Badge */}
-                  <div>
+                  <div className="max-sm:hidden">
                     <h4 className="text-sm font-semibold text-muted-foreground mb-3">BADGE & ACCESSI</h4>
                     <div className="grid grid-cols-2 gap-3">
                       <div><Label>Badge ID</Label><Input {...register("badge_id")} /></div>
@@ -411,19 +421,19 @@ export function HrProfiloSheet({ open, onOpenChange, profilo, allProfili }: Prop
                     </div>
                   </div>
 
-                  <Separator />
+                  <Separator className="max-sm:hidden" />
 
                   {/* Note */}
-                  <div>
+                  <div className="max-sm:hidden">
                     <Label>Note Interne</Label>
                     <Textarea {...register("note_interne")} rows={3} />
                   </div>
                 </div>
               </ScrollArea>
 
-              <div className="border-t px-6 py-4 flex gap-2 justify-end">
-                <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Annulla</Button>
-                <Button type="submit" disabled={isPending}>
+              <div className="border-t px-6 py-4 flex gap-2 justify-end max-sm:px-4 max-sm:py-3">
+                <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="max-sm:hidden">Annulla</Button>
+                <Button type="submit" disabled={isPending} className="max-sm:flex-1">
                   {isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
                   {isEditing ? "Salva" : "Crea Profilo"}
                 </Button>
@@ -442,7 +452,7 @@ export function HrProfiloSheet({ open, onOpenChange, profilo, allProfili }: Prop
 
           {/* ── DOCUMENTI & SCADENZE ────────────────────────────────────── */}
           <TabsContent value="documenti" className="flex-1 min-h-0 m-0">
-            <ScrollArea className="h-full px-6"><div className="py-4">
+            <ScrollArea className="h-full px-6 max-sm:px-4"><div className="py-4 max-sm:py-3">
               {isEditing && profilo
                 ? <HrDocumentiSection profiloId={profilo.id} companyId={profilo.company_id} />
                 : <p className="text-sm text-muted-foreground py-8 text-center">Salva prima il profilo per gestire i documenti.</p>}

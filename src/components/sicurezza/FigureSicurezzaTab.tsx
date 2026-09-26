@@ -74,14 +74,13 @@ export function FigureSicurezzaTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="max-w-2xl text-sm text-muted-foreground">
-          Le figure della sicurezza della tua impresa. Le scrivi una volta: ogni POS nuovo le riprende, e le puoi adattare al singolo cantiere.
-        </p>
-        {puoScrivere && (
-          <Button size="sm" onClick={() => setModulo(vuota("datore_lavoro"))}><Plus className="mr-1 h-4 w-4" />Aggiungi figura</Button>
-        )}
-      </div>
+      {/* Come nelle altre schede: il bottone a destra, senza la frase di
+          spiegazione (chi manca lo dice l'avviso qui sotto). */}
+      {puoScrivere && (
+        <div className="flex items-center justify-end">
+          <Button size="sm" onClick={() => setModulo(vuota("datore_lavoro"))} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600"><Plus className="mr-1 h-4 w-4" />Aggiungi figura</Button>
+        </div>
+      )}
 
       {!isLoading && !isError && mancano.length > 0 && (
         <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">

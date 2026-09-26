@@ -84,7 +84,7 @@ export function MezziCommessaCard({ orderId }: Props) {
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
+      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 max-sm:p-3 max-sm:pb-2">
         <CardTitle className="flex min-w-0 items-center gap-2 text-base sm:text-lg">
           <Truck className="h-4 w-4 shrink-0 text-slate-600" />
           <span className="truncate">Mezzi sul cantiere</span>
@@ -97,7 +97,7 @@ export function MezziCommessaCard({ orderId }: Props) {
           </Button>
         )}
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="space-y-3 max-sm:p-3 max-sm:pt-0">
         {isLoading ? (
           <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
         ) : error ? (
@@ -106,7 +106,7 @@ export function MezziCommessaCard({ orderId }: Props) {
             <button type="button" className="font-semibold underline" onClick={() => refetch()}>Riprova</button>
           </p>
         ) : righe.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nessun mezzo è ancora passato da questo cantiere.</p>
+          <p className="text-sm text-muted-foreground max-sm:text-xs">Nessun mezzo è ancora passato da questo cantiere.</p>
         ) : (
           <ul className="divide-y">
             {righe.map((r) => (

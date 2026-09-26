@@ -520,8 +520,8 @@ export function ContactActivityRegister({
 
   return (
     <div className={cn("space-y-3", className)}>
-      {/* Header */}
-      <div className="flex items-center gap-2">
+      {/* Header — mobile no: il nome è già sulla scheda «Registro» e si aggiorna da solo alla riapertura. */}
+      <div className="flex items-center gap-2 max-sm:hidden">
         <Activity className="h-4 w-4 text-primary" />
         <h3 className="text-sm font-semibold">Registro attività</h3>
         {allItems.length > 0 && (
@@ -547,8 +547,8 @@ export function ContactActivityRegister({
               type="button"
               onClick={() => setFilter(f.key)}
               className={cn(
-                "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] transition-colors",
-                filter === f.key ? "bg-primary text-primary-foreground border-primary" : "bg-background text-muted-foreground hover:bg-muted",
+                "tap-compact inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] transition-colors max-sm:h-7",
+                filter === f.key ? "bg-primary text-primary-foreground border-primary" : "bg-background text-muted-foreground hover:bg-muted max-sm:border-border",
               )}
             >
               {f.label}

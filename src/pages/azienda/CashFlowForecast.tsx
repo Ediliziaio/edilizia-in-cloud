@@ -1,5 +1,6 @@
 import { format } from "date-fns";
-import { Download, Printer, CalendarClock, BookOpen, Landmark, TrendingUp, TrendingDown, Sparkles } from "lucide-react";
+import { Download, Printer, CalendarClock, Landmark, TrendingUp, TrendingDown, Sparkles, MoreHorizontal } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { exportToCSV } from "@/lib/csvExport";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,7 +10,6 @@ import { CollectedTab } from "@/components/forecast/CollectedTab";
 import { CostsForecastTab } from "@/components/forecast/CostsForecastTab";
 import { CashForecastTab } from "@/components/forecast/CashForecastTab";
 import { MarginTab } from "@/components/forecast/MarginTab";
-import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCashFlowRealData } from "@/hooks/useCashFlowRealData";
@@ -20,9 +20,9 @@ import { TrediciSettimaneTab } from "@/components/forecast/TrediciSettimaneTab";
 
 
 import { useIsMobile } from "@/hooks/use-mobile";
+import { KpiMobili } from "@/components/mobile/FiltriMobile";
 export default function CashFlowForecast() {
   const isMobile = useIsMobile();
-  const navigate = useNavigate();
 
   const {
     isLoading,
@@ -191,9 +191,9 @@ export default function CashFlowForecast() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-sm:space-y-3">
       {/* Header */}
-      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6 print:mb-4">
+      <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6 print:mb-4">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex min-w-0 items-start gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
@@ -206,31 +206,28 @@ export default function CashFlowForecast() {
               </p>
             </div>
           </div>
-        <div className="flex items-center gap-2 print:hidden flex-wrap">
-          <Button variant="outline" size="sm" onClick={() => navigate("/azienda/tesoreria")} className="gap-1">
-            <Landmark className="h-4 w-4" />
-            <span className="hidden sm:inline">Tesoreria</span>
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => navigate("/azienda/scadenzario")} className="gap-1">
-            <CalendarClock className="h-4 w-4" />
-            <span className="hidden sm:inline">Scadenzario</span>
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => navigate("/azienda/prima-nota")} className="gap-1">
-            <BookOpen className="h-4 w-4" />
-            <span className="hidden sm:inline">Prima Nota</span>
-          </Button>
-          {/* Niente export su telefono. */}
-          {!isMobile && (
-            <Button variant="outline" size="sm" onClick={exportCSV} className="gap-1">
-              <Download className="h-4 w-4" />
-              <span className="hidden sm:inline">Esporta CSV</span>
-            </Button>
-          )}
-          <Button variant="outline" size="sm" onClick={() => window.print()} className="gap-1 hidden sm:flex">
-            <Printer className="h-4 w-4" />
-            <span className="hidden sm:inline">Stampa PDF</span>
-          </Button>
-        </div>
+        {/* Tesoreria, Scadenzario e Prima Nota erano tre bottoni-collegamento:
+            stanno già nel menu a sinistra, qui sotto a questa. Restano export
+            e stampa, in un menu «⋯» (a 1024 i cinque bottoni mandavano a capo
+            anche il titolo). Sotto 640 niente menu; tra 640 e 768 solo la stampa
+            (l'export non si fa da telefono). */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon" className="shrink-0 print:hidden max-sm:hidden" aria-label="Altre azioni" title="Altre azioni">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {!isMobile && (
+                <DropdownMenuItem className="gap-2" onSelect={exportCSV}>
+                  <Download className="h-4 w-4" /> Esporta CSV
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem className="gap-2" onSelect={() => window.print()}>
+                <Printer className="h-4 w-4" /> Stampa PDF
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -260,18 +257,11 @@ export default function CashFlowForecast() {
       {bankingSummary && (
         // Testata navy di famiglia. Formato euro standard it-IT ("52.942 €",
         // non "€52.942"): come nel resto del gestionale.
-        <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
+        <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm max-sm:hidden">
           <div className="bg-[#173b67] p-4 text-white sm:p-5">
-            <div className="flex items-start gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)] sm:h-11 sm:w-11">
-                <CalendarClock className="h-4 w-4 sm:h-5 sm:w-5" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-orange-100 sm:text-xs">Previsionale</p>
-                <h2 className="mt-0.5 text-base font-semibold text-white sm:text-xl">La cassa che verrà</h2>
-              </div>
-            </div>
-            <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-5 sm:gap-3 xl:grid-cols-4">
+            {/* Senza titoletto «Previsionale — La cassa che verrà»: ripeteva
+                il titolo della pagina. */}
+            <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
               {[
                 { label: "Saldo banca", value: bankingSummary.bankBalance, icon: Landmark, tone: "text-blue-100", hint: "saldo reale conti" },
                 { label: "Entrate attese", value: bankingSummary.pendingIncome, icon: TrendingUp, tone: "text-emerald-200", hint: "incassi aperti" },
@@ -292,6 +282,21 @@ export default function CashFlowForecast() {
         </div>
       )}
 
+      {/* Mobile: saldo di oggi e quello stimato fra 30 giorni, nome e cifra. */}
+      {bankingSummary && (
+        <KpiMobili
+          className="sm:hidden"
+          voci={[
+            { label: "Saldo banca", valore: new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: true }).format(bankingSummary.bankBalance) },
+            {
+              label: "Fra 30 giorni",
+              valore: new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: true }).format(bankingSummary.forecast30),
+              tono: bankingSummary.forecast30 < 0 ? "text-rose-600" : undefined,
+            },
+          ]}
+        />
+      )}
+
       {/* Proiezione 90 giorni — su errore lo diciamo, prima falliva in silenzio
           e l'utente credeva che il grafico predittivo semplicemente non esistesse. */}
       {realDataError && (
@@ -309,16 +314,19 @@ export default function CashFlowForecast() {
       )}
 
       {/* Tabs */}
+      {/* Mobile: due schede su cinque, entrate e uscite; marginalità, previsione
+          di cassa e 13 settimane restano al desktop (il saldo previsto è nel
+          grafico qui sopra). */}
       <Tabs defaultValue="incassato" className="w-full">
-        <TabsList className="flex flex-wrap h-auto gap-1 p-1 w-full justify-start">
-          <TabsTrigger value="incassato">Incassato</TabsTrigger>
-          <TabsTrigger value="marginalita">Marginalità</TabsTrigger>
-          <TabsTrigger value="costi">Previsionale Costi</TabsTrigger>
-          <TabsTrigger value="cassa">Previsione di Cassa</TabsTrigger>
-          <TabsTrigger value="settimane">13 settimane</TabsTrigger>
+        <TabsList className="flex flex-wrap h-auto gap-1 p-1 w-full justify-start max-sm:grid max-sm:grid-cols-2">
+          <TabsTrigger value="incassato" className="tap-compact max-sm:h-8 max-sm:text-xs"><span className="max-sm:hidden">Incassato</span><span className="sm:hidden">Entrate</span></TabsTrigger>
+          <TabsTrigger value="marginalita" className="max-sm:hidden">Marginalità</TabsTrigger>
+          <TabsTrigger value="costi" className="tap-compact max-sm:h-8 max-sm:text-xs"><span className="max-sm:hidden">Previsionale Costi</span><span className="sm:hidden">Uscite</span></TabsTrigger>
+          <TabsTrigger value="cassa" className="max-sm:hidden">Previsione di Cassa</TabsTrigger>
+          <TabsTrigger value="settimane" className="max-sm:hidden">13 settimane</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="incassato" className="mt-6">
+        <TabsContent value="incassato" className="mt-6 max-sm:mt-3">
           <CollectedTab orders={orders} expectedPayments={expectedPayments} />
         </TabsContent>
 
@@ -328,7 +336,7 @@ export default function CashFlowForecast() {
           </div>
         </TabsContent>
 
-        <TabsContent value="costi" className="mt-6">
+        <TabsContent value="costi" className="mt-6 max-sm:mt-3">
           <CostsForecastTab
             expectedExpenses={expectedExpenses}
             expectedCommissions={expectedCommissions}

@@ -397,11 +397,13 @@ export default function SettingsCostCategories() {
       {/* Header pattern h-10 w-10 bg-primary/10 */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-start gap-3 min-w-0">
-          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+          {/* Da 768 icona e titolo li mostra già la testata delle Impostazioni
+              (erano due volte): resta la riga sotto, con numeri e azioni. */}
+          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 md:hidden">
             <FolderOpen className="h-5 w-5 text-primary" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold leading-tight">Categorie Costi</h1>
+            <h1 className="text-xl sm:text-2xl font-bold leading-tight md:hidden">Categorie Costi</h1>
             <p className="text-sm text-muted-foreground">
               Classifica i costi aziendali (affitto, utenze, marketing…) e i costi
               da fornitori per analizzarli nelle dashboard finanziarie.

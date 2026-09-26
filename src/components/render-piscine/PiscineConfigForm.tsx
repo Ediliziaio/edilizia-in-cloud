@@ -23,6 +23,7 @@ import type {
   TipoPiscina,
   ZonaInserimentoPiscina,
 } from "@/modules/render-piscine/lib/types";
+import { DettagliTelefono } from "@/components/render/DettagliTelefono";
 
 const OPERAZIONI: { value: TipoOperazionePiscina; label: string; desc: string }[] = [
   { value: "add_new_pool", label: "Aggiungi piscina", desc: "Nuova vasca integrata nello spazio." },
@@ -168,10 +169,10 @@ export function PiscineConfigForm({ value, onChange, disabled }: Props) {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-md:space-y-4">
       <section className="space-y-3">
-        <Label className="text-sm font-semibold">Tipo intervento</Label>
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
+        <Label className="text-sm font-semibold max-md:text-[13px]">Tipo intervento</Label>
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2 max-sm:grid-cols-2 max-sm:gap-1.5">
           {OPERAZIONI.map((item) => {
             const selected = value.operazione === item.value;
             return (
@@ -180,12 +181,12 @@ export function PiscineConfigForm({ value, onChange, disabled }: Props) {
                 className={`cursor-pointer transition-all ${selected ? "ring-2 ring-primary border-primary bg-primary/5" : "border-slate-300 shadow-sm hover:border-primary/60 hover:shadow"} ${disabled ? "opacity-50 pointer-events-none" : ""}`}
                 onClick={() => !disabled && set("operazione", item.value)}
               >
-                <CardContent className="p-3 space-y-1">
+                <CardContent className="p-3 space-y-1 max-md:p-2.5">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-semibold">{item.label}</span>
-                    {selected && <Badge className="text-[10px] px-1.5 py-0">Attivo</Badge>}
+                    <span className="text-xs font-semibold max-md:text-[13px] max-md:leading-tight">{item.label}</span>
+                    {selected && <Badge className="text-[10px] px-1.5 py-0 max-md:hidden">Attivo</Badge>}
                   </div>
-                  <p className="text-[10px] text-muted-foreground leading-tight">{item.desc}</p>
+                  <p className="text-[10px] text-muted-foreground leading-tight max-md:hidden">{item.desc}</p>
                 </CardContent>
               </Card>
             );
@@ -194,8 +195,8 @@ export function PiscineConfigForm({ value, onChange, disabled }: Props) {
       </section>
 
       <section className="space-y-3">
-        <Label className="text-sm font-semibold">Area di inserimento</Label>
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
+        <Label className="text-sm font-semibold max-md:text-[13px]">Area di inserimento</Label>
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2 max-sm:grid-cols-2 max-sm:gap-1.5">
           {ZONE.map((item) => {
             const selected = value.inserimento.zona === item.value;
             return (
@@ -204,9 +205,9 @@ export function PiscineConfigForm({ value, onChange, disabled }: Props) {
                 className={`cursor-pointer transition-all ${selected ? "ring-2 ring-primary border-primary bg-primary/5" : "border-slate-300 shadow-sm hover:border-primary/60 hover:shadow"} ${disabled ? "opacity-50 pointer-events-none" : ""}`}
                 onClick={() => !disabled && setInserimento("zona", item.value)}
               >
-                <CardContent className="p-3 space-y-1">
-                  <span className="text-xs font-semibold">{item.label}</span>
-                  <p className="text-[10px] text-muted-foreground leading-tight">{item.desc}</p>
+                <CardContent className="p-3 space-y-1 max-md:p-2.5">
+                  <span className="text-xs font-semibold max-md:text-[13px] max-md:leading-tight">{item.label}</span>
+                  <p className="text-[10px] text-muted-foreground leading-tight max-md:hidden">{item.desc}</p>
                 </CardContent>
               </Card>
             );
@@ -217,26 +218,28 @@ export function PiscineConfigForm({ value, onChange, disabled }: Props) {
           onChange={(e) => setInserimento("posizione_descrittiva", e.target.value)}
           placeholder="Es. nel prato davanti al patio, lasciando libero il passaggio verso la porta-finestra"
           disabled={disabled}
+          className="max-md:min-h-[64px] max-md:placeholder:text-[13px]"
         />
       </section>
 
-      <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label>Tipologia piscina</Label>
+      <section className="grid grid-cols-1 md:grid-cols-2 gap-4 max-md:grid-cols-2 max-md:gap-2">
+        {/* Telefono: la tipologia a tutta riga (a metà il nome si tagliava). */}
+        <div className="space-y-2 max-md:col-span-2">
+          <Label className="max-md:text-[11px]">Tipologia piscina</Label>
           <Select value={value.piscina.tipo} onValueChange={(v) => setPiscina("tipo", v as TipoPiscina)} disabled={disabled}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>{TIPI.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         <div className="space-y-2">
-          <Label>Forma</Label>
+          <Label className="max-md:text-[11px]">Forma</Label>
           <Select value={value.piscina.forma} onValueChange={(v) => setPiscina("forma", v as FormaPiscina)} disabled={disabled}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>{FORME.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         <div className="space-y-2">
-          <Label>Dimensione apparente</Label>
+          <Label className="max-md:text-[11px]">Dimensione apparente</Label>
           <Select value={value.piscina.dimensione_apparente} onValueChange={(v) => {
             setPiscina("dimensione_apparente", v as DimensioneApparentePiscina);
             setInserimento("footprint_apparente", v as DimensioneApparentePiscina);
@@ -252,14 +255,14 @@ export function PiscineConfigForm({ value, onChange, disabled }: Props) {
           </Select>
         </div>
         <div className="space-y-2">
-          <Label>Sistema acqua</Label>
+          <Label className="max-md:text-[11px]">Sistema acqua</Label>
           <Select value={value.piscina.sistema_bordo} onValueChange={(v) => setPiscina("sistema_bordo", v as SistemaBordoPiscina)} disabled={disabled}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>{BORDI.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         <div className="space-y-2">
-          <Label>Profondità percepita</Label>
+          <Label className="max-md:text-[11px]">Profondità percepita</Label>
           <Select value={value.inserimento.profondita_apparente} onValueChange={(v) => setInserimento("profondita_apparente", v as ProfonditaApparentePiscina)} disabled={disabled}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -271,7 +274,7 @@ export function PiscineConfigForm({ value, onChange, disabled }: Props) {
           </Select>
         </div>
         <div className="space-y-2">
-          <Label>Quota bordo</Label>
+          <Label className="max-md:text-[11px]">Quota bordo</Label>
           <Select value={value.inserimento.quota_bordo} onValueChange={(v) => setInserimento("quota_bordo", v as ConfigurazionePiscine["inserimento"]["quota_bordo"])} disabled={disabled}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -284,30 +287,30 @@ export function PiscineConfigForm({ value, onChange, disabled }: Props) {
         </div>
       </section>
 
-      <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <section className="grid grid-cols-1 md:grid-cols-2 gap-4 max-md:grid-cols-2 max-md:gap-2">
         <div className="space-y-2">
-          <Label>Rivestimento interno</Label>
+          <Label className="max-md:text-[11px]">Rivestimento interno</Label>
           <Select value={value.finiture.rivestimento_interno} onValueChange={(v) => setFiniture("rivestimento_interno", v as RivestimentoInternoPiscina)} disabled={disabled}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>{RIVESTIMENTI.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         <div className="space-y-2">
-          <Label>Colore acqua percepito</Label>
+          <Label className="max-md:text-[11px]">Colore acqua percepito</Label>
           <Select value={value.piscina.colore_acqua} onValueChange={(v) => setPiscina("colore_acqua", v as ColoreAcquaPiscina)} disabled={disabled}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>{ACQUA.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         <div className="space-y-2">
-          <Label>Bordo piscina / coping</Label>
+          <Label className="max-md:text-[11px]">Bordo piscina / coping</Label>
           <Select value={value.finiture.coping} onValueChange={(v) => setFiniture("coping", v as TipoCopingPiscina)} disabled={disabled}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>{COPING.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         <div className="space-y-2">
-          <Label>Area perimetrale</Label>
+          <Label className="max-md:text-[11px]">Area perimetrale</Label>
           <Select value={value.finiture.area_perimetrale} onValueChange={(v) => setFiniture("area_perimetrale", v as AreaPerimetralePiscina)} disabled={disabled}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>{AREE.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
@@ -315,16 +318,18 @@ export function PiscineConfigForm({ value, onChange, disabled }: Props) {
         </div>
       </section>
 
-      <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Telefono: accesso, luci, arredo e note tecniche hanno già valori sensati: riga chiusa. */}
+      <DettagliTelefono titolo="Accesso, luci e arredo">
+      <section className="grid grid-cols-1 md:grid-cols-2 gap-4 max-md:grid-cols-2 max-md:gap-2">
         <div className="space-y-2">
-          <Label>Accesso vasca</Label>
+          <Label className="max-md:text-[11px]">Accesso vasca</Label>
           <Select value={value.comfort.accesso} onValueChange={(v) => setComfort("accesso", v as SistemaAccessoPiscina)} disabled={disabled}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>{ACCESSI.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         <div className="space-y-2">
-          <Label>Illuminazione</Label>
+          <Label className="max-md:text-[11px]">Illuminazione</Label>
           <Select value={value.comfort.illuminazione} onValueChange={(v) => setComfort("illuminazione", v as ConfigurazionePiscine["comfort"]["illuminazione"])} disabled={disabled}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -336,7 +341,7 @@ export function PiscineConfigForm({ value, onChange, disabled }: Props) {
           </Select>
         </div>
         <div className="space-y-2">
-          <Label>Arredo circostante</Label>
+          <Label className="max-md:text-[11px]">Arredo circostante</Label>
           <Select value={value.comfort.arredo} onValueChange={(v) => setComfort("arredo", v as ConfigurazionePiscine["comfort"]["arredo"])} disabled={disabled}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -347,13 +352,14 @@ export function PiscineConfigForm({ value, onChange, disabled }: Props) {
           </Select>
         </div>
         <div className="space-y-2">
-          <Label>Note tecniche</Label>
-          <Input value={value.inserimento.interferenze_note ?? ""} onChange={(e) => setInserimento("interferenze_note", e.target.value)} placeholder="Es. non toccare ulivo a sinistra" disabled={disabled} />
+          <Label className="max-md:text-[11px]">Note tecniche</Label>
+          <Input value={value.inserimento.interferenze_note ?? ""} onChange={(e) => setInserimento("interferenze_note", e.target.value)} placeholder="Es. non toccare ulivo a sinistra" disabled={disabled} className="max-md:placeholder:text-[13px]" />
         </div>
       </section>
+      </DettagliTelefono>
 
       <section className="space-y-3">
-        <Label className="text-sm font-semibold">Accessori</Label>
+        <Label className="text-sm font-semibold max-md:text-[13px]">Accessori</Label>
         <div className="flex flex-wrap gap-2">
           {ACCESSORI.map((item) => {
             const selected = value.comfort.accessori.includes(item.value);
@@ -363,7 +369,7 @@ export function PiscineConfigForm({ value, onChange, disabled }: Props) {
                 key={item.value}
                 disabled={disabled}
                 onClick={() => toggleAccessorio(item.value)}
-                className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${selected ? "border-primary bg-primary text-primary-foreground" : "hover:border-primary/60"}`}
+                className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors max-md:text-[13px] ${selected ? "border-primary bg-primary text-primary-foreground" : "hover:border-primary/60"}`}
               >
                 {item.label}
               </button>
@@ -373,13 +379,14 @@ export function PiscineConfigForm({ value, onChange, disabled }: Props) {
       </section>
 
       <section className="space-y-2">
-        <Label>Note libere per AI</Label>
+        <Label className="max-md:text-[13px] max-md:font-semibold">Note libere per AI</Label>
         <Textarea
           value={value.note_libere ?? ""}
           onChange={(e) => set("note_libere", e.target.value)}
           placeholder="Es. acqua molto naturale, non alterare siepe, lascia libero il passaggio verso il patio"
           disabled={disabled}
           rows={3}
+          className="max-md:placeholder:text-[13px]"
         />
       </section>
     </div>

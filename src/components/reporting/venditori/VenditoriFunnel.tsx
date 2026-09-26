@@ -38,17 +38,18 @@ export function VenditoriFunnel({ stages }: { stages: FunnelStage[] }) {
   const conVinteOPerse = stages.some(s => isWon(s.stage ?? "") || isLost(s.stage ?? ""));
 
   return (
+    // Telefono: barre più basse, senza spiegazione né legenda.
     <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <TrendingDown className="h-5 w-5" />
+      <CardHeader className="max-sm:p-3 max-sm:pb-2">
+        <CardTitle className="flex items-center gap-2 text-base max-sm:text-sm">
+          <TrendingDown className="h-5 w-5 max-sm:hidden" />
           Opportunità per fase
         </CardTitle>
-        <CardDescription>
+        <CardDescription className="max-sm:hidden">
           Dove sono oggi le {totalOpp} opportunità create nel periodo, nell'ordine della pipeline
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-1.5">
+      <CardContent className="space-y-1.5 max-sm:p-3 max-sm:pt-0">
         {stages.map((stage, idx) => {
           const width = Math.max((stage.count_opp / maxCount) * 100, 8);
           const won = isWon(stage.stage ?? "");
@@ -60,20 +61,20 @@ export function VenditoriFunnel({ stages }: { stages: FunnelStage[] }) {
             : STAGE_COLORS[idx % STAGE_COLORS.length];
 
           return (
-            <div key={stage.stage} className="flex items-center gap-3">
-              <span className="w-28 text-sm text-right truncate text-muted-foreground font-medium" title={stage.stage}>
+            <div key={stage.stage} className="flex items-center gap-3 max-sm:gap-2">
+              <span className="w-28 text-sm text-right truncate text-muted-foreground font-medium max-sm:w-24 max-sm:text-[11px]" title={stage.stage}>
                 {stage.stage}
               </span>
-              <div className="flex-1 h-7 bg-muted rounded-md overflow-hidden">
+              <div className="flex-1 h-7 bg-muted rounded-md overflow-hidden max-sm:h-5">
                 <div
                   className="h-full rounded-md flex items-center justify-end px-2 text-xs font-semibold text-primary-foreground transition-all"
                   style={{ width: `${width}%`, backgroundColor: bgColor }}
                 >
                   {stage.count_opp}
-                  <span className="ml-1 opacity-75">{Number(stage.pct_del_totale ?? 0).toLocaleString("it-IT")}%</span>
+                  <span className="ml-1 opacity-75 max-sm:hidden">{Number(stage.pct_del_totale ?? 0).toLocaleString("it-IT")}%</span>
                 </div>
               </div>
-              <span className="w-24 text-sm text-right tabular-nums text-muted-foreground">
+              <span className="w-24 text-sm text-right tabular-nums text-muted-foreground max-sm:w-[72px] max-sm:text-[11px]">
                 {formatCurrency(stage.valore_totale)}
               </span>
             </div>
@@ -81,7 +82,7 @@ export function VenditoriFunnel({ stages }: { stages: FunnelStage[] }) {
         })}
 
         {conVinteOPerse && (
-          <div className="flex items-center gap-4 pt-3 text-xs text-muted-foreground">
+          <div className="flex items-center gap-4 pt-3 text-xs text-muted-foreground max-sm:hidden">
             <div className="flex items-center gap-1.5">
               <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: "hsl(142 76% 36%)" }} /> Vinte
             </div>

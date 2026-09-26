@@ -28,9 +28,9 @@ interface Props {
 export function CallCenterKPISection({ kpi, isLoading }: Props) {
   if (!kpi && !isLoading) {
     return (
-      <div className="text-center py-10">
+      <div className="text-center py-10 max-sm:py-4">
         <p className="text-muted-foreground">Nessun dato disponibile per il periodo selezionato.</p>
-        <p className="text-sm text-muted-foreground/70 mt-1">Verifica che i lead abbiano un operatore assegnato.</p>
+        <p className="text-sm text-muted-foreground/70 mt-1 max-sm:hidden">Verifica che i lead abbiano un operatore assegnato.</p>
       </div>
     );
   }
@@ -103,7 +103,7 @@ export function CallCenterKPISection({ kpi, isLoading }: Props) {
   ];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 max-sm:grid-cols-2 max-sm:gap-2">
       {cards.map(card => (
         <KPICard key={card.title} {...card} isLoading={isLoading} />
       ))}

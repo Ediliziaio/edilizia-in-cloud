@@ -6,6 +6,7 @@ import {
   ArrowRight,
   Calendar,
   CheckCircle2,
+  ChevronRight,
   GalleryHorizontalEnd,
   Image,
   Link2,
@@ -26,6 +27,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { RenderBeforeAfterPreview } from "@/components/render/RenderBeforeAfterPreview";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { CercaConFiltri, PannelloFiltri, PilloleFiltro, RigaMobile } from "@/components/mobile/FiltriMobile";
 
 export interface UnifiedRenderGalleryItem {
   id: string;
@@ -170,6 +173,135 @@ export function RenderUnifiedGallery({
     setDateFrom("");
     setDateTo("");
   };
+
+  const isMobile = useIsMobile();
+  const [filtriAperti, setFiltriAperti] = useState(false);
+
+  // Telefono: titolo e «Nuovo» su una riga, ricerca con i filtri in un
+  // pannello, una riga per render (miniatura, titolo, data e contatto). Prima:
+  // titolo promozionale, quattro numeri a tutta larghezza, sette filtri e
+  // schede con tre righe di etichette — 3.700 px per cinque render.
+  if (isMobile) {
+    const filtriAttivi = [creatorFilter, contactFilter, opportunityFilter, linkFilter].filter((f) => f !== "all").length
+      + (dateFrom ? 1 : 0) + (dateTo ? 1 : 0);
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <h1 className="min-w-0 truncate text-lg font-bold">Galleria {moduleName}</h1>
+          <Button size="sm" className="h-9 shrink-0 gap-1.5" onClick={() => navigate(newPath)}>
+            <Plus className="h-4 w-4" />
+            Nuovo
+          </Button>
+        </div>
+
+        {items.length > 0 && (
+          <>
+            <CercaConFiltri
+              valore={search}
+              onCambia={setSearch}
+              segnaposto="Cerca render, cliente…"
+              filtriAttivi={filtriAttivi}
+              onApriFiltri={() => setFiltriAperti(true)}
+            />
+            <PannelloFiltri
+              aperto={filtriAperti}
+              onAperto={setFiltriAperti}
+              attivi={filtriAttivi}
+              onAzzera={resetFilters}
+              risultati={filtered.length}
+            >
+              <PilloleFiltro
+                titolo="Collegamento CRM"
+                valore={linkFilter}
+                onScegli={setLinkFilter}
+                scelte={[
+                  { value: "all", label: "Tutti" },
+                  { value: "linked", label: "Collegati" },
+                  { value: "unlinked", label: "Da collegare" },
+                ]}
+              />
+              {creatorOptions.length > 1 && (
+                <PilloleFiltro
+                  titolo="Creato da"
+                  valore={creatorFilter}
+                  onScegli={setCreatorFilter}
+                  scelte={[{ value: "all", label: "Tutti" }, ...creatorOptions.map(([id, label]) => ({ value: id, label }))]}
+                />
+              )}
+              {contactOptions.length > 0 && (
+                <PilloleFiltro
+                  titolo="Contatto"
+                  valore={contactFilter}
+                  onScegli={setContactFilter}
+                  scelte={[{ value: "all", label: "Tutti" }, ...contactOptions.map(([id, label]) => ({ value: id, label }))]}
+                />
+              )}
+              {opportunityOptions.length > 0 && (
+                <PilloleFiltro
+                  titolo="Opportunità"
+                  valore={opportunityFilter}
+                  onScegli={setOpportunityFilter}
+                  scelte={[{ value: "all", label: "Tutte" }, ...opportunityOptions.map(([id, label]) => ({ value: id, label }))]}
+                />
+              )}
+            </PannelloFiltri>
+          </>
+        )}
+
+        {isLoading ? (
+          <div className="space-y-2">
+            {[1, 2, 3, 4].map((riga) => <Skeleton key={riga} className="h-[60px] rounded-lg" />)}
+          </div>
+        ) : error ? (
+          <div className="rounded-lg border px-3 py-3 text-[13px]" role="alert" aria-live="assertive">
+            <p className="font-medium">Impossibile caricare la galleria</p>
+            {onRetry && (
+              <Button variant="outline" size="sm" className="mt-2 gap-2" onClick={() => void onRetry()} disabled={isRefetching}>
+                <RefreshCw className={`h-3.5 w-3.5 ${isRefetching ? "animate-spin" : ""}`} aria-hidden="true" />
+                Riprova
+              </Button>
+            )}
+          </div>
+        ) : items.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed px-4 py-8 text-center">
+            <EmptyIcon className="h-8 w-8 text-muted-foreground/40" />
+            <p className="text-[13px] font-medium">{emptyTitle}</p>
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="rounded-lg border border-dashed px-4 py-6 text-center">
+            <p className="text-[13px] font-medium">Nessun render con questi filtri</p>
+            <Button variant="outline" size="sm" className="mt-2 gap-2" onClick={resetFilters}>
+              <RotateCcw className="h-3.5 w-3.5" />
+              Mostra tutto
+            </Button>
+          </div>
+        ) : (
+          <div className="divide-y overflow-hidden rounded-lg border bg-card">
+            {filtered.map((item) => (
+              <RigaMobile
+                key={item.id}
+                to={item.detailPath ?? undefined}
+                sinistra={
+                  <div className="h-11 w-14 shrink-0 overflow-hidden rounded-md bg-muted">
+                    {item.imageUrl ? (
+                      <img loading="lazy" src={item.imageUrl} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center">
+                        <Image className="h-4 w-4 text-muted-foreground/40" />
+                      </div>
+                    )}
+                  </div>
+                }
+                titolo={item.title}
+                sottotitolo={`${formatGalleryDate(item.date, "d MMM yyyy")} · ${item.contactName ?? "da collegare"}`}
+                stato={item.detailPath ? <ChevronRight className="h-4 w-4 text-muted-foreground" /> : undefined}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

@@ -11,6 +11,7 @@ import { filtriRicercaContatti } from "@/lib/ricerca/ricercaContatti";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useDebounce } from "@/hooks/useDebounce";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
   Popover,
   PopoverContent,
@@ -72,32 +73,35 @@ export function FvContactPicker({
   });
 
   return (
-    <div className="rounded-md border border-border bg-muted/20 px-3 py-2.5 mb-3">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
+    // Telefono: senza riquadro; da collegare è un solo bottone a tutta riga.
+    <div className="rounded-md border border-border bg-muted/20 px-3 py-2.5 mb-3 max-md:border-0 max-md:bg-transparent max-md:p-0">
+      {/* Telefono: una riga, titolo corto e bottoni; la spiegazione resta al computer. */}
+      <div className="flex flex-row items-center justify-between gap-2">
+        <div className={cn("min-w-0", !clienteId && "max-md:hidden")}>
           <p className="text-xs font-semibold">
-            {clienteId ? "Contatto CRM collegato" : "Collega a un contatto esistente"}
+            <span className="max-md:hidden">{clienteId ? "Contatto CRM collegato" : "Collega a un contatto esistente"}</span>
+            <span className="md:hidden">Contatto CRM</span>
           </p>
-          <p className="truncate text-[11px] text-muted-foreground">
+          <p className="truncate text-[11px] text-muted-foreground max-md:hidden">
             {clienteId
               ? "Anagrafica e recapiti sincronizzati dal contatto."
               : "Seleziona un contatto dal CRM per compilare automaticamente i dati."}
           </p>
         </div>
-        <div className="flex shrink-0 gap-2">
+        <div className={cn("flex shrink-0 gap-2", !clienteId && "max-md:w-full")}>
           {clienteId && (
             <Button
               variant="ghost"
               size="sm"
               onClick={onClear}
-              className="h-8 px-2 text-xs text-muted-foreground"
+              className="tap-compact h-8 px-2 text-xs text-muted-foreground"
             >
               Scollega
             </Button>
           )}
           <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
-              <Button size="sm" variant="outline" className="h-8 gap-1.5 px-3 text-xs">
+              <Button size="sm" variant="outline" className="tap-compact h-8 gap-1.5 px-3 text-xs max-md:flex-1">
                 <Users className="h-3.5 w-3.5" />
                 {clienteId ? "Cambia" : "Seleziona da CRM"}
               </Button>

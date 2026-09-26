@@ -19,6 +19,12 @@ export function WhatsAppStatsBar() {
 
   if (!m) return null;
 
+  // Spesa in euro con due decimali: «€ 0.0000» (quattro decimali, punto
+  // all'inglese) sembrava un codice. Sotto il centesimo si dice «< 0,01 €».
+  const spesa = m.total_spend_today > 0 && m.total_spend_today < 0.01
+    ? "< 0,01 €"
+    : m.total_spend_today.toLocaleString("it-IT", { style: "currency", currency: "EUR" });
+
   const stats = [
     {
       icon: MessageSquare,
@@ -34,7 +40,8 @@ export function WhatsAppStatsBar() {
     },
     {
       icon: Wrench,
-      label: "Tool call 24h",
+      // «Tool call» è gergo: sono le azioni che l'AI ha fatto (cercare, creare…).
+      label: "Azioni AI 24h",
       value: m.tool_calls_last_24h,
       color: "text-violet-600",
     },
@@ -46,8 +53,8 @@ export function WhatsAppStatsBar() {
     },
     {
       icon: Euro,
-      label: "Budget oggi",
-      value: `€ ${m.total_spend_today.toFixed(4)}`,
+      label: "Spesa oggi",
+      value: spesa,
       color: "text-foreground",
     },
   ];
@@ -60,9 +67,11 @@ export function WhatsAppStatsBar() {
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-xs text-muted-foreground">{s.label}</p>
-                <p className={`text-2xl font-bold mt-1 ${s.color}`}>{s.value}</p>
+                <p className={`text-2xl font-bold mt-1 tabular-nums ${s.color}`}>{s.value}</p>
               </div>
-              <s.icon className={`h-5 w-5 ${s.color}`} />
+              {/* Sotto 1280 cinque card in riga lasciano ~100px: l'icona finiva
+                  addosso all'etichetta. Il colore del numero basta. */}
+              <s.icon className={`hidden h-5 w-5 shrink-0 xl:block ${s.color}`} />
             </div>
           </CardContent>
         </Card>

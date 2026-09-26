@@ -42,15 +42,17 @@ export function FvDimensionamentoStringhe({
   return (
     <div
       className={cn(
-        "rounded-2xl border p-4",
+        "rounded-2xl border p-4 max-md:p-3",
         r.valido ? "border-slate-200 bg-white" : "border-amber-200 bg-amber-50/40",
         className,
       )}
     >
-      <div className="flex items-center justify-between mb-2">
+      {/* Telefono: basta sapere se la configurazione regge (e gli avvisi); tensioni e range al computer. */}
+      <div className="flex items-center justify-between mb-2 max-md:mb-0">
         <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
           <Cable className="h-4 w-4 text-orange-500" />
-          Dimensionamento stringhe
+          <span className="max-md:hidden">Dimensionamento stringhe</span>
+          <span className="md:hidden">Stringhe</span>
         </h4>
         <span
           className={cn(
@@ -65,7 +67,7 @@ export function FvDimensionamentoStringhe({
         </span>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 max-md:hidden">
         <Cell
           label="Moduli per stringa"
           value={r.moduli_per_stringa > 0 ? String(r.moduli_per_stringa) : "—"}
@@ -95,7 +97,7 @@ export function FvDimensionamentoStringhe({
         </ul>
       )}
 
-      <p className="text-[10px] text-slate-400 mt-2 leading-snug">
+      <p className="text-[10px] text-slate-400 mt-2 leading-snug max-md:hidden">
         Stima con modulo ~540 Wp e inverter residenziale standard. I valori esatti verranno dalle
         specifiche reali di modulo e inverter (catalogo prodotti in arrivo).
       </p>

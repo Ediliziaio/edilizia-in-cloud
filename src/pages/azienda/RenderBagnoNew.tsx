@@ -10,8 +10,12 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import {
   Upload, Image as ImageIcon, Loader2, Zap,
-  CheckCircle2, Download, Share2, RefreshCw, Wand2,
+  CheckCircle2, Download, Share2, RefreshCw, Wand2, ImagePlus, Camera,
 } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { ZonaFotoMobile } from "@/components/render/ZonaFotoMobile";
+import { MandaRenderMobile } from "@/components/render/MandaRenderMobile";
+import { etichettaAnalisiBagno } from "@/components/render-bagno/etichetteAnalisiBagno";
 
 import { RenderWizardHeader } from "@/components/render/RenderWizardHeader";
 
@@ -593,6 +597,33 @@ export default function RenderBagnoNew() {
     window.open(`https://wa.me/?text=${text}`, "_blank");
   }, [resultUrl]);
 
+  const nuovoRender = () => {
+    setStep(1);
+    setPhoto(null);
+    setPhotoPreview(null);
+    setPhotoMeta(null);
+    setAnalisi(null);
+    setAnalysisError(undefined);
+    setSessionId(null);
+    setSourceOriginalPath(null);
+    setResultUrl(null);
+    setSavedToGallery(false);
+    setConfig(DEFAULT_BATHROOM_CONFIG);
+  };
+
+  const isMobile = useIsMobile();
+  // A ogni passo si riparte dalla testata: prima il passo nuovo si apriva a
+  // metà pagina, dove era il pulsante del passo precedente.
+  const radiceRef = useRef<HTMLDivElement>(null);
+  const primoPassoRef = useRef(true);
+  useEffect(() => {
+    if (primoPassoRef.current) {
+      primoPassoRef.current = false;
+      return;
+    }
+    radiceRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+  }, [step]);
+
   // ═══════════════════════════════════════════════════════════════════
   // RENDER
   // ═══════════════════════════════════════════════════════════════════
@@ -614,7 +645,7 @@ export default function RenderBagnoNew() {
   );
 
   return (
-    <div className="space-y-6 max-w-2xl mx-auto pb-12">
+    <div ref={radiceRef} className="space-y-6 max-w-2xl mx-auto pb-12 scroll-mt-3 max-md:space-y-3">
       <RenderWizardHeader
         onBack={() => {
           if (step === 1 || step === 4) navigate("/azienda/render/bagno");
@@ -623,13 +654,15 @@ export default function RenderBagnoNew() {
         }}
         eyebrow="Ristrutturazione bagno fotorealistica"
         title="Stesso bagno, nuove finiture"
+        mobileTitle="Render Bagno"
         description="Genera una visualizzazione realistica del bagno con i materiali, le piastrelle e i sanitari che hai scelto."
         badgeLabel="Render AI — Bagni"
         stepLabels={["Foto", "Analisi scena", "Intervento", "Render"]}
         currentStep={step}
         accent="blue"
       />
-      <div className="flex justify-end">
+      {/* Telefono: il saldo non occupa una riga (se finisce, avvisa il RenderCreditGate). */}
+      <div className="flex justify-end max-md:hidden">
         <RenderCreditsWidget />
       </div>
 
@@ -640,15 +673,31 @@ export default function RenderBagnoNew() {
           STEP 1 — Foto
       ═════════════════════════════════════════════════════════════ */}
       {step === 1 && (
-        <div className="space-y-4">
-          <Card>
-            <CardHeader>
+        <div className="space-y-4 max-md:space-y-3">
+          {isMobile && !photoPreview ? (
+            <>
+              <ZonaFotoMobile
+                onScegli={() => fileRef.current?.click()}
+                suggerimento="Ampia e luminosa, con pavimento, pareti e sanitari"
+                accento="cyan"
+              />
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={handleFileChange}
+              />
+            </>
+          ) : (
+          <Card className="max-md:border-0 max-md:bg-transparent max-md:shadow-none">
+            <CardHeader className="max-md:hidden">
               <CardTitle className="text-base flex items-center gap-2">
                 <Upload className="h-4 w-4" />
                 Foto del bagno attuale
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="max-md:p-0">
               {photoPreview ? (
                 <div className="relative overflow-hidden rounded-lg border border-border/60 bg-muted/20">
                   <div className="flex max-h-[34rem] min-h-[240px] items-center justify-center">
@@ -659,14 +708,15 @@ export default function RenderBagnoNew() {
                     />
                   </div>
                   {photoMetaLabel ? (
-                    <div className="absolute left-3 top-3 rounded-full bg-black/65 px-2.5 py-1 text-[11px] font-medium text-white">
+                    <div className="absolute left-3 top-3 rounded-full bg-black/65 px-2.5 py-1 text-[11px] font-medium text-white max-md:hidden">
                       {photoMetaLabel}
                     </div>
                   ) : null}
+                  {/* Telefono: una pastiglia leggera sulla foto invece del bottone pieno. */}
                   <Button
                     variant="secondary"
                     size="sm"
-                    className="absolute top-3 right-3 gap-1.5"
+                    className="absolute top-3 right-3 gap-1.5 max-md:right-2 max-md:top-2 max-md:h-8 max-md:rounded-full max-md:bg-black/55 max-md:px-3 max-md:text-[13px] max-md:text-white max-md:backdrop-blur-sm max-md:hover:bg-black/65"
                     onClick={() => {
                       setPhoto(null);
                       setPhotoPreview(null);
@@ -675,7 +725,8 @@ export default function RenderBagnoNew() {
                       setAnalysisError(undefined);
                     }}
                   >
-                    <RefreshCw className="h-3.5 w-3.5" />
+                    <RefreshCw className="h-3.5 w-3.5 max-md:hidden" />
+                    <Camera className="hidden h-3.5 w-3.5 max-md:block" />
                     Cambia foto
                   </Button>
                 </div>
@@ -707,9 +758,10 @@ export default function RenderBagnoNew() {
               />
             </CardContent>
           </Card>
+          )}
 
-          {/* Tips */}
-          <Card className="bg-muted/30">
+          {/* Tips — telefono: la riga nella zona foto basta. */}
+          <Card className="bg-muted/30 max-md:hidden">
             <CardContent className="py-3">
               <p className="text-xs font-semibold mb-1.5">Consigli per il miglior risultato</p>
               <ul className="text-xs text-muted-foreground space-y-0.5 list-disc list-inside">
@@ -729,6 +781,8 @@ export default function RenderBagnoNew() {
             onOpportunityChange={setOpportunityId}
           />
 
+          {/* Telefono: compare con la foto (prima era un bottone spento). */}
+          {(!isMobile || photo) && (
           <Button
             className="w-full gap-2"
             size="lg"
@@ -741,6 +795,7 @@ export default function RenderBagnoNew() {
               <><Wand2 className="h-4 w-4" />Analizza con AI</>
             )}
           </Button>
+          )}
         </div>
       )}
 
@@ -748,7 +803,7 @@ export default function RenderBagnoNew() {
           STEP 2 — Analisi
       ═════════════════════════════════════════════════════════════ */}
       {step === 2 && (
-        <div className="space-y-4">
+        <div className="space-y-4 max-md:space-y-3">
           {/* Foto preview */}
           {photoPreview && (
             <div className="relative overflow-hidden rounded-xl border border-border/60 bg-muted/20">
@@ -756,9 +811,9 @@ export default function RenderBagnoNew() {
                 <img loading="lazy" src={photoPreview} alt="Bagno" className="max-h-[22rem] w-full object-contain" />
               </div>
               <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-              <div className="absolute bottom-2 left-3 text-white text-xs font-medium">Foto caricata</div>
+              <div className="absolute bottom-2 left-3 text-white text-xs font-medium max-md:text-[11px]">Foto caricata</div>
               {photoMetaLabel ? (
-                <div className="absolute right-3 top-3 rounded-full bg-black/65 px-2.5 py-1 text-[11px] font-medium text-white">
+                <div className="absolute right-3 top-3 rounded-full bg-black/65 px-2.5 py-1 text-[11px] font-medium text-white max-md:hidden">
                   {photoMetaLabel}
                 </div>
               ) : null}
@@ -767,13 +822,13 @@ export default function RenderBagnoNew() {
 
           {/* Analysis card */}
           <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
+            <CardHeader className="max-md:p-3 max-md:pb-2">
+              <CardTitle className="text-base flex items-center gap-2 max-md:text-[13px]">
                 <Wand2 className="h-4 w-4 text-cyan-600" />
                 Analisi AI del bagno
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="max-md:p-3 max-md:pt-0">
               {analysisLoading ? (
                 <div className="flex items-center gap-3 py-6">
                   <Loader2 className="h-5 w-5 animate-spin text-cyan-600" />
@@ -806,45 +861,47 @@ export default function RenderBagnoNew() {
                 <div className="space-y-3">
                   <div className="grid grid-cols-2 gap-2">
                     <div className="bg-muted/50 rounded-md p-2">
-                      <p className="text-[10px] text-muted-foreground">Tipo ambiente</p>
-                      <p className="text-sm font-medium capitalize">{sceneAnalysis.roomType.replace(/_/g, " ")}</p>
+                      <p className="text-[10px] text-muted-foreground max-md:text-[11px]">Tipo ambiente</p>
+                      <p className="text-sm font-medium first-letter:uppercase max-md:text-[13px]">{etichettaAnalisiBagno("ambiente", sceneAnalysis.roomType)}</p>
                     </div>
                     <div className="bg-muted/50 rounded-md p-2">
-                      <p className="text-[10px] text-muted-foreground">Layout percepito</p>
-                      <p className="text-sm font-medium capitalize">{sceneAnalysis.layoutType.replace(/_/g, " ")}</p>
+                      <p className="text-[10px] text-muted-foreground max-md:text-[11px]">Layout percepito</p>
+                      <p className="text-sm font-medium first-letter:uppercase max-md:text-[13px]">{etichettaAnalisiBagno("layout", sceneAnalysis.layoutType)}</p>
                     </div>
-                    <div className="bg-muted/50 rounded-md p-2">
-                      <p className="text-[10px] text-muted-foreground">Piastrelle parete</p>
-                      <p className="text-sm font-medium capitalize">{sceneAnalysis.wallTiles.description}</p>
+                    {/* Telefono: le descrizioni libere delle piastrelle (in inglese, scritte dall'AI) restano al computer. */}
+                    <div className="bg-muted/50 rounded-md p-2 max-md:hidden">
+                      <p className="text-[10px] text-muted-foreground max-md:text-[11px]">Piastrelle parete</p>
+                      <p className="text-sm font-medium capitalize max-md:text-[13px]">{sceneAnalysis.wallTiles.description}</p>
                     </div>
-                    <div className="bg-muted/50 rounded-md p-2">
-                      <p className="text-[10px] text-muted-foreground">Pavimento</p>
-                      <p className="text-sm font-medium capitalize">{sceneAnalysis.floor.description}</p>
+                    <div className="bg-muted/50 rounded-md p-2 max-md:hidden">
+                      <p className="text-[10px] text-muted-foreground max-md:text-[11px]">Pavimento</p>
+                      <p className="text-sm font-medium capitalize max-md:text-[13px]">{sceneAnalysis.floor.description}</p>
                     </div>
                   <div className="bg-muted/50 rounded-md p-2">
-                    <p className="text-[10px] text-muted-foreground">Doccia</p>
-                    <p className="text-sm font-medium">{sceneAnalysis.shower.present ? sceneAnalysis.shower.type.replace(/_/g, " ") : "Assente"}</p>
+                    <p className="text-[10px] text-muted-foreground max-md:text-[11px]">Doccia</p>
+                    <p className="text-sm font-medium first-letter:uppercase max-md:text-[13px]">{sceneAnalysis.shower.present ? etichettaAnalisiBagno("doccia", sceneAnalysis.shower.type) : "Assente"}</p>
                   </div>
                   <div className="bg-muted/50 rounded-md p-2">
-                    <p className="text-[10px] text-muted-foreground">Vasca</p>
-                    <p className="text-sm font-medium">{sceneAnalysis.bathtub.present ? sceneAnalysis.bathtub.type.replace(/_/g, " ") : "Assente"}</p>
+                    <p className="text-[10px] text-muted-foreground max-md:text-[11px]">Vasca</p>
+                    <p className="text-sm font-medium first-letter:uppercase max-md:text-[13px]">{sceneAnalysis.bathtub.present ? etichettaAnalisiBagno("vasca", sceneAnalysis.bathtub.type) : "Assente"}</p>
                   </div>
                   <div className="bg-muted/50 rounded-md p-2">
-                    <p className="text-[10px] text-muted-foreground">Mobile</p>
-                    <p className="text-sm font-medium">{sceneAnalysis.vanity.present ? sceneAnalysis.vanity.type.replace(/_/g, " ") : "Assente"}</p>
+                    <p className="text-[10px] text-muted-foreground max-md:text-[11px]">Mobile</p>
+                    <p className="text-sm font-medium first-letter:uppercase max-md:text-[13px]">{sceneAnalysis.vanity.present ? etichettaAnalisiBagno("mobile", sceneAnalysis.vanity.type) : "Assente"}</p>
                   </div>
                   <div className="bg-muted/50 rounded-md p-2">
-                    <p className="text-[10px] text-muted-foreground">Sanitari</p>
-                    <p className="text-sm font-medium capitalize">{sceneAnalysis.sanitaryWare.wcPresent || sceneAnalysis.sanitaryWare.bidetPresent ? sceneAnalysis.sanitaryWare.wcType.replace(/_/g, " ") : "Non chiari"}</p>
+                    <p className="text-[10px] text-muted-foreground max-md:text-[11px]">Sanitari</p>
+                    <p className="text-sm font-medium first-letter:uppercase max-md:text-[13px]">{sceneAnalysis.sanitaryWare.wcPresent || sceneAnalysis.sanitaryWare.bidetPresent ? etichettaAnalisiBagno("sanitari", sceneAnalysis.sanitaryWare.wcType) : "Non chiari"}</p>
                   </div>
                   <div className="bg-muted/50 rounded-md p-2 col-span-2">
-                    <p className="text-[10px] text-muted-foreground">Conservazione e luce</p>
-                    <p className="text-sm font-medium capitalize">
-                      {sceneAnalysis.overallCondition.replace(/_/g, " ")} · {sceneAnalysis.lighting.type.replace(/_/g, " ")}
+                    <p className="text-[10px] text-muted-foreground max-md:text-[11px]">Conservazione e luce</p>
+                    <p className="text-sm font-medium first-letter:uppercase max-md:text-[13px]">
+                      {etichettaAnalisiBagno("condizioni", sceneAnalysis.overallCondition)} · {etichettaAnalisiBagno("luce", sceneAnalysis.lighting.type)}
                     </p>
                   </div>
                   </div>
-                  <div className="rounded-md border border-border/60 bg-background px-3 py-2">
+                  {/* Telefono: l'elenco tecnico (in inglese) resta al computer. */}
+                  <div className="rounded-md border border-border/60 bg-background px-3 py-2 max-md:hidden">
                     <p className="text-[11px] font-semibold text-muted-foreground">Elementi da preservare rigidamente</p>
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {sceneAnalysis.preserveRigidly.slice(0, 8).map((item) => (
@@ -879,25 +936,28 @@ export default function RenderBagnoNew() {
           STEP 3 — Configura
       ═════════════════════════════════════════════════════════════ */}
       {step === 3 && (
-        <div className="space-y-4">
+        <div className="space-y-4 max-md:space-y-3">
           {/* Render precedente (pagina aperta come template): scaricabile
               subito, senza dover rigenerare per riavere immagine o PDF. */}
           {templateResultUrl && (
             <Card>
-              <CardContent className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center">
+              {/* Telefono: una riga — miniatura, «Render già generato», manda al cliente. */}
+              <CardContent className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center max-md:flex-row max-md:items-center max-md:gap-2.5 max-md:p-2">
                 <img
                   loading="lazy"
                   src={templateResultUrl}
                   alt="Render precedente"
-                  className="h-20 w-full rounded-lg object-cover sm:w-32"
+                  className="h-20 w-full rounded-lg object-cover sm:w-32 max-md:h-11 max-md:w-14 max-md:shrink-0"
                 />
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium">Render già generato</p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-sm font-medium max-md:text-[13px]">Render già generato</p>
+                  <p className="text-xs text-muted-foreground max-md:hidden">
                     Puoi scaricarlo subito, oppure modificare le scelte qui sotto e rigenerarlo.
                   </p>
+                  <p className="text-[11px] text-muted-foreground md:hidden">Cambia le scelte qui sotto per una variante</p>
                 </div>
-                <div className="flex gap-2">
+                {isMobile && <MandaRenderMobile resultUrl={templateResultUrl} nomeFile="render-bagno" soloIcona />}
+                <div className="flex gap-2 max-md:hidden">
                   <Button
                     variant="outline"
                     size="sm"
@@ -928,32 +988,33 @@ export default function RenderBagnoNew() {
                 <img loading="lazy" src={photoPreview} alt="Bagno" className="max-h-[18rem] w-full object-contain" />
               </div>
               <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-              <div className="absolute bottom-2 left-3 text-white text-xs font-medium">Foto originale</div>
+              <div className="absolute bottom-2 left-3 text-white text-xs font-medium max-md:text-[11px]">Foto originale</div>
               {photoMetaLabel ? (
-                <div className="absolute right-3 top-3 rounded-full bg-black/65 px-2.5 py-1 text-[11px] font-medium text-white">
+                <div className="absolute right-3 top-3 rounded-full bg-black/65 px-2.5 py-1 text-[11px] font-medium text-white max-md:hidden">
                   {photoMetaLabel}
                 </div>
               ) : null}
             </div>
           )}
 
-          <div className="rounded-xl border border-cyan-200 bg-cyan-50/70 px-4 py-3 text-sm dark:border-cyan-900 dark:bg-cyan-950/20">
+          {/* Telefono: spiegazioni e letture dell'analisi restano al computer; si va dritti alle scelte. */}
+          <div className="rounded-xl border border-cyan-200 bg-cyan-50/70 px-4 py-3 text-sm dark:border-cyan-900 dark:bg-cyan-950/20 max-md:hidden">
             <p className="font-medium text-cyan-900 dark:text-cyan-200">Obiettivo del render bagno</p>
             <p className="mt-1 text-cyan-800/80 dark:text-cyan-200/80">
               Il risultato deve essere lo stesso bagno rivisitato: stessa prospettiva, stesso taglio foto e stesso orientamento dell&apos;immagine originale.
             </p>
           </div>
 
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="grid gap-3 md:grid-cols-2 max-md:hidden">
             <Card className="border-border/60">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm">Ambiente letto dalla foto</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2 text-sm text-muted-foreground">
-                <p><span className="font-medium text-foreground">Layout:</span> {sceneAnalysis.layoutType.replace(/_/g, " ")}</p>
-                <p><span className="font-medium text-foreground">Zona doccia:</span> {sceneAnalysis.shower.present ? sceneAnalysis.shower.type.replace(/_/g, " ") : "non rilevata"}</p>
-                <p><span className="font-medium text-foreground">Zona vasca:</span> {sceneAnalysis.bathtub.present ? sceneAnalysis.bathtub.type.replace(/_/g, " ") : "non rilevata"}</p>
-                <p><span className="font-medium text-foreground">Mobile:</span> {sceneAnalysis.vanity.present ? sceneAnalysis.vanity.type.replace(/_/g, " ") : "non rilevato"}</p>
+                <p><span className="font-medium text-foreground">Layout:</span> {etichettaAnalisiBagno("layout", sceneAnalysis.layoutType)}</p>
+                <p><span className="font-medium text-foreground">Zona doccia:</span> {sceneAnalysis.shower.present ? etichettaAnalisiBagno("doccia", sceneAnalysis.shower.type) : "non rilevata"}</p>
+                <p><span className="font-medium text-foreground">Zona vasca:</span> {sceneAnalysis.bathtub.present ? etichettaAnalisiBagno("vasca", sceneAnalysis.bathtub.type) : "non rilevata"}</p>
+                <p><span className="font-medium text-foreground">Mobile:</span> {sceneAnalysis.vanity.present ? etichettaAnalisiBagno("mobile", sceneAnalysis.vanity.type) : "non rilevato"}</p>
               </CardContent>
             </Card>
 
@@ -978,21 +1039,22 @@ export default function RenderBagnoNew() {
             </Card>
           </div>
 
-          <Card>
-            <CardHeader>
+          <Card className="max-md:border-0 max-md:bg-transparent max-md:shadow-none">
+            <CardHeader className="max-md:hidden">
               <CardTitle className="text-base flex items-center gap-2">
                 <Zap className="h-4 w-4 text-cyan-600" />
                 Configura il nuovo bagno
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="max-md:p-0">
               <BathroomConfigForm value={config} onChange={setConfig} companyId={companyId} />
             </CardContent>
           </Card>
 
           {!hasActiveBathroomChange ? (
-            <div className="rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-100">
-              Attiva almeno una modifica prima di generare: cosi evitiamo un render identico alla foto e non consumiamo crediti inutilmente.
+            <div className="rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-100 max-md:px-3 max-md:py-2 max-md:text-[13px]">
+              <span className="max-md:hidden">Attiva almeno una modifica prima di generare: cosi evitiamo un render identico alla foto e non consumiamo crediti inutilmente.</span>
+              <span className="md:hidden">Attiva almeno una modifica per generare il render.</span>
             </div>
           ) : null}
 
@@ -1005,7 +1067,7 @@ export default function RenderBagnoNew() {
             {generating ? (
               <><Loader2 className="h-4 w-4 animate-spin" />Generazione in corso...</>
             ) : (
-              <><Zap className="h-4 w-4" />Conferma scelte e genera render AI</>
+              <><Zap className="h-4 w-4" /><span className="max-md:hidden">Conferma scelte e genera render AI</span><span className="md:hidden">Genera render AI</span></>
             )}
           </Button>
         </div>
@@ -1025,9 +1087,9 @@ export default function RenderBagnoNew() {
       )}
 
       {step === 4 && !generating && resultUrl && (
-        <div className="space-y-4">
-          {/* Success banner */}
-          <div className="flex items-center gap-3 p-4 rounded-xl bg-green-50 border border-green-200 dark:bg-green-950/20 dark:border-green-900">
+        <div className="space-y-4 max-md:space-y-3">
+          {/* Success banner — telefono: parla l'immagine. */}
+          <div className="flex items-center gap-3 p-4 rounded-xl bg-green-50 border border-green-200 dark:bg-green-950/20 dark:border-green-900 max-md:hidden">
             <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
             <div>
               <p className="font-semibold text-green-800 dark:text-green-400 text-sm">Render completato!</p>
@@ -1039,8 +1101,8 @@ export default function RenderBagnoNew() {
 
           {/* Before/After slider */}
           {photoPreview && resultUrl && (
-            <Card className="overflow-hidden">
-              <CardHeader>
+            <Card className="overflow-hidden max-md:rounded-none max-md:border-0 max-md:bg-transparent max-md:shadow-none">
+              <CardHeader className="max-md:hidden">
                 <CardTitle className="text-base">Confronto Prima / Dopo</CardTitle>
               </CardHeader>
               <CardContent className="p-0">
@@ -1052,8 +1114,19 @@ export default function RenderBagnoNew() {
             </Card>
           )}
 
+          {/* Telefono: nuovo render a icona e «Manda al cliente» (WhatsApp, Mail…)
+              al posto di Scarica / PDF / link WhatsApp. */}
+          {isMobile && (
+            <div className="flex gap-2">
+              <Button variant="outline" className="w-11 shrink-0 px-0" onClick={nuovoRender} aria-label="Nuovo render">
+                <ImagePlus className="h-4 w-4" />
+              </Button>
+              <MandaRenderMobile resultUrl={resultUrl} nomeFile="render-bagno" className="min-w-0 flex-1" />
+            </div>
+          )}
+
           {/* Action buttons */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-3 gap-3 max-md:hidden">
             <Button variant="outline" className="gap-2" onClick={downloadResult}>
               <Download className="h-4 w-4" />
               <span className="hidden sm:inline">Scarica</span>
@@ -1077,7 +1150,7 @@ export default function RenderBagnoNew() {
 
           <Button
             className="w-full gap-2"
-            variant={savedToGallery ? "secondary" : "default"}
+            variant={savedToGallery ? "secondary" : isMobile ? "outline" : "default"}
             disabled={savedToGallery || savingGallery}
             onClick={saveToGallery}
           >
@@ -1090,9 +1163,10 @@ export default function RenderBagnoNew() {
             )}
           </Button>
 
-          <BathroomSelectionSummary renderPlan={renderPlan} />
+          {/* Telefono: il riepilogo tecnico si rilegge dal computer. */}
+          {!isMobile && <BathroomSelectionSummary renderPlan={renderPlan} />}
 
-          <Separator />
+          <Separator className="max-md:hidden" />
 
           <RenderResultRefinementPanel
             config={config}
@@ -1109,23 +1183,13 @@ export default function RenderBagnoNew() {
             regenerateLabel="Genera nuova variante bagno"
           />
 
-          <div className="flex gap-3">
+          {/* Telefono: «Nuovo render» sta accanto a «Manda al cliente», «Modifica»
+              è l'icona del pannello qui sopra, la galleria è nel modulo. */}
+          <div className="flex gap-3 max-md:hidden">
             <Button
               variant="outline"
               className="flex-1"
-              onClick={() => {
-                setStep(1);
-                setPhoto(null);
-                setPhotoPreview(null);
-                setPhotoMeta(null);
-                setAnalisi(null);
-                setAnalysisError(undefined);
-                setSessionId(null);
-                setSourceOriginalPath(null);
-                setResultUrl(null);
-                setSavedToGallery(false);
-                setConfig(DEFAULT_BATHROOM_CONFIG);
-              }}
+              onClick={nuovoRender}
             >
               Nuovo render
             </Button>
@@ -1143,7 +1207,7 @@ export default function RenderBagnoNew() {
             </Button>
           </div>
 
-          <div className="flex">
+          <div className="flex max-md:hidden">
             <Button
               className="flex-1"
               onClick={() => navigate("/azienda/render/bagno/gallery")}

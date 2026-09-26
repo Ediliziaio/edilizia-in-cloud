@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { formatTreasuryCurrency, toFiniteAmount } from "@/lib/treasury";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { prettyTxDesc } from "./txLabel";
+import { KpiMobili } from "@/components/mobile/FiltriMobile";
 
 const formatEur = (val: unknown) => formatTreasuryCurrency(val, "€0,00");
 
@@ -272,10 +273,13 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
   const saldoNegativo = summary && toFiniteAmount(summary.total_balance) < 0;
   const saldoBasso = summary && !saldoNegativo && toFiniteAmount(summary.total_balance) < 1000;
 
+  // Da 1280 i quattro riquadri (saldo, cash flow, spese per categoria,
+  // ultime transazioni) stanno a coppie: uno sotto l'altro a tutta larghezza
+  // erano grafici di 1100px alti 300 e la pagina scorreva per quattro schermi.
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-sm:space-y-3 xl:grid xl:grid-cols-2 xl:gap-6 xl:space-y-0">
       {error && (
-        <Card className="border-destructive/30">
+        <Card className="border-destructive/30 xl:col-span-2">
           <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-destructive">Alcuni dati non sono disponibili: {error}</p>
             <Button variant="outline" size="sm" onClick={() => loadData()}>Riprova</Button>
@@ -285,7 +289,7 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
 
       {/* KPI — stesso linguaggio dell'header di pagina: tile gradiente, card
           rounded-2xl con velo tinto, delta vs mese precedente e sparkline. */}
-      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4 sm:gap-4">
+      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4 sm:gap-4 max-sm:hidden xl:col-span-2">
         {kpis.map((kpi, kpiIdx) => (
           <div key={kpi.title} className={`relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-card via-card ${kpi.tint} p-4 shadow-sm`}>
             <div className="flex items-center gap-2.5">
@@ -320,9 +324,19 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
         ))}
       </div>
 
+      {/* Mobile: liquidità e netto del mese, nome e cifra (rossa se negativa:
+          al posto dei due avvisi fissi di saldo basso/negativo). Dopo la griglia:
+          da primo figlio nascosto sposterebbe il desktop. */}
+      <KpiMobili
+        className="sm:hidden max-sm:!mt-0"
+        voci={[
+          { label: "Liquidità", valore: formatEur(kpis[0].value), tono: saldoNegativo ? "text-rose-600" : saldoBasso ? "text-amber-600" : undefined },
+          { label: "Netto del mese", valore: formatEur(netMese), tono: netMese >= 0 ? "text-sky-600" : "text-rose-600" },
+        ]}
+      />
       {/* Alert liquidità */}
       {saldoNegativo && (
-        <div className="flex items-center gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 dark:border-rose-900/50 dark:bg-rose-950/30">
+        <div className="flex items-center gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 dark:border-rose-900/50 dark:bg-rose-950/30 max-sm:hidden xl:col-span-2">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rose-100 dark:bg-rose-900/40">
             <AlertTriangle className="h-4 w-4 text-rose-600 dark:text-rose-400" />
           </div>
@@ -333,7 +347,7 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
         </div>
       )}
       {saldoBasso && (
-        <div className="flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/50 dark:bg-amber-950/30">
+        <div className="flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/50 dark:bg-amber-950/30 max-sm:hidden xl:col-span-2">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-900/40">
             <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
           </div>
@@ -347,17 +361,18 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
       {/* Andamento saldo — il grafico principe della tesoreria: area con
           gradiente sui 90 giorni, leggibile anche su mobile. */}
       {saldoTrend.length >= 2 && (
-        <Card className="rounded-2xl shadow-sm">
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-orange-100 text-orange-600 dark:bg-orange-950/50 dark:text-orange-400">
+        <Card className="rounded-2xl shadow-sm max-sm:rounded-lg">
+          <CardHeader className="pb-2 max-sm:p-3 max-sm:pb-1">
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg max-sm:text-sm">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-orange-100 text-orange-600 dark:bg-orange-950/50 dark:text-orange-400 max-sm:hidden">
                 <LineChartIcon className="h-4 w-4" />
               </span>
-              Andamento Saldo — Ultimi 90 giorni
+              <span className="max-sm:hidden">Andamento Saldo — Ultimi 90 giorni</span>
+              <span className="sm:hidden">Saldo, ultimi 90 giorni</span>
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={isMobile ? 200 : 260}>
+          <CardContent className="max-sm:px-1 max-sm:pb-2">
+            <ResponsiveContainer width="100%" height={isMobile ? 170 : 260}>
               <AreaChart data={saldoTrend} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
                 <defs>
                   <linearGradient id="saldo-fill" x1="0" y1="0" x2="0" y2="1">
@@ -412,8 +427,8 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
       </Card>
       )}
 
-      {/* Spese per categoria */}
-      <Card className="rounded-2xl shadow-sm">
+      {/* Spese per categoria. Mobile no: analisi da scrivania. */}
+      <Card className="rounded-2xl shadow-sm max-sm:hidden">
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-100 text-violet-600 dark:bg-violet-950/50 dark:text-violet-400">
@@ -428,10 +443,13 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
               Nessuna uscita nel periodo. Categorizza i movimenti dalla scheda Transazioni per vedere la ripartizione.
             </p>
           ) : (
-            <div className="grid gap-6 md:grid-cols-2 items-center">
+            <div className="grid gap-6 md:grid-cols-2 items-center xl:grid-cols-1">
               {/* Donut recharts: solo desktop. Su mobile resta la lista con
-                  percentuali (stesso dato, più leggibile a dito). */}
+                  percentuali (stesso dato, più leggibile a dito). Da 1280 il
+                  riquadro è a mezza pagina: col donut accanto la lista restava
+                  senza spazio per i nomi delle categorie, quindi resta la lista. */}
               {!isMobile && (
+              <div className="xl:hidden">
               <ResponsiveContainer width="100%" height={240}>
                 <PieChart>
                   <Pie data={byCategory} dataKey="total" nameKey="category" innerRadius={62} outerRadius={95} paddingAngle={2} strokeWidth={2}>
@@ -440,6 +458,7 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
                   <Tooltip formatter={(v: number) => formatEur(v)} />
                 </PieChart>
               </ResponsiveContainer>
+              </div>
               )}
               <div className="space-y-1">
                 {(() => { const tot = byCategory.reduce((s, c) => s + c.total, 0); return byCategory.slice(0, 8).map((c) => (
@@ -459,8 +478,8 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
         </CardContent>
       </Card>
 
-      {/* Ultime transazioni */}
-      <Card className="rounded-2xl shadow-sm">
+      {/* Ultime transazioni. Mobile no: doppione della scheda Movimenti. */}
+      <Card className="rounded-2xl shadow-sm max-sm:hidden">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">

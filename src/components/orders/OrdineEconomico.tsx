@@ -53,7 +53,7 @@ export function OrdineEconomico({
   // vederle solo perche' vede gli importi della commessa.
   const permissions = usePermissions();
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 max-sm:space-y-3">
       <FinancialSummaryReadOnly
         totalAmount={totalAmount}
         vatRate={vatRate}
@@ -68,6 +68,8 @@ export function OrdineEconomico({
         conPrimaNota={conPrimaNota}
         clienteNome={clienteNome}
       />
+      {/* Bonus, blocca prezzo e provvigioni: conti d'ufficio, dal telefono no. */}
+      <div className="space-y-4 max-sm:hidden">
       {/* Ripartizione su più bonus: quanti bonifici parlanti servono e con che
           causale. Si mostra da sé solo se l'azienda l'ha accesa e le righe ci sono. */}
       <BonusRipartizioneCard
@@ -93,6 +95,7 @@ export function OrdineEconomico({
           vatRate={vatRate}
         />
       )}
+      </div>
     </div>
   );
 }

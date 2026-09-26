@@ -51,13 +51,14 @@ describe("AdminPortalePage / PortalePage admin context", () => {
 
   describe("hero header non duplicato", () => {
     it("hero PortalePage condizionale via !isAdminContext", () => {
-      // Il blocco hero "Portale · Beta operativa · Sync Supabase" è wrapped
-      // in {!isAdminContext && (...)}
+      // Il blocco hero "Portale · Beta operativa" è wrapped in
+      // {!isAdminContext && (...)}. (Il bollino «Sync Supabase» non c'è più:
+      // lo stato si mostra solo quando non è sincronizzato.)
       expect(portalPageSource).toContain("{!isAdminContext && (");
       // Sotto deve esserci il GraduationCap dell'hero
       const heroBlock =
-        portalPageSource.match(/\{!isAdminContext && \(\s*<div className="flex items-start gap-4">[\s\S]+?Sync Supabase/)?.[0] ?? "";
-      expect(heroBlock).toContain("Sync Supabase");
+        portalPageSource.match(/\{!isAdminContext && \(\s*<div className="flex items-start gap-4">[\s\S]+?Beta operativa/)?.[0] ?? "";
+      expect(heroBlock).toContain("Beta operativa");
     });
   });
 

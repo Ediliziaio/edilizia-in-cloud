@@ -492,8 +492,10 @@ export function EmailList({ filter, scopedAccountIds, selectedThreadId, onSelect
       ) : isEmpty ? (
         <ListEmptyState filter={filter} />
       ) : (
-        <div className="space-y-2 p-3">
-          <div className="flex items-center justify-between px-1 pb-1 text-[11px] text-slate-500">
+        // Mobile: lista a righe separate da una linea, come un client di posta,
+        // invece di una card con bordo e ombra per ogni email.
+        <div className="space-y-2 p-3 max-sm:space-y-0 max-sm:divide-y max-sm:divide-slate-100 max-sm:p-0">
+          <div className="flex items-center justify-between px-1 pb-1 text-[11px] text-slate-500 max-sm:hidden">
             <span>
               {totalCount !== null
                 ? `Mostro ${threads.length} di ${totalCount} thread`
@@ -508,13 +510,13 @@ export function EmailList({ filter, scopedAccountIds, selectedThreadId, onSelect
           </div>
 
           {usingFallback && (
-            <div className="mx-2 mb-2 rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
+            <div className="mx-2 mb-2 rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-[11px] text-amber-800 max-sm:hidden">
               Ricerca compatibile attiva: applica la migration email per conteggi e storico ancora più veloci.
             </div>
           )}
 
           {filter.category && (
-            <div className="mx-2 mb-2 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-[11px] text-blue-800">
+            <div className="mx-2 mb-2 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-[11px] text-blue-800 max-sm:hidden">
               Categoria predittiva attiva: se l'AI non ha ancora classificato, uso regole su mittente, oggetto, testo e allegati.
             </div>
           )}
@@ -580,7 +582,7 @@ function ThreadRowItem({
       type="button"
       onClick={onClick}
       className={cn(
-        "group relative w-full rounded-2xl border p-3 text-left transition-all shadow-sm",
+        "group relative w-full rounded-2xl border p-3 text-left transition-all shadow-sm max-sm:rounded-none max-sm:border-0 max-sm:px-4 max-sm:shadow-none",
         selected
           ? "border-blue-300 bg-white ring-2 ring-blue-100"
           : unread
@@ -613,7 +615,7 @@ function ThreadRowItem({
                   highPriority && "border-orange-100 bg-orange-50 text-orange-700",
                 )}
               >
-                {thread.ai_category ? category : `Regole · ${category}`}
+                {thread.ai_category ? category : <><span className="max-sm:hidden">Regole · </span>{category}</>}
               </Badge>
             )}
             {highPriority && !category && (

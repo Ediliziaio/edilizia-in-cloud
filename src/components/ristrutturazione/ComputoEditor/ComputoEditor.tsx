@@ -233,14 +233,15 @@ export default function ComputoEditor({
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_300px]">
       {/* ─── Colonna principale: capitoli ─────────────────────────────────── */}
       <div className="min-w-0 space-y-3">
-        {/* Toolbar */}
-        <div className="flex flex-wrap items-center justify-between gap-2">
+        {/* Toolbar — sul telefono, a computo vuoto, i due bottoni sono già nel riquadro sotto. */}
+        <div className={cn("flex flex-wrap items-center justify-between gap-2", isEmpty && "max-sm:hidden")}>
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-50 text-orange-600">
+            {/* Telefono: il titolo è già quello del passo; resta il conteggio delle voci. */}
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-50 text-orange-600 max-sm:hidden">
               <Calculator className="h-4 w-4" />
             </div>
             <div>
-              <h3 className="text-sm font-semibold text-slate-900">Computo metrico</h3>
+              <h3 className="text-sm font-semibold text-slate-900 max-sm:hidden">Computo metrico</h3>
               <p className="text-[11px] text-muted-foreground">
                 {nVoci > 0
                   ? `${nVoci} ${nVoci === 1 ? "voce" : "voci"} · ${capitoli.length} ${capitoli.length === 1 ? "capitolo" : "capitoli"}`
@@ -249,11 +250,12 @@ export default function ComputoEditor({
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* Telefono no: i margini si guardano dal computer. */}
             <button
               type="button"
               onClick={() => setShowMargine((s) => !s)}
               className={cn(
-                "inline-flex h-8 items-center gap-1.5 rounded-full border px-2.5 text-[11px] font-medium transition-colors",
+                "inline-flex h-8 items-center gap-1.5 rounded-full border px-2.5 text-[11px] font-medium transition-colors max-sm:hidden",
                 showMargine
                   ? "border-emerald-200 bg-emerald-50 text-emerald-700"
                   : "border-border bg-background text-muted-foreground hover:text-foreground",
@@ -266,7 +268,7 @@ export default function ComputoEditor({
               size="sm"
               variant="outline"
               onClick={() => setGlobalPickerOpen(true)}
-              className="h-8 gap-1.5"
+              className="tap-compact h-8 gap-1.5"
             >
               <Sparkles className="h-3.5 w-3.5 text-orange-500" /> Cerca voce
             </Button>
@@ -307,14 +309,17 @@ export default function ComputoEditor({
       </div>
 
       {/* ─── Pannello riepilogo sticky ────────────────────────────────────── */}
-      <aside className="lg:sticky lg:top-20 lg:self-start">
+      {/* Telefono: a computo vuoto il riepilogo a zero non serve. */}
+      <aside className={cn("lg:sticky lg:top-20 lg:self-start", isEmpty && "max-sm:hidden")}>
         <div className="overflow-hidden rounded-2xl border bg-card shadow-sm">
-          <div className="border-b bg-gradient-to-br from-slate-50 to-white px-4 py-3">
+          {/* Telefono: resta il totale che cresce mentre si scrive; capitoli, conteggio e
+              prezzo di zona sono già sulle testate dei capitoli e nel passo PDF. */}
+          <div className="border-b bg-gradient-to-br from-slate-50 to-white px-4 py-3 max-sm:hidden">
             <p className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
               <ListChecks className="h-3.5 w-3.5" /> Riepilogo computo
             </p>
           </div>
-          <div className="space-y-2.5 p-4">
+          <div className="space-y-2.5 p-4 max-sm:p-3">
             {/* Righe imponibile / IVA */}
             <div className="space-y-1.5 text-sm">
               <Row
@@ -352,7 +357,7 @@ export default function ComputoEditor({
 
             {/* Mini-breakdown per capitolo */}
             {totali.perCapitolo.length > 0 && (
-              <div className="space-y-1 border-t pt-2.5">
+              <div className="space-y-1 border-t pt-2.5 max-sm:hidden">
                 <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Per capitolo</p>
                 {totali.perCapitolo.map((c) => {
                   const quota = totali.sommaVoci > 0 ? (c.imponibile / totali.sommaVoci) * 100 : 0;
@@ -372,14 +377,14 @@ export default function ComputoEditor({
             )}
 
             {/* Conteggio voci */}
-            <div className="flex items-center justify-between border-t pt-2.5 text-[11px] text-muted-foreground">
+            <div className="flex items-center justify-between border-t pt-2.5 text-[11px] text-muted-foreground max-sm:hidden">
               <span>Voci totali</span>
               <Badge variant="outline" className="tabular-nums">{nVoci}</Badge>
             </div>
 
             {/* Prezzo di zona: il verdetto sull'intero preventivo. */}
             {nVoci > 0 && (
-              <div className="border-t pt-2.5">
+              <div className="border-t pt-2.5 max-sm:hidden">
                 <PrezzoDiZonaRiepilogo
                   riepilogo={prezzoDiZona.riepilogo}
                   fonteLabel={prezzoDiZona.fonteLabel}
@@ -417,21 +422,22 @@ function Row({ label, value, muted }: { label: string; value: string; muted?: bo
 /** Empty-state premium e guidato. */
 function EmptyState({ onAddCapitolo, onSearch }: { onAddCapitolo: () => void; onSearch: () => void }) {
   return (
-    <div className="rounded-2xl border border-dashed border-border bg-gradient-to-b from-muted/30 to-transparent px-6 py-10 text-center">
-      <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-50 text-orange-500">
+    // Telefono: due bottoni e basta (via icona grande e spiegazione).
+    <div className="rounded-2xl border border-dashed border-border bg-gradient-to-b from-muted/30 to-transparent px-6 py-10 text-center max-sm:px-3 max-sm:py-4">
+      <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-50 text-orange-500 max-sm:hidden">
         <Calculator className="h-7 w-7" />
       </div>
-      <h3 className="text-base font-semibold text-slate-900">Costruisci il computo</h3>
-      <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
+      <h3 className="text-base font-semibold text-slate-900 max-sm:text-sm">Costruisci il computo</h3>
+      <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground max-sm:hidden">
         Organizza il lavoro in capitoli (Demolizioni, Impianti, Finiture…) e pesca le voci
         dai tuoi listini: lavorazioni, prodotti e manodopera. Tutto si somma in tempo reale.
       </p>
-      <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
-        <Button onClick={onAddCapitolo} className="gap-1.5 bg-orange-500 hover:bg-orange-600">
-          <Plus className="h-4 w-4" /> Aggiungi capitolo
+      <div className="mt-5 flex flex-wrap items-center justify-center gap-2 max-sm:mt-3 max-sm:flex-nowrap">
+        <Button onClick={onAddCapitolo} className="gap-1.5 bg-orange-500 hover:bg-orange-600 max-sm:flex-1 max-sm:px-2">
+          <Plus className="h-4 w-4" /> <span className="max-sm:hidden">Aggiungi capitolo</span><span className="sm:hidden">Nuovo capitolo</span>
         </Button>
-        <Button variant="outline" onClick={onSearch} className="gap-1.5">
-          <Sparkles className="h-4 w-4 text-orange-500" /> Cerca nei listini
+        <Button variant="outline" onClick={onSearch} className="gap-1.5 max-sm:flex-1 max-sm:px-2">
+          <Sparkles className="h-4 w-4 text-orange-500" /> <span className="max-sm:hidden">Cerca nei listini</span><span className="sm:hidden">Dai listini</span>
         </Button>
       </div>
     </div>

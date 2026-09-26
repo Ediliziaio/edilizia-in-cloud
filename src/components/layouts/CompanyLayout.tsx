@@ -393,8 +393,9 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
     if (label in openGroups) return openGroups[label];
     return true; // default open
   };
-  const { state } = useSidebar();
-  const collapsed = state === "collapsed";
+  const { state, isMobile: sidebarAPannello } = useSidebar();
+  // Nel pannello a scomparsa (tablet) le voci sono sempre per esteso.
+  const collapsed = state === "collapsed" && !sidebarAPannello;
 
   const isActive = (url: string) => {
     if (url === "/azienda") return pathname === "/azienda";
@@ -1267,8 +1268,8 @@ const CompanySidebar = memo(function CompanySidebar() {
     return () => window.clearTimeout(timer);
   }, [gatingLoading]);
 
-  const { state: sidebarState, toggleSidebar } = useSidebar();
-  const isCollapsed = sidebarState === "collapsed";
+  const { state: sidebarState, toggleSidebar, isMobile: sidebarAPannello } = useSidebar();
+  const isCollapsed = sidebarState === "collapsed" && !sidebarAPannello;
   const showMenuSkeleton = gatingLoading && !menuLoadingFallback;
 
   // Su mobile la navigazione è gestita dalla bottom nav + App Grid — niente sidebar
@@ -1460,8 +1461,8 @@ const CompanySidebar = memo(function CompanySidebar() {
                         type="button"
                         onClick={toggleSidebar}
                         className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-sidebar-accent hover:text-foreground transition-colors"
-                        aria-label="Comprimi menu a icone"
-                        title="Comprimi a icone"
+                        aria-label={sidebarAPannello ? "Chiudi menu" : "Comprimi menu a icone"}
+                        title={sidebarAPannello ? "Chiudi menu" : "Comprimi a icone"}
                       >
                         <PanelLeftClose className="h-4 w-4" />
                       </button>
@@ -1734,6 +1735,23 @@ export function CompanyLayout() {
     || /^\/azienda\/impostazioni\/template-preventivi\/?$/.test(location.pathname)
     || /^\/azienda\/chat\/?$/.test(location.pathname)
     || /^\/azienda\/marketing\/contatti\/[^/]+\/?$/.test(location.pathname);
+  // Chat: altezza bloccata allo schermo e, da desktop, senza margini. Senza il
+  // blocco un filo lungo (Silvio) allungava <main> a 2.400px e il campo di
+  // scrittura finiva sotto la piega; il margine di 24px era spazio vuoto.
+  const isChatSchermoIntero = /^\/azienda\/chat\/?$/.test(location.pathname);
+  // Silvio AI: come la chat, e su mobile da bordo a bordo con il campo di
+  // scrittura appena sopra la barra flottante (80px + area sicura), non 112px.
+  const isSilvioSchermoIntero = /^\/azienda\/silvio-ai/.test(location.pathname);
+  // Email: da tablet come la chat, a tutta pagina e ad altezza bloccata. Col
+  // margine di 24px e l'altezza fissa di 100vh-4rem i bottoni di risposta
+  // finivano sotto la piega e scorreva la pagina insieme ai riquadri.
+  const isEmailSchermoIntero = /^\/azienda\/email\/?$/.test(location.pathname);
+  const altezzaBloccata = isViewportEditor || isChatSchermoIntero || isSilvioSchermoIntero || isEmailSchermoIntero;
+  const paddingMain = isChatSchermoIntero || isEmailSchermoIntero
+    ? "p-3 md:p-0 pb-28 md:pb-0"
+    : isSilvioSchermoIntero
+      ? "p-0 pb-[calc(env(safe-area-inset-bottom)+5rem)] md:pb-0"
+      : "p-3 md:p-6 pb-28 md:pb-6";
 
   const showSupport = permissions.canViewTickets && isModuleEnabled("tickets");
 
@@ -1744,8 +1762,10 @@ export function CompanyLayout() {
   
   return (
     <>
-    <SidebarProvider>
-      <div className={`md:min-h-screen flex w-full ${isViewportEditor ? "md:h-dvh" : "md:h-auto"} h-[calc(100dvh-env(safe-area-inset-top))] overflow-hidden`}>
+    {/* Sotto i 1024px (tablet in verticale) la barra fissa da 240px lasciava
+        alle pagine 480px su 768: diventa un pannello che si apre dal ☰. */}
+    <SidebarProvider pannelloSotto={1024}>
+      <div className={`md:min-h-screen flex w-full ${altezzaBloccata ? "md:h-dvh" : "md:h-auto"} h-[calc(100dvh-env(safe-area-inset-top))] overflow-hidden`}>
         <CompanySidebar />
         {/* NIENTE pt-safe qui: il top safe-area è già riservato UNA volta dal
             padding-top del body (html.capacitor body). Aggiungerlo qui lo
@@ -1879,8 +1899,10 @@ export function CompanyLayout() {
                 <NotificationsBellPopover />
               </>
             )}
+            {/* Da 768px: tra 640 e 767 la testata è quella del telefono, dove
+                il bottone verde da 150px spingeva fuori le icone. */}
             {showSupport && (
-              <Button variant="outline" size="sm" className="relative hidden sm:flex bg-emerald-500 hover:bg-emerald-600 text-white border-emerald-500 hover:border-emerald-600 shadow-md hover:shadow-lg transition-shadow" onClick={() => setChannelDialogOpen(true)}>
+              <Button variant="outline" size="sm" className="relative hidden md:flex bg-emerald-500 hover:bg-emerald-600 text-white border-emerald-500 hover:border-emerald-600 shadow-md hover:shadow-lg transition-shadow" onClick={() => setChannelDialogOpen(true)}>
                 <HeadphonesIcon className="h-4 w-4 sm:mr-2" />
                 <span className="hidden sm:inline">Assistenza</span>
                 {unreadCount > 0 && (
@@ -1896,7 +1918,7 @@ export function CompanyLayout() {
               "spazi vuoti ai lati quando scrollo") — le tabelle scrollano nei loro wrapper */}
           {/* pb mobile ≈ altezza pillola flottante + safe-area: l'ultimo
               elemento resta raggiungibile sopra il vetro della bottom-nav. */}
-          <main className={`flex-1 ${isViewportEditor ? "min-h-0" : ""} overflow-y-auto overflow-x-hidden p-3 md:p-6 bg-muted/30 pb-28 md:pb-6`} id="main-content" aria-label="Contenuto principale">
+          <main className={`flex-1 ${altezzaBloccata ? "min-h-0" : ""} overflow-y-auto overflow-x-hidden ${paddingMain} bg-muted/30`} id="main-content" aria-label="Contenuto principale">
             <ErrorBoundary title="Errore nel caricamento della pagina" resetKey={location.pathname}>
               {/* Skeleton (non spinner) al cambio pagina: percezione di velocità sul primo paint mobile */}
               <Suspense fallback={

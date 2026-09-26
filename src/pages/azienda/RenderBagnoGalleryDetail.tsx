@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import { RenderPdfDownloadButton } from "@/components/render/RenderPdfDownloadButton";
+import { MandaRenderMobile } from "@/components/render/MandaRenderMobile";
 import { RenderCrmSummaryCard } from "@/components/render/RenderCrmSummaryCard";
 import { BathroomSelectionSummary } from "@/components/render-bagno/BathroomSelectionSummary";
 import { ensureBathroomRenderConfig } from "@/modules/render-bagno/lib/bathroomRenderConfig";
@@ -22,6 +23,7 @@ import { it } from "date-fns/locale";
 import { toast } from "sonner";
 
 import { useIsMobile } from "@/hooks/use-mobile";
+import { etichettaAnalisiBagno } from "@/components/render-bagno/etichetteAnalisiBagno";
 const STATUS_CONFIG = {
   pending:      { label: "In coda",         variant: "secondary",   icon: Clock },
   analyzing:    { label: "Analisi",         variant: "default",     icon: Wand2 },
@@ -30,6 +32,12 @@ const STATUS_CONFIG = {
   completato:   { label: "Completato",      variant: "secondary",   icon: CheckCircle2 },
   errore:       { label: "Errore",          variant: "destructive", icon: XCircle },
 } as const;
+
+const ORIENTAMENTO_FOTO: Record<string, string> = {
+  portrait: "verticale",
+  landscape: "orizzontale",
+  square: "quadrata",
+};
 
 export default function RenderBagnoGalleryDetail() {
   const isMobile = useIsMobile();
@@ -106,14 +114,15 @@ export default function RenderBagnoGalleryDetail() {
   const sceneHighlights = useMemo(() => {
     if (!renderPlan) return [];
     const scene = renderPlan.scene_analysis;
+    // In italiano: prima «layout corner shower», «doccia esistente frontale box».
     return [
-      `layout ${scene.layoutType.replace(/_/g, " ")}`,
-      `stato ${scene.overallCondition.replace(/_/g, " ")}`,
-      scene.shower.present ? `doccia esistente ${scene.shower.type.replace(/_/g, " ")}` : "doccia non evidente",
-      scene.bathtub.present ? `vasca esistente ${scene.bathtub.type.replace(/_/g, " ")}` : "vasca non evidente",
-      scene.vanity.present ? `mobile ${scene.vanity.type.replace(/_/g, " ")}` : "mobile non evidente",
-      scene.windowPresent ? `finestra ${scene.windowPosition.replace(/_/g, " ")}` : "senza finestra visibile",
-      renderPlan.photo_meta?.orientation ? `foto ${renderPlan.photo_meta.orientation}` : "",
+      `layout: ${etichettaAnalisiBagno("layout", scene.layoutType)}`,
+      etichettaAnalisiBagno("condizioni", scene.overallCondition),
+      scene.shower.present ? `doccia ${etichettaAnalisiBagno("doccia", scene.shower.type)}` : "doccia non evidente",
+      scene.bathtub.present ? `vasca ${etichettaAnalisiBagno("vasca", scene.bathtub.type)}` : "vasca non evidente",
+      scene.vanity.present ? `mobile ${etichettaAnalisiBagno("mobile", scene.vanity.type)}` : "mobile non evidente",
+      scene.windowPresent ? `finestra ${etichettaAnalisiBagno("posizione", scene.windowPosition)}` : "senza finestra visibile",
+      renderPlan.photo_meta?.orientation ? `foto ${ORIENTAMENTO_FOTO[renderPlan.photo_meta.orientation] ?? renderPlan.photo_meta.orientation}` : "",
     ].filter(Boolean);
   }, [renderPlan]);
 
@@ -160,18 +169,18 @@ export default function RenderBagnoGalleryDetail() {
     STATUS_CONFIG.pending;
   const StatusIcon = statusCfg.icon;
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
+    <div className="space-y-6 max-w-4xl mx-auto max-md:space-y-3">
       {/* Header */}
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={() => navigate("/azienda/render/bagno/gallery")}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="flex-1">
-          <h1 className="text-xl font-bold flex items-center gap-2">
+          <h1 className="text-xl font-bold flex items-center gap-2 max-md:text-lg">
             <Bath className="h-5 w-5 text-cyan-600" />
             Dettaglio render bagno
           </h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground max-md:text-[11px]">
             {format(new Date(session.created_at), "d MMMM yyyy, HH:mm", { locale: it })}
           </p>
         </div>
@@ -214,13 +223,15 @@ export default function RenderBagnoGalleryDetail() {
       {/* Before/After slider */}
       {session.stato === "completato" && resultUrl && originalDisplayUrl && (
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Confronto prima/dopo</CardTitle>
+          <CardHeader className="pb-3 max-md:hidden">
+            <CardTitle className="text-base max-md:text-[13px]">Confronto prima/dopo</CardTitle>
             <p className="text-xs text-muted-foreground">Trascina il cursore per confrontare</p>
           </CardHeader>
           <CardContent>
             <BeforeAfterSlider beforeUrl={originalDisplayUrl} afterUrl={resultUrl} className="mx-auto max-h-[78vh]" />
-            <div className="flex gap-2 mt-4 justify-end">
+            {/* Telefono: «Manda al cliente» (l'immagine col foglio di condivisione) al posto di link WhatsApp, Condividi, PDF e Scarica. */}
+            {isMobile && resultUrl && <MandaRenderMobile resultUrl={resultUrl} nomeFile="render-bagno" className="mt-3 w-full" />}
+            <div className="flex gap-2 mt-4 justify-end max-md:hidden">
               <Button
                 variant="outline"
                 size="sm"
@@ -264,11 +275,16 @@ export default function RenderBagnoGalleryDetail() {
       )}
 
       {/* Only render result if no original */}
-      {session.stato === "completato" && resultUrl && !originalUrl && (
+      {/* Solo render quando manca del tutto la foto originale: con il solo
+          foto_originale_url (sessioni vecchie) c'è già il confronto sopra, e
+          prima comparivano entrambi. */}
+      {session.stato === "completato" && resultUrl && !originalDisplayUrl && (
         <Card>
           <CardContent className="p-4">
             <img loading="lazy" src={resultUrl} alt="Render AI Bagno" className="w-full rounded-lg" />
-            <div className="flex gap-2 mt-4 justify-end">
+            {/* Telefono: «Manda al cliente» (l'immagine col foglio di condivisione) al posto di link WhatsApp, Condividi, PDF e Scarica. */}
+            {isMobile && resultUrl && <MandaRenderMobile resultUrl={resultUrl} nomeFile="render-bagno" className="mt-3 w-full" />}
+            <div className="flex gap-2 mt-4 justify-end max-md:hidden">
               <RenderPdfDownloadButton
                 afterUrl={resultUrl}
                 title="Render AI Bagno"
@@ -289,7 +305,7 @@ export default function RenderBagnoGalleryDetail() {
       {session.stato !== "completato" && (session.foto_originale_path || session.foto_originale_url) && (
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
+            <CardTitle className="text-base flex items-center gap-2 max-md:text-[13px]">
               <Image className="h-4 w-4" />
               Foto originale
             </CardTitle>
@@ -325,7 +341,7 @@ export default function RenderBagnoGalleryDetail() {
       {renderPlan && (
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm">Analisi sintetica della foto</CardTitle>
+            <CardTitle className="text-sm max-md:text-[13px]">Analisi sintetica della foto</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="rounded-xl border bg-muted/20 p-4">
@@ -334,7 +350,7 @@ export default function RenderBagnoGalleryDetail() {
               </p>
               <div className="mt-2 flex flex-wrap gap-2">
                 {sceneHighlights.map((item) => (
-                  <Badge key={item} variant="secondary" className="capitalize">
+                  <Badge key={item} variant="secondary" className="first-letter:uppercase max-md:font-normal">
                     {item}
                   </Badge>
                 ))}

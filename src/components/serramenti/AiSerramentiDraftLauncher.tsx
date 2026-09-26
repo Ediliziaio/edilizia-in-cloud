@@ -108,14 +108,15 @@ export function AiSerramentiDraftLauncher({
         ? "rounded-md border border-slate-200 bg-slate-50/70 px-3 py-2"
         : "rounded-md border border-orange-200 bg-gradient-to-r from-orange-50 to-white p-3"
       }>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="flex items-center gap-1.5 text-sm font-semibold text-slate-950">
-              <Sparkles className="h-4 w-4 text-orange-500" />
+        {/* Telefono: una riga sola, titolo e bottone; la spiegazione resta al computer. */}
+        <div className="flex flex-row items-center justify-between gap-2 max-sm:gap-2">
+          <div className="min-w-0">
+            <p className="flex items-center gap-1.5 text-sm font-semibold text-slate-950 max-md:text-[13px]">
+              <Sparkles className="h-4 w-4 shrink-0 text-orange-500" />
               {copy.title}
             </p>
-            <p className="text-xs leading-relaxed text-slate-600">{copy.description}</p>
-            <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-500">
+            <p className="text-xs leading-relaxed text-slate-600 max-md:hidden">{copy.description}</p>
+            <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-500 max-md:hidden">
               <span className="inline-flex items-center gap-1"><Camera className="h-3.5 w-3.5" /> Foto rilievo</span>
               <span className="inline-flex items-center gap-1"><Mic className="h-3.5 w-3.5" /> Detta a voce</span>
               <span className="inline-flex items-center gap-1"><Sparkles className="h-3.5 w-3.5" /> Testo</span>
@@ -126,7 +127,7 @@ export function AiSerramentiDraftLauncher({
               <Button
                 type="button"
                 variant="ghost"
-                className="h-8 gap-1.5 text-xs text-slate-700 hover:bg-orange-50"
+                className="h-8 gap-1.5 text-xs text-slate-700 hover:bg-orange-50 max-md:hidden"
                 onClick={onGoToComposition}
               >
                 Vai alla composizione
@@ -137,14 +138,15 @@ export function AiSerramentiDraftLauncher({
               type="button"
               variant="outline"
               className={isContactContext
-                ? "h-8 gap-1.5 border-slate-200 bg-white px-3 text-xs text-slate-700 hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700"
-                : "gap-1.5 border-orange-300 text-orange-700 hover:bg-orange-50"
+                ? "tap-compact h-8 gap-1.5 border-slate-200 bg-white px-3 text-xs text-slate-700 hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700"
+                : "tap-compact gap-1.5 border-orange-300 text-orange-700 hover:bg-orange-50 max-md:h-8 max-md:px-3 max-md:text-xs"
               }
               onClick={() => setOpen(true)}
               disabled={addMut.isPending}
             >
-              <Sparkles className="h-4 w-4" />
-              {copy.cta}
+              <Sparkles className="h-4 w-4 max-md:hidden" />
+              <span className="max-md:hidden">{copy.cta}</span>
+              <span className="md:hidden">Apri</span>
             </Button>
           </div>
         </div>

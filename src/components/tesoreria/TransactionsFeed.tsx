@@ -15,6 +15,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { buildBankTransactionSearchFilter, formatTreasuryCurrency, isChronologicalDateRange, toFiniteAmount } from "@/lib/treasury";
 import { neutralizeCsvFormula } from "@/lib/csvExport";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { CercaConFiltri, PannelloFiltri, PilloleFiltro } from "@/components/mobile/FiltriMobile";
 
 const formatEur = (val: unknown) => formatTreasuryCurrency(val, "€0,00");
 
@@ -61,6 +63,9 @@ export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
 
   // Detail sheet
   const [selectedTx, setSelectedTx] = useState<any>(null);
+  // Mobile: conto, tipo, categoria e date in un pannello dal basso.
+  const isMobile = useIsMobile();
+  const [filtriMobileAperti, setFiltriMobileAperti] = useState(false);
   const [editCategory, setEditCategory] = useState("");
   const [editNote, setEditNote] = useState("");
   const [savingDetail, setSavingDetail] = useState(false);
@@ -331,10 +336,12 @@ export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
 
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
+  const nFiltriMobile = [accountFilter !== "all", typeFilter !== "all", categoryFilter !== "all", !!dateFrom || !!dateTo].filter(Boolean).length;
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 max-sm:space-y-3">
       {/* Filters */}
-      <Card>
+      <Card className="max-sm:hidden">
         <CardContent className="pt-4">
           <div className="flex flex-wrap gap-3 items-end">
             <div className="relative flex-1 min-w-[200px]">
@@ -382,6 +389,15 @@ export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
         </CardContent>
       </Card>
 
+      {/* Mobile: ricerca e bottone dei filtri; via categorizza con AI ed export.
+          Dopo la scheda dei filtri: da primo figlio nascosto sposterebbe il desktop. */}
+      <CercaConFiltri
+        className="sm:hidden max-sm:!mt-0"
+        valore={search}
+        onCambia={(v) => { setSearch(v); setPage(0); }}
+        filtriAttivi={nFiltriMobile}
+        onApriFiltri={() => setFiltriMobileAperti(true)}
+      />
       {/* Table */}
       {loadError ? (
         <Card className="border-destructive/30">
@@ -393,9 +409,38 @@ export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
       ) : loading ? (
         <div className="space-y-2">{[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-14" />)}</div>
       ) : transactions.length === 0 ? (
-        <p className="text-muted-foreground text-center py-12">Nessuna transazione trovata</p>
+        <p className="text-muted-foreground text-center py-12 max-sm:py-4 max-sm:text-xs">Nessuna transazione trovata</p>
       ) : (
-        <div className="border rounded-lg overflow-hidden">
+        <>
+        {/* Mobile: un movimento per riga (descrizione; data, conto e categoria;
+            importo colorato), al posto della tabella a sei colonne. */}
+        <div className="divide-y divide-border overflow-hidden rounded-lg border bg-card sm:hidden">
+          {transactions.map((tx) => (
+            <button
+              key={tx.id}
+              type="button"
+              onClick={() => {
+                setSelectedTx(tx);
+                setEditCategory(tx.category || "Non categorizzata");
+                setEditNote(tx.note || "");
+              }}
+              className="tap-compact flex w-full items-center gap-2.5 px-3 py-2.5 text-left active:bg-muted"
+            >
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[13px] font-semibold leading-tight">{prettyTxDesc(tx)}</p>
+                <p className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground">
+                  {formatDateIt(tx.booking_date)}
+                  {tx.category && tx.category !== "Non categorizzata" ? ` · ${tx.category}` : ""}
+                  {accounts.length > 1 && (tx.bank_accounts?.display_name || tx.bank_accounts?.account_name) ? ` · ${tx.bank_accounts?.display_name || tx.bank_accounts?.account_name}` : ""}
+                </p>
+              </div>
+              <span className={`shrink-0 text-[13px] font-semibold tabular-nums ${tx.transaction_type === "credit" ? "text-green-600" : "text-red-600"}`}>
+                {tx.transaction_type === "credit" ? "+" : ""}{formatEur(tx.amount)}
+              </span>
+            </button>
+          ))}
+        </div>
+        <div className="border rounded-lg overflow-hidden max-sm:hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-muted/50">
@@ -468,53 +513,58 @@ export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
             </table>
           </div>
         </div>
+        </>
       )}
 
       {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
-            Pagina {page + 1} di {totalPages} · {totalCount} transazioni
+          <p className="text-sm text-muted-foreground max-sm:text-xs">
+            Pagina {page + 1} di {totalPages}<span className="max-sm:hidden"> · {totalCount} transazioni</span>
           </p>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(page - 1)}>
+            <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(page - 1)} className="tap-compact max-sm:h-8 max-sm:w-8 max-sm:px-0" aria-label="Pagina precedente">
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)}>
+            <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)} className="tap-compact max-sm:h-8 max-sm:w-8 max-sm:px-0" aria-label="Pagina successiva">
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
         </div>
       )}
 
-      {/* Summary */}
-      <div className="text-sm text-muted-foreground text-center py-2">
+      {/* Summary. Mobile no: una riga lunga di numeri in fondo alla lista. */}
+      <div className="text-sm text-muted-foreground text-center py-2 max-sm:hidden">
         Risultati: {summary.count} transazioni · Entrate: {formatEur(summary.income)} · Uscite: {formatEur(summary.expenses)} · Netto: {formatEur(summary.net)}
       </div>
 
-      {/* Detail Sheet */}
+      {/* Detail Sheet — mobile: dal basso, con data, importo, descrizione e
+          controparte; data valuta, stato, IBAN e riferimento al desktop. */}
       <Sheet open={!!selectedTx} onOpenChange={() => setSelectedTx(null)}>
-        <SheetContent>
-          <SheetHeader>
-            <SheetTitle>Dettaglio Transazione</SheetTitle>
+        <SheetContent
+          side={isMobile ? "bottom" : "right"}
+          className={isMobile ? "max-h-[85dvh] overflow-y-auto rounded-t-2xl px-4 pb-6" : undefined}
+        >
+          <SheetHeader className="max-sm:text-left">
+            <SheetTitle className="max-sm:text-base">Dettaglio Transazione</SheetTitle>
           </SheetHeader>
           {selectedTx && (
-            <div className="space-y-4 mt-6">
-              <div className="grid grid-cols-2 gap-3 text-sm">
+            <div className="space-y-4 mt-6 max-sm:mt-3 max-sm:space-y-3">
+              <div className="grid grid-cols-2 gap-3 text-sm max-sm:gap-2 max-sm:text-[13px]">
                 <div><Label className="text-muted-foreground">Data contabile</Label><p>{formatDateIt(selectedTx.booking_date)}</p></div>
-                <div><Label className="text-muted-foreground">Data valuta</Label><p>{formatDateIt(selectedTx.value_date)}</p></div>
+                <div className="max-sm:hidden"><Label className="text-muted-foreground">Data valuta</Label><p>{formatDateIt(selectedTx.value_date)}</p></div>
                 <div><Label className="text-muted-foreground">Importo</Label>
                   <p className={`font-bold ${selectedTx.transaction_type === "credit" ? "text-green-600" : "text-red-600"}`}>
                     {formatEur(selectedTx.amount)}
                   </p>
                 </div>
-                <div><Label className="text-muted-foreground">Stato</Label><p>{selectedTx.status}</p></div>
+                <div className="max-sm:hidden"><Label className="text-muted-foreground">Stato</Label><p>{selectedTx.status}</p></div>
                 <div className="col-span-2"><Label className="text-muted-foreground">Descrizione</Label><p>{selectedTx.description || "—"}</p></div>
-                <div><Label className="text-muted-foreground">Creditore</Label><p>{selectedTx.creditor_name || "—"}</p></div>
-                <div><Label className="text-muted-foreground">Debitore</Label><p>{selectedTx.debtor_name || "—"}</p></div>
-                <div><Label className="text-muted-foreground">IBAN Creditore</Label><p className="text-xs font-mono">{selectedTx.creditor_iban || "—"}</p></div>
-                <div><Label className="text-muted-foreground">IBAN Debitore</Label><p className="text-xs font-mono">{selectedTx.debtor_iban || "—"}</p></div>
-                <div className="col-span-2"><Label className="text-muted-foreground">Riferimento</Label><p>{selectedTx.reference || "—"}</p></div>
+                <div className={!selectedTx.creditor_name ? "max-sm:hidden" : undefined}><Label className="text-muted-foreground">Creditore</Label><p>{selectedTx.creditor_name || "—"}</p></div>
+                <div className={!selectedTx.debtor_name ? "max-sm:hidden" : undefined}><Label className="text-muted-foreground">Debitore</Label><p>{selectedTx.debtor_name || "—"}</p></div>
+                <div className="max-sm:hidden"><Label className="text-muted-foreground">IBAN Creditore</Label><p className="text-xs font-mono">{selectedTx.creditor_iban || "—"}</p></div>
+                <div className="max-sm:hidden"><Label className="text-muted-foreground">IBAN Debitore</Label><p className="text-xs font-mono">{selectedTx.debtor_iban || "—"}</p></div>
+                <div className="col-span-2 max-sm:hidden"><Label className="text-muted-foreground">Riferimento</Label><p>{selectedTx.reference || "—"}</p></div>
                 {selectedTx.linked_invoice_id && invoiceMap[selectedTx.linked_invoice_id] && (
                   <div className="col-span-2">
                     <Label className="text-muted-foreground">Fattura collegata</Label>
@@ -540,7 +590,7 @@ export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
 
               <div className="space-y-2">
                 <Label>Nota</Label>
-                <Textarea value={editNote} onChange={(e) => setEditNote(e.target.value)} rows={3} />
+                <Textarea value={editNote} onChange={(e) => setEditNote(e.target.value)} rows={isMobile ? 2 : 3} />
               </div>
 
               <Button onClick={saveDetail} disabled={savingDetail} className="w-full">
@@ -551,6 +601,54 @@ export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
           )}
         </SheetContent>
       </Sheet>
+
+      {/* Mobile: tipo, conto, categoria e periodo. */}
+      <PannelloFiltri
+        aperto={filtriMobileAperti}
+        onAperto={setFiltriMobileAperti}
+        attivi={nFiltriMobile}
+        onAzzera={resetFilters}
+        risultati={loading ? undefined : totalCount}
+      >
+        <PilloleFiltro
+          titolo="Movimenti"
+          valore={typeFilter}
+          onScegli={(v) => { setTypeFilter(v); setPage(0); }}
+          scelte={[
+            { value: "all", label: "Tutti" },
+            { value: "credit", label: "Entrate" },
+            { value: "debit", label: "Uscite" },
+          ]}
+        />
+        {accounts.length > 1 && (
+          <PilloleFiltro
+            titolo="Conto"
+            valore={accountFilter}
+            onScegli={(v) => { setAccountFilter(v); setPage(0); }}
+            scelte={[
+              { value: "all", label: "Tutti" },
+              ...accounts.map((a) => ({ value: a.id as string, label: (a.display_name || a.account_name || a.iban) as string })),
+            ]}
+          />
+        )}
+        <div>
+          <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Categoria</p>
+          <Select value={categoryFilter} onValueChange={(v) => { setCategoryFilter(v); setPage(0); }}>
+            <SelectTrigger className="tap-compact h-9 text-xs"><SelectValue placeholder="Categoria" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutte</SelectItem>
+              {CATEGORIES.map((c) => <SelectItem key={c.value} value={c.value}>{c.value}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Periodo</p>
+          <div className="grid grid-cols-2 gap-2">
+            <Input type="date" aria-label="Dal" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(0); }} className="h-9 text-xs" />
+            <Input type="date" aria-label="Al" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(0); }} className="h-9 text-xs" />
+          </div>
+        </div>
+      </PannelloFiltri>
     </div>
   );
 }

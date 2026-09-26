@@ -46,11 +46,11 @@ export function CallCenterOperationalDiagnosis({
         <CardHeader className="pb-3">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <ListChecks className="h-5 w-5 text-sky-600" />
+              <CardTitle className="flex items-center gap-2 text-lg max-sm:text-sm">
+                <ListChecks className="h-5 w-5 text-sky-600 max-sm:hidden" />
                 Diagnosi operativa chiamate
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="max-sm:hidden">
                 Lettura immediata di backlog, SLA e priorità da correggere prima dei grafici.
               </CardDescription>
             </div>
@@ -89,15 +89,16 @@ export function CallCenterOperationalDiagnosis({
   const healthStyle = SEVERITY_STYLES[diagnosis.healthSeverity];
 
   return (
+    // Telefono: titolo e stato su una riga, i quattro numeri 2×2, le azioni senza spiegazione; lo SLA consigliato resta al computer.
     <Card className={cn("border-slate-200", healthStyle.border)}>
-      <CardHeader className="pb-3">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+      <CardHeader className="pb-3 max-sm:p-3 max-sm:pb-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between max-sm:flex-row max-sm:items-center max-sm:justify-between">
           <div>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <ListChecks className={cn("h-5 w-5", healthStyle.icon)} />
+            <CardTitle className="flex items-center gap-2 text-lg max-sm:text-sm">
+              <ListChecks className={cn("h-5 w-5 max-sm:hidden", healthStyle.icon)} />
               Diagnosi operativa chiamate
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="max-sm:hidden">
               Lettura immediata di backlog, SLA e priorità da correggere prima dei grafici.
             </CardDescription>
           </div>
@@ -107,8 +108,8 @@ export function CallCenterOperationalDiagnosis({
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-4">
-        <div className="grid gap-3 md:grid-cols-4">
+      <CardContent className="space-y-4 max-sm:space-y-2 max-sm:p-3 max-sm:pt-0">
+        <div className="grid gap-3 md:grid-cols-4 max-sm:grid-cols-2 max-sm:gap-2">
           <DiagnosisTile
             icon={PhoneOff}
             label="Lead da lavorare"
@@ -140,25 +141,25 @@ export function CallCenterOperationalDiagnosis({
         </div>
 
         <div className="grid gap-3 lg:grid-cols-[1.2fr_0.8fr]">
-          <div className="rounded-lg border bg-white p-4">
-            <div className="mb-3 flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-amber-600" />
-              <h3 className="text-sm font-semibold text-slate-900">Azioni consigliate</h3>
+          <div className="rounded-lg border bg-white p-4 max-sm:border-0 max-sm:bg-transparent max-sm:p-0">
+            <div className="mb-3 flex items-center gap-2 max-sm:mb-1.5">
+              <AlertTriangle className="h-4 w-4 text-amber-600 max-sm:hidden" />
+              <h3 className="text-sm font-semibold text-slate-900 max-sm:text-[13px]">Azioni consigliate</h3>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2 max-sm:space-y-1.5">
               {diagnosis.actions.map((action) => {
                 const style = SEVERITY_STYLES[action.severity];
                 return (
-                  <div key={action.key} className="flex gap-3 rounded-md border border-slate-100 bg-slate-50/60 p-3">
+                  <div key={action.key} className="flex gap-3 rounded-md border border-slate-100 bg-slate-50/60 p-3 max-sm:gap-2 max-sm:bg-white max-sm:px-2.5 max-sm:py-2">
                     <CheckCircle2 className={cn("mt-0.5 h-4 w-4 shrink-0", style.icon)} />
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-sm font-medium text-slate-900">{action.title}</p>
-                        <Badge variant="outline" className={cn("text-[11px]", style.badge)}>
+                    <div className="max-sm:min-w-0 max-sm:flex-1">
+                      <div className="flex flex-wrap items-center gap-2 max-sm:flex-nowrap max-sm:justify-between">
+                        <p className="text-sm font-medium text-slate-900 max-sm:text-[13px] max-sm:leading-tight">{action.title}</p>
+                        <Badge variant="outline" className={cn("text-[11px] max-sm:shrink-0 max-sm:px-1.5", style.badge)}>
                           {severityLabel(action.severity)}
                         </Badge>
                       </div>
-                      <p className="mt-0.5 text-xs text-slate-600">{action.detail}</p>
+                      <p className="mt-0.5 text-xs text-slate-600 max-sm:hidden">{action.detail}</p>
                     </div>
                   </div>
                 );
@@ -166,7 +167,7 @@ export function CallCenterOperationalDiagnosis({
             </div>
           </div>
 
-          <div className="rounded-lg border bg-white p-4">
+          <div className="rounded-lg border bg-white p-4 max-sm:hidden">
             <h3 className="mb-3 text-sm font-semibold text-slate-900">SLA operativo consigliato</h3>
             <ul className="space-y-2 text-sm text-slate-700">
               <li className="flex items-start gap-2">
@@ -208,13 +209,13 @@ function DiagnosisTile({
 }) {
   const style = SEVERITY_STYLES[severity];
   return (
-    <div className="rounded-lg border bg-white p-3">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <p className="text-xs font-medium uppercase text-slate-500">{label}</p>
-        <Icon className={cn("h-4 w-4", style.icon)} />
+    <div className="rounded-lg border bg-white p-3 max-sm:min-w-0 max-sm:px-2.5 max-sm:py-2">
+      <div className="mb-2 flex items-center justify-between gap-2 max-sm:mb-0.5">
+        <p className="text-xs font-medium uppercase text-slate-500 max-sm:line-clamp-2 max-sm:text-[11px] max-sm:normal-case max-sm:leading-tight">{label}</p>
+        <Icon className={cn("h-4 w-4 max-sm:hidden", style.icon)} />
       </div>
-      <p className="text-xl font-semibold text-slate-950">{value}</p>
-      <p className="mt-1 line-clamp-2 text-xs text-slate-500">{detail}</p>
+      <p className="text-xl font-semibold text-slate-950 max-sm:truncate max-sm:text-base">{value}</p>
+      <p className="mt-1 line-clamp-2 text-xs text-slate-500 max-sm:hidden">{detail}</p>
     </div>
   );
 }

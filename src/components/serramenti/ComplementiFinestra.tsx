@@ -492,7 +492,7 @@ export function ComplementiSuTutteLeFinestre({
         occupata={occupata}
         destinazione="Su tutte le finestre"
       />
-      <span className="text-[10px] text-muted-foreground">solo dove manca, col modello già usato</span>
+      <span className="text-[10px] text-muted-foreground max-sm:hidden">solo dove manca, col modello già usato</span>
     </div>
   );
 }

@@ -355,7 +355,7 @@ export function QuickStartCampaign({
                       )}
                     >
                       {z.label}
-                      <span className="ml-1 text-[9px] text-slate-400">{z.type}</span>
+                      <span className="ml-1 text-[9px] text-slate-400 max-md:text-[11px]">{z.type}</span>
                     </button>
                   );
                 })}
@@ -410,7 +410,7 @@ export function QuickStartCampaign({
                 <span className="font-semibold text-slate-700">{ageRange[1] - ageRange[0]} anni di range</span>
                 <span>{ageRange[1]} anni</span>
               </div>
-              <p className="mt-2 text-[10px] text-slate-500">
+              <p className="mt-2 text-[10px] text-slate-500 max-md:text-[11px]">
                 💡 Per edilizia consigliato 35-65. Per fotovoltaico 30-65. Per arredo 25-50.
               </p>
             </FieldCard>
@@ -457,7 +457,7 @@ export function QuickStartCampaign({
               className="min-h-20"
               maxLength={600}
             />
-            <p className="mt-1 text-[10px] text-slate-500">
+            <p className="mt-1 text-[10px] text-slate-500 max-md:text-[11px]">
               {offer.length}/600 — più sei specifico, più l'AI scrive una campagna forte.
             </p>
           </FieldCard>
@@ -510,7 +510,7 @@ export function QuickStartCampaign({
                   ))}
                 </SelectContent>
               </Select>
-              <p className="mt-1 text-[10px] text-slate-500">
+              <p className="mt-1 text-[10px] text-slate-500 max-md:text-[11px]">
                 {CONVERSION_GOALS.find((g) => g.v === goal)?.desc}
               </p>
             </FieldCard>
@@ -528,7 +528,7 @@ export function QuickStartCampaign({
                   ))}
                 </SelectContent>
               </Select>
-              <p className="mt-1 text-[10px] text-slate-500">
+              <p className="mt-1 text-[10px] text-slate-500 max-md:text-[11px]">
                 {TONES.find((t) => t.v === tone)?.desc}
               </p>
             </FieldCard>
@@ -536,7 +536,7 @@ export function QuickStartCampaign({
 
           {/* PREVIEW BRIEF */}
           <div className="rounded-xl border-2 border-dashed border-violet-200 bg-violet-50/30 p-3">
-            <p className="mb-1 text-[10px] font-semibold uppercase text-violet-700">
+            <p className="mb-1 text-[10px] font-semibold uppercase text-violet-700 max-md:text-[11px]">
               📝 Brief che l'AI riceverà
             </p>
             <p className="text-xs leading-relaxed text-slate-700">{consolidatedBrief}</p>
@@ -555,7 +555,7 @@ export function QuickStartCampaign({
               className="min-h-32 bg-white text-base"
               maxLength={1500}
             />
-            <p className="mt-1 text-[10px] text-slate-500">{freeText.length}/1500</p>
+            <p className="mt-1 text-[10px] text-slate-500 max-md:text-[11px]">{freeText.length}/1500</p>
           </div>
         </TabsContent>
       </Tabs>
@@ -568,7 +568,7 @@ export function QuickStartCampaign({
             {companyCity && <> · {companyCity}</>}
           </p>
           {!briefValid && (
-            <Badge variant="outline" className="border-amber-300 text-[10px] text-amber-700">
+            <Badge variant="outline" className="border-amber-300 text-[10px] text-amber-700 max-md:text-[11px]">
               {mode === "guided" ? "Aggiungi zona + offerta" : "Almeno 20 char"}
             </Badge>
           )}
@@ -619,11 +619,11 @@ export function QuickStartCampaign({
                 detail={`${parsed.dailyBudget * 30} €/mese`}
               />
               <div className="rounded-xl border bg-white p-3">
-                <p className="mb-1 text-[10px] font-semibold uppercase text-slate-500">Copy principale</p>
+                <p className="mb-1 text-[10px] font-semibold uppercase text-slate-500 max-md:text-[11px]">Copy principale</p>
                 <p className="text-sm leading-relaxed text-slate-800">{parsed.copy}</p>
                 {parsed.hooks?.length > 0 && (
                   <div className="mt-2 border-t pt-2">
-                    <p className="text-[9px] font-semibold uppercase text-fuchsia-700">Hook alternativi</p>
+                    <p className="text-[9px] font-semibold uppercase text-fuchsia-700 max-md:text-[11px]">Hook alternativi</p>
                     <ul className="text-xs text-slate-600">
                       {parsed.hooks.map((h, i) => <li key={i}>• {h}</li>)}
                     </ul>
@@ -723,7 +723,7 @@ function ResultCard({
       <div className="flex items-start gap-3">
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-slate-50">{icon}</div>
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-semibold uppercase text-slate-500">{title}</p>
+          <p className="text-[10px] font-semibold uppercase text-slate-500 max-md:text-[11px]">{title}</p>
           <p className="text-sm font-semibold text-slate-950">{value}</p>
           {detail && <p className="mt-0.5 text-xs text-slate-500">{detail}</p>}
         </div>
@@ -737,27 +737,27 @@ function FacebookPreview({ companyName, copy, hook, cta }: { companyName?: strin
   return (
     <div className="overflow-hidden rounded-lg border border-slate-200 bg-white text-xs">
       <div className="flex items-center gap-2 p-2">
-        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-violet-500 text-[10px] font-bold text-white">
+        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-violet-500 text-[10px] font-bold text-white max-md:text-[11px]">
           {name.slice(0, 2).toUpperCase()}
         </div>
         <div className="min-w-0 flex-1">
           <p className="truncate text-[11px] font-semibold text-slate-900">{name}</p>
-          <p className="text-[9px] text-slate-500">Sponsorizzato</p>
+          <p className="text-[9px] text-slate-500 max-md:text-[11px]">Sponsorizzato</p>
         </div>
       </div>
       <div className="px-2 pb-2">
         {hook && <p className="mb-1 text-[11px] font-semibold text-slate-900">{hook}</p>}
-        <p className="text-[10px] leading-snug text-slate-700 line-clamp-3">{copy}</p>
+        <p className="text-[10px] leading-snug text-slate-700 line-clamp-3 max-md:text-[11px]">{copy}</p>
       </div>
       <div className="flex aspect-video items-center justify-center bg-gradient-to-br from-blue-100 via-violet-50 to-amber-50">
-        <p className="text-[10px] text-slate-400">🖼️ Immagine</p>
+        <p className="text-[10px] text-slate-400 max-md:text-[11px]">🖼️ Immagine</p>
       </div>
       <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50 px-3 py-2">
         <div>
-          <p className="text-[9px] uppercase text-slate-500">{name.slice(0, 12).toUpperCase()}.IT</p>
-          <p className="text-[10px] font-semibold text-slate-900">Inizia ora</p>
+          <p className="text-[9px] uppercase text-slate-500 max-md:text-[11px]">{name.slice(0, 12).toUpperCase()}.IT</p>
+          <p className="text-[10px] font-semibold text-slate-900 max-md:text-[11px]">Inizia ora</p>
         </div>
-        <button className="rounded bg-slate-200 px-3 py-1 text-[10px] font-semibold text-slate-900">{cta}</button>
+        <button className="rounded bg-slate-200 px-3 py-1 text-[10px] font-semibold text-slate-900 max-md:text-[11px]">{cta}</button>
       </div>
     </div>
   );
@@ -772,19 +772,19 @@ function InstagramPreview({ companyName, copy, hook, cta }: { companyName?: stri
           <div className="h-0.5 flex-1 rounded-full bg-white" />
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-fuchsia-500 to-amber-400 text-[9px] font-bold text-white">
+          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-fuchsia-500 to-amber-400 text-[9px] font-bold text-white max-md:text-[11px]">
             {name.slice(0, 1).toUpperCase()}
           </div>
-          <p className="text-[10px] font-semibold text-white drop-shadow">{name}</p>
-          <span className="text-[9px] text-white/80">Sponsorizzato</span>
+          <p className="text-[10px] font-semibold text-white drop-shadow max-md:text-[11px]">{name}</p>
+          <span className="text-[9px] text-white/80 max-md:text-[11px]">Sponsorizzato</span>
         </div>
       </div>
       <div className="absolute inset-x-3 top-1/2 -translate-y-1/2 text-center">
         {hook && <p className="mb-2 text-[11px] font-semibold text-slate-900">{hook}</p>}
-        <p className="text-[10px] leading-snug text-slate-800 line-clamp-4">{copy}</p>
+        <p className="text-[10px] leading-snug text-slate-800 line-clamp-4 max-md:text-[11px]">{copy}</p>
       </div>
       <div className="absolute inset-x-3 bottom-3 text-center">
-        <div className="mx-auto inline-block rounded-full bg-white/90 px-4 py-1.5 text-[10px] font-bold text-slate-900 shadow">
+        <div className="mx-auto inline-block rounded-full bg-white/90 px-4 py-1.5 text-[10px] font-bold text-slate-900 shadow max-md:text-[11px]">
           {cta} →
         </div>
       </div>

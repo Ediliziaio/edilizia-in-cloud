@@ -51,6 +51,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import {
+  avanzamentoCorso,
+  chiaveModuliSpuntati,
+  leggiModuliSpuntati,
+  moduliDaMostrare,
+  salvaModuliSpuntati,
+} from "@/lib/formazione/avanzamentoCorsi";
+import {
   createPortalMaterialSignedUrl,
   listPortalCourseEnrollments,
   listPortalCourses,
@@ -109,30 +116,9 @@ function AssetTypeIcon({ type, className }: { type: PortalAssetType; className?:
   }
 }
 
-function lsKey(companyId: string, userId: string, courseId: string) {
-  return `portale-formazione:${companyId}:${userId}:${courseId}`;
-}
-
-function loadCompletedModules(companyId: string | null, userId: string | null, courseId: string): string[] {
-  if (!companyId || !userId || typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(lsKey(companyId, userId, courseId));
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as unknown;
-    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === "string") : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveCompletedModules(companyId: string | null, userId: string | null, courseId: string, ids: string[]) {
-  if (!companyId || !userId || typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(lsKey(companyId, userId, courseId), JSON.stringify(ids));
-  } catch {
-    /* quota / private mode: ignora, il DB resta la fonte di verità */
-  }
-}
+// Moduli spuntati e avanzamento: regola e chiave del browser stanno in
+// lib/formazione/avanzamentoCorsi, condivise col Portale.
+const lsKey = chiaveModuliSpuntati;
 
 /** Materiali "visti" del corso (per auto-completamento modulo). */
 function loadViewed(companyId: string | null, userId: string | null, courseId: string): string[] {
@@ -209,6 +195,22 @@ export default function FormazioneDipendente() {
     return map;
   }, [enrollmentsQuery.data]);
 
+  // Stessa regola del Portale (lib/formazione/avanzamentoCorsi): il massimo tra
+  // i moduli spuntati su questo dispositivo e l'avanzamento salvato. `selectedId`
+  // tra le dipendenze: tornando dal corso i moduli spuntati sono cambiati.
+  const avanzamentoPerCorso = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const c of published) {
+      const salvato = enrollmentByCourse.get(c.id)?.progressPercent ?? 0;
+      const idModuli = c.modules.map((m) => m.id);
+      const mostrati = moduliDaMostrare(leggiModuliSpuntati(companyId, userId, c.id), salvato, idModuli);
+      map.set(c.id, avanzamentoCorso(idModuli.length, mostrati.length, salvato));
+    }
+    return map;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- selectedId: rilettura dopo il player
+  }, [published, enrollmentByCourse, companyId, userId, selectedId]);
+  const avanzamentoDi = (courseId: string) => avanzamentoPerCorso.get(courseId) ?? 0;
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return published;
@@ -225,12 +227,12 @@ export default function FormazioneDipendente() {
     let inProgress = 0;
     for (const c of published) {
       const e = enrollmentByCourse.get(c.id);
-      const p = e?.progressPercent ?? 0;
+      const p = avanzamentoPerCorso.get(c.id) ?? 0;
       if (p >= 100 || e?.status === "completato") completed += 1;
       else if (p > 0 || e?.status === "in_corso") inProgress += 1;
     }
     return { total: published.length, completed, inProgress };
-  }, [published, enrollmentByCourse]);
+  }, [published, enrollmentByCourse, avanzamentoPerCorso]);
 
   const selected = selectedId ? published.find((c) => c.id === selectedId) ?? null : null;
 
@@ -261,7 +263,7 @@ export default function FormazioneDipendente() {
   const assignedTodo = filtered
     .filter((c) => {
       const e = enrollmentByCourse.get(c.id);
-      return !!e?.assignedBy && (e?.progressPercent ?? 0) < 100;
+      return !!e?.assignedBy && avanzamentoDi(c.id) < 100;
     })
     .sort((a, b) => {
       const ad = enrollmentByCourse.get(a.id)?.dueAt ?? null;
@@ -278,34 +280,35 @@ export default function FormazioneDipendente() {
     (c) =>
       !assignedIds.has(c.id) &&
       isMandatoryArea(c.area) &&
-      (enrollmentByCourse.get(c.id)?.progressPercent ?? 0) < 100,
+      avanzamentoDi(c.id) < 100,
   );
   const mandatoryTodoIds = new Set(mandatoryTodo.map((c) => c.id));
   const rest = filtered
     .filter((c) => !assignedIds.has(c.id) && !mandatoryTodoIds.has(c.id))
     .sort((a, b) => {
-      const aDone = (enrollmentByCourse.get(a.id)?.progressPercent ?? 0) >= 100 ? 1 : 0;
-      const bDone = (enrollmentByCourse.get(b.id)?.progressPercent ?? 0) >= 100 ? 1 : 0;
+      const aDone = avanzamentoDi(a.id) >= 100 ? 1 : 0;
+      const bDone = avanzamentoDi(b.id) >= 100 ? 1 : 0;
       if (aDone !== bDone) return aDone - bDone;
       return a.title.localeCompare(b.title);
     });
 
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-6">
-      <header className="overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-blue-50/60 to-orange-50/70 p-5 shadow-sm sm:p-6">
+    <div className="mx-auto w-full max-w-5xl space-y-6 max-sm:space-y-3">
+      {/* Mobile: solo il titolo; niente riquadro, spiegazione e contatori. */}
+      <header className="overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-blue-50/60 to-orange-50/70 p-5 shadow-sm sm:p-6 max-sm:rounded-none max-sm:border-0 max-sm:bg-none max-sm:p-0 max-sm:shadow-none">
         <div className="flex items-start gap-4">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-sm">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-sm max-sm:hidden">
             <GraduationCap className="h-6 w-6" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-2xl font-bold text-slate-950">La mia formazione</h1>
-            <p className="mt-1 text-sm text-slate-600">
+            <h1 className="text-2xl font-bold text-slate-950 max-sm:text-lg">La mia formazione</h1>
+            <p className="mt-1 text-sm text-slate-600 max-sm:hidden">
               Corsi, procedure e materiali assegnati. Il tuo avanzamento viene salvato automaticamente.
             </p>
           </div>
         </div>
 
-        <div className="mt-5 grid grid-cols-3 gap-3">
+        <div className="mt-5 grid grid-cols-3 gap-3 max-sm:hidden">
           <StatCard icon={BookOpen} label="Corsi" value={stats.total} tone="blue" />
           <StatCard icon={Loader2} label="In corso" value={stats.inProgress} tone="amber" />
           <StatCard icon={CheckCircle2} label="Completati" value={stats.completed} tone="emerald" />
@@ -317,7 +320,7 @@ export default function FormazioneDipendente() {
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Cerca corso, procedura o area"
+          placeholder="Cerca corso o procedura"
           className="pl-9"
         />
       </div>
@@ -351,34 +354,35 @@ export default function FormazioneDipendente() {
           </Button>
         </div>
       ) : filtered.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-300 bg-white py-16 text-center">
-          <GraduationCap className="mx-auto h-10 w-10 text-slate-300" />
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-white py-16 text-center max-sm:py-6">
+          <GraduationCap className="mx-auto h-10 w-10 text-slate-300 max-sm:hidden" />
           <p className="mt-3 text-sm font-semibold text-slate-700">
             {published.length === 0 ? "Nessun corso pubblicato" : "Nessun corso trovato"}
           </p>
-          <p className="mx-auto mt-1 max-w-md text-sm text-slate-500">
+          <p className="mx-auto mt-1 max-w-md text-sm text-slate-500 max-sm:hidden">
             {published.length === 0
               ? "Quando l'azienda pubblica un corso lo troverai qui, con il tuo avanzamento."
               : "Prova a modificare la ricerca."}
           </p>
         </div>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-6 max-sm:space-y-4">
           {assignedTodo.length > 0 && (
-            <section className="rounded-2xl border border-blue-200 bg-blue-50/40 p-4">
-              <div className="mb-3 flex items-center gap-2">
+            <section className="rounded-2xl border border-blue-200 bg-blue-50/40 p-4 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0">
+              <div className="mb-3 flex items-center gap-2 max-sm:mb-2">
                 <UserCheck className="h-5 w-5 text-blue-600" />
                 <h2 className="font-bold text-slate-950">Assegnati a te</h2>
                 <Badge variant="outline" className="border-blue-200 bg-white text-blue-700">
                   {assignedTodo.length}
                 </Badge>
               </div>
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className={ELENCO_CORSI}>
                 {assignedTodo.map((course) => (
                   <CourseCard
                     key={course.id}
                     course={course}
                     enrollment={enrollmentByCourse.get(course.id)}
+                    progress={avanzamentoDi(course.id)}
                     mandatory={isMandatoryArea(course.area)}
                     now={nowTs}
                     onOpen={() => setSelectedId(course.id)}
@@ -389,20 +393,21 @@ export default function FormazioneDipendente() {
           )}
 
           {mandatoryTodo.length > 0 && (
-            <section className="rounded-2xl border border-red-200 bg-red-50/40 p-4">
-              <div className="mb-3 flex items-center gap-2">
+            <section className="rounded-2xl border border-red-200 bg-red-50/40 p-4 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0">
+              <div className="mb-3 flex items-center gap-2 max-sm:mb-2">
                 <ShieldAlert className="h-5 w-5 text-red-600" />
                 <h2 className="font-bold text-slate-950">Obbligatori da completare</h2>
                 <Badge variant="outline" className="border-red-200 bg-white text-red-700">
                   {mandatoryTodo.length}
                 </Badge>
               </div>
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className={ELENCO_CORSI}>
                 {mandatoryTodo.map((course) => (
                   <CourseCard
                     key={course.id}
                     course={course}
                     enrollment={enrollmentByCourse.get(course.id)}
+                    progress={avanzamentoDi(course.id)}
                     mandatory
                     now={nowTs}
                     onOpen={() => setSelectedId(course.id)}
@@ -414,13 +419,14 @@ export default function FormazioneDipendente() {
 
           {rest.length > 0 && (
             <div>
-              {mandatoryTodo.length > 0 && <h2 className="mb-3 font-bold text-slate-950">Tutti i corsi</h2>}
-              <div className="grid gap-4 md:grid-cols-2">
+              {mandatoryTodo.length > 0 && <h2 className="mb-3 font-bold text-slate-950 max-sm:mb-2">Tutti i corsi</h2>}
+              <div className={ELENCO_CORSI}>
                 {rest.map((course) => (
                   <CourseCard
                     key={course.id}
                     course={course}
                     enrollment={enrollmentByCourse.get(course.id)}
+                    progress={avanzamentoDi(course.id)}
                     mandatory={isMandatoryArea(course.area)}
                     now={nowTs}
                     onOpen={() => setSelectedId(course.id)}
@@ -437,20 +443,26 @@ export default function FormazioneDipendente() {
 
 // ─── Sotto-componenti ─────────────────────────────────────────────────────────
 
+/** Griglia di schede; da telefono un elenco a righe dentro un unico riquadro. */
+const ELENCO_CORSI =
+  "grid gap-4 md:grid-cols-2 max-sm:gap-0 max-sm:divide-y max-sm:divide-border max-sm:overflow-hidden max-sm:rounded-xl max-sm:border max-sm:border-border max-sm:bg-card";
+
 function CourseCard({
   course,
   enrollment,
+  progress,
   mandatory,
   now,
   onOpen,
 }: {
   course: PortalLearningCourse;
   enrollment?: PortalLearningEnrollment;
+  /** Avanzamento con la regola comune (avanzamentoCorso), non solo il database. */
+  progress: number;
   mandatory?: boolean;
   now: number;
   onOpen: () => void;
 }) {
-  const progress = enrollment?.progressPercent ?? 0;
   const area = AREA_META[course.area];
   const st = statusTone(progress, enrollment);
   const materials = course.assets.length;
@@ -461,9 +473,28 @@ function CourseCard({
     <button
       type="button"
       onClick={onOpen}
-      className="flex flex-col rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:border-blue-300 hover:shadow-md"
+      className="flex flex-col rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:border-blue-300 hover:shadow-md max-sm:flex-row max-sm:items-center max-sm:gap-3 max-sm:rounded-none max-sm:border-0 max-sm:px-3 max-sm:py-2.5 max-sm:shadow-none"
     >
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      {/* Mobile: una riga dell'elenco (titolo, moduli, avanzamento, scadenza). */}
+      <span
+        className={cn(
+          "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg sm:hidden",
+          mandatory ? "bg-red-50 text-red-600" : "bg-blue-50 text-blue-600",
+        )}
+        aria-hidden="true"
+      >
+        <GraduationCap className="h-4 w-4" />
+      </span>
+      <span className="min-w-0 flex-1 sm:hidden">
+        <span className="block truncate text-sm font-medium text-slate-950">{course.title}</span>
+        <span className={cn("block truncate text-xs text-slate-500", overdue && "font-medium text-red-600")}>
+          {course.modules.length} moduli · {progress}%
+          {dueAt &&
+            ` · ${overdue ? "scaduto" : "entro"} ${new Date(dueAt).toLocaleDateString("it-IT", { day: "2-digit", month: "short" })}`}
+        </span>
+      </span>
+      <span className="shrink-0 text-xs font-semibold text-blue-700 sm:hidden">{ctaLabel(progress)}</span>
+      <div className="flex flex-wrap items-center justify-between gap-2 max-sm:hidden">
         <div className="flex flex-wrap items-center gap-1.5">
           <Badge variant="outline" className={cn("w-fit", area?.className)}>
             {area?.label ?? course.area}
@@ -483,9 +514,9 @@ function CourseCard({
           {st.label}
         </Badge>
       </div>
-      <h3 className="mt-3 line-clamp-2 font-bold text-slate-950">{course.title}</h3>
-      <p className="mt-1 line-clamp-2 text-sm text-slate-500">{course.description || "—"}</p>
-      <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-500">
+      <h3 className="mt-3 line-clamp-2 font-bold text-slate-950 max-sm:hidden">{course.title}</h3>
+      <p className="mt-1 line-clamp-2 text-sm text-slate-500 max-sm:hidden">{course.description || "—"}</p>
+      <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-500 max-sm:hidden">
         <span className="inline-flex items-center gap-1">
           <Layers className="h-3.5 w-3.5" /> {course.modules.length} moduli
         </span>
@@ -502,7 +533,7 @@ function CourseCard({
           </span>
         )}
       </div>
-      <div className="mt-auto pt-4">
+      <div className="mt-auto pt-4 max-sm:hidden">
         <div className="mb-1 flex items-center justify-between text-xs text-slate-500">
           <span>{progress}%</span>
           <span className="font-medium text-blue-700">{ctaLabel(progress)} →</span>
@@ -558,14 +589,18 @@ function CoursePlayer({
 }) {
   const totalModules = course.modules.length;
 
-  const [completed, setCompleted] = useState<string[]>(() => {
-    const stored = loadCompletedModules(companyId, userId, course.id);
-    if (stored.length === 0 && (enrollment?.progressPercent ?? 0) >= 100) {
-      return course.modules.map((m) => m.id);
-    }
-    // scarta id non più esistenti (moduli rimossi dall'admin)
-    return stored.filter((id) => course.modules.some((m) => m.id === id));
-  });
+  const avanzamentoSalvato = enrollment?.progressPercent ?? 0;
+  // I moduli spuntati stanno nel browser: su un altro dispositivo (il
+  // telefono) non ci sono, e il corso nell'elenco al 67% si apriva a «0/3 ·
+  // 0%». Si riparte dall'avanzamento salvato, coi primi moduli spuntati (regola
+  // comune col Portale: moduliDaMostrare).
+  const [completed, setCompleted] = useState<string[]>(() =>
+    moduliDaMostrare(
+      leggiModuliSpuntati(companyId, userId, course.id),
+      avanzamentoSalvato,
+      course.modules.map((m) => m.id),
+    ),
+  );
   const [saving, setSaving] = useState(false);
   const [viewed, setViewed] = useState<string[]>(() => loadViewed(companyId, userId, course.id));
   const [viewer, setViewer] = useState<{
@@ -575,20 +610,17 @@ function CoursePlayer({
     index: number;
   } | null>(null);
 
-  const progress =
-    totalModules === 0
-      ? completed.length > 0 || (enrollment?.progressPercent ?? 0) >= 100
-        ? 100
-        : 0
-      : Math.round((completed.length / totalModules) * 100);
+  // Come il database (savePortalCourseEnrollment tiene il massimo): la
+  // percentuale non scende sotto quella salvata, che è quella dell'elenco.
+  const progress = avanzamentoCorso(totalModules, completed.length, avanzamentoSalvato);
 
   const area = AREA_META[course.area];
   const courseAssets = course.assets.filter((a) => !a.moduleId);
 
   const persist = async (ids: string[]) => {
-    saveCompletedModules(companyId, userId, course.id, ids);
+    salvaModuliSpuntati(companyId, userId, course.id, ids);
     if (!companyId || !userId) return;
-    const pct = totalModules === 0 ? (ids.length > 0 ? 100 : 0) : Math.round((ids.length / totalModules) * 100);
+    const pct = avanzamentoCorso(totalModules, ids.length);
     setSaving(true);
     try {
       await savePortalCourseEnrollment(companyId, userId, course.id, pct);
@@ -673,17 +705,18 @@ function CoursePlayer({
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 max-sm:space-y-3">
       <button
         type="button"
         onClick={onBack}
-        className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 transition hover:text-slate-900"
+        className="tap-compact inline-flex items-center gap-2 text-sm font-medium text-slate-600 transition hover:text-slate-900 max-sm:py-1"
       >
         <ArrowLeft className="h-4 w-4" /> Tutti i corsi
       </button>
 
-      <header className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-        <div className="flex flex-wrap items-center gap-2">
+      <header className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6 max-sm:rounded-xl max-sm:p-3">
+        {/* Mobile: titolo e avanzamento; area e descrizione no. */}
+        <div className="flex flex-wrap items-center gap-2 max-sm:hidden">
           <Badge variant="outline" className={cn("w-fit", area?.className)}>
             {area?.label ?? course.area}
           </Badge>
@@ -693,10 +726,10 @@ function CoursePlayer({
             </Badge>
           )}
         </div>
-        <h1 className="mt-3 text-2xl font-bold text-slate-950">{course.title}</h1>
-        {course.description && <p className="mt-1 text-sm text-slate-600">{course.description}</p>}
+        <h1 className="mt-3 text-2xl font-bold text-slate-950 max-sm:mt-0 max-sm:text-lg">{course.title}</h1>
+        {course.description && <p className="mt-1 text-sm text-slate-600 max-sm:hidden">{course.description}</p>}
 
-        <div className="mt-4">
+        <div className="mt-4 max-sm:mt-2">
           <div className="mb-1 flex items-center justify-between text-sm">
             <span className="font-medium text-slate-700">
               {totalModules === 0
@@ -733,7 +766,7 @@ function CoursePlayer({
           )}
         </section>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-4 max-sm:space-y-3">
           {course.modules.map((module, idx) => {
             const done = completed.includes(module.id);
             const moduleAssets = course.assets.filter((a) => a.moduleId === module.id);
@@ -742,17 +775,20 @@ function CoursePlayer({
               <section
                 key={module.id}
                 className={cn(
-                  "rounded-2xl border bg-white p-5 shadow-sm transition",
+                  "rounded-2xl border bg-white p-5 shadow-sm transition max-sm:rounded-xl max-sm:p-3",
                   done ? "border-emerald-200" : "border-slate-200",
                 )}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Modulo {idx + 1}</p>
-                    <h3 className="mt-0.5 font-bold text-slate-950">{module.title}</h3>
-                    {module.description && <p className="mt-1 text-sm text-slate-500">{module.description}</p>}
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 max-sm:hidden">Modulo {idx + 1}</p>
+                    <h3 className="mt-0.5 font-bold text-slate-950 max-sm:mt-0 max-sm:text-sm">
+                      <span className="sm:hidden">{idx + 1}. </span>
+                      {module.title}
+                    </h3>
+                    {module.description && <p className="mt-1 text-sm text-slate-500 max-sm:hidden">{module.description}</p>}
                     {(module.duration || moduleAssets.length > 0) && (
-                      <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-400">
+                      <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-400 max-sm:mt-0.5">
                         {module.duration && <span>{module.duration}</span>}
                         {moduleAssets.length > 0 && (
                           <span
@@ -773,15 +809,16 @@ function CoursePlayer({
                     variant={done ? "outline" : "default"}
                     size="sm"
                     onClick={() => toggleModule(module.id)}
-                    className={cn("shrink-0 gap-2", done && "border-emerald-200 text-emerald-700")}
+                    className={cn("tap-compact shrink-0 gap-2", done && "border-emerald-200 text-emerald-700")}
                   >
                     {done ? <CheckCircle2 className="h-4 w-4" /> : <Circle className="h-4 w-4" />}
-                    {done ? "Completato" : "Segna fatto"}
+                    <span className="max-sm:hidden">{done ? "Completato" : "Segna fatto"}</span>
+                    <span className="sm:hidden">{done ? "Fatto" : "Segna"}</span>
                   </Button>
                 </div>
 
                 {moduleAssets.length > 0 && (
-                  <div className="mt-4 space-y-2 border-t border-slate-100 pt-4">
+                  <div className="mt-4 space-y-2 border-t border-slate-100 pt-4 max-sm:mt-2 max-sm:space-y-1.5 max-sm:pt-2">
                     {moduleAssets.map((asset) => (
                       <AssetRow
                         key={asset.id}
@@ -798,13 +835,13 @@ function CoursePlayer({
         </div>
       )}
 
-      <div className="flex items-center justify-end gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex items-center justify-end gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
         {progress >= 100 ? (
           <span className="inline-flex items-center gap-2 text-sm font-medium text-emerald-700">
             <CheckCircle2 className="h-4 w-4" /> Corso completato — ottimo lavoro!
           </span>
         ) : (
-          <Button type="button" onClick={completeCourse} className="gap-2 bg-emerald-600 hover:bg-emerald-700">
+          <Button type="button" onClick={completeCourse} className="gap-2 bg-emerald-600 hover:bg-emerald-700 max-sm:flex-1">
             <CheckCircle2 className="h-4 w-4" /> Segna corso come completato
           </Button>
         )}

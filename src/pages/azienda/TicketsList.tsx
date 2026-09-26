@@ -13,6 +13,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { NavyStatCard } from "@/components/costi/KpiCard";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -53,7 +54,9 @@ import {
   LayoutList,
   Columns3,
   PhoneCall,
+  SlidersHorizontal,
 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { ExportButton } from "@/components/shared/ExportButton";
 import {
@@ -273,6 +276,14 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
   // basso lo rende inaccessibile durante il render (temporal dead zone) e la
   // pagina esplode senza che TypeScript possa accorgersene.
   const [soloFerme, setSoloFerme] = useState(false);
+  // Mobile: i sette menu dei filtri stanno chiusi dietro un bottone accanto
+  // alla ricerca (prima erano quattro righe prima della lista).
+  const [filtriMobileAperti, setFiltriMobileAperti] = useState(false);
+  const nFiltriMobile = [
+    tipoFilter !== "all", statusFilter !== "all", priorityFilter !== "all",
+    scadenzaFilter !== "tutte", assegnatoFilter !== "tutti",
+  ].filter(Boolean).length;
+  const isMobile = useIsMobile();
 
   // Vista tabella o pipeline, come in Commesse. Su mobile il trascinamento non
   // è usabile: lì resta sempre la tabella.
@@ -557,10 +568,18 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
     );
   }
 
+  // Filtri dentro «Altri filtri» (da tablet): quanti sono attivi.
+  const nAltriFiltri = [
+    scadenzaFilter !== "tutte",
+    fonteFilter !== "tutti",
+    pagamentoFilter !== "tutti",
+    merceFilter !== "tutte",
+  ].filter(Boolean).length;
+
   return (
-    <div ref={ref} className="space-y-6">
+    <div ref={ref} className="space-y-6 max-sm:space-y-3">
       {/* Header */}
-      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
+      <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div className="flex min-w-0 items-start gap-3">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
@@ -575,11 +594,13 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
           </div>
         <div className="flex items-center gap-2">
           {selectedTicketIds.size > 0 && (
-            <Button variant="outline" onClick={() => setBulkOpen(true)} className="gap-2">
+            <Button variant="outline" onClick={() => setBulkOpen(true)} className="gap-2 max-sm:hidden">
               <CheckSquare className="h-4 w-4" />
               {selectedTicketIds.size} selezionati
             </Button>
           )}
+          {/* Mobile no: niente esportazioni da telefono. */}
+          <div className="hidden sm:contents">
           <ExportButton
             getData={() => filteredTickets.map((t) => ({
               id: t.id?.slice(0, 8) || "",
@@ -607,7 +628,8 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
             ]}
             filename="assistenza-interventi"
           />
-          <Button asChild className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
+          </div>
+          <Button asChild className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-9 max-sm:px-3 max-sm:text-xs">
             <Link to="/azienda/assistenza/nuovo">
               <Plus className="mr-2 h-4 w-4" />
               <span className="sm:hidden">Nuovo</span>
@@ -619,7 +641,8 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
       </div>
 
       {/* Tab tipo (supporto / intervento / emergenza / tutti) */}
-      <div className="flex gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+      {/* Mobile: il tipo sta nel pannello dei filtri (una riga di pillole in meno). */}
+      <div className="flex gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm max-sm:hidden">
         {[
           { value: "all",        label: "Tutti",         icon: ClipboardList },
           { value: "supporto",   label: "Supporto",      icon: LifeBuoy },
@@ -633,7 +656,7 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
               key={tab.value}
               onClick={() => setTipoFilter(tab.value)}
               className={cn(
-                "flex shrink-0 items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-medium transition-all whitespace-nowrap",
+                "tap-compact flex shrink-0 items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-medium transition-all whitespace-nowrap max-sm:h-8 max-sm:rounded-full max-sm:border max-sm:px-3 max-sm:py-0 max-sm:text-xs",
                 active
                   ? "bg-orange-50 text-orange-700 shadow-sm ring-1 ring-orange-100"
                   : "text-muted-foreground hover:bg-slate-50 hover:text-slate-900"
@@ -649,9 +672,38 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
       {/* Testata navy famiglia (come Costi/Commesse/Personale): i cinque numeri
           dell'assistenza, ognuno un filtro veloce cliccabile. I segnali d'azione
           (urgenti, in scadenza, non assegnati) si accendono d'arancio se > 0. */}
-      <div className="rounded-2xl bg-[#173b67] p-3 sm:p-4">
-        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-orange-100">Assistenza</p>
-        <div className="grid grid-cols-2 gap-2 md:grid-cols-5 sm:gap-3">
+      {/* Mobile: al posto dei nove riquadri blu (mezzo schermo di numeri con
+          spiegazione) una riga di filtri con il conteggio, solo quelli > 0. */}
+      <div className="flex gap-1.5 overflow-x-auto [scrollbar-width:none] sm:hidden">
+        {[
+          { key: "aperti", label: "Aperti", n: metrics.aperti, attivo: statusFilter === "aperto", tono: "", onClick: () => setStatusFilter(statusFilter === "aperto" ? "all" : "aperto") },
+          { key: "urgenti", label: "Urgenti", n: metrics.urgenti, attivo: priorityFilter === "urgente", tono: "text-red-600", onClick: () => setPriorityFilter(priorityFilter === "urgente" ? "all" : "urgente") },
+          { key: "scadenza", label: "In scadenza", n: metrics.inScadenza, attivo: scadenzaFilter === "scaduto_oggi", tono: "text-orange-600", onClick: () => setScadenzaFilter(scadenzaFilter === "scaduto_oggi" ? "tutte" : "scaduto_oggi") },
+          { key: "ferme", label: "Ferme", n: metrics.ferme, attivo: soloFerme, tono: "text-red-600", onClick: () => setSoloFerme((v) => !v) },
+          { key: "nonassegnati", label: "Non assegnati", n: metrics.nonAssegnati, attivo: assegnatoFilter === "unassigned", tono: "text-orange-600", onClick: () => setAssegnatoFilter(assegnatoFilter === "unassigned" ? "tutti" : "unassigned") },
+          { key: "merce", label: "Merce in arrivo", n: metricheMerce.inArrivo, attivo: merceFilter !== "tutte", tono: "", onClick: () => setMerceFilter(merceFilter === "tutte" ? "in_arrivo" : "tutte") },
+          { key: "richiami", label: "Richiamano", n: metricheMerce.solleciti, attivo: soloRichiami, tono: "text-amber-600", onClick: () => setSoloRichiami((v) => !v) },
+        ].filter((f) => f.n > 0 || f.attivo).map((f) => (
+          <button
+            key={f.key}
+            type="button"
+            onClick={f.onClick}
+            aria-pressed={f.attivo}
+            className={cn(
+              "tap-compact flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-medium",
+              f.attivo ? "border-slate-900 bg-slate-900 text-white" : "bg-white text-slate-700",
+            )}
+          >
+            {f.label}
+            <span className={cn("font-bold tabular-nums", !f.attivo && f.tono)}>{f.n}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Nove riquadri: cinque per riga solo da 1280px. A 1024 erano larghi
+          100px e le etichette andavano su tre righe («MERCE / DA / ARRIVARE»). */}
+      <div className="hidden rounded-2xl bg-[#173b67] p-3 sm:block sm:p-4">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-3 xl:grid-cols-5">
           <NavyStatCard
             label="Totale"
             value={metrics.totale}
@@ -720,7 +772,7 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
           <NavyStatCard
             label="Da incassare"
             value={metrics.daIncassare > 0
-              ? metrics.daIncassare.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })
+              ? metrics.daIncassare.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: true })
               : "—"}
             sub={metrics.daIncassare > 0 ? "interventi a pagamento" : "niente in sospeso"}
             icon={Euro}
@@ -753,21 +805,40 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
         </div>
       )}
 
-      {/* Filters row */}
-      <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Cerca per cliente, oggetto o email…"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
-          />
+      {/* Filters row. Da tablet una riga sullo sfondo: ricerca, stato,
+          priorità e assegnato; scadenza, fonte, pagamento e merce stanno in
+          «Altri filtri». Prima erano un riquadro con sette tendine su due
+          righe sotto la ricerca. */}
+      <div className="flex flex-col gap-3 max-sm:gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
+        <div className="flex items-center gap-2 sm:contents">
+          <div className="relative flex-1 min-w-0 sm:min-w-[220px]">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder={isMobile ? "Cerca" : "Cerca per cliente, oggetto o email…"}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 max-sm:h-9 max-sm:bg-white sm:h-9 sm:bg-white"
+            />
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className="tap-compact relative h-9 w-9 shrink-0 bg-white sm:hidden"
+            onClick={() => setFiltriMobileAperti(true)}
+            aria-label="Filtri"
+          >
+            <SlidersHorizontal className="h-4 w-4" />
+            {nFiltriMobile > 0 && (
+              <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-orange-500 text-[10px] font-bold text-white">
+                {nFiltriMobile}
+              </span>
+            )}
+          </Button>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Filter className="h-4 w-4 text-muted-foreground shrink-0 hidden sm:block" />
+        <div className="flex flex-wrap items-center gap-2 max-sm:hidden sm:contents">
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="flex-1 sm:w-[170px] sm:flex-none"><SelectValue placeholder="Stato" /></SelectTrigger>
+            <SelectTrigger className="flex-1 sm:h-9 sm:w-auto sm:flex-none"><SelectValue placeholder="Stato" /></SelectTrigger>
             <SelectContent className="max-h-[380px]">
               <SelectItem value="all">Tutti gli stati ({statusCounts.all})</SelectItem>
               {TICKET_FASI.map((fase) => {
@@ -791,7 +862,7 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
             </SelectContent>
           </Select>
           <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-            <SelectTrigger className="flex-1 sm:w-[150px] sm:flex-none"><SelectValue placeholder="Priorità" /></SelectTrigger>
+            <SelectTrigger className="flex-1 sm:h-9 sm:w-auto sm:flex-none"><SelectValue placeholder="Priorità" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Tutte le priorità</SelectItem>
               <SelectItem value="urgente">🔴 Urgente</SelectItem>
@@ -800,6 +871,69 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
               <SelectItem value="bassa">⚪️ Bassa</SelectItem>
             </SelectContent>
           </Select>
+          <Select value={assegnatoFilter} onValueChange={setAssegnatoFilter}>
+            <SelectTrigger className="flex-1 sm:h-9 sm:w-auto sm:flex-none"><SelectValue placeholder="Assegnato a" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="tutti">Tutti (assegnato o no)</SelectItem>
+              <SelectItem value="unassigned">Non assegnato</SelectItem>
+              {staffList.map((s) => (
+                <SelectItem key={s.id} value={s.id}>
+                  {[s.first_name, s.last_name].filter(Boolean).join(" ") || "Senza nome"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {/* Gli altri quattro filtri, usati di rado, in un pannello: col
+              numero di quelli attivi sul bottone. */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="h-9 gap-1.5">
+                <Filter className="h-4 w-4" />
+                Altri filtri
+                {nAltriFiltri > 0 && (
+                  <span className="rounded-full bg-primary px-1.5 text-[10px] font-semibold leading-4 text-primary-foreground">{nAltriFiltri}</span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-64 space-y-2 p-3">
+              <Select value={scadenzaFilter} onValueChange={setScadenzaFilter}>
+                <SelectTrigger className="w-full"><SelectValue placeholder="Scadenza" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="tutte">Tutte le scadenze</SelectItem>
+                  <SelectItem value="scaduto_oggi">Scaduti / Oggi</SelectItem>
+                  <SelectItem value="settimana">Entro 7 giorni</SelectItem>
+                  <SelectItem value="futuro">Oltre 7 giorni</SelectItem>
+                  <SelectItem value="senza">Senza scadenza</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={fonteFilter} onValueChange={setFonteFilter}>
+                <SelectTrigger className="w-full"><SelectValue placeholder="Fonte" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="tutti">Tutte le fonti</SelectItem>
+                  <SelectItem value="ufficio">Da ufficio</SelectItem>
+                  <SelectItem value="campo">📍 Da campo</SelectItem>
+                  <SelectItem value="cliente">Da cliente</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={pagamentoFilter} onValueChange={(v) => setPagamentoFilter(v as typeof pagamentoFilter)}>
+                <SelectTrigger className="w-full"><SelectValue placeholder="Pagamento" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="tutti">A pagamento e gratis</SelectItem>
+                  <SelectItem value="pagamento">Solo a pagamento</SelectItem>
+                  <SelectItem value="gratis">Solo gratuite</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={merceFilter} onValueChange={(v) => setMerceFilter(v as typeof merceFilter)}>
+                <SelectTrigger className="w-full"><SelectValue placeholder="Merce" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="tutte">Merce: tutte</SelectItem>
+                  <SelectItem value="in_arrivo">Merce da arrivare</SelectItem>
+                  <SelectItem value="incompleta">Bolla incompleta</SelectItem>
+                  <SelectItem value="arrivata">Merce arrivata</SelectItem>
+                </SelectContent>
+              </Select>
+            </PopoverContent>
+          </Popover>
           {/* Tabella o pipeline — solo desktop, come in Commesse */}
           <ToggleGroup
             type="single"
@@ -814,54 +948,6 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
               <Columns3 className="h-4 w-4" />
             </ToggleGroupItem>
           </ToggleGroup>
-          <Select value={scadenzaFilter} onValueChange={setScadenzaFilter}>
-            <SelectTrigger className="flex-1 sm:w-[170px] sm:flex-none"><SelectValue placeholder="Scadenza" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="tutte">Tutte le scadenze</SelectItem>
-              <SelectItem value="scaduto_oggi">Scaduti / Oggi</SelectItem>
-              <SelectItem value="settimana">Entro 7 giorni</SelectItem>
-              <SelectItem value="futuro">Oltre 7 giorni</SelectItem>
-              <SelectItem value="senza">Senza scadenza</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={assegnatoFilter} onValueChange={setAssegnatoFilter}>
-            <SelectTrigger className="flex-1 sm:w-[180px] sm:flex-none"><SelectValue placeholder="Assegnato a" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="tutti">Tutti (assegnato o no)</SelectItem>
-              <SelectItem value="unassigned">Non assegnato</SelectItem>
-              {staffList.map((s) => (
-                <SelectItem key={s.id} value={s.id}>
-                  {[s.first_name, s.last_name].filter(Boolean).join(" ") || "Senza nome"}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={fonteFilter} onValueChange={setFonteFilter}>
-            <SelectTrigger className="flex-1 sm:w-[150px] sm:flex-none"><SelectValue placeholder="Fonte" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="tutti">Tutte le fonti</SelectItem>
-              <SelectItem value="ufficio">Da ufficio</SelectItem>
-              <SelectItem value="campo">📍 Da campo</SelectItem>
-              <SelectItem value="cliente">Da cliente</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={pagamentoFilter} onValueChange={(v) => setPagamentoFilter(v as typeof pagamentoFilter)}>
-            <SelectTrigger className="flex-1 sm:w-[170px] sm:flex-none"><SelectValue placeholder="Pagamento" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="tutti">A pagamento e gratis</SelectItem>
-              <SelectItem value="pagamento">Solo a pagamento</SelectItem>
-              <SelectItem value="gratis">Solo gratuite</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={merceFilter} onValueChange={(v) => setMerceFilter(v as typeof merceFilter)}>
-            <SelectTrigger className="flex-1 sm:w-[190px] sm:flex-none"><SelectValue placeholder="Merce" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="tutte">Merce: tutte</SelectItem>
-              <SelectItem value="in_arrivo">Merce da arrivare</SelectItem>
-              <SelectItem value="incompleta">Bolla incompleta</SelectItem>
-              <SelectItem value="arrivata">Merce arrivata</SelectItem>
-            </SelectContent>
-          </Select>
         </div>
       </div>
 
@@ -921,15 +1007,16 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
                 key={ticket.id}
                 ticket={ticket}
                 unreadCount={unreadByTicket[ticket.id]}
-                selected={selectedTicketIds.has(ticket.id)}
-                onToggleSelected={() => toggleTicketSelection(ticket.id)}
               />
             ))}
           </div>
 
-          {/* Desktop table */}
+          {/* Desktop table. Scadenza e Assegnato da 1280, Aggiornato e Ordine
+              da 1536, celle più strette sotto: con le tendine di stato e
+              assegnato a larghezza fissa la tabella usciva dalla pagina anche
+              a 1440 e l'oggetto restava di 70px. */}
           <div className="hidden sm:block">
-            <Table>
+            <Table className="[&_td]:px-2.5 [&_th]:px-2.5 2xl:[&_td]:px-4 2xl:[&_th]:px-4">
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-10">
@@ -938,11 +1025,11 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
                   <SortableTableHead className="w-24" active={sort.key === "tipo"} direction={sort.direction} onClick={() => handleSort("tipo")}>Tipo</SortableTableHead>
                   <SortableTableHead active={sort.key === "cliente"} direction={sort.direction} onClick={() => handleSort("cliente")}>Cliente · Oggetto</SortableTableHead>
                   <SortableTableHead active={sort.key === "priority"} direction={sort.direction} onClick={() => handleSort("priority")}>Priorità</SortableTableHead>
-                  <SortableTableHead active={sort.key === "scadenza"} direction={sort.direction} onClick={() => handleSort("scadenza")}>Scadenza</SortableTableHead>
+                  <SortableTableHead className="hidden xl:table-cell" active={sort.key === "scadenza"} direction={sort.direction} onClick={() => handleSort("scadenza")}>Scadenza</SortableTableHead>
                   <SortableTableHead active={sort.key === "status"} direction={sort.direction} onClick={() => handleSort("status")}>Stato</SortableTableHead>
-                  <SortableTableHead className="hidden lg:table-cell" active={sort.key === "assigned"} direction={sort.direction} onClick={() => handleSort("assigned")}>Assegnato</SortableTableHead>
-                  <SortableTableHead className="hidden xl:table-cell" active={sort.key === "order"} direction={sort.direction} onClick={() => handleSort("order")}>Ordine</SortableTableHead>
-                  <SortableTableHead className="hidden md:table-cell" active={sort.key === "updated"} direction={sort.direction} onClick={() => handleSort("updated")}>Aggiornato</SortableTableHead>
+                  <SortableTableHead className="hidden xl:table-cell" active={sort.key === "assigned"} direction={sort.direction} onClick={() => handleSort("assigned")}>Assegnato</SortableTableHead>
+                  <SortableTableHead className="hidden 2xl:table-cell" active={sort.key === "order"} direction={sort.direction} onClick={() => handleSort("order")}>Ordine</SortableTableHead>
+                  <SortableTableHead className="hidden 2xl:table-cell" active={sort.key === "updated"} direction={sort.direction} onClick={() => handleSort("updated")}>Aggiornato</SortableTableHead>
                   <TableHead className="w-10"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -966,6 +1053,102 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
         </Card>
       )}
       </div>
+
+      {/* Mobile: i filtri in un pannello dal basso. Tipo, priorità e scadenza a
+          pillole; stato e assegnatario a menu. Fonte, pagamento e merce restano
+          al desktop (la merce ha la sua pillola col conteggio). */}
+      <Sheet open={filtriMobileAperti} onOpenChange={setFiltriMobileAperti}>
+        <SheetContent side="bottom" className="max-h-[85dvh] overflow-y-auto rounded-t-2xl px-4 pb-6">
+          <SheetHeader className="text-left">
+            <SheetTitle>Filtri</SheetTitle>
+          </SheetHeader>
+          <div className="mt-3 space-y-4">
+            <PilloleFiltro
+              titolo="Tipo"
+              valore={tipoFilter}
+              onScegli={setTipoFilter}
+              scelte={[
+                { value: "all", label: "Tutti" },
+                { value: "supporto", label: "Supporto" },
+                { value: "intervento", label: "Interventi" },
+                { value: "emergenza", label: "Emergenze" },
+              ]}
+            />
+            <PilloleFiltro
+              titolo="Priorità"
+              valore={priorityFilter}
+              onScegli={setPriorityFilter}
+              scelte={[
+                { value: "all", label: "Tutte" },
+                { value: "urgente", label: "Urgente" },
+                { value: "alta", label: "Alta" },
+                { value: "normale", label: "Normale" },
+                { value: "bassa", label: "Bassa" },
+              ]}
+            />
+            <PilloleFiltro
+              titolo="Scadenza"
+              valore={scadenzaFilter}
+              onScegli={setScadenzaFilter}
+              scelte={[
+                { value: "tutte", label: "Tutte" },
+                { value: "scaduto_oggi", label: "Scaduti / oggi" },
+                { value: "settimana", label: "Entro 7 giorni" },
+                { value: "senza", label: "Senza scadenza" },
+              ]}
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Stato</p>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="tap-compact h-9 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent className="max-h-[320px]">
+                    <SelectItem value="all">Tutti ({statusCounts.all})</SelectItem>
+                    {TICKET_STATI.filter((st) => (statusCounts[st.value] ?? 0) > 0).map((st) => (
+                      <SelectItem key={st.value} value={st.value}>{st.label} ({statusCounts[st.value]})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Assegnato a</p>
+                <Select value={assegnatoFilter} onValueChange={setAssegnatoFilter}>
+                  <SelectTrigger className="tap-compact h-9 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="tutti">Tutti</SelectItem>
+                    <SelectItem value="unassigned">Non assegnato</SelectItem>
+                    {staffList.map((st) => (
+                      <SelectItem key={st.id} value={st.id}>
+                        {[st.first_name, st.last_name].filter(Boolean).join(" ") || "Senza nome"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          <div className="mt-5 flex gap-2">
+            {nFiltriMobile > 0 && (
+              <Button
+                variant="outline"
+                className="h-11"
+                onClick={() => {
+                  setTipoFilter("all");
+                  setStatusFilter("all");
+                  setPriorityFilter("all");
+                  setScadenzaFilter("tutte");
+                  setAssegnatoFilter("tutti");
+                }}
+              >
+                Azzera
+              </Button>
+            )}
+            <Button className="h-11 flex-1" onClick={() => setFiltriMobileAperti(false)}>
+              Mostra {sortedTickets.length}
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
 
       <TicketBulkActionsSheet
         open={bulkOpen}
@@ -1108,66 +1291,59 @@ function BadgeMerceRichiami({ ticket }: { ticket: Record<string, unknown> }) {
   );
 }
 
+/**
+ * Una riga da ~52px: pallino della priorità, oggetto (e messaggi non letti),
+ * cliente · da quanto è ferma o aggiornata · scadenza, stato a destra. Prima:
+ * casella di selezione, tipo, due badge impilati e tre righe di testo.
+ */
 function MobileTicketRow({
   ticket,
   unreadCount,
-  selected,
-  onToggleSelected,
 }: {
   ticket: TicketListItem;
   unreadCount: number | undefined;
-  selected: boolean;
-  onToggleSelected: () => void;
 }) {
   const statusColor = getTicketStatusColor(ticket.status);
   const priorityColor = getTicketPriorityColor(ticket.priority);
   const scadenza = ticket.data_intervento_prevista;
+  const fermo = calcolaFermo(ticket as never);
+  const cliente = `${ticket.customer?.first_name ?? ""} ${ticket.customer?.last_name ?? ""}`.trim();
   return (
-    <div className="flex items-start gap-3 px-4 py-3 hover:bg-muted/50 active:bg-muted transition-colors">
-      <Checkbox checked={selected} onCheckedChange={onToggleSelected} aria-label={`Seleziona ${ticket.subject}`} className="mt-1" />
-      <Link to={`/azienda/assistenza/${ticket.id}`} className="flex min-w-0 flex-1 items-start justify-between gap-3">
-        <div className="flex-1 min-w-0 space-y-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            <TipoChip tipo={ticket.tipo} />
-            <span className="font-semibold text-sm line-clamp-1">{ticket.subject}</span>
-            {unreadCount !== undefined && unreadCount > 0 && (
-              <span className="inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-bold shrink-0">
-                {unreadCount}
-              </span>
-            )}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            {ticket.customer?.first_name} {ticket.customer?.last_name}
-          </p>
-          <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-            {(() => {
-              const fermo = calcolaFermo(ticket as never);
-              return fermo
-                ? <span className={CLASSI_FERMO[fermo.livello]}>{fermo.etichetta}</span>
-                : <span>{formatRelativeTime(ticket.last_message_at || ticket.updated_at)}</span>;
-            })()}
-            {scadenza && <ScadenzaCell iso={scadenza} />}
-          </div>
+    <Link
+      to={`/azienda/assistenza/${ticket.id}`}
+      className="tap-compact flex items-center gap-2.5 px-3 py-2 hover:bg-muted/50 active:bg-muted transition-colors"
+    >
+      <span
+        className="h-2 w-2 shrink-0 rounded-full"
+        style={{ backgroundColor: priorityColor.text }}
+        title={getTicketPriorityLabel(ticket.priority)}
+      />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <span className="truncate text-[13px] font-semibold leading-tight">{ticket.subject}</span>
+          {unreadCount !== undefined && unreadCount > 0 && (
+            <span className="inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+              {unreadCount}
+            </span>
+          )}
+        </div>
+        <div className="flex min-w-0 items-center gap-1.5 text-[11px] text-muted-foreground">
+          {cliente && <span className="truncate">{cliente}</span>}
+          {cliente && <span aria-hidden>·</span>}
+          {fermo
+            ? <span className={cn("shrink-0", CLASSI_FERMO[fermo.livello])}>{fermo.etichetta}</span>
+            : <span className="shrink-0">{formatRelativeTime(ticket.last_message_at || ticket.updated_at)}</span>}
+          {scadenza && <span className="shrink-0"><ScadenzaCell iso={scadenza} /></span>}
+        </div>
+        {/* Bolla incompleta, merce in arrivo, richiami: una riga solo se c'è. */}
+        <div className="mt-0.5 empty:hidden">
           <BadgeMerceRichiami ticket={ticket as unknown as Record<string, unknown>} />
         </div>
-        <div className="flex flex-col items-end gap-1 shrink-0">
-          <Badge
-            variant="outline"
-            className="text-[10px] px-1.5 py-0"
-            style={{ backgroundColor: statusColor.bg, color: statusColor.text, borderColor: statusColor.border }}
-          >
-            {getTicketStatusLabel(ticket.status)}
-          </Badge>
-          <Badge
-            variant="outline"
-            className="text-[10px] px-1.5 py-0"
-            style={{ backgroundColor: priorityColor.bg, color: priorityColor.text, borderColor: priorityColor.border }}
-          >
-            {getTicketPriorityLabel(ticket.priority)}
-          </Badge>
-        </div>
-      </Link>
-    </div>
+      </div>
+      <span className="max-w-[4.5rem] shrink-0 text-right text-[11px] font-medium leading-tight" style={{ color: statusColor.text }}>
+        {getTicketStatusLabel(ticket.status)}
+      </span>
+    </Link>
   );
 }
 
@@ -1201,7 +1377,9 @@ function DesktopTicketRow({
         <Checkbox checked={selected} onCheckedChange={onToggleSelected} aria-label={`Seleziona ${ticket.subject}`} />
       </TableCell>
       <TableCell><TipoChip tipo={ticket.tipo} /></TableCell>
-      <TableCell>
+      {/* L'oggetto è la colonna che conta: con le tendine di stato e
+          assegnato a larghezza fissa restava di 70px («Mancano…»). */}
+      <TableCell className="min-w-[200px] xl:min-w-[220px]">
         <div className="flex items-center gap-2">
           <User className="h-4 w-4 text-muted-foreground shrink-0" />
           <div className="min-w-0">
@@ -1226,11 +1404,11 @@ function DesktopTicketRow({
           {getTicketPriorityLabel(ticket.priority)}
         </Badge>
       </TableCell>
-      <TableCell><ScadenzaCell iso={scadenza} /></TableCell>
+      <TableCell className="hidden xl:table-cell"><ScadenzaCell iso={scadenza} /></TableCell>
       <TableCell>
         <TicketStatusSelect value={ticket.status} disabled={isUpdating} onChange={(value) => onStatusChange(ticket.id, value)} />
       </TableCell>
-      <TableCell className="hidden lg:table-cell">
+      <TableCell className="hidden xl:table-cell">
         <TicketAssigneeSelect
           value={ticket.assigned_to || UNASSIGNED_VALUE}
           staffList={staffList}
@@ -1238,7 +1416,7 @@ function DesktopTicketRow({
           onChange={(value) => onAssigneeChange(ticket.id, value)}
         />
       </TableCell>
-      <TableCell className="hidden xl:table-cell">
+      <TableCell className="hidden 2xl:table-cell">
         {ticket.order ? (
           <div className="flex items-center gap-1 text-sm text-muted-foreground">
             <Package className="h-3.5 w-3.5" />
@@ -1248,7 +1426,7 @@ function DesktopTicketRow({
           <span className="text-muted-foreground">—</span>
         )}
       </TableCell>
-      <TableCell className="hidden md:table-cell text-sm">
+      <TableCell className="hidden 2xl:table-cell text-sm">
         {(() => {
           // Sulle lavorazioni aperte conta da quanto sono ferme, non la data in
           // sé: "5 mesi fa" non dice se qualcuno se ne sta occupando.
@@ -1434,6 +1612,39 @@ function BulkStat({ icon, label, value }: { icon: React.ReactNode; label: string
         <span className="text-xs">{label}</span>
       </div>
       <div className="mt-1 text-xl font-bold">{value}</div>
+    </div>
+  );
+}
+
+/** Una fila di pillole per il pannello filtri su telefono. */
+function PilloleFiltro({ titolo, valore, onScegli, scelte }: {
+  titolo: string;
+  valore: string;
+  onScegli: (v: string) => void;
+  scelte: { value: string; label: string }[];
+}) {
+  return (
+    <div>
+      <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{titolo}</p>
+      <div className="flex flex-wrap gap-1.5">
+        {scelte.map((c) => {
+          const attiva = valore === c.value;
+          return (
+            <button
+              key={c.value}
+              type="button"
+              onClick={() => onScegli(c.value)}
+              aria-pressed={attiva}
+              className={cn(
+                "tap-compact h-8 rounded-full border px-3 text-xs font-medium transition-colors",
+                attiva ? "border-slate-900 bg-slate-900 text-white" : "bg-background text-slate-700",
+              )}
+            >
+              {c.label}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

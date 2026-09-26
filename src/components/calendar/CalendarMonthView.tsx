@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { DEFAULT_CALENDAR_EVENT_COLORS, hasLogisticRisk, rischioPagamenti, getEmployeeInitials, WEEK_DAYS_IT, APPOINTMENT_ICONS, mapAppointmentToEditData, appuntamentoAnnullato, type CalendarEventColors } from "@/lib/calendarUtils";
+import { DEFAULT_CALENDAR_EVENT_COLORS, hasLogisticRisk, rischioPagamenti, getEmployeeInitials, etichettaCommessa, WEEK_DAYS_IT, APPOINTMENT_ICONS, mapAppointmentToEditData, appuntamentoAnnullato, type CalendarEventColors } from "@/lib/calendarUtils";
 import { formatCurrency } from "@/lib/formatters";
 import { EditOrderDatesDialog } from "./EditOrderDatesDialog";
 import type { CalendarOrder, CalendarAppointment, GoogleBusySlot, ApprovedLeave, CalendarWarehouseInfo, CalendarIntervento, CalendarManutenzione } from "@/types/calendar";
@@ -255,15 +255,16 @@ export function CalendarMonthView({
   };
 
   return (
-    <Card className="p-3 sm:p-4">
-      <div className="flex items-center justify-between mb-4">
-        <Button variant="ghost" size="icon" onClick={() => onDateChange(subMonths(currentDate, 1))}>
+    // Mobile: niente riquadro attorno (dentro ce ne sono già due: mese e agenda).
+    <Card className="p-3 sm:p-4 max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
+      <div className="flex items-center justify-between mb-4 max-sm:mb-2">
+        <Button variant="ghost" size="icon" className="max-sm:h-8 max-sm:w-8" onClick={() => onDateChange(subMonths(currentDate, 1))}>
           <ChevronLeft className="h-4 w-4" />
         </Button>
-        <h2 className="text-lg font-semibold capitalize">
+        <h2 className="text-lg font-semibold capitalize max-sm:text-base">
           {format(currentDate, "MMMM yyyy", { locale: it })}
         </h2>
-        <Button variant="ghost" size="icon" onClick={() => onDateChange(addMonths(currentDate, 1))}>
+        <Button variant="ghost" size="icon" className="max-sm:h-8 max-sm:w-8" onClick={() => onDateChange(addMonths(currentDate, 1))}>
           <ChevronRight className="h-4 w-4" />
         </Button>
       </div>
@@ -275,7 +276,7 @@ export function CalendarMonthView({
           return (
             <div className="flex flex-col gap-2">
               {/* Griglia mese a pallini */}
-              <div className="overflow-hidden rounded-lg border">
+              <div className="overflow-hidden rounded-lg border bg-card">
                 <div className="grid grid-cols-7 border-b bg-muted/30">
                   {weekDays.map((day) => (
                     <div key={day} className="py-1.5 text-center text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -315,19 +316,19 @@ export function CalendarMonthView({
               </div>
 
               {/* Agenda del giorno selezionato */}
-              <div className="overflow-hidden rounded-lg border">
+              <div className="overflow-hidden rounded-lg border bg-card">
                 <div className="flex items-center justify-between border-b px-3 py-2">
                   <p className="text-sm font-semibold capitalize">{format(selectedDate, "EEEE d MMMM", { locale: it })}</p>
                   <button
                     type="button"
                     onClick={() => { setEditingAppointment(null); setNewAppointmentDate(selKey); setAppointmentDialogOpen(true); }}
-                    className="inline-flex h-7 items-center gap-1 rounded-md border px-2 text-xs font-medium text-muted-foreground hover:bg-muted"
+                    className="tap-compact inline-flex h-7 items-center gap-1 rounded-md border px-2 text-xs font-medium text-muted-foreground hover:bg-muted"
                   >
                     + Nuovo
                   </button>
                 </div>
                 {selEvents.length === 0 ? (
-                  <p className="px-3 py-6 text-center text-sm text-muted-foreground">Nessun impegno</p>
+                  <p className="px-3 py-4 text-center text-sm text-muted-foreground">Nessun impegno</p>
                 ) : (
                   <div className="divide-y">
                     {selEvents.map((event, i) => {
@@ -407,13 +408,8 @@ export function CalendarMonthView({
                   })()}
                 </div>
 
-                {dayEvents.length > 0 && (
-                  <div className="mb-1 flex items-center justify-between text-[10px] text-muted-foreground">
-                    <span>{dayEvents.length} attività</span>
-                    {dayEvents.length > 5 && <span className="font-medium text-primary">dense</span>}
-                  </div>
-                )}
-
+                {/* Niente riga «N attività» in cima a ogni giorno: le pastiglie si
+                    contano a colpo d'occhio e oltre cinque c'è già «+N altri». */}
                 <div className="space-y-1">
                   {dayEvents.slice(0, 5).map((event, eventIdx) => {
                     if (event.type === "google_busy" && event.busySlot) {
@@ -544,6 +540,7 @@ export function CalendarMonthView({
                     const rischioPag = (event.type === "lavoro" || event.type === "posa") ? rischioPagamenti(event.order) : null;
                     const initials = getEmployeeInitials(event.order);
                     const whInfo = event.type === "merce" && warehouseInfo ? warehouseInfo.get(event.order.id) : undefined;
+                    const etichetta = etichettaCommessa(event.order);
 
                     return (
                       <Tooltip key={`${event.order.id}-${event.type}-${eventIdx}`}>
@@ -571,9 +568,19 @@ export function CalendarMonthView({
                             {event.order.status && (
                               <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: event.order.status.color }} />
                             )}
-                            {event.type === "posa" ? <Hammer className="h-3 w-3 flex-shrink-0" /> : event.type === "lavoro" ? <Wrench className="h-3 w-3 flex-shrink-0" /> : <Package className="h-3 w-3 flex-shrink-0" />}
+                            {/* Sotto 1280 il tipo lo dice già lo stile (piena, bordata,
+                                tratteggiata): l'icona lascia il posto al nome. */}
+                            {event.type === "posa" ? <Hammer className="h-3 w-3 flex-shrink-0 max-xl:hidden" /> : event.type === "lavoro" ? <Wrench className="h-3 w-3 flex-shrink-0 max-xl:hidden" /> : <Package className="h-3 w-3 flex-shrink-0 max-xl:hidden" />}
+                            {/* Il codice «ORD-2026-0…» riempiva la pastiglia e il cliente
+                                non si vedeva mai: il codice torna davanti solo da
+                                1536, altrimenti resta nel tooltip. */}
                             <span className="truncate font-medium">
-                              {event.order.order_code || "Ordine"} - {event.order.customer.last_name}
+                              {etichetta ? (
+                                <>
+                                  {event.order.order_code && <span className="hidden 2xl:inline">{event.order.order_code} - </span>}
+                                  {etichetta}
+                                </>
+                              ) : (event.order.order_code || "Ordine")}
                             </span>
                             {logisticRisk && <AlertTriangle className={`h-3 w-3 flex-shrink-0 ${event.type === "posa" ? "text-amber-500" : "text-yellow-200"}`} />}
                             {rischioPag && (

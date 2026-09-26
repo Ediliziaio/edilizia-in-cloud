@@ -16,7 +16,8 @@
  * e autosalva.
  */
 import { Fragment } from "react";
-import { ListPlus, Plus, Library } from "lucide-react";
+import { ListPlus, Plus, Library, Trash2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -24,7 +25,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { formatCurrency } from "@/lib/formatters";
-import { calcolaVoce } from "@/lib/simulatore/calcoli";
+import { calcolaVoce, round2 } from "@/lib/simulatore/calcoli";
 import { SimVoceRow } from "./SimVoceRow";
 import type { VoceSim, FaseSim, ScenariConfig } from "@/lib/simulatore/tipi";
 
@@ -63,6 +64,71 @@ function makeRigaLibera(voci: VoceSim[]): VoceSim {
     is_manodopera: false,
     ordine: nextOrdine(voci),
   };
+}
+
+/** Numero da un campo, con la virgola decimale; mai NaN. */
+function numero(raw: string): number {
+  const n = Number(raw.replace(",", "."));
+  return Number.isFinite(n) ? n : 0;
+}
+
+/**
+ * Telefono: una voce per scheda. La tabella a 10 colonne mostrava solo la
+ * descrizione (il resto era fuori schermo); qui descrizione, quantità, costo e
+ * ricarico, col prezzo e il totale calcolati sotto. Unità, IVA e fase restano
+ * ai valori della riga (si cambiano dal computer).
+ */
+function SimVoceMobile({ voce, onChange, onRemove }: {
+  voce: VoceSim;
+  onChange: (patch: Partial<VoceSim>) => void;
+  onRemove: () => void;
+}) {
+  const { imponibile_ricavo } = calcolaVoce(voce);
+  const campo = "mt-0.5 h-9 px-2 text-right tabular-nums";
+  return (
+    <div className="space-y-2 px-3 py-2.5">
+      <div className="flex items-center gap-1.5">
+        <Input
+          value={voce.descrizione}
+          onChange={(e) => onChange({ descrizione: e.target.value })}
+          placeholder="Descrizione voce"
+          className="h-9 flex-1 px-2"
+        />
+        <Button variant="ghost" size="icon" onClick={onRemove} className="tap-compact h-8 w-8 shrink-0 text-muted-foreground" aria-label="Elimina voce">
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        <label className="text-[11px] text-muted-foreground">
+          Q.tà ({voce.unita === "a_corpo" ? "a corpo" : voce.unita})
+          <Input type="number" inputMode="decimal" min="0" step="0.01" value={String(voce.quantita)}
+            onChange={(e) => onChange({ quantita: numero(e.target.value) })} className={campo} />
+        </label>
+        <label className="text-[11px] text-muted-foreground">
+          Costo €
+          <Input type="number" inputMode="decimal" min="0" step="0.01" value={String(voce.costo_unitario)}
+            onChange={(e) => {
+              const costo_unitario = numero(e.target.value);
+              onChange({ costo_unitario, prezzo_unitario: round2(costo_unitario * (1 + voce.ricarico_pct / 100)) });
+            }} className={campo} />
+        </label>
+        <label className="text-[11px] text-muted-foreground">
+          Ricarico %
+          <Input type="number" inputMode="decimal" step="0.1" value={String(voce.ricarico_pct)}
+            onChange={(e) => {
+              const ricarico_pct = numero(e.target.value);
+              onChange({ ricarico_pct, prezzo_unitario: round2(voce.costo_unitario * (1 + ricarico_pct / 100)) });
+            }} className={campo} />
+        </label>
+      </div>
+      <div className="flex items-center justify-between text-[13px]">
+        <span className="text-muted-foreground tabular-nums">
+          {voce.quantita} × {formatCurrency(voce.prezzo_unitario)}
+        </span>
+        <span className="font-semibold tabular-nums">{formatCurrency(imponibile_ricavo)}</span>
+      </div>
+    </div>
+  );
 }
 
 /** Una sezione di voci (un gruppo nella griglia). `faseId=null` = "Senza fase". */
@@ -145,26 +211,52 @@ export function SimVociGrid({ voci, onChange, onApriListino, fasi, ivaMode = "si
 
   return (
     <Card className="rounded-xl">
-      <CardContent className="space-y-3 p-4">
+      <CardContent className="space-y-3 p-4 max-sm:p-3">
         {/* Toolbar */}
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary max-sm:hidden">
               <ListPlus className="h-4 w-4" />
             </span>
             <h3 className="text-sm font-semibold">Voci</h3>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={addRigaLibera} className="gap-1.5">
+            <Button variant="outline" size="sm" onClick={addRigaLibera} className="tap-compact gap-1.5 max-sm:h-8">
               <Plus className="h-4 w-4" />
               Riga libera
             </Button>
-            <Button size="sm" onClick={onApriListino} className="gap-1.5">
+            <Button size="sm" onClick={onApriListino} className="tap-compact gap-1.5 max-sm:h-8">
               <Library className="h-4 w-4" />
               Da listino
             </Button>
           </div>
         </div>
+
+        {!isEmpty && (
+          <div className="divide-y divide-border overflow-hidden rounded-md border sm:hidden">
+            {gruppi.map((g) => (
+              <Fragment key={g.faseId ?? "__senza__"}>
+                {hasFasi && (
+                  <p className="bg-muted/40 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    {g.titolo}
+                  </p>
+                )}
+                {g.voci.map((voce) => (
+                  <SimVoceMobile
+                    key={voce.id}
+                    voce={voce}
+                    onChange={(patch) => patchVoce(voce.id, patch)}
+                    onRemove={() => removeVoce(voce.id)}
+                  />
+                ))}
+              </Fragment>
+            ))}
+            <div className="flex items-center justify-between px-3 py-2 text-[13px] font-semibold">
+              <span>Totale imponibile</span>
+              <span className="tabular-nums">{formatCurrency(totale)}</span>
+            </div>
+          </div>
+        )}
 
         {isEmpty ? (
           <EmptyState
@@ -176,7 +268,7 @@ export function SimVociGrid({ voci, onChange, onApriListino, fasi, ivaMode = "si
             secondaryAction={{ label: "Riga libera", onClick: addRigaLibera, icon: Plus }}
           />
         ) : (
-          <div className="overflow-x-auto rounded-md border">
+          <div className="overflow-x-auto rounded-md border max-sm:hidden">
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/40 hover:bg-muted/40 [&_th]:h-9 [&_th]:text-[11px] [&_th]:font-medium [&_th]:uppercase [&_th]:tracking-wide [&_th]:text-muted-foreground">

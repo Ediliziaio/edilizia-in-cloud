@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -557,7 +558,7 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="max-w-3xl w-[96vw] max-h-[94vh] overflow-y-auto"
+        className="max-w-3xl w-[96vw] max-h-[94vh] overflow-y-auto max-sm:w-full"
         onInteractOutside={(e) => {
           // Evita che il dialog si chiuda quando l'utente clicca su un Sheet
           // figlio (es. picker abbina al listino).
@@ -569,7 +570,7 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
             <Sparkles className="h-5 w-5 text-primary" />
             Genera preventivo con AI
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="max-sm:sr-only">
             Carica una foto del foglio, registra un audio o digita il testo. L'AI estrae cliente e
             prodotti, tu confermi e crei il preventivo.
           </DialogDescription>
@@ -578,19 +579,20 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
         {phase === "input" ? (
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "foto" | "audio" | "testo")}>
             <TabsList className="grid grid-cols-3">
-              <TabsTrigger value="foto" className="gap-2">
+              <TabsTrigger value="foto" className="tap-compact gap-2">
                 <Camera className="h-4 w-4" /> Foto
               </TabsTrigger>
-              <TabsTrigger value="audio" className="gap-2">
+              <TabsTrigger value="audio" className="tap-compact gap-2">
                 <Mic className="h-4 w-4" /> Audio
               </TabsTrigger>
-              <TabsTrigger value="testo" className="gap-2">
+              <TabsTrigger value="testo" className="tap-compact gap-2">
                 <FileText className="h-4 w-4" /> Testo
               </TabsTrigger>
             </TabsList>
 
             <TabsContent value="foto" className="space-y-3 pt-3">
-              <p className="text-sm text-muted-foreground">
+              {/* Telefono: la spiegazione diventa l'area grande da toccare qui sotto. */}
+              <p className="text-sm text-muted-foreground max-sm:hidden">
                 Foto di un foglio scritto a mano, scontrino, schizzo, oppure PDF (multi-pagina).
                 Massimo {MAX_IMAGES} pagine totali.
               </p>
@@ -603,7 +605,10 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
                   className="hidden"
                   disabled={pdfProcessing}
                 />
-                <Button variant="outline" size="lg" className="w-full" asChild disabled={pdfProcessing}>
+                {/* Telefono: un'area grande «Scatta o scegli una foto» (il telefono
+                    offre fotocamera, galleria o file); dopo la prima foto torna
+                    un bottone basso per aggiungerne altre. */}
+                <Button variant="outline" size="lg" className={cn("w-full", images.length === 0 && !pdfProcessing && "max-sm:h-28 max-sm:flex-col max-sm:gap-1.5 max-sm:border-dashed max-sm:border-2")} asChild disabled={pdfProcessing}>
                   <span>
                     {pdfProcessing ? (
                       <>
@@ -611,7 +616,15 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
                       </>
                     ) : (
                       <>
-                        <Upload className="h-4 w-4 mr-2" /> Aggiungi foto o PDF ({images.length}/{MAX_IMAGES})
+                        <Upload className={cn("h-4 w-4 mr-2", images.length === 0 && "max-sm:hidden")} />
+                        {images.length === 0 && <Camera className="!h-7 !w-7 text-primary sm:hidden" />}
+                        <span className={images.length === 0 ? "max-sm:hidden" : undefined}>Aggiungi foto o PDF ({images.length}/{MAX_IMAGES})</span>
+                        {images.length === 0 && (
+                          <span className="flex flex-col items-center sm:hidden">
+                            <span className="text-sm font-semibold">Scatta o scegli una foto</span>
+                            <span className="text-[11px] font-normal text-muted-foreground">Foglio, schizzo o PDF · fino a {MAX_IMAGES} pagine</span>
+                          </span>
+                        )}
                       </>
                     )}
                   </span>
@@ -682,11 +695,11 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
             </TabsContent>
 
             <TabsContent value="audio" className="space-y-3 pt-3">
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-muted-foreground max-sm:hidden">
                 Registra fino a {MAX_AUDIO_SECONDS / 60} minuti. Esempio: "Cliente Mario Rossi al 339...
                 vuole 2 finestre PVC bianche 1200×1400 e una portafinestra..."
               </p>
-              <div className="border rounded-md p-6 text-center space-y-3">
+              <div className="border rounded-md p-6 text-center space-y-3 max-sm:p-4">
                 {audioBlob && !isRecording ? (
                   <>
                     <Badge variant="outline" className="gap-1">
@@ -728,9 +741,16 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
                     </div>
                   </>
                 ) : (
-                  <Button size="lg" onClick={startRecording}>
-                    <Mic className="h-5 w-5 mr-2" /> Inizia registrazione
-                  </Button>
+                  <>
+                    {/* Telefono: un microfono rotondo grande come nei vocali, con sotto
+                        cosa dire (cliente, lavori, misure). */}
+                    <Button size="lg" onClick={startRecording} className="max-sm:h-16 max-sm:w-16 max-sm:rounded-full max-sm:p-0" aria-label="Inizia registrazione">
+                      <Mic className="h-5 w-5 mr-2 max-sm:mr-0 max-sm:!h-7 max-sm:!w-7" /> <span className="max-sm:hidden">Inizia registrazione</span>
+                    </Button>
+                    <p className="text-xs text-muted-foreground sm:hidden">
+                      Tocca e di' cliente, lavori e misure · fino a {MAX_AUDIO_SECONDS / 60} minuti
+                    </p>
+                  </>
 	                )}
 	              </div>
               <div>
@@ -747,7 +767,7 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
 	            </TabsContent>
 
             <TabsContent value="testo" className="space-y-3 pt-3">
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-muted-foreground max-sm:hidden">
                 Scrivi tutto: dati cliente, prodotti, misure. L'AI estrae tutto in automatico.
               </p>
               <Textarea
@@ -765,11 +785,12 @@ Ordine:
 - Posa inclusa
 `}
                 rows={12}
-                className="text-sm"
+                className="text-sm max-sm:h-52"
               />
             </TabsContent>
 
-            <div>
+            {/* Telefono no: il settore lo rileva l'AI (resta «Auto»), si cambia dal computer. */}
+            <div className="max-sm:hidden">
               <label className="text-xs text-muted-foreground">
                 Settore di lavoro (migliora il matching prodotti dal listino)
                 {companyVertical?.vertical?.short_label && verticalKey === companyVertical.vertical_key ? (
@@ -793,13 +814,15 @@ Ordine:
               </Select>
             </div>
 
-            <div className="flex justify-end gap-2 pt-4 border-t">
-              <Button variant="ghost" onClick={() => onOpenChange(false)}>
+            <div className="flex justify-end gap-2 pt-4 border-t max-sm:pt-3">
+              {/* Telefono no: c'è la X. */}
+              <Button variant="ghost" onClick={() => onOpenChange(false)} className="max-sm:hidden">
                 Annulla
               </Button>
               <Button
                 onClick={submitCapture}
                 disabled={!companyId || phase !== "input" || pdfProcessing}
+                className="max-sm:w-full"
               >
                 <Sparkles className="h-4 w-4 mr-2" />
                 Estrai con AI

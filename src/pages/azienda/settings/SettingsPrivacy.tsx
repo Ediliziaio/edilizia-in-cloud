@@ -150,14 +150,17 @@ export default function SettingsPrivacy() {
   const hasPendingDeletion = requests.some(r => r.request_type === "deletion" && ["pending", "processing"].includes(r.status));
 
   return (
-    <div className="space-y-6">
-      <div>
+    <div className="space-y-6 max-sm:space-y-3">
+      {/* Mobile no: il titolo è già nella testata delle impostazioni. */}
+      <div className="max-sm:hidden">
         <h1 className="text-2xl font-bold">Privacy & GDPR</h1>
         <p className="text-muted-foreground">Gestisci i tuoi dati personali, consensi e richieste di privacy</p>
       </div>
 
+      {/* Mobile: solo i consensi; esportazione, cancellazione e storico delle
+          richieste si gestiscono al computer. */}
       <Tabs defaultValue="consents" className="space-y-4">
-        <TabsList>
+        <TabsList className="max-sm:hidden">
           <TabsTrigger value="consents" className="gap-2"><Shield className="h-4 w-4" /> Consensi</TabsTrigger>
           <TabsTrigger value="data" className="gap-2"><Download className="h-4 w-4" /> I miei dati</TabsTrigger>
           <TabsTrigger value="requests" className="gap-2"><FileCheck className="h-4 w-4" /> Storico richieste</TabsTrigger>
@@ -166,9 +169,9 @@ export default function SettingsPrivacy() {
         {/* CONSENTS TAB */}
         <TabsContent value="consents" className="space-y-4">
           <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Gestione consensi</CardTitle>
-              <CardDescription>
+            <CardHeader className="max-sm:p-4 max-sm:pb-2">
+              <CardTitle className="text-lg max-sm:text-base">Gestione consensi</CardTitle>
+              <CardDescription className="max-sm:hidden">
                 Ogni scelta viene registrata con la data e resta nel registro
                 accessi: è la prova di cosa hai acconsentito e da quando.
                 Oggi però nessun invio la controlla da solo — se revochi un
@@ -176,12 +179,12 @@ export default function SettingsPrivacy() {
                 all'assistenza.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 max-sm:space-y-2 max-sm:p-4 max-sm:pt-0">
               {CONSENT_TYPES.map((ct) => (
-                <div key={ct.key} className="flex items-center justify-between p-4 border rounded-lg">
+                <div key={ct.key} className="flex items-center justify-between p-4 border rounded-lg max-sm:gap-2 max-sm:px-3 max-sm:py-2.5">
                   <div className="min-w-0 flex-1">
-                    <p className="font-medium">{ct.label}</p>
-                    <p className="text-sm text-muted-foreground">{ct.desc}</p>
+                    <p className="font-medium max-sm:text-sm">{ct.label}</p>
+                    <p className="text-sm text-muted-foreground max-sm:hidden">{ct.desc}</p>
                     {dataConsenso(ct.key) && (
                       <p className="mt-0.5 text-xs text-muted-foreground">
                         {getConsentValue(ct.key) ? "Concesso il" : "Revocato il"} {dataConsenso(ct.key)}

@@ -59,6 +59,10 @@ const MOBILE_HIDDEN_URLS = new Set<string>([
   "/azienda/marketing/simulatore",
   "/azienda/marketing/sales-os",
   "/azienda/marketing/reportistica",
+  // 2026-09-25: il Portale formazione è la gestione dei corsi, che da
+  // telefono non si imposta; i corsi si vedono da «La mia formazione» (le
+  // due voci mostravano gli stessi corsi, con avanzamenti diversi).
+  "/azienda/personale/portale",
 ]);
 
 /**
@@ -67,6 +71,14 @@ const MOBILE_HIDDEN_URLS = new Set<string>([
  * continua a mostrarle secondo permessi/feature.
  */
 const MOBILE_HIDDEN_AREAS = new Set<string>(["area_automazioni"]);
+
+/**
+ * Le voci che restano anche dentro una sezione nascosta (richieste utente del
+ * 2026-09-25): Render AI — dal telefono in cantiere si fa la foto e si genera
+ * il render; Centralino — disponibilità, tastierino e storico chiamate. Restano
+ * fuori automazioni, agenti AI, WhatsApp e SMS.
+ */
+const MOBILE_VISIBLE_IN_HIDDEN_AREAS = new Set<string>(["/azienda/render", "/azienda/centralino"]);
 
 /**
  * Palette per macroArea — ogni sezione ha il suo colore identificativo.
@@ -303,7 +315,11 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
 
   const filteredAreas = useMemo(() => {
     return macroAreas
-      .filter((area) => !MOBILE_HIDDEN_AREAS.has(area.id))
+      .map((area) =>
+        MOBILE_HIDDEN_AREAS.has(area.id)
+          ? { ...area, items: area.items.filter((item) => MOBILE_VISIBLE_IN_HIDDEN_AREAS.has(item.url)) }
+          : area,
+      )
       .map((area) => {
         let items = filterNavItems(area.items);
         if (search.trim()) {

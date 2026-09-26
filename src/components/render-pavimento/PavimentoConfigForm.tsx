@@ -21,6 +21,7 @@ import type {
   VariazioneTono,
 } from "@/modules/render-pavimento/lib/types";
 import { CatalogReferencePicker } from "@/components/render-bagno/CatalogReferencePicker";
+import { DettagliTelefono } from "@/components/render/DettagliTelefono";
 
 type BattiscopaTipo = NonNullable<ConfigurazionePavimento["battiscopa"]>["tipo"];
 
@@ -299,20 +300,21 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
   };
 
   return (
-    <div className="space-y-5">
-      <div className="rounded-lg border bg-muted/25 p-3">
-        <div className="flex items-start gap-3">
+    <div className="space-y-5 max-md:space-y-3">
+      {/* Riepilogo della scelta — telefono: una riga compatta. */}
+      <div className="rounded-lg border bg-muted/25 p-3 max-md:p-2">
+        <div className="flex items-start gap-3 max-md:items-center max-md:gap-2.5">
           <div
-            className="h-16 w-20 shrink-0 rounded-md border"
+            className="h-16 w-20 shrink-0 rounded-md border max-md:h-11 max-md:w-14"
             style={{ background: selectedType.preview, backgroundColor: value.colore_hex ?? "#b0b0b0" }}
           />
           <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="text-sm font-semibold">{selectedType.label}</p>
-              <Badge variant="secondary">{value.pattern_posa.replace(/_/g, " ")}</Badge>
-              {seamless && <Badge variant="outline">senza fughe</Badge>}
+            <div className="flex flex-wrap items-center gap-2 max-md:gap-1.5">
+              <p className="text-sm font-semibold max-md:text-[13px]">{selectedType.label}</p>
+              <Badge variant="secondary" className="max-md:px-1.5 max-md:py-0 max-md:text-[11px]">{value.pattern_posa.replace(/_/g, " ")}</Badge>
+              {seamless && <Badge variant="outline" className="max-md:px-1.5 max-md:py-0 max-md:text-[11px]">senza fughe</Badge>}
             </div>
-            <p className="mt-1 text-xs text-muted-foreground">
+            <p className="mt-1 text-xs text-muted-foreground max-md:mt-0.5 max-md:truncate max-md:text-[11px]">
               {value.colore_nome || "Colore selezionato"} · {value.finitura} · {value.scala_pattern || "scala standard"}
             </p>
           </div>
@@ -320,8 +322,9 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
       </div>
 
       <div className="space-y-2">
-        <Label>Materiale *</Label>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <Label className="max-md:text-[13px] max-md:font-semibold">Materiale *</Label>
+        {/* Telefono: tre per riga, nome a 11px, senza la riga di dettaglio. */}
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 max-sm:grid-cols-3 max-sm:gap-1.5">
           {FLOOR_TYPES.map((ft) => (
             <button
               key={ft.value}
@@ -334,18 +337,18 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
                   : "border-slate-300 bg-white shadow-sm hover:border-primary/60 hover:shadow"
                 } ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
             >
-              <div className="mb-2 h-8 rounded border" style={{ background: ft.preview }} />
-              <span className="block font-semibold leading-tight">{ft.label}</span>
-              <span className="block text-[11px] text-muted-foreground">{ft.detail}</span>
+              <div className="mb-2 h-8 rounded border max-md:mb-1.5 max-md:h-6" style={{ background: ft.preview }} />
+              <span className="block font-semibold leading-tight max-md:text-[11px]">{ft.label}</span>
+              <span className="block text-[11px] text-muted-foreground max-md:hidden">{ft.detail}</span>
             </button>
           ))}
         </div>
       </div>
       <CatalogReferencePicker companyId={companyId} verticale="pavimento" categorie={["pavimento"]} selectedIds={value.catalogo_reference_ids ?? []} onChange={(ids) => update({ catalogo_reference_ids: ids })} />
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2 max-sm:grid-cols-2 max-sm:gap-2">
         <div className="space-y-1.5">
-          <Label>Effetto visivo</Label>
+          <Label className="max-md:text-[11px]">Effetto visivo</Label>
           <Select
             value={value.effetto_visivo ?? selectedType.effect}
             onValueChange={(v) => set("effetto_visivo", v as EffettoVisivoPavimento)}
@@ -360,7 +363,7 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
           </Select>
         </div>
         <div className="space-y-1.5">
-          <Label>Finitura</Label>
+          <Label className="max-md:text-[11px]">Finitura</Label>
           <Select
             value={value.finitura}
             onValueChange={(v) => set("finitura", v as FinituraPavimento)}
@@ -378,8 +381,8 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
 
       {woodLike && (
         <div className="space-y-2">
-          <Label>Essenza legno</Label>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <Label className="max-md:text-[13px] max-md:font-semibold">Essenza legno</Label>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 max-sm:grid-cols-3 max-sm:gap-1.5">
             {WOOD_ESSENCES.map((wood) => (
               <button
                 key={wood.value}
@@ -393,25 +396,26 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
                   } ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
               >
                 <span className="mb-1 block h-6 rounded border" style={{ backgroundColor: wood.color }} />
-                <span className="font-medium">{wood.label}</span>
+                <span className="font-medium max-md:text-[11px] max-md:leading-tight">{wood.label}</span>
               </button>
             ))}
           </div>
         </div>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-[1fr_88px]">
+      <div className="grid gap-4 sm:grid-cols-[1fr_88px] max-sm:grid-cols-[1fr_64px] max-sm:gap-2">
         <div className="space-y-1.5">
-          <Label>Colore / nome commerciale</Label>
+          <Label className="max-md:text-[11px]">Colore / nome commerciale</Label>
           <Input
             value={value.colore_nome ?? ""}
             onChange={(e) => set("colore_nome", e.target.value)}
             placeholder="Es. Rovere naturale, Calacatta oro, cemento caldo"
+            className="max-md:placeholder:text-[13px]"
             disabled={disabled}
           />
         </div>
         <div className="space-y-1.5">
-          <Label>Campione</Label>
+          <Label className="max-md:text-[11px]">Campione</Label>
           <Input
             type="color"
             value={value.colore_hex ?? "#b0b0b0"}
@@ -423,8 +427,8 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
       </div>
 
       <div className="space-y-2">
-        <Label>Schema di posa *</Label>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <Label className="max-md:text-[13px] max-md:font-semibold">Schema di posa *</Label>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 max-sm:grid-cols-3 max-sm:gap-1.5">
           {PATTERNS.map((p) => (
             <button
               key={p.value}
@@ -437,17 +441,20 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
                   : "border-slate-300 bg-white shadow-sm hover:border-primary/60 hover:shadow"
                 } ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
             >
-              <span className="mb-2 block h-7 rounded bg-muted" style={{ backgroundImage: p.preview }} />
-              <span className="block font-semibold">{p.label}</span>
-              <span className="block text-[11px] text-muted-foreground">{p.detail}</span>
+              <span className="mb-2 block h-7 rounded bg-muted max-md:mb-1.5 max-md:h-6" style={{ backgroundImage: p.preview }} />
+              <span className="block font-semibold max-md:text-[11px] max-md:leading-tight">{p.label}</span>
+              <span className="block text-[11px] text-muted-foreground max-md:hidden">{p.detail}</span>
             </button>
           ))}
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      {/* Telefono: le scelte tecniche (hanno già valori sensati) stanno in
+          «Dettagli di posa», chiusi; sul computer restano dove sono. */}
+      <DettagliTelefono titolo="Dettagli di posa">
+      <div className="grid gap-4 sm:grid-cols-3 max-sm:grid-cols-2 max-sm:gap-2">
         <div className="space-y-1.5">
-          <Label>Direzione posa</Label>
+          <Label className="max-md:text-[11px]">Direzione posa</Label>
           <Select
             value={value.direzione_posa ?? "segue_prospettiva"}
             onValueChange={(v) => set("direzione_posa", v as DirezionePosa)}
@@ -462,7 +469,7 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
           </Select>
         </div>
         <div className="space-y-1.5">
-          <Label>Scala pattern</Label>
+          <Label className="max-md:text-[11px]">Scala pattern</Label>
           <Select
             value={value.scala_pattern ?? "standard"}
             onValueChange={(v) => set("scala_pattern", v as ScalaPattern)}
@@ -477,7 +484,7 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
           </Select>
         </div>
         <div className="space-y-1.5">
-          <Label>Variazione tono</Label>
+          <Label className="max-md:text-[11px]">Variazione tono</Label>
           <Select
             value={value.variazione_tono ?? "naturale"}
             onValueChange={(v) => set("variazione_tono", v as VariazioneTono)}
@@ -493,9 +500,9 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-3 max-sm:grid-cols-2 max-sm:gap-2">
         <div className="space-y-1.5">
-          <Label>Formato piastrella</Label>
+          <Label className="max-md:text-[11px]">Formato piastrella</Label>
           <Select
             value={value.formato_piastrella ?? "60x60"}
             onValueChange={(v) => set("formato_piastrella", v)}
@@ -510,7 +517,7 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
           </Select>
         </div>
         <div className="space-y-1.5">
-          <Label>Larghezza listello</Label>
+          <Label className="max-md:text-[11px]">Larghezza listello</Label>
           <Input
             type="number"
             min={50}
@@ -522,7 +529,7 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
           />
         </div>
         <div className="space-y-1.5">
-          <Label>Lunghezza listello</Label>
+          <Label className="max-md:text-[11px]">Lunghezza listello</Label>
           <Input
             type="number"
             min={100}
@@ -535,9 +542,9 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-3 max-sm:grid-cols-2 max-sm:gap-2">
         <div className="space-y-1.5">
-          <Label>Fuga / giunto (mm)</Label>
+          <Label className="max-md:text-[11px]">Fuga / giunto (mm)</Label>
           <Input
             type="number"
             min={0}
@@ -548,7 +555,7 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
           />
         </div>
         <div className="space-y-1.5">
-          <Label>Colore fuga</Label>
+          <Label className="max-md:text-[11px]">Colore fuga</Label>
           <Select
             value={value.fuga_colore ?? "tono_su_tono"}
             onValueChange={(v) => set("fuga_colore", v as ConfigurazionePavimento["fuga_colore"])}
@@ -563,7 +570,7 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
           </Select>
         </div>
         <div className="space-y-1.5">
-          <Label>Bisellatura</Label>
+          <Label className="max-md:text-[11px]">Bisellatura</Label>
           <Select
             value={value.bisellatura ?? "nessuna"}
             onValueChange={(v) => set("bisellatura", v as Bisellatura)}
@@ -579,10 +586,10 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
         </div>
       </div>
 
-      <div className="rounded-lg border p-3">
-        <div className="grid gap-4 sm:grid-cols-3">
+      <div className="rounded-lg border p-3 max-md:border-0 max-md:p-0">
+        <div className="grid gap-4 sm:grid-cols-3 max-sm:grid-cols-2 max-sm:gap-2">
           <div className="space-y-1.5">
-            <Label>Soglie porte</Label>
+            <Label className="max-md:text-[11px]">Soglie porte</Label>
             <Select
               value={value.soglie_porte ?? "mantieni"}
               onValueChange={(v) => set("soglie_porte", v as SogliePorte)}
@@ -597,7 +604,7 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label>Giunto perimetrale</Label>
+            <Label className="max-md:text-[11px]">Giunto perimetrale</Label>
             <Select
               value={value.giunto_perimetrale ?? "standard_nascosto"}
               onValueChange={(v) => set("giunto_perimetrale", v as GiuntoPerimetrale)}
@@ -612,7 +619,7 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label>Fasce bordo</Label>
+            <Label className="max-md:text-[11px]">Fasce bordo</Label>
             <Select
               value={value.fasce_bordo ?? "nessuna"}
               onValueChange={(v) => set("fasce_bordo", v as FasceBordo)}
@@ -629,10 +636,12 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
         </div>
       </div>
 
+      </DettagliTelefono>
+
       <div className="space-y-3 rounded-lg border p-3">
         <CatalogReferencePicker companyId={companyId} verticale="pavimento" categorie={["battiscopa"]} selectedIds={value.catalogo_reference_ids ?? []} onChange={(ids) => update({ catalogo_reference_ids: ids })} />
         <div className="flex items-center justify-between gap-3">
-          <Label className="text-sm font-semibold">Battiscopa</Label>
+          <Label className="text-sm font-semibold max-md:text-[13px]">Battiscopa</Label>
           <Select
             value={value.battiscopa?.azione ?? "mantieni"}
             onValueChange={(v) =>
@@ -643,7 +652,7 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
             }
             disabled={disabled}
           >
-            <SelectTrigger className="w-44">
+            <SelectTrigger className="w-44 max-md:w-36">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -655,9 +664,9 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
         </div>
 
         {isSostituisciBattiscopa && (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 max-md:gap-2">
             <div className="space-y-1.5">
-              <Label className="text-xs">Tipo</Label>
+              <Label className="text-xs max-md:text-[11px]">Tipo</Label>
               <Select
                 value={value.battiscopa?.tipo ?? "coordinato_pavimento"}
                 onValueChange={(v) =>
@@ -677,7 +686,7 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Altezza</Label>
+              <Label className="text-xs max-md:text-[11px]">Altezza</Label>
               <Select
                 value={String(value.battiscopa?.altezza_cm ?? 8)}
                 onValueChange={(v) =>
@@ -701,13 +710,15 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
       </div>
 
       <div className="space-y-1.5">
-        <Label>Note aggiuntive</Label>
+        <Label className="max-md:text-[13px] max-md:font-semibold">Note aggiuntive</Label>
         <Textarea
           value={value.note_libere ?? ""}
           onChange={(e) => set("note_libere", e.target.value)}
           placeholder="Es. mantenere tappeto, non modificare porte, posa continua verso la cucina..."
           rows={3}
           disabled={disabled}
+          // Telefono: segnaposto a 13px come il resto del testo.
+          className="max-md:placeholder:text-[13px]"
         />
       </div>
     </div>

@@ -842,18 +842,18 @@ export function ListinoPickerDialog({
                   {calcolo.extra_assi !== 0 && (
                     <p className="text-[10px] text-blue-800">
                       Variabili prodotto: <span className="font-semibold">
-                        {calcolo.extra_assi > 0 ? "+" : ""}€ {calcolo.extra_assi.toLocaleString("it-IT", { minimumFractionDigits: 2 })}
+                        {calcolo.extra_assi > 0 ? "+" : ""}€ {calcolo.extra_assi.toLocaleString("it-IT", { minimumFractionDigits: 2, useGrouping: true })}
                       </span>
                     </p>
                   )}
                   <div className="border-t border-orange-300 pt-2 mt-2 flex justify-between items-center">
                     <span className="font-bold text-orange-900">Totale posizione</span>
                     <span className="text-xl font-bold text-orange-600 tabular-nums">
-                      € {calcolo.totale.toLocaleString("it-IT", { minimumFractionDigits: 2 })}
+                      € {calcolo.totale.toLocaleString("it-IT", { minimumFractionDigits: 2, useGrouping: true })}
                     </span>
                   </div>
                   <p className="text-[10px] text-muted-foreground text-right">
-                    Prezzo unitario: € {calcolo.unitario.toLocaleString("it-IT", { minimumFractionDigits: 2 })} × {calcolo.quantita} pz
+                    Prezzo unitario: € {calcolo.unitario.toLocaleString("it-IT", { minimumFractionDigits: 2, useGrouping: true })} × {calcolo.quantita} pz
                   </p>
                 </div>
               </Card>

@@ -7,7 +7,6 @@ import { EmailKpiHero } from "./EmailKpiHero";
 import { EmailFunnelChart } from "./EmailFunnelChart";
 import { EmailPerformanceChart } from "./EmailPerformanceChart";
 import { EmailTopCampaignsTable } from "./EmailTopCampaignsTable";
-import { CampaignCreateDropdown } from "./CampaignCreateDropdown";
 import { CampaignDetailDialog } from "./CampaignDetailDialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -171,12 +170,15 @@ export function EmailStatsTab() {
   }, [dailyRaw]);
 
   return (
-    <div className="space-y-6">
-      {/* Filter bar */}
-      <div className="flex flex-wrap items-center gap-3">
-        <CampaignCreateDropdown />
+    // Telefono: campagna e periodo (7/30/90/tutto), i quattro numeri, la classifica
+    // a righe. Crea campagna, date libere, funnel, salute e grafico al computer.
+    <div className="space-y-6 max-md:space-y-3">
+      {/* Filter bar — da tablet una riga: campagna, periodo rapido, date libere.
+          Via «Crea campagna» (che qui apriva la barra, a sinistra): si crea
+          dalla scheda Campagne, questa è la pagina dei risultati. */}
+      <div className="flex flex-wrap items-center gap-3 max-md:gap-2">
         <Select value={campaignFilter} onValueChange={setCampaignFilter}>
-          <SelectTrigger className="w-[220px]"><SelectValue placeholder="Tutte le campagne" /></SelectTrigger>
+          <SelectTrigger className="w-[180px] max-md:w-full"><SelectValue placeholder="Tutte le campagne" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tutte le campagne</SelectItem>
             {campaigns.map((c: any) => (
@@ -184,13 +186,7 @@ export function EmailStatsTab() {
             ))}
           </SelectContent>
         </Select>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span>Dal</span>
-          <Input type="date" className="w-[150px] h-9" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setDatePreset("custom"); }} />
-          <span>al</span>
-          <Input type="date" className="w-[150px] h-9" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setDatePreset("custom"); }} />
-        </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 max-md:w-full">
           {([["7", "7 gg"], ["30", "30 gg"], ["90", "90 gg"], ["all", "Tutto"]] as const).map(([days, lbl]) => (
             <button key={days} type="button"
               onClick={() => {
@@ -200,10 +196,16 @@ export function EmailStatsTab() {
                 setDateFrom(localDay(new Date(Date.now() - Number(days) * 86400000)));
                 setDateTo(localDay(new Date()));
               }}
-              className={`rounded-full border px-2.5 py-1 text-[11px] transition-colors ${datePreset === days ? "border-primary bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-muted/50"}`}>
+              className={`tap-compact rounded-full border px-2.5 py-1 text-[11px] transition-colors max-md:flex-1 max-md:py-1.5 max-md:text-[13px] ${datePreset === days ? "border-primary bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-muted/50"}`}>
               {lbl}
             </button>
           ))}
+        </div>
+        {/* «Dal … al» diventa un trattino: con le parole la riga non stava a 1024. */}
+        <div className="flex items-center gap-2 text-sm text-muted-foreground max-md:hidden">
+          <Input type="date" aria-label="Dal" className="w-[140px] h-9" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setDatePreset("custom"); }} />
+          <span aria-hidden>–</span>
+          <Input type="date" aria-label="Al" className="w-[140px] h-9" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setDatePreset("custom"); }} />
         </div>
       </div>
 
@@ -211,18 +213,21 @@ export function EmailStatsTab() {
       <EmailKpiHero stats={stats} />
 
       {/* Funnel di conversione + salute deliverability affiancati */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 max-md:hidden">
         <EmailFunnelChart data={funnel} />
         <div>
           <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            Salute della deliverability
+            {/* «Deliverability» è gergo: sotto ci sono respinte, disiscrizioni e spam. */}
+            Salute degli invii
           </h3>
           <CampaignStatsCards stats={stats} />
         </div>
       </div>
 
       {/* Andamento nel tempo */}
-      <EmailPerformanceChart datasets={chartDatasets} />
+      <div className="max-md:hidden">
+        <EmailPerformanceChart datasets={chartDatasets} />
+      </div>
 
       {/* Top campaigns table — click su riga apre il dettaglio destinatari */}
       <EmailTopCampaignsTable

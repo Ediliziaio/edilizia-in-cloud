@@ -7,6 +7,13 @@ function pretty(value: string | null | undefined) {
   return value ? value.replace(/_/g, " ") : "non impostato";
 }
 
+// «Foto landscape» → «Foto orizzontale».
+const ORIENTAMENTO_FOTO: Record<string, string> = {
+  portrait: "verticale",
+  landscape: "orizzontale",
+  square: "quadrata",
+};
+
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown>
@@ -20,9 +27,9 @@ function valueFrom(record: Record<string, unknown>, key: string): string | undef
 
 function SpecRow({ label, value }: { label: string; value: string | null | undefined }) {
   return (
-    <div className="rounded-lg border border-border/60 bg-background/70 px-3 py-2">
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className="mt-0.5 text-sm font-medium capitalize">{pretty(value)}</p>
+    <div className="rounded-lg border border-border/60 bg-background/70 px-3 py-2 max-md:min-w-0 max-md:px-2.5 max-md:py-1.5">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground max-md:text-[11px] max-md:font-medium max-md:normal-case max-md:tracking-normal">{label}</p>
+      <p className="mt-0.5 text-sm font-medium capitalize max-md:text-[13px]">{pretty(value)}</p>
     </div>
   );
 }
@@ -49,31 +56,31 @@ export function BathroomSelectionSummary({ renderPlan }: { renderPlan: BathroomR
 
   return (
     <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-sm">
+      <CardHeader className="pb-3 max-md:p-3 max-md:pb-2">
+        <CardTitle className="flex items-center gap-2 text-sm max-md:text-[13px]">
           <CheckCircle2 className="h-4 w-4 text-cyan-600" />
           Scelte tecniche applicate
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4 max-md:space-y-3 max-md:p-3 max-md:pt-0">
         <div className="flex flex-wrap gap-2">
           <Badge variant="secondary" className="capitalize">
             {pretty(renderPlan.intervention_type)}
           </Badge>
           <Badge variant="outline">{activeSpecs} gruppi modificati</Badge>
           {renderPlan.photo_meta?.orientation ? (
-            <Badge variant="outline" className="capitalize">Foto {renderPlan.photo_meta.orientation}</Badge>
+            <Badge variant="outline">Foto {ORIENTAMENTO_FOTO[renderPlan.photo_meta.orientation] ?? renderPlan.photo_meta.orientation}</Badge>
           ) : null}
         </div>
 
         <div className="grid gap-3 md:grid-cols-2">
           {spec.wallTiles.replace ? (
-            <div className="rounded-xl border bg-muted/20 p-3">
+            <div className="rounded-xl border bg-muted/20 p-3 max-md:p-2.5">
               <div className="mb-3 flex items-center gap-2">
                 <Layers3 className="h-4 w-4 text-cyan-600" />
-                <p className="text-sm font-semibold">Pareti</p>
+                <p className="text-sm font-semibold max-md:text-[13px]">Pareti</p>
               </div>
-              <div className="grid gap-2">
+              <div className="grid gap-2 max-md:grid-cols-2 max-md:gap-1.5">
                 <SpecRow label="Materiale" value={valueFrom(wallTiles, "effetto") ?? spec.wallTiles.effectId} />
                 <SpecRow label="Formato" value={valueFrom(wallTiles, "formato") ?? spec.wallTiles.format} />
                 <SpecRow label="Posa" value={valueFrom(wallTiles, "posa") ?? spec.wallTiles.layingPattern} />
@@ -83,12 +90,12 @@ export function BathroomSelectionSummary({ renderPlan }: { renderPlan: BathroomR
           ) : null}
 
           {spec.floor.replace ? (
-            <div className="rounded-xl border bg-muted/20 p-3">
+            <div className="rounded-xl border bg-muted/20 p-3 max-md:p-2.5">
               <div className="mb-3 flex items-center gap-2">
                 <Grid3X3 className="h-4 w-4 text-cyan-600" />
-                <p className="text-sm font-semibold">Pavimento</p>
+                <p className="text-sm font-semibold max-md:text-[13px]">Pavimento</p>
               </div>
-              <div className="grid gap-2">
+              <div className="grid gap-2 max-md:grid-cols-2 max-md:gap-1.5">
                 <SpecRow label="Materiale" value={valueFrom(floor, "effetto") ?? spec.floor.effectId} />
                 <SpecRow label="Formato" value={valueFrom(floor, "formato") ?? spec.floor.format} />
                 <SpecRow label="Posa" value={valueFrom(floor, "posa") ?? spec.floor.layingPattern} />
@@ -98,12 +105,12 @@ export function BathroomSelectionSummary({ renderPlan }: { renderPlan: BathroomR
           ) : null}
 
           {spec.bathtub.replace ? (
-            <div className="rounded-xl border bg-muted/20 p-3">
+            <div className="rounded-xl border bg-muted/20 p-3 max-md:p-2.5">
               <div className="mb-3 flex items-center gap-2">
                 <Bath className="h-4 w-4 text-cyan-600" />
-                <p className="text-sm font-semibold">Vasca</p>
+                <p className="text-sm font-semibold max-md:text-[13px]">Vasca</p>
               </div>
-              <div className="grid gap-2">
+              <div className="grid gap-2 max-md:grid-cols-2 max-md:gap-1.5">
                 <SpecRow label="Tipo" value={valueFrom(bathtub, "tipo") ?? spec.bathtub.bathtubTypeLabel} />
                 <SpecRow label="Dimensione" value={valueFrom(bathtub, "dimensione_cm") ?? spec.bathtub.nominalSize} />
                 <SpecRow label="Materiale" value={valueFrom(bathtub, "materiale") ?? spec.bathtub.materialDescription} />
@@ -113,12 +120,12 @@ export function BathroomSelectionSummary({ renderPlan }: { renderPlan: BathroomR
           ) : null}
 
           {spec.shower.replace ? (
-            <div className="rounded-xl border bg-muted/20 p-3">
+            <div className="rounded-xl border bg-muted/20 p-3 max-md:p-2.5">
               <div className="mb-3 flex items-center gap-2">
                 <ShowerHead className="h-4 w-4 text-cyan-600" />
-                <p className="text-sm font-semibold">Doccia</p>
+                <p className="text-sm font-semibold max-md:text-[13px]">Doccia</p>
               </div>
-              <div className="grid gap-2">
+              <div className="grid gap-2 max-md:grid-cols-2 max-md:gap-1.5">
                 <SpecRow label="Tipo" value={valueFrom(shower, "tipo") ?? spec.shower.showerTypeLabel} />
                 <SpecRow label="Vetro" value={valueFrom(shower, "box_vetro") ?? spec.shower.glassType} />
                 <SpecRow label="Piatto" value={valueFrom(shower, "piatto") ?? spec.shower.trayType} />
@@ -128,12 +135,12 @@ export function BathroomSelectionSummary({ renderPlan }: { renderPlan: BathroomR
           ) : null}
 
           {spec.vanity.replace ? (
-            <div className="rounded-xl border bg-muted/20 p-3">
+            <div className="rounded-xl border bg-muted/20 p-3 max-md:p-2.5">
               <div className="mb-3 flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-cyan-600" />
-                <p className="text-sm font-semibold">Mobile e specchio</p>
+                <p className="text-sm font-semibold max-md:text-[13px]">Mobile e specchio</p>
               </div>
-              <div className="grid gap-2">
+              <div className="grid gap-2 max-md:grid-cols-2 max-md:gap-1.5">
                 <SpecRow label="Mobile" value={valueFrom(vanity, "stile") ?? spec.vanity.styleLabel} />
                 <SpecRow label="Colore" value={valueFrom(vanity, "colore") ?? spec.vanity.colorLabel} />
                 <SpecRow label="Top" value={valueFrom(vanity, "piano") ?? spec.vanity.topDescription} />
@@ -143,12 +150,12 @@ export function BathroomSelectionSummary({ renderPlan }: { renderPlan: BathroomR
           ) : null}
 
           {spec.sanitaryWare.replace || spec.faucets.replace ? (
-            <div className="rounded-xl border bg-muted/20 p-3">
+            <div className="rounded-xl border bg-muted/20 p-3 max-md:p-2.5">
               <div className="mb-3 flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-cyan-600" />
-                <p className="text-sm font-semibold">Sanitari e metalli</p>
+                <p className="text-sm font-semibold max-md:text-[13px]">Sanitari e metalli</p>
               </div>
-              <div className="grid gap-2">
+              <div className="grid gap-2 max-md:grid-cols-2 max-md:gap-1.5">
                 {spec.sanitaryWare.replace ? <SpecRow label="WC" value={valueFrom(sanitary, "tipo_wc") ?? spec.sanitaryWare.toiletType} /> : null}
                 {spec.sanitaryWare.replace ? <SpecRow label="Piastra WC" value={valueFrom(sanitary, "piastra_wc") ?? spec.sanitaryWare.flushPlateStyle} /> : null}
                 {spec.sanitaryWare.replace ? <SpecRow label="Colore piastra" value={valueFrom(sanitary, "piastra_wc_colore") ?? spec.sanitaryWare.flushPlateColor} /> : null}

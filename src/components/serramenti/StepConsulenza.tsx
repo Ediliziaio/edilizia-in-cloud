@@ -62,7 +62,7 @@ export function StepConsulenza({ form, onChange }: Props) {
         icon={<Calendar className="h-4 w-4" />}
       >
         <div className="grid grid-cols-12 gap-3">
-          <div className="col-span-12 md:col-span-6">
+          <div className="col-span-7 md:col-span-6">
             <Label className="text-xs">Data e ora</Label>
             <Input
               type="datetime-local"
@@ -71,7 +71,7 @@ export function StepConsulenza({ form, onChange }: Props) {
               className="h-9 text-xs"
             />
           </div>
-          <div className="col-span-12 md:col-span-6">
+          <div className="col-span-5 md:col-span-6">
             <Label className="text-xs">Luogo</Label>
             <Select
               value={form.consulenza_luogo ?? ""}
@@ -96,10 +96,12 @@ export function StepConsulenza({ form, onChange }: Props) {
           rispetto alle 4 fasi narrative del percorso cliente. */}
 
       {/* Prossimi passi */}
+      {/* Testo del modello, che dal telefono non si ritocca. */}
       <SrCard
         title="Prossimi passi"
         description="I 4 step che il cliente vedrà in fondo al PDF (pagina 3)."
         icon={<ListChecks className="h-4 w-4" />}
+        className="max-md:hidden"
       >
         <div className="space-y-2">
           {[0, 1, 2, 3].map((idx) => (
@@ -132,9 +134,11 @@ export function StepConsulenza({ form, onChange }: Props) {
             onBlur={(e) => onChange("note_cliente", e.target.value || null)}
             placeholder="Es: Consegna entro 30 giorni dall'accettazione. Colore RAL custom su misura, eventuali ritocchi inclusi."
             rows={4}
-            className="bg-orange-50/30 border-orange-200 focus-visible:ring-orange-300"
+            // Telefono: il testo scritto resta a 16px (sotto, iOS ingrandisce la pagina al tocco);
+            // più piccoli il suggerimento e la casella.
+            className="bg-orange-50/30 border-orange-200 focus-visible:ring-orange-300 max-md:h-[88px] max-md:min-h-0 max-md:placeholder:text-[13px]"
           />
-          <p className="text-[10px] text-muted-foreground mt-1.5 flex items-center gap-1">
+          <p className="text-[10px] text-muted-foreground mt-1.5 flex items-center gap-1 max-md:hidden">
             <FileText className="h-3 w-3" />
             Questo testo apparirà nel PDF inviato al cliente.
           </p>
@@ -152,8 +156,9 @@ export function StepConsulenza({ form, onChange }: Props) {
             onBlur={(e) => onChange("note_interne", e.target.value || null)}
             placeholder="Vincoli, ferie cliente, urgenze, eccezioni, promemoria interni..."
             rows={4}
+            className="max-md:h-[72px] max-md:min-h-0 max-md:placeholder:text-[13px]"
           />
-          <p className="text-[10px] text-muted-foreground mt-1.5 flex items-center gap-1">
+          <p className="text-[10px] text-muted-foreground mt-1.5 flex items-center gap-1 max-md:hidden">
             <EyeOff className="h-3 w-3" />
             Visibili solo allo staff. <strong>Mai</strong> esposte al cliente.
           </p>

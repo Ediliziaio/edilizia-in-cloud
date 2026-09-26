@@ -402,11 +402,13 @@ export default function SettingsApiKeys() {
       {/* Header standardizzato */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+          {/* Da 768 icona e titolo li mostra già la testata delle Impostazioni
+              (erano due volte): resta la riga sotto, con numeri e azioni. */}
+          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 md:hidden">
             <Key className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight">API Platform</h1>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight md:hidden">API Platform</h1>
             <p className="text-sm text-muted-foreground">
               {activeKeys.length} chiav{activeKeys.length === 1 ? "e attiva" : "i attive"}
               {revokedKeys.length > 0 && (

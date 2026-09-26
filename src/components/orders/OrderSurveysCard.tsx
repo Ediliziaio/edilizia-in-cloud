@@ -45,7 +45,7 @@ export function OrderSurveysCard({ orderId }: OrderSurveysCardProps) {
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
+      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 max-sm:p-3 max-sm:pb-2">
         <CardTitle className="flex items-center gap-2 text-base sm:text-lg min-w-0">
           <ClipboardCheck className="h-4 w-4 shrink-0 text-orange-500" />
           <span className="truncate">Rilievi e sopralluoghi</span>
@@ -58,7 +58,7 @@ export function OrderSurveysCard({ orderId }: OrderSurveysCardProps) {
           <span className="hidden sm:inline">Nuovo sopralluogo</span>
         </Button>
       </CardHeader>
-      <CardContent>
+      <CardContent className="max-sm:p-3 max-sm:pt-0">
         {isLoading && (
           <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" /> Carico i sopralluoghi…
@@ -70,11 +70,11 @@ export function OrderSurveysCard({ orderId }: OrderSurveysCardProps) {
         )}
 
         {!isLoading && !isError && (!surveys || surveys.length === 0) && (
-          <div className="flex items-center gap-3 py-1 text-sm text-muted-foreground">
-            <Ruler className="h-5 w-5 shrink-0 text-muted-foreground/40" />
+          <div className="flex items-center gap-3 py-1 text-sm text-muted-foreground max-sm:py-0 max-sm:text-xs">
+            <Ruler className="h-5 w-5 shrink-0 text-muted-foreground/40 max-sm:hidden" />
             <span className="flex-1">
-              Nessun sopralluogo collegato. Le misure definitive del rilievo confermano
-              quelle del preventivo prima di ordinare al fornitore.
+              Nessun sopralluogo collegato.<span className="max-sm:hidden"> Le misure definitive del rilievo confermano
+              quelle del preventivo prima di ordinare al fornitore.</span>
             </span>
           </div>
         )}

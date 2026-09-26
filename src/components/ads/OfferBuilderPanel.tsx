@@ -231,7 +231,7 @@ export function OfferBuilderPanel({ companyId, segmentHint, onChooseOffer, curre
           className="min-h-28 bg-white text-sm"
           maxLength={1500}
         />
-        <div className="mt-1 flex items-center justify-between text-[10px] text-slate-500">
+        <div className="mt-1 flex items-center justify-between text-[10px] text-slate-500 max-md:text-[11px]">
           <span>{offer.length}/1500 caratteri</span>
           <button
             type="button"
@@ -253,7 +253,7 @@ export function OfferBuilderPanel({ companyId, segmentHint, onChooseOffer, curre
                   <span className="text-base">{p.icon}</span>
                   <div>
                     <p className="text-xs font-semibold text-slate-950">{p.title}</p>
-                    <p className="text-[10px] italic text-slate-600">{p.example}</p>
+                    <p className="text-[10px] italic text-slate-600 max-md:text-[11px]">{p.example}</p>
                   </div>
                 </div>
               ))}
@@ -273,7 +273,7 @@ export function OfferBuilderPanel({ companyId, segmentHint, onChooseOffer, curre
                 className="rounded-lg border border-slate-200 bg-white p-2 text-left text-xs hover:border-blue-300 hover:bg-blue-50"
               >
                 <p className="font-semibold text-slate-950">{ex.title}</p>
-                <p className="mt-0.5 line-clamp-2 text-[10px] text-slate-500">{ex.text}</p>
+                <p className="mt-0.5 line-clamp-2 text-[10px] text-slate-500 max-md:text-[11px]">{ex.text}</p>
               </button>
             ))}
           </div>
@@ -335,10 +335,10 @@ export function OfferBuilderPanel({ companyId, segmentHint, onChooseOffer, curre
                 const info = FRAMEWORK_INFO[f];
                 return (
                   <div key={f} className={cn("rounded-md border p-1.5", info.color)}>
-                    <p className="text-[10px] font-bold text-slate-900">
+                    <p className="text-[10px] font-bold text-slate-900 max-md:text-[11px]">
                       {info.emoji} {info.label}
                     </p>
-                    <p className="text-[9px] text-slate-600">{info.master}</p>
+                    <p className="text-[9px] text-slate-600 max-md:text-[11px]">{info.master}</p>
                   </div>
                 );
               })}
@@ -406,26 +406,26 @@ function AdVariantCard({
             <Badge variant="outline" className={cn("text-[10px]", info.color)}>
               {info.label}
             </Badge>
-            <p className="mt-0.5 text-[9px] text-slate-500">stile {info.master}</p>
+            <p className="mt-0.5 text-[9px] text-slate-500 max-md:text-[11px]">stile {info.master}</p>
           </div>
         </div>
-        <Badge variant="outline" className="text-[10px]">
+        <Badge variant="outline" className="text-[10px] max-md:text-[11px]">
           {ad.cta === "GET_QUOTE" ? "Preventivo" : ad.cta === "MESSAGE_PAGE" ? "Messaggio" : ad.cta === "WHATSAPP_MESSAGE" ? "WhatsApp" : "Scopri"}
         </Badge>
       </header>
 
       {/* Hook in evidenza */}
       <div className="mb-2 rounded-md border border-fuchsia-200 bg-fuchsia-50 p-2">
-        <p className="text-[9px] font-semibold uppercase text-fuchsia-700">Hook (stop-scroll)</p>
+        <p className="text-[9px] font-semibold uppercase text-fuchsia-700 max-md:text-[11px]">Hook (stop-scroll)</p>
         <p className="text-xs font-semibold text-fuchsia-950">{ad.hook}</p>
       </div>
 
       {/* Title */}
-      <p className="mb-1 text-[9px] font-semibold uppercase text-slate-500">Titolo (headline)</p>
+      <p className="mb-1 text-[9px] font-semibold uppercase text-slate-500 max-md:text-[11px]">Titolo (headline)</p>
       <p className="mb-3 text-sm font-bold text-slate-950">{ad.title}</p>
 
       {/* Primary text */}
-      <p className="mb-1 text-[9px] font-semibold uppercase text-slate-500">Corpo annuncio</p>
+      <p className="mb-1 text-[9px] font-semibold uppercase text-slate-500 max-md:text-[11px]">Corpo annuncio</p>
       <p className="mb-3 text-sm leading-relaxed text-slate-700">{ad.primary_text}</p>
 
       {/* Expanded: angle + framework explain + image prompt */}
@@ -440,15 +440,15 @@ function AdVariantCard({
 
       {expanded && (
         <div className="mb-3 space-y-2 rounded-lg border bg-slate-50 p-2">
-          <div className="text-[10px]">
+          <div className="text-[10px] max-md:text-[11px]">
             <p className="font-semibold text-slate-700">🎯 Angolo di vendita</p>
             <p className="text-slate-600">{ad.angle}</p>
           </div>
-          <div className="text-[10px]">
+          <div className="text-[10px] max-md:text-[11px]">
             <p className="font-semibold text-slate-700">📚 Perché funziona</p>
             <p className="text-slate-600">{ad.framework_explain}</p>
           </div>
-          <div className="text-[10px]">
+          <div className="text-[10px] max-md:text-[11px]">
             <p className="font-semibold text-slate-700">🎨 Prompt immagine</p>
             <p className="italic text-slate-600">{ad.image_prompt}</p>
           </div>

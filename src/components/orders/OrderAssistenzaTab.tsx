@@ -74,7 +74,7 @@ export function OrderAssistenzaTab({ orderId }: { orderId: string }) {
           <Euro className="h-3.5 w-3.5 shrink-0" />
           <span>
             Da incassare su queste assistenze:{" "}
-            <strong>{daIncassare.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</strong>
+            <strong>{daIncassare.toLocaleString("it-IT", { style: "currency", currency: "EUR", useGrouping: true })}</strong>
           </span>
         </div>
       )}
@@ -109,7 +109,7 @@ export function OrderAssistenzaTab({ orderId }: { orderId: string }) {
                     <span className={t.pagato ? "text-green-700" : "text-amber-700"}>
                       · {t.pagato ? "incassata" : "da incassare"}
                       {t.importo_finale || t.importo_preventivato
-                        ? ` ${Number(t.importo_finale ?? t.importo_preventivato).toLocaleString("it-IT", { style: "currency", currency: "EUR" })}`
+                        ? ` ${Number(t.importo_finale ?? t.importo_preventivato).toLocaleString("it-IT", { style: "currency", currency: "EUR", useGrouping: true })}`
                         : ""}
                     </span>
                   ) : (

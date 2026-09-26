@@ -102,12 +102,13 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items }: LinkedPu
 
   return (
     <Card>
-      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-3">
+      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-3 max-sm:p-3 max-sm:pb-2">
         <CardTitle className="flex items-center gap-2 text-base min-w-0">
           <Package className="h-4 w-4 shrink-0" />
           <span className="truncate">Ordini ai fornitori</span>
         </CardTitle>
-        <div className="flex items-center gap-2 shrink-0">
+        {/* Mobile: si guardano gli ordini; collegarli o crearne è lavoro d'ufficio. */}
+        <div className="flex items-center gap-2 shrink-0 max-sm:hidden">
           <Button variant="outline" size="sm" disabled={!canEditOrders} onClick={() => setLinkDialogOpen(true)}>
             <Link2 className="h-4 w-4 mr-1.5" />
             Collega OdA
@@ -115,7 +116,7 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items }: LinkedPu
           <CreatePurchaseOrderButton orderId={orderId} orderCode={orderCode} items={items} />
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="max-sm:p-3 max-sm:pt-0">
         {isLoading ? (
           <p className="text-sm text-muted-foreground">Caricamento...</p>
         ) : isError ? (
@@ -123,7 +124,7 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items }: LinkedPu
         ) : linkedPOs.length === 0 ? (
           <p className="text-sm text-muted-foreground">Nessun ordine d'acquisto collegato.</p>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-3 max-sm:space-y-2">
             {linkedPOs.map((po) => {
               const ddtAgg = ddtCounts[po.id];
               return (
@@ -165,14 +166,14 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items }: LinkedPu
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                      className="h-8 w-8 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100 transition-opacity max-sm:hidden"
                       disabled={!canEditOrders}
                       onClick={(e) => { e.stopPropagation(); setUnlinkTarget({ id: po.id, oda_number: po.oda_number }); }}
                       aria-label={`Scollega OdA ${po.oda_number}`}
                     >
                       <Unlink className="h-3.5 w-3.5 text-muted-foreground" />
                     </Button>
-                    <Link to={`/azienda/ordini-acquisto/${po.id}`}>
+                    <Link to={`/azienda/ordini-acquisto/${po.id}`} className="max-sm:hidden">
                       <ExternalLink className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                     </Link>
                   </div>

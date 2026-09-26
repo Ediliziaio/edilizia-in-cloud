@@ -140,6 +140,18 @@ export function getEmployeeInitials(order: CalendarOrder): string {
     .join(", ");
 }
 
+/**
+ * Nome corto di una commessa per le pastiglie del calendario: il cognome del
+ * cliente; se la commessa non ha cliente (il segnaposto lo mette Calendar.tsx)
+ * la descrizione del lavoro. Il codice «ORD-2026-0…» nelle celle strette si
+ * tagliava sempre prima del nome, e da solo non dice di quale lavoro si tratta.
+ */
+export function etichettaCommessa(order: CalendarOrder): string | null {
+  const senzaCliente = !order.customer.first_name && order.customer.last_name === "Cliente non associato";
+  const nome = senzaCliente ? "" : order.customer.last_name || order.customer.first_name;
+  return nome || order.description || null;
+}
+
 export const WEEK_DAYS_IT = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"] as const;
 
 export const APPOINTMENT_ICONS: Record<string, typeof CalendarClock> = {

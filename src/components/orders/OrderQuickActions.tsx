@@ -213,12 +213,11 @@ export function OrderQuickActions({
 
   return (
     <div role="region" aria-label="Azioni rapide commessa" className="bg-white border-b border-gray-100 px-3 sm:px-6 py-2">
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground mr-1 hidden sm:inline">
-          Azioni rapide
-        </span>
-
-        {/* Scorciatoie inline (solo desktop largo): le azioni più usate */}
+      <div className="flex flex-wrap items-center gap-1.5 max-sm:flex-nowrap">
+        {/* Scorciatoie inline (solo desktop largo): le azioni più usate, come
+            icone col nome nel suggerimento. Prima erano sei bottoni con la
+            scritta dopo l'etichetta «Azioni rapide»: con i sei della testata
+            la scheda si apriva con dodici bottoni. */}
         <div className="hidden xl:flex flex-wrap items-center gap-1.5">
           {primaryActions.map((a) => {
             const Icon = a.icon;
@@ -226,14 +225,38 @@ export function OrderQuickActions({
               <Button
                 key={a.id}
                 variant="outline"
-                size="sm"
-                className="h-8 gap-1.5"
+                size="icon"
+                className="h-8 w-8"
                 onClick={a.onClick}
                 disabled={a.disabled}
-                title={a.hint}
+                title={a.hint ? `${a.label} — ${a.hint}` : a.label}
+                aria-label={a.label}
               >
                 {a.busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Icon className={cn("h-3.5 w-3.5", a.iconClass)} />}
-                {a.label}
+              </Button>
+            );
+          })}
+        </div>
+
+        {/* Mobile: le azioni da cantiere a portata di pollice, tonde con la
+            sola icona (telefono, WhatsApp, appuntamento, cartella): con le
+            etichette non entravano e la terza restava tagliata («Do…»). Il
+            resto sta in «Altro». */}
+        <div className="flex min-w-0 flex-1 items-center gap-2 sm:hidden">
+          {actions.filter((a) => ["call", "whatsapp", "appt", "files"].includes(a.id)).map((a) => {
+            const Icon = a.icon;
+            return (
+              <Button
+                key={a.id}
+                variant="outline"
+                size="icon"
+                className="tap-compact h-9 w-9 shrink-0 rounded-full"
+                onClick={a.onClick}
+                disabled={a.disabled}
+                aria-label={a.label}
+                title={a.hint ?? a.label}
+              >
+                <Icon className={cn("h-4 w-4", a.iconClass)} />
               </Button>
             );
           })}
@@ -243,9 +266,10 @@ export function OrderQuickActions({
             Contiene TUTTO sotto xl; su xl mostra solo le azioni non-primary. */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="h-8 gap-1.5 group">
-              <Zap className="h-3.5 w-3.5 text-primary" />
-              <span className="xl:hidden">Azioni</span>
+            <Button variant="outline" size="sm" className="tap-compact h-8 gap-1.5 group max-sm:shrink-0 max-sm:rounded-full max-sm:px-2.5">
+              <Zap className="h-3.5 w-3.5 text-primary max-sm:hidden" />
+              <span className="sm:hidden">Altro</span>
+              <span className="hidden sm:inline xl:hidden">Azioni</span>
               <span className="hidden xl:inline">Altre azioni</span>
               <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
             </Button>
@@ -278,7 +302,8 @@ export function OrderQuickActions({
         </DropdownMenu>
 
         {/* Silvio: CTA AI distinta, spinta a destra su desktop */}
-        {askSilvio && <div className="xl:ml-auto">{askSilvio}</div>}
+        {/* Mobile no: c'è già il bottone Silvio al centro della barra in basso. */}
+        {askSilvio && <div className="xl:ml-auto max-sm:hidden">{askSilvio}</div>}
       </div>
 
       {(hasPhone || hasEmail) && customer && (

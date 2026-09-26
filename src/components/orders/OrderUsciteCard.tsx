@@ -47,13 +47,15 @@ export function OrderUsciteCard({ orderId }: { orderId: string }) {
   };
 
   // Card sempre presente: anche vuota spiega come registrare un'uscita.
+  // Mobile: solo se ci sono uscite, e senza spiegazione.
+  const vuota = !isLoading && !isError && uscite.length === 0;
   return (
-    <Card>
-      <CardHeader className="pb-2">
+    <Card className={vuota ? "max-sm:hidden" : undefined}>
+      <CardHeader className="pb-2 max-sm:p-3 max-sm:pb-1">
         <CardTitle className="flex items-center gap-2 text-base">
           <ArrowUpFromLine className="h-4 w-4 text-muted-foreground" /> Uscite di magazzino
         </CardTitle>
-        <CardDescription className="text-xs">
+        <CardDescription className="text-xs max-sm:hidden">
           Merce uscita dal magazzino per questa commessa. Da qui generi il <strong>DDT</strong> quando vuoi.
         </CardDescription>
       </CardHeader>
@@ -81,7 +83,7 @@ export function OrderUsciteCard({ orderId }: { orderId: string }) {
               const badge = STATO[u.stato];
               const nRighe = Array.isArray(u.righe) ? u.righe.length : 0;
               return (
-                <div key={u.id} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/40">
+                <div key={u.id} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/40 max-sm:px-3 max-sm:py-2.5">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-mono text-sm font-medium">{u.numero}</span>

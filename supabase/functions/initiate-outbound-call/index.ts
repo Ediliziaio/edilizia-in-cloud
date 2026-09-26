@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { saldoVoce, SOGLIA_MINIMA_CHIAMATA_EUR } from "../_shared/voiceCredits.ts";
+import { prezzoMinutoVoce } from "../_shared/voicePricing.ts";
 
 import { getCorsHeaders } from "../_shared/headers.ts";
 
@@ -108,27 +109,40 @@ async function handleOutboundCall(
     orario_apertura?: string | null;
     orario_chiusura?: string | null;
     giorni_attivi?: number[] | null;
+    /** Quanto puo' durare al massimo la telefonata. Si configurava e non lo
+     *  leggeva nessuno: v2 la chiama `durata_max_secondi`, il modello legacy
+     *  `max_duration`. */
+    durataMassimaSecondi?: number | null;
   };
   let agent: CallAgent | null = null;
   let agenteV2 = false;
 
   const { data: agentV2 } = await adminClient
     .from("ai_agents_v2")
-    .select("id, elevenlabs_agent_id, nome")
+    .select("id, elevenlabs_agent_id, nome, durata_max_secondi")
     .eq("id", agentId)
     .eq("company_id", companyId)
     .maybeSingle();
   if (agentV2) {
-    agent = { id: agentV2.id, elevenlabs_agent_id: agentV2.elevenlabs_agent_id, name: agentV2.nome };
+    agent = {
+      id: agentV2.id,
+      elevenlabs_agent_id: agentV2.elevenlabs_agent_id,
+      name: agentV2.nome,
+      durataMassimaSecondi: agentV2.durata_max_secondi ?? null,
+    };
     agenteV2 = true;
   } else {
     const { data: agentLegacy } = await adminClient
       .from("ai_agents")
-      .select("id, elevenlabs_agent_id, name, business_hours_enabled, orario_apertura, orario_chiusura, giorni_attivi")
+      .select("id, elevenlabs_agent_id, name, business_hours_enabled, orario_apertura, orario_chiusura, giorni_attivi, max_duration")
       .eq("id", agentId)
       .eq("company_id", companyId)
       .maybeSingle();
-    agent = agentLegacy;
+    agent = agentLegacy as CallAgent | null;
+    if (agent && agentLegacy) {
+      agent.durataMassimaSecondi =
+        (agentLegacy as { max_duration?: number | null }).max_duration ?? null;
+    }
   }
 
   if (!agent) return json(req, { error: "Agente non trovato" }, 404);
@@ -206,6 +220,36 @@ async function handleOutboundCall(
         ? `Crediti AI insufficienti (saldo ${saldo.spendibile.toFixed(2)} €, minimo ${SOGLIA_MINIMA_CHIAMATA_EUR.toFixed(2)} €).`
         : "Chiamate AI bloccate: credito esaurito.",
     }, 402);
+  }
+
+  // Il credito deve coprire la telefonata PIU' LUNGA che l'agente puo' fare.
+  //
+  // La soglia sopra chiede un minuto pagato, e basta: con dieci centesimi di
+  // saldo partiva una chiamata che l'agente puo' tenere aperta quanto vuole —
+  // il campo «durata massima» si configurava e non lo leggeva nessuno. Alla
+  // fine si addebita tutto e il saldo resta negativo, cioe' la piattaforma ha
+  // fatto credito senza deciderlo.
+  //
+  // Il tetto e' quello dell'agente; la tariffa e' la stessa che usa il conteggio
+  // dopo la chiamata, quindi le due cifre parlano la stessa lingua.
+  if (agent.durataMassimaSecondi && agent.durataMassimaSecondi > 0) {
+    // Il client qui e' quello permissivo delle edge function: il cast tiene
+    // buono il generico dell'aiutante condiviso.
+    const tariffa = await prezzoMinutoVoce(adminClient as never, companyId, null, null);
+    const minutiMax = agent.durataMassimaSecondi / 60;
+    const costoMassimo = Number((minutiMax * tariffa.prezzoPerMin).toFixed(2));
+    if (saldo.spendibile < costoMassimo) {
+      return json(req, {
+        error:
+          `Crediti insufficienti per una chiamata intera: «${agent.name}» puo' parlare fino a ` +
+          `${Math.round(agent.durataMassimaSecondi / 60)} minuti, che costano fino a ` +
+          `${costoMassimo.toFixed(2)} €, e il saldo e' ${saldo.spendibile.toFixed(2)} €. ` +
+          `Ricarica, oppure abbassa la durata massima dell'agente.`,
+        saldo_eur: saldo.spendibile,
+        costo_massimo_eur: costoMassimo,
+        durata_massima_secondi: agent.durataMassimaSecondi,
+      }, 402);
+    }
   }
 
   // Get ElevenLabs API key

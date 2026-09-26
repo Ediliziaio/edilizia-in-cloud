@@ -84,6 +84,7 @@ import { AdsBotChatPanel } from "@/components/ads/AdsBotChatPanel";
 import { PerformanceCharts } from "@/components/ads/PerformanceCharts";
 import { useMetaInsights } from "@/hooks/useMetaInsights";
 import { PendingApprovalsBanner } from "@/components/ads/PendingApprovalsBanner";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useCampaignLeads } from "@/hooks/useCampaignLeads";
 import { ABTestDialog } from "@/components/ads/ABTestDialog";
 import { AutomationRulesEditor } from "@/components/ads/AutomationRulesEditor";
@@ -1637,7 +1638,10 @@ export default function AdsManagerBeta() {
       ? "detail"
       : "list";
 
-  const activeTab: AdsTab = TABS.some((tab) => tab.value === requestedTab)
+  // Telefono: solo le campagne. Immagini e testi, guida ai pubblici e
+  // impostazioni (collegamenti, Pixel, limiti di spesa) si fanno dal computer o dal tablet.
+  const isMobile = useIsMobile();
+  const activeTab: AdsTab = TABS.some((tab) => tab.value === requestedTab) && !isMobile
     ? (requestedTab as AdsTab)
     : "campagne";
 
@@ -1974,7 +1978,7 @@ export default function AdsManagerBeta() {
         onConfirm={handleProviderConfirmed}
       />
       <ListHeader onCreate={openWizardNew} />
-      <main className="mx-auto max-w-[1500px] px-4 py-5 sm:px-6">
+      <main className="mx-auto max-w-[1500px] px-4 py-5 sm:px-6 max-sm:px-0 max-sm:pb-4 max-sm:pt-0">
         <ConnectionPill
           meta={meta}
           google={google}
@@ -1991,9 +1995,9 @@ export default function AdsManagerBeta() {
         <Tabs
           value={activeTab}
           onValueChange={(value) => setSearchParams({ tab: value })}
-          className="mt-5"
+          className="mt-5 max-sm:mt-3"
         >
-          <div className="overflow-x-auto pb-2">
+          <div className="overflow-x-auto pb-2 max-sm:hidden">
             <TabsList className="h-auto min-w-max justify-start gap-1 rounded-xl bg-white p-1 shadow-sm">
               {TABS.map((tab) => {
                 const Icon = tab.icon;
@@ -2008,11 +2012,11 @@ export default function AdsManagerBeta() {
           </div>
 
           {/* Banner approvazioni titolare (visibile solo se ci sono campagne in review) */}
-          <div className="mt-4">
+          <div className="mt-4 max-sm:mt-0 max-sm:[&:not(:empty)]:mb-3">
             <PendingApprovalsBanner companyId={companyId} onOpenCampaign={openDetail} />
           </div>
 
-          <TabsContent value="campagne" className="mt-4">
+          <TabsContent value="campagne" className="mt-4 max-sm:mt-0">
             <CampaignsHomeView
               campaigns={allCampaigns}
               draftsCount={draftRows.length}
@@ -2069,16 +2073,15 @@ export default function AdsManagerBeta() {
 
 function ListHeader({ onCreate }: { onCreate: () => void }) {
   return (
-    <div className="border-b bg-white">
-      <div className="mx-auto flex max-w-[1500px] flex-col gap-4 px-4 py-5 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
+    // Telefono: solo il titolo, senza fascia né spiegazione; le campagne si creano dal computer o dal tablet.
+    <div className="border-b bg-white max-sm:border-0 max-sm:bg-transparent">
+      <div className="mx-auto flex max-w-[1500px] flex-col gap-4 px-4 py-5 sm:px-6 lg:flex-row lg:items-center lg:justify-between max-sm:px-0 max-sm:pb-3 max-sm:pt-0">
+        {/* Titolo a 24px come nelle altre pagine (era 30) e senza le due
+            righe di spiegazione sotto. */}
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">Pubblicità</h1>
-          <p className="mt-1 max-w-2xl text-sm text-slate-600">
-            Porta richieste di preventivo dalla pubblicità su Facebook, Instagram e Google.
-            Ogni campagna nasce in pausa: va online solo quando la attivi tu.
-          </p>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-950 max-sm:text-lg">Pubblicità</h1>
         </div>
-        <Button onClick={onCreate} size="lg" className="shrink-0">
+        <Button onClick={onCreate} size="lg" className="shrink-0 max-sm:hidden">
           <Plus className="h-4 w-4" />
           Nuova campagna
         </Button>
@@ -2277,6 +2280,7 @@ function ConnectionPill({
   );
   const googleConnected = google.integration?.status === "connected";
   const googleReady = googleConnected && google.accounts.length > 0;
+  const isMobile = useIsMobile();
 
   const passi = [
     {
@@ -2324,14 +2328,38 @@ function ConnectionPill({
 
   if (!caricamento && mancanti.length === 0 && facoltativiDaFare.length === 0) {
     return (
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-2.5 text-sm">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-2.5 text-sm max-sm:px-3 max-sm:py-2 max-sm:text-[13px]">
         <Check className="h-4 w-4 shrink-0 text-emerald-600" />
         <span className="font-semibold text-emerald-900">Tutto pronto: puoi pubblicare.</span>
-        <span className="text-emerald-800/80">
+        <span className="text-emerald-800/80 max-sm:hidden">
           {meta.selectedAdAccounts[0]?.asset_name ?? "conto Meta"} · Pixel attivo
           {googleReady ? " · Google Ads collegato" : ""}
         </span>
       </div>
+    );
+  }
+
+  // Telefono: una riga sola; i collegamenti (Facebook, conto, Pixel) si fanno dal computer o dal tablet.
+  if (isMobile) {
+    if (caricamento) return null;
+    if (mancanti.length === 0) {
+      return (
+        <p className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-[13px] font-semibold text-emerald-900">
+          <Check className="h-4 w-4 shrink-0 text-emerald-600" />
+          Puoi pubblicare
+        </p>
+      );
+    }
+    return (
+      <p className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2 text-[13px] text-amber-900">
+        <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
+        <span className="min-w-0">
+          <span className="font-semibold">
+            {mancanti.length === 1 ? "Manca 1 passaggio per pubblicare" : `Mancano ${mancanti.length} passaggi per pubblicare`}
+          </span>
+          <span className="block text-[11px] text-amber-800/80">si imposta da computer o tablet</span>
+        </span>
+      </p>
     );
   }
 
@@ -2376,7 +2404,7 @@ function ConnectionPill({
               <p className="flex flex-wrap items-center gap-1.5 text-sm font-medium text-slate-900">
                 {passo.titolo}
                 {!passo.obbligatorio && !passo.fatto && (
-                  <span className="rounded bg-slate-200/70 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
+                  <span className="rounded bg-slate-200/70 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600 max-md:text-[11px]">
                     facoltativo
                   </span>
                 )}
@@ -2533,8 +2561,8 @@ function KpiBar({
 
   return (
     <Card className={cn(isEmpty && "border-dashed bg-white/60")}>
-      <CardContent className="p-4">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <CardContent className="p-4 max-sm:p-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 max-sm:grid-cols-2 max-sm:gap-x-3 max-sm:gap-y-2">
           <KpiItem
             icon={BadgeEuro}
             tone="blue"
@@ -2570,7 +2598,7 @@ function KpiBar({
         </div>
 
         {monthlyCap > 0 && (
-          <div className="mt-4">
+          <div className="mt-4 max-sm:mt-3">
             <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2 text-xs">
               <span className="text-slate-500">
                 {tettoRaggiunto
@@ -2609,9 +2637,11 @@ function KpiBar({
                   ? `Ogni richiesta ti costa ${formatEuro(costPerLead)}.`
                   : `${totalLeads} richieste con ${formatEuro(monthlySpend)} spesi.`}
               </span>{" "}
-              {cplAlto
-                ? "In edilizia si sta fra 30 e 50 €: conviene rivedere pubblico, testo o pagina di atterraggio."
-                : "Può essere il pubblico troppo stretto, la creatività debole o la pagina che non convince."}
+              <span className="max-sm:hidden">
+                {cplAlto
+                  ? "In edilizia si sta fra 30 e 50 €: conviene rivedere pubblico, testo o pagina di atterraggio."
+                  : "Può essere il pubblico troppo stretto, la creatività debole o la pagina che non convince."}
+              </span>
             </p>
             <ChiediASilvio
               label="Cosa faccio?"
@@ -2662,14 +2692,15 @@ function KpiItem({
     violet: "bg-violet-50 text-violet-700",
   };
   return (
-    <div className="flex items-start gap-3">
-      <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg", tones[tone])}>
+    // Telefono: nome e cifra, senza icona né riga di dettaglio.
+    <div className="flex items-start gap-3 max-sm:min-w-0">
+      <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg max-sm:hidden", tones[tone])}>
         <Icon className="h-4 w-4" />
       </div>
       <div className="min-w-0">
-        <p className="text-xs text-slate-500">{label}</p>
-        <p className="truncate text-lg font-bold tracking-tight text-slate-950">{value}</p>
-        <p className="truncate text-[11px] text-slate-500">{detail}</p>
+        <p className="text-xs text-slate-500 max-sm:truncate max-sm:text-[11px]">{label}</p>
+        <p className="truncate text-lg font-bold tracking-tight text-slate-950 max-sm:text-base">{value}</p>
+        <p className="truncate text-[11px] text-slate-500 max-sm:hidden">{detail}</p>
       </div>
     </div>
   );
@@ -2701,7 +2732,8 @@ function AdsBotPanel({
         : "Hai più bozze: porta online per prima quella con il punteggio di prontezza più alto, le altre restano ferme.";
 
   return (
-    <div className="flex items-start gap-2.5 rounded-lg border border-orange-100 bg-orange-50/50 px-3.5 py-2.5">
+    // Telefono: il consiglio resta al computer.
+    <div className="flex items-start gap-2.5 rounded-lg border border-orange-100 bg-orange-50/50 px-3.5 py-2.5 max-sm:hidden">
       <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-orange-600" />
       <p className="text-sm text-slate-700">{testo}</p>
     </div>
@@ -2789,12 +2821,12 @@ function CampaignsList({
   const isFilteredEmpty = !isEmpty && filtered.length === 0;
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+    <Card className="max-sm:border-0 max-sm:bg-transparent max-sm:shadow-none">
+      <CardHeader className="pb-3 max-sm:px-0 max-sm:pb-2 max-sm:pt-1">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between max-sm:gap-2">
           <div>
-            <CardTitle className="text-lg">Le tue campagne</CardTitle>
-            <CardDescription>
+            <CardTitle className="text-lg max-sm:text-sm">Le tue campagne</CardTitle>
+            <CardDescription className="max-sm:hidden">
               {isEmpty
                 ? "Qui compariranno le campagne che crei."
                 : `${campaigns.length} in elenco${draftsCount > 0 ? `, ${draftsCount} ancora da pubblicare` : ""}. Clicca una riga per aprirla.`}
@@ -2815,7 +2847,7 @@ function CampaignsList({
               )}
               {mostraFiltroStato && (
                 <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
-                  <SelectTrigger className="w-full sm:w-44"><SelectValue placeholder="Stato" /></SelectTrigger>
+                  <SelectTrigger className="w-full sm:w-44 max-sm:hidden"><SelectValue placeholder="Stato" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Tutti gli stati ({campaigns.length})</SelectItem>
                     {availableStatuses.map((status) => (
@@ -2828,7 +2860,7 @@ function CampaignsList({
               )}
               {mostraFiltroPiattaforma && (
                 <Select value={platformFilter} onValueChange={(v) => setPlatformFilter(v as typeof platformFilter)}>
-                  <SelectTrigger className="w-full sm:w-40"><SelectValue placeholder="Canale" /></SelectTrigger>
+                  <SelectTrigger className="w-full sm:w-40 max-sm:hidden"><SelectValue placeholder="Canale" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Tutti i canali</SelectItem>
                     <SelectItem value="meta">Facebook e Instagram</SelectItem>
@@ -2840,7 +2872,7 @@ function CampaignsList({
           )}
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="max-sm:p-0">
         {isLoading ? (
           <div className="flex items-center justify-center gap-3 py-10 text-sm text-slate-500">
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -2962,7 +2994,52 @@ function CampaignsList({
               </Table>
             </div>
 
-            <div className="grid gap-3 lg:hidden">
+            {/* Telefono: una riga per campagna (canale, budget, richieste), stato e pausa/online a destra. */}
+            <div className="divide-y overflow-hidden rounded-xl border bg-white sm:hidden">
+              {filtered.map((campaign) => {
+                const inCorso = togglingId === campaign.id;
+                const online = campaign.status === "active";
+                const puoAccendere = Boolean(campaign.metaCampaignId) && campaign.platform === "meta";
+                return (
+                  <div key={campaign.id} className="flex items-center gap-2 px-3 py-2">
+                    <button
+                      type="button"
+                      onClick={() => onOpenCampaign(campaign)}
+                      className="tap-compact min-w-0 flex-1 py-0.5 text-left"
+                    >
+                      <p className="truncate text-[13px] font-semibold leading-tight text-slate-950">{campaign.name}</p>
+                      <p className="mt-0.5 truncate text-[11px] leading-tight text-slate-500">
+                        {platformLabel(campaign.platform)} · {formatEuro(campaign.budgetCents)}/g · {campaign.leads || 0}{" "}
+                        {campaign.leads === 1 ? "richiesta" : "richieste"}
+                      </p>
+                    </button>
+                    <Badge variant="outline" className={cn("shrink-0 px-1.5 text-[11px]", statusClass(campaign.status))}>
+                      {statusLabel(campaign.status)}
+                    </Badge>
+                    {puoAccendere && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="tap-compact h-9 w-9 shrink-0"
+                        disabled={inCorso}
+                        aria-label={online ? "Metti in pausa" : "Manda online"}
+                        onClick={() => onToggleStatus(campaign)}
+                      >
+                        {inCorso ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : online ? (
+                          <Pause className="h-4 w-4" />
+                        ) : (
+                          <Play className="h-4 w-4 text-emerald-600" />
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="grid gap-3 lg:hidden max-sm:hidden">
               {filtered.map((campaign) => {
                 const costoRichiesta = campaign.leads > 0 ? campaign.spentCents / campaign.leads : 0;
                 const inCorso = togglingId === campaign.id;
@@ -3045,16 +3122,19 @@ function CampaignsList({
 
 function EmptyCampaigns({ onCreate }: { onCreate: () => void }) {
   return (
-    <div className="rounded-2xl border-2 border-dashed bg-gradient-to-br from-white via-slate-50 to-orange-50/50 p-10 text-center">
-      <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-md">
+    // Telefono: due righe; la prima campagna si crea dal computer o dal tablet.
+    <div className="rounded-2xl border-2 border-dashed bg-gradient-to-br from-white via-slate-50 to-orange-50/50 p-10 text-center max-sm:rounded-xl max-sm:border max-sm:bg-white max-sm:bg-none max-sm:px-3 max-sm:py-4">
+      <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-md max-sm:hidden">
         <Rocket className="h-7 w-7" />
       </div>
-      <p className="text-lg font-bold text-slate-950">Crea la tua prima campagna</p>
-      <p className="mx-auto mt-1 max-w-md text-sm text-slate-600">
+      <p className="text-lg font-bold text-slate-950 max-sm:hidden">Crea la tua prima campagna</p>
+      <p className="hidden text-[13px] font-semibold text-slate-900 max-sm:block">Nessuna campagna</p>
+      <p className="mx-auto mt-1 max-w-md text-sm text-slate-600 max-sm:hidden">
         Ti guido passo passo: scegli il lavoro che vuoi vendere, io preparo offerta,
         pubblico, testo e modulo. Niente va online finché non lo dici tu.
       </p>
-      <div className="mt-5 flex justify-center">
+      <p className="mt-0.5 hidden text-[11px] text-slate-500 max-sm:block">si crea da computer o tablet</p>
+      <div className="mt-5 flex justify-center max-sm:hidden">
         <Button onClick={onCreate} size="lg">
           <Plus className="h-4 w-4" />
           Inizia
@@ -4237,7 +4317,7 @@ function LeadFormPreview({ state }: { state: BuilderState }) {
         <p className="mb-1 text-sm font-semibold text-slate-900">{introHeadline}</p>
       )}
       <p className="rounded-xl bg-slate-50 p-3 text-sm leading-relaxed text-slate-700">{introBody}</p>
-      <p className="mt-3 text-[10px] font-semibold uppercase text-slate-500">Campi del modulo ({questions.length})</p>
+      <p className="mt-3 text-[10px] font-semibold uppercase text-slate-500 max-md:text-[11px]">Campi del modulo ({questions.length})</p>
       <div className="mt-1 grid gap-1.5">
         {questions.slice(0, 8).map((field, i) => (
           <div
@@ -4248,14 +4328,14 @@ function LeadFormPreview({ state }: { state: BuilderState }) {
             )}
           >
             <span className="truncate">{field.label}</span>
-            <span className="text-[9px] text-slate-500">
+            <span className="text-[9px] text-slate-500 max-md:text-[11px]">
               {field.kind === "custom" ? "custom" : "auto"}
               {field.options?.length ? ` · ${field.options.length} opz` : ""}
             </span>
           </div>
         ))}
         {questions.length > 8 && (
-          <p className="text-[10px] text-slate-500">+ {questions.length - 8} altri campi</p>
+          <p className="text-[10px] text-slate-500 max-md:text-[11px]">+ {questions.length - 8} altri campi</p>
         )}
       </div>
       {qualifying && (
@@ -4265,7 +4345,7 @@ function LeadFormPreview({ state }: { state: BuilderState }) {
           {qualifying.options && qualifying.options.length > 0 && (
             <div className="mt-1.5 flex flex-wrap gap-1">
               {qualifying.options.slice(0, 4).map((opt) => (
-                <Badge key={opt} variant="outline" className="border-emerald-300 bg-white text-[9px] text-emerald-700">
+                <Badge key={opt} variant="outline" className="border-emerald-300 bg-white text-[9px] text-emerald-700 max-md:text-[11px]">
                   {opt}
                 </Badge>
               ))}
@@ -5221,7 +5301,7 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
                   <p className="text-sm font-bold text-slate-900">Brief campagna</p>
                   <p className="text-[11px] text-slate-500">Condiviso con Copy AI · Immagine AI · Video AI</p>
                 </div>
-                <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-semibold text-orange-600">
+                <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-semibold text-orange-600 max-md:text-[11px]">
                   ✦ Sincronizzato
                 </span>
               </div>
@@ -5284,7 +5364,7 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
           <div className="h-px flex-1 bg-gradient-to-r from-transparent to-slate-100" />
           <div className="flex items-center gap-1.5 rounded-full border border-slate-100 bg-white px-2.5 py-1 shadow-sm">
             <span className="h-1.5 w-1.5 rounded-full bg-orange-400" />
-            <span className="text-[10px] font-medium text-slate-400">Brief attivo → Copy · Immagine · Script</span>
+            <span className="text-[10px] font-medium text-slate-400 max-md:text-[11px]">Brief attivo → Copy · Immagine · Script</span>
           </div>
           <div className="h-px flex-1 bg-gradient-to-l from-transparent to-slate-100" />
         </div>
@@ -5315,11 +5395,11 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
                 </div>
               </div>
               {brief ? (
-                <span className="flex shrink-0 items-center gap-1 rounded-full border border-violet-100 bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-600">
+                <span className="flex shrink-0 items-center gap-1 rounded-full border border-violet-100 bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-600 max-md:text-[11px]">
                   <Check className="h-2.5 w-2.5" /> {SEGMENT_LABELS[segment] ?? segment}
                 </span>
               ) : (
-                <span className="shrink-0 rounded-full border border-amber-100 bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-600">
+                <span className="shrink-0 rounded-full border border-amber-100 bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-600 max-md:text-[11px]">
                   Brief mancante
                 </span>
               )}
@@ -5356,7 +5436,7 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
                       <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-white text-sm shadow-sm">{icon}</span>
                       <div>
                         <p className="text-[11px] font-semibold leading-none text-violet-800">{label}</p>
-                        <p className="mt-0.5 text-[10px] leading-none text-violet-400">{sub}</p>
+                        <p className="mt-0.5 text-[10px] leading-none text-violet-400 max-md:text-[11px]">{sub}</p>
                       </div>
                     </div>
                   ))}
@@ -5370,7 +5450,7 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
                   <span className="text-xs font-semibold uppercase text-slate-500">
                     Output AI {generatedCopy.model_used ? `· ${generatedCopy.model_used}` : ""}
                   </span>
-                  <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px]" onClick={onGenerateCopy} disabled={isGeneratingCopy}>
+                  <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px] max-md:text-[11px]" onClick={onGenerateCopy} disabled={isGeneratingCopy}>
                     <RefreshCw className="mr-1 h-3 w-3" /> Rigenera
                   </Button>
                 </div>
@@ -5416,7 +5496,7 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
                     <p className="mb-1 text-xs font-semibold uppercase text-slate-500">🎯 CTA suggerite</p>
                     <div className="flex flex-wrap gap-1">
                       {generatedCopy.cta_suggestions.map((c, i) => (
-                        <Badge key={i} variant="outline" className="border-orange-200 bg-orange-50 text-orange-700 text-[10px]">{c}</Badge>
+                        <Badge key={i} variant="outline" className="border-orange-200 bg-orange-50 text-orange-700 text-[10px] max-md:text-[11px]">{c}</Badge>
                       ))}
                     </div>
                   </div>
@@ -5468,11 +5548,11 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
               </div>
               {brief && imagePrompt !== brief ? (
                 <button type="button" onClick={() => setImagePrompt(brief)}
-                  className="flex shrink-0 items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 transition hover:bg-amber-100">
+                  className="flex shrink-0 items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 transition hover:bg-amber-100 max-md:text-[11px]">
                   <RefreshCw className="h-2.5 w-2.5" /> Sincronizza
                 </button>
               ) : brief ? (
-                <span className="flex shrink-0 items-center gap-1 rounded-full border border-amber-100 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-600">
+                <span className="flex shrink-0 items-center gap-1 rounded-full border border-amber-100 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-600 max-md:text-[11px]">
                   <Check className="h-2.5 w-2.5" /> Sincronizzato
                 </span>
               ) : null}
@@ -5539,7 +5619,7 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
             <div>
               <div className="mb-1.5 flex items-center justify-between">
                 <Label className="text-xs font-medium text-slate-600">Prompt visivo</Label>
-                <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px] text-slate-500 hover:text-amber-600"
+                <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px] text-slate-500 hover:text-amber-600 max-md:text-[11px]"
                   onClick={() => setImagePrompt(brief)}>
                   <RefreshCw className="mr-1 h-3 w-3" /> Da brief
                 </Button>
@@ -5575,7 +5655,7 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
                       style={{ width: dim.w, height: dim.h }}>
                       <div className="text-center">
                         <Wand2 className="mx-auto mb-1.5 h-5 w-5 text-amber-300" />
-                        <p className="text-[10px] font-medium text-amber-400">{aspectRatio}</p>
+                        <p className="text-[10px] font-medium text-amber-400 max-md:text-[11px]">{aspectRatio}</p>
                       </div>
                     </div>
                   );
@@ -5593,7 +5673,7 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
                 <div className="relative">
                   <img loading="lazy" src={lastGeneratedImage.public_url} alt="Immagine generata" className="w-full object-cover" />
                   <div className="absolute right-2 top-2 flex gap-1">
-                    <Badge className="bg-black/60 text-white text-[10px] backdrop-blur-sm">
+                    <Badge className="bg-black/60 text-white text-[10px] backdrop-blur-sm max-md:text-[11px]">
                       {lastGeneratedImage.width_px}×{lastGeneratedImage.height_px}
                       {lastGeneratedImage.cost_eur_cents ? ` · ${(lastGeneratedImage.cost_eur_cents / 100).toFixed(3)}€` : ""}
                     </Badge>
@@ -5654,11 +5734,11 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
           {videoTab === "script" && (
             <div className="mt-1">
               {brief ? (
-                <span className="flex w-fit items-center gap-1 rounded-full border border-rose-100 bg-rose-50 px-2 py-0.5 text-[10px] font-semibold text-rose-600">
+                <span className="flex w-fit items-center gap-1 rounded-full border border-rose-100 bg-rose-50 px-2 py-0.5 text-[10px] font-semibold text-rose-600 max-md:text-[11px]">
                   <Check className="h-2.5 w-2.5" /> {SEGMENT_LABELS[segment] ?? segment} · Brief attivo
                 </span>
               ) : (
-                <span className="flex w-fit items-center gap-1 rounded-full border border-amber-100 bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-600">
+                <span className="flex w-fit items-center gap-1 rounded-full border border-amber-100 bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-600 max-md:text-[11px]">
                   Brief mancante — impostalo in cima
                 </span>
               )}
@@ -5680,7 +5760,7 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
                         : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
                     )}>
                     {d}s
-                    <span className="ml-1 text-[10px] font-normal text-slate-400">
+                    <span className="ml-1 text-[10px] font-normal text-slate-400 max-md:text-[11px]">
                       {d === "15" ? "Stories" : d === "30" ? "Reels" : "Feed"}
                     </span>
                   </button>
@@ -5719,17 +5799,17 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
                   <Badge className="bg-rose-600 text-white">{generatedScript.total_duration}</Badge>
                   <Badge variant="outline" className="border-slate-200 text-slate-600">{generatedScript.platform}</Badge>
                   {generatedScript.model_used && (
-                    <span className="text-[10px] text-slate-400">{generatedScript.model_used}</span>
+                    <span className="text-[10px] text-slate-400 max-md:text-[11px]">{generatedScript.model_used}</span>
                   )}
                 </div>
-                <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px]" onClick={onGenerateScript} disabled={isGeneratingScript}>
+                <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px] max-md:text-[11px]" onClick={onGenerateScript} disabled={isGeneratingScript}>
                   <RefreshCw className="mr-1 h-3 w-3" /> Rigenera
                 </Button>
               </div>
 
               {/* Hook headline */}
               <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3">
-                <p className="mb-0.5 text-[10px] font-semibold uppercase text-rose-500">🪝 Hook video</p>
+                <p className="mb-0.5 text-[10px] font-semibold uppercase text-rose-500 max-md:text-[11px]">🪝 Hook video</p>
                 <p className="text-sm font-semibold text-rose-900">{generatedScript.hook}</p>
               </div>
 
@@ -5742,23 +5822,23 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
                         {scene.scene}
                       </div>
                       <span className="text-xs font-semibold">{scene.label}</span>
-                      <Badge variant="outline" className="ml-auto border-current/30 bg-white/50 text-[9px]">
+                      <Badge variant="outline" className="ml-auto border-current/30 bg-white/50 text-[9px] max-md:text-[11px]">
                         ⏱ {scene.duration_seconds}s
                       </Badge>
                     </div>
                     <div className="grid gap-1.5 sm:grid-cols-2">
                       <div>
-                        <p className="mb-0.5 text-[9px] font-bold uppercase opacity-70">📺 Testo overlay</p>
+                        <p className="mb-0.5 text-[9px] font-bold uppercase opacity-70 max-md:text-[11px]">📺 Testo overlay</p>
                         <p className="text-xs font-semibold leading-snug">{scene.overlay_text}</p>
                       </div>
                       <div>
-                        <p className="mb-0.5 text-[9px] font-bold uppercase opacity-70">🎤 Voiceover</p>
+                        <p className="mb-0.5 text-[9px] font-bold uppercase opacity-70 max-md:text-[11px]">🎤 Voiceover</p>
                         <p className="text-xs leading-snug opacity-90">{scene.voiceover}</p>
                       </div>
                     </div>
                     {scene.visual_direction && (
                       <div className="mt-1.5 rounded-md border border-white/40 bg-white/30 px-2 py-1">
-                        <p className="text-[9px] font-bold uppercase opacity-60">🎬 Regia</p>
+                        <p className="text-[9px] font-bold uppercase opacity-60 max-md:text-[11px]">🎬 Regia</p>
                         <p className="text-[11px] opacity-80">{scene.visual_direction}</p>
                       </div>
                     )}
@@ -5770,7 +5850,7 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
               <div className="flex items-center gap-2 rounded-xl border border-orange-200 bg-orange-50 px-4 py-3">
                 <ArrowRightCircle className="h-4 w-4 shrink-0 text-orange-600" />
                 <div>
-                  <p className="text-[10px] font-semibold uppercase text-orange-500">CTA finale</p>
+                  <p className="text-[10px] font-semibold uppercase text-orange-500 max-md:text-[11px]">CTA finale</p>
                   <p className="text-sm font-semibold text-orange-900">{generatedScript.cta_final}</p>
                 </div>
                 <Button variant="ghost" size="sm" className="ml-auto h-6 px-2 text-xs"
@@ -5969,10 +6049,10 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
                           {isVideo ? "🎬" : "🖼️"}
                         </Badge>
                         {m.aspect_ratio && (
-                          <Badge variant="outline" className="text-[9px] text-slate-500">{m.aspect_ratio}</Badge>
+                          <Badge variant="outline" className="text-[9px] text-slate-500 max-md:text-[11px]">{m.aspect_ratio}</Badge>
                         )}
                         {m.width_px && m.height_px && (
-                          <span className="text-[9px] text-slate-400">{m.width_px}×{m.height_px}</span>
+                          <span className="text-[9px] text-slate-400 max-md:text-[11px]">{m.width_px}×{m.height_px}</span>
                         )}
                       </div>
                     </div>
@@ -6250,7 +6330,7 @@ function AudiencesTab({ onUseInWizard }: { onUseInWizard?: () => void }) {
                     <div className="flex flex-wrap items-center gap-2">
                       <CardTitle className="text-base">{audience.name}</CardTitle>
                       {audience.recommended && (
-                        <Badge className="bg-blue-600 text-white text-[10px]">⭐ Inizia qui</Badge>
+                        <Badge className="bg-blue-600 text-white text-[10px] max-md:text-[11px]">⭐ Inizia qui</Badge>
                       )}
                     </div>
                     <p className="mt-0.5 text-xs text-slate-500">{audience.use}</p>
@@ -6275,16 +6355,16 @@ function AudiencesTab({ onUseInWizard }: { onUseInWizard?: () => void }) {
               {/* ─── NEL WIZARD ─────────────────────────────────── */}
               <div className={cn("rounded-xl border p-3 space-y-1.5", audience.color.wizard)}>
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-[10px] font-bold uppercase tracking-wide opacity-70">Nel wizard</p>
+                  <p className="text-[10px] font-bold uppercase tracking-wide opacity-70 max-md:text-[11px]">Nel wizard</p>
                   {audience.wizardAuto
-                    ? <span className="flex items-center gap-1 rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-semibold"><Check className="h-2.5 w-2.5" /> Automatico</span>
-                    : <span className="rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-semibold">+ Manuale</span>
+                    ? <span className="flex items-center gap-1 rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-semibold max-md:text-[11px]"><Check className="h-2.5 w-2.5" /> Automatico</span>
+                    : <span className="rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-semibold max-md:text-[11px]">+ Manuale</span>
                   }
                 </div>
                 <p className="text-[11px] font-medium leading-snug">{audience.wizardNote}</p>
                 <div className="flex items-center gap-1 opacity-60">
                   <ChevronRight className="h-3 w-3" />
-                  <p className="text-[10px] font-mono">{audience.wizardPath}</p>
+                  <p className="text-[10px] font-mono max-md:text-[11px]">{audience.wizardPath}</p>
                 </div>
               </div>
 
@@ -7049,18 +7129,18 @@ function SettingsTab({
                       <div key={item.label} className="flex items-center justify-between gap-2 rounded-lg border border-white/80 bg-white/70 px-3 py-2">
                         <div className="min-w-0 flex-1">
                           <p className="text-xs font-semibold text-slate-900">{item.label}</p>
-                          <p className="text-[10px] text-slate-500">{item.detail}</p>
+                          <p className="text-[10px] text-slate-500 max-md:text-[11px]">{item.detail}</p>
                         </div>
                         <div className="flex shrink-0 items-center gap-2">
                           {!item.ok && item.action && (
                             item.action.external ? (
                               <a href={item.action.href} target="_blank" rel="noopener noreferrer"
-                                className="text-[10px] font-semibold text-blue-600 underline hover:text-blue-800">
+                                className="text-[10px] font-semibold text-blue-600 underline hover:text-blue-800 max-md:text-[11px]">
                                 {item.action.label} ↗
                               </a>
                             ) : (
                               <Link to={item.action.href}
-                                className="text-[10px] font-semibold text-blue-600 underline hover:text-blue-800">
+                                className="text-[10px] font-semibold text-blue-600 underline hover:text-blue-800 max-md:text-[11px]">
                                 {item.action.label} →
                               </Link>
                             )
@@ -7224,7 +7304,7 @@ function LeadsListPanel({
                   <TableCell className="text-xs">{lead.email ?? "—"}</TableCell>
                   <TableCell>{lead.city ?? "—"}</TableCell>
                   <TableCell>
-                    <Badge variant="outline" className="border-blue-200 bg-blue-50 text-[10px] text-blue-700">
+                    <Badge variant="outline" className="border-blue-200 bg-blue-50 text-[10px] text-blue-700 max-md:text-[11px]">
                       {lead.status ?? "nuovo"}
                     </Badge>
                   </TableCell>
@@ -7841,17 +7921,17 @@ function PixelConfigCard({ companyId, integrationId }: { companyId?: string; int
             </div>
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="rounded-lg bg-slate-50 p-2.5">
-                <p className="text-[10px] text-slate-400">Pixel ID</p>
+                <p className="text-[10px] text-slate-400 max-md:text-[11px]">Pixel ID</p>
                 <p className="font-mono text-sm font-semibold text-slate-800">{config?.pixel_id}</p>
               </div>
               <div className="rounded-lg bg-slate-50 p-2.5">
-                <p className="text-[10px] text-slate-400">Ultimo evento</p>
+                <p className="text-[10px] text-slate-400 max-md:text-[11px]">Ultimo evento</p>
                 <p className="text-sm font-semibold text-slate-800">
                   {config?.last_event_at ? new Date(config.last_event_at).toLocaleString("it-IT", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "—"}
                 </p>
               </div>
               <div className="rounded-lg bg-slate-50 p-2.5">
-                <p className="text-[10px] text-slate-400">Eventi 7gg</p>
+                <p className="text-[10px] text-slate-400 max-md:text-[11px]">Eventi 7gg</p>
                 <p className="text-sm font-semibold text-slate-800">{config?.events_last_7d ?? 0}</p>
               </div>
             </div>
@@ -7917,7 +7997,7 @@ function PixelConfigCard({ companyId, integrationId }: { companyId?: string; int
             {/* Step content */}
             <div className="p-4 space-y-4">
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-orange-500">Passo {wizardStep + 1} di {WIZARD_STEPS.length}</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-orange-500 max-md:text-[11px]">Passo {wizardStep + 1} di {WIZARD_STEPS.length}</p>
                 <h3 className="text-base font-bold text-slate-800">{currentWizardStep.title}</h3>
                 <p className="text-sm text-slate-500">{currentWizardStep.description}</p>
               </div>

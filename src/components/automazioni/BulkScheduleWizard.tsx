@@ -253,7 +253,8 @@ export function BulkScheduleWizard({ open, onClose }: Props) {
           </DialogTitle>
           <DialogDescription>
             Manda un messaggio in automatico a un gruppo di utenti su uno schedule fisso.
-            Es. "ogni mattina alle 7 ai miei operai con il cantiere di oggi".
+            {/* L'esempio lo danno già i modelli qui sotto: da tablet si toglie. */}
+            <span className="sm:hidden"> Es. "ogni mattina alle 7 ai miei operai con il cantiere di oggi".</span>
           </DialogDescription>
         </DialogHeader>
 
@@ -298,7 +299,9 @@ export function BulkScheduleWizard({ open, onClose }: Props) {
               <Label className="flex items-center gap-2 mb-2">
                 <Clock className="h-4 w-4" /> Quando va inviato?
               </Label>
-              <RadioGroup value={schedulePreset} onValueChange={setSchedulePreset}>
+              {/* Da tablet due colonne: sette opzioni una sotto l'altra facevano
+                  scorrere il popup. */}
+              <RadioGroup value={schedulePreset} onValueChange={setSchedulePreset} className="sm:grid-cols-2">
                 {SCHEDULE_PRESETS.map((p) => (
                   <label
                     key={p.id}
@@ -312,7 +315,8 @@ export function BulkScheduleWizard({ open, onClose }: Props) {
                       <p className="font-medium text-sm">{p.label}</p>
                       <p className="text-xs text-slate-500">{p.description}</p>
                     </div>
-                    <code className="text-[10px] text-slate-400 mt-0.5">{p.cron}</code>
+                    {/* Il cron ripete l'etichetta in linguaggio tecnico: via da tablet. */}
+                    <code className="text-[10px] text-slate-400 mt-0.5 sm:hidden">{p.cron}</code>
                   </label>
                 ))}
                 <label
@@ -360,7 +364,9 @@ export function BulkScheduleWizard({ open, onClose }: Props) {
                 </label>
               ))}
             </RadioGroup>
-            <p className="text-xs text-slate-500">
+            {/* Da tablet via: un percorso /azienda/… e «custom query» non dicono
+                niente a chi usa l'app, e il builder è la pagina stessa. */}
+            <p className="text-xs text-slate-500 sm:hidden">
               Per filtri più complessi (tag specifici, sede operativa, custom query) usa il builder
               avanzato in /azienda/automazioni.
             </p>
@@ -373,17 +379,18 @@ export function BulkScheduleWizard({ open, onClose }: Props) {
             <Label className="flex items-center gap-2 mb-2">
               <MessageSquare className="h-4 w-4" /> Su quali canali?
             </Label>
-            <p className="text-xs text-slate-500 -mt-2">
+            {/* Da tablet via: «fallback», «preferred chain» e un percorso /azienda/… */}
+            <p className="text-xs text-slate-500 -mt-2 sm:hidden">
               Se selezioni più canali, il sistema usa quello preferito dall'utente. Se non disponibile,
               fa fallback sul successivo nella sua preferred chain (configurabile in
               /azienda/impostazioni/notifiche).
             </p>
             <div className="space-y-2">
               {([
-                { key: "silvio_chat", emoji: "💬", label: "Chat Silvio (in-app)", desc: "Messaggio nella chat con Silvio. Sempre disponibile per gli utenti dell'app.", checked: channelSilvioChat, setter: setChannelSilvioChat, recommended: true },
-                { key: "telegram", emoji: "📱", label: "Telegram", desc: "Notifica push via bot Telegram. L'utente deve aver legato il proprio account al bot aziendale.", checked: channelTelegram, setter: setChannelTelegram, recommended: false },
-                { key: "whatsapp", emoji: "💚", label: "WhatsApp", desc: "Via WhatsApp Business. Richiede company config (whatsapp-send edge function).", checked: channelWhatsapp, setter: setChannelWhatsapp, recommended: false },
-                { key: "email", emoji: "📧", label: "Email", desc: "Email all'indirizzo del profilo (o override personale).", checked: channelEmail, setter: setChannelEmail, recommended: false },
+                { key: "silvio_chat", emoji: "💬", label: "Chat Silvio (in-app)", desc: "Messaggio nella chat con Silvio. Sempre disponibile per gli utenti dell'app.", descBreve: "Messaggio nella chat con Silvio, sempre disponibile.", checked: channelSilvioChat, setter: setChannelSilvioChat, recommended: true },
+                { key: "telegram", emoji: "📱", label: "Telegram", desc: "Notifica push via bot Telegram. L'utente deve aver legato il proprio account al bot aziendale.", descBreve: "Notifica dal bot Telegram: l'utente deve aver collegato il suo account.", checked: channelTelegram, setter: setChannelTelegram, recommended: false },
+                { key: "whatsapp", emoji: "💚", label: "WhatsApp", desc: "Via WhatsApp Business. Richiede company config (whatsapp-send edge function).", descBreve: "Via WhatsApp Business: serve il numero aziendale collegato.", checked: channelWhatsapp, setter: setChannelWhatsapp, recommended: false },
+                { key: "email", emoji: "📧", label: "Email", desc: "Email all'indirizzo del profilo (o override personale).", descBreve: "All'indirizzo email del profilo.", checked: channelEmail, setter: setChannelEmail, recommended: false },
               ] as const).map((ch) => (
                 <label
                   key={ch.key}
@@ -401,7 +408,10 @@ export function BulkScheduleWizard({ open, onClose }: Props) {
                           <Badge variant="outline" className="text-[9px] h-4 bg-emerald-50 text-emerald-700 border-emerald-300">consigliato</Badge>
                         )}
                       </p>
-                      <p className="text-xs text-slate-500 mt-0.5 leading-snug">{ch.desc}</p>
+                      {/* Da tablet la versione breve: quella lunga parlava di «edge
+                          function» e «override» a chi usa l'app. */}
+                      <p className="text-xs text-slate-500 mt-0.5 leading-snug sm:hidden">{ch.desc}</p>
+                      <p className="text-xs text-slate-500 mt-0.5 leading-snug max-sm:hidden">{ch.descBreve}</p>
                     </div>
                   </div>
                   <Switch checked={ch.checked} onCheckedChange={ch.setter} />

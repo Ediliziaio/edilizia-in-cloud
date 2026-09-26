@@ -131,7 +131,8 @@ export default function NewScadenzaDialog({ open, onOpenChange, onConfirm, isPen
         <DialogHeader>
           <DialogTitle>Nuova Scadenza</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4">
+        {/* Mobile: via metodo, preavviso e note (restano i valori predefiniti). */}
+        <div className="space-y-4 max-sm:space-y-3">
           <div className="space-y-2">
             <Label>Tipo</Label>
             <Select value={tipo} onValueChange={setTipo}>
@@ -180,7 +181,7 @@ export default function NewScadenzaDialog({ open, onOpenChange, onConfirm, isPen
           {/* Order combobox */}
           {showOrder && (
             <div className="space-y-2">
-              <Label>Collega a ordine (opzionale)</Label>
+              <Label>Collega a ordine<span className="max-sm:hidden"> (opzionale)</span></Label>
               <Popover open={orderOpen} onOpenChange={setOrderOpen}>
                 <PopoverTrigger asChild>
                   <Button variant="outline" role="combobox" className="w-full justify-between font-normal">
@@ -225,7 +226,7 @@ export default function NewScadenzaDialog({ open, onOpenChange, onConfirm, isPen
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 max-sm:hidden">
             <div className="space-y-2">
               <Label>Metodo pagamento</Label>
               <Select value={method} onValueChange={setMethod}>
@@ -246,14 +247,14 @@ export default function NewScadenzaDialog({ open, onOpenChange, onConfirm, isPen
             </div>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-2 max-sm:hidden">
             <Label>Note (opzionale)</Label>
             <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
           </div>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Annulla</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="max-sm:hidden">Annulla</Button>
           <Button
             disabled={isPending || !isValid}
             onClick={() => onConfirm({

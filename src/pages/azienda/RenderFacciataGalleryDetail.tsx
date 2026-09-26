@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BeforeAfterSlider } from "@/components/render/BeforeAfterSlider";
 import { RenderPdfDownloadButton } from "@/components/render/RenderPdfDownloadButton";
+import { MandaRenderMobile } from "@/components/render/MandaRenderMobile";
 import { RenderCrmSummaryCard } from "@/components/render/RenderCrmSummaryCard";
 import { downloadRenderImage } from "@/lib/render/downloadRenderImage";
 import { ArrowLeft, Building2, CheckCircle2, Download, Image, Loader2, Share2, XCircle, Zap } from "lucide-react";
@@ -121,11 +122,11 @@ export default function RenderFacciataGalleryDetail() {
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="flex-1">
-          <h1 className="text-xl font-bold flex items-center gap-2">
+          <h1 className="text-xl font-bold flex items-center gap-2 max-md:text-lg">
             <Building2 className="h-5 w-5 text-orange-600" />
             Dettaglio render facciata
           </h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground max-md:text-[11px]">
             {format(new Date(String(session.created_at)), "d MMMM yyyy, HH:mm", { locale: it })}
           </p>
         </div>
@@ -165,12 +166,14 @@ export default function RenderFacciataGalleryDetail() {
 
       {status === "completed" && resultUrl && originalUrl && (
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Confronto prima / dopo</CardTitle>
+          <CardHeader className="pb-3 max-md:hidden">
+            <CardTitle className="text-base max-md:text-[13px]">Confronto prima / dopo</CardTitle>
           </CardHeader>
           <CardContent>
             <BeforeAfterSlider beforeUrl={originalUrl} afterUrl={resultUrl} className="rounded-xl" />
-            <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {/* Telefono: «Manda al cliente» (l'immagine col foglio di condivisione) al posto di link WhatsApp, Condividi, PDF e Scarica. */}
+            {isMobile && resultUrl && <MandaRenderMobile resultUrl={resultUrl} nomeFile="render-facciata" className="mt-3 w-full" />}
+            <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 max-md:hidden">
               <Button variant="outline" onClick={handleShare}>
                 <Share2 className="mr-2 h-4 w-4" />
                 Condividi
@@ -200,7 +203,7 @@ export default function RenderFacciataGalleryDetail() {
       {status !== "completed" && (
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
+            <CardTitle className="text-base flex items-center gap-2 max-md:text-[13px]">
               <Image className="h-4 w-4" />
               Foto originale
             </CardTitle>
@@ -230,7 +233,7 @@ export default function RenderFacciataGalleryDetail() {
         <div className="space-y-4">
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm">Scenario letto dall’edificio</CardTitle>
+              <CardTitle className="text-sm max-md:text-[13px]">Scenario letto dall’edificio</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex flex-wrap gap-2">
@@ -254,7 +257,7 @@ export default function RenderFacciataGalleryDetail() {
 
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm">Scelte applicate</CardTitle>
+              <CardTitle className="text-sm max-md:text-[13px]">Scelte applicate</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-wrap gap-2">
               {renderConfig.replacement_manifest.activeSystems.map((item) => (
@@ -270,7 +273,7 @@ export default function RenderFacciataGalleryDetail() {
         <div className="space-y-4">
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm">Zone coinvolte</CardTitle>
+              <CardTitle className="text-sm max-md:text-[13px]">Zone coinvolte</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-wrap gap-2">
               {renderConfig.replacement_manifest.targetedZones.map((zone) => (

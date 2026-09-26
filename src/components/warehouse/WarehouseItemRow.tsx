@@ -122,7 +122,8 @@ const WarehouseItemRow = React.memo(function WarehouseItemRow({
           <Checkbox
             checked={isSelected}
             onCheckedChange={() => onToggleSelection(item.id)}
-            className="mt-0.5 sm:mt-0"
+            // Mobile no: la selezione multipla è lavoro da scrivania.
+            className="mt-0.5 sm:mt-0 max-sm:hidden"
           />
         )}
         <Badge variant="secondary" className="font-mono text-xs shrink-0">
@@ -154,31 +155,30 @@ const WarehouseItemRow = React.memo(function WarehouseItemRow({
                 : supplierName}
             </p>
           )}
-          {/* M9/B7 — dropdown sezione visibile solo su mobile (la mappa è hidden su mobile) */}
-          {!readOnly && onSectionChange && sections.length > 0 && (
-            <div className="flex sm:hidden items-center gap-1.5 mt-1" onClick={e => e.stopPropagation()}>
-              <MapPin className="h-3 w-3 text-muted-foreground shrink-0" />
-              <Select
-                value={item.section_id || "__none__"}
-                onValueChange={(val) => onSectionChange(item.id, val === "__none__" ? null : val)}
-              >
-                <SelectTrigger className="h-6 text-xs flex-1 border-dashed">
-                  <span className="truncate">Zona...</span>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">Nessuna zona</SelectItem>
-                  {sections.map(s => (
-                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
         </div>
       </div>
 
-      <div className="flex w-full items-center justify-between gap-2 pl-8 sm:w-auto sm:justify-end sm:pl-0 sm:shrink-0" onClick={(e) => e.stopPropagation()}>
+      {/* Mobile: zona e stato sulla stessa riga (prima due righe, con la zona
+          sotto il nome): ogni articolo passava da ~145 a ~90px. */}
+      <div className="flex w-full items-center justify-between gap-2 pl-8 sm:w-auto sm:justify-end sm:pl-0 sm:shrink-0 max-sm:pl-0" onClick={(e) => e.stopPropagation()}>
         {!readOnly && <ItemNotePopover item={item} onUpdateNotes={onUpdateNotes} />}
+        {!readOnly && onSectionChange && sections.length > 0 && (
+          <Select
+            value={item.section_id || "__none__"}
+            onValueChange={(val) => onSectionChange(item.id, val === "__none__" ? null : val)}
+          >
+            <SelectTrigger className="tap-compact h-8 w-[38%] shrink-0 gap-1 border-dashed text-xs sm:hidden">
+              <MapPin className="h-3 w-3 shrink-0 text-muted-foreground" />
+              <span className="truncate">{sections.find((z) => z.id === item.section_id)?.name ?? "Zona"}</span>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">Nessuna zona</SelectItem>
+              {sections.map((z) => (
+                <SelectItem key={z.id} value={z.id}>{z.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
         {readOnly ? (
           <Badge
             variant="outline"
@@ -198,7 +198,7 @@ const WarehouseItemRow = React.memo(function WarehouseItemRow({
           >
             <SelectTrigger
               className={cn(
-                "h-8 min-w-[150px] flex-1 border text-xs font-semibold sm:w-[156px] sm:flex-none [&>span]:line-clamp-1",
+                "tap-compact h-8 min-w-[150px] flex-1 border text-xs font-semibold sm:w-[156px] sm:flex-none [&>span]:line-clamp-1",
                 statusConfig.bgColor,
                 statusConfig.color
               )}

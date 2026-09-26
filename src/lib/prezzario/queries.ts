@@ -220,9 +220,9 @@ export function useAdottaPrezzario() {
   const companyId = useEffectiveCompanyId();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: AdottaPrezzarioInput): Promise<{ inserite: number }> => {
+    mutationFn: async (input: AdottaPrezzarioInput): Promise<{ inserite: number; senzaUnita: number }> => {
       if (!companyId) throw new Error("Azienda non disponibile");
-      if (input.voci.length === 0) return { inserite: 0 };
+      if (input.voci.length === 0) return { inserite: 0, senzaUnita: 0 };
 
       // Nome fonte per la nota (una sola lettura, riusata su tutte le voci).
       const { data: fonteRow, error: fonteErr } = await sb()
@@ -247,6 +247,12 @@ export function useAdottaPrezzario() {
           capitolo_id: input.capitoloId ?? null,
           codice: v.codice ?? null,
           descrizione: v.descrizione,
+          // 84% delle voci di prezzario NON ha l'unita' di misura: 306.522 su
+          // 364.011, e sedici prezzari su diciannove ne sono privi al 100%. La
+          // colonna e' NOT NULL con default 'cad', quindi qui l'unita' si
+          // inventa comunque — ma almeno si conta, e chi adotta se lo sente
+          // dire invece di ritrovarsi una lavorazione da 12 EUR/m2 in listino
+          // come 12 EUR al pezzo.
           unita_misura: v.unita_misura ?? "cad",
           costo_materiali,
           costo_manodopera,
@@ -262,7 +268,8 @@ export function useAdottaPrezzario() {
 
       const { error } = await sb().from("rst_listino_voci").insert(rows);
       if (error) throw new Error(error.message);
-      return { inserite: rows.length };
+      const senzaUnita = input.voci.filter((v) => !v.unita_misura).length;
+      return { inserite: rows.length, senzaUnita };
     },
     onSuccess: () => {
       // Invalida le query del listino rst (stesse chiavi di useListinoLavorazioni).

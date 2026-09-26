@@ -125,10 +125,10 @@ function ObjectItemsPicker({
               Dalla tua <strong>libreria template</strong> ({templateItems.length} voci disponibili)
             </p>
             <div className="flex gap-1">
-              <Button size="sm" variant="ghost" onClick={selectAllTemplate} className="h-7 text-[11px]">
+              <Button size="sm" variant="ghost" onClick={selectAllTemplate} className="tap-compact h-7 text-[11px]">
                 Seleziona tutte
               </Button>
-              <Button size="sm" variant="ghost" onClick={clearAll} className="h-7 text-[11px]">
+              <Button size="sm" variant="ghost" onClick={clearAll} className="tap-compact h-7 text-[11px]">
                 Nessuna
               </Button>
             </div>
@@ -145,7 +145,7 @@ function ObjectItemsPicker({
               <label
                 key={idx}
                 className={
-                  "flex items-start gap-3 rounded-md border p-3 cursor-pointer transition " +
+                  "flex items-start gap-3 rounded-md border p-3 cursor-pointer transition max-md:gap-2.5 max-md:p-2.5 " +
                   (isSelected
                     ? "border-blue-300 bg-blue-50/40"
                     : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/30")
@@ -157,10 +157,11 @@ function ObjectItemsPicker({
                   className="mt-0.5"
                 />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-slate-900">
+                  <p className="text-sm font-semibold text-slate-900 max-md:text-[13px]">
                     {emoji} {it.titolo || <span className="italic text-muted-foreground">(senza titolo)</span>}
                   </p>
-                  <p className="text-xs mt-0.5 text-slate-600">
+                  {/* Telefono: si sceglie dal titolo; del testo resta una riga. */}
+                  <p className="text-xs mt-0.5 text-slate-600 max-md:line-clamp-1 max-md:text-[11px]">
                     {it.descrizione}
                   </p>
                 </div>
@@ -189,7 +190,7 @@ function ObjectItemsPicker({
                 <Button
                   size="sm" variant="ghost"
                   onClick={() => removeCustomByIdx(realIdx)}
-                  className="h-7 px-2 text-xs text-rose-600"
+                  className="tap-compact h-7 px-2 text-xs text-rose-600"
                 >
                   <Trash2 className="h-3.5 w-3.5 mr-1" /> Rimuovi
                 </Button>
@@ -205,6 +206,7 @@ function ObjectItemsPicker({
                 onChange={(e) => updateCustomByIdx(realIdx, "descrizione", e.target.value)}
                 placeholder={placeholderDesc}
                 rows={2}
+                className="max-md:h-16 max-md:min-h-0 max-md:placeholder:text-[13px]"
               />
             </div>
           ))}
@@ -217,7 +219,7 @@ function ObjectItemsPicker({
         size="sm"
         className="w-full border-dashed border border-slate-300 hover:border-slate-400 hover:bg-slate-50 text-slate-600 gap-1"
       >
-        <Plus className="h-3.5 w-3.5" /> Aggiungi {label.toLowerCase()} personalizzata per questo cliente
+        <Plus className="h-3.5 w-3.5" /> Aggiungi {label.toLowerCase()}<span className="max-md:hidden"> personalizzata per questo cliente</span>
       </Button>
     </div>
   );
@@ -291,10 +293,10 @@ function StringItemsPicker({
               Dalla tua <strong>libreria template</strong> ({templateItems.length} voci disponibili)
             </p>
             <div className="flex gap-1">
-              <Button size="sm" variant="ghost" onClick={selectAllTemplate} className="h-7 text-[11px]">
+              <Button size="sm" variant="ghost" onClick={selectAllTemplate} className="tap-compact h-7 text-[11px]">
                 Seleziona tutte
               </Button>
-              <Button size="sm" variant="ghost" onClick={clearAll} className="h-7 text-[11px]">
+              <Button size="sm" variant="ghost" onClick={clearAll} className="tap-compact h-7 text-[11px]">
                 Nessuna
               </Button>
             </div>
@@ -364,7 +366,7 @@ function StringItemsPicker({
         size="sm"
         className="w-full border-dashed border border-slate-300 hover:border-slate-400 hover:bg-slate-50 text-slate-600 gap-1"
       >
-        <Plus className="h-3.5 w-3.5" /> Aggiungi voce personalizzata per questo cliente
+        <Plus className="h-3.5 w-3.5" /> Aggiungi voce<span className="max-md:hidden"> personalizzata per questo cliente</span>
       </Button>
     </div>
   );
@@ -513,17 +515,18 @@ export function StepContenuti({ form, onChange }: Props) {
           sul border-left. Le card di selezione sottostanti usano blu
           tenue per il selected state -> palette coerente. */}
       <Card className="border-l-4 border-l-[#173b67] border-slate-200">
-        <CardContent className="p-4 flex items-start gap-3 flex-wrap">
-          <div className="flex-1 min-w-[220px]">
-            <div className="flex items-center gap-2 mb-1">
+        {/* Telefono: titolo e «Applica tutto» su una riga, senza spiegazioni. */}
+        <CardContent className="p-4 flex items-start gap-3 flex-wrap max-md:flex-nowrap max-md:items-center max-md:p-3">
+          <div className="flex-1 min-w-[220px] max-md:min-w-0">
+            <div className="flex items-center gap-2 mb-1 max-md:mb-0">
               <MessageCircle className="h-4 w-4 text-[#173b67]" />
               <span className="text-sm font-semibold text-slate-900">Contenuti del preventivo</span>
             </div>
-            <p className="text-[11px] text-muted-foreground mb-1.5 leading-snug">
+            <p className="text-[11px] text-muted-foreground mb-1.5 leading-snug max-md:hidden">
               Scegli quali voci della tua libreria template includere per questo cliente.
               Puoi anche aggiungerne di personalizzate solo per questo preventivo.
             </p>
-            <p className="text-[11px] text-slate-700 leading-snug">
+            <p className="text-[11px] text-slate-700 leading-snug max-md:hidden">
               <strong>Suggerimento:</strong> applica tutti i contenuti e poi rifinisci.
               Più veloce per il commerciale, più completo per il cliente.
             </p>
@@ -532,7 +535,7 @@ export function StepContenuti({ form, onChange }: Props) {
             <Button
               size="sm"
               onClick={preselezionaTutto}
-              className="bg-orange-500 hover:bg-orange-600 gap-1 shrink-0"
+              className="tap-compact bg-orange-500 hover:bg-orange-600 gap-1 shrink-0 max-md:h-8"
             >
               <ChevronRight className="h-3.5 w-3.5" />
               {hasAnySelection ? "Riapplica tutto" : "Applica tutto"}
@@ -542,7 +545,7 @@ export function StepContenuti({ form, onChange }: Props) {
       </Card>
 
       {!hasAnyTemplate && (
-        <SrCallout variant="warning">
+        <SrCallout variant="warning" className="max-md:hidden">
           La libreria template è vuota. Configurala in <strong>Impostazioni → Template Moduli Vendita → Serramenti</strong> per accelerare la compilazione dei preventivi.
         </SrCallout>
       )}
@@ -552,7 +555,7 @@ export function StepContenuti({ form, onChange }: Props) {
           <Accordion type="multiple" defaultValue={["esigenze"]} className="w-full">
             {sezioni.map((s) => (
               <AccordionItem key={s.key} value={s.key} className="border-b last:border-b-0">
-                <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-orange-50/40">
+                <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-orange-50/40 max-md:px-3 max-md:py-2.5">
                   <div className="flex items-center gap-3 flex-1 min-w-0">
                     {s.icon}
                     <span className="text-sm font-semibold text-slate-900">{s.title}</span>
@@ -566,7 +569,7 @@ export function StepContenuti({ form, onChange }: Props) {
                     </span>
                   </div>
                 </AccordionTrigger>
-                <AccordionContent className="px-4 pb-4 pt-1">
+                <AccordionContent className="px-4 pb-4 pt-1 max-md:px-3 max-md:pb-3">
                   {s.body}
                 </AccordionContent>
               </AccordionItem>
@@ -575,7 +578,7 @@ export function StepContenuti({ form, onChange }: Props) {
         </CardContent>
       </Card>
 
-      <SrCallout variant="info">
+      <SrCallout variant="info" className="max-md:hidden">
         Le voci che selezioni qui andranno nel PDF cliente nelle rispettive sezioni:
         <ul className="list-disc list-inside mt-1 space-y-0.5">
           <li><strong>Esigenze + Soluzione</strong> → Pagina 1 (Proposta)</li>

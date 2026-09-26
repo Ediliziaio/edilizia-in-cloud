@@ -167,35 +167,39 @@ export function CompanyProfileForm({ canEdit = true }: { canEdit?: boolean } = {
   if (!company) return null;
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-6 max-sm:space-y-4">
       {/* canEdit=false → fieldset disabilita nativamente tutti i campi e il submit (permesso "Modifica" non attivo) */}
-      <fieldset disabled={!canEdit} className="contents">
+      {/* Era className="contents": con display:contents lo space-y del form non
+          arrivava alle sezioni, e separatori e titoli stavano attaccati ai campi. */}
+      <fieldset disabled={!canEdit} className="min-w-0 space-y-6 max-sm:space-y-4">
       {/* Dati Generali */}
       <div className="space-y-4">
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
           <Building2 className="h-4 w-4" /> Dati Generali
         </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-2">
+        {/* Mobile: niente campi in sola lettura (nome, email, settore) e campi
+            brevi affiancati. */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-sm:grid-cols-2 max-sm:gap-3">
+          <div className="space-y-2 max-sm:hidden">
             <Label>Nome Azienda</Label>
             <Input value={company.name} disabled className="bg-muted" />
           </div>
-          <div className="space-y-2">
+          <div className="space-y-2 max-sm:hidden">
             <Label>Email</Label>
             <Input value={company.email} disabled className="bg-muted" />
           </div>
-          <div className="space-y-2">
+          <div className="space-y-2 max-sm:col-span-2">
             <Label htmlFor="businessName">Ragione Sociale</Label>
             <Input id="businessName" value={businessName} onChange={(e) => setBusinessName(e.target.value)} placeholder="Rossi S.r.l." maxLength={100} />
           </div>
-          <div className="space-y-2">
+          <div className="space-y-2 max-sm:hidden">
             <Label>Settore</Label>
             <Input value={sectorLabels[company.sector] || company.sector} disabled className="bg-muted" />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="orderCodePrefix">Prefisso Codice Commessa</Label>
+            <Label htmlFor="orderCodePrefix"><span className="max-sm:hidden">Prefisso Codice Commessa</span><span className="sm:hidden">Prefisso commesse</span></Label>
             <Input id="orderCodePrefix" value={orderCodePrefix} onChange={(e) => setOrderCodePrefix(e.target.value)} placeholder="O" maxLength={16} />
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-[11px] text-muted-foreground max-sm:hidden">
               Usato per il codice commessa progressivo automatico: es. <strong>{(orderCodePrefix.trim() || "O")}-0001</strong>, {(orderCodePrefix.trim() || "O")}-0002…
             </p>
           </div>
@@ -209,7 +213,7 @@ export function CompanyProfileForm({ canEdit = true }: { canEdit?: boolean } = {
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
           <FileText className="h-4 w-4" /> Dati Fiscali
         </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-sm:grid-cols-2 max-sm:gap-3">
           <div className="space-y-2">
             <Label htmlFor="vatNumber">P.IVA</Label>
             <Input id="vatNumber" value={vatNumber} onChange={(e) => setVatNumber(e.target.value)} placeholder="01234567890" maxLength={11} />
@@ -218,7 +222,7 @@ export function CompanyProfileForm({ canEdit = true }: { canEdit?: boolean } = {
             <Label htmlFor="fiscalCode">Codice Fiscale</Label>
             <Input id="fiscalCode" value={fiscalCode} onChange={(e) => setFiscalCode(e.target.value)} placeholder="01234567890" maxLength={16} />
           </div>
-          <div className="space-y-2">
+          <div className="space-y-2 max-sm:col-span-2">
             <Label htmlFor="pec">PEC</Label>
             <Input id="pec" type="email" value={pec} onChange={(e) => setPec(e.target.value)} placeholder="azienda@pec.it" maxLength={100} />
           </div>
@@ -236,7 +240,7 @@ export function CompanyProfileForm({ canEdit = true }: { canEdit?: boolean } = {
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
           <Phone className="h-4 w-4" /> Contatti
         </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-sm:grid-cols-2 max-sm:gap-3">
           <div className="space-y-2">
             <Label htmlFor="companyPhone">Telefono</Label>
             <Input id="companyPhone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+39 02 1234567" maxLength={20} />

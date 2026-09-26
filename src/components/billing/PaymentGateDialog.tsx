@@ -8,6 +8,7 @@ import { useStartCardSetup } from "@/hooks/useBilling";
 import { usePaymentMethodGate } from "@/hooks/usePaymentMethodGate";
 import { usePaymentGateStore } from "@/store/paymentGateStore";
 import { isMobileAppRuntime } from "@/lib/mobile/platform";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { formatCurrency } from "@/lib/formatters";
 import { RechargeDialog } from "@/components/credits/RechargeDialog";
 import { AddonWhatsAppOfferta } from "@/components/billing/AddonWhatsAppOfferta";
@@ -41,6 +42,8 @@ export function PaymentGateDialog() {
   // questo: chi finisce i crediti nel mezzo di un'azione paga da dove sta,
   // senza andare a cercare la pagina giusta.
   const [ricarica, setRicarica] = useState<WalletType | null>(null);
+  // Dal telefono l'abbonamento non si rinnova (regola dell'utente, 25/09/2026).
+  const isMobile = useIsMobile();
 
   const canManageBilling = !!role && CAN_MANAGE_BILLING_ROLES.has(role);
   // reason può essere null se il 402 arriva prima che lo stato client sia allineato:
@@ -156,6 +159,11 @@ export function PaymentGateDialog() {
             <p className="text-sm text-muted-foreground">
               La gestione dell'abbonamento e dei metodi di pagamento è disponibile
               nell'area riservata sul sito web, non dall'app.
+            </p>
+          ) : isSubscription && isMobile ? (
+            <p className="text-sm text-muted-foreground">
+              L'abbonamento è sospeso o scaduto per mancato pagamento: si rinnova dal
+              computer, e da lì tornano email, WhatsApp, AI, render e firma.
             </p>
           ) : isSubscription ? (
             <div className="space-y-4">

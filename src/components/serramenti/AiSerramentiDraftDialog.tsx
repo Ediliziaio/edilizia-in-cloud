@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertCircle, CheckCircle2, ImagePlus, Loader2, Mic, Sparkles, X } from "lucide-react";
+import { AlertCircle, Camera, CheckCircle2, ImagePlus, Loader2, Mic, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -223,20 +223,23 @@ export function AiSerramentiDraftDialog({
             <Sparkles className="h-5 w-5 text-orange-500" />
             Crea bozza serramenti con AI
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="max-sm:sr-only">
             L'AI prepara righe da controllare. Nulla viene salvato nel preventivo finché non approvi.
             {cliente ? ` Cliente: ${cliente}.` : ""}
           </DialogDescription>
         </DialogHeader>
 
+        {/* Telefono: prima le foto (un'area grande da toccare), poi testo e dettatura;
+            via le regole e le spiegazioni, come nel foglio «Da foto, schizzi o audio». */}
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-          <div className="space-y-3">
+          <div className="space-y-3 max-sm:flex max-sm:flex-col max-sm:gap-3 max-sm:space-y-0">
             <div className="space-y-2">
-              <Label>Richiesta testo o audio</Label>
+              <Label className="max-sm:hidden">Richiesta testo o audio</Label>
               <Textarea
                 value={prompt}
                 onChange={(event) => setPrompt(event.target.value)}
                 rows={7}
+                className="max-sm:h-28 max-sm:min-h-0 max-sm:placeholder:text-[13px]"
                 placeholder="Esempio: prepara offerta per 3 finestre PVC bianco 1200x1400, 1 porta finestra 900x2200, doppio vetro, posa inclusa, zanzariere su tutte..."
               />
               <div className="flex flex-wrap gap-2">
@@ -266,8 +269,8 @@ export function AiSerramentiDraftDialog({
               </div>
             </div>
 
-            <div className="rounded-md border border-dashed border-orange-200 bg-orange-50/30 p-3">
-              <Label className="mb-2 flex items-center gap-2">
+            <div className="rounded-md border border-dashed border-orange-200 bg-orange-50/30 p-3 max-sm:order-first max-sm:border-0 max-sm:bg-transparent max-sm:p-0">
+              <Label className="mb-2 flex items-center gap-2 max-sm:hidden">
                 <ImagePlus className="h-4 w-4 text-orange-500" />
                 Foto rilievo, appunti o vecchi infissi
               </Label>
@@ -276,8 +279,19 @@ export function AiSerramentiDraftDialog({
                 accept="image/*"
                 multiple
                 onChange={(event) => handleFiles(event.target.files)}
-                className="text-sm"
+                className="text-sm max-sm:hidden"
               />
+              <label className="flex h-24 cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-orange-200 bg-orange-50/40 text-orange-700 sm:hidden">
+                <Camera className="h-6 w-6" />
+                <span className="text-[13px] font-medium">Scatta o scegli le foto del rilievo</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={(event) => handleFiles(event.target.files)}
+                  className="sr-only"
+                />
+              </label>
               {files.length > 0 && (
                 <div className="mt-3 flex flex-wrap gap-2">
                   {files.map((file, index) => (
@@ -295,13 +309,13 @@ export function AiSerramentiDraftDialog({
                   ))}
                 </div>
               )}
-              <p className="mt-2 text-xs text-slate-500">
+              <p className="mt-2 text-xs text-slate-500 max-sm:hidden">
                 Le foto aiutano a riconoscere tipologia e appunti. Le misure vengono usate solo se sono scritte o chiaramente leggibili.
               </p>
             </div>
           </div>
 
-          <div className="rounded-md border bg-slate-50 p-3 text-sm">
+          <div className="rounded-md border bg-slate-50 p-3 text-sm max-sm:hidden">
             <p className="font-semibold text-slate-900">Regole di sicurezza</p>
             <ul className="mt-2 space-y-2 text-xs text-slate-600">
               <li>Non inventa misure: se mancano, le segnala.</li>
@@ -414,7 +428,7 @@ export function AiSerramentiDraftDialog({
         )}
 
         <DialogFooter className="gap-2">
-          <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
+          <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} className="max-sm:hidden">
             Chiudi
           </Button>
           <Button type="button" onClick={() => void runDraft()} disabled={!hasInput || loading}>

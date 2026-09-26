@@ -10,6 +10,7 @@ import { Send, Loader2, User, Paperclip, X, FileText, Download, Image as ImageIc
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { formatDateTime } from "@/lib/formatters";
 import type { TicketMessage } from "@/types/tickets";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const ACCEPTED_TYPES = "image/*,.pdf,.doc,.docx,.xls,.xlsx";
@@ -64,7 +65,7 @@ function ToolbarIconButton({
             type="button"
             variant="ghost"
             size="icon"
-            className={`flex-shrink-0 h-auto ${className ?? ""}`}
+            className={`tap-compact flex-shrink-0 h-auto max-sm:h-8 max-sm:w-8 ${className ?? ""}`}
             onClick={onClick}
             disabled={disabled}
           >
@@ -91,6 +92,7 @@ export function TicketChat({
   const queryClient = useQueryClient();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const isMobile = useIsMobile();
   const [newMessage, setNewMessage] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -388,12 +390,12 @@ export function TicketChat({
           <p className="text-sm font-medium text-primary">Rilascia per allegare</p>
         </div>
       )}
-      <CardHeader className="border-b flex-shrink-0">
-        <CardTitle className="text-lg">Conversazione</CardTitle>
+      <CardHeader className="border-b flex-shrink-0 max-sm:px-3 max-sm:py-2.5">
+        <CardTitle className="text-lg max-sm:text-sm">Conversazione</CardTitle>
       </CardHeader>
       <CardContent className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full text-center py-12">
+          <div className="flex flex-col items-center justify-center h-full text-center py-12 max-sm:py-6">
             <MessageSquare className="h-12 w-12 text-muted-foreground/40 mb-3" />
             <p className="text-sm font-medium text-muted-foreground">Nessun messaggio</p>
             <p className="text-xs text-muted-foreground/70 mt-1">Scrivi il primo messaggio per iniziare la conversazione.</p>
@@ -448,7 +450,7 @@ export function TicketChat({
           </div>
         )
       ) : (
-        <div className="border-t p-4 flex-shrink-0">
+        <div className="border-t p-4 flex-shrink-0 max-sm:p-2">
           {selectedFile && (
             <div className="flex items-center gap-2 mb-2 px-3 py-2 bg-muted rounded-md text-sm">
               {selectedFile.type.startsWith("image/") ? (
@@ -471,7 +473,10 @@ export function TicketChat({
               </Button>
             </div>
           )}
-          <form onSubmit={handleSend} className="flex gap-2">
+          {/* Mobile: una barra sola, arrotondata: graffetta, bozza AI, testo che
+              prende tutto lo spazio, invio. Prima tre icone da 44px lasciavano
+              al testo 100px e il segnaposto andava su tre righe. */}
+          <form onSubmit={handleSend} className="flex gap-2 max-sm:items-center max-sm:gap-0.5 max-sm:rounded-3xl max-sm:border max-sm:bg-background max-sm:py-1 max-sm:pl-1 max-sm:pr-1">
             <input
               ref={fileInputRef}
               type="file"
@@ -497,28 +502,30 @@ export function TicketChat({
               disabled={aiDrafting || uploading || messages.length === 0}
               className="text-violet-600 hover:text-violet-700 dark:text-violet-400"
             />
-            <ToolbarIconButton
-              icon={<BookOpen className="h-4 w-4" />}
-              loading={kbLoading}
-              tooltip="Cerca in Knowledge Base e inserisci"
-              onClick={handleKbLookup}
-              disabled={kbLoading || uploading}
-              className="text-sky-600 hover:text-sky-700 dark:text-sky-400"
-            />
+            {!isMobile && (
+              <ToolbarIconButton
+                icon={<BookOpen className="h-4 w-4" />}
+                loading={kbLoading}
+                tooltip="Cerca in Knowledge Base e inserisci"
+                onClick={handleKbLookup}
+                disabled={kbLoading || uploading}
+                className="text-sky-600 hover:text-sky-700 dark:text-sky-400"
+              />
+            )}
             <Textarea
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Scrivi un messaggio... (Enter per inviare, Shift+Enter per a capo)"
-              rows={2}
+              placeholder={isMobile ? "Scrivi un messaggio" : "Scrivi un messaggio... (Enter per inviare, Shift+Enter per a capo)"}
+              rows={isMobile ? 1 : 2}
               maxLength={2000}
-              className="resize-none"
+              className="resize-none max-sm:min-h-[36px] max-sm:border-0 max-sm:px-2 max-sm:py-2 max-sm:shadow-none max-sm:focus-visible:ring-0 max-sm:focus-visible:ring-offset-0"
             />
             <Button
               type="submit"
               size="icon"
               disabled={(!newMessage.trim() && !selectedFile) || sendMessageMutation.isPending || uploading}
-              className="flex-shrink-0 h-auto"
+              className="tap-compact flex-shrink-0 h-auto max-sm:h-9 max-sm:w-9 max-sm:rounded-full"
             >
               {sendMessageMutation.isPending || uploading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />

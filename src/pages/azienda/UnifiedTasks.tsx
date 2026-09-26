@@ -24,18 +24,23 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Plus, ListTodo, Search, LayoutList, Kanban, CalendarDays, CalendarRange,
-  BarChart2, User, Users, SlidersHorizontal, ArrowUp, ArrowDown, ArrowUpDown,
-  Download,
+  BarChart2, Users, SlidersHorizontal, ArrowUp, ArrowDown, ArrowUpDown,
+  Download, Circle, CheckCircle2, MoreHorizontal,
 } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import { useDebounce } from "@/hooks/useDebounce";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { TaskKanbanBoard } from "@/components/attivita/TaskKanbanBoard";
 import { TaskCalendarView } from "@/components/attivita/TaskCalendarView";
 import { TaskAgendaView } from "@/components/attivita/TaskAgendaView";
@@ -90,11 +95,16 @@ const VIEW_MODES: Array<{ value: ViewMode; label: string; icon: typeof LayoutLis
   { value: "stats", label: "Statistiche", icon: BarChart2, descr: "Carico per persona, stato e priorità" },
 ];
 const isViewMode = (v: string | null): v is ViewMode => !!v && VIEW_MODES.some((m) => m.value === v);
+// Su telefono due viste sole, quelle che reggono uno schermo stretto: la lista
+// e l'agenda per giorno. Kanban (colonne da scorrere di lato), calendario del
+// mese e statistiche restano da tablet in su.
+const VISTE_MOBILE: ViewMode[] = ["list", "agenda"];
 const FILTRI_DEFAULT = { stato: "active", priorita: "all", categoria: "all", fonte: "all", assegnatario: "all" };
 
 export default function UnifiedTasks({ embedded = false, initialTab = "myday" }: UnifiedTasksProps = {}) {
   const { effectiveCompany, user, isImpersonating, role } = useAuth() as any;
   const { isAdmin, canViewTeamTasks, solaLettura, canEditSettingsCustomization } = usePermissions();
+  const isMobile = useIsMobile();
   // In sola lettura le attività si consultano: la policy RESTRICTIVE su tasks
   // rifiuterebbe l'inserimento, quindi i comandi di creazione sono spenti.
   const creaTitle = solaLettura ? "Sei in sola lettura" : undefined;
@@ -127,6 +137,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState(initialTab);
   const [viewMode, setViewMode] = useState<ViewMode>(initialVista);
+  const vista: ViewMode = isMobile && !VISTE_MOBILE.includes(viewMode) ? "list" : viewMode;
   const [searchText, setSearchText] = useState(initialRicerca);
   const [selectedTask, setSelectedTask] = useState<any>(null);
   const [statusSettingsOpen, setStatusSettingsOpen] = useState(false);
@@ -154,6 +165,13 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
   const filtriAttivi =
     filterStatus !== FILTRI_DEFAULT.stato || filterPriority !== FILTRI_DEFAULT.priorita || filterCategory !== FILTRI_DEFAULT.categoria ||
     filterFonte !== FILTRI_DEFAULT.fonte || filterAssignee !== FILTRI_DEFAULT.assegnatario || !!searchText;
+  /** Quanti filtri sono cambiati (la ricerca no: si vede gia' nel campo). */
+  const nFiltri = [
+    filterStatus !== FILTRI_DEFAULT.stato, filterPriority !== FILTRI_DEFAULT.priorita,
+    filterCategory !== FILTRI_DEFAULT.categoria, filterFonte !== FILTRI_DEFAULT.fonte,
+    filterAssignee !== FILTRI_DEFAULT.assegnatario,
+  ].filter(Boolean).length;
+  const [filtriAperti, setFiltriAperti] = useState(false);
   const azzeraFiltri = () => {
     setFilterStatus(FILTRI_DEFAULT.stato); setFilterPriority(FILTRI_DEFAULT.priorita); setFilterCategory(FILTRI_DEFAULT.categoria);
     setFilterFonte(FILTRI_DEFAULT.fonte); setFilterAssignee(FILTRI_DEFAULT.assegnatario); setSearchText("");
@@ -294,7 +312,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
   // il numero di scadute è già nel badge in testa e nella card "Scadute".
   const notifiedRef = useRef(false);
   useEffect(() => {
-    if (notifiedRef.current || tasks.length === 0) return;
+    if (notifiedRef.current || tasks.length === 0 || isMobile) return;
     const chiave = `regia-scadute-avvisate:${companyId}:${format(new Date(), "yyyy-MM-dd")}`;
     let giaAvvisato = false;
     try { giaAvvisato = sessionStorage.getItem(chiave) === "1"; } catch { /* storage non disponibile */ }
@@ -310,7 +328,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
         }
       );
     }
-  }, [tasks, stats.overdue, companyId]);
+  }, [tasks, stats.overdue, companyId, isMobile]);
 
   const handleStatFilterClick = useCallback((filter: "active" | "expiring" | "overdue" | "done") => {
     setActiveTab("all");
@@ -615,76 +633,49 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
       onValueChange={(v) => setActiveTab(v as "myday" | "all")}
       className={embedded ? "space-y-4" : "space-y-4"}
     >
-      <div className="rounded-xl border bg-card p-3 shadow-sm">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className={cn("font-bold tracking-tight", embedded ? "text-lg" : "text-xl")}>
-                {embedded ? "Regia attività" : "Attività"}
-              </h1>
-              <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
-                Regia operativa
-              </span>
-              {stats.overdue > 0 && (
-                <span className="rounded-full bg-destructive/10 px-2.5 py-0.5 text-xs font-medium text-destructive">
-                  {stats.overdue} scadute
-                </span>
-              )}
-            </div>
-            <p className="mt-0.5 max-w-2xl text-xs text-muted-foreground">
-              Gestisci attività personali e di team, priorità, scadenze e responsabilità da un unico punto.
-            </p>
-          </div>
+      {/* Su mobile niente riquadro: le linguette stanno da sole in cima. Da
+          tablet nemmeno: era un riquadro con titolo, etichetta, descrizione
+          e cinque bottoni sopra altri due riquadri. Ora è una riga. */}
+      <div>
+        {/* Il titolo solo quando la pagina è da sola: dentro «Attività» lo
+            dice già la linguetta «Regia attività» qui sopra. */}
+        <div className={cn("min-w-0", embedded && "hidden")}>
           <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" className="h-9 gap-2" disabled={solaLettura} title={creaTitle} onClick={() => openNewTask({ assignedTo: user?.id ?? null })}>
-              <Plus className="h-4 w-4" />
-              Aggiungi attività
-            </Button>
-            <Button size="sm" variant="outline" className="h-9 gap-2" disabled={solaLettura} title={creaTitle} onClick={() => openNewTask({ assignedTo: null })}>
-              <Users className="h-4 w-4" />
-              Per team
-            </Button>
-            {/* Gli stati sono dell'azienda (company_task_statuses): li cambia chi ha
-                «Personalizzazione» in modifica, come nelle impostazioni. */}
-            {canEditSettingsCustomization && (
-              <Button size="sm" variant="outline" className="h-9 gap-2" onClick={() => setStatusSettingsOpen(true)}>
-                <SlidersHorizontal className="h-4 w-4" />
-                Stati
-              </Button>
+            <h1 className="text-xl font-bold tracking-tight">Attività</h1>
+            {/* Toccabile: porta alle scadute. Su mobile sostituisce l'avviso
+                a comparsa che diceva di andarle a cercare. */}
+            {stats.overdue > 0 && (
+              <button
+                type="button"
+                onClick={() => { setActiveTab("all"); setFilterStatus("overdue"); }}
+                className="rounded-full bg-destructive/10 px-2.5 py-0.5 text-xs font-medium text-destructive hover:bg-destructive/15"
+              >
+                {stats.overdue} scadute
+              </button>
             )}
-            <Button size="sm" variant="outline" className="h-9 gap-2" onClick={esportaCsv} title="Scarica in CSV (Excel) le attività filtrate">
-              <Download className="h-4 w-4" />
-              Esporta
-            </Button>
-            <VistiSalvate
-              companyId={companyId}
-              userId={user?.id}
-              filtriCorrenti={filtriCorrenti}
-              onApplica={applicaVista}
-            />
           </div>
         </div>
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+        <div className={cn("flex flex-wrap items-center justify-between gap-2", !embedded && "mt-3")}>
           <TabsList className="h-9 rounded-lg">
-            <TabsTrigger value="myday">La mia giornata</TabsTrigger>
-            <TabsTrigger value="all">Tutte le attività</TabsTrigger>
+            <TabsTrigger value="myday"><span className="sm:hidden">Oggi</span><span className="hidden sm:inline">La mia giornata</span></TabsTrigger>
+            <TabsTrigger value="all"><span className="sm:hidden">Tutte</span><span className="hidden sm:inline">Tutte le attività</span></TabsTrigger>
           </TabsList>
           {/* Il cambio vista sta accanto alle linguette: nella riga dei filtri,
               con cinque nomi, mandava tutto a capo. */}
           {activeTab === "all" && (
             <TooltipProvider delayDuration={200}>
-              <div className="flex rounded-md border overflow-hidden sm:ml-auto" role="group" aria-label="Vista">
-                {VIEW_MODES.map((m) => (
+              <div className="flex rounded-md border overflow-hidden ml-auto" role="group" aria-label="Vista">
+                {VIEW_MODES.filter((m) => !isMobile || VISTE_MOBILE.includes(m.value)).map((m) => (
                   <Tooltip key={m.value}>
                     <TooltipTrigger asChild>
                       <button
                         type="button"
                         onClick={() => setViewMode(m.value)}
                         aria-label={`Vista ${m.label.toLowerCase()}`}
-                        aria-pressed={viewMode === m.value}
+                        aria-pressed={vista === m.value}
                         className={cn(
-                        "flex items-center gap-1.5 px-2.5 py-2 text-xs transition-colors",
-                        viewMode === m.value ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"
+                        "tap-compact flex items-center gap-1.5 px-2.5 py-2 text-xs transition-colors",
+                        vista === m.value ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"
                         )}
                       >
                         <m.icon className="h-4 w-4" />
@@ -702,59 +693,95 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
               </div>
             </TooltipProvider>
           )}
+          {/* Mobile: l'unica azione, compatta, accanto alle linguette. */}
+          <Button
+            size="sm"
+            className="tap-compact sm:hidden h-9 gap-1 px-3"
+            disabled={solaLettura}
+            title={creaTitle}
+            onClick={() => openNewTask({ assignedTo: user?.id ?? null })}
+          >
+            <Plus className="h-4 w-4" />
+            Nuova
+          </Button>
+          {/* Da tablet: una sola azione in evidenza. Per il team, stati ed
+              esportazione (prima tre bottoni con la scritta) stanno nel «⋯»;
+              le viste salvate sono passate accanto ai filtri che salvano. */}
+          <div className={cn("hidden sm:flex items-center gap-2", activeTab !== "all" && "ml-auto")}>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon" className="h-9 w-9" aria-label="Altre azioni">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuItem disabled={solaLettura} onSelect={() => openNewTask({ assignedTo: null })}>
+                  <Users className="mr-2 h-4 w-4" />Nuova attività per il team
+                </DropdownMenuItem>
+                {/* Gli stati sono dell'azienda (company_task_statuses): li cambia chi ha
+                    «Personalizzazione» in modifica, come nelle impostazioni. */}
+                {canEditSettingsCustomization && (
+                  <DropdownMenuItem onSelect={() => setStatusSettingsOpen(true)}>
+                    <SlidersHorizontal className="mr-2 h-4 w-4" />Stati delle attività
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={esportaCsv}>
+                  <Download className="mr-2 h-4 w-4" />Esporta in CSV (Excel)
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button size="sm" className="h-9 gap-2" disabled={solaLettura} title={creaTitle} onClick={() => openNewTask({ assignedTo: user?.id ?? null })}>
+              <Plus className="h-4 w-4" />
+              Nuova attività
+            </Button>
+          </div>
         </div>
       </div>
 
         <TabsContent value="myday">
-          <MyDayView onNewTask={() => openNewTask({ assignedTo: user?.id ?? null })} />
+          <MyDayView senzaSaluto={embedded} onNewTask={() => openNewTask({ assignedTo: user?.id ?? null })} />
         </TabsContent>
 
         <TabsContent value="all">
           <div className="space-y-3">
-            <div className="space-y-3 rounded-xl border bg-card p-3 shadow-sm">
-              {!solaLettura && (
-                <TaskQuickAdd
-                  defaultAssignedTo={user?.id ?? null}
-                  onAdvancedCreate={() => openNewTask({ assignedTo: user?.id ?? null })}
-                />
-              )}
-              <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3">
-                <TaskStatCards
-                  {...stats}
-                  onFilterClick={handleStatFilterClick}
-                  onStatusClick={(status) => {
-                    setActiveTab("all");
-                    setFilterStatus(status);
-                  }}
-                />
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">{filteredTasks.length} di {tasks.length} attività</span>
-                  {filtriAttivi && (
-                    <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={azzeraFiltri}>
-                      Azzera filtri
-                    </Button>
-                  )}
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center gap-2 border-t pt-3">
-              <div className="relative w-full sm:flex-1 sm:min-w-[170px] sm:max-w-[240px]">
+            {/* Su mobile restano ricerca e un bottone Filtri: l'aggiunta rapida
+                doppia «Nuova», i cinque contatori e il conteggio sono da scrivania.
+                Da tablet: filtri in una riga e contatori sotto, senza il riquadro
+                a tre piani di prima; l'aggiunta rapida sta in cima alla lista. */}
+            <div className="sm:space-y-2">
+              <div className="flex items-center gap-2 sm:flex-wrap">
+              <div className="relative min-w-0 flex-1 sm:min-w-[170px] sm:max-w-[240px]">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   ref={ricercaRef}
-                  placeholder="Cerca attività...  (tasto /)"
+                  placeholder={isMobile ? "Cerca" : "Cerca attività...  (tasto /)"}
                   value={searchText}
                   onChange={(e) => setSearchText(e.target.value)}
                   className="pl-9 h-9"
                 />
               </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="tap-compact sm:hidden h-9 shrink-0 gap-1.5 px-3"
+                onClick={() => setFiltriAperti(true)}
+              >
+                <SlidersHorizontal className="h-4 w-4" />
+                Filtri
+                {nFiltri > 0 && (
+                  <span className="rounded-full bg-primary px-1.5 text-[10px] font-semibold leading-4 text-primary-foreground">{nFiltri}</span>
+                )}
+              </Button>
+              <div className="hidden sm:contents">
               <Select value={filterFonte} onValueChange={setFilterFonte}>
-                <SelectTrigger className="w-full sm:w-[186px] h-9 gap-1" aria-label="Filtro fonte"><span className="text-muted-foreground">Fonte:</span> <SelectValue placeholder="Tutte" /></SelectTrigger>
+                <SelectTrigger className="w-full sm:w-auto h-9 gap-1" aria-label="Filtro fonte"><span className="text-muted-foreground">Fonte:</span> <SelectValue placeholder="Tutte" /></SelectTrigger>
                 <SelectContent>
                   {FONTE_OPTIONS.map((o) => (<SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>))}
                 </SelectContent>
               </Select>
               <Select value={filterStatus} onValueChange={setFilterStatus}>
-                <SelectTrigger className="w-full sm:w-[150px] h-9 gap-1" aria-label="Filtro stato"><span className="text-muted-foreground">Stato:</span> <SelectValue placeholder="Attive" /></SelectTrigger>
+                <SelectTrigger className="w-full sm:w-auto h-9 gap-1" aria-label="Filtro stato"><span className="text-muted-foreground">Stato:</span> <SelectValue placeholder="Attive" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Tutte</SelectItem>
                   <SelectItem value="active">Attive</SelectItem>
@@ -766,7 +793,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
                 </SelectContent>
               </Select>
               <Select value={filterPriority} onValueChange={setFilterPriority}>
-                <SelectTrigger className="w-full sm:w-[142px] h-9 gap-1" aria-label="Filtro priorità"><span className="text-muted-foreground">Priorità:</span> <SelectValue placeholder="Tutte" /></SelectTrigger>
+                <SelectTrigger className="w-full sm:w-auto h-9 gap-1" aria-label="Filtro priorità"><span className="text-muted-foreground">Priorità:</span> <SelectValue placeholder="Tutte" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Tutte</SelectItem>
                   <SelectItem value="bassa">Bassa</SelectItem>
@@ -776,7 +803,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
                 </SelectContent>
               </Select>
               <Select value={filterCategory} onValueChange={setFilterCategory}>
-                <SelectTrigger className="w-full sm:w-[158px] h-9 gap-1" aria-label="Filtro categoria"><span className="text-muted-foreground">Categoria:</span> <SelectValue placeholder="Tutte" /></SelectTrigger>
+                <SelectTrigger className="w-full sm:w-auto h-9 gap-1" aria-label="Filtro categoria"><span className="text-muted-foreground">Categoria:</span> <SelectValue placeholder="Tutte" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Tutte</SelectItem>
                   {Object.entries(ALL_CATEGORY_LABELS).map(([value, label]) => (
@@ -786,7 +813,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
               </Select>
               {seesTeamTasks && (
                 <Select value={filterAssignee} onValueChange={setFilterAssignee}>
-                  <SelectTrigger className="w-full sm:w-[176px] h-9 gap-1" aria-label="Filtro assegnatario"><span className="text-muted-foreground">Assegnatario:</span> <SelectValue placeholder="Tutti" /></SelectTrigger>
+                  <SelectTrigger className="w-full sm:w-auto h-9 gap-1" aria-label="Filtro assegnatario"><span className="text-muted-foreground">Assegnatario:</span> <SelectValue placeholder="Tutti" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Tutti</SelectItem>
                     {assignees.map((a) => (
@@ -795,21 +822,34 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
                   </SelectContent>
                 </Select>
               )}
-              {/* Filtro rapido "Le mie" — inutile quando vedi già solo le tue */}
-              {seesTeamTasks && (
-                <button
-                  onClick={() => setFilterAssignee(filterAssignee === user?.id ? "all" : (user?.id || "all"))}
-                  className={cn(
-                    "h-9 px-3 rounded-md border text-sm transition-colors flex items-center gap-1.5 whitespace-nowrap",
-                    filterAssignee === user?.id
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "bg-background text-muted-foreground hover:bg-muted"
-                  )}
-                >
-                  <User className="h-3.5 w-3.5" />
-                  Le mie
-                </button>
-              )}
+              {/* Le viste salvate accanto ai filtri che salvano (erano in testata),
+                  col conteggio: sotto i numeri andava su una riga da solo.
+                  «Le mie» non c'è più: era la tendina Assegnatario col proprio nome. */}
+              <div className="ml-auto flex items-center gap-2">
+                <span className="whitespace-nowrap text-xs tabular-nums text-muted-foreground">{filteredTasks.length} di {tasks.length}</span>
+                {filtriAttivi && (
+                  <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={azzeraFiltri}>
+                    Azzera filtri
+                  </Button>
+                )}
+                <VistiSalvate
+                  companyId={companyId}
+                  userId={user?.id}
+                  filtriCorrenti={filtriCorrenti}
+                  onApplica={applicaVista}
+                />
+              </div>
+              </div>
+              </div>
+              <div className="hidden sm:block">
+                <TaskStatCards
+                  {...stats}
+                  onFilterClick={handleStatFilterClick}
+                  onStatusClick={(status) => {
+                    setActiveTab("all");
+                    setFilterStatus(status);
+                  }}
+                />
               </div>
             </div>
 
@@ -831,8 +871,8 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
               </Card>
             ) : filteredTasks.length === 0 ? (
               <Card>
-                <CardContent className="p-12 text-center">
-                  <ListTodo className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
+                <CardContent className="p-6 text-center">
+                  <ListTodo className="mx-auto mb-3 h-8 w-8 text-muted-foreground/50" />
                   {tasks.length > 0 ? (
                     <>
                       <h3 className="text-lg font-medium mb-1">Nessuna attività con questi filtri</h3>
@@ -850,14 +890,14 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
                   )}
                 </CardContent>
               </Card>
-            ) : viewMode === "stats" ? (
+            ) : vista === "stats" ? (
               <TaskStatsView tasks={tasks} />
-            ) : viewMode === "agenda" ? (
+            ) : vista === "agenda" ? (
               <TaskAgendaView
                 tasks={filteredTasks}
                 onTaskSelect={(task) => setSelectedTask(task)}
               />
-            ) : viewMode === "calendar" ? (
+            ) : vista === "calendar" ? (
               <TaskCalendarView
                 tasks={filteredTasks}
                 onTaskSelect={(task) => setSelectedTask(task)}
@@ -865,7 +905,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
                   openNewTask({ assignedTo: user?.id ?? null, defaults: { due_date: date.toISOString().slice(0, 10) } });
                 }}
               />
-            ) : viewMode === "kanban" ? (
+            ) : vista === "kanban" ? (
               <TaskKanbanBoard
                 tasks={filteredTasks}
                 statusOptions={statusOptions}
@@ -874,23 +914,45 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
                   openNewTask({ assignedTo: user?.id ?? null, defaults: { status } });
                 }}
               />
+            ) : isMobile ? (
+              <Card className="divide-y overflow-hidden">
+                {sortedTasks.map((task) => (
+                  <RigaAttivitaMobile
+                    key={task.id}
+                    task={task}
+                    statusOptions={statusOptions}
+                    onSelect={() => setSelectedTask(task)}
+                    onToggleComplete={() => handleToggleComplete(task)}
+                  />
+                ))}
+              </Card>
             ) : (
               <>
                 <BulkActionsBar companyId={companyId} selectedIds={selectedIds} onClear={() => setSelectedIds(new Set())} statusOptions={statusOptions} tasks={tasks} />
                 <Card>
+                  {/* Si scrive dove la riga finirà: in cima alla lista. */}
+                  {!solaLettura && (
+                    <div className="border-b p-2">
+                      <TaskQuickAdd defaultAssignedTo={user?.id ?? null} />
+                    </div>
+                  )}
                   <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                    {/* Sotto i 1280px niente colonne Collegamento e Categoria, niente
+                        maniglia di trascinamento e celle più strette: a 1024 la tabella
+                        da 800px scorreva di lato dentro una pagina di 736 e lo Stato
+                        restava fuori. */}
                     <div className="overflow-x-auto">
-                      <Table className="min-w-[800px]">
+                      <Table className="min-w-[680px] xl:min-w-[860px] [&_td]:px-2 [&_th]:px-2 xl:[&_td]:px-4 xl:[&_th]:px-4">
                         <TableHeader>
                           <TableRow>
-                            <TableHead className="w-6 px-1" />
+                            <TableHead className="hidden w-6 px-1 xl:table-cell" />
                             <TableHead className="w-10">
                               <Checkbox checked={filteredTasks.length > 0 && selectedIds.size === filteredTasks.length} onCheckedChange={toggleSelectAll} />
                             </TableHead>
                             <TableHead>{intestazione("title", "Titolo")}</TableHead>
                             <TableHead>{intestazione("assignee", "Assegnatario")}</TableHead>
-                            <TableHead>Collegamento</TableHead>
-                            <TableHead>Categoria</TableHead>
+                            <TableHead className="hidden xl:table-cell">Collegamento</TableHead>
+                            <TableHead className="hidden xl:table-cell">Categoria</TableHead>
                             <TableHead>{intestazione("priority", "Priorità")}</TableHead>
                             <TableHead>{intestazione("due_date", "Scadenza")}</TableHead>
                             <TableHead>{intestazione("status", "Stato")}</TableHead>
@@ -922,6 +984,61 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
             )}
           </div>
         </TabsContent>
+
+      {/* Mobile: i filtri in un pannello dal basso, a scelte toccabili. Fonte e
+          categoria restano sul desktop: su telefono bastano stato, priorità e chi. */}
+      <Sheet open={filtriAperti} onOpenChange={setFiltriAperti}>
+        <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto rounded-t-2xl px-4 pb-6">
+          <SheetHeader className="text-left">
+            <SheetTitle>Filtri</SheetTitle>
+          </SheetHeader>
+          <div className="mt-4 space-y-4">
+            <GruppoScelte
+              titolo="Stato"
+              valore={filterStatus}
+              onScegli={setFilterStatus}
+              scelte={[
+                { value: "active", label: "Attive" },
+                { value: "overdue", label: stats.overdue > 0 ? `Scadute (${stats.overdue})` : "Scadute", tono: "rosso" },
+                { value: "expiring", label: "In scadenza" },
+                { value: "all", label: "Tutte" },
+              ]}
+            />
+            <GruppoScelte
+              titolo="Priorità"
+              valore={filterPriority}
+              onScegli={setFilterPriority}
+              scelte={[
+                { value: "all", label: "Tutte" },
+                { value: "urgente", label: "Urgente" },
+                { value: "alta", label: "Alta" },
+                { value: "normale", label: "Normale" },
+                { value: "bassa", label: "Bassa" },
+              ]}
+            />
+            {seesTeamTasks && (
+              <GruppoScelte
+                titolo="Di chi"
+                valore={filterAssignee}
+                onScegli={setFilterAssignee}
+                scelte={[
+                  { value: "all", label: "Tutti" },
+                  ...(user?.id ? [{ value: user.id, label: "Le mie" }] : []),
+                  ...assignees.filter((a) => a.id !== user?.id).map((a) => ({ value: a.id, label: a.name })),
+                ]}
+              />
+            )}
+          </div>
+          <div className="mt-6 flex gap-2">
+            {filtriAttivi && (
+              <Button variant="outline" className="h-11" onClick={azzeraFiltri}>Azzera</Button>
+            )}
+            <Button className="h-11 flex-1" onClick={() => setFiltriAperti(false)}>
+              Mostra {filteredTasks.length}
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
 
       <AlertDialog open={!!taskToDelete} onOpenChange={(o) => { if (!o) setTaskToDelete(null); }}>
         <AlertDialogContent>
@@ -957,5 +1074,100 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
         onReset={resetStatuses}
       />
     </Tabs>
+  );
+}
+
+/** Una fila di scelte a pillola per il pannello filtri su mobile. */
+function GruppoScelte({ titolo, valore, onScegli, scelte }: {
+  titolo: string;
+  valore: string;
+  onScegli: (v: string) => void;
+  scelte: { value: string; label: string; tono?: "rosso" }[];
+}) {
+  return (
+    <div>
+      <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">{titolo}</p>
+      <div className="flex flex-wrap gap-2">
+        {scelte.map((c) => {
+          const attiva = valore === c.value;
+          return (
+            <button
+              key={c.value}
+              type="button"
+              onClick={() => onScegli(c.value)}
+              aria-pressed={attiva}
+              className={cn(
+                "tap-compact h-9 rounded-full border px-3.5 text-sm transition-colors",
+                attiva
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : c.tono === "rosso"
+                    ? "border-destructive/30 text-destructive"
+                    : "bg-background text-foreground",
+              )}
+            >
+              {c.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Su telefono la tabella (otto colonne, trascinamento, selezione multipla)
+ * diventa una riga: il cerchio chiude, il resto apre il dettaglio, dove ci sono
+ * stato, priorità, collegamenti e azioni.
+ */
+function RigaAttivitaMobile({ task, statusOptions, onSelect, onToggleComplete }: {
+  task: any;
+  statusOptions: Parameters<typeof isTaskDoneStatus>[1];
+  onSelect: () => void;
+  onToggleComplete: () => void;
+}) {
+  const fatta = isTaskDoneStatus(task.status, statusOptions);
+  const oggi = format(new Date(), "yyyy-MM-dd");
+  const domani = format(addDays(new Date(), 1), "yyyy-MM-dd");
+  const scadenza = task.due_date ? String(task.due_date).slice(0, 10) : null;
+  const scaduta = !fatta && !!scadenza && scadenza < oggi;
+  const quando = !scadenza ? null
+    : scadenza === oggi ? "Oggi"
+    : scadenza === domani ? "Domani"
+    : format(parseISO(scadenza), "d MMM", { locale: it });
+  const chi = task.assigned_profile
+    ? `${task.assigned_profile.first_name ?? ""} ${task.assigned_profile.last_name ? `${task.assigned_profile.last_name[0]}.` : ""}`.trim()
+    : null;
+  const pallino = task.priority === "urgente" ? "bg-destructive" : task.priority === "alta" ? "bg-warning" : null;
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onSelect}
+      onKeyDown={(e) => { if (e.key === "Enter") onSelect(); }}
+      className={cn("flex items-center gap-3 px-3 py-2.5 active:bg-muted/60", fatta && "opacity-60")}
+    >
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); onToggleComplete(); }}
+        aria-label={fatta ? "Riapri attività" : "Segna come fatta"}
+        className="tap-compact -m-1.5 shrink-0 p-1.5"
+      >
+        {fatta
+          ? <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+          : <Circle className="h-5 w-5 text-muted-foreground" />}
+      </button>
+      <div className="min-w-0 flex-1">
+        <p className={cn("truncate text-sm font-medium", fatta && "line-through")}>{task.title}</p>
+        {(quando || chi || pallino) && (
+          <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+            {pallino && <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", pallino)} />}
+            {quando && <span className={cn(scaduta && "font-medium text-destructive")}>{quando}</span>}
+            {quando && chi && <span aria-hidden>·</span>}
+            {chi && <span className="truncate">{chi}</span>}
+          </p>
+        )}
+      </div>
+    </div>
   );
 }

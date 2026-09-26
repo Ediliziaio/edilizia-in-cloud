@@ -167,7 +167,7 @@ export function ContactDialog({ open, onOpenChange, onSave, initialData, isEditi
         <DialogHeader>
           <DialogTitle>{isEditing ? "Modifica Contatto" : "Nuovo Contatto"}</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4">
+        <div className="space-y-4 max-sm:space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Nome *</Label>
@@ -217,7 +217,8 @@ export function ContactDialog({ open, onOpenChange, onSave, initialData, isEditi
               <Input value={form.province} onChange={(e) => setForm((f) => ({ ...f, province: e.target.value }))} placeholder="Es: MI, RM, NA" maxLength={2} />
             </div>
           </div>
-          <div className="space-y-1.5">
+          {/* Mobile no: tag e sede si sistemano dalla scheda o dal computer. */}
+          <div className="space-y-1.5 max-sm:hidden">
             <Label>Tag</Label>
             <TagSelector
               selectedTags={form.tags}
@@ -230,15 +231,16 @@ export function ContactDialog({ open, onOpenChange, onSave, initialData, isEditi
             placeholder="Sede operativa (opzionale)"
             value={form.sede_id}
             onChange={(id) => setForm((f) => ({ ...f, sede_id: id }))}
-            className="space-y-1.5"
+            className="space-y-1.5 max-sm:hidden"
           />
           <div className="space-y-1.5">
             <Label>Note</Label>
-            <Textarea value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} rows={3} />
+            <Textarea value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} rows={3} className="max-sm:min-h-[60px]" />
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Annulla</Button>
+          {/* Mobile no: c'è la X in alto. */}
+          <Button variant="outline" className="max-sm:hidden" onClick={() => onOpenChange(false)}>Annulla</Button>
           <Button onClick={handleSubmit} disabled={saving || !form.first_name.trim() || !hasEmailOrPhone}>
             {saving ? "Salvataggio..." : isEditing ? "Salva" : "Aggiungi"}
           </Button>

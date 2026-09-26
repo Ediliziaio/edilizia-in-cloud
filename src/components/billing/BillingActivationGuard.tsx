@@ -1,6 +1,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBillingActivationGate } from "@/hooks/useBillingActivationGate";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useStartCardSetup, useOpenBillingPortal, useBillingInfo, useStartPlanCheckout, abbonamentoDaAttivare } from "@/hooks/useBilling";
 import { formatCurrency } from "@/lib/formatters";
 import { supabase } from "@/integrations/supabase/client";
@@ -283,6 +284,9 @@ function RinnovaAbbonamento() {
 export function BillingActivationGuard({ children }: { children: ReactNode }) {
   const { effectiveCompany, signOut } = useAuth();
   const { isBlocked, needsBillingData, needsPaymentMethod, subscriptionExpired, canManage } = useBillingActivationGate();
+  // Dal telefono l'abbonamento non si rinnova e non si paga: solo dal computer
+  // (regola dell'utente, 25/09/2026). I dati di fatturazione invece sì.
+  const isMobile = useIsMobile();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const c = effectiveCompany as any;
@@ -313,10 +317,12 @@ export function BillingActivationGuard({ children }: { children: ReactNode }) {
             <p className="text-sm text-muted-foreground">
               Il tuo abbonamento non è più attivo e il gestionale è bloccato.
               {canManage
-                ? " Rinnova per riattivare subito la piattaforma e i tuoi dati."
+                ? isMobile
+                  ? " Si rinnova dal computer: da lì la piattaforma e i tuoi dati si riattivano subito."
+                  : " Rinnova per riattivare subito la piattaforma e i tuoi dati."
                 : " Contatta l'amministratore della tua azienda per rinnovare."}
             </p>
-            {canManage && <RinnovaAbbonamento />}
+            {canManage && !isMobile && <RinnovaAbbonamento />}
             <Button variant="outline" size="sm" onClick={() => signOut()} className="mt-1">
               <LogOut className="mr-2 h-4 w-4" /> Esci
             </Button>
@@ -391,11 +397,15 @@ export function BillingActivationGuard({ children }: { children: ReactNode }) {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <PaymentStep
-                  done={paymentDone}
-                  companyId={effectiveCompany?.id}
-                  method={String(c?.payment_method ?? "none").toLowerCase()}
-                />
+                {isMobile && !paymentDone ? (
+                  <p className="text-sm text-muted-foreground">Il metodo di pagamento si registra dal computer.</p>
+                ) : (
+                  <PaymentStep
+                    done={paymentDone}
+                    companyId={effectiveCompany?.id}
+                    method={String(c?.payment_method ?? "none").toLowerCase()}
+                  />
+                )}
               </CardContent>
             </Card>
 

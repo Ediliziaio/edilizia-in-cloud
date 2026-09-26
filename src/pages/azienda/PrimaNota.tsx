@@ -11,8 +11,11 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   BookOpen, Plus, Loader2, Search, Download, ArrowDownLeft, ArrowUpRight,
   TrendingUp, TrendingDown, Wallet, Bot, Trash2, FileText, ExternalLink, RefreshCw,
+  ChevronLeft, ChevronRight, MoreHorizontal,
 } from "lucide-react";
+import { CercaConFiltri, KpiMobili, PannelloFiltri, PilloleFiltro } from "@/components/mobile/FiltriMobile";
 import { PrimaNotaXBRL } from "@/components/contabilita/PrimaNotaXBRL";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { usePrimaNota } from "@/hooks/usePrimaNota";
 import NewEntryDialog from "@/components/prima-nota/NewEntryDialog";
@@ -103,6 +106,19 @@ function PrimaNotaInner() {
 
   const isAutoFilter = autoView === "auto" ? true : autoView === "manuali" ? false : null;
 
+  // Mobile: direzione, tipo di registrazione e periodo in un pannello dal basso
+  // (prima tre righe di controlli, con le date che uscivano dallo schermo).
+  const [filtriMobileAperti, setFiltriMobileAperti] = useState(false);
+  const meseCorrente = { da: format(startOfMonth(new Date()), "yyyy-MM-dd"), a: format(endOfMonth(new Date()), "yyyy-MM-dd") };
+  const periodiRapidi = [
+    { value: "mese", label: "Questo mese", ...meseCorrente },
+    { value: "scorso", label: "Mese scorso", da: format(startOfMonth(subMonths(new Date(), 1)), "yyyy-MM-dd"), a: format(endOfMonth(subMonths(new Date(), 1)), "yyyy-MM-dd") },
+    { value: "tre", label: "Ultimi 3 mesi", da: format(startOfMonth(subMonths(new Date(), 2)), "yyyy-MM-dd"), a: meseCorrente.a },
+    { value: "anno", label: `Anno ${new Date().getFullYear()}`, da: `${new Date().getFullYear()}-01-01`, a: `${new Date().getFullYear()}-12-31` },
+  ];
+  const periodoScelto = periodiRapidi.find((p) => p.da === fromDate && p.a === toDate)?.value ?? "altro";
+  const nFiltriMobile = [direction !== "", autoView !== "tutte", periodoScelto !== "mese"].filter(Boolean).length;
+
   const { entries, isLoading, totalCount, totalPages, saldo, isSaldoLoading, monthlyChart, create, remove, fetchAllForExport } = usePrimaNota({
     fromDate,
     toDate,
@@ -177,9 +193,9 @@ function PrimaNotaInner() {
   // come nel pannello navy delle Commesse.
   const eurTondo = (v: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(v);
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-sm:space-y-3">
       {/* Header */}
-      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
+      <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex min-w-0 items-start gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
@@ -191,10 +207,32 @@ function PrimaNotaInner() {
             </div>
           </div>
         <div className="flex gap-2 flex-wrap">
-          <Button variant="outline" size="sm" onClick={exportCSV} disabled={isExporting}>
-            {isExporting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Download className="h-4 w-4 mr-1" />} CSV
-          </Button>
-          <PrimaNotaXBRL
+          {/* Mobile: solo «Nuova»; CSV, XBRL e importa automatico al desktop,
+              in un menu «⋯» accanto a «Nuova registrazione»: erano tre
+              bottoni in fila prima dell'azione principale. */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon" className="max-sm:hidden" aria-label="Altre azioni" title="Altre azioni">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64">
+              <DropdownMenuItem
+                className="gap-2"
+                onSelect={() => importMutation.mutate("both")}
+                disabled={importMutation.isPending}
+                title="Importa automaticamente da movimenti bancari riconciliati e fatture pagate"
+              >
+                {importMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                Importa da banca e fatture
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem className="gap-2" onSelect={() => { void exportCSV(); }} disabled={isExporting}>
+                {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                Esporta CSV
+              </DropdownMenuItem>
+              <PrimaNotaXBRL
+                comeVoceMenu
             entries={entries.map(e => ({
               data: e.entry_date,
               descrizione: e.description,
@@ -210,24 +248,13 @@ function PrimaNotaInner() {
               importo_avere: e.direction === 'entrata' ? Number(e.amount) : 0,
               conto: e.category,
             }))}
-          />
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => importMutation.mutate("both")}
-            disabled={importMutation.isPending}
-            title="Importa automaticamente da movimenti bancari riconciliati e fatture pagate"
-          >
-            {importMutation.isPending
-              ? <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-              : <RefreshCw className="h-4 w-4 mr-1" />}
-            <span className="hidden sm:inline">Importa Auto</span>
-            <span className="sm:hidden">Importa</span>
-          </Button>
-          <Button onClick={() => setNewOpen(true)} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
+              />
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button onClick={() => setNewOpen(true)} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-8 max-sm:px-3 max-sm:text-xs">
             <Plus className="h-4 w-4 mr-1" />
             <span className="hidden sm:inline">Nuova Registrazione</span>
-            <span className="sm:hidden">Aggiungi</span>
+            <span className="sm:hidden">Nuova</span>
           </Button>
         </div>
         </div>
@@ -235,36 +262,27 @@ function PrimaNotaInner() {
 
       {/* Testata navy di famiglia (stessa dei Costi e delle Commesse):
           i tre numeri della cassa in card di vetro, senza troncamenti. */}
-      <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
+      <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm max-sm:hidden">
+        {/* Senza il titoletto «Prima Nota — La cassa, giorno per giorno» e
+            senza «periodo filtrato» sotto ogni numero: il periodo è nei
+            filtri qui sotto. */}
         <div className="bg-[#173b67] p-4 text-white sm:p-5">
-          <div className="flex items-start gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)] sm:h-11 sm:w-11">
-              <Wallet className="h-4 w-4 sm:h-5 sm:w-5" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-orange-100 sm:text-xs">Prima Nota</p>
-              <h2 className="mt-0.5 text-base font-semibold text-white sm:text-xl">La cassa, giorno per giorno</h2>
-            </div>
-          </div>
-          <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-5 sm:grid-cols-3 sm:gap-3">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">
             <NavyStatCard
               label="Entrate"
               value={isSaldoLoading ? "..." : eurTondo(saldo?.entrate || 0)}
-              sub="periodo filtrato"
               icon={TrendingUp}
               tone="text-emerald-200"
             />
             <NavyStatCard
               label="Uscite"
               value={isSaldoLoading ? "..." : eurTondo(saldo?.uscite || 0)}
-              sub="periodo filtrato"
               icon={TrendingDown}
               tone="text-rose-300"
             />
             <NavyStatCard
               label="Saldo netto"
               value={isSaldoLoading ? "..." : eurTondo(saldo?.saldo || 0)}
-              sub="entrate meno uscite"
               icon={Wallet}
               tone={(saldo?.saldo || 0) >= 0 ? "text-emerald-200" : "text-rose-300"}
             />
@@ -275,18 +293,18 @@ function PrimaNotaInner() {
       {/* Chart andamento 6 mesi: vetrina → non su mobile (i 3 KPI Entrate/
           Uscite/Saldo sopra bastano). */}
       {!isMobile && chartData.some((d) => d.entrate > 0 || d.uscite > 0) && (
-        <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-white to-orange-50/40 p-3 sm:p-4">
+        // Un titolo solo (erano «ANDAMENTO 6 MESI» e «Entrate e uscite di
+        // cassa») e il grafico direttamente nel riquadro, non in un secondo
+        // riquadro bianco dentro il primo.
+        <div className="rounded-xl border border-slate-200 bg-white p-3 sm:p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold uppercase text-slate-500">Andamento 6 mesi</p>
-              <h3 className="mt-0.5 text-base font-semibold text-slate-950">Entrate e uscite di cassa</h3>
-            </div>
+            <h3 className="text-base font-semibold text-slate-950">Entrate e uscite, ultimi 6 mesi</h3>
             <div className="flex items-center gap-3 text-xs">
               <span className="inline-flex items-center gap-1 text-slate-600"><span className="h-2 w-2 rounded-full bg-emerald-500" /> Entrate</span>
               <span className="inline-flex items-center gap-1 text-slate-600"><span className="h-2 w-2 rounded-full bg-rose-500" /> Uscite</span>
             </div>
           </div>
-          <div className="mt-3 h-[200px] rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
+          <div className="mt-3 h-[200px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData} margin={{ top: 8, right: 2, left: -10, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#edf2f7" />
@@ -310,10 +328,32 @@ function PrimaNotaInner() {
         </div>
       )}
 
+      {/* Mobile: entrate e uscite del periodo, nome e cifra (al posto del
+          riquadro blu con tre numeri, icone e spiegazioni). */}
+      <KpiMobili
+        className="sm:hidden"
+        voci={[
+          { label: "Entrate", valore: isSaldoLoading ? "…" : eurTondo(saldo?.entrate || 0), tono: "text-green-700" },
+          { label: "Uscite", valore: isSaldoLoading ? "…" : eurTondo(saldo?.uscite || 0), tono: "text-destructive" },
+        ]}
+      />
+
+      {/* Mobile: ricerca e bottone dei filtri. */}
+      <CercaConFiltri
+        className="sm:hidden"
+        valore={search}
+        onCambia={(v) => { setSearch(v); setPage(1); }}
+        filtriAttivi={nFiltriMobile}
+        onApriFiltri={() => setFiltriMobileAperti(true)}
+      />
+
       {/* Filters */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm sm:flex sm:flex-wrap sm:items-center sm:gap-3">
+      {/* Una riga di filtri senza riquadro attorno; la ricerca non scende sotto
+          i 220px (a 1024 si riduceva a «C…») e, se non c'è posto, gli altri
+          filtri vanno a capo. */}
+      <div className="sm:flex sm:flex-wrap sm:items-center sm:gap-3 max-sm:hidden">
         {/* Search — full width on mobile, flexible on desktop */}
-        <div className="relative flex-1 min-w-0">
+        <div className="relative flex-1 min-w-[220px]">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Cerca..."
@@ -365,60 +405,32 @@ function PrimaNotaInner() {
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
       ) : entriesWithBalance.length === 0 ? (
-        <div className="rounded-lg border">
-          <div className="flex flex-col items-center justify-center py-12 text-center px-4">
-            <BookOpen className="h-12 w-12 text-muted-foreground/40 mb-3" />
-            <p className="font-medium text-muted-foreground">Nessun movimento trovato</p>
-            <p className="text-sm text-muted-foreground/70 mt-1">Prova a modificare i filtri o aggiungi la prima registrazione</p>
-            <Button className="mt-4" onClick={() => setNewOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" /> Nuova Registrazione
-            </Button>
+        // Mobile: una riga di testo (c'è «Nuova» in testata).
+        <div className="rounded-lg border max-sm:border-0">
+          <div className="flex flex-col items-center justify-center py-12 text-center px-4 max-sm:py-4">
+            <BookOpen className="h-12 w-12 text-muted-foreground/40 mb-3 max-sm:hidden" />
+            <p className="font-medium text-muted-foreground max-sm:text-xs max-sm:font-normal">Nessun movimento trovato</p>
+            <p className="text-sm text-muted-foreground/70 mt-1 max-sm:hidden">Prova a modificare i filtri o aggiungi la prima registrazione</p>
           </div>
         </div>
       ) : (
         <div className="rounded-lg border overflow-hidden">
-          {/* Mobile card list */}
+          {/* Mobile: una riga da ~52px per movimento (descrizione; data,
+              categoria e metodo; importo colorato). Via freccia e cestino. */}
           <div className="sm:hidden divide-y">
             {entriesWithBalance.map((e) => (
-              <div key={e.id} className="flex items-start gap-3 px-4 py-3">
-                <div className={`mt-0.5 shrink-0 ${e.direction === "entrata" ? "text-green-700" : "text-destructive"}`}>
-                  {e.direction === "entrata"
-                    ? <ArrowDownLeft className="h-4 w-4" />
-                    : <ArrowUpRight className="h-4 w-4" />}
-                </div>
-                <div className="flex-1 min-w-0 space-y-0.5">
-                  <p className="text-sm font-medium truncate">{e.description}</p>
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <span>{format(new Date(e.entry_date), "dd/MM/yyyy", { locale: it })}</span>
-                    {e.category && <span>· {CATEGORY_LABELS[e.category] || e.category}</span>}
-                    {e.payment_method && <span>· {e.payment_method}</span>}
-                  </div>
-                </div>
-                <div className="text-right shrink-0">
-                  <p className={`font-mono font-medium text-sm ${e.direction === "entrata" ? "text-green-700" : "text-destructive"}`}>
-                    {e.direction === "uscita" ? "-" : "+"}{formatCurrency(e.amount)}
+              <div key={e.id} className="flex items-center gap-2.5 px-3 py-2.5">
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] font-semibold leading-tight truncate">{e.description}</p>
+                  <p className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground">
+                    {format(new Date(e.entry_date), "dd/MM", { locale: it })}
+                    {e.category && ` · ${CATEGORY_LABELS[e.category] || e.category}`}
+                    {e.payment_method && ` · ${e.payment_method}`}
                   </p>
-                  {!e.is_auto && (
-                    <button
-                      className="text-muted-foreground hover:text-destructive mt-1"
-                      aria-label="Elimina movimento di prima nota"
-                      onClick={async () => {
-                        if (
-                          await confirm({
-                            title: "Eliminare il movimento?",
-                            description: `Il movimento da ${formatCurrency(e.amount)} verrà rimosso definitivamente dalla prima nota. L'operazione non può essere annullata.`,
-                            confirmLabel: "Elimina",
-                            variant: "destructive",
-                          })
-                        ) {
-                          remove.mutate(e.id);
-                        }
-                      }}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  )}
                 </div>
+                <p className={`shrink-0 text-[13px] font-semibold tabular-nums ${e.direction === "entrata" ? "text-green-700" : "text-destructive"}`}>
+                  {e.direction === "uscita" ? "−" : "+"}{formatCurrency(e.amount)}
+                </p>
               </div>
             ))}
           </div>
@@ -432,7 +444,8 @@ function PrimaNotaInner() {
                 <th className="text-left p-3 font-medium hidden sm:table-cell">Categoria</th>
                 <th className="text-left p-3 font-medium">Descrizione</th>
                 <th className="text-right p-3 font-medium">Importo</th>
-                <th className="text-right p-3 font-medium hidden md:table-cell" title="Saldo progressivo di questa pagina (dal movimento più vecchio al più recente mostrati). Il saldo netto reale del periodo è nella card 'Saldo netto' in alto.">Progr. pag.</th>
+                {/* Saldo progressivo da 1280: a 1024 la tabella usciva di 20px. */}
+                <th className="text-right p-3 font-medium hidden xl:table-cell" title="Saldo progressivo di questa pagina (dal movimento più vecchio al più recente mostrati). Il saldo netto reale del periodo è nella card 'Saldo netto' in alto.">Progr. pag.</th>
                 <th className="text-left p-3 font-medium hidden md:table-cell">Metodo</th>
                 <th className="p-3 w-10"></th>
               </tr>
@@ -488,7 +501,7 @@ function PrimaNotaInner() {
                       {e.direction === "uscita" ? "-" : "+"}{formatCurrency(e.amount)}
                     </span>
                   </td>
-                  <td className="p-3 text-right font-mono hidden md:table-cell">
+                  <td className="p-3 text-right font-mono hidden xl:table-cell">
                     <span className={e.runningBalance >= 0 ? "" : "text-destructive"}>
                       {formatCurrency(e.runningBalance)}
                     </span>
@@ -528,17 +541,74 @@ function PrimaNotaInner() {
         </div>
       )}
 
-      {/* Pagination */}
-      {!isLoading && (
-        <TablePagination
-          currentPage={page}
-          totalPages={totalPages}
-          pageSize={pageSize}
-          totalItems={totalCount}
-          onPageChange={setPage}
-          onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
-        />
+      {/* Pagination — mobile: solo precedente/successiva. Il contenitore c'è
+          solo quando la paginazione compare (niente margine vuoto sul desktop). */}
+      {!isLoading && totalCount > 25 && (
+        <div className="max-sm:hidden">
+          <TablePagination
+            currentPage={page}
+            totalPages={totalPages}
+            pageSize={pageSize}
+            totalItems={totalCount}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
+          />
+        </div>
       )}
+      {!isLoading && totalPages > 1 && (
+        <div className="flex items-center justify-between sm:hidden">
+          <Button variant="outline" size="icon" className="tap-compact h-8 w-8" disabled={page <= 1} onClick={() => setPage(page - 1)} aria-label="Pagina precedente">
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <span className="text-xs tabular-nums text-muted-foreground">{page} di {totalPages}</span>
+          <Button variant="outline" size="icon" className="tap-compact h-8 w-8" disabled={page >= totalPages} onClick={() => setPage(page + 1)} aria-label="Pagina successiva">
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+
+      {/* Mobile: direzione, registrazioni e periodo. */}
+      <PannelloFiltri
+        aperto={filtriMobileAperti}
+        onAperto={setFiltriMobileAperti}
+        attivi={nFiltriMobile}
+        onAzzera={() => { setDirection(""); setAutoView("tutte"); setFromDate(meseCorrente.da); setToDate(meseCorrente.a); setPage(1); }}
+        risultati={isLoading ? undefined : totalCount}
+      >
+        <PilloleFiltro
+          titolo="Periodo"
+          valore={periodoScelto}
+          onScegli={(v) => {
+            const p = periodiRapidi.find((x) => x.value === v);
+            if (p) { setFromDate(p.da); setToDate(p.a); setPage(1); }
+          }}
+          scelte={periodiRapidi.map((p) => ({ value: p.value, label: p.label }))}
+        />
+        <div className="grid grid-cols-2 gap-2">
+          <Input type="date" aria-label="Dal" value={fromDate} onChange={(e) => { setFromDate(e.target.value); setPage(1); }} className="h-9 text-xs" />
+          <Input type="date" aria-label="Al" value={toDate} onChange={(e) => { setToDate(e.target.value); setPage(1); }} className="h-9 text-xs" />
+        </div>
+        <PilloleFiltro
+          titolo="Movimenti"
+          valore={direction || "all"}
+          onScegli={(v) => { setDirection(v === "all" ? "" : (v as "entrata" | "uscita")); setPage(1); }}
+          scelte={[
+            { value: "all", label: "Tutti" },
+            { value: "entrata", label: "Entrate" },
+            { value: "uscita", label: "Uscite" },
+          ]}
+        />
+        <PilloleFiltro
+          titolo="Registrazioni"
+          valore={autoView}
+          onScegli={(v) => { setAutoView(v); setPage(1); }}
+          scelte={[
+            { value: "tutte" as const, label: "Tutte" },
+            { value: "auto" as const, label: "Automatiche" },
+            { value: "manuali" as const, label: "Manuali" },
+          ]}
+        />
+      </PannelloFiltri>
 
       {/* Dialog */}
       <NewEntryDialog

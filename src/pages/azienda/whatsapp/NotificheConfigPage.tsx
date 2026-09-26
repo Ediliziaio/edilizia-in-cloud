@@ -110,7 +110,7 @@ export default function NotificheConfigPage() {
   if (triggersError || numbersError) {
     const message = triggersQueryError?.message || numbersQueryError?.message || "Errore nel caricamento delle notifiche WhatsApp.";
     return (
-      <div className="p-6">
+      <div className="p-6 md:p-0">
         <Card className="p-6 border-destructive/20 bg-destructive/5">
           <div className="flex flex-col items-center text-center">
             <AlertTriangle className="h-10 w-10 text-destructive" />
@@ -136,7 +136,7 @@ export default function NotificheConfigPage() {
 
   if (notificheNumbers.length === 0) {
     return (
-      <div className="p-6">
+      <div className="p-6 md:p-0">
         <Card className="p-6 border-dashed">
           <div className="flex items-start gap-3">
             <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
@@ -172,15 +172,11 @@ export default function NotificheConfigPage() {
   };
 
   return (
-    <div className="space-y-6 p-4 md:p-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Notifiche automatiche</h1>
-        <p className="text-sm text-muted-foreground">
-          Abilita i trigger per ricevere alert proattivi via WhatsApp.
-          Richiede template Meta UTILITY approvato.
-        </p>
-      </div>
-
+    // Da 768 niente margine proprio: lo dà l'hub (prima si sommava a quello
+    // della card che conteneva la pagina).
+    <div className="space-y-6 p-4 md:p-0">
+      {/* Niente titolo né frase («trigger», «template Meta UTILITY»): siamo
+          nella scheda «Notifiche» dell'hub e ogni riga qui sotto dice cosa fa. */}
       <div className="space-y-4">
         {KIND_ORDER.map((kind) => {
           const t = byKind.get(kind);

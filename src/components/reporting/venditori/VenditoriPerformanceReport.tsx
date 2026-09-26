@@ -32,6 +32,7 @@ import { ReportExportMenu } from "../shared/ReportExportMenu";
 import { ObiettiviVenditoriDialog } from "./ObiettiviVenditoriDialog";
 import { useObiettiviVenditori } from "@/hooks/useObiettiviVenditori";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const VENDOR_PERIODS: { value: string; label: string }[] = [
   { value: "mese", label: "Questo mese" },
@@ -104,7 +105,11 @@ const VenditoriPerformanceReport = () => {
   const customFrom = /^\d{4}-\d{2}-\d{2}$/.test(filtri.customFrom) ? filtri.customFrom : "";
   const customTo = /^\d{4}-\d{2}-\d{2}$/.test(filtri.customTo) ? filtri.customTo : "";
   const agentId = filtri.agentId;
-  const activeTab = VISTE.includes(filtri.activeTab) ? filtri.activeTab : "overview";
+  // Telefono: due viste (Panoramica e Classifica); andamento e confronto sono grafici da computer.
+  const isMobile = useIsMobile();
+  const activeTab = VISTE.includes(filtri.activeTab) && !(isMobile && (filtri.activeTab === "trend" || filtri.activeTab === "confronto"))
+    ? filtri.activeTab
+    : "overview";
   const setPeriodKey = (v: string) => setParam("periodKey", v);
   const setCustomFrom = (v: string) => setParam("customFrom", v);
   const setCustomTo = (v: string) => setParam("customTo", v);
@@ -219,12 +224,12 @@ const VenditoriPerformanceReport = () => {
   );
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <Card>
-        <CardHeader>
+    <div className="space-y-6 max-sm:space-y-3">
+      {/* Header — telefono: solo i filtri, senza riquadro, titolo (lo dice la scheda), obiettivi né export */}
+      <Card className="max-sm:border-0 max-sm:bg-transparent max-sm:shadow-none">
+        <CardHeader className="max-sm:p-0">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
+            <div className="max-sm:hidden">
               <CardTitle className="flex items-center gap-2">
                 <Users className="h-5 w-5" />
                 Performance Venditori
@@ -235,7 +240,7 @@ const VenditoriPerformanceReport = () => {
             </div>
             <div className="flex flex-wrap gap-2">
               {permessi.isAdmin && (
-                <Button variant="outline" className="h-10 gap-1.5" onClick={() => setObiettiviAperti(true)}>
+                <Button variant="outline" className="h-10 gap-1.5 max-sm:hidden" onClick={() => setObiettiviAperti(true)}>
                   <Target className="h-4 w-4" />
                   Obiettivi
                 </Button>
@@ -248,7 +253,7 @@ const VenditoriPerformanceReport = () => {
               />
               {pipelines.length > 1 && (
                 <Select value={pipelineId ?? "tutte"} onValueChange={setPipelineId}>
-                  <SelectTrigger className="w-[200px]" aria-label="Pipeline">
+                  <SelectTrigger className="w-[200px] max-sm:w-full" aria-label="Pipeline">
                     <SelectValue placeholder="Pipeline" />
                   </SelectTrigger>
                   <SelectContent>
@@ -260,7 +265,7 @@ const VenditoriPerformanceReport = () => {
                 </Select>
               )}
               <Select value={agentId} onValueChange={setAgentId}>
-                <SelectTrigger className="w-[200px]">
+                <SelectTrigger className="w-[200px] max-sm:w-auto max-sm:min-w-0 max-sm:flex-1">
                   <SelectValue placeholder="Seleziona agente" />
                 </SelectTrigger>
                 <SelectContent>
@@ -271,7 +276,7 @@ const VenditoriPerformanceReport = () => {
                 </SelectContent>
               </Select>
               <Select value={periodKey} onValueChange={setPeriodKey}>
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-[180px] max-sm:w-auto max-sm:min-w-0 max-sm:flex-1">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -281,14 +286,14 @@ const VenditoriPerformanceReport = () => {
                 </SelectContent>
               </Select>
               {periodKey === "custom" && (
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 max-sm:w-full">
                   <input
                     type="date"
                     value={customFrom}
                     max={customTo || undefined}
                     onChange={(e) => setCustomFrom(e.target.value)}
                     aria-label="Data inizio"
-                    className="h-10 rounded-md border border-slate-200 px-2 text-sm text-slate-700"
+                    className="h-10 rounded-md border border-slate-200 px-2 text-sm text-slate-700 max-sm:min-w-0 max-sm:flex-1"
                   />
                   <span className="text-slate-400">→</span>
                   <input
@@ -297,7 +302,7 @@ const VenditoriPerformanceReport = () => {
                     min={customFrom || undefined}
                     onChange={(e) => setCustomTo(e.target.value)}
                     aria-label="Data fine"
-                    className="h-10 rounded-md border border-slate-200 px-2 text-sm text-slate-700"
+                    className="h-10 rounded-md border border-slate-200 px-2 text-sm text-slate-700 max-sm:min-w-0 max-sm:flex-1"
                   />
                 </div>
               )}
@@ -315,22 +320,24 @@ const VenditoriPerformanceReport = () => {
 
       {/* Sub-tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="max-w-full justify-start overflow-x-auto">
-          <TabsTrigger value="overview" className="gap-1.5">
-            <BarChart3 className="h-4 w-4" /> Panoramica
+        <TabsList className="max-w-full justify-start overflow-x-auto max-sm:w-full">
+          <TabsTrigger value="overview" className="gap-1.5 max-sm:flex-1">
+            <BarChart3 className="h-4 w-4 max-sm:hidden" /> Panoramica
           </TabsTrigger>
-          <TabsTrigger value="ranking" className="gap-1.5">
-            <Users className="h-4 w-4" /> Ranking Agenti
+          <TabsTrigger value="ranking" className="gap-1.5 max-sm:flex-1">
+            <Users className="h-4 w-4 max-sm:hidden" />
+            <span className="max-sm:hidden">Ranking Agenti</span>
+            <span className="sm:hidden">Classifica</span>
           </TabsTrigger>
-          <TabsTrigger value="trend" className="gap-1.5">
+          <TabsTrigger value="trend" className="gap-1.5 max-sm:hidden">
             <TrendingUp className="h-4 w-4" /> Trend Temporale
           </TabsTrigger>
-          <TabsTrigger value="confronto" className="gap-1.5">
+          <TabsTrigger value="confronto" className="gap-1.5 max-sm:hidden">
             <GitCompareArrows className="h-4 w-4" /> Confronto
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="space-y-6 mt-4">
+        <TabsContent value="overview" className="space-y-6 mt-4 max-sm:mt-3 max-sm:space-y-3">
           {erroreKpi ? (
             <Card>
               <CardContent className="py-10 text-center text-sm text-muted-foreground">
@@ -354,13 +361,13 @@ const VenditoriPerformanceReport = () => {
               />
             )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-sm:gap-3">
               <AppuntamentiScorecard kpi={kpiSelected} isLoading={isLoading} />
               <TempisticheScorecard kpi={kpiSelected} isLoading={isLoading} />
               {agentId !== "tutti" && kpiList.length > 1 ? (
                 <AgentRadarProfile selected={kpiSelected} all={kpiList} />
               ) : (
-                <Card>
+                <Card className="max-sm:hidden">
                   <CardHeader>
                     <CardTitle className="text-base">Profilo Radar</CardTitle>
                   </CardHeader>
@@ -380,7 +387,7 @@ const VenditoriPerformanceReport = () => {
           )}
         </TabsContent>
 
-        <TabsContent value="ranking" className="mt-4">
+        <TabsContent value="ranking" className="mt-4 max-sm:mt-3">
           {erroreKpi ? (
             <Card>
               <CardContent className="py-10 text-center text-sm text-muted-foreground">

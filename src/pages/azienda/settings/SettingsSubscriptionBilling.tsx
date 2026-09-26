@@ -40,6 +40,7 @@ import { BillingDetailsCard } from "@/components/billing/BillingDetailsCard";
 import { PlanChangeDialog, CancelPlanDialog } from "@/components/billing/PlanChangeDialog";
 
 import { useIsMobile } from "@/hooks/use-mobile";
+import { AvvisoSoloDaComputer } from "@/components/mobile/SoloDaComputer";
 import { SpazioArchiviazioneCard } from "@/components/billing/SpazioArchiviazioneCard";
 // Lazy-load contenuto Portafoglio (la pagina Crediti & Saldo ha già tutta la logica)
 const SettingsCrediti = lazy(() => import("@/pages/azienda/settings/SettingsCredits"));
@@ -1022,6 +1023,9 @@ function AutoTopupFailureBanner() {
 
 export default function SettingsSubscriptionBilling() {
   const { isScopriPlan, isLoading: limitsLoading } = useSubscriptionLimits();
+  // Dal telefono l'abbonamento non si attiva, non si paga e non si rinnova:
+  // solo dal computer (regola dell'utente, 25/09/2026).
+  const isMobile = useIsMobile();
   const [params, setParams] = useSearchParams();
   const tabParam = params.get("tab") ?? "";
   const activeTab = VALID_TABS.has(tabParam) ? tabParam : "abbonamenti";
@@ -1034,6 +1038,9 @@ export default function SettingsSubscriptionBilling() {
 
   // Mantieni vecchia logica "Scopri" (paywall onboarding)
   const navigate = useNavigate();
+  if (isMobile) {
+    return <AvvisoSoloDaComputer titolo="L'abbonamento si gestisce e si rinnova dal computer" />;
+  }
   if (limitsLoading) {
     return (
       <div className="space-y-4">

@@ -77,10 +77,10 @@ function formatEventDescription(event: OrderEvent): string {
     case "acconto_ricevuto":
     case "acconto_2_ricevuto":
     case "saldo_ricevuto":
-      return `${p.label ?? ""} — €${Number(p.amount ?? 0).toLocaleString("it-IT", { minimumFractionDigits: 2 })}`;
+      return `${p.label ?? ""} — €${Number(p.amount ?? 0).toLocaleString("it-IT", { minimumFractionDigits: 2, useGrouping: true })}`;
     case "fattura_creata":
     case "fattura_pagata":
-      return `${p.numero ?? "Fattura"} — €${Number(p.total ?? p.totale ?? 0).toLocaleString("it-IT", { minimumFractionDigits: 2 })}`;
+      return `${p.numero ?? "Fattura"} — €${Number(p.total ?? p.totale ?? 0).toLocaleString("it-IT", { minimumFractionDigits: 2, useGrouping: true })}`;
     case "giornale_lavori_inserito": {
       const parts: string[] = [];
       if (p.data_lavori) parts.push(format(parseISO(p.data_lavori as string), "dd MMM yyyy", { locale: it }));

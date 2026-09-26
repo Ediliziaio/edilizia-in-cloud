@@ -12,10 +12,10 @@ export const TABS: FvTabDef[] = [
   { num: 2, small: "Fase 2", label: "Immobile" },
   { num: 3, small: "Fase 3", label: "Consumi" },
   { num: 4, small: "Fase 4", label: "Tetto" },
-  { num: 5, small: "Fase 5", label: "Configurazione" },
-  { num: 6, small: "Fase 6", label: "Anteprima finanziaria" },
-  { num: 7, small: "Fase 7", label: "Vista impresa" },
-  { num: 8, small: "Fase 8", label: "Genera preventivo" },
+  { num: 5, small: "Fase 5", label: "Configurazione", breve: "Impianto" },
+  { num: 6, small: "Fase 6", label: "Anteprima finanziaria", breve: "Finanza" },
+  { num: 7, small: "Fase 7", label: "Vista impresa", breve: "Impresa" },
+  { num: 8, small: "Fase 8", label: "Genera preventivo", breve: "Genera" },
 ];
 
 // ─── Range coordinate Italia ──────────────────────────────────────────────

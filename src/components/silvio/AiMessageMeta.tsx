@@ -160,7 +160,8 @@ export function AiMessageMetaBottom({
               key={i}
               type="button"
               onClick={() => onAskFollowup?.(q)}
-              className="px-2.5 py-1 text-[11px] rounded-full bg-orange-50 border border-orange-200 text-orange-700 hover:bg-orange-100 hover:border-orange-300 transition-colors"
+              // tap-compact: su mobile la regola dei 44px le gonfiava a pillole alte.
+              className="tap-compact px-2.5 py-1 text-left text-[11px] leading-snug rounded-full bg-orange-50 border border-orange-200 text-orange-700 hover:bg-orange-100 hover:border-orange-300 transition-colors"
             >
               {q}
             </button>

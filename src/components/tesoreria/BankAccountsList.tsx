@@ -125,32 +125,58 @@ export default function BankAccountsList({ companyId, refreshKey = 0 }: Props) {
 
   if (accounts.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 gap-4 text-center">
-        <CreditCard className="h-16 w-16 text-muted-foreground" />
-        <h2 className="text-xl font-semibold">Nessun conto collegato</h2>
-        <p className="text-muted-foreground">Vai al tab Connessioni per collegare la tua prima banca.</p>
+      // Mobile: una riga di testo (la scheda Connessioni è solo al desktop).
+      <div className="flex flex-col items-center justify-center h-64 gap-4 text-center max-sm:h-auto max-sm:py-3">
+        <CreditCard className="h-16 w-16 text-muted-foreground max-sm:hidden" />
+        <h2 className="text-xl font-semibold max-sm:text-xs max-sm:font-normal max-sm:text-muted-foreground">Nessun conto collegato</h2>
+        <p className="text-muted-foreground max-sm:hidden">Vai al tab Connessioni per collegare la tua prima banca.</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
+    <div className="space-y-6 max-sm:space-y-2">
+      {/* Header — mobile: totale 18px, via «Mostra IBAN». */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <p className="text-3xl font-bold">{formatEur(totalBalance)}</p>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-3xl font-bold max-sm:text-lg max-sm:leading-tight">{formatEur(totalBalance)}</p>
+          <p className="text-sm text-muted-foreground max-sm:text-[11px]">
             {accounts.length} conti su {bankCount} banche
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 max-sm:hidden">
           <Switch checked={showAllIban} onCheckedChange={setShowAllIban} id="show-iban" />
           <Label htmlFor="show-iban" className="text-sm">Mostra IBAN</Label>
         </div>
       </div>
 
+      {/* Mobile: un conto per riga (banca, nome, saldo), senza IBAN, matita e
+          badge del tipo. */}
+      <div className="divide-y divide-border overflow-hidden rounded-lg border bg-card sm:hidden">
+        {accounts.map((account) => {
+          const conn = account.bank_connections;
+          return (
+            <div key={account.id} className="flex items-center gap-2.5 px-3 py-2.5">
+              {conn?.institution_logo ? (
+                <img width={20} height={20} src={conn.institution_logo} alt="" className="h-5 w-5 shrink-0 rounded" loading="lazy" />
+              ) : (
+                <CreditCard className="h-4 w-4 shrink-0 text-muted-foreground" />
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[13px] font-semibold leading-tight">{account.display_name || account.account_name || "Conto"}</p>
+                <p className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground">
+                  {conn?.institution_name || "Banca"}
+                  {account.balance_updated_at ? ` · ${formatDistanceToNow(new Date(account.balance_updated_at), { addSuffix: true, locale: it })}` : ""}
+                </p>
+              </div>
+              <p className="shrink-0 text-[13px] font-semibold tabular-nums">{formatEur(account.available_balance ?? account.current_balance)}</p>
+            </div>
+          );
+        })}
+      </div>
+
       {/* Cards Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 max-sm:hidden">
         {accounts.map((account) => {
           const isIbanVisible = showAllIban || shownIbans.has(account.id);
           const conn = account.bank_connections;

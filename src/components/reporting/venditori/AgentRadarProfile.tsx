@@ -33,8 +33,9 @@ export function AgentRadarProfile({ selected, all }: Props) {
     "Media Team": Math.round((avg(d.key) / maxVal(d.key)) * 100),
   }));
 
+  // Telefono: il radar resta al computer.
   return (
-    <Card>
+    <Card className="max-sm:hidden">
       <CardHeader className="pb-2">
         <CardTitle className="text-base">Profilo vs Media Team</CardTitle>
         <CardDescription className="text-xs">Valori normalizzati 0–100 rispetto al migliore; i tassi non calcolabili valgono 0</CardDescription>

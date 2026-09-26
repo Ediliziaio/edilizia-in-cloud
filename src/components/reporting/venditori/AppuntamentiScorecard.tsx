@@ -47,16 +47,17 @@ export function AppuntamentiScorecard({ kpi, isLoading }: Props) {
   ];
 
   return (
+    // Telefono: solo l'elenco dei conteggi (lo show-up è già nei numeri in alto).
     <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base flex items-center gap-2">
-          <Calendar className="h-4 w-4" />
+      <CardHeader className="pb-3 max-sm:p-3 max-sm:pb-1.5">
+        <CardTitle className="text-base flex items-center gap-2 max-sm:text-sm">
+          <Calendar className="h-4 w-4 max-sm:hidden" />
           Appuntamenti
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4 max-sm:space-y-0 max-sm:p-3 max-sm:pt-0">
         {/* Show-up rate prominente */}
-        <div className="space-y-2">
+        <div className="space-y-2 max-sm:hidden">
           <div className="flex items-baseline justify-between">
             <span className="text-sm text-muted-foreground">Show-Up Rate</span>
             <span className={`text-2xl font-bold ${showUpColor}`}>{tassoTesto(showUp)}</span>
@@ -64,9 +65,9 @@ export function AppuntamentiScorecard({ kpi, isLoading }: Props) {
           <Progress value={showUp ?? 0} className="h-2" />
         </div>
 
-        <div className="space-y-2 pt-2 border-t">
+        <div className="space-y-2 pt-2 border-t max-sm:space-y-1.5 max-sm:border-t-0 max-sm:pt-0">
           {rows.map(({ label, value, icon: Icon, color }) => (
-            <div key={label} className="flex items-center justify-between text-sm">
+            <div key={label} className="flex items-center justify-between text-sm max-sm:text-[13px]">
               <span className="flex items-center gap-2 text-muted-foreground">
                 <Icon className={`h-3.5 w-3.5 ${color}`} />
                 {label}

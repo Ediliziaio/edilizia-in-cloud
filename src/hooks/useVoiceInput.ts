@@ -140,7 +140,11 @@ export function useVoiceInput(onTranscript: (text: string) => void) {
         });
       }, 100);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
+      // Il tipo di errore sta nel NOME (DOMException), non nel messaggio: su
+      // Safari iOS il messaggio di un permesso negato non contiene
+      // «NotAllowedError» e l'utente vedeva il testo tecnico del browser.
+      const nome = err instanceof Error ? err.name : "";
+      const msg = `${nome} ${err instanceof Error ? err.message : String(err)}`;
       if (msg.includes("NotAllowedError") || msg.includes("Permission")) {
         toast.error("Permesso microfono negato. Abilita l'accesso nelle impostazioni del browser.");
       } else if (msg.includes("NotFoundError") || msg.includes("DevicesNotFound")) {

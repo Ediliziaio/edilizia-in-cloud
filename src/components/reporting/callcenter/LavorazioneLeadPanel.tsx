@@ -44,13 +44,13 @@ function Stat({
         ? "border-amber-200 bg-amber-50/50 text-amber-700"
         : "border-sky-200 bg-sky-50/50 text-sky-700";
   return (
-    <div className={cn("rounded-lg border p-3", toneCls)}>
-      <div className="flex items-center gap-1.5 text-xs font-medium">
-        <Icon className="h-3.5 w-3.5" />
+    <div className={cn("rounded-lg border p-3 max-sm:min-w-0 max-sm:px-2 max-sm:py-1.5", toneCls)}>
+      <div className="flex items-center gap-1.5 text-xs font-medium max-sm:text-[11px] max-sm:leading-tight">
+        <Icon className="h-3.5 w-3.5 max-sm:hidden" />
         {label}
       </div>
-      <p className="mt-1.5 text-2xl font-bold text-slate-950 tabular-nums">{value}</p>
-      {sub && <p className="mt-0.5 text-[11px] text-slate-500">{sub}</p>}
+      <p className="mt-1.5 text-2xl font-bold text-slate-950 tabular-nums max-sm:mt-0.5 max-sm:text-base">{value}</p>
+      {sub && <p className="mt-0.5 text-[11px] text-slate-500 max-sm:hidden">{sub}</p>}
     </div>
   );
 }
@@ -65,17 +65,20 @@ export function LavorazioneLeadPanel({
   if (isLoading) return <Skeleton className="h-56 w-full rounded-xl" />;
 
   if (!data || data.chiamate_totali === 0) {
+    // Telefono: una riga sola, senza la spiegazione su come registrare le chiamate.
     return (
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <PhoneCall className="h-4 w-4 text-primary" /> Lavorazione lead
+        <CardHeader className="max-sm:p-3 max-sm:pb-1">
+          <CardTitle className="text-base flex items-center gap-2 max-sm:text-sm">
+            <PhoneCall className="h-4 w-4 text-primary max-sm:hidden" /> Lavorazione lead
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Nessuna chiamata registrata nel periodo. Registra le chiamate dal contatto o dall'opportunità
-            ("Registra chiamata") per popolare queste statistiche.
+        <CardContent className="max-sm:p-3 max-sm:pt-0">
+          <p className="text-sm text-muted-foreground max-sm:text-[13px]">
+            Nessuna chiamata registrata nel periodo.
+            <span className="max-sm:hidden">
+              {" "}Registra le chiamate dal contatto o dall'opportunità ("Registra chiamata") per popolare queste statistiche.
+            </span>
           </p>
         </CardContent>
       </Card>
@@ -92,16 +95,16 @@ export function LavorazioneLeadPanel({
 
   return (
     <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base flex items-center gap-2">
-          <PhoneCall className="h-4 w-4 text-primary" /> Lavorazione lead
+      <CardHeader className="pb-3 max-sm:p-3 max-sm:pb-2">
+        <CardTitle className="text-base flex items-center gap-2 max-sm:text-sm">
+          <PhoneCall className="h-4 w-4 text-primary max-sm:hidden" /> Lavorazione lead
         </CardTitle>
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-muted-foreground max-sm:hidden">
           Chiamate del periodo per età del lead, tasso di risposta e velocità di primo contatto.
         </p>
       </CardHeader>
-      <CardContent className="space-y-5">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <CardContent className="space-y-5 max-sm:space-y-3 max-sm:p-3 max-sm:pt-0">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 max-sm:grid-cols-3 max-sm:gap-2">
           <Stat
             icon={Sparkles}
             tone="green"

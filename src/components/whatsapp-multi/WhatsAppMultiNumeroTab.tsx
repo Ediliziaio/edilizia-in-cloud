@@ -45,7 +45,8 @@ function WhatsAppLinesOverview({
   onConnect: (purpose: WAPurpose) => void;
 }) {
   return (
-    <div className="grid gap-3 lg:grid-cols-3">
+    // Tre in riga già da 768: una sotto l'altra erano tre card a tutta larghezza.
+    <div className="grid gap-3 md:grid-cols-3">
       {LINE_ORDER.map((groupKey) => {
         const group = PURPOSE_GROUPS[groupKey];
         const configured = group.purposes.filter((p) => (byPurpose[p] ?? []).length > 0);
@@ -53,21 +54,23 @@ function WhatsAppLinesOverview({
         const primaryPurpose = group.purposes[0];
         const PrimaryIcon = PURPOSE_ICONS[primaryPurpose];
         return (
-          <section key={groupKey} className="rounded-xl border bg-card p-4 shadow-sm">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex min-w-0 items-start gap-3">
-                <div className="rounded-lg bg-primary/10 p-2 text-primary">
+          // A 1024 le tre card sono larghe ~240px: la descrizione stava in una
+          // colonna di 70px accanto all'icona (una parola per riga) e il bottone
+          // «Collega …» usciva dalla card. Ora icona e titolo in riga, la
+          // descrizione sotto a tutta larghezza, il bottone tronca il testo.
+          <section key={groupKey} className="flex flex-col rounded-xl border bg-card p-4 shadow-sm">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex min-w-0 items-center gap-2">
+                <div className="shrink-0 rounded-lg bg-primary/10 p-1.5 text-primary">
                   <PrimaryIcon className="h-4 w-4" />
                 </div>
-                <div className="min-w-0">
-                  <h3 className="text-sm font-black text-foreground">{group.label}</h3>
-                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{group.description}</p>
-                </div>
+                <h3 className="text-sm font-semibold text-foreground">{group.label}</h3>
               </div>
-              <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-[10px] font-bold text-muted-foreground">
+              <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-[10px] font-bold tabular-nums text-muted-foreground">
                 {configured.length}/{group.purposes.length}
               </span>
             </div>
+            <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{group.description}</p>
             <div className="mt-3 rounded-lg bg-muted/50 p-2 text-xs text-muted-foreground">
               <b className="text-foreground">{group.recommendedNumber}</b> · {group.mode}
             </div>
@@ -85,11 +88,20 @@ function WhatsAppLinesOverview({
                 </span>
               ))}
             </div>
+            {/* In fondo alla card, così i tre bottoni stanno alla stessa altezza. */}
             {missing.length > 0 && (
-              <Button className="mt-4 w-full" variant="outline" size="sm" onClick={() => onConnect(missing[0])}>
-                <Plus className="mr-2 h-4 w-4" />
-                Collega {PURPOSE_LABELS[missing[0]]}
-              </Button>
+              <div className="mt-auto pt-4">
+                <Button
+                  className="w-full min-w-0"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onConnect(missing[0])}
+                  title={`Collega ${PURPOSE_LABELS[missing[0]]}`}
+                >
+                  <Plus className="mr-2 h-4 w-4 shrink-0" />
+                  <span className="truncate">Collega {PURPOSE_LABELS[missing[0]]}</span>
+                </Button>
+              </div>
             )}
           </section>
         );
@@ -116,7 +128,7 @@ export function WhatsAppMultiNumeroTab() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6 p-4 md:p-6">
+      <div className="space-y-6 p-4 md:p-0">
         <WhatsAppLinesOverview byPurpose={byPurpose} onConnect={openWizard} />
         <div className="flex items-center justify-center rounded-xl border bg-card py-12" aria-live="polite">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -133,7 +145,7 @@ export function WhatsAppMultiNumeroTab() {
 
   if (isError) {
     return (
-      <div className="space-y-6 p-4 md:p-6">
+      <div className="space-y-6 p-4 md:p-0">
         <WhatsAppLinesOverview byPurpose={byPurpose} onConnect={openWizard} />
         <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-8 text-center">
           <AlertTriangle className="mx-auto mb-3 h-10 w-10 text-destructive" />
@@ -163,16 +175,15 @@ export function WhatsAppMultiNumeroTab() {
   const hasAvailablePurposes = configuredPurposes.length < PURPOSE_ORDER.length;
 
   return (
-    <div className="space-y-6 p-4 md:p-6">
+    // Da 768 niente margine proprio: lo dà l'hub (prima si sommava a quello
+    // della card che conteneva la pagina).
+    <div className="space-y-6 p-4 md:p-0">
       <WhatsAppStatsBar />
 
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h2 className="text-2xl font-semibold">WhatsApp Business — 3 canali aziendali</h2>
-          <p className="text-sm text-muted-foreground">
-            Commerciale, cantieri e amministrazione lavorano separati, ma Silvio collega tutto a CRM, commesse e documenti.
-          </p>
-        </div>
+        {/* Era un titolo grande come quello della pagina, su due righe a 1024,
+            più una frase: basta un'etichetta di sezione accanto al bottone. */}
+        <h2 className="text-base font-semibold">Canali aziendali</h2>
         <Button
           onClick={() => openWizard(null)}
           disabled={!hasAvailablePurposes}
@@ -185,20 +196,8 @@ export function WhatsAppMultiNumeroTab() {
 
       <WhatsAppLinesOverview byPurpose={byPurpose} onConnect={openWizard} />
 
-      {!hasNumbers && (
-        <div className="rounded-lg border-2 border-dashed border-muted-foreground/20 py-12 text-center">
-          <MessageSquare className="mx-auto h-12 w-12 text-muted-foreground/40" />
-          <h3 className="mt-4 text-lg font-semibold">Nessun numero collegato</h3>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Collega il primo numero WhatsApp per iniziare. Potrai poi aggiungerne altri con scopi diversi.
-          </p>
-          <Button className="mt-6" onClick={() => openWizard(null)} disabled={!hasAvailablePurposes}>
-            <Plus className="mr-2 h-4 w-4" />
-            Collega primo numero
-          </Button>
-        </div>
-      )}
-
+      {/* Senza numeri niente riquadro «Nessun numero collegato» con un altro
+          bottone: le tre card qui sopra dicono già 0/2 e hanno «Collega …». */}
       {hasNumbers && (
         <div className="space-y-6">
           {LINE_ORDER.map((groupKey) => {
