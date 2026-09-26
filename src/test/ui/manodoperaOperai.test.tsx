@@ -18,6 +18,7 @@ const stato = vi.hoisted(() => ({
   },
   schede: ["operai", "subappaltatori"] as string[],
   squadre: [] as unknown[],
+  diario: [] as unknown[],
 }));
 
 vi.mock("@/hooks/useOperai", async (orig) => {
@@ -34,6 +35,7 @@ vi.mock("@/hooks/useOperai", async (orig) => {
     useSquadraSuCommessa: mutazione,
     useSquadre: () => ({ data: stato.squadre, isLoading: false, error: null as Error | null, refetch: vi.fn(), isFetching: false }),
     usePersoneSquadra: () => ({ data: [] as unknown[] }),
+    useDiarioGiorno: () => ({ data: stato.diario, isLoading: false, error: null as Error | null }),
   };
 });
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => stato.permessi }));
@@ -62,7 +64,7 @@ const riga = (o: Record<string, unknown>) => ({
   profilo_id: "p", nome: "Nome", cognome: "Cognome", mansione: "Muratore", colore_avatar: N,
   stato: "non_timbrato", assenza: N, prima_entrata: N, ultima_uscita: N, ultimo_tipo: N, ultima_ora: N,
   ore_lavorate: N, fuori_zona: false, cantiere_id: N, cantiere: N, previsto_id: N, previsto: N,
-  squadra_id: N, squadra: N, squadra_colore: N, ...o,
+  squadra_id: N, squadra: N, squadra_colore: N, mezzi: N, rapportino: N, ...o,
 });
 
 describe("Operai, la giornata", () => {
@@ -91,6 +93,28 @@ describe("Operai, la giornata", () => {
     fireEvent.click(screen.getAllByRole("button", { name: /Non hanno timbrato/ })[0]);
     expect(screen.queryByRole("region", { name: "Squadra Posa Nord" })).toBeNull();
     expect(within(screen.getByRole("region", { name: "Senza squadra" })).getByText("Paolo Gialli")).toBeTruthy();
+  });
+
+  it("«Cosa è successo»: rapportini, guasti e uscite non timbrate, e la ricerca li filtra", () => {
+    stato.giornata = [
+      riga({ profilo_id: "a", nome: "Luca", cognome: "Barbieri", stato: "uscita_mancante", prima_entrata: "07:30:00", mezzi: "Ducato bianco" }),
+      riga({ profilo_id: "b", nome: "Anna", cognome: "Neri", stato: "uscito", prima_entrata: "07:30:00", ultima_uscita: "16:30:00" }),
+    ];
+    stato.diario = [
+      { quando: "2026-09-24T06:10:00Z", tipo: "segnalazione", titolo: "Guasto · Generatore 3 kW", testo: "Non parte a freddo", chi: "Davide Costa", order_id: null, cantiere: null, mezzo_id: "m1", mezzo: "Generatore 3 kW" },
+      { quando: "2026-09-24T15:00:00Z", tipo: "rapportino", titolo: "Rapportino · 7 h", testo: "Montate le ultime 2 finestre", chi: "Luca Ferrari", order_id: "o1", cantiere: "ORD-2026-029 · Fabio Riva", mezzo_id: null, mezzo: null },
+    ];
+    render(<MemoryRouter><OperaiTab /></MemoryRouter>);
+
+    const diario = screen.getByRole("region", { name: "Cosa è successo" });
+    expect(within(diario).getByText("Guasto · Generatore 3 kW")).toBeTruthy();
+    expect(within(diario).getByText("Uscita non timbrata")).toBeTruthy();
+    expect(screen.getByText("Ducato bianco")).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText("Cerca nella giornata"), { target: { value: "generatore" } });
+    expect(within(diario).queryByText("Rapportino · 7 h")).toBeNull();
+    expect(within(diario).getByText("Guasto · Generatore 3 kW")).toBeTruthy();
+    stato.diario = [];
   });
 
   it("nel giorno di riposo non dice «non ha timbrato» a nessuno", () => {
@@ -127,18 +151,19 @@ describe("Operai, le squadre", () => {
 });
 
 describe("Operai, l'elenco", () => {
-  it("mostra costo orario e documenti, e segnala chi non ha il costo", () => {
+  it("mostra squadra, documenti e mezzo, e il costo NON c'è (sta nel Personale)", () => {
     stato.operai = [
-      { id: "a", nome: "Luca", cognome: "Barbieri", mansione: "Muratore", telefono: "3331234567", email: null, colore_avatar: null, foto_url: null, attivo: true, data_assunzione: null, tipo_contratto: "indeterminato", employee_id: "e1", ha_accesso_app: true, costo_orario: 19.05, costo_orario_scritto: false, documenti_scaduti: 1, documenti_in_scadenza: 0, prossima_scadenza: null, mezzi: "Ducato bianco", cantieri_attivi: 2 },
-      { id: "b", nome: "Marco", cognome: "Verdi", mansione: null, telefono: null, email: null, colore_avatar: null, foto_url: null, attivo: true, data_assunzione: null, tipo_contratto: null, employee_id: "e2", ha_accesso_app: false, costo_orario: null, costo_orario_scritto: false, documenti_scaduti: 0, documenti_in_scadenza: 0, prossima_scadenza: null, mezzi: null, cantieri_attivi: 0 },
+      { id: "a", nome: "Luca", cognome: "Barbieri", mansione: "Muratore", telefono: "3331234567", email: null, colore_avatar: null, foto_url: null, attivo: true, data_assunzione: null, tipo_contratto: "indeterminato", employee_id: "e1", ha_accesso_app: true, documenti_scaduti: 1, documenti_in_scadenza: 0, prossima_scadenza: null, mezzi: "Ducato bianco", cantieri_attivi: 2, squadra_id: "s1", squadra: "Squadra Posa Nord", squadra_colore: "#EA580C" },
+      { id: "b", nome: "Marco", cognome: "Verdi", mansione: null, telefono: null, email: null, colore_avatar: null, foto_url: null, attivo: true, data_assunzione: null, tipo_contratto: null, employee_id: "e2", ha_accesso_app: false, documenti_scaduti: 0, documenti_in_scadenza: 0, prossima_scadenza: null, mezzi: null, cantieri_attivi: 0, squadra_id: null, squadra: null, squadra_colore: null },
     ];
     render(<MemoryRouter initialEntries={["/azienda/manodopera?tab=operai&vista=elenco"]}><OperaiTab /></MemoryRouter>);
 
     const tabella = screen.getByRole("table");
     expect(within(tabella).getByText("1 scaduto")).toBeTruthy();
-    expect(within(tabella).getByText("da scrivere")).toBeTruthy();
     expect(within(tabella).getByText("Ducato bianco")).toBeTruthy();
-    expect(tabella.textContent).toContain("19,05");
+    expect(within(tabella).getByText("Squadra Posa Nord")).toBeTruthy();
+    expect(tabella.textContent).not.toMatch(/costo|€/i);
+    expect(screen.getAllByText("Senza squadra").length).toBeGreaterThan(0);
   });
 
   it("chi può solo guardare non vede «Nuovo operaio»", () => {

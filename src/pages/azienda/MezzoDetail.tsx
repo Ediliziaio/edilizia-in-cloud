@@ -24,6 +24,7 @@ import { MezzoDocumentiSection } from "@/components/mezzi/MezzoDocumentiSection"
 import { MezzoManutenzioniSection } from "@/components/mezzi/MezzoManutenzioniSection";
 import { MezzoFotoSection } from "@/components/mezzi/MezzoFotoSection";
 import { MezzoStoricoSection } from "@/components/mezzi/MezzoStoricoSection";
+import { MezzoUsoCantieri } from "@/components/mezzi/MezzoUsoCantieri";
 import { MezzoSegnalazioniSection } from "@/components/mezzi/MezzoSegnalazioniSection";
 import { IconaMezzo } from "@/components/mezzi/IconaMezzo";
 import { formatCurrency } from "@/lib/formatters";
@@ -237,6 +238,7 @@ export default function MezzoDetail() {
             <TabsTrigger value="scadenze">Scadenze</TabsTrigger>
             <TabsTrigger value="manutenzioni" className="max-sm:hidden">Tagliandi</TabsTrigger>
             <TabsTrigger value="foto">Foto</TabsTrigger>
+            <TabsTrigger value="uso" className="max-sm:hidden">Cantieri e km</TabsTrigger>
             <TabsTrigger value="storico" className="max-sm:hidden">Storico</TabsTrigger>
             <TabsTrigger value="segnalazioni" className="gap-1.5">
               Segnalazioni
@@ -258,6 +260,9 @@ export default function MezzoDetail() {
         </TabsContent>
         <TabsContent value="foto" className="mt-3">
           <MezzoFotoSection mezzoId={mezzo.id} copertina={mezzo.foto_path} puoModificare={puoModificare} />
+        </TabsContent>
+        <TabsContent value="uso" className="mt-3">
+          <MezzoUsoCantieri mezzoId={mezzo.id} tipo={mezzo.tipo} />
         </TabsContent>
         <TabsContent value="storico" className="mt-3">
           <MezzoStoricoSection mezzoId={mezzo.id} puoModificare={puoModificare} />

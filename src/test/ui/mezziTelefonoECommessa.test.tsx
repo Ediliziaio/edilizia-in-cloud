@@ -35,6 +35,8 @@ vi.mock("@/hooks/useMezzi", () => {
   };
 });
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => stato.permessi }));
+// La strada sede→cantiere (26/09): 40 km di sola andata.
+vi.mock("@/hooks/useDistanzaCantieri", () => ({ useDistanzeCantieri: () => ({ data: { o1: { km: 40, minuti: 35 } } }) }));
 
 import CampoMezzi from "@/pages/campo/CampoMezzi";
 import { MezziCommessaCard } from "@/components/mezzi/MezziCommessaCard";
@@ -134,6 +136,9 @@ describe("Mezzi sul cantiere, nella commessa", () => {
     expect(screen.getByText("Qui adesso")).toBeTruthy();
     // 20-24 settembre: 5 giorni. (1.200 + 450 × 12) / 365 × 5 = 90,41 €.
     expect(screen.getByText(/5 giorni/)).toBeTruthy();
+    // 20 settembre è domenica: 21-24 = 4 giorni lavorativi × 2 × 40 km = 320 km.
+    expect(screen.getAllByText(/320 km/).length).toBeGreaterThan(0);
+    expect(screen.getByText(/40 km/)).toBeTruthy();
     expect(screen.getAllByText(/90,41/).length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "Togli Ducato bianco dal cantiere" })).toBeTruthy();
   });

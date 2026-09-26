@@ -78,3 +78,16 @@ describe("schede di Manodopera e Mezzi", () => {
     expect(schedaDaAprire([], "operai")).toBeNull();
   });
 });
+
+describe("km dei mezzi sui cantieri", () => {
+  it("conta solo i giorni dal lunedì al venerdì dentro l'intervallo", async () => {
+    const { giorniLavorativiSovrapposti, kmStimati, formatKm } = await import("@/lib/manodopera/km");
+    // dall'8/09 (martedì) al 26/09 (sabato): 14 giorni lavorativi
+    expect(giorniLavorativiSovrapposti("2026-09-08T05:00:00Z", null, "2000-01-01", "2026-09-26")).toBe(14);
+    expect(giorniLavorativiSovrapposti("2026-09-07T05:00:00Z", "2026-09-11T16:00:00Z", "2000-01-01", "2026-09-26")).toBe(5);
+    expect(giorniLavorativiSovrapposti("2026-09-26T05:00:00Z", null, "2000-01-01", "2026-09-27")).toBe(0);
+    expect(kmStimati(14, 48.3)).toBe(1352);
+    expect(kmStimati(0, 48.3)).toBeNull();
+    expect(formatKm(1352)).toBe("1.352 km");
+  });
+});

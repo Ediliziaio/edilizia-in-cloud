@@ -1,7 +1,7 @@
 /**
  * /azienda/manodopera/operai/:id — la scheda di un operaio (26/09/2026).
  *
- * Presenze degli ultimi 31 giorni, costo orario per le commesse, cantieri,
+ * Il mese in un calendario (ore, cantiere, mezzi, rapportino del giorno), cantieri,
  * documenti con le scadenze, mezzi in carico e l'accesso all'app di cantiere.
  * I dati privati del Personale (IBAN, PIN, contatti di emergenza) qui non ci
  * sono: restano nel Personale.
@@ -10,7 +10,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   AlertTriangle, ArrowLeft, CalendarDays, Crown, FileText, Loader2, Mail, MoreHorizontal, Pencil, Phone,
-  RefreshCw, Smartphone, Truck, Wallet, HardHat,
+  RefreshCw, Smartphone, Truck, HardHat,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -29,13 +29,13 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { AvatarOperaio } from "@/components/manodopera/AvatarOperaio";
+import { CalendarioPresenze } from "@/components/manodopera/CalendarioPresenze";
 import { OperaioDialog, type ValoriOperaio } from "@/components/manodopera/OperaioDialog";
 import { usePermissions } from "@/hooks/usePermissions";
 import {
   messaggioErroreOperai, useDaiAccessoApp, useSalvaOperaio, useSchedaOperaio, type SchedaOperaio,
 } from "@/hooks/useOperai";
-import { formatOra, formatOre } from "@/lib/manodopera/giornata";
-import { formatCurrency, formatDateIt } from "@/lib/formatters";
+import { formatDateIt } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 
 const CATEGORIE_DOCUMENTO: Record<string, string> = {
@@ -49,18 +49,6 @@ const CATEGORIE_DOCUMENTO: Record<string, string> = {
   permesso_soggiorno: "Permesso di soggiorno",
   unilav: "UNILAV",
   altro: "Documento",
-};
-
-const STATO_GIORNO: Record<string, string> = {
-  presente: "Presente",
-  assente: "Assente",
-  ferie: "Ferie",
-  permesso: "Permesso",
-  malattia: "Malattia",
-  smart_working: "Da remoto",
-  trasferta: "Trasferta",
-  festivita: "Festivo",
-  infortunio: "Infortunio",
 };
 
 const ELENCO = "/azienda/manodopera?tab=operai&vista=elenco";
@@ -122,10 +110,7 @@ function Scheda({ s }: { s: SchedaOperaio }) {
     mansione: p.mansione ?? "",
     data_assunzione: p.data_assunzione ?? "",
     tipo_contratto: p.tipo_contratto ?? "indeterminato",
-    costo_orario: s.costo.costo_orario_scritto != null ? String(s.costo.costo_orario_scritto).replace(".", ",") : "",
-    stipendio_lordo: s.costo.stipendio_lordo != null ? String(s.costo.stipendio_lordo).replace(".", ",") : "",
-    ore_mese: s.costo.ore_mese != null ? String(s.costo.ore_mese) : "",
-  }), [p, s.costo]);
+  }), [p]);
 
   const cambia = (dati: { attivo?: boolean; lavora_in_cantiere?: boolean }, fatto: string, poi?: () => void) => {
     salva.mutate(
@@ -238,9 +223,8 @@ function Scheda({ s }: { s: SchedaOperaio }) {
       )}
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Presenze giornate={s.giornate} />
+        <CalendarioPresenze profiloId={p.id} />
         <div className="space-y-4">
-          <Costo s={s} />
           <Cantieri cantieri={s.cantieri} linkCommesse={perms.canViewOrders === true || perms.isAdmin} />
         </div>
         <Documenti documenti={s.documenti} linkPersonale={perms.canViewPersone === true || perms.isAdmin} />
@@ -252,7 +236,6 @@ function Scheda({ s }: { s: SchedaOperaio }) {
         onAperto={setModificaAperta}
         operaioId={p.id}
         iniziali={iniziali}
-        mostraStipendio={puoModificare}
       />
 
       <AlertDialog open={togliAperto} onOpenChange={setTogliAperto}>
@@ -305,89 +288,6 @@ function Riquadro({ titolo, icona: Icona, children, destra }: {
       </div>
       {children}
     </section>
-  );
-}
-
-function Presenze({ giornate }: { giornate: SchedaOperaio["giornate"] }) {
-  const lavorati = giornate.filter((g) => (g.ore_lavorate ?? 0) > 0);
-  const ore = lavorati.reduce((t, g) => t + (g.ore_lavorate ?? 0), 0);
-  return (
-    <Riquadro
-      titolo="Presenze degli ultimi 31 giorni"
-      icona={CalendarDays}
-      destra={lavorati.length > 0 && (
-        <span className="text-xs text-muted-foreground tabular-nums">
-          {lavorati.length === 1 ? "1 giorno" : `${lavorati.length} giorni`} · {formatOre(ore)}
-        </span>
-      )}
-    >
-      {giornate.length === 0 ? (
-        <p className="py-6 text-center text-sm text-muted-foreground">
-          Nessuna timbratura negli ultimi 31 giorni.
-        </p>
-      ) : (
-        <div className="max-h-[26rem] overflow-y-auto">
-          <table className="w-full text-sm">
-            <thead className="sticky top-0 bg-white text-left text-xs font-medium text-slate-500">
-              <tr>
-                <th scope="col" className="py-1.5 pr-2">Giorno</th>
-                <th scope="col" className="py-1.5 pr-2">Entrata</th>
-                <th scope="col" className="py-1.5 pr-2">Uscita</th>
-                <th scope="col" className="py-1.5 text-right">Ore</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {giornate.map((g) => {
-                const presente = g.stato === "presente";
-                return (
-                  <tr key={g.data}>
-                    <td className="py-1.5 pr-2">
-                      <span className="capitalize">
-                        {new Date(`${g.data}T12:00:00Z`).toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" })}
-                      </span>
-                      {!presente && <span className="ml-1.5 text-xs text-sky-700">{STATO_GIORNO[g.stato] ?? g.stato}</span>}
-                      {g.anomalia && (
-                        <span className="ml-1.5 text-xs text-amber-700" title={g.anomalia_motivo ?? undefined}>da controllare</span>
-                      )}
-                    </td>
-                    <td className="py-1.5 pr-2 tabular-nums">{formatOra(g.prima_entrata)}</td>
-                    <td className="py-1.5 pr-2 tabular-nums">{formatOra(g.ultima_uscita)}</td>
-                    <td className="py-1.5 text-right tabular-nums">{formatOre(g.ore_lavorate)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </Riquadro>
-  );
-}
-
-function Costo({ s }: { s: SchedaOperaio }) {
-  const c = s.costo;
-  return (
-    <Riquadro titolo="Costo per le commesse" icona={Wallet}>
-      {c.costo_orario ? (
-        <div>
-          <p className="text-2xl font-bold tabular-nums text-slate-950">
-            {formatCurrency(c.costo_orario)} <span className="text-sm font-medium text-slate-500">all'ora</span>
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {c.costo_orario_scritto != null
-              ? "Scritto a mano."
-              : "Calcolato dallo stipendio lordo, con i contributi."}
-            {c.stipendio_lordo != null && c.ore_mese != null && (
-              <> Stipendio {formatCurrency(c.stipendio_lordo)} al mese per {c.ore_mese} ore.</>
-            )}
-          </p>
-        </div>
-      ) : (
-        <p className="text-sm text-amber-800">
-          Manca il costo orario: nelle commesse le ore di questo operaio non hanno un costo. Premi «Modifica» e scrivilo.
-        </p>
-      )}
-    </Riquadro>
   );
 }
 

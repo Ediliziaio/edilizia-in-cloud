@@ -1,9 +1,10 @@
 /**
  * Nuovo operaio / modifica operaio (Manodopera e Mezzi, 26/09/2026).
  *
- * Una scheda sola: si scrive la persona e, se si vuole, il costo orario. La
- * scheda del costo per le commesse la crea il database; una persona che è già
- * nel Personale con la stessa email diventa operaio invece di essere doppiata.
+ * Una scheda sola: si scrive la persona; la scheda per le commesse la crea il
+ * database. Il costo orario sta nel Personale (non lo vede chi organizza i
+ * cantieri). Una persona che è già nel Personale con la stessa email diventa
+ * operaio invece di essere doppiata.
  */
 import { useEffect, useState, type FormEvent } from "react";
 import { Loader2 } from "lucide-react";
@@ -40,14 +41,11 @@ export interface ValoriOperaio {
   mansione: string;
   data_assunzione: string;
   tipo_contratto: string;
-  costo_orario: string;
-  stipendio_lordo: string;
-  ore_mese: string;
 }
 
 const VUOTO: ValoriOperaio = {
   nome: "", cognome: "", telefono: "", email: "", mansione: "", data_assunzione: "",
-  tipo_contratto: "indeterminato", costo_orario: "", stipendio_lordo: "", ore_mese: "",
+  tipo_contratto: "indeterminato",
 };
 
 export function OperaioDialog({
@@ -55,7 +53,6 @@ export function OperaioDialog({
   onAperto,
   operaioId = null,
   iniziali,
-  mostraStipendio = false,
   onSalvato,
 }: {
   aperto: boolean;
@@ -63,19 +60,14 @@ export function OperaioDialog({
   /** null = nuovo operaio. */
   operaioId?: string | null;
   iniziali?: Partial<ValoriOperaio>;
-  /** Stipendio e ore al mese: solo per chi può modificare gli operai. */
-  mostraStipendio?: boolean;
   onSalvato?: (id: string) => void;
 }) {
   const salva = useSalvaOperaio();
   const [v, setV] = useState<ValoriOperaio>(VUOTO);
-  const [stipendioAperto, setStipendioAperto] = useState(false);
 
   useEffect(() => {
     if (!aperto) return;
-    const base = { ...VUOTO, ...iniziali };
-    setV(base);
-    setStipendioAperto(!!(base.stipendio_lordo || base.ore_mese));
+    setV({ ...VUOTO, ...iniziali });
   }, [aperto, iniziali]);
 
   const campo = (k: keyof ValoriOperaio) => ({
@@ -100,12 +92,7 @@ export function OperaioDialog({
       mansione: v.mansione,
       data_assunzione: v.data_assunzione,
       tipo_contratto: v.tipo_contratto,
-      costo_orario: v.costo_orario,
     };
-    if (mostraStipendio && stipendioAperto) {
-      dati.stipendio_lordo = v.stipendio_lordo;
-      dati.ore_mese = v.ore_mese;
-    }
     salva.mutate(
       { id: operaioId, dati },
       {
@@ -170,41 +157,6 @@ export function OperaioDialog({
                 </SelectContent>
               </Select>
             </div>
-          </div>
-
-          <div className="space-y-2 rounded-xl border bg-muted/30 p-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="operaio-costo_orario">Costo orario per le commesse (€ all'ora)</Label>
-              <Input {...campo("costo_orario")} inputMode="decimal" placeholder="Es. 24,50" className="max-w-[10rem]" />
-              <p className="text-xs text-muted-foreground">
-                Quanto ti costa un'ora di questo operaio, contributi compresi. Se lo lasci vuoto lo calcoliamo dallo stipendio.
-              </p>
-            </div>
-            {mostraStipendio && (
-              stipendioAperto ? (
-                <div className="grid grid-cols-2 gap-3 pt-1">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="operaio-stipendio_lordo">Stipendio lordo al mese (€)</Label>
-                    <Input {...campo("stipendio_lordo")} inputMode="decimal" placeholder="Es. 2.100" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="operaio-ore_mese">Ore al mese</Label>
-                    <Input {...campo("ore_mese")} inputMode="numeric" placeholder="Es. 168" />
-                  </div>
-                  <p className="col-span-2 text-xs text-muted-foreground">
-                    Al lordo aggiungiamo i contributi e dividiamo per le ore.
-                  </p>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  className="text-xs font-medium text-orange-700 underline-offset-2 hover:underline"
-                  onClick={() => setStipendioAperto(true)}
-                >
-                  Calcolalo dallo stipendio
-                </button>
-              )
-            )}
           </div>
 
           <DialogFooter className="gap-2 sm:gap-0">

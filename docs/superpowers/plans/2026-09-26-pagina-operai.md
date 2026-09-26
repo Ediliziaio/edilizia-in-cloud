@@ -95,4 +95,11 @@ Regole: si assegna una **squadra o un operaio** a una **commessa** per **giorni*
   - Chi fa lavoro d'ufficio non è più operaio (`mansione_da_ufficio`): tolti i due «Francesco Barbieri» delle demo.
   - Demo Azienda 2: 5 mezzi e 7 attrezzature con scadenze e tagliandi, 3 squadre (Posa Serramenti, Muratori con responsabile il Direttore Tecnico, Finiture e Impianti) su 4 commesse, mezzi sui cantieri.
   - Resta: le ore e i costi della squadra sulla commessa (righe `order_employees`) sono della fase 2; la demo genera le timbrature il venerdì per tutta la settimana, quindi la Giornata di oggi è vuota fino al venerdì.
+- **Diario, calendario, km (26/09, sera)** — migrazioni `20280927160000_manodopera_diario_km_costo` e `…161500_manodopera_diario_ore`, applicate e registrate; frontend in commit locale.
+  - Il costo della persona (stipendio, ore, contributi, costo orario) non si vede più in Manodopera: sta nel Personale, scheda del profilo, «Costo per le commesse» (`personale_costo` / `personale_salva_costo`, permesso Personale). I numeri si leggono all'italiana (`numero_italiano`: «3.100», «24,50»).
+  - Giornata: calendario per saltare a un giorno qualsiasi, ricerca (persona, cantiere, mezzo, squadra, rapportino), i mezzi di ciascuno quel giorno (dallo storico) e il rapportino; a destra «Cosa è successo» (`manodopera_diario`: rapportini, giornale dei lavori, foto, mezzi spostati, guasti, officina, uscite non timbrate).
+  - Scheda operaio: il mese in un calendario colorato (`manodopera_operaio_mese`), toccando un giorno: orari, cantiere, mezzi, rapportino, anomalie.
+  - Km dei mezzi: strada sede→cantiere col servizio percorsi già in uso (HERE, ripiego OSRM), salvata in `orders.distanza_sede_km` (si azzera se cambia la posizione del cantiere); km = giorni lavorativi sul cantiere × andata e ritorno, solo per furgoni, autocarri e auto. In commessa («Mezzi sul cantiere») e nella scheda del mezzo, nuova scheda «Cantieri e km» con il grafico degli ultimi 90 giorni per cantiere e per persona.
+  - Demo 2: giornale dei lavori 22–25/09 sui tre cantieri, 4 rapportini di Luca Ferrari, 2 guasti, storico di agosto dei mezzi.
+  - Da sapere: se cambia la sede, le distanze già salvate restano quelle vecchie; i km sono una stima (i giorni lavorativi del periodo, non i viaggi veri).
 

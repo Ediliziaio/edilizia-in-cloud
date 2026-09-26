@@ -44,14 +44,6 @@ export interface SchedaOperaio {
     responsabile: { id: string; nome: string; cognome: string } | null;
     compagni: { id: string; nome: string; cognome: string; colore_avatar: string | null }[];
   } | null;
-  costo: {
-    costo_orario: number | null;
-    costo_orario_scritto: number | null;
-    /** Solo per chi può modificare gli operai. */
-    stipendio_lordo: number | null;
-    ore_mese: number | null;
-    contributi_percento: number | null;
-  };
   documenti: {
     id: string;
     categoria: string;
@@ -96,9 +88,6 @@ export interface DatiOperaio {
   tipo_contratto?: string;
   attivo?: boolean;
   lavora_in_cantiere?: boolean;
-  costo_orario?: string;
-  stipendio_lordo?: string;
-  ore_mese?: string;
 }
 
 /** Oggi in Italia, come AAAA-MM-GG (le timbrature si contano sul giorno italiano). */
@@ -124,6 +113,8 @@ export const chiaviOperai = {
   squadre: (companyId: string | null) => ["manodopera", "squadre", companyId] as const,
   persone: (companyId: string | null) => ["manodopera", "persone", companyId] as const,
   squadreCommessa: (orderId: string | undefined) => ["manodopera", "commessa", orderId] as const,
+  diario: (companyId: string | null, giorno: string) => ["manodopera", "diario", companyId, giorno] as const,
+  mese: (id: string | undefined, mese: string) => ["manodopera", "mese", id, mese] as const,
 };
 
 export function useOperai() {
@@ -376,6 +367,110 @@ export function useTogliSquadraDaCommessa() {
       if (error) throw error;
     },
     onSuccess: () => aggiornaDopoSquadre(qc),
+  });
+}
+
+// ── Diario del giorno e calendario del mese ──────────────────────────────────
+
+export type TipoEventoDiario = "rapportino" | "giornale" | "foto" | "mezzo" | "segnalazione" | "officina";
+
+export interface EventoDiario {
+  quando: string | null;
+  tipo: TipoEventoDiario;
+  titolo: string;
+  testo: string | null;
+  chi: string | null;
+  order_id: string | null;
+  cantiere: string | null;
+  mezzo_id: string | null;
+  mezzo: string | null;
+}
+
+/** Cosa è successo quel giorno: rapportini, giornale, foto, mezzi, guasti, officina. */
+export function useDiarioGiorno(giorno: string) {
+  const companyId = useEffectiveCompanyId();
+  return useQuery({
+    queryKey: chiaviOperai.diario(companyId, giorno),
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("manodopera_diario", { p_company_id: companyId!, p_giorno: giorno });
+      if (error) throw error;
+      return (data ?? []) as unknown as EventoDiario[];
+    },
+    enabled: !!companyId,
+    staleTime: 60_000,
+  });
+}
+
+export interface GiornoOperaio {
+  data: string;
+  futuro: boolean;
+  stato: "presente" | "assente" | "riposo" | "non_timbrato" | "futuro";
+  assenza: string | null;
+  prima_entrata: string | null;
+  ultima_uscita: string | null;
+  uscita_mancante: boolean;
+  fuori_zona: boolean;
+  ore: number | null;
+  cantiere_id: string | null;
+  cantiere: string | null;
+  cantiere_timbrato: boolean;
+  mezzi: string | null;
+  rapportino: string | null;
+}
+
+/** Il mese di un operaio giorno per giorno (mese = AAAA-MM-01). */
+export function useMeseOperaio(id: string | undefined, mese: string) {
+  return useQuery({
+    queryKey: chiaviOperai.mese(id, mese),
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("manodopera_operaio_mese", { p_profilo_id: id!, p_mese: mese });
+      if (error) throw error;
+      return (data ?? []) as unknown as GiornoOperaio[];
+    },
+    enabled: !!id,
+    staleTime: 60_000,
+  });
+}
+
+// ── Costo della persona (nel Personale) ──────────────────────────────────────
+
+export interface CostoPersona {
+  ha_scheda_costo: boolean;
+  costo_orario: number | null;
+  costo_orario_scritto: number | null;
+  stipendio_lordo: number | null;
+  ore_mese: number | null;
+  contributi_percento: number | null;
+}
+
+export function useCostoPersona(profiloId: string | undefined) {
+  return useQuery({
+    queryKey: ["personale", "costo", profiloId],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("personale_costo", { p_profilo_id: profiloId! });
+      if (error) throw error;
+      return data as unknown as CostoPersona;
+    },
+    enabled: !!profiloId,
+    staleTime: 60_000,
+  });
+}
+
+export function useSalvaCostoPersona(profiloId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (dati: { costo_orario?: string; stipendio_lordo?: string; ore_mese?: string; contributi_percento?: string }) => {
+      const { error } = await supabase.rpc("personale_salva_costo", {
+        p_profilo_id: profiloId,
+        p_dati: dati as unknown as ArgsJson,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["personale", "costo", profiloId] });
+      // Le commesse leggono il costo orario per la manodopera.
+      qc.invalidateQueries({ queryKey: ["employees_active"] });
+    },
   });
 }
 

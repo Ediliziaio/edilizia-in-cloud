@@ -57927,6 +57927,9 @@ export type Database = {
           deposit_paid: boolean | null
           deposit_paid_date: string | null
           description: string
+          distanza_sede_il: string | null
+          distanza_sede_km: number | null
+          distanza_sede_minuti: number | null
           destination_warehouse_id: string | null
           dl_notification_email: string | null
           dl_notification_phone: string | null
@@ -58000,6 +58003,9 @@ export type Database = {
           deposit_paid?: boolean | null
           deposit_paid_date?: string | null
           description: string
+          distanza_sede_il?: string | null
+          distanza_sede_km?: number | null
+          distanza_sede_minuti?: number | null
           destination_warehouse_id?: string | null
           dl_notification_email?: string | null
           dl_notification_phone?: string | null
@@ -58073,6 +58079,9 @@ export type Database = {
           deposit_paid?: boolean | null
           deposit_paid_date?: string | null
           description?: string
+          distanza_sede_il?: string | null
+          distanza_sede_km?: number | null
+          distanza_sede_minuti?: number | null
           destination_warehouse_id?: string | null
           dl_notification_email?: string | null
           dl_notification_phone?: string | null
@@ -102822,6 +102831,10 @@ export type Database = {
         Returns: string
       }
       lookup_user_by_email: { Args: { p_email: string }; Returns: string }
+      manodopera_diario: {
+        Args: { p_company_id: string; p_giorno: string }
+        Returns: Json
+      }
       manodopera_oggi: {
         Args: { p_company_id: string; p_giorno?: string }
         Returns: {
@@ -102832,8 +102845,10 @@ export type Database = {
           colore_avatar: string | null
           fuori_zona: boolean
           mansione: string | null
+          mezzi: string | null
           nome: string
           ore_lavorate: number | null
+          rapportino: string | null
           previsto: string | null
           previsto_id: string | null
           prima_entrata: string | null
@@ -102854,8 +102869,6 @@ export type Database = {
           cantieri_attivi: number
           cognome: string
           colore_avatar: string | null
-          costo_orario: number | null
-          costo_orario_scritto: boolean
           data_assunzione: string | null
           documenti_in_scadenza: number
           documenti_scaduti: number
@@ -102876,6 +102889,10 @@ export type Database = {
         }[]
       }
       manodopera_operaio: { Args: { p_profilo_id: string }; Returns: Json }
+      manodopera_operaio_mese: {
+        Args: { p_mese: string; p_profilo_id: string }
+        Returns: Json
+      }
       manodopera_persone: {
         Args: { p_company_id: string }
         Returns: {
@@ -102914,6 +102931,15 @@ export type Database = {
       manodopera_squadre_commessa: { Args: { p_order_id: string }; Returns: Json }
       manodopera_togli_squadra_da_commessa: {
         Args: { p_order_id: string; p_squadra_id: string }
+        Returns: undefined
+      }
+      personale_costo: { Args: { p_profilo_id: string }; Returns: Json }
+      personale_salva_costo: {
+        Args: { p_dati: Json; p_profilo_id: string }
+        Returns: undefined
+      }
+      salva_distanza_cantiere: {
+        Args: { p_km: number; p_minuti: number | null; p_order_id: string }
         Returns: undefined
       }
       mark_all_notifications_read: {

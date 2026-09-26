@@ -6,14 +6,15 @@
  *   timbrato, divisi per squadra, con il cantiere timbrato o previsto;
  * - «Squadre»: le squadre con nome, colore, responsabile, chi c'è dentro e le
  *   commesse su cui lavorano; si creano e si mettono al lavoro da qui;
- * - «Elenco»: gli operai con squadra, costo orario, documenti, mezzo, app.
+ * - «Elenco»: gli operai con squadra, documenti, mezzo, app (il costo sta nel
+ *   Personale: qui entra anche chi organizza i cantieri).
  * Gli operai sono le persone del Personale con «Lavora in cantiere» acceso.
  */
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
-  AlertTriangle, CalendarOff, ChevronLeft, ChevronRight, Clock, Crown, FileWarning, HardHat, LogOut,
-  MoreHorizontal, Moon, Pencil, Plus, RefreshCw, Search, Smartphone, Users, UsersRound, Wallet,
+  AlertTriangle, CalendarOff, ChevronLeft, ChevronRight, Clock, Crown, FileWarning, HardHat, LogOut, Truck,
+  MoreHorizontal, Moon, Pencil, Plus, RefreshCw, Search, Smartphone, Users, UsersRound,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -33,6 +34,10 @@ import { AvatarOperaio } from "@/components/manodopera/AvatarOperaio";
 import { OperaioDialog } from "@/components/manodopera/OperaioDialog";
 import { SquadraDialog } from "@/components/manodopera/SquadraDialog";
 import { SquadraCommessaDialog } from "@/components/manodopera/SquadraCommessaDialog";
+import { DiarioGiorno } from "@/components/manodopera/DiarioGiorno";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { it } from "date-fns/locale";
 import { usePermissions } from "@/hooks/usePermissions";
 import {
   messaggioErroreOperai, oggiRoma, useGiornataOperai, useOperai, useSciogliSquadra, useSquadre,
@@ -42,7 +47,7 @@ import {
   PALLINO_STATO, TONO_STATO, cantiereDelGruppo, contaGiornata, etichettaGiornata, formatOra, formatOre,
   giornoInParole, passaFiltroGiornata, perSquadra, spostaGiorno, statoNoto, type FiltroGiornata,
 } from "@/lib/manodopera/giornata";
-import { formatCurrency, formatDateIt } from "@/lib/formatters";
+import { formatDateIt } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 
 type Vista = "oggi" | "squadre" | "elenco";
@@ -129,7 +134,6 @@ export default function OperaiTab() {
       <OperaioDialog
         aperto={nuovoAperto}
         onAperto={setNuovoAperto}
-        mostraStipendio={puoModificare}
         onSalvato={(id) => navigate(`/azienda/manodopera/operai/${id}`)}
       />
       <SquadraDialog
@@ -147,14 +151,19 @@ function GiornataOperai({ onNuovo }: { onNuovo?: () => void }) {
   const oggi = oggiRoma();
   const [giorno, setGiorno] = useState(oggi);
   const [filtro, setFiltro] = useState<FiltroGiornata>("tutti");
+  const [cerca, setCerca] = useState("");
+  const [calendarioAperto, setCalendarioAperto] = useState(false);
   const perms = usePermissions();
   const { data = [], isLoading, error, refetch, isFetching } = useGiornataOperai(giorno);
 
   const conta = useMemo(() => contaGiornata(data), [data]);
-  const gruppi = useMemo(
-    () => perSquadra(data.filter((r) => passaFiltroGiornata(r.stato, filtro))),
-    [data, filtro],
-  );
+  const gruppi = useMemo(() => {
+    const q = cerca.trim().toLowerCase();
+    return perSquadra(data.filter((r) =>
+      passaFiltroGiornata(r.stato, filtro)
+      && (!q || [r.nome, r.cognome, `${r.nome} ${r.cognome}`, r.mansione, r.squadra, r.cantiere, r.previsto, r.mezzi, r.rapportino]
+        .some((x) => x?.toLowerCase().includes(q)))));
+  }, [data, filtro, cerca]);
   const eOggi = giorno === oggi;
   const tuttiARiposo = data.length > 0 && conta.riposo === data.length;
   const alterna = (f: FiltroGiornata) => setFiltro((x) => (x === f ? "tutti" : f));
@@ -167,15 +176,48 @@ function GiornataOperai({ onNuovo }: { onNuovo?: () => void }) {
           <Button variant="ghost" size="icon" className="h-9 w-9" aria-label="Giorno prima" onClick={() => setGiorno((g) => spostaGiorno(g, -1))}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <span className="min-w-[10.5rem] px-1 text-center text-sm font-semibold text-slate-900" aria-live="polite">
-            {giornoInParole(giorno, oggi)}
-          </span>
+          <Popover open={calendarioAperto} onOpenChange={setCalendarioAperto}>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="tap-compact min-w-[10.5rem] rounded px-1 py-1.5 text-center text-sm font-semibold text-slate-900 hover:bg-slate-50"
+                aria-label={`Scegli il giorno (ora: ${giornoInParole(giorno, oggi)})`}
+              >
+                {giornoInParole(giorno, oggi)}
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="single"
+                locale={it}
+                selected={new Date(`${giorno}T12:00:00`)}
+                disabled={{ after: new Date(`${oggi}T12:00:00`) }}
+                onSelect={(d) => {
+                  if (!d) return;
+                  const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+                  setGiorno(iso);
+                  setCalendarioAperto(false);
+                }}
+                className="pointer-events-auto"
+              />
+            </PopoverContent>
+          </Popover>
           <Button variant="ghost" size="icon" className="h-9 w-9" aria-label="Giorno dopo" disabled={eOggi} onClick={() => setGiorno((g) => spostaGiorno(g, 1))}>
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
         {!eOggi && <Button variant="outline" size="sm" onClick={() => setGiorno(oggi)}>Torna a oggi</Button>}
-        {eOggi && <span className="text-xs text-muted-foreground">Si aggiorna da solo ogni minuto</span>}
+        <div className="relative min-w-0 flex-1 sm:ml-auto sm:max-w-xs sm:flex-none">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+          <Input
+            id="cerca-giornata"
+            value={cerca}
+            onChange={(e) => setCerca(e.target.value)}
+            placeholder="Cerca persona, cantiere, mezzo…"
+            aria-label="Cerca nella giornata"
+            className="h-9 pl-9"
+          />
+        </div>
       </div>
 
       {tuttiARiposo && (
@@ -217,13 +259,19 @@ function GiornataOperai({ onNuovo }: { onNuovo?: () => void }) {
         <ScheletroLista />
       ) : data.length === 0 ? (
         <NessunOperaio onNuovo={onNuovo} />
-      ) : gruppi.length === 0 ? (
+      ) : gruppi.length === 0 && filtro !== "tutti" ? (
         <p className="rounded-xl border border-dashed bg-white px-4 py-8 text-center text-sm text-muted-foreground">
           Nessun operaio in questo gruppo.{" "}
           <button type="button" className="font-medium text-orange-700 hover:underline" onClick={() => setFiltro("tutti")}>Mostra tutti</button>
         </p>
       ) : (
+        <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="space-y-4">
+          {gruppi.length === 0 && (
+            <p className="rounded-xl border border-dashed bg-white px-4 py-6 text-center text-sm text-muted-foreground">
+              Nessuno corrisponde alla ricerca.
+            </p>
+          )}
           {gruppi.map((g) => {
             const stati = g.righe.map((r) => statoNoto(r.stato));
             const riepilogo = stati.every((x) => x === "riposo")
@@ -251,6 +299,10 @@ function GiornataOperai({ onNuovo }: { onNuovo?: () => void }) {
               </section>
             );
           })}
+        </div>
+        <div className="xl:sticky xl:top-4">
+          <DiarioGiorno giorno={giorno} giornata={data} cerca={cerca} linkCommesse={linkCommesse} />
+        </div>
         </div>
       )}
     </div>
@@ -326,6 +378,12 @@ function SchedinaGiornata({ r, linkCommesse }: { r: OperaioOggi; linkCommesse: b
               : testoCantiere}
           </p>
         )}
+        {r.mezzi && (
+          <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-slate-600">
+            <Truck className="h-3 w-3 shrink-0 text-slate-400" aria-hidden="true" /><span className="truncate">{r.mezzi}</span>
+          </p>
+        )}
+        {r.rapportino && <p className="mt-0.5 line-clamp-2 text-xs italic text-slate-500">«{r.rapportino}»</p>}
         {r.fuori_zona && <p className="mt-0.5 text-[11px] text-amber-700">Ha timbrato lontano dal cantiere</p>}
       </div>
     </li>
@@ -522,7 +580,7 @@ function SquadreOperai({ puoModificare, onNuova }: { puoModificare: boolean; onN
 
 // ── Vista «Elenco» ───────────────────────────────────────────────────────────
 
-type FiltroElenco = "tutti" | "app" | "documenti" | "senza_costo";
+type FiltroElenco = "tutti" | "app" | "documenti" | "senza_squadra";
 
 function ElencoOperai({ onNuovo }: { onNuovo?: () => void }) {
   const { data = [], isLoading, error, refetch, isFetching } = useOperai();
@@ -535,7 +593,7 @@ function ElencoOperai({ onNuovo }: { onNuovo?: () => void }) {
     attivi: attivi.length,
     conApp: attivi.filter((o) => o.ha_accesso_app).length,
     documenti: attivi.filter((o) => o.documenti_scaduti > 0 || o.documenti_in_scadenza > 0).length,
-    senzaCosto: attivi.filter((o) => !o.costo_orario).length,
+    senzaSquadra: attivi.filter((o) => !o.squadra_id).length,
   }), [attivi]);
 
   const righe = useMemo(() => {
@@ -544,7 +602,7 @@ function ElencoOperai({ onNuovo }: { onNuovo?: () => void }) {
       if (soloAttivi !== o.attivo) return false;
       if (filtro === "app" && !o.ha_accesso_app) return false;
       if (filtro === "documenti" && !(o.documenti_scaduti > 0 || o.documenti_in_scadenza > 0)) return false;
-      if (filtro === "senza_costo" && o.costo_orario) return false;
+      if (filtro === "senza_squadra" && o.squadra_id) return false;
       if (!q) return true;
       return [o.nome, o.cognome, o.mansione, o.telefono, o.mezzi, o.squadra].some((x) => x?.toLowerCase().includes(q));
     });
@@ -566,7 +624,7 @@ function ElencoOperai({ onNuovo }: { onNuovo?: () => void }) {
         <OperationalKpiCard icon={Users} label="Operai" value={numeri.attivi} hint="che lavorano in cantiere" tone="blue" isLoading={isLoading} active={filtro === "tutti" && soloAttivi} onClick={() => { setFiltro("tutti"); setSoloAttivi(true); }} />
         <OperationalKpiCard icon={Smartphone} label="Con l'app di cantiere" value={numeri.conApp} hint="timbrano dal telefono" tone="green" isLoading={isLoading} active={filtro === "app"} onClick={() => alterna("app")} />
         <OperationalKpiCard icon={FileWarning} label="Documenti da rifare" value={numeri.documenti} hint="scaduti o in scadenza" tone={numeri.documenti > 0 ? "red" : "green"} isLoading={isLoading} active={filtro === "documenti"} onClick={() => alterna("documenti")} />
-        <OperationalKpiCard icon={Wallet} label="Senza costo orario" value={numeri.senzaCosto} hint="le commesse non ne vedono il costo" tone={numeri.senzaCosto > 0 ? "amber" : "green"} isLoading={isLoading} active={filtro === "senza_costo"} onClick={() => alterna("senza_costo")} />
+        <OperationalKpiCard icon={UsersRound} label="Senza squadra" value={numeri.senzaSquadra} hint="da mettere in una squadra" tone={numeri.senzaSquadra > 0 ? "amber" : "green"} isLoading={isLoading} active={filtro === "senza_squadra"} onClick={() => alterna("senza_squadra")} />
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -602,7 +660,6 @@ function ElencoOperai({ onNuovo }: { onNuovo?: () => void }) {
                 sinistra={<AvatarOperaio nome={o.nome} cognome={o.cognome} colore={o.colore_avatar} />}
                 titolo={`${o.nome} ${o.cognome}`}
                 sottotitolo={[o.squadra, o.mansione, o.mezzi].filter(Boolean).join(" · ") || undefined}
-                valore={o.costo_orario ? `${formatCurrency(o.costo_orario)}/h` : undefined}
                 stato={<DocumentiTesto o={o} />}
               />
             ))}
@@ -615,7 +672,6 @@ function ElencoOperai({ onNuovo }: { onNuovo?: () => void }) {
                   <th scope="col" className="px-4 py-2.5">Operaio</th>
                   <th scope="col" className="px-4 py-2.5">Squadra</th>
                   <th scope="col" className="px-4 py-2.5">Telefono</th>
-                  <th scope="col" className="px-4 py-2.5 text-right">Costo orario</th>
                   <th scope="col" className="px-4 py-2.5">Documenti</th>
                   <th scope="col" className="px-4 py-2.5">Mezzo in carico</th>
                   <th scope="col" className="px-4 py-2.5 text-center">Cantieri</th>
@@ -659,9 +715,6 @@ function RigaElenco({ o }: { o: OperaioElenco }) {
       </td>
       <td className="px-4 py-2.5 tabular-nums text-slate-700">
         {o.telefono ? <a href={`tel:${o.telefono}`} onClick={(e) => e.stopPropagation()} className="hover:text-orange-700 hover:underline">{o.telefono}</a> : "—"}
-      </td>
-      <td className="px-4 py-2.5 text-right tabular-nums">
-        {o.costo_orario ? formatCurrency(o.costo_orario) : <span className="text-amber-700">da scrivere</span>}
       </td>
       <td className="px-4 py-2.5"><DocumentiTesto o={o} /></td>
       <td className="max-w-[12rem] truncate px-4 py-2.5 text-slate-700">{o.mezzi ?? "—"}</td>
