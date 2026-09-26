@@ -37,6 +37,13 @@ export interface SchedaOperaio {
     ha_accesso_app: boolean;
   };
   puo_modificare: boolean;
+  squadra: {
+    id: string;
+    nome: string;
+    colore: string | null;
+    responsabile: { id: string; nome: string; cognome: string } | null;
+    compagni: { id: string; nome: string; cognome: string; colore_avatar: string | null }[];
+  } | null;
   costo: {
     costo_orario: number | null;
     costo_orario_scritto: number | null;
@@ -72,6 +79,8 @@ export interface SchedaOperaio {
     dal: string | null;
     al: string | null;
     capocantiere: boolean;
+    /** Ci lavora perché ci lavora la sua squadra. */
+    con_la_squadra: boolean;
     in_corso: boolean;
   }[];
   mezzi: { id: string; nome: string; tipo: string | null; targa: string | null }[];
@@ -112,6 +121,9 @@ export const chiaviOperai = {
   elenco: (companyId: string | null) => ["manodopera", "operai", companyId] as const,
   giornata: (companyId: string | null, giorno: string) => ["manodopera", "oggi", companyId, giorno] as const,
   scheda: (id: string | undefined) => ["manodopera", "operaio", id] as const,
+  squadre: (companyId: string | null) => ["manodopera", "squadre", companyId] as const,
+  persone: (companyId: string | null) => ["manodopera", "persone", companyId] as const,
+  squadreCommessa: (orderId: string | undefined) => ["manodopera", "commessa", orderId] as const,
 };
 
 export function useOperai() {
@@ -210,3 +222,160 @@ export function useDaiAccessoApp() {
     },
   });
 }
+
+// ── Squadre ──────────────────────────────────────────────────────────────────
+
+export interface PersonaSquadra {
+  id: string;
+  nome: string;
+  cognome: string;
+  mansione: string | null;
+  colore_avatar: string | null;
+  ha_accesso_app: boolean;
+}
+
+export interface Squadra {
+  id: string;
+  nome: string;
+  colore: string | null;
+  responsabile: (Omit<PersonaSquadra, "ha_accesso_app"> & { e_componente: boolean }) | null;
+  componenti: PersonaSquadra[];
+  /** Commesse in corso o in arrivo. */
+  commesse: { order_id: string; codice: string | null; cliente: string | null; dal: string | null; al: string | null; oggi: boolean }[];
+}
+
+export interface SquadraInCommessa {
+  squadra_id: string;
+  nome: string;
+  colore: string | null;
+  attiva: boolean;
+  dal: string | null;
+  al: string | null;
+  capocantiere: boolean;
+  finita: boolean;
+  responsabile: { id: string; nome: string; cognome: string; colore_avatar: string | null } | null;
+  componenti: PersonaSquadra[];
+}
+
+export interface DatiSquadra {
+  nome?: string;
+  colore?: string;
+  responsabile_id?: string | null;
+  componenti?: string[];
+}
+
+/** Colori delle squadre: si leggono bene su bianco, come pallino e come fascia. */
+export const COLORI_SQUADRA = ["#EA580C", "#2563EB", "#16A34A", "#9333EA", "#DB2777", "#0891B2", "#CA8A04", "#475569"] as const;
+
+type ArgsJson = Database["public"]["Functions"]["manodopera_salva_squadra"]["Args"]["p_dati"];
+
+function aggiornaDopoSquadre(qc: ReturnType<typeof useQueryClient>) {
+  qc.invalidateQueries({ queryKey: chiaviOperai.tutti });
+  // L'app di cantiere e la commessa leggono gli accessi dati dalla squadra.
+  qc.invalidateQueries({ queryKey: ["order-campo-assignments"] });
+  qc.invalidateQueries({ queryKey: ["external_teams_active"] });
+  qc.invalidateQueries({ queryKey: ["external-teams-list"] });
+}
+
+export function useSquadre() {
+  const companyId = useEffectiveCompanyId();
+  return useQuery({
+    queryKey: chiaviOperai.squadre(companyId),
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("manodopera_squadre", { p_company_id: companyId! });
+      if (error) throw error;
+      return (data ?? []) as unknown as Squadra[];
+    },
+    enabled: !!companyId,
+    staleTime: 60_000,
+  });
+}
+
+/** Le persone attive dell'azienda, per scegliere il responsabile (anche non operai). */
+export function usePersoneSquadra(abilitato: boolean) {
+  const companyId = useEffectiveCompanyId();
+  return useQuery({
+    queryKey: chiaviOperai.persone(companyId),
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("manodopera_persone", { p_company_id: companyId! });
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!companyId && abilitato,
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function useSalvaSquadra() {
+  const companyId = useEffectiveCompanyId();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, dati }: { id: string | null; dati: DatiSquadra }) => {
+      if (!companyId) throw new Error("Azienda non trovata");
+      const { data, error } = await supabase.rpc("manodopera_salva_squadra", {
+        p_company_id: companyId,
+        p_squadra_id: id,
+        p_dati: dati as unknown as ArgsJson,
+      });
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: () => aggiornaDopoSquadre(qc),
+  });
+}
+
+export function useSciogliSquadra() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.rpc("manodopera_sciogli_squadra", { p_squadra_id: id });
+      if (error) throw error;
+    },
+    onSuccess: () => aggiornaDopoSquadre(qc),
+  });
+}
+
+export function useSquadreCommessa(orderId: string | undefined) {
+  return useQuery({
+    queryKey: chiaviOperai.squadreCommessa(orderId),
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("manodopera_squadre_commessa", { p_order_id: orderId! });
+      if (error) throw error;
+      return (data ?? []) as unknown as SquadraInCommessa[];
+    },
+    enabled: !!orderId,
+    staleTime: 30_000,
+  });
+}
+
+export function useSquadraSuCommessa() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { orderId: string; squadraId: string; dal: string | null; al: string | null; capocantiere: boolean }) => {
+      const { error } = await supabase.rpc("manodopera_squadra_su_commessa", {
+        p_order_id: v.orderId,
+        p_squadra_id: v.squadraId,
+        p_dal: v.dal,
+        p_al: v.al,
+        p_capocantiere: v.capocantiere,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => aggiornaDopoSquadre(qc),
+  });
+}
+
+export function useTogliSquadraDaCommessa() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { orderId: string; squadraId: string }) => {
+      const { error } = await supabase.rpc("manodopera_togli_squadra_da_commessa", {
+        p_order_id: v.orderId,
+        p_squadra_id: v.squadraId,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => aggiornaDopoSquadre(qc),
+  });
+}
+

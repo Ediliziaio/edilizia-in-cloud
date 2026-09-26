@@ -15,7 +15,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 interface RigaSquadra {
-  user_id: string;
+  /** Vuoto per chi della squadra non ha l'app: le sue ore vengono dal Personale. */
+  user_id: string | null;
   nome: string;
   ruolo: "dipendente" | "sub";
   is_capocantiere: boolean;
@@ -95,8 +96,8 @@ export default function CampoSquadra() {
           ) : squadra.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">Nessuno assegnato a questo cantiere.</p>
           ) : (
-            squadra.map((r) => (
-              <div key={r.user_id} className="flex items-center gap-3 rounded-xl border bg-muted/40 p-3">
+            squadra.map((r, i) => (
+              <div key={r.user_id ?? `senza-app-${i}`} className="flex items-center gap-3 rounded-xl border bg-muted/40 p-3">
                 <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold",
                   r.in_cantiere ? "bg-emerald-100 text-emerald-700" : r.uscita ? "bg-slate-200 text-slate-600" : "bg-amber-100 text-amber-700")}>
                   {r.nome.split(" ").map((p) => p[0]).join("").slice(0, 2).toUpperCase() || <HardHat className="h-4 w-4" />}
@@ -119,9 +120,13 @@ export default function CampoSquadra() {
                   <p className="flex items-center justify-end gap-1 text-sm font-semibold tabular-nums">
                     <Clock className="h-3.5 w-3.5 text-muted-foreground" />{Number(r.ore).toLocaleString("it-IT")} h
                   </p>
-                  <p className={cn("mt-0.5 flex items-center justify-end gap-1 text-[11px]", r.rapportino_inviato ? "text-emerald-600" : "text-muted-foreground")}>
-                    <FileText className="h-3 w-3" />{r.rapportino_inviato ? "rapportino ok" : "senza rapportino"}
-                  </p>
+                  {r.user_id ? (
+                    <p className={cn("mt-0.5 flex items-center justify-end gap-1 text-[11px]", r.rapportino_inviato ? "text-emerald-600" : "text-muted-foreground")}>
+                      <FileText className="h-3 w-3" />{r.rapportino_inviato ? "rapportino ok" : "senza rapportino"}
+                    </p>
+                  ) : (
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">senza app</p>
+                  )}
                 </div>
               </div>
             ))

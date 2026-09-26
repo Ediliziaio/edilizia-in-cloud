@@ -102838,6 +102838,9 @@ export type Database = {
           previsto_id: string | null
           prima_entrata: string | null
           profilo_id: string
+          squadra: string | null
+          squadra_colore: string | null
+          squadra_id: string | null
           stato: string
           ultima_ora: string | null
           ultima_uscita: string | null
@@ -102865,14 +102868,53 @@ export type Database = {
           mezzi: string | null
           nome: string
           prossima_scadenza: string | null
+          squadra: string | null
+          squadra_colore: string | null
+          squadra_id: string | null
           telefono: string | null
           tipo_contratto: string | null
         }[]
       }
       manodopera_operaio: { Args: { p_profilo_id: string }; Returns: Json }
+      manodopera_persone: {
+        Args: { p_company_id: string }
+        Returns: {
+          cognome: string
+          colore_avatar: string | null
+          ha_accesso_app: boolean
+          id: string
+          mansione: string | null
+          nome: string
+          operaio: boolean
+        }[]
+      }
       manodopera_salva_operaio: {
         Args: { p_company_id: string; p_dati: Json; p_profilo_id: string | null }
         Returns: string
+      }
+      manodopera_salva_squadra: {
+        Args: { p_company_id: string; p_dati: Json; p_squadra_id: string | null }
+        Returns: string
+      }
+      manodopera_sciogli_squadra: {
+        Args: { p_squadra_id: string }
+        Returns: undefined
+      }
+      manodopera_squadra_su_commessa: {
+        Args: {
+          p_al?: string | null
+          p_capocantiere?: boolean
+          p_dal?: string | null
+          p_order_id: string
+          p_squadra_id: string
+        }
+        Returns: undefined
+      }
+      manodopera_squadre: { Args: { p_company_id: string }; Returns: Json }
+      manodopera_squadre_commessa: { Args: { p_order_id: string }; Returns: Json }
+      manodopera_togli_squadra_da_commessa: {
+        Args: { p_order_id: string; p_squadra_id: string }
+        Returns: undefined
       }
       mark_all_notifications_read: {
         Args: { p_company_id: string }

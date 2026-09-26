@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from "vitest";
 import {
-  contaGiornata, etichettaGiornata, formatOre, giornoInParole, passaFiltroGiornata, spostaGiorno,
+  cantiereDelGruppo, contaGiornata, etichettaGiornata, formatOre, giornoInParole, passaFiltroGiornata, perSquadra, spostaGiorno,
 } from "@/lib/manodopera/giornata";
 import { schedaDaAprire, schedeManodopera } from "@/lib/manodopera/schede";
 
@@ -19,9 +19,25 @@ describe("giornata degli operai", () => {
 
   it("chi è in pausa conta fra chi lavora; chi non ha timbrato fra quelli da controllare", () => {
     const righe = ["al_lavoro", "in_pausa", "uscito", "assente", "non_timbrato", "uscita_mancante"].map((stato) => ({ stato }));
-    expect(contaGiornata(righe)).toEqual({ alLavoro: 2, usciti: 1, assenti: 1, daControllare: 2 });
+    expect(contaGiornata(righe)).toEqual({ alLavoro: 2, usciti: 1, assenti: 1, daControllare: 2, riposo: 0 });
     expect(righe.filter((r) => passaFiltroGiornata(r.stato, "da_controllare")).map((r) => r.stato))
       .toEqual(["non_timbrato", "uscita_mancante"]);
+  });
+
+  it("il giorno di riposo non è «da controllare»", () => {
+    const c = contaGiornata([{ stato: "riposo" }, { stato: "riposo" }, { stato: "al_lavoro" }]);
+    expect(c).toEqual({ alLavoro: 1, usciti: 0, assenti: 0, daControllare: 0, riposo: 2 });
+    expect(passaFiltroGiornata("riposo", "da_controllare")).toBe(false);
+    expect(etichettaGiornata("riposo")).toBe("A riposo");
+  });
+
+  it("divide per squadra, chi non ha squadra in fondo, e trova il cantiere del gruppo", () => {
+    const r = (squadra_id: string | null, squadra: string | null, cantiere: string | null, previsto: string | null) =>
+      ({ squadra_id, squadra, squadra_colore: null as string | null, cantiere, previsto });
+    const gruppi = perSquadra([r(null, null, null, null), r("b", "Posa", null, "ORD-2"), r("a", "Muratori", "ORD-1", null), r("b", "Posa", null, "ORD-2")]);
+    expect(gruppi.map((g) => [g.nome, g.righe.length])).toEqual([["Muratori", 1], ["Posa", 2], ["Senza squadra", 1]]);
+    expect(cantiereDelGruppo(gruppi[1].righe)).toBe("ORD-2");
+    expect(cantiereDelGruppo(gruppi[2].righe)).toBeNull();
   });
 
   it("ore leggibili", () => {

@@ -212,6 +212,31 @@ function Scheda({ s }: { s: SchedaOperaio }) {
         </div>
       )}
 
+      {s.squadra ? (
+        <Link
+          to="/azienda/manodopera?tab=operai&vista=squadre"
+          className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border bg-white px-4 py-2.5 text-sm shadow-sm hover:border-orange-200"
+          style={{ borderLeftWidth: 4, borderLeftColor: s.squadra.colore ?? "#94A3B8" }}
+        >
+          <span className="font-semibold text-slate-900">{s.squadra.nome}</span>
+          {s.squadra.responsabile && (
+            <span className="text-slate-600">
+              <Crown className="mr-1 inline h-3.5 w-3.5 text-orange-600" aria-hidden="true" />
+              {s.squadra.responsabile.id === p.id ? "È il responsabile" : `${s.squadra.responsabile.nome} ${s.squadra.responsabile.cognome}`}
+            </span>
+          )}
+          {s.squadra.compagni.length > 0 && (
+            <span className="text-muted-foreground">
+              con {s.squadra.compagni.map((c) => `${c.nome} ${c.cognome}`).join(", ")}
+            </span>
+          )}
+        </Link>
+      ) : p.lavora_in_cantiere && (
+        <p className="text-sm text-muted-foreground">
+          Non è in nessuna squadra. <Link to="/azienda/manodopera?tab=operai&vista=squadre" className="font-medium text-orange-700 hover:underline">Vai alle squadre</Link>
+        </p>
+      )}
+
       <div className="grid gap-4 lg:grid-cols-2">
         <Presenze giornate={s.giornate} />
         <div className="space-y-4">
@@ -383,7 +408,11 @@ function Cantieri({ cantieri, linkCommesse }: { cantieri: SchedaOperaio["cantier
                   ) : (
                     <span className="block truncate text-sm font-medium text-slate-900">{testo}</span>
                   )}
-                  {c.indirizzo && <span className="block truncate text-xs text-muted-foreground">{c.indirizzo}</span>}
+                  {(c.indirizzo || c.con_la_squadra) && (
+                    <span className="block truncate text-xs text-muted-foreground">
+                      {[c.con_la_squadra ? "con la squadra" : null, c.indirizzo].filter(Boolean).join(" · ")}
+                    </span>
+                  )}
                 </div>
                 <div className="shrink-0 text-right text-xs text-slate-500">
                   {c.capocantiere && (

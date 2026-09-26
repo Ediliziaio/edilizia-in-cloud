@@ -87,5 +87,12 @@ Regole: si assegna una **squadra o un operaio** a una **commessa** per **giorni*
   - Scheda Operai: «Giornata» (chi è al lavoro, in pausa, uscito, assente, chi non ha timbrato, cantiere timbrato o previsto; giorni precedenti con le frecce; si aggiorna ogni minuto) ed «Elenco» (costo orario, documenti, mezzo, cantieri, app). Scheda operaio `/azienda/manodopera/operai/:id` con presenze di 31 giorni, costo, cantieri, documenti, mezzi, «Dagli l'app» (solo amministratori).
   - Personale: interruttore «Lavora in cantiere» nella scheda del profilo.
   - Da sapere: la Demo 2 ha timbrature fino al 25/09 ma giornate calcolate solo fino al 06/09; le ore si contano anche dalle timbrature, quindi la pagina è giusta lo stesso.
-- **Squadre con nome e responsabile** (richiesta del 26/09): nella fase 4; il responsabile può essere della squadra o un'altra persona dell'azienda.
+- **Squadre (anticipate dalla fase 4, 26/09)** — migrazioni `20280927140000_manodopera_squadre`, `…141500_manodopera_persone_responsabili`, `…150000_campo_squadra_oggi_con_le_squadre`, `…151500_manodopera_scheda_ordine_cantieri`, applicate e registrate; frontend in commit locale.
+  - La squadra resta `external_teams` kind `interna`; nuovi: `responsabile_hr_profilo_id` (chiunque del Personale, della squadra o no), `squadre_componenti` (un operaio in una squadra per volta), `squadre_commesse` (dal–al, responsabile capocantiere sì/no), `order_campo_assignments.da_squadra_id`. `squadra_allinea_accessi()` dà e toglie l'accesso al cantiere a chi entra ed esce; quelli dati a mano non si toccano.
+  - Operai → tre viste: Giornata divisa per squadra (con «a riposo» fuori dai giorni lavorativi e nei festivi), Squadre (crea, modifica, metti su una commessa, sciogli), Elenco con la squadra.
+  - Commessa: riquadro «Squadre al lavoro» in Panoramica e in Cantiere (aggiungi, cambia date, togli).
+  - App di cantiere: in «Chi c'è oggi» il capocantiere vede anche chi della squadra non ha l'app.
+  - Chi fa lavoro d'ufficio non è più operaio (`mansione_da_ufficio`): tolti i due «Francesco Barbieri» delle demo.
+  - Demo Azienda 2: 5 mezzi e 7 attrezzature con scadenze e tagliandi, 3 squadre (Posa Serramenti, Muratori con responsabile il Direttore Tecnico, Finiture e Impianti) su 4 commesse, mezzi sui cantieri.
+  - Resta: le ore e i costi della squadra sulla commessa (righe `order_employees`) sono della fase 2; la demo genera le timbrature il venerdì per tutta la settimana, quindi la Giornata di oggi è vuota fino al venerdì.
 

@@ -1,51 +1,65 @@
 /**
  * Manodopera e Mezzi → Operai (26/09/2026).
  *
- * Due viste: «Oggi» (chi è al lavoro, in pausa, uscito, assente, chi non ha
- * timbrato, e in quale cantiere) ed «Elenco» (gli operai con costo orario,
- * documenti, mezzo in carico, cantieri in corso). Gli operai sono le persone
- * del Personale con «Lavora in cantiere» acceso.
+ * Tre viste:
+ * - «Giornata»: chi è al lavoro, in pausa, uscito, assente, a riposo o non ha
+ *   timbrato, divisi per squadra, con il cantiere timbrato o previsto;
+ * - «Squadre»: le squadre con nome, colore, responsabile, chi c'è dentro e le
+ *   commesse su cui lavorano; si creano e si mettono al lavoro da qui;
+ * - «Elenco»: gli operai con squadra, costo orario, documenti, mezzo, app.
+ * Gli operai sono le persone del Personale con «Lavora in cantiere» acceso.
  */
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
-  AlertTriangle, CalendarOff, ChevronLeft, ChevronRight, Clock, FileWarning, HardHat, LogOut, Plus,
-  RefreshCw, Search, Smartphone, Users, Wallet,
+  AlertTriangle, CalendarOff, ChevronLeft, ChevronRight, Clock, Crown, FileWarning, HardHat, LogOut,
+  MoreHorizontal, Moon, Pencil, Plus, RefreshCw, Search, Smartphone, Users, UsersRound, Wallet,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
 import { KpiMobili, RigaMobile } from "@/components/mobile/FiltriMobile";
 import { AvatarOperaio } from "@/components/manodopera/AvatarOperaio";
 import { OperaioDialog } from "@/components/manodopera/OperaioDialog";
+import { SquadraDialog } from "@/components/manodopera/SquadraDialog";
+import { SquadraCommessaDialog } from "@/components/manodopera/SquadraCommessaDialog";
 import { usePermissions } from "@/hooks/usePermissions";
-import { oggiRoma, useGiornataOperai, useOperai, type OperaioElenco, type OperaioOggi } from "@/hooks/useOperai";
 import {
-  TONO_STATO, contaGiornata, etichettaGiornata, formatOra, formatOre, giornoInParole, passaFiltroGiornata,
-  spostaGiorno, statoNoto, type FiltroGiornata,
+  messaggioErroreOperai, oggiRoma, useGiornataOperai, useOperai, useSciogliSquadra, useSquadre,
+  type OperaioElenco, type OperaioOggi, type Squadra,
+} from "@/hooks/useOperai";
+import {
+  PALLINO_STATO, TONO_STATO, cantiereDelGruppo, contaGiornata, etichettaGiornata, formatOra, formatOre,
+  giornoInParole, passaFiltroGiornata, perSquadra, spostaGiorno, statoNoto, type FiltroGiornata,
 } from "@/lib/manodopera/giornata";
 import { formatCurrency, formatDateIt } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 
-const PALLINO_STATO: Record<string, string> = {
-  al_lavoro: "bg-emerald-500",
-  in_pausa: "bg-amber-400",
-  uscito: "bg-slate-400",
-  uscita_mancante: "bg-orange-500",
-  assente: "bg-sky-400",
-  non_timbrato: "bg-slate-200",
-};
-
-type Vista = "oggi" | "elenco";
+type Vista = "oggi" | "squadre" | "elenco";
+const VISTE: { v: Vista; etichetta: string }[] = [
+  { v: "oggi", etichetta: "Giornata" },
+  { v: "squadre", etichetta: "Squadre" },
+  { v: "elenco", etichetta: "Elenco" },
+];
 
 export default function OperaiTab() {
   const perms = usePermissions();
   const puoModificare = (perms.canEditOperai || perms.isAdmin) && !perms.solaLettura;
   const [searchParams, setSearchParams] = useSearchParams();
-  const vista: Vista = searchParams.get("vista") === "elenco" ? "elenco" : "oggi";
+  const richiesta = searchParams.get("vista");
+  const vista: Vista = richiesta === "elenco" || richiesta === "squadre" ? richiesta : "oggi";
   const [nuovoAperto, setNuovoAperto] = useState(false);
+  const [nuovaSquadra, setNuovaSquadra] = useState(false);
   const navigate = useNavigate();
 
   const cambiaVista = (v: Vista) => {
@@ -57,9 +71,9 @@ export default function OperaiTab() {
 
   return (
     <div className="space-y-3 sm:space-y-4">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex items-center justify-between gap-2">
         <div role="group" aria-label="Vista" className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm">
-          {(["oggi", "elenco"] as const).map((v) => (
+          {VISTE.map(({ v, etichetta }) => (
             <button
               key={v}
               type="button"
@@ -70,32 +84,58 @@ export default function OperaiTab() {
                 vista === v ? "bg-orange-50 text-orange-700" : "text-slate-600 hover:text-slate-900",
               )}
             >
-              {v === "oggi" ? "Giornata" : "Elenco"}
+              {etichetta}
             </button>
           ))}
         </div>
         {puoModificare && (
-          <Button
-            size="sm"
-            onClick={() => setNuovoAperto(true)}
-            className="gap-1.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600"
-          >
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            <span className="hidden sm:inline">Nuovo operaio</span>
-            <span className="sm:hidden">Nuovo</span>
-          </Button>
+          <>
+            <div className="hidden items-center gap-2 sm:flex">
+              <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setNuovaSquadra(true)}>
+                <UsersRound className="h-4 w-4" aria-hidden="true" />Nuova squadra
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => setNuovoAperto(true)}
+                className="gap-1.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600"
+              >
+                <Plus className="h-4 w-4" aria-hidden="true" />Nuovo operaio
+              </Button>
+            </div>
+            {/* Telefono: un bottone solo, le due scelte nel menu. */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  size="icon"
+                  aria-label="Aggiungi"
+                  className="h-9 w-9 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm sm:hidden"
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={() => setNuovoAperto(true)}>Nuovo operaio</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setNuovaSquadra(true)}>Nuova squadra</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </>
         )}
       </div>
 
-      {vista === "oggi"
-        ? <GiornataOperai onNuovo={puoModificare ? () => setNuovoAperto(true) : undefined} />
-        : <ElencoOperai onNuovo={puoModificare ? () => setNuovoAperto(true) : undefined} />}
+      {vista === "oggi" && <GiornataOperai onNuovo={puoModificare ? () => setNuovoAperto(true) : undefined} />}
+      {vista === "squadre" && <SquadreOperai puoModificare={puoModificare} onNuova={() => setNuovaSquadra(true)} />}
+      {vista === "elenco" && <ElencoOperai onNuovo={puoModificare ? () => setNuovoAperto(true) : undefined} />}
 
       <OperaioDialog
         aperto={nuovoAperto}
         onAperto={setNuovoAperto}
         mostraStipendio={puoModificare}
         onSalvato={(id) => navigate(`/azienda/manodopera/operai/${id}`)}
+      />
+      <SquadraDialog
+        aperto={nuovaSquadra}
+        onAperto={setNuovaSquadra}
+        onSalvata={() => cambiaVista("squadre")}
       />
     </div>
   );
@@ -111,9 +151,14 @@ function GiornataOperai({ onNuovo }: { onNuovo?: () => void }) {
   const { data = [], isLoading, error, refetch, isFetching } = useGiornataOperai(giorno);
 
   const conta = useMemo(() => contaGiornata(data), [data]);
-  const righe = useMemo(() => data.filter((r) => passaFiltroGiornata(r.stato, filtro)), [data, filtro]);
+  const gruppi = useMemo(
+    () => perSquadra(data.filter((r) => passaFiltroGiornata(r.stato, filtro))),
+    [data, filtro],
+  );
   const eOggi = giorno === oggi;
+  const tuttiARiposo = data.length > 0 && conta.riposo === data.length;
   const alterna = (f: FiltroGiornata) => setFiltro((x) => (x === f ? "tutti" : f));
+  const linkCommesse = perms.canViewOrders === true || perms.isAdmin;
 
   return (
     <div className="space-y-3 sm:space-y-4">
@@ -125,40 +170,46 @@ function GiornataOperai({ onNuovo }: { onNuovo?: () => void }) {
           <span className="min-w-[10.5rem] px-1 text-center text-sm font-semibold text-slate-900" aria-live="polite">
             {giornoInParole(giorno, oggi)}
           </span>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-9 w-9"
-            aria-label="Giorno dopo"
-            disabled={eOggi}
-            onClick={() => setGiorno((g) => spostaGiorno(g, 1))}
-          >
+          <Button variant="ghost" size="icon" className="h-9 w-9" aria-label="Giorno dopo" disabled={eOggi} onClick={() => setGiorno((g) => spostaGiorno(g, 1))}>
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
-        {!eOggi && (
-          <Button variant="outline" size="sm" onClick={() => setGiorno(oggi)}>Torna a oggi</Button>
-        )}
-        {eOggi && (
-          <span className="text-xs text-muted-foreground">Si aggiorna da solo ogni minuto</span>
-        )}
+        {!eOggi && <Button variant="outline" size="sm" onClick={() => setGiorno(oggi)}>Torna a oggi</Button>}
+        {eOggi && <span className="text-xs text-muted-foreground">Si aggiorna da solo ogni minuto</span>}
       </div>
 
-      <KpiMobili
-        className="sm:hidden"
-        voci={[
-          { label: "Al lavoro", valore: String(conta.alLavoro), tono: conta.alLavoro > 0 ? "text-emerald-700" : undefined, onClick: () => alterna("al_lavoro"), attivo: filtro === "al_lavoro" },
-          { label: eOggi ? "Non hanno timbrato" : "Da controllare", valore: String(conta.daControllare), tono: conta.daControllare > 0 ? "text-amber-700" : undefined, onClick: () => alterna("da_controllare"), attivo: filtro === "da_controllare" },
-          { label: "Usciti", valore: String(conta.usciti), onClick: () => alterna("usciti"), attivo: filtro === "usciti" },
-          { label: "Assenti", valore: String(conta.assenti), onClick: () => alterna("assenti"), attivo: filtro === "assenti" },
-        ]}
-      />
-      <div className="hidden grid-cols-4 gap-3 sm:grid">
-        <OperationalKpiCard icon={HardHat} label="Al lavoro" value={conta.alLavoro} hint="anche chi è in pausa" tone="green" isLoading={isLoading} active={filtro === "al_lavoro"} onClick={() => alterna("al_lavoro")} />
-        <OperationalKpiCard icon={AlertTriangle} label={eOggi ? "Non hanno timbrato" : "Da controllare"} value={conta.daControllare} hint={eOggi ? "nessuna entrata oggi" : "senza entrata o uscita"} tone={conta.daControllare > 0 ? "amber" : "slate"} isLoading={isLoading} active={filtro === "da_controllare"} onClick={() => alterna("da_controllare")} />
-        <OperationalKpiCard icon={LogOut} label="Usciti" value={conta.usciti} hint="giornata finita" tone="slate" isLoading={isLoading} active={filtro === "usciti"} onClick={() => alterna("usciti")} />
-        <OperationalKpiCard icon={CalendarOff} label="Assenti" value={conta.assenti} hint="ferie, permessi, malattia" tone="blue" isLoading={isLoading} active={filtro === "assenti"} onClick={() => alterna("assenti")} />
-      </div>
+      {tuttiARiposo && (
+        <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+          <Moon className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" aria-hidden="true" />
+          <p>
+            {eOggi ? "Oggi è" : `${giornoInParole(giorno, oggi)} era`} giorno di riposo per tutti: nessuno doveva timbrare.{" "}
+            <button type="button" className="font-medium text-orange-700 hover:underline" onClick={() => setGiorno(spostaGiorno(giorno, -1))}>
+              Guarda il giorno prima
+            </button>
+          </p>
+        </div>
+      )}
+
+      {!tuttiARiposo && (
+        <>
+          <KpiMobili
+            className="sm:hidden"
+            voci={[
+              { label: "Al lavoro", valore: String(conta.alLavoro), tono: conta.alLavoro > 0 ? "text-emerald-700" : undefined, onClick: () => alterna("al_lavoro"), attivo: filtro === "al_lavoro" },
+              { label: eOggi ? "Non hanno timbrato" : "Da controllare", valore: String(conta.daControllare), tono: conta.daControllare > 0 ? "text-amber-700" : undefined, onClick: () => alterna("da_controllare"), attivo: filtro === "da_controllare" },
+              { label: "Usciti", valore: String(conta.usciti), onClick: () => alterna("usciti"), attivo: filtro === "usciti" },
+              { label: "Assenti", valore: String(conta.assenti), onClick: () => alterna("assenti"), attivo: filtro === "assenti" },
+            ]}
+          />
+          <div className="hidden grid-cols-4 gap-3 sm:grid">
+            <OperationalKpiCard icon={HardHat} label="Al lavoro" value={conta.alLavoro} hint="anche chi è in pausa" tone="green" isLoading={isLoading} active={filtro === "al_lavoro"} onClick={() => alterna("al_lavoro")} />
+            <OperationalKpiCard icon={AlertTriangle} label={eOggi ? "Non hanno timbrato" : "Da controllare"} value={conta.daControllare} hint={eOggi ? "nessuna entrata oggi" : "senza entrata o uscita"} tone={conta.daControllare > 0 ? "amber" : "slate"} isLoading={isLoading} active={filtro === "da_controllare"} onClick={() => alterna("da_controllare")} />
+            <OperationalKpiCard icon={LogOut} label="Usciti" value={conta.usciti} hint="giornata finita" tone="slate" isLoading={isLoading} active={filtro === "usciti"} onClick={() => alterna("usciti")} />
+            <OperationalKpiCard icon={CalendarOff} label="Assenti" value={conta.assenti} hint={conta.riposo > 0 ? `e ${conta.riposo} a riposo` : "ferie, permessi, malattia"} tone="blue" isLoading={isLoading} active={filtro === "assenti"} onClick={() => alterna("assenti")} />
+          </div>
+          {data.length > 0 && <BarraGiornata righe={data} />}
+        </>
+      )}
 
       {error ? (
         <ErroreCaricamento testo="Non riesco a caricare la giornata degli operai." onRiprova={() => refetch()} inCorso={isFetching} />
@@ -166,115 +217,306 @@ function GiornataOperai({ onNuovo }: { onNuovo?: () => void }) {
         <ScheletroLista />
       ) : data.length === 0 ? (
         <NessunOperaio onNuovo={onNuovo} />
-      ) : righe.length === 0 ? (
+      ) : gruppi.length === 0 ? (
         <p className="rounded-xl border border-dashed bg-white px-4 py-8 text-center text-sm text-muted-foreground">
-          Nessun operaio in questo gruppo. <button type="button" className="font-medium text-orange-700 hover:underline" onClick={() => setFiltro("tutti")}>Mostra tutti</button>
+          Nessun operaio in questo gruppo.{" "}
+          <button type="button" className="font-medium text-orange-700 hover:underline" onClick={() => setFiltro("tutti")}>Mostra tutti</button>
         </p>
       ) : (
-        <>
-          <div className="divide-y overflow-hidden rounded-xl border bg-white sm:hidden">
-            {righe.map((r) => (
-              <RigaMobile
-                key={r.profilo_id}
-                to={`/azienda/manodopera/operai/${r.profilo_id}`}
-                sinistra={<AvatarOperaio nome={r.nome} cognome={r.cognome} colore={r.colore_avatar} pallino={PALLINO_STATO[statoNoto(r.stato)]} />}
-                titolo={`${r.nome} ${r.cognome}`}
-                sottotitolo={cantiereDellaRiga(r) ?? r.mansione ?? undefined}
-                valore={r.prima_entrata ? `${formatOra(r.prima_entrata)}${r.ultima_uscita ? `–${formatOra(r.ultima_uscita)}` : ""}` : undefined}
-                stato={<span className="text-muted-foreground">{etichettaGiornata(r.stato, r.assenza)}</span>}
-              />
-            ))}
-          </div>
-
-          <div className="hidden overflow-x-auto rounded-xl border bg-white sm:block">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-left text-xs font-medium text-slate-500">
-                <tr>
-                  <th scope="col" className="px-4 py-2.5">Operaio</th>
-                  <th scope="col" className="px-4 py-2.5">Stato</th>
-                  <th scope="col" className="px-4 py-2.5">Entrata</th>
-                  <th scope="col" className="px-4 py-2.5">Uscita</th>
-                  <th scope="col" className="px-4 py-2.5">Ore</th>
-                  <th scope="col" className="px-4 py-2.5">Cantiere</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {righe.map((r) => (
-                  <RigaGiornata key={r.profilo_id} r={r} linkCommesse={perms.canViewOrders === true || perms.isAdmin} />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
+        <div className="space-y-4">
+          {gruppi.map((g) => {
+            const stati = g.righe.map((r) => statoNoto(r.stato));
+            const riepilogo = stati.every((x) => x === "riposo")
+              ? "a riposo"
+              : eOggi
+                ? `${stati.filter((x) => x === "al_lavoro" || x === "in_pausa").length} su ${g.righe.length} al lavoro`
+                : `${stati.filter((x) => x === "al_lavoro" || x === "in_pausa" || x === "uscito" || x === "uscita_mancante").length} su ${g.righe.length} presenti`;
+            const dove = cantiereDelGruppo(g.righe);
+            return (
+              <section key={g.id ?? "senza"} aria-label={g.nome} className="overflow-hidden rounded-2xl border bg-white shadow-sm">
+                <header
+                  className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b bg-slate-50/70 px-4 py-2.5"
+                  style={g.colore ? { borderTop: `3px solid ${g.colore}` } : undefined}
+                >
+                  <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                    {g.id ? <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: g.colore ?? "#94A3B8" }} aria-hidden="true" /> : <Users className="h-4 w-4 text-slate-400" aria-hidden="true" />}
+                    {g.nome}
+                    <span className="font-normal text-muted-foreground tabular-nums">· {riepilogo}</span>
+                  </h3>
+                  {dove && <p className="max-w-full truncate text-xs text-slate-500"><HardHat className="mr-1 inline h-3.5 w-3.5" aria-hidden="true" />{dove}</p>}
+                </header>
+                <ul className="grid sm:grid-cols-2 xl:grid-cols-3 [&>li]:border-b [&>li]:border-slate-100 sm:[&>li]:border-r">
+                  {g.righe.map((r) => <SchedinaGiornata key={r.profilo_id} r={r} linkCommesse={linkCommesse} />)}
+                </ul>
+              </section>
+            );
+          })}
+        </div>
       )}
     </div>
   );
 }
 
-function cantiereDellaRiga(r: OperaioOggi): string | null {
-  if (r.cantiere) return r.cantiere;
-  if (r.previsto) return `Previsto: ${r.previsto}`;
-  return null;
+const PLURALE: Record<string, string> = {
+  al_lavoro: "al lavoro",
+  in_pausa: "in pausa",
+  uscito: "usciti",
+  assente: "assenti",
+  uscita_mancante: "senza uscita",
+  non_timbrato: "senza timbrature",
+  riposo: "a riposo",
+};
+
+/** La giornata in una riga: quanti in ogni stato, a colpo d'occhio. */
+function BarraGiornata({ righe }: { righe: readonly OperaioOggi[] }) {
+  const ordine = ["al_lavoro", "in_pausa", "uscito", "assente", "uscita_mancante", "non_timbrato", "riposo"] as const;
+  const conteggi = ordine
+    .map((s) => ({ s, n: righe.filter((r) => statoNoto(r.stato) === s).length }))
+    .filter((x) => x.n > 0);
+  return (
+    <div className="hidden space-y-1.5 sm:block">
+      <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-slate-100" role="img" aria-label={conteggi.map((c) => `${c.n} ${PLURALE[c.s]}`).join(", ")}>
+        {conteggi.map((c) => (
+          <span key={c.s} className={cn("h-full", PALLINO_STATO[c.s])} style={{ width: `${(c.n / righe.length) * 100}%` }} />
+        ))}
+      </div>
+      <p className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-slate-500">
+        {conteggi.map((c) => (
+          <span key={c.s} className="inline-flex items-center gap-1">
+            <span className={cn("h-2 w-2 rounded-full", PALLINO_STATO[c.s])} aria-hidden="true" />
+            <span className="tabular-nums">{c.n}</span> {PLURALE[c.s]}
+          </span>
+        ))}
+      </p>
+    </div>
+  );
 }
 
-function RigaGiornata({ r, linkCommesse }: { r: OperaioOggi; linkCommesse: boolean }) {
-  const navigate = useNavigate();
+function SchedinaGiornata({ r, linkCommesse }: { r: OperaioOggi; linkCommesse: boolean }) {
   const stato = statoNoto(r.stato);
   const idCantiere = r.cantiere_id ?? r.previsto_id;
   const testoCantiere = r.cantiere ?? r.previsto;
+  const orari = r.prima_entrata
+    ? `${formatOra(r.prima_entrata)} → ${r.ultima_uscita ? formatOra(r.ultima_uscita) : stato === "in_pausa" ? "in pausa" : "…"}`
+    : null;
   return (
-    <tr
-      className="cursor-pointer hover:bg-slate-50"
-      onClick={() => navigate(`/azienda/manodopera/operai/${r.profilo_id}`)}
-    >
-      <td className="px-4 py-2.5">
-        <Link
-          to={`/azienda/manodopera/operai/${r.profilo_id}`}
-          className="flex items-center gap-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <AvatarOperaio nome={r.nome} cognome={r.cognome} colore={r.colore_avatar} pallino={PALLINO_STATO[stato]} />
-          <span className="min-w-0">
-            <span className="block truncate font-medium text-slate-900">{r.nome} {r.cognome}</span>
-            {r.mansione && <span className="block truncate text-xs text-muted-foreground">{r.mansione}</span>}
+    <li className="flex min-w-0 gap-3 bg-white px-4 py-3">
+      <Link to={`/azienda/manodopera/operai/${r.profilo_id}`} className="tap-compact shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Apri ${r.nome} ${r.cognome}`}>
+        <AvatarOperaio nome={r.nome} cognome={r.cognome} colore={r.colore_avatar} pallino={PALLINO_STATO[stato]} />
+      </Link>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-start justify-between gap-2">
+          <Link to={`/azienda/manodopera/operai/${r.profilo_id}`} className="tap-compact min-w-0 truncate text-sm font-medium text-slate-900 hover:text-orange-700">
+            {r.nome} {r.cognome}
+          </Link>
+          <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset", TONO_STATO[stato])}>
+            {etichettaGiornata(r.stato, r.assenza)}
           </span>
-        </Link>
-      </td>
-      <td className="px-4 py-2.5">
-        <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset", TONO_STATO[stato])}>
-          {etichettaGiornata(r.stato, r.assenza)}
-        </span>
-        {r.fuori_zona && (
-          <span className="mt-1 block text-[11px] text-amber-700">Ha timbrato lontano dal cantiere</span>
+        </div>
+        <p className="truncate text-xs text-muted-foreground">
+          {r.mansione ?? "Operaio"}
+          {orari && <> · <span className="tabular-nums">{orari}</span></>}
+          {(r.ore_lavorate ?? 0) > 0 && <> · <span className="tabular-nums">{formatOre(r.ore_lavorate)}</span></>}
+        </p>
+        {testoCantiere && (
+          <p className="mt-0.5 truncate text-xs text-slate-600">
+            {!r.cantiere && <span className="text-muted-foreground">Previsto: </span>}
+            {linkCommesse && idCantiere
+              ? <Link to={`/azienda/ordini/${idCantiere}`} className="tap-compact hover:text-orange-700 hover:underline">{testoCantiere}</Link>
+              : testoCantiere}
+          </p>
         )}
-      </td>
-      <td className="px-4 py-2.5 tabular-nums">{formatOra(r.prima_entrata)}</td>
-      <td className="px-4 py-2.5 tabular-nums">
-        {formatOra(r.ultima_uscita)}
-        {stato === "in_pausa" && r.ultima_ora && <span className="block text-[11px] text-muted-foreground">in pausa dalle {formatOra(r.ultima_ora)}</span>}
-      </td>
-      <td className="px-4 py-2.5 tabular-nums">{formatOre(r.ore_lavorate)}</td>
-      <td className="max-w-[18rem] px-4 py-2.5">
-        {testoCantiere ? (
-          <span className="block min-w-0">
-            {!r.cantiere && <span className="text-[11px] uppercase tracking-wide text-muted-foreground">Previsto </span>}
-            {linkCommesse && idCantiere ? (
-              <Link
-                to={`/azienda/ordini/${idCantiere}`}
-                onClick={(e) => e.stopPropagation()}
-                className="line-clamp-2 text-slate-700 hover:text-orange-700 hover:underline"
-              >
-                {testoCantiere}
-              </Link>
-            ) : (
-              <span className="line-clamp-2 text-slate-700">{testoCantiere}</span>
+        {r.fuori_zona && <p className="mt-0.5 text-[11px] text-amber-700">Ha timbrato lontano dal cantiere</p>}
+      </div>
+    </li>
+  );
+}
+
+// ── Vista «Squadre» ──────────────────────────────────────────────────────────
+
+function SquadreOperai({ puoModificare, onNuova }: { puoModificare: boolean; onNuova: () => void }) {
+  const perms = usePermissions();
+  const { data: squadre = [], isLoading, error, refetch, isFetching } = useSquadre();
+  const { data: operai = [] } = useOperai();
+  const { data: giornata = [] } = useGiornataOperai(oggiRoma());
+  const sciogli = useSciogliSquadra();
+  const [modifica, setModifica] = useState<Squadra | null>(null);
+  const [suCommessa, setSuCommessa] = useState<Squadra | null>(null);
+  const [daSciogliere, setDaSciogliere] = useState<Squadra | null>(null);
+  const [perNuova, setPerNuova] = useState<string[] | null>(null);
+
+  const statoOggi = useMemo(() => new Map(giornata.map((r) => [r.profilo_id, statoNoto(r.stato)])), [giornata]);
+  const senzaSquadra = useMemo(() => operai.filter((o) => o.attivo && !o.squadra_id), [operai]);
+  const linkCommesse = perms.canViewOrders === true || perms.isAdmin;
+
+  if (error) return <ErroreCaricamento testo="Non riesco a caricare le squadre." onRiprova={() => refetch()} inCorso={isFetching} />;
+  if (isLoading) return <ScheletroLista />;
+
+  return (
+    <div className="space-y-4">
+      {squadre.length === 0 ? (
+        <div className="rounded-2xl border border-dashed bg-white px-6 py-10 text-center">
+          <UsersRound className="mx-auto h-8 w-8 text-orange-500" aria-hidden="true" />
+          <p className="mt-3 font-semibold text-slate-900">Non ci sono ancora squadre</p>
+          <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
+            Dai un nome alla squadra, scegli chi ci lavora e chi la guida. Poi la metti sulle commesse: i suoi operai si trovano il cantiere nell'app.
+          </p>
+          {puoModificare && (
+            <Button onClick={onNuova} className="mt-4 gap-1.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:from-orange-600 hover:to-amber-600">
+              <Plus className="h-4 w-4" aria-hidden="true" />Crea la prima squadra
+            </Button>
+          )}
+        </div>
+      ) : (
+        <div className="grid items-start gap-4 lg:grid-cols-2">
+          {squadre.map((s) => (
+            <article key={s.id} className="flex flex-col overflow-hidden rounded-2xl border bg-white shadow-sm" aria-label={s.nome}>
+              <div className="h-1.5" style={{ backgroundColor: s.colore ?? "#94A3B8" }} aria-hidden="true" />
+              <div className="flex items-start justify-between gap-3 px-4 pb-2 pt-3">
+                <div className="min-w-0">
+                  <h3 className="truncate text-base font-semibold text-slate-950">{s.nome}</h3>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {s.componenti.length === 1 ? "1 operaio" : `${s.componenti.length} operai`}
+                    {s.responsabile ? (
+                      <> · <Crown className="inline h-3 w-3 text-orange-600" aria-hidden="true" /> {s.responsabile.nome} {s.responsabile.cognome}
+                        {!s.responsabile.e_componente && <span> ({s.responsabile.mansione ?? "fuori squadra"})</span>}
+                      </>
+                    ) : " · nessun responsabile"}
+                  </p>
+                </div>
+                {puoModificare && (
+                  <div className="flex shrink-0 items-center gap-1">
+                    <Button size="sm" variant="outline" className="h-8 gap-1.5 max-sm:w-8 max-sm:px-0" aria-label={`Modifica ${s.nome}`} onClick={() => setModifica(s)}>
+                      <Pencil className="h-3.5 w-3.5" aria-hidden="true" /><span className="max-sm:hidden">Modifica</span>
+                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button size="icon" variant="ghost" className="h-8 w-8" aria-label={`Altre azioni per ${s.nome}`}>
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        {linkCommesse && <DropdownMenuItem onSelect={() => setSuCommessa(s)}>Mettila su una commessa</DropdownMenuItem>}
+                        <DropdownMenuItem className="text-red-600 focus:text-red-700" onSelect={() => setDaSciogliere(s)}>Sciogli la squadra</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                )}
+              </div>
+
+              {s.componenti.length === 0 ? (
+                <p className="px-4 pb-3 text-sm text-muted-foreground">Nessun operaio: premi «Modifica» e scegli chi ci lavora.</p>
+              ) : (
+                <ul className="divide-y border-y">
+                  {s.componenti.map((p) => {
+                    const st = statoOggi.get(p.id);
+                    return (
+                      <li key={p.id} className="flex items-center gap-2.5 px-4 py-2">
+                        <AvatarOperaio nome={p.nome} cognome={p.cognome} colore={p.colore_avatar} pallino={st ? PALLINO_STATO[st] : undefined} />
+                        <Link to={`/azienda/manodopera/operai/${p.id}`} className="tap-compact min-w-0 flex-1 truncate text-sm text-slate-800 hover:text-orange-700">
+                          {p.nome} {p.cognome}
+                          {s.responsabile?.id === p.id && <Crown className="ml-1 inline h-3 w-3 text-orange-600" aria-label="responsabile" />}
+                          {p.mansione && <span className="text-muted-foreground"> · {p.mansione}</span>}
+                        </Link>
+                        {st && <span className="shrink-0 text-[11px] text-muted-foreground">{etichettaGiornata(st)}</span>}
+                        {p.ha_accesso_app && <Smartphone className="h-3.5 w-3.5 shrink-0 text-emerald-600" aria-label="ha l'app di cantiere" />}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+
+              <div className="mt-auto space-y-1.5 px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Commesse</p>
+                {s.commesse.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    Non è su nessuna commessa.
+                    {puoModificare && linkCommesse && (
+                      <> <button type="button" className="font-medium text-orange-700 hover:underline" onClick={() => setSuCommessa(s)}>Mettila al lavoro</button></>
+                    )}
+                  </p>
+                ) : (
+                  <ul className="flex flex-wrap gap-1.5">
+                    {s.commesse.map((c) => {
+                      const testo = [c.codice, c.cliente].filter(Boolean).join(" · ") || "Commessa";
+                      const quando = c.dal && !c.oggi ? ` · dal ${formatDateIt(c.dal)}` : c.al ? ` · fino al ${formatDateIt(c.al)}` : "";
+                      const cls = cn(
+                        "inline-flex max-w-full items-center gap-1 truncate rounded-full border px-2.5 py-1 text-xs",
+                        c.oggi ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-white text-slate-600",
+                      );
+                      return (
+                        <li key={c.order_id} className="max-w-full">
+                          {linkCommesse
+                            ? <Link to={`/azienda/ordini/${c.order_id}`} className={cn(cls, "tap-compact hover:border-orange-300")}>{testo}{quando}</Link>
+                            : <span className={cls}>{testo}{quando}</span>}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+
+      {senzaSquadra.length > 0 && squadre.length > 0 && (
+        <section className="rounded-2xl border border-dashed bg-white px-4 py-3" aria-label="Operai senza squadra">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm font-semibold text-slate-900">
+              Senza squadra <span className="font-normal text-muted-foreground">· {senzaSquadra.length}</span>
+            </p>
+            {puoModificare && (
+              <Button size="sm" variant="ghost" className="h-8 gap-1.5 text-orange-700" onClick={() => setPerNuova(senzaSquadra.map((o) => o.id))}>
+                <Plus className="h-3.5 w-3.5" aria-hidden="true" />Fanne una squadra
+              </Button>
             )}
-          </span>
-        ) : (
-          <span className="text-muted-foreground">—</span>
-        )}
-      </td>
-    </tr>
+          </div>
+          <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
+            {senzaSquadra.map((o) => (
+              <li key={o.id}>
+                <Link to={`/azienda/manodopera/operai/${o.id}`} className="tap-compact flex items-center gap-1.5 text-sm text-slate-700 hover:text-orange-700">
+                  <AvatarOperaio nome={o.nome} cognome={o.cognome} colore={o.colore_avatar} />
+                  {o.nome} {o.cognome}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {modifica && <SquadraDialog aperto={!!modifica} onAperto={(v) => { if (!v) setModifica(null); }} squadra={modifica} />}
+      {perNuova && <SquadraDialog aperto={!!perNuova} onAperto={(v) => { if (!v) setPerNuova(null); }} preselezionati={perNuova} />}
+      {suCommessa && <SquadraCommessaDialog aperto={!!suCommessa} onAperto={(v) => { if (!v) setSuCommessa(null); }} squadraId={suCommessa.id} />}
+
+      <AlertDialog open={!!daSciogliere} onOpenChange={(o) => { if (!o) setDaSciogliere(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Sciogli «{daSciogliere?.nome}»?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Gli operai restano, senza squadra. Dalle commesse spariscono gli accessi dati dalla squadra; le ore già timbrate restano.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              onClick={() => {
+                if (!daSciogliere) return;
+                const nome = daSciogliere.nome;
+                sciogli.mutate(daSciogliere.id, {
+                  onSuccess: () => toast.success(`«${nome}» sciolta`),
+                  onError: (err) => toast.error(messaggioErroreOperai(err, "Non sono riuscito a sciogliere la squadra. Riprova tra qualche secondo.")),
+                });
+                setDaSciogliere(null);
+              }}
+            >
+              Sciogli
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
   );
 }
 
@@ -299,13 +541,12 @@ function ElencoOperai({ onNuovo }: { onNuovo?: () => void }) {
   const righe = useMemo(() => {
     const q = cerca.trim().toLowerCase();
     return data.filter((o) => {
-      if (soloAttivi && !o.attivo) return false;
-      if (!soloAttivi && o.attivo) return false;
+      if (soloAttivi !== o.attivo) return false;
       if (filtro === "app" && !o.ha_accesso_app) return false;
       if (filtro === "documenti" && !(o.documenti_scaduti > 0 || o.documenti_in_scadenza > 0)) return false;
       if (filtro === "senza_costo" && o.costo_orario) return false;
       if (!q) return true;
-      return [o.nome, o.cognome, o.mansione, o.telefono, o.mezzi].some((x) => x?.toLowerCase().includes(q));
+      return [o.nome, o.cognome, o.mansione, o.telefono, o.mezzi, o.squadra].some((x) => x?.toLowerCase().includes(q));
     });
   }, [data, cerca, soloAttivi, filtro]);
 
@@ -331,14 +572,7 @@ function ElencoOperai({ onNuovo }: { onNuovo?: () => void }) {
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-0 flex-1 sm:max-w-sm">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-          <Input
-            id="cerca-operai"
-            value={cerca}
-            onChange={(e) => setCerca(e.target.value)}
-            placeholder="Cerca per nome, mansione, mezzo…"
-            aria-label="Cerca operai"
-            className="pl-9"
-          />
+          <Input id="cerca-operai" value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder="Cerca per nome, squadra, mezzo…" aria-label="Cerca operai" className="pl-9" />
         </div>
         {nonAttivi > 0 && (
           <Button variant="outline" size="sm" onClick={() => setSoloAttivi((x) => !x)} aria-pressed={!soloAttivi}>
@@ -356,9 +590,7 @@ function ElencoOperai({ onNuovo }: { onNuovo?: () => void }) {
       ) : righe.length === 0 ? (
         <p className="rounded-xl border border-dashed bg-white px-4 py-8 text-center text-sm text-muted-foreground">
           Nessun operaio con questi filtri.{" "}
-          <button type="button" className="font-medium text-orange-700 hover:underline" onClick={() => { setCerca(""); setFiltro("tutti"); setSoloAttivi(true); }}>
-            Togli i filtri
-          </button>
+          <button type="button" className="font-medium text-orange-700 hover:underline" onClick={() => { setCerca(""); setFiltro("tutti"); setSoloAttivi(true); }}>Togli i filtri</button>
         </p>
       ) : (
         <>
@@ -369,7 +601,7 @@ function ElencoOperai({ onNuovo }: { onNuovo?: () => void }) {
                 to={`/azienda/manodopera/operai/${o.id}`}
                 sinistra={<AvatarOperaio nome={o.nome} cognome={o.cognome} colore={o.colore_avatar} />}
                 titolo={`${o.nome} ${o.cognome}`}
-                sottotitolo={[o.mansione, o.mezzi].filter(Boolean).join(" · ") || undefined}
+                sottotitolo={[o.squadra, o.mansione, o.mezzi].filter(Boolean).join(" · ") || undefined}
                 valore={o.costo_orario ? `${formatCurrency(o.costo_orario)}/h` : undefined}
                 stato={<DocumentiTesto o={o} />}
               />
@@ -381,11 +613,12 @@ function ElencoOperai({ onNuovo }: { onNuovo?: () => void }) {
               <thead className="bg-slate-50 text-left text-xs font-medium text-slate-500">
                 <tr>
                   <th scope="col" className="px-4 py-2.5">Operaio</th>
+                  <th scope="col" className="px-4 py-2.5">Squadra</th>
                   <th scope="col" className="px-4 py-2.5">Telefono</th>
                   <th scope="col" className="px-4 py-2.5 text-right">Costo orario</th>
                   <th scope="col" className="px-4 py-2.5">Documenti</th>
                   <th scope="col" className="px-4 py-2.5">Mezzo in carico</th>
-                  <th scope="col" className="px-4 py-2.5 text-center">Cantieri in corso</th>
+                  <th scope="col" className="px-4 py-2.5 text-center">Cantieri</th>
                   <th scope="col" className="px-4 py-2.5">App</th>
                 </tr>
               </thead>
@@ -417,10 +650,15 @@ function RigaElenco({ o }: { o: OperaioElenco }) {
           </span>
         </Link>
       </td>
+      <td className="px-4 py-2.5">
+        {o.squadra ? (
+          <span className="inline-flex items-center gap-1.5 text-slate-700">
+            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: o.squadra_colore ?? "#94A3B8" }} aria-hidden="true" />{o.squadra}
+          </span>
+        ) : <span className="text-muted-foreground">—</span>}
+      </td>
       <td className="px-4 py-2.5 tabular-nums text-slate-700">
-        {o.telefono ? (
-          <a href={`tel:${o.telefono}`} onClick={(e) => e.stopPropagation()} className="hover:text-orange-700 hover:underline">{o.telefono}</a>
-        ) : "—"}
+        {o.telefono ? <a href={`tel:${o.telefono}`} onClick={(e) => e.stopPropagation()} className="hover:text-orange-700 hover:underline">{o.telefono}</a> : "—"}
       </td>
       <td className="px-4 py-2.5 text-right tabular-nums">
         {o.costo_orario ? formatCurrency(o.costo_orario) : <span className="text-amber-700">da scrivere</span>}
