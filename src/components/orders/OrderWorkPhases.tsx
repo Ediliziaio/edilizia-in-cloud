@@ -84,6 +84,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { EmptyRow } from "./EmptyRow";
 import { InternalTeamShifts } from "./InternalTeamShifts";
+import { SquadreCommessa } from "@/components/manodopera/SquadreCommessa";
+import { useSquadreCommessa } from "@/hooks/useOperai";
 
 const eur = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: true });
 
@@ -119,7 +121,13 @@ interface OrderWorkPhasesProps {
 }
 
 export function OrderWorkPhases({ orderId, orderCode, onOpenReports }: OrderWorkPhasesProps) {
-  const { canEditOrders, canViewCosts } = usePermissions();
+  const { canEditOrders, canViewCosts, canEditOperai } = usePermissions();
+  // Squadre: le mette sulla commessa chi modifica le commesse o gli operai.
+  const puoSquadre = canEditOrders || canEditOperai;
+  const [aggiungiSquadra, setAggiungiSquadra] = useState(false);
+  const { data: squadre = [] } = useSquadreCommessa(orderId);
+  const squadreAttive = squadre.filter((x) => x.attiva && !x.finita);
+  const operaiInSquadra = new Set(squadreAttive.flatMap((x) => x.componenti.map((c) => c.id))).size;
   const {
     phases,
     unassigned,
@@ -212,12 +220,18 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports }: OrderWork
           <div className="space-y-1">
           <CardTitle className="flex items-center gap-2 text-lg">
             <HardHat className="h-5 w-5 text-primary" />
-            Lavori e squadra
+            Lavori e squadre
           </CardTitle>
-          <p className="text-sm text-muted-foreground max-sm:hidden">Chi interviene, su quale lavoro e con quali tempi.</p>
+          <p className="text-sm text-muted-foreground max-sm:hidden">Chi lavora su questa commessa, su quali lavorazioni e con quali tempi.</p>
           </div>
 
-          {canEditOrders && <div className="flex flex-wrap items-center gap-2">
+          {(canEditOrders || puoSquadre) && <div className="flex flex-wrap items-center gap-2">
+            {puoSquadre && (
+              <Button size="sm" onClick={() => setAggiungiSquadra(true)} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:from-orange-600 hover:to-amber-600">
+                <Plus className="mr-1 h-4 w-4" />Aggiungi squadra
+              </Button>
+            )}
+            {canEditOrders && <>
             {/* La via semplice viene PRIMA: chi lavora e quanto costa, anche a
                 corpo, senza dover creare fasi. Le fasi restano per i cantieri
                 che ne hanno bisogno. */}
@@ -227,8 +241,8 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports }: OrderWork
               externalTeams={externalTeams}
               phases={phaseOptions}
               existingAssignments={[...unassigned, ...phases.flatMap(p => p.assignments)]}
-              triggerLabel="Assegna persona o squadra"
-              triggerVariant="default"
+              triggerLabel="Persona o ditta"
+              triggerVariant="outline"
               onAdd={(payload, opts) => addAssignment.mutate(payload, opts)}
             />
             <Dialog open={newPhaseOpen} onOpenChange={(o) => (o ? setNewPhaseOpen(true) : closePhaseDialog())}>
@@ -236,7 +250,7 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports }: OrderWork
               <DialogTrigger asChild>
                 <Button size="sm" variant="outline" className="max-sm:hidden">
                   <ListPlus className="mr-1 h-4 w-4" />
-                  Aggiungi lavorazioni
+                  Lavorazioni
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
@@ -347,35 +361,35 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports }: OrderWork
                 </div>
               </DialogContent>
             </Dialog>
+            </>}
           </div>}
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" aria-label="Accessi e referenti Campo" onClick={() => {
-            if (!accessDetails.current) return;
-            accessDetails.current.open = true;
-            accessDetails.current.querySelector("summary")?.focus();
-            accessDetails.current.scrollIntoView({ behavior: "smooth", block: "start" });
-          }}>Accessi Campo</Button>
-          {onOpenReports && <Button variant="outline" size="sm" aria-label="Vai ai rapportini" onClick={onOpenReports}>Rapportini</Button>}
-          {!isLoading && !isError && summary.attention > 0 && <Button variant="ghost" size="sm" className="text-amber-700" onClick={() => {
-            setFilter("attention"); setSearch(""); phaseList.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-          }}><AlertTriangle className="mr-1.5 h-4 w-4" />Verifica {summary.attention} lavorazioni</Button>}
-        </div>
-
-        {/* Mobile no: persone e squadre si contano nell'elenco qui sotto. */}
-        {!isLoading && !isError && <div className={cn("grid grid-cols-2 gap-2 max-sm:hidden", phases.length > 0 && "lg:grid-cols-4")}>
-          {[
-            ...(phases.length ? [["Lavorazioni", phases.length, `${summary.active} in corso · ${summary.completed} completate`]] : []),
-            ["Dipendenti", summary.employees, "Persone nelle assegnazioni"],
-            ["Squadre esterne", summary.teams, "Imprese nelle assegnazioni"],
-            ...(phases.length ? [["Lavorazioni da verificare", summary.attention, "Date, esecutori o scadenze"]] : []),
-          ].map(([label, value, hint]) => <div key={label} className="rounded-xl border bg-muted/20 p-3">
-            <p className="text-xs font-medium text-muted-foreground">{label}</p>
-            <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
-            <p className="mt-1 hidden text-[11px] text-muted-foreground sm:block">{hint}</p>
-          </div>)}
-        </div>}
+        {/* Una riga al posto dei riquadri: quante squadre, operai, ditte e
+            lavorazioni, e i collegamenti ad app e rapportini. */}
+        {!isLoading && !isError && (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-600">
+            <span className="tabular-nums">
+              <b className="font-semibold text-slate-900">{squadreAttive.length}</b> {squadreAttive.length === 1 ? "squadra" : "squadre"}
+              {" · "}<b className="font-semibold text-slate-900">{operaiInSquadra}</b> {operaiInSquadra === 1 ? "operaio" : "operai"}
+              {summary.employees > 0 && <> · <b className="font-semibold text-slate-900">{summary.employees}</b> {summary.employees === 1 ? "persona" : "persone"} nelle lavorazioni</>}
+              {" · "}<b className="font-semibold text-slate-900">{summary.teams}</b> {summary.teams === 1 ? "ditta esterna" : "ditte esterne"}
+              {" · "}<b className="font-semibold text-slate-900">{phases.length}</b> {phases.length === 1 ? "lavorazione" : "lavorazioni"}
+            </span>
+            <span className="flex items-center gap-1 sm:ml-auto">
+              <Button variant="ghost" size="sm" className="h-8" aria-label="Accesso all'app e ditte in subappalto" onClick={() => {
+                if (!accessDetails.current) return;
+                accessDetails.current.open = true;
+                accessDetails.current.querySelector("summary")?.focus();
+                accessDetails.current.scrollIntoView({ behavior: "smooth", block: "start" });
+              }}>Accesso all'app</Button>
+              {onOpenReports && <Button variant="ghost" size="sm" className="h-8" aria-label="Vai ai rapportini" onClick={onOpenReports}>Rapportini</Button>}
+              {summary.attention > 0 && <Button variant="ghost" size="sm" className="h-8 text-amber-700" onClick={() => {
+                setFilter("attention"); setSearch(""); phaseList.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+              }}><AlertTriangle className="mr-1.5 h-4 w-4" />Verifica {summary.attention} lavorazioni</Button>}
+            </span>
+          </div>
+        )}
 
         {!isLoading && !isError && <InternalTeamShifts key={orderId} orderId={orderId} teams={externalTeams} phases={phaseOptions} canPlan={canEditOrders} />}
 
@@ -431,6 +445,12 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports }: OrderWork
       </CardHeader>
 
       <CardContent className="space-y-3 px-3 pb-3 sm:px-6 sm:pb-6">
+        <section aria-labelledby="lavori-squadre" className="space-y-2">
+          <h3 id="lavori-squadre" className="text-xs font-semibold uppercase tracking-wide text-slate-500">Squadre</h3>
+          <SquadreCommessa orderId={orderId} modificabile={puoSquadre} aggiungiAperto={aggiungiSquadra} onAggiungiAperto={setAggiungiSquadra} />
+        </section>
+
+        <h3 className="pt-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Lavorazioni e costi della manodopera</h3>
         <div ref={phaseList} className="scroll-mt-24" />
         {isLoading ? (
           <div className="flex items-center justify-center gap-2 py-10 text-muted-foreground">
@@ -450,7 +470,7 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports }: OrderWork
           // Riga compatta: a commessa senza lavorazioni questo blocco occupava
           // 663px. L'azione resta, sulla stessa riga.
           <EmptyRow icon={HardHat}>
-            Nessuna lavorazione o persona assegnata. Per un intervento semplice puoi assegnare direttamente la squadra; per organizzare più attività, crea le lavorazioni.
+            Nessuna lavorazione. Servono se vuoi dividere il lavoro in fasi o segnare quanto costa la manodopera (anche di una ditta esterna).
           </EmptyRow>
         ) : (
           <>
@@ -507,9 +527,9 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports }: OrderWork
 
         {/* ── Capocantiere, operai, subappalti e cantiere (sistema operativo) ── */}
         <details ref={accessDetails} className="scroll-mt-24 rounded-lg border">
-          <summary className="cursor-pointer p-3 text-sm font-semibold">App Campo e affidamenti <span className="ml-1 font-normal text-muted-foreground">· accessi, capocantiere, DURC e SAL</span></summary>
+          <summary className="cursor-pointer p-3 text-sm font-semibold">Accesso all'app e ditte in subappalto <span className="ml-1 font-normal text-muted-foreground">· capocantiere, chi vede il cantiere sul telefono, DURC e SAL</span></summary>
           <div className="border-t p-3">
-          <p className="mb-3 text-xs text-muted-foreground">Qui gestisci chi usa l'app e i referenti dei subappalti. Persone e squadre che eseguono il lavoro si assegnano nelle lavorazioni qui sopra.</p>
+          <p className="mb-3 text-xs text-muted-foreground">Chi è in una squadra riceve l'accesso da solo quando la squadra è sulla commessa. Qui aggiungi a mano chi non è in una squadra e i referenti delle ditte.</p>
           <OrderLaborCosts orderId={orderId} editable={canEditOrders} embedded />
           </div>
         </details>
@@ -1355,8 +1375,8 @@ function AddAssignmentDialog({
       </DialogTrigger>
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle className="pr-6">Assegna persona o squadra</DialogTitle>
-          <DialogDescription>Scegli chi esegue il lavoro. Budget e costi sono facoltativi e possono essere compilati in seguito.</DialogDescription>
+          <DialogTitle className="pr-6">Assegna una persona o una ditta</DialogTitle>
+          <DialogDescription>Per la manodopera di una lavorazione: un dipendente o una ditta esterna. Le squadre si aggiungono con «Aggiungi squadra». Budget e costi sono facoltativi.</DialogDescription>
         </DialogHeader>
 
         <fieldset disabled={submitting} className="min-w-0 space-y-4">
@@ -1396,13 +1416,13 @@ function AddAssignmentDialog({
                 className="h-auto min-h-11 justify-start whitespace-normal px-2 py-2 text-left text-xs sm:text-sm"
               >
                 <Users className="mr-1.5 h-4 w-4" />
-                Squadra esterna
+                Ditta esterna
               </Button>
             </div>
           </div>
 
           {/* Executor picker */}
-          {tipo === "interno" && <p className="text-xs text-muted-foreground">Per organizzare i dipendenti in squadre, usa <a className="underline underline-offset-2" href="/azienda/impostazioni/calendari-lavori?tab=squadre">Squadre operative</a>. Qui resta disponibile l'assegnazione individuale.</p>}
+          {tipo === "interno" && <p className="text-xs text-muted-foreground">Le squadre si creano in <a className="underline underline-offset-2" href="/azienda/manodopera?tab=operai&vista=squadre">Manodopera e Mezzi → Squadre</a> e si mettono sulla commessa con «Aggiungi squadra». Qui assegni una sola persona a una lavorazione.</p>}
           <div className="space-y-1.5">
             <Label>{tipo === "interno" ? "Dipendente" : "Squadra / subappaltatore"}</Label>
             <Select value={executorId} onValueChange={(v) => {

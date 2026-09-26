@@ -102917,6 +102917,10 @@ export type Database = {
         Args: { p_squadra_id: string }
         Returns: undefined
       }
+      manodopera_sposta_operaio: {
+        Args: { p_profilo_id: string; p_squadra_id: string | null }
+        Returns: string
+      }
       manodopera_squadra_su_commessa: {
         Args: {
           p_al?: string | null

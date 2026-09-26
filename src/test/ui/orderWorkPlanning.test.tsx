@@ -27,6 +27,9 @@ vi.mock("@/hooks/useOrderWorkPhases", () => ({
 }));
 vi.mock("@/components/orders/OrderLaborCosts", () => ({ OrderLaborCosts: ({ editable }: { editable: boolean }) => <div>Accessi Campo {editable ? "modificabili" : "sola lettura"}</div> }));
 vi.mock("@/components/orders/CreatePurchaseOrderButton", () => ({ CreatePurchaseOrderButton: () => <button>Crea OdA</button> }));
+// Squadre della commessa (26/09): qui conta il blocco delle lavorazioni.
+vi.mock("@/components/manodopera/SquadreCommessa", () => ({ SquadreCommessa: () => <div>Squadre della commessa</div> }));
+vi.mock("@/hooks/useOperai", () => ({ useSquadreCommessa: () => ({ data: [] as unknown[] }) }));
 
 beforeEach(() => {
   vi.clearAllMocks(); state.phases = [phase(), phase({ id: "p2", name: "Collaudo", status: "completata", assignments: [] })];
@@ -45,8 +48,8 @@ const chooseEmployee = () => {
 describe("Lavorazioni e squadra", () => {
   it("il nuovo selettore esterno non offre le squadre di dipendenti", () => {
     HTMLElement.prototype.scrollIntoView = vi.fn(); draw();
-    fireEvent.click(screen.getByRole("button", { name: "Assegna persona o squadra" }));
-    fireEvent.click(screen.getByRole("button", { name: "Squadra esterna" }));
+    fireEvent.click(screen.getByRole("button", { name: "Persona o ditta" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ditta esterna" }));
     fireEvent.keyDown(screen.getByRole("combobox", { name: "Seleziona esecutore" }), { key: "ArrowDown" });
     expect(screen.getByRole("option", { name: "Edil Alfa" })).toBeInTheDocument();
     expect(screen.queryByRole("option", { name: "Squadra dipendenti" })).not.toBeInTheDocument();
@@ -57,13 +60,13 @@ describe("Lavorazioni e squadra", () => {
   });
   it("apre accessi e referenti dall'azione rapida senza mutazioni", () => {
     HTMLElement.prototype.scrollIntoView = vi.fn(); draw();
-    const details = screen.getByText(/App Campo e affidamenti/).closest("details");
+    const details = screen.getByText(/Accesso all.app e ditte in subappalto/).closest("details");
     expect(details).not.toHaveAttribute("open");
-    fireEvent.click(screen.getByRole("button", { name: "Accessi e referenti Campo" }));
+    fireEvent.click(screen.getByRole("button", { name: "Accesso all'app e ditte in subappalto" }));
     expect(details).toHaveAttribute("open"); expect(state.add).not.toHaveBeenCalled();
   });
   it("separa il consuntivo iniziale dalla nuova assegnazione", () => {
-    draw(); fireEvent.click(screen.getByRole("button", { name: "Assegna persona o squadra" }));
+    draw(); fireEvent.click(screen.getByRole("button", { name: "Persona o ditta" }));
     const details = screen.getByText("Consuntivo iniziale (facoltativo)").closest("details");
     expect(details).not.toHaveAttribute("open"); expect(details).toHaveTextContent("non già registrato nei rapportini");
   });
@@ -85,7 +88,7 @@ describe("Lavorazioni e squadra", () => {
   it("non presenta costi e non abilita modifiche a chi non ha i permessi", () => {
     Object.assign(state.permissions, { canEditOrders: false, canViewCosts: false }); draw();
     expect(screen.queryByText("Riepilogo costi della manodopera")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Assegna persona o squadra" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Persona o ditta" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Elimina fase" })).not.toBeInTheDocument();
     expect(screen.getByLabelText("Data inizio prevista")).toBeDisabled();
     expect(screen.getByText("Accessi Campo sola lettura")).toBeInTheDocument();
@@ -115,16 +118,16 @@ describe("Lavorazioni e squadra", () => {
     expect(state.updatePhase).toHaveBeenCalledWith({ id: "p1", percentuale: 70, status: "in_corso" });
   });
   it("apre l'assegnazione sul lavoro, non sui costi, e distingue gli esterni", () => {
-    draw(); fireEvent.click(screen.getByRole("button", { name: "Assegna persona o squadra" }));
+    draw(); fireEvent.click(screen.getByRole("button", { name: "Persona o ditta" }));
     const dialog = screen.getByRole("dialog");
     expect(within(dialog).getByLabelText("Lavorazione da assegnare")).toHaveValue("");
-    fireEvent.click(within(dialog).getByRole("button", { name: "Squadra esterna" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Ditta esterna" }));
     expect(within(dialog).queryByLabelText("Ore già registrate (facoltativo)")).not.toBeInTheDocument();
     expect(within(dialog).getByText(/non abilita automaticamente un account/)).toBeInTheDocument();
     expect(state.add).not.toHaveBeenCalled();
   });
   it("conserva creazione manuale e modelli senza salvataggi all'apertura", () => {
-    draw(); fireEvent.click(screen.getByRole("button", { name: "Aggiungi lavorazioni" }));
+    draw(); fireEvent.click(screen.getByRole("button", { name: "Lavorazioni" }));
     fireEvent.click(screen.getByRole("button", { name: "Intervento semplice" }));
     expect(screen.getByRole("button", { name: "Aggiungi le 2 fasi" })).toBeInTheDocument();
     expect(state.applyTemplate).not.toHaveBeenCalled();
@@ -134,7 +137,7 @@ describe("Lavorazioni e squadra", () => {
   });
   it("crea l'assegnazione sulla fase scelta mantenendo il contratto dei dati", () => {
     state.phases = [phase({ assignments: [] })]; draw();
-    fireEvent.click(screen.getByRole("button", { name: "Assegna persona o squadra" }));
+    fireEvent.click(screen.getByRole("button", { name: "Persona o ditta" }));
     chooseEmployee();
     fireEvent.change(screen.getByLabelText("Lavorazione da assegnare"), { target: { value: "p1" } });
     fireEvent.click(screen.getByRole("button", { name: "Conferma assegnazione" }));
@@ -142,13 +145,13 @@ describe("Lavorazioni e squadra", () => {
       phase_id: "p1", cost_preventivo: 0, cost_consuntivo: 0, hours: null, is_paid: false }), expect.any(Object));
   });
   it("non crea una seconda riga della stessa persona sulla stessa fase", () => {
-    draw(); fireEvent.click(screen.getByRole("button", { name: "Assegna persona o squadra" }));
+    draw(); fireEvent.click(screen.getByRole("button", { name: "Persona o ditta" }));
     chooseEmployee(); fireEvent.change(screen.getByLabelText("Lavorazione da assegnare"), { target: { value: "p1" } });
     fireEvent.click(screen.getByRole("button", { name: "Conferma assegnazione" }));
     expect(state.add).not.toHaveBeenCalled();
   });
   it("rifiuta un budget negativo senza inviare dati", () => {
-    draw(); fireEvent.click(screen.getByRole("button", { name: "Assegna persona o squadra" }));
+    draw(); fireEvent.click(screen.getByRole("button", { name: "Persona o ditta" }));
     chooseEmployee(); fireEvent.change(screen.getByLabelText("Budget manodopera €"), { target: { value: "-10" } });
     fireEvent.click(screen.getByRole("button", { name: "Conferma assegnazione" }));
     expect(state.add).not.toHaveBeenCalled();

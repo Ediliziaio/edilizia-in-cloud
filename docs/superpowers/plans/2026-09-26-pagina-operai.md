@@ -102,4 +102,9 @@ Regole: si assegna una **squadra o un operaio** a una **commessa** per **giorni*
   - Km dei mezzi: strada sede→cantiere col servizio percorsi già in uso (HERE, ripiego OSRM), salvata in `orders.distanza_sede_km` (si azzera se cambia la posizione del cantiere); km = giorni lavorativi sul cantiere × andata e ritorno, solo per furgoni, autocarri e auto. In commessa («Mezzi sul cantiere») e nella scheda del mezzo, nuova scheda «Cantieri e km» con il grafico degli ultimi 90 giorni per cantiere e per persona.
   - Demo 2: giornale dei lavori 22–25/09 sui tre cantieri, 4 rapportini di Luca Ferrari, 2 guasti, storico di agosto dei mezzi.
   - Da sapere: se cambia la sede, le distanze già salvate restano quelle vecchie; i km sono una stima (i giorni lavorativi del periodo, non i viaggi veri).
+- **Commessa: un blocco solo «Lavori e squadre» (26/09, sera)** — migrazione `20280927173000_manodopera_sposta_operaio_accessi_azienda`, applicata e registrata.
+  - Il riquadro «Squadre al lavoro» non è più separato: le squadre stanno dentro «Lavori e squadre» (in cima tre azioni: Aggiungi squadra, Persona o ditta, Lavorazioni; una riga di riepilogo al posto dei riquadri a zero; poi Squadre, Lavorazioni e costi, Accesso all'app e ditte in subappalto). In Panoramica resta una riga con le squadre in «Organizzazione del cantiere».
+  - Un operaio si sposta da una squadra all'altra trascinandolo o dal menu del suo nome («Sposta in…», «Togli dalla squadra»), con «Annulla» nell'avviso (`manodopera_sposta_operaio`).
+  - Sicurezza: una squadra non dà più accessi ad account di un'altra azienda (`account_della_azienda`). La Demo 2 aveva 7 schede collegate agli account della Demo 1 (residuo della copia): staccate, tolti i 2 accessi nati così. Resta 1 caso nella Demo 1 da guardare; 6 schede `employees` fuori Demo 2 collegate altrove non toccate.
+  - Pannello accessi all'app: date per esteso, nome di ripiego, frasi semplici.
 

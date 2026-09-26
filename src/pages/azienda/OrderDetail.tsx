@@ -6,7 +6,7 @@ import { AlertTriangle, BellRing, AlertCircle, Package, Receipt, HardHat, Truck,
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { OrderSurveysCard } from "@/components/orders/OrderSurveysCard";
 import { MezziCommessaCard } from "@/components/mezzi/MezziCommessaCard";
-import { SquadreCommessaCard } from "@/components/manodopera/SquadreCommessaCard";
+import { SquadreInBreve } from "@/components/manodopera/SquadreCommessa";
 import { OrderActivityFeed } from "@/components/orders/OrderActivityFeed";
 import { OrderOriginBadge } from "@/components/orders/OrderOriginBadge";
 import { OrderScheduleBadge } from "@/components/orders/OrderScheduleBadge";
@@ -1437,9 +1437,11 @@ function OrderDetailInner() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
+                    <ErrorBoundary fallback={<></>}>
+                      <SquadreInBreve orderId={id!} />
+                    </ErrorBoundary>
                     <p className="text-sm text-muted-foreground">
-                      Lavorazioni, dipendenti, subappaltatori, calendario e
-                      rapportini sono riuniti in Cantiere.
+                      Squadre, lavorazioni, ditte, calendario e rapportini sono in Cantiere.
                     </p>
                     <Button
                       variant="outline"
@@ -1456,12 +1458,6 @@ function OrderDetailInner() {
                 </Card>
                 <ErrorBoundary fallback={<></>}>
                   <OrderSurveysCard orderId={id!} />
-                </ErrorBoundary>
-              </div>
-              {/* Chi lavora qui e con cosa: squadre e mezzi della commessa. */}
-              <div className="lg:col-span-2">
-                <ErrorBoundary fallback={<></>}>
-                  <SquadreCommessaCard orderId={id!} modificabile={permissions.canEditOrders || permissions.canEditOperai} />
                 </ErrorBoundary>
               </div>
               <div className="empty:hidden lg:col-span-2">
@@ -2050,11 +2046,6 @@ function OrderDetailInner() {
 
           {/* Un solo percorso operativo su desktop e mobile. Nessuna duplicazione dei dati. */}
           <TabsContent value="cantiere" className="space-y-4 mt-4">
-            <div id="section-squadre" className="scroll-mt-24">
-              <ErrorBoundary fallback={<></>}>
-                <SquadreCommessaCard orderId={id!} modificabile={permissions.canEditOrders || permissions.canEditOperai} />
-              </ErrorBoundary>
-            </div>
             <div id="section-lavorazioni" className="scroll-mt-24">
               <OrderWorkPhases orderId={id!} orderCode={order.order_code}
                 onOpenReports={() => navigateTo({ tab: "cantiere", section: "section-rapportini" })} />

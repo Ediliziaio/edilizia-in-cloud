@@ -356,6 +356,26 @@ export function useSquadraSuCommessa() {
   });
 }
 
+/**
+ * Sposta un operaio in un'altra squadra (null = fuori da tutte). Vale per
+ * tutte le commesse delle due squadre. Restituisce la squadra di prima, per
+ * «Annulla».
+ */
+export function useSpostaOperaio() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { profiloId: string; squadraId: string | null }) => {
+      const { data, error } = await supabase.rpc("manodopera_sposta_operaio", {
+        p_profilo_id: v.profiloId,
+        p_squadra_id: v.squadraId,
+      });
+      if (error) throw error;
+      return (data as string | null) ?? null;
+    },
+    onSuccess: () => aggiornaDopoSquadre(qc),
+  });
+}
+
 export function useTogliSquadraDaCommessa() {
   const qc = useQueryClient();
   return useMutation({
