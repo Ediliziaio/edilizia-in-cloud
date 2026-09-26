@@ -3,6 +3,9 @@
 import { type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 export interface KeyCtx {
+  /** Come ci si è autenticati: chiave API o token OAuth (grant). Decide su quale
+   *  colonna di api_usage_log si scrive e si contano i limiti. */
+  kind: "api_key" | "oauth";
   id: string;
   company_id: string | null;
   name: string;
@@ -22,6 +25,24 @@ export interface KeyCtx {
  *  parte dal rate limit generale, per contenere costi e abusi. */
 export function isSensitiveScope(scope: string | null): boolean {
   return scope === "actions:sensitive" || scope === "email:send";
+}
+
+// Livello del connettore → scope. Rispecchia src/lib/aiConnector.ts: gli scope
+// NON arrivano dal client (OAuth non ha scope personalizzati) ma si ricavano qui
+// dal livello salvato nel grant, così non sono manomettibili.
+const SCOPE_LETTURA = [
+  "contacts:read", "opportunities:read", "tasks:read", "orders:read", "products:read",
+  "quotes:read", "warehouse:read", "hr:read", "safety:read", "email:read", "appointments:read", "stats:read",
+];
+const SCOPE_AZIONI = [
+  "contacts:write", "opportunities:write", "tasks:write", "orders:write", "products:write",
+  "warehouse:write", "hr:write", "appointments:write",
+];
+const SCOPE_SENSIBILI = ["actions:sensitive", "email:send"];
+
+export function scopesPerLivello(livello: string, invii: boolean): string[] {
+  if (livello !== "operativo") return [...SCOPE_LETTURA];
+  return invii ? [...SCOPE_LETTURA, ...SCOPE_AZIONI, ...SCOPE_SENSIBILI] : [...SCOPE_LETTURA, ...SCOPE_AZIONI];
 }
 
 export interface ToolDef {

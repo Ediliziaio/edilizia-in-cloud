@@ -28,7 +28,7 @@ import { getCorsHeaders } from "../_shared/headers.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import {
   type KeyCtx, type ToolDef, ToolError,
-  sha256Hex, hasScope, isSensitiveScope, str, num, intLimit, resolveCompany, UUID_RE,
+  sha256Hex, hasScope, isSensitiveScope, scopesPerLivello, str, num, intLimit, resolveCompany, UUID_RE,
 } from "./lib.ts";
 import { SILVIO_TOOLS } from "./silvioTools.ts";
 
@@ -641,6 +641,81 @@ function toolToMcp(t: ToolDef) {
   return { name: t.name, description: t.description, inputSchema: t.inputSchema, annotations: annotazioni(t) };
 }
 
+// ── OAuth 2.1 (Supabase) — discovery e validazione token ────────────────────
+// Il connettore accetta due modi di autenticarsi: una chiave API (x-api-key) o
+// un token OAuth emesso da Supabase (Authorization: Bearer eyJ…). Il token
+// identifica utente + client; il livello/azienda stanno nel grant
+// (mcp_oauth_grants), non nel token — OAuth non ha scope personalizzati.
+const SB_URL = (Deno.env.get("SUPABASE_URL") ?? "").replace(/\/$/, "");
+const MCP_RESOURCE = `${SB_URL}/functions/v1/platform-mcp`;
+const OAUTH_PRM_URL = `${MCP_RESOURCE}/.well-known/oauth-protected-resource`;
+
+/** Metadati della risorsa protetta (RFC 9728): dice ai client dov'è il server OAuth. */
+function protectedResourceMetadata() {
+  return {
+    resource: MCP_RESOURCE,
+    authorization_servers: [`${SB_URL}/auth/v1`],
+    bearer_methods_supported: ["header"],
+  };
+}
+
+/** Legge i claim di un JWT senza verificarne la firma (la verifica la fa getUser). */
+function decodeJwtClaims(token: string): Record<string, unknown> | null {
+  try {
+    const part = token.split(".")[1];
+    if (!part) return null;
+    const b64 = part.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(part.length / 4) * 4, "=");
+    return JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))));
+  } catch {
+    return null;
+  }
+}
+
+/** Risposta 401 che avvia il flusso OAuth nei client che lo supportano. */
+function sfidaOAuth(messaggio: string, cors: HeadersInit) {
+  return new Response(JSON.stringify(rpcError(null, -32001, messaggio)), {
+    status: 401,
+    headers: {
+      ...cors,
+      "Content-Type": "application/json",
+      "WWW-Authenticate": `Bearer resource_metadata="${OAUTH_PRM_URL}"`,
+    },
+  });
+}
+
+/** Costruisce il KeyCtx da un token OAuth: valida, trova il grant, ricava gli scope. */
+async function ctxDaOAuth(admin: SupabaseClient, token: string): Promise<KeyCtx | null> {
+  const { data, error } = await admin.auth.getUser(token);
+  if (error || !data?.user) return null;
+  const userId = data.user.id;
+  const claims = decodeJwtClaims(token) ?? {};
+  const clientId = typeof claims.client_id === "string" ? claims.client_id : null;
+
+  // Grant per (client, utente); se il client non è nel token, il più recente dell'utente.
+  let q = admin.from("mcp_oauth_grants")
+    .select("id, company_id, client_name, livello, invii, rate_limit_per_minute, rate_limit_per_day, sensitive_actions_per_day")
+    .eq("user_id", userId).is("revoked_at", null)
+    .order("updated_at", { ascending: false }).limit(1);
+  if (clientId) q = admin.from("mcp_oauth_grants")
+    .select("id, company_id, client_name, livello, invii, rate_limit_per_minute, rate_limit_per_day, sensitive_actions_per_day")
+    .eq("user_id", userId).eq("client_id", clientId).is("revoked_at", null)
+    .order("updated_at", { ascending: false }).limit(1);
+  const { data: grant } = await q.maybeSingle();
+  if (!grant) return null;
+
+  return {
+    kind: "oauth",
+    id: grant.id,
+    company_id: grant.company_id,
+    name: grant.client_name ?? "Assistente AI (OAuth)",
+    scopes: scopesPerLivello(grant.livello as string, grant.invii as boolean),
+    rate_limit_per_minute: grant.rate_limit_per_minute ?? 60,
+    rate_limit_per_day: grant.rate_limit_per_day ?? 5000,
+    sensitive_actions_per_day: grant.sensitive_actions_per_day ?? 100,
+    created_by: userId,
+  };
+}
+
 // ── Server ───────────────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
@@ -649,8 +724,13 @@ Deno.serve(async (req) => {
 
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
-  // Health check senza auth (smoke test/monitoraggio)
   const url = new URL(req.url);
+
+  // Discovery OAuth (RFC 9728): senza auth, così i client scoprono il server OAuth.
+  if (req.method === "GET" && url.pathname.endsWith("/.well-known/oauth-protected-resource")) {
+    return new Response(JSON.stringify(protectedResourceMetadata()), { headers: jsonHeaders });
+  }
+  // Health check senza auth (smoke test/monitoraggio)
   if (req.method === "GET" && url.searchParams.get("health") === "1") {
     return new Response(JSON.stringify({ ok: true, server: SERVER_INFO.name, tools: TOOLS.length }), { headers: jsonHeaders });
   }
@@ -663,38 +743,50 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
 
-  // ── Autenticazione API key ────────────────────────────────────────────────
-  const bearer = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+  // ── Autenticazione: chiave API oppure token OAuth ─────────────────────────
+  const bearer = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
+  const xApiKey = req.headers.get("x-api-key");
   // x-api-key: qualunque prefisso (si autentica per hash). Authorization: Bearer:
-  // le chiavi piattaforma sono eic_…, quelle emesse dall'azienda sk_… (apiKeyUtils).
-  const apiKey = req.headers.get("x-api-key") ?? (/^(eic_|sk_)/.test(bearer ?? "") ? bearer : null);
-  if (!apiKey) {
-    return new Response(JSON.stringify(rpcError(null, -32001, "API key mancante: header x-api-key (o Authorization: Bearer eic_...)")), { status: 401, headers: jsonHeaders });
+  // chiavi piattaforma eic_…, chiavi azienda sk_… (apiKeyUtils); un JWT (eyJ…) è OAuth.
+  const apiKey = xApiKey ?? (/^(eic_|sk_)/.test(bearer) ? bearer : null);
+  let ctx: KeyCtx | null = null;
+
+  if (apiKey) {
+    const keyHash = await sha256Hex(apiKey);
+    const { data: keyRow } = await admin.from("api_keys")
+      .select("id, company_id, name, scopes, is_active, expires_at, rate_limit_per_minute, rate_limit_per_day, sensitive_actions_per_day, created_by")
+      .eq("key_hash", keyHash)
+      .maybeSingle();
+    if (!keyRow) {
+      return new Response(JSON.stringify(rpcError(null, -32001, "API key non valida")), { status: 401, headers: jsonHeaders });
+    }
+    if (!keyRow.is_active) {
+      return new Response(JSON.stringify(rpcError(null, -32001, "API key revocata")), { status: 403, headers: jsonHeaders });
+    }
+    if (keyRow.expires_at && new Date(keyRow.expires_at) < new Date()) {
+      return new Response(JSON.stringify(rpcError(null, -32001, "API key scaduta")), { status: 403, headers: jsonHeaders });
+    }
+    ctx = {
+      kind: "api_key",
+      id: keyRow.id,
+      company_id: keyRow.company_id,
+      name: keyRow.name,
+      scopes: (keyRow.scopes as string[]) ?? [],
+      rate_limit_per_minute: keyRow.rate_limit_per_minute ?? 60,
+      rate_limit_per_day: keyRow.rate_limit_per_day ?? 5000,
+      sensitive_actions_per_day: keyRow.sensitive_actions_per_day ?? 100,
+      created_by: keyRow.created_by,
+    };
+  } else if (bearer.startsWith("eyJ")) {
+    // Token OAuth di Supabase.
+    ctx = await ctxDaOAuth(admin, bearer);
+    if (!ctx) {
+      return sfidaOAuth("Token non valido o nessun consenso attivo. Collega di nuovo l'assistente.", cors);
+    }
+  } else {
+    // Nessuna credenziale: avvia il flusso OAuth (o suggerisci la chiave API).
+    return sfidaOAuth("Autenticazione richiesta: token OAuth (Authorization: Bearer) o header x-api-key.", cors);
   }
-  const keyHash = await sha256Hex(apiKey);
-  const { data: keyRow } = await admin.from("api_keys")
-    .select("id, company_id, name, scopes, is_active, expires_at, rate_limit_per_minute, rate_limit_per_day, sensitive_actions_per_day, created_by")
-    .eq("key_hash", keyHash)
-    .maybeSingle();
-  if (!keyRow) {
-    return new Response(JSON.stringify(rpcError(null, -32001, "API key non valida")), { status: 401, headers: jsonHeaders });
-  }
-  if (!keyRow.is_active) {
-    return new Response(JSON.stringify(rpcError(null, -32001, "API key revocata")), { status: 403, headers: jsonHeaders });
-  }
-  if (keyRow.expires_at && new Date(keyRow.expires_at) < new Date()) {
-    return new Response(JSON.stringify(rpcError(null, -32001, "API key scaduta")), { status: 403, headers: jsonHeaders });
-  }
-  const ctx: KeyCtx = {
-    id: keyRow.id,
-    company_id: keyRow.company_id,
-    name: keyRow.name,
-    scopes: (keyRow.scopes as string[]) ?? [],
-    rate_limit_per_minute: keyRow.rate_limit_per_minute ?? 60,
-    rate_limit_per_day: keyRow.rate_limit_per_day ?? 5000,
-    sensitive_actions_per_day: keyRow.sensitive_actions_per_day ?? 100,
-    created_by: keyRow.created_by,
-  };
 
   // ── Parse JSON-RPC ────────────────────────────────────────────────────────
   let msg: Json;
@@ -741,9 +833,13 @@ Deno.serve(async (req) => {
       }
       const args = (params.arguments ?? {}) as Record<string, unknown>;
 
+      // Chi chiama: chiave API (api_key_id) o consenso OAuth (grant_id). Log e
+      // limiti puntano alla colonna giusta, così i due mondi non si mescolano.
+      const principalCol = ctx.kind === "oauth" ? "grant_id" : "api_key_id";
+
       const log = async (status: number, companyId: string | null) => {
         await admin.from("api_usage_log").insert({
-          api_key_id: ctx.id,
+          [principalCol]: ctx.id,
           company_id: companyId ?? ctx.company_id,
           endpoint: `mcp:${tool.name}`,
           method: "POST",
@@ -757,7 +853,7 @@ Deno.serve(async (req) => {
       if (!hasScope(ctx, tool.scope)) {
         await log(403, null);
         return new Response(JSON.stringify(rpcResult(id, {
-          content: [{ type: "text", text: `Scope '${tool.scope}' non autorizzato per questa chiave.` }],
+          content: [{ type: "text", text: `Scope '${tool.scope}' non autorizzato per questo collegamento.` }],
           isError: true,
         })), { headers: jsonHeaders });
       }
@@ -766,7 +862,7 @@ Deno.serve(async (req) => {
       const oneMinuteAgo = new Date(Date.now() - 60_000).toISOString();
       const { count: minuteCount } = await admin.from("api_usage_log")
         .select("*", { count: "exact", head: true })
-        .eq("api_key_id", ctx.id).gte("created_at", oneMinuteAgo);
+        .eq(principalCol, ctx.id).gte("created_at", oneMinuteAgo);
       if ((minuteCount ?? 0) >= ctx.rate_limit_per_minute) {
         await log(429, null);
         return new Response(JSON.stringify(rpcResult(id, {
@@ -777,7 +873,7 @@ Deno.serve(async (req) => {
       const oneDayAgo = new Date(Date.now() - 86_400_000).toISOString();
       const { count: dayCount } = await admin.from("api_usage_log")
         .select("*", { count: "exact", head: true })
-        .eq("api_key_id", ctx.id).gte("created_at", oneDayAgo);
+        .eq(principalCol, ctx.id).gte("created_at", oneDayAgo);
       if ((dayCount ?? 0) >= ctx.rate_limit_per_day) {
         await log(429, null);
         return new Response(JSON.stringify(rpcResult(id, {
@@ -793,14 +889,14 @@ Deno.serve(async (req) => {
       if (isSensitiveScope(tool.scope) && SENSITIVE_ENDPOINTS.length > 0) {
         const { count: sensitiveCount } = await admin.from("api_usage_log")
           .select("*", { count: "exact", head: true })
-          .eq("api_key_id", ctx.id)
+          .eq(principalCol, ctx.id)
           .eq("status_code", 200)
           .in("endpoint", SENSITIVE_ENDPOINTS)
           .gte("created_at", oneDayAgo);
         if ((sensitiveCount ?? 0) >= ctx.sensitive_actions_per_day) {
           await log(429, null);
           return new Response(JSON.stringify(rpcResult(id, {
-            content: [{ type: "text", text: `Tetto giornaliero di azioni sensibili raggiunto (${ctx.sensitive_actions_per_day}/giorno: invii reali e strumenti a costo AI). Riprova domani o alza il limite della chiave.` }],
+            content: [{ type: "text", text: `Tetto giornaliero di azioni sensibili raggiunto (${ctx.sensitive_actions_per_day}/giorno: invii reali e strumenti a costo AI). Riprova domani o alza il limite del collegamento.` }],
             isError: true,
           })), { headers: jsonHeaders });
         }
@@ -809,7 +905,8 @@ Deno.serve(async (req) => {
       try {
         const result = await tool.handler(admin, ctx, args);
         await log(200, typeof (result as Json)?.company_id === "string" ? (result as Json).company_id as string : null);
-        await admin.from("api_keys").update({ last_used_at: new Date().toISOString() }).eq("id", ctx.id);
+        await admin.from(ctx.kind === "oauth" ? "mcp_oauth_grants" : "api_keys")
+          .update({ last_used_at: new Date().toISOString() }).eq("id", ctx.id);
         return new Response(JSON.stringify(rpcResult(id, {
           content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
         })), { headers: jsonHeaders });
