@@ -22,7 +22,13 @@ import { cn } from "@/lib/utils";
 import { LoginForm } from "@/components/auth/LoginForm";
 import { LIVELLI, type LivelloConnettore } from "@/lib/aiConnector";
 
-type Dettagli = { clientId: string; clientName: string; scope: string };
+type Dettagli = { clientId: string; clientName: string; scope: string; redirectHost: string | null };
+
+/** Host del redirect_uri del client: mostrato a chi autorizza per riconoscere
+ *  un assistente vero da un finto omonimo (la registrazione dei client è aperta). */
+function hostDa(uri: string | undefined): string | null {
+  try { return uri ? new URL(uri).host : null; } catch { return null; }
+}
 
 export default function OAuthConsent() {
   const [params] = useSearchParams();
@@ -66,7 +72,12 @@ export default function OAuthConsent() {
         window.location.href = (data as { redirect_url: string }).redirect_url;
         return;
       }
-      setDettagli({ clientId: data.client.id, clientName: data.client.name || "Assistente AI", scope: data.scope });
+      setDettagli({
+        clientId: data.client.id,
+        clientName: data.client.name || "Assistente AI",
+        scope: data.scope,
+        redirectHost: hostDa(data.redirect_uri),
+      });
       setStato("consenso");
     })();
     return () => { vivo = false; };
@@ -159,6 +170,14 @@ export default function OAuthConsent() {
             <strong>{companyName}</strong>. L'assistente lavorerà <strong>solo sui dati di questa azienda</strong>.
             Scegli cosa può fare.
           </p>
+
+          {dettagli.redirectHost && (
+            <p className="rounded-lg border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+              I dati verranno inviati a <strong className="font-mono">{dettagli.redirectHost}</strong>. Autorizza solo se
+              riconosci questo indirizzo (es. <span className="font-mono">claude.ai</span>,{" "}
+              <span className="font-mono">chatgpt.com</span>).
+            </p>
+          )}
 
           {errore && (
             <Alert variant="destructive">

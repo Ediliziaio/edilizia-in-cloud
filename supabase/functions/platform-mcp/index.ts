@@ -691,16 +691,16 @@ async function ctxDaOAuth(admin: SupabaseClient, token: string): Promise<KeyCtx 
   const claims = decodeJwtClaims(token) ?? {};
   const clientId = typeof claims.client_id === "string" ? claims.client_id : null;
 
-  // Grant per (client, utente); se il client non è nel token, il più recente dell'utente.
-  let q = admin.from("mcp_oauth_grants")
-    .select("id, company_id, client_name, livello, invii, rate_limit_per_minute, rate_limit_per_day, sensitive_actions_per_day")
-    .eq("user_id", userId).is("revoked_at", null)
-    .order("updated_at", { ascending: false }).limit(1);
-  if (clientId) q = admin.from("mcp_oauth_grants")
+  // SOLO veri token OAuth: un token OAuth emesso da Supabase porta SEMPRE il
+  // claim client_id; un token di sessione dell'app NON ce l'ha. Richiederlo
+  // chiude la porta a chi provasse a usare il token dell'app come credenziale
+  // MCP, e rende la revoca per-client stretta (un grant è per quel client).
+  if (!clientId) return null;
+  const { data: grant } = await admin.from("mcp_oauth_grants")
     .select("id, company_id, client_name, livello, invii, rate_limit_per_minute, rate_limit_per_day, sensitive_actions_per_day")
     .eq("user_id", userId).eq("client_id", clientId).is("revoked_at", null)
-    .order("updated_at", { ascending: false }).limit(1);
-  const { data: grant } = await q.maybeSingle();
+    .order("updated_at", { ascending: false }).limit(1)
+    .maybeSingle();
   if (!grant) return null;
 
   return {
