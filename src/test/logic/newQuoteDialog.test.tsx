@@ -59,7 +59,7 @@ describe("popup unico di creazione preventivi", () => {
     mount();
     expect(screen.getByRole("dialog")).toHaveAccessibleName("Che preventivo vuoi creare?");
     expect(screen.getByTestId("route")).toHaveTextContent("/azienda/marketing/preventivi");
-    expect(screen.getAllByRole("button", { name: /^Scegli area/ })).toHaveLength(12);
+    expect(screen.getAllByRole("button", { name: /^Scegli area/ })).toHaveLength(13);
     expect(screen.getByRole("link", { name: /^Preventivo classico/ })).toHaveAttribute("href", "/azienda/marketing/preventivi/nuovo");
     expect(screen.queryByRole("link", { name: /PDF|Impostazioni/ })).not.toBeInTheDocument();
   });
@@ -68,7 +68,7 @@ describe("popup unico di creazione preventivi", () => {
     state.views.find(view => view.modulo.slug === "bagni")!.stato = "bloccato";
     state.views.find(view => view.modulo.slug === "serramenti")!.isError = true;
     mount();
-    for (const title of ["Tetti", "Bagni", "Serramenti", "Facciate e isolamento"]) expect(screen.queryByRole("button", { name: `Scegli area ${title}` })).not.toBeInTheDocument();
+    for (const title of ["Tetti", "Bagni", "Serramenti"]) expect(screen.queryByRole("button", { name: `Scegli area ${title}` })).not.toBeInTheDocument();
   });
   it("non espone moduli marketing a chi può creare soltanto classico e fotovoltaico", () => {
     state.permissions.canEditMarketingOpportunities = false;

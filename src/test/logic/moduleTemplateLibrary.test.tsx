@@ -114,14 +114,14 @@ describe("libreria completa dei moduli", () => {
     expect(screen.queryByLabelText("Titolo del modulo")).toBeNull();
     expect(state.remoteWrite).not.toHaveBeenCalled();
   });
-  it.each(SALES_AREAS.filter(a => ["climatizzazione", "elettrico", "pavimenti", "piscine", "facciate"].includes(a.id)).flatMap(a => a.interventions.map(m => [a.sourceModule, m.id] as const)))("collega il nuovo modello %s/%s alle pagine dedicate", async (slug, id) => {
+  it.each(SALES_AREAS.filter(a => ["climatizzazione", "elettrico", "pavimenti", "piscine"].includes(a.id)).flatMap(a => a.interventions.map(m => [a.sourceModule, m.id] as const)))("collega il nuovo modello %s/%s alle pagine dedicate", async (slug, id) => {
     mount(`&modulo=${slug}&modello=${id}`);
     expect(await screen.findByText(new RegExp(`Editor dedicato ${slug}/${id}`))).toBeInTheDocument();
     expect(screen.queryByLabelText("Titolo del modulo")).toBeNull();
     expect(localStorage.length).toBe(0);
     expect(state.remoteWrite).not.toHaveBeenCalled();
   });
-  it.each(["climatizzazione", "elettrico", "pavimenti", "piscine", "cappotto"])("conserva l'edizione precedente nell'area %s", async slug => {
+  it.each(["climatizzazione", "elettrico", "pavimenti", "piscine"])("conserva l'edizione precedente nell'area %s", async slug => {
     const area = SALES_AREAS.find(a => a.sourceModule === slug)!;
     mount(`&modulo=${slug}&modello=${area.interventions[0].id}&edizione=precedente`);
     expect(await screen.findByLabelText("Titolo del modulo")).toHaveValue(area.interventions[0].title);
@@ -175,7 +175,7 @@ describe("libreria completa dei moduli", () => {
     mount("&modulo=cappotto");
     expect(
       screen.getAllByRole("button", { name: "Personalizza PDF" }),
-    ).toHaveLength(6);
+    ).toHaveLength(9);
     fireEvent.change(screen.getByLabelText("Cerca un modulo"), {
       target: { value: "inesistente" },
     });

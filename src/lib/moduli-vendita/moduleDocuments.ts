@@ -274,6 +274,12 @@ export const INTERVENTION_LIMITS: Record<string, string> = {
     "Raccordi e gestione dell'umidità richiedono valutazione progettuale; lo spessore riduce lo spazio disponibile.",
   "facciate/riparazioni":
     "Le riparazioni riguardano le zone delimitate. Uniformità cromatica con le parti esistenti e difetti nascosti vanno valutati.",
+  "facciate/ventilata":
+    "Il supporto deve reggere gli ancoraggi della sottostruttura. Prestazioni e classe energetica dipendono dal progetto, non sono garantite.",
+  "facciate/pietra":
+    "Il supporto deve reggere il peso del rivestimento; posa incollata o ancorata secondo il materiale. Venature e tono della pietra variano.",
+  "facciate/pulizia":
+    "Il metodo si sceglie su sporco e materiale reali, con prova su zona campione. La protezione rallenta il ritorno di alghe e depositi, non lo elimina.",
 };
 
 export interface ModulePage {

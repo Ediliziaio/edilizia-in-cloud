@@ -138,13 +138,16 @@ export const SALES_AREAS: readonly SalesArea[] = [
     intervention("accessori", "Coperture e accessori", "Aggiunta di dotazioni alla piscina.", "Dimensioni", "Dotazioni scelte", "Predisposizioni", "Montaggio"),
     intervention("manutenzione", "Manutenzione stagionale", "Apertura, chiusura e interventi periodici.", "Dati piscina", "Servizi richiesti", "Materiali e ricambi", "Periodicità"),
   ] },
-  { id: "facciate", title: "Facciate e isolamento", sourceModule: "cappotto", summary: "Cappotto, rinnovo delle facciate e ripristini esterni.", interventions: [
+  { id: "facciate", title: "Facciate e isolamento", sourceModule: "ristrutturazione", summary: "Cappotto, rinnovo delle facciate e ripristini esterni.", interventions: [
     intervention("cappotto", "Cappotto termico esterno", "Sistema di isolamento e finitura delle facciate.", "Superfici e supporto", "Isolante e spessore", "Raccordi e finitura", "Ponteggi e accessi"),
     intervention("rifacimento", "Rifacimento facciata", "Ripristino di intonaci e finiture senza cappotto.", "Superficie e stato", "Rimozioni e ripristini", "Ciclo di finitura", "Accessi"),
     intervention("balconi", "Balconi e frontalini", "Ripristini delle parti esterne interessate.", "Elementi e quantità", "Degrado rilevato", "Lavorazioni previste", "Accessi e protezioni"),
     intervention("tinteggiatura", "Tinteggiatura esterna", "Preparazione e rinnovo del colore.", "Superfici", "Stato del supporto", "Ciclo e colore", "Accessi e protezioni"),
     intervention("interno", "Isolamento interno", "Coibentazione dall'interno degli ambienti.", "Superfici", "Sistema e spessore", "Raccordi", "Finiture e ripristini"),
     intervention("riparazioni", "Riparazioni localizzate", "Interventi puntuali sulle facciate.", "Zone interessate", "Difetti rilevati", "Lavorazioni", "Accessi e finiture"),
+    intervention("ventilata", "Facciata ventilata", "Sottostruttura, isolante e rivestimento con camera d'aria.", "Superfici e supporto", "Sottostruttura e ancoraggi", "Isolante e camera d'aria", "Rivestimento e nodi"),
+    intervention("pietra", "Rivestimenti in pietra", "Pietra e listelli su facciata, con ancoraggio verificato.", "Superfici e supporto", "Materiale e formato", "Posa e ancoraggio", "Pezzi speciali e nodi"),
+    intervention("pulizia", "Pulizia e protezione", "Pulizia dello sporco e trattamento protettivo delle facciate.", "Superfici e sporco", "Materiale della facciata", "Metodo di pulizia", "Trattamento protettivo"),
   ] },
 ];
 

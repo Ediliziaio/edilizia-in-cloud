@@ -90,6 +90,9 @@ export const TIPO_INTERVENTO_DEL_MODELLO: Record<ModuloConModelli, Readonly<Reco
     decorativi: "ristrutturazione_parziale", umidita: "ristrutturazione_parziale", acustica: "ristrutturazione_parziale",
     "pergola-bioclimatica": "ristrutturazione_parziale", "pergola-telo": "ristrutturazione_parziale", "tende-sole": "ristrutturazione_parziale",
     vetrate: "ristrutturazione_parziale", carport: "ristrutturazione_parziale",
+    cappotto: "efficientamento_energetico", rifacimento: "manutenzione_straordinaria", balconi: "manutenzione_straordinaria",
+    tinteggiatura: "manutenzione_straordinaria", interno: "efficientamento_energetico", riparazioni: "manutenzione_straordinaria",
+    ventilata: "efficientamento_energetico", pietra: "manutenzione_straordinaria", pulizia: "manutenzione_straordinaria",
   },
 };
 

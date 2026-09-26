@@ -24,7 +24,13 @@ describe("six native Facciate editions", () => {
     expect(refreshed.blocks.controlli).toEqual(t.pdf_blocchi.controlli);
     expect(prepareFacPhotoRefresh(make(), "cappotto").added).toBe(0);
   });
-  it("matches areas.ts exactly", () => expect(FULL_FAC_MODULES).toEqual(SALES_AREAS.find(a => a.id === "facciate")?.interventions.map(i => i.id)));
+  // La scheda Facciate ora gira sul motore Ristrutturazioni (fullFacciate.ts): l'area elenca questi
+  // sei modelli più ventilata/pietra/pulizia. Il motore fac resta un'isola coerente con sé stessa.
+  it("resta coerente e contenuto nell'area Facciate", () => {
+    expect(new Set(FULL_FAC_MODULES)).toEqual(new Set(Object.keys(FAC_EDITORIAL)));
+    const areaIds = SALES_AREAS.find(a => a.id === "facciate")?.interventions.map(i => i.id) ?? [];
+    for (const id of FULL_FAC_MODULES) expect(areaIds).toContain(id);
+  });
   it.each(FULL_FAC_MODULES)("%s has a complete, isolated editorial and fixture", id => {
     const c = FAC_EDITORIAL[id], template = make(id), data = buildFacModulePreview("company-a", template, id);
     expect(() => assertFacTemplate(template, "company-a", id)).not.toThrow();

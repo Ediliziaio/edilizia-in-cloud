@@ -6,7 +6,7 @@ import { SALES_AREAS } from "@/lib/moduli-vendita/areas";
 import { FULL_MODULE_COVERS } from "@/lib/moduli-vendita/fullModuleCatalog";
 import { createFullSerramentiTemplate, FULL_SERRAMENTI_MODULES } from "@/lib/moduli-vendita/fullSerramentiModules";
 import { createFullTettiTemplate, FULL_TETTI_MODULES } from "@/lib/moduli-vendita/fullTettiModules";
-import { createFullRstTemplate, FULL_RST_MODULES, FULL_PARETI_SOFFITTI_MODULES, FULL_PERGOLE_MODULES } from "@/lib/moduli-vendita/fullRstModules";
+import { createFullRstTemplate, FULL_RST_MODULES, FULL_PARETI_SOFFITTI_MODULES, FULL_PERGOLE_MODULES, FULL_FACCIATE_MODULES } from "@/lib/moduli-vendita/fullRstModules";
 import { createFullBgnTemplate, FULL_BGN_MODULES } from "@/lib/moduli-vendita/fullBgnModules";
 import { createFullFvTemplate, FULL_FV_MODULES } from "@/lib/moduli-vendita/fullFvModules";
 import { createFullClmTemplate, FULL_CLM_MODULES } from "@/lib/moduli-vendita/fullClmModules";
@@ -14,7 +14,6 @@ import { createFullIdrTemplate, FULL_IDR_MODULES } from "@/lib/moduli-vendita/fu
 import { createFullEltTemplate, FULL_ELT_MODULES } from "@/lib/moduli-vendita/fullEltModules";
 import { createFullPavTemplate, FULL_PAV_MODULES } from "@/lib/moduli-vendita/fullPavModules";
 import { createFullPscTemplate, FULL_PSC_MODULES } from "@/lib/moduli-vendita/fullPscModules";
-import { createFullFacTemplate, FULL_FAC_MODULES } from "@/lib/moduli-vendita/fullFacModules";
 import { leggiBlocco, leggiFotoPagina, fotoDellaLibreria, type ChiaveBlocco, type ChiaveFotoPagina, type SettoreBlocchi } from "../../../supabase/functions/_shared/blocchiPreventivo";
 
 type Data = Record<string, unknown>;
@@ -44,7 +43,7 @@ export const MODULE68_FACTORIES = {
   elettrico: register(FULL_ELT_MODULES, createFullEltTemplate),
   pavimenti: register(FULL_PAV_MODULES, createFullPavTemplate),
   piscine: register(FULL_PSC_MODULES, createFullPscTemplate),
-  facciate: register(FULL_FAC_MODULES, createFullFacTemplate),
+  facciate: register(FULL_FACCIATE_MODULES, createFullRstTemplate),
 };
 export type AuditArea = keyof typeof MODULE68_FACTORIES;
 /** Independent acceptance inventory: deleting a model from both app lists must still fail. */
@@ -61,7 +60,7 @@ export const MODULE68_EXPECTED: Record<AuditArea, readonly string[]> = {
   elettrico: ["completo", "adeguamento", "punti", "quadro", "domotica", "videocitofonia", "ricarica", "antifurto", "illuminazione", "automazioni", "rete-dati"],
   pavimenti: ["sovrapposizione", "rifacimento", "resina", "parquet", "pareti", "esterni", "posa-parquet", "scale", "levigatura"],
   piscine: ["nuova", "ristrutturazione", "rivestimento", "impianti", "accessori", "manutenzione"],
-  facciate: ["cappotto", "rifacimento", "balconi", "tinteggiatura", "interno", "riparazioni"],
+  facciate: ["cappotto", "rifacimento", "balconi", "tinteggiatura", "interno", "riparazioni", "ventilata", "pietra", "pulizia"],
 };
 export const MODULE68_MODELS = Object.entries(MODULE68_EXPECTED).flatMap(([area, ids]) => ids.map(id => ({ area: area as AuditArea, id, key: `${area}/${id}` })));
 const operational: ChiaveBlocco[] = ["comeFunziona", "protezione", "controlli", "documenti", "diario"];
@@ -80,7 +79,7 @@ export interface ModelAudit {
   textFields: Record<string, string>;
   visualPdfInspection: "not-performed"; actualPdfImageEmbedding: "not-tested";
 }
-const factoryFiles: Record<AuditArea, string> = { serramenti: "fullSerramentiModules", tetti: "fullTettiModules", ristrutturazioni: "fullRstModules", "pareti-soffitti": "fullRstModules", pergole: "fullRstModules", bagni: "fullBgnModules", fotovoltaico: "fullFvModules", climatizzazione: "fullClmModules", termoidraulica: "fullIdrModules", elettrico: "fullEltModules", pavimenti: "fullPavModules", piscine: "fullPscModules", facciate: "fullFacModules" };
+const factoryFiles: Record<AuditArea, string> = { serramenti: "fullSerramentiModules", tetti: "fullTettiModules", ristrutturazioni: "fullRstModules", "pareti-soffitti": "fullRstModules", pergole: "fullRstModules", bagni: "fullBgnModules", fotovoltaico: "fullFvModules", climatizzazione: "fullClmModules", termoidraulica: "fullIdrModules", elettrico: "fullEltModules", pavimenti: "fullPavModules", piscine: "fullPscModules", facciate: "fullRstModules" };
 const sectors: Record<AuditArea, SettoreBlocchi> = { serramenti: "serramenti", tetti: "tetti", ristrutturazioni: "ristrutturazione", "pareti-soffitti": "ristrutturazione", pergole: "ristrutturazione", bagni: "bagni", fotovoltaico: "fotovoltaico", climatizzazione: "climatizzazione", termoidraulica: "termoidraulico", elettrico: "elettrico", pavimenti: "pavimenti", piscine: "piscine", facciate: "ristrutturazione" };
 const proofFields = ["testimonianze", "testimonianze_default", "recensioni", "gallery_lavori", "cantieri_galleria", "certificazioni"];
 const photoUrls = (value: unknown): string[] => arr(rec(value).foto).map(str).filter(Boolean);

@@ -24,10 +24,10 @@ const seed = (c = "company-a", m = "vasca-doccia") =>
 beforeEach(() => localStorage.clear());
 describe("documenti dei moduli per intervento", () => {
   // 69 dal 25/09/2026 col Conto Termico 3.0, 70 con la Casa Full Electric (Termoidraulico).
-  it("copre 102 interventi di 13 aree, con 84 a perimetro esplicito (fuori tetti e serramenti)", () => {
-    expect(DOCUMENT_MODULE_COUNT).toBe(102);
+  it("copre 105 interventi di 13 aree, con 87 a perimetro esplicito (fuori tetti e serramenti)", () => {
+    expect(DOCUMENT_MODULE_COUNT).toBe(105);
     expect(Object.keys(AREA_DESIGN)).toHaveLength(13);
-    expect(Object.keys(INTERVENTION_LIMITS)).toHaveLength(84);
+    expect(Object.keys(INTERVENTION_LIMITS)).toHaveLength(87);
   });
   it.each(
     SALES_AREAS.flatMap((a) =>

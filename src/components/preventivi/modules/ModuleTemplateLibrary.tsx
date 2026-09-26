@@ -51,13 +51,10 @@ import { isFullPavModuleId } from "@/lib/moduli-vendita/fullPavModules";
 import { loadLocalPavTemplate } from "@/lib/moduli-vendita/localPavTemplates";
 import { isFullPscModuleId } from "@/lib/moduli-vendita/fullPscModules";
 import { loadLocalPscTemplate } from "@/lib/moduli-vendita/localPscTemplates";
-import { isFullFacModuleId } from "@/lib/moduli-vendita/fullFacModules";
-import { loadLocalFacTemplate } from "@/lib/moduli-vendita/localFacTemplates";
 const Climatizzazione = lazy(() => import("@/components/climatizzazione/ClmModuleTemplatePanel").then(m => ({ default: m.ClmModuleTemplatePanel })));
 const Elettrico = lazy(() => import("@/components/elettrico/EltModuleTemplatePanel").then(m => ({ default: m.EltModuleTemplatePanel })));
 const Pavimenti = lazy(() => import("@/components/pavimenti/PavModuleTemplatePanel").then(m => ({ default: m.PavModuleTemplatePanel })));
 const Piscine = lazy(() => import("@/components/piscine/PscModuleTemplatePanel").then(m => ({ default: m.PscModuleTemplatePanel })));
-const Facciate = lazy(() => import("@/components/facciate/FacciateModuleTemplatePanel").then(m => ({ default: m.FacciateModuleTemplatePanel })));
 const Termoidraulico = lazy(() => import("@/components/termoidraulico/IdrModuleTemplatePanel").then(m => ({ default: m.IdrModuleTemplatePanel })));
 const Bagni = lazy(() => import("@/components/bagni/BgnModuleTemplatePanel").then(m => ({ default: m.BgnModuleTemplatePanel })));
 const Ristrutturazioni = lazy(() => import("@/components/ristrutturazione/RstModuleTemplatePanel").then(m => ({ default: m.RstModuleTemplatePanel })));
@@ -92,15 +89,14 @@ function savedStatus(company: string | null, area: string, module: string) {
       area === "climatizzazione" && isFullClmModuleId(module) ? loadLocalClmTemplate(company, module) :
       area === "elettrico" && isFullEltModuleId(module) ? loadLocalEltTemplate(company, module) :
       area === "pavimenti" && isFullPavModuleId(module) ? loadLocalPavTemplate(company, module) :
-      area === "piscine" && isFullPscModuleId(module) ? loadLocalPscTemplate(company, module) :
-      area === "facciate" && isFullFacModuleId(module) ? loadLocalFacTemplate(company, module) : undefined;
+      area === "piscine" && isFullPscModuleId(module) ? loadLocalPscTemplate(company, module) : undefined;
     if (nativeSaved !== undefined) return nativeSaved ? "Salvato" : loadModuleDocument(company, area, module) ? "Nuova edizione disponibile · bozza precedente conservata" : "Da personalizzare";
     if (area === "termoidraulica" && isFullIdrModuleId(module)) return loadLocalIdrTemplate(company, module) ? "Salvato" : "Da personalizzare";
     if (area === "bagni" && isFullBgnModuleId(module)) {
       if (loadLocalBgnTemplate(company, module)) return "Salvato";
       return loadModuleDocument(company, area, module) ? "Edizione completa disponibile · bozza precedente conservata" : "Da personalizzare";
     }
-    if ((area === "ristrutturazioni" || area === "pareti-soffitti" || area === "pergole") && isFullRstModuleId(module)) {
+    if ((area === "ristrutturazioni" || area === "pareti-soffitti" || area === "pergole" || area === "facciate") && isFullRstModuleId(module)) {
       if (loadLocalRstTemplate(company, module)) return "Salvato";
       return loadModuleDocument(company, area, module) ? "Edizione completa disponibile · bozza precedente conservata" : "Da personalizzare";
     }
@@ -225,7 +221,7 @@ export default function ModuleTemplateLibrary({
           <Tetti />
         ) : area.id === "fotovoltaico" && isFullFvModuleId(module.id) && params.get("edizione") !== "precedente" ? (
           <Fotovoltaico moduleId={module.id} />
-        ) : (area.id === "ristrutturazioni" || area.id === "pareti-soffitti" || area.id === "pergole") && isFullRstModuleId(module.id) && params.get("edizione") !== "precedente" ? (
+        ) : (area.id === "ristrutturazioni" || area.id === "pareti-soffitti" || area.id === "pergole" || area.id === "facciate") && isFullRstModuleId(module.id) && params.get("edizione") !== "precedente" ? (
           <Ristrutturazioni moduleId={module.id} />
         ) : area.id === "bagni" && isFullBgnModuleId(module.id) && params.get("edizione") !== "precedente" ? (
           <Bagni moduleId={module.id} />
@@ -239,8 +235,6 @@ export default function ModuleTemplateLibrary({
           <Pavimenti moduleId={module.id} />
         ) : area.id === "piscine" && isFullPscModuleId(module.id) && params.get("edizione") !== "precedente" ? (
           <Piscine moduleId={module.id} />
-        ) : area.id === "facciate" && isFullFacModuleId(module.id) && params.get("edizione") !== "precedente" ? (
-          company ? <Facciate moduleId={module.id} companyId={companyId} branding={{ company_id: companyId, ragione_sociale: company.ragione_sociale, indirizzo_completo: company.indirizzo_completo, telefono: company.telefono, email: company.email, partita_iva: company.partita_iva }} /> : <p role="status">Caricamento dati aziendali per il modulo Facciate. Se il caricamento non termina, verifica il profilo aziendale prima di aprire il modello.</p>
         ) : (
           <Editor
             key={`${companyId}:${area.id}:${module.id}`}
