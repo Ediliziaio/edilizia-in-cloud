@@ -356,7 +356,7 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
             placeholder="Oggetto…"
             value={subject}
             onChange={(e) => setSubject(e.target.value.slice(0, 200))}
-            className="h-9 text-base sm:h-8 sm:text-sm"
+            className="h-8 text-sm"
           />
           <div className="flex items-end gap-2">
             <Textarea
