@@ -20,10 +20,11 @@ import { Badge } from "@/components/ui/badge";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { Send, Loader2, Copy, CheckCircle2, Eye, PenLine, Clock, Link2 } from "lucide-react";
+import { Send, Loader2, Copy, CheckCircle2, Eye, PenLine, Clock, Link2, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { usePermissions } from "@/hooks/usePermissions";
 import { condividiLink } from "@/lib/mobile/condividiFile";
 import { cn } from "@/lib/utils";
 import { BarraInvioMobile } from "@/components/moduli/BarraInvioMobile";
@@ -55,9 +56,15 @@ interface Props {
   onIndietro?: () => void;
 }
 
+const SERVE_IL_PERMESSO = "Per mandarlo al cliente serve il permesso di modificare i preventivi.";
+
 export function InviaFirmaCard(props: Props) {
   const { user } = useAuth();
   const isMobile = useIsMobile();
+  // Mandare il preventivo al cliente richiede di poterlo modificare (26/09/2026): la
+  // copia di firma si scrive coi Preventivi e send-quote-signature lo pretende.
+  const permessi = usePermissions();
+  const senzaPermesso = !permessi.isLoading && !permessi.canEditPreventivi;
   const [working, setWorking] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [email, setEmail] = useState(props.clientEmail ?? "");
@@ -108,6 +115,10 @@ export function InviaFirmaCard(props: Props) {
   };
 
   const apriInvio = () => {
+    if (senzaPermesso) {
+      toast.error(SERVE_IL_PERMESSO);
+      return;
+    }
     if (props.disabled) {
       toast.error(props.disabledReason || "Completa il preventivo per poterlo inviare.");
       return;
@@ -210,7 +221,7 @@ export function InviaFirmaCard(props: Props) {
               {stato.label}
               {quote?.signed_at && ` il ${new Date(quote.signed_at).toLocaleDateString("it-IT")}`}
             </span>
-            {!quote?.signed_at && (quote?.sent_at || quote?.signature_token) && (
+            {!quote?.signed_at && (quote?.sent_at || quote?.signature_token) && !senzaPermesso && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -235,7 +246,7 @@ export function InviaFirmaCard(props: Props) {
             </Button>
           ) : (
             <Button
-              className={cn("h-11 flex-1 gap-1.5 bg-orange-500 hover:bg-orange-600", props.disabled && "opacity-60")}
+              className={cn("h-11 flex-1 gap-1.5 bg-orange-500 hover:bg-orange-600", (props.disabled || senzaPermesso) && "opacity-60")}
               disabled={loading || working}
               onClick={apriInvio}
             >
@@ -276,17 +287,23 @@ export function InviaFirmaCard(props: Props) {
             {props.disabledReason || "Completa il preventivo per poterlo inviare."}
           </p>
         )}
+        {senzaPermesso && (
+          <p className="text-[11px] text-amber-700 flex items-center gap-1">
+            <Lock className="h-3 w-3 shrink-0" />
+            {SERVE_IL_PERMESSO}
+          </p>
+        )}
         <div className="flex flex-wrap gap-2">
           <Button
             size="sm"
             className="h-8 bg-emerald-600 hover:bg-emerald-700"
-            disabled={loading || working || props.disabled || !!quote?.signed_at}
+            disabled={loading || working || props.disabled || senzaPermesso || permessi.isLoading || !!quote?.signed_at}
             onClick={apriInvio}
           >
             {working ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Send className="h-3.5 w-3.5 mr-1.5" />}
             {quote?.sent_at ? "Reinvia aggiornato" : "Invia per firma"}
           </Button>
-          {(quote?.sent_at || quote?.signature_token) && (
+          {(quote?.sent_at || quote?.signature_token) && !senzaPermesso && (
             <Button size="sm" variant="outline" className="h-8" onClick={() => { void copiaLink(); }}>
               <Copy className="h-3.5 w-3.5 mr-1.5" /> Copia link firma
             </Button>
