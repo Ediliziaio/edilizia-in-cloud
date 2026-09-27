@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompanyCustomers } from "@/hooks/useCompanyCustomers";
+import { CreateCustomerDialog } from "@/components/orders/CreateCustomerDialog";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { TICKET_MOTIVI_GRATUITO, TICKET_MERCE_STATI, type TicketMerceStato } from "@/types/tickets";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Loader2, Paperclip, X, Wrench } from "lucide-react";
+import { ArrowLeft, Loader2, Paperclip, X, Wrench, UserPlus } from "lucide-react";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -40,6 +41,7 @@ export default function CreateCompanyTicket() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [customerId, setCustomerId] = useState<string>("");
+  const [nuovoClienteOpen, setNuovoClienteOpen] = useState(false);
   // ?order=<id> arriva dal tab Assistenza della commessa: la commessa
   // è già decisa, non deve essere ricercata di nuovo a mano.
   const [orderId, setOrderId] = useState<string>(searchParams.get("order") ?? "");
@@ -252,21 +254,30 @@ export default function CreateCompanyTicket() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Customer */}
+          {/* Customer — si può anche crearne uno nuovo al volo se non c'è. */}
           <div className="space-y-2">
             <Label>Cliente *</Label>
-            <Select value={customerId} onValueChange={(v) => { setCustomerId(v); setOrderId(""); }}>
-              <SelectTrigger>
-                <SelectValue placeholder="Seleziona cliente..." />
-              </SelectTrigger>
-              <SelectContent>
-                {customers.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.first_name} {c.last_name} — {c.email}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex gap-2">
+              <Select value={customerId} onValueChange={(v) => { setCustomerId(v); setOrderId(""); }}>
+                <SelectTrigger className="flex-1">
+                  <SelectValue placeholder="Seleziona cliente..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {customers.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.first_name} {c.last_name}{c.email ? ` — ${c.email}` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button type="button" variant="outline" className="shrink-0 gap-1.5" onClick={() => setNuovoClienteOpen(true)}>
+                <UserPlus className="h-4 w-4" /><span className="max-sm:hidden">Nuovo cliente</span>
+              </Button>
+            </div>
+            {customerId && (() => {
+              const c = customers.find((x) => x.id === customerId);
+              return c?.email ? <p className="text-xs text-muted-foreground">{c.email}</p> : null;
+            })()}
           </div>
 
           {/* Order (optional) */}
@@ -535,6 +546,17 @@ export default function CreateCompanyTicket() {
           </Button>
         </CardContent>
       </Card>
+
+      {/* Cliente non ancora nel gestionale: si crea al volo e resta selezionato. */}
+      <CreateCustomerDialog
+        open={nuovoClienteOpen}
+        onOpenChange={setNuovoClienteOpen}
+        onCustomerCreated={(id) => {
+          setCustomerId(id);
+          setOrderId("");
+          setNuovoClienteOpen(false);
+        }}
+      />
     </div>
   );
 }

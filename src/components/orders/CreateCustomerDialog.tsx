@@ -406,7 +406,7 @@ export function CreateCustomerDialog({
                 <div className="min-w-0">
                   <DialogTitle>Nuovo Cliente</DialogTitle>
                   <DialogDescription>
-                    Crea un nuovo cliente e selezionalo per la commessa
+                    Aggiungi i dati: il cliente resta selezionato qui.
                   </DialogDescription>
                 </div>
               </div>

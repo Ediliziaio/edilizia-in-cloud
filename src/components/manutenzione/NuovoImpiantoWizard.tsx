@@ -2,13 +2,14 @@ import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompanyCustomers } from "@/hooks/useCompanyCustomers";
+import { CreateCustomerDialog } from "@/components/orders/CreateCustomerDialog";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, ChevronRight, ChevronLeft, Check, Tag } from "lucide-react";
+import { Loader2, ChevronRight, ChevronLeft, Check, Tag, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { useTipiImpianto, useTipiIntervento } from "@/lib/manutenzione/tipiManutenzione";
@@ -50,6 +51,7 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
 
   // Step 1 fields
   const [customerId, setCustomerId] = useState("");
+  const [nuovoClienteOpen, setNuovoClienteOpen] = useState(false);
   const [tipoImpianto, setTipoImpianto] = useState("");
   const [marca, setMarca] = useState("");
   const [modello, setModello] = useState("");
@@ -177,6 +179,7 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
   const canNext1 = !!customerId && !!tipoImpianto;
 
   return (
+    <>
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
@@ -197,12 +200,18 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
             <>
               <div className="space-y-1.5">
                 <Label>Cliente *</Label>
-                <Select value={customerId} onValueChange={setCustomerId}>
-                  <SelectTrigger><SelectValue placeholder="Seleziona cliente..." /></SelectTrigger>
-                  <SelectContent>
-                    {clienti.map((c) => <SelectItem key={c.id} value={c.id}>{[c.first_name, c.last_name].filter(Boolean).join(" ") || c.id}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <div className="flex gap-2">
+                  <Select value={customerId} onValueChange={setCustomerId}>
+                    <SelectTrigger className="flex-1"><SelectValue placeholder="Seleziona cliente..." /></SelectTrigger>
+                    <SelectContent>
+                      {clienti.map((c) => <SelectItem key={c.id} value={c.id}>{[c.first_name, c.last_name].filter(Boolean).join(" ") || c.id}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  {/* Cliente non ancora nel gestionale: si crea al volo. */}
+                  <Button type="button" variant="outline" className="shrink-0 gap-1.5" onClick={() => setNuovoClienteOpen(true)}>
+                    <UserPlus className="h-4 w-4" /><span className="max-sm:hidden">Nuovo</span>
+                  </Button>
+                </div>
               </div>
               <div className="space-y-1.5">
                 <Label>Tipo impianto *</Label>
@@ -411,5 +420,12 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <CreateCustomerDialog
+      open={nuovoClienteOpen}
+      onOpenChange={setNuovoClienteOpen}
+      onCustomerCreated={(id) => { setCustomerId(id); setNuovoClienteOpen(false); }}
+    />
+    </>
   );
 }
