@@ -852,7 +852,9 @@ In `tools/operaio/carica_ddt.ts`, subito dopo la chiamata `const carico = await 
   // Da chi lavora in ufficio o amministra, il «Sì» in chat vale come conferma
   // a gestionale: il carico entra subito in magazzino (27/09/2026). Dagli
   // operai resta una bozza che l'ufficio conferma nell'app.
-  let esitoMagazzino: { caricati: Array<{ articolo: string; quantita: number }>; da_abbinare: unknown[] } | null = null;
+  // Tipo con nome: «as typeof esitoMagazzino» userebbe il tipo già ristretto a null.
+  type EsitoMagazzino = { caricati: Array<{ articolo: string; quantita: number }>; da_abbinare: unknown[] };
+  let esitoMagazzino: EsitoMagazzino | null = null;
   if (carico.ok && carico.carico?.id && ctx.user_id && (ctx.kind === "admin" || ctx.kind === "ufficio")) {
     const { data: conf, error: confErr } = await ctx.supabase.rpc("conferma_carico_ddt", {
       p_carico_id: carico.carico.id,
@@ -861,7 +863,7 @@ In `tools/operaio/carica_ddt.ts`, subito dopo la chiamata `const carico = await 
     if (confErr) {
       console.error(JSON.stringify({ level: "error", fn: "conferma_carico_ddt", error: confErr.message }));
     } else if ((conf as { ok?: boolean } | null)?.ok) {
-      esitoMagazzino = conf as typeof esitoMagazzino;
+      esitoMagazzino = conf as EsitoMagazzino;
     }
   }
 ```
