@@ -7,7 +7,7 @@
  * copre (costi mancanti, fatture, promemoria).
  */
 import { useState } from "react";
-import { AlertTriangle, Check, CheckCircle2, Clock, ExternalLink, Info, Loader2, ListChecks, RefreshCw, X } from "lucide-react";
+import { AlertTriangle, Check, CheckCircle2, ChevronDown, Clock, ExternalLink, Info, Loader2, ListChecks, RefreshCw, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { azionePerRegola, type AzioneOggi, type VoceOggi } from "./provvigioni";
@@ -53,32 +53,46 @@ interface Props {
 
 export function CosaFareOggi({ allarmi, voci, aggiornatoAlle, oggi, inCorso, puoEntrare, onApri, onChiudi, chiusuraInCorso, onAzione, onRicalcola, ricalcoloInCorso }: Props) {
   const [tutte, setTutte] = useState(false);
+  // Chiuso di serie: la lista del mattino resta una linguetta che si apre a
+  // richiesta, così la console mostra prima i clienti (richiesta 27/09/2026).
+  const [aperto, setAperto] = useState(false);
   const azioni = allarmi.filter((a) => a.mostrato && a.gravita !== "nota");
   const note = allarmi.filter((a) => a.mostrato && a.gravita === "nota");
   const nascosti = allarmi.filter((a) => !a.mostrato).length;
   const gravi = azioni.filter((a) => a.gravita === "grave" || a.gravita === "rosso").length;
   const visibili = tutte ? azioni : azioni.slice(0, 5);
+  const daGuardare = note.length + voci.length + (nascosti > 0 ? 1 : 0);
 
   return (
     <section className="rounded-xl border bg-card shadow-sm">
-      <header className="flex flex-wrap items-center gap-2 border-b px-4 py-2.5">
-        <ListChecks className="h-4 w-4 text-muted-foreground" />
-        <h2 className="text-sm font-semibold">Cosa fare oggi</h2>
-        <span className="text-xs text-muted-foreground">
-          {azioni.length === 0 ? "niente in coda" : `${azioni.length} ${azioni.length === 1 ? "azione" : "azioni"}${gravi ? ` · ${gravi} ${gravi === 1 ? "grave" : "gravi"}` : ""}`}
-          {aggiornatoAlle ? ` · aggiornato ${dataBreve(aggiornatoAlle, true, oggi)}` : ""}
-        </span>
+      <header className="flex flex-wrap items-center gap-2 px-4 py-2.5">
+        <button
+          type="button"
+          onClick={() => setAperto((v) => !v)}
+          aria-expanded={aperto}
+          className="flex min-w-0 flex-1 items-center gap-2 text-left"
+        >
+          <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", aperto ? "" : "-rotate-90")} />
+          <ListChecks className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <h2 className="text-sm font-semibold">Cosa fare oggi</h2>
+          <span className="min-w-0 truncate text-xs text-muted-foreground">
+            {azioni.length === 0 ? "niente in coda" : `${azioni.length} ${azioni.length === 1 ? "azione" : "azioni"}${gravi ? ` · ${gravi} ${gravi === 1 ? "grave" : "gravi"}` : ""}`}
+            {!aperto && daGuardare > 0 ? ` · ${daGuardare} da guardare` : ""}
+            {aggiornatoAlle ? ` · aggiornato ${dataBreve(aggiornatoAlle, true, oggi)}` : ""}
+          </span>
+        </button>
+        {gravi > 0 && !aperto && <span className="inline-block h-2 w-2 shrink-0 rounded-full bg-rose-500" aria-hidden />}
         <Button variant="ghost" size="sm" className="ml-auto h-7 gap-1.5 text-xs" onClick={onRicalcola} disabled={ricalcoloInCorso} title="Ricalcola metriche e regole adesso (di norma alle 05:30 e ogni due ore)">
           {ricalcoloInCorso ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />} Ricalcola adesso
         </Button>
       </header>
 
-      {azioni.length === 0 ? (
-        <p className="flex items-center gap-2 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-400">
+      {!aperto ? null : azioni.length === 0 ? (
+        <p className="flex items-center gap-2 border-t px-4 py-3 text-sm text-emerald-700 dark:text-emerald-400">
           <CheckCircle2 className="h-4 w-4" /> Nessun allarme aperto sui clienti attivi.
         </p>
       ) : (
-        <ul className="divide-y">
+        <ul className="divide-y border-t">
           {visibili.map((a) => {
             const azione = azionePerRegola(a.regola);
             const et = ETICHETTA_AZIONE[azione];
@@ -113,13 +127,13 @@ export function CosaFareOggi({ allarmi, voci, aggiornatoAlle, oggi, inCorso, puo
           })}
         </ul>
       )}
-      {azioni.length > 5 && (
+      {aperto && azioni.length > 5 && (
         <button type="button" className="w-full border-t px-4 py-2 text-left text-xs text-muted-foreground underline-offset-2 hover:underline" onClick={() => setTutte((v) => !v)}>
           {tutte ? "mostra solo le prime cinque" : `mostra tutte (${azioni.length})`}
         </button>
       )}
 
-      {(note.length > 0 || voci.length > 0 || nascosti > 0) && (
+      {aperto && (note.length > 0 || voci.length > 0 || nascosti > 0) && (
         <div className="border-t px-4 py-2.5">
           <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Da guardare</div>
           <ul className="space-y-1 text-xs">
