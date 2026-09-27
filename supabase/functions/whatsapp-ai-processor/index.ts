@@ -39,10 +39,14 @@ import {
 import { BOT_SUPERATI_DA_SILVIO, usaStrumentiSilvio } from "../_shared/botOperativoCatalogo.ts";
 import {
   type ConfigAgenteOperativo,
+  type RuoloAgente,
   istruzioniAzienda,
   leggiConfigOperativo,
+  sbloccatiPer,
   senzaVietati,
+  vietatiPer,
 } from "../_shared/agenteOperativoConfig.ts";
+import { SILVIO_TOOLS } from "../_shared/silvioTools.ts";
 import { buildInteractivePayload } from "./interactive.ts";
 // 🛡️ Anti chain-of-thought leak — strip tool names + opener narrativi prima
 // di rispondere su WhatsApp (operai, titolari).
@@ -466,7 +470,13 @@ Deno.serve(async (req) => {
         .maybeSingle();
       if (scheda && scheda.company_id === msg.company_id) configAgente = leggiConfigOperativo(scheda);
     }
-    const ruoloAgente = identity.kind === "ufficio" || identity.kind === "admin" ? identity.kind : "operaio";
+    const ruoloAgente: RuoloAgente = identity.kind === "ufficio" || identity.kind === "admin" ? identity.kind : "operaio";
+    // Divieti della scheda per QUESTA persona ADESSO: alcuni possono essere
+    // sbloccati, ma solo per chi è autorizzato e nel contesto previsto.
+    const chiScrive = { ruolo: ruoloAgente, userId: identity.user_id };
+    const inizioTurno = new Date();
+    const vietatiOra = vietatiPer(configAgente, chiScrive, inizioTurno);
+    const sbloccatiOra = sbloccatiPer(configAgente, chiScrive, inizioTurno);
 
     // Fase 1 — ufficio e amministratore hanno anche gli strumenti di Silvio.
     let ponte: PonteSilvio | null = null;
@@ -479,13 +489,13 @@ Deno.serve(async (req) => {
         areeIniziali: [...AREE_INIZIALI_BOT, ...(configAgente?.areeIniziali ?? [])],
         dominiSalvati: statoSessione.domini,
         nomiBot: availableTools.map((t) => t.name),
-        vietati: configAgente?.strumentiVietati ?? [],
+        vietati: vietatiOra,
       });
     }
     const strumentiBot = senzaVietati(
       ponte ? availableTools.filter((t) => !BOT_SUPERATI_DA_SILVIO.has(t.name)) : availableTools,
       (t) => t.name,
-      configAgente,
+      vietatiOra,
     );
     const nomiBot = new Set(strumentiBot.map((t) => t.name));
     const specDelGiro = () => [...toOpenAISpec(strumentiBot), ...(ponte?.spec ?? [])];
@@ -512,7 +522,7 @@ Deno.serve(async (req) => {
     const basePrompt = identity.kind === "ufficio" || identity.kind === "admin"
       ? promptUfficio({ tipo: identity.kind, nome: identity.display_name })
       : SYSTEM_PROMPT_OPERAIO;
-    const istruzioni = istruzioniAzienda(configAgente, ruoloAgente);
+    const istruzioni = istruzioniAzienda(configAgente, ruoloAgente, sbloccatiOra);
     const systemPrompt =
       `${basePrompt}\n\n${buildOperationalSystemPrompt(operationalSettings)}\n\n${buildTriagePrompt(operationalTriage)}` +
       (istruzioni ? `\n\n${istruzioni}` : "") +
@@ -593,9 +603,28 @@ Deno.serve(async (req) => {
             } catch {
               // argomenti illeggibili: restano vuoti, lo strumento dirà cosa manca
             }
+            // Azione sbloccata che di suo partirebbe senza chiedere: qui chiede
+            // comunque il Sì (le «gialle» lo chiedono già con la proposta).
+            const rischioSilvio = SILVIO_TOOLS[tc.function.name]?.riskLevel ?? "safe";
+            if (
+              sbloccatiOra.includes(tc.function.name) && rischioSilvio === "safe" &&
+              !confermaValePer(statoSessione.conferma, tc.function.name, userJustConfirmed)
+            ) {
+              return {
+                tool_call_id: tc.id,
+                result: {
+                  ok: false as const,
+                  error: "confirmation_required",
+                  user_message:
+                    "Azione di norma vietata e sbloccata per questa persona: riassumi cosa farai e chiedi conferma " +
+                    `con chiedi_conferma (azione: ${tc.function.name}); esegui solo dopo il Sì.`,
+                },
+              };
+            }
             const t0s = Date.now();
             const { risultato, proposta } = await eseguiStrumentoSilvio(ponte, tc.function.name, argsSilvio);
             if (proposta) proposteDelGiro.push(proposta);
+            if (sbloccatiOra.includes(tc.function.name) && risultato.ok) confermaDopo = null;
             await logToolCall(supabase, {
               company_id: msg.company_id,
               wa_message_id: msg.id,
@@ -656,7 +685,9 @@ Deno.serve(async (req) => {
           // domanda con `chiedi_conferma`; al turno successivo la risposta
           // dell'utente (bottone/testo affermativo) sblocca l'esecuzione.
           // Il Sì vale solo per l'azione chiesta nella domanda in attesa.
-          if (tool.requires_confirmation && !confermaValePer(statoSessione.conferma, tc.function.name, userJustConfirmed)) {
+          // Anche uno strumento sbloccato dalla scheda chiede sempre il Sì.
+          const serveConferma = tool.requires_confirmation || sbloccatiOra.includes(tc.function.name);
+          if (serveConferma && !confermaValePer(statoSessione.conferma, tc.function.name, userJustConfirmed)) {
             const blocked = {
               ok: false as const,
               error: "confirmation_required",
@@ -690,7 +721,7 @@ Deno.serve(async (req) => {
           }
           const dur = Date.now() - t0;
           // Il Sì è stato usato: la domanda in attesa si chiude.
-          if (tool.requires_confirmation && (result as { ok?: boolean })?.ok) confermaDopo = null;
+          if (serveConferma && (result as { ok?: boolean })?.ok) confermaDopo = null;
 
           await logToolCall(supabase, {
             company_id: msg.company_id,
