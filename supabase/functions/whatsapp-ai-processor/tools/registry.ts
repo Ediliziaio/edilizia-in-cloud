@@ -55,6 +55,9 @@ import {
   scostamentiCommesseDef,
 } from "./titolare/scostamenti_commesse.ts";
 
+// Ufficio e amministratore
+import { inviaPdfPreventivo, inviaPdfPreventivoDef } from "./ufficio/invia_pdf_preventivo.ts";
+
 // Shared (cross-ruolo)
 import { chiediConferma, chiediConfermaDef } from "./shared/chiedi_conferma.ts";
 
@@ -80,6 +83,9 @@ export const TOOLS_REGISTRY: ToolDef[] = [
   { ...listaApprovazioniDef, handler: listaApprovazioni as ToolDef["handler"] },
   { ...approvaRichiestaDef, handler: approvaRichiesta as ToolDef["handler"] },
   { ...scostamentiCommesseDef, handler: scostamentiCommesse as ToolDef["handler"] },
+
+  // Ufficio e amministratore (1)
+  { ...inviaPdfPreventivoDef, handler: inviaPdfPreventivo as ToolDef["handler"] },
 ];
 
 /** Filtra tool disponibili in base ai grants dell'utente. */

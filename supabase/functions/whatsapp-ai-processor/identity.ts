@@ -55,9 +55,14 @@ const GRANTS_TITOLARE = [
   "approvazioni.write",
 ];
 
+/** Cose d'ufficio del bot (oltre agli strumenti di Silvio): il PDF di un preventivo a chi lo chiede. */
+const GRANTS_UFFICIO = ["preventivi.pdf"];
+
 /** Ufficio e admin fanno anche tutto quello che fa un operaio. */
 function grantsPer(tipo: TipoUtenteBot): string[] {
-  return tipo === "admin" ? [...GRANTS_OPERAIO, ...GRANTS_TITOLARE] : GRANTS_OPERAIO;
+  if (tipo === "admin") return [...GRANTS_OPERAIO, ...GRANTS_UFFICIO, ...GRANTS_TITOLARE];
+  if (tipo === "ufficio") return [...GRANTS_OPERAIO, ...GRANTS_UFFICIO];
+  return GRANTS_OPERAIO;
 }
 
 function unknownResult(companyId: string): ResolvedIdentity {

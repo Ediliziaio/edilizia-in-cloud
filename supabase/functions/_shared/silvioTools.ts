@@ -3712,7 +3712,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     },
     allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
     allowedPersonas: ["silvio", "assistente_imprenditore", "titolare", "sales"],
-    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp"],
     riskLevel: "safe",
     domain: "preventivi",
   },
