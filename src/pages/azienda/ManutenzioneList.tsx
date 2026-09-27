@@ -28,7 +28,8 @@ import { it } from "date-fns/locale";
 import { toast } from "sonner";
 import { NuovoImpiantoWizard } from "@/components/manutenzione/NuovoImpiantoWizard";
 import { type StaffUser, useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
-import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
+import { StatTile } from "@/components/common/StatTile";
+import { ExportButton } from "@/components/shared/ExportButton";
 import { KpiMobili } from "@/components/mobile/FiltriMobile";
 
 const KEEP_VALUE = "__keep__";
@@ -330,42 +331,57 @@ export default function ManutenzioneList({ incorporata = false }: { incorporata?
   return (
     // Niente p-6: il margine lo dà già il layout (sul telefono era già p-0).
     <div className="space-y-6 max-sm:space-y-3">
-      {/* Header — dentro Assistenza la testata grande la dà già la pagina:
-          qui resta solo il bottone per aggiungere un impianto. */}
-      {incorporata ? (
-        <div className="flex justify-end">
-          <Button
-            onClick={() => setWizardOpen(true)}
-            className="gap-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600"
-          >
-            <Plus className="h-4 w-4" />
-            <span className="max-sm:hidden">Nuovo Impianto</span>
-            <span className="sm:hidden">Nuovo</span>
-          </Button>
-        </div>
-      ) : (
-        <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      {/* Header — stessa struttura di Assistenza (testata + riga azioni con
+          Esporta e il pulsante «Nuovo»), così le due schermate sono coerenti.
+          Dentro Assistenza la testata grande la dà già la pagina: qui resta
+          la sola riga azioni. */}
+      <div className={incorporata ? "" : "testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6"}>
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+          {!incorporata && (
             <div className="flex min-w-0 items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
                 <Settings className="h-5 w-5" />
               </div>
               <div className="min-w-0">
-                <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">Manutenzione<span className="max-sm:hidden"> Programmata</span></h1>
-                <p className="mt-0.5 text-sm text-slate-500">Impianti, contratti e piani manutenzione clienti.</p>
+                <h1 className="text-2xl font-bold tracking-tight">Manutenzione</h1>
+                <p className="text-sm text-muted-foreground">Impianti, contratti e piani di manutenzione dei clienti.</p>
               </div>
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            {/* Mobile no: niente esportazioni da telefono, come in Assistenza. */}
+            <div className="hidden sm:contents">
+              <ExportButton
+                getData={() => impianti.map((im) => ({
+                  tipo: im.tipo_impianto?.replace("_", " ") || "",
+                  marca: im.marca || "",
+                  modello: im.modello || "",
+                  cliente: [im.customer?.first_name, im.customer?.last_name].filter(Boolean).join(" "),
+                  installazione: im.data_installazione ? new Date(im.data_installazione).toLocaleDateString("it-IT") : "",
+                  garanzia: im.garanzia_scadenza ? new Date(im.garanzia_scadenza).toLocaleDateString("it-IT") : "",
+                }))}
+                columns={[
+                  { key: "tipo", label: "Tipo" },
+                  { key: "marca", label: "Marca" },
+                  { key: "modello", label: "Modello" },
+                  { key: "cliente", label: "Cliente" },
+                  { key: "installazione", label: "Installazione" },
+                  { key: "garanzia", label: "Scadenza garanzia" },
+                ]}
+                filename="impianti-manutenzione"
+              />
             </div>
             <Button
               onClick={() => setWizardOpen(true)}
-              className="self-start gap-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600 sm:self-auto"
+              className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-9 max-sm:px-3 max-sm:text-xs"
             >
-              <Plus className="h-4 w-4" />
-              <span className="max-sm:hidden">Nuovo Impianto</span>
+              <Plus className="mr-2 h-4 w-4" />
               <span className="sm:hidden">Nuovo</span>
+              <span className="hidden sm:inline">Nuovo Impianto</span>
             </Button>
           </div>
         </div>
-      )}
+      </div>
 
       {/* Mobile: le scadenze e i canoni; impianti e contratti hanno il numero
           sulla loro scheda. */}
@@ -377,14 +393,13 @@ export default function ManutenzioneList({ incorporata = false }: { incorporata?
         ]}
       />
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 max-sm:hidden">
-        {/* Resta solo la nota che aggiunge un dato (la finestra dei 14 giorni);
-            «installazioni censite» e simili ripetevano l'etichetta. */}
-        <OperationalKpiCard icon={Settings} label="Impianti" value={impianti.length} tone="blue" />
-        <OperationalKpiCard icon={AlertCircle} label="In scadenza" value={pianiInScadenza.length} hint="prossimi 14 giorni" tone={pianiInScadenza.length > 0 ? "orange" : "green"} />
-        <OperationalKpiCard icon={CheckCircle2} label="Contratti attivi" value={contratti.filter((c) => c.stato === "attivo").length} tone="green" />
-        <OperationalKpiCard icon={TrendingUp} label="Canoni al mese" value={`${mrr.toLocaleString("it-IT", { maximumFractionDigits: 0, useGrouping: true })} €`} tone="amber" />
+      {/* Stats — stessi riquadri di Assistenza (StatTile): numero grande +
+          etichetta, colore per tono. */}
+      <div className="hidden grid-cols-2 gap-2 sm:grid sm:grid-cols-4 sm:gap-3">
+        <StatTile label="Impianti" value={impianti.length} tone={impianti.length > 0 ? "blue" : "neutral"} />
+        <StatTile label="In scadenza" value={pianiInScadenza.length} hint="prossimi 14 giorni" tone={pianiInScadenza.length > 0 ? "amber" : "neutral"} />
+        <StatTile label="Contratti attivi" value={contratti.filter((c) => c.stato === "attivo").length} tone={contratti.some((c) => c.stato === "attivo") ? "green" : "neutral"} />
+        <StatTile label="Canoni al mese" value={`${mrr.toLocaleString("it-IT", { maximumFractionDigits: 0, useGrouping: true })} €`} tone={mrr > 0 ? "violet" : "neutral"} />
       </div>
 
       {selectedPianoIds.size > 0 && (

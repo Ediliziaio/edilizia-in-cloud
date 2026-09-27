@@ -5,6 +5,7 @@ import { AssistenzaPipeline } from "@/components/tickets/AssistenzaPipeline";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import { NuovoTicketDialog } from "@/components/tickets/NuovoTicketDialog";
+import { StatTile, type StatTileTone } from "@/components/common/StatTile";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Enums } from "@/integrations/supabase/types";
@@ -715,34 +716,21 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean }>(
       {/* Quattro numeri che contano (27/09): via le nove caselle blu. Gli altri
           (ferme, merce, richiami, da incassare) sono in «Altri filtri». */}
       <div className="hidden grid-cols-2 gap-2 sm:grid sm:grid-cols-4 sm:gap-3">
-        {[
+        {([
           { key: "aperti", label: "Da lavorare", n: metrics.aperti, tono: "red", attivo: statusFilter === "aperto", onClick: () => setStatusFilter(statusFilter === "aperto" ? "all" : "aperto") },
           { key: "urgenti", label: "Urgenti", n: metrics.urgenti, tono: "amber", attivo: priorityFilter === "urgente" || priorityFilter === "alta", onClick: () => setPriorityFilter(priorityFilter === "urgente" ? "all" : "urgente") },
           { key: "scadenza", label: "In scadenza", n: metrics.inScadenza, tono: "amber", attivo: scadenzaFilter === "scaduto_oggi" || scadenzaFilter === "settimana", onClick: () => setScadenzaFilter(scadenzaFilter === "scaduto_oggi" ? "tutte" : "scaduto_oggi") },
           { key: "nonassegnati", label: "Senza tecnico", n: metrics.nonAssegnati, tono: "blue", attivo: assegnatoFilter === "unassigned", onClick: () => setAssegnatoFilter(assegnatoFilter === "unassigned" ? "tutti" : "unassigned") },
-        ].map((t) => {
-          const toni: Record<string, string> = {
-            red: "border-red-200 bg-red-50 text-red-700",
-            amber: "border-amber-200 bg-amber-50 text-amber-700",
-            blue: "border-blue-200 bg-blue-50 text-blue-700",
-          };
-          return (
-            <button
-              key={t.key}
-              type="button"
-              onClick={t.onClick}
-              aria-pressed={t.attivo}
-              className={cn(
-                "flex flex-col items-start rounded-xl border px-4 py-3 text-left transition-colors",
-                t.n > 0 ? toni[t.tono] : "border-slate-200 bg-white text-slate-500",
-                t.attivo && "ring-2 ring-slate-900/40 ring-offset-1",
-              )}
-            >
-              <span className="text-2xl font-bold leading-none tabular-nums">{t.n}</span>
-              <span className="mt-1 text-xs font-semibold uppercase tracking-wide">{t.label}</span>
-            </button>
-          );
-        })}
+        ] as { key: string; label: string; n: number; tono: StatTileTone; attivo: boolean; onClick: () => void }[]).map((t) => (
+          <StatTile
+            key={t.key}
+            label={t.label}
+            value={t.n}
+            tone={t.n > 0 ? t.tono : "neutral"}
+            active={t.attivo}
+            onClick={t.onClick}
+          />
+        ))}
       </div>
 
       {selectedTicketIds.size > 0 && (
