@@ -544,7 +544,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     }),
     allowedRoles: ["super_admin", "company_admin", "company_staff", "employee"],
     allowedPersonas: ["silvio", "pm_cantiere", "capocantiere", "assistente_imprenditore", "tecnico", "acquisti", "*"],
-    allowedChannels: ["internal_chat", "web_persona", "mobile", "telegram", "voice"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "telegram", "voice"],
     riskLevel: "safe",
     domain: "cantiere",
     resultContract: "Mostra calendario operativo per giorno: lavori/pose, merce in arrivo, sopralluoghi, blocchi e cosa preparare prima.",
@@ -574,7 +574,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     }),
     allowedRoles: ["super_admin", "company_admin", "company_staff"],
     allowedPersonas: ["silvio", "cfo", "controller", "amministrazione", "assistente_imprenditore"],
-    allowedChannels: ["internal_chat", "web_persona", "mobile", "telegram"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "telegram"],
     riskLevel: "safe",
     domain: "kpi",
     resultContract: "Rispondi come incassi previsti, non fatturato. Separa incassi futuri, scaduto escluso e qualita dati.",
@@ -660,7 +660,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     }),
     allowedRoles: ["super_admin", "company_admin"],
     allowedPersonas: ["silvio", "cfo", "controller", "amministrazione"],
-    allowedChannels: ["internal_chat", "web_persona", "mobile", "telegram"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "telegram"],
     riskLevel: "safe",
     domain: "banking",
   },
@@ -798,7 +798,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     }),
     allowedRoles: ["super_admin", "company_admin"],
     allowedPersonas: ["silvio", "cfo", "assistente_imprenditore"],
-    allowedChannels: ["internal_chat", "web_persona", "mobile", "telegram"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "telegram"],
     riskLevel: "safe",
     domain: "kpi",
   },
@@ -8794,10 +8794,10 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     },
     allowedRoles: ["*"],
     allowedPersonas: ["*"],
-    // Solo la chat interna sa rimettere insieme la lista strumenti tra
-    // un'iterazione e l'altra. Sugli altri canali il catalogo non e filtrato,
-    // quindi il tool non servirebbe a niente e confonderebbe e basta.
-    allowedChannels: ["internal_chat"],
+    // Solo i canali che rimettono insieme la lista strumenti tra un'iterazione
+    // e l'altra: la chat interna e, dal 27/09/2026, il bot operativo WhatsApp.
+    // Sugli altri il catalogo non e filtrato e il tool confonderebbe e basta.
+    allowedChannels: ["internal_chat", "whatsapp"],
     riskLevel: "safe",
     domain: "meta",
   },
