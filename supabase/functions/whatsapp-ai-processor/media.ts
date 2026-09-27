@@ -233,7 +233,9 @@ export async function leggiFotoOperativa(
   let descrizione = "";
   const descrivi = async () => {
     const resp = await callOpenAI({
-      model: "gpt-4o-mini",
+      // Nome completo: il modello passa tale e quale a OpenRouter, che
+      // senza «openai/» non lo riconosce (27/09/2026).
+      model: "openai/gpt-4o-mini",
       temperature: 0.2,
       max_tokens: 300,
       company_id: opts.companyId,
