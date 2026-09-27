@@ -171,8 +171,23 @@ function clampConfidence(value: number) {
   return Math.max(0.1, Math.min(0.98, Number(value.toFixed(2))));
 }
 
+/**
+ * La parola chiave c'è come PAROLA, non dentro un'altra (27/09/2026): «si»
+ * trovava «situazione» e una domanda diventava una conferma; «ore» trovava
+ * «fornitore». Parole corte (fino a 3 lettere): parola intera. Più lunghe:
+ * inizio di parola, così «foto» vale anche per «fotografie». Segni come «?»
+ * restano un confronto semplice.
+ */
+function contieneParola(text: string, keyword: string): boolean {
+  const k = normalizeText(keyword);
+  if (!/[a-z0-9]/.test(k)) return text.includes(k);
+  const esc = k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const fine = k.length <= 3 ? "(?![a-z0-9])" : "";
+  return new RegExp(`(^|[^a-z0-9])${esc}${fine}`).test(text);
+}
+
 function scoreRule(rule: Rule, text: string, messageType: string) {
-  const keywordHits = rule.keywords.filter((keyword) => text.includes(normalizeText(keyword)));
+  const keywordHits = rule.keywords.filter((keyword) => contieneParola(text, keyword));
   const mediaHit = rule.mediaTypes?.includes(messageType) ?? false;
   return {
     score: keywordHits.length * 2 + (mediaHit ? 1.5 : 0),
