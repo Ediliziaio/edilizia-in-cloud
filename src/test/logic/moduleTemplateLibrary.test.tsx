@@ -105,7 +105,10 @@ describe("libreria completa dei moduli", () => {
     expect(screen.getAllByText("PDF con pagine dedicate")).toHaveLength(9);
     expect(screen.queryAllByText("Edizione essenziale · da completare")).toHaveLength(0);
     expect(screen.getByText("Edizione completa disponibile · aggiorna la copia")).toBeInTheDocument();
-    expect(screen.getByRole("img", { name: "Copertina illustrativa — Avvolgibili e cassonetti" })).toHaveAttribute("src", "/module-art/serramenti-avvolgibili-cover.jpg");
+    // La libreria serve la miniatura WebP (480×720, ~50KB) al posto della cover
+    // a piena grandezza (1536×1024, ~400KB). Il modello continua a puntare al
+    // path della cover; è la card della libreria a scaricare il thumb.
+    expect(screen.getByRole("img", { name: "Copertina illustrativa — Avvolgibili e cassonetti" })).toHaveAttribute("src", "/module-thumbs/serramenti-avvolgibili-cover-thumb.webp");
     expect(state.remoteWrite).not.toHaveBeenCalled();
   });
   it("apre l'edizione Accumulo nell'editor originale, non nel documento generico", async () => {

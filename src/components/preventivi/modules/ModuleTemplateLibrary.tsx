@@ -61,6 +61,21 @@ const Ristrutturazioni = lazy(() => import("@/components/ristrutturazione/RstMod
 
 const Fotovoltaico = lazy(() => import("@/components/fotovoltaico/FvModuleTemplatePanel").then(m => ({ default: m.FvModuleTemplatePanel })));
 
+/**
+ * La miniatura verticale della cover, se esiste per convenzione di nome.
+ * Ogni `public/module-art/<slug>-cover.jpg` ha un pari
+ * `public/module-thumbs/<slug>-cover-thumb.webp` (480×720 WebP, ~50 KB
+ * invece dei ~400 KB della cover a piena grandezza). La libreria dei
+ * modelli fa scrolling con tante card: caricare 33 miniature invece di 33
+ * cover intere è ~15 MB in meno di traffico. Per le vecchie cover senza
+ * `-cover.jpg` alla fine (path storici come `/module-art/bagni.jpg`)
+ * lasciamo la cover originale — nessun thumb esiste, e vale il fallback.
+ */
+function coverThumb(cover: string): string {
+  if (!cover.endsWith("-cover.jpg")) return cover;
+  return cover.replace("/module-art/", "/module-thumbs/").replace(/-cover\.jpg$/, "-cover-thumb.webp");
+}
+
 const Serramenti = lazy(() =>
   import("@/components/serramenti/SerramentiModuleTemplatesPanel").then(
     (m) => ({ default: m.SerramentiModuleTemplatesPanel }),
@@ -273,7 +288,7 @@ export default function ModuleTemplateLibrary({
         className="flex flex-col overflow-hidden rounded-2xl border bg-white transition-shadow hover:shadow-md"
       >
         {cover && <div className="relative h-36 overflow-hidden">
-          <img src={cover} alt={`Copertina illustrativa — ${m.title}`} loading="lazy" className="h-full w-full object-cover object-center" />
+          <img src={coverThumb(cover)} alt={`Copertina illustrativa — ${m.title}`} loading="lazy" className="h-full w-full object-cover object-center" />
           <span className="absolute bottom-2 left-3 rounded-full bg-black/65 px-2 py-1 text-[10px] text-white">Immagine del modello · illustrativa</span>
         </div>}
         <div className="flex items-center gap-3 border-b bg-slate-50/60 px-5 py-4">
