@@ -564,7 +564,8 @@ export function useAggiornaStatoCaricoDdt() {
         if (!esito?.ok) throw new Error(esito?.errore ?? "Conferma non riuscita");
         return { ...input, caricati: esito.caricati?.length ?? 0, daAbbinare: esito.da_abbinare?.length ?? 0 };
       }
-      const { error } = await sbAny.from("email_ddt_carico").update({ stato: input.stato }).eq("id", input.id);
+      const patch: Record<string, unknown> = { stato: input.stato };
+      const { error } = await sbAny.from("email_ddt_carico").update(patch).eq("id", input.id);
       if (error) throw error;
       return { ...input, caricati: 0, daAbbinare: 0 };
     },

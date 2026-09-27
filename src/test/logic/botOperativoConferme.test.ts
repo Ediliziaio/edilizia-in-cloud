@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  type ConfermaAttesa,
   confermaValePer,
   leggiStatoSessione,
   statoDaSalvare,
@@ -23,7 +24,7 @@ describe("domanda in attesa nella sessione", () => {
 });
 
 describe("il Sì sblocca solo l'azione chiesta", () => {
-  const attesa = { azione: "carica_ddt", proposta_id: null, chiesta_il: minutiFa(1) };
+  const attesa: ConfermaAttesa = { azione: "carica_ddt", proposta_id: null, chiesta_il: minutiFa(1) };
   it("sblocca lo strumento chiesto", () => {
     expect(confermaValePer(attesa, "carica_ddt", true)).toBe(true);
   });
