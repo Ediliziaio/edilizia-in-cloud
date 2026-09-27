@@ -31,6 +31,18 @@
 - Per il ramo operaio: **Marco Operaio** `employees.id = 06cfbe38-161e-2882-caad-837603c6b35a`, utente `f1a86184-73aa-7342-fb8d-5d41deff0197` (ruolo `employee`).
 - Watcher dei messaggi (scratchpad della sessione): `watch-bot-operativo.sh` — una riga per messaggio/stato sul numero e per ogni `wa_routing_errors` del suo `phone_number_id` `1076592968881625`.
 
+## Stato al 27/09/2026 (esecuzione)
+
+Fase 0 e Fase 1 scritte sul ramo `bot-operativo-completo` (non pubblicato). In più rispetto ai task qui sotto, emerso dalle prove:
+- **Smistamento**: le parole chiave si cercavano DENTRO le parole («si» in «situazione»): una domanda del founder a voce era stata presa per «conferma». Ora parole intere (≤3 lettere) o inizio di parola (`operationalTriage.ts`, test `triageBotOperativo.test.ts`).
+- **Sì a voce**: la conferma guardava «[Audio]» e non la trascrizione; ora vale anche il sì detto in un vocale.
+- **Letture da titolare su WhatsApp**: `lista_lavori_pose_periodo`, `get_revenue_forecast`, `get_cashflow_status`, `get_executive_snapshot` abilitate sul canale (erano escluse: «situazione dei lavori nelle prossime due settimane» non aveva risposta).
+- **Area «cantieri» sempre a bordo** del bot (il catalogo base di Silvio non la comprende).
+- **Agente configurabile** (richiesta del founder: creare AI operativi con prompt e regole proprie senza codice): scheda `ai_agents_v2` (tipo `whatsapp`, `tools_config.operativo`) collegata col `agent_id` del numero; istruzioni dell'azienda (`system_prompt`), per ruolo, aree iniziali, strumenti vietati, temperatura. Logica in `_shared/agenteOperativoConfig.ts` (test in `botOperativoCatalogo.test.ts`). Scheda di Demo Azienda 2 pronta in `scratchpad/agente-operativo-demo2.sql` (provata a vuoto).
+- **Controllo tipi delle edge**: `deno` non è installato; si usa il pacchetto npm ufficiale nella cartella di sessione + confronto errori prima/dopo contro `origin/main` (script `deno-diff.sh`). Processore 7 → 7, webhook 2 → 2.
+
+**Ordine di pubblicazione (dopo l'ok):** 1) rebase su `origin/main`; 2) `apply_migration conferma_carico_ddt` + riallineo versione; 3) push → CI (ridistribuisce anche le funzioni che importano `silvioTools.ts`); 4) SQL della scheda agente Demo 2; 5) watcher acceso e prove dal 348, prima fra tutte la domanda vocale sui lavori delle prossime due settimane.
+
 ## Regole che valgono per ogni task
 
 - **Nessun `git push` su `main` senza l'ok esplicito del founder** (auto-deploy in produzione).
