@@ -27,6 +27,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import type { TicketPriority } from "@/types/tickets";
 import { queryKeys } from "@/lib/queryKeys";
 import { applyPlaybookToTicket } from "@/lib/ticketPlaybook";
+import { OrdinaMerceDialog } from "@/components/tickets/OrdinaMerceDialog";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const MAX_FILES = 5;
@@ -85,6 +86,14 @@ export function NuovoTicketForm({ initial, variant = "page", onCreated }: NuovoT
   const [squadraId, setSquadraId] = useState("");
   const [noteTecnico, setNoteTecnico] = useState("");
   const [impiantoId, setImpiantoId] = useState(initial?.impiantoId ?? "__none__");
+  // Ticket appena creato per cui aprire subito l'ordine d'acquisto della merce.
+  const [merceOdaTicketId, setMerceOdaTicketId] = useState<string | null>(null);
+
+  // Conclude la creazione: apre il ticket (o lascia decidere a chi ospita).
+  const finish = (ticketId: string) => {
+    if (onCreated) onCreated(ticketId);
+    else navigate(`/azienda/assistenza/${ticketId}`);
+  };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = Array.from(e.target.files || []);
@@ -242,15 +251,13 @@ export function NuovoTicketForm({ initial, variant = "page", onCreated }: NuovoT
       queryClient.invalidateQueries({ queryKey: queryKeys.companyTickets.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.adminTicketMessages.byTicket(ticketId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.ticketAttachments.byTicket(ticketId) });
-      // Merce ancora da ordinare: proponi di preparare l'ordine d'acquisto.
-      if (serveMerce && merceStato === "da_ordinare") {
-        toast({
-          title: "Materiale da ordinare",
-          description: "Vai negli ordini d'acquisto per preparare l'OdA.",
-        });
+      // Merce ancora da ordinare: apro subito l'ordine d'acquisto (fornitore +
+      // cosa serve). Alla chiusura di quella finestra concludo aprendo il ticket.
+      if (serveMerce && merceStato === "da_ordinare" && effectiveCompany?.id) {
+        setMerceOdaTicketId(ticketId);
+        return;
       }
-      if (onCreated) onCreated(ticketId);
-      else navigate(`/azienda/assistenza/${ticketId}`);
+      finish(ticketId);
     },
     onError: (err: Error) => {
       toast({ title: "Errore", description: err.message || "Impossibile creare il ticket.", variant: "destructive" });
@@ -460,7 +467,7 @@ export function NuovoTicketForm({ initial, variant = "page", onCreated }: NuovoT
             {merceStato === "da_ordinare" && (
               <p className="flex items-start gap-1.5 rounded-lg bg-amber-50 p-2 text-xs text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
                 <Package className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                Dopo aver creato il ticket puoi preparare l'ordine d'acquisto dagli Ordini d'acquisto.
+                Appena creato il ticket ti chiedo fornitore e cosa serve: parte un ordine d'acquisto collegato e tracciato in magazzino.
               </p>
             )}
             {merceStato === "arrivata_parziale" && (
@@ -515,6 +522,24 @@ export function NuovoTicketForm({ initial, variant = "page", onCreated }: NuovoT
         onOpenChange={setNuovoClienteOpen}
         onCustomerCreated={(id) => { setCustomerId(id); setOrderId(""); setNuovoClienteOpen(false); }}
       />
+
+      {/* Ticket creato con «merce da ordinare»: l'ordine d'acquisto parte da qui,
+          collegato al ticket. Chiusa la finestra, apro il ticket. */}
+      {merceOdaTicketId && effectiveCompany?.id && (
+        <OrdinaMerceDialog
+          open
+          onOpenChange={(o) => {
+            if (!o) {
+              const id = merceOdaTicketId;
+              setMerceOdaTicketId(null);
+              finish(id);
+            }
+          }}
+          ticketId={merceOdaTicketId}
+          orderId={(orderId && orderId !== "none") ? orderId : null}
+          companyId={effectiveCompany.id}
+        />
+      )}
     </div>
   );
 }
