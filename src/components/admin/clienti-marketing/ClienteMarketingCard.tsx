@@ -37,6 +37,8 @@ interface Props {
   metriche: Metriche | null;
   meseCorrente: boolean;
   meseLeggibile: string;
+  /** Vista a intervallo (oggi/ieri/fascia): una frase come «oggi», «ieri», «dal 21 al 27 set» che sostituisce «nel mese» nei sottotitoli. Assente = vista mensile. */
+  etichettaPeriodo?: string;
   oggi: Date;
   entraInCorso: boolean;
   puoEntrare: boolean;
@@ -87,7 +89,7 @@ function Stat({ etichetta, icona: Icona, valore, righe, tono, piede }: { etichet
       </div>
       <div className="mt-0.5 text-lg font-bold leading-tight tabular-nums">{valore}</div>
       {righe.filter(Boolean).map((r, i) => (
-        <div key={i} className="mt-0.5 truncate text-[11px] leading-snug text-muted-foreground" title={typeof r === "string" ? r : undefined}>{r}</div>
+        <div key={i} className="mt-0.5 text-[11px] leading-snug text-muted-foreground break-words" title={typeof r === "string" ? r : undefined}>{r}</div>
       ))}
       {/* Il piede non si tronca: la linea dei giorni sta su una riga sua, la didascalia sotto. */}
       {piede}
@@ -114,7 +116,7 @@ function testoUltimiGiorni(c: ClienteMarketing): string {
   return `ieri ${numero(ieri)} · ${ultimo}`;
 }
 
-export function ClienteMarketingCard({ c, metriche, meseCorrente, meseLeggibile, oggi, entraInCorso, puoEntrare, onEntra, onCosti, onIncassi, onModifica, onPromemoria, onSoglie, onReport, onScheda }: Props) {
+export function ClienteMarketingCard({ c, metriche, meseCorrente, meseLeggibile, etichettaPeriodo, oggi, entraInCorso, puoEntrare, onEntra, onCosti, onIncassi, onModifica, onPromemoria, onSoglie, onReport, onScheda }: Props) {
   const l = leggiMese(c, meseCorrente);
   const m = metriche;
   const cplVsTarget = m?.cpl_valido_7g != null && m.cpl_target != null
@@ -133,6 +135,16 @@ export function ClienteMarketingCard({ c, metriche, meseCorrente, meseLeggibile,
     c.spesa_google > 0 && `Google ${eur(c.spesa_google)}`,
     c.spesa_manuale > 0 && `a mano ${eur(c.spesa_manuale)}`,
   ].filter(Boolean).join(" · ");
+  // Spesa Meta divisa per obiettivo di campagna: la conversione (lead form /
+  // conversione sito) tenuta separata da traffico, video, interazioni,
+  // notorietà. Si mostra solo quando c'è spesa non di conversione, ed è allora
+  // che il costo per lead «vero» va calcolato sulla sola spesa di conversione.
+  const spesaConv = c.spesa_meta_conversione;
+  const spesaAltroObj = c.spesa_meta_altro;
+  const spesaNonCl = c.spesa_meta_non_classificata;
+  const spesaSenzaDettaglio = Math.max(0, c.spesa_meta - (spesaConv + spesaAltroObj + spesaNonCl));
+  const mostraObiettivi = c.spesa_meta > 0 && (spesaAltroObj > 0.005 || spesaNonCl > 0.005);
+  const cplConversione = spesaConv > 0 && c.lead_mese > 0 ? spesaConv / c.lead_mese : null;
   const scaglione = scaglioneCorrente(l.venduto, l.scaglioni);
   const alProssimo = alProssimoScaglione(l.venduto, l.scaglioni);
   const prossimo = scaglione && alProssimo != null ? l.scaglioni[l.scaglioni.indexOf(scaglione) + 1] : null;
@@ -185,16 +197,6 @@ export function ClienteMarketingCard({ c, metriche, meseCorrente, meseLeggibile,
                 {c.promemoria_aperti > 1 ? ` (+${numero(c.promemoria_aperti - 1)})` : ""}
               </Link>
             )}
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              <Chip stato={meta.stato} icona={Megaphone} titolo={c.meta_pagine ? `Pagine: ${c.meta_pagine}` : undefined}>{meta.testo}</Chip>
-              {c.meta_pagine && <Chip stato="neutro" icona={Megaphone} titolo={c.meta_pagine}>{c.meta_pagine.split(", ").length === 1 ? c.meta_pagine : `${c.meta_pagine.split(", ").length} pagine`}</Chip>}
-              <Chip stato={c.google_account ? "ok" : "neutro"} icona={Globe} titolo={c.google_account ?? undefined}>{c.google_account ? `Google · ${c.google_account}` : "Google non collegato"}</Chip>
-              <Chip stato={c.fatture_collegate ? "ok" : "neutro"} icona={FileText}>{c.fatture_collegate ? "Fatture collegate" : "Fatture non collegate"}</Chip>
-              <Chip stato={c.form_attivi > 0 ? "ok" : "neutro"} icona={ClipboardList}>{c.form_attivi > 0 ? `${numero(c.form_attivi)} ${c.form_attivi === 1 ? "modulo attivo" : "moduli attivi"}` : "Nessun modulo"}</Chip>
-              <Chip stato={c.utenti > 0 && c.ultimo_accesso ? "ok" : "neutro"} icona={Users}>
-                {numero(c.utenti)} {c.utenti === 1 ? "utente" : "utenti"}{c.ultimo_accesso ? ` · ultimo accesso ${dataBreve(c.ultimo_accesso, false, oggi)}` : c.utenti > 0 ? " · mai entrati" : ""}
-              </Chip>
-            </div>
           </div>
         </div>
         <div className="flex flex-wrap gap-1.5 lg:justify-end">
@@ -240,11 +242,23 @@ export function ClienteMarketingCard({ c, metriche, meseCorrente, meseLeggibile,
         </div>
       </header>
 
+      {/* Stati del cliente su una riga a piena larghezza: ci stanno tutti senza tagli (vanno a capo solo se lo schermo è stretto). */}
+      <div className="flex flex-wrap items-center gap-1.5 px-4 pb-3">
+        <Chip stato={meta.stato} icona={Megaphone} titolo={c.meta_pagine ? `Pagine: ${c.meta_pagine}` : undefined}>{meta.testo}</Chip>
+        {c.meta_pagine && <Chip stato="neutro" icona={Megaphone} titolo={c.meta_pagine}>{c.meta_pagine.split(", ").length === 1 ? c.meta_pagine : `${c.meta_pagine.split(", ").length} pagine`}</Chip>}
+        <Chip stato={c.google_account ? "ok" : "neutro"} icona={Globe} titolo={c.google_account ?? undefined}>{c.google_account ? `Google · ${c.google_account}` : "Google non collegato"}</Chip>
+        <Chip stato={c.fatture_collegate ? "ok" : "neutro"} icona={FileText}>{c.fatture_collegate ? "Fatture collegate" : "Fatture non collegate"}</Chip>
+        <Chip stato={c.form_attivi > 0 ? "ok" : "neutro"} icona={ClipboardList}>{c.form_attivi > 0 ? `${numero(c.form_attivi)} ${c.form_attivi === 1 ? "modulo attivo" : "moduli attivi"}` : "Nessun modulo"}</Chip>
+        <Chip stato={c.utenti > 0 && c.ultimo_accesso ? "ok" : "neutro"} icona={Users}>
+          {numero(c.utenti)} {c.utenti === 1 ? "utente" : "utenti"}{c.ultimo_accesso ? ` · ultimo accesso ${dataBreve(c.ultimo_accesso, false, oggi)}` : c.utenti > 0 ? " · mai entrati" : ""}
+        </Chip>
+      </div>
+
       <div className="grid grid-cols-2 gap-2 px-4 pb-3 md:grid-cols-3 xl:grid-cols-6">
         <Stat etichetta="Lead nuovi" icona={Inbox} valore={numero(c.lead_mese)} tono={meseCorrente && c.stato === "attivo" && (c.lead_mese === 0 || (c.giorni_senza_lead ?? 0) >= 5) ? "attenzione" : undefined}
           righe={[
             <Delta key="d" adesso={c.lead_mese} prima={c.lead_prec} />,
-            canali || (c.lead_mese > 0 ? "fonte non riconosciuta" : "nessun lead nel mese"),
+            canali || (c.lead_mese > 0 ? "fonte non riconosciuta" : etichettaPeriodo ? `nessun lead ${etichettaPeriodo}` : "nessun lead nel mese"),
             c.lead_meta_dichiarati > 0 ? `Meta ne dichiara ${numero(c.lead_meta_dichiarati)}` : null,
           ]}
           piede={c.lead_giorni.length >= 2 ? (
@@ -262,14 +276,24 @@ export function ClienteMarketingCard({ c, metriche, meseCorrente, meseLeggibile,
         <Stat etichetta="Vendite" icona={Trophy} valore={numero(c.vinte_mese)}
           righe={[<Delta key="d" adesso={c.vinte_mese} prima={c.vinte_prec} />, c.valore_vinto_mese > 0 ? `valore ${eur(c.valore_vinto_mese)}` : "nessun valore nel CRM", l.cpa != null ? `CPA ${eur(l.cpa)}` : null]} />
         <Stat etichetta="Spesa ads" icona={Coins} valore={eur(l.spesa)}
-          righe={[fontiSpesa || (c.meta_account_id ? "Meta: nessuna spesa scaricata per il mese" : "nessun costo caricato"),
-            l.cpl != null ? `CPL mese ${eur(l.cpl, 2)}${l.roas != null ? ` · ${l.roas.toLocaleString("it-IT")}× ritorno` : ""}` : null,
+          righe={[fontiSpesa || (c.meta_account_id ? (etichettaPeriodo ? "Meta: nessuna spesa" : "Meta: nessuna spesa scaricata per il mese") : "nessun costo caricato"),
+            mostraObiettivi ? (
+              <span key="obj" className="text-muted-foreground">
+                conversione {eur(spesaConv)} · <span className="font-medium text-amber-700 dark:text-amber-400">traffico/interazioni {eur(spesaAltroObj)}</span>
+                {spesaNonCl > 0.005 ? ` · non classif. ${eur(spesaNonCl)}` : ""}
+                {spesaSenzaDettaglio > 0.5 ? ` · senza dettaglio ${eur(spesaSenzaDettaglio)}` : ""}
+              </span>
+            ) : null,
+            // Con spesa non di conversione, il CPL vero è sulla sola spesa di conversione; il totale resta accanto, in grigio.
+            mostraObiettivi && cplConversione != null
+              ? <span key="cpl">CPL conversione {eur(cplConversione, 2)}{l.cpl != null ? <span className="text-muted-foreground"> · totale {eur(l.cpl, 2)}</span> : null}{l.roas != null ? <span className="text-muted-foreground"> · {l.roas.toLocaleString("it-IT")}× ritorno</span> : null}</span>
+              : l.cpl != null ? `CPL ${etichettaPeriodo ? "" : "mese "}${eur(l.cpl, 2)}${l.roas != null ? ` · ${l.roas.toLocaleString("it-IT")}× ritorno` : ""}` : null,
             cplVsTarget ? <span key="t" className={cn("font-medium", cplVsTarget.classe)}>{cplVsTarget.testo}</span> : null,
             m?.rapporto_zero != null && m.rapporto_zero >= 3 ? <span key="z" className={cn("font-medium", m.rapporto_zero >= 5 ? "text-rose-700 dark:text-rose-400" : "text-amber-700 dark:text-amber-400")}>{eur(m.spesa_senza_lead)} spesi senza richieste ({m.rapporto_zero.toLocaleString("it-IT")}× il target)</span> : null,
             c.spesa_meta_al ? `Meta aggiornato ${dataBreve(c.spesa_meta_al, true, oggi)}` : null]} />
         <Stat etichetta="Provvigione" icona={Percent} valore={l.scaglioni.length ? eur(l.provvigione) : "—"}
           righe={[
-            l.fonteVenduto === "nessuna" ? `nessun venduto in ${meseLeggibile}` : `su ${eur(l.venduto)} ${l.fonteVenduto === "fatture" ? "di fatture" : "di vendite CRM"}${scaglione ? ` · scaglione ${scaglione.pct.toLocaleString("it-IT")}%` : ""}`,
+            l.fonteVenduto === "nessuna" ? (etichettaPeriodo ? `nessun venduto ${etichettaPeriodo}` : `nessun venduto in ${meseLeggibile}`) : `su ${eur(l.venduto)} ${l.fonteVenduto === "fatture" ? "di fatture" : "di vendite CRM"}${scaglione ? ` · scaglione ${scaglione.pct.toLocaleString("it-IT")}%` : ""}`,
             !l.scaglioni.length ? "senza scaglioni: si calcola alla chiusura" : c.mese_chiuso
               ? <span key="c" className={cn("font-medium", Number(c.mese_incassato ?? 0) >= Number(c.mese_dovuto ?? 0) ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400")}>
                   mese chiuso: {eur(c.mese_dovuto)} dovuti{Number(c.mese_incassato ?? 0) > 0 ? `, ${eur(c.mese_incassato)} incassati` : ", da incassare"}

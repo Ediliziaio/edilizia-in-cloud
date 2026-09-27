@@ -35,7 +35,7 @@ import { Users, Plus, Pencil, Trash2, Loader2, Building2, UserRound, Link2, Wall
 import { ServiceBillingsDialog } from "@/components/admin/settings/ServiceBillingsDialog";
 import { ChiusuraMeseDialog } from "@/components/admin/settings/ChiusuraMeseDialog";
 import { ValoreClientiTable } from "@/components/admin/settings/ValoreClientiTable";
-import { ClientiMarketingPanel } from "@/components/admin/clienti-marketing/ClientiMarketingPanel";
+import { ClientiMarketingPanel, type PeriodoConsole } from "@/components/admin/clienti-marketing/ClientiMarketingPanel";
 import { ReportClienteMarketing } from "@/components/admin/clienti-marketing/ReportClienteMarketing";
 import { ScaglioniEditor } from "@/components/admin/clienti-marketing/ScaglioniEditor";
 import { useClientiMarketing } from "@/components/admin/clienti-marketing/useClientiMarketing";
@@ -114,13 +114,15 @@ export default function AdminServiceClients() {
   const [oggi] = useState(() => new Date());
   const meseOggi = meseChiave(oggi);
   const [mese, setMese] = useState(meseOggi);
+  // Vista a giorni/intervallo scelta in cima alla console (null = il mese intero).
+  const [periodo, setPeriodo] = useState<PeriodoConsole | null>(null);
   // ?report=<cliente-servizio>: il report del mese da stampare, al posto della
   // console; ?scheda=<cliente-servizio>: la scheda completa del cliente.
   const [searchParams, setSearchParams] = useSearchParams();
   const reportId = searchParams.get("report");
   const schedaId = searchParams.get("scheda");
-  const riepilogo = useClientiMarketing(mese, vista === "marketing" || !!reportId || !!schedaId);
-  const totali = useMemo(() => totaliMese(riepilogo.data ?? [], mese === meseOggi), [riepilogo.data, mese, meseOggi]);
+  const riepilogo = useClientiMarketing(mese, vista === "marketing" || !!reportId || !!schedaId, periodo);
+  const totali = useMemo(() => totaliMese(riepilogo.data ?? [], !periodo && mese === meseOggi), [riepilogo.data, periodo, mese, meseOggi]);
   // Filtri lista
   const [search, setSearch] = useState("");
   const [filtServizio, setFiltServizio] = useState("tutti");
@@ -355,7 +357,7 @@ export default function AdminServiceClients() {
   const deltaLead = variazione(totali.lead, totali.leadPrec);
   const kpiMarketing = [
     { l: "Clienti attivi", v: String(totali.clienti) },
-    { l: "Lead del mese", v: `${totali.lead.toLocaleString("it-IT")}${deltaLead == null ? "" : ` (${deltaLead > 0 ? "+" : ""}${deltaLead}%)`}` },
+    { l: periodo ? "Lead nel periodo" : "Lead del mese", v: `${totali.lead.toLocaleString("it-IT")}${deltaLead == null ? "" : ` (${deltaLead > 0 ? "+" : ""}${deltaLead}%)`}` },
     { l: "Appuntamenti", v: totali.appuntamenti.toLocaleString("it-IT") },
     { l: "Vendite chiuse", v: `${totali.vinte.toLocaleString("it-IT")} · ${eur(totali.valoreVinto)}` },
     { l: "Spesa ads", v: eur(totali.spesa) },
@@ -436,10 +438,12 @@ export default function AdminServiceClients() {
           mese={mese}
           meseOggi={meseOggi}
           oggi={oggi}
+          periodo={periodo}
+          onPeriodo={setPeriodo}
           schedaId={schedaId}
           onScheda={(id) => setSearchParams(id ? { scheda: id } : {})}
           onNuovoServizio={nuovoServizioPer}
-          onMese={setMese}
+          onMese={(m) => { setMese(m); setPeriodo(null); }}
           righe={riepilogo.data ?? []}
           isLoading={riepilogo.isLoading}
           isError={riepilogo.isError}

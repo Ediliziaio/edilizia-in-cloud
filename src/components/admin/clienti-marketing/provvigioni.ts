@@ -174,6 +174,12 @@ export interface ClienteMarketing {
   spesa_meta: number;
   lead_meta_dichiarati: number;
   spesa_meta_al: string | null;
+  // Spesa Meta divisa per obiettivo di campagna (dal registro per campagna): la
+  // conversione (lead form / conversione sito) tenuta separata da traffico,
+  // video, interazioni, notorietà. Somma ≈ spesa_meta sui giorni con dettaglio.
+  spesa_meta_conversione: number;
+  spesa_meta_altro: number;
+  spesa_meta_non_classificata: number;
   spesa_google: number;
   spesa_manuale: number;
   meta_stato: string | null;
