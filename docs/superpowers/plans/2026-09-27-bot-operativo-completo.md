@@ -66,7 +66,7 @@ Fase 0 e Fase 1 scritte sul ramo `bot-operativo-completo` (non pubblicato). In p
 | `supabase/functions/whatsapp-webhook/handlers/bot_operativo.ts` | Bot spento → messaggio chiuso subito | 3 |
 | `supabase/functions/whatsapp-ai-processor/media.ts` | Nome modello per la foto | 4 |
 | `supabase/functions/whatsapp-ai-processor/prompts/system_operaio.ts` | Etichetta vera del DDT letto | 4 |
-| `supabase/migrations/20280927230000_conferma_carico_ddt.sql` (nuovo) | `conferma_carico_ddt()`: ricezione + movimenti + giacenza | 5 |
+| `supabase/migrations/20280928154700_conferma_carico_ddt.sql` (nuovo) | `conferma_carico_ddt()`: ricezione + movimenti + giacenza | 5 |
 | `src/lib/email-ai/hooks.ts` | La conferma dall'app usa la funzione | 5 |
 | `supabase/functions/whatsapp-ai-processor/tools/operaio/carica_ddt.ts` | Da ufficio/admin il Sì carica subito | 5 |
 | `supabase/functions/_shared/botOperativoConferme.ts` (nuovo) | Logica pura: domanda in attesa, aree caricate, scadenze | 6 |
@@ -624,7 +624,7 @@ La prova vera è nel Task 7 (foto di cantiere senza testo).
 Oggi «Conferma» cambia solo `email_ddt_carico.stato`: nessun movimento, giacenza ferma, ordine d'acquisto fermo — mentre `CarichiDaRegistrareCard.tsx:140` dice il contrario. Nessun trigger lo fa (`warehouse_movements` non aggiorna la giacenza da solo: la aggiorna chi inserisce il movimento, come `registra_movimento_magazzino` di Silvio).
 
 **Files:**
-- Create: `supabase/migrations/20280927230000_conferma_carico_ddt.sql`
+- Create: `supabase/migrations/20280928154700_conferma_carico_ddt.sql`
 - Modify: `src/lib/email-ai/hooks.ts` (`useAggiornaStatoCaricoDdt`)
 - Modify: `supabase/functions/whatsapp-ai-processor/tools/operaio/carica_ddt.ts`
 
@@ -638,7 +638,7 @@ Expected: usa `auth.uid()` e ammette profilo dell'azienda o accesso multi-aziend
 - [ ] **Step 2: Scrivere la migrazione**
 
 ```sql
--- supabase/migrations/20280927230000_conferma_carico_ddt.sql
+-- supabase/migrations/20280928154700_conferma_carico_ddt.sql
 -- Confermare un DDT carica davvero il magazzino (27/09/2026).
 --
 -- Prima «Conferma» cambiava solo lo stato della bozza (email_ddt_carico):
@@ -781,7 +781,7 @@ comment on function public.conferma_carico_ddt(uuid, uuid) is
 
 `apply_migration` con nome `conferma_carico_ddt` e il contenuto sopra, poi:
 ```sql
-update supabase_migrations.schema_migrations set version = '20280927230000'
+update supabase_migrations.schema_migrations set version = '20280928154700'
  where name = 'conferma_carico_ddt' and left(version, 4) = '2026';
 ```
 
@@ -907,7 +907,7 @@ Run: `deno check supabase/functions/whatsapp-ai-processor/index.ts 2>&1 | grep -
 - [ ] **Step 8: Commit**
 
 ```bash
-git add supabase/migrations/20280927230000_conferma_carico_ddt.sql src/lib/email-ai/hooks.ts supabase/functions/whatsapp-ai-processor/tools/operaio/carica_ddt.ts
+git add supabase/migrations/20280928154700_conferma_carico_ddt.sql src/lib/email-ai/hooks.ts supabase/functions/whatsapp-ai-processor/tools/operaio/carica_ddt.ts
 git commit -m "DDT confermato = carico vero: ricezione sull'ordine, movimenti e giacenza; righe incerte da abbinare"
 ```
 
