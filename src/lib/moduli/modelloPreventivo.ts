@@ -75,6 +75,8 @@ export const TIPO_INTERVENTO_DEL_MODELLO: Record<ModuloConModelli, Readonly<Reco
   pavimenti: {
     sovrapposizione: "sovrapposizione", rifacimento: "rifacimento", resina: "resina_microcemento",
     parquet: "levigatura_lucidatura", pareti: "nuova_posa", esterni: "nuova_posa",
+    "posa-parquet": "nuova_posa", scale: "nuova_posa", levigatura: "levigatura_lucidatura",
+    giardino: "nuova_posa", verde: "manutenzione", irrigazione: "nuova_posa", recinzioni: "nuova_posa",
   },
   piscine: {
     nuova: "nuova_costruzione", ristrutturazione: "ristrutturazione", rivestimento: "ristrutturazione",
@@ -89,6 +91,9 @@ export const TIPO_INTERVENTO_DEL_MODELLO: Record<ModuloConModelli, Readonly<Reco
     decorativi: "ristrutturazione_parziale", umidita: "ristrutturazione_parziale", acustica: "ristrutturazione_parziale",
     "pergola-bioclimatica": "ristrutturazione_parziale", "pergola-telo": "ristrutturazione_parziale", "tende-sole": "ristrutturazione_parziale",
     vetrate: "ristrutturazione_parziale", carport: "ristrutturazione_parziale",
+    cappotto: "efficientamento_energetico", rifacimento: "manutenzione_straordinaria", balconi: "manutenzione_straordinaria",
+    tinteggiatura: "manutenzione_straordinaria", interno: "efficientamento_energetico", riparazioni: "manutenzione_straordinaria",
+    ventilata: "efficientamento_energetico", pietra: "manutenzione_straordinaria", pulizia: "manutenzione_straordinaria",
   },
 };
 

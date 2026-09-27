@@ -10,9 +10,10 @@ import { avvolgibiliContent } from "./fullAvvolgibiliModule";
 import { porteIngressoContent } from "./fullPorteIngressoModule";
 import { porteInterneContent } from "./fullPorteInterneModule";
 import { combinatoContent } from "./fullCombinatoModule";
+import { portoniGarageContent, grateContent } from "./fullSerramentiExtra";
 
 /** Full editions use the SAME renderer/editor as the original company document. */
-export const FULL_SERRAMENTI_MODULES: readonly SerramentiTemplateModuleId[] = ["finestre", "persiane", "avvolgibili", "zanzariere", "porte-ingresso", "porte-interne", "combinato"];
+export const FULL_SERRAMENTI_MODULES: readonly SerramentiTemplateModuleId[] = ["finestre", "persiane", "avvolgibili", "zanzariere", "porte-ingresso", "porte-interne", "combinato", "portoni-garage", "grate"];
 export const isFullSerramentiTemplate = (template: Partial<SrTemplatePdfRow>) =>
   (template.pdf_blocchi as Record<string, unknown> | null)?.modulo_edizione === 2;
 
@@ -31,6 +32,8 @@ export function createFullSerramentiTemplate(base: Partial<SrTemplatePdfRow>, id
   if (id === "porte-ingresso") return completeSerramentiEdition(seed, base, porteIngressoContent);
   if (id === "porte-interne") return completeSerramentiEdition(seed, base, porteInterneContent);
   if (id === "combinato") return completeSerramentiEdition(seed, base, combinatoContent);
+  if (id === "portoni-garage") return completeSerramentiEdition(seed, base, portoniGarageContent);
+  if (id === "grate") return completeSerramentiEdition(seed, base, grateContent);
   if (id === "zanzariere") return completeZanzariereTemplate(seed, base);
   if (id !== "persiane") return seed;
   const enabled = new Set(["chi_siamo", "proposta", "come_funziona", "macro_dedicate", "linee_dedicate", "render", "articoli_dedicati", "allegato_tecnico", "investimento", "percorso", "protezione", "controlli", "documenti", "diario", "garanzie", "gallery_lavori", "recensioni", "faq", "cta", "condizioni"]);

@@ -28,11 +28,11 @@ export default function ClimatizzazioneListino() {
         <div className="relative max-w-[1100px] mx-auto px-3 sm:px-8 py-4 sm:py-8">
           <button
             type="button"
-            onClick={() => navigate("/azienda/climatizzazione")}
+            onClick={() => navigate("/azienda/marketing/preventivi")}
             className="inline-flex items-center gap-1 text-[11px] sm:text-xs font-medium text-blue-100/90 hover:text-white mb-2 transition-colors"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
-            Torna a Climatizzazione
+            Torna ai Preventivi
           </button>
           <h1 className="text-xl sm:text-3xl font-bold tracking-tight flex items-center gap-2">
             <Library className="h-6 w-6 sm:h-7 sm:w-7 text-orange-400 shrink-0" />

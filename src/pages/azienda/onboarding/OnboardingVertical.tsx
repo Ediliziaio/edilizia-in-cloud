@@ -114,7 +114,7 @@ const VERTICAL_KEY_TO_MODULE_SLUG: Record<string, ModuloVendutaSlug> = {
   fotovoltaico: "fotovoltaico",
   tettisti: "tetti",
   bagnisti: "bagni",
-  facciatisti: "cappotto",
+  facciatisti: "ristrutturazione",
 };
 
 export default function OnboardingVertical() {

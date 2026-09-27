@@ -65,6 +65,35 @@ function templateLanguage(language: TemplateLanguageInput) {
   return { code: "it" };
 }
 
+/** Il componente «header» con foto/video/PDF da allegare all'invio, o null. */
+async function headerMediaDelModello(
+  // deno-lint-ignore no-explicit-any
+  adminClient: any,
+  companyId: string,
+  waNumberId: string | null,
+  nome: string,
+  lingua: string,
+): Promise<Record<string, unknown> | null> {
+  try {
+    let q = adminClient
+      .from("wa_meta_templates")
+      .select("header_format, header_media_url")
+      .eq("company_id", companyId)
+      .eq("template_name", nome)
+      .in("template_language", lingueDelModello(lingua));
+    if (waNumberId) q = q.eq("wa_number_id", waNumberId);
+    const { data } = await q.limit(1);
+    const riga = (data as Array<{ header_format?: string | null; header_media_url?: string | null }> | null)?.[0];
+    const formato = String(riga?.header_format ?? "").toUpperCase();
+    const link = typeof riga?.header_media_url === "string" ? riga.header_media_url.trim() : "";
+    if (!link || !["IMAGE", "VIDEO", "DOCUMENT"].includes(formato)) return null;
+    const tipo = formato.toLowerCase(); // image | video | document
+    return { type: "header", parameters: [{ type: tipo, [tipo]: { link } }] };
+  } catch {
+    return null;
+  }
+}
+
 function variablesToComponents(variables: Record<string, unknown> | undefined) {
   const values = Object.values(variables ?? {}).filter((v) => v !== null && v !== undefined);
   if (values.length === 0) return undefined;
@@ -310,12 +339,22 @@ serveConMetriche("whatsapp-send", async (req) => {
           headers: jsonHeaders,
         });
       }
-      const components = body.template.components ?? variablesToComponents(body.template.variables);
+      const componentiBase = body.template.components ?? variablesToComponents(body.template.variables);
       const language = templateLanguage(body.template.language);
+      // Intestazione con foto/video/PDF: Meta a ogni invio vuole il link del
+      // media (non l'handle della creazione). Lo prendiamo dalla riga del
+      // modello (header_format + header_media_url) e lo mettiamo davanti al
+      // corpo. I bottoni non servono all'invio: Meta li disegna dal modello.
+      const headerComponent = await headerMediaDelModello(
+        adminClient, companyId, body.wa_number_id ?? null, body.template.name, language.code,
+      );
+      const components = headerComponent
+        ? [headerComponent, ...((componentiBase as unknown[]) ?? [])]
+        : componentiBase;
       payload.template = {
         name: body.template.name,
         language,
-        ...(components ? { components } : {}),
+        ...(components && (components as unknown[]).length ? { components } : {}),
       };
       // Nella conversazione si salva il messaggio come lo legge il cliente,
       // non l'etichetta del modello.

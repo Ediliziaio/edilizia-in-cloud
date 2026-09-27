@@ -26,6 +26,8 @@ export const SALES_AREAS: readonly SalesArea[] = [
     intervention("porte-ingresso", "Porte d'ingresso e blindate", "Ingresso, chiusure e rivestimenti personalizzati.", "Dimensioni e apertura", "Prestazioni e serratura", "Rivestimenti e accessori", "Rimozione e posa"),
     intervention("porte-interne", "Porte interne", "Porte a battente, scorrevoli e relativi accessori.", "Vano e misure", "Apertura e telaio", "Finiture e maniglie", "Posa e ripristini"),
     intervention("combinato", "Intervento combinato", "Struttura prevista per riunire più lavorazioni della stessa area in una sola offerta.", "Interventi da includere", "Abbinamenti per vano", "Lavorazioni comuni", "Riepilogo unico"),
+    intervention("portoni-garage", "Portoni garage", "Sezionale, basculante o scorrevole con motore e sicurezze.", "Vano e spazio interno", "Tipo e pannelli", "Motore e sicurezze", "Posa e sblocco manuale"),
+    intervention("grate", "Grate e inferriate", "Grate fisse o apribili per la sicurezza delle aperture.", "Vani e accessi", "Fissa o apribile", "Disegno e serratura", "Ancoraggi e posa"),
   ] },
   { id: "tetti", title: "Tetti", sourceModule: "tetti", summary: "Rifacimenti, ripasso, isolamento e manutenzione delle coperture.", interventions: [
     intervention("rifacimento", "Rifacimento completo del tetto", "Dalla rimozione della copertura alla nuova stratigrafia.", "Superficie e geometria", "Stratigrafia e manto", "Demolizioni e smaltimenti", "Accessi e opere provvisionali"),
@@ -124,6 +126,15 @@ export const SALES_AREAS: readonly SalesArea[] = [
     intervention("parquet", "Recupero parquet", "Levigatura, riparazioni e nuova finitura.", "Superficie e stato", "Riparazioni", "Levigatura", "Finitura"),
     intervention("pareti", "Rivestimenti a parete", "Posa su superfici verticali.", "Superfici", "Materiale e formato", "Supporto e preparazione", "Tagli e posa"),
     intervention("esterni", "Pavimentazioni esterne", "Superfici esterne e relative preparazioni.", "Superficie e utilizzo", "Pendenze e sottofondo", "Materiali", "Posa e drenaggio"),
+    intervention("posa-parquet", "Posa parquet", "Parquet prefinito o massello sul supporto giusto.", "Superficie e fondo", "Prefinito o massello", "Disegno e giunti", "Posa e raccordi"),
+    intervention("scale", "Rivestimento scale", "Pedate, alzate e profili su misura per la scala.", "Misure dei gradini", "Materiale e sicurezza", "Profili e bordo", "Posa e raccordi"),
+    intervention("levigatura", "Levigatura marmo e cotto", "Recupero di marmo, cotto e graniglia esistenti.", "Materiale e stato", "Ciclo di lavorazione", "Finitura", "Trattamento e cura"),
+  ] },
+  { id: "giardini", title: "Giardini e verde", sourceModule: "pavimenti", summary: "Nuovo verde, manutenzione, irrigazione e recinzioni per gli spazi esterni.", interventions: [
+    intervention("giardino", "Realizzazione giardino", "Preparazione del terreno, prato ed essenze per il nuovo verde.", "Spazio e uso", "Terreno e drenaggio", "Prato ed essenze", "Opere a contorno"),
+    intervention("verde", "Manutenzione del verde", "Sfalci, potature e cure stagionali sul giardino reale.", "Il verde presente", "Interventi e frequenze", "Stagione e residui", "Programma"),
+    intervention("irrigazione", "Impianto di irrigazione", "Settori, portate e centralina sul giardino reale.", "Aree da irrigare", "Acqua disponibile", "Settori e programmi", "Scavo e collaudo"),
+    intervention("recinzioni", "Recinzioni e cancelli", "Pali, pannelli e cancelli sul confine verificato.", "Confine e terreno", "Materiale e altezza", "Accessi e cancelli", "Fondazioni e posa"),
   ] },
   { id: "piscine", title: "Piscine", sourceModule: "piscine", summary: "Nuove realizzazioni, rinnovi, impianti e cura stagionale.", interventions: [
     intervention("nuova", "Nuova piscina", "Struttura, impianti e finiture della nuova piscina.", "Dimensioni e terreno", "Struttura", "Impianti", "Finiture e accessori"),
@@ -133,13 +144,16 @@ export const SALES_AREAS: readonly SalesArea[] = [
     intervention("accessori", "Coperture e accessori", "Aggiunta di dotazioni alla piscina.", "Dimensioni", "Dotazioni scelte", "Predisposizioni", "Montaggio"),
     intervention("manutenzione", "Manutenzione stagionale", "Apertura, chiusura e interventi periodici.", "Dati piscina", "Servizi richiesti", "Materiali e ricambi", "Periodicità"),
   ] },
-  { id: "facciate", title: "Facciate e isolamento", sourceModule: "cappotto", summary: "Cappotto, rinnovo delle facciate e ripristini esterni.", interventions: [
+  { id: "facciate", title: "Facciate e isolamento", sourceModule: "ristrutturazione", summary: "Cappotto, rinnovo delle facciate e ripristini esterni.", interventions: [
     intervention("cappotto", "Cappotto termico esterno", "Sistema di isolamento e finitura delle facciate.", "Superfici e supporto", "Isolante e spessore", "Raccordi e finitura", "Ponteggi e accessi"),
     intervention("rifacimento", "Rifacimento facciata", "Ripristino di intonaci e finiture senza cappotto.", "Superficie e stato", "Rimozioni e ripristini", "Ciclo di finitura", "Accessi"),
     intervention("balconi", "Balconi e frontalini", "Ripristini delle parti esterne interessate.", "Elementi e quantità", "Degrado rilevato", "Lavorazioni previste", "Accessi e protezioni"),
     intervention("tinteggiatura", "Tinteggiatura esterna", "Preparazione e rinnovo del colore.", "Superfici", "Stato del supporto", "Ciclo e colore", "Accessi e protezioni"),
     intervention("interno", "Isolamento interno", "Coibentazione dall'interno degli ambienti.", "Superfici", "Sistema e spessore", "Raccordi", "Finiture e ripristini"),
     intervention("riparazioni", "Riparazioni localizzate", "Interventi puntuali sulle facciate.", "Zone interessate", "Difetti rilevati", "Lavorazioni", "Accessi e finiture"),
+    intervention("ventilata", "Facciata ventilata", "Sottostruttura, isolante e rivestimento con camera d'aria.", "Superfici e supporto", "Sottostruttura e ancoraggi", "Isolante e camera d'aria", "Rivestimento e nodi"),
+    intervention("pietra", "Rivestimenti in pietra", "Pietra e listelli su facciata, con ancoraggio verificato.", "Superfici e supporto", "Materiale e formato", "Posa e ancoraggio", "Pezzi speciali e nodi"),
+    intervention("pulizia", "Pulizia e protezione", "Pulizia dello sporco e trattamento protettivo delle facciate.", "Superfici e sporco", "Materiale della facciata", "Metodo di pulizia", "Trattamento protettivo"),
   ] },
 ];
 

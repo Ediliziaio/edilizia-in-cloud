@@ -26,6 +26,11 @@
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
+import {
+  type KeyCtx, type ToolDef, ToolError,
+  sha256Hex, hasScope, isSensitiveScope, scopesPerLivello, str, num, intLimit, resolveCompany, UUID_RE,
+} from "./lib.ts";
+import { SILVIO_TOOLS } from "./silvioTools.ts";
 
 const SUPPORTED_PROTOCOL_VERSIONS = ["2025-06-18", "2025-03-26", "2024-11-05"];
 const LATEST_PROTOCOL = "2025-06-18";
@@ -38,90 +43,12 @@ Usa prima "lista_aziende" (se disponibile) per scoprire le aziende, poi opera co
 Valori: gli importi sono in euro (numero), le date in formato YYYY-MM-DD.
 Stati opportunità: open | won | lost. Stati attività: da_fare | in_corso | completata.`;
 
-// ── Tipi ─────────────────────────────────────────────────────────────────────
-
-interface KeyCtx {
-  id: string;
-  company_id: string | null;
-  name: string;
-  scopes: string[];
-  rate_limit_per_minute: number;
-  rate_limit_per_day: number;
-  /** Super admin/utente che ha emesso la chiave: le scritture che richiedono
-   *  un autore (es. tasks.created_by NOT NULL) vengono attribuite a lui. */
-  created_by: string;
-}
-
-interface ToolDef {
-  name: string;
-  description: string;
-  scope: string | null; // null = nessuno scope richiesto
-  inputSchema: Record<string, unknown>;
-  handler: (admin: SupabaseClient, ctx: KeyCtx, args: Record<string, unknown>) => Promise<unknown>;
-}
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-async function sha256Hex(input: string): Promise<string> {
-  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
-  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-function hasScope(ctx: KeyCtx, scope: string | null): boolean {
-  if (!scope) return true;
-  const scopes = ctx.scopes ?? [];
-  if (scopes.includes("*")) return true;
-  if (scopes.includes(scope)) return true;
-  // "contacts:write" implica anche "contacts:read"
-  const [res, action] = scope.split(":");
-  return action === "read" && scopes.includes(`${res}:write`);
-}
-
-function str(v: unknown): string | null {
-  return typeof v === "string" && v.trim() !== "" ? v.trim() : null;
-}
-function num(v: unknown): number | null {
-  return typeof v === "number" && Number.isFinite(v) ? v : null;
-}
-function intLimit(v: unknown, def: number, max: number): number {
-  const n = typeof v === "number" ? Math.floor(v) : def;
-  return Math.min(Math.max(n > 0 ? n : def, 1), max);
-}
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/** Risolve l'azienda su cui operare: chiave scoped → la sua; piattaforma → arg. */
-async function resolveCompany(
-  admin: SupabaseClient,
-  ctx: KeyCtx,
-  args: Record<string, unknown>,
-): Promise<{ id: string; name: string }> {
-  if (ctx.company_id) {
-    const { data } = await admin.from("companies").select("id, name").eq("id", ctx.company_id).maybeSingle();
-    if (!data) throw new ToolError("Azienda della chiave non trovata");
-    return data as { id: string; name: string };
-  }
-  const raw = str(args.company);
-  if (!raw) throw new ToolError('Parametro "company" obbligatorio per le chiavi piattaforma (nome o UUID azienda). Usa lista_aziende per scoprirle.');
-  if (UUID_RE.test(raw)) {
-    const { data } = await admin.from("companies").select("id, name").eq("id", raw).maybeSingle();
-    if (!data) throw new ToolError(`Nessuna azienda con id ${raw}`);
-    return data as { id: string; name: string };
-  }
-  const { data: matches } = await admin.from("companies").select("id, name").ilike("name", `%${raw}%`).limit(5);
-  if (!matches || matches.length === 0) throw new ToolError(`Nessuna azienda che contenga "${raw}" nel nome`);
-  if (matches.length > 1) {
-    throw new ToolError(`Più aziende corrispondono a "${raw}": ${matches.map((m) => m.name).join(", ")}. Specifica meglio o usa l'UUID.`);
-  }
-  return matches[0] as { id: string; name: string };
-}
-
-/** Errore "di dominio" da mostrare all'AI (non un bug del server). */
-class ToolError extends Error {}
+// Tipi e helper (KeyCtx, ToolDef, ToolError, resolveCompany, str/num/…) sono in
+// ./lib.ts, condivisi con silvioTools.ts.
 
 // ── Registry dei tool ────────────────────────────────────────────────────────
 
-const TOOLS: ToolDef[] = [
+const TOOLS_MANUALI: ToolDef[] = [
   {
     name: "guida_piattaforma",
     description: "Spiega come usare questa API: convenzioni, ambiti, elenco capacità. Chiamala se hai dubbi.",
@@ -493,6 +420,139 @@ const TOOLS: ToolDef[] = [
     },
   },
   {
+    name: "crea_commessa",
+    description: "Crea una commessa/cantiere come dall'app: numero progressivo dell'azienda, stato iniziale configurato, importo come imponibile. Bastano la descrizione; opzionali numero, importo e aliquota IVA. Cliente, fasi e piano di pagamento si completano poi dall'app.",
+    scope: "orders:write",
+    inputSchema: {
+      type: "object",
+      properties: {
+        descrizione: { type: "string", description: "Descrizione della commessa (obbligatoria)" },
+        numero: { type: "string", description: "Codice commessa (opzionale; se vuoto si usa il prossimo numero dell'azienda)" },
+        importo: { type: "number", description: "Imponibile del contratto in euro (opzionale)" },
+        iva: { type: "number", description: "Aliquota IVA % (default 22)" },
+        company: { type: "string", description: "Nome o UUID azienda (chiavi piattaforma)" },
+      },
+      required: ["descrizione"],
+      additionalProperties: false,
+    },
+    // Stessa strada dell'app (src/lib/moduli/convertiInCommessa.ts): un inserimento
+    // diretto in `orders` lasciava la commessa senza codice e senza stato
+    // configurabile, quindi fuori dalle viste per stato.
+    handler: async (admin, ctx, args) => {
+      const company = await resolveCompany(admin, ctx, args);
+      const descrizione = str(args.descrizione);
+      if (!descrizione) throw new ToolError("descrizione obbligatoria");
+      const importo = num(args.importo);
+      const totale = importo != null && importo >= 0 ? Math.round(importo * 100) / 100 : 0;
+      const iva = num(args.iva);
+
+      let codice = str(args.numero);
+      if (!codice) {
+        const { data: prossimo, error: errNumero } = await admin.rpc("prossimo_numero_commessa", { p_company_id: company.id });
+        if (errNumero) throw new ToolError(`Numero commessa non disponibile: ${errNumero.message}`);
+        codice = (prossimo as string | null) ?? null;
+      }
+      const { data: stato } = await admin.from("order_statuses")
+        .select("id").eq("company_id", company.id)
+        .order("is_default", { ascending: false }).order("position", { ascending: true })
+        .limit(1).maybeSingle();
+      if (!stato?.id) throw new ToolError("L'azienda non ha ancora gli stati commessa: impostali nell'app in Commesse → Stati e riprova.");
+
+      const { data: esito, error } = await admin.rpc("create_order_atomic", {
+        p_order_data: {
+          company_id: company.id,
+          order_code: codice,
+          description: descrizione,
+          total_amount: totale,
+          deposit_amount: 0,
+          balance_amount: totale,
+          payment_type: "standard",
+          current_status_id: stato.id,
+          vat_rate: iva != null && iva >= 0 && iva <= 100 ? iva : 22,
+          internal_notes: "Creata dall'assistente AI (connettore)",
+        },
+        p_items: [],
+        p_salesperson: null,
+        p_user_id: ctx.created_by,
+        p_installments: [],
+      });
+      if (error) throw new ToolError(error.message);
+      const id = (esito as { id?: string } | null)?.id;
+      if (!id) throw new ToolError("La commessa non è stata creata");
+      const { data: commessa } = await admin.from("orders")
+        .select("id, order_code, description, total_amount, vat_rate, status").eq("id", id).maybeSingle();
+      return { creata: true, azienda: company.name, commessa };
+    },
+  },
+  {
+    name: "lista_listino",
+    description: "Elenca le voci del listino/prezzario dell'azienda (nome, categoria, unità, prezzo di vendita).",
+    scope: "products:read",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Testo nel nome della voce" },
+        categoria: { type: "string", description: "Filtro per categoria (es. serramenti, edile, elettrico…)" },
+        limit: { type: "number", description: "Max risultati (default 30, max 100)" },
+        company: { type: "string", description: "Nome o UUID azienda (chiavi piattaforma)" },
+      },
+      additionalProperties: false,
+    },
+    handler: async (admin, ctx, args) => {
+      const company = await resolveCompany(admin, ctx, args);
+      let q = admin.from("article_families")
+        .select("id, nome, vertical, unit_of_measure, prezzo_base_vendita, vat_rate")
+        .eq("company_id", company.id)
+        .order("created_at", { ascending: false })
+        .limit(intLimit(args.limit, 30, 100));
+      const query = str(args.query);
+      if (query) q = q.ilike("nome", `%${query.replace(/[,()%_]/g, " ").trim()}%`);
+      const categoria = str(args.categoria);
+      if (categoria) q = q.eq("vertical", categoria);
+      const { data, error } = await q;
+      if (error) throw error;
+      return { azienda: company.name, voci: data ?? [] };
+    },
+  },
+  {
+    name: "carica_voce_listino",
+    description: "Aggiunge una voce al listino dell'azienda: nome (obbligatorio), categoria, unità di misura e prezzo di vendita.",
+    scope: "products:write",
+    inputSchema: {
+      type: "object",
+      properties: {
+        nome: { type: "string", description: "Nome della voce (obbligatorio)" },
+        categoria: { type: "string", description: "Categoria/verticale (es. edile, serramenti, elettrico…); default: generico" },
+        unita: { type: "string", description: "Unità di misura (pz, mq, ml, h…); default: pz" },
+        prezzo_vendita: { type: "number", description: "Prezzo di vendita in euro" },
+        prezzo_acquisto: { type: "number", description: "Prezzo di acquisto/costo in euro (opzionale)" },
+        iva: { type: "number", description: "Aliquota IVA % (default 22)" },
+        company: { type: "string", description: "Nome o UUID azienda (chiavi piattaforma)" },
+      },
+      required: ["nome"],
+      additionalProperties: false,
+    },
+    handler: async (admin, ctx, args) => {
+      const company = await resolveCompany(admin, ctx, args);
+      const nome = str(args.nome);
+      if (!nome) throw new ToolError("nome obbligatorio");
+      const vendita = num(args.prezzo_vendita);
+      const acquisto = num(args.prezzo_acquisto);
+      const iva = num(args.iva);
+      const { data, error } = await admin.from("article_families").insert({
+        company_id: company.id,
+        vertical: str(args.categoria) ?? "generico",
+        nome,
+        unit_of_measure: str(args.unita) ?? "pz",
+        prezzo_base_vendita: vendita != null && vendita >= 0 ? vendita : null,
+        prezzo_base_acquisto: acquisto != null && acquisto >= 0 ? acquisto : null,
+        vat_rate: iva != null && iva >= 0 ? iva : 22,
+      }).select("id, nome, vertical, unit_of_measure, prezzo_base_vendita, vat_rate").single();
+      if (error) throw error;
+      return { creata: true, azienda: company.name, voce: data };
+    },
+  },
+  {
     name: "invia_email",
     description: "Invia un'email transazionale dalla piattaforma (mittente e deliverability gestiti da Edilizia in Cloud). Usa con criterio: l'invio è reale.",
     scope: "email:send",
@@ -543,6 +603,14 @@ const TOOLS: ToolDef[] = [
   },
 ];
 
+// Tool scritti a mano + ponte verso il catalogo silvio_tool_* (silvioTools.ts).
+const TOOLS: ToolDef[] = [...TOOLS_MANUALI, ...SILVIO_TOOLS];
+
+// Endpoint (mcp:<tool>) degli strumenti SENSIBILI: invii reali e strumenti a
+// costo AI. Hanno un tetto giornaliero dedicato (sensitive_actions_per_day),
+// contato sulle chiamate riuscite in api_usage_log.
+const SENSITIVE_ENDPOINTS = TOOLS.filter((t) => isSensitiveScope(t.scope)).map((t) => `mcp:${t.name}`);
+
 // ── JSON-RPC / MCP plumbing ─────────────────────────────────────────────────
 
 type Json = Record<string, unknown>;
@@ -554,8 +622,98 @@ function rpcError(id: unknown, code: number, message: string): Json {
   return { jsonrpc: "2.0", id, error: { code, message } };
 }
 
+/** Annotazioni MCP. I client le usano per decidere quando chiedere conferma:
+ *  ChatGPT tratta come scrittura (e fa confermare) ogni strumento senza
+ *  readOnlyHint, anche le semplici letture. */
+function annotazioni(t: ToolDef) {
+  if (!t.scope || t.scope.endsWith(":read")) return { readOnlyHint: true, openWorldHint: false };
+  return {
+    readOnlyHint: false,
+    // «aggiorna_*» sovrascrive dati esistenti; gli altri strumenti aggiungono soltanto.
+    destructiveHint: t.name.startsWith("aggiorna_"),
+    idempotentHint: false,
+    // Invii reali: il messaggio esce dal gestionale verso persone esterne.
+    openWorldHint: isSensitiveScope(t.scope),
+  };
+}
+
 function toolToMcp(t: ToolDef) {
-  return { name: t.name, description: t.description, inputSchema: t.inputSchema };
+  return { name: t.name, description: t.description, inputSchema: t.inputSchema, annotations: annotazioni(t) };
+}
+
+// ── OAuth 2.1 (Supabase) — discovery e validazione token ────────────────────
+// Il connettore accetta due modi di autenticarsi: una chiave API (x-api-key) o
+// un token OAuth emesso da Supabase (Authorization: Bearer eyJ…). Il token
+// identifica utente + client; il livello/azienda stanno nel grant
+// (mcp_oauth_grants), non nel token — OAuth non ha scope personalizzati.
+const SB_URL = (Deno.env.get("SUPABASE_URL") ?? "").replace(/\/$/, "");
+const MCP_RESOURCE = `${SB_URL}/functions/v1/platform-mcp`;
+const OAUTH_PRM_URL = `${MCP_RESOURCE}/.well-known/oauth-protected-resource`;
+
+/** Metadati della risorsa protetta (RFC 9728): dice ai client dov'è il server OAuth. */
+function protectedResourceMetadata() {
+  return {
+    resource: MCP_RESOURCE,
+    authorization_servers: [`${SB_URL}/auth/v1`],
+    bearer_methods_supported: ["header"],
+  };
+}
+
+/** Legge i claim di un JWT senza verificarne la firma (la verifica la fa getUser). */
+function decodeJwtClaims(token: string): Record<string, unknown> | null {
+  try {
+    const part = token.split(".")[1];
+    if (!part) return null;
+    const b64 = part.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(part.length / 4) * 4, "=");
+    return JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))));
+  } catch {
+    return null;
+  }
+}
+
+/** Risposta 401 che avvia il flusso OAuth nei client che lo supportano. */
+function sfidaOAuth(messaggio: string, cors: HeadersInit) {
+  return new Response(JSON.stringify(rpcError(null, -32001, messaggio)), {
+    status: 401,
+    headers: {
+      ...cors,
+      "Content-Type": "application/json",
+      "WWW-Authenticate": `Bearer resource_metadata="${OAUTH_PRM_URL}"`,
+    },
+  });
+}
+
+/** Costruisce il KeyCtx da un token OAuth: valida, trova il grant, ricava gli scope. */
+async function ctxDaOAuth(admin: SupabaseClient, token: string): Promise<KeyCtx | null> {
+  const { data, error } = await admin.auth.getUser(token);
+  if (error || !data?.user) return null;
+  const userId = data.user.id;
+  const claims = decodeJwtClaims(token) ?? {};
+  const clientId = typeof claims.client_id === "string" ? claims.client_id : null;
+
+  // SOLO veri token OAuth: un token OAuth emesso da Supabase porta SEMPRE il
+  // claim client_id; un token di sessione dell'app NON ce l'ha. Richiederlo
+  // chiude la porta a chi provasse a usare il token dell'app come credenziale
+  // MCP, e rende la revoca per-client stretta (un grant è per quel client).
+  if (!clientId) return null;
+  const { data: grant } = await admin.from("mcp_oauth_grants")
+    .select("id, company_id, client_name, livello, invii, rate_limit_per_minute, rate_limit_per_day, sensitive_actions_per_day")
+    .eq("user_id", userId).eq("client_id", clientId).is("revoked_at", null)
+    .order("updated_at", { ascending: false }).limit(1)
+    .maybeSingle();
+  if (!grant) return null;
+
+  return {
+    kind: "oauth",
+    id: grant.id,
+    company_id: grant.company_id,
+    name: grant.client_name ?? "Assistente AI (OAuth)",
+    scopes: scopesPerLivello(grant.livello as string, grant.invii as boolean),
+    rate_limit_per_minute: grant.rate_limit_per_minute ?? 60,
+    rate_limit_per_day: grant.rate_limit_per_day ?? 5000,
+    sensitive_actions_per_day: grant.sensitive_actions_per_day ?? 100,
+    created_by: userId,
+  };
 }
 
 // ── Server ───────────────────────────────────────────────────────────────────
@@ -566,8 +724,13 @@ Deno.serve(async (req) => {
 
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
-  // Health check senza auth (smoke test/monitoraggio)
   const url = new URL(req.url);
+
+  // Discovery OAuth (RFC 9728): senza auth, così i client scoprono il server OAuth.
+  if (req.method === "GET" && url.pathname.endsWith("/.well-known/oauth-protected-resource")) {
+    return new Response(JSON.stringify(protectedResourceMetadata()), { headers: jsonHeaders });
+  }
+  // Health check senza auth (smoke test/monitoraggio)
   if (req.method === "GET" && url.searchParams.get("health") === "1") {
     return new Response(JSON.stringify({ ok: true, server: SERVER_INFO.name, tools: TOOLS.length }), { headers: jsonHeaders });
   }
@@ -580,35 +743,50 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
 
-  // ── Autenticazione API key ────────────────────────────────────────────────
-  const bearer = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
-  const apiKey = req.headers.get("x-api-key") ?? (bearer?.startsWith("eic_") ? bearer : null);
-  if (!apiKey) {
-    return new Response(JSON.stringify(rpcError(null, -32001, "API key mancante: header x-api-key (o Authorization: Bearer eic_...)")), { status: 401, headers: jsonHeaders });
+  // ── Autenticazione: chiave API oppure token OAuth ─────────────────────────
+  const bearer = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
+  const xApiKey = req.headers.get("x-api-key");
+  // x-api-key: qualunque prefisso (si autentica per hash). Authorization: Bearer:
+  // chiavi piattaforma eic_…, chiavi azienda sk_… (apiKeyUtils); un JWT (eyJ…) è OAuth.
+  const apiKey = xApiKey ?? (/^(eic_|sk_)/.test(bearer) ? bearer : null);
+  let ctx: KeyCtx | null = null;
+
+  if (apiKey) {
+    const keyHash = await sha256Hex(apiKey);
+    const { data: keyRow } = await admin.from("api_keys")
+      .select("id, company_id, name, scopes, is_active, expires_at, rate_limit_per_minute, rate_limit_per_day, sensitive_actions_per_day, created_by")
+      .eq("key_hash", keyHash)
+      .maybeSingle();
+    if (!keyRow) {
+      return new Response(JSON.stringify(rpcError(null, -32001, "API key non valida")), { status: 401, headers: jsonHeaders });
+    }
+    if (!keyRow.is_active) {
+      return new Response(JSON.stringify(rpcError(null, -32001, "API key revocata")), { status: 403, headers: jsonHeaders });
+    }
+    if (keyRow.expires_at && new Date(keyRow.expires_at) < new Date()) {
+      return new Response(JSON.stringify(rpcError(null, -32001, "API key scaduta")), { status: 403, headers: jsonHeaders });
+    }
+    ctx = {
+      kind: "api_key",
+      id: keyRow.id,
+      company_id: keyRow.company_id,
+      name: keyRow.name,
+      scopes: (keyRow.scopes as string[]) ?? [],
+      rate_limit_per_minute: keyRow.rate_limit_per_minute ?? 60,
+      rate_limit_per_day: keyRow.rate_limit_per_day ?? 5000,
+      sensitive_actions_per_day: keyRow.sensitive_actions_per_day ?? 100,
+      created_by: keyRow.created_by,
+    };
+  } else if (bearer.startsWith("eyJ")) {
+    // Token OAuth di Supabase.
+    ctx = await ctxDaOAuth(admin, bearer);
+    if (!ctx) {
+      return sfidaOAuth("Token non valido o nessun consenso attivo. Collega di nuovo l'assistente.", cors);
+    }
+  } else {
+    // Nessuna credenziale: avvia il flusso OAuth (o suggerisci la chiave API).
+    return sfidaOAuth("Autenticazione richiesta: token OAuth (Authorization: Bearer) o header x-api-key.", cors);
   }
-  const keyHash = await sha256Hex(apiKey);
-  const { data: keyRow } = await admin.from("api_keys")
-    .select("id, company_id, name, scopes, is_active, expires_at, rate_limit_per_minute, rate_limit_per_day, created_by")
-    .eq("key_hash", keyHash)
-    .maybeSingle();
-  if (!keyRow) {
-    return new Response(JSON.stringify(rpcError(null, -32001, "API key non valida")), { status: 401, headers: jsonHeaders });
-  }
-  if (!keyRow.is_active) {
-    return new Response(JSON.stringify(rpcError(null, -32001, "API key revocata")), { status: 403, headers: jsonHeaders });
-  }
-  if (keyRow.expires_at && new Date(keyRow.expires_at) < new Date()) {
-    return new Response(JSON.stringify(rpcError(null, -32001, "API key scaduta")), { status: 403, headers: jsonHeaders });
-  }
-  const ctx: KeyCtx = {
-    id: keyRow.id,
-    company_id: keyRow.company_id,
-    name: keyRow.name,
-    scopes: (keyRow.scopes as string[]) ?? [],
-    rate_limit_per_minute: keyRow.rate_limit_per_minute ?? 60,
-    rate_limit_per_day: keyRow.rate_limit_per_day ?? 5000,
-    created_by: keyRow.created_by,
-  };
 
   // ── Parse JSON-RPC ────────────────────────────────────────────────────────
   let msg: Json;
@@ -655,9 +833,13 @@ Deno.serve(async (req) => {
       }
       const args = (params.arguments ?? {}) as Record<string, unknown>;
 
+      // Chi chiama: chiave API (api_key_id) o consenso OAuth (grant_id). Log e
+      // limiti puntano alla colonna giusta, così i due mondi non si mescolano.
+      const principalCol = ctx.kind === "oauth" ? "grant_id" : "api_key_id";
+
       const log = async (status: number, companyId: string | null) => {
         await admin.from("api_usage_log").insert({
-          api_key_id: ctx.id,
+          [principalCol]: ctx.id,
           company_id: companyId ?? ctx.company_id,
           endpoint: `mcp:${tool.name}`,
           method: "POST",
@@ -671,7 +853,7 @@ Deno.serve(async (req) => {
       if (!hasScope(ctx, tool.scope)) {
         await log(403, null);
         return new Response(JSON.stringify(rpcResult(id, {
-          content: [{ type: "text", text: `Scope '${tool.scope}' non autorizzato per questa chiave.` }],
+          content: [{ type: "text", text: `Scope '${tool.scope}' non autorizzato per questo collegamento.` }],
           isError: true,
         })), { headers: jsonHeaders });
       }
@@ -680,7 +862,7 @@ Deno.serve(async (req) => {
       const oneMinuteAgo = new Date(Date.now() - 60_000).toISOString();
       const { count: minuteCount } = await admin.from("api_usage_log")
         .select("*", { count: "exact", head: true })
-        .eq("api_key_id", ctx.id).gte("created_at", oneMinuteAgo);
+        .eq(principalCol, ctx.id).gte("created_at", oneMinuteAgo);
       if ((minuteCount ?? 0) >= ctx.rate_limit_per_minute) {
         await log(429, null);
         return new Response(JSON.stringify(rpcResult(id, {
@@ -688,11 +870,43 @@ Deno.serve(async (req) => {
           isError: true,
         })), { headers: jsonHeaders });
       }
+      const oneDayAgo = new Date(Date.now() - 86_400_000).toISOString();
+      const { count: dayCount } = await admin.from("api_usage_log")
+        .select("*", { count: "exact", head: true })
+        .eq(principalCol, ctx.id).gte("created_at", oneDayAgo);
+      if ((dayCount ?? 0) >= ctx.rate_limit_per_day) {
+        await log(429, null);
+        return new Response(JSON.stringify(rpcResult(id, {
+          content: [{ type: "text", text: `Limite giornaliero superato (${ctx.rate_limit_per_day}/giorno).` }],
+          isError: true,
+        })), { headers: jsonHeaders });
+      }
+
+      // Tetto giornaliero delle AZIONI SENSIBILI (invii reali, strumenti a costo
+      // AI): separato e più basso del limite generale, per contenere costi e
+      // abusi. Conta le sensibili RIUSCITE (status 200) di questa chiave nelle
+      // ultime 24 h; blocca la prossima se ha già raggiunto il tetto.
+      if (isSensitiveScope(tool.scope) && SENSITIVE_ENDPOINTS.length > 0) {
+        const { count: sensitiveCount } = await admin.from("api_usage_log")
+          .select("*", { count: "exact", head: true })
+          .eq(principalCol, ctx.id)
+          .eq("status_code", 200)
+          .in("endpoint", SENSITIVE_ENDPOINTS)
+          .gte("created_at", oneDayAgo);
+        if ((sensitiveCount ?? 0) >= ctx.sensitive_actions_per_day) {
+          await log(429, null);
+          return new Response(JSON.stringify(rpcResult(id, {
+            content: [{ type: "text", text: `Tetto giornaliero di azioni sensibili raggiunto (${ctx.sensitive_actions_per_day}/giorno: invii reali e strumenti a costo AI). Riprova domani o alza il limite del collegamento.` }],
+            isError: true,
+          })), { headers: jsonHeaders });
+        }
+      }
 
       try {
         const result = await tool.handler(admin, ctx, args);
         await log(200, typeof (result as Json)?.company_id === "string" ? (result as Json).company_id as string : null);
-        await admin.from("api_keys").update({ last_used_at: new Date().toISOString() }).eq("id", ctx.id);
+        await admin.from(ctx.kind === "oauth" ? "mcp_oauth_grants" : "api_keys")
+          .update({ last_used_at: new Date().toISOString() }).eq("id", ctx.id);
         return new Response(JSON.stringify(rpcResult(id, {
           content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
         })), { headers: jsonHeaders });

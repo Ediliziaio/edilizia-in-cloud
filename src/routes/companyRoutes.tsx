@@ -167,43 +167,43 @@ const SettingsFinanziamentiNuova = lazy(() => import("@/pages/azienda/settings/S
 const SettingsFinanziamentiDetail = lazy(() => import("@/pages/azienda/settings/SettingsFinanziamentiDetail"));
 const SettingsFinanziamentiCalcolatore = lazy(() => import("@/pages/azienda/settings/SettingsFinanziamentiCalcolatore"));
 // Modulo Fotovoltaico (gated da feature flag modulo_fotovoltaico_attivo)
-const FotovoltaicoIndex = lazy(() => import("@/pages/azienda/fotovoltaico/FotovoltaicoIndex"));
+const FotovoltaicoIndex = () => <Navigate to="/azienda/marketing/preventivi" replace />; // hub di modulo ritirato: si va all'elenco unico
 const FotovoltaicoWizard = lazy(() => import("@/pages/azienda/fotovoltaico/FotovoltaicoWizard"));
 const ComponentiFv = lazy(() => import("@/pages/azienda/fotovoltaico/ComponentiFv"));
 const FotovoltaicoDettaglio = lazy(() => import("@/pages/azienda/fotovoltaico/FotovoltaicoDettaglio"));
 // Modulo Preventivatore Serramenti
-const SerramentiIndex = lazy(() => import("@/pages/azienda/serramenti/SerramentiIndex"));
+const SerramentiIndex = () => <Navigate to="/azienda/marketing/preventivi" replace />; // hub di modulo ritirato: si va all'elenco unico
 const SerramentiWizard = lazy(() => import("@/pages/azienda/serramenti/SerramentiWizard"));
 // Modulo Ristrutturazione (permesso + modulo nel piano, come gli altri)
-const RistrutturazioneIndex = lazy(() => import("@/pages/azienda/ristrutturazione/RistrutturazioneIndex"));
+const RistrutturazioneIndex = () => <Navigate to="/azienda/marketing/preventivi" replace />; // hub di modulo ritirato: si va all'elenco unico
 const RistrutturazioneWizard = lazy(() => import("@/pages/azienda/ristrutturazione/RistrutturazioneWizard"));
 const RistrutturazioneListino = lazy(() => import("@/pages/azienda/ristrutturazione/RistrutturazioneListino"));
 // Modulo Bagni (clone Ristrutturazione; permesso + modulo nel piano)
-const BagniIndex = lazy(() => import("@/pages/azienda/bagni/BagniIndex"));
+const BagniIndex = () => <Navigate to="/azienda/marketing/preventivi" replace />; // hub di modulo ritirato: si va all'elenco unico
 const BagniWizard = lazy(() => import("@/pages/azienda/bagni/BagniWizard"));
 const BagniListino = lazy(() => import("@/pages/azienda/bagni/BagniListino"));
 // Modulo Tetti (clone Ristrutturazione; permesso + modulo nel piano)
-const TettiIndex = lazy(() => import("@/pages/azienda/tetti/TettiIndex"));
+const TettiIndex = () => <Navigate to="/azienda/marketing/preventivi" replace />; // hub di modulo ritirato: si va all'elenco unico
 const TettiWizard = lazy(() => import("@/pages/azienda/tetti/TettiWizard"));
 const TettiListino = lazy(() => import("@/pages/azienda/tetti/TettiListino"));
 // Modulo Climatizzazione (clone Ristrutturazione; permesso + modulo nel piano)
-const ClimatizzazioneIndex = lazy(() => import("@/pages/azienda/climatizzazione/ClimatizzazioneIndex"));
+const ClimatizzazioneIndex = () => <Navigate to="/azienda/marketing/preventivi" replace />; // hub di modulo ritirato: si va all'elenco unico
 const ClimatizzazioneWizard = lazy(() => import("@/pages/azienda/climatizzazione/ClimatizzazioneWizard"));
 const ClimatizzazioneListino = lazy(() => import("@/pages/azienda/climatizzazione/ClimatizzazioneListino"));
 // Modulo Elettrico/Domotica (clone Ristrutturazione; permesso + modulo nel piano)
-const ElettricoIndex = lazy(() => import("@/pages/azienda/elettrico/ElettricoIndex"));
+const ElettricoIndex = () => <Navigate to="/azienda/marketing/preventivi" replace />; // hub di modulo ritirato: si va all'elenco unico
 const ElettricoWizard = lazy(() => import("@/pages/azienda/elettrico/ElettricoWizard"));
 const ElettricoListino = lazy(() => import("@/pages/azienda/elettrico/ElettricoListino"));
 // Modulo Termoidraulico (clone Ristrutturazione; permesso + modulo nel piano)
-const TermoidraulicoIndex = lazy(() => import("@/pages/azienda/termoidraulico/TermoidraulicoIndex"));
+const TermoidraulicoIndex = () => <Navigate to="/azienda/marketing/preventivi" replace />; // hub di modulo ritirato: si va all'elenco unico
 const TermoidraulicoWizard = lazy(() => import("@/pages/azienda/termoidraulico/TermoidraulicoWizard"));
 const TermoidraulicoListino = lazy(() => import("@/pages/azienda/termoidraulico/TermoidraulicoListino"));
 // Modulo Pavimenti & Resine (clone Ristrutturazione; permesso + modulo nel piano)
-const PavimentiIndex = lazy(() => import("@/pages/azienda/pavimenti/PavimentiIndex"));
+const PavimentiIndex = () => <Navigate to="/azienda/marketing/preventivi" replace />; // hub di modulo ritirato: si va all'elenco unico
 const PavimentiWizard = lazy(() => import("@/pages/azienda/pavimenti/PavimentiWizard"));
 const PavimentiListino = lazy(() => import("@/pages/azienda/pavimenti/PavimentiListino"));
 // Modulo Piscine (clone Ristrutturazione; permesso + modulo nel piano)
-const PiscineIndex = lazy(() => import("@/pages/azienda/piscine/PiscineIndex"));
+const PiscineIndex = () => <Navigate to="/azienda/marketing/preventivi" replace />; // hub di modulo ritirato: si va all'elenco unico
 const PiscineWizard = lazy(() => import("@/pages/azienda/piscine/PiscineWizard"));
 const PiscineListino = lazy(() => import("@/pages/azienda/piscine/PiscineListino"));
 const ListiniFornitoriPage = lazy(() =>

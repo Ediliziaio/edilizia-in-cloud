@@ -35,6 +35,14 @@ const ufy = (id: string) => ({
 export const COVER_STOCK_IMAGES: CoverStockImage[] = [
   // La copertina di serie, nostra (public/cover-stock/termoidraulico, 22/09/2026): la prima proposta.
   { id: "idr-eic-1", url: "/cover-stock/termoidraulico/1.jpg", thumb: "/cover-stock/termoidraulico/1-thumb.jpg", label: "Casa calda d'inverno", categoria: "impianto" },
+  // Sei varianti nostre a piena grandezza (public/cover-stock/termoidraulico, 27/09/2026):
+  // ampliano la scelta senza dipendere da Unsplash. Il thumb, per ora, è l'URL pieno.
+  { id: "idr-eic-3", url: "/cover-stock/termoidraulico/termoidraulico-variante-03.jpg", thumb: "/cover-stock/termoidraulico/termoidraulico-variante-03.jpg", label: "Nostra · variante 3", categoria: "impianto" },
+  { id: "idr-eic-4", url: "/cover-stock/termoidraulico/termoidraulico-variante-04.jpg", thumb: "/cover-stock/termoidraulico/termoidraulico-variante-04.jpg", label: "Nostra · variante 4", categoria: "impianto" },
+  { id: "idr-eic-5", url: "/cover-stock/termoidraulico/termoidraulico-variante-05.jpg", thumb: "/cover-stock/termoidraulico/termoidraulico-variante-05.jpg", label: "Nostra · variante 5", categoria: "impianto" },
+  { id: "idr-eic-6", url: "/cover-stock/termoidraulico/termoidraulico-variante-06.jpg", thumb: "/cover-stock/termoidraulico/termoidraulico-variante-06.jpg", label: "Nostra · variante 6", categoria: "impianto" },
+  { id: "idr-eic-7", url: "/cover-stock/termoidraulico/termoidraulico-variante-07.jpg", thumb: "/cover-stock/termoidraulico/termoidraulico-variante-07.jpg", label: "Nostra · variante 7", categoria: "impianto" },
+  { id: "idr-eic-8", url: "/cover-stock/termoidraulico/termoidraulico-variante-08.jpg", thumb: "/cover-stock/termoidraulico/termoidraulico-variante-08.jpg", label: "Nostra · variante 8", categoria: "impianto" },
   // ─── Impianto (4) ────────────────────────────────────────────────────
   { id: "imp-1", ...ufy("1581094794329-c8112a89af12"), label: "Sala impianti",          categoria: "impianto" },
   { id: "imp-2", ...ufy("1558618666-fcd25c85cd64"),    label: "Pompa di calore",        categoria: "impianto" },

@@ -59,14 +59,30 @@ interface MetaTemplate {
   components: MetaComponent[];
 }
 
+type HeaderKind = "none" | "text" | "image" | "video" | "document";
+type ButtonKind = "QUICK_REPLY" | "URL" | "PHONE_NUMBER";
+interface TemplateButton {
+  type: ButtonKind;
+  text: string;
+  url?: string;       // solo URL
+  phone?: string;     // solo PHONE_NUMBER
+}
+
 interface TemplateForm {
   id?: string;
   name: string;
   category: string;
   language: string;
+  headerKind: HeaderKind;
   headerText: string;
+  // Intestazione media (foto/video/PDF): handle = esempio per la creazione,
+  // url = link pubblico che ogni invio allega.
+  headerHandle: string;
+  headerMediaUrl: string;
+  headerMediaNome: string;
   bodyText: string;
   footerText: string;
+  buttons: TemplateButton[];
   examples: Record<number, string>;
   // posizione variabile → chiave campo contatto ("" = testo fisso da examples).
   mapping: Record<number, string>;
@@ -74,7 +90,12 @@ interface TemplateForm {
 
 const EMPTY_FORM: TemplateForm = {
   name: "", category: "UTILITY", language: "it",
-  headerText: "", bodyText: "", footerText: "", examples: {}, mapping: {},
+  headerKind: "none", headerText: "", headerHandle: "", headerMediaUrl: "", headerMediaNome: "",
+  bodyText: "", footerText: "", buttons: [], examples: {}, mapping: {},
+};
+
+const HEADER_FORMAT: Record<Exclude<HeaderKind, "none" | "text">, string> = {
+  image: "IMAGE", video: "VIDEO", document: "DOCUMENT",
 };
 
 function statusColor(status: string | null): string {
@@ -124,17 +145,35 @@ function bodyTextOf(t: MetaTemplate): string {
   return t.components?.find((c) => c.type === "BODY")?.text || "";
 }
 function parseToForm(t: MetaTemplate): TemplateForm {
-  const header = t.components?.find((c) => c.type === "HEADER" && c.format === "TEXT");
+  const header = t.components?.find((c) => c.type === "HEADER");
   const body = t.components?.find((c) => c.type === "BODY");
   const footer = t.components?.find((c) => c.type === "FOOTER");
+  const btnComp = t.components?.find((c) => c.type === "BUTTONS");
+  const fmt = String(header?.format ?? "").toUpperCase();
+  const headerKind: HeaderKind = !header ? "none"
+    : fmt === "IMAGE" ? "image" : fmt === "VIDEO" ? "video" : fmt === "DOCUMENT" ? "document" : "text";
+  const rawButtons = Array.isArray(btnComp?.buttons) ? btnComp!.buttons as Array<Record<string, unknown>> : [];
+  const buttons: TemplateButton[] = rawButtons.map((b) => ({
+    type: (String(b.type ?? "QUICK_REPLY").toUpperCase() as ButtonKind),
+    text: String(b.text ?? ""),
+    url: typeof b.url === "string" ? b.url : undefined,
+    phone: typeof b.phone_number === "string" ? b.phone_number : undefined,
+  })).filter((b) => ["QUICK_REPLY", "URL", "PHONE_NUMBER"].includes(b.type));
   return {
     id: t.id,
     name: t.name,
     category: (t.category || "UTILITY").toUpperCase(),
     language: t.language || "it",
-    headerText: header?.text ?? "",
+    headerKind,
+    headerText: headerKind === "text" ? (header?.text ?? "") : "",
+    headerHandle: "",
+    // In modifica il link resta quello salvato lato server: qui non lo conosciamo,
+    // ma se non si ricarica il file il server lo preserva (persistTemplateRow).
+    headerMediaUrl: "",
+    headerMediaNome: "",
     bodyText: body?.text ?? "",
     footerText: footer?.text ?? "",
+    buttons,
     examples: {},
     mapping: {},
   };
@@ -148,8 +187,15 @@ function exampleFor(form: TemplateForm, v: number, customFields: CustomFieldLike
 }
 function buildComponents(form: TemplateForm, customFields: CustomFieldLike[]): MetaComponent[] {
   const comps: MetaComponent[] = [];
-  if (form.headerText.trim()) {
+  // Intestazione: testo, oppure foto/video/PDF (con l'handle di esempio caricato).
+  if (form.headerKind === "text" && form.headerText.trim()) {
     comps.push({ type: "HEADER", format: "TEXT", text: form.headerText.trim() });
+  } else if (form.headerKind !== "none" && form.headerKind !== "text" && form.headerHandle) {
+    comps.push({
+      type: "HEADER",
+      format: HEADER_FORMAT[form.headerKind],
+      example: { header_handle: [form.headerHandle] },
+    });
   }
   const body: MetaComponent = { type: "BODY", text: form.bodyText.trim() };
   const vars = detectVars(form.bodyText);
@@ -160,6 +206,23 @@ function buildComponents(form: TemplateForm, customFields: CustomFieldLike[]): M
   if (form.footerText.trim()) {
     comps.push({ type: "FOOTER", text: form.footerText.trim() });
   }
+  // Bottoni: risposta rapida (testo), link a un sito (URL), chiama (numero).
+  const buttons = form.buttons
+    .map((b) => {
+      const text = b.text.trim();
+      if (!text) return null;
+      if (b.type === "URL") {
+        const url = (b.url ?? "").trim();
+        return url ? { type: "URL", text, url } : null;
+      }
+      if (b.type === "PHONE_NUMBER") {
+        const phone = (b.phone ?? "").trim();
+        return phone ? { type: "PHONE_NUMBER", text, phone_number: phone } : null;
+      }
+      return { type: "QUICK_REPLY", text };
+    })
+    .filter(Boolean) as Array<Record<string, unknown>>;
+  if (buttons.length) comps.push({ type: "BUTTONS", buttons });
   return comps;
 }
 
@@ -280,6 +343,8 @@ export default function TemplatesPage() {
           }
         : {
             action: "create", company_id: companyId, wa_number_id: waNumberId, variable_mapping,
+            // Link del media dell'intestazione: lo allegherà ogni invio del modello.
+            header_media_url: form.headerMediaUrl || null,
             template: {
               name: form.name.toLowerCase().replace(/[^a-z0-9_]/g, "_"),
               category: form.category,
@@ -520,6 +585,8 @@ export default function TemplatesPage() {
         initial={editor.form}
         isSaving={saveMutation.isPending}
         customFields={customFields}
+        companyId={companyId}
+        waNumberId={waNumberId}
         onOpenChange={(o) => setEditor((p) => ({ ...p, open: o }))}
         onSubmit={(form) => saveMutation.mutate(form)}
       />
@@ -530,16 +597,45 @@ export default function TemplatesPage() {
 // ── Anteprima "bolla" WhatsApp del template ──
 function WhatsAppBubblePreview({ template }: { template: MetaTemplate | TemplateForm }) {
   const isForm = "bodyText" in template;
-  const header = isForm ? template.headerText : template.components?.find((c) => c.type === "HEADER" && c.format === "TEXT")?.text;
+  const headerComp = isForm ? null : template.components?.find((c) => c.type === "HEADER");
+  const headerFmt = isForm
+    ? (template.headerKind === "none" ? "" : template.headerKind.toUpperCase())
+    : String(headerComp?.format ?? "").toUpperCase();
+  const headerText = isForm
+    ? (template.headerKind === "text" ? template.headerText : "")
+    : (headerComp?.format === "TEXT" ? headerComp?.text ?? "" : "");
+  const headerMediaUrl = isForm ? template.headerMediaUrl : "";
   const body = isForm ? template.bodyText : template.components?.find((c) => c.type === "BODY")?.text;
   const footer = isForm ? template.footerText : template.components?.find((c) => c.type === "FOOTER")?.text;
-  if (!header && !body && !footer) return null;
+  const btnComp = isForm ? null : template.components?.find((c) => c.type === "BUTTONS");
+  const buttons: Array<{ type?: string; text?: string }> = isForm
+    ? template.buttons.filter((b) => b.text.trim()).map((b) => ({ type: b.type, text: b.text }))
+    : (Array.isArray(btnComp?.buttons) ? btnComp!.buttons as Array<{ type?: string; text?: string }> : []);
+  const isMedia = ["IMAGE", "VIDEO", "DOCUMENT"].includes(headerFmt);
+  if (!headerText && !isMedia && !body && !footer && buttons.length === 0) return null;
+  const mediaLabel = headerFmt === "IMAGE" ? "🖼️ Foto" : headerFmt === "VIDEO" ? "🎬 Video" : "📄 Documento";
   return (
     <div className="rounded-lg bg-[#e5ddd5] p-3">
-      <div className="max-w-[85%] rounded-lg rounded-tl-none bg-white px-3 py-2 text-sm shadow-sm">
-        {header && <p className="mb-1 font-semibold">{header}</p>}
-        {body && <p className="whitespace-pre-wrap text-gray-800">{body}</p>}
-        {footer && <p className="mt-1 text-xs text-gray-500">{footer}</p>}
+      <div className="max-w-[85%] overflow-hidden rounded-lg rounded-tl-none bg-white text-sm shadow-sm">
+        {isMedia && (
+          headerFmt === "IMAGE" && headerMediaUrl
+            ? <img src={headerMediaUrl} alt="" className="max-h-40 w-full object-cover" />
+            : <div className="flex items-center justify-center bg-gray-100 px-3 py-4 text-xs text-gray-500">{mediaLabel}</div>
+        )}
+        <div className="px-3 py-2">
+          {headerText && <p className="mb-1 font-semibold">{headerText}</p>}
+          {body && <p className="whitespace-pre-wrap text-gray-800">{body}</p>}
+          {footer && <p className="mt-1 text-xs text-gray-500">{footer}</p>}
+        </div>
+        {buttons.length > 0 && (
+          <div className="border-t">
+            {buttons.map((b, i) => (
+              <div key={i} className="border-t border-gray-100 px-3 py-1.5 text-center text-[13px] font-medium text-[#00a5f4] first:border-t-0">
+                {b.type === "URL" ? "🔗 " : b.type === "PHONE_NUMBER" ? "📞 " : ""}{b.text}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -547,21 +643,52 @@ function WhatsAppBubblePreview({ template }: { template: MetaTemplate | Template
 
 // ── Dialog editor (condiviso crea/modifica) ──
 function TemplateEditorDialog({
-  open, mode, initial, isSaving, customFields, onOpenChange, onSubmit,
+  open, mode, initial, isSaving, customFields, companyId, waNumberId, onOpenChange, onSubmit,
 }: {
   open: boolean;
   mode: "create" | "edit";
   initial: TemplateForm;
   isSaving: boolean;
   customFields: CustomFieldLike[];
+  companyId: string | null;
+  waNumberId: string | null;
   onOpenChange: (o: boolean) => void;
   onSubmit: (form: TemplateForm) => void;
 }) {
   const [form, setForm] = useState<TemplateForm>(initial);
   useEffect(() => { if (open) setForm(initial); }, [open, initial]);
+  const [caricando, setCaricando] = useState(false);
 
   const vars = detectVars(form.bodyText);
   const set = (patch: Partial<TemplateForm>) => setForm((p) => ({ ...p, ...patch }));
+
+  // Carica il file dell'intestazione: al server (handle su Meta + copia pubblica),
+  // poi tiene handle+url nel form. Meta accetta foto/video/PDF fino a ~16 MB.
+  const caricaMediaHeader = async (file: File, kind: Exclude<HeaderKind, "none" | "text">) => {
+    if (!companyId || !waNumberId) { toast.error("Scegli prima il numero WhatsApp."); return; }
+    if (file.size > 16 * 1024 * 1024) { toast.error("Il file supera 16 MB."); return; }
+    setCaricando(true);
+    try {
+      const b64 = await new Promise<string>((res, rej) => {
+        const r = new FileReader();
+        r.onload = () => res(String(r.result).split(",")[1] ?? "");
+        r.onerror = () => rej(new Error("lettura file non riuscita"));
+        r.readAsDataURL(file);
+      });
+      const { data, error } = await supabase.functions.invoke("whatsapp-templates", {
+        body: { action: "carica_media_header", company_id: companyId, wa_number_id: waNumberId,
+          file_base64: b64, mime: file.type, filename: file.name },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      set({ headerKind: kind, headerHandle: data.handle, headerMediaUrl: data.url, headerMediaNome: file.name });
+      toast.success("File caricato");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Caricamento non riuscito");
+    } finally {
+      setCaricando(false);
+    }
+  };
 
   const fieldOptions = buildTemplateFieldOptions(customFields);
   const groupedOptions = fieldOptions.reduce<Record<string, TemplateFieldOption[]>>((acc, o) => {
@@ -634,11 +761,54 @@ function TemplateEditorDialog({
 
           <div className="space-y-1.5">
             <Label>Intestazione (opzionale)</Label>
-            <Input
-              placeholder="Titolo in grassetto in cima al messaggio"
-              value={form.headerText}
-              onChange={(e) => set({ headerText: e.target.value })}
-            />
+            <div className="flex flex-wrap gap-1.5">
+              {([
+                { k: "none", label: "Nessuna" },
+                { k: "text", label: "Testo" },
+                { k: "image", label: "Foto" },
+                { k: "video", label: "Video" },
+                { k: "document", label: "PDF/Documento" },
+              ] as const).map((o) => (
+                <Button
+                  key={o.k}
+                  type="button"
+                  size="sm"
+                  variant={form.headerKind === o.k ? "default" : "outline"}
+                  className="h-8"
+                  onClick={() => set({ headerKind: o.k, headerText: o.k === "text" ? form.headerText : "",
+                    ...(o.k === "none" || o.k === "text" ? { headerHandle: "", headerMediaUrl: "", headerMediaNome: "" } : {}) })}
+                >
+                  {o.label}
+                </Button>
+              ))}
+            </div>
+            {form.headerKind === "text" && (
+              <Input
+                placeholder="Titolo in cima al messaggio (max 60 caratteri)"
+                maxLength={60}
+                value={form.headerText}
+                onChange={(e) => set({ headerText: e.target.value })}
+              />
+            )}
+            {(form.headerKind === "image" || form.headerKind === "video" || form.headerKind === "document") && (
+              <div className="rounded-md border bg-muted/30 p-2.5 space-y-1.5">
+                <input
+                  type="file"
+                  accept={form.headerKind === "image" ? "image/*" : form.headerKind === "video" ? "video/mp4,video/3gpp" : "application/pdf"}
+                  disabled={caricando || !waNumberId}
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) caricaMediaHeader(f, form.headerKind as "image" | "video" | "document"); e.target.value = ""; }}
+                  className="block w-full text-xs file:mr-2 file:rounded file:border-0 file:bg-primary file:px-2 file:py-1 file:text-primary-foreground"
+                />
+                {caricando && <p className="flex items-center gap-1 text-[11px] text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Carico il file…</p>}
+                {form.headerMediaUrl && !caricando && (
+                  <p className="text-[11px] text-emerald-700">Caricato: {form.headerMediaNome || "file"} ✓</p>
+                )}
+                <p className="text-[11px] text-muted-foreground">
+                  {form.headerKind === "image" ? "Foto JPG/PNG" : form.headerKind === "video" ? "Video MP4" : "PDF"} fino a 16 MB.
+                  Il file caricato è l'esempio per l'approvazione e viene allegato a ogni invio.
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="space-y-1.5">
@@ -730,6 +900,62 @@ function TemplateEditorDialog({
               value={form.footerText}
               onChange={(e) => set({ footerText: e.target.value })}
             />
+          </div>
+
+          {/* Bottoni: risposta rapida, link a un sito, chiama */}
+          <div className="space-y-2 rounded-md border bg-muted/30 p-3">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs">Bottoni (opzionale)</Label>
+              <div className="flex flex-wrap gap-1.5">
+                <Button type="button" size="sm" variant="outline" className="h-7 gap-1" disabled={form.buttons.length >= 10}
+                  onClick={() => set({ buttons: [...form.buttons, { type: "QUICK_REPLY", text: "" }] })}>
+                  <Plus className="h-3 w-3" /> Risposta rapida
+                </Button>
+                <Button type="button" size="sm" variant="outline" className="h-7 gap-1"
+                  disabled={form.buttons.filter((b) => b.type === "URL").length >= 2}
+                  onClick={() => set({ buttons: [...form.buttons, { type: "URL", text: "", url: "https://" }] })}>
+                  <Plus className="h-3 w-3" /> Link al sito
+                </Button>
+                <Button type="button" size="sm" variant="outline" className="h-7 gap-1"
+                  disabled={form.buttons.some((b) => b.type === "PHONE_NUMBER")}
+                  onClick={() => set({ buttons: [...form.buttons, { type: "PHONE_NUMBER", text: "Chiamaci", phone: "+39" }] })}>
+                  <Plus className="h-3 w-3" /> Chiama
+                </Button>
+              </div>
+            </div>
+            {form.buttons.length === 0 ? (
+              <p className="text-[11px] text-muted-foreground">
+                Aggiungi bottoni sotto il messaggio: fino a 10 a risposta rapida, 2 link a un sito, 1 per chiamare.
+                Alla risposta rapida il cliente tocca il bottone e l'assistente AI riceve la risposta.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {form.buttons.map((b, i) => (
+                  <div key={i} className="flex flex-col gap-1.5 rounded border bg-background p-2 sm:flex-row sm:items-center">
+                    <span className="w-24 shrink-0 text-[11px] font-medium text-muted-foreground">
+                      {b.type === "URL" ? "Link" : b.type === "PHONE_NUMBER" ? "Chiama" : "Risposta"}
+                    </span>
+                    <Input className="h-8" placeholder="Testo del bottone (max 25)" maxLength={25}
+                      value={b.text}
+                      onChange={(e) => set({ buttons: form.buttons.map((x, j) => j === i ? { ...x, text: e.target.value } : x) })} />
+                    {b.type === "URL" && (
+                      <Input className="h-8" placeholder="https://iltuosito.it"
+                        value={b.url ?? ""}
+                        onChange={(e) => set({ buttons: form.buttons.map((x, j) => j === i ? { ...x, url: e.target.value } : x) })} />
+                    )}
+                    {b.type === "PHONE_NUMBER" && (
+                      <Input className="h-8" placeholder="+39 351 234 5678"
+                        value={b.phone ?? ""}
+                        onChange={(e) => set({ buttons: form.buttons.map((x, j) => j === i ? { ...x, phone: e.target.value } : x) })} />
+                    )}
+                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0" aria-label="Togli il bottone"
+                      onClick={() => set({ buttons: form.buttons.filter((_, j) => j !== i) })}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="space-y-1.5">

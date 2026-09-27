@@ -102,10 +102,13 @@ describe("libreria completa dei moduli", () => {
   it("distingue edizioni complete, copie vecchie e modelli ancora essenziali", () => {
     saveLocalSerramentiTemplate("company-a", "finestre", createSerramentiModuleTemplate({ company_id: "company-a" }, "finestre"), null);
     mount("&modulo=serramenti");
-    expect(screen.getAllByText("PDF con pagine dedicate")).toHaveLength(7);
+    expect(screen.getAllByText("PDF con pagine dedicate")).toHaveLength(9);
     expect(screen.queryAllByText("Edizione essenziale · da completare")).toHaveLength(0);
     expect(screen.getByText("Edizione completa disponibile · aggiorna la copia")).toBeInTheDocument();
-    expect(screen.getByRole("img", { name: "Copertina illustrativa — Avvolgibili e cassonetti" })).toHaveAttribute("src", "/module-art/serramenti-avvolgibili-cover.jpg");
+    // La libreria serve la miniatura WebP (480×720, ~50KB) al posto della cover
+    // a piena grandezza (1536×1024, ~400KB). Il modello continua a puntare al
+    // path della cover; è la card della libreria a scaricare il thumb.
+    expect(screen.getByRole("img", { name: "Copertina illustrativa — Avvolgibili e cassonetti" })).toHaveAttribute("src", "/module-thumbs/serramenti-avvolgibili-cover-thumb.webp");
     expect(state.remoteWrite).not.toHaveBeenCalled();
   });
   it("apre l'edizione Accumulo nell'editor originale, non nel documento generico", async () => {
@@ -114,14 +117,14 @@ describe("libreria completa dei moduli", () => {
     expect(screen.queryByLabelText("Titolo del modulo")).toBeNull();
     expect(state.remoteWrite).not.toHaveBeenCalled();
   });
-  it.each(SALES_AREAS.filter(a => ["climatizzazione", "elettrico", "pavimenti", "piscine", "facciate"].includes(a.id)).flatMap(a => a.interventions.map(m => [a.sourceModule, m.id] as const)))("collega il nuovo modello %s/%s alle pagine dedicate", async (slug, id) => {
+  it.each(SALES_AREAS.filter(a => ["climatizzazione", "elettrico", "pavimenti", "piscine"].includes(a.id)).flatMap(a => a.interventions.map(m => [a.sourceModule, m.id] as const)))("collega il nuovo modello %s/%s alle pagine dedicate", async (slug, id) => {
     mount(`&modulo=${slug}&modello=${id}`);
     expect(await screen.findByText(new RegExp(`Editor dedicato ${slug}/${id}`))).toBeInTheDocument();
     expect(screen.queryByLabelText("Titolo del modulo")).toBeNull();
     expect(localStorage.length).toBe(0);
     expect(state.remoteWrite).not.toHaveBeenCalled();
   });
-  it.each(["climatizzazione", "elettrico", "pavimenti", "piscine", "cappotto"])("conserva l'edizione precedente nell'area %s", async slug => {
+  it.each(["climatizzazione", "elettrico", "pavimenti", "piscine"])("conserva l'edizione precedente nell'area %s", async slug => {
     const area = SALES_AREAS.find(a => a.sourceModule === slug)!;
     mount(`&modulo=${slug}&modello=${area.interventions[0].id}&edizione=precedente`);
     expect(await screen.findByLabelText("Titolo del modulo")).toHaveValue(area.interventions[0].title);
@@ -141,12 +144,12 @@ describe("libreria completa dei moduli", () => {
     expect(localStorage.length).toBe(0);
     expect(state.remoteWrite).not.toHaveBeenCalled();
   });
-  it("mostra 13 aree senza modificare preferenze o copie locali", () => {
+  it("mostra 14 aree senza modificare preferenze o copie locali", () => {
     mount();
     expect(screen.getAllByRole("button", { name: /Apri area/ })).toHaveLength(
-      13,
+      14,
     );
-    expect(screen.getAllByRole("switch")).toHaveLength(12);
+    expect(screen.getAllByRole("switch")).toHaveLength(13);
     expect(localStorage.length).toBe(0);
     expect(state.remoteWrite).not.toHaveBeenCalled();
   });
@@ -175,7 +178,7 @@ describe("libreria completa dei moduli", () => {
     mount("&modulo=cappotto");
     expect(
       screen.getAllByRole("button", { name: "Personalizza PDF" }),
-    ).toHaveLength(6);
+    ).toHaveLength(9);
     fireEvent.change(screen.getByLabelText("Cerca un modulo"), {
       target: { value: "inesistente" },
     });

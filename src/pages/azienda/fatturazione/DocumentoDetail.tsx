@@ -1,5 +1,5 @@
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { formatCurrency } from "@/lib/formatters";
+import { formatCurrency, formatDateShort } from "@/lib/formatters";
 import { useDocumentoFiscale, useUpdateDocumento } from "@/hooks/useDocumentiFiscali";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
 import { PreviewFattura } from "@/components/fatturazione/PreviewFattura";
@@ -173,9 +173,9 @@ export default function DocumentoDetail() {
               {fase && <FaseSdiBadge doc={doc} />}
             </div>
             <p className="text-sm text-muted-foreground max-sm:text-xs">
-              {doc.cliente_snapshot?.ragione_sociale} — {doc.data_emissione}
+              {doc.cliente_snapshot?.ragione_sociale} — {formatDateShort(doc.data_emissione)}
               {/* Mobile: la scadenza sta qui (il riquadro Informazioni è nascosto). */}
-              {doc.data_scadenza && <span className="sm:hidden"> · scade {doc.data_scadenza}</span>}
+              {doc.data_scadenza && <span className="sm:hidden"> · scade {formatDateShort(doc.data_scadenza)}</span>}
             </p>
           </div>
         </div>
@@ -303,8 +303,8 @@ export default function DocumentoDetail() {
             <CardContent className="space-y-2 text-sm">
               <div className="flex justify-between"><span className="text-muted-foreground">Tipo</span><span>{tipoLabel}</span></div>
               <div className="flex justify-between"><span className="text-muted-foreground">Numero</span><span className="font-mono">{doc.numero}</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">Data emissione</span><span>{doc.data_emissione}</span></div>
-              {doc.data_scadenza && <div className="flex justify-between"><span className="text-muted-foreground">Data scadenza</span><span>{doc.data_scadenza}</span></div>}
+              <div className="flex justify-between"><span className="text-muted-foreground">Data emissione</span><span>{formatDateShort(doc.data_emissione)}</span></div>
+              {doc.data_scadenza && <div className="flex justify-between"><span className="text-muted-foreground">Data scadenza</span><span>{formatDateShort(doc.data_scadenza)}</span></div>}
               <div className="flex justify-between"><span className="text-muted-foreground">Cliente</span><span>{doc.cliente_snapshot?.ragione_sociale || "—"}</span></div>
               {doc.cliente_snapshot?.partita_iva && <div className="flex justify-between"><span className="text-muted-foreground">P.IVA</span><span className="font-mono">{doc.cliente_snapshot.partita_iva}</span></div>}
             </CardContent>

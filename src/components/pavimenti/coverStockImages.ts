@@ -32,6 +32,13 @@ const ufy = (id: string) => ({
 export const COVER_STOCK_IMAGES: CoverStockImage[] = [
   // La copertina di serie, nostra (public/cover-stock/pavimenti, 22/09/2026): la prima proposta.
   { id: "pav-eic-1", url: "/cover-stock/pavimenti/1.jpg", thumb: "/cover-stock/pavimenti/1-thumb.jpg", label: "Parquet appena posato", categoria: "residenziale" },
+  // Cinque varianti nostre a piena grandezza (public/cover-stock/pavimenti, 27/09/2026):
+  // ampliano la scelta senza dipendere da Unsplash. Il thumb, per ora, è l'URL pieno.
+  { id: "pav-eic-3", url: "/cover-stock/pavimenti/pavimenti-variante-03.jpg", thumb: "/cover-stock/pavimenti/pavimenti-variante-03.jpg", label: "Nostra · variante 3", categoria: "residenziale" },
+  { id: "pav-eic-4", url: "/cover-stock/pavimenti/pavimenti-variante-04.jpg", thumb: "/cover-stock/pavimenti/pavimenti-variante-04.jpg", label: "Nostra · variante 4", categoria: "residenziale" },
+  { id: "pav-eic-5", url: "/cover-stock/pavimenti/pavimenti-variante-05.jpg", thumb: "/cover-stock/pavimenti/pavimenti-variante-05.jpg", label: "Nostra · variante 5", categoria: "residenziale" },
+  { id: "pav-eic-6", url: "/cover-stock/pavimenti/pavimenti-variante-06.jpg", thumb: "/cover-stock/pavimenti/pavimenti-variante-06.jpg", label: "Nostra · variante 6", categoria: "residenziale" },
+  { id: "pav-eic-7", url: "/cover-stock/pavimenti/pavimenti-variante-07.jpg", thumb: "/cover-stock/pavimenti/pavimenti-variante-07.jpg", label: "Nostra · variante 7", categoria: "residenziale" },
   // ─── Residenziale (4) ────────────────────────────────────────────────
   { id: "res-1", ...ufy("1600585154340-be6161a56a0c"), label: "Soggiorno luminoso",  categoria: "residenziale" },
   { id: "res-2", ...ufy("1502672260266-1c1ef2d93688"), label: "Interno moderno",     categoria: "residenziale" },

@@ -35,6 +35,13 @@ const ufy = (id: string) => ({
 export const COVER_STOCK_IMAGES: CoverStockImage[] = [
   // La copertina di serie, nostra (public/cover-stock/piscine, 22/09/2026): la prima proposta.
   { id: "pis-eic-1", url: "/cover-stock/piscine/1.jpg", thumb: "/cover-stock/piscine/1-thumb.jpg", label: "Piscina al tramonto", categoria: "piscina" },
+  // Cinque varianti nostre a piena grandezza (public/cover-stock/piscine, 27/09/2026):
+  // ampliano la scelta senza dipendere da Unsplash. Il thumb, per ora, è l'URL pieno.
+  { id: "pis-eic-3", url: "/cover-stock/piscine/piscine-variante-03.jpg", thumb: "/cover-stock/piscine/piscine-variante-03.jpg", label: "Nostra · variante 3", categoria: "piscina" },
+  { id: "pis-eic-4", url: "/cover-stock/piscine/piscine-variante-04.jpg", thumb: "/cover-stock/piscine/piscine-variante-04.jpg", label: "Nostra · variante 4", categoria: "piscina" },
+  { id: "pis-eic-5", url: "/cover-stock/piscine/piscine-variante-05.jpg", thumb: "/cover-stock/piscine/piscine-variante-05.jpg", label: "Nostra · variante 5", categoria: "piscina" },
+  { id: "pis-eic-6", url: "/cover-stock/piscine/piscine-variante-06.jpg", thumb: "/cover-stock/piscine/piscine-variante-06.jpg", label: "Nostra · variante 6", categoria: "piscina" },
+  { id: "pis-eic-7", url: "/cover-stock/piscine/piscine-variante-07.jpg", thumb: "/cover-stock/piscine/piscine-variante-07.jpg", label: "Nostra · variante 7", categoria: "piscina" },
   // ─── Piscina (4) ─────────────────────────────────────────────────────
   { id: "pis-1", ...ufy("1572331165267-854da2b10ccc"), label: "Piscina infinity",      categoria: "piscina" },
   { id: "pis-2", ...ufy("1576013551627-0cc20b96c2a7"), label: "Piscina residenziale",  categoria: "piscina" },

@@ -7,15 +7,18 @@
  * vendite con il lead d'origine, l'imbuto e chi lavora dentro l'azienda.
  */
 import { useMemo, useState } from "react";
+import type { DateRange } from "react-day-picker";
 import {
-  AlertTriangle, ArrowLeft, BellPlus, CalendarCheck, Coins, Download, Inbox, Loader2, LogIn, Pencil,
-  Printer, Receipt, SlidersHorizontal, Trophy, Users, Wallet,
+  AlertTriangle, ArrowLeft, BellPlus, CalendarCheck, CalendarRange, Coins, Download, Inbox, Loader2, LogIn, Pencil,
+  Printer, Receipt, SlidersHorizontal, Trophy, Users, Wallet, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import {
   csvGiorni, useAppuntamentiCliente, useAssegnaResponsabile, useCanaliCliente, useImpostaPipeline,
@@ -43,6 +46,14 @@ const PERIODI = [
 const RICHIAMO_ORE = 24;
 
 const chiaveGiorno = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+/** Etichetta dell'intervallo scelto: un giorno solo o «dal – al». */
+function etichettaRange(r: DateRange, oggi: Date): string {
+  if (!r.from) return "Scegli date";
+  const da = dataBreve(chiaveGiorno(r.from), true, oggi);
+  if (!r.to || chiaveGiorno(r.to) === chiaveGiorno(r.from)) return da;
+  return `${dataBreve(chiaveGiorno(r.from), false, oggi)} – ${dataBreve(chiaveGiorno(r.to), true, oggi)}`;
+}
 
 interface Props {
   serviceClientId: string;
@@ -86,9 +97,21 @@ export function SchedaClienteMarketing({
   onEntra, onChiudi, onCosti, onIncassi, onSoglie, onPromemoria, onContratto, onNuovoServizio, onReport,
 }: Props) {
   const [periodo, setPeriodo] = useState<(typeof PERIODI)[number]["id"]>("30");
+  // Intervallo personalizzato (un giorno o una fascia di date): quando è scelto
+  // prende il posto dei preset. Le RPC della scheda accettano già p_da/p_a, così
+  // tutti i numeri e le campagne seguono il periodo.
+  const [rangePers, setRangePers] = useState<DateRange | undefined>(undefined);
+  const [calAperto, setCalAperto] = useState(false);
+  const usaPers = !!rangePers?.from;
   const giorniPeriodo = PERIODI.find((p) => p.id === periodo)!.giorni;
-  const da = useMemo(() => chiaveGiorno(new Date(oggi.getTime() - (giorniPeriodo - 1) * 86400000)), [oggi, giorniPeriodo]);
-  const a = useMemo(() => chiaveGiorno(oggi), [oggi]);
+  const da = useMemo(
+    () => usaPers ? chiaveGiorno(rangePers!.from!) : chiaveGiorno(new Date(oggi.getTime() - (giorniPeriodo - 1) * 86400000)),
+    [usaPers, rangePers, oggi, giorniPeriodo],
+  );
+  const a = useMemo(
+    () => usaPers ? chiaveGiorno(rangePers!.to ?? rangePers!.from!) : chiaveGiorno(oggi),
+    [usaPers, rangePers, oggi],
+  );
   const { data, isLoading, isError, isFetching, refetch } = useSchedaCliente(serviceClientId, da, a);
   const canali = useCanaliCliente(serviceClientId, da, a);
   const [livello, setLivello] = useState<"campagna" | "inserzione">("campagna");
@@ -159,12 +182,34 @@ export function SchedaClienteMarketing({
         <Button variant="ghost" size="sm" className="gap-1.5" onClick={onChiudi}><ArrowLeft className="h-4 w-4" /> Tutti i clienti</Button>
         <div className="inline-flex rounded-lg border p-0.5">
           {PERIODI.map((p) => (
-            <button key={p.id} type="button" onClick={() => setPeriodo(p.id)}
-              className={cn("rounded-md px-2.5 py-1 text-xs transition-colors", periodo === p.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>
+            <button key={p.id} type="button" onClick={() => { setPeriodo(p.id); setRangePers(undefined); }}
+              className={cn("rounded-md px-2.5 py-1 text-xs transition-colors", !usaPers && periodo === p.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>
               {p.label}
             </button>
           ))}
         </div>
+        <Popover open={calAperto} onOpenChange={setCalAperto}>
+          <PopoverTrigger asChild>
+            <Button variant={usaPers ? "default" : "outline"} size="sm" className="h-8 gap-1.5">
+              <CalendarRange className="h-3.5 w-3.5" />
+              {usaPers ? etichettaRange(rangePers!, oggi) : "Scegli date"}
+              {usaPers && <X className="h-3 w-3 opacity-70" onClick={(e) => { e.stopPropagation(); setRangePers(undefined); }} />}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar
+              mode="range"
+              numberOfMonths={2}
+              selected={rangePers}
+              defaultMonth={rangePers?.from ?? new Date(oggi.getFullYear(), oggi.getMonth() - 1, 1)}
+              onSelect={(r) => { setRangePers(r); if (r?.from && r?.to) setCalAperto(false); }}
+              disabled={{ after: oggi }}
+            />
+            <p className="border-t px-3 py-2 text-[11px] text-muted-foreground">
+              Un clic sceglie un giorno solo; due clic un intervallo. Tutti i numeri e le campagne seguono le date scelte.
+            </p>
+          </PopoverContent>
+        </Popover>
         {isFetching && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
         <div className="ml-auto flex flex-wrap gap-1.5">
           <Button size="sm" variant="outline" className="gap-1.5" onClick={() => onEntra()} disabled={!puoEntrare || entraInCorso}>

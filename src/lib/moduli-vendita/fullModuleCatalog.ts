@@ -2,15 +2,20 @@
 import { CLM_EDITORIAL } from "./clmEditorialContent";
 import { ELT_EDITORIAL } from "./eltEditorialContent";
 import { PAV_EDITORIAL } from "./pavEditorialContent";
+import { FULL_GIARDINI_MODULES } from "./fullPavModules";
 import { PSC_EDITORIAL } from "./pscEditorialContent";
 import { FAC_EDITORIAL } from "./facEditorialContent";
 const covers = (area: string, models: Record<string, { cover: string }>) => Object.fromEntries(Object.entries(models).map(([id, model]) => [`${area}/${id}`, model.cover]));
 export const FULL_MODULE_COVERS: Readonly<Record<string, string>> = {
   ...covers("climatizzazione", CLM_EDITORIAL),
   ...covers("elettrico", ELT_EDITORIAL),
-  ...covers("pavimenti", PAV_EDITORIAL),
+  ...covers("pavimenti", Object.fromEntries(Object.entries(PAV_EDITORIAL).filter(([id]) => !(FULL_GIARDINI_MODULES as readonly string[]).includes(id)))),
+  ...covers("giardini", Object.fromEntries(FULL_GIARDINI_MODULES.map(id => [id, PAV_EDITORIAL[id]]))),
   ...covers("piscine", PSC_EDITORIAL),
   ...covers("facciate", FAC_EDITORIAL),
+  "facciate/ventilata": "/module-art/facciate-cappotto-dettaglio.jpg",
+  "facciate/pietra": "/module-art/facciate.jpg",
+  "facciate/pulizia": "/module-art/facciate.jpg",
   "termoidraulica/caldaia": "/module-art/termoidraulica-caldaia.jpg",
   "termoidraulica/pompa-calore": "/module-art/termoidraulica-pompa-calore-cover.jpg",
   "termoidraulica/radiante": "/module-art/termoidraulica-radiante-cover.jpg",
@@ -59,6 +64,8 @@ export const FULL_MODULE_COVERS: Readonly<Record<string, string>> = {
   "serramenti/porte-ingresso": "/module-art/serramenti-porte-ingresso-cover.jpg",
   "serramenti/porte-interne": "/module-art/serramenti-porte-interne-cover.jpg",
   "serramenti/combinato": "/module-art/serramenti-combinato-cover-v3.jpg",
+  "serramenti/portoni-garage": "/pdf-stock/serramenti/installazione.jpg",
+  "serramenti/grate": "/pdf-stock/serramenti/risultato.jpg",
   "tetti/ripasso": "/module-art/tetti.jpg",
   "tetti/rifacimento": "/module-art/tetti.jpg",
   "tetti/riparazioni": "/module-art/tetti-riparazioni-cover.jpg",

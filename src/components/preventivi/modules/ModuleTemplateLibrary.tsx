@@ -51,18 +51,30 @@ import { isFullPavModuleId } from "@/lib/moduli-vendita/fullPavModules";
 import { loadLocalPavTemplate } from "@/lib/moduli-vendita/localPavTemplates";
 import { isFullPscModuleId } from "@/lib/moduli-vendita/fullPscModules";
 import { loadLocalPscTemplate } from "@/lib/moduli-vendita/localPscTemplates";
-import { isFullFacModuleId } from "@/lib/moduli-vendita/fullFacModules";
-import { loadLocalFacTemplate } from "@/lib/moduli-vendita/localFacTemplates";
 const Climatizzazione = lazy(() => import("@/components/climatizzazione/ClmModuleTemplatePanel").then(m => ({ default: m.ClmModuleTemplatePanel })));
 const Elettrico = lazy(() => import("@/components/elettrico/EltModuleTemplatePanel").then(m => ({ default: m.EltModuleTemplatePanel })));
 const Pavimenti = lazy(() => import("@/components/pavimenti/PavModuleTemplatePanel").then(m => ({ default: m.PavModuleTemplatePanel })));
 const Piscine = lazy(() => import("@/components/piscine/PscModuleTemplatePanel").then(m => ({ default: m.PscModuleTemplatePanel })));
-const Facciate = lazy(() => import("@/components/facciate/FacciateModuleTemplatePanel").then(m => ({ default: m.FacciateModuleTemplatePanel })));
 const Termoidraulico = lazy(() => import("@/components/termoidraulico/IdrModuleTemplatePanel").then(m => ({ default: m.IdrModuleTemplatePanel })));
 const Bagni = lazy(() => import("@/components/bagni/BgnModuleTemplatePanel").then(m => ({ default: m.BgnModuleTemplatePanel })));
 const Ristrutturazioni = lazy(() => import("@/components/ristrutturazione/RstModuleTemplatePanel").then(m => ({ default: m.RstModuleTemplatePanel })));
 
 const Fotovoltaico = lazy(() => import("@/components/fotovoltaico/FvModuleTemplatePanel").then(m => ({ default: m.FvModuleTemplatePanel })));
+
+/**
+ * La miniatura verticale della cover, se esiste per convenzione di nome.
+ * Ogni `public/module-art/<slug>-cover.jpg` ha un pari
+ * `public/module-thumbs/<slug>-cover-thumb.webp` (480×720 WebP, ~50 KB
+ * invece dei ~400 KB della cover a piena grandezza). La libreria dei
+ * modelli fa scrolling con tante card: caricare 33 miniature invece di 33
+ * cover intere è ~15 MB in meno di traffico. Per le vecchie cover senza
+ * `-cover.jpg` alla fine (path storici come `/module-art/bagni.jpg`)
+ * lasciamo la cover originale — nessun thumb esiste, e vale il fallback.
+ */
+function coverThumb(cover: string): string {
+  if (!cover.endsWith("-cover.jpg")) return cover;
+  return cover.replace("/module-art/", "/module-thumbs/").replace(/-cover\.jpg$/, "-cover-thumb.webp");
+}
 
 const Serramenti = lazy(() =>
   import("@/components/serramenti/SerramentiModuleTemplatesPanel").then(
@@ -91,16 +103,15 @@ function savedStatus(company: string | null, area: string, module: string) {
     const nativeSaved =
       area === "climatizzazione" && isFullClmModuleId(module) ? loadLocalClmTemplate(company, module) :
       area === "elettrico" && isFullEltModuleId(module) ? loadLocalEltTemplate(company, module) :
-      area === "pavimenti" && isFullPavModuleId(module) ? loadLocalPavTemplate(company, module) :
-      area === "piscine" && isFullPscModuleId(module) ? loadLocalPscTemplate(company, module) :
-      area === "facciate" && isFullFacModuleId(module) ? loadLocalFacTemplate(company, module) : undefined;
+      (area === "pavimenti" || area === "giardini") && isFullPavModuleId(module) ? loadLocalPavTemplate(company, module) :
+      area === "piscine" && isFullPscModuleId(module) ? loadLocalPscTemplate(company, module) : undefined;
     if (nativeSaved !== undefined) return nativeSaved ? "Salvato" : loadModuleDocument(company, area, module) ? "Nuova edizione disponibile · bozza precedente conservata" : "Da personalizzare";
     if (area === "termoidraulica" && isFullIdrModuleId(module)) return loadLocalIdrTemplate(company, module) ? "Salvato" : "Da personalizzare";
     if (area === "bagni" && isFullBgnModuleId(module)) {
       if (loadLocalBgnTemplate(company, module)) return "Salvato";
       return loadModuleDocument(company, area, module) ? "Edizione completa disponibile · bozza precedente conservata" : "Da personalizzare";
     }
-    if ((area === "ristrutturazioni" || area === "pareti-soffitti" || area === "pergole") && isFullRstModuleId(module)) {
+    if ((area === "ristrutturazioni" || area === "pareti-soffitti" || area === "pergole" || area === "facciate") && isFullRstModuleId(module)) {
       if (loadLocalRstTemplate(company, module)) return "Salvato";
       return loadModuleDocument(company, area, module) ? "Edizione completa disponibile · bozza precedente conservata" : "Da personalizzare";
     }
@@ -225,7 +236,7 @@ export default function ModuleTemplateLibrary({
           <Tetti />
         ) : area.id === "fotovoltaico" && isFullFvModuleId(module.id) && params.get("edizione") !== "precedente" ? (
           <Fotovoltaico moduleId={module.id} />
-        ) : (area.id === "ristrutturazioni" || area.id === "pareti-soffitti" || area.id === "pergole") && isFullRstModuleId(module.id) && params.get("edizione") !== "precedente" ? (
+        ) : (area.id === "ristrutturazioni" || area.id === "pareti-soffitti" || area.id === "pergole" || area.id === "facciate") && isFullRstModuleId(module.id) && params.get("edizione") !== "precedente" ? (
           <Ristrutturazioni moduleId={module.id} />
         ) : area.id === "bagni" && isFullBgnModuleId(module.id) && params.get("edizione") !== "precedente" ? (
           <Bagni moduleId={module.id} />
@@ -235,12 +246,10 @@ export default function ModuleTemplateLibrary({
           <Climatizzazione moduleId={module.id} />
         ) : area.id === "elettrico" && isFullEltModuleId(module.id) && params.get("edizione") !== "precedente" ? (
           <Elettrico moduleId={module.id} />
-        ) : area.id === "pavimenti" && isFullPavModuleId(module.id) && params.get("edizione") !== "precedente" ? (
+        ) : (area.id === "pavimenti" || area.id === "giardini") && isFullPavModuleId(module.id) && params.get("edizione") !== "precedente" ? (
           <Pavimenti moduleId={module.id} />
         ) : area.id === "piscine" && isFullPscModuleId(module.id) && params.get("edizione") !== "precedente" ? (
           <Piscine moduleId={module.id} />
-        ) : area.id === "facciate" && isFullFacModuleId(module.id) && params.get("edizione") !== "precedente" ? (
-          company ? <Facciate moduleId={module.id} companyId={companyId} branding={{ company_id: companyId, ragione_sociale: company.ragione_sociale, indirizzo_completo: company.indirizzo_completo, telefono: company.telefono, email: company.email, partita_iva: company.partita_iva }} /> : <p role="status">Caricamento dati aziendali per il modulo Facciate. Se il caricamento non termina, verifica il profilo aziendale prima di aprire il modello.</p>
         ) : (
           <Editor
             key={`${companyId}:${area.id}:${module.id}`}
@@ -279,7 +288,7 @@ export default function ModuleTemplateLibrary({
         className="flex flex-col overflow-hidden rounded-2xl border bg-white transition-shadow hover:shadow-md"
       >
         {cover && <div className="relative h-36 overflow-hidden">
-          <img src={cover} alt={`Copertina illustrativa — ${m.title}`} loading="lazy" className="h-full w-full object-cover object-center" />
+          <img src={coverThumb(cover)} alt={`Copertina illustrativa — ${m.title}`} loading="lazy" className="h-full w-full object-cover object-center" />
           <span className="absolute bottom-2 left-3 rounded-full bg-black/65 px-2 py-1 text-[10px] text-white">Immagine del modello · illustrativa</span>
         </div>}
         <div className="flex items-center gap-3 border-b bg-slate-50/60 px-5 py-4">

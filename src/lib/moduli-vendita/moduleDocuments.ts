@@ -94,6 +94,13 @@ export const AREA_DESIGN: Record<
     scope:
       "Dimensioni, dotazioni e opere esterne devono essere descritte separatamente.",
   },
+  giardini: {
+    color: "#3f6d43",
+    intro: "Verde, acqua e confini curati per gli spazi esterni.",
+    checks: "Terreno, drenaggio, esposizione, confine e accessi reali.",
+    scope:
+      "Prato, essenze, impianti e recinzioni sono inclusi solo nelle aree e nelle quantità indicate.",
+  },
   facciate: {
     color: "#71604a",
     intro: "Protezione e carattere per l'involucro dell'edificio.",
@@ -244,6 +251,20 @@ export const INTERVENTION_LIMITS: Record<string, string> = {
     "Preparazione e impermeabilizzazione del supporto non sono comprese nella sola posa se non indicate.",
   "pavimenti/esterni":
     "Pendenze, drenaggi e resistenza del sottofondo vanno verificati. Non basta scegliere un materiale per esterno.",
+  "pavimenti/posa-parquet":
+    "Il fondo va verificato per planarità e umidità; incollato o flottante sono soluzioni diverse. Il legno lavora: i giunti di dilatazione sono necessari, non un optional.",
+  "pavimenti/scale":
+    "Pedate e alzate si rilevano gradino per gradino: raramente sono identiche. Struttura, corrimano e parapetti sono a parte salvo voce esplicita.",
+  "pavimenti/levigatura":
+    "Il risultato dipende dallo stato del materiale: macchie penetrate e dislivelli possono restare. Marmo e cotto hanno cicli diversi; si valuta su zona campione.",
+  "giardini/giardino":
+    "Terreno, drenaggio ed esposizione decidono prato ed essenze. Le piante sono vive: l'attecchimento non è garantito al 100% e dipende da stagione e cure.",
+  "giardini/verde":
+    "Interventi e frequenze si concordano prima. Potature in quota, abbattimenti e trattamenti fitosanitari sono a parte e a volte richiedono figure abilitate.",
+  "giardini/irrigazione":
+    "Portata e pressione al contatore dimensionano i settori. Nuovo allaccio, dispositivi di non ritorno e opere elettriche sono a parte, secondo le regole in vigore.",
+  "giardini/recinzioni":
+    "Il confine e le quote del terreno si verificano sul posto. Pratiche edilizie, automazione del cancello e opere elettriche sono a parte, secondo le regole in vigore.",
   "piscine/nuova":
     "Indagini sul terreno, opere esterne e allacci devono essere definiti. Dimensioni e dotazioni non si desumono dall'immagine.",
   "piscine/ristrutturazione":
@@ -268,6 +289,12 @@ export const INTERVENTION_LIMITS: Record<string, string> = {
     "Raccordi e gestione dell'umidità richiedono valutazione progettuale; lo spessore riduce lo spazio disponibile.",
   "facciate/riparazioni":
     "Le riparazioni riguardano le zone delimitate. Uniformità cromatica con le parti esistenti e difetti nascosti vanno valutati.",
+  "facciate/ventilata":
+    "Il supporto deve reggere gli ancoraggi della sottostruttura. Prestazioni e classe energetica dipendono dal progetto, non sono garantite.",
+  "facciate/pietra":
+    "Il supporto deve reggere il peso del rivestimento; posa incollata o ancorata secondo il materiale. Venature e tono della pietra variano.",
+  "facciate/pulizia":
+    "Il metodo si sceglie su sporco e materiale reali, con prova su zona campione. La protezione rallenta il ritorno di alghe e depositi, non lo elimina.",
 };
 
 export interface ModulePage {
@@ -306,6 +333,7 @@ export function documentImage(area: string, module: string) {
   if (area === "facciate" && module === "interno")
     return areaImage("ristrutturazioni");
   if (area === "pareti-soffitti" || area === "pergole") return areaImage("ristrutturazioni");
+  if (area === "giardini") return "/module-art/pavimenti-esterni.jpg";
   return areaImage(area);
 }
 export function createModuleDocument(
