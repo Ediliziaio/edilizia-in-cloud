@@ -15,7 +15,8 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, AlertCircle, Plus, Loader2, Wrench, Pencil, Archive, ArchiveRestore } from "lucide-react";
+import { ArrowLeft, AlertCircle, Plus, Loader2, Wrench, Pencil, Archive, ArchiveRestore, MessageCircle, Mail } from "lucide-react";
+import { QuickContactSendDialog } from "@/components/contacts/QuickContactSendDialog";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -38,6 +39,7 @@ export default function ImpiantoDetail() {
   // La scheda impianto era di sola lettura: una matricola sbagliata o un
   // impianto smantellato restavano lì com'erano, per sempre.
   const [modificaOpen, setModificaOpen] = useState(false);
+  const [contattoCanale, setContattoCanale] = useState<"whatsapp" | "email" | null>(null);
   const [archiviaOpen, setArchiviaOpen] = useState(false);
   const [formImpianto, setFormImpianto] = useState({
     tipo_impianto: "", marca: "", modello: "", matricola: "",
@@ -54,7 +56,7 @@ export default function ImpiantoDetail() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("impianti_cliente")
-        .select("*, customer:profiles!impianti_cliente_customer_id_fkey(id, first_name, last_name, email)")
+        .select("*, customer:profiles!impianti_cliente_customer_id_fkey(id, first_name, last_name, email, phone)")
         .eq("id", id!)
         .single();
       if (error) throw error;
@@ -307,6 +309,17 @@ export default function ImpiantoDetail() {
         </div>
         {/* Barra azioni: secondaria icon-only, CTA che riempie su mobile. */}
         <div className="flex w-full items-center gap-2 sm:w-auto max-sm:w-auto max-sm:shrink-0">
+          {/* Scrivi al cliente dell'impianto, come nelle commesse. */}
+          {(impianto.customer as { phone?: string | null } | null)?.phone && (
+            <Button variant="outline" size="icon" className="shrink-0 tap-compact text-emerald-700 max-sm:h-8 max-sm:w-8" title="WhatsApp al cliente" onClick={() => setContattoCanale("whatsapp")}>
+              <MessageCircle className="h-4 w-4" />
+            </Button>
+          )}
+          {(impianto.customer as { email?: string | null } | null)?.email && (
+            <Button variant="outline" size="icon" className="shrink-0 tap-compact text-blue-700 max-sm:h-8 max-sm:w-8" title="Email al cliente" onClick={() => setContattoCanale("email")}>
+              <Mail className="h-4 w-4" />
+            </Button>
+          )}
           <Button
             variant="outline"
             size="icon"
@@ -702,6 +715,18 @@ export default function ImpiantoDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Scrivi al cliente dell'impianto: WhatsApp o Email. */}
+      <QuickContactSendDialog
+        open={contattoCanale !== null}
+        onOpenChange={(o) => { if (!o) setContattoCanale(null); }}
+        contactId={(impianto.customer as { id?: string } | null)?.id ?? null}
+        name={[(impianto.customer as { first_name?: string | null } | null)?.first_name, (impianto.customer as { last_name?: string | null } | null)?.last_name].filter(Boolean).join(" ") || null}
+        phone={(impianto.customer as { phone?: string | null } | null)?.phone}
+        email={(impianto.customer as { email?: string | null } | null)?.email}
+        context={impianto.tipo_impianto ? `Impianto ${impianto.tipo_impianto}` : "Impianto"}
+        defaultChannel={contattoCanale ?? "whatsapp"}
+      />
     </div>
   );
 }
