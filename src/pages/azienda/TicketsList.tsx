@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { TICKET_STATI, TICKET_STATI_CHIUSI, TICKET_FASI } from "@/types/tickets";
 import { calcolaFermo, CLASSI_FERMO } from "@/lib/assistenzaSla";
 import { AssistenzaPipeline } from "@/components/tickets/AssistenzaPipeline";
@@ -175,7 +176,7 @@ function compareSortValues(a: string | number, b: string | number): number {
 // «Assistenza» vive dentro AssistenzaPage, che in cima mostra le due schede
 // grandi (Assistenza | Manutenzioni). Qui restano i soli ticket. `incorporata`:
 // la testata grande la dà AssistenzaPage, così non la ripetiamo.
-const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean }>(({ incorporata = false }, ref) => {
+const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; actionsSlot?: HTMLElement | null }>(({ incorporata = false, actionsSlot = null }, ref) => {
   const { effectiveCompany, user } = useAuth();
   const permissions = usePermissions();
   const queryClient = useQueryClient();
@@ -578,80 +579,91 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean }>(
     merceFilter !== "tutte",
   ].filter(Boolean).length;
 
+  // I pulsanti azione: dentro Assistenza vanno a destra della riga delle schede
+  // (portal nello slot), da soli hanno la loro testata.
+  const azioni = (
+    <>
+      {selectedTicketIds.size > 0 && (
+        <Button variant="outline" onClick={() => setBulkOpen(true)} className="gap-2 max-sm:hidden">
+          <CheckSquare className="h-4 w-4" />
+          {selectedTicketIds.size} selezionati
+        </Button>
+      )}
+      {/* Mobile no: niente esportazioni da telefono. */}
+      <div className="hidden sm:contents">
+        <ExportButton
+          getData={() => filteredTickets.map((t) => ({
+            id: t.id?.slice(0, 8) || "",
+            subject: t.subject || "",
+            tipo: TIPO_LABEL[t.tipo ?? "supporto"] ?? t.tipo ?? "",
+            status: getTicketStatusLabel(t.status) || t.status || "",
+            priority: getTicketPriorityLabel(t.priority) || t.priority || "",
+            customer: t.customer ? `${t.customer.first_name || ""} ${t.customer.last_name || ""}`.trim() : "",
+            assigned: t.assignee ? `${t.assignee.first_name || ""} ${t.assignee.last_name || ""}`.trim() : "",
+            order: t.order?.description || "",
+            scadenza: t.data_intervento_prevista ?? "",
+            created: t.created_at ? new Date(t.created_at).toLocaleDateString("it-IT") : "",
+          }))}
+          columns={[
+            { key: "id", label: "ID" },
+            { key: "subject", label: "Oggetto" },
+            { key: "tipo", label: "Tipo" },
+            { key: "status", label: "Stato" },
+            { key: "priority", label: "Priorità" },
+            { key: "customer", label: "Cliente" },
+            { key: "assigned", label: "Assegnato" },
+            { key: "order", label: "Ordine" },
+            { key: "scadenza", label: "Scadenza" },
+            { key: "created", label: "Creato il" },
+          ]}
+          filename="assistenza-interventi"
+        />
+      </div>
+      <Button
+        onClick={() => setNuovoOpen(true)}
+        className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-9 max-sm:px-3 max-sm:text-xs"
+      >
+        <Plus className="mr-2 h-4 w-4" />
+        <span className="sm:hidden">Nuovo</span>
+        <span className="hidden sm:inline">Nuovo Ticket</span>
+      </Button>
+    </>
+  );
+
   return (
     <div ref={ref} className="space-y-6 max-sm:space-y-3">
-      {/* Header — dentro AssistenzaPage la testata grande la danno le due schede
-          in cima: qui resta solo la riga delle azioni. */}
-      <div className={incorporata ? "" : "testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6"}>
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-          {!incorporata && (
-          <div className="flex min-w-0 items-start gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
-              <LifeBuoy className="h-5 w-5" />
-            </div>
-            <div className="min-w-0">
-              <h1 className="text-2xl font-bold tracking-tight">Assistenza</h1>
-              <p className="text-sm text-muted-foreground">
-                Ticket clienti, interventi collegati alle commesse, responsabilita e costi da tenere sotto controllo.
-              </p>
-            </div>
+      {/* Dentro AssistenzaPage i pulsanti stanno sulla riga delle schede (a
+          destra): niente riga vuota qui. Da soli, la testata con titolo. */}
+      {incorporata && actionsSlot ? (
+        createPortal(azioni, actionsSlot)
+      ) : (
+        <div className={incorporata ? "flex items-center justify-end gap-2" : "testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6"}>
+          <div className={incorporata ? "flex items-center gap-2" : "flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4"}>
+            {!incorporata && (
+              <div className="flex min-w-0 items-start gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
+                  <LifeBuoy className="h-5 w-5" />
+                </div>
+                <div className="min-w-0">
+                  <h1 className="text-2xl font-bold tracking-tight">Assistenza</h1>
+                  <p className="text-sm text-muted-foreground">
+                    Ticket clienti, interventi collegati alle commesse, responsabilita e costi da tenere sotto controllo.
+                  </p>
+                </div>
+              </div>
+            )}
+            <div className="flex items-center gap-2">{azioni}</div>
           </div>
-          )}
-        <div className="flex items-center gap-2">
-          {selectedTicketIds.size > 0 && (
-            <Button variant="outline" onClick={() => setBulkOpen(true)} className="gap-2 max-sm:hidden">
-              <CheckSquare className="h-4 w-4" />
-              {selectedTicketIds.size} selezionati
-            </Button>
-          )}
-          {/* Mobile no: niente esportazioni da telefono. */}
-          <div className="hidden sm:contents">
-          <ExportButton
-            getData={() => filteredTickets.map((t) => ({
-              id: t.id?.slice(0, 8) || "",
-              subject: t.subject || "",
-              tipo: TIPO_LABEL[t.tipo ?? "supporto"] ?? t.tipo ?? "",
-              status: getTicketStatusLabel(t.status) || t.status || "",
-              priority: getTicketPriorityLabel(t.priority) || t.priority || "",
-              customer: t.customer ? `${t.customer.first_name || ""} ${t.customer.last_name || ""}`.trim() : "",
-              assigned: t.assignee ? `${t.assignee.first_name || ""} ${t.assignee.last_name || ""}`.trim() : "",
-              order: t.order?.description || "",
-              scadenza: t.data_intervento_prevista ?? "",
-              created: t.created_at ? new Date(t.created_at).toLocaleDateString("it-IT") : "",
-            }))}
-            columns={[
-              { key: "id", label: "ID" },
-              { key: "subject", label: "Oggetto" },
-              { key: "tipo", label: "Tipo" },
-              { key: "status", label: "Stato" },
-              { key: "priority", label: "Priorità" },
-              { key: "customer", label: "Cliente" },
-              { key: "assigned", label: "Assegnato" },
-              { key: "order", label: "Ordine" },
-              { key: "scadenza", label: "Scadenza" },
-              { key: "created", label: "Creato il" },
-            ]}
-            filename="assistenza-interventi"
-          />
-          </div>
-          <Button
-            onClick={() => setNuovoOpen(true)}
-            className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-9 max-sm:px-3 max-sm:text-xs"
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            <span className="sm:hidden">Nuovo</span>
-            <span className="hidden sm:inline">Nuovo Ticket</span>
-          </Button>
-          {/* Apertura assistenza in finestra, come «Nuovo Impianto». */}
-          <NuovoTicketDialog
-            open={nuovoOpen}
-            onOpenChange={setNuovoOpen}
-            initial={tipoFilter !== "all" ? { tipo: tipoFilter } : undefined}
-            onCreated={(id) => navigate(`/azienda/assistenza/${id}`)}
-          />
         </div>
-        </div>
-      </div>
+      )}
+
+      {/* Apertura assistenza in finestra, come «Nuovo Impianto». */}
+      <NuovoTicketDialog
+        open={nuovoOpen}
+        onOpenChange={setNuovoOpen}
+        initial={tipoFilter !== "all" ? { tipo: tipoFilter } : undefined}
+        onCreated={(id) => navigate(`/azienda/assistenza/${id}`)}
+      />
 
       {/* Tab tipo (supporto / intervento / emergenza / tutti) */}
       {/* Mobile: il tipo sta nel pannello dei filtri (una riga di pillole in meno). */}

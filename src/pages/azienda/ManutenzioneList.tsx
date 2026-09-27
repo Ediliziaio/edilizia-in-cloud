@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -6,6 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -21,7 +23,7 @@ import {
 } from "@/components/ui/sheet";
 import {
   Settings, AlertCircle, CheckCircle2, TrendingUp, Plus, Calendar,
-  User, Zap, Sun, Wind, Bolt, Home, Droplets, CheckSquare, ClipboardCheck, Users
+  User, Zap, Sun, Wind, Bolt, Home, Droplets, CheckSquare, ClipboardCheck, Users, Search
 } from "lucide-react";
 import { format, addDays, differenceInDays } from "date-fns";
 import { it } from "date-fns/locale";
@@ -99,7 +101,7 @@ function GaranziaScadenzaBadge({ date }: { date: string | null }) {
 
 /** `incorporata`: la pagina sta dentro Assistenza (scheda «Manutenzioni»), quindi
  *  non ripete la testata grande — solo il bottone «Nuovo Impianto». */
-export default function ManutenzioneList({ incorporata = false }: { incorporata?: boolean } = {}) {
+export default function ManutenzioneList({ incorporata = false, actionsSlot = null }: { incorporata?: boolean; actionsSlot?: HTMLElement | null } = {}) {
   const { effectiveCompany, user } = useAuth();
   const permissions = usePermissions();
   const queryClient = useQueryClient();
@@ -107,6 +109,10 @@ export default function ManutenzioneList({ incorporata = false }: { incorporata?
   const [selectedPianoIds, setSelectedPianoIds] = useState<Set<string>>(new Set());
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkTecnico, setBulkTecnico] = useState(KEEP_VALUE);
+  // Ricerca e filtri, come in Assistenza: filtrano impianti, contratti e scadenze.
+  const [search, setSearch] = useState("");
+  const [tipoFiltro, setTipoFiltro] = useState("all");
+  const [statoFiltro, setStatoFiltro] = useState("all");
 
   const { data: staffList = [] } = useCompanyStaffUsers(effectiveCompany?.id);
 
@@ -174,6 +180,34 @@ export default function ManutenzioneList({ incorporata = false }: { incorporata?
     enabled: !!effectiveCompany?.id,
   });
 
+  // Tipi presenti (per il filtro «Tipo»): solo quelli che esistono davvero.
+  const tipiDisponibili = useMemo(
+    () => Array.from(new Set(impianti.map((im) => im.tipo_impianto).filter(Boolean))) as string[],
+    [impianti],
+  );
+  const q = search.trim().toLowerCase();
+  const nomeCliente = (c: ProfileSummary | null) => [c?.first_name, c?.last_name].filter(Boolean).join(" ").toLowerCase();
+
+  const impiantiFiltrati = useMemo(() => impianti.filter((im) => {
+    if (tipoFiltro !== "all" && im.tipo_impianto !== tipoFiltro) return false;
+    if (!q) return true;
+    return `${im.tipo_impianto} ${im.marca ?? ""} ${im.modello ?? ""} ${nomeCliente(im.customer)}`.toLowerCase().includes(q);
+  }), [impianti, tipoFiltro, q]);
+
+  const contrattiFiltrati = useMemo(() => contratti.filter((c) => {
+    if (statoFiltro !== "all" && (c.stato ?? "") !== statoFiltro) return false;
+    if (tipoFiltro !== "all" && c.impianto?.tipo_impianto !== tipoFiltro) return false;
+    if (!q) return true;
+    return `${c.nome_contratto} ${c.impianto?.tipo_impianto ?? ""} ${c.impianto?.marca ?? ""} ${nomeCliente(c.customer)}`.toLowerCase().includes(q);
+  }), [contratti, statoFiltro, tipoFiltro, q]);
+
+  const pianiFiltrati = useMemo(() => pianiInScadenza.filter((p) => {
+    if (!q) return true;
+    return `${p.titolo} ${p.contratto?.nome_contratto ?? ""} ${nomeCliente(p.contratto?.customer ?? null)}`.toLowerCase().includes(q);
+  }), [pianiInScadenza, q]);
+
+  const filtriAttivi = q !== "" || tipoFiltro !== "all" || statoFiltro !== "all";
+
   const pianificaMutation = useMutation({
     mutationFn: async (piano: MaintenancePlan) => {
       // Calcola prossima scadenza in base alla frequenza
@@ -218,7 +252,7 @@ export default function ManutenzioneList({ incorporata = false }: { incorporata?
     () => pianiInScadenza.filter((piano) => selectedPianoIds.has(piano.id)),
     [pianiInScadenza, selectedPianoIds],
   );
-  const selectedAllDue = pianiInScadenza.length > 0 && pianiInScadenza.every((piano) => selectedPianoIds.has(piano.id));
+  const selectedAllDue = pianiFiltrati.length > 0 && pianiFiltrati.every((piano) => selectedPianoIds.has(piano.id));
 
   const togglePianoSelection = (pianoId: string) => {
     setSelectedPianoIds((current) => {
@@ -232,8 +266,8 @@ export default function ManutenzioneList({ incorporata = false }: { incorporata?
   const toggleAllDue = () => {
     setSelectedPianoIds((current) => {
       const next = new Set(current);
-      if (selectedAllDue) pianiInScadenza.forEach((piano) => next.delete(piano.id));
-      else pianiInScadenza.forEach((piano) => next.add(piano.id));
+      if (selectedAllDue) pianiFiltrati.forEach((piano) => next.delete(piano.id));
+      else pianiFiltrati.forEach((piano) => next.add(piano.id));
       return next;
     });
   };
@@ -328,60 +362,66 @@ export default function ManutenzioneList({ incorporata = false }: { incorporata?
       return sum + mensile;
     }, 0);
 
+  const azioni = (
+    <>
+      {/* Mobile no: niente esportazioni da telefono, come in Assistenza. */}
+      <div className="hidden sm:contents">
+        <ExportButton
+          getData={() => impianti.map((im) => ({
+            tipo: im.tipo_impianto?.replace("_", " ") || "",
+            marca: im.marca || "",
+            modello: im.modello || "",
+            cliente: [im.customer?.first_name, im.customer?.last_name].filter(Boolean).join(" "),
+            installazione: im.data_installazione ? new Date(im.data_installazione).toLocaleDateString("it-IT") : "",
+            garanzia: im.garanzia_scadenza ? new Date(im.garanzia_scadenza).toLocaleDateString("it-IT") : "",
+          }))}
+          columns={[
+            { key: "tipo", label: "Tipo" },
+            { key: "marca", label: "Marca" },
+            { key: "modello", label: "Modello" },
+            { key: "cliente", label: "Cliente" },
+            { key: "installazione", label: "Installazione" },
+            { key: "garanzia", label: "Scadenza garanzia" },
+          ]}
+          filename="impianti-manutenzione"
+        />
+      </div>
+      <Button
+        onClick={() => setWizardOpen(true)}
+        className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-9 max-sm:px-3 max-sm:text-xs"
+      >
+        <Plus className="mr-2 h-4 w-4" />
+        <span className="sm:hidden">Nuovo</span>
+        <span className="hidden sm:inline">Nuovo Impianto</span>
+      </Button>
+    </>
+  );
+
   return (
     // Niente p-6: il margine lo dà già il layout (sul telefono era già p-0).
     <div className="space-y-6 max-sm:space-y-3">
-      {/* Header — stessa struttura di Assistenza (testata + riga azioni con
-          Esporta e il pulsante «Nuovo»), così le due schermate sono coerenti.
-          Dentro Assistenza la testata grande la dà già la pagina: qui resta
-          la sola riga azioni. */}
-      <div className={incorporata ? "" : "testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6"}>
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-          {!incorporata && (
-            <div className="flex min-w-0 items-start gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
-                <Settings className="h-5 w-5" />
+      {/* Dentro Assistenza i pulsanti stanno sulla riga delle schede (a destra):
+          niente riga vuota qui. Da soli, la testata con titolo. */}
+      {incorporata && actionsSlot ? (
+        createPortal(azioni, actionsSlot)
+      ) : (
+        <div className={incorporata ? "flex items-center justify-end gap-2" : "testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6"}>
+          <div className={incorporata ? "flex items-center gap-2" : "flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4"}>
+            {!incorporata && (
+              <div className="flex min-w-0 items-start gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
+                  <Settings className="h-5 w-5" />
+                </div>
+                <div className="min-w-0">
+                  <h1 className="text-2xl font-bold tracking-tight">Manutenzione</h1>
+                  <p className="text-sm text-muted-foreground">Impianti, contratti e piani di manutenzione dei clienti.</p>
+                </div>
               </div>
-              <div className="min-w-0">
-                <h1 className="text-2xl font-bold tracking-tight">Manutenzione</h1>
-                <p className="text-sm text-muted-foreground">Impianti, contratti e piani di manutenzione dei clienti.</p>
-              </div>
-            </div>
-          )}
-          <div className="flex items-center gap-2">
-            {/* Mobile no: niente esportazioni da telefono, come in Assistenza. */}
-            <div className="hidden sm:contents">
-              <ExportButton
-                getData={() => impianti.map((im) => ({
-                  tipo: im.tipo_impianto?.replace("_", " ") || "",
-                  marca: im.marca || "",
-                  modello: im.modello || "",
-                  cliente: [im.customer?.first_name, im.customer?.last_name].filter(Boolean).join(" "),
-                  installazione: im.data_installazione ? new Date(im.data_installazione).toLocaleDateString("it-IT") : "",
-                  garanzia: im.garanzia_scadenza ? new Date(im.garanzia_scadenza).toLocaleDateString("it-IT") : "",
-                }))}
-                columns={[
-                  { key: "tipo", label: "Tipo" },
-                  { key: "marca", label: "Marca" },
-                  { key: "modello", label: "Modello" },
-                  { key: "cliente", label: "Cliente" },
-                  { key: "installazione", label: "Installazione" },
-                  { key: "garanzia", label: "Scadenza garanzia" },
-                ]}
-                filename="impianti-manutenzione"
-              />
-            </div>
-            <Button
-              onClick={() => setWizardOpen(true)}
-              className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-9 max-sm:px-3 max-sm:text-xs"
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              <span className="sm:hidden">Nuovo</span>
-              <span className="hidden sm:inline">Nuovo Impianto</span>
-            </Button>
+            )}
+            <div className="flex items-center gap-2">{azioni}</div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Mobile: le scadenze e i canoni; impianti e contratti hanno il numero
           sulla loro scheda. */}
@@ -400,6 +440,43 @@ export default function ManutenzioneList({ incorporata = false }: { incorporata?
         <StatTile label="In scadenza" value={pianiInScadenza.length} hint="prossimi 14 giorni" tone={pianiInScadenza.length > 0 ? "amber" : "neutral"} />
         <StatTile label="Contratti attivi" value={contratti.filter((c) => c.stato === "attivo").length} tone={contratti.some((c) => c.stato === "attivo") ? "green" : "neutral"} />
         <StatTile label="Canoni al mese" value={`${mrr.toLocaleString("it-IT", { maximumFractionDigits: 0, useGrouping: true })} €`} tone={mrr > 0 ? "violet" : "neutral"} />
+      </div>
+
+      {/* Ricerca e filtri — come in Assistenza: cerca cliente/impianto/contratto,
+          filtra per tipo impianto e per stato contratto. */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+        <div className="relative flex-1 min-w-0 sm:min-w-[220px]">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Cerca per cliente, impianto o contratto…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="h-9 bg-white pl-10"
+          />
+        </div>
+        <Select value={tipoFiltro} onValueChange={setTipoFiltro}>
+          <SelectTrigger className="h-9 sm:w-auto"><SelectValue placeholder="Tipo" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tutti i tipi</SelectItem>
+            {tipiDisponibili.map((t) => (
+              <SelectItem key={t} value={t} className="capitalize">{t.replace("_", " ")}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={statoFiltro} onValueChange={setStatoFiltro}>
+          <SelectTrigger className="h-9 sm:w-auto"><SelectValue placeholder="Stato contratto" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tutti gli stati</SelectItem>
+            <SelectItem value="attivo">Attivo</SelectItem>
+            <SelectItem value="sospeso">Sospeso</SelectItem>
+            <SelectItem value="cessato">Cessato</SelectItem>
+          </SelectContent>
+        </Select>
+        {filtriAttivi && (
+          <Button variant="ghost" size="sm" className="h-9 text-xs text-muted-foreground" onClick={() => { setSearch(""); setTipoFiltro("all"); setStatoFiltro("all"); }}>
+            Azzera filtri
+          </Button>
+        )}
       </div>
 
       {selectedPianoIds.size > 0 && (
@@ -425,20 +502,20 @@ export default function ManutenzioneList({ incorporata = false }: { incorporata?
       <Tabs defaultValue="scadenza">
         <TabsList className="max-sm:grid max-sm:w-full max-sm:grid-cols-3">
           <TabsTrigger value="scadenza" className="max-sm:text-xs">
-            <span className="max-sm:hidden">In Scadenza</span><span className="sm:hidden">Scadenze</span> {pianiInScadenza.length > 0 && <span className="ml-1 text-xs bg-orange-100 text-orange-700 rounded-full px-1.5">{pianiInScadenza.length}</span>}
+            <span className="max-sm:hidden">In Scadenza</span><span className="sm:hidden">Scadenze</span> {pianiFiltrati.length > 0 && <span className="ml-1 text-xs bg-orange-100 text-orange-700 rounded-full px-1.5">{pianiFiltrati.length}</span>}
           </TabsTrigger>
-          <TabsTrigger value="impianti" className="max-sm:text-xs">Impianti ({impianti.length})</TabsTrigger>
-          <TabsTrigger value="contratti" className="max-sm:text-xs">Contratti ({contratti.length})</TabsTrigger>
+          <TabsTrigger value="impianti" className="max-sm:text-xs">Impianti ({impiantiFiltrati.length})</TabsTrigger>
+          <TabsTrigger value="contratti" className="max-sm:text-xs">Contratti ({contrattiFiltrati.length})</TabsTrigger>
         </TabsList>
 
         {/* Tab: In Scadenza */}
         <TabsContent value="scadenza" className="mt-4 space-y-3 max-sm:mt-3 max-sm:space-y-2">
           {loadingPiani ? (
             <div className="space-y-3">{[1,2,3].map((n) => <Skeleton key={n} className="h-16 rounded-lg" />)}</div>
-          ) : pianiInScadenza.length === 0 ? (
+          ) : pianiFiltrati.length === 0 ? (
             <div className="text-center py-12 text-gray-500 max-sm:py-6 max-sm:text-sm">
               <CheckCircle2 className="h-10 w-10 text-gray-300 mx-auto mb-2 max-sm:hidden" />
-              <p>Nessuna manutenzione in scadenza nei prossimi 14 giorni</p>
+              <p>{filtriAttivi ? "Nessuna manutenzione trovata con questi filtri" : "Nessuna manutenzione in scadenza nei prossimi 14 giorni"}</p>
             </div>
           ) : (
             <>
@@ -448,9 +525,9 @@ export default function ManutenzioneList({ incorporata = false }: { incorporata?
                   <Checkbox checked={selectedAllDue} onCheckedChange={toggleAllDue} aria-label="Seleziona manutenzioni in scadenza" />
                   Seleziona manutenzioni visibili
                 </label>
-                <span className="text-slate-500">{pianiInScadenza.length} piani in scadenza</span>
+                <span className="text-slate-500">{pianiFiltrati.length} piani in scadenza</span>
               </div>
-              {pianiInScadenza.map((piano) => {
+              {pianiFiltrati.map((piano) => {
             const days = piano.prossima_scadenza ? differenceInDays(new Date(piano.prossima_scadenza), new Date()) : null;
             return (
               <div key={piano.id} className="bg-white rounded-lg border p-4 flex items-start justify-between gap-4 max-sm:flex-wrap max-sm:gap-2 max-sm:p-3">
@@ -533,15 +610,17 @@ export default function ManutenzioneList({ incorporata = false }: { incorporata?
         <TabsContent value="impianti" className="mt-4 space-y-3 max-sm:mt-3 max-sm:space-y-2">
           {loadingImpianti ? (
             <div className="space-y-3">{[1,2,3].map((n) => <Skeleton key={n} className="h-16 rounded-lg" />)}</div>
-          ) : impianti.length === 0 ? (
+          ) : impiantiFiltrati.length === 0 ? (
             <div className="text-center py-12 text-gray-500 max-sm:py-6 max-sm:text-sm">
               <Settings className="h-10 w-10 text-gray-300 mx-auto mb-2 max-sm:hidden" />
-              <p>Nessun impianto registrato</p>
-              <Button className="mt-4 gap-2" size="sm" onClick={() => setWizardOpen(true)}>
-                <Plus className="h-4 w-4" /> Aggiungi Impianto
-              </Button>
+              <p>{filtriAttivi ? "Nessun impianto trovato con questi filtri" : "Nessun impianto registrato"}</p>
+              {!filtriAttivi && (
+                <Button className="mt-4 gap-2" size="sm" onClick={() => setWizardOpen(true)}>
+                  <Plus className="h-4 w-4" /> Aggiungi Impianto
+                </Button>
+              )}
             </div>
-          ) : impianti.map((impianto) => {
+          ) : impiantiFiltrati.map((impianto) => {
             const ImpiantoIcon = TIPO_ICONE[impianto.tipo_impianto] ?? Settings;
             return (
               <Link key={impianto.id} to={`/azienda/manutenzione/impianto/${impianto.id}`}
@@ -582,12 +661,12 @@ export default function ManutenzioneList({ incorporata = false }: { incorporata?
         <TabsContent value="contratti" className="mt-4 space-y-3 max-sm:mt-3 max-sm:space-y-2">
           {loadingContratti ? (
             <div className="space-y-3">{[1,2].map((n) => <Skeleton key={n} className="h-16 rounded-lg" />)}</div>
-          ) : contratti.length === 0 ? (
+          ) : contrattiFiltrati.length === 0 ? (
             <div className="text-center py-12 text-gray-500 max-sm:py-6 max-sm:text-sm">
               <TrendingUp className="h-10 w-10 text-gray-300 mx-auto mb-2 max-sm:hidden" />
-              <p>Nessun contratto attivo</p>
+              <p>{filtriAttivi ? "Nessun contratto trovato con questi filtri" : "Nessun contratto attivo"}</p>
             </div>
-          ) : contratti.map((contratto) => (
+          ) : contrattiFiltrati.map((contratto) => (
             <div key={contratto.id} className="bg-white rounded-lg border p-4 max-sm:px-3 max-sm:py-2.5">
               <div className="flex items-start justify-between max-sm:gap-2">
                 <div className="min-w-0">
