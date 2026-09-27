@@ -132,17 +132,16 @@ export const macroAreas: MacroArea[] = [
       // funzione di piano surveys_module. Chi non vede le Commesse (il venditore,
       // di serie) li trova in Marketing & Vendita, col permesso «Sopralluoghi».
       { title: "Commesse", url: "/azienda/ordini", icon: ClipboardList, permissionKey: "canViewOrders", moduleKey: "orders" },
-      // Voce dedicata: gli ODA vivono in un tab dentro Commesse e prima non
-      // erano raggiungibili da NESSUN menu — si scoprivano solo per caso.
-      // "Ordini d'Acquisto" non e' piu' una voce di menu: vive come tab
-      // "acquisto" dentro Commesse (stessa destinazione a cui puntava questa
-      // voce). Doppia porta per lo stesso posto = menu piu' lungo e basta.
-      { title: "Magazzino", url: "/azienda/magazzino", icon: Warehouse, permissionKey: "canViewWarehouse", moduleKey: "warehouse" },
+      // Ordine del menu (27/09, richiesta founder): Clienti subito sotto le
+      // Commesse; Magazzino sotto Manodopera e Mezzi.
+      { title: "Clienti", url: "/azienda/clienti", icon: Users, permissionKey: "canViewCustomers", moduleKey: "customers" },
       // Operai, Subappaltatori e Mezzi in una voce sola, con tre schede (26/09):
       // ognuna ha il suo permesso, e la voce si vede se almeno una è
       // disponibile (regola in lib/manodopera/schede, applicata da CompanyLayout).
       { title: "Manodopera e Mezzi", url: "/azienda/manodopera", icon: HardHat },
-      { title: "Clienti", url: "/azienda/clienti", icon: Users, permissionKey: "canViewCustomers", moduleKey: "customers" },
+      // Gli ODA vivono in un tab «acquisto» dentro Commesse, non è più una voce
+      // di menu (doppia porta = menu più lungo e basta).
+      { title: "Magazzino", url: "/azienda/magazzino", icon: Warehouse, permissionKey: "canViewWarehouse", moduleKey: "warehouse" },
       { title: "Firma Elettronica", url: "/azienda/firma-elettronica", icon: FileSignature, permissionKey: "canViewFirmaElettronica", featureKey: "firma_fea" },
       // Assistenza aggrega richieste (ticket + interventi), Manutenzione (impianti,
       // contratti, scadenze) e la vista in calendario: una porta sola, a schede
