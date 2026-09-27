@@ -13,7 +13,7 @@ function storageFixture() {
   return { values, storage };
 }
 
-describe("ELETTRICO: sette moduli originali indipendenti", () => {
+describe("ELETTRICO: undici moduli originali indipendenti", () => {
   it.each(FULL_ELT_MODULES)("%s usa testi, foto effettive e un progetto del mestiere", id => {
     const model = createFullEltTemplate(base, id);
     expect(model.id).toBe(`local-elettrico-${id}`);
@@ -52,8 +52,9 @@ describe("ELETTRICO: sette moduli originali indipendenti", () => {
   });
   it("ogni intervento ha copy e computo distinti e lo stato non è condiviso", () => {
     const models = FULL_ELT_MODULES.map(id => createFullEltTemplate(base, id));
-    expect(new Set(models.map(t => t.cover_title)).size).toBe(7);
-    expect(new Set(models.map(t => JSON.stringify(t.faq))).size).toBe(7);
+    // Dal Lotto 6 sono 11 moduli (7 originali + antifurto/illuminazione/automazioni/rete-dati).
+    expect(new Set(models.map(t => t.cover_title)).size).toBe(FULL_ELT_MODULES.length);
+    expect(new Set(models.map(t => JSON.stringify(t.faq))).size).toBe(FULL_ELT_MODULES.length);
     const a = createFullEltTemplate(base, "quadro"), b = createFullEltTemplate(base, "quadro");
     a.faq[0].risposta = "Modifica locale";
     expect(b.faq[0].risposta).not.toBe(a.faq[0].risposta);
