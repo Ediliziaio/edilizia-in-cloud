@@ -47,6 +47,7 @@ import {
   vietatiPer,
 } from "../_shared/agenteOperativoConfig.ts";
 import { SILVIO_TOOLS } from "../_shared/silvioTools.ts";
+import { adessoPerIlPrompt, formatoWhatsApp } from "../_shared/formatoWhatsApp.ts";
 import { buildInteractivePayload } from "./interactive.ts";
 // 🛡️ Anti chain-of-thought leak — strip tool names + opener narrativi prima
 // di rispondere su WhatsApp (operai, titolari).
@@ -511,7 +512,7 @@ Deno.serve(async (req) => {
           .update({ state_data: statoDaSalvare(existingSess?.state_data ?? null, { conferma: null }, new Date()) })
           .eq("id", sessionId);
       }
-      await sendReply(msg, testo);
+      await sendReply(msg, formatoWhatsApp(testo));
       return markDone(supabase, body.message_id, "processed");
     }
 
@@ -523,8 +524,9 @@ Deno.serve(async (req) => {
       ? promptUfficio({ tipo: identity.kind, nome: identity.display_name })
       : SYSTEM_PROMPT_OPERAIO;
     const istruzioni = istruzioniAzienda(configAgente, ruoloAgente, sbloccatiOra);
+    // Data e ora in cima: senza, «questo mese» non ha un punto di partenza.
     const systemPrompt =
-      `${basePrompt}\n\n${buildOperationalSystemPrompt(operationalSettings)}\n\n${buildTriagePrompt(operationalTriage)}` +
+      `${adessoPerIlPrompt(inizioTurno)}\n\n${basePrompt}\n\n${buildOperationalSystemPrompt(operationalSettings)}\n\n${buildTriagePrompt(operationalTriage)}` +
       (istruzioni ? `\n\n${istruzioni}` : "") +
       (ponte ? `\n\n${ponte.promptExtra()}` : "") +
       WA_SECURITY_GUARD;
@@ -813,6 +815,9 @@ Deno.serve(async (req) => {
     } else {
       finalText = sanitizedReply.cleaned || finalText;
     }
+
+    // Il Markdown del modello scritto per WhatsApp (**x** → *x*, # titoli, link).
+    finalText = formatoWhatsApp(finalText);
 
     // MP-P1 — Salta l'invio testuale se un tool ha già risposto in modo
     // interattivo (bottoni/lista) in questo turno.
