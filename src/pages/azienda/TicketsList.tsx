@@ -1,4 +1,4 @@
-import React, { useState, useMemo, lazy, Suspense } from "react";
+import React, { useState, useMemo } from "react";
 import { TICKET_STATI, TICKET_STATI_CHIUSI, TICKET_FASI } from "@/types/tickets";
 import { calcolaFermo, CLASSI_FERMO } from "@/lib/assistenzaSla";
 import { AssistenzaPipeline } from "@/components/tickets/AssistenzaPipeline";
@@ -12,7 +12,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { NavyStatCard } from "@/components/costi/KpiCard";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -41,8 +40,6 @@ import {
   LifeBuoy,
   Wrench,
   AlertTriangle,
-  CalendarClock,
-  UserX,
   ClipboardList,
   ArrowUpDown,
   ArrowUp,
@@ -50,12 +47,9 @@ import {
   CheckSquare,
   Euro,
   BriefcaseBusiness,
-  Hourglass,
   LayoutList,
   Columns3,
-  PhoneCall,
   SlidersHorizontal,
-  Settings,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
@@ -176,12 +170,10 @@ function compareSortValues(a: string | number, b: string | number): number {
   return String(a).localeCompare(String(b), "it", { numeric: true, sensitivity: "base" });
 }
 
-// La scheda «Manutenzioni» vive nella stessa fila di Tutti/Supporto/Interventi:
-// quando è attiva (?vista=manutenzioni) al posto della lista ticket mostriamo
-// impianti, contratti e scadenze — senza una seconda barra di schede.
-const ManutenzioneList = lazy(() => import("@/pages/azienda/ManutenzioneList"));
-
-const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
+// «Assistenza» vive dentro AssistenzaPage, che in cima mostra le due schede
+// grandi (Assistenza | Manutenzioni). Qui restano i soli ticket. `incorporata`:
+// la testata grande la dà AssistenzaPage, così non la ripetiamo.
+const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean }>(({ incorporata = false }, ref) => {
   const { effectiveCompany, user } = useAuth();
   const permissions = usePermissions();
   const queryClient = useQueryClient();
@@ -208,20 +200,11 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
   const [bulkAssignee, setBulkAssignee] = useState(KEEP_VALUE);
   const [fetchLimit, setFetchLimit] = useState(TICKETS_FETCH_LIMIT);
   // Filtro tipo da URL (?tipo=intervento) o default = all (retrocompatibilità redirect)
-  // «Manutenzioni» è una scheda accanto ai tipi: la riconosciamo da ?vista.
-  const vistaManutenzioni = searchParams.get("vista") === "manutenzioni" && permissions.canViewManutenzione === true;
   const tipoFilter = searchParams.get("tipo") ?? "all";
   const setTipoFilter = (v: string) => {
     const next = new URLSearchParams(searchParams);
-    next.delete("vista"); // tornando su un tipo si esce dalle manutenzioni
     if (v === "all") next.delete("tipo");
     else next.set("tipo", v);
-    setSearchParams(next, { replace: true });
-  };
-  const apriManutenzioni = () => {
-    const next = new URLSearchParams(searchParams);
-    next.set("vista", "manutenzioni");
-    next.delete("tipo");
     setSearchParams(next, { replace: true });
   };
   const { unreadByTicket, totalUnread } = useUnreadTicketCounts();
@@ -593,9 +576,11 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
 
   return (
     <div ref={ref} className="space-y-6 max-sm:space-y-3">
-      {/* Header */}
-      <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
+      {/* Header — dentro AssistenzaPage la testata grande la danno le due schede
+          in cima: qui resta solo la riga delle azioni. */}
+      <div className={incorporata ? "" : "testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6"}>
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+          {!incorporata && (
           <div className="flex min-w-0 items-start gap-3">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
               <LifeBuoy className="h-5 w-5" />
@@ -607,6 +592,7 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
               </p>
             </div>
           </div>
+          )}
         <div className="flex items-center gap-2">
           {selectedTicketIds.size > 0 && (
             <Button variant="outline" onClick={() => setBulkOpen(true)} className="gap-2 max-sm:hidden">
@@ -659,18 +645,17 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
       {/* Mobile: il tipo sta nel pannello dei filtri (una riga di pillole in meno). */}
       <div className="flex gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm max-sm:hidden">
         {[
-          { value: "all",           label: "Tutti",        icon: ClipboardList, mostra: true,  manut: false },
-          { value: "supporto",      label: "Supporto",     icon: LifeBuoy,      mostra: true,  manut: false },
-          { value: "intervento",    label: "Interventi",   icon: Wrench,        mostra: true,  manut: false },
-          { value: "emergenza",     label: "Emergenze",    icon: AlertTriangle, mostra: true,  manut: false },
-          { value: "manutenzione",  label: "Manutenzioni", icon: Settings,      mostra: permissions.canViewManutenzione === true, manut: true },
-        ].filter(tab => tab.mostra).map(tab => {
+          { value: "all",           label: "Tutti",        icon: ClipboardList },
+          { value: "supporto",      label: "Supporto",     icon: LifeBuoy },
+          { value: "intervento",    label: "Interventi",   icon: Wrench },
+          { value: "emergenza",     label: "Emergenze",    icon: AlertTriangle },
+        ].map(tab => {
           const Icon = tab.icon;
-          const active = tab.manut ? vistaManutenzioni : (!vistaManutenzioni && tipoFilter === tab.value);
+          const active = tipoFilter === tab.value;
           return (
             <button
               key={tab.value}
-              onClick={() => (tab.manut ? apriManutenzioni() : setTipoFilter(tab.value))}
+              onClick={() => setTipoFilter(tab.value)}
               className={cn(
                 "tap-compact flex shrink-0 items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-medium transition-all whitespace-nowrap max-sm:h-8 max-sm:rounded-full max-sm:border max-sm:px-3 max-sm:py-0 max-sm:text-xs",
                 active
@@ -684,12 +669,6 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
           );
         })}
       </div>
-
-      {vistaManutenzioni ? (
-        <Suspense fallback={<Skeleton className="h-64 w-full rounded-2xl" />}>
-          <ManutenzioneList incorporata />
-        </Suspense>
-      ) : (<>
 
       {/* Testata navy famiglia (come Costi/Commesse/Personale): i cinque numeri
           dell'assistenza, ognuno un filtro veloce cliccabile. I segnali d'azione
@@ -722,94 +701,37 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
         ))}
       </div>
 
-      {/* Nove riquadri: cinque per riga solo da 1280px. A 1024 erano larghi
-          100px e le etichette andavano su tre righe («MERCE / DA / ARRIVARE»). */}
-      <div className="hidden rounded-2xl bg-[#173b67] p-3 sm:block sm:p-4">
-        <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-3 xl:grid-cols-5">
-          <NavyStatCard
-            label="Totale"
-            value={metrics.totale}
-            sub={totalUnread > 0 ? `${totalUnread} non lett${totalUnread === 1 ? "o" : "i"}` : "tutti letti"}
-            icon={ClipboardList}
-            tone={totalUnread > 0 ? "text-orange-300" : "text-blue-100"}
-            active={statusFilter === "all"}
-            onClick={() => setStatusFilter("all")}
-          />
-          <NavyStatCard
-            label="Aperti"
-            value={metrics.aperti}
-            sub={metrics.aperti > 0 ? "da lavorare" : "nessuno aperto"}
-            icon={MessageSquare}
-            tone="text-blue-100"
-            active={statusFilter === "aperto"}
-            onClick={() => setStatusFilter(statusFilter === "aperto" ? "all" : "aperto")}
-          />
-          <NavyStatCard
-            label="Urgenti / Alta"
-            value={metrics.urgenti}
-            sub={metrics.urgenti > 0 ? "priorità alta" : "niente urgenze"}
-            icon={AlertTriangle}
-            tone={metrics.urgenti > 0 ? "text-red-300" : "text-blue-100"}
-            active={priorityFilter === "urgente" || priorityFilter === "alta"}
-            onClick={() => setPriorityFilter(priorityFilter === "urgente" ? "all" : "urgente")}
-          />
-          <NavyStatCard
-            label="In scadenza"
-            value={metrics.inScadenza}
-            sub={metrics.inScadenza > 0 ? "entro oggi/settimana" : "nessuna scadenza"}
-            icon={CalendarClock}
-            tone={metrics.inScadenza > 0 ? "text-orange-300" : "text-blue-100"}
-            active={scadenzaFilter === "scaduto_oggi" || scadenzaFilter === "settimana"}
-            onClick={() => setScadenzaFilter(scadenzaFilter === "scaduto_oggi" ? "tutte" : "scaduto_oggi")}
-          />
-          <NavyStatCard
-            label="Ferme troppo"
-            value={metrics.ferme}
-            sub={metrics.ferme > 0 ? "oltre il tempo previsto" : "nessuna in ritardo"}
-            icon={Hourglass}
-            tone={metrics.ferme > 0 ? "text-red-300" : "text-blue-100"}
-            active={soloFerme}
-            onClick={() => setSoloFerme(v => !v)}
-          />
-          <NavyStatCard
-            label="Merce da arrivare"
-            value={metricheMerce.inArrivo}
-            sub={metricheMerce.incomplete > 0
-              ? `${metricheMerce.incomplete} bolla${metricheMerce.incomplete === 1 ? "" : "e"} incompleta`
-              : "nessuna incompleta"}
-            icon={Package}
-            tone={metricheMerce.incomplete > 0 ? "text-red-300" : "text-blue-100"}
-            active={merceFilter !== "tutte"}
-            onClick={() => setMerceFilter(merceFilter === "tutte" ? "in_arrivo" : merceFilter === "in_arrivo" ? "incompleta" : "tutte")}
-          />
-          <NavyStatCard
-            label="Richiamano"
-            value={metricheMerce.solleciti}
-            sub={metricheMerce.solleciti > 0 ? "3 o più solleciti" : "nessun insistente"}
-            icon={PhoneCall}
-            tone={metricheMerce.solleciti > 0 ? "text-amber-300" : "text-blue-100"}
-            active={soloRichiami}
-            onClick={() => setSoloRichiami((v) => !v)}
-          />
-          <NavyStatCard
-            label="Da incassare"
-            value={metrics.daIncassare > 0
-              ? metrics.daIncassare.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: true })
-              : "—"}
-            sub={metrics.daIncassare > 0 ? "interventi a pagamento" : "niente in sospeso"}
-            icon={Euro}
-            tone={metrics.daIncassare > 0 ? "text-orange-300" : "text-blue-100"}
-          />
-          <NavyStatCard
-            label="Non assegnati"
-            value={metrics.nonAssegnati}
-            sub={metrics.nonAssegnati > 0 ? "senza responsabile" : "tutti assegnati"}
-            icon={UserX}
-            tone={metrics.nonAssegnati > 0 ? "text-orange-300" : "text-blue-100"}
-            active={assegnatoFilter === "unassigned"}
-            onClick={() => setAssegnatoFilter(assegnatoFilter === "unassigned" ? "tutti" : "unassigned")}
-          />
-        </div>
+      {/* Quattro numeri che contano (27/09): via le nove caselle blu. Gli altri
+          (ferme, merce, richiami, da incassare) sono in «Altri filtri». */}
+      <div className="hidden grid-cols-2 gap-2 sm:grid sm:grid-cols-4 sm:gap-3">
+        {[
+          { key: "aperti", label: "Da lavorare", n: metrics.aperti, tono: "red", attivo: statusFilter === "aperto", onClick: () => setStatusFilter(statusFilter === "aperto" ? "all" : "aperto") },
+          { key: "urgenti", label: "Urgenti", n: metrics.urgenti, tono: "amber", attivo: priorityFilter === "urgente" || priorityFilter === "alta", onClick: () => setPriorityFilter(priorityFilter === "urgente" ? "all" : "urgente") },
+          { key: "scadenza", label: "In scadenza", n: metrics.inScadenza, tono: "amber", attivo: scadenzaFilter === "scaduto_oggi" || scadenzaFilter === "settimana", onClick: () => setScadenzaFilter(scadenzaFilter === "scaduto_oggi" ? "tutte" : "scaduto_oggi") },
+          { key: "nonassegnati", label: "Senza tecnico", n: metrics.nonAssegnati, tono: "blue", attivo: assegnatoFilter === "unassigned", onClick: () => setAssegnatoFilter(assegnatoFilter === "unassigned" ? "tutti" : "unassigned") },
+        ].map((t) => {
+          const toni: Record<string, string> = {
+            red: "border-red-200 bg-red-50 text-red-700",
+            amber: "border-amber-200 bg-amber-50 text-amber-700",
+            blue: "border-blue-200 bg-blue-50 text-blue-700",
+          };
+          return (
+            <button
+              key={t.key}
+              type="button"
+              onClick={t.onClick}
+              aria-pressed={t.attivo}
+              className={cn(
+                "flex flex-col items-start rounded-xl border px-4 py-3 text-left transition-colors",
+                t.n > 0 ? toni[t.tono] : "border-slate-200 bg-white text-slate-500",
+                t.attivo && "ring-2 ring-slate-900/40 ring-offset-1",
+              )}
+            >
+              <span className="text-2xl font-bold leading-none tabular-nums">{t.n}</span>
+              <span className="mt-1 text-xs font-semibold uppercase tracking-wide">{t.label}</span>
+            </button>
+          );
+        })}
       </div>
 
       {selectedTicketIds.size > 0 && (
@@ -954,6 +876,15 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
                   <SelectItem value="arrivata">Merce arrivata</SelectItem>
                 </SelectContent>
               </Select>
+              {/* Interruttori: prima erano due delle nove caselle blu. */}
+              <label className="flex cursor-pointer items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm">
+                <span>Solo ferme troppo {metrics.ferme > 0 && <span className="font-semibold text-red-600">({metrics.ferme})</span>}</span>
+                <Checkbox checked={soloFerme} onCheckedChange={() => setSoloFerme((v) => !v)} />
+              </label>
+              <label className="flex cursor-pointer items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm">
+                <span>Solo chi richiama {metricheMerce.solleciti > 0 && <span className="font-semibold text-amber-600">({metricheMerce.solleciti})</span>}</span>
+                <Checkbox checked={soloRichiami} onCheckedChange={() => setSoloRichiami((v) => !v)} />
+              </label>
             </PopoverContent>
           </Popover>
           {/* Tabella o pipeline — solo desktop, come in Commesse */}
@@ -1185,7 +1116,6 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
         onClear={clearSelection}
         isPending={updateTicketsMutation.isPending}
       />
-      </>)}
     </div>
   );
 });
