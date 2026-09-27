@@ -19,9 +19,13 @@ describe("preset fotografici dei moduli preventivo", () => {
   });
 
   it("non propone la vecchia immagine piscina nel modulo ristrutturazione", () => {
-    expect(RST_IMAGES.map((image) => image.url)).toEqual([
-      "/cover-stock/ristrutturazione/1.jpg",
-      "/cover-stock/ristrutturazione/2.jpg",
-    ]);
+    // La vecchia 3.jpg era una piscina — fuori dalla galleria di ristrutturazione.
+    // Le varianti 27/09/2026 (ristrutturazione-variante-07/08.jpg) sono foto
+    // coerenti col tema del modulo e restano nella lista.
+    const urls = RST_IMAGES.map((image) => image.url);
+    expect(urls).toContain("/cover-stock/ristrutturazione/1.jpg");
+    expect(urls).toContain("/cover-stock/ristrutturazione/2.jpg");
+    expect(urls).not.toContain("/cover-stock/ristrutturazione/3.jpg");
+    expect(urls.every((url) => url.startsWith("/cover-stock/ristrutturazione/"))).toBe(true);
   });
 });
