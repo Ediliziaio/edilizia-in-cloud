@@ -106,6 +106,7 @@ export default function TicketDetail() {
           a_pagamento, motivo_gratuito, importo_preventivato, importo_finale,
           pagato, data_pagamento, metodo_pagamento, note_pagamento, merce_richiesta,
           ore_effettive, costo_orario_applicato, costo_trasferta, costo_materiale, scadenza_id,
+          documento_fiscale_id,
           richiami_count, ultimo_richiamo_at, note_richiami,
           merce_stato, merce_mancante, merce_arrivata_at,
           updated_at, last_message_at,

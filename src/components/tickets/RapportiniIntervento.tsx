@@ -36,18 +36,33 @@ const STATO_META: Record<string, { label: string; cls: string }> = {
   fatturato: { label: "Fatturato", cls: "bg-violet-50 text-violet-700 border-violet-200" },
 };
 
-export function RapportiniIntervento({ ticketId, canEdit }: { ticketId: string; canEdit: boolean }) {
+/**
+ * Su un intervento si filtra per `ticketId`; sulla scheda di un impianto per
+ * `impiantoId` (così la manutenzione vede tutti i rapportini fatti su quell'impianto,
+ * qualunque sia l'intervento). Il pulsante «Compila» compare solo sull'intervento:
+ * un rapportino nasce sempre da un intervento, mai dall'impianto in astratto.
+ */
+export function RapportiniIntervento({
+  ticketId,
+  impiantoId,
+  canEdit = false,
+}: {
+  ticketId?: string;
+  impiantoId?: string;
+  canEdit?: boolean;
+}) {
   const { effectiveCompany } = useAuth();
+  const perImpianto = !ticketId && !!impiantoId;
   const { data: rapportini = [], isLoading } = useQuery({
-    queryKey: ["rapportini-intervento", ticketId],
-    enabled: !!ticketId && !!effectiveCompany?.id,
+    queryKey: ["rapportini-intervento", ticketId ?? `impianto:${impiantoId}`],
+    enabled: (!!ticketId || !!impiantoId) && !!effectiveCompany?.id,
     queryFn: async () => {
-      const { data, error } = await supabase
+      let q = supabase
         .from("rapportini_intervento")
         .select("id, numero, data_intervento, descrizione, ore_lavoro, ore_lavoro_effettive, foto_urls, foto_chiusura, firma_cliente, firma_tecnico_url, stato, tecnico:profiles!rapportini_intervento_tecnico_id_fkey(first_name, last_name)")
-        .eq("ticket_id", ticketId)
-        .eq("company_id", effectiveCompany!.id)
-        .order("data_intervento", { ascending: false });
+        .eq("company_id", effectiveCompany!.id);
+      q = ticketId ? q.eq("ticket_id", ticketId) : q.eq("impianto_id", impiantoId!);
+      const { data, error } = await q.order("data_intervento", { ascending: false });
       if (error) throw error;
       return (data ?? []) as unknown as RapportinoRiga[];
     },
@@ -67,7 +82,7 @@ export function RapportiniIntervento({ ticketId, canEdit }: { ticketId: string; 
           <ClipboardCheck className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
           Rapportini {rapportini.length > 0 && <span className="text-muted-foreground">({rapportini.length})</span>}
         </p>
-        {canEdit && (
+        {canEdit && !perImpianto && ticketId && (
           <Button asChild size="sm" variant="outline" className="h-7 gap-1 text-xs">
             <Link to={`/azienda/assistenza/${ticketId}/chiudi`}>
               <Plus className="h-3.5 w-3.5" />{rapportini.length > 0 ? "Nuovo" : "Compila"}
@@ -78,7 +93,9 @@ export function RapportiniIntervento({ ticketId, canEdit }: { ticketId: string; 
 
       {rapportini.length === 0 ? (
         <p className="px-3 py-4 text-center text-sm text-muted-foreground">
-          Ancora nessun rapportino. Lo compila chi fa l'intervento, dall'app o dalla chiusura.
+          {perImpianto
+            ? "Ancora nessun rapportino su questo impianto. Compare qui appena chi interviene ne compila uno."
+            : "Ancora nessun rapportino. Lo compila chi fa l'intervento, dall'app o dalla chiusura."}
         </p>
       ) : (
         <ul className="divide-y">

@@ -4,8 +4,9 @@
  * non erano né filtrabili né sommabili.
  */
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Euro, Check, Loader2, CalendarClock } from "lucide-react";
+import { Euro, Check, Loader2, CalendarClock, Receipt, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -16,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TICKET_MOTIVI_GRATUITO } from "@/types/tickets";
+import { CreaFatturaAssistenzaDialog } from "@/components/tickets/CreaFatturaAssistenzaDialog";
 
 const METODI = ["Bonifico", "Contanti", "Carta", "Assegno", "Altro"];
 
@@ -32,6 +34,9 @@ export interface TicketPagamento {
   data_pagamento?: string | null;
   metodo_pagamento?: string | null;
   note_pagamento?: string | null;
+  /** Fattura già creata da questo intervento. */
+  documento_fiscale_id?: string | null;
+  customer?: { first_name?: string | null; last_name?: string | null } | null;
 }
 
 export function TicketPagamentoCard({ ticketId, ticket, companyId }: { ticketId: string; ticket: TicketPagamento; companyId: string }) {
@@ -42,7 +47,20 @@ export function TicketPagamentoCard({ ticketId, ticket, companyId }: { ticketId:
   const [finale, setFinale] = useState(ticket.importo_finale?.toString() ?? "");
   const [metodo, setMetodo] = useState(ticket.metodo_pagamento ?? "");
   const [note, setNote] = useState(ticket.note_pagamento ?? "");
+  const [fatturaOpen, setFatturaOpen] = useState(false);
   const pagato = !!ticket.pagato;
+  const clienteNome = [ticket.customer?.first_name, ticket.customer?.last_name].filter(Boolean).join(" ").trim();
+
+  /** Dopo aver creato la fattura, la lega al ticket: la scheda mostra "Fattura creata". */
+  const collegaFattura = async (documentoId: string) => {
+    const { error } = await supabase
+      .from("tickets")
+      .update({ documento_fiscale_id: documentoId } as never)
+      .eq("id", ticketId);
+    if (error) throw error;
+    qc.invalidateQueries({ queryKey: ["ticket", ticketId] });
+    qc.invalidateQueries({ queryKey: ["tickets"] });
+  };
 
   const salva = useMutation({
     mutationFn: async (extra: Record<string, unknown> = {}) => {
@@ -220,7 +238,37 @@ export function TicketPagamentoCard({ ticketId, ticket, companyId }: { ticketId:
             </Button>
           )
         )}
+
+        {/* Fattura: crea il documento fiscale dall'intervento, o riapri quello
+            già creato. Come nelle commesse, ma con una riga sola. */}
+        {aPagamento && (
+          ticket.documento_fiscale_id ? (
+            <Button asChild size="sm" variant="outline" className="w-full text-xs">
+              <Link to={`/azienda/documenti/${ticket.documento_fiscale_id}`}>
+                <FileText className="mr-1.5 h-3.5 w-3.5" /> Apri la fattura
+              </Link>
+            </Button>
+          ) : (
+            <Button size="sm" variant="outline" className="w-full text-xs"
+                    onClick={() => setFatturaOpen(true)}
+                    disabled={!(finale || preventivato)}>
+              <Receipt className="mr-1.5 h-3.5 w-3.5" /> Crea fattura
+            </Button>
+          )
+        )}
       </CardContent>
+
+      <CreaFatturaAssistenzaDialog
+        open={fatturaOpen}
+        onOpenChange={setFatturaOpen}
+        customerId={ticket.customer_id ?? null}
+        customerName={clienteNome || "Cliente"}
+        defaultDescrizione={ticket.subject ? `Assistenza — ${ticket.subject}` : "Intervento di assistenza"}
+        defaultImporto={Number(finale || preventivato || 0)}
+        orderId={ticket.order_id ?? null}
+        defaultNota={ticket.subject ? `Rif. assistenza — ${ticket.subject}` : "Rif. assistenza"}
+        onCreated={collegaFattura}
+      />
     </Card>
   );
 }

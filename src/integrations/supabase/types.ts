@@ -89722,6 +89722,7 @@ export type Database = {
           priority: Database["public"]["Enums"]["ticket_priority"]
           richiami_count: number
           scadenza_id: string | null
+          documento_fiscale_id: string | null
           squadra_id: string | null
           status: Database["public"]["Enums"]["ticket_status"]
           subject: string
@@ -89774,6 +89775,7 @@ export type Database = {
           priority?: Database["public"]["Enums"]["ticket_priority"]
           richiami_count?: number
           scadenza_id?: string | null
+          documento_fiscale_id?: string | null
           squadra_id?: string | null
           status?: Database["public"]["Enums"]["ticket_status"]
           subject: string
@@ -89826,6 +89828,7 @@ export type Database = {
           priority?: Database["public"]["Enums"]["ticket_priority"]
           richiami_count?: number
           scadenza_id?: string | null
+          documento_fiscale_id?: string | null
           squadra_id?: string | null
           status?: Database["public"]["Enums"]["ticket_status"]
           subject?: string

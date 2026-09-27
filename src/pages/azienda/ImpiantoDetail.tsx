@@ -15,8 +15,10 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, AlertCircle, Plus, Loader2, Wrench, Pencil, Archive, ArchiveRestore, MessageCircle, Mail } from "lucide-react";
+import { ArrowLeft, AlertCircle, Plus, Loader2, Wrench, Pencil, Archive, ArchiveRestore, MessageCircle, Mail, History, Camera, Receipt } from "lucide-react";
 import { QuickContactSendDialog } from "@/components/contacts/QuickContactSendDialog";
+import { RapportiniIntervento } from "@/components/tickets/RapportiniIntervento";
+import { CreaFatturaAssistenzaDialog } from "@/components/tickets/CreaFatturaAssistenzaDialog";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -39,6 +41,7 @@ export default function ImpiantoDetail() {
   // La scheda impianto era di sola lettura: una matricola sbagliata o un
   // impianto smantellato restavano lì com'erano, per sempre.
   const [modificaOpen, setModificaOpen] = useState(false);
+  const [fatturaOpen, setFatturaOpen] = useState(false);
   const [contattoCanale, setContattoCanale] = useState<"whatsapp" | "email" | null>(null);
   const [archiviaOpen, setArchiviaOpen] = useState(false);
   const [formImpianto, setFormImpianto] = useState({
@@ -320,6 +323,17 @@ export default function ImpiantoDetail() {
               <Mail className="h-4 w-4" />
             </Button>
           )}
+          {/* Storico completo: la linea del tempo di tutti gli interventi, con
+              foto, ore e firma. Prima esisteva ma non la raggiungeva nessuno. */}
+          <Button
+            variant="outline"
+            size="icon"
+            className="shrink-0 tap-compact max-sm:h-8 max-sm:w-8"
+            title="Storico interventi e rapportini"
+            onClick={() => navigate(`/azienda/impianti/${id}/storico`)}
+          >
+            <History className="h-4 w-4" />
+          </Button>
           <Button
             variant="outline"
             size="icon"
@@ -380,6 +394,29 @@ export default function ImpiantoDetail() {
           {impianto.note_tecniche && (
             <div className="bg-gray-50 rounded p-3 text-sm text-gray-700">{impianto.note_tecniche}</div>
           )}
+          {/* Foto dell'impianto (targa, matricola, posizione): quelle raccolte sul
+              posto. Le foto di ogni singolo intervento stanno nei rapportini. */}
+          {Array.isArray((impianto as { foto_urls?: string[] | null }).foto_urls) &&
+            ((impianto as { foto_urls?: string[] | null }).foto_urls?.length ?? 0) > 0 && (
+              <div className="space-y-2">
+                <h4 className="flex items-center gap-1.5 text-sm font-medium text-gray-700">
+                  <Camera className="h-4 w-4 text-gray-400" /> Foto impianto
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  {(impianto as { foto_urls?: string[] | null }).foto_urls!.map((url, i) => (
+                    <a
+                      key={i}
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="h-20 w-20 overflow-hidden rounded border transition-opacity hover:opacity-80"
+                    >
+                      <img loading="lazy" src={url} alt={`Foto impianto ${i + 1}`} className="h-full w-full object-cover" />
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
         </TabsContent>
 
         {/* Piano Manutenzione */}
@@ -477,6 +514,12 @@ export default function ImpiantoDetail() {
               ))}
             </div>
           )}
+
+          {/* Rapportini fatti su questo impianto: chi c'è stato, ore, foto, firma.
+              Li scrive chi interviene, da qualunque intervento. */}
+          <div className="pt-2">
+            <RapportiniIntervento impiantoId={id} />
+          </div>
         </TabsContent>
 
         {/* Contratto */}
@@ -503,9 +546,15 @@ export default function ImpiantoDetail() {
               {contratto.note && <p className="text-gray-600 bg-gray-50 p-2 rounded">{contratto.note}</p>}
               {/* Il contratto era di sola lettura: un canone sbagliato o una
                   disdetta non si potevano registrare da nessuna parte. */}
-              <Button variant="outline" size="sm" className="w-full gap-2 sm:w-auto" onClick={apriModificaContratto}>
-                <Pencil className="h-4 w-4" /> Modifica contratto
-              </Button>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button variant="outline" size="sm" className="w-full gap-2 sm:w-auto" onClick={apriModificaContratto}>
+                  <Pencil className="h-4 w-4" /> Modifica contratto
+                </Button>
+                {/* Fattura il canone: stessa finestra dell'assistenza, una riga sola. */}
+                <Button variant="outline" size="sm" className="w-full gap-2 sm:w-auto" onClick={() => setFatturaOpen(true)}>
+                  <Receipt className="h-4 w-4" /> Crea fattura canone
+                </Button>
+              </div>
             </div>
           )}
         </TabsContent>
@@ -726,6 +775,19 @@ export default function ImpiantoDetail() {
         email={(impianto.customer as { email?: string | null } | null)?.email}
         context={impianto.tipo_impianto ? `Impianto ${impianto.tipo_impianto}` : "Impianto"}
         defaultChannel={contattoCanale ?? "whatsapp"}
+      />
+
+      {/* Fattura del canone di manutenzione. */}
+      <CreaFatturaAssistenzaDialog
+        open={fatturaOpen}
+        onOpenChange={setFatturaOpen}
+        customerId={(impianto.customer as { id?: string } | null)?.id ?? null}
+        customerName={[(impianto.customer as { first_name?: string | null } | null)?.first_name, (impianto.customer as { last_name?: string | null } | null)?.last_name].filter(Boolean).join(" ") || "Cliente"}
+        defaultDescrizione={contratto?.nome_contratto
+          ? `Canone manutenzione — ${contratto.nome_contratto}`
+          : `Manutenzione ${impianto.tipo_impianto ?? ""}`.trim()}
+        defaultImporto={Number(contratto?.importo_canone ?? 0)}
+        defaultNota={contratto?.nome_contratto ? `Rif. contratto ${contratto.nome_contratto}` : "Rif. manutenzione"}
       />
     </div>
   );

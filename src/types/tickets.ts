@@ -156,6 +156,8 @@ export interface TicketDetail {
   assigned_to: string | null;
   /** Squadra mandata sull'intervento (external_teams interna). */
   squadra_id?: string | null;
+  /** Fattura nata da questo intervento (impostata da "Crea fattura"). */
+  documento_fiscale_id?: string | null;
   category: string | null;
   internal_notes: string | null;
   /** Campi "intervento" — erano esclusivi di InterventiDetail, ora qui per unificazione. */
