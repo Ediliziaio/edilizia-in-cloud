@@ -525,6 +525,7 @@ export default function EditorDocumento() {
         state={state}
         open={emailDialogOpen}
         onOpenChange={setEmailDialogOpen}
+        saveNow={saveNow}
       />
 
       {/* Leave dialog */}
