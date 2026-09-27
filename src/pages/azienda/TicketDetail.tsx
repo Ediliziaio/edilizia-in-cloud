@@ -19,11 +19,12 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import {
-  ArrowLeft, Package, User, Mail, Phone, MapPin, Clock, CalendarPlus,
+  ArrowLeft, Package, User, Mail, Phone, MapPin, Clock, CalendarPlus, MessageCircle,
   AlertCircle, RefreshCw, Save, ChevronDown, Wrench, Loader2, CheckCircle2,
   LifeBuoy, AlertTriangle, Sparkles, ListChecks,
 } from "lucide-react";
 import { AppointmentDialog } from "@/components/appointments/AppointmentDialog";
+import { QuickContactSendDialog } from "@/components/contacts/QuickContactSendDialog";
 import {
   formatRelativeTime,
   getTicketStatusColor,
@@ -69,6 +70,8 @@ export default function TicketDetail() {
   const [escalationNote, setEscalationNote] = useState("");
   // Dialog appuntamento
   const [appointmentOpen, setAppointmentOpen] = useState(false);
+  // Canale aperto per scrivere al cliente (WhatsApp/Email), come nelle commesse.
+  const [contattoCanale, setContattoCanale] = useState<"whatsapp" | "email" | null>(null);
   // Editing "dettagli intervento" inline
   const [interventoIndirizzo, setInterventoIndirizzo] = useState("");
   const [interventoData, setInterventoData] = useState("");
@@ -482,6 +485,27 @@ export default function TicketDetail() {
         {/* Mobile: i tre bottoni sulla riga dei badge, in alto a destra (prima
             avevano una riga loro, vuota a sinistra). */}
         <div className="flex items-center gap-2 shrink-0 max-md:absolute max-md:right-0 max-md:top-0 max-md:gap-1.5 [&>button]:max-md:h-9 [&>button]:max-md:w-9 [&>button]:max-md:p-0">
+          {/* Azioni rapide come nelle commesse: scrivi al cliente senza uscire. */}
+          {ticket.customer?.phone && (
+            <Button
+              variant="outline"
+              className="tap-compact gap-2 text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+              onClick={() => setContattoCanale("whatsapp")}
+            >
+              <MessageCircle className="h-4 w-4" />
+              <span className="hidden sm:inline">WhatsApp</span>
+            </Button>
+          )}
+          {ticket.customer?.email && (
+            <Button
+              variant="outline"
+              className="tap-compact gap-2 text-blue-700 border-blue-300 hover:bg-blue-50"
+              onClick={() => setContattoCanale("email")}
+            >
+              <Mail className="h-4 w-4" />
+              <span className="hidden sm:inline">Email</span>
+            </Button>
+          )}
           {/* Escalation — solo per tipo=supporto */}
           {!isIntervento && (
             <Button
@@ -1016,6 +1040,19 @@ export default function TicketDetail() {
           queryClient.invalidateQueries({ queryKey: ["appointments"] });
           toast.success("Appuntamento creato in calendario");
         }}
+      />
+
+      {/* Scrivi al cliente: WhatsApp o Email, la stessa finestra delle commesse. */}
+      <QuickContactSendDialog
+        open={contattoCanale !== null}
+        onOpenChange={(o) => { if (!o) setContattoCanale(null); }}
+        contactId={ticket.customer_id}
+        name={ticket.customer ? `${ticket.customer.first_name ?? ""} ${ticket.customer.last_name ?? ""}`.trim() : null}
+        phone={ticket.customer?.phone}
+        email={ticket.customer?.email}
+        context={ticket.subject}
+        defaultChannel={contattoCanale ?? "whatsapp"}
+        orderId={ticket.order_id}
       />
     </div>
   );
