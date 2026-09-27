@@ -339,7 +339,7 @@ export function EditorTopBar({
                   <AlertDialogHeader>
                     <AlertDialogTitle>Eliminare questa bozza?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      {TIPO_LABELS[tipo] ?? tipo} N° {state.numero} verrà eliminata. Questa azione non può essere annullata.
+                      Questa bozza di {TIPO_LABELS[tipo] ?? tipo} verrà eliminata. L'azione non può essere annullata.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
@@ -366,8 +366,7 @@ export function EditorTopBar({
                   <AlertDialogHeader>
                     <AlertDialogTitle>Emetti documento</AlertDialogTitle>
                     <AlertDialogDescription>
-                      Emetti {TIPO_LABELS[tipo] ?? tipo} N° {state.numero}?
-                      Questa azione non può essere annullata.
+                      Emetti questa {TIPO_LABELS[tipo] ?? tipo}? Il numero definitivo (progressivo) viene assegnato adesso e l'azione non può essere annullata.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>

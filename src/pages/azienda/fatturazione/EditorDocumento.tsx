@@ -365,7 +365,12 @@ export default function EditorDocumento() {
           // prezzo e premeva subito «Emetti» emetteva la versione PRECEDENTE:
           // la mutation rilegge il documento dal database, e il salvataggio in
           // volo arrivava dopo, quando ormai il documento è immutabile.
-          await saveNow();
+          try {
+            await saveNow();
+          } catch (err) {
+            toast.error("Modifiche non salvate: il documento non è stato emesso", { description: (err as Error).message });
+            return;
+          }
           emittiMutation.mutate(state.id, {
             // Risincronizza lo state locale col documento emesso: l'editor
             // si inizializza una sola volta, senza questo restava "Bozza"

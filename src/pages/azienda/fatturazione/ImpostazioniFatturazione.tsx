@@ -215,7 +215,7 @@ export default function ImpostazioniFatturazione() {
       queryClient.invalidateQueries({ queryKey: queryKeys.anagraficaAzienda.all });
       setForm({});
       toast.success("Impostazioni salvate");
-    } catch (err: any) { toast.error(err.message); }
+    } catch (err: any) { toast.error("Salvataggio non riuscito", { description: err.message }); }
     finally { setSaving(false); }
   };
 

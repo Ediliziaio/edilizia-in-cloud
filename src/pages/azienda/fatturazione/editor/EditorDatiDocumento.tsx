@@ -70,6 +70,7 @@ export function EditorDatiDocumento({ state, dispatch, disabled, dataBloccata }:
                 mode="single"
                 selected={state.data_emissione ? parseISO(state.data_emissione) : undefined}
                 onSelect={(d) => d && setField("data_emissione", format(d, "yyyy-MM-dd"))}
+                disabled={{ after: new Date() }}
                 autoFocus
                 className="p-3 pointer-events-auto"
               />
