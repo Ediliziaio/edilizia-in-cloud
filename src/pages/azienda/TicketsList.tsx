@@ -3,7 +3,8 @@ import { TICKET_STATI, TICKET_STATI_CHIUSI, TICKET_FASI } from "@/types/tickets"
 import { calcolaFermo, CLASSI_FERMO } from "@/lib/assistenzaSla";
 import { AssistenzaPipeline } from "@/components/tickets/AssistenzaPipeline";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams, useNavigate } from "react-router-dom";
+import { NuovoTicketDialog } from "@/components/tickets/NuovoTicketDialog";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Enums } from "@/integrations/supabase/types";
@@ -177,6 +178,8 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean }>(
   const { effectiveCompany, user } = useAuth();
   const permissions = usePermissions();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const [nuovoOpen, setNuovoOpen] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -630,13 +633,21 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean }>(
             filename="assistenza-interventi"
           />
           </div>
-          <Button asChild className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-9 max-sm:px-3 max-sm:text-xs">
-            <Link to="/azienda/assistenza/nuovo">
-              <Plus className="mr-2 h-4 w-4" />
-              <span className="sm:hidden">Nuovo</span>
-              <span className="hidden sm:inline">Nuovo Ticket</span>
-            </Link>
+          <Button
+            onClick={() => setNuovoOpen(true)}
+            className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-9 max-sm:px-3 max-sm:text-xs"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            <span className="sm:hidden">Nuovo</span>
+            <span className="hidden sm:inline">Nuovo Ticket</span>
           </Button>
+          {/* Apertura assistenza in finestra, come «Nuovo Impianto». */}
+          <NuovoTicketDialog
+            open={nuovoOpen}
+            onOpenChange={setNuovoOpen}
+            initial={tipoFilter !== "all" ? { tipo: tipoFilter } : undefined}
+            onCreated={(id) => navigate(`/azienda/assistenza/${id}`)}
+          />
         </div>
         </div>
       </div>
