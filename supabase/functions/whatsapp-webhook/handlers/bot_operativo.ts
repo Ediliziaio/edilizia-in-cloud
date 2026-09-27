@@ -187,6 +187,16 @@ export async function handleBotOperativo(
   // come parte del fix B6. Qui aggiorniamo solo il processing_status se
   // l'auto-process è disabilitato (mark immediato "processed" così la
   // recovery cron non lo riprende per retry).
+  //
+  // Bot spento: il messaggio si chiude qui. Prima restava «received» e il
+  // cron di recupero lo rimandava al bot dopo 3 minuti, che rispondeva lo stesso.
+  if (!botEnabled && reservedWaMsgId) {
+    await supabase
+      .from("whatsapp_messages")
+      .update({ processing_status: "processed", processing_error: "bot_spento", processed_at: new Date().toISOString() })
+      .eq("id", reservedWaMsgId)
+      .eq("processing_status", "received");
+  }
   if (botEnabled && reservedWaMsgId) {
     if (!autoProcess) {
       await supabase

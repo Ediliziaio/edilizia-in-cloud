@@ -152,6 +152,14 @@ Deno.serve(async (req) => {
     waNumberSettings?.operational_settings,
   );
 
+  // Bot spento sul numero: non si risponde, nemmeno se il messaggio arriva
+  // dal cron di recupero (27/09/2026). bot_enabled sta nel dato grezzo, non
+  // nelle impostazioni normalizzate.
+  const impostazioniNumero = waNumberSettings?.operational_settings;
+  if (isPlainRecord(impostazioniNumero) && impostazioniNumero.bot_enabled === false) {
+    return markDone(supabase, body.message_id, "processed", "bot_spento");
+  }
+
   // Lock ottimistico atomico: se due invocazioni concorrenti arrivano insieme,
   // solo quella che vince l'UPDATE (processing_status ancora 'received') ottiene
   // righe indietro. L'altra torna vuota → esce subito (già presa in carico),
