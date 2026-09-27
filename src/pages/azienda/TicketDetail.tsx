@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { TicketPagamentoCard } from "@/components/tickets/TicketPagamentoCard";
@@ -42,6 +43,7 @@ import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import { PlaybookEditorDialog } from "@/components/orders/PlaybookEditorDialog";
 import { applyPlaybookToTicket } from "@/lib/ticketPlaybook";
 import { TicketAttachments } from "@/components/tickets/TicketAttachments";
+import { RapportiniIntervento } from "@/components/tickets/RapportiniIntervento";
 import { useUnreadTicketCounts } from "@/hooks/useUnreadTicketCounts";
 import type { TicketDetail as TicketDetailType, TicketMessage } from "@/types/tickets";
 import { SUPPORT_PRIORITIES, TICKET_STATI, TICKET_FASI } from "@/types/tickets";
@@ -52,6 +54,7 @@ export default function TicketDetail() {
   const navigate = useNavigate();
   
   const { effectiveCompany } = useAuth();
+  const { canEditTickets } = usePermissions();
   // Flusso di lavoro dell'assistenza: stesso motore delle commesse
   // (src/lib/flussoLavoro.ts), agganciato al ticket invece che alla commessa.
   const [flussoInCorso, setFlussoInCorso] = useState(false);
@@ -872,7 +875,10 @@ export default function TicketDetail() {
             </Card>
           </Collapsible>
 
-          {/* Allegati */}
+          {/* Rapportini dell'intervento: chi l'ha fatto, ore, foto, firma. */}
+          <RapportiniIntervento ticketId={ticket.id} canEdit={canEditTickets} />
+
+          {/* Documenti e foto allegati all'intervento. */}
           <TicketAttachments ticketId={ticket.id} />
 
           {/* Flusso di lavoro: crea in blocco le attività dell'assistenza,
