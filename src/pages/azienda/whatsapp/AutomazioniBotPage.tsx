@@ -271,10 +271,12 @@ function EditorAutomazione({
   const [scelta, setScelta] = useState<ScelaChi>(chiIniziale.scelta);
   const [personaId, setPersonaId] = useState<string | null>(chiIniziale.personaId);
   const [regole, setRegole] = useState<BotRoutineRegole>(iniziale.regole ?? {});
+  const [ai, setAi] = useState<boolean>(iniziale.regole?.ai !== false);
 
   const isNuova = !iniziale.id;
   const mostraOrario = tipo !== "promemoria_appuntamento";
   const mostraChi = tipo !== "todo_operaio";
+  const mostraAI = tipo !== "promemoria_appuntamento";
 
   const toggleGiorno = (n: number) =>
     setGiorni((g) => (g.includes(n) ? g.filter((x) => x !== n) : [...g, n].sort((a, b) => a - b)));
@@ -295,10 +297,11 @@ function EditorAutomazione({
             preventivo_fermo: regole.preventivo_fermo ?? true,
             sotto_scorta: regole.sotto_scorta ?? true,
             preventivo_giorni: regole.preventivo_giorni ?? 3,
+            ai,
           }
         : tipo === "promemoria_appuntamento"
           ? { anticipo_min: regole.anticipo_min ?? 120 }
-          : {};
+          : { ai };
 
     salva.mutate(
       {
@@ -342,6 +345,16 @@ function EditorAutomazione({
               </SelectContent>
             </Select>
           </div>
+
+          {mostraAI && (
+            <div className="flex items-start justify-between gap-3 rounded-lg border p-3">
+              <div>
+                <p className="text-sm font-medium">Scrivi con l'AqI</p>
+                <p className="text-[11px] text-muted-foreground">Testo più curato e ordinato per priorità. Se spento, usa il testo standard.</p>
+              </div>
+              <Switch checked={ai} onCheckedChange={setAi} aria-label="Scrivi con l'AqI" />
+            </div>
+          )}
 
           {mostraChi && (
             <div className="space-y-1">

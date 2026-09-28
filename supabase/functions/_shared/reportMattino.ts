@@ -10,6 +10,10 @@ export interface DatiReport {
   in_scadenza_7gg?: { n?: number; tot?: number };
   sotto_scorta?: number;
   appuntamenti_oggi?: number;
+  preventivi_in_attesa?: { n?: number; tot?: number };
+  // Dettagli extra (usati soprattutto dal testo scritto dall'AqI):
+  appuntamenti_lista?: Array<{ ora?: string | null; titolo?: string | null; luogo?: string | null }>;
+  scadute_top?: Array<{ cliente?: string | null; importo?: number; giorni?: number }>;
 }
 
 function euro(n: number): string {
@@ -41,6 +45,9 @@ export function componiReportMattino(nomeAzienda: string | null, dati: DatiRepor
 
   const appt = Number(dati.appuntamenti_oggi ?? 0);
   if (appt > 0) righe.push(`📅 *${appt}* appuntamenti oggi`);
+
+  const prevN = Number(dati.preventivi_in_attesa?.n ?? 0);
+  if (prevN > 0) righe.push(`📄 *${prevN}* preventivi in attesa di risposta — ${euro(Number(dati.preventivi_in_attesa?.tot ?? 0))}`);
 
   const testa = `Buongiorno! La situazione di ${dataOggi(adesso)}${nomeAzienda ? ` — ${nomeAzienda}` : ""}:`;
   if (righe.length === 0) return `${testa}\n\nTutto tranquillo: nessuna scadenza o allarme.`;

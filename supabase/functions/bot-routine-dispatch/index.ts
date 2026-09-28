@@ -12,6 +12,12 @@ import { componiReportMattino, type DatiReport } from "../_shared/reportMattino.
 import { componiTodoOperaio, type CantiereTodo } from "../_shared/todoOperaio.ts";
 import { componiAvvisi, type DatiAvvisi } from "../_shared/avvisiOperativi.ts";
 import { appuntamentiImminenti, type AppuntamentoRow, componiPromemoriaAppuntamento } from "../_shared/promemoriaAppuntamento.ts";
+import { messaggioProattivoAI } from "../_shared/messaggioProattivoAI.ts";
+
+/** L'AqI scrive il messaggio, se non è stata disattivata nella routine. */
+function usaAI(r: RoutineRow): boolean {
+  return r.regole?.ai !== false;
+}
 
 interface Esito { sent: number; skipped: number; failed: number; }
 const vuoto = (): Esito => ({ sent: 0, skipped: 0, failed: 0 });
@@ -122,7 +128,18 @@ async function eseguiReportMattino(supabase: DB, r: RoutineRow, now: Date, oggi:
   if (destinatari.length === 0) { e.skipped++; return e; }
   const { data: comp } = await supabase.from("companies").select("name").eq("id", r.company_id).maybeSingle();
   const { data: dati } = await supabase.rpc("bot_report_mattino_dati", { p_company_id: r.company_id });
-  const testo = componiReportMattino(comp?.name ?? null, (dati ?? {}) as DatiReport, now);
+  let testo = componiReportMattino(comp?.name ?? null, (dati ?? {}) as DatiReport, now);
+  if (usaAI(r)) {
+    testo = await messaggioProattivoAI({
+      supabase,
+      taskKey: "bot_operativo_titolare",
+      companyId: r.company_id,
+      istruzioni: "È il riepilogo del mattino per il titolare. Metti in cima le cose che chiedono un'azione oggi (incassi in ritardo, materiale sotto scorta, preventivi da ricontattare). Se ci sono appuntamenti, elencali con l'ora. Chiudi con una sola riga sulla priorità del giorno. Massimo 8-9 righe.",
+      dati: dati ?? {},
+      testoBase: testo,
+      maxTokens: 700,
+    });
+  }
   for (const { userId, phone } of destinatari) {
     if (!force && await giaMandato(supabase, r.company_id, oggi, "report_mattino", userId)) { e.skipped++; continue; }
     const esito = await invia(supabase, r.wa_number_id, r.company_id, phone, testo, r.template_nome);
@@ -196,7 +213,18 @@ async function eseguiTodoOperaio(supabase: DB, r: RoutineRow, oggi: string, forc
       const conChi = [...(utentiPerOrdine.get(oid) ?? [])].filter((u) => u !== userId).map((u) => nomeBreve.get(u) ?? "collega");
       return { titolo: info.titolo, indirizzo: info.indirizzo, descrizione: info.descrizione, conChi };
     });
-    const testo = componiTodoOperaio(nomeCompleto.get(userId) ?? null, cantieri);
+    let testo = componiTodoOperaio(nomeCompleto.get(userId) ?? null, cantieri);
+    if (usaAI(r)) {
+      testo = await messaggioProattivoAI({
+        supabase,
+        taskKey: "bot_operativo_operaio",
+        companyId: r.company_id,
+        istruzioni: "Sono le cose del giorno per un operaio. Tienilo CORTISSIMO e pratico. Elenca i cantieri con indirizzo e con chi lavora, esattamente come nei dati. Non aggiungere lavorazioni o dettagli non presenti. Ricorda alla fine, in una riga, di mandare il rapportino a fine giornata.",
+        dati: { nome: nomeCompleto.get(userId) ?? null, cantieri },
+        testoBase: testo,
+        maxTokens: 400,
+      });
+    }
     const esito = await invia(supabase, r.wa_number_id, r.company_id, phone, testo, r.template_nome);
     await logga(supabase, r, oggi, "todo_operaio", userId, phone, esito);
     esito.ok ? e.sent++ : e.failed++;
@@ -212,9 +240,21 @@ async function eseguiAvvisi(supabase: DB, r: RoutineRow, oggi: string, force: bo
   const avvisi = componiAvvisi((dati ?? {}) as DatiAvvisi, oggi);
   if (avvisi.length === 0) { e.skipped++; return e; }
   for (const av of avvisi) {
+    let testo = av.testo;
+    if (usaAI(r)) {
+      testo = await messaggioProattivoAI({
+        supabase,
+        taskKey: "bot_operativo_titolare",
+        companyId: r.company_id,
+        istruzioni: "È un avviso al titolare. Rendilo chiaro e diretto e, in una riga, di' cosa conviene fare. Non cambiare importi, nomi, numeri o date.",
+        dati: av,
+        testoBase: av.testo,
+        maxTokens: 400,
+      });
+    }
     for (const { userId, phone } of destinatari) {
       if (!force && await giaMandato(supabase, r.company_id, oggi, av.chiave, userId)) { e.skipped++; continue; }
-      const esito = await invia(supabase, r.wa_number_id, r.company_id, phone, av.testo, r.template_nome);
+      const esito = await invia(supabase, r.wa_number_id, r.company_id, phone, testo, r.template_nome);
       await logga(supabase, r, oggi, av.chiave, userId, phone, esito);
       esito.ok ? e.sent++ : e.failed++;
     }

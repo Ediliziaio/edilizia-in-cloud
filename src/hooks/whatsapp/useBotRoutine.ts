@@ -19,6 +19,8 @@ export interface BotRoutineRegole {
   sotto_scorta?: boolean;
   preventivo_giorni?: number;
   anticipo_min?: number;
+  /** L'AqI scrive il testo (più curato). Assente = attivo. */
+  ai?: boolean;
 }
 
 export interface BotRoutine {
