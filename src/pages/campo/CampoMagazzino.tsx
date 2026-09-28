@@ -16,12 +16,17 @@
  */
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Package, AlertTriangle, Minus, Plus, Loader2, Warehouse, RefreshCcw, Search } from "lucide-react";
+import { Package, AlertTriangle, Minus, Plus, Loader2, Warehouse, RefreshCcw, Search, ShoppingCart, Check, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
+import { useCampoAssignments } from "@/hooks/campo/useCampoAssignments";
+import { usePrelievoRegistra, type RigaPrelievo } from "@/hooks/campo/useCampoPrelievo";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Textarea } from "@/components/ui/textarea";
 
 type Tab = "furgone" | "magazzino";
 
@@ -50,6 +55,16 @@ export default function CampoMagazzino() {
   const [activeTab, setActiveTab] = useState<Tab>("furgone");
   const [segnalazioneId, setSegnalazioneId] = useState<string | null>(null);
   const [ricerca, setRicerca] = useState("");
+  // Prelievo: carrello (stockId → quantità), commessa e note.
+  const permissions = usePermissions();
+  const puoPrelevare = permissions.canViewWarehouse === true;
+  const [cart, setCart] = useState<Record<string, number>>({});
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [commessaId, setCommessaId] = useState<string | null>(null);
+  const [notePrelievo, setNotePrelievo] = useState("");
+  const assegnazioniQuery = useCampoAssignments();
+  const assegnazioni = assegnazioniQuery.data ?? [];
+  const prelievoMut = usePrelievoRegistra();
 
   // Scorte furgone personali
   const scorteQuery = useQuery({
@@ -86,7 +101,8 @@ export default function CampoMagazzino() {
     staleTime: 60_000,
   });
 
-  const stockFiltrato = (stockQuery.data ?? []).filter((r) => {
+  const stockList = stockQuery.data ?? [];
+  const stockFiltrato = stockList.filter((r) => {
     if (!ricerca.trim()) return true;
     const q = ricerca.toLowerCase();
     return (
@@ -95,6 +111,41 @@ export default function CampoMagazzino() {
       (r.internal_code ?? "").toLowerCase().includes(q)
     );
   });
+
+  // Carrello prelievo
+  const stockById = new Map(stockList.map((r) => [r.id, r]));
+  const cartEntries = Object.entries(cart).filter(([, q]) => q > 0);
+  const cartCount = cartEntries.reduce((n, [, q]) => n + q, 0);
+
+  const setCartQta = (item: StockRow, qta: number) => {
+    const disp = item.quantity_available ?? item.quantity ?? 0;
+    const clamped = Math.max(0, Math.min(qta, disp));
+    setCart((c) => {
+      const next = { ...c };
+      if (clamped <= 0) delete next[item.id];
+      else next[item.id] = clamped;
+      return next;
+    });
+  };
+
+  const confermaPrelievo = () => {
+    const righe: RigaPrelievo[] = cartEntries.map(([id, q]) => {
+      const it = stockById.get(id);
+      return { stock_item_id: id, name: it?.name || it?.description || "Articolo", quantita: q, unita: null };
+    });
+    if (righe.length === 0) return;
+    prelievoMut.mutate(
+      { orderId: commessaId, righe, note: notePrelievo.trim() || null },
+      {
+        onSuccess: (esito) => {
+          if (esito.stato === "consegnato") toast.success("Prelevato: giacenza aggiornata");
+          else toast.success("Richiesta inviata all'ufficio", { description: "Il prelievo sarà scaricato dopo la conferma." });
+          setCart({}); setNotePrelievo(""); setCommessaId(null); setSheetOpen(false);
+        },
+        onError: (e: unknown) => toast.error("Prelievo non riuscito", { description: e instanceof Error ? e.message : "Riprova." }),
+      },
+    );
+  };
 
   const updateQtaMutation = useMutation({
     mutationFn: async ({ id, delta }: { id: string; delta: number }) => {
@@ -309,12 +360,13 @@ export default function CampoMagazzino() {
                 {stockFiltrato.length === 0 ? (
                   <p className="py-10 text-center text-sm text-muted-foreground">Nessun materiale per "{ricerca}"</p>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-3 pb-24">
                     {stockFiltrato.map((item) => {
                       const disponibile = item.quantity_available ?? item.quantity ?? 0;
                       const scarso = item.min_stock_level != null && disponibile <= item.min_stock_level;
+                      const inCart = cart[item.id] ?? 0;
                       return (
-                        <div key={item.id} className="bg-muted border border-border rounded-2xl p-4">
+                        <div key={item.id} className={cn("bg-muted border rounded-2xl p-4", inCart > 0 ? "border-primary" : "border-border")}>
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
                               <p className="font-medium text-foreground truncate">{item.name || item.description || "Articolo"}</p>
@@ -329,6 +381,24 @@ export default function CampoMagazzino() {
                               <p className="text-[10px] text-muted-foreground">disponibili</p>
                             </div>
                           </div>
+                          {puoPrelevare && disponibile > 0 && (
+                            <div className="mt-3 flex items-center justify-between gap-2 border-t border-border pt-3">
+                              <span className="text-xs text-muted-foreground">Prelevo</span>
+                              <div className="flex items-center gap-2">
+                                <button onClick={() => setCartQta(item, inCart - 1)} disabled={inCart <= 0}
+                                  aria-label={`Togli ${item.name ?? "articolo"}`}
+                                  className="w-11 h-11 rounded-xl bg-background border border-border flex items-center justify-center active:bg-muted disabled:opacity-30">
+                                  <Minus className="w-4 h-4" />
+                                </button>
+                                <span className="w-8 text-center text-xl font-bold tabular-nums">{inCart}</span>
+                                <button onClick={() => setCartQta(item, inCart + 1)} disabled={inCart >= disponibile}
+                                  aria-label={`Aggiungi ${item.name ?? "articolo"}`}
+                                  className="w-11 h-11 rounded-xl bg-primary text-primary-foreground flex items-center justify-center active:opacity-80 disabled:opacity-30">
+                                  <Plus className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
@@ -339,6 +409,67 @@ export default function CampoMagazzino() {
           </>
         )}
       </div>
+
+      {/* Barra fissa: apre la conferma prelievo */}
+      {activeTab === "magazzino" && puoPrelevare && cartCount > 0 && (
+        <div className="fixed inset-x-0 bottom-[calc(4.35rem+env(safe-area-inset-bottom))] z-40 px-4 md:bottom-4">
+          <button
+            onClick={() => setSheetOpen(true)}
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-base font-bold text-primary-foreground shadow-lg active:opacity-90"
+          >
+            <ShoppingCart className="h-5 w-5" />
+            Preleva {cartCount} {cartCount === 1 ? "pezzo" : "pezzi"}
+          </button>
+        </div>
+      )}
+
+      {/* Conferma prelievo */}
+      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+        <SheetContent side="bottom" className="max-h-[85dvh] overflow-y-auto rounded-t-2xl">
+          <SheetHeader>
+            <SheetTitle>Prelievo — {cartCount} {cartCount === 1 ? "pezzo" : "pezzi"}</SheetTitle>
+          </SheetHeader>
+          <div className="mt-4 space-y-4">
+            <div className="space-y-2">
+              {cartEntries.map(([id, q]) => {
+                const it = stockById.get(id);
+                return (
+                  <div key={id} className="flex items-center justify-between gap-2 rounded-xl border border-border p-3 text-sm">
+                    <span className="min-w-0 truncate font-medium">{it?.name || it?.description || "Articolo"}</span>
+                    <div className="flex shrink-0 items-center gap-3">
+                      <span className="text-lg font-bold tabular-nums">{q}</span>
+                      <button onClick={() => it && setCartQta(it, 0)} aria-label="Rimuovi" className="text-muted-foreground"><X className="h-4 w-4" /></button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Per quale cantiere?</p>
+              <div className="flex flex-wrap gap-2">
+                <button onClick={() => setCommessaId(null)} className={cn("rounded-full border px-3 py-2 text-sm", commessaId === null ? "border-primary bg-primary/10 text-primary" : "border-border")}>Nessuno</button>
+                {assegnazioni.map((a) => (
+                  <button key={a.order.id} onClick={() => setCommessaId(a.order.id)}
+                    className={cn("rounded-full border px-3 py-2 text-sm", commessaId === a.order.id ? "border-primary bg-primary/10 text-primary" : "border-border")}>
+                    {a.order.order_code || (a.order.description ?? "Cantiere").slice(0, 24)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <p className="text-sm font-medium">Note (facoltative)</p>
+              <Textarea value={notePrelievo} onChange={(e) => setNotePrelievo(e.target.value)} rows={2} placeholder="Es. per il ponteggio lato strada" />
+            </div>
+
+            <Button className="h-12 w-full text-base" onClick={confermaPrelievo} disabled={prelievoMut.isPending || cartCount === 0}>
+              {prelievoMut.isPending ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Check className="mr-2 h-5 w-5" />}
+              Conferma prelievo
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
