@@ -59,7 +59,9 @@ export function useMieiPrelievi(limit = 20) {
     enabled: !!user?.id,
     staleTime: 30_000,
     queryFn: async (): Promise<PrelievoRow[]> => {
-      const { data, error } = await supabase
+      // prelievi_campo non è nei tipi generati: client non tipizzato come per surveys.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
         .from("prelievi_campo")
         .select("id, data, stato, righe, note, order_id, ddt_richiesto, documento_numero")
         .eq("operaio_id", user!.id)

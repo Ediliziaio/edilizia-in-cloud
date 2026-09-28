@@ -132,7 +132,7 @@ export default function CampoMagazzino() {
   };
 
   const confermaPrelievo = () => {
-    const righe: RigaPrelievo[] = cartEntries.map(([id, q]) => {
+    const righe: RigaPrelievo[] = cartEntries.map(([id, q]): RigaPrelievo => {
       const it = stockById.get(id);
       return { stock_item_id: id, name: it?.name || it?.description || "Articolo", quantita: q, unita: null };
     });
