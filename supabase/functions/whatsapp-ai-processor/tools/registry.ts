@@ -58,6 +58,7 @@ import {
 
 // Ufficio e amministratore
 import { inviaPdfPreventivo, inviaPdfPreventivoDef } from "./ufficio/invia_pdf_preventivo.ts";
+import { inviaPreventivoBagno, inviaPreventivoBagnoDef } from "./ufficio/invia_preventivo_bagno.ts";
 import { creaPreventivoAi, creaPreventivoAiDef } from "./ufficio/crea_preventivo_ai.ts";
 
 // Shared (cross-ruolo)
@@ -87,8 +88,9 @@ export const TOOLS_REGISTRY: ToolDef[] = [
   { ...approvaRichiestaDef, handler: approvaRichiesta as ToolDef["handler"] },
   { ...scostamentiCommesseDef, handler: scostamentiCommesse as ToolDef["handler"] },
 
-  // Ufficio e amministratore (2)
+  // Ufficio e amministratore (3)
   { ...inviaPdfPreventivoDef, handler: inviaPdfPreventivo as ToolDef["handler"] },
+  { ...inviaPreventivoBagnoDef, handler: inviaPreventivoBagno as ToolDef["handler"] },
   { ...creaPreventivoAiDef, handler: creaPreventivoAi as ToolDef["handler"] },
 ];
 
