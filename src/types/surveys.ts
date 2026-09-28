@@ -256,6 +256,11 @@ export interface SurveyRow {
   company_id: string;
   template_id: string;
   client_id: string | null;
+  /** Contatto CRM (prospect non ancora cliente) collegato al sopralluogo. */
+  contact_id: string | null;
+  /** Opportunità CRM collegata; il suo contatto è ereditato in contact_id. */
+  opportunity_id: string | null;
+  order_id: string | null;
   technician_id: string | null;
   code: string;
   mode: SurveyMode;

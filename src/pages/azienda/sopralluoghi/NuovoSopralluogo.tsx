@@ -8,8 +8,12 @@
 import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { listTemplates, createSurvey } from "@/lib/api/surveys";
+import {
+  listTemplates, createSurvey,
+  listCrmContacts, listCrmOpportunities, nomeContatto,
+} from "@/lib/api/surveys";
 import { supabase } from "@/integrations/supabase/client";
+import { useCompanyCustomers } from "@/hooks/useCompanyCustomers";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -22,11 +26,13 @@ import {
 } from "@/components/ui/select";
 import {
   ArrowLeft, ArrowRight, ClipboardList, Check, Loader2, MapPin, Calendar,
-  Users, Briefcase, AlertCircle,
+  Users, Briefcase, AlertCircle, UserRound, Target, Search,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+
+type LinkMode = "cliente" | "prospect";
 
 const CATEGORY_ICON: Record<string, string> = {
   infissi: "🪟",
@@ -59,6 +65,13 @@ export default function NuovoSopralluogo() {
   const [zip, setZip] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
   const [notes, setNotes] = useState("");
+
+  // A chi si riferisce: cliente esistente OPPURE contatto/opportunità (prospect).
+  // Chi arriva con ?client= parte da "cliente"; se non c'è nulla, si sceglie.
+  const [linkMode, setLinkMode] = useState<LinkMode>("cliente");
+  const [contactId, setContactId] = useState<string | null>(null);
+  const [opportunityId, setOpportunityId] = useState<string | null>(null);
+  const [crmSearch, setCrmSearch] = useState("");
 
   const { data: templates, isLoading: tplLoading, isError: tplError, refetch: tplRefetch } = useQuery({
     queryKey: ["sopralluoghi-templates"],
@@ -107,12 +120,57 @@ export default function NuovoSopralluogo() {
     },
   });
 
+  // Clienti dell'azienda (per la modalità «Cliente»), via hook canonico.
+  const { data: customers = [] } = useCompanyCustomers(companyId, linkMode === "cliente");
+
+  // Contatti e opportunità del CRM (per la modalità «Contatto/Opportunità»).
+  const { data: crmContacts = [] } = useQuery({
+    queryKey: ["survey-crm-contacts", companyId, crmSearch],
+    enabled: !!companyId && linkMode === "prospect",
+    queryFn: () => listCrmContacts(companyId!, crmSearch, 50),
+  });
+  const { data: crmOpps = [] } = useQuery({
+    queryKey: ["survey-crm-opps", companyId, crmSearch],
+    enabled: !!companyId && linkMode === "prospect",
+    queryFn: () => listCrmOpportunities(companyId!, crmSearch, 50),
+  });
+
+  // Cambio modalità: azzera i collegamenti dell'altra modalità (un cliente NON
+  // è un contatto: niente combinazioni ambigue).
+  const cambiaModalita = (m: LinkMode) => {
+    setLinkMode(m);
+    if (m === "cliente") { setContactId(null); setOpportunityId(null); }
+    else { setClientId(null); }
+  };
+
+  // Scelta di un'opportunità: eredita in automatico il suo contatto e
+  // precompila l'indirizzo se vuoto.
+  const scegliOpportunita = (id: string | null) => {
+    setOpportunityId(id);
+    const opp = crmOpps.find((o) => o.id === id);
+    if (opp?.contact) {
+      setContactId(opp.contact.id);
+      if (!address && opp.contact.address) setAddress(opp.contact.address);
+      if (!city && opp.contact.city) setCity(opp.contact.city);
+    }
+  };
+  const scegliContatto = (id: string | null) => {
+    setContactId(id);
+    const c = crmContacts.find((x) => x.id === id) ?? crmOpps.find((o) => o.contact?.id === id)?.contact ?? null;
+    if (c) {
+      if (!address && c.address) setAddress(c.address);
+      if (!city && c.city) setCity(c.city);
+    }
+  };
+
   const createMutation = useMutation({
     mutationFn: async () => {
       if (!selectedTemplate) throw new Error("Seleziona un template");
       return createSurvey({
         template_id: selectedTemplate,
-        client_id: clientId,
+        client_id: linkMode === "cliente" ? clientId : null,
+        contact_id: linkMode === "prospect" ? contactId : null,
+        opportunity_id: linkMode === "prospect" ? opportunityId : null,
         order_id: orderId,
         technician_id: technicianId,
         scheduled_at: scheduledAt || null,
@@ -158,7 +216,7 @@ export default function NuovoSopralluogo() {
               {step > n ? <Check className="h-4 w-4" /> : n}
             </div>
             <span className={cn("text-xs hidden sm:inline", step >= n ? "font-semibold" : "text-muted-foreground")}>
-              {n === 1 ? "Template" : n === 2 ? "Cliente / Commessa" : "Dettagli"}
+              {n === 1 ? "Template" : n === 2 ? "Collegamento" : "Dettagli"}
             </span>
             {i < 2 && <div className={cn("flex-1 h-0.5", step > n ? "bg-orange-500" : "bg-muted")} />}
           </div>
@@ -222,17 +280,103 @@ export default function NuovoSopralluogo() {
         </Card>
       )}
 
-      {/* STEP 2 — Cliente / Commessa */}
+      {/* STEP 2 — A chi si riferisce (cliente OPPURE contatto/opportunità) + commessa */}
       {step === 2 && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <Users className="h-4 w-4 text-orange-600" />
-              Cliente e Commessa
+              A chi si riferisce
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div>
+            {/* Modalità: cliente esistente oppure prospect (contatto/opportunità). */}
+            <div className="grid grid-cols-2 gap-2">
+              {([
+                { key: "cliente" as const, label: "Cliente", sub: "già a sistema", icon: UserRound },
+                { key: "prospect" as const, label: "Contatto / Opportunità", sub: "prospect dal CRM", icon: Target },
+              ]).map((m) => {
+                const on = linkMode === m.key;
+                const Icona = m.icon;
+                return (
+                  <button
+                    key={m.key}
+                    type="button"
+                    onClick={() => cambiaModalita(m.key)}
+                    className={cn(
+                      "rounded-xl border-2 p-3 text-left transition-all",
+                      on ? "border-orange-500 bg-orange-50 dark:bg-orange-950/30" : "border-muted hover:border-orange-300 hover:bg-muted/30",
+                    )}
+                  >
+                    <Icona className={cn("h-4 w-4 mb-1", on ? "text-orange-600" : "text-muted-foreground")} />
+                    <p className="text-sm font-semibold leading-tight">{m.label}</p>
+                    <p className="text-[11px] text-muted-foreground">{m.sub}</p>
+                  </button>
+                );
+              })}
+            </div>
+
+            {linkMode === "cliente" ? (
+              <div>
+                <Label className="text-xs flex items-center gap-1"><UserRound className="h-3 w-3" /> Cliente (opzionale)</Label>
+                <Select value={clientId ?? "none"} onValueChange={(v) => setClientId(v === "none" ? null : v)}>
+                  <SelectTrigger><SelectValue placeholder="Nessun cliente" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nessun cliente</SelectItem>
+                    {customers.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {[c.first_name, c.last_name].filter(Boolean).join(" ") || c.email || c.id.slice(0, 8)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground mt-1">Oppure lascialo vuoto e collega solo una commessa qui sotto.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <Input value={crmSearch} onChange={(e) => setCrmSearch(e.target.value)} placeholder="Cerca contatto o opportunità…" className="pl-9 h-9" />
+                </div>
+                <div>
+                  <Label className="text-xs flex items-center gap-1"><Target className="h-3 w-3" /> Opportunità (opzionale)</Label>
+                  <Select value={opportunityId ?? "none"} onValueChange={(v) => scegliOpportunita(v === "none" ? null : v)}>
+                    <SelectTrigger><SelectValue placeholder="Nessuna opportunità" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nessuna opportunità</SelectItem>
+                      {crmOpps.map((o) => {
+                        const nome = o.name || "Opportunità";
+                        const contatto = nomeContatto(o.contact);
+                        const mostraContatto = contatto && !nome.toLowerCase().includes(contatto.toLowerCase());
+                        return (
+                          <SelectItem key={o.id} value={o.id}>
+                            {nome}{mostraContatto ? ` — ${contatto}` : ""}
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[11px] text-muted-foreground mt-1">Scegliendo un'opportunità il suo contatto si collega da solo.</p>
+                </div>
+                <div>
+                  <Label className="text-xs flex items-center gap-1"><UserRound className="h-3 w-3" /> Contatto</Label>
+                  <Select value={contactId ?? "none"} onValueChange={(v) => scegliContatto(v === "none" ? null : v)}>
+                    <SelectTrigger><SelectValue placeholder="Nessun contatto" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nessun contatto</SelectItem>
+                      {crmContacts.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {nomeContatto(c) || c.phone || c.email || c.id.slice(0, 8)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+
+            {/* Commessa: sempre opzionale, indipendente dalla controparte. */}
+            <div className="border-t pt-4">
               <Label className="text-xs flex items-center gap-1">
                 <Briefcase className="h-3 w-3" />
                 Commessa associata (opzionale)
@@ -242,10 +386,11 @@ export default function NuovoSopralluogo() {
                   setOrderId(null);
                 } else {
                   setOrderId(v);
-                  // Pre-popola client + indirizzo se commessa selezionata
                   const order = orders?.find((o) => o.id === v);
                   if (order) {
-                    if (order.customer_id) setClientId(order.customer_id);
+                    // In modalità «cliente» la commessa può dare il cliente; in
+                    // modalità prospect NON tocchiamo la controparte.
+                    if (linkMode === "cliente" && order.customer_id) setClientId(order.customer_id);
                     const orderAddr = order.work_address ?? order.indirizzo_lavori ?? order.client_address;
                     if (orderAddr && !address) setAddress(orderAddr);
                   }

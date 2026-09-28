@@ -36,7 +36,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   ArrowLeft, ClipboardList, Plus, Save, FileSignature, FileText, Sparkles,
-  Loader2, MapPin, Calendar, UserPlus, AlertCircle, CheckCircle2,
+  Loader2, MapPin, Calendar, UserPlus, AlertCircle, CheckCircle2, UserRound, Target,
 } from "lucide-react";
 import { SurveyAssignDialog } from "@/components/sopralluoghi/SurveyAssignDialog";
 import { format } from "date-fns";
@@ -149,6 +149,30 @@ export default function SopralluogoEditor() {
     queryKey: ["sopralluogo", id],
     enabled: !!id,
     queryFn: () => getSurvey(id!),
+  });
+
+  // A chi si riferisce il sopralluogo: opportunità, contatto o cliente. Serve
+  // solo per mostrarlo in testata (il collegamento si sceglie alla creazione).
+  const svLink = detail?.survey;
+  const { data: riferitoA } = useQuery({
+    queryKey: ["sopralluogo-riferito-a", svLink?.id, svLink?.opportunity_id, svLink?.contact_id, svLink?.client_id],
+    enabled: !!svLink && !!(svLink.opportunity_id || svLink.contact_id || svLink.client_id),
+    queryFn: async (): Promise<{ tipo: string; nome: string; to: string | null } | null> => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const db = supabase as any;
+      const nomePersona = (r: { first_name?: string | null; last_name?: string | null } | null | undefined) =>
+        [r?.first_name, r?.last_name].filter(Boolean).join(" ").trim();
+      if (svLink!.opportunity_id) {
+        const { data } = await db.from("marketing_opportunities").select("name").eq("id", svLink!.opportunity_id).maybeSingle();
+        return { tipo: "Opportunità", nome: data?.name || "Opportunità", to: "/azienda/marketing/opportunita" };
+      }
+      if (svLink!.contact_id) {
+        const { data } = await db.from("marketing_contacts").select("first_name, last_name").eq("id", svLink!.contact_id).maybeSingle();
+        return { tipo: "Contatto", nome: nomePersona(data) || "Contatto", to: "/azienda/marketing/contatti" };
+      }
+      const { data } = await db.from("profiles").select("first_name, last_name").eq("id", svLink!.client_id).maybeSingle();
+      return { tipo: "Cliente", nome: nomePersona(data) || "Cliente", to: null };
+    },
   });
 
   // Sync state da server al primo load
@@ -502,9 +526,22 @@ export default function SopralluogoEditor() {
 
       <div className="container mx-auto p-3 md:p-4 space-y-3 max-w-4xl">
         {/* Address quick info */}
-        {(survey.address || survey.scheduled_at) && (
+        {(survey.address || survey.scheduled_at || riferitoA) && (
           <Card>
             <CardContent className="p-3 flex items-center gap-3 flex-wrap text-xs">
+              {riferitoA && (
+                riferitoA.to ? (
+                  <Link to={riferitoA.to} className="flex items-center gap-1 text-orange-600 hover:underline">
+                    {riferitoA.tipo === "Opportunità" ? <Target className="h-3 w-3" /> : <UserRound className="h-3 w-3" />}
+                    {riferitoA.tipo}: {riferitoA.nome}
+                  </Link>
+                ) : (
+                  <span className="flex items-center gap-1">
+                    <UserRound className="h-3 w-3 text-orange-600" />
+                    {riferitoA.tipo}: {riferitoA.nome}
+                  </span>
+                )
+              )}
               {survey.address && (
                 <span className="flex items-center gap-1">
                   <MapPin className="h-3 w-3 text-orange-600" />
