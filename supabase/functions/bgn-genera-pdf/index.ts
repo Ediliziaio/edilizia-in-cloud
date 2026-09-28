@@ -85,14 +85,22 @@ Deno.serve(async (req) => {
       unit_of_measure: r.unit_of_measure ?? null, item_type: r.item_type ?? null,
     }));
 
-    // Prima il modello VERO (@react-pdf, 15+ pagine); se fallisce sui limiti
-    // dell'edge, ripiego sul PDF semplice (pdf-lib) così l'utente riceve comunque.
+    // Il modello VERO (@react-pdf, 15+ pagine) è pesante e con tutte le foto va
+    // oltre la memoria dell'edge (worker error, non catturabile). Di default si
+    // usa il PDF semplice (pdf-lib), affidabile; il render reale si attiva solo
+    // con reale=true (per i test / documenti leggeri), con fallback se lancia.
     let bytes: Uint8Array;
     let pages = 0;
-    try {
-      bytes = await renderBagnoReale({ quote, items: items ?? [], template: tpl ?? {}, company: azienda ?? null });
-    } catch (e) {
-      console.error(JSON.stringify({ level: "warn", fn: "bgn-genera-pdf", passo: "render_reale_fallito_fallback", err: e instanceof Error ? e.message : String(e) }));
+    if (body?.reale === true) {
+      try {
+        bytes = await renderBagnoReale({ quote, items: items ?? [], template: tpl ?? {}, company: azienda ?? null });
+      } catch (e) {
+        console.error(JSON.stringify({ level: "warn", fn: "bgn-genera-pdf", passo: "render_reale_fallito_fallback", err: e instanceof Error ? e.message : String(e) }));
+        const r = await renderBagnoPdf({ quote, righe, template: tpl ?? {}, azienda: azienda ?? null });
+        bytes = r.bytes;
+        pages = r.pages;
+      }
+    } else {
       const r = await renderBagnoPdf({ quote, righe, template: tpl ?? {}, azienda: azienda ?? null });
       bytes = r.bytes;
       pages = r.pages;
