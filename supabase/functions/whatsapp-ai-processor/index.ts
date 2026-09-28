@@ -37,6 +37,7 @@ import {
   type PropostaDelGiro,
 } from "./silvio.ts";
 import { BOT_SUPERATI_DA_SILVIO, usaStrumentiSilvio } from "../_shared/botOperativoCatalogo.ts";
+import { pianoModello } from "../_shared/pianoModello.ts";
 import {
   type ConfigAgenteOperativo,
   type RuoloAgente,
@@ -496,9 +497,18 @@ Deno.serve(async (req) => {
     const vietatiOra = vietatiPer(configAgente, chiScrive, inizioTurno);
     const sbloccatiOra = sbloccatiPer(configAgente, chiScrive, inizioTurno);
 
+    // Che modello e quanti token per questo turno (28/09/2026): economico e
+    // stringato per le azioni operative (rapportino, DDT, conferme), forte e
+    // approfondito per le domande sui numeri. Prima ogni turno da admin usava
+    // Sonnet con ~24k token di prompt anche per un «segna fatto».
+    const piano = pianoModello(identity.kind, operationalTriage.intent);
+    // Il ponte verso Silvio si apre nei turni approfonditi, o comunque se c'è
+    // una proposta di Silvio in attesa di Sì (va eseguita).
+    const apriSilvio = piano.usaSilvio || !!statoSessione.conferma?.proposta_id;
+
     // Fase 1 — ufficio e amministratore hanno anche gli strumenti di Silvio.
     let ponte: PonteSilvio | null = null;
-    if (identity.kind !== "unknown" && usaStrumentiSilvio(identity.kind) && identity.user_id && identity.ruolo_silvio) {
+    if (apriSilvio && identity.kind !== "unknown" && usaStrumentiSilvio(identity.kind) && identity.user_id && identity.ruolo_silvio) {
       ponte = await apriPonteSilvio(supabase, {
         companyId: msg.company_id,
         userId: identity.user_id,
@@ -546,6 +556,9 @@ Deno.serve(async (req) => {
       `${adessoPerIlPrompt(inizioTurno)}\n\n${basePrompt}\n\n${buildOperationalSystemPrompt(operationalSettings)}\n\n${buildTriagePrompt(operationalTriage)}` +
       (istruzioni ? `\n\n${istruzioni}` : "") +
       (ponte ? `\n\n${ponte.promptExtra()}` : "") +
+      (piano.approfondito
+        ? "\n\n[RISPOSTA] È una domanda sui numeri o sulla situazione: rispondi in modo APPROFONDITO — dai le cifre, il contesto e cosa significano, non solo il numero secco. Se serve, usa gli strumenti per incrociare i dati."
+        : "\n\n[RISPOSTA] Rispondi brevissimo, l'essenziale.") +
       WA_SECURITY_GUARD;
 
     const messages: ChatMessage[] = [
@@ -569,13 +582,9 @@ Deno.serve(async (req) => {
     };
 
     const model = budget.model_override ?? OPENAI_MODEL_DEFAULT;
-    // MP05 — routing per task_kind. Titolare/admin → modello premium per
-    // ragionamento/tool calling complesso. Operaio/default → modello economico
-    // (deepseek/haiku) configurato in ai_model_config.
-    const taskKind =
-      identity.kind === "ufficio" || identity.kind === "admin"
-        ? ("bot_operativo_titolare" as const)
-        : ("bot_operativo_operaio" as const);
+    // MP05 + piano modello (28/09/2026): il task_kind lo decide il piano
+    // (forte per le analisi, economico per le azioni operative).
+    const taskKind = piano.taskKind;
     const conv: ChatMessage[] = [...messages];
     let finalText: string | null = null;
     // MP-P1 — true quando un tool (chiedi_conferma) ha già inviato una risposta
@@ -597,7 +606,7 @@ Deno.serve(async (req) => {
         tools: spec.length > 0 ? (spec as typeof openaiTools) : undefined,
         tool_choice: spec.length > 0 ? "auto" : undefined,
         temperature: configAgente?.temperatura ?? 0.5,
-        max_tokens: 800,
+        max_tokens: piano.maxTokens,
       });
 
       totalTokensIn += resp.usage?.prompt_tokens ?? 0;
