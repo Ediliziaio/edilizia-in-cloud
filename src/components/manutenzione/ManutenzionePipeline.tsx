@@ -14,6 +14,8 @@ import {
   STATI_MANUTENZIONE, STATO_MANUT_META, etichettaScadenza, type StatoManutenzione,
 } from "@/lib/manutenzione/statoManutenzione";
 
+export type PrioritaManutenzione = "alta" | "media" | "bassa" | null;
+
 export interface ImpiantoStato {
   id: string;
   tipo_impianto: string;
@@ -26,6 +28,11 @@ export interface ImpiantoStato {
   prossimaScadenza: string | null;
   prossimoPianoId: string | null;
   contrattoNome: string | null;
+  /** Tecnico del piano (l'impianto non ne ha uno proprio). */
+  tecnicoId: string | null;
+  tecnicoNome: string | null;
+  /** Urgenza derivata dallo stato (l'impianto non ha una priorità propria). */
+  priorita: PrioritaManutenzione;
 }
 
 function Card({ im, onOpen, onPianifica, onCompleta, busy }: {

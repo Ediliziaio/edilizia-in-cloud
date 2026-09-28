@@ -78,6 +78,13 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
     setVista(v);
     try { localStorage.setItem("manutenzione-vista", v); } catch { /* private mode */ }
   };
+  // Selezione righe (come l'assistenza): l'Esporta segue la selezione.
+  const [selezionati, setSelezionati] = useState<Set<string>>(new Set());
+  const toggleUno = (id: string) => setSelezionati((prev) => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
 
   const soloMie = permissions.onlyAssigned && user?.id;
 
@@ -148,6 +155,25 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
     return m;
   }, [piani]);
 
+  // Nome del tecnico assegnato (sta sul piano, non sull'impianto): risolvo gli
+  // id in nomi, come fa l'assistenza con l'assegnatario.
+  const tecnicoIds = useMemo(
+    () => [...new Set(piani.map((p) => p.tecnico_preferito).filter(Boolean))] as string[],
+    [piani],
+  );
+  const { data: tecnici = {} } = useQuery({
+    queryKey: ["manutenzione-tecnici", effectiveCompany?.id, tecnicoIds],
+    enabled: !!effectiveCompany?.id && tecnicoIds.length > 0,
+    staleTime: 10 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("profiles").select("id, first_name, last_name").in("id", tecnicoIds);
+      if (error) throw error;
+      const m: Record<string, string> = {};
+      (data ?? []).forEach((p) => { m[p.id] = [p.first_name, p.last_name].filter(Boolean).join(" ") || "Tecnico"; });
+      return m;
+    },
+  });
+
   const FREQ_GIORNI: Record<string, number> = { mensile: 30, trimestrale: 90, semestrale: 180, annuale: 365 };
 
   const pianificaMutation = useMutation({
@@ -209,6 +235,10 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
 
   const impiantiConStato = useMemo<ImpiantoStato[]>(() => impianti.map((im) => {
     const piano = pianoPerImpianto.get(im.id) ?? null;
+    const stato = statoManutenzione(piano?.prossima_scadenza ?? null, !!piano);
+    // Priorità = urgenza derivata dallo stato (l'impianto non ne ha una propria).
+    const priorita = stato === "scaduta" ? "alta" : stato === "in_scadenza" ? "media" : stato === "in_regola" ? "bassa" : null;
+    const tecnicoId = piano?.tecnico_preferito ?? null;
     return {
       id: im.id,
       tipo_impianto: im.tipo_impianto,
@@ -217,12 +247,15 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
       garanzia_scadenza: im.garanzia_scadenza,
       data_installazione: im.data_installazione,
       customer: im.customer,
-      stato: statoManutenzione(piano?.prossima_scadenza ?? null, !!piano),
+      stato,
       prossimaScadenza: piano?.prossima_scadenza ?? null,
       prossimoPianoId: piano?.id ?? null,
       contrattoNome: piano?.contratto?.nome_contratto ?? null,
+      tecnicoId,
+      tecnicoNome: tecnicoId ? (tecnici[tecnicoId] ?? null) : null,
+      priorita,
     };
-  }), [impianti, pianoPerImpianto]);
+  }), [impianti, pianoPerImpianto, tecnici]);
 
   const impiantiFiltrati = useMemo(() => impiantiConStato.filter((im) => {
     if (pill === "urgenti" && !(im.stato === "scaduta" || im.stato === "in_scadenza")) return false;
@@ -252,6 +285,20 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
     return sum + mensile;
   }, 0);
 
+  // Selezione "tutti": sugli impianti visibili (filtrati).
+  const tutteSelezionate = impiantiFiltrati.length > 0 && impiantiFiltrati.every((im) => selezionati.has(im.id));
+  const toggleTutti = () => setSelezionati((prev) => {
+    if (impiantiFiltrati.every((im) => prev.has(im.id))) {
+      const next = new Set(prev);
+      impiantiFiltrati.forEach((im) => next.delete(im.id));
+      return next;
+    }
+    return new Set([...prev, ...impiantiFiltrati.map((im) => im.id)]);
+  });
+  const impiantiDaEsportare = selezionati.size > 0
+    ? impiantiConStato.filter((im) => selezionati.has(im.id))
+    : impiantiFiltrati;
+
   const openImpianto = (id: string) => navigate(`/azienda/manutenzione/impianto/${id}`);
   const pianificaImpianto = (impiantoId: string) => {
     const piano = pianoPerImpianto.get(impiantoId);
@@ -269,7 +316,7 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
     <>
       <div className="hidden sm:contents">
         <ExportButton
-          getData={() => impiantiConStato.map((im) => ({
+          getData={() => impiantiDaEsportare.map((im) => ({
             tipo: im.tipo_impianto?.replace("_", " ") || "",
             marca: im.marca || "",
             modello: im.modello || "",
@@ -391,6 +438,14 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
         )}
       </div>
 
+      {/* Barra selezione (desktop): l'Esporta in alto segue la selezione. */}
+      {selezionati.size > 0 && !mostraContratti && (
+        <div className="hidden items-center justify-between gap-2 rounded-xl border border-orange-200 bg-orange-50/60 px-4 py-2 text-sm sm:flex">
+          <span className="font-medium text-orange-800">{selezionati.size} impianti selezionati · l'Esporta scarica solo questi</span>
+          <Button variant="ghost" size="sm" className="h-8" onClick={() => setSelezionati(new Set())}>Deseleziona</Button>
+        </div>
+      )}
+
       {/* Contenuto */}
       {mostraContratti ? (
         loadingContratti ? (
@@ -449,7 +504,14 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
           )}
           {/* Elenco: sempre su telefono; su desktop quando la vista è «tabella». */}
           <div className={vista === "kanban" ? "sm:hidden" : undefined}>
-            <ImpiantiTable impianti={impiantiFiltrati} onOpen={openImpianto} />
+            <ImpiantiTable
+              impianti={impiantiFiltrati}
+              onOpen={openImpianto}
+              selezionati={selezionati}
+              onToggle={toggleUno}
+              onToggleTutti={toggleTutti}
+              tutteSelezionate={tutteSelezionate}
+            />
           </div>
         </>
       )}
