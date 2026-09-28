@@ -1,15 +1,32 @@
 /**
  * Tabella degli impianti — la vista "elenco" della manutenzione, gemella della
- * tabella dell'assistenza. Riga cliccabile → scheda impianto. Su telefono le
- * righe diventano schede impilate.
+ * tabella dell'assistenza. Riga cliccabile → scheda impianto.
+ *
+ * Su telefono le righe sono compatte come le assistenze: un pallino per lo
+ * stato, titolo dell'impianto, cliente e scadenza in piccolo, e a destra lo
+ * stato in una parola. Da tablet in su torna la griglia con l'intestazione.
  */
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { Calendar, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
-import { STATO_MANUT_META } from "@/lib/manutenzione/statoManutenzione";
+import { STATO_MANUT_META, etichettaScadenza, type StatoManutenzione } from "@/lib/manutenzione/statoManutenzione";
 import type { ImpiantoStato } from "@/components/manutenzione/ManutenzionePipeline";
+
+// Colori del pallino / dell'etichetta a destra, per stato (come le assistenze).
+const DOT: Record<StatoManutenzione, string> = {
+  scaduta: "bg-red-500",
+  in_scadenza: "bg-amber-500",
+  in_regola: "bg-emerald-500",
+  senza_piano: "bg-slate-300",
+};
+const TESTO: Record<StatoManutenzione, string> = {
+  scaduta: "text-red-600",
+  in_scadenza: "text-amber-600",
+  in_regola: "text-emerald-600",
+  senza_piano: "text-slate-500",
+};
 
 function garanziaBadge(date: string | null) {
   if (!date) return null;
@@ -35,12 +52,39 @@ export function ImpiantiTable({ impianti, onOpen }: { impianti: ImpiantoStato[];
           const cliente = [im.customer?.first_name, im.customer?.last_name].filter(Boolean).join(" ") || "—";
           return (
             <li key={im.id}>
+              {/* Mobile: riga compatta come l'assistenza. */}
               <button
                 type="button"
                 onClick={() => onOpen(im.id)}
-                className="grid w-full grid-cols-1 gap-1.5 px-4 py-3 text-left transition-colors hover:bg-slate-50 sm:grid-cols-[1.6fr_1.2fr_1.1fr_0.9fr] sm:items-center sm:gap-2"
+                className="tap-compact flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors hover:bg-muted/50 active:bg-muted sm:hidden"
               >
-                {/* Impianto + cliente */}
+                <span className={cn("h-2 w-2 shrink-0 rounded-full", DOT[im.stato])} title={meta.label} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[13px] font-semibold capitalize leading-tight">
+                    {im.tipo_impianto.replace("_", " ")}
+                    {im.marca && <span className="ml-1 font-normal text-muted-foreground">{im.marca}{im.modello ? ` ${im.modello}` : ""}</span>}
+                  </p>
+                  <div className="flex min-w-0 items-center gap-1.5 text-[11px] text-muted-foreground">
+                    <span className="truncate">{cliente}</span>
+                    {im.prossimaScadenza && (
+                      <>
+                        <span aria-hidden>·</span>
+                        <span className="shrink-0">{etichettaScadenza(im.prossimaScadenza)}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+                <span className={cn("max-w-[5rem] shrink-0 text-right text-[11px] font-medium leading-tight", TESTO[im.stato])}>
+                  {meta.label}
+                </span>
+              </button>
+
+              {/* Tablet/desktop: griglia allineata all'intestazione. */}
+              <button
+                type="button"
+                onClick={() => onOpen(im.id)}
+                className="hidden w-full grid-cols-[1.6fr_1.2fr_1.1fr_0.9fr] items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-slate-50 sm:grid"
+              >
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold capitalize">
                     {im.tipo_impianto.replace("_", " ")}
@@ -51,7 +95,6 @@ export function ImpiantiTable({ impianti, onOpen }: { impianti: ImpiantoStato[];
                     {im.contrattoNome && <span className="truncate">· {im.contrattoNome}</span>}
                   </p>
                 </div>
-                {/* Prossima manutenzione */}
                 <div className="text-xs text-muted-foreground">
                   {im.prossimaScadenza ? (
                     <span className="inline-flex items-center gap-1">
@@ -59,11 +102,9 @@ export function ImpiantiTable({ impianti, onOpen }: { impianti: ImpiantoStato[];
                     </span>
                   ) : "—"}
                 </div>
-                {/* Stato manutenzione */}
                 <div>
                   <Badge className={cn("text-[10px]", meta.badge)}>{meta.label}</Badge>
                 </div>
-                {/* Garanzia */}
                 <div>{garanziaBadge(im.garanzia_scadenza)}</div>
               </button>
             </li>

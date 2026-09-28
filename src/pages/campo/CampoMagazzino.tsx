@@ -203,18 +203,18 @@ export default function CampoMagazzino() {
 
   return (
     <div className="flex flex-col">
-      {/* Tab selector */}
-      <div className="bg-muted border-b border-border px-4 py-3">
+      {/* Tab selector — resta in alto scorrendo; le inattive si distinguono. */}
+      <div className="sticky top-0 z-10 border-b border-border bg-background px-4 py-3">
         <div className="flex gap-2">
           {(["furgone", "magazzino", ...(puoPrelevare ? ["prelievi"] : [])] as Tab[]).map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={cn(
-                "flex-1 py-2 rounded-xl text-sm font-medium transition-colors",
+                "flex-1 min-h-11 rounded-xl text-sm font-medium transition-colors",
                 activeTab === tab
                   ? "bg-primary text-primary-foreground"
-                  : "bg-muted text-muted-foreground"
+                  : "border border-border bg-muted/40 text-foreground/70 active:bg-muted"
               )}
             >
               {tab === "furgone" ? "Furgone" : tab === "magazzino" ? "Magazzino" : "Prelievi"}
@@ -426,9 +426,9 @@ export default function CampoMagazzino() {
             ) : (
               <div className="space-y-3">
                 {mieiPrelievi.map((p) => {
-                  const meta = p.stato === "consegnato" ? { label: "Consegnato", cls: "bg-emerald-100 text-emerald-700" }
-                    : p.stato === "rifiutato" ? { label: "Rifiutato", cls: "bg-red-100 text-red-700" }
-                    : { label: "In attesa ufficio", cls: "bg-amber-100 text-amber-700" };
+                  const meta = p.stato === "consegnato" ? { label: "Consegnato", cls: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300" }
+                    : p.stato === "rifiutato" ? { label: "Rifiutato", cls: "bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-300" }
+                    : { label: "In attesa ufficio", cls: "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300" };
                   const quando = new Date(p.data).toLocaleDateString("it-IT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
                   return (
                     <div key={p.id} className="rounded-2xl border border-border bg-muted p-4">
@@ -457,7 +457,7 @@ export default function CampoMagazzino() {
                                 onError: (e) => toast.error("Non riuscito", { description: e instanceof Error ? e.message : "Riprova" }),
                               })}
                               disabled={richiediDdt.isPending}
-                              className="w-full rounded-xl border border-border py-2.5 text-sm font-medium active:bg-background disabled:opacity-50"
+                              className="w-full min-h-11 rounded-xl border border-border text-sm font-medium active:bg-background disabled:opacity-50"
                             >
                               Richiedi DDT
                             </button>
@@ -475,7 +475,7 @@ export default function CampoMagazzino() {
 
       {/* Barra fissa: apre la conferma prelievo */}
       {activeTab === "magazzino" && puoPrelevare && cartCount > 0 && (
-        <div className="fixed inset-x-0 bottom-[calc(4.35rem+env(safe-area-inset-bottom))] z-40 px-4 md:bottom-4">
+        <div className="fixed inset-x-0 bottom-[calc(5.75rem+env(safe-area-inset-bottom))] z-40 px-4 md:bottom-4">
           <button
             onClick={() => setSheetOpen(true)}
             className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-base font-bold text-primary-foreground shadow-lg active:opacity-90"

@@ -21,7 +21,6 @@ import { cn } from "@/lib/utils";
 import { NuovoImpiantoWizard } from "@/components/manutenzione/NuovoImpiantoWizard";
 import { StatTile } from "@/components/common/StatTile";
 import { ExportButton } from "@/components/shared/ExportButton";
-import { KpiMobili } from "@/components/mobile/FiltriMobile";
 import { ManutenzionePipeline, type ImpiantoStato } from "@/components/manutenzione/ManutenzionePipeline";
 import { ImpiantiTable } from "@/components/manutenzione/ImpiantiTable";
 import { statoManutenzione, type StatoManutenzione } from "@/lib/manutenzione/statoManutenzione";
@@ -355,16 +354,8 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
         })}
       </div>
 
-      {/* KPI mobile */}
-      <KpiMobili
-        className="sm:hidden"
-        voci={[
-          { label: "Da manutenere", valore: String(nScaduteInScadenza), tono: nScaduteInScadenza > 0 ? "text-orange-600" : undefined },
-          { label: "Canoni al mese", valore: `${mrr.toLocaleString("it-IT", { maximumFractionDigits: 0, useGrouping: true })} €` },
-        ]}
-      />
-
-      {/* KPI desktop — StatTile come l'assistenza */}
+      {/* KPI desktop — StatTile come l'assistenza. Su telefono i numeri stanno
+          già nelle pillole in alto (come le assistenze): niente riga in più. */}
       <div className="hidden grid-cols-2 gap-2 sm:grid sm:grid-cols-4 sm:gap-3">
         <StatTile label="Impianti" value={impianti.length} tone={impianti.length > 0 ? "blue" : "neutral"} />
         <StatTile label="Da manutenere" value={nScaduteInScadenza} hint="scadute o in scadenza" tone={nScaduteInScadenza > 0 ? "amber" : "neutral"} />
@@ -390,8 +381,10 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
             className="h-9 bg-white pl-10"
           />
         </div>
+        {/* Toggle elenco/kanban: solo da tablet in su. Su telefono la vista è
+            sempre l'elenco compatto, come le assistenze (la pipeline è desktop). */}
         {!mostraContratti && (
-          <ToggleGroup type="single" value={vista} onValueChange={(v) => v && cambiaVista(v as "tabella" | "kanban")} className="shrink-0">
+          <ToggleGroup type="single" value={vista} onValueChange={(v) => v && cambiaVista(v as "tabella" | "kanban")} className="hidden shrink-0 sm:flex">
             <ToggleGroupItem value="tabella" aria-label="Vista elenco" className="px-3"><List className="h-4 w-4" /></ToggleGroupItem>
             <ToggleGroupItem value="kanban" aria-label="Vista kanban" className="px-3"><Columns3 className="h-4 w-4" /></ToggleGroupItem>
           </ToggleGroup>
@@ -440,16 +433,25 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
             </div>
           )}
         </div>
-      ) : vista === "kanban" ? (
-        <ManutenzionePipeline
-          impianti={impiantiFiltrati}
-          onOpen={openImpianto}
-          onPianifica={pianificaImpianto}
-          onCompleta={completaImpianto}
-          busy={busy}
-        />
       ) : (
-        <ImpiantiTable impianti={impiantiFiltrati} onOpen={openImpianto} />
+        <>
+          {/* Kanban: solo desktop (come la pipeline dell'assistenza). */}
+          {vista === "kanban" && (
+            <div className="hidden sm:block">
+              <ManutenzionePipeline
+                impianti={impiantiFiltrati}
+                onOpen={openImpianto}
+                onPianifica={pianificaImpianto}
+                onCompleta={completaImpianto}
+                busy={busy}
+              />
+            </div>
+          )}
+          {/* Elenco: sempre su telefono; su desktop quando la vista è «tabella». */}
+          <div className={vista === "kanban" ? "sm:hidden" : undefined}>
+            <ImpiantiTable impianti={impiantiFiltrati} onOpen={openImpianto} />
+          </div>
+        </>
       )}
 
       <NuovoImpiantoWizard

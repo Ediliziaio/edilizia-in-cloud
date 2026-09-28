@@ -35,13 +35,13 @@ function Scheda({ i }: { i: InterventoCampo }) {
       <div className="mt-2 flex flex-wrap gap-2">
         {mappa && (
           <a href={mappa} target="_blank" rel="noopener noreferrer"
-             className="flex h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-blue-600 text-sm font-semibold text-white active:bg-blue-700">
+             className="flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-blue-600 text-sm font-semibold text-white active:bg-blue-700">
             <Navigation className="h-4 w-4" aria-hidden="true" />Portami lì
           </a>
         )}
         {tel && (
           <a href={tel} aria-label={`Chiama ${i.cliente ?? "il cliente"}`}
-             className="flex h-10 items-center justify-center gap-2 rounded-xl border px-4 text-sm font-semibold active:bg-muted">
+             className="flex h-11 items-center justify-center gap-2 rounded-xl border px-4 text-sm font-semibold active:bg-muted">
             <Phone className="h-4 w-4" aria-hidden="true" />Chiama
           </a>
         )}

@@ -92,7 +92,7 @@ export function ManutenzionePipeline({
       {STATI_MANUTENZIONE.map((s) => {
         const lista = perStato[s.key];
         return (
-          <div key={s.key} className="flex min-h-[220px] flex-col rounded-xl border border-border bg-muted/30 p-2">
+          <div key={s.key} className="flex min-h-[72px] flex-col rounded-xl border border-border bg-muted/30 p-2 sm:min-h-[220px]">
             <div className="mb-2 flex items-center justify-between gap-2 px-1">
               <span className="text-sm font-semibold">{s.label}</span>
               <Badge variant="secondary" className="text-xs">{lista.length}</Badge>

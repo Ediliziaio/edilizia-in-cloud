@@ -81,8 +81,13 @@ export default function AssistenzaPage() {
             );
           })}
         </div>
-        {/* Qui atterrano i pulsanti della pagina attiva (portal dal figlio). */}
-        <div ref={setActionsSlot} className="flex items-center gap-2" />
+        {/* Qui atterrano i pulsanti della pagina attiva (portal dal figlio). Su
+            telefono la riga va a capo: prende tutta la larghezza e il pulsante
+            «Nuovo» diventa un CTA pieno, invece di restare solo e storto. */}
+        <div
+          ref={setActionsSlot}
+          className="flex items-center gap-2 max-sm:w-full max-sm:[&>button]:flex-1"
+        />
       </div>
 
       <Suspense fallback={<Skeleton className="h-64 w-full rounded-2xl" />}>
