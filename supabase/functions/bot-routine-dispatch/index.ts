@@ -9,7 +9,7 @@ import { corsHeaders } from "../_shared/headers.ts";
 import { chiamataInternaValida, rispostaNonAutorizzata } from "../_shared/chiamataInterna.ts";
 import { routineDovutaOra } from "../_shared/routineOperativa.ts";
 import { componiReportMattino, type DatiReport } from "../_shared/reportMattino.ts";
-import { componiTodoOperaio } from "../_shared/todoOperaio.ts";
+import { componiTodoOperaio, type CantiereTodo } from "../_shared/todoOperaio.ts";
 
 interface Esito { sent: number; skipped: number; failed: number; }
 const vuoto = (): Esito => ({ sent: 0, skipped: 0, failed: 0 });
@@ -128,35 +128,73 @@ async function eseguiReportMattino(supabase: DB, r: RoutineRow, now: Date, oggi:
   return e;
 }
 
+interface OrdineInfo { titolo: string; indirizzo: string | null; descrizione: string | null; }
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type RigaAssegnazione = { user_id: string | null; order_id: string | null; orders?: any };
+
 async function eseguiTodoOperaio(supabase: DB, r: RoutineRow, oggi: string, force: boolean): Promise<Esito> {
   const e = vuoto();
-  // Assegnazioni di oggi, per operaio (stesso filtro del promemoria rapportino).
+  // Assegnazioni di oggi (stesso filtro del promemoria rapportino), con i dati
+  // del cantiere per dire dove e con chi si lavora.
   const { data: assegnazioni } = await supabase.from("order_campo_assignments")
-    .select("user_id, orders(order_code, description)")
+    .select("user_id, order_id, orders(order_code, description, work_description, tipo_lavoro, indirizzo_lavori, work_address, client_address, client_name)")
     .eq("company_id", r.company_id)
     .or(`data_inizio.is.null,data_inizio.lte.${oggi}`)
     .or(`data_fine_prevista.is.null,data_fine_prevista.gte.${oggi}`);
-  const perUtente = new Map<string, string[]>();
-  for (const a of (assegnazioni ?? []) as Array<{ user_id: string | null; orders?: { order_code?: string | null; description?: string | null } | null }>) {
-    if (!a.user_id) continue;
-    const label = [a.orders?.order_code, a.orders?.description].filter(Boolean).join(" - ") || "cantiere assegnato";
-    const arr = perUtente.get(a.user_id) ?? [];
-    arr.push(label);
-    perUtente.set(a.user_id, arr);
+
+  const infoOrdine = new Map<string, OrdineInfo>();
+  const utentiPerOrdine = new Map<string, Set<string>>();
+  const ordiniPerUtente = new Map<string, string[]>();
+  for (const a of (assegnazioni ?? []) as RigaAssegnazione[]) {
+    if (!a.user_id || !a.order_id) continue;
+    if (!infoOrdine.has(a.order_id)) {
+      const o = a.orders ?? {};
+      const titolo = [o.order_code, o.description || o.client_name || o.tipo_lavoro].filter(Boolean).join(" — ") || "cantiere assegnato";
+      const indirizzo = o.indirizzo_lavori || o.work_address || o.client_address || null;
+      const descrizione = o.work_description || (o.description && o.description !== titolo ? o.description : null) || null;
+      infoOrdine.set(a.order_id, { titolo, indirizzo, descrizione });
+    }
+    if (!utentiPerOrdine.has(a.order_id)) utentiPerOrdine.set(a.order_id, new Set());
+    utentiPerOrdine.get(a.order_id)!.add(a.user_id);
+    const arr = ordiniPerUtente.get(a.user_id) ?? [];
+    if (!arr.includes(a.order_id)) arr.push(a.order_id);
+    ordiniPerUtente.set(a.user_id, arr);
   }
-  if (perUtente.size === 0) { e.skipped++; return e; }
+  if (ordiniPerUtente.size === 0) { e.skipped++; return e; }
+
+  // Nomi + telefono di TUTTI gli assegnati (i nomi servono anche per «con chi»).
+  const tuttiUtenti = new Set<string>();
+  for (const s of utentiPerOrdine.values()) for (const u of s) tuttiUtenti.add(u);
   const { data: employees } = await supabase.from("employees")
-    .select("user_id, first_name, last_name, phone, phone_whatsapp")
-    .eq("company_id", r.company_id).eq("is_active", true).in("user_id", [...perUtente.keys()]);
-  for (const emp of (employees ?? []) as Array<{ user_id: string | null; first_name: string | null; last_name: string | null; phone: string | null; phone_whatsapp: string | null }>) {
+    .select("user_id, first_name, last_name, phone, phone_whatsapp, is_active")
+    .eq("company_id", r.company_id).in("user_id", [...tuttiUtenti]);
+  const nomeCompleto = new Map<string, string>();
+  const nomeBreve = new Map<string, string>();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const empPerUtente = new Map<string, any>();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const emp of (employees ?? []) as any[]) {
     if (!emp.user_id) continue;
+    const pieno = `${emp.first_name ?? ""} ${emp.last_name ?? ""}`.trim();
+    nomeCompleto.set(emp.user_id, pieno || "collega");
+    nomeBreve.set(emp.user_id, (emp.first_name ?? "").trim() || pieno.split(" ")[0] || "collega");
+    empPerUtente.set(emp.user_id, emp);
+  }
+
+  for (const [userId, ordini] of ordiniPerUtente) {
+    const emp = empPerUtente.get(userId);
+    if (!emp || emp.is_active === false) { e.skipped++; continue; }
     const phone = cleanPhone(emp.phone_whatsapp || emp.phone);
     if (!phone) { e.skipped++; continue; }
-    if (!force && await giaMandato(supabase, r.company_id, oggi, "todo_operaio", emp.user_id)) { e.skipped++; continue; }
-    const nome = `${emp.first_name ?? ""} ${emp.last_name ?? ""}`.trim() || null;
-    const testo = componiTodoOperaio(nome, perUtente.get(emp.user_id) ?? []);
+    if (!force && await giaMandato(supabase, r.company_id, oggi, "todo_operaio", userId)) { e.skipped++; continue; }
+    const cantieri: CantiereTodo[] = ordini.map((oid) => {
+      const info = infoOrdine.get(oid)!;
+      const conChi = [...(utentiPerOrdine.get(oid) ?? [])].filter((u) => u !== userId).map((u) => nomeBreve.get(u) ?? "collega");
+      return { titolo: info.titolo, indirizzo: info.indirizzo, descrizione: info.descrizione, conChi };
+    });
+    const testo = componiTodoOperaio(nomeCompleto.get(userId) ?? null, cantieri);
     const esito = await invia(supabase, r.wa_number_id, r.company_id, phone, testo, r.template_nome);
-    await logga(supabase, r, oggi, "todo_operaio", emp.user_id, phone, esito);
+    await logga(supabase, r, oggi, "todo_operaio", userId, phone, esito);
     esito.ok ? e.sent++ : e.failed++;
   }
   return e;
