@@ -34,6 +34,7 @@ const nodePrefix = {
 await esbuild.build({
   entryPoints: [path.join(here, "entry.tsx")],
   bundle: true,
+  minify: true,
   format: "esm",
   platform: "node",
   target: "es2022",
@@ -49,10 +50,12 @@ await esbuild.build({
     "@/lib/storage/fileRiservati": path.join(SH, "fileRiservati.ts"),
   },
   banner: {
+    // Nomi lunghi e unici: la minificazione genera nomi corti (_B, a, …) e
+    // collideva con quelli del banner.
     js: [
-      'import {Buffer as _B} from "node:buffer"; if(!globalThis.Buffer) globalThis.Buffer=_B;',
-      'import _proc from "node:process"; if(!globalThis.process) globalThis.process=_proc;',
-      'import {createRequire as _cr} from "node:module"; if(!globalThis.require) globalThis.require=_cr(import.meta.url);',
+      'import {Buffer as __bgnBuffer} from "node:buffer"; if(!globalThis.Buffer) globalThis.Buffer=__bgnBuffer;',
+      'import __bgnProcess from "node:process"; if(!globalThis.process) globalThis.process=__bgnProcess;',
+      'import {createRequire as __bgnCreateRequire} from "node:module"; if(!globalThis.require) globalThis.require=__bgnCreateRequire(import.meta.url);',
     ].join("\n"),
   },
   logLevel: "info",
