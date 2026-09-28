@@ -93,7 +93,7 @@ export default function MarketingCalendar() {
       if (!companyId) return [];
       let q = supabase
         .from("google_calendar_busy_slots")
-        .select("id, start_at, end_at, summary, is_all_day, user_id, google_calendar_id")
+        .select("id, start_at, end_at, summary, is_all_day, user_id, google_calendar_id, google_event_id")
         .eq("company_id", companyId);
       // Ruolo ristretto (es. commerciale, only_assigned): vede SOLO il proprio
       // calendario Google. I ruoli con accesso pieno (admin / call center) vedono tutto.
@@ -101,6 +101,26 @@ export default function MarketingCalendar() {
       const { data, error } = await q;
       if (error) throw error;
       return data || [];
+    },
+    enabled: !!companyId && googleSync.hasGoogleConnection,
+    staleTime: 2 * 60 * 1000,
+  });
+
+  // Gli appuntamenti CRM esportati su Google tornano indietro come "busy slot"
+  // (webhook Google → google_calendar_busy_slots). Senza questo, ogni
+  // appuntamento compariva DUE volte nel calendario: una come appuntamento e
+  // una come impegno Google. Qui gli id degli eventi Google che sono un nostro
+  // appuntamento, per non ridisegnarli come impegno esterno.
+  const { data: crmGoogleEventIds = [] } = useQuery({
+    queryKey: ["gcal-crm-event-ids", companyId],
+    queryFn: async () => {
+      if (!companyId) return [] as string[];
+      const { data, error } = await supabase
+        .from("google_calendar_event_map")
+        .select("google_event_id")
+        .eq("company_id", companyId);
+      if (error) throw error;
+      return (data ?? []).map((r: { google_event_id: string }) => r.google_event_id).filter(Boolean);
     },
     enabled: !!companyId && googleSync.hasGoogleConnection,
     staleTime: 2 * 60 * 1000,
@@ -154,8 +174,16 @@ export default function MarketingCalendar() {
   });
 
   const busySlots = useMemo(
-    () => [...googleBusySlots, ...appleBusySlots, ...outlookBusySlots],
-    [googleBusySlots, appleBusySlots, outlookBusySlots],
+    () => {
+      const idsCrm = new Set(crmGoogleEventIds);
+      // Un impegno Google che è già un nostro appuntamento non va ridisegnato
+      // come "occupato" (sarebbe un doppione all'ora sbagliata).
+      const googleFiltrati = googleBusySlots.filter(
+        (s: any) => !s.google_event_id || !idsCrm.has(s.google_event_id),
+      );
+      return [...googleFiltrati, ...appleBusySlots, ...outlookBusySlots];
+    },
+    [googleBusySlots, appleBusySlots, outlookBusySlots, crmGoogleEventIds],
   );
 
   const [activeTab, setActiveTab] = useState<TabKey>("calendar");

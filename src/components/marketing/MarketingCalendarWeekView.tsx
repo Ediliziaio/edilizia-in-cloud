@@ -1,9 +1,10 @@
 import { useMemo, useState, useRef, useEffect } from "react";
 import { format, addDays, isSameDay, parseISO } from "date-fns";
+import { partiOraRoma, oraRomaHM } from "@/lib/oraLocaleCalendario";
 import { it } from "date-fns/locale";
 import { DndContext, DragOverlay, MouseSensor, TouchSensor, useSensors, useSensor, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
 import { cn } from "@/lib/utils";
-import { Car, AlertTriangle, MapPinOff, User, Calendar as CalendarIcon } from "lucide-react";
+import { Car, AlertTriangle, MapPinOff, User, Calendar as CalendarIcon, Video } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { MarketingAppointment, TravelLeg } from "@/types/marketingCalendar";
 import type { GoogleBusySlot } from "@/types/calendar";
@@ -106,10 +107,10 @@ export default function MarketingCalendarWeekView({
     const dayStr = format(day, "yyyy-MM-dd");
     return busySlots.filter((s) => {
       if (s.is_all_day) return false;
-      const sDate = s.start_at.slice(0, 10);
-      if (sDate !== dayStr) return false;
-      const sMin = timeToMin(s.start_at.slice(11, 16));
-      const eMin = timeToMin(s.end_at.slice(11, 16));
+      const inizio = partiOraRoma(s.start_at);
+      if (inizio.data !== dayStr) return false;
+      const sMin = timeToMin(inizio.hm);
+      const eMin = timeToMin(oraRomaHM(s.end_at));
       return sMin < slotEnd && eMin > slotStart;
     });
   };
@@ -291,8 +292,8 @@ export default function MarketingCalendarWeekView({
                         {slotBusy.map((busy, bi) => {
                           const isApple = busy.provider === "apple";
                           const isOutlook = busy.provider === "outlook";
-                          const startHM = busy.start_at.slice(11, 16);
-                          const endHM = busy.end_at.slice(11, 16);
+                          const startHM = oraRomaHM(busy.start_at);
+                          const endHM = oraRomaHM(busy.end_at);
                           const sMin = timeToMin(startHM);
                           const cellMin = timeToMin(slotTime);
                           const isStartCell = sMin >= cellMin && sMin < cellMin + slotDurationMinutes;
@@ -326,6 +327,10 @@ export default function MarketingCalendarWeekView({
                         })}
                         {slotApts.map((apt) => {
                           const leg = dayLegMap[apt.id];
+                          // Videochiamata: l'"indirizzo" è il link Meet, non un luogo fisico.
+                          // meeting_provider vale "none" quando non è una call → va escluso.
+                          const aptMeetingProvider = (apt as any).meeting_provider as string | null;
+                          const isVideocall = !!(apt as any).meeting_url || (!!aptMeetingProvider && aptMeetingProvider !== "none");
                           const hasNoCoords = apt.lat == null || apt.lng == null;
                           const heightPx = getHeightPx(apt);
                           const topOffset = getTopOffsetPx(apt, slotTime);
@@ -341,7 +346,9 @@ export default function MarketingCalendarWeekView({
                             tooltipLines.push(`🚗 ${leg.duration_text} • ${leg.distance_text}`);
                             if (leg.isLate) tooltipLines.push(`⚠️ Ritardo stimato: +${leg.delayMinutes} min`);
                           }
-                          if (hasNoCoords && !apt.is_blocked_slot && !leg) {
+                          if (isVideocall) {
+                            tooltipLines.push("💻 Videochiamata (Google Meet)");
+                          } else if (hasNoCoords && !apt.is_blocked_slot && !leg) {
                             tooltipLines.push("📍 Indirizzo mancante");
                           }
                           if (apt.status === "annullato") tooltipLines.push("❌ Annullato");
@@ -387,9 +394,11 @@ export default function MarketingCalendarWeekView({
                                   >
                                     {/* Riga 1: orario + titolo + travel/alert */}
                                     <div className="flex items-center gap-1 min-w-0">
-                                      {hasNoCoords && !apt.is_blocked_slot && !leg && (
+                                      {isVideocall ? (
+                                        <Video className="h-2.5 w-2.5 shrink-0 text-blue-600 dark:text-blue-400" />
+                                      ) : hasNoCoords && !apt.is_blocked_slot && !leg ? (
                                         <MapPinOff className="h-2.5 w-2.5 shrink-0 text-yellow-600 dark:text-yellow-400" />
-                                      )}
+                                      ) : null}
                                       <span className="truncate min-w-0 flex-1">
                                         {apt.appointment_time && (
                                           <span className="font-semibold">{apt.appointment_time.slice(0, 5)} </span>
