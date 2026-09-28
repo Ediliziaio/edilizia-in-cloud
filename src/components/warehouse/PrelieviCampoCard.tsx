@@ -36,11 +36,12 @@ export function PrelieviCampoCard() {
     queryFn: async (): Promise<PrelievoRow[]> => {
       // Da confermare (richiesto) + DDT da generare (consegnato, richiesto, non ancora fatto).
       const { data, error } = await supabase
-        .from("prelievi_campo")
+        // Tabella nuova, non ancora nei tipi generati.
+        .from("prelievi_campo" as never)
         .select("id, data, righe, note, order_id, operaio_id, stato, ddt_richiesto, documento_id, documento_numero")
-        .eq("company_id", companyId!)
+        .eq("company_id" as never, companyId as never)
         .or("stato.eq.richiesto,and(stato.eq.consegnato,ddt_richiesto.eq.true,documento_id.is.null)")
-        .order("data", { ascending: true });
+        .order("data" as never, { ascending: true });
       if (error) throw error;
       return (data ?? []) as unknown as PrelievoRow[];
     },
