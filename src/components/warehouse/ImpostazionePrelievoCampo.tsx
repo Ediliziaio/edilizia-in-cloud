@@ -26,9 +26,10 @@ export function ImpostazionePrelievoCampo() {
     enabled: !!companyId && puoGestire,
     queryFn: async (): Promise<boolean> => {
       const { data, error } = await supabase
-        .from("companies").select("magazzino_prelievo_conferma").eq("id", companyId!).maybeSingle();
+        .from("companies").select("magazzino_prelievo_conferma" as never).eq("id", companyId!).maybeSingle();
       if (error) throw error;
-      return (data?.magazzino_prelievo_conferma ?? true) as boolean;
+      // Colonna nuova, non ancora nei tipi generati.
+      return ((data as unknown as { magazzino_prelievo_conferma?: boolean | null } | null)?.magazzino_prelievo_conferma ?? true) as boolean;
     },
   });
 
