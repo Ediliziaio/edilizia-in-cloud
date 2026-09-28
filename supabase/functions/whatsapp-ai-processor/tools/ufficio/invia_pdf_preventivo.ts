@@ -9,23 +9,27 @@ import { errResult, okResult, type ToolCtx, type ToolResult } from "../shared/ty
 
 interface Args {
   quote_id?: string;
+  quote_numero?: string;
 }
 
 export const inviaPdfPreventivoDef = {
   name: "invia_pdf_preventivo",
   description:
     "Manda su WhatsApp, a chi ti sta scrivendo, il PDF di un preventivo dell'azienda (per esempio quello appena " +
-    "creato con crea_preventivo_bozza: usa il quote_id che ti ha restituito). NON lo manda al cliente: " +
-    "per quello si usa l'app.",
+    "creato con crea_preventivo_bozza/crea_preventivo_ai). Passa il quote_id se ce l'hai; se hai solo il NUMERO del " +
+    "preventivo (es. OFF-2026-007) mettilo in quote_numero e lo ritrovo io. NON lo manda al cliente: per quello si usa l'app.",
   parameters: {
     type: "object",
     properties: {
-      quote_id: { type: "string", description: "Id del preventivo (quote_id)." },
+      quote_id: { type: "string", description: "Id del preventivo (quote_id), se lo conosci." },
+      quote_numero: { type: "string", description: "Numero del preventivo (es. OFF-2026-007), se non hai il quote_id." },
     },
-    required: ["quote_id"],
+    required: [],
   },
   requires_grants: ["preventivi.pdf"],
 };
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function nomeFile(testo: string): string {
   return testo.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^A-Za-z0-9._-]+/g, "_").replace(/^_+|_+$/g, "") ||
@@ -33,20 +37,35 @@ function nomeFile(testo: string): string {
 }
 
 export async function inviaPdfPreventivo(ctx: ToolCtx, args: Args): Promise<ToolResult> {
-  const quoteId = String(args.quote_id ?? "").trim();
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(quoteId)) {
-    return errResult("quote_id_non_valido", "Non trovo il preventivo: dimmi quale.");
-  }
   if (!ctx.user_id) return errResult("no_user", "Per mandarti il PDF serve il tuo accesso all'app.");
 
-  const { data: q } = await ctx.supabase
-    .from("quotes")
-    .select("id, company_id, quote_number, client_name, deleted_at")
-    .eq("id", quoteId)
-    .maybeSingle();
-  if (!q || q.company_id !== ctx.company_id || q.deleted_at) {
-    return errResult("preventivo_non_trovato", "Non trovo questo preventivo nella tua azienda.");
+  const idArg = String(args.quote_id ?? "").trim();
+  // Il numero può arrivare in quote_numero, o anche in quote_id se il modello non
+  // aveva l'id (es. dopo un giro: ha solo «OFF-2026-007»).
+  const numero = String(args.quote_numero ?? "").trim() || (idArg && !UUID_RE.test(idArg) ? idArg : "");
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let q: any = null;
+  if (UUID_RE.test(idArg)) {
+    const { data } = await ctx.supabase
+      .from("quotes").select("id, company_id, quote_number, client_name, deleted_at")
+      .eq("id", idArg).maybeSingle();
+    q = data;
+  } else if (numero) {
+    // Ritrovo il preventivo dal numero, nell'azienda del numero WhatsApp.
+    const { data } = await ctx.supabase
+      .from("quotes").select("id, company_id, quote_number, client_name, deleted_at")
+      .eq("company_id", ctx.company_id).ilike("quote_number", numero).is("deleted_at", null)
+      .order("created_at", { ascending: false }).limit(1).maybeSingle();
+    q = data;
+  } else {
+    return errResult("quote_id_non_valido", "Dimmi quale preventivo: il numero (es. OFF-2026-007) o quello appena creato.");
   }
+
+  if (!q || q.company_id !== ctx.company_id || q.deleted_at) {
+    return errResult("preventivo_non_trovato", numero ? `Non trovo il preventivo ${numero} nella tua azienda.` : "Non trovo questo preventivo nella tua azienda.");
+  }
+  const quoteId = String(q.id);
 
   const base = Deno.env.get("SUPABASE_URL")!;
   const chiave = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
