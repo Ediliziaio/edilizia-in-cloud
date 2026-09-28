@@ -57,6 +57,7 @@ import {
 
 // Ufficio e amministratore
 import { inviaPdfPreventivo, inviaPdfPreventivoDef } from "./ufficio/invia_pdf_preventivo.ts";
+import { creaPreventivoAi, creaPreventivoAiDef } from "./ufficio/crea_preventivo_ai.ts";
 
 // Shared (cross-ruolo)
 import { chiediConferma, chiediConfermaDef } from "./shared/chiedi_conferma.ts";
@@ -84,8 +85,9 @@ export const TOOLS_REGISTRY: ToolDef[] = [
   { ...approvaRichiestaDef, handler: approvaRichiesta as ToolDef["handler"] },
   { ...scostamentiCommesseDef, handler: scostamentiCommesse as ToolDef["handler"] },
 
-  // Ufficio e amministratore (1)
+  // Ufficio e amministratore (2)
   { ...inviaPdfPreventivoDef, handler: inviaPdfPreventivo as ToolDef["handler"] },
+  { ...creaPreventivoAiDef, handler: creaPreventivoAi as ToolDef["handler"] },
 ];
 
 /** Filtra tool disponibili in base ai grants dell'utente. */
