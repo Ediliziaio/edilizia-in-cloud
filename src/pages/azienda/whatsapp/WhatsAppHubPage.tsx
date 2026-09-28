@@ -12,12 +12,13 @@ import TemplatesPage from "./TemplatesPage";
 import NotificheConfigPage from "./NotificheConfigPage";
 import BroadcastListPage from "./BroadcastListPage";
 import OperationalControlPage from "./OperationalControlPage";
+import AutomazioniBotPage from "./AutomazioniBotPage";
 import { useSearchParams } from "react-router-dom";
 import { useWhatsAppBase } from "./useWhatsAppBase";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { AvvisoSoloDaComputer } from "@/components/mobile/SoloDaComputer";
 
-const ALL_TABS = ["numeri", "regia", "template", "broadcast", "notifiche"] as const;
+const ALL_TABS = ["numeri", "regia", "automazioni", "template", "broadcast", "notifiche"] as const;
 const MARKETING_TABS = ["numeri", "template", "broadcast"] as const;
 type WhatsAppHubTab = typeof ALL_TABS[number];
 
@@ -64,6 +65,9 @@ export default function WhatsAppHubPage() {
           {!isAdminContext && (
             <TabsTrigger value="regia" aria-label="Tab Regia operativa">Regia</TabsTrigger>
           )}
+          {!isAdminContext && (
+            <TabsTrigger value="automazioni" aria-label="Tab Automazioni">Automazioni</TabsTrigger>
+          )}
           <TabsTrigger value="template" aria-label="Tab Template">Template</TabsTrigger>
           <TabsTrigger value="broadcast" aria-label="Tab Broadcast">Broadcast</TabsTrigger>
           {!isAdminContext && <TabsTrigger value="notifiche" aria-label="Tab Notifiche">Notifiche</TabsTrigger>}
@@ -75,6 +79,11 @@ export default function WhatsAppHubPage() {
         {!isAdminContext && (
           <TabsContent value="regia" className="mt-0">
             <OperationalControlPage />
+          </TabsContent>
+        )}
+        {!isAdminContext && (
+          <TabsContent value="automazioni" className="mt-0">
+            <AutomazioniBotPage />
           </TabsContent>
         )}
         <TabsContent value="template" className="mt-0">

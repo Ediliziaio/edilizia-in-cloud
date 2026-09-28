@@ -42,9 +42,11 @@ export interface AvvisoOperativo {
 
 export function euro(n: number): string {
   const v = Math.round(Number(n) || 0);
-  // useGrouping "always": in italiano i numeri di 4 cifre non sarebbero raggruppati
-  // (1500 → "1500"); qui vogliamo sempre il punto delle migliaia (1.500).
-  return `€ ${v.toLocaleString("it-IT", { useGrouping: "always", maximumFractionDigits: 0 })}`;
+  // Raggruppamento manuale col punto delle migliaia (1.500, 37.400): in italiano
+  // toLocaleString non raggrupperebbe i numeri di 4 cifre e i tipi di Intl non
+  // accettano useGrouping:"always" in questa versione.
+  const cifre = Math.abs(v).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return `€ ${v < 0 ? "-" : ""}${cifre}`;
 }
 
 function giorniLabel(g: number): string {
