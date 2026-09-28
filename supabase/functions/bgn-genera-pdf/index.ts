@@ -15,6 +15,10 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { chiamataInternaValida } from "../_shared/chiamataInterna.ts";
 import { renderBagnoPdf, type VoceBagno } from "../_shared/bagnoPdf.ts";
+// Modello VERO (@react-pdf, DocumentoEdilePDF) bundlato per Deno. Se il render
+// reale fallisce (limiti edge), si ripiega sul PDF pdf-lib qui sopra.
+// @ts-ignore bundle generato, senza tipi
+import { renderBagnoReale } from "./_render.mjs";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any;
@@ -81,7 +85,18 @@ Deno.serve(async (req) => {
       unit_of_measure: r.unit_of_measure ?? null, item_type: r.item_type ?? null,
     }));
 
-    const { bytes, pages } = await renderBagnoPdf({ quote, righe, template: tpl ?? {}, azienda: azienda ?? null });
+    // Prima il modello VERO (@react-pdf, 15+ pagine); se fallisce sui limiti
+    // dell'edge, ripiego sul PDF semplice (pdf-lib) così l'utente riceve comunque.
+    let bytes: Uint8Array;
+    let pages = 0;
+    try {
+      bytes = await renderBagnoReale({ quote, items: items ?? [], template: tpl ?? {}, company: azienda ?? null });
+    } catch (e) {
+      console.error(JSON.stringify({ level: "warn", fn: "bgn-genera-pdf", passo: "render_reale_fallito_fallback", err: e instanceof Error ? e.message : String(e) }));
+      const r = await renderBagnoPdf({ quote, righe, template: tpl ?? {}, azienda: azienda ?? null });
+      bytes = r.bytes;
+      pages = r.pages;
+    }
 
     const fileName = `bagno/${quote.company_id}/${quoteId}-${Date.now()}.pdf`;
     const { error: upErr } = await supabaseAdmin.storage.from("quote-pdfs").upload(fileName, bytes, { contentType: "application/pdf", upsert: true });
