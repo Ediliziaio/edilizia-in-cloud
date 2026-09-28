@@ -21,14 +21,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useCampoAssignments } from "@/hooks/campo/useCampoAssignments";
-import { usePrelievoRegistra, type RigaPrelievo } from "@/hooks/campo/useCampoPrelievo";
+import { usePrelievoRegistra, useMieiPrelievi, useRichiediDdt, type RigaPrelievo } from "@/hooks/campo/useCampoPrelievo";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 
-type Tab = "furgone" | "magazzino";
+type Tab = "furgone" | "magazzino" | "prelievi";
 
 interface ScortaFurgone {
   id: string;
@@ -65,6 +65,9 @@ export default function CampoMagazzino() {
   const assegnazioniQuery = useCampoAssignments();
   const assegnazioni = assegnazioniQuery.data ?? [];
   const prelievoMut = usePrelievoRegistra();
+  const mieiPrelieviQuery = useMieiPrelievi();
+  const mieiPrelievi = mieiPrelieviQuery.data ?? [];
+  const richiediDdt = useRichiediDdt();
 
   // Scorte furgone personali
   const scorteQuery = useQuery({
@@ -203,7 +206,7 @@ export default function CampoMagazzino() {
       {/* Tab selector */}
       <div className="bg-muted border-b border-border px-4 py-3">
         <div className="flex gap-2">
-          {(["furgone", "magazzino"] as Tab[]).map(tab => (
+          {(["furgone", "magazzino", ...(puoPrelevare ? ["prelievi"] : [])] as Tab[]).map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -214,7 +217,7 @@ export default function CampoMagazzino() {
                   : "bg-muted text-muted-foreground"
               )}
             >
-              {tab === "furgone" ? "Furgone" : "Magazzino"}
+              {tab === "furgone" ? "Furgone" : tab === "magazzino" ? "Magazzino" : "Prelievi"}
             </button>
           ))}
         </div>
@@ -405,6 +408,66 @@ export default function CampoMagazzino() {
                   </div>
                 )}
               </>
+            )}
+          </>
+        )}
+
+        {/* TAB PRELIEVI: cosa ho preso e lo stato del DDT */}
+        {activeTab === "prelievi" && (
+          <>
+            {mieiPrelieviQuery.isLoading ? (
+              <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
+            ) : mieiPrelievi.length === 0 ? (
+              <div className="flex flex-col items-center py-16 gap-3 text-center">
+                <Package className="w-10 h-10 text-muted-foreground" />
+                <p className="text-muted-foreground text-sm">Nessun prelievo ancora</p>
+                <p className="max-w-xs text-xs text-muted-foreground">Quando prelevi materiale dal magazzino lo ritrovi qui, col suo stato e il DDT.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {mieiPrelievi.map((p) => {
+                  const meta = p.stato === "consegnato" ? { label: "Consegnato", cls: "bg-emerald-100 text-emerald-700" }
+                    : p.stato === "rifiutato" ? { label: "Rifiutato", cls: "bg-red-100 text-red-700" }
+                    : { label: "In attesa ufficio", cls: "bg-amber-100 text-amber-700" };
+                  const quando = new Date(p.data).toLocaleDateString("it-IT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+                  return (
+                    <div key={p.id} className="rounded-2xl border border-border bg-muted p-4">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs text-muted-foreground">{quando}</span>
+                        <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold", meta.cls)}>{meta.label}</span>
+                      </div>
+                      <ul className="mt-2 space-y-1 text-sm">
+                        {(p.righe ?? []).map((r, i) => (
+                          <li key={i} className="flex items-center justify-between gap-2">
+                            <span className="min-w-0 truncate">{r.name}</span>
+                            <span className="shrink-0 font-semibold tabular-nums">× {r.quantita}</span>
+                          </li>
+                        ))}
+                      </ul>
+                      {p.stato === "consegnato" && (
+                        <div className="mt-3 border-t border-border pt-3">
+                          {p.documento_numero ? (
+                            <p className="flex items-center gap-1.5 text-xs font-medium text-emerald-700"><Check className="h-3.5 w-3.5" /> DDT {p.documento_numero} pronto</p>
+                          ) : p.ddt_richiesto ? (
+                            <p className="text-xs text-muted-foreground">DDT richiesto — lo prepara l'ufficio.</p>
+                          ) : (
+                            <button
+                              onClick={() => richiediDdt.mutate(p.id, {
+                                onSuccess: () => toast.success("DDT richiesto all'ufficio"),
+                                onError: (e) => toast.error("Non riuscito", { description: e instanceof Error ? e.message : "Riprova" }),
+                              })}
+                              disabled={richiediDdt.isPending}
+                              className="w-full rounded-xl border border-border py-2.5 text-sm font-medium active:bg-background disabled:opacity-50"
+                            >
+                              Richiedi DDT
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </>
         )}
