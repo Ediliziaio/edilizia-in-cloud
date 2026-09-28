@@ -10,10 +10,10 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
-  Settings, AlertCircle, Plus, Search, List, Columns3, ClipboardList, Wrench, FileText,
+  Settings, AlertCircle, Plus, Search, List, Columns3, ClipboardList, FileText,
+  AlertTriangle, CheckCircle2, CircleDashed,
 } from "lucide-react";
 import { addDays } from "date-fns";
 import { toast } from "sonner";
@@ -24,7 +24,7 @@ import { ExportButton } from "@/components/shared/ExportButton";
 import { KpiMobili } from "@/components/mobile/FiltriMobile";
 import { ManutenzionePipeline, type ImpiantoStato } from "@/components/manutenzione/ManutenzionePipeline";
 import { ImpiantiTable } from "@/components/manutenzione/ImpiantiTable";
-import { statoManutenzione, STATI_MANUTENZIONE, type StatoManutenzione } from "@/lib/manutenzione/statoManutenzione";
+import { statoManutenzione, type StatoManutenzione } from "@/lib/manutenzione/statoManutenzione";
 
 type ProfileSummary = { first_name: string | null; last_name: string | null };
 
@@ -68,9 +68,9 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
   const navigate = useNavigate();
   const [wizardOpen, setWizardOpen] = useState(false);
   const [search, setSearch] = useState("");
-  // Pillola attiva: "all", un tipo impianto, oppure "__contratti__".
+  // Pillola attiva (per STATO, non per tipo): "all" · "urgenti" (scadenza
+  // imminente = scadute o in scadenza) · "in_regola" · "senza_piano" · "__contratti__".
   const [pill, setPill] = useState("all");
-  const [statoFiltro, setStatoFiltro] = useState<"all" | StatoManutenzione>("all");
   const [vista, setVista] = useState<"tabella" | "kanban">(() => {
     try { return (localStorage.getItem("manutenzione-vista") as "tabella" | "kanban") || "tabella"; }
     catch { return "tabella"; }
@@ -205,10 +205,6 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
   });
 
   // ── Impianti arricchiti con lo stato + filtri ────────────────────────────
-  const tipiDisponibili = useMemo(
-    () => Array.from(new Set(impianti.map((im) => im.tipo_impianto).filter(Boolean))) as string[],
-    [impianti],
-  );
   const q = search.trim().toLowerCase();
   const nomeCliente = (c: ProfileSummary | null) => [c?.first_name, c?.last_name].filter(Boolean).join(" ").toLowerCase();
 
@@ -229,21 +225,26 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
     };
   }), [impianti, pianoPerImpianto]);
 
-  const tipoAttivo = pill !== "all" && pill !== "__contratti__" ? pill : null;
   const impiantiFiltrati = useMemo(() => impiantiConStato.filter((im) => {
-    if (tipoAttivo && im.tipo_impianto !== tipoAttivo) return false;
-    if (statoFiltro !== "all" && im.stato !== statoFiltro) return false;
+    if (pill === "urgenti" && !(im.stato === "scaduta" || im.stato === "in_scadenza")) return false;
+    if (pill === "in_regola" && im.stato !== "in_regola") return false;
+    if (pill === "senza_piano" && im.stato !== "senza_piano") return false;
     if (!q) return true;
     return `${im.tipo_impianto} ${im.marca ?? ""} ${im.modello ?? ""} ${nomeCliente(im.customer)}`.toLowerCase().includes(q);
-  }), [impiantiConStato, tipoAttivo, statoFiltro, q]);
+  }), [impiantiConStato, pill, q]);
 
   const contrattiFiltrati = useMemo(() => contratti.filter((c) => {
     if (!q) return true;
     return `${c.nome_contratto} ${c.impianto?.tipo_impianto ?? ""} ${nomeCliente(c.customer)}`.toLowerCase().includes(q);
   }), [contratti, q]);
 
-  // KPI
-  const nScaduteInScadenza = impiantiConStato.filter((im) => im.stato === "scaduta" || im.stato === "in_scadenza").length;
+  // Conteggi per stato — per le pillole e i KPI.
+  const contaStato = useMemo(() => {
+    const c: Record<StatoManutenzione, number> = { scaduta: 0, in_scadenza: 0, in_regola: 0, senza_piano: 0 };
+    impiantiConStato.forEach((im) => { c[im.stato] += 1; });
+    return c;
+  }, [impiantiConStato]);
+  const nScaduteInScadenza = contaStato.scaduta + contaStato.in_scadenza;
   const mrr = contratti.filter((c) => c.stato === "attivo").reduce((sum, c) => {
     const mensile = c.tipo_fatturazione === "mensile" ? c.importo_canone
       : c.tipo_fatturazione === "trimestrale" ? c.importo_canone / 3
@@ -325,12 +326,15 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
         </div>
       )}
 
-      {/* Pill in alto — come l'assistenza: Tutti · per tipo · Contratti. */}
+      {/* Pill in alto — per STATO (come le pill dell'assistenza): Tutti ·
+          Scadenza imminente · In regola · Senza piano · Contratti. */}
       <div className="flex gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
         {[
-          { value: "all", label: "Tutti", icon: ClipboardList },
-          ...tipiDisponibili.map((t) => ({ value: t, label: t.replace("_", " "), icon: Wrench })),
-          { value: "__contratti__", label: "Contratti", icon: FileText },
+          { value: "all", label: "Tutti", icon: ClipboardList, n: impianti.length },
+          { value: "urgenti", label: "Scadenza imminente", icon: AlertTriangle, n: nScaduteInScadenza },
+          { value: "in_regola", label: "In regola", icon: CheckCircle2, n: contaStato.in_regola },
+          { value: "senza_piano", label: "Senza piano", icon: CircleDashed, n: contaStato.senza_piano },
+          { value: "__contratti__", label: "Contratti", icon: FileText, n: contratti.length },
         ].map((tab) => {
           const Icon = tab.icon;
           const active = pill === tab.value;
@@ -339,12 +343,13 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
               key={tab.value}
               onClick={() => setPill(tab.value)}
               className={cn(
-                "tap-compact flex shrink-0 items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-medium capitalize transition-all whitespace-nowrap max-sm:h-8 max-sm:rounded-full max-sm:border max-sm:px-3 max-sm:py-0 max-sm:text-xs",
+                "tap-compact flex shrink-0 items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-medium transition-all whitespace-nowrap max-sm:h-8 max-sm:rounded-full max-sm:border max-sm:px-3 max-sm:py-0 max-sm:text-xs",
                 active ? "bg-orange-50 text-orange-700 shadow-sm ring-1 ring-orange-100" : "text-muted-foreground hover:bg-slate-50 hover:text-slate-900",
               )}
             >
               <Icon className="h-4 w-4" />
               {tab.label}
+              <span className={cn("ml-0.5 rounded-full px-1.5 text-[11px] font-semibold tabular-nums", active ? "bg-orange-100 text-orange-700" : "bg-slate-100 text-slate-500")}>{tab.n}</span>
             </button>
           );
         })}
@@ -386,19 +391,10 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
           />
         </div>
         {!mostraContratti && (
-          <>
-            <Select value={statoFiltro} onValueChange={(v) => setStatoFiltro(v as "all" | StatoManutenzione)}>
-              <SelectTrigger className="h-9 sm:w-auto"><SelectValue placeholder="Stato" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tutti gli stati</SelectItem>
-                {STATI_MANUTENZIONE.map((s) => <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <ToggleGroup type="single" value={vista} onValueChange={(v) => v && cambiaVista(v as "tabella" | "kanban")} className="shrink-0">
-              <ToggleGroupItem value="tabella" aria-label="Vista elenco" className="px-3"><List className="h-4 w-4" /></ToggleGroupItem>
-              <ToggleGroupItem value="kanban" aria-label="Vista kanban" className="px-3"><Columns3 className="h-4 w-4" /></ToggleGroupItem>
-            </ToggleGroup>
-          </>
+          <ToggleGroup type="single" value={vista} onValueChange={(v) => v && cambiaVista(v as "tabella" | "kanban")} className="shrink-0">
+            <ToggleGroupItem value="tabella" aria-label="Vista elenco" className="px-3"><List className="h-4 w-4" /></ToggleGroupItem>
+            <ToggleGroupItem value="kanban" aria-label="Vista kanban" className="px-3"><Columns3 className="h-4 w-4" /></ToggleGroupItem>
+          </ToggleGroup>
         )}
       </div>
 
@@ -437,7 +433,7 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
         <div className="space-y-3">{[1, 2, 3].map((n) => <Skeleton key={n} className="h-16 rounded-lg" />)}</div>
       ) : impiantiFiltrati.length === 0 ? (
         <div className="rounded-2xl border border-dashed py-12 text-center text-sm text-muted-foreground">
-          {q || tipoAttivo || statoFiltro !== "all" ? "Nessun impianto con questi filtri" : (
+          {q || pill !== "all" ? "Nessun impianto con questi filtri" : (
             <div className="space-y-3">
               <p>Nessun impianto registrato</p>
               <Button size="sm" className="gap-2" onClick={() => setWizardOpen(true)}><Plus className="h-4 w-4" /> Aggiungi impianto</Button>
