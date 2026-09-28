@@ -27,8 +27,8 @@ vi.mock("@/hooks/useOrderWorkPhases", () => ({
 }));
 vi.mock("@/components/orders/OrderLaborCosts", () => ({ OrderLaborCosts: ({ editable, parte }: { editable: boolean; parte?: string }) => <div>Ditte {parte} {editable ? "modificabili" : "sola lettura"}</div> }));
 vi.mock("@/components/orders/CantiereLogistica", () => ({ CantiereLogistica: () => <div>Il cantiere</div> }));
-vi.mock("@/hooks/useCantiereLogistica", () => ({ useMezziLavoro: () => ({ data: { sul_cantiere: [], con_le_persone: [
-  { id: "m1", nome: "Ducato bianco", tipo: "furgone", targa: "GF 482 KD", persona: "Luca Ferrari", fasi: ["p1"], a_bordo: ["Livella laser"], altrove: null },
+vi.mock("@/hooks/useCantiereLogistica", () => ({ useMezziLavoro: () => ({ data: { sul_cantiere: [] as Array<Record<string, unknown>>, con_le_persone: [
+  { id: "m1", nome: "Ducato bianco", tipo: "furgone", targa: "GF 482 KD", persona: "Luca Ferrari", fasi: ["p1"], a_bordo: ["Livella laser"], altrove: null as string | null },
 ] } }) }));
 vi.mock("@/components/orders/AppCantiere", () => ({ AppCantiere: ({ modificabile }: { modificabile: boolean }) => <div>Nell'app {modificabile ? "capocantiere modificabile" : "sola lettura"}</div> }));
 vi.mock("@/components/orders/CreatePurchaseOrderButton", () => ({ CreatePurchaseOrderButton: () => <button>Crea OdA</button> }));

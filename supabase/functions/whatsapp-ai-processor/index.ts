@@ -37,6 +37,7 @@ import {
   type PropostaDelGiro,
 } from "./silvio.ts";
 import { BOT_SUPERATI_DA_SILVIO, usaStrumentiSilvio } from "../_shared/botOperativoCatalogo.ts";
+import { pianoModello } from "../_shared/pianoModello.ts";
 import {
   type ConfigAgenteOperativo,
   type RuoloAgente,
@@ -48,13 +49,14 @@ import {
 } from "../_shared/agenteOperativoConfig.ts";
 import { SILVIO_TOOLS } from "../_shared/silvioTools.ts";
 import { adessoPerIlPrompt, formatoWhatsApp } from "../_shared/formatoWhatsApp.ts";
+import { anteprimaBozza } from "../_shared/anteprimaProposta.ts";
 import { buildInteractivePayload } from "./interactive.ts";
 // 🛡️ Anti chain-of-thought leak — strip tool names + opener narrativi prima
 // di rispondere su WhatsApp (operai, titolari).
 import { sanitizeAnswer } from "../_shared/structuredOutput.ts";
 import { resolveIdentity } from "./identity.ts";
 import { gestisciMessaggioCliente } from "./cliente.ts";
-import { leggiFotoOperativa, scaricaMediaDelMessaggio, transcribeAudio } from "./media.ts";
+import { leggiDocumentoOperativo, leggiFotoOperativa, scaricaMediaDelMessaggio, transcribeAudio } from "./media.ts";
 import { callOpenAI, type ChatMessage } from "./openai.ts";
 import { InsufficientCreditsError } from "../_shared/ai-provider/index.ts";
 import { checkBudget, consumeBudget, estimateCostEur } from "./budget.ts";
@@ -359,6 +361,22 @@ Deno.serve(async (req) => {
         console.error(JSON.stringify({ level: "error", fn: "analyze", error: String(e) }));
         userContent = `[Foto ricevuta — non sono riuscito a leggerla]\n\nTesto dell'utente: ${msg.content_text ?? "(nessuno)"}`;
       }
+    } else if (msg.message_type === "document" && msg.media_storage_path) {
+      // Documenti PDF (DDT, fatture, computi): fino al 28/09/2026 venivano
+      // scaricati e ignorati. Ora si leggono e si dice che tipo sono.
+      try {
+        userContent = await leggiDocumentoOperativo(supabase, {
+          storagePath: msg.media_storage_path,
+          companyId: msg.company_id,
+          userId: identity.user_id,
+          didascalia: msg.content_text,
+          messageId: msg.id,
+          mime: String((isPlainRecord(msg.metadata) ? msg.metadata.mime_type : null) ?? "application/pdf"),
+        });
+      } catch (e) {
+        console.error(JSON.stringify({ level: "error", fn: "leggi_documento", error: String(e) }));
+        userContent = `[Documento ricevuto — non sono riuscito a leggerlo]\n\nTesto dell'utente: ${msg.content_text ?? "(nessuno)"}`;
+      }
     }
     // Quello che l'assistente ha letto (vocale trascritto, DDT letto) resta sul
     // messaggio: al «Sì, confermo» del turno dopo lo ritrova nello storico.
@@ -479,9 +497,18 @@ Deno.serve(async (req) => {
     const vietatiOra = vietatiPer(configAgente, chiScrive, inizioTurno);
     const sbloccatiOra = sbloccatiPer(configAgente, chiScrive, inizioTurno);
 
+    // Che modello e quanti token per questo turno (28/09/2026): economico e
+    // stringato per le azioni operative (rapportino, DDT, conferme), forte e
+    // approfondito per le domande sui numeri. Prima ogni turno da admin usava
+    // Sonnet con ~24k token di prompt anche per un «segna fatto».
+    const piano = pianoModello(identity.kind, operationalTriage.intent);
+    // Il ponte verso Silvio si apre nei turni approfonditi, o comunque se c'è
+    // una proposta di Silvio in attesa di Sì (va eseguita).
+    const apriSilvio = piano.usaSilvio || !!statoSessione.conferma?.proposta_id;
+
     // Fase 1 — ufficio e amministratore hanno anche gli strumenti di Silvio.
     let ponte: PonteSilvio | null = null;
-    if (identity.kind !== "unknown" && usaStrumentiSilvio(identity.kind) && identity.user_id && identity.ruolo_silvio) {
+    if (apriSilvio && identity.kind !== "unknown" && usaStrumentiSilvio(identity.kind) && identity.user_id && identity.ruolo_silvio) {
       ponte = await apriPonteSilvio(supabase, {
         companyId: msg.company_id,
         userId: identity.user_id,
@@ -529,6 +556,9 @@ Deno.serve(async (req) => {
       `${adessoPerIlPrompt(inizioTurno)}\n\n${basePrompt}\n\n${buildOperationalSystemPrompt(operationalSettings)}\n\n${buildTriagePrompt(operationalTriage)}` +
       (istruzioni ? `\n\n${istruzioni}` : "") +
       (ponte ? `\n\n${ponte.promptExtra()}` : "") +
+      (piano.approfondito
+        ? "\n\n[RISPOSTA] È una domanda sui numeri o sulla situazione: rispondi in modo APPROFONDITO — dai le cifre, il contesto e cosa significano, non solo il numero secco. Se serve, usa gli strumenti per incrociare i dati."
+        : "\n\n[RISPOSTA] Rispondi brevissimo, l'essenziale.") +
       WA_SECURITY_GUARD;
 
     const messages: ChatMessage[] = [
@@ -552,13 +582,9 @@ Deno.serve(async (req) => {
     };
 
     const model = budget.model_override ?? OPENAI_MODEL_DEFAULT;
-    // MP05 — routing per task_kind. Titolare/admin → modello premium per
-    // ragionamento/tool calling complesso. Operaio/default → modello economico
-    // (deepseek/haiku) configurato in ai_model_config.
-    const taskKind =
-      identity.kind === "ufficio" || identity.kind === "admin"
-        ? ("bot_operativo_titolare" as const)
-        : ("bot_operativo_operaio" as const);
+    // MP05 + piano modello (28/09/2026): il task_kind lo decide il piano
+    // (forte per le analisi, economico per le azioni operative).
+    const taskKind = piano.taskKind;
     const conv: ChatMessage[] = [...messages];
     let finalText: string | null = null;
     // MP-P1 — true quando un tool (chiedi_conferma) ha già inviato una risposta
@@ -580,7 +606,7 @@ Deno.serve(async (req) => {
         tools: spec.length > 0 ? (spec as typeof openaiTools) : undefined,
         tool_choice: spec.length > 0 ? "auto" : undefined,
         temperature: configAgente?.temperatura ?? 0.5,
-        max_tokens: 800,
+        max_tokens: piano.maxTokens,
       });
 
       totalTokensIn += resp.usage?.prompt_tokens ?? 0;
@@ -779,8 +805,10 @@ Deno.serve(async (req) => {
       if (p.rischio === "red") {
         finalText = "Questa azione va approvata dall'app: la trovi in Silvio, tra le azioni da approvare.";
       } else {
-        const { data: prop } = await supabase.from("ai_action_proposals").select("summary").eq("id", p.id).maybeSingle();
-        const domanda = `${prop?.summary ?? "Preparo l'azione che mi hai chiesto."}\n\nConfermi?`;
+        const { data: prop } = await supabase.from("ai_action_proposals").select("summary, payload").eq("id", p.id).maybeSingle();
+        // Se è una bozza (email/messaggio a un cliente) la mostro per intero:
+        // chi approva deve leggere cosa parte, non solo un'etichetta (28/09/2026).
+        const domanda = `${prop?.summary ?? "Preparo l'azione che mi hai chiesto."}${anteprimaBozza(prop?.payload)}\n\nConfermi?`;
         await sendInteractiveReply(
           msg,
           buildInteractivePayload(domanda, [{ id: "conf_0", title: "Sì" }, { id: "conf_1", title: "No" }]) as unknown as Record<

@@ -27,6 +27,8 @@
 
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { chiamataInternaValida } from "../_shared/chiamataInterna.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { arrayBufferToBase64 } from "../_shared/base64.ts";
 // pdfjs-dist legacy entry-point — funziona in ambienti senza Worker (Deno edge)
@@ -55,6 +57,10 @@ interface Payload {
   storage_path: string;
   /** Massimo numero di caratteri da restituire (default 50000) */
   max_chars?: number;
+  /** Ingresso interno (bot): azienda, utente e bucket da cui scaricare. */
+  company_id?: string;
+  per_utente?: string;
+  bucket?: string;
 }
 
 const DEFAULT_MAX_CHARS = 50_000;
@@ -66,18 +72,29 @@ Deno.serve(async (req: Request) => {
 
   const t0 = Date.now();
   try {
-    const auth = await requireAuth(req, corsHeaders);
-    const userId = auth.userId;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const supabaseAdmin = auth.supabaseAdmin as any;
-
-    const { data: profile } = await supabaseAdmin
-      .from("profiles").select("company_id").eq("id", userId).maybeSingle();
-    const companyId: string | null = profile?.company_id ?? null;
-    if (!companyId) return errorResponse("Nessuna azienda associata", 400, corsHeaders);
-    await requireCompanyAccess(supabaseAdmin, userId, companyId, corsHeaders);
-
     const payload = (await req.json()) as Payload;
+    // Ingresso interno del bot operativo (28/09/2026): chiave di servizio +
+    // azienda + bucket. Altrimenti utente autenticato (bucket silvio-uploads).
+    const interna = chiamataInternaValida(req) && typeof payload?.company_id === "string";
+    let companyId: string | null;
+    let userId: string | null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let supabaseAdmin: any;
+    if (interna) {
+      companyId = payload.company_id as string;
+      userId = typeof payload.per_utente === "string" ? payload.per_utente : null;
+      supabaseAdmin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    } else {
+      const auth = await requireAuth(req, corsHeaders);
+      userId = auth.userId;
+      supabaseAdmin = auth.supabaseAdmin as any;
+      const { data: profile } = await supabaseAdmin
+        .from("profiles").select("company_id").eq("id", userId).maybeSingle();
+      companyId = profile?.company_id ?? null;
+      if (!companyId) return errorResponse("Nessuna azienda associata", 400, corsHeaders);
+      await requireCompanyAccess(supabaseAdmin, userId, companyId, corsHeaders);
+    }
+    const bucket = (interna && typeof payload?.bucket === "string" && payload.bucket) ? payload.bucket : "silvio-uploads";
     const storagePath = (payload?.storage_path ?? "").trim();
     const maxChars = payload?.max_chars ?? DEFAULT_MAX_CHARS;
 
@@ -89,7 +106,7 @@ Deno.serve(async (req: Request) => {
 
     // ── Download PDF da storage ──────────────────────────────────────────
     const { data: file, error: dlErr } = await supabaseAdmin.storage
-      .from("silvio-uploads")
+      .from(bucket)
       .download(storagePath);
     if (dlErr || !file) {
       return errorResponse(`Download fallito: ${dlErr?.message ?? "file non trovato"}`, 404, corsHeaders);
@@ -156,7 +173,7 @@ Deno.serve(async (req: Request) => {
     if (trimmedText.length < SCAN_TEXT_THRESHOLD) {
       try {
         const { data: signed } = await supabaseAdmin.storage
-          .from("silvio-uploads")
+          .from(bucket)
           .createSignedUrl(storagePath, 600);
         if (!signed?.signedUrl) {
           return jsonResponse({

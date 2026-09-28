@@ -9,7 +9,7 @@ import { corpoDelModello, lingueDelModello, testoDelModello, valoriDaiComponenti
 import { PLATFORM_ADMIN_COMPANY_ID } from "../_shared/platformAutomation.ts";
 
 import { serveConMetriche } from "../_shared/withMetrics.ts";
-type SendType = "text" | "interactive" | "template";
+type SendType = "text" | "interactive" | "template" | "document";
 type TemplateLanguageInput = string | { code?: string } | undefined;
 
 interface SendBody {
@@ -19,6 +19,8 @@ interface SendBody {
   type?: SendType;
   text?: string | { body?: string };
   interactive?: Record<string, unknown>;
+  /** Un file (es. il PDF di un preventivo) da un link https: nella finestra delle 24 ore, come il testo. */
+  document?: { link?: string; filename?: string; caption?: string };
   template?: {
     name?: string;
     language?: string | { code?: string };
@@ -47,6 +49,7 @@ function inferType(body: SendBody): SendType | null {
   if (body.type) return body.type;
   if (body.template) return "template";
   if (body.interactive) return "interactive";
+  if (body.document) return "document";
   if (body.text) return "text";
   return null;
 }
@@ -187,9 +190,9 @@ serveConMetriche("whatsapp-send", async (req) => {
       );
     }
 
-    if (!["text", "interactive", "template"].includes(type)) {
+    if (!["text", "interactive", "template", "document"].includes(type)) {
       return new Response(
-        JSON.stringify({ error: "Tipo non valido. Valori ammessi: text, interactive, template" }),
+        JSON.stringify({ error: "Tipo non valido. Valori ammessi: text, interactive, template, document" }),
         { status: 400, headers: jsonHeaders },
       );
     }
@@ -322,6 +325,30 @@ serveConMetriche("whatsapp-send", async (req) => {
       }
       payload.text = { body: bodyText };
       logContent = bodyText;
+    } else if (type === "document") {
+      // Un file da link https (es. il PDF di un preventivo, 27/09/2026). Come il
+      // testo libero, solo nella finestra delle 24 ore.
+      const link = typeof body.document?.link === "string" ? body.document.link.trim() : "";
+      if (!/^https:\/\//i.test(link)) {
+        return new Response(JSON.stringify({ error: "Campo document.link (https) obbligatorio" }), {
+          status: 400,
+          headers: jsonHeaders,
+        });
+      }
+      const win = await getWhatsAppWindowStatus(adminClient, companyId, to);
+      if (!win.open) {
+        return new Response(
+          JSON.stringify({
+            error: "Finestra 24h chiusa: per scrivere a questo numero serve un template approvato.",
+            code: "window_closed",
+          }),
+          { status: 422, headers: jsonHeaders },
+        );
+      }
+      const filename = (body.document?.filename ?? "").trim().slice(0, 240) || "documento.pdf";
+      const caption = (body.document?.caption ?? "").trim().slice(0, 1024);
+      payload.document = caption ? { link, filename, caption } : { link, filename };
+      logContent = caption || `[Documento] ${filename}`;
     } else if (type === "interactive") {
       if (!body.interactive?.type || !body.interactive?.body || !body.interactive?.action) {
         return new Response(

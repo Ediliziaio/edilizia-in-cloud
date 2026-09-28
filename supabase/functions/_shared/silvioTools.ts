@@ -3712,7 +3712,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     },
     allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
     allowedPersonas: ["silvio", "assistente_imprenditore", "titolare", "sales"],
-    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp"],
     riskLevel: "safe",
     domain: "preventivi",
   },
@@ -7083,7 +7083,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     },
     allowedRoles: ["super_admin", "company_admin"],
     allowedPersonas: ["silvio", "assistente_imprenditore", "titolare"],
-    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp"],
     // Registrare una fattura passiva crea un DEBITO verso il fornitore (e la
     // relativa scadenza): è un'operazione economica, quindi riepilogo +
     // conferma dell'utente prima di scrivere. Nessuna automazione la invoca.

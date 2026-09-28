@@ -11,6 +11,7 @@ import {
   format,
 } from "date-fns";
 import { it } from "date-fns/locale";
+import { oraRomaHM, dataRomaISO } from "@/lib/oraLocaleCalendario";
 import { DndContext, DragOverlay, MouseSensor, TouchSensor, useSensors, useSensor, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
 import { Calendar as CalendarIcon, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -128,7 +129,7 @@ export default function MarketingCalendarMonthView({
     const grouped = new Map<string, BusySlot[]>();
     busySlots.forEach((slot) => {
       if (!slot.start_at) return;
-      const dateKey = slot.start_at.slice(0, 10);
+      const dateKey = dataRomaISO(slot.start_at);
       const arr = grouped.get(dateKey) ?? [];
       arr.push(slot);
       grouped.set(dateKey, arr);
@@ -176,8 +177,7 @@ export default function MarketingCalendarMonthView({
     const selKey = format(selectedDate, "yyyy-MM-dd");
     const selApts = appointmentsByDate.get(selKey) ?? [];
     const selBusy = busySlotsByDate.get(selKey) ?? [];
-    const fmtBusy = (iso: string) =>
-      new Date(iso).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+    const fmtBusy = (iso: string) => oraRomaHM(iso);
     // Agenda unificata (appuntamenti + eventi esterni) ordinata per orario.
     const agenda = [
       ...selApts.map((apt) => ({
@@ -407,8 +407,7 @@ export default function MarketingCalendarMonthView({
                         // 2026-06-14: mostra la fascia oraria completa (inizio–fine),
                         // non solo l'inizio, e rende il blocco cliccabile per aprire il
                         // dettaglio dell'evento esterno.
-                        const fmt = (iso: string) =>
-                          new Date(iso).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+                        const fmt = (iso: string) => oraRomaHM(iso);
                         const range = !slot.is_all_day && slot.start_at
                           ? slot.end_at ? `${fmt(slot.start_at)}–${fmt(slot.end_at)}` : fmt(slot.start_at)
                           : null;

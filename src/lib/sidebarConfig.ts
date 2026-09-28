@@ -97,7 +97,7 @@ export const macroAreas: MacroArea[] = [
       // pulsante in testata su mobile, e le conversazioni con Silvio sono
       // canali della chat interna («espandi» porta lì). Cosa legge Silvio lo
       // decidono i permessi dei suoi strumenti (silvioToolExecution).
-      { title: "Chat Team", url: "/azienda/chat", icon: MessagesSquare },
+      { title: "Chat", url: "/azienda/chat", icon: MessagesSquare },
       { title: "Silvio AI", url: "/azienda/silvio-ai", icon: Sparkles, isBeta: true }, // nuova interfaccia multi-conversazione
     ],
   },
@@ -308,7 +308,7 @@ export const internalNavItems: NavItem[] = [
   { title: "Prima Nota", url: "/azienda/prima-nota", icon: BookOpen, permissionKey: "canViewPrimaNota", category: "internal", subcategory: "gi_finanza" },
   
   // MP-CLEANUP: "Messaggi Esterni" rimosso
-  { title: "Chat Team", url: "/azienda/chat", icon: MessageCircle, permissionKey: "canViewPersone", category: "internal", subcategory: "gi_team" },
+  { title: "Chat", url: "/azienda/chat", icon: MessageCircle, permissionKey: "canViewPersone", category: "internal", subcategory: "gi_team" },
   { title: "Silvio AI", url: "/azienda/silvio-ai", icon: Sparkles, isBeta: true, permissionKey: "canViewPersone", category: "internal", subcategory: "gi_team" },
   { title: "Personale & HR", url: "/azienda/personale", icon: Users, permissionKey: "canViewPersone", category: "internal", subcategory: "gi_team" },
   { title: "Crea corsi", url: "/azienda/corsi", icon: SquarePen, permissionKey: "canCreateCourses", category: "internal", subcategory: "gi_team" },

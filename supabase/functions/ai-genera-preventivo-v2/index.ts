@@ -1,5 +1,7 @@
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { chiamataInternaValida } from "../_shared/chiamataInterna.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 import { getSystemPromptForVertical } from "../_shared/ai-prompts/index.ts";
 import { extractJsonFromLLM } from "../_shared/extractJson.ts";
@@ -121,9 +123,17 @@ Deno.serve(async (req) => {
 
   const corsH = getCorsHeaders(req);
   try {
-    const { userId, supabaseAdmin } = await requireAuth(req, corsH);
-
     const body = await req.json();
+    // Ingresso interno del bot operativo (28/09/2026): chiave di servizio +
+    // l'utente per cui si genera. L'accesso all'azienda si ricontrolla sotto.
+    const interna = chiamataInternaValida(req) && typeof body?.per_utente === "string";
+    const { userId, supabaseAdmin } = interna
+      ? {
+        userId: body.per_utente as string,
+        supabaseAdmin: createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!),
+      }
+      : await requireAuth(req, corsH);
+
     const {
       company_id,
       descrizione,
@@ -146,8 +156,11 @@ Deno.serve(async (req) => {
     await requireCompanyAccess(supabaseAdmin, userId, company_id, corsH);
 
     // Gate carta (audit AI 2026-06): strumento a costo senza controllo pagamento.
-    const paymentBlock = await gateAiPayment(supabaseAdmin, company_id, corsH);
-    if (paymentBlock) return paymentBlock;
+    // Dal bot (interna) l'azienda è un tenant già verificato dal numero: salto il gate.
+    if (!interna) {
+      const paymentBlock = await gateAiPayment(supabaseAdmin, company_id, corsH);
+      if (paymentBlock) return paymentBlock;
+    }
 
     // FASE 8.5: leggi vertical della company per scegliere il system prompt.
     const { data: company } = await supabaseAdmin
@@ -593,7 +606,11 @@ REGOLE OUTPUT:
           { role: "system", content: systemPrompt },
           { role: "user", content: userContent as any },
         ],
-        params: { temperature: 0.3, max_tokens: isFotoMode ? 4000 : 2000 },
+        // Un preventivo dettagliato (es. un bagno con demolizioni, idraulica,
+        // rivestimenti, forniture) supera facilmente 2000 token in JSON: con il
+        // vecchio tetto la risposta si troncava a metà e il JSON non era più
+        // parsabile → l'utente vedeva «motore preventivi non disponibile».
+        params: { temperature: 0.3, max_tokens: 8000 },
         responseFormat: { type: "json_object" },
         companyId: company_id,
         userId,

@@ -1,9 +1,10 @@
 import { useMemo, useState, useRef, useEffect } from "react";
 import { format, isSameDay, parseISO, isToday } from "date-fns";
+import { partiOraRoma, oraRomaHM } from "@/lib/oraLocaleCalendario";
 import { it } from "date-fns/locale";
 import { DndContext, DragOverlay, MouseSensor, TouchSensor, useSensors, useSensor, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
 import { cn } from "@/lib/utils";
-import { Car, AlertTriangle, MapPinOff, User, Calendar as CalendarIcon } from "lucide-react";
+import { Car, AlertTriangle, MapPinOff, User, Calendar as CalendarIcon, Video } from "lucide-react";
 import type { MarketingAppointment, TravelLeg } from "@/types/marketingCalendar";
 import type { GoogleBusySlot } from "@/types/calendar";
 import { buildTimeSlots, buildColorMap, timeToMin, computeOverlapLayout } from "@/lib/marketingCalendarConstants";
@@ -98,9 +99,10 @@ export default function MarketingCalendarDayView({
     const dayStr = format(date, "yyyy-MM-dd");
     return busySlots.filter((s) => {
       if (s.is_all_day) return false;
-      if (s.start_at.slice(0, 10) !== dayStr) return false;
-      const sMin = timeToMin(s.start_at.slice(11, 16));
-      const eMin = timeToMin(s.end_at.slice(11, 16));
+      const inizio = partiOraRoma(s.start_at);
+      if (inizio.data !== dayStr) return false;
+      const sMin = timeToMin(inizio.hm);
+      const eMin = timeToMin(oraRomaHM(s.end_at));
       return sMin < slotEnd && eMin > slotStart;
     });
   };
@@ -267,8 +269,8 @@ export default function MarketingCalendarDayView({
                   {slotBusy.map((busy, bi) => {
                     const isApple = busy.provider === "apple";
                     const isOutlook = busy.provider === "outlook";
-                    const startHM = busy.start_at.slice(11, 16);
-                    const endHM = busy.end_at.slice(11, 16);
+                    const startHM = oraRomaHM(busy.start_at);
+                    const endHM = oraRomaHM(busy.end_at);
                     // L'etichetta va mostrata solo nella cella in cui l'evento INIZIA,
                     // così un evento multi-slot non ripete il titolo in ogni sotto-cella.
                     const sMin = timeToMin(startHM);
@@ -304,6 +306,10 @@ export default function MarketingCalendarDayView({
                   })}
                   {slotApts.map((apt) => {
                     const leg = travelLegMap[apt.id];
+                    // Videochiamata: l'"indirizzo" è il link Meet, non un luogo fisico.
+                    // meeting_provider vale "none" quando non è una call → va escluso.
+                    const aptMeetingProvider = (apt as any).meeting_provider as string | null;
+                    const isVideocall = !!(apt as any).meeting_url || (!!aptMeetingProvider && aptMeetingProvider !== "none");
                     const hasNoCoords = apt.lat == null || apt.lng == null;
                     const heightPx = getHeightPx(apt);
                     const topOffset = getTopOffsetPx(apt, slotTime);
@@ -343,12 +349,17 @@ export default function MarketingCalendarDayView({
                               )}
                             </div>
                           )}
-                          {hasNoCoords && !apt.is_blocked_slot && (
+                          {isVideocall ? (
+                            <div className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded mb-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border border-blue-300 dark:border-blue-700">
+                              <Video className="h-3 w-3" />
+                              <span>Videochiamata</span>
+                            </div>
+                          ) : hasNoCoords && !apt.is_blocked_slot ? (
                             <div className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded mb-0.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 border border-yellow-300 dark:border-yellow-700">
                               <MapPinOff className="h-3 w-3" />
                               <span>Indirizzo mancante</span>
                             </div>
-                          )}
+                          ) : null}
                           <div
                             onClick={(e) => {
                               e.stopPropagation();

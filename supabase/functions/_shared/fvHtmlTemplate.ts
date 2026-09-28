@@ -712,6 +712,26 @@ table .saving-zero { color: #64748B; }
 .product-card.featured .product-info h3 { font-size: 17pt; line-height: 1.2; }
 .product-card.featured .product-info p { font-size: 10pt; line-height: 1.5; margin: 4mm 0; }
 .product-card.featured .spec-chip { font-size: 10pt; padding: 2mm 4mm; }
+/* Composizione della fornitura: tabella prodotti (foto · descrizione · specifiche · q.tà) */
+.forn-caption { margin-top: 9mm; font-size: 8pt; font-weight: 800; letter-spacing: .10em; text-transform: uppercase; color: #1E3A5F; }
+.forn-tabella { width: 100%; border-collapse: collapse; margin-top: 4mm; }
+.forn-tabella thead th { font-size: 7pt; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; color: #94A3B8; text-align: left; padding: 0 4mm 3mm; border-bottom: 1.5px solid #1E3A5F; }
+.forn-h-qta { text-align: right; }
+.forn-tabella tbody td { padding: 5mm 4mm; border-bottom: 1px solid #EEF2F6; vertical-align: middle; }
+.forn-idx { font-family: Georgia, 'Times New Roman', serif; font-size: 15pt; font-weight: 700; color: #CBD5E1; width: 9mm; }
+.forn-thumb { width: 20mm; }
+.forn-thumb img { width: 18mm; height: 18mm; object-fit: contain; background: #F8FAFC; border: 1px solid #E7EDF3; border-radius: 9px; padding: 1.5mm; box-sizing: border-box; }
+.forn-thumb .ph { width: 18mm; height: 18mm; border-radius: 9px; background: #F1F5F9; display: flex; align-items: center; justify-content: center; color: #94A3B8; }
+.forn-thumb .ph svg { width: 11mm; height: 11mm; }
+.forn-cat { font-size: 7.5pt; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #F97316; margin-bottom: 1mm; }
+.forn-t { font-size: 11pt; font-weight: 700; color: #0F172A; line-height: 1.2; }
+.forn-specs { margin-top: 1.5mm; font-size: 8.5pt; color: #64748B; }
+.forn-qta { text-align: right; font-size: 14pt; font-weight: 800; color: #1E3A5F; white-space: nowrap; }
+.forn-qta-u { font-size: 8pt; font-weight: 600; color: #94A3B8; margin-left: 1.5mm; }
+.forn-tot { margin-top: 9mm; display: flex; justify-content: space-between; align-items: flex-end; border-top: 2.5px solid #1E3A5F; padding-top: 4mm; }
+.forn-tot-l { font-size: 9.5pt; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: #1E3A5F; display: flex; flex-direction: column; gap: 1.5mm; }
+.forn-tot-l span { font-size: 7.5pt; font-weight: 500; letter-spacing: 0; text-transform: none; color: #94A3B8; }
+.forn-tot-v { font-size: 22pt; font-weight: 800; color: #1E3A5F; letter-spacing: -.01em; }
 .macro-hero { display: grid; grid-template-columns: 1fr 1.1fr; gap: 7mm; align-items: center; margin: 5mm 0; }
 .macro-hero-img { height: 92mm; border-radius: 12px; overflow: hidden; background: linear-gradient(135deg, #F8FAFC 0%, #E2E8F0 100%); border: 1px solid #E2E8F0; display: flex; align-items: center; justify-content: center; }
 .macro-hero-img img { width: 100%; height: 100%; object-fit: cover; }
@@ -1406,6 +1426,71 @@ function pageComponenti(d: FvPdfTemplateData, pageN: number, total: number, comp
       <p class="page-subtitle">${isFvLocalIntervention(d.template) ? "I prodotti elencati nella proposta. Modelli, prestazioni e condizioni sono quelli delle schede confermate." : "Marca, modello e garanzia di ogni componente che installiamo sul tuo tetto."}</p>
       ${cards || "<p>Nessun componente configurato.</p>"}
       ${fasciaFotoPagina(d, "componenti", "center 45%", true)}
+    </div>
+    ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
+  </div>`;
+}
+
+/**
+ * «Composizione della fornitura»: la pagina tabellare (come serramenti e
+ * ristrutturazioni) con foto del prodotto, categoria, descrizione, specifiche e
+ * quantità, e il totale chiavi in mano in fondo. La FOTO è quella caricata sul
+ * prodotto (image_url), diversa dalla scheda tecnica PDF da allegare. Se il
+ * progetto usa un kit/bundle, le righe sono le voci del kit inserito.
+ */
+function pageComposizioneFornitura(d: FvPdfTemplateData, pageN: number, total: number): string {
+  const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
+  const local = isFvLocalIntervention(d.template);
+  const kit = d.bundle && (d.bundle.voci ?? []).length > 0 ? d.bundle : null;
+
+  type Riga = { foto: string | null; cat: string; titolo: string; specs: string[]; qta: number };
+  const righe: Riga[] = kit
+    ? (kit.voci ?? []).map((v) => ({ foto: imageHref(v.foto) ?? null, cat: kit.nome || "Kit", titolo: v.descrizione, specs: [] as string[], qta: v.quantita }))
+    : d.componenti.map((c) => {
+        const media = productCategoryMedia(d, c.categoria);
+        const specs: string[] = [];
+        if (c.potenza_w) specs.push(`${fmtNum(c.potenza_w, 0)} Wp`);
+        if (c.capacita_kwh) specs.push(`${fmtNum(c.capacita_kwh, 1)} kWh`);
+        if (c.garanzia_anni) specs.push(`Garanzia ${c.garanzia_anni} anni`);
+        const estesa = plainText(c.articolo_descrizione_estesa);
+        if (estesa && specs.length < 3) specs.push(estesa);
+        return {
+          foto: imageHref(c.image_url) ?? null,
+          cat: media.label || c.categoria,
+          titolo: [c.marca, c.modello ?? c.descrizione].filter(Boolean).join(" ") || c.descrizione,
+          specs: specs.slice(0, 3),
+          qta: c.quantita,
+        };
+      });
+
+  const pezzi = righe.reduce((s, r) => s + (Number(r.qta) || 0), 0);
+  const rows = righe.map((r, i) => `
+      <tr>
+        <td class="forn-idx">${String(i + 1).padStart(2, "0")}</td>
+        <td class="forn-thumb">${r.foto ? `<img src="${escHtml(r.foto)}" alt=""/>` : `<div class="ph">${svgProdottoIcona("pannello")}</div>`}</td>
+        <td class="forn-desc">
+          <div class="forn-cat">${escHtml(r.cat)}</div>
+          <div class="forn-t">${escHtml(r.titolo)}</div>
+          ${r.specs.length ? `<div class="forn-specs">${r.specs.map(escHtml).join("&nbsp;·&nbsp;")}</div>` : ""}
+        </td>
+        <td class="forn-qta">${fmtNum(r.qta, 0)}<span class="forn-qta-u">pz</span></td>
+      </tr>`).join("");
+
+  return `<div class="page">
+    ${header(d.progetto.numero, cliente, d.azienda.name)}
+    <div class="content">
+      <div class="eyebrow">La fornitura</div>
+      <h1 class="page-title">Cosa installiamo,<br/>in dettaglio.</h1>
+      <p class="page-subtitle">${local ? "I prodotti della proposta, con quantità e caratteristiche principali." : "Prodotti, quantità e caratteristiche della fornitura prevista, chiavi in mano."}</p>
+      <div class="forn-caption">Composizione della fornitura&nbsp;·&nbsp;${pezzi} ${pezzi === 1 ? "pezzo" : "pezzi"}</div>
+      <table class="forn-tabella">
+        <thead><tr><th style="width:9mm">#</th><th colspan="2">Descrizione &amp; specifiche tecniche</th><th class="forn-h-qta">Q.tà</th></tr></thead>
+        <tbody>${rows || `<tr><td colspan="4" style="padding:6mm;color:#94A3B8;">Nessun prodotto configurato.</td></tr>`}</tbody>
+      </table>
+      <div class="forn-tot">
+        <div class="forn-tot-l">Fornitura chiavi in mano<span>IVA ${fmtNum(d.costi.iva_perc, 0)}% inclusa · installazione e collaudo compresi</span></div>
+        <div class="forn-tot-v">${fmtEur(d.costi.prezzo_vendita_iva_inclusa)}</div>
+      </div>
     </div>
     ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
   </div>`;
@@ -2574,7 +2659,11 @@ export function renderFvPdfHtml(d: FvPdfTemplateData): string {
         append(page.id, pageAnteprima(d, ++pageN, TOTAL));
         break;
       case "componenti":
-        append(page.id, ...gruppiComponenti(d).map((group, index) => pageComponenti(d, ++pageN, TOTAL, group, index)));
+        // Pagina tabellare «Composizione della fornitura» (foto prodotto,
+        // descrizione, specifiche, quantità + totale chiavi in mano) al posto
+        // delle vecchie card. Copre tutti i modelli FV (full, elettrico, conto
+        // termico, clima…) perché è lo stesso template.
+        append(page.id, pageComposizioneFornitura(d, ++pageN, TOTAL));
         break;
       case "macro_categorie":
         append(page.id, ...macroPages.map((macro) => pageMacroCategoriaDedicata(d, macro, ++pageN, TOTAL)));
