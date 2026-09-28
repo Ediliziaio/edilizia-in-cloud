@@ -5,13 +5,14 @@
  * Step 2: Cliente + Commessa (opzionali)
  * Step 3: Indirizzo + data + tecnico assegnato
  */
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   listTemplates, createSurvey,
   listCrmContacts, listCrmOpportunities, nomeContatto,
 } from "@/lib/api/surveys";
+import { categorieConsigliate } from "@/lib/sopralluoghi/verticalTemplate";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompanyCustomers } from "@/hooks/useCompanyCustomers";
 import { Button } from "@/components/ui/button";
@@ -77,6 +78,41 @@ export default function NuovoSopralluogo() {
     queryKey: ["sopralluoghi-templates"],
     queryFn: () => listTemplates(),
   });
+
+  // Settore dell'azienda: per consigliare/pre-selezionare il template giusto.
+  const { data: azienda } = useQuery({
+    queryKey: ["azienda-vertical", companyId],
+    enabled: !!companyId,
+    staleTime: 30 * 60 * 1000,
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data } = await (supabase as any)
+        .from("companies").select("vertical_key, sector").eq("id", companyId).maybeSingle();
+      return (data ?? null) as { vertical_key: string | null; sector: string | null } | null;
+    },
+  });
+
+  // Categorie consigliate per il settore + template ordinati (consigliati prima).
+  const consigliate = useMemo(
+    () => categorieConsigliate(azienda?.vertical_key, azienda?.sector),
+    [azienda?.vertical_key, azienda?.sector],
+  );
+  const rango = (cat: string) => {
+    const i = consigliate.indexOf(cat);
+    return i === -1 ? 999 : i;
+  };
+  const templatesOrdinati = useMemo(() => {
+    const list = [...(templates ?? [])];
+    // Stabile: prima i consigliati (nell'ordine della mappa), poi il resto.
+    return list.sort((a, b) => rango(a.category) - rango(b.category));
+  }, [templates, consigliate]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Pre-seleziona il template del settore principale, se non arrivo con uno scelto.
+  useEffect(() => {
+    if (selectedTemplate || consigliate.length === 0 || !templates?.length) return;
+    const preferito = templatesOrdinati.find((t) => consigliate.includes(t.category));
+    if (preferito) setSelectedTemplate(preferito.id);
+  }, [templates, consigliate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { data: members } = useQuery({
     queryKey: ["company-members-for-surveys", companyId],
@@ -252,28 +288,36 @@ export default function NuovoSopralluogo() {
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-3">
-                {(templates ?? []).map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => setSelectedTemplate(t.id)}
-                    className={cn(
-                      "rounded-xl border-2 p-4 text-left transition-all",
-                      selectedTemplate === t.id
-                        ? "border-orange-500 bg-orange-50 shadow-md"
-                        : "border-muted hover:border-orange-300 hover:bg-muted/30",
-                    )}
-                  >
-                    <div className="text-3xl mb-2">{CATEGORY_ICON[t.category] ?? "📋"}</div>
-                    <p className="font-semibold text-sm leading-tight">{t.name}</p>
-                    {t.description && (
-                      <p className="text-[11px] text-muted-foreground mt-1 line-clamp-2">{t.description}</p>
-                    )}
-                    {t.is_system && (
-                      <Badge variant="outline" className="text-[9px] mt-2">Sistema</Badge>
-                    )}
-                  </button>
-                ))}
+                {templatesOrdinati.map((t) => {
+                  const consigliato = consigliate.includes(t.category);
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setSelectedTemplate(t.id)}
+                      className={cn(
+                        "relative rounded-xl border-2 p-4 text-left transition-all",
+                        selectedTemplate === t.id
+                          ? "border-orange-500 bg-orange-50 shadow-md"
+                          : consigliato
+                            ? "border-orange-200 hover:border-orange-400 hover:bg-orange-50/40"
+                            : "border-muted hover:border-orange-300 hover:bg-muted/30",
+                      )}
+                    >
+                      {consigliato && (
+                        <Badge className="absolute right-2 top-2 bg-orange-100 text-orange-700 text-[9px]">Consigliato</Badge>
+                      )}
+                      <div className="text-3xl mb-2">{CATEGORY_ICON[t.category] ?? "📋"}</div>
+                      <p className="font-semibold text-sm leading-tight">{t.name}</p>
+                      {t.description && (
+                        <p className="text-[11px] text-muted-foreground mt-1 line-clamp-2">{t.description}</p>
+                      )}
+                      {t.is_system && (
+                        <Badge variant="outline" className="text-[9px] mt-2">Sistema</Badge>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             )}
           </CardContent>
