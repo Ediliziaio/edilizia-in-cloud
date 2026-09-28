@@ -7,9 +7,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/headers.ts";
 import { chiamataInternaValida, rispostaNonAutorizzata } from "../_shared/chiamataInterna.ts";
-import { routineDovutaOra } from "../_shared/routineOperativa.ts";
+import { oraItalianaParti, routineDovutaOra } from "../_shared/routineOperativa.ts";
 import { componiReportMattino, type DatiReport } from "../_shared/reportMattino.ts";
 import { componiTodoOperaio, type CantiereTodo } from "../_shared/todoOperaio.ts";
+import { componiAvvisi, type DatiAvvisi } from "../_shared/avvisiOperativi.ts";
+import { appuntamentiImminenti, type AppuntamentoRow, componiPromemoriaAppuntamento } from "../_shared/promemoriaAppuntamento.ts";
 
 interface Esito { sent: number; skipped: number; failed: number; }
 const vuoto = (): Esito => ({ sent: 0, skipped: 0, failed: 0 });
@@ -24,6 +26,8 @@ interface RoutineRow {
   ora: string | null;
   giorni: number[] | null;
   destinatari: { utenti?: string[]; ruoli?: string[] } | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  regole: Record<string, any> | null;
   template_nome: string | null;
 }
 
@@ -200,6 +204,65 @@ async function eseguiTodoOperaio(supabase: DB, r: RoutineRow, oggi: string, forc
   return e;
 }
 
+async function eseguiAvvisi(supabase: DB, r: RoutineRow, oggi: string, force: boolean): Promise<Esito> {
+  const e = vuoto();
+  const destinatari = await risolviDestinatari(supabase, r.company_id, r.destinatari);
+  if (destinatari.length === 0) { e.skipped++; return e; }
+  const { data: dati } = await supabase.rpc("bot_avvisi_valuta", { p_company_id: r.company_id, p_regole: r.regole ?? {} });
+  const avvisi = componiAvvisi((dati ?? {}) as DatiAvvisi, oggi);
+  if (avvisi.length === 0) { e.skipped++; return e; }
+  for (const av of avvisi) {
+    for (const { userId, phone } of destinatari) {
+      if (!force && await giaMandato(supabase, r.company_id, oggi, av.chiave, userId)) { e.skipped++; continue; }
+      const esito = await invia(supabase, r.wa_number_id, r.company_id, phone, av.testo, r.template_nome);
+      await logga(supabase, r, oggi, av.chiave, userId, phone, esito);
+      esito.ok ? e.sent++ : e.failed++;
+    }
+  }
+  return e;
+}
+
+async function eseguiPromemoriaAppuntamento(supabase: DB, r: RoutineRow, now: Date, oggi: string, force: boolean): Promise<Esito> {
+  const e = vuoto();
+  const anticipo = Number(r.regole?.anticipo_min ?? 120) || 120;
+  const { minuti } = oraItalianaParti(now);
+  const { data: appts } = await supabase.from("appointments")
+    .select("id, title, appointment_date, appointment_time, formatted_address, address_line, address_city, assigned_to, order_id, is_completed, status, is_blocked_slot, cancelled_at")
+    .eq("company_id", r.company_id)
+    .eq("appointment_date", oggi);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const validi = ((appts ?? []) as any[]).filter((a) =>
+    !a.is_completed && !a.is_blocked_slot && !a.cancelled_at &&
+    !["cancelled", "annullato", "canceled"].includes(String(a.status ?? "").toLowerCase()),
+  ) as AppuntamentoRow[];
+  const imminenti = force ? validi : appuntamentiImminenti(validi, oggi, minuti, anticipo);
+  if (imminenti.length === 0) { e.skipped++; return e; }
+
+  const base = await risolviDestinatari(supabase, r.company_id, r.destinatari);
+  const assegnatari = [...new Set(imminenti.map((a) => a.assigned_to).filter(Boolean))] as string[];
+  const telAssegnatario = new Map<string, string>();
+  if (assegnatari.length > 0) {
+    const { data } = await supabase.from("profiles").select("id, phone").in("id", assegnatari).eq("company_id", r.company_id);
+    for (const p of data ?? []) { const ph = cleanPhone(p.phone); if (ph) telAssegnatario.set(p.id, ph); }
+  }
+
+  for (const a of imminenti) {
+    const dest = (a.assigned_to && telAssegnatario.has(a.assigned_to))
+      ? [{ userId: a.assigned_to, phone: telAssegnatario.get(a.assigned_to)! }]
+      : base;
+    if (dest.length === 0) { e.skipped++; continue; }
+    const testo = componiPromemoriaAppuntamento(a);
+    const kind = `promemoria_appuntamento:${a.id}`;
+    for (const { userId, phone } of dest) {
+      if (!force && await giaMandato(supabase, r.company_id, oggi, kind, userId)) { e.skipped++; continue; }
+      const esito = await invia(supabase, r.wa_number_id, r.company_id, phone, testo, r.template_nome);
+      await logga(supabase, r, oggi, kind, userId, phone, esito);
+      esito.ok ? e.sent++ : e.failed++;
+    }
+  }
+  return e;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (!chiamataInternaValida(req)) return rispostaNonAutorizzata(corsHeaders);
@@ -211,17 +274,25 @@ Deno.serve(async (req) => {
   const oggi = dataOggiRoma(now);
 
   let q = supabase.from("bot_routine")
-    .select("id, company_id, wa_number_id, ora, giorni, destinatari, template_nome, tipo")
-    .eq("attiva", true).in("tipo", ["report_mattino", "todo_operaio"]);
+    .select("id, company_id, wa_number_id, ora, giorni, destinatari, regole, template_nome, tipo")
+    .eq("attiva", true).in("tipo", ["report_mattino", "todo_operaio", "avviso", "promemoria_appuntamento"]);
   if (body?.company_id) q = q.eq("company_id", body.company_id);
   const { data: routines } = await q;
 
   const tot = vuoto();
   for (const r of (routines ?? []) as Array<RoutineRow & { tipo: string }>) {
-    if (!routineDovutaOra({ ora: r.ora, giorni: r.giorni ?? [1, 2, 3, 4, 5] }, now, force)) continue;
-    const e = r.tipo === "todo_operaio"
-      ? await eseguiTodoOperaio(supabase, r, oggi, force)
-      : await eseguiReportMattino(supabase, r, now, oggi, force);
+    const giorni = r.giorni ?? [1, 2, 3, 4, 5];
+    let e: Esito;
+    if (r.tipo === "promemoria_appuntamento") {
+      // Non su orario fisso: gira a ogni giro e guarda gli appuntamenti imminenti.
+      if (!force && !giorni.includes(oraItalianaParti(now).giorno)) continue;
+      e = await eseguiPromemoriaAppuntamento(supabase, r, now, oggi, force);
+    } else {
+      if (!routineDovutaOra({ ora: r.ora, giorni }, now, force)) continue;
+      e = r.tipo === "todo_operaio" ? await eseguiTodoOperaio(supabase, r, oggi, force)
+        : r.tipo === "avviso" ? await eseguiAvvisi(supabase, r, oggi, force)
+        : await eseguiReportMattino(supabase, r, now, oggi, force);
+    }
     tot.sent += e.sent; tot.skipped += e.skipped; tot.failed += e.failed;
   }
 
