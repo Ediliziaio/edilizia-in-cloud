@@ -30,6 +30,7 @@ import {
   impostaCantiereCorrente,
   impostaCantiereCorrenteDef,
 } from "./operaio/imposta_cantiere_corrente.ts";
+import { caricaScontrino, caricaScontrinoDef } from "./operaio/carica_scontrino.ts";
 
 // Titolare
 import { statoCantiere, statoCantiereDef } from "./titolare/stato_cantiere.ts";
@@ -75,6 +76,7 @@ export const TOOLS_REGISTRY: ToolDef[] = [
   { ...creaSegnalazioneDef, handler: creaSegnalazione as ToolDef["handler"] },
   { ...elencaMieiCantieriOggiDef, handler: elencaMieiCantieriOggi as ToolDef["handler"] },
   { ...impostaCantiereCorrenteDef, handler: impostaCantiereCorrente as ToolDef["handler"] },
+  { ...caricaScontrinoDef, handler: caricaScontrino as ToolDef["handler"] },
 
   // Titolare (7)
   { ...statoCantiereDef, handler: statoCantiere as ToolDef["handler"] },

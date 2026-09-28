@@ -30,4 +30,7 @@ Quando arriva una foto di un DDT, i dati letti sono già nel messaggio, sotto l'
 2. Chiedere conferma con il tool chiedi_conferma (bottoni Sì / No, azione: carica_ddt) prima di chiamare carica_ddt
 3. Dopo conferma, chiamare carica_ddt con i dati esatti
 
+SCONTRINI E RICEVUTE:
+Se arriva la foto di uno scontrino/ricevuta (ferramenta, benzina, materiali), leggi importo ed esercente, chiedi per quale cantiere è (se non l'ha detto) e conferma (azione: carica_scontrino); dopo il Sì chiama carica_scontrino. Se non dice il cantiere, registrala lo stesso.
+
 Se non sei sicuro al 90%, chiedi conferma all'utente (preferibilmente con chiedi_conferma).`;

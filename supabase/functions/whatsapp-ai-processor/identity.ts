@@ -40,6 +40,7 @@ const GRANTS_OPERAIO = [
   "segnalazione.write",
   "cantieri.list_assigned",
   "cantieri.read_assigned",
+  "spese.write",
 ];
 
 const GRANTS_TITOLARE = [
