@@ -572,6 +572,23 @@ async function processQueue(supabase: any) {
 
   let processed = 0;
 
+  // Un flusso messo in BOZZA (o archiviato/eliminato) non deve mandare più
+  // niente, nemmeno i passi già in coda. Prima processQueue svuotava la coda
+  // senza guardare lo stato del flusso: «spegnere» un'automazione fermava solo
+  // i nuovi ingressi, mentre i passi già accodati partivano lo stesso
+  // (28/09/2026, solleciti fotovoltaico). Ora un passo di un flusso non più
+  // «published» si annulla invece di partire. Lo stato dei flussi del lotto si
+  // legge una volta sola.
+  const flowIdsBatch = [...new Set((items as Array<{ flow_id?: string }>).map((i) => i.flow_id).filter(Boolean))] as string[];
+  const flussiPubblicati = new Set<string>();
+  if (flowIdsBatch.length) {
+    const { data: statiFlussi } = await supabase.from("automation_flows")
+      .select("id, status, deleted_at").in("id", flowIdsBatch);
+    for (const f of (statiFlussi ?? []) as Array<{ id: string; status: string; deleted_at: string | null }>) {
+      if (f.status === "published" && !f.deleted_at) flussiPubblicati.add(f.id);
+    }
+  }
+
   // "Ferma se risponde": impostazione del flusso che l'interfaccia salvava da
   // sempre e che NESSUNO leggeva. Su una sequenza da 45 email significa che chi
   // risponde "smettete di scrivermi" le riceve tutte lo stesso — il modo più
@@ -689,6 +706,27 @@ async function processQueue(supabase: any) {
 
   for (const item of items) {
     try {
+      // Flusso spento (in bozza), archiviato o eliminato: non eseguire il
+      // passo. «Mettere in bozza» un'automazione deve fermare TUTTO, anche la
+      // coda già pronta, non solo i nuovi ingressi. Si chiude l'iscrizione e si
+      // annulla la coda residua, come per «fermata su risposta».
+      if (item.flow_id && !flussiPubblicati.has(item.flow_id)) {
+        if (item.enrollment_id) {
+          await supabase.from("automation_queue")
+            .update({ status: "cancelled", last_error: "flusso in bozza/archiviato: non parte", updated_at: now })
+            .eq("enrollment_id", item.enrollment_id).in("status", ["pending", "processing"]);
+          await supabase.from("automation_enrollments")
+            .update({ status: "canceled", updated_at: now })
+            .eq("id", item.enrollment_id).eq("status", "active");
+          await completeExecutionRun(supabase, item.enrollment_id, "completed");
+        } else {
+          await supabase.from("automation_queue")
+            .update({ status: "cancelled", last_error: "flusso in bozza/archiviato: non parte", updated_at: now })
+            .eq("id", item.id).eq("status", "pending");
+        }
+        continue;
+      }
+
       if (await fermaSeHaRisposto(item)) {
         await supabase.from("automation_queue")
           .update({ status: "cancelled", updated_at: now }).eq("id", item.id).eq("status", "pending");
