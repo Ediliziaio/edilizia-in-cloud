@@ -1445,7 +1445,7 @@ function pageComposizioneFornitura(d: FvPdfTemplateData, pageN: number, total: n
 
   type Riga = { foto: string | null; cat: string; titolo: string; specs: string[]; qta: number };
   const righe: Riga[] = kit
-    ? (kit.voci ?? []).map((v) => ({ foto: imageHref(v.foto) ?? null, cat: kit.nome || "Kit", titolo: v.descrizione, specs: [], qta: v.quantita }))
+    ? (kit.voci ?? []).map((v) => ({ foto: imageHref(v.foto) ?? null, cat: kit.nome || "Kit", titolo: v.descrizione, specs: [] as string[], qta: v.quantita }))
     : d.componenti.map((c) => {
         const media = productCategoryMedia(d, c.categoria);
         const specs: string[] = [];
