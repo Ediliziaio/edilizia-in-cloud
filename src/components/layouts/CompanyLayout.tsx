@@ -123,6 +123,8 @@ import { NotificationsBellPopover } from "@/components/notifications/Notificatio
 import { NotificationsRealtime } from "@/hooks/useNotifications";
 import { useMyTaskCount } from "@/hooks/useMyTaskCount";
 import { useUnreadEmailCount } from "@/hooks/useUnreadEmailCount";
+import { useInternalChatUnreadTotal } from "@/hooks/useInternalChatUnreadTotal";
+import { useConversazioniNonLette } from "@/hooks/useConversazioniNonLette";
 
 import { CommandPalette } from "@/components/CommandPalette";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
@@ -674,6 +676,10 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
 function CruscottoNavItems({ filterNavItems }: { filterNavItems: (items: NavItem[]) => NavItem[] }) {
   const { data: taskCounts } = useMyTaskCount();
   const { data: emailCounts } = useUnreadEmailCount();
+  // Due conteggi per la voce «Chat»: la chat interna del team e le conversazioni
+  // esterne (WhatsApp/email/IG…). Due badge di colore diverso nella sidebar.
+  const internalChatUnread = useInternalChatUnreadTotal();
+  const conversazioniUnread = useConversazioniNonLette();
   const permissions = usePermissions();
   const { role } = useAuth();
   const items = filterNavItems(macroAreas.find(a => a.id === "area_cruscotto")?.items ?? []);
@@ -685,6 +691,7 @@ function CruscottoNavItems({ filterNavItems }: { filterNavItems: (items: NavItem
           {items.map((item) => {
             const isTaskItem = item.url === "/azienda/attivita";
             const isEmailItem = item.url === "/azienda/email";
+            const isChatItem = item.url === "/azienda/chat";
             const itemUrl =
               item.url === "/azienda/cruscotto"
                 ? (permissions.isLoading ? item.url : getSmartCruscottoPath(permissions, role))
@@ -722,6 +729,30 @@ function CruscottoNavItems({ filterNavItems }: { filterNavItems: (items: NavItem
                   >
                     <item.icon className="h-4 w-4" />
                     <span className="font-medium">{item.title}</span>
+                    {/* «Chat»: due badge di colore diverso, entrambi dai token del tema.
+                        - Team interno → navy (secondary): identico ai conteggi di Email/Attività.
+                        - Conversazioni esterne (WhatsApp/email/IG…) → verde (success): il canale coi clienti. */}
+                    {isChatItem && (internalChatUnread > 0 || conversazioniUnread > 0) && (
+                      <span className="ml-auto flex items-center gap-1">
+                        {internalChatUnread > 0 && (
+                          <Badge
+                            variant="secondary"
+                            className="h-5 min-w-[20px] px-1.5 text-[10px] font-bold"
+                            title={`${internalChatUnread} messaggi del team da leggere`}
+                          >
+                            {internalChatUnread > 99 ? "99+" : internalChatUnread}
+                          </Badge>
+                        )}
+                        {conversazioniUnread > 0 && (
+                          <Badge
+                            className="h-5 min-w-[20px] border-transparent bg-success px-1.5 text-[10px] font-bold text-success-foreground hover:bg-success/80"
+                            title={`${conversazioniUnread} conversazioni con messaggi da leggere`}
+                          >
+                            {conversazioniUnread > 99 ? "99+" : conversazioniUnread}
+                          </Badge>
+                        )}
+                      </span>
+                    )}
                     {showBadge && (
                       <Badge
                         variant={badgeVariant === "destructive" ? "destructive" : "secondary"}
