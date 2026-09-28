@@ -48,6 +48,7 @@ import {
 } from "../_shared/agenteOperativoConfig.ts";
 import { SILVIO_TOOLS } from "../_shared/silvioTools.ts";
 import { adessoPerIlPrompt, formatoWhatsApp } from "../_shared/formatoWhatsApp.ts";
+import { anteprimaBozza } from "../_shared/anteprimaProposta.ts";
 import { buildInteractivePayload } from "./interactive.ts";
 // 🛡️ Anti chain-of-thought leak — strip tool names + opener narrativi prima
 // di rispondere su WhatsApp (operai, titolari).
@@ -779,8 +780,10 @@ Deno.serve(async (req) => {
       if (p.rischio === "red") {
         finalText = "Questa azione va approvata dall'app: la trovi in Silvio, tra le azioni da approvare.";
       } else {
-        const { data: prop } = await supabase.from("ai_action_proposals").select("summary").eq("id", p.id).maybeSingle();
-        const domanda = `${prop?.summary ?? "Preparo l'azione che mi hai chiesto."}\n\nConfermi?`;
+        const { data: prop } = await supabase.from("ai_action_proposals").select("summary, payload").eq("id", p.id).maybeSingle();
+        // Se è una bozza (email/messaggio a un cliente) la mostro per intero:
+        // chi approva deve leggere cosa parte, non solo un'etichetta (28/09/2026).
+        const domanda = `${prop?.summary ?? "Preparo l'azione che mi hai chiesto."}${anteprimaBozza(prop?.payload)}\n\nConfermi?`;
         await sendInteractiveReply(
           msg,
           buildInteractivePayload(domanda, [{ id: "conf_0", title: "Sì" }, { id: "conf_1", title: "No" }]) as unknown as Record<
