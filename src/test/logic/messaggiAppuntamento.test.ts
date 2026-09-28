@@ -63,6 +63,15 @@ describe("email dell'appuntamento", () => {
     expect(e.testo.endsWith("Il team di Edilizia in Cloud")).toBe(true);
   });
 
+  it("lo spostamento dice «è stato spostato» col nuovo orario, non «confermato»", () => {
+    const e = emailAppuntamento("spostato", demo);
+    expect(e.oggetto).toBe("Appuntamento spostato: martedì 29 settembre alle 10:30");
+    expect(e.testo).toContain("è stato spostato");
+    expect(e.testo).not.toContain("è confermato");
+    expect(e.html).toContain("Aggiorna il calendario");
+    expect(e.testo.endsWith("Il team di Edilizia in Cloud")).toBe(true);
+  });
+
   it("promemoria: il giorno prima col pulsante per collegarsi, un'ora prima col link", () => {
     expect(emailAppuntamento("promemoria_24h", demo).oggetto).toBe("Promemoria: il tuo appuntamento è domani alle 10:30");
     expect(emailAppuntamento("promemoria_24h", demo).html).toContain("Collegati alla videochiamata");
@@ -95,6 +104,7 @@ describe("quando partono conferma e promemoria", () => {
     inizio,
     creatoIl: inizio - 5 * 24 * ORA,
     confermaInviataIl: inizio - 5 * 24 * ORA,
+    riprogrammatoIl: null,
     giaMandati: { h24: false, h1: false, m5: false },
     confermaDovuta: false,
     ...s,
@@ -133,11 +143,21 @@ describe("quando partono conferma e promemoria", () => {
     expect(momentiDaMandare(stato({ adesso: tardi + 5 * MIN, creatoIl: tardi - MIN, confermaInviataIl: tardi, confermaDovuta: true }))).toEqual([]);
   });
 
-  it("spostato: la conferma riparte e i promemoria contano dalla nuova conferma", () => {
-    // Prenotato da 5 giorni, spostato 10 ore prima del nuovo orario.
+  it("spostato: parte un solo «spostato» (mai una nuova conferma), poi i promemoria contano dalla nuova comunicazione", () => {
+    // Confermato 5 giorni fa, poi spostato 10 ore prima del nuovo orario.
     const spostato = inizio - 10 * ORA;
-    expect(momentiDaMandare(stato({ adesso: spostato + MIN, confermaInviataIl: null, confermaDovuta: true }))).toEqual(["conferma"]);
-    expect(momentiDaMandare(stato({ adesso: inizio - 58 * MIN, confermaInviataIl: spostato + MIN }))).toEqual(["promemoria_1h"]);
+    expect(momentiDaMandare(stato({
+      adesso: spostato + MIN,
+      confermaInviataIl: inizio - 5 * 24 * ORA,
+      riprogrammatoIl: spostato,
+      confermaDovuta: true,
+    }))).toEqual(["spostato"]);
+    // Comunicato lo spostamento (timbro aggiornato, segnale azzerato): riparte il conteggio dei promemoria.
+    expect(momentiDaMandare(stato({
+      adesso: inizio - 58 * MIN,
+      confermaInviataIl: spostato + MIN,
+      riprogrammatoIl: null,
+    }))).toEqual(["promemoria_1h"]);
   });
 
   it("appuntamento già iniziato: niente", () => {

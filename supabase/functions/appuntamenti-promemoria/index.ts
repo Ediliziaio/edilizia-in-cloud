@@ -41,6 +41,10 @@ const APP_ORIGIN = "https://app.ediliziaincloud.com";
 
 const TIMBRO: Record<MomentoPromemoria, string> = {
   conferma: "conferma_inviata_at",
+  // Lo «spostato» timbra la stessa colonna della conferma: dice «al cliente
+  // abbiamo comunicato l'orario ATTUALE», così non si ripete e i promemoria
+  // si ricalcolano dalla nuova data.
+  spostato: "conferma_inviata_at",
   promemoria_24h: "reminder_24h_at",
   promemoria_1h: "reminder_1h_at",
   promemoria_5min: "reminder_5m_at",
@@ -58,7 +62,7 @@ serveConMetricheRapida("appuntamenti-promemoria", async (req) => {
   }
 
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
-  const esito = { esaminati: 0, conferme: 0, promemoria_24h: 0, promemoria_1h: 0, promemoria_5min: 0, whatsapp: 0, errori: [] as string[] };
+  const esito = { esaminati: 0, conferme: 0, spostati: 0, promemoria_24h: 0, promemoria_1h: 0, promemoria_5min: 0, whatsapp: 0, errori: [] as string[] };
 
   try {
     const adesso = Date.now();
@@ -68,7 +72,7 @@ serveConMetricheRapida("appuntamenti-promemoria", async (req) => {
 
     const { data: righe, error } = await admin
       .from("appointments")
-      .select("id, calendar_id, company_id, contact_id, appointment_date, appointment_time, title, booking_email, manage_token, meeting_url, created_at, conferma_inviata_at, reminder_24h_at, reminder_1h_at, reminder_5m_at, status")
+      .select("id, calendar_id, company_id, contact_id, appointment_date, appointment_time, title, booking_email, manage_token, meeting_url, created_at, conferma_inviata_at, riprogrammato_at, reminder_24h_at, reminder_1h_at, reminder_5m_at, status")
       .eq("status", "confermato")
       .not("calendar_id", "is", null)
       .or("booking_email.not.is.null,contact_id.not.is.null")
@@ -115,6 +119,7 @@ serveConMetricheRapida("appuntamenti-promemoria", async (req) => {
           inizio: adesso + mancano,
           creatoIl: new Date(a.created_at).getTime(),
           confermaInviataIl: a.conferma_inviata_at ? new Date(a.conferma_inviata_at).getTime() : null,
+          riprogrammatoIl: a.riprogrammato_at ? new Date(a.riprogrammato_at).getTime() : null,
           giaMandati: { h24: !!a.reminder_24h_at, h1: !!a.reminder_1h_at, m5: !!a.reminder_5m_at },
           confermaDovuta: daCrm || (pubblica && dopoAccensione),
         });
@@ -154,7 +159,7 @@ serveConMetricheRapida("appuntamenti-promemoria", async (req) => {
               html: m.html,
               text: m.testo,
               templateName: `appuntamento_${momento}`,
-              attachments: momento === "conferma" || momento === "promemoria_24h"
+              attachments: momento === "conferma" || momento === "spostato" || momento === "promemoria_24h"
                 ? [allegatoIcs(creaIcs({
                     uid: `${a.id}@ediliziaincloud.com`, titolo: cal.name, descrizione: cal.description ?? null,
                     dataIso: a.appointment_date, ora, durataMin: d.durataMin, partecipante: email, luogo: d.linkCall,
@@ -194,8 +199,11 @@ serveConMetricheRapida("appuntamenti-promemoria", async (req) => {
           // riprova (finché si è nella finestra, come prima). Con anche il
           // WhatsApp si timbra comunque: riprovare rimanderebbe il canale riuscito.
           if (emailProvata && emailFallita && !whatsappProvato) continue;
-          await admin.from("appointments").update({ [TIMBRO[momento]]: new Date().toISOString() }).eq("id", a.id);
-          esito[momento === "conferma" ? "conferme" : momento]++;
+          const patch: Record<string, unknown> = { [TIMBRO[momento]]: new Date().toISOString() };
+          // Spostamento comunicato: azzero il segnale così non si ripete.
+          if (momento === "spostato") patch.riprogrammato_at = null;
+          await admin.from("appointments").update(patch).eq("id", a.id);
+          esito[momento === "conferma" ? "conferme" : momento === "spostato" ? "spostati" : momento]++;
         }
       } catch (e) {
         esito.errori.push(`${a.id}: ${e instanceof Error ? e.message : String(e)}`);

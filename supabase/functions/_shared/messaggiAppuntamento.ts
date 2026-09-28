@@ -119,7 +119,7 @@ export function whatsappAppuntamento(momento: MomentoWhatsapp, d: DatiMessaggio)
 
 // ─── Email ──────────────────────────────────────────────────────────────────
 
-export type MomentoEmail = "conferma" | "promemoria_24h" | "promemoria_1h";
+export type MomentoEmail = "conferma" | "spostato" | "promemoria_24h" | "promemoria_1h";
 
 const STILE = "font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:520px;color:#0f172a;font-size:15px;line-height:1.5";
 
@@ -160,6 +160,28 @@ export function emailAppuntamento(momento: MomentoEmail, d: DatiMessaggio): Emai
       "", fine.testo,
     ].join("\n");
     return { oggetto: `Appuntamento confermato: ${giornoBreve(d.dataIso)} alle ${d.ora}`, html, testo };
+  }
+
+  if (momento === "spostato") {
+    const html = `<div style="${STILE}">
+      <p>${esc(buongiorno(d.nome))},</p>
+      <p>il tuo appuntamento «${esc(d.calendario)}» è stato spostato:</p>
+      <p style="margin:16px 0"><strong>${esc(quando)}</strong><br>${esc(comeDurata)}</p>
+      ${bottone(linkGoogleCalendar(d), "Aggiorna il calendario")}
+      <p style="color:#475569;font-size:13px">In allegato trovi il file aggiornato per Outlook e iPhone.</p>
+      ${d.linkCall ? `<p>Link della videochiamata: <a href="${esc(d.linkCall)}">${esc(d.linkCall)}</a></p>` : ""}
+      ${d.linkGestione ? `<p>Se il nuovo orario non ti va bene, puoi spostarlo di nuovo: <a href="${esc(d.linkGestione)}">${esc(d.linkGestione)}</a></p>` : ""}
+      ${fine.html}
+    </div>`;
+    const testo = [
+      `${buongiorno(d.nome)},`, "",
+      `il tuo appuntamento «${d.calendario}» è stato spostato:`, "",
+      quando, comeDurata,
+      ...(d.linkCall ? ["", `Link della videochiamata: ${d.linkCall}`] : []),
+      ...(d.linkGestione ? ["", `Se il nuovo orario non ti va bene, puoi spostarlo di nuovo: ${d.linkGestione}`] : []),
+      "", fine.testo,
+    ].join("\n");
+    return { oggetto: `Appuntamento spostato: ${giornoBreve(d.dataIso)} alle ${d.ora}`, html, testo };
   }
 
   if (momento === "promemoria_24h") {
@@ -203,7 +225,7 @@ export function emailAppuntamento(momento: MomentoEmail, d: DatiMessaggio): Emai
 
 // ─── Quando ─────────────────────────────────────────────────────────────────
 
-export type MomentoPromemoria = "conferma" | "promemoria_24h" | "promemoria_1h" | "promemoria_5min";
+export type MomentoPromemoria = "conferma" | "spostato" | "promemoria_24h" | "promemoria_1h" | "promemoria_5min";
 
 export interface StatoAppuntamento {
   /** Adesso, in ms. */
@@ -211,8 +233,10 @@ export interface StatoAppuntamento {
   /** Inizio dell'appuntamento, in ms (già convertito dall'ora italiana). */
   inizio: number;
   creatoIl: number;
-  /** Quando è partita l'ultima conferma (null = mai, o tolta da uno spostamento). */
+  /** Quando abbiamo detto al cliente l'orario ATTUALE (null = mai). */
   confermaInviataIl: number | null;
+  /** Quando è stato spostato, in ms (null = mai): fa scattare un solo «spostato», mai una nuova «conferma». */
+  riprogrammatoIl: number | null;
   /** Promemoria già mandati per questa data. */
   giaMandati: { h24: boolean; h1: boolean; m5: boolean };
   /** Se la conferma spetta a questo giro (appuntamento inserito a mano, o spostato). */
@@ -233,6 +257,8 @@ export function momentiDaMandare(s: StatoAppuntamento): MomentoPromemoria[] {
   if (mancano <= 0) return [];
   // Nel giro della conferma nessun promemoria: arriverebbero insieme.
   if (s.confermaDovuta && s.confermaInviataIl == null) return ["conferma"];
+  // Spostato dopo l'ultima conferma: un solo «spostato», mai una nuova «conferma».
+  if (s.riprogrammatoIl != null && s.riprogrammatoIl > (s.confermaInviataIl ?? 0)) return ["spostato"];
   // Con quanto anticipo è stato fissato così com'è: dalla creazione o
   // dall'ultima conferma (uno spostamento la rimanda).
   const anticipo = s.inizio - Math.max(s.creatoIl, s.confermaInviataIl ?? 0);

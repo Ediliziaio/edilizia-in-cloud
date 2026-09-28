@@ -79,6 +79,7 @@ export default function MarketingCalendarWeekView({
   const overlapLayout = useMemo(() => {
     const merged = new Map<string, { column: number; columnsCount: number }>();
     for (const day of days) {
+      const dayStr = format(day, "yyyy-MM-dd");
       const timed = appointments
         .filter((a) => a.appointment_time && isSameDay(parseISO(a.appointment_date), day))
         .map((a) => {
@@ -86,10 +87,22 @@ export default function MarketingCalendarWeekView({
           const end = a.appointment_end_time ? timeToMin(a.appointment_end_time) : start + slotDurationMinutes;
           return { id: a.id, start, end: Math.max(end, start + 1) };
         });
-      computeOverlapLayout(timed).forEach((v, k) => merged.set(k, v));
+      // Blocchi Google/Apple/Outlook nello stesso calcolo colonne: un blocco e un
+      // appuntamento alla stessa ora si affiancano invece di sovrapporsi.
+      const busyTimed = busySlots
+        .filter((s) => !s.is_all_day)
+        .map((s) => {
+          const inizio = partiOraRoma(s.start_at);
+          if (inizio.data !== dayStr) return null;
+          const start = timeToMin(inizio.hm);
+          const end = timeToMin(oraRomaHM(s.end_at));
+          return { id: `busy-${s.id}`, start, end: Math.max(end, start + 1) };
+        })
+        .filter((x): x is { id: string; start: number; end: number } => x !== null);
+      computeOverlapLayout([...timed, ...busyTimed]).forEach((v, k) => merged.set(k, v));
     }
     return merged;
-  }, [appointments, days, slotDurationMinutes]);
+  }, [appointments, busySlots, days, slotDurationMinutes]);
 
   const travelLegMaps = useMemo(() => {
     const maps: Record<string, Record<string, TravelLeg>> = {};
@@ -298,14 +311,21 @@ export default function MarketingCalendarWeekView({
                           const cellMin = timeToMin(slotTime);
                           const isStartCell = sMin >= cellMin && sMin < cellMin + slotDurationMinutes;
                           const label = busy.summary || (isApple ? "Occupato (Apple)" : isOutlook ? "Occupato (Outlook)" : "Occupato (Google)");
+                          const busyPlacement = overlapLayout.get(`busy-${busy.id}`);
+                          const busyCols = busyPlacement?.columnsCount ?? 1;
+                          const busyCol = busyPlacement?.column ?? 0;
+                          const busyStyle = busyCols > 1
+                            ? { left: `calc(${(busyCol * 100) / busyCols}% + 1px)`, width: `calc(${100 / busyCols}% - 2px)` }
+                            : { left: 0, right: 0 };
                           return (
                             <button
                               type="button"
                               key={`busy-${busy.id}-${bi}`}
                               onClick={(e) => { e.stopPropagation(); onClickBusySlot?.(busy); }}
                               title={`${busy.summary || "Occupato"} · ${startHM}–${endHM} (${isApple ? "Apple" : isOutlook ? "Outlook" : "Google"} Calendar)`}
+                              style={busyStyle}
                               className={cn(
-                                "absolute inset-0 z-0 flex flex-col items-start overflow-hidden border-l-2 px-0.5 py-0.5 text-left transition-colors",
+                                "absolute top-0 bottom-0 z-0 flex flex-col items-start overflow-hidden border-l-2 px-0.5 py-0.5 text-left transition-colors",
                                 isApple
                                   ? "border-zinc-400/70 bg-zinc-100/70 hover:bg-zinc-200/80 dark:bg-zinc-800/30"
                                   : isOutlook

@@ -1,5 +1,13 @@
 project_id = "rsbrguhkodgnqfomrevo"
 
+# Automazioni del bot (report mattino, cose del giorno, avvisi, promemoria):
+# chiamata dal cron via silvio_invoke_edge, che manda solo x-internal-cron-secret
+# (nessun Bearer, in vault non c'è la service key). L'auth vera è in-code
+# (chiamataInternaValida). Senza questo, il gateway rispondeva 401 e le
+# automazioni non partivano mai in automatico.
+[functions.bot-routine-dispatch]
+verify_jwt = false
+
 [functions.create-customer]
 verify_jwt = false
 
