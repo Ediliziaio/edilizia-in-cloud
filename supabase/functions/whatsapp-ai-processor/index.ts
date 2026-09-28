@@ -55,7 +55,7 @@ import { buildInteractivePayload } from "./interactive.ts";
 import { sanitizeAnswer } from "../_shared/structuredOutput.ts";
 import { resolveIdentity } from "./identity.ts";
 import { gestisciMessaggioCliente } from "./cliente.ts";
-import { leggiFotoOperativa, scaricaMediaDelMessaggio, transcribeAudio } from "./media.ts";
+import { leggiDocumentoOperativo, leggiFotoOperativa, scaricaMediaDelMessaggio, transcribeAudio } from "./media.ts";
 import { callOpenAI, type ChatMessage } from "./openai.ts";
 import { InsufficientCreditsError } from "../_shared/ai-provider/index.ts";
 import { checkBudget, consumeBudget, estimateCostEur } from "./budget.ts";
@@ -359,6 +359,22 @@ Deno.serve(async (req) => {
       } catch (e) {
         console.error(JSON.stringify({ level: "error", fn: "analyze", error: String(e) }));
         userContent = `[Foto ricevuta — non sono riuscito a leggerla]\n\nTesto dell'utente: ${msg.content_text ?? "(nessuno)"}`;
+      }
+    } else if (msg.message_type === "document" && msg.media_storage_path) {
+      // Documenti PDF (DDT, fatture, computi): fino al 28/09/2026 venivano
+      // scaricati e ignorati. Ora si leggono e si dice che tipo sono.
+      try {
+        userContent = await leggiDocumentoOperativo(supabase, {
+          storagePath: msg.media_storage_path,
+          companyId: msg.company_id,
+          userId: identity.user_id,
+          didascalia: msg.content_text,
+          messageId: msg.id,
+          mime: String((isPlainRecord(msg.metadata) ? msg.metadata.mime_type : null) ?? "application/pdf"),
+        });
+      } catch (e) {
+        console.error(JSON.stringify({ level: "error", fn: "leggi_documento", error: String(e) }));
+        userContent = `[Documento ricevuto — non sono riuscito a leggerlo]\n\nTesto dell'utente: ${msg.content_text ?? "(nessuno)"}`;
       }
     }
     // Quello che l'assistente ha letto (vocale trascritto, DDT letto) resta sul
