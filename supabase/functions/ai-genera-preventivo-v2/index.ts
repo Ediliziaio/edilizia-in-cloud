@@ -606,7 +606,11 @@ REGOLE OUTPUT:
           { role: "system", content: systemPrompt },
           { role: "user", content: userContent as any },
         ],
-        params: { temperature: 0.3, max_tokens: isFotoMode ? 4000 : 2000 },
+        // Un preventivo dettagliato (es. un bagno con demolizioni, idraulica,
+        // rivestimenti, forniture) supera facilmente 2000 token in JSON: con il
+        // vecchio tetto la risposta si troncava a metà e il JSON non era più
+        // parsabile → l'utente vedeva «motore preventivi non disponibile».
+        params: { temperature: 0.3, max_tokens: 8000 },
         responseFormat: { type: "json_object" },
         companyId: company_id,
         userId,
