@@ -87,6 +87,46 @@ binari: uno per prodotto.
 
 ---
 
+## 1-bis. PRIORITÀ 1 — Le 4 aree senza catalogo foto (qui c'è la carta da parati)
+
+Le aree **classiche** hanno un catalogo foto ampio (bagno 84, serramenti 73, tetti 37,
+elettrico 38, pavimenti 36, termoidraulico 35, climatizzazione 32, piscine 31, ristrutturazione
+28, cappotto 25). Ma **quattro aree non hanno nessuna cartella `templates/<area>/`** — zero
+foto prodotto e zero scene di tipologia:
+
+- **`pareti-soffitti`** ← qui sta la **carta da parati** (+ cartongesso, controsoffitti,
+  tinteggiatura interna, finiture decorative, umidità di risalita, pannelli acustici)
+- **`pergole`** (pergola bioclimatica, pergola a telo, tende da sole, vetrate, carport)
+- **`giardini`** (realizzazione a verde, manutenzione, irrigazione, recinzioni)
+- **`facciate`** (in parte coperta da `cappotto`: isolamento, rasanti, pitture; mancano pietra/ventilata)
+
+Oggi queste aree funzionano nei **modelli PDF** (le loro cover e foto ci sono), ma nel listino
+riusano il catalogo del motore genitore (ristrutturazione/pavimenti/cappotto) e **non hanno
+articoli/foto propri**. Se vuoi dargli un catalogo, servono le scene di tipologia + i packshot.
+
+**Scene di tipologia** (1600×900 JPG → `templates/<area>/tipologie/tipologia-<slug>.jpg`) e per
+ognuna il packshot 800×800 gemello (`…/products/tipologia-<slug>.webp`). Tipologie consigliate:
+
+| area | tipologie (slug) |
+|---|---|
+| `pareti-soffitti` | `carta-da-parati`, `cartongesso`, `controsoffitti`, `tinteggiature-interne`, `finiture-decorative`, `risanamento-umidita`, `pannelli-acustici` |
+| `pergole` | `pergole-bioclimatiche`, `pergole-a-telo`, `tende-da-sole`, `vetrate-e-verande`, `carport` |
+| `giardini` | `realizzazione-verde`, `manutenzione-verde`, `irrigazione`, `recinzioni-e-cancelli` |
+| `facciate` | `facciate-ventilate`, `rivestimenti-in-pietra`, `pulizia-e-consolidamento` |
+
+**Packshot prodotto reali** (800×800 → `templates/<area>/products/<slug>.webp`), esempi tipici:
+- pareti-soffitti: `carta-da-parati`, `lastra-cartongesso`, `orditura-metallica`, `idropittura`,
+  `pannello-fonoassorbente`, `finitura-a-calce`, `rasante-antimuffa`
+- pergole: `telo-per-pergola`, `lamella-in-alluminio`, `tenda-a-bracci`, `vetrata-scorrevole`, `struttura-carport`
+- giardini: `rotolo-di-prato`, `irrigatore-pop-up`, `centralina-irrigazione`, `pannello-recinzione`, `cancello-pedonale`
+- facciate: `listello-in-pietra`, `pannello-facciata-ventilata`, `staffa-sottostruttura`
+
+Prompt: scena di tipologia → §5 «Scena di tipologia»; packshot → §5 «Prodotto listino».
+> Es. carta da parati (packshot): `Foto prodotto professionale su sfondo bianco/grigio neutro, rotolo di carta da parati parzialmente srotolato con disegno delicato, accanto spatola e colla, luce da studio morbida e uniforme, prodotto isolato e centrato, alta qualità, catalogo tecnico. Senza testo, senza logo, senza marchi, senza watermark, senza mani.`
+> Es. carta da parati (scena tipologia): `Fotografia editoriale realistica, parete di camera rivestita con carta da parati dal disegno delicato, arredo essenziale, luce naturale, contesto residenziale italiano, alta qualità. Senza testo, senza logo, senza marchi, senza watermark, senza volti riconoscibili.`
+
+---
+
 ## 2. PRIORITÀ 2 — Sostituire (facoltativo) i 4 packshot di categoria "riempitivi"
 
 Il 28/09 ho generato questi 4 packshot ritagliando la scena ambientata (funzionano, ma sono una
