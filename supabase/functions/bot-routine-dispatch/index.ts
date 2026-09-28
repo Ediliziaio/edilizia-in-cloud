@@ -9,6 +9,10 @@ import { corsHeaders } from "../_shared/headers.ts";
 import { chiamataInternaValida, rispostaNonAutorizzata } from "../_shared/chiamataInterna.ts";
 import { routineDovutaOra } from "../_shared/routineOperativa.ts";
 import { componiReportMattino, type DatiReport } from "../_shared/reportMattino.ts";
+import { componiTodoOperaio } from "../_shared/todoOperaio.ts";
+
+interface Esito { sent: number; skipped: number; failed: number; }
+const vuoto = (): Esito => ({ sent: 0, skipped: 0, failed: 0 });
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DB = any;
@@ -91,6 +95,73 @@ async function invia(
   return { ok: false, detail: (await testoRes.text()).slice(0, 400) };
 }
 
+/** Un messaggio già mandato oggi a questa persona per questo tipo? (anti-ripetizione) */
+async function giaMandato(supabase: DB, companyId: string, oggi: string, kind: string, userId: string): Promise<boolean> {
+  const { data } = await supabase.from("wa_operational_reminder_log").select("id")
+    .eq("company_id", companyId).eq("reminder_date", oggi).eq("reminder_kind", kind)
+    .eq("employee_user_id", userId).eq("status", "sent").maybeSingle();
+  return !!data;
+}
+
+async function logga(supabase: DB, r: RoutineRow, oggi: string, kind: string, userId: string, phone: string, esito: { ok: boolean; detail?: string }) {
+  await supabase.from("wa_operational_reminder_log").insert({
+    company_id: r.company_id, wa_number_id: r.wa_number_id, employee_user_id: userId,
+    reminder_date: oggi, reminder_kind: kind, phone,
+    status: esito.ok ? "sent" : "failed", error_detail: esito.ok ? null : esito.detail ?? null,
+    sent_at: esito.ok ? new Date().toISOString() : null,
+  });
+}
+
+async function eseguiReportMattino(supabase: DB, r: RoutineRow, now: Date, oggi: string, force: boolean): Promise<Esito> {
+  const e = vuoto();
+  const destinatari = await risolviDestinatari(supabase, r.company_id, r.destinatari);
+  if (destinatari.length === 0) { e.skipped++; return e; }
+  const { data: comp } = await supabase.from("companies").select("name").eq("id", r.company_id).maybeSingle();
+  const { data: dati } = await supabase.rpc("bot_report_mattino_dati", { p_company_id: r.company_id });
+  const testo = componiReportMattino(comp?.name ?? null, (dati ?? {}) as DatiReport, now);
+  for (const { userId, phone } of destinatari) {
+    if (!force && await giaMandato(supabase, r.company_id, oggi, "report_mattino", userId)) { e.skipped++; continue; }
+    const esito = await invia(supabase, r.wa_number_id, r.company_id, phone, testo, r.template_nome);
+    await logga(supabase, r, oggi, "report_mattino", userId, phone, esito);
+    esito.ok ? e.sent++ : e.failed++;
+  }
+  return e;
+}
+
+async function eseguiTodoOperaio(supabase: DB, r: RoutineRow, oggi: string, force: boolean): Promise<Esito> {
+  const e = vuoto();
+  // Assegnazioni di oggi, per operaio (stesso filtro del promemoria rapportino).
+  const { data: assegnazioni } = await supabase.from("order_campo_assignments")
+    .select("user_id, orders(order_code, description)")
+    .eq("company_id", r.company_id)
+    .or(`data_inizio.is.null,data_inizio.lte.${oggi}`)
+    .or(`data_fine_prevista.is.null,data_fine_prevista.gte.${oggi}`);
+  const perUtente = new Map<string, string[]>();
+  for (const a of (assegnazioni ?? []) as Array<{ user_id: string | null; orders?: { order_code?: string | null; description?: string | null } | null }>) {
+    if (!a.user_id) continue;
+    const label = [a.orders?.order_code, a.orders?.description].filter(Boolean).join(" - ") || "cantiere assegnato";
+    const arr = perUtente.get(a.user_id) ?? [];
+    arr.push(label);
+    perUtente.set(a.user_id, arr);
+  }
+  if (perUtente.size === 0) { e.skipped++; return e; }
+  const { data: employees } = await supabase.from("employees")
+    .select("user_id, first_name, last_name, phone, phone_whatsapp")
+    .eq("company_id", r.company_id).eq("is_active", true).in("user_id", [...perUtente.keys()]);
+  for (const emp of (employees ?? []) as Array<{ user_id: string | null; first_name: string | null; last_name: string | null; phone: string | null; phone_whatsapp: string | null }>) {
+    if (!emp.user_id) continue;
+    const phone = cleanPhone(emp.phone_whatsapp || emp.phone);
+    if (!phone) { e.skipped++; continue; }
+    if (!force && await giaMandato(supabase, r.company_id, oggi, "todo_operaio", emp.user_id)) { e.skipped++; continue; }
+    const nome = `${emp.first_name ?? ""} ${emp.last_name ?? ""}`.trim() || null;
+    const testo = componiTodoOperaio(nome, perUtente.get(emp.user_id) ?? []);
+    const esito = await invia(supabase, r.wa_number_id, r.company_id, phone, testo, r.template_nome);
+    await logga(supabase, r, oggi, "todo_operaio", emp.user_id, phone, esito);
+    esito.ok ? e.sent++ : e.failed++;
+  }
+  return e;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (!chiamataInternaValida(req)) return rispostaNonAutorizzata(corsHeaders);
@@ -102,40 +173,21 @@ Deno.serve(async (req) => {
   const oggi = dataOggiRoma(now);
 
   let q = supabase.from("bot_routine")
-    .select("id, company_id, wa_number_id, ora, giorni, destinatari, template_nome")
-    .eq("attiva", true).eq("tipo", "report_mattino");
+    .select("id, company_id, wa_number_id, ora, giorni, destinatari, template_nome, tipo")
+    .eq("attiva", true).in("tipo", ["report_mattino", "todo_operaio"]);
   if (body?.company_id) q = q.eq("company_id", body.company_id);
   const { data: routines } = await q;
 
-  let sent = 0, skipped = 0, failed = 0;
-  for (const r of (routines ?? []) as RoutineRow[]) {
+  const tot = vuoto();
+  for (const r of (routines ?? []) as Array<RoutineRow & { tipo: string }>) {
     if (!routineDovutaOra({ ora: r.ora, giorni: r.giorni ?? [1, 2, 3, 4, 5] }, now, force)) continue;
-    const destinatari = await risolviDestinatari(supabase, r.company_id, r.destinatari);
-    if (destinatari.length === 0) { skipped++; continue; }
-
-    const { data: comp } = await supabase.from("companies").select("name").eq("id", r.company_id).maybeSingle();
-    const { data: dati } = await supabase.rpc("bot_report_mattino_dati", { p_company_id: r.company_id });
-    const testo = componiReportMattino(comp?.name ?? null, (dati ?? {}) as DatiReport, now);
-
-    for (const { userId, phone } of destinatari) {
-      if (!force) {
-        const { data: gia } = await supabase.from("wa_operational_reminder_log").select("id")
-          .eq("company_id", r.company_id).eq("reminder_date", oggi).eq("reminder_kind", "report_mattino")
-          .eq("employee_user_id", userId).eq("status", "sent").maybeSingle();
-        if (gia) { skipped++; continue; }
-      }
-      const esito = await invia(supabase, r.wa_number_id, r.company_id, phone, testo, r.template_nome);
-      await supabase.from("wa_operational_reminder_log").insert({
-        company_id: r.company_id, wa_number_id: r.wa_number_id, employee_user_id: userId,
-        reminder_date: oggi, reminder_kind: "report_mattino", phone,
-        status: esito.ok ? "sent" : "failed", error_detail: esito.ok ? null : esito.detail ?? null,
-        sent_at: esito.ok ? new Date().toISOString() : null,
-      });
-      esito.ok ? sent++ : failed++;
-    }
+    const e = r.tipo === "todo_operaio"
+      ? await eseguiTodoOperaio(supabase, r, oggi, force)
+      : await eseguiReportMattino(supabase, r, now, oggi, force);
+    tot.sent += e.sent; tot.skipped += e.skipped; tot.failed += e.failed;
   }
 
-  return new Response(JSON.stringify({ ok: true, sent, skipped, failed }), {
+  return new Response(JSON.stringify({ ok: true, ...tot }), {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 });
