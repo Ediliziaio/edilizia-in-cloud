@@ -37,7 +37,7 @@ import {
   Building2, Wand2, AlertTriangle, CheckCircle2,
 } from "lucide-react";
 import { CampoFotoModello } from "@/components/preventivi/CampoFotoModello";
-import { templateEditorLayout, TemplateEditorSaveBar, TemplateEditorWorkspace, TemplateEditorNavigation } from "@/components/preventivi/TemplateEditorLayout";
+import { templateEditorLayout, TemplateEditorWorkspace, TemplateEditorNavigation } from "@/components/preventivi/TemplateEditorLayout";
 // Lazy load dei 3 sub-editor pesanti.
 // PERF: caricati on-demand quando la tab è attiva o il dialog si apre.
 // Risparmio: ~50 KB nel chunk principale dell'editor.
@@ -1306,12 +1306,10 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
 
   return (
     <div className="space-y-4">
-      {/* TOOLBAR STICKY in alto: sempre visibile durante lo scroll.
-          Include: stato modifiche · ANTEPRIMA PDF (prominent) · Salva.
-          Prima il bottone Anteprima esisteva solo nel footer sticky in basso
-          → fuori dalla viewport quando l'utente è in cima. Ora è in cima E
-          in basso. */}
-      <div className="sticky top-0 z-20 -mx-1 px-1 py-2.5 bg-background/95 backdrop-blur border-b border-slate-100 flex items-center justify-between gap-3 flex-wrap">
+      {/* Barra del modulo in alto: unica barra dell'editor, NON fissa (scorre con
+          la pagina, scelta del titolare). Include: stato modifiche · ANTEPRIMA PDF
+          · Salva. La vecchia barra «Modello da salvare» in basso è stata rimossa. */}
+      <div data-template-topbar className="-mx-1 px-1 py-2.5 bg-background/95 backdrop-blur border-b border-slate-100 flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2 min-w-0">
           <div className="text-xs hidden sm:flex items-center gap-1.5 min-w-0">
             <span className="text-muted-foreground">{localModule ? findSerramentiTemplateModule(localModule.id)?.title : "Template PDF Serramenti"}</span>
@@ -2848,25 +2846,6 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
       </SrCard>
       </>)}{/* === END SEZIONE DEFAULT === */}
 
-          <TemplateEditorSaveBar>
-            <span role="status" className={dirty ? "text-xs text-amber-600" : "text-xs text-muted-foreground"}>
-              {dirty ? "Modifiche non salvate" : localSaved ? "Tutto salvato" : "Modello da salvare"}
-            </span>
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setPreviewOpen(true)} className="gap-1.5" aria-label="Apri anteprima PDF">
-                <Eye className="h-4 w-4" /> Anteprima PDF
-              </Button>
-              <Button
-                type="button"
-                onClick={handleSave}
-                disabled={(!dirty && localSaved) || upsertMut.isPending}
-                className="bg-orange-500 hover:bg-orange-600 gap-1.5"
-              >
-                {upsertMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                {localModule ? "Salva modello" : "Salva impostazioni"}
-              </Button>
-            </div>
-          </TemplateEditorSaveBar>
         </div>{/* /content-panel */}
 
         {/* ── ANTEPRIMA LIVE PDF — colonna persistente (desktop xl), sotto su tablet.

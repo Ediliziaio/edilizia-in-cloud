@@ -15,10 +15,10 @@ export const templateEditorLayout = {
   // Sticky belongs on the grid item, not a child constrained by a short parent.
   preview: "col-span-12 xl:col-span-4 min-w-0 xl:sticky xl:top-[68px] xl:self-start",
   previewPanel: "xl:h-[calc(100vh-96px)] h-[75vh] min-h-[360px]",
-  // Su telefono la barra si posa appena sopra la pill di navigazione in basso
-  // (h-16 = 4rem): prima stava a 4.5rem e lasciava un gap che la faceva
-  // sembrare «a mezz'aria». L'ombra verso l'alto la stacca dal contenuto sotto.
-  saveBar: "sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] md:bottom-0 z-10 flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-background/95 px-3 py-2.5 shadow-[0_-6px_20px_-8px_rgba(0,0,0,0.18)] md:shadow-sm backdrop-blur [&>span]:w-full [&>[role=status]]:w-full [&>div]:ml-auto [&>div]:flex-wrap [&>div]:max-w-full [&_button]:whitespace-normal [&_button]:h-auto [&_button]:min-h-10 [&_button]:py-2",
+  // La barra di salvataggio non è più fissa: sta in cima al pannello del modulo
+  // e scorre con la pagina (scelta del titolare). Mantiene il layout flex e gli
+  // stessi selettori sui figli (stato a tutta larghezza, bottoni a destra).
+  saveBar: "flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-background/95 px-3 py-2.5 shadow-sm [&>span]:w-full [&>[role=status]]:w-full [&>div]:ml-auto [&>div]:flex-wrap [&>div]:max-w-full [&_button]:whitespace-normal [&_button]:h-auto [&_button]:min-h-10 [&_button]:py-2",
 } as const;
 
 export function TemplateEditorSaveBar({ children }: { children: ReactNode }) {

@@ -19,7 +19,7 @@ import { TemplateCoverStylePicker, TemplateCoverTextFields, coverStyleOnly } fro
 import { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { templateEditorLayout, TemplateEditorSaveBar, TemplateEditorWorkspace, TemplateEditorNavigation } from "@/components/preventivi/TemplateEditorLayout";
+import { templateEditorLayout, TemplateEditorWorkspace, TemplateEditorNavigation } from "@/components/preventivi/TemplateEditorLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -1606,7 +1606,7 @@ export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localM
   return (
     <div className="space-y-4">
       {/* Top save bar */}
-      <div className="sticky top-0 z-20 -mx-1 flex items-center justify-between gap-3 border-b border-slate-100 bg-background/95 px-1 py-2.5 backdrop-blur">
+      <div data-template-topbar className="-mx-1 flex items-center justify-between gap-3 border-b border-slate-100 bg-background/95 px-1 py-2.5 backdrop-blur">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <div className="hidden items-center gap-1.5 text-xs sm:flex">
             <span className="text-muted-foreground">Template PDF Fotovoltaico</span>
@@ -2718,25 +2718,6 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
         </FvSettingsCard>
       ) : null}
 
-          <TemplateEditorSaveBar>
-            <span role="status" className={dirty ? "text-xs text-amber-600" : "text-xs text-muted-foreground"}>
-              {dirty ? "Modifiche non salvate" : localSaved ? "Tutto salvato" : "Modello da salvare"}
-            </span>
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setPreviewOpen(true)} className="gap-1.5" aria-label="Apri anteprima PDF">
-                <Eye className="h-4 w-4" /> Anteprima PDF
-              </Button>
-              <Button
-                type="button"
-                onClick={handleSave}
-                disabled={(!dirty && localSaved) || upsertMut.isPending}
-                className="bg-orange-500 hover:bg-orange-600 gap-1.5"
-              >
-                {upsertMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                {localModule ? "Salva modello" : "Salva impostazioni"}
-              </Button>
-            </div>
-          </TemplateEditorSaveBar>
         </div>
 
         {/* ── ANTEPRIMA LIVE preventivo FV — colonna persistente (desktop xl), sotto
