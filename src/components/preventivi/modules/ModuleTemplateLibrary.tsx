@@ -8,6 +8,7 @@ import {
   Monitor,
   FileText,
   Check,
+  Copy,
   Settings2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -91,6 +92,16 @@ const Editor = lazy(() =>
     default: m.LocalModuleDocumentEditor,
   })),
 );
+// La copia trascina il registro dei modelli (tutte le factory): si carica solo
+// al primo clic su «Copia configurazione su…», non all'apertura della libreria.
+const CopiaDialog = lazy(() =>
+  import("./CopiaConfigurazioneDialog").then((m) => ({
+    default: m.CopiaConfigurazioneDialog,
+  })),
+);
+/** C'è un modello salvato per il tipo attivo, quindi qualcosa da copiare. */
+const puoiCopiare = (status: string) =>
+  status === "Salvato" || status.includes("aggiorna la copia");
 const normalize = (s: string) =>
   s
     .normalize("NFD")
@@ -179,6 +190,7 @@ export default function ModuleTemplateLibrary({
 }) {
   const [params, setParams] = useSearchParams();
   const [query, setQuery] = useState("");
+  const [copiaSorgente, setCopiaSorgente] = useState<{ areaId: string; moduleId: string; titolo: string; areaTitolo: string } | null>(null);
   const companyId = useEffectiveCompanyId();
   const company = useCompanyAnagraficaForTemplate();
   const { canEditSettingsPricing: canEdit } = usePermissions();
@@ -321,15 +333,28 @@ export default function ModuleTemplateLibrary({
               </li>
             ))}
           </ul>
-          <Button
-            variant="outline"
-            className="mt-auto w-full justify-between"
-            onClick={() => navigate(a, m.id)}
-            disabled={!canEdit || !companyId}
-          >
-            Personalizza PDF
-            <ArrowRight className="h-4 w-4" />
-          </Button>
+          <div className="mt-auto space-y-2">
+            <Button
+              variant="outline"
+              className="w-full justify-between"
+              onClick={() => navigate(a, m.id)}
+              disabled={!canEdit || !companyId}
+            >
+              Personalizza PDF
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+            {canEdit && companyId && puoiCopiare(status) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full justify-between text-xs text-slate-600"
+                onClick={() => setCopiaSorgente({ areaId: a.id, moduleId: m.id, titolo: m.title, areaTitolo: a.title })}
+              >
+                <span className="inline-flex items-center gap-1"><Copy className="h-3.5 w-3.5" /> Copia configurazione su…</span>
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
         </div>
       </article>
     );
@@ -554,6 +579,22 @@ export default function ModuleTemplateLibrary({
           Le immagini delle aree sono illustrative, generate con AI: non
           rappresentano lavori eseguiti o prodotti inclusi nell'offerta.
         </p>
+      )}
+      {companyId && copiaSorgente && (
+        <Suspense fallback={null}>
+          <CopiaDialog
+            open
+            onOpenChange={(o) => { if (!o) setCopiaSorgente(null); }}
+            companyId={companyId}
+            anagrafica={{
+              name: company?.ragione_sociale ?? "",
+              address: company?.indirizzo_completo ?? "",
+              email: company?.email ?? "",
+              phone: company?.telefono ?? "",
+            }}
+            sorgente={copiaSorgente}
+          />
+        </Suspense>
       )}
     </div>
   );

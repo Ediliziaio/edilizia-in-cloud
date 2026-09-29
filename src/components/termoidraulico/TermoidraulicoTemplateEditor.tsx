@@ -748,6 +748,32 @@ export function TermoidraulicoTemplateEditor({ embedded = false, localModule }: 
 
         {/* ── CONTENT PANEL ────────────────────────────────────────── */}
         <div data-template-content className={templateEditorLayout.content}>
+          {/* Barra di salvataggio: in cima al pannello, scorre con la pagina */}
+          <TemplateEditorSaveBar>
+            <span className={cn("text-[11px]", dirty ? "text-amber-600" : "text-muted-foreground")}>
+              {dirty ? "Modifiche non salvate" : localSaved ? "Tutto salvato" : "Modello pronto · non ancora salvato"}
+            </span>
+            <div className="flex w-full flex-wrap items-center justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void handlePreview()}
+                disabled={isPreviewing}
+                className="gap-1.5"
+              >
+                {isPreviewing ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSearch className="h-4 w-4" />}
+                Anteprima PDF
+              </Button>
+              <Button
+                onClick={() => void handleSave()}
+                disabled={(!dirty && localSaved) || upsert.isPending}
+                className="gap-1.5 bg-orange-500 hover:bg-orange-600"
+              >
+                {upsert.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                {localModule ? "Salva modello" : "Salva template"}
+              </Button>
+            </div>
+          </TemplateEditorSaveBar>
           {/* Branding */}
           {activeSection === "brand" && (
             <>
@@ -1194,32 +1220,6 @@ if (field === "eyebrow") { set("pdf_cover_eyebrow", value); } }}   placeholders=
             )}
           />
 
-          {/* Barra salvataggio sticky */}
-          <TemplateEditorSaveBar>
-            <span className={cn("text-[11px]", dirty ? "text-amber-600" : "text-muted-foreground")}>
-              {dirty ? "Modifiche non salvate" : localSaved ? "Tutto salvato" : "Modello pronto · non ancora salvato"}
-            </span>
-            <div className="flex w-full flex-wrap items-center justify-end gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => void handlePreview()}
-                disabled={isPreviewing}
-                className="gap-1.5"
-              >
-                {isPreviewing ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSearch className="h-4 w-4" />}
-                Anteprima PDF
-              </Button>
-              <Button
-                onClick={() => void handleSave()}
-                disabled={(!dirty && localSaved) || upsert.isPending}
-                className="gap-1.5 bg-orange-500 hover:bg-orange-600"
-              >
-                {upsert.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                {localModule ? "Salva modello" : "Salva template"}
-              </Button>
-            </div>
-          </TemplateEditorSaveBar>
         </div>
 
         <aside data-template-preview className={templateEditorLayout.preview}>

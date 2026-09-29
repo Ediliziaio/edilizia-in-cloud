@@ -34,7 +34,7 @@ describe("libreria ed editor locali Serramenti", () => {
   it("salva e riapre una personalizzazione senza mutazioni online", () => {
     mount("zanzariere");
     fireEvent.change(screen.getByLabelText("Titolo copertina"), { target: { value: "La mia zanzariera" } });
-    fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva" }));
     expect(loadLocalSerramentiTemplate("company-a", "zanzariere")?.template.pdf_cover_hero).toBe("La mia zanzariera");
     expect(state.archivio).toHaveBeenCalledWith(expect.stringMatching(/:serramenti:zanzariere$/));
     fireEvent.click(screen.getByRole("button", { name: "Tutti i moduli Serramenti" }));
@@ -54,14 +54,14 @@ describe("libreria ed editor locali Serramenti", () => {
   });
   it("richiede un titolo e mantiene aperta la bozza", () => {
     mount("zanzariere"); fireEvent.change(screen.getByLabelText("Titolo copertina"), { target: { value: "" } });
-    fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva" }));
     expect(state.error).toHaveBeenCalledWith("Inserisci un titolo di copertina.");
     expect(screen.getByLabelText("Titolo copertina")).toHaveValue("");
-    expect(screen.getByRole("button", { name: "Salva modello" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Salva" })).toBeEnabled();
     expect(loadLocalSerramentiTemplate("company-a", "zanzariere")).toBeNull();
   });
   it("non apre editor per utenti privi dei permessi", () => {
     state.canEdit = false; mount("zanzariere");
-    expect(screen.queryByRole("button", { name: "Salva modello" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Salva" })).toBeNull();
   });
 });

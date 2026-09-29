@@ -106,6 +106,11 @@ export default function BagniWizard() {
   // Pre-link da CRM: ?contact_id=… & opportunity_id=…
   const urlContactId = searchParams.get("contact_id");
   const urlOpportunityId = searchParams.get("opportunity_id");
+  // Link diretto a un passo (es. ?step=pdf dal bot WhatsApp: apre la pagina già
+  // sul PDF, pronta per scaricare o mandare alla firma). Solo passi validi.
+  const requestedStepRaw = searchParams.get("step");
+  const requestedStep = BGN_WIZARD_STEPS.some((s) => s.key === requestedStepRaw)
+    ? (requestedStepRaw as BgnWizardStepKey) : null;
 
   const [currentStep, setCurrentStep] = useState<BgnWizardStepKey>("cliente");
   const [creating, setCreating] = useState(false);
@@ -176,17 +181,30 @@ export default function BagniWizard() {
     setDirty(Object.keys(patch).length > 0);
   }, [isNew, urlContactId, urlOpportunityId]);
 
+  // Link diretto a un passo (?step=pdf): appena il progetto è caricato, apre
+  // quel passo. Vince sull'auto-advance qui sotto (che lo salterebbe).
+  const didApplyStepFromUrlRef = useRef(false);
+  useEffect(() => {
+    if (didApplyStepFromUrlRef.current) return;
+    if (!requestedStep || !id || !detail?.progetto) return;
+    didApplyStepFromUrlRef.current = true;
+    didAutoAdvanceRef.current = true; // niente auto-advance: la destinazione è nel link
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- deep-link one-shot da query string
+    setCurrentStep(requestedStep);
+  }, [requestedStep, id, detail?.progetto?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Auto-advance Step 1 → Step 2 dopo creazione iniziale (single-fire).
   const didAutoAdvanceRef = useRef(false);
   useEffect(() => {
     if (didAutoAdvanceRef.current) return;
+    if (requestedStep) { didAutoAdvanceRef.current = true; return; } // il link decide il passo
     if (!id || !detail?.progetto) return;
     didAutoAdvanceRef.current = true;
     const hasStep1Data = detail.progetto.cliente_nome || detail.progetto.cliente_cognome || detail.progetto.cliente_id;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- auto-advance one-shot post creazione
     if (currentStep === "cliente" && hasStep1Data) setCurrentStep("immobile");
     // detail.progetto volutamente non in deps: il ref guard garantisce single-fire.
-  }, [detail?.progetto?.id, id, currentStep]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [detail?.progetto?.id, id, currentStep, requestedStep]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Tick periodico (10s) che ricalcola l'etichetta "Salvato Xs fa" in stato,
   // così il render resta puro (nessun Date.now() durante il render).

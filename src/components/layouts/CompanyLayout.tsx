@@ -383,6 +383,9 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
 }) {
   // Helper: è una voce in modalità DEMO (l'utente la vede ma non può agire)?
   const isDemoItem = (item: NavItem): boolean => {
+    // Una voce `hideWhenLocked` non fa mai da teaser DEMO: o il modulo è incluso
+    // (voce piena) o la voce è già filtrata via da filterNavItems. Mai badge Demo.
+    if (item.hideWhenLocked) return false;
     if (item.featureKey) {
       if (item.featureKey === "billing_external" || item.featureKey === "billing_native") return false;
       if (isFeaturePreview?.(item.featureKey)) return true;
@@ -1256,6 +1259,24 @@ const CompanySidebar = memo(function CompanySidebar() {
       }
       if (item.demoCompanyOnly && !isDemoBaseline) return false;
       if (item.multiCompanyOnly && !hasMultipleCompanies) return false;
+      // Voci con `hideWhenLocked` (es. Assistenza, moduleKey "tickets"): quando
+      // il modulo NON è incluso nel piano, la voce si nasconde del tutto — niente
+      // teaser DEMO — su qualunque piano con un piano risolto (limited O full),
+      // ma resta sulla vetrina Demo Azienda. Deve stare PRIMA delle regole
+      // speciali qui sotto (/azienda/assistenza esce col solo permesso e
+      // salterebbe il module gate). Il bypass super-admin passa: isModuleEnabled
+      // ritorna true e la condizione non entra. Senza piano risolto → fail-open
+      // come il module gate più sotto (non nascondiamo al buio).
+      if (
+        item.hideWhenLocked &&
+        item.moduleKey &&
+        !isModuleEnabled(item.moduleKey) &&
+        !isDemoBaseline &&
+        !limitsLoading &&
+        currentPlan
+      ) {
+        return false;
+      }
       // Manodopera e Mezzi: tre schede, ognuna col suo permesso e la sua parte
       // di piano; la voce c'è se almeno una scheda è disponibile.
       if (item.url === "/azienda/manodopera") return schedeManodopera.length > 0;

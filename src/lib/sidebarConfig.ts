@@ -60,6 +60,12 @@ export interface NavItem {
    *  doppione. Il dipendente puro (senza canManagePortal) continua a vederla. */
   hideIfPermissionKey?: string;
   moduleKey?: ModuleKey;
+  /** Se il `moduleKey` NON è incluso nel piano, nasconde la voce del tutto —
+   *  niente teaser DEMO — anche sui piani "limited" (dove di default un modulo
+   *  non incluso resta visibile col badge Demo). La vetrina Demo Azienda e il
+   *  bypass super-admin la vedono comunque. Es. "Assistenza" sul piano Marketing
+   *  (included_modules vuoto): la voce sparisce invece di comparire come Demo. */
+  hideWhenLocked?: boolean;
   featureKey?: string;
   isBeta?: boolean;
   demoCompanyOnly?: boolean;
@@ -148,7 +154,7 @@ export const macroAreas: MacroArea[] = [
       // dentro /azienda/assistenza?vista=. La voce si vede con canViewTickets O
       // canViewManutenzione (regola in CompanyLayout, come per Manodopera).
       // Il titolo di gruppo «Pianificazione» è stato tolto (26/09/2026).
-      { title: "Assistenza", url: "/azienda/assistenza", icon: LifeBuoy, permissionKey: "canViewTickets", moduleKey: "tickets" },
+      { title: "Assistenza", url: "/azienda/assistenza", icon: LifeBuoy, permissionKey: "canViewTickets", moduleKey: "tickets", hideWhenLocked: true },
       { title: "Calendario", url: "/azienda/calendario", icon: CalendarDays, permissionKey: "canViewCalendar", moduleKey: "calendar" },
       // La sicurezza del cantiere passerà nella scheda «Sicurezza» di ogni
       // commessa; la voce resta finché quel travaso non è completo (fase 3).
