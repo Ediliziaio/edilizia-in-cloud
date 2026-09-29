@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback, memo, useRef, useEffect } from "react";
+import { useMemo, useState, useCallback, memo, useRef, useEffect, type PointerEvent as ReactPointerEvent } from "react";
 import {
   DndContext, pointerWithin, rectIntersection, PointerSensor, TouchSensor, KeyboardSensor,
   useSensor, useSensors, DragEndEvent, DragStartEvent, DragOverlay,
@@ -501,8 +501,14 @@ export function OpportunityKanbanView({
   // sullo schermo, e con il solo ref al primo giro sarebbe ancora vuoto.
   const [contenitoreFasi, setContenitoreFasi] = useState<HTMLDivElement | null>(null);
   const [frecceVisibili, setFrecceVisibili] = useState({ sinistra: false, destra: false });
+  // Barra di scorrimento "sintetica" sotto la board: quella di sistema su macOS
+  // è overlay e resta a zero pixel, così ne disegniamo una vera — sempre
+  // presente quando le fasi escono dallo schermo e trascinabile col dito/mouse.
+  const [barra, setBarra] = useState({ visibile: false, sinistraPct: 0, larghezzaPct: 100 });
+  const pistaBarraRef = useRef<HTMLDivElement | null>(null);
+  const trascinaBarra = useRef<{ startX: number; startScroll: number; larghezzaPista: number } | null>(null);
 
-  const aggiornaFrecce = useCallback(() => {
+  const aggiornaNavigazione = useCallback(() => {
     const el = contenitoreFasiRef.current;
     if (!el) return;
     const restaADestra = el.scrollWidth - el.clientWidth - el.scrollLeft;
@@ -512,6 +518,17 @@ export function OpportunityKanbanView({
       const succ = { sinistra: el.scrollLeft > 4, destra: restaADestra > 4 };
       return prec.sinistra === succ.sinistra && prec.destra === succ.destra ? prec : succ;
     });
+    // Pollice della barra: largo quanto la porzione visibile, spostato quanto lo scroll.
+    const scorribile = el.scrollWidth > el.clientWidth + 4;
+    const larghezzaPct = scorribile ? (el.clientWidth / el.scrollWidth) * 100 : 100;
+    const sinistraPct = scorribile ? (el.scrollLeft / el.scrollWidth) * 100 : 0;
+    setBarra((prec) => (
+      prec.visibile === scorribile
+        && Math.abs(prec.sinistraPct - sinistraPct) < 0.1
+        && Math.abs(prec.larghezzaPct - larghezzaPct) < 0.1
+        ? prec
+        : { visibile: scorribile, sinistraPct, larghezzaPct }
+    ));
   }, []);
 
   const scorriFasi = useCallback((direzione: 1 | -1) => {
@@ -522,16 +539,49 @@ export function OpportunityKanbanView({
     el.scrollBy({ left: direzione * el.clientWidth * 0.8, behavior: "smooth" });
   }, []);
 
+  // Trascinamento del pollice della barra sintetica.
+  const iniziaTrascinaBarra = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const el = contenitoreFasiRef.current;
+    const pista = pistaBarraRef.current;
+    if (!el || !pista) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    trascinaBarra.current = { startX: e.clientX, startScroll: el.scrollLeft, larghezzaPista: pista.clientWidth };
+  }, []);
+  const muoviTrascinaBarra = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
+    const stato = trascinaBarra.current;
+    const el = contenitoreFasiRef.current;
+    if (!stato || !el || stato.larghezzaPista === 0) return;
+    const dx = e.clientX - stato.startX;
+    // Un pixel di pista vale scrollWidth/larghezzaPista pixel di contenuto.
+    el.scrollLeft = stato.startScroll + dx * (el.scrollWidth / stato.larghezzaPista);
+  }, []);
+  const fineTrascinaBarra = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
+    trascinaBarra.current = null;
+    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* già rilasciato */ }
+  }, []);
+  // Click sullo sfondo della pista (non sul pollice): salta a quel punto.
+  const cliccaPistaBarra = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
+    if (e.target !== e.currentTarget) return;
+    const el = contenitoreFasiRef.current;
+    const pista = pistaBarraRef.current;
+    if (!el || !pista) return;
+    const rect = pista.getBoundingClientRect();
+    const rapporto = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+    el.scrollTo({ left: rapporto * (el.scrollWidth - el.clientWidth), behavior: "smooth" });
+  }, []);
+
   useEffect(() => {
-    aggiornaFrecce();
+    aggiornaNavigazione();
     const el = contenitoreFasiRef.current;
     if (!el || typeof ResizeObserver === "undefined") return;
     // Il ridimensionamento della finestra e il collasso di una colonna cambiano
-    // quanto resta da scorrere: senza observer le frecce restavano bloccate.
-    const ro = new ResizeObserver(aggiornaFrecce);
+    // quanto resta da scorrere: senza observer frecce e barra restavano bloccate.
+    const ro = new ResizeObserver(aggiornaNavigazione);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [aggiornaFrecce, stages.length, collapsedStages]);
+  }, [aggiornaNavigazione, stages.length, collapsedStages]);
 
   return (
     <>
@@ -545,7 +595,8 @@ export function OpportunityKanbanView({
           in cui c'e' altro da vedere. Un bottone da 32px si clicca, una barra
           da 10px si insegue. Le regole ::-webkit-scrollbar restano perche' su
           Windows e Linux la barra classica esiste e cosi' e' meno invadente. */}
-      <div className="relative w-full h-full">
+      <div className="w-full h-full flex flex-col min-h-0">
+      <div className="relative w-full flex-1 min-h-0">
         {frecceVisibili.sinistra && (
           <button
             type="button"
@@ -568,7 +619,7 @@ export function OpportunityKanbanView({
         )}
       <div
         ref={(node) => { contenitoreFasiRef.current = node; setContenitoreFasi(node); }}
-        onScroll={aggiornaFrecce}
+        onScroll={aggiornaNavigazione}
         className={cn(
         "w-full h-full overflow-x-auto overflow-y-hidden",
         "[scrollbar-width:thin]",
@@ -632,6 +683,31 @@ export function OpportunityKanbanView({
           </DragOverlay>
         </DndContext>
       </div>
+      </div>
+
+      {/* Barra di scorrimento sintetica: sempre visibile quando le fasi
+          escono dallo schermo (su macOS quella di sistema non compare). */}
+      {barra.visibile && (
+        <div className="shrink-0 px-1 pt-1">
+          <div
+            ref={pistaBarraRef}
+            onPointerDown={cliccaPistaBarra}
+            className="relative h-2.5 w-full rounded-full bg-muted/50"
+          >
+            <div
+              role="scrollbar"
+              aria-label="Scorri le fasi"
+              aria-orientation="horizontal"
+              onPointerDown={iniziaTrascinaBarra}
+              onPointerMove={muoviTrascinaBarra}
+              onPointerUp={fineTrascinaBarra}
+              onPointerCancel={fineTrascinaBarra}
+              className="absolute top-0 h-full min-w-[24px] touch-none cursor-grab rounded-full bg-muted-foreground/50 transition-colors hover:bg-muted-foreground/70 active:cursor-grabbing active:bg-muted-foreground/80"
+              style={{ left: `${barra.sinistraPct}%`, width: `${barra.larghezzaPct}%` }}
+            />
+          </div>
+        </div>
+      )}
       </div>
 
       <OpportunityDetailDialog
