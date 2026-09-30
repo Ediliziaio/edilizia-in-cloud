@@ -505,7 +505,7 @@ export function ListinoPickerDialog({
               <Button type="button" size="sm" variant={!showAllTypes && suggested.length > 0 ? "default" : "outline"} disabled={suggested.length === 0} aria-pressed={!showAllTypes && suggested.length > 0} onClick={() => { setShowAllTypes(false); setSearch(""); }}>Suggeriti per il modello ({suggested.length})</Button>
               <Button type="button" size="sm" variant={showAllTypes || suggested.length === 0 ? "default" : "outline"} aria-pressed={showAllTypes || suggested.length === 0} onClick={() => setShowAllTypes(true)}>Tutto il listino dell'area</Button>
             </div>
-            <p className="text-xs text-muted-foreground">{suggested.length === 0 ? "Nessuna tipologia suggerita associata: puoi scegliere dal listino dell'area o aggiungere una voce manuale nel preventivo." : "Categorie suggerite dal modello. Con «Tutto il listino dell'area» o la ricerca aggiungi anche gli altri prodotti (porte, avvolgibili, zanzariere…), senza modificare il listino."}</p>
+            <p className="text-xs text-muted-foreground">{suggested.length === 0 ? "Nessuna tipologia suggerita associata: puoi scegliere dal listino dell'area o aggiungere una voce manuale nel preventivo." : "Categorie suggerite dal modello. Con «Tutto il listino» o la ricerca trovi anche gli altri prodotti (porte, zanzariere…), senza modificare il listino."}</p>
           </div>}
           {partenza?.contesto && (
             <p className="text-[11px] font-medium text-orange-700">{partenza.contesto}</p>
@@ -982,9 +982,14 @@ function SchedaProdotto({ riga, contesto, onClick }: { riga: RigaListino; contes
 function DaCompletare({ elenco }: { elenco: TipologiaDaCompletare[] }) {
   return (
     <div className="mt-4 space-y-2">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-        Nel listino, ma non ancora nei preventivi
-      </p>
+      <div className="space-y-0.5">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          Nel listino, ma non ancora nei preventivi
+        </p>
+        <p className="text-[11px] text-muted-foreground">
+          Hanno prodotti senza prezzo di vendita: aggiungi i prezzi nel listino per poterle proporre.
+        </p>
+      </div>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3">
         {elenco.map((d) => (
           <div

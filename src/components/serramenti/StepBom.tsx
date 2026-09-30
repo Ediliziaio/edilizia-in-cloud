@@ -1994,46 +1994,55 @@ function ManualAddDialog({
             Aggiungi voce manuale
           </DialogTitle>
           <DialogDescription className="text-xs">
-            Usa questa opzione per prodotti fuori listino o preventivi a corpo. Il prezzo resta salvato solo su questo preventivo.
+            Per un prodotto non presente nel listino, oppure per un importo forfettario «a corpo». Il prezzo resta salvato solo su questo preventivo.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3">
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <button
-              type="button"
-              onClick={() => setMode("prodotto")}
-              className={
-                "rounded-md border px-3 py-2 text-left transition-colors " +
-                (mode === "prodotto"
-                  ? "border-orange-300 bg-orange-50 text-orange-900"
-                  : "border-slate-200 bg-white hover:bg-slate-50")
-              }
-            >
-              <span className="flex items-center gap-1.5 text-xs font-semibold">
-                <Package className="h-3.5 w-3.5" /> Prodotto fuori listino
-              </span>
-              <span className="mt-1 block text-[10px] text-muted-foreground">
-                Quantità × prezzo unitario
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode("corpo")}
-              className={
-                "rounded-md border px-3 py-2 text-left transition-colors " +
-                (mode === "corpo"
-                  ? "border-indigo-300 bg-indigo-50 text-indigo-950"
-                  : "border-slate-200 bg-white hover:bg-slate-50")
-              }
-            >
-              <span className="flex items-center gap-1.5 text-xs font-semibold">
-                <FileText className="h-3.5 w-3.5" /> Importo a corpo
-              </span>
-              <span className="mt-1 block text-[10px] text-muted-foreground">
-                Totale libero, senza listino
-              </span>
-            </button>
+          <div>
+            <Label className="text-xs mb-1.5 block font-semibold">Come vuoi quotare questa voce?</Label>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => setMode("prodotto")}
+                className={
+                  "rounded-md border px-3 py-2.5 text-left transition-colors " +
+                  (mode === "prodotto"
+                    ? "border-orange-300 bg-orange-50 text-orange-900"
+                    : "border-slate-200 bg-white hover:bg-slate-50")
+                }
+              >
+                <span className="flex items-center gap-1.5 text-xs font-semibold">
+                  <Package className="h-3.5 w-3.5" /> Prodotto fuori listino
+                </span>
+                <span className="mt-1 block text-[10px] text-muted-foreground">
+                  Prezzo al pezzo × quantità
+                </span>
+                <span className="mt-1 block text-[10px] text-slate-500">
+                  Es. 3 davanzali × 80 € = 240 €
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("corpo")}
+                className={
+                  "rounded-md border px-3 py-2.5 text-left transition-colors " +
+                  (mode === "corpo"
+                    ? "border-indigo-300 bg-indigo-50 text-indigo-950"
+                    : "border-slate-200 bg-white hover:bg-slate-50")
+                }
+              >
+                <span className="flex items-center gap-1.5 text-xs font-semibold">
+                  <FileText className="h-3.5 w-3.5" /> Importo a corpo
+                </span>
+                <span className="mt-1 block text-[10px] text-muted-foreground">
+                  Un unico totale forfettario
+                </span>
+                <span className="mt-1 block text-[10px] text-slate-500">
+                  Es. «Opere di completamento» = 500 €
+                </span>
+              </button>
+            </div>
           </div>
 
           <div>
@@ -2061,7 +2070,7 @@ function ManualAddDialog({
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {mode === "prodotto" ? (
               <div>
-                <Label className="text-xs">Quantità *</Label>
+                <Label className="text-xs flex items-center h-4">Quantità *</Label>
                 <Input
                   type="number"
                   min={1}
@@ -2072,14 +2081,14 @@ function ManualAddDialog({
               </div>
             ) : (
               <div>
-                <Label className="text-xs text-muted-foreground">Quantità</Label>
+                <Label className="text-xs text-muted-foreground flex items-center h-4">Quantità</Label>
                 <div className="h-9 rounded-md border bg-slate-50 px-3 flex items-center text-xs text-slate-700">
                   1 importo unico
                 </div>
               </div>
             )}
             <div>
-              <Label className="text-xs flex items-center justify-between">
+              <Label className="text-xs flex items-center justify-between h-4">
                 <span>{mode === "corpo" ? "Importo totale (€)" : "Prezzo unitario (€)"}</span>
                 {isOmaggio && <span className="text-[10px] text-emerald-700 font-semibold">In omaggio</span>}
               </Label>
