@@ -137,7 +137,7 @@ export default function SerramentiWizard() {
   // Permette il flow "Crea preventivo Serramenti" dal dialog opportunità.
   const urlContactId = searchParams.get("contact_id");
   const urlOpportunityId = searchParams.get("opportunity_id");
-  // ?ai=1 → flusso "Avvia con l'assistente AI" dal primo step: il progetto è appena
+  // ?ai=1 → flusso "Avvia con Silvio AI" dal primo step: il progetto è appena
   // stato creato, restiamo sul Contatto e apriamo automaticamente l'assistente.
   const urlStartAi = searchParams.get("ai") === "1";
 
@@ -412,7 +412,7 @@ export default function SerramentiWizard() {
     if (didAutoAdvanceRef.current) return;
     if (!id || !detail?.progetto) return;
     didAutoAdvanceRef.current = true;
-    // Flusso "Avvia con l'assistente AI": resta sul Contatto, l'assistente si apre da solo.
+    // Flusso "Avvia con Silvio AI": resta sul Contatto, l'assistente si apre da solo.
     if (urlStartAi) return;
     const hasStep1Data = detail.progetto.cliente_nome || detail.progetto.cliente_cognome;
     if (currentStep === "cliente" && hasStep1Data) {
@@ -563,7 +563,7 @@ export default function SerramentiWizard() {
     }
   };
 
-  /** Flusso "Avvia con l'assistente AI" dal primo step (preventivo nuovo): crea il
+  /** Flusso "Avvia con Silvio AI" dal primo step (preventivo nuovo): crea il
    *  progetto anche con dati minimi e ci ritorna con ?ai=1, così l'assistente
    *  si apre da solo sul Contatto (foto / voce / testo → bozza preventivo). */
   const handleCreateAndStartAi = async () => {
@@ -573,7 +573,7 @@ export default function SerramentiWizard() {
       const created = await createMut.mutateAsync(await newQuoteInput());
       navigate(`/azienda/serramenti/${created.id}/modifica?ai=1`, { replace: true });
     } catch (e) {
-      toast.error("Non riesco ad avviare l'assistente AI", {
+      toast.error("Non riesco ad avviare Silvio AI", {
         description: e instanceof Error ? e.message : "Riprova tra qualche secondo.",
       });
     } finally {
@@ -1142,7 +1142,7 @@ function StepCliente({
       description="Collega un contatto CRM o compila i dati cliente. Verranno usati nel PDF, nel microsito e nella bozza AI."
       icon={<User className="h-4 w-4" />}
     >
-      {/* Assistente AI come prima azione su preventivo NUOVO: crea il progetto e
+      {/* Silvio AI come prima azione su preventivo NUOVO: crea il progetto e
           apre subito l'assistente (foto/voce/testo → bozza). Su preventivo già
           creato, l'assistente compare nel riquadro più sotto. */}
       {isNew && onStartAi && (
@@ -1150,10 +1150,10 @@ function StepCliente({
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               <p className="flex items-center gap-1.5 text-sm font-semibold text-slate-950">
-                <Sparkles className="h-4 w-4 text-orange-500" /> Assistente AI — crea il preventivo
+                <Sparkles className="h-4 w-4 text-orange-500" /> Silvio AI — crea il preventivo
               </p>
               <p className="text-xs leading-relaxed text-slate-600 max-md:hidden">
-                Scatta una foto del rilievo, detta a voce o scrivi cosa serve: l'AI prepara la bozza. Premendo qui creiamo il preventivo e l'assistente parte subito.
+                Scatta una foto del rilievo, detta a voce o scrivi cosa serve: Silvio prepara la bozza. Premendo qui creiamo il preventivo e l'assistente parte subito.
               </p>
               <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-500 max-md:hidden">
                 <span className="inline-flex items-center gap-1"><Camera className="h-3.5 w-3.5" /> Foto rilievo</span>
@@ -1168,7 +1168,7 @@ function StepCliente({
               className="shrink-0 gap-1.5 bg-orange-500 hover:bg-orange-600"
             >
               {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-              Avvia con l'assistente AI
+              Avvia con Silvio AI
             </Button>
           </div>
         </div>

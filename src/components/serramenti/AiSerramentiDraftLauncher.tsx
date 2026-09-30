@@ -16,7 +16,7 @@ interface Props {
   onInserted?: (id: string) => void;
   onGoToComposition?: () => void;
   /** Apre automaticamente la dialog AI quando diventa true (one-shot).
-   *  Usato dal flusso "Avvia con l'assistente AI" del primo step. */
+   *  Usato dal flusso "Avvia con Silvio AI" del primo step. */
   autoOpen?: boolean;
 }
 
@@ -26,9 +26,9 @@ const COPY: Record<AiLauncherContext, {
   cta: string;
 }> = {
   contact: {
-    title: "Assistente AI — crea il preventivo",
-    description: "Scatta una foto del rilievo, detta a voce o scrivi cosa serve: l'AI prepara la bozza usando anche cliente, indirizzo e cantiere già inseriti. Nulla viene salvato senza la tua approvazione.",
-    cta: "Apri assistente AI",
+    title: "Silvio AI — crea il preventivo",
+    description: "Scatta una foto del rilievo, detta a voce o scrivi cosa serve: Silvio prepara la bozza usando anche cliente, indirizzo e cantiere già inseriti. Nulla viene salvato senza la tua approvazione.",
+    cta: "Apri Silvio AI",
   },
   bom: {
     title: "Assistente offerta AI",
@@ -55,7 +55,7 @@ export function AiSerramentiDraftLauncher({
     if (open) insertedCountRef.current = 0;
   }, [open]);
 
-  // Apertura automatica one-shot (flusso "Avvia con l'assistente AI" dal primo step).
+  // Apertura automatica one-shot (flusso "Avvia con Silvio AI" dal primo step).
   const autoOpenedRef = useRef(false);
   useEffect(() => {
     if (autoOpen && !autoOpenedRef.current) {
