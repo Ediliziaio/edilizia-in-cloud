@@ -32,7 +32,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useDiscountRules } from "@/hooks/useDiscountRules";
-import { usePrezzoFinaleAMano } from "@/hooks/usePrezzoFinaleAMano";
+import { PrezzoPreventivoAMano } from "@/components/preventivi/PrezzoPreventivoAMano";
 import { evaluateDiscountRules, classifyDiscount } from "@/lib/serramenti/discountRules";
 import {
   useTabelleFinanziamentoAttive,
@@ -95,6 +95,22 @@ function roundMoney(value: number): number {
   return Math.round((Number.isFinite(value) ? value : 0) * 100) / 100;
 }
 
+// ─── Pagamento: famiglie per il toggle (bonifico vs finanziamento) ──────────
+// Il modello resta a 6 schemi (SR_SCHEMI_PAGAMENTO); qui li raggruppiamo nelle
+// due grandi scelte che vede il cliente — come il toggle del fotovoltaico.
+// «Personalizzato» resta come opzione a parte (schema su misura).
+const SCHEMI_BONIFICO: SrSchemaPagamento[] = ["tre_step", "due_acconti_saldo"];
+const SCHEMI_FINANZIAMENTO: SrSchemaPagamento[] = ["tutto_finanziato", "acconto_finanziato", "due_acconti_finanziato"];
+const FAMIGLIA_DEFAULT_SCHEMA: Record<"bonifico" | "finanziamento", SrSchemaPagamento> = {
+  bonifico: "tre_step",
+  finanziamento: "acconto_finanziato",
+};
+type FamigliaPagamento = "bonifico" | "finanziamento" | "personalizzato";
+function famigliaDiSchema(s: SrSchemaPagamento): FamigliaPagamento {
+  if (s === "personalizzato") return "personalizzato";
+  return SR_SCHEMI_PAGAMENTO[s].hasFinanziamento ? "finanziamento" : "bonifico";
+}
+
 interface Props {
   progettoId: string;
   detail: SrProgettoDetail;
@@ -141,21 +157,14 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
   );
 
   // ─── Prezzo scritto a mano ───────────────────────────────────────────────
-  // Per chi non carica i prezzi del listino: le voci restano a 0 € e il prezzo
-  // si scrive qui. Il campo compare se l'azienda l'ha acceso (Impostazioni →
-  // Margini), e resta visibile su un preventivo che ha già un prezzo scritto,
-  // così lo si può togliere anche dopo che l'opzione è stata spenta.
-  const { data: prezzoAManoAttivo = false } = usePrezzoFinaleAMano(detail.progetto.company_id);
-  const mostraPrezzoAMano = prezzoAManoAttivo || totaleCalc.prezzo_manuale;
+  // Per chi non carica i prezzi del listino (o vuole fissare un totale diverso
+  // dalla somma delle voci): si scrive nel riquadro condiviso PrezzoPreventivoAMano,
+  // che si auto-gestisce l'abilitazione aziendale (Impostazioni → Margini) e
+  // mostra un suggerimento quando è spenta — così l'opzione è sempre individuabile.
   // IVA mista col prezzo scritto a mano: la regola dei beni significativi
   // ripartisce l'imponibile come le voci. Con le voci tutte a 0 € non c'è niente
   // da ripartire, e l'aliquota va scelta.
   const ivaMistaSenzaVoci = totaleCalc.prezzo_manuale && totaleCalc.somma_voci <= 0;
-  const salvaPrezzoManuale = (testo: string) => {
-    const pulito = testo.trim();
-    const valore = Number(pulito);
-    onChange("prezzo_manuale", pulito === "" || !Number.isFinite(valore) || valore <= 0 ? null : roundMoney(valore));
-  };
 
   const importoDocumento = useMemo(
     () => roundMoney(totaleCalc.totale_iva_inclusa),
@@ -420,7 +429,13 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
     (form.schema_pagamento as SrSchemaPagamento | null) ?? "tre_step",
   );
   const schemaCfg = SR_SCHEMI_PAGAMENTO[schemaPagamento];
+  const famigliaPagamento = famigliaDiSchema(schemaPagamento);
   const milestoneDefault = schemaCfg.milestones;
+  /** Passa a una famiglia (bonifico/finanziamento): se lo schema attuale non vi
+   *  appartiene, applica lo schema di default della famiglia. */
+  const scegliFamiglia = (fam: "bonifico" | "finanziamento") => {
+    if (famigliaDiSchema(schemaPagamento) !== fam) applySchema(FAMIGLIA_DEFAULT_SCHEMA[fam]);
+  };
   const [milestones, setMilestones] = useState<Milestone[]>(
     (form.pagamento_milestones as Milestone[] | null) ?? milestoneDefault,
   );
@@ -662,6 +677,353 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
         </div>
       </SrCard>
 
+      {/* Come paga il cliente — scelta pagamento in cima, come il fotovoltaico */}
+      <SrCard
+        title="Come paga il cliente"
+        description="Bonifico o finanziamento: la scelta guida gli step qui sotto. Compare nel PDF come piano concordato."
+        icon={<Wallet className="h-4 w-4" />}
+      >
+        {/* Scelta di alto livello: 2 card grandi Bonifico / Finanziamento
+            (come il toggle del fotovoltaico). Sotto, le varianti fini come
+            pill e «Personalizzato» come opzione discreta. */}
+        <div className="grid grid-cols-2 gap-2 bg-slate-50 border border-slate-200 rounded-xl p-1.5 mb-3">
+          {([
+            { fam: "bonifico" as const, icon: <Wallet className="h-5 w-5" />, label: "Bonifico / diretto", sub: "Acconti e saldo, senza finanziaria" },
+            { fam: "finanziamento" as const, icon: <CreditCard className="h-5 w-5" />, label: "Finanziamento", sub: "Rate tramite finanziaria" },
+          ]).map((o) => {
+            const active = famigliaPagamento === o.fam;
+            return (
+              <button
+                key={o.fam}
+                type="button"
+                onClick={() => scegliFamiglia(o.fam)}
+                aria-pressed={active}
+                className={`p-3 rounded-lg flex flex-col items-center gap-1 text-center transition-all ${
+                  active
+                    ? "bg-white shadow-md text-slate-900 border-2 border-orange-500"
+                    : "bg-transparent text-slate-500 hover:bg-white/60 border-2 border-transparent"
+                }`}
+              >
+                <span className={active ? "text-orange-600" : "text-slate-400"}>{o.icon}</span>
+                <span className="text-sm font-semibold">{o.label}</span>
+                <span className={`text-[11px] leading-tight ${active ? "text-orange-700" : "text-slate-400"}`}>{o.sub}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Variante fine della famiglia scelta (pill) + Personalizzato */}
+        <div className="flex flex-wrap items-center gap-1.5 mb-3">
+          {famigliaPagamento !== "personalizzato" &&
+            (famigliaPagamento === "bonifico" ? SCHEMI_BONIFICO : SCHEMI_FINANZIAMENTO).map((k) => {
+              const on = schemaPagamento === k;
+              return (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => applySchema(k)}
+                  aria-pressed={on}
+                  className={`tap-compact px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors ${
+                    on
+                      ? "bg-orange-100 border-orange-300 text-orange-800"
+                      : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+                  }`}
+                >
+                  {SR_SCHEMI_PAGAMENTO[k].label}
+                </button>
+              );
+            })}
+          <button
+            type="button"
+            onClick={() => applySchema("personalizzato")}
+            aria-pressed={famigliaPagamento === "personalizzato"}
+            className={`tap-compact px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors ${
+              famigliaPagamento === "personalizzato"
+                ? "bg-slate-800 border-slate-800 text-white"
+                : "bg-transparent border-dashed border-slate-300 text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            Personalizzato
+          </button>
+        </div>
+        <p className="text-[11px] text-slate-600 mb-3 max-md:hidden">{schemaCfg.description}</p>
+
+        <div className="space-y-2">
+          {milestones.map((m, idx) => (
+            <div key={getUid(idx)} className="grid grid-cols-12 gap-2 items-end">
+              {/* Telefono: nome, % e cestino su una riga; «Quando» sotto. */}
+              <div className="col-span-7 md:col-span-5">
+                <Label className="text-xs">Step {idx + 1}</Label>
+                <Input
+                  value={m.label}
+                  onChange={(e) => {
+                    const next = [...milestones];
+                    next[idx] = { ...next[idx], label: e.target.value };
+                    setMilestones(next);
+                  }}
+                  className="h-9 text-xs"
+                  placeholder="es. Acconto alla firma"
+                />
+              </div>
+              <div className="col-span-3 md:col-span-2">
+                <Label className="text-xs">%</Label>
+                <Input
+                  type="number"
+                  min={0} max={100} step={5}
+                  value={m.percentuale}
+                  onChange={(e) => {
+                    const next = [...milestones];
+                    next[idx] = { ...next[idx], percentuale: Math.max(0, Math.min(100, Number(e.target.value) || 0)) };
+                    setMilestones(next);
+                  }}
+                  className="h-9 text-xs"
+                />
+              </div>
+              <div className="col-span-12 md:col-span-4 max-md:order-1">
+                {/* Telefono: l'etichetta la dice il segnaposto (o il valore scritto). */}
+                <Label className="text-xs max-md:sr-only">Quando</Label>
+                <Input
+                  value={m.when ?? ""}
+                  onChange={(e) => {
+                    const next = [...milestones];
+                    next[idx] = { ...next[idx], when: e.target.value || null };
+                    setMilestones(next);
+                  }}
+                  placeholder="es. Consegna materiale"
+                  className="h-9 text-xs"
+                />
+              </div>
+              <div className="col-span-2 md:col-span-1 flex justify-end">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => setMilestones(milestones.filter((_, i) => i !== idx))}
+                  disabled={milestones.length <= 1}
+                  className="h-9 w-9 text-rose-600 hover:bg-rose-50"
+                  title="Rimuovi step"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+              {/* Importo calcolato sul medio */}
+              <div className="col-span-12 text-[11px] text-muted-foreground -mt-1 pl-1 max-md:order-2">
+                ≈ {formatEuro((forbice.media * (Number(m.percentuale) || 0)) / 100)}<span className="max-md:hidden"> IVA inclusa</span>
+              </div>
+            </div>
+          ))}
+          <div className="flex items-center justify-between pt-2 border-t mt-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setMilestones([...milestones, { label: "", percentuale: 0, when: null }])}
+              className="gap-1"
+            >
+              <Plus className="h-3.5 w-3.5" /> Aggiungi step
+            </Button>
+            <div
+              className={`text-sm font-bold inline-flex items-center gap-1.5 ${milestonesOk ? "text-emerald-700" : "text-amber-600"}`}
+              role="status"
+              aria-live="polite"
+            >
+              {milestonesOk && (
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
+              )}
+              Totale: {milestonesTotale}%
+              {!milestonesOk && (
+                <span className="text-xs font-normal ml-1">
+                  ({milestonesTotale > 100 ? `−${milestonesTotale - 100}%` : `+${100 - milestonesTotale}%`} per arrivare a 100%)
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      </SrCard>
+
+      {/* Finanziamento — mostrato solo se lo schema lo prevede */}
+      {schemaCfg.hasFinanziamento && (
+      <SrCard
+        title="Simulazione finanziamento"
+        description="Scegli una tabella finanziaria configurata oppure imposta manualmente. La rata si calcola da importo + durata."
+        icon={<CreditCard className="h-4 w-4" />}
+      >
+        {/* Switch modalità: tabella vs manuale */}
+        <div className="flex gap-2 mb-3 p-1 bg-muted rounded-md w-fit" role="tablist" aria-label="Modalità finanziamento">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={finModalita === "tabella"}
+            onClick={() => setFinModalita("tabella")}
+            className={`tap-compact px-3 py-1 text-xs rounded transition-colors ${finModalita === "tabella" ? "bg-white shadow-sm font-semibold text-orange-600" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            Da tabella<span className="max-md:hidden"> configurata</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={finModalita === "manuale"}
+            onClick={() => setFinModalita("manuale")}
+            className={`tap-compact px-3 py-1 text-xs rounded transition-colors ${finModalita === "manuale" ? "bg-white shadow-sm font-semibold text-orange-600" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            Manuale<span className="max-md:hidden"> (TAN libero)</span>
+          </button>
+        </div>
+
+        <div className="grid grid-cols-12 gap-3">
+          <div className="col-span-6 md:col-span-3">
+            <Label className="text-xs">Anticipo %</Label>
+            <Input
+              type="number"
+              min={0} max={100} step={5}
+              value={anticipoPct}
+              onChange={(e) => setAnticipoPct(Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
+              className="h-9 text-xs"
+            />
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              {formatEuro(finCalc.anticipo)} su {formatEuro(forbice.media)}
+            </p>
+          </div>
+          <div className="col-span-6 md:col-span-9">
+            <Label className="text-xs">Importo finanziato</Label>
+            <div className="h-9 px-3 flex items-center text-sm font-semibold text-orange-600 bg-orange-50 rounded-md border border-orange-200">
+              {formatEuro(importoFinanziato)}
+            </div>
+          </div>
+
+          {finModalita === "tabella" ? (
+            <>
+              <div className="col-span-12 md:col-span-6">
+                <Label className="text-xs">Tabella finanziamento</Label>
+                {tabelleFinanziamento.length === 0 ? (
+                  <SrCallout variant="info" className="text-[11px]">
+                    Nessuna tabella configurata. Vai in{" "}
+                    <a href="/azienda/impostazioni/finanziamenti" className="underline font-semibold">
+                      Impostazioni → Finanziamenti
+                    </a>{" "}
+                    per caricarla.
+                  </SrCallout>
+                ) : (
+                  <Select
+                    value={tabellaId ?? "none"}
+                    onValueChange={(v) => {
+                      const next = v === "none" ? null : v;
+                      setTabellaId(next);
+                      setDurataTabella(null);
+                    }}
+                  >
+                    <SelectTrigger className="h-9 text-xs">
+                      <SelectValue placeholder="Seleziona tabella..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">— Nessuna —</SelectItem>
+                      {tabelleFinanziamento.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.nome_prodotto}{t.finanziaria_nome ? ` · ${t.finanziaria_nome}` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+              <div className="col-span-12 md:col-span-6">
+                <Label className="text-xs">Durata (mesi)</Label>
+                <Select
+                  value={durataTabella ? String(durataTabella) : ""}
+                  onValueChange={(v) => setDurataTabella(Number(v))}
+                  disabled={durateDisponibili.length === 0}
+                >
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue placeholder={durateDisponibili.length === 0 ? "Seleziona prima tabella" : "Scegli durata..."} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {durateDisponibili.map((d) => (
+                      <SelectItem key={d} value={String(d)}>{d} mesi ({Math.round(d / 12 * 10) / 10} anni)</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {rigaTabellaScelta && (
+                <div className="col-span-12 mt-2 rounded-md border border-orange-300 bg-orange-50/50 p-3">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
+                    <div>
+                      <p className="text-[10px] uppercase text-orange-600 font-semibold">Rata mensile</p>
+                      <p className="text-2xl font-bold text-orange-900 tabular-nums max-md:text-xl">
+                        {formatEuro(rigaTabellaScelta.importo_rata, 0)}
+                      </p>
+                      <p className="text-[10px] text-orange-600">× {rigaTabellaScelta.numero_rate} rate</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase text-orange-600 font-semibold">TAN</p>
+                      <p className="text-lg font-bold text-orange-900 tabular-nums">
+                        {rigaTabellaScelta.tan != null ? `${rigaTabellaScelta.tan}%` : "—"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase text-orange-600 font-semibold">TAEG</p>
+                      <p className="text-lg font-bold text-orange-900 tabular-nums">
+                        {rigaTabellaScelta.taeg != null ? `${rigaTabellaScelta.taeg}%` : "—"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase text-orange-600 font-semibold">Totale dovuto</p>
+                      <p className="text-lg font-bold text-orange-900 tabular-nums">
+                        {formatEuro(rigaTabellaScelta.importo_totale_dovuto ?? rigaTabellaScelta.importo_rata * rigaTabellaScelta.numero_rate, 0)}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-center text-orange-600/80 mt-2 max-md:hidden">
+                    Valori letti dalla tabella ufficiale: TAN e TAEG sono pre-calcolati, niente input manuali.
+                  </p>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              {/* Modalità manuale (legacy) */}
+              <div className="col-span-12 grid grid-cols-12 gap-2 mt-2">
+                <div className="col-span-12">
+                  <p className="text-xs font-semibold uppercase text-orange-900">Piano Estesa</p>
+                </div>
+                <div className="col-span-4 md:col-span-3">
+                  <Label className="text-xs">Durata (mesi)</Label>
+                  <Input type="number" value={piano1Mesi} onChange={(e) => setPiano1Mesi(Number(e.target.value) || 0)} className="h-9 text-xs" />
+                </div>
+                <div className="col-span-4 md:col-span-3">
+                  <Label className="text-xs">Tasso TAN %</Label>
+                  <Input type="number" step={0.1} value={piano1Tasso} onChange={(e) => setPiano1Tasso(Number(e.target.value) || 0)} className="h-9 text-xs" />
+                </div>
+                <div className="col-span-4 md:col-span-6">
+                  <Label className="text-xs">Rata mensile</Label>
+                  <div className="h-9 px-3 flex items-center text-sm font-bold text-orange-600 bg-orange-50 rounded-md border border-orange-200">
+                    {formatEuro(finCalc.piani[0]?.rata_mese, 0)}/mese
+                  </div>
+                </div>
+              </div>
+              <div className="col-span-12 grid grid-cols-12 gap-2 mt-2">
+                <div className="col-span-12">
+                  <p className="text-xs font-semibold uppercase text-orange-900">Piano Standard</p>
+                </div>
+                <div className="col-span-4 md:col-span-3">
+                  <Label className="text-xs">Durata (mesi)</Label>
+                  <Input type="number" value={piano2Mesi} onChange={(e) => setPiano2Mesi(Number(e.target.value) || 0)} className="h-9 text-xs" />
+                </div>
+                <div className="col-span-4 md:col-span-3">
+                  <Label className="text-xs">Tasso TAN %</Label>
+                  <Input type="number" step={0.1} value={piano2Tasso} onChange={(e) => setPiano2Tasso(Number(e.target.value) || 0)} className="h-9 text-xs" />
+                </div>
+                <div className="col-span-4 md:col-span-6">
+                  <Label className="text-xs">Rata mensile</Label>
+                  <div className="h-9 px-3 flex items-center text-sm font-bold text-orange-600 bg-orange-50 rounded-md border border-orange-200">
+                    {formatEuro(finCalc.piani[1]?.rata_mese, 0)}/mese
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </SrCard>
+      )}
+
       {/* Sconto + totale */}
       <SrCard
         title="Totale preventivo (PDF cliente)"
@@ -670,55 +1032,20 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
           : "Il PDF mostra il totale di questa revisione: sconto, imponibile e IVA si calcolano dalle righe dell'offerta."}
         icon={<Euro className="h-4 w-4" />}
       >
-        {/* ─── Prezzo scritto a mano ──────────────────────────────────────
-            Prezzo pieno IVA esclusa, al posto della somma delle voci. Sconto
-            e IVA lavorano sopra, così nell'offerta si vedono prezzo, sconto e
-            totale. Acceso per azienda in Impostazioni → Margini. */}
-        {mostraPrezzoAMano && (
-          <div className="mb-3 rounded-md border border-orange-200 bg-orange-50/50 p-3">
-            <div className="grid grid-cols-12 gap-3 items-end">
-              <div className="col-span-12 md:col-span-5">
-                <Label htmlFor="sr-prezzo-manuale" className="text-xs font-semibold text-orange-900 block h-4">
-                  Prezzo del preventivo (IVA esclusa)
-                </Label>
-                <Input
-                  id="sr-prezzo-manuale"
-                  type="number"
-                  min={0}
-                  step={0.01}
-                  inputMode="decimal"
-                  key={`prezzo-manuale-${form.prezzo_manuale ?? ""}`}
-                  defaultValue={form.prezzo_manuale ?? ""}
-                  placeholder={totaleCalc.somma_voci > 0 ? `Somma delle voci: ${formatEuro(totaleCalc.somma_voci, 2)}` : "Scrivi il prezzo"}
-                  onBlur={(e) => salvaPrezzoManuale(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-                  className="h-9 text-sm mt-1 bg-white tabular-nums"
-                />
-              </div>
-              <div className={`col-span-12 md:col-span-7 text-[11px] text-orange-900/80 leading-snug ${totaleCalc.prezzo_manuale ? "" : "max-md:hidden"}`}>
-                {totaleCalc.prezzo_manuale ? (
-                  <>
-                    Prende il posto della somma delle voci
-                    {totaleCalc.somma_voci > 0 ? ` (${formatEuro(totaleCalc.somma_voci, 2)})` : ""}.
-                    Sconto e IVA si calcolano su questo prezzo.{" "}
-                    <button
-                      type="button"
-                      className="underline hover:no-underline"
-                      onClick={() => onChange("prezzo_manuale", null)}
-                    >
-                      Torna alla somma delle voci
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    Vuoto: il prezzo è la somma delle voci ({formatEuro(totaleCalc.somma_voci, 2)}).
-                    Scrivilo se non usi i prezzi del listino: sconto e IVA si calcolano sopra.
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Prezzo manuale dell'offerta — riquadro condiviso con gli altri
+            moduli: IVA esclusa, prende il posto della somma delle voci; sconto
+            e IVA lavorano sopra. Sempre individuabile (mostra il suggerimento
+            se l'azienda non l'ha ancora acceso in Impostazioni → Margini). */}
+        <div className="mb-3">
+          <PrezzoPreventivoAMano
+            id="sr-prezzo-manuale"
+            companyId={detail.progetto.company_id}
+            value={form.prezzo_manuale}
+            sommaVoci={totaleCalc.somma_voci}
+            onCommit={(v) => onChange("prezzo_manuale", v == null ? null : roundMoney(v))}
+            showDisabledHint
+          />
+        </div>
         {/* ─── Regole scontistica aziendale ───────────────────────────────
             Auto-binding live (mirror del compute_max_discount SQL):
             mostra max sconto, soglia approvazione, margine min in base
@@ -1112,310 +1439,6 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
           )}
         </div>
       </SrCard>
-
-      {/* Modalità di pagamento cliente */}
-      <SrCard
-        title="Modalità di pagamento cliente"
-        description="Scegli prima il pattern di pagamento, poi personalizza gli step. Compare nel PDF come piano concordato."
-        icon={<Wallet className="h-4 w-4" />}
-      >
-        {/* Schema di alto livello — guida il template. Blocco INFORMATIVO
-            -> blu navy soft (non e' un valore chiave da evidenziare). */}
-        <div className="mb-4 rounded-md border border-slate-200 bg-slate-50/60 border-l-4 border-l-[#173b67] p-3 space-y-2">
-          <Label className="text-xs font-semibold text-[#173b67] flex items-center gap-1.5">
-            <CreditCard className="h-3.5 w-3.5" />
-            Schema pagamento
-          </Label>
-          <Select value={schemaPagamento} onValueChange={(v) => applySchema(v as SrSchemaPagamento)}>
-            <SelectTrigger className="bg-white text-sm h-9">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {(Object.keys(SR_SCHEMI_PAGAMENTO) as SrSchemaPagamento[]).map((k) => (
-                <SelectItem key={k} value={k}>
-                  {SR_SCHEMI_PAGAMENTO[k].label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <p className="text-[11px] text-slate-600 max-md:hidden">{schemaCfg.description}</p>
-        </div>
-
-        <div className="space-y-2">
-          {milestones.map((m, idx) => (
-            <div key={getUid(idx)} className="grid grid-cols-12 gap-2 items-end">
-              {/* Telefono: nome, % e cestino su una riga; «Quando» sotto. */}
-              <div className="col-span-7 md:col-span-5">
-                <Label className="text-xs">Step {idx + 1}</Label>
-                <Input
-                  value={m.label}
-                  onChange={(e) => {
-                    const next = [...milestones];
-                    next[idx] = { ...next[idx], label: e.target.value };
-                    setMilestones(next);
-                  }}
-                  className="h-9 text-xs"
-                  placeholder="es. Acconto alla firma"
-                />
-              </div>
-              <div className="col-span-3 md:col-span-2">
-                <Label className="text-xs">%</Label>
-                <Input
-                  type="number"
-                  min={0} max={100} step={5}
-                  value={m.percentuale}
-                  onChange={(e) => {
-                    const next = [...milestones];
-                    next[idx] = { ...next[idx], percentuale: Math.max(0, Math.min(100, Number(e.target.value) || 0)) };
-                    setMilestones(next);
-                  }}
-                  className="h-9 text-xs"
-                />
-              </div>
-              <div className="col-span-12 md:col-span-4 max-md:order-1">
-                {/* Telefono: l'etichetta la dice il segnaposto (o il valore scritto). */}
-                <Label className="text-xs max-md:sr-only">Quando</Label>
-                <Input
-                  value={m.when ?? ""}
-                  onChange={(e) => {
-                    const next = [...milestones];
-                    next[idx] = { ...next[idx], when: e.target.value || null };
-                    setMilestones(next);
-                  }}
-                  placeholder="es. Consegna materiale"
-                  className="h-9 text-xs"
-                />
-              </div>
-              <div className="col-span-2 md:col-span-1 flex justify-end">
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => setMilestones(milestones.filter((_, i) => i !== idx))}
-                  disabled={milestones.length <= 1}
-                  className="h-9 w-9 text-rose-600 hover:bg-rose-50"
-                  title="Rimuovi step"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-              {/* Importo calcolato sul medio */}
-              <div className="col-span-12 text-[11px] text-muted-foreground -mt-1 pl-1 max-md:order-2">
-                ≈ {formatEuro((forbice.media * (Number(m.percentuale) || 0)) / 100)}<span className="max-md:hidden"> IVA inclusa</span>
-              </div>
-            </div>
-          ))}
-          <div className="flex items-center justify-between pt-2 border-t mt-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setMilestones([...milestones, { label: "", percentuale: 0, when: null }])}
-              className="gap-1"
-            >
-              <Plus className="h-3.5 w-3.5" /> Aggiungi step
-            </Button>
-            <div
-              className={`text-sm font-bold inline-flex items-center gap-1.5 ${milestonesOk ? "text-emerald-700" : "text-amber-600"}`}
-              role="status"
-              aria-live="polite"
-            >
-              {milestonesOk && (
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
-              )}
-              Totale: {milestonesTotale}%
-              {!milestonesOk && (
-                <span className="text-xs font-normal ml-1">
-                  ({milestonesTotale > 100 ? `−${milestonesTotale - 100}%` : `+${100 - milestonesTotale}%`} per arrivare a 100%)
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-      </SrCard>
-
-      {/* Finanziamento — mostrato solo se lo schema lo prevede */}
-      {schemaCfg.hasFinanziamento && (
-      <SrCard
-        title="Simulazione finanziamento"
-        description="Scegli una tabella finanziaria configurata oppure imposta manualmente. La rata si calcola da importo + durata."
-        icon={<CreditCard className="h-4 w-4" />}
-      >
-        {/* Switch modalità: tabella vs manuale */}
-        <div className="flex gap-2 mb-3 p-1 bg-muted rounded-md w-fit" role="tablist" aria-label="Modalità finanziamento">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={finModalita === "tabella"}
-            onClick={() => setFinModalita("tabella")}
-            className={`tap-compact px-3 py-1 text-xs rounded transition-colors ${finModalita === "tabella" ? "bg-white shadow-sm font-semibold text-orange-600" : "text-muted-foreground hover:text-foreground"}`}
-          >
-            Da tabella<span className="max-md:hidden"> configurata</span>
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={finModalita === "manuale"}
-            onClick={() => setFinModalita("manuale")}
-            className={`tap-compact px-3 py-1 text-xs rounded transition-colors ${finModalita === "manuale" ? "bg-white shadow-sm font-semibold text-orange-600" : "text-muted-foreground hover:text-foreground"}`}
-          >
-            Manuale<span className="max-md:hidden"> (TAN libero)</span>
-          </button>
-        </div>
-
-        <div className="grid grid-cols-12 gap-3">
-          <div className="col-span-6 md:col-span-3">
-            <Label className="text-xs">Anticipo %</Label>
-            <Input
-              type="number"
-              min={0} max={100} step={5}
-              value={anticipoPct}
-              onChange={(e) => setAnticipoPct(Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
-              className="h-9 text-xs"
-            />
-            <p className="text-[10px] text-muted-foreground mt-0.5">
-              {formatEuro(finCalc.anticipo)} su {formatEuro(forbice.media)}
-            </p>
-          </div>
-          <div className="col-span-6 md:col-span-9">
-            <Label className="text-xs">Importo finanziato</Label>
-            <div className="h-9 px-3 flex items-center text-sm font-semibold text-orange-600 bg-orange-50 rounded-md border border-orange-200">
-              {formatEuro(importoFinanziato)}
-            </div>
-          </div>
-
-          {finModalita === "tabella" ? (
-            <>
-              <div className="col-span-12 md:col-span-6">
-                <Label className="text-xs">Tabella finanziamento</Label>
-                {tabelleFinanziamento.length === 0 ? (
-                  <SrCallout variant="info" className="text-[11px]">
-                    Nessuna tabella configurata. Vai in{" "}
-                    <a href="/azienda/impostazioni/finanziamenti" className="underline font-semibold">
-                      Impostazioni → Finanziamenti
-                    </a>{" "}
-                    per caricarla.
-                  </SrCallout>
-                ) : (
-                  <Select
-                    value={tabellaId ?? "none"}
-                    onValueChange={(v) => {
-                      const next = v === "none" ? null : v;
-                      setTabellaId(next);
-                      setDurataTabella(null);
-                    }}
-                  >
-                    <SelectTrigger className="h-9 text-xs">
-                      <SelectValue placeholder="Seleziona tabella..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">— Nessuna —</SelectItem>
-                      {tabelleFinanziamento.map((t) => (
-                        <SelectItem key={t.id} value={t.id}>
-                          {t.nome_prodotto}{t.finanziaria_nome ? ` · ${t.finanziaria_nome}` : ""}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
-              <div className="col-span-12 md:col-span-6">
-                <Label className="text-xs">Durata (mesi)</Label>
-                <Select
-                  value={durataTabella ? String(durataTabella) : ""}
-                  onValueChange={(v) => setDurataTabella(Number(v))}
-                  disabled={durateDisponibili.length === 0}
-                >
-                  <SelectTrigger className="h-9 text-xs">
-                    <SelectValue placeholder={durateDisponibili.length === 0 ? "Seleziona prima tabella" : "Scegli durata..."} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {durateDisponibili.map((d) => (
-                      <SelectItem key={d} value={String(d)}>{d} mesi ({Math.round(d / 12 * 10) / 10} anni)</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {rigaTabellaScelta && (
-                <div className="col-span-12 mt-2 rounded-md border border-orange-300 bg-orange-50/50 p-3">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
-                    <div>
-                      <p className="text-[10px] uppercase text-orange-600 font-semibold">Rata mensile</p>
-                      <p className="text-2xl font-bold text-orange-900 tabular-nums max-md:text-xl">
-                        {formatEuro(rigaTabellaScelta.importo_rata, 0)}
-                      </p>
-                      <p className="text-[10px] text-orange-600">× {rigaTabellaScelta.numero_rate} rate</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] uppercase text-orange-600 font-semibold">TAN</p>
-                      <p className="text-lg font-bold text-orange-900 tabular-nums">
-                        {rigaTabellaScelta.tan != null ? `${rigaTabellaScelta.tan}%` : "—"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] uppercase text-orange-600 font-semibold">TAEG</p>
-                      <p className="text-lg font-bold text-orange-900 tabular-nums">
-                        {rigaTabellaScelta.taeg != null ? `${rigaTabellaScelta.taeg}%` : "—"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] uppercase text-orange-600 font-semibold">Totale dovuto</p>
-                      <p className="text-lg font-bold text-orange-900 tabular-nums">
-                        {formatEuro(rigaTabellaScelta.importo_totale_dovuto ?? rigaTabellaScelta.importo_rata * rigaTabellaScelta.numero_rate, 0)}
-                      </p>
-                    </div>
-                  </div>
-                  <p className="text-[10px] text-center text-orange-600/80 mt-2 max-md:hidden">
-                    Valori letti dalla tabella ufficiale: TAN e TAEG sono pre-calcolati, niente input manuali.
-                  </p>
-                </div>
-              )}
-            </>
-          ) : (
-            <>
-              {/* Modalità manuale (legacy) */}
-              <div className="col-span-12 grid grid-cols-12 gap-2 mt-2">
-                <div className="col-span-12">
-                  <p className="text-xs font-semibold uppercase text-orange-900">Piano Estesa</p>
-                </div>
-                <div className="col-span-4 md:col-span-3">
-                  <Label className="text-xs">Durata (mesi)</Label>
-                  <Input type="number" value={piano1Mesi} onChange={(e) => setPiano1Mesi(Number(e.target.value) || 0)} className="h-9 text-xs" />
-                </div>
-                <div className="col-span-4 md:col-span-3">
-                  <Label className="text-xs">Tasso TAN %</Label>
-                  <Input type="number" step={0.1} value={piano1Tasso} onChange={(e) => setPiano1Tasso(Number(e.target.value) || 0)} className="h-9 text-xs" />
-                </div>
-                <div className="col-span-4 md:col-span-6">
-                  <Label className="text-xs">Rata mensile</Label>
-                  <div className="h-9 px-3 flex items-center text-sm font-bold text-orange-600 bg-orange-50 rounded-md border border-orange-200">
-                    {formatEuro(finCalc.piani[0]?.rata_mese, 0)}/mese
-                  </div>
-                </div>
-              </div>
-              <div className="col-span-12 grid grid-cols-12 gap-2 mt-2">
-                <div className="col-span-12">
-                  <p className="text-xs font-semibold uppercase text-orange-900">Piano Standard</p>
-                </div>
-                <div className="col-span-4 md:col-span-3">
-                  <Label className="text-xs">Durata (mesi)</Label>
-                  <Input type="number" value={piano2Mesi} onChange={(e) => setPiano2Mesi(Number(e.target.value) || 0)} className="h-9 text-xs" />
-                </div>
-                <div className="col-span-4 md:col-span-3">
-                  <Label className="text-xs">Tasso TAN %</Label>
-                  <Input type="number" step={0.1} value={piano2Tasso} onChange={(e) => setPiano2Tasso(Number(e.target.value) || 0)} className="h-9 text-xs" />
-                </div>
-                <div className="col-span-4 md:col-span-6">
-                  <Label className="text-xs">Rata mensile</Label>
-                  <div className="h-9 px-3 flex items-center text-sm font-bold text-orange-600 bg-orange-50 rounded-md border border-orange-200">
-                    {formatEuro(finCalc.piani[1]?.rata_mese, 0)}/mese
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-      </SrCard>
-      )}
 
       {/* Ecobonus */}
       <SrCard
