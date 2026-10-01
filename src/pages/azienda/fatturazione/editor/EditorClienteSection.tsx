@@ -7,8 +7,16 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useAnagraficheNative } from "@/hooks/useAnagraficheNative";
 import { validaPartitaIva, validaCodiceFiscale } from "@/lib/fatturazione/validazioniAnagrafiche";
+import {
+  payloadAnagrafica, problemiNuovoCliente, pulisciNuovoCliente, snapshotDaForm,
+  type NuovoClienteForm,
+} from "@/lib/fatturazione/clienteAnagrafica";
 import type { ClienteSnapshot } from "@/types/fatturazione";
 import type { EditorState } from "./useEditorState";
 
@@ -42,25 +50,7 @@ const TIPO_BADGE: Record<string, { label: string; className: string }> = {
   Estero: { label: "Estero", className: "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400" },
 };
 
-// New client form state
-interface NewClientForm {
-  tipo: "B2C" | "B2B" | "PA";
-  nome?: string;
-  cognome?: string;
-  ragioneSociale?: string;
-  partitaIva?: string;
-  codiceFiscale?: string;
-  codiceSdi?: string;
-  pec?: string;
-  email?: string;
-  telefono?: string;
-  indirizzo_via?: string;
-  indirizzo_cap?: string;
-  indirizzo_comune?: string;
-  indirizzo_provincia?: string;
-  indirizzo_nazione?: string;
-  note?: string;
-}
+type NewClientForm = NuovoClienteForm;
 
 export function EditorClienteSection({ state, dispatch, disabled }: Props) {
   const [search, setSearch] = useState("");
@@ -70,6 +60,9 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
   const [showNewForm, setShowNewForm] = useState(false);
   const [newClientTab, setNewClientTab] = useState<"B2C" | "B2B" | "PA">("B2B");
   const [newForm, setNewForm] = useState<NewClientForm>({ tipo: "B2B" });
+  const [salvataggio, setSalvataggio] = useState(false);
+  const companyId = useEffectiveCompanyId();
+  const queryClient = useQueryClient();
 
   // Get all clients (empty search returns up to 100)
   const { data: anagrafiche } = useAnagraficheNative(search);
@@ -142,36 +135,77 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
     setEditingSnapshot(true); // codice fiscale e indirizzo da inserire
   }
 
-  // Create new client from form
-  function createNewClient() {
-    const ragioneSociale = newForm.tipo === "B2B" || newForm.tipo === "PA"
-      ? newForm.ragioneSociale?.trim()
-      : `${newForm.nome?.trim() ?? ""} ${newForm.cognome?.trim() ?? ""}`.trim();
+  // Il cliente nuovo entra in anagrafica (così alla prossima fattura lo si ritrova) e poi
+  // viene scelto sul documento. Se la partita IVA o il codice fiscale ci sono già, si usa
+  // il cliente che c'è, senza doppioni.
+  async function createNewClient() {
+    const problemi = problemiNuovoCliente(newForm);
+    if (problemi.length > 0) {
+      toast.error(`Per creare il cliente manca: ${problemi.join(", ")}`);
+      return;
+    }
+    if (!companyId) {
+      toast.error("Azienda non ancora caricata: riprova tra un attimo.");
+      return;
+    }
+    const form = pulisciNuovoCliente(newForm);
+    const snap = snapshotDaForm(form);
+    setSalvataggio(true);
+    try {
+      let esistente: Record<string, unknown> | null = null;
+      const chiavi: [string, string | undefined][] = [["partita_iva", form.partitaIva], ["codice_fiscale", form.codiceFiscale]];
+      for (const [colonna, valore] of chiavi) {
+        if (!valore || esistente) continue;
+        const { data } = await supabase.from("anagrafiche_native" as never).select("*")
+          .eq("company_id", companyId).eq(colonna, valore).eq("attivo", true).limit(1);
+        esistente = ((data as unknown as Record<string, unknown>[] | null) ?? [])[0] ?? null;
+      }
+      if (esistente) {
+        toast.info("Questo cliente è già in anagrafica: l'ho scelto.");
+        selectCliente(esistente);
+        setNewForm({ tipo: "B2B" });
+        return;
+      }
+      const { data, error } = await supabase.from("anagrafiche_native" as never)
+        .insert({ ...payloadAnagrafica(snap), company_id: companyId } as never)
+        .select("id").single();
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ["anagrafiche-native"] });
+      dispatch({ type: "SET_CLIENTE", anagrafica_id: (data as unknown as { id: string }).id, snapshot: snap });
+      toast.success("Cliente creato e salvato in anagrafica");
+      setNewForm({ tipo: "B2B" });
+      setShowNewForm(false);
+      setSearch("");
+      setIsOpen(false);
+      setDetailsOpen(true);
+    } catch (e) {
+      toast.error("Cliente non creato", { description: (e as { message?: string })?.message ?? "Errore sconosciuto" });
+    } finally {
+      setSalvataggio(false);
+    }
+  }
 
-    if (!ragioneSociale) return;
-
-    const snap: ClienteSnapshot = {
-      ragione_sociale: ragioneSociale,
-      // Privato: nome e cognome separati (nell'XML sono Nome e Cognome, non Denominazione).
-      ...(newForm.tipo === "B2C" ? { nome: newForm.nome?.trim(), cognome: newForm.cognome?.trim() } : {}),
-      partita_iva: newForm.partitaIva,
-      codice_fiscale: newForm.codiceFiscale,
-      codice_sdi: newForm.codiceSdi,
-      pec: newForm.pec,
-      indirizzo_via: newForm.indirizzo_via,
-      indirizzo_cap: newForm.indirizzo_cap,
-      indirizzo_comune: newForm.indirizzo_comune,
-      indirizzo_provincia: newForm.indirizzo_provincia,
-      indirizzo_nazione: newForm.indirizzo_nazione ?? "IT",
-      tipo_cliente: newForm.tipo,
-    };
-
-    dispatch({ type: "SET_CLIENTE", anagrafica_id: "", snapshot: snap });
-    setNewForm({ tipo: "B2B" });
-    setShowNewForm(false);
-    setSearch("");
-    setIsOpen(false);
-    setDetailsOpen(true);
+  // «Fine modifica»: i dati corretti sul documento tornano anche nell'anagrafica del
+  // cliente (nome e cognome di un privato importato, indirizzo, codice fiscale…).
+  async function fineModifica() {
+    setEditingSnapshot(false);
+    if (!snapshot || !state.anagrafica_id || !companyId) return;
+    const pulita = pulisciNuovoCliente({
+      tipo: ePrivato(snapshot) ? "B2C" : snapshot.tipo_cliente === "PA" ? "PA" : "B2B",
+      nome: snapshot.nome, cognome: snapshot.cognome, ragioneSociale: snapshot.ragione_sociale,
+      partitaIva: snapshot.partita_iva, codiceFiscale: snapshot.codice_fiscale, codiceSdi: snapshot.codice_sdi,
+      pec: snapshot.pec, indirizzo_via: snapshot.indirizzo_via, indirizzo_cap: snapshot.indirizzo_cap,
+      indirizzo_comune: snapshot.indirizzo_comune, indirizzo_provincia: snapshot.indirizzo_provincia,
+      indirizzo_nazione: snapshot.indirizzo_nazione,
+    });
+    const aggiornata = { ...snapshotDaForm(pulita), tipo_cliente: snapshot.tipo_cliente };
+    dispatch({ type: "SET_CLIENTE", anagrafica_id: state.anagrafica_id, snapshot: aggiornata });
+    const { tipo, attivo, ...campi } = payloadAnagrafica(aggiornata);
+    void tipo; void attivo;
+    const { error } = await supabase.from("anagrafiche_native" as never)
+      .update(campi as never).eq("id", state.anagrafica_id).eq("company_id", companyId);
+    if (error) toast.error("Dati non salvati in anagrafica", { description: error.message });
+    else queryClient.invalidateQueries({ queryKey: ["anagrafiche-native"] });
   }
 
   // Validation
@@ -181,6 +215,8 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
   const cfError = newForm.codiceFiscale && newForm.codiceFiscale.length > 0 && !validaCodiceFiscale(newForm.codiceFiscale).valida
     ? validaCodiceFiscale(newForm.codiceFiscale).errore
     : undefined;
+
+  const problemiNuovo = showNewForm ? problemiNuovoCliente(newForm) : [];
 
   return (
     <div className="rounded-lg border bg-card p-4 space-y-3 border-l-[3px] border-l-primary/60 shadow-sm">
@@ -399,7 +435,7 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
                   variant={editingSnapshot ? "default" : "outline"}
                   size="sm"
                   className="w-full h-6 text-[10px] gap-1"
-                  onClick={() => setEditingSnapshot(!editingSnapshot)}
+                  onClick={() => (editingSnapshot ? void fineModifica() : setEditingSnapshot(true))}
                 >
                   <Pencil className="h-2.5 w-2.5" />
                   {editingSnapshot ? "Fine modifica" : "Modifica dati cliente"}
@@ -511,7 +547,7 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <Label className="text-[10px]">P.IVA</Label>
-                        <Input placeholder="11 cifre" value={newForm.partitaIva ?? ""} onChange={(e) => setNewForm({ ...newForm, partitaIva: e.target.value })} className="h-7 text-xs font-mono" />
+                        <Input placeholder="11 cifre" value={newForm.partitaIva ?? ""} onChange={(e) => setNewForm({ ...newForm, partitaIva: e.target.value.replace(/\s+/g, "") })} className="h-7 text-xs font-mono" />
                         {pivaError && <p className="text-[9px] text-destructive mt-0.5">{pivaError}</p>}
                       </div>
                       <div>
@@ -579,7 +615,7 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
                 <div className="border-t pt-2 space-y-2">
                   <div className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
                     <MapPin className="h-2.5 w-2.5" />
-                    {newClientTab === "B2C" ? "Indirizzo * (obbligatorio per i privati)" : "Indirizzo (opzionale)"}
+                    Indirizzo * (via, CAP, comune)
                   </div>
                   <div>
                     <Input placeholder="Via / Indirizzo" value={newForm.indirizzo_via ?? ""} onChange={(e) => setNewForm({ ...newForm, indirizzo_via: e.target.value })} className="h-7 text-xs" />
@@ -591,21 +627,17 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
                   </div>
                 </div>
 
+                {problemiNuovo.length > 0 && (
+                  <p className="text-[10px] text-amber-700">Manca: {problemiNuovo.join(", ")}.</p>
+                )}
                 <div className="flex gap-2">
                   <Button
                     size="sm"
                     className="h-6 text-xs flex-1"
-                    onClick={createNewClient}
-                    disabled={
-                      (newClientTab === "B2B" || newClientTab === "PA"
-                        ? !newForm.ragioneSociale
-                        // Privato: nome, cognome, codice fiscale e indirizzo completo (come li vuole lo SDI).
-                        : !(newForm.nome?.trim() && newForm.cognome?.trim() && newForm.codiceFiscale?.trim()
-                          && newForm.indirizzo_via?.trim() && newForm.indirizzo_comune?.trim() && /^\d{5}$/.test(newForm.indirizzo_cap ?? ""))) ||
-                      !!pivaError || !!cfError
-                    }
+                    onClick={() => void createNewClient()}
+                    disabled={salvataggio || problemiNuovo.length > 0}
                   >
-                    Crea e seleziona
+                    {salvataggio ? "Salvo…" : 'Crea e seleziona'}
                   </Button>
                   <Button
                     variant="outline"
