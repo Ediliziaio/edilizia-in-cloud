@@ -5,11 +5,13 @@ import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
 import { PreviewFattura } from "@/components/fatturazione/PreviewFattura";
 import { creaNotaCredito } from "@/lib/fatturazione/noteCredito";
 import { convertiProformaInFattura } from "@/lib/fatturazione/proforma";
-import { downloadNativePDF } from "@/lib/fatturazione/generatePDF";
+import { downloadNativePDF, apriDocumentoInScheda } from "@/lib/fatturazione/generatePDF";
 import { scaricaXmlFattura } from "@/lib/fatturazione/scaricaXml";
 import { faseSdi, motivoSdi } from "@/lib/fatturazione/sdiCassetto";
 import { useInvioSdi, useAggiornaStatoSdi } from "@/hooks/useInvioSdi";
-import { SdiStatoBanner } from "@/components/fatturazione/SdiStatoBanner";
+import { FatturaElettronicaPannello } from "@/components/fatturazione/FatturaElettronicaPannello";
+import { EditorSendEmailDialog } from "./editor/EditorSendEmailDialog";
+import type { EditorState } from "./editor/useEditorState";
 import { FaseSdiBadge } from "@/components/fatturazione/FaseSdiBadge";
 import { SegnaPagataDialog } from "@/components/fatturazione/SegnaPagataDialog";
 import { residuoDaIncassare } from "@/lib/fatturazione/incassi";
@@ -22,9 +24,10 @@ import {
   AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Download, FileText, FileWarning, Loader2, CreditCard, AlertTriangle, CheckCircle, Send, ExternalLink } from "lucide-react";
+import { ArrowLeft, Copy, FileWarning, Loader2, CreditCard, AlertTriangle, CheckCircle, Send, ExternalLink, Mail, Pencil, Printer, Save, FileText, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { useEffect, useState } from "react";
+import { TIPI_SDI } from "@/lib/fatturazione/sdiCassetto";
 import type { AnagraficaAzienda, RigaDocumento } from "@/types/fatturazione";
 import { KpiMobili } from "@/components/mobile/FiltriMobile";
 
@@ -67,6 +70,7 @@ export default function DocumentoDetail() {
   const [ncLoading, setNcLoading] = useState(false);
   const [convertLoading, setConvertLoading] = useState(false);
   const [pagaAperto, setPagaAperto] = useState(false);
+  const [emailAperta, setEmailAperta] = useState(false);
   // Invio e esito, gli stessi dell'editor: dopo l'invio la pagina si rilegge da
   // sola e passa a «In elaborazione» (24/09/2026).
   const invioSdi = useInvioSdi();
@@ -90,6 +94,7 @@ export default function DocumentoDetail() {
   const tipoLabel = TIPO_LABELS[doc.tipo] ?? doc.tipo;
   const residuo = doc.totale_da_pagare - doc.importo_pagato;
   const paymentProgress = doc.totale_da_pagare > 0 ? (doc.importo_pagato / doc.totale_da_pagare) * 100 : 0;
+  const modificabile = doc.stato === "bozza" || fase === "scartata";
   const isProforma = doc.tipo === "proforma";
   const isPreventivo = doc.tipo === "preventivo";
   const canSegnaPagata = TIPI_PAGABILI.includes(doc.tipo)
@@ -105,9 +110,22 @@ export default function DocumentoDetail() {
     finally { setNcLoading(false); }
   };
 
-  const handleDownloadPDF = async () => {
-    try { await downloadNativePDF(doc.id, doc.numero); toast.success("PDF scaricato"); }
-    catch (err: unknown) { toast.error("Errore nel download PDF", { description: getErrorMessage(err) }); }
+  // Stampa nativa del browser: «Salva PDF» e «Stampa» aprono lo stesso dialogo,
+  // da cui si sceglie la stampante o «Salva come PDF» (testo vero, non immagine).
+  const handleStampa = async (salva: boolean) => {
+    try {
+      await downloadNativePDF(doc.id, doc.numero);
+      if (salva) toast.info("Nel dialogo di stampa scegli «Salva come PDF» come destinazione");
+    } catch (err: unknown) { toast.error("Errore nella preparazione del PDF", { description: getErrorMessage(err) }); }
+  };
+
+  const handleApriPdf = async () => {
+    try { await apriDocumentoInScheda(doc.id); }
+    catch (err: unknown) { toast.error("Impossibile aprire il PDF", { description: getErrorMessage(err) }); }
+  };
+
+  const handleDuplica = () => {
+    navigate(`/azienda/documenti/nuovo?tipo=${doc.tipo}`, { state: { prefilled: doc } });
   };
 
   const handleDownloadXML = async () => {
@@ -146,118 +164,122 @@ export default function DocumentoDetail() {
         </div>
       )}
 
-      {/* La fattura verso lo SDI: fase, cosa vuol dire, cosa fare. */}
-      <SdiStatoBanner
-        doc={doc}
-        tipoLabel={tipoLabel}
-        onInvia={handleInviaSDI}
-        isInvio={invioSdi.isPending}
-        onAggiorna={() => aggiornaStatoSdi.mutate(doc.id)}
-        isAggiorna={aggiornaStatoSdi.isPending}
-        onScaricaXml={handleDownloadXML}
-        variante="riquadro"
-      />
-
-      {/* Header — mobile: titolo, poi una riga di bottoni piccoli (via PDF e XML). */}
-      <div className="flex items-center justify-between max-sm:flex-col max-sm:items-stretch max-sm:gap-2">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" aria-label="Torna indietro" className="hidden md:inline-flex" onClick={() => navigate(-1)}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div>
-            <div className="flex items-center gap-2 max-sm:flex-wrap max-sm:gap-1.5">
-              <h1 className="text-xl font-semibold max-sm:text-lg max-sm:leading-tight">{tipoLabel} N° {doc.numero}</h1>
-              {(!fase || ["pagata", "parzialmente_pagata", "scaduta", "stornata"].includes(doc.stato)) && (
-                <Badge variant={stato.variant}>{stato.label}</Badge>
-              )}
-              {fase && <FaseSdiBadge doc={doc} />}
-            </div>
-            <p className="text-sm text-muted-foreground max-sm:text-xs">
-              {doc.cliente_snapshot?.ragione_sociale} — {formatDateShort(doc.data_emissione)}
-              {/* Mobile: la scadenza sta qui (il riquadro Informazioni è nascosto). */}
-              {doc.data_scadenza && <span className="sm:hidden"> · scade {formatDateShort(doc.data_scadenza)}</span>}
-            </p>
+      {/* Titolo e ritorno ai documenti. */}
+      <div className="flex items-center justify-between gap-3 max-sm:flex-col max-sm:items-stretch max-sm:gap-1">
+        <Button variant="outline" size="sm" className="w-fit gap-1.5 max-sm:hidden" onClick={() => navigate("/azienda/documenti")}>
+          <ArrowLeft className="h-4 w-4" /> Torna ai documenti
+        </Button>
+        <div className="sm:text-right">
+          <div className="flex items-center gap-2 sm:justify-end max-sm:flex-wrap max-sm:gap-1.5">
+            <h1 className="text-xl font-semibold max-sm:text-lg max-sm:leading-tight">{tipoLabel} numero {doc.numero}</h1>
+            {(!fase || ["pagata", "parzialmente_pagata", "scaduta", "stornata"].includes(doc.stato)) && (
+              <Badge variant={stato.variant}>{stato.label}</Badge>
+            )}
+            {fase && <FaseSdiBadge doc={doc} />}
           </div>
-        </div>
-
-        {/* Mobile: bottoni da 32px, il principale (Modifica, Converti…) si allarga. */}
-        <div className="flex items-center gap-2 flex-wrap max-sm:[&_a]:h-8 max-sm:[&_a]:text-xs max-sm:[&_button]:h-8 max-sm:[&_button]:px-2.5 max-sm:[&_button]:text-xs">
-          {/* Mobile no: niente download da telefono. */}
-          <Button variant="outline" size="sm" onClick={handleDownloadPDF} className="max-sm:hidden">
-            <Download className="h-4 w-4 mr-1" /> PDF
-          </Button>
-          {!["ddt", "proforma", "preventivo"].includes(doc.tipo) && (
-            <Button variant="outline" size="sm" onClick={handleDownloadXML} className="max-sm:hidden">
-              <FileText className="h-4 w-4 mr-1" /> XML
-            </Button>
-          )}
-
-          {(isProforma || isPreventivo) && doc.stato !== "annullata" && (
-            <Button size="sm" onClick={handleConvertToFattura} disabled={convertLoading} className="tap-compact max-sm:flex-1">
-              {convertLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Send className="h-4 w-4 mr-1" />}
-              Converti in Fattura
-            </Button>
-          )}
-
-          {isPreventivo && doc.stato === "emessa" && (
-            <>
-              <Button size="sm" variant="default" onClick={() => handleStatoPreventivo("accettata")} disabled={updateMutation.isPending} className="tap-compact">
-                <CheckCircle className="h-4 w-4 mr-1" /> Accettato
-              </Button>
-              <Button size="sm" variant="destructive" onClick={() => handleStatoPreventivo("annullata")} disabled={updateMutation.isPending} className="tap-compact">
-                Rifiutato
-              </Button>
-            </>
-          )}
-
-          {canSegnaPagata && (
-            <Button variant="outline" size="sm" onClick={() => setPagaAperto(true)} className="tap-compact max-sm:flex-1">
-              <CreditCard className="h-4 w-4 mr-1" /> Segna pagata
-            </Button>
-          )}
-          {/* Un incasso vero (registra_incasso_atomico), non più la sola etichetta. */}
-          <SegnaPagataDialog open={pagaAperto} onOpenChange={setPagaAperto} fatture={[doc]} />
-
-          {canCreateNC && (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="outline" size="sm" disabled={ncLoading} className="tap-compact">
-                  <FileWarning className="h-4 w-4 mr-1" />
-                  {ncLoading ? "Creazione..." : "Emetti NC"}
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Crea Nota di Credito</AlertDialogTitle>
-                  <AlertDialogDescription className="max-sm:sr-only">Scegli la modalità di storno per la fattura N° {doc.numero}</AlertDialogDescription>
-                </AlertDialogHeader>
-                <div className="space-y-3 py-2 max-sm:space-y-2 max-sm:py-0">
-                  <Button variant="outline" className="w-full justify-start h-auto py-3 max-sm:py-2" onClick={() => handleCreaNC("totale")}>
-                    <div className="text-left"><div className="font-medium">Storno totale automatico</div><div className="text-xs text-muted-foreground">Tutte le righe con quantità negate</div></div>
-                  </Button>
-                  <Button variant="outline" className="w-full justify-start h-auto py-3 max-sm:py-2" onClick={() => handleCreaNC("parziale")}>
-                    <div className="text-left"><div className="font-medium">Storno parziale</div><div className="text-xs text-muted-foreground">Apri l'editor per inserire le righe</div></div>
-                  </Button>
-                </div>
-                <AlertDialogFooter><AlertDialogCancel>Annulla</AlertDialogCancel></AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
-
-          {/* Scartata dallo SDI: si corregge nell'editor e si rimanda. */}
-          {fase === "scartata" && (
-            <Button size="sm" asChild className="tap-compact max-sm:flex-1">
-              <Link to={`/azienda/documenti/${doc.id}`}>Correggi</Link>
-            </Button>
-          )}
-
-          {doc.stato === "bozza" && (
-            <Button size="sm" asChild className="tap-compact max-sm:flex-1">
-              <Link to={`/azienda/documenti/${doc.id}`}>Modifica</Link>
-            </Button>
-          )}
+          <p className="text-sm text-muted-foreground max-sm:text-xs">
+            {doc.cliente_snapshot?.ragione_sociale} — {formatDateShort(doc.data_emissione)}
+            {/* Mobile: la scadenza sta qui (il riquadro Informazioni è nascosto). */}
+            {doc.data_scadenza && <span className="sm:hidden"> · scade {formatDateShort(doc.data_scadenza)}</span>}
+          </p>
         </div>
       </div>
+
+      {/* Le azioni sul documento, tutte in fila e con il loro nome. */}
+      <div className="mx-auto flex w-full max-w-4xl flex-wrap items-center justify-center gap-2 max-sm:gap-1.5 max-sm:[&_a]:h-8 max-sm:[&_a]:text-xs max-sm:[&_button]:h-8 max-sm:[&_button]:px-2.5 max-sm:[&_button]:text-xs">
+        {/* Modifica: solo finché non è partita allo SDI (bozza) o se lo SDI l'ha scartata. */}
+        {!isPreventivo && !isProforma || doc.stato === "bozza" ? (
+          modificabile ? (
+            <Button size="sm" asChild className="gap-1.5">
+              <Link to={`/azienda/documenti/${doc.id}`}><Pencil className="h-4 w-4" />{fase === "scartata" ? "Correggi" : "Modifica"}</Link>
+            </Button>
+          ) : (
+            <span title="Una fattura già emessa o inviata allo SDI non si modifica. Per correggerla emetti una nota di credito." className="inline-flex">
+              <Button size="sm" disabled className="gap-1.5"><Lock className="h-4 w-4" />Modifica</Button>
+            </span>
+          )
+        ) : null}
+        <Button size="sm" variant="secondary" className="gap-1.5" onClick={handleDuplica}><Copy className="h-4 w-4" />Duplica</Button>
+        <Button size="sm" variant="secondary" className="gap-1.5 max-sm:hidden" onClick={() => void handleApriPdf()}><FileText className="h-4 w-4" />Apri PDF</Button>
+        <Button size="sm" variant="secondary" className="gap-1.5 max-sm:hidden" onClick={() => void handleStampa(true)}><Save className="h-4 w-4" />Salva PDF</Button>
+        <Button size="sm" variant="secondary" className="gap-1.5 max-sm:hidden" onClick={() => void handleStampa(false)}><Printer className="h-4 w-4" />Stampa</Button>
+        {doc.stato !== "bozza" && (
+          <Button size="sm" variant="secondary" className="gap-1.5" onClick={() => setEmailAperta(true)}><Mail className="h-4 w-4" />Invia per e-mail</Button>
+        )}
+
+        {(isProforma || isPreventivo) && doc.stato !== "annullata" && (
+          <Button size="sm" onClick={handleConvertToFattura} disabled={convertLoading} className="gap-1.5">
+            {convertLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            Converti in Fattura
+          </Button>
+        )}
+
+        {isPreventivo && doc.stato === "emessa" && (
+          <>
+            <Button size="sm" onClick={() => handleStatoPreventivo("accettata")} disabled={updateMutation.isPending} className="gap-1.5">
+              <CheckCircle className="h-4 w-4" /> Accettato
+            </Button>
+            <Button size="sm" variant="destructive" onClick={() => handleStatoPreventivo("annullata")} disabled={updateMutation.isPending}>
+              Rifiutato
+            </Button>
+          </>
+        )}
+
+        {canSegnaPagata && (
+          <Button variant="outline" size="sm" onClick={() => setPagaAperto(true)} className="gap-1.5">
+            <CreditCard className="h-4 w-4" /> Segna pagata
+          </Button>
+        )}
+        {/* Un incasso vero (registra_incasso_atomico), non più la sola etichetta. */}
+        <SegnaPagataDialog open={pagaAperto} onOpenChange={setPagaAperto} fatture={[doc]} />
+
+        {canCreateNC && (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" size="sm" disabled={ncLoading} className="gap-1.5">
+                <FileWarning className="h-4 w-4" />
+                {ncLoading ? "Creazione..." : "Emetti NC"}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Crea Nota di Credito</AlertDialogTitle>
+                <AlertDialogDescription className="max-sm:sr-only">Scegli la modalità di storno per la fattura N° {doc.numero}</AlertDialogDescription>
+              </AlertDialogHeader>
+              <div className="space-y-3 py-2 max-sm:space-y-2 max-sm:py-0">
+                <Button variant="outline" className="w-full justify-start h-auto py-3 max-sm:py-2" onClick={() => handleCreaNC("totale")}>
+                  <div className="text-left"><div className="font-medium">Storno totale automatico</div><div className="text-xs text-muted-foreground">Tutte le righe con quantità negate</div></div>
+                </Button>
+                <Button variant="outline" className="w-full justify-start h-auto py-3 max-sm:py-2" onClick={() => handleCreaNC("parziale")}>
+                  <div className="text-left"><div className="font-medium">Storno parziale</div><div className="text-xs text-muted-foreground">Apri l'editor per inserire le righe</div></div>
+                </Button>
+              </div>
+              <AlertDialogFooter><AlertDialogCancel>Annulla</AlertDialogCancel></AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
+      </div>
+
+      {/* La fattura verso lo SDI: fase, cosa fare, vedere l'XML, verificare, esportare. */}
+      {TIPI_SDI.includes(doc.tipo) && (
+        <FatturaElettronicaPannello
+          doc={doc}
+          azienda={azienda as AnagraficaAzienda | undefined}
+          tipoLabel={tipoLabel}
+          onInvia={handleInviaSDI}
+          isInvio={invioSdi.isPending}
+          onAggiorna={() => aggiornaStatoSdi.mutate(doc.id)}
+          isAggiorna={aggiornaStatoSdi.isPending}
+          onEsportaXml={handleDownloadXML}
+        />
+      )}
+
+      <EditorSendEmailDialog
+        state={doc as unknown as EditorState}
+        open={emailAperta}
+        onOpenChange={setEmailAperta}
+        saveNow={async () => { /* il documento è già salvato: qui non si modifica */ }}
+      />
 
       {/* Mobile: al posto dell'anteprima A4 (più larga dello schermo) le righe
           una per voce e i due numeri che contano. */}
@@ -287,16 +309,28 @@ export default function DocumentoDetail() {
         )}
       </div>
 
-      {/* 60/40 Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 max-sm:gap-3">
-        {/* Left: Preview (60%). Mobile no: vedi sopra. */}
-        <div className="lg:col-span-3 bg-muted/30 rounded-lg p-6 flex justify-center max-sm:hidden">
-          <PreviewFattura documento={doc} azienda={azienda ?? null} scale={0.75} />
+      {/* L'anteprima, al centro, come sarà sul foglio. Mobile no: vedi sopra. */}
+      <section className="max-sm:hidden" aria-label="Anteprima del documento">
+        <div className="mb-3 text-center">
+          <h2 className="text-lg font-semibold">Anteprima del documento</h2>
+          <p className="text-sm text-muted-foreground">per vedere l'originale premi «Apri PDF»</p>
         </div>
+        <div className="mx-auto flex max-w-4xl justify-end pb-1.5">
+          <Link to="/azienda/impostazioni/fatturazione?tab=nativa&sezione=pdf" className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline">
+            Personalizza lo stile delle tue fatture <Pencil className="h-3.5 w-3.5" />
+          </Link>
+        </div>
+        <div className="mx-auto flex max-w-4xl justify-center overflow-x-auto rounded-xl border bg-muted/30 p-6 shadow-inner">
+          <PreviewFattura documento={doc} azienda={azienda ?? null} scale={0.9} />
+        </div>
+        <p className="mx-auto mt-2 max-w-4xl text-center text-xs text-muted-foreground">
+          Questa anteprima può differire leggermente dal PDF generato: premi «Apri PDF» per il documento reale.
+        </p>
+      </section>
 
-        {/* Right: Info cards (40%) */}
-        {/* Mobile: colonna flessibile, così i riquadri nascosti non lasciano margini. */}
-        <div className="lg:col-span-2 space-y-4 max-sm:flex max-sm:flex-col max-sm:gap-3 max-sm:space-y-0">
+      {/* Sotto: informazioni, pagamenti, commessa, stato SDI — a colonne. */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 max-sm:gap-3">
+        <div className="contents">
           {/* Info Card. Mobile no: tipo, numero, data e cliente sono nel titolo. */}
           <Card className="max-sm:hidden">
             <CardHeader className="pb-3"><CardTitle className="text-sm">Informazioni</CardTitle></CardHeader>

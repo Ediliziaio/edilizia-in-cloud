@@ -32,3 +32,20 @@ export async function scaricaXmlFattura(
   a.click();
   URL.revokeObjectURL(url);
 }
+
+/**
+ * L'XML della fattura come testo: quello partito davvero se c'è, altrimenti
+ * quello che partirebbe adesso (stesso generatore dell'invio).
+ */
+export async function leggiXmlFattura(
+  doc: DocumentoFiscale,
+  azienda: AnagraficaAzienda | null | undefined,
+): Promise<{ xml: string; partito: boolean }> {
+  if (doc.sdi_file_xml_url) {
+    const { data, error } = await supabase.storage.from("fatture-xml").download(doc.sdi_file_xml_url);
+    if (error || !data) throw error ?? new Error("File non trovato");
+    return { xml: await data.text(), partito: true };
+  }
+  if (!azienda) throw new Error("Dati dell'azienda non ancora caricati: riprova tra un attimo.");
+  return { xml: generateFatturaPAXML(doc, azienda), partito: false };
+}

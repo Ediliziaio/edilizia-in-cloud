@@ -26,6 +26,7 @@ import { CANALE_SDI, CODICE_DESTINATARIO_EIC } from "@/lib/fatturazione/canaleSd
 import { isDemoCompanyId } from "@/lib/constants/demoCompany";
 import { datiReaMancanti, eSocieta, eSocietaDiCapitali } from "../../../../supabase/functions/_shared/datiSocietari";
 
+import { useSearchParams } from "react-router-dom";
 import { useIsMobile } from "@/hooks/use-mobile";
 // ─── Aliquote IVA predefinite italiane ────────────────────────
 const NATURE_IVA = {
@@ -90,7 +91,9 @@ export default function ImpostazioniFatturazione() {
   const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<Record<string, any>>({});
-  const [activeTab, setActiveTab] = useState("azienda");
+  // ?sezione=pdf apre direttamente una scheda (es. «Personalizza lo stile delle tue fatture»).
+  const [paramsUrl] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(() => paramsUrl.get("sezione") || "azienda");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
 

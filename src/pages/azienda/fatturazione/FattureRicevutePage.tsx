@@ -55,8 +55,11 @@ import {
   AlertTriangle,
   Euro,
   Sparkles,
+  Printer,
 } from "lucide-react";
 import { NavyStatCard } from "@/components/costi/KpiCard";
+import { fatturaRicevutaHtml, type FatturaRicevutaVista } from "@/lib/fatturazione/fatturaRicevutaHtml";
+import { stampaPreventivoNativo } from "@/lib/fotovoltaico/htmlToPdf";
 import { toast } from "sonner";
 import {
   espandiXmlDaFiles,
@@ -149,6 +152,7 @@ export default function FattureRicevutePage() {
   const annoCorrente = String(new Date().getFullYear());
   const [annoFilter, setAnnoFilter] = useState(annoCorrente);
   const [xmlPreview, setXmlPreview] = useState<string | null>(null);
+  const [fatturaVista, setFatturaVista] = useState<FatturaRicevutaVista | null>(null);
   const [contabilizzaFattura, setContabilizzaFattura] = useState<FatturaRicevuta | null>(null);
   const [collegaFattura, setCollegaFattura] = useState<FatturaRicevuta | null>(null);
   const [progress, setProgress] = useState<{ fatte: number; totale: number } | null>(null);
@@ -589,6 +593,39 @@ export default function FattureRicevutePage() {
     setXmlPreview(xml);
   };
 
+  // La fattura leggibile (righe, totali, fornitore) con «Stampa / Salva PDF»:
+  // prima per le ricevute c'era solo l'XML grezzo.
+  const handleViewFattura = async (f: FatturaRicevuta) => {
+    if (f.stato === "non_letta") {
+      updateStatoMutation.mutate({ id: f.id, stato: "letta" });
+    }
+    const { data, error } = await supabase
+      .from("fatture_ricevute" as never)
+      .select("xml_raw" as never)
+      .eq("id", f.id)
+      .eq("company_id", companyId!)
+      .maybeSingle();
+    if (error) {
+      toast.error("Impossibile leggere la fattura", { description: error.message });
+      return;
+    }
+    const xml = (data as { xml_raw: string | null } | null)?.xml_raw ?? null;
+    if (!xml) {
+      toast.info("Fattura non disponibile in formato leggibile", {
+        description: "Arriva dal gestionale, che espone i dati ma non il file originale.",
+      });
+      return;
+    }
+    const vista = fatturaRicevutaHtml(xml, new DOMParser());
+    if (!vista) {
+      toast.error("Il file non è una fattura elettronica leggibile", {
+        description: "Puoi comunque scaricare il file originale.",
+      });
+      return;
+    }
+    setFatturaVista(vista);
+  };
+
   // ─── Render ─────────────────────────────────────────────
 
   return (
@@ -977,27 +1014,46 @@ export default function FattureRicevutePage() {
                       <Button
                         variant="ghost"
                         size="icon"
+                        title="Vedi la fattura (stampa / PDF)" aria-label="Vedi la fattura"
+                        onClick={() => void handleViewFattura(f)}
+                      >
+                        <FileText className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
                         title="Anteprima XML" aria-label="Anteprima XML"
                         onClick={() => void handleViewXml(f)}
                       >
                         <Eye className="h-4 w-4" />
                       </Button>
                       {/* Niente export su telefono. */}
-                      {!isMobile && f.xml_url && (
+                      {!isMobile && (
                         <Button
                           variant="ghost"
                           size="icon"
                           title="Scarica il file originale" aria-label="Scarica il file originale"
                           onClick={async () => {
                             try {
-                              const { data, error } = await supabase.storage
-                                .from("fatture-xml")
-                                .download(f.xml_url!);
-                              if (error || !data) throw error ?? new Error("File non trovato");
+                              // Il file nell'archivio se c'è; altrimenti l'XML salvato con la fattura
+                              // (le fatture importate a mano non sempre hanno la copia in archivio).
+                              let data: Blob | null = null;
+                              if (f.xml_url) {
+                                const r = await supabase.storage.from("fatture-xml").download(f.xml_url);
+                                if (r.error) throw r.error;
+                                data = r.data;
+                              } else {
+                                const r = await supabase.from("fatture_ricevute" as never).select("xml_raw" as never)
+                                  .eq("id", f.id).eq("company_id", companyId!).maybeSingle();
+                                const xml = (r.data as { xml_raw: string | null } | null)?.xml_raw;
+                                if (!xml) throw new Error("Nessun file disponibile per questa fattura");
+                                data = new Blob([xml], { type: "application/xml" });
+                              }
+                              if (!data) throw new Error("File non trovato");
                               const url = URL.createObjectURL(data);
                               const a = document.createElement("a");
                               a.href = url;
-                              a.download = f.xml_url!.split("/").pop() ?? "fattura.xml";
+                              a.download = f.xml_url?.split("/").pop() ?? `${f.cedente_piva ?? "fattura"}_${String(f.numero_fattura).replace(/[^a-zA-Z0-9-]/g, "_")}.xml`;
                               a.click();
                               URL.revokeObjectURL(url);
                             } catch (err) {
@@ -1095,9 +1151,16 @@ export default function FattureRicevutePage() {
                 {dettaglioMobile.categoria_ai ? ` · ${etichettaCategoria(dettaglioMobile.categoria_ai)}` : ""}
                 {dettaglioMobile.purchase_order_id ? ` · ordine ${odaNumbers[dettaglioMobile.purchase_order_id] ?? "collegato"}` : ""}
               </p>
+              <Button
+                variant="outline"
+                className="mt-4 h-10 w-full"
+                onClick={() => { const f = dettaglioMobile; setDettaglioMobile(null); void handleViewFattura(f); }}
+              >
+                <FileText className="h-4 w-4 mr-1" /> Vedi la fattura
+              </Button>
               {dettaglioMobile.stato !== "contabilizzata" && (
                 <Button
-                  className="mt-4 h-10 w-full bg-green-600 hover:bg-green-700"
+                  className="mt-2 h-10 w-full bg-green-600 hover:bg-green-700"
                   onClick={() => { setContabilizzaFattura(dettaglioMobile); setDettaglioMobile(null); }}
                 >
                   <CheckCircle2 className="h-4 w-4 mr-1" /> Contabilizza
@@ -1206,6 +1269,59 @@ export default function FattureRicevutePage() {
           if (collegaFattura) linkOdaMutation.mutate({ id: collegaFattura.id, odaId });
         }}
       />
+
+      {/* La fattura leggibile + stampa / PDF */}
+      <Dialog open={!!fatturaVista} onOpenChange={(o) => { if (!o) setFatturaVista(null); }}>
+        <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0 gap-0">
+          <DialogHeader className="px-4 py-3 border-b flex-row items-center justify-between shrink-0 space-y-0">
+            <DialogTitle className="flex items-center gap-2 text-sm font-medium pr-8">
+              <FileText className="h-4 w-4" />
+              {fatturaVista?.titolo}
+            </DialogTitle>
+            <div className="flex items-center gap-2 mr-6">
+              {/* Il PDF che il fornitore ha messo dentro l'XML, se c'è. */}
+              {fatturaVista?.allegatiPdf.map((a) => (
+                <Button
+                  key={a.nome}
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs"
+                  title={`Apri il PDF del fornitore (${a.nome})`}
+                  onClick={() => {
+                    const byte = Uint8Array.from(atob(a.base64), (c) => c.charCodeAt(0));
+                    const url = URL.createObjectURL(new Blob([byte], { type: "application/pdf" }));
+                    if (!window.open(url, "_blank")) toast.error("Il browser ha bloccato la nuova scheda: consenti i popup per questo sito.");
+                    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+                  }}
+                >
+                  <FileText className="h-3.5 w-3.5 mr-1.5" /> PDF del fornitore
+                </Button>
+              ))}
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs"
+                onClick={() => {
+                  if (!fatturaVista) return;
+                  stampaPreventivoNativo(fatturaVista.html, fatturaVista.titolo).catch((e: unknown) =>
+                    toast.error("Impossibile preparare la stampa", { description: e instanceof Error ? e.message : undefined }),
+                  );
+                }}
+              >
+                <Printer className="h-3.5 w-3.5 mr-1.5" /> Stampa / Salva PDF
+              </Button>
+            </div>
+          </DialogHeader>
+          {fatturaVista && (
+            <iframe
+              title={fatturaVista.titolo}
+              srcDoc={fatturaVista.html}
+              sandbox=""
+              className="flex-1 w-full bg-white border-0"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* XML Preview Dialog */}
       <Dialog open={!!xmlPreview} onOpenChange={() => setXmlPreview(null)}>

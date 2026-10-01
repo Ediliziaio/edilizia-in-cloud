@@ -35,6 +35,17 @@ già fatte**. Verificato in produzione:
 4. La bozza `Bozza E8F22C61` del 01/10 ha ancora il segnaposto: il numero vero
    (FPR 73/26) si assegna dalla scheda della fattura.
 
+**Schermata del documento (01/10/2026):** barra azioni (Modifica, Duplica, Apri PDF,
+Salva PDF, Stampa, Invia per e-mail) e riquadro «Stato fattura elettronica» con
+Cosa fare, Visualizza fattura elettronica, Verifica formale, Esporta XML. Modifica
+è attiva solo per bozze e fatture scartate dallo SDI (il database protegge le emesse).
+Fatture ricevute: «Vedi la fattura» (vista leggibile + stampa/PDF, e PDF del
+fornitore se è dentro l'XML); l'XML si scarica anche quando non c'è la copia in archivio.
+
+**Ricevute di settembre (zip Aruba del 01/10, 38 XML):** tutte leggibili e intestate a
+Renova; 37 nuove e 1 già presente. Si caricano da Fatture ricevute → Importa XML
+(accetta lo zip): così si conserva anche il file originale nell'archivio.
+
 Dalla scheda Impostazioni → Fatturazione → Fatt. Elettronica i tre passi
 (invio, ricezione, conservazione) sono ora guidati (`FatturaElettronicaPassi`).
 
