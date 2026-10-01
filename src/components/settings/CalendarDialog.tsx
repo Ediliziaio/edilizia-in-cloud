@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -32,6 +32,8 @@ import AddressMapPreview from "@/components/shared/AddressMapPreview";
 import { buildBookingUrl, normalizeBookingSlug } from "@/lib/bookingLinks";
 import { CALENDAR_COLOR_PRESETS } from "@/lib/marketingCalendarConstants";
 import { CalendarioEsternoPicker, type SceltaCalendarioEsterno } from "./CalendarioEsternoPicker";
+import { VariablePicker } from "@/components/flow-builder/config-panels/VariablePicker";
+import { MODELLO_DESCRIZIONE_STANDARD, VARIABILI_DESCRIZIONE_EVENTO } from "../../../supabase/functions/_shared/descrizioneAppuntamentoGoogle";
 import { cn } from "@/lib/utils";
 
 export interface CalendarFormData {
@@ -76,6 +78,8 @@ export interface CalendarFormData {
   firma_messaggi: string;
   /** Righe «cosa preparare» della conferma, una per riga. */
   cosa_preparare: string;
+  /** Descrizione degli eventi su Google Calendar, con variabili {{nome}} {{telefono}}…; vuoto = scheda cliente standard. */
+  modello_descrizione_evento: string;
   /** Mittente delle email dell'appuntamento: vale solo su un dominio verificato. */
   mittente_nome: string;
   mittente_email: string;
@@ -119,6 +123,7 @@ const FORM_VUOTO: CalendarFormData = {
   messaggi_crm_dal: null,
   firma_messaggi: "",
   cosa_preparare: "",
+  modello_descrizione_evento: "",
   mittente_nome: "",
   mittente_email: "",
 };
@@ -176,6 +181,18 @@ function InfoTooltip({ text }: { text: string }) {
 }
 
 export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvancedSettings, initialData, isLoading }: CalendarDialogProps) {
+  const modelloRef = useRef<HTMLTextAreaElement>(null);
+  // Inserisce la variabile dove sta il cursore (o in fondo), come nei messaggi dei flussi.
+  const inserisciNelModello = (variabile: string) => {
+    const token = variabile.startsWith("{{") ? variabile : `{{${variabile}}}`;
+    setForm((f) => {
+      const el = modelloRef.current;
+      const testo = f.modello_descrizione_evento;
+      const da = el?.selectionStart ?? testo.length;
+      const a = el?.selectionEnd ?? testo.length;
+      return { ...f, modello_descrizione_evento: (testo.slice(0, da) + token + testo.slice(a)).slice(0, 3000) };
+    });
+  };
   const { effectiveCompany } = useAuth();
   const isEditing = !!initialData;
   const canOpenAdvancedSettings = isEditing && !!onAdvancedSettings;
@@ -289,6 +306,7 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
         messaggi_crm_dal: initialData.messaggi_crm_dal ?? null,
         firma_messaggi: initialData.firma_messaggi || "",
         cosa_preparare: initialData.cosa_preparare || "",
+        modello_descrizione_evento: initialData.modello_descrizione_evento || "",
         mittente_nome: initialData.mittente_nome || "",
         mittente_email: initialData.mittente_email || "",
       });
@@ -534,6 +552,51 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                   }}
                   onChange={(next: SceltaCalendarioEsterno) => setForm(f => ({ ...f, ...next }))}
                 />
+
+                {/* Descrizione degli eventi: come in GHL, con le variabili del cliente. */}
+                <div className="mt-5 space-y-2 border-t pt-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <Label className="flex items-center text-sm">
+                      Descrizione degli eventi su Google Calendar
+                      <InfoTooltip text="Quello che chi va dal cliente legge aprendo l'evento: nome, telefono, indirizzo… Scrivi il testo e inserisci le variabili: al momento dell'appuntamento diventano i dati del cliente. Una riga con variabili vuote sparisce da sola." />
+                    </Label>
+                    <div className="flex items-center gap-2">
+                      <VariablePicker onInsert={inserisciNelModello} companyId={effectiveCompany?.id} />
+                      {form.modello_descrizione_evento.trim() !== MODELLO_DESCRIZIONE_STANDARD && (
+                        <Button type="button" variant="ghost" size="sm" className="h-7 text-xs"
+                          onClick={() => setForm(f => ({ ...f, modello_descrizione_evento: MODELLO_DESCRIZIONE_STANDARD }))}>
+                          Usa il modello standard
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  <Textarea
+                    ref={modelloRef}
+                    rows={7}
+                    maxLength={3000}
+                    className="font-mono text-xs"
+                    value={form.modello_descrizione_evento}
+                    placeholder={MODELLO_DESCRIZIONE_STANDARD}
+                    onChange={(e) => setForm(f => ({ ...f, modello_descrizione_evento: e.target.value }))}
+                  />
+                  <div className="flex flex-wrap gap-1.5">
+                    {VARIABILI_DESCRIZIONE_EVENTO.map((v) => (
+                      <button
+                        key={v.key}
+                        type="button"
+                        onClick={() => inserisciNelModello(v.key)}
+                        title={v.label}
+                        className="rounded-full border bg-muted/40 px-2 py-0.5 font-mono text-[11px] text-muted-foreground transition-colors hover:border-primary hover:text-foreground"
+                      >
+                        {`{{${v.key}}}`}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Vuoto = scheda cliente standard (nome, telefono, email, indirizzo e mappa). La nota scritta a mano nell'appuntamento resta sempre sopra.
+                    Vale per Google Calendar; si applica quando l'appuntamento viene creato o modificato.
+                  </p>
+                </div>
               </section>
 
               <section className="rounded-lg border bg-background p-4">

@@ -45,3 +45,44 @@ describe("scheda cliente nella descrizione di Google Calendar", () => {
     expect(senzaSchedaCliente(senzaSchedaCliente(daGoogle))).toBe(pulita);
   });
 });
+
+import { descrizioneDaModello, MODELLO_DESCRIZIONE_STANDARD } from "../../../supabase/functions/_shared/descrizioneAppuntamentoGoogle";
+
+describe("modello di descrizione scritto nel calendario (come in GHL)", () => {
+  const contatto = { first_name: "Maria", last_name: "D'Ambrosio", phone: "+393401480228", email: "", address: "Via Laurana 6", city: "Milano", postal_code: "20159", province: "MI" };
+
+  it("sostituisce nome, cognome, telefono e indirizzo; la riga con la variabile vuota sparisce", () => {
+    const d = descrizioneDaModello("Nome: {{nome}} {{cognome}}\nTel: {{telefono}}\nEmail: {{email}}\nDove: {{indirizzo_completo}}", { contatto });
+    expect(d).toContain("Nome: Maria D'Ambrosio");
+    expect(d).toContain("Tel: +393401480228");
+    expect(d).toContain("Dove: Via Laurana 6, 20159 Milano (MI)");
+    expect(d).not.toContain("Email");
+  });
+  it("accetta le variabili del selettore dei flussi (contact.first_name, contatto.full_name, appointment.date)", () => {
+    const d = descrizioneDaModello("{{contatto.full_name}} · {{contact.phone}} · {{contact.address}} · {{appointment.date}} {{appointment.time}}", {
+      contatto, data: "2026-10-03", ora: "10:00:00",
+    });
+    expect(d).toContain("Maria D'Ambrosio · +393401480228 · Via Laurana 6 · 3 ottobre 2026 10:00");
+  });
+  it("il testo fisso resta, anche senza variabili", () => {
+    const d = descrizioneDaModello("Portare il metro laser\nCliente: {{nome_completo}}", { contatto });
+    expect(d).toContain("Portare il metro laser");
+    expect(d).toContain("Cliente: Maria D'Ambrosio");
+  });
+  it("i campi personalizzati passano dal resolver; vuoti = riga tolta; sconosciuti non si stampano", () => {
+    const custom = (testo: string) => testo.replace("{{contact.piano}}", "2° piano").replace("{{contact.citofono}}", "");
+    const d = descrizioneDaModello("Piano: {{contact.piano}}\nCitofono: {{contact.citofono}}\nBoh: {{variabile_che_non_esiste}}", { contatto }, custom);
+    expect(d).toContain("Piano: 2° piano");
+    expect(d).not.toContain("Citofono");
+    expect(d).not.toContain("Boh");
+    expect(d).not.toContain("{{");
+  });
+  it("modello vuoto = scheda standard; senza nessun dato non scrive nulla", () => {
+    expect(descrizioneDaModello("  ", { contatto })).toBe(descrizioneDaModello(MODELLO_DESCRIZIONE_STANDARD, { contatto }));
+    expect(descrizioneDaModello("Tel: {{telefono}}", { contatto: {} })).toBe("");
+  });
+  it("il blocco col modello si toglie quando l'evento rientra da Google", () => {
+    const d = descrizioneDaModello("Tel: {{telefono}}", { contatto });
+    expect(senzaSchedaCliente(`nota mia\n\n${d}\n\ncrm_sync=true`)).not.toContain("Tel:");
+  });
+});

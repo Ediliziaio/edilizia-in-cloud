@@ -1,5 +1,6 @@
 import { costruisciEventoPosa, leggiDateDaEventoGoogle, stesseDate } from "../_shared/posaEvento.ts";
-import { schedaClienteEvento, senzaSchedaCliente, type ContattoPerEvento } from "../_shared/descrizioneAppuntamentoGoogle.ts";
+import { descrizioneDaModello, senzaSchedaCliente, type ContattoPerEvento } from "../_shared/descrizioneAppuntamentoGoogle.ts";
+import { applyContactCustomFields, loadContactCustomFieldResolver } from "../_shared/contactCustomFields.ts";
 import { dataOraItaliana } from "../_shared/oraItaliana.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
@@ -502,8 +503,8 @@ async function pushEvent(userId: string, companyId: string, appointmentId: strin
   if (existing) return json({ error: "Already synced", mappingId: existing.id }, 409);
 
   const meetRequested = shouldUseGoogleMeet(apt);
-  const contatto = await contattoPerEvento(admin, apt);
-  const googleEvent = buildGoogleEvent(apt, { createMeet: meetRequested && !apt.meeting_url, contatto });
+  const scheda = await schedaPerEvento(admin, apt);
+  const googleEvent = buildGoogleEvent(apt, { createMeet: meetRequested && !apt.meeting_url, scheda });
 
   const res = await fetch(
     buildGoogleEventUrl(calendarioDestinazione, undefined, meetRequested),
@@ -596,8 +597,8 @@ async function updateEvent(userId: string, companyId: string, appointmentId: str
   if (!apt) return json({ error: "Appointment not found" }, 404);
 
   const meetRequested = shouldUseGoogleMeet(apt);
-  const contatto = await contattoPerEvento(admin, apt);
-  const googleEvent = buildGoogleEvent(apt, { createMeet: meetRequested && !apt.meeting_url, contatto });
+  const scheda = await schedaPerEvento(admin, apt);
+  const googleEvent = buildGoogleEvent(apt, { createMeet: meetRequested && !apt.meeting_url, scheda });
 
   const res = await fetch(
     buildGoogleEventUrl(mapping.google_calendar_id!, mapping.google_event_id, meetRequested),
@@ -1479,33 +1480,58 @@ function normalizeTime(t: string): string {
 }
 
 /**
- * Il contatto dell'appuntamento, per la scheda cliente nella descrizione
- * dell'evento (nome, telefono, indirizzo). Si arriva al contatto dall'appuntamento
- * o, se manca, dall'opportunità collegata. Un errore qui non deve mai fermare la
- * sincronizzazione: senza contatto l'evento parte come prima.
+ * Il blocco con i dati del cliente per la descrizione dell'evento (nome, telefono,
+ * indirizzo…), scritto col MODELLO del calendario dell'appuntamento (Impostazioni →
+ * Calendari → «Descrizione degli eventi») o, se non ce n'è uno, con la scheda
+ * standard. Si arriva al contatto dall'appuntamento o dall'opportunità collegata.
+ * Un errore qui non deve mai fermare la sincronizzazione: l'evento parte come prima.
  */
-async function contattoPerEvento(admin: any, apt: any): Promise<ContattoPerEvento | null> {
+async function schedaPerEvento(admin: any, apt: any): Promise<string> {
+  const vuoto = "";
   try {
     let contactId: string | null = apt.contact_id ?? null;
     if (!contactId && apt.opportunity_id) {
       const { data: opp } = await admin.from("marketing_opportunities").select("contact_id").eq("id", apt.opportunity_id).maybeSingle();
       contactId = opp?.contact_id ?? null;
     }
-    if (!contactId) return null;
-    const { data } = await admin
+    if (!contactId) return vuoto;
+    const { data: contatto } = await admin
       .from("marketing_contacts")
       .select("first_name, last_name, company_name, phone, email, address, city, postal_code, province")
       .eq("id", contactId)
       .eq("company_id", apt.company_id)
       .maybeSingle();
-    return (data as ContattoPerEvento | null) ?? null;
+    if (!contatto) return vuoto;
+
+    let modello: string | null = null;
+    if (apt.calendar_id) {
+      const { data: cal } = await admin.from("marketing_calendars").select("modello_descrizione_evento").eq("id", apt.calendar_id).maybeSingle();
+      modello = (cal?.modello_descrizione_evento as string | null) ?? null;
+    }
+
+    // Campi personalizzati del contatto ({{contact.nome_del_campo}}): solo se il modello li nomina.
+    let applicaCustom: ((testo: string) => string) | undefined;
+    if (modello && modello.includes("{{")) {
+      const resolver = await loadContactCustomFieldResolver(admin, apt.company_id, [contactId], [modello]);
+      applicaCustom = (testo) => applyContactCustomFields(testo, contactId as string, resolver);
+    }
+
+    const testo = descrizioneDaModello(modello, {
+      contatto: contatto as ContattoPerEvento,
+      luogo: apt.formatted_address ?? null,
+      titolo: apt.title ?? null,
+      data: apt.appointment_date ?? null,
+      ora: apt.appointment_time ?? null,
+      oraFine: apt.appointment_end_time ?? null,
+    }, applicaCustom);
+    return testo;
   } catch (e) {
-    console.warn("contattoPerEvento:", e instanceof Error ? e.message : e);
-    return null;
+    console.warn("schedaPerEvento:", e instanceof Error ? e.message : e);
+    return vuoto;
   }
 }
 
-function buildGoogleEvent(apt: any, options: { createMeet?: boolean; contatto?: ContattoPerEvento | null } = {}) {
+function buildGoogleEvent(apt: any, options: { createMeet?: boolean; scheda?: string } = {}) {
   const hasTime = !!apt.appointment_time;
   const dateStr = apt.appointment_date;
 
@@ -1525,10 +1551,11 @@ function buildGoogleEvent(apt: any, options: { createMeet?: boolean; contatto?: 
     end = { date: dateStr };
   }
 
-  const scheda = schedaClienteEvento(options.contatto, apt.formatted_address);
+  const scheda = options.scheda ?? "";
+  const notaSopra = apt.description || "";
   const description = [
-    apt.description || "",
-    scheda ? `${apt.description ? "\n" : ""}${scheda}` : "",
+    notaSopra,
+    scheda ? `${notaSopra ? "\n" : ""}${scheda}` : "",
     shouldUseGoogleMeet(apt) ? "\nVideochiamata: Google Meet" : "",
     apt.meeting_url
       ? apt.meeting_provider === "manual" ? `Link videochiamata: ${apt.meeting_url}` : `Link Meet: ${apt.meeting_url}`
