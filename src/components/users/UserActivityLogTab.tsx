@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 import {
   CATEGORIE_LOG, contaPerCategoria, estremiIso, etichettaGiorno, intervalloPreset,
   raggruppaPerGiorno, vocedaAttivitaRegistro, vocedaLogAzienda,
-  voceDaAzione, type CategoriaLog, type Intervallo, type PresetPeriodo, type VoceLog,
+  azioneRidondante, voceDaAzione, type CategoriaLog, type Intervallo, type PresetPeriodo, type VoceLog,
 } from "@/lib/users/logAttivitaUtente";
 
 interface UserActivityLogTabProps {
@@ -66,8 +66,10 @@ const PRESET: { chiave: PresetPeriodo; etichetta: string }[] = [
   { chiave: "tutto", etichetta: "Tutto" },
 ];
 
-/** Righe lette per ogni fonte: oltre, si restringe l'intervallo di date. */
-const LIMITE_PER_FONTE = 500;
+/** Righe lette per ogni fonte; «Carica altro» le aumenta a passi, fino al massimo. */
+const LIMITE_INIZIALE = 500;
+const PASSO_LIMITE = 1000;
+const LIMITE_MASSIMO = 5000;
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 async function leggiFonte(
@@ -78,10 +80,11 @@ async function leggiFonte(
   userId: string,
   companyId: string,
   estremi: { da: string | null; a: string | null },
+  limite: number,
 ): Promise<any[]> {
   let q: any = (supabase as any).from(tabella).select(colonne)
     .eq("company_id", companyId).eq(colonnaUtente, userId)
-    .order(colonnaData, { ascending: false }).limit(LIMITE_PER_FONTE);
+    .order(colonnaData, { ascending: false }).limit(limite);
   if (estremi.da) q = q.gte(colonnaData, estremi.da);
   if (estremi.a) q = q.lte(colonnaData, estremi.a);
   const { data, error } = await q;
@@ -90,28 +93,29 @@ async function leggiFonte(
   return data ?? [];
 }
 
-async function caricaLog(userId: string, companyId: string, intervallo: Intervallo): Promise<{ voci: VoceLog[]; troncato: boolean }> {
+async function caricaLog(userId: string, companyId: string, intervallo: Intervallo, limite: number): Promise<{ voci: VoceLog[]; troncato: boolean }> {
   const estremi = estremiIso(intervallo);
 
   let sicurezzaQ: any = (supabase as any).from("user_audit_log").select("*")
     .or(`actor_id.eq.${userId},target_user_id.eq.${userId}`)
-    .order("created_at", { ascending: false }).limit(LIMITE_PER_FONTE);
+    .order("created_at", { ascending: false }).limit(limite);
   if (estremi.da) sicurezzaQ = sicurezzaQ.gte("created_at", estremi.da);
   if (estremi.a) sicurezzaQ = sicurezzaQ.lte("created_at", estremi.a);
 
-  const [sicurezza, attivita, note, chiamate, chiamateUmane, email, appuntamenti, task, preventivi, logAzienda, azioni] = await Promise.all([
+  const [sicurezza, attivita, note, chiamate, chiamateUmane, email, appuntamenti, task, preventivi, logAzienda, azioni, sms] = await Promise.all([
     sicurezzaQ.then((r: any) => (r.error ? [] : r.data ?? [])),
-    leggiFonte("marketing_contact_activities", "id, activity_type, description, contact_id, created_at", "created_by", "created_at", userId, companyId, estremi),
-    leggiFonte("marketing_contact_notes", "id, content, contact_id, automatica, created_at", "created_by", "created_at", userId, companyId, estremi),
-    leggiFonte("call_logs", "id, outcome, notes, duration_sec, contact_id, started_at", "user_id", "started_at", userId, companyId, estremi),
-    leggiFonte("human_call_logs", "id, to_number, status, duration_seconds, contact_id, started_at", "user_id", "started_at", userId, companyId, estremi),
-    leggiFonte("email_outbox", "id, subject, to_emails, status, created_at, sent_at", "user_id", "created_at", userId, companyId, estremi),
-    leggiFonte("appointments", "id, title, appointment_date, status, contact_id, created_at", "created_by", "created_at", userId, companyId, estremi),
-    leggiFonte("tasks", "id, title, status, contact_id, created_at", "created_by", "created_at", userId, companyId, estremi),
-    leggiFonte("quotes", "id, title, client_name, status, total, contact_id, created_at", "created_by", "created_at", userId, companyId, estremi),
-    leggiFonte("company_activity_log", "id, action, description, target_label, created_at", "user_id", "created_at", userId, companyId, estremi),
+    leggiFonte("marketing_contact_activities", "id, activity_type, description, contact_id, created_at", "created_by", "created_at", userId, companyId, estremi, limite),
+    leggiFonte("marketing_contact_notes", "id, content, contact_id, automatica, created_at", "created_by", "created_at", userId, companyId, estremi, limite),
+    leggiFonte("call_logs", "id, outcome, notes, duration_sec, contact_id, started_at", "user_id", "started_at", userId, companyId, estremi, limite),
+    leggiFonte("human_call_logs", "id, to_number, status, duration_seconds, contact_id, started_at", "user_id", "started_at", userId, companyId, estremi, limite),
+    leggiFonte("email_outbox", "id, subject, to_emails, status, created_at, sent_at", "user_id", "created_at", userId, companyId, estremi, limite),
+    leggiFonte("appointments", "id, title, appointment_date, status, contact_id, created_at", "created_by", "created_at", userId, companyId, estremi, limite),
+    leggiFonte("tasks", "id, title, status, contact_id, created_at", "created_by", "created_at", userId, companyId, estremi, limite),
+    leggiFonte("quotes", "id, title, client_name, status, total, contact_id, created_at", "created_by", "created_at", userId, companyId, estremi, limite),
+    leggiFonte("company_activity_log", "id, action, description, target_label, created_at", "user_id", "created_at", userId, companyId, estremi, limite),
     // Commesse, calendario, magazzino, acquisti, fatture, personale… (trigger registra_azione_utente).
-    leggiFonte("user_action_log", "id, azione, tabella, record_id, etichetta, campi_modificati, created_at", "user_id", "created_at", userId, companyId, estremi),
+    leggiFonte("user_action_log", "id, azione, tabella, record_id, etichetta, campi_modificati, volte, created_at", "user_id", "created_at", userId, companyId, estremi, limite),
+    leggiFonte("sms_messages", "id, to_number, body, direction, created_at", "created_by", "created_at", userId, companyId, estremi, limite),
   ]);
 
   // Creazioni già coperte dal registro generale: le fonti storiche (appuntamenti,
@@ -136,6 +140,7 @@ async function caricaLog(userId: string, companyId: string, intervallo: Interval
   for (const r of attivita) {
     // «Nota aggiunta» è già nelle note, con il testo: qui sarebbe un doppione.
     if (r.activity_type === "note_added") continue;
+    if (r.activity_type === "contact_created" && r.contact_id && giaCreate.has(`marketing_contacts:${r.contact_id}`)) continue;
     const v = vocedaAttivitaRegistro(r.activity_type);
     voci.push({ id: `att_${r.id}`, quando: r.created_at, categoria: v.categoria, titolo: v.titolo, dettaglio: r.description, contactId: r.contact_id });
   }
@@ -192,10 +197,16 @@ async function caricaLog(userId: string, companyId: string, intervallo: Interval
     voci.push({ id: `la_${r.id}`, quando: r.created_at, categoria: v.categoria, titolo: v.titolo, dettaglio: [r.target_label, r.description].filter(Boolean).join(" — ") || null });
   }
 
-  for (const r of azioni) voci.push(voceDaAzione(r));
+  for (const r of sms) {
+    if (r.direction === "inbound") continue;
+    voci.push({ id: `sms_${r.id}`, quando: r.created_at, categoria: "contatti", titolo: "SMS inviato", dettaglio: [r.to_number, r.body].filter(Boolean).join(" — ") || null });
+  }
+  for (const r of azioni) {
+    if (!azioneRidondante(r)) voci.push(voceDaAzione(r));
+  }
 
-  const pieno = [sicurezza, attivita, note, chiamate, chiamateUmane, email, appuntamenti, task, preventivi, logAzienda, azioni]
-    .some((f: any[]) => f.length >= LIMITE_PER_FONTE);
+  const pieno = [sicurezza, attivita, note, chiamate, chiamateUmane, email, appuntamenti, task, preventivi, logAzienda, azioni, sms]
+    .some((f: any[]) => f.length >= limite);
   return { voci: voci.filter((v) => v.quando), troncato: pieno };
 }
 
@@ -207,21 +218,25 @@ export function UserActivityLogTab({ userId }: UserActivityLogTabProps) {
   const [intervallo, setIntervallo] = useState<Intervallo>(() => intervalloPreset("7"));
   const [categoria, setCategoria] = useState<CategoriaLog | "all">("all");
   const [ricerca, setRicerca] = useState("");
+  const [limite, setLimite] = useState(LIMITE_INIZIALE);
 
   const scegliPreset = (p: PresetPeriodo) => {
     setPreset(p);
+    setLimite(LIMITE_INIZIALE);
     setIntervallo(intervalloPreset(p));
   };
   const cambiaData = (campo: "da" | "a", valore: string) => {
     setPreset("personalizzato");
+    setLimite(LIMITE_INIZIALE);
     setIntervallo((i) => ({ ...i, [campo]: valore || null }));
   };
 
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ["user-activity-log", companyId, userId, intervallo.da, intervallo.a],
+    queryKey: ["user-activity-log", companyId, userId, intervallo.da, intervallo.a, limite],
     enabled: !!companyId,
     staleTime: 30_000,
-    queryFn: () => caricaLog(userId, companyId!, intervallo),
+    queryFn: () => caricaLog(userId, companyId!, intervallo, limite),
+    placeholderData: (prev) => prev,
   });
   const voci = data?.voci ?? [];
 
@@ -340,9 +355,16 @@ export function UserActivityLogTab({ userId }: UserActivityLogTabProps) {
 
       <CardContent>
         {data?.troncato && (
-          <p className="mb-3 rounded-md border border-amber-600/30 bg-amber-600/10 px-3 py-2 text-xs text-amber-800">
-            Ci sono più di {LIMITE_PER_FONTE} eventi in alcune categorie: restringi le date per vederli tutti.
-          </p>
+          <div className="mb-3 flex flex-wrap items-center gap-3 rounded-md border border-amber-600/30 bg-amber-600/10 px-3 py-2 text-xs text-amber-800">
+            <span>Alcune categorie hanno più di {limite} eventi nel periodo: se ne vedono i più recenti.</span>
+            {limite < LIMITE_MASSIMO ? (
+              <Button size="sm" variant="outline" className="h-7" disabled={isFetching} onClick={() => setLimite((l) => Math.min(l + PASSO_LIMITE, LIMITE_MASSIMO))}>
+                {isFetching ? <Loader2 className="h-3 w-3 animate-spin" /> : "Carica altro"}
+              </Button>
+            ) : (
+              <span>Per vedere il resto restringi le date.</span>
+            )}
+          </div>
         )}
         {isLoading ? (
           <div className="flex items-center justify-center h-40">

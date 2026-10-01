@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   chiaveGiorno, contaPerCategoria, estremiIso, intervalloPreset, raggruppaPerGiorno,
-  vocedaAttivitaRegistro, vocedaLogAzienda, voceDaAzione, type VoceLog,
+  vocedaAttivitaRegistro, vocedaLogAzienda, voceDaAzione, azioneRidondante, type VoceLog,
 } from "@/lib/users/logAttivitaUtente";
 
 describe("log attività utente", () => {
@@ -42,5 +42,17 @@ describe("log attività utente", () => {
     expect(voceDaAzione({ id: 2, created_at: "2026-09-29T10:00:00Z", tabella: "warehouse_movements", azione: "delete" }))
       .toMatchObject({ categoria: "magazzino", titolo: "Movimento di magazzino eliminato" });
     expect(voceDaAzione({ id: 3, created_at: "2026-09-29T10:00:00Z", tabella: "tabella_nuova", azione: "insert" }).categoria).toBe("altro");
+  });
+
+  it("non ripete ciò che il registro attività dice già", () => {
+    const r = (campi: string[]) => ({ id: 1, created_at: "2026-09-29T10:00:00Z", tabella: "marketing_opportunities", azione: "update", campi_modificati: campi });
+    expect(azioneRidondante(r(["stage_id", "status"]))).toBe(true);
+    expect(azioneRidondante(r(["stage_id", "value"]))).toBe(false);
+    expect(azioneRidondante({ ...r(["stage_id"]), tabella: "orders" })).toBe(false);
+  });
+
+  it("indica i salvataggi ripetuti", () => {
+    const v = voceDaAzione({ id: 4, created_at: "2026-09-29T10:00:00Z", tabella: "orders", azione: "update", campi_modificati: ["notes"], volte: 3, etichetta: "Rossi" });
+    expect(v.dettaglio).toBe("Rossi — Campi: notes · 3 salvataggi");
   });
 });

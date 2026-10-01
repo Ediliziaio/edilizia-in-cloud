@@ -261,6 +261,8 @@ export const TABELLE_LOG: Record<string, InfoTabella> = {
   mezzi: { categoria: "personale", nome: "Mezzo" },
   mezzi_assegnazioni: { categoria: "personale", nome: "Assegnazione del mezzo", femminile: true },
   mezzi_manutenzioni: { categoria: "personale", nome: "Manutenzione del mezzo", femminile: true },
+  marketing_contacts: { categoria: "contatti", nome: "Contatto" },
+  marketing_opportunities: { categoria: "pipeline", nome: "Opportunità", femminile: true },
   marketing_pipelines: { categoria: "pipeline", nome: "Pipeline", femminile: true },
   marketing_pipeline_stages: { categoria: "pipeline", nome: "Fase della pipeline", femminile: true },
   marketing_tags: { categoria: "contatti", nome: "Etichetta", femminile: true },
@@ -283,6 +285,7 @@ export interface RigaAzione {
   record_id?: string | null;
   etichetta?: string | null;
   campi_modificati?: string[] | null;
+  volte?: number | null;
 }
 
 /** Una riga di user_action_log come voce del log: «Commessa modificata — Rossi (stato, note)». */
@@ -294,9 +297,10 @@ export function voceDaAzione(r: RigaAzione): VoceLog {
     : r.azione === "delete" ? (f ? "eliminata" : "eliminato")
       : (f ? "modificata" : "modificato");
   const campi = (r.campi_modificati ?? []).map((c) => c.replace(/_/g, " "));
+  const salvataggi = Number(r.volte ?? 1) > 1 ? ` · ${r.volte} salvataggi` : "";
   const dettaglio = [
     r.etichetta,
-    r.azione === "update" && campi.length ? `Campi: ${campi.slice(0, 8).join(", ")}${campi.length > 8 ? `… (+${campi.length - 8})` : ""}` : null,
+    r.azione === "update" && campi.length ? `Campi: ${campi.slice(0, 8).join(", ")}${campi.length > 8 ? `… (+${campi.length - 8})` : ""}${salvataggi}` : null,
   ].filter(Boolean).join(" — ");
   return {
     id: `azione_${r.id}`,
@@ -305,4 +309,19 @@ export function voceDaAzione(r: RigaAzione): VoceLog {
     titolo: `${nome} ${verbo}`,
     dettaglio: dettaglio || null,
   };
+}
+
+/** Campi dell'opportunità che il registro attività racconta già (fase, stato, assegnazione). */
+const CAMPI_OPPORTUNITA_GIA_RACCONTATI = new Set([
+  "stage_id", "status", "assigned_to", "call_center_id", "closed_at", "lost_reason", "lost_reason_id", "position",
+]);
+
+/**
+ * Le modifiche di fase/stato/assegnazione di un'opportunità sono già nel registro
+ * attività, con il nome della fase: la riga generica sarebbe un doppione.
+ */
+export function azioneRidondante(r: RigaAzione): boolean {
+  if (r.tabella !== "marketing_opportunities" || r.azione !== "update") return false;
+  const campi = r.campi_modificati ?? [];
+  return campi.length > 0 && campi.every((c) => CAMPI_OPPORTUNITA_GIA_RACCONTATI.has(c));
 }
