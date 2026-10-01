@@ -3,7 +3,6 @@ import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
-import { conservazioneRetroattivaDal, statoConservazione } from "@/lib/fatturazione/conservazioneAde";
 import { useAuth } from "@/contexts/AuthContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -16,13 +15,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import {
-  Loader2, Save, CheckCircle, AlertTriangle, Info, Upload, Trash2,
+  Loader2, Save, AlertTriangle, Upload, Trash2,
   Plus, Building2, Receipt, Palette, CreditCard, Percent,
-  Settings2, FileText, Globe, Download, RefreshCw
+  Settings2, FileText, Globe, Download
 } from "lucide-react";
 import { toast } from "sonner";
 import { REGIMI_FISCALI, METODI_PAGAMENTO_SDI, CAUSALI_RITENUTA, TIPI_CASSA_PREVIDENZIALE } from "@/types/fatturazione";
-import { SDISetupWizard } from "@/components/sdi-wizard/SDISetupWizard";
+import { FatturaElettronicaPassi } from "@/components/fatturazione/FatturaElettronicaPassi";
+import { CANALE_SDI, CODICE_DESTINATARIO_EIC } from "@/lib/fatturazione/canaleSdi";
+import { isDemoCompanyId } from "@/lib/constants/demoCompany";
 import { datiReaMancanti, eSocieta, eSocietaDiCapitali } from "../../../../supabase/functions/_shared/datiSocietari";
 
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -92,7 +93,6 @@ export default function ImpostazioniFatturazione() {
   const [activeTab, setActiveTab] = useState("azienda");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
-  const [sdiWizardOpen, setSdiWizardOpen] = useState(false);
 
   // M8 — Export Contabile
   const [isExportingContabile, setIsExportingContabile] = useState(false);
@@ -167,14 +167,24 @@ export default function ImpostazioniFatturazione() {
   });
   const onboardMutation = useMutation({
     mutationFn: async () => {
+      // Con Edilizia in Cloud il canale è uno solo (01/10/2026): attivare vuol dire
+      // passare a openapi, e il codice destinatario dell'azienda diventa quello del
+      // nostro canale di ricezione (serve anche nell'XML delle autofatture, dove il
+      // destinatario è l'azienda stessa).
+      const { error: canaleErr } = await supabase
+        .from("anagrafica_azienda" as never)
+        .update({ sdi_provider: CANALE_SDI, codice_sdi: CODICE_DESTINATARIO_EIC } as never)
+        .eq("company_id", companyId as string);
+      if (canaleErr) throw canaleErr;
       const { data, error } = await supabase.functions.invoke("sdi-onboarding", { body: { company_id: companyId } });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       return data as { stato?: string; next_step?: string };
     },
     onSuccess: (data) => {
-      toast.success(data?.stato === "registrato" ? "Azienda registrata sul sistema di invio SDI" : "Onboarding eseguito");
+      toast.success(data?.stato === "registrato" ? "Invio allo SDI attivo" : "Attivazione eseguita");
       queryClient.invalidateQueries({ queryKey: ["sdi-cedente-config", companyId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.anagraficaAzienda.detail(companyId) });
     },
     onError: (e: any) => toast.error(e?.message || "Errore durante l'attivazione"),
   });
@@ -258,16 +268,12 @@ export default function ImpostazioniFatturazione() {
           <p className="text-muted-foreground text-sm">Configura il modulo di fatturazione nativa — dati aziendali, personalizzazione, pagamenti e aliquote.</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => setSdiWizardOpen(true)}>
-            Configura SDI
-          </Button>
           <Button onClick={handleSave} disabled={saving || !isDirty} className="gap-1.5">
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             Salva modifiche
           </Button>
         </div>
       </div>
-      <SDISetupWizard open={sdiWizardOpen} onOpenChange={setSdiWizardOpen} />
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="flex flex-wrap h-auto gap-1 p-1 w-full justify-start bg-muted/50">
@@ -584,287 +590,24 @@ export default function ImpostazioniFatturazione() {
         {/* TAB: FATTURAZIONE ELETTRONICA                         */}
         {/* ═══════════════════════════════════════════════════════ */}
         <TabsContent value="elettronica" className="space-y-4 mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Dati SDI</CardTitle>
-              <CardDescription>Codice Destinatario e PEC per la ricezione delle fatture elettroniche.</CardDescription>
-            </CardHeader>
-            <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Codice SDI (Destinatario)</Label>
-                <Input value={current.codice_sdi ?? ""} onChange={(e) => updateField("codice_sdi", e.target.value.toUpperCase())} className="font-mono uppercase" maxLength={7} placeholder="0000000" />
-                <p className="text-xs text-muted-foreground">7 caratteri per B2B, 6 per PA. "0000000" per privati.</p>
-              </div>
-              <div className="space-y-2">
-                <Label>PEC Fatturazione</Label>
-                <Input value={current.pec ?? ""} onChange={(e) => updateField("pec", e.target.value)} type="email" placeholder="fatture@pec.azienda.it" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Provider di Invio SDI</CardTitle>
-              <CardDescription>Seleziona il provider per l'invio automatico delle fatture elettroniche al Sistema di Interscambio.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>Provider</Label>
-                <Select value={current.sdi_provider ?? "manuale"} onValueChange={(v) => updateField("sdi_provider", v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="openapi">openapi.it — Fatturazione Elettronica / SDI</SelectItem>
-                    <SelectItem value="aruba">Aruba PEC — Fatturazione Elettronica</SelectItem>
-                    <SelectItem value="manuale">Manuale — Download XML</SelectItem>
-                    {/* InfoCert e Poste nascosti finché non implementati (P2-04) */}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {current.sdi_provider === "openapi" && (
-                <div className="bg-sky-50 dark:bg-sky-950/30 rounded-lg p-4 flex items-start gap-2">
-                  <Info className="h-5 w-5 text-sky-600 mt-0.5 shrink-0" />
-                  <div className="text-sm text-muted-foreground">
-                    <p className="font-medium text-foreground">openapi.it — invio automatico allo SDI</p>
-                    <p className="text-xs mt-0.5">L'XML FatturaPA viene trasmesso, firmato e inoltrato allo SDI tramite openapi.it. Usa il token openapi configurato a livello piattaforma (Lead Scraper → Ambiente openapi.it) — nessuna chiave da inserire qui. In <b>Sandbox</b> le fatture sono di test; passa a <b>Produzione</b> per l'invio reale.</p>
-                  </div>
-                </div>
-              )}
-
-              {current.sdi_provider === "aruba" && (
-                <>
-                  <div className="space-y-2">
-                    <Label>API Key / Credenziali</Label>
-                    <Input type="password" value={current.sdi_api_key ?? ""} onChange={(e) => updateField("sdi_api_key", e.target.value)} placeholder="Inserisci la chiave API del provider" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Webhook URL (ricezione notifiche)</Label>
-                    <div className="flex gap-2">
-                      <Input readOnly value={`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sdi-webhook`} className="font-mono text-xs bg-muted" />
-                      <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sdi-webhook`); toast.success("URL copiato"); }}>
-                        Copia
-                      </Button>
-                    </div>
-                    <p className="text-xs text-muted-foreground">Configura questo URL nel pannello del provider per ricevere le notifiche di consegna (RC, NS, MC, EC, DT).</p>
-                  </div>
-                </>
-              )}
-
-              <div className="flex items-center gap-2">
-                {(current.sdi_provider === "openapi" ? feConfig?.stato === "registrato" || feConfig?.stato === "attivo" : current.sdi_configurato) ? (
-                  <Badge className="gap-1 bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300"><CheckCircle className="h-3 w-3" /> Connesso</Badge>
-                ) : (
-                  <Badge variant="outline" className="gap-1 text-amber-600"><AlertTriangle className="h-3 w-3" /> Non configurato</Badge>
-                )}
-              </div>
-
-              {current.sdi_provider === "manuale" && (
-                <div className="bg-muted/50 rounded-lg p-4 flex items-start gap-2">
-                  <Info className="h-5 w-5 text-muted-foreground mt-0.5" />
-                  <div className="text-sm text-muted-foreground">
-                    <p className="font-medium">Modalità manuale</p>
-                    <p className="text-xs mt-0.5">Scarica il file XML e caricalo manualmente sul portale Fatture e Corrispettivi dell'Agenzia delle Entrate. Le fatture verso la Pubblica Amministrazione vanno firmate digitalmente prima di caricarle: con openapi.it la firma la mette lui.</p>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* ─── ATTIVAZIONE FE (registrazione cedente openapi) ─── */}
-          {current.sdi_provider === "openapi" && (() => {
-            // canOnboard si basa sui dati SALVATI (l'edge sdi-onboarding legge dal DB,
-            // non dal form): evita che il pulsante e il backend siano in disaccordo.
-            const savedPiva = String(azienda?.partita_iva ?? "").replace(/\D/g, "");
-            const canOnboard = savedPiva.length === 11 && !!azienda?.ragione_sociale && !!(azienda?.pec || azienda?.email);
-            // Blocca solo se ci sono modifiche NON salvate ai campi anagrafici usati per
-            // la registrazione — non per modifiche fatte in altri tab (PDF, pagamenti…).
-            const anagraficaDirty = ["partita_iva", "ragione_sociale", "pec", "email"].some((k) => k in form);
-            const stato = feConfig?.stato ?? "non_attivo";
-            const delega = feConfig?.delega_stato ?? "none";
-            const registrato = stato === "registrato" || stato === "attivo";
-            const statoBadge =
-              stato === "attivo" ? <Badge className="gap-1 bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300"><CheckCircle className="h-3 w-3" />Attivo</Badge> :
-              stato === "registrato" ? <Badge className="gap-1 bg-sky-100 text-sky-700 dark:bg-sky-900 dark:text-sky-300"><CheckCircle className="h-3 w-3" />Registrato</Badge> :
-              stato === "errore" ? <Badge variant="destructive" className="gap-1"><AlertTriangle className="h-3 w-3" />Errore</Badge> :
-              stato === "pending" ? <Badge variant="outline" className="gap-1 text-amber-600"><Loader2 className="h-3 w-3 animate-spin" />In corso</Badge> :
-              <Badge variant="outline" className="gap-1 text-muted-foreground"><AlertTriangle className="h-3 w-3" />Non attivo</Badge>;
-            const delegaBadge =
-              delega === "attiva" ? <Badge className="gap-1 bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300"><CheckCircle className="h-3 w-3" />Delega attiva</Badge> :
-              delega === "richiesta" ? <Badge variant="outline" className="gap-1 text-amber-600">Delega richiesta</Badge> :
-              delega === "revocata" ? <Badge variant="destructive" className="gap-1">Delega revocata</Badge> :
-              registrato ? <Badge className="gap-1 bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300"><CheckCircle className="h-3 w-3" />Pronta per l'invio</Badge> :
-              <Badge variant="outline" className="gap-1 text-muted-foreground">Da attivare</Badge>;
-            return (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Attivazione Fatturazione Elettronica</CardTitle>
-                  <CardDescription>Registra la tua azienda come cedente sul sistema di invio. Operazione una tantum, necessaria <b>prima del primo invio allo SDI</b>.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {feLoading ? (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Verifica stato…</div>
-                  ) : (
-                    <div className="flex flex-wrap items-center gap-2">
-                      {statoBadge}
-                      {delegaBadge}
-                      {feConfig?.registered_at && (
-                        <span className="text-xs text-muted-foreground">Registrata il {new Date(feConfig.registered_at).toLocaleDateString("it-IT")}</span>
-                      )}
-                    </div>
-                  )}
-
-                  {feConfig?.last_error && stato === "errore" && (
-                    <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 rounded-lg p-3 text-sm text-red-700 dark:text-red-300">
-                      {feConfig.last_error}
-                    </div>
-                  )}
-
-                  {/* Con openapi l'invio non chiede deleghe: registrata la P.IVA, le
-                      fatture partono. Il codice destinatario all'Agenzia delle Entrate
-                      riguarda solo quelle dei fornitori (24/09/2026: il riquadro diceva
-                      che senza delega non partiva niente). */}
-                  {registrato && delega !== "attiva" && (
-                    <div className="bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-900 rounded-lg p-3 flex items-start gap-2">
-                      <Info className="h-4 w-4 text-sky-600 mt-0.5 shrink-0" />
-                      <div className="text-sm">
-                        <p className="font-medium text-foreground">Pronta: le fatture partono allo SDI</p>
-                        <p className="text-muted-foreground text-xs mt-0.5">Non serve nessuna delega per inviare. Le fatture dei fornitori continuano ad arrivare al codice destinatario che hai registrato all'Agenzia delle Entrate, finché non decidi di riceverle qui (vedi «Fatture dei fornitori»). Per conservarle a norma vedi «Conservazione a norma» qui sotto.</p>
-                      </div>
-                    </div>
-                  )}
-
-                  {!canOnboard && (
-                    <div className="bg-muted/50 rounded-lg p-3 flex items-start gap-2 text-sm text-muted-foreground">
-                      <Info className="h-4 w-4 mt-0.5 shrink-0" />
-                      <span>Completa prima <b>Partita IVA</b> (11 cifre), <b>Ragione Sociale</b> ed <b>Email/PEC</b> nel tab Azienda, poi salva. Sono i dati usati per la registrazione.</span>
-                    </div>
-                  )}
-
-                  <Button onClick={() => onboardMutation.mutate()} disabled={onboardMutation.isPending || !canOnboard || anagraficaDirty} className="gap-1.5">
-                    {onboardMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
-                    {registrato ? "Ri-verifica registrazione" : "Attiva Fatturazione Elettronica"}
-                  </Button>
-                  {anagraficaDirty && <p className="text-xs text-amber-600">Hai modificato i dati anagrafici: salvali prima di attivare.</p>}
-                </CardContent>
-              </Card>
-            );
-          })()}
-
-          {/* ─── FATTURE DEI FORNITORI (ricezione da openapi, 24/09/2026) ─── */}
-          {current.sdi_provider === "openapi" && feRegistrata && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Fatture dei fornitori</CardTitle>
-                <CardDescription>Le fatture che ricevi arrivano da sole in <b>Fatture ricevute</b>, con il file originale (anche firmato .p7m).</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-900 rounded-lg p-3 flex items-start gap-2">
-                  <Info className="h-4 w-4 text-sky-600 mt-0.5 shrink-0" />
-                  <div className="text-sm space-y-1">
-                    <p className="font-medium text-foreground">Per riceverle qui: codice destinatario PIC7CPS</p>
-                    <p className="text-muted-foreground text-xs">
-                      Lo SDI consegna le fatture al codice che hai registrato all'Agenzia delle Entrate. Registra <b>PIC7CPS</b> nel
-                      portale Fatture e Corrispettivi (Servizi disponibili → Registrazione dell'indirizzo telematico). Da quel momento
-                      le fatture dei fornitori arrivano qui e <b>non più</b> al canale di oggi (per esempio Aruba): fallo quando sei pronto a passare.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2 text-sm">
-                  {typeof ricevuteOpenapi === "number" && (
-                    <Badge variant="outline" className="gap-1">
-                      {ricevuteOpenapi === 1 ? "1 fattura arrivata" : `${ricevuteOpenapi} fatture arrivate`}
-                    </Badge>
-                  )}
-                  <span className="text-xs text-muted-foreground">
-                    {feConfig?.ricevute_controllate_at
-                      ? `Ultimo controllo ${new Date(feConfig.ricevute_controllate_at).toLocaleString("it-IT", { dateStyle: "short", timeStyle: "short" })} · si controlla ogni ora`
-                      : "Si controlla ogni ora"}
-                  </span>
-                </div>
-
-                {feConfig?.ricevute_ultimo_errore && (
-                  <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-lg p-3 flex items-start gap-2 text-sm text-amber-800 dark:text-amber-300">
-                    <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
-                    <span>{feConfig.ricevute_ultimo_errore}</span>
-                  </div>
-                )}
-
-                <Button variant="outline" onClick={() => controllaRicevuteMutation.mutate()} disabled={controllaRicevuteMutation.isPending} className="gap-1.5">
-                  {controllaRicevuteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                  Controlla adesso
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* ─── CONSERVAZIONE A NORMA (24/09/2026) ───
-              Openapi non conserva (legal_storage «non ancora disponibile»):
-              la strada è il servizio gratuito dell'Agenzia delle Entrate. La
-              convenzione si rinnova da sola ogni tre anni (FAQ n. 34 AdE): la
-              data serve a ricordare di controllare che il rinnovo risulti. */}
-          {(() => {
-            const oggi = new Date().toLocaleDateString("en-CA");
-            const c = statoConservazione(current.conservazione_ade_aderito_il, oggi);
-            const data = (iso: string) => new Date(`${iso}T12:00:00`).toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" });
-            const retroattivaDal = data(conservazioneRetroattivaDal(Number(oggi.slice(0, 4))));
-            return (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Conservazione a norma</CardTitle>
-                  <CardDescription>
-                    Le fatture elettroniche, inviate e ricevute, vanno conservate in digitale con un servizio a norma: tenerle in una cartella o stamparle non basta.
-                    {current.sdi_provider === "openapi" && " Openapi, che le invia allo SDI, per ora non le conserva."}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-900 rounded-lg p-3 flex items-start gap-2">
-                    <Info className="h-4 w-4 text-sky-600 mt-0.5 shrink-0" />
-                    <div className="text-sm space-y-1">
-                      <p className="font-medium text-foreground">Il servizio gratuito dell'Agenzia delle Entrate</p>
-                      <p className="text-muted-foreground text-xs">
-                        Conserva per 15 anni tutte le fatture passate dallo SDI, inviate e ricevute. Nel portale Fatture e Corrispettivi:
-                        <b> Fatturazione elettronica e Conservazione → Accedi alla sezione conservazione</b>, poi accetta la convenzione.
-                        Può farlo il titolare o il commercialista con la delega. Aderendo oggi puoi portare in conservazione anche le
-                        fatture passate dallo SDI dal {retroattivaDal}. La convenzione dura 3 anni e si rinnova da sola, salvo revoca.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:items-end">
-                    <div className="space-y-2">
-                      <Label htmlFor="conservazione-aderito-il">Data di adesione</Label>
-                      <Input
-                        id="conservazione-aderito-il"
-                        type="date"
-                        max={oggi}
-                        value={current.conservazione_ade_aderito_il ?? ""}
-                        onChange={(e) => updateField("conservazione_ade_aderito_il", e.target.value || null)}
-                      />
-                    </div>
-                    <p className="text-xs text-muted-foreground sm:pb-2.5">
-                      {c.stato === "da_segnare"
-                        ? "Quando hai aderito, segna qui la data: questa pagina ti ricorderà di controllare i rinnovi."
-                        : c.stato === "attiva"
-                          ? `Si rinnova da sola: il prossimo rinnovo è il ${data(c.prossimoRinnovo)}.`
-                          : null}
-                    </p>
-                  </div>
-
-                  {c.stato === "da_controllare" && (
-                    <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-lg p-3 flex items-start gap-2 text-sm text-amber-800 dark:text-amber-300">
-                      <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
-                      <span>
-                        La convenzione si è rinnovata da sola il {data(c.rinnovataIl)}. Controlla nel portale Fatture e Corrispettivi che
-                        risulti attiva: ad alcuni contribuenti il rinnovo non è risultato. Se manca, aderisci di nuovo e porta in
-                        conservazione le fatture del periodo scoperto.
-                      </span>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })()}
+          <FatturaElettronicaPassi
+            demo={isDemoCompanyId(companyId)}
+            datiPerAttivare={
+              String(azienda?.partita_iva ?? "").replace(/\D/g, "").length === 11
+              && !!azienda?.ragione_sociale
+              && !!(azienda?.pec || azienda?.email)
+            }
+            anagraficaDaSalvare={["partita_iva", "ragione_sociale", "pec", "email"].some((k) => k in form)}
+            canale={feConfig}
+            caricamento={feLoading}
+            ricevute={ricevuteOpenapi}
+            onAttiva={() => onboardMutation.mutate()}
+            attivando={onboardMutation.isPending}
+            onControllaRicevute={() => controllaRicevuteMutation.mutate()}
+            controllando={controllaRicevuteMutation.isPending}
+            conservazioneAderitoIl={current.conservazione_ade_aderito_il}
+            onConservazioneAderitoIl={(valore) => updateField("conservazione_ade_aderito_il", valore)}
+          />
 
           <Card>
             <CardHeader>

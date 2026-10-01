@@ -25,7 +25,7 @@ describe("Pianificazione nelle azioni rapide", () => {
     fireEvent.click(screen.getByRole("button", { name: "Nuova attività" }));
     expect(task).toHaveBeenCalledOnce();
     fireEvent.keyDown(screen.getByRole("button", { name: "Altre azioni" }), { key: "Enter" });
-    for (const name of ["Email", "WhatsApp", "SMS", "Appuntamento", "Crea fattura"]) expect(await screen.findByRole("menuitem", { name, exact: true })).toBeInTheDocument();
+    for (const name of ["Email", "WhatsApp", "SMS", "Appuntamento", "Crea fattura"]) expect(await screen.findByRole("menuitem", { name })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: "Documenti" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("menuitem", { name: "Crea fattura" }));
     expect(invoice).toHaveBeenCalledOnce();
@@ -36,7 +36,7 @@ describe("Pianificazione nelle azioni rapide", () => {
     const invoice = vi.fn();
     render(<OrderQuickActions {...base} onCreateInvoice={invoice} invoiceDisabled invoiceHint="Fatturazione non attiva" />);
     fireEvent.keyDown(screen.getByRole("button", { name: "Altre azioni" }), { key: "Enter" });
-    expect(await screen.findByRole("menuitem", { name: "SMS", exact: true })).toHaveAttribute("aria-disabled", "true");
+    expect(await screen.findByRole("menuitem", { name: "SMS" })).toHaveAttribute("aria-disabled", "true");
     const item = screen.getByRole("menuitem", { name: "Crea fattura" });
     expect(item).toHaveTextContent("Fatturazione non attiva");
     expect(item).toHaveAttribute("aria-disabled", "true");
@@ -47,7 +47,7 @@ describe("Pianificazione nelle azioni rapide", () => {
     render(<OrderQuickActions {...base} customer={{ name: "Cliente test", email: "test@example.invalid", phone: "+390000000000" }} />);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     for (const [label, channel] of [["Email", "email"], ["WhatsApp", "whatsapp"], ["SMS", "sms"]]) {
-      fireEvent.click(screen.getByRole("button", { name: label, exact: true }));
+      fireEvent.click(screen.getByRole("button", { name: label }));
       expect(screen.getByRole("dialog")).toHaveTextContent(`Canale ${channel}`);
       fireEvent.click(screen.getByRole("button", { name: "Chiudi" }));
     }
@@ -57,7 +57,7 @@ describe("Pianificazione nelle azioni rapide", () => {
   it("disabilita i canali senza recapiti e rispetta la disponibilità delle fatture", () => {
     const invoice = vi.fn();
     const view = render(<OrderQuickActions {...base} onCreateInvoice={invoice} invoiceDisabled invoiceHint="Fatturazione non attiva" />);
-    for (const name of ["Email", "WhatsApp", "SMS", "Crea fattura"]) expect(screen.getByRole("button", { name, exact: true })).toBeDisabled();
+    for (const name of ["Email", "WhatsApp", "SMS", "Crea fattura"]) expect(screen.getByRole("button", { name })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Crea fattura" }));
     expect(invoice).not.toHaveBeenCalled();
     view.rerender(<OrderQuickActions {...base} onCreateInvoice={invoice} />);
