@@ -15,6 +15,8 @@ import { supabase } from "@/integrations/supabase/client";
 import type { TriggerFieldDef } from "@/types/automationBuilder";
 import { NO_VALUE_OPERATORS } from "@/types/automationBuilder";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
+import { filterRange } from "../../../../supabase/functions/_shared/automationFilters";
+import { useQuery } from "@tanstack/react-query";
 
 interface Props {
   field: TriggerFieldDef | undefined;
@@ -31,10 +33,14 @@ export function ConditionValueInput({ field, operator, value, onChange, hasError
   }
 
   const errorClass = hasError ? "border-destructive" : "";
+  if (["pipeline", "pipeline_id", "stage", "stage_id", "calendar", "calendar_id"].includes(field.key)) {
+    return <EntityFilterSelect field={field.key} value={value} onChange={onChange} companyId={companyId} hasError={hasError} />;
+  }
 
   // Date: "between" needs two dates
   if (field.type === "date" && operator === "between") {
-    const dates = value || { from: "", to: "" };
+    const [from, to] = filterRange(value);
+    const dates = { from: String(from ?? ""), to: String(to ?? "") };
     return (
       <div className="flex gap-1.5">
         <DatePickerInput
@@ -58,9 +64,9 @@ export function ConditionValueInput({ field, operator, value, onChange, hasError
     return (
       <Input
         type="number"
-        min={1}
-        value={value || ""}
-        onChange={(e) => onChange(parseInt(e.target.value) || "")}
+        min={0}
+        value={value ?? ""}
+        onChange={(e) => onChange(e.target.value)}
         placeholder="Giorni..."
         className={cn("h-8 text-xs", errorClass)}
       />
@@ -74,7 +80,8 @@ export function ConditionValueInput({ field, operator, value, onChange, hasError
 
   // Number: "between"
   if (field.type === "number" && operator === "between") {
-    const vals = value || { from: "", to: "" };
+    const [from, to] = filterRange(value);
+    const vals = { from: String(from ?? ""), to: String(to ?? "") };
     return (
       <div className="flex gap-1.5">
         <Input
@@ -148,6 +155,38 @@ export function ConditionValueInput({ field, operator, value, onChange, hasError
 }
 
 // ── Tag Multi-Select ──
+function EntityFilterSelect({ field, value, onChange, companyId, hasError }: { field: string; value: any; onChange: (value: string) => void; companyId?: string; hasError?: boolean }) {
+  const { data: options = [], isLoading, error } = useQuery({
+    queryKey: ["automation-filter-options", companyId, field],
+    enabled: !!companyId,
+    queryFn: async () => {
+      const calendar = field.startsWith("calendar");
+      const { data, error } = await supabase.from(calendar ? "marketing_calendars" : "marketing_pipelines")
+        .select("id, name").eq("company_id", companyId!).order("name");
+      if (error) throw error;
+      if (!field.startsWith("stage")) return data ?? [];
+      if (!data?.length) return [];
+      const { data: stages, error: stageError } = await supabase.from("marketing_pipeline_stages")
+        .select("id, name, pipeline_id").in("pipeline_id", data.map(p => p.id)).order("position");
+      if (stageError) throw stageError;
+      return (stages ?? []).map(s => ({ id: s.id, name: `${data.find(p => p.id === s.pipeline_id)?.name} · ${s.name}` }));
+    },
+  });
+  return <div className="space-y-1">
+    <Select value={value || ""} onValueChange={onChange} disabled={isLoading || !!error}>
+      <SelectTrigger aria-label="Valore del filtro" className={cn("h-8 text-xs", hasError && "border-destructive")}>
+        <SelectValue placeholder={isLoading ? "Caricamento…" : "Seleziona…"} />
+      </SelectTrigger>
+      <SelectContent>
+        {value && !options.some(o => o.id === value) && <SelectItem value={value}>Selezione non più disponibile</SelectItem>}
+        {options.map(o => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
+      </SelectContent>
+    </Select>
+    {error && <p role="alert" className="text-xs text-destructive">Impossibile caricare le opzioni.</p>}
+    {!error && !isLoading && !options.length && <p className="text-xs text-muted-foreground">Nessuna opzione disponibile per questa azienda.</p>}
+  </div>;
+}
+
 function TagMultiSelect({ value, onChange, companyId, hasError }: { value: any; onChange: (v: any) => void; companyId?: string; hasError?: boolean }) {
   const [open, setOpen] = useState(false);
   const [tags, setTags] = useState<{ id: string; name: string; color: string }[]>([]);
@@ -156,6 +195,8 @@ function TagMultiSelect({ value, onChange, companyId, hasError }: { value: any; 
   const selectedTags: string[] = Array.isArray(value) ? value : value ? [value] : [];
 
   useEffect(() => {
+    let active = true;
+    setTags([]);
     if (!companyId) return;
     supabase
       .from("marketing_tags")
@@ -163,8 +204,9 @@ function TagMultiSelect({ value, onChange, companyId, hasError }: { value: any; 
       .eq("company_id", companyId)
       .order("name")
       .then(({ data }) => {
-        if (data) setTags(data);
+        if (active && data) setTags(data);
       });
+    return () => { active = false; };
   }, [companyId]);
 
   const toggleTag = (tagName: string) => {
@@ -254,7 +296,8 @@ function UserSelect({ value, onChange, companyId, hasError }: { value: any; onCh
 }
 
 function DatePickerInput({ value, onChange, placeholder, hasError }: { value: string; onChange: (v: string) => void; placeholder?: string; hasError?: boolean }) {
-  const date = value ? new Date(value) : undefined;
+  const parsed = value ? new Date(value.length === 10 ? value + "T12:00:00" : value) : undefined;
+  const date = parsed && Number.isFinite(parsed.getTime()) ? parsed : undefined;
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -274,7 +317,7 @@ function DatePickerInput({ value, onChange, placeholder, hasError }: { value: st
         <Calendar
           mode="single"
           selected={date}
-          onSelect={(d) => onChange(d ? d.toISOString() : "")}
+          onSelect={(d) => onChange(d ? format(d, "yyyy-MM-dd") : "")}
           className="p-3 pointer-events-auto"
         />
       </PopoverContent>

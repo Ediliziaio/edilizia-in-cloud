@@ -390,7 +390,7 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
       } : {})}
       className={`relative transition-colors ${editable && isDragging ? "border-dashed border-2 border-primary/50" : ""}`}
     >
-      <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3 space-y-0">
+      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-3 space-y-0">
         <CardTitle className="flex items-center gap-2 min-w-0 text-base sm:text-lg">
           <Paperclip className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
           <span className="truncate">Documenti commessa</span>
@@ -412,9 +412,9 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
                 e.target.value = "";
               }}
             />
-            <Button size="sm" variant="outline" className="shrink-0" onClick={() => fileInputRef.current?.click()}>
-              <Upload className="h-4 w-4" />
-              <span className="hidden sm:inline ml-1.5">Carica file</span>
+            <Button size="sm" variant="outline" className="min-h-11 shrink-0 border-slate-300 font-semibold text-blue-950" onClick={() => fileInputRef.current?.click()}>
+              <Upload className="h-4 w-4" aria-hidden="true" />
+              <span className="ml-1.5">Carica file</span>
             </Button>
           </>
         )}

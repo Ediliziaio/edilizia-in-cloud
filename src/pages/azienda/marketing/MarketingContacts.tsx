@@ -1,8 +1,10 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
-import { filtroSoloMiei } from "@/hooks/useOpportunitiesData";
+import { filtroSoloMiei, usePipelines } from "@/hooks/useOpportunitiesData";
+import { refreshCrmContacts } from "@/lib/refreshCrmContacts";
+import { useContactsLive } from "@/hooks/useContactsLive";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useURLFilters } from "@/hooks/useURLFilters";
-import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Search, Upload, Plus, Download, Filter, ArrowUpDown, Settings2, ChevronDown, Loader2, ChevronLeft, ChevronRight, ContactRound, AlertTriangle, CheckCircle2, ShieldCheck, Sparkles, ExternalLink, Mail, Phone, Building2, CalendarClock, Copy, Radar, BookmarkPlus } from "lucide-react";
 import { PLATFORM_ADMIN_COMPANY_ID } from "@/lib/adminConstants";
 import { supabase } from "@/integrations/supabase/client";
@@ -34,7 +36,7 @@ import { exportToCSV, exportToXLSX } from "@/lib/csvExport";
 import { messaggioEsportazioneNonRiuscita, registraEsportazioneCrm } from "@/lib/export/esportazioniCrm";
 import { useContactCustomFields } from "@/hooks/useOpportunityDetailData";
 import { ContactFieldsSheet } from "@/components/marketing/ContactFieldsSheet";
-import { ContactFiltersSheet, type ContactFilters, EMPTY_CONTACT_FILTERS, countActiveContactFilters, type PipelineWithStages } from "@/components/marketing/ContactFiltersSheet";
+import { ContactFiltersSheet, type ContactFilters, EMPTY_CONTACT_FILTERS, countActiveContactFilters } from "@/components/marketing/ContactFiltersSheet";
 import { usePermissions } from "@/hooks/usePermissions";
 import { queryKeys } from "@/lib/queryKeys";
 import { perOgniLotto, raccogliALotti, sommaALotti } from "@/lib/lottiDiId";
@@ -498,6 +500,8 @@ export default function MarketingContacts() {
   const idAgente = viewAsUserId ?? user?.id;
   const companyId = effectiveCompany?.id;
   const permissions = usePermissions();
+  const contactsAccessScope = permissions.onlyAssigned ? idAgente : "tutti";
+  const contactsContext = JSON.stringify([companyId, contactsAccessScope]);
   const canEditContacts = permissions.canEditMarketingContacts;
   // «Esporta Clienti»: senza, niente bottoni di esportazione (gli
   // amministratori ce l'hanno sempre). Il database lo ricontrolla.
@@ -505,6 +509,7 @@ export default function MarketingContacts() {
   const columnsStorageKey = useMemo(() => getStorageKey(user?.id, companyId), [user?.id, companyId]);
   const queryClient = useQueryClient();
   const { data: contactCustomFields = [] } = useContactCustomFields();
+  useContactsLive();
 
   const importFields = useMemo(() => {
     const customImportFields = contactCustomFields.map(f => ({
@@ -576,7 +581,22 @@ export default function MarketingContacts() {
   const [filtersSheetOpen, setFiltersSheetOpen] = useState(false);
   const [filters, setFilters] = useState<ContactFilters>(EMPTY_CONTACT_FILTERS);
   const [exporting, setExporting] = useState(false);
-  const [previewContact, setPreviewContact] = useState<MarketingContact | null>(null);
+  // Conserva la selezione, non una copia della riga: l'anteprima deve seguire
+  // i dati aggiornati dopo salvataggi e riconciliazioni in background.
+  const [previewContactId, setPreviewContactId] = useState<string | null>(null);
+  const [selectionContext, setSelectionContext] = useState(contactsContext);
+  if (selectionContext !== contactsContext) {
+    // Reset prima di renderizzare i figli: neppure per un frame si devono
+    // poter usare anteprime/azioni dell'azienda o del perimetro precedente.
+    setSelectionContext(contactsContext);
+    setSelectedIds(new Set());
+    setPreviewContactId(null);
+    setEditingContact(null);
+    setDialogOpen(false);
+    setImportOpen(false);
+    setDeleteIds(null);
+    setDeleteLinks(null);
+  }
 
   const activeFilterCount = countActiveContactFilters(filters);
 
@@ -925,46 +945,33 @@ export default function MarketingContacts() {
     }
   }, [companyId, exporting, canExportClients, selectedIds, contactCustomFields, applicaFiltriCorrenti, sorgenteContatti, activeTab, search, qualityFilter, sourceFilter, meseFilter, stalePresetActive, stalePreset, filters.groups, permissions.onlyAssigned]);
 
-  // Consolidated filter data query (pipelines, list count). I tag del pannello
-  // Filtri non vengono più da marketing_tags, dove quasi nessun tag in uso è
-  // registrato: li chiede il pannello al database, dai contatti stessi.
-  const { data: filterData } = useQuery({
-    queryKey: ["marketing-filter-data", companyId],
+  // Stessa cache delle Opportunità: rinominare una fase deve aggiornare anche
+  // i filtri Contatti. Il conteggio liste segue invece le mutation delle liste.
+  const { data: pipelines = [] } = usePipelines();
+  const { data: listCount } = useQuery({
+    queryKey: queryKeys.contactLists.count(companyId),
     staleTime: 10 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
     queryFn: async () => {
-      const [pipelinesRes, countRes] = await Promise.all([
-        supabase
-          .from("marketing_pipelines")
-          .select("id, name, marketing_pipeline_stages(id, name, position)")
-          .eq("company_id", companyId!)
-          .order("position"),
-        supabase
-          .from("marketing_contact_lists")
-          .select("id", { count: "exact", head: true })
-          .eq("company_id", companyId!),
-      ]);
-      if (pipelinesRes.error) throw pipelinesRes.error;
+      const countRes = await supabase
+        .from("marketing_contact_lists")
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId!);
       if (countRes.error) throw countRes.error;
-      return {
-        pipelines: (pipelinesRes.data || []) as PipelineWithStages[],
-        listCount: countRes.count || 0,
-      };
+      return countRes.count || 0;
     },
     enabled: !!companyId,
   });
-  const pipelines = filterData?.pipelines ?? [];
-  const listCount = filterData?.listCount ?? 0;
   // Mobile: senza liste la scheda «Liste» (e quindi lo scambio di schede) sparisce;
   // un indirizzo con ?tab=lists mostra la prima.
-  const senzaListeMobile = isMobile && !!filterData && listCount === 0;
+  const senzaListeMobile = isMobile && listCount === 0;
 
   // Contattabilità sull'INTERO database azienda: count esatti head-only in
   // parallelo (mai fetch-e-conta). Su decine di migliaia di contatti i KPI
   // calcolati sulla pagina corrente erano fuorvianti: qui i numeri dicono
   // davvero quanti contatti hanno un recapito utilizzabile per le campagne.
   const { data: reachStats } = useQuery({
-    queryKey: ["marketing-contacts-reachability", companyId, permissions.onlyAssigned ? idAgente : null],
+    queryKey: queryKeys.marketingContacts.reachability(companyId, permissions.onlyAssigned ? idAgente : null),
     staleTime: 5 * 60 * 1000,
     enabled: !!companyId,
     queryFn: async () => {
@@ -997,10 +1004,10 @@ export default function MarketingContacts() {
   });
 
   // Fetch contacts with grouped filter rules
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isPlaceholderData } = useQuery({
     // Lo scope «solo i propri» sta nella chiave: senza, passando a «Vista come»
     // la cache serviva l'elenco pieno del super admin.
-    queryKey: ["marketing-contacts", companyId, search, page, pageSize, sortField, sortDirection, filters, activeTab, stalePreset, qualityFilter, meseFilter, sourceFilter, permissions.onlyAssigned ? idAgente : "tutti"],
+    queryKey: ["marketing-contacts", companyId, search, page, pageSize, sortField, sortDirection, filters, activeTab, stalePreset, qualityFilter, meseFilter, sourceFilter, contactsAccessScope],
     queryFn: async () => {
       if (!companyId) return { contacts: [] as MarketingContact[], count: 0 };
 
@@ -1097,9 +1104,20 @@ export default function MarketingContacts() {
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
-    placeholderData: keepPreviousData,
+    // Paginazione fluida solo nello stesso perimetro di lettura. Cambiando
+    // azienda o «solo i propri», mostra il caricamento e non le vecchie righe.
+    placeholderData: (previousData, previousQuery) =>
+      previousQuery?.queryKey[1] === companyId && previousQuery.queryKey.at(-1) === contactsAccessScope
+        ? previousData
+        : undefined,
   });
   const contacts = useMemo(() => data?.contacts ?? [], [data?.contacts]);
+  const previewContact = contacts.find((contact) => contact.id === previewContactId) ?? null;
+  useEffect(() => {
+    // Un contatto eliminato o uscito dai filtri non deve riaprire da solo il
+    // pannello tornando a una pagina già visitata.
+    if (previewContactId && !isLoading && !isPlaceholderData && !previewContact) setPreviewContactId(null);
+  }, [previewContactId, previewContact, isLoading, isPlaceholderData]);
   const totalCount = data?.count || 0;
   const contactIds = useMemo(() => contacts.map((c) => c.id), [contacts]);
   const duplicateKeys = useMemo(() => {
@@ -1142,7 +1160,7 @@ export default function MarketingContacts() {
 
   // Fetch custom field values for visible contacts
   const { data: customFieldValues = {} } = useQuery({
-    queryKey: ["marketing-contact-field-values", companyId, contactIds],
+    queryKey: queryKeys.marketingContacts.fieldValues(companyId, contactIds),
     queryFn: async () => {
       if (contactIds.length === 0) return {} as Record<string, Record<string, string>>;
       const { data: vals, error } = await supabase
@@ -1164,9 +1182,7 @@ export default function MarketingContacts() {
 
   // Mutations
   const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: queryKeys.marketingContacts.all });
-    queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
-    queryClient.invalidateQueries({ queryKey: ["marketing_contacts_search"] });
+    void refreshCrmContacts(queryClient, companyId);
   };
 
   /**
@@ -2088,7 +2104,7 @@ export default function MarketingContacts() {
                     </Badge>
                   )}
                   {companyId === PLATFORM_ADMIN_COMPANY_ID && (
-                    <BulkEnrichButton selectedIds={selectedIds} onDone={() => queryClient.invalidateQueries({ queryKey: ["marketing_contacts"] })} />
+                    <BulkEnrichButton selectedIds={selectedIds} onDone={invalidate} />
                   )}
                   <BulkTagsDialog selectedIds={selectedIds} />
                   <BulkCreateOpportunitiesDialog selectedIds={selectedIds} />
@@ -2100,7 +2116,7 @@ export default function MarketingContacts() {
               customFields={contactCustomFields}
               customFieldValues={customFieldValues}
               canEdit={canEditContacts}
-              onOpenPreview={setPreviewContact}
+              onOpenPreview={(contact) => setPreviewContactId(contact.id)}
             />
           )}
           </div>
@@ -2202,7 +2218,7 @@ export default function MarketingContacts() {
         companyId={companyId}
         open={!!previewContact}
         onOpenChange={(open) => {
-          if (!open) setPreviewContact(null);
+          if (!open) setPreviewContactId(null);
         }}
         onEdit={handleEdit}
         canEdit={canEditContacts}

@@ -107,9 +107,8 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items }: LinkedPu
           <Package className="h-4 w-4 shrink-0" />
           <span className="truncate">Ordini ai fornitori</span>
         </CardTitle>
-        {/* Mobile: si guardano gli ordini; collegarli o crearne è lavoro d'ufficio. */}
-        <div className="flex items-center gap-2 shrink-0 max-sm:hidden">
-          <Button variant="outline" size="sm" disabled={!canEditOrders} onClick={() => setLinkDialogOpen(true)}>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" className="min-h-11 border-slate-300 font-semibold text-blue-950" disabled={!canEditOrders} onClick={() => setLinkDialogOpen(true)}>
             <Link2 className="h-4 w-4 mr-1.5" />
             Collega OdA
           </Button>

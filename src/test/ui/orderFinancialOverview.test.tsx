@@ -5,7 +5,18 @@ import { OrderFinancialOverview } from "@/components/orders/OrderFinancialOvervi
 const state = vi.hoisted(() => ({ pending: false, error: false, costs: 400, margin: 600, pct: 60, hook: vi.fn() }));
 vi.mock("@/hooks/useOrderEconomicsBase", () => ({ useOrderEconomicsBase: (...args: unknown[]) => {
   state.hook(...args);
-  return { isPending: state.pending, isError: state.error, econ: { costsTot: state.costs, margin: state.margin, marginPct: state.pct, laborNet: 100 } };
+  const canShowMargin = state.costs > 0;
+  return {
+    isPending: state.pending,
+    isError: state.error,
+    actual: { costs: state.costs, margin: state.margin, marginPct: state.pct },
+    quality: {
+      canShowMargin,
+      status: canShowMargin ? "ready" : "missing",
+      label: canShowMargin ? "Dati attendibili" : "Dati da completare",
+      issues: canShowMargin ? [] : [{ code: "no_registered_costs", label: "Nessun costo registrato" }],
+    },
+  };
 } }));
 afterEach(cleanup);
 beforeEach(() => { state.pending = false; state.error = false; state.costs = 400; state.margin = 600; state.pct = 60; state.hook.mockClear(); });
@@ -19,10 +30,10 @@ describe("Fascia economica condivisa", () => {
     const props = mount();
     expect(screen.getByRole("button", { name: "Apri dettagli: Totale contratto" })).toHaveTextContent("1.220,00");
     expect(screen.getByRole("button", { name: "Apri dettagli: Imponibile" })).toHaveTextContent("1.000,00");
-    expect(screen.getByRole("button", { name: "Apri dettagli: Margine €" })).toHaveTextContent("600,00");
-    expect(screen.getByRole("button", { name: "Apri dettagli: Margine %" })).toHaveTextContent("60%");
+    expect(screen.getByRole("button", { name: "Apri dettagli: Margine diretto €" })).toHaveTextContent("600,00");
+    expect(screen.getByRole("button", { name: "Apri dettagli: Margine diretto %" })).toHaveTextContent("60%");
     expect(screen.getByRole("button", { name: "Apri stato pagamenti" })).toHaveTextContent("1.020,00");
-    fireEvent.click(screen.getByRole("button", { name: "Apri dettagli: Margine €" }));
+    fireEvent.click(screen.getByRole("button", { name: "Apri dettagli: Margine diretto €" }));
     expect(props.onOpenEconomics).toHaveBeenCalledOnce();
     fireEvent.click(screen.getByRole("button", { name: "Apri stato pagamenti" }));
     expect(props.onOpenPayments).toHaveBeenCalledOnce();
@@ -30,12 +41,12 @@ describe("Fascia economica condivisa", () => {
   it.each(["loading", "error", "missing"] as const)("non mostra margini falsi: %s", condition => {
     state.pending = condition === "loading"; state.error = condition === "error"; state.costs = condition === "missing" ? 0 : 400;
     mount();
-    expect(screen.getByRole("button", { name: "Apri dettagli: Margine €" })).toHaveTextContent("—");
-    expect(screen.getByRole("button", { name: "Apri dettagli: Margine %" })).not.toHaveTextContent("60%");
+    expect(screen.getByRole("button", { name: "Apri dettagli: Margine diretto €" })).toHaveTextContent("—");
+    expect(screen.getByRole("button", { name: "Apri dettagli: Margine diretto %" })).not.toHaveTextContent("60%");
   });
   it("nasconde i margini e disabilita le query senza il permesso", () => {
     mount({ canViewMargins: false });
-    expect(screen.queryByRole("button", { name: "Apri dettagli: Margine €" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Apri dettagli: Margine diretto €" })).toBeNull();
     expect(state.hook).toHaveBeenCalledWith("order", 1000, [], false);
   });
   it("nasconde gli importi e i pagamenti senza il permesso", () => {

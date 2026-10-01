@@ -21,9 +21,9 @@ describe("fermarsi solo quando diventa cliente", () => {
   });
 
   it("senza «Interrompi su risposta» né risposte né schede spostate fermano il flusso", () => {
-    expect(motore).toMatch(/const \{ data: contatto \} = imp\.stopOnReply && !motivo/);
+    expect(motore).toMatch(/const indirizzo = imp\.stopOnReply && !motivo/);
     expect(motore).toMatch(/if \(!motivo && imp\.stopOnReply && item\.company_id === OPENWA_PLATFORM_COMPANY_ID\)/);
-    expect(motore).toMatch(/if \(!motivo && imp\.stopOnReply\) \{\s*const \{ data: opps \}/);
+    expect(motore).toMatch(/if \(!motivo && imp\.stopOnReply\) \{\s*const \{ data: opps, error \}/);
   });
 
   it("le impostazioni del flusso la mostrano e la salvano", () => {

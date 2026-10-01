@@ -7,6 +7,7 @@ export interface AutomationFlow {
   description: string | null;
   status: "draft" | "published" | "archived";
   version: number;
+  timezone?: string | null;
   folder_id: string | null;
   config_json: Record<string, any> | null;
   category: string;
@@ -39,6 +40,13 @@ export interface AutomationConnection {
   created_at: string;
 }
 
+export interface RestoredAutomationGraph {
+  nodes: AutomationNode[];
+  connections: AutomationConnection[];
+  updated_at: string;
+  version: number;
+}
+
 // ── Trigger Condition Builder Types ──
 
 export interface TriggerCondition {
@@ -47,6 +55,7 @@ export interface TriggerCondition {
   operator: string;
   value: any;
   negate?: boolean;
+  fieldType?: FieldType;
 }
 
 export interface TriggerConditionGroup {
@@ -160,6 +169,8 @@ export const CONTACT_TRIGGER_FIELDS: TriggerFieldDef[] = [
   { key: "phone", label: "Telefono", type: "text", group: "Campi standard" },
   { key: "contact_type", label: "Tipo contatto", type: "select", group: "Campi standard", options: [{ value: "lead", label: "Lead" }, { value: "cliente", label: "Cliente" }, { value: "prospect", label: "Prospect" }] },
   { key: "tags", label: "Tag", type: "tags", group: "Campi standard" },
+  { key: "added_tags", label: "Tag appena aggiunti", type: "tags", group: "Modifica tag" },
+  { key: "removed_tags", label: "Tag appena rimossi", type: "tags", group: "Modifica tag" },
   { key: "source", label: "Fonte Lead", type: "text", group: "Campi standard" },
   { key: "city", label: "Città", type: "text", group: "Località" },
   { key: "province", label: "Provincia (sigla)", type: "text", group: "Località" },
@@ -184,7 +195,7 @@ export const APPOINTMENT_TRIGGER_FIELDS: TriggerFieldDef[] = [
   { key: "calendar", label: "Calendario", type: "select", group: "Appuntamento" },
   { key: "status", label: "Stato appuntamento", type: "select", group: "Appuntamento", options: [{ value: "confirmed", label: "Confermato" }, { value: "pending", label: "In attesa" }, { value: "cancelled", label: "Cancellato" }, { value: "completed", label: "Completato" }] },
   { key: "appointment_date", label: "Data appuntamento", type: "date", group: "Appuntamento" },
-  { key: "appointment_type", label: "Tipo appuntamento", type: "select", group: "Appuntamento", options: [{ value: "visita", label: "Visita" }, { value: "call", label: "Chiamata" }, { value: "meeting", label: "Meeting" }] },
+  { key: "appointment_type", label: "Tipo appuntamento", type: "select", group: "Appuntamento", options: [{ value: "sopralluogo", label: "Sopralluogo" }, { value: "telefonata", label: "Telefonata" }, { value: "videocall", label: "Video call" }, { value: "in_sede", label: "In sede" }] },
   { key: "assigned_to", label: "Utente assegnato", type: "user", group: "Appuntamento" },
   { key: "source", label: "Fonte prenotazione", type: "text", group: "Appuntamento" },
 ];
@@ -375,4 +386,3 @@ export function getFieldsForCategory(category: string): TriggerFieldDef[] {
 }
 
 export const NO_VALUE_OPERATORS = ["is_empty", "is_not_empty", "today", "yesterday", "is_assigned", "is_not_assigned", "is_true", "is_false"];
-

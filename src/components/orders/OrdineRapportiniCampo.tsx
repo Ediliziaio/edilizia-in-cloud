@@ -3,7 +3,7 @@
  * Gestisce approvazione, rifiuto con motivo, download PDF.
  * Usato nel tab "Campo" di OrderDetail.tsx.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ImgRiservata } from "@/components/common/ImgRiservata";
 import { linkFileRiservato } from "@/lib/storage/fileRiservati";
 import { notifyRapportinoPdf, openRapportinoPdf } from "@/lib/campo/rapportinoPdf";
@@ -68,6 +68,8 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
   const canApprove = canEditOrders && (role === "company_admin" || role === "company_staff" || role === "super_admin");
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [visibleCount, setVisibleCount] = useState(10);
+  useEffect(() => { setVisibleCount(10); setExpandedId(null); }, [orderId]);
   const [approvalId, setApprovalId] = useState<string | null>(null);
   const [fotoModal, setFotoModal] = useState<string | null>(null);
   const [firmaModal, setFirmaModal] = useState<{ url: string; title: string } | null>(null);
@@ -238,20 +240,22 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
           <p className="text-sm text-muted-foreground">Nessun rapportino caricato dagli operai</p>
         ) : (
           <div className="space-y-3">
-            {rapportini.map((r) => {
+            {rapportini.slice(0, visibleCount).map((r) => {
               const rawStato = r.stato ?? (r.approvato ? "approvato" : "inviato");
               const stato: RapportinoStato = rawStato === "inviato" || rawStato === "approvato" || rawStato === "rifiutato" ? rawStato : "bozza";
               return (
                 <div key={r.id} className="border rounded-lg overflow-hidden">
                   {/* Header rapportino */}
-                  <div
-                    className="flex items-center justify-between p-3 bg-muted/30 cursor-pointer"
+                  <button
+                    type="button"
+                    aria-expanded={expandedId === r.id}
+                    className="w-full text-left flex items-center justify-between p-3 bg-muted/30 cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
                     onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}
                   >
                     <div className="flex items-center gap-3">
                       <div>
                         <p className="text-sm font-medium">
-                          {r.autore?.first_name} {r.autore?.last_name}
+                          {[r.autore?.first_name, r.autore?.last_name].filter(Boolean).join(" ") || "Registrazione manuale"}
                           <span className="ml-1 text-muted-foreground text-xs">
                             — {fmtSafeDate(r.data_lavoro, "d MMM yyyy")}
                           </span>
@@ -291,7 +295,7 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
                     {expandedId === r.id
                       ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
                       : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-                  </div>
+                  </button>
 
                   {/* Dettaglio espandibile */}
                   {expandedId === r.id && (
@@ -434,6 +438,12 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
                 </div>
               );
             })}
+            {rapportini.length > 10 && (
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
+                <p className="text-xs text-muted-foreground" aria-live="polite">Mostrati {Math.min(visibleCount, rapportini.length)} di {rapportini.length} rapportini</p>
+                {visibleCount < rapportini.length && <Button variant="outline" size="sm" onClick={() => setVisibleCount(count => count + 10)}>Mostra altri 10</Button>}
+              </div>
+            )}
           </div>
         )}
       </CardContent>
@@ -441,7 +451,11 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
         key={companyId + ":" + approvalId + ":" + canViewCosts}
         companyId={companyId} orderId={orderId} reportId={approvalId} showCosts={canViewCosts}
         busy={approvaMutation.isPending} onClose={() => setApprovalId(null)}
-        onInspect={id => { setApprovalId(null); setExpandedId(id); }}
+        onInspect={id => {
+          setApprovalId(null);
+          setVisibleCount(count => Math.max(count, rapportini.findIndex(report => report.id === id) + 1));
+          setExpandedId(id);
+        }}
         onApprove={(fingerprint, acknowledged) => approvaMutation.mutate({rapportinoId: approvalId, fingerprint, acknowledged})}
       />}
 

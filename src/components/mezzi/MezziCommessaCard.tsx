@@ -1,10 +1,10 @@
 /**
  * Mezzi sul cantiere, dentro la commessa: quali mezzi ci sono adesso, quali ci
  * sono stati e per quanti giorni, con una stima di quanto sono costati. La
- * stima è informativa: non entra nel margine della commessa.
+ * stima è informativa: alimenta la lettura gestionale, non il consuntivo.
  *
- * Si vede solo a chi ha il permesso dei mezzi e solo se l'azienda ne ha almeno uno:
- * a chi non gestisce un parco la commessa resta com'era.
+ * Si vede solo a chi ha il permesso dei mezzi. Il parco vuoto mostra il
+ * percorso per registrare il primo mezzo, anche a noleggio.
  */
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
@@ -19,7 +19,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { useAssegnaMezzoACommessa, useCostiParco, useMezzi, useMezziDellaCommessa } from "@/hooks/useMezzi";
 import { formatCurrency } from "@/lib/formatters";
 import { IconaMezzo } from "@/components/mezzi/IconaMezzo";
-import { aggiungiGiorni, costoAnnuoMezzo, formatData, giornoItaliano, giorniSovrapposti, oggiIso } from "@/types/mezzi";
+import { POSSESSI, aggiungiGiorni, costoAnnuoMezzo, formatData, giornoItaliano, giorniSovrapposti, oggiIso } from "@/types/mezzi";
 import { useDistanzeCantieri } from "@/hooks/useDistanzaCantieri";
 import { TIPI_CHE_VIAGGIANO, formatKm, giorniLavorativiSovrapposti, kmStimati } from "@/lib/manodopera/km";
 import { TimelineUso } from "@/components/mezzi/TimelineUso";
@@ -39,7 +39,7 @@ export function MezziCommessaCard({ orderId }: Props) {
   const puoVedere = perms.canViewMezzi || perms.isAdmin;
   const puoModificare = (perms.canEditMezzi || perms.isAdmin) && !perms.solaLettura;
 
-  const { data: mezzi = [] } = useMezzi();
+  const { data: mezzi = [], isLoading: loadingParco, isError: parcoError, refetch: refetchParco } = useMezzi();
   const { data: sulCantiere = [], isLoading, error, refetch } = useMezziDellaCommessa(puoVedere ? orderId : undefined);
   const { data: costiParco } = useCostiParco();
   const assegna = useAssegnaMezzoACommessa();
@@ -83,7 +83,7 @@ export function MezziCommessaCard({ orderId }: Props) {
   const disponibili = mezzi.filter((m) => !giaQui.has(m.id) && m.stato !== "fuori_servizio" && !m.su_mezzo_id);
   const sceltoInfo = mezzi.find((m) => m.id === scelto);
 
-  if (!puoVedere || mezzi.length === 0) return null;
+  if (!puoVedere) return null;
 
   const conferma = async () => {
     if (!scelto) return;
@@ -98,29 +98,35 @@ export function MezziCommessaCard({ orderId }: Props) {
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 max-sm:p-3 max-sm:pb-2">
+      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0 max-sm:p-3 max-sm:pb-2">
         <CardTitle className="flex min-w-0 items-center gap-2 text-base sm:text-lg">
           <Truck className="h-4 w-4 shrink-0 text-slate-600" />
-          <span className="truncate">Mezzi sul cantiere</span>
+          <span>Mezzi e attrezzature</span>
           {righe.length > 0 && <span className="shrink-0 text-xs font-normal text-muted-foreground">({righe.length})</span>}
         </CardTitle>
         {puoModificare && (
-          <Button size="sm" variant="outline" className="h-8 shrink-0" onClick={() => setAperto(true)} disabled={disponibili.length === 0}>
-            <Plus className="h-4 w-4 sm:mr-1" />
-            <span className="hidden sm:inline">Metti un mezzo</span>
+          <Button size="sm" variant="outline" className="min-h-11 shrink-0 border-slate-300 font-semibold text-blue-950" onClick={() => setAperto(true)} disabled={loadingParco || parcoError || disponibili.length === 0}>
+            <Plus className="h-4 w-4 mr-1" aria-hidden="true" />
+            <span>Assegna mezzo o attrezzo</span>
           </Button>
         )}
       </CardHeader>
       <CardContent className="space-y-3 max-sm:p-3 max-sm:pt-0">
-        {isLoading ? (
+        <div className="flex flex-col items-start gap-3 rounded-lg bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="min-w-0 flex-1 text-xs text-slate-600">Mezzi propri, in leasing o a noleggio. Le assegnazioni indicano dove sono; i costi qui mostrati sono stime, non fatture di noleggio.</p>
+          <Button asChild variant="outline" size="sm" className="min-h-11 border-slate-300 font-semibold text-blue-950">
+            <Link to="/azienda/manodopera?tab=mezzi">Parco mezzi e noleggi</Link>
+          </Button>
+        </div>
+        {isLoading || loadingParco ? (
           <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
-        ) : error ? (
+        ) : error || parcoError ? (
           <p className="text-sm text-red-700">
             Non riesco a caricare i mezzi.{" "}
-            <button type="button" className="font-semibold underline" onClick={() => refetch()}>Riprova</button>
+            <button type="button" className="font-semibold underline" onClick={() => { void refetch(); void refetchParco(); }}>Riprova</button>
           </p>
         ) : righe.length === 0 ? (
-          <p className="text-sm text-muted-foreground max-sm:text-xs">Nessun mezzo è ancora passato da questo cantiere.</p>
+          <p className="text-sm text-muted-foreground max-sm:text-xs">{mezzi.length === 0 ? "Il parco mezzi è vuoto. Registra prima il mezzo o l'attrezzatura, anche a noleggio, poi assegnalo al cantiere." : "Nessun mezzo è ancora passato da questo cantiere."}</p>
         ) : (
           <ul className="divide-y">
             {righe.map((r) => (
@@ -134,6 +140,9 @@ export function MezziCommessaCard({ orderId }: Props) {
                       {r.nome}
                     </Link>
                     {r.targa && <span className="font-mono text-xs text-muted-foreground">{r.targa}</span>}
+                    {mezzi.find(m => m.id === r.mezzo_id)?.possesso && <Badge variant="outline" className="text-[11px]">
+                      {POSSESSI.find(p => p.value === mezzi.find(m => m.id === r.mezzo_id)?.possesso)?.label}
+                    </Badge>}
                     {r.adesso && (
                       <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-[11px] text-emerald-700">Qui adesso</Badge>
                     )}
@@ -185,7 +194,7 @@ export function MezziCommessaCard({ orderId }: Props) {
         {stimaTotale > 0 && (
           <p className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
             Costo stimato dei mezzi su questo cantiere: <span className="font-medium text-foreground">{formatCurrency(stimaTotale)}</span>.
-            Viene da assicurazione, bollo, rate e interventi dell'ultimo anno, divisi per i giorni sul cantiere. Non entra nel margine della commessa.
+            Viene da assicurazione, bollo, rate e interventi dell'ultimo anno, divisi per i giorni sul cantiere. Compare nella lettura gestionale, senza modificare il margine diretto contabilizzato.
           </p>
         )}
       </CardContent>

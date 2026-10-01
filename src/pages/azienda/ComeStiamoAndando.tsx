@@ -84,7 +84,7 @@ export default function ComeStiamoAndando({ comeSezione = false }: { comeSezione
     queryFn: async () => {
       const { data, error: err } = await supabase
         .from("v_ordine_marginalita")
-        .select("id, order_code, description, cliente_nome, margine, margine_perc, preventivo_totale, work_start_date, work_end_date")
+        .select("id, order_code, description, cliente_nome, margine, margine_perc, preventivo_totale, consuntivo, work_start_date, work_end_date")
         .eq("company_id", companyId!)
         .limit(1000);
       if (err) throw err;
@@ -143,6 +143,17 @@ export default function ComeStiamoAndando({ comeSezione = false }: { comeSezione
       });
     }
 
+    const senzaCosti = margini.quanti - margini.quantiValutabili;
+    if (senzaCosti > 0) {
+      voci.push({
+        id: "costi-da-completare",
+        gravita: "attenzione",
+        titolo: `${senzaCosti} ${senzaCosti === 1 ? "cantiere aperto non ha" : "cantieri aperti non hanno"} costi registrati`,
+        dettaglio: "Il margine resta nascosto finché il consuntivo non è iniziato.",
+        url: "/azienda/ordini?tab=marginalita",
+      });
+    }
+
     const debito = finance.supplierDebt ?? 0;
     const daPagare = todayData?.suppliersDueAmount ?? 0;
     if (daPagare > 0) {
@@ -180,7 +191,7 @@ export default function ComeStiamoAndando({ comeSezione = false }: { comeSezione
     }
 
     return ordinaAttenzioni(voci);
-  }, [todayData, operations, inRitardo, margini.peggiori, companyTargets, finance.supplierDebt, incassi]);
+  }, [todayData, operations, inRitardo, margini.peggiori, margini.quanti, margini.quantiValutabili, companyTargets, finance.supplierDebt, incassi]);
 
   if (error) {
     return (
@@ -248,7 +259,8 @@ export default function ComeStiamoAndando({ comeSezione = false }: { comeSezione
             contesto={
               cantieriError ? "Marginalità non disponibile"
                 : margini.quanti === 0 ? "Nessun cantiere aperto"
-                : <>{formatCurrency(margini.margineEuro)} su {margini.quanti} {margini.quanti === 1 ? "cantiere" : "cantieri"}</>
+                : margini.quantiValutabili === 0 ? "Costi da completare sui cantieri aperti"
+                : <>{formatCurrency(margini.margineEuro)} · {margini.quantiValutabili} di {margini.quanti} cantieri valutabili</>
             }
           />
           <Numero

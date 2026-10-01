@@ -3,8 +3,8 @@
  * commessa. Sul telefono l'attrezzo caricato sul furgone sta dentro la scheda
  * del furgone, la polizza rinnovata non compare, un documento scaduto avvisa e
  * i documenti si aprono con un link vero (su iPhone un'apertura dopo un'attesa
- * viene bloccata); i km non tornano indietro. Nella commessa la card non c'è
- * se l'azienda non ha mezzi, e con un mezzo mostra i giorni e la stima.
+ * viene bloccata); i km non tornano indietro. Nella commessa il parco vuoto
+ * guida al primo inserimento; con un mezzo mostra i giorni e la stima.
  */
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
@@ -115,15 +115,17 @@ describe("Il mio mezzo, dal telefono", () => {
 describe("Mezzi sul cantiere, nella commessa", () => {
   const conRouter = (ui: React.ReactElement) => render(<MemoryRouter>{ui}</MemoryRouter>);
 
-  it("non compare se l'azienda non ha mezzi", () => {
+  it("con parco vuoto indica dove registrare anche le attrezzature a noleggio", () => {
     stato.mezzi = [];
     stato.sulCantiere = [];
-    const { container } = conRouter(<MezziCommessaCard orderId="o1" />);
-    expect(container.textContent).toBe("");
+    conRouter(<MezziCommessaCard orderId="o1" />);
+    expect(screen.getByText(/Il parco mezzi è vuoto/)).toBeVisible();
+    expect(screen.getByRole("link", { name: "Parco mezzi e noleggi" })).toHaveAttribute("href", "/azienda/manodopera?tab=mezzi");
+    expect(screen.getByRole("button", { name: "Assegna mezzo o attrezzo" })).toBeDisabled();
   });
 
   it("mostra il mezzo, i giorni e la stima del costo", () => {
-    stato.mezzi = [{ id: "m1", nome: "Ducato bianco", targa: "GA123BC", stato: "in_servizio", su_mezzo_id: null, assegnato_commessa: null }];
+    stato.mezzi = [{ id: "m1", nome: "Ducato bianco", targa: "GA123BC", stato: "in_servizio", su_mezzo_id: null, assegnato_commessa: null, possesso: "noleggio_lungo" }];
     stato.sulCantiere = [{
       mezzo_id: "m1", nome: "Ducato bianco", targa: "GA123BC", tipo: "furgone", rata_mensile: 450,
       periodi: [{ dal: "2026-09-20T06:00:00Z", al: null }], adesso: true,
@@ -134,6 +136,7 @@ describe("Mezzi sul cantiere, nella commessa", () => {
     };
     conRouter(<MezziCommessaCard orderId="o1" />);
     expect(screen.getByText("Qui adesso")).toBeTruthy();
+    expect(screen.getByText("Noleggio a lungo termine")).toBeVisible();
     // 20-24 settembre: 5 giorni. (1.200 + 450 × 12) / 365 × 5 = 90,41 €.
     expect(screen.getByText(/5 giorni/)).toBeTruthy();
     // 20 settembre è domenica: 21-24 = 4 giorni lavorativi × 2 × 40 km = 320 km.
@@ -148,6 +151,13 @@ describe("Mezzi sul cantiere, nella commessa", () => {
     conRouter(<MezziCommessaCard orderId="o1" />);
     expect(screen.getByText("Qui adesso")).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Togli/ })).toBeNull();
-    expect(screen.queryByRole("button", { name: /Metti un mezzo/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Assegna mezzo o attrezzo/ })).toBeNull();
+  });
+
+  it("non mostra il parco a chi non ha il permesso di consultarlo", () => {
+    stato.permessi = { canViewMezzi: false, canEditMezzi: false, isAdmin: false, solaLettura: false };
+    const { container } = conRouter(<MezziCommessaCard orderId="o1" />);
+    expect(container).toBeEmptyDOMElement();
+    stato.permessi = { canViewMezzi: true, canEditMezzi: true, isAdmin: false, solaLettura: false };
   });
 });

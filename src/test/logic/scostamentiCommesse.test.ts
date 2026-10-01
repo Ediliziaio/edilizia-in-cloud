@@ -205,14 +205,16 @@ describe("summarizeScostamenti", () => {
     const k = summarizeScostamenti([A, B, C, D, E]);
     expect(k.nCommesse).toBe(4); // A,B,C,D
     expect(k.nConCosti).toBe(3); // A,B,C (D ha consuntivo 0)
+    expect(k.nDaCompletare).toBe(1); // D non deve diventare un falso 100%
     expect(k.nInPerdita).toBe(1); // B
     expect(k.nSottoSoglia).toBe(1); // C (10% < 15, non in perdita)
     expect(k.nConErrori).toBe(1); // B (errori 2000 = 9.1% del preventivo)
     expect(k.nConSforamento).toBe(1); // B (consuntivo 22440 > preventivo 22000)
     expect(k.preventivoTotale).toBe(74000);
+    expect(k.preventivoValutabile).toBe(69000);
     expect(k.consuntivoTotale).toBe(56600);
-    expect(k.margineTotale).toBe(17400);
-    expect(k.margineMedioPerc).toBeCloseTo((17400 / 74000) * 100, 6);
+    expect(k.margineTotale).toBe(12400);
+    expect(k.margineMedioPerc).toBeCloseTo((12400 / 69000) * 100, 6);
     expect(k.peggiore?.id).toBe("B");
   });
 
@@ -241,6 +243,20 @@ describe("formatScostamentiForChat", () => {
   it("messaggio dedicato quando non ci sono commesse", () => {
     const msg = formatScostamentiForChat(summarizeScostamenti([]), []);
     expect(msg).toContain("Non ho trovato commesse");
+  });
+
+  it("non comunica un margine fittizio se tutte le commesse sono senza costi", () => {
+    const msg = formatScostamentiForChat(summarizeScostamenti([D]), computeScostamenti([D]));
+    expect(msg).toContain("nessun costo registrato");
+    expect(msg).toContain("non è ancora valutabile");
+    expect(msg).not.toContain("100.0%");
+  });
+
+  it("esclude dalle righe a rischio una commessa senza consuntivo", () => {
+    const msg = formatScostamentiForChat(summarizeScostamenti([A, D]), computeScostamenti([A, D]));
+    expect(msg).toContain("#ORD-2026-024");
+    expect(msg).not.toContain("#ORD-2026-100");
+    expect(msg).toContain("1 commessa esclusa");
   });
 
   it("include KPI, conteggio perdite e top a rischio", () => {

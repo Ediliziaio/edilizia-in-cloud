@@ -848,6 +848,8 @@ function ConfigField({
           value={value ?? field.defaultValue ?? ""}
           onChange={(html) => onChange(html)}
           triggerItemId={triggerItemId}
+          companyId={companyId}
+          variables={(getCatalogItem(triggerItemId ?? "")?.outputVariables ?? []).filter(v => v.id !== "id" && !v.id.endsWith(".id") && !v.id.endsWith("_id") && !v.id.includes("internal_notes")).map(v => ({ key: v.id, label: v.label }))}
         />
       )}
 

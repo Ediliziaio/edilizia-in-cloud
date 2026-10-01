@@ -34,7 +34,7 @@ vi.mock("@/components/orders/AppCantiere", () => ({ AppCantiere: ({ modificabile
 vi.mock("@/components/orders/CreatePurchaseOrderButton", () => ({ CreatePurchaseOrderButton: () => <button>Crea OdA</button> }));
 // Squadre della commessa (26/09): qui conta il blocco delle lavorazioni.
 vi.mock("@/components/manodopera/SquadreCommessa", () => ({
-  SquadreCommessa: () => <div>Squadre della commessa</div>,
+  SquadreCommessa: ({ soloFinestra }: { soloFinestra?: boolean }) => soloFinestra ? null : <div>Squadre della commessa</div>,
   SquadreFase: () => <div>Squadre della fase</div>,
 }));
 vi.mock("@/components/manodopera/NoteCantiere", () => ({
@@ -65,6 +65,41 @@ const chooseEmployee = () => {
 };
 
 describe("Lavorazioni e squadra", () => {
+  it("la vista lavorazioni esclude logistica, note generali e ditte", () => {
+    render(<OrderWorkPhases orderId="order" view="lavorazioni" />);
+    expect(screen.getByRole("button", { name: "Opere murarie" })).toBeInTheDocument();
+    for (const text of ["Il cantiere", "Note della commessa", "Ditte ditte modificabili", "Nell'app capocantiere modificabile", "Squadre della commessa"]) {
+      expect(screen.queryByText(text)).not.toBeInTheDocument();
+    }
+  });
+  it("la vista squadra raccoglie risorse senza ripetere le fasi", () => {
+    render(<OrderWorkPhases orderId="order" view="squadra" />);
+    expect(screen.getByText("Il cantiere")).toBeInTheDocument();
+    expect(screen.getByText("Ditte ditte modificabili")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Opere murarie" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Aggiungi fasi" })).not.toBeInTheDocument();
+  });
+  it("raggruppa le fasi concluse senza perderne l'accesso", () => {
+    render(<OrderWorkPhases orderId="order" view="lavorazioni" />);
+    expect(screen.queryByRole("button", { name: "Collaudo" })).not.toBeInTheDocument();
+    const toggle = screen.getByRole("button", { name: "Mostra 1 fase completata" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(toggle);
+    expect(screen.getByRole("button", { name: "Collaudo" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Nascondi 1 fase completata" }));
+    expect(screen.queryByRole("button", { name: "Collaudo" })).not.toBeInTheDocument();
+  });
+  it("la ricerca trova anche una fase conclusa non espansa", () => {
+    state.phases = setteFasi();
+    render(<OrderWorkPhases orderId="order" view="lavorazioni" />);
+    fireEvent.change(screen.getByLabelText("Cerca lavorazione"), { target: { value: "Collaudo" } });
+    expect(screen.getByRole("button", { name: "Collaudo" })).toBeInTheDocument();
+  });
+  it("non confonde fasi concluse con collaudo concluso", () => {
+    state.phases = [phase({ status: "completata" })];
+    render(<OrderWorkPhases orderId="order" view="lavorazioni" />);
+    expect(screen.getByRole("status")).toHaveTextContent("Verifica eventuali attività aperte e il collaudo prima della consegna");
+  });
   it("il nuovo selettore esterno non offre le squadre di dipendenti", () => {
     HTMLElement.prototype.scrollIntoView = vi.fn(); draw();
     fireEvent.click(screen.getAllByRole("button", { name: "Persona o ditta" })[0]);
@@ -149,7 +184,7 @@ describe("Lavorazioni e squadra", () => {
     expect(state.add).not.toHaveBeenCalled();
   });
   it("conserva creazione manuale e modelli senza salvataggi all'apertura", () => {
-    draw(); fireEvent.click(screen.getByRole("button", { name: "Fasi di lavoro" }));
+    draw(); fireEvent.click(screen.getByRole("button", { name: "Aggiungi fasi" }));
     fireEvent.click(screen.getByRole("button", { name: "Intervento semplice" }));
     expect(screen.getByRole("button", { name: "Aggiungi le 2 fasi" })).toBeInTheDocument();
     expect(state.applyTemplate).not.toHaveBeenCalled();

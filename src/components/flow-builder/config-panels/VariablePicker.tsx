@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Variable, Zap, Sparkles } from "lucide-react";
 import { TRIGGER_MAP } from "@/lib/flow-node-catalog";
+import { buildVariableCategories } from "./emailVariableCatalog";
+import { emailCustomFieldKey } from "../../../../supabase/functions/_shared/automationEmail";
 
 interface VarEntry {
   key: string;
@@ -54,21 +56,24 @@ interface VariablePickerProps {
   triggerItemId?: string;
   /** Azienda corrente: abilita il gruppo "Campi personalizzati" del contatto. */
   companyId?: string;
+  purpose?: "email" | "recipient";
+  extraVariables?: VarEntry[];
+  allowCustomFields?: boolean;
 }
 
-export function VariablePicker({ onInsert, triggerItemId, companyId }: VariablePickerProps) {
+export function VariablePicker({ onInsert, triggerItemId, companyId, purpose, extraVariables = [], allowCustomFields = true }: VariablePickerProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
 
-  // Campi personalizzati contatto dell'azienda → {{contact.<snake_case>}}
+  // Email: identificatori stabili; gli altri pannelli mantengono gli alias legacy.
   const { data: customFields = [] } = useQuery({
     queryKey: ["variable-picker-custom-fields", companyId],
-    enabled: open && !!companyId,
+    enabled: open && !!companyId && allowCustomFields,
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("marketing_custom_fields")
-        .select("id, name")
+        .select("id, name, field_type")
         .eq("company_id", companyId!)
         .eq("object_type", "contact")
         .is("deleted_at", null)
@@ -79,6 +84,11 @@ export function VariablePicker({ onInsert, triggerItemId, companyId }: VariableP
   });
 
   const groups = useMemo<VarGroup[]>(() => {
+    if (purpose) {
+      const availableCustom = allowCustomFields ? customFields.filter((f: { field_type?: string }) => purpose !== "recipient" || f.field_type === "email") : [];
+      const categories = buildVariableCategories([...extraVariables, ...availableCustom.map((f: { id: string; name: string }) => ({ key: emailCustomFieldKey(f.id), label: f.name }))], triggerItemId);
+      return categories.map(c => ({ label: c.label, vars: c.variables.filter(v => purpose !== "recipient" || /(?:^|\.)(?:email|client_email)$/.test(v.key) || v.key.startsWith("contact.custom_")) })).filter(g => g.vars.length > 0);
+    }
     const out: VarGroup[] = [];
     // Le variabili del TRIGGER sono le più utili (si risolvono sempre dal
     // payload dell'evento) → in cima, senza dover scrollare.
@@ -91,7 +101,7 @@ export function VariablePicker({ onInsert, triggerItemId, companyId }: VariableP
       });
     }
     out.push({ label: "Contatto", vars: CONTACT_VARIABLES });
-    if (customFields.length > 0) {
+    if (allowCustomFields && customFields.length > 0) {
       out.push({
         label: "Campi personalizzati",
         icon: "custom",
@@ -103,7 +113,7 @@ export function VariablePicker({ onInsert, triggerItemId, companyId }: VariableP
     }
     out.push({ label: "Altro", vars: OTHER_VARIABLES });
     return out;
-  }, [triggerItemId, customFields]);
+  }, [triggerItemId, customFields, purpose, extraVariables, allowCustomFields]);
 
   const q = search.trim().toLowerCase();
   const filtered = groups
@@ -118,7 +128,7 @@ export function VariablePicker({ onInsert, triggerItemId, companyId }: VariableP
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-6 w-6" title="Inserisci variabile">
+        <Button type="button" variant="ghost" size="icon" className="h-6 w-6" title="Inserisci variabile" aria-label="Inserisci variabile">
           <Variable className="h-3.5 w-3.5" />
         </Button>
       </PopoverTrigger>
@@ -143,6 +153,8 @@ export function VariablePicker({ onInsert, triggerItemId, companyId }: VariableP
               {g.vars.map((v) => (
                 <button
                   key={v.key}
+                  type="button"
+                  aria-label={`${v.label} {{${v.key}}}`}
                   onClick={() => { onInsert(`{{${v.key}}}`); setOpen(false); }}
                   className="flex w-full items-center justify-between gap-2 rounded px-2 py-1.5 text-xs hover:bg-accent transition-colors"
                 >

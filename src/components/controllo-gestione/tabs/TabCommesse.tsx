@@ -23,7 +23,7 @@ import { EmptyState } from "@/components/controllo-gestione/ui/EmptyState";
 import {
   useMarginalitaCommesse, type Semaforo, type CommessaRiga,
 } from "@/hooks/controlloGestione/useMarginalitaCommesse";
-import { useMarginData } from "@/hooks/useMarginData";
+import { useCompanyStructure } from "@/hooks/controlloGestione/useCompanyStructure";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency, formatCurrencyCompact, formatDate } from "@/lib/formatters";
@@ -74,45 +74,9 @@ export function TabCommesse({ anno }: Props) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
-  // Costi fissi mensili dalla STESSA fonte di Costi e Punto di Pareggio
-  // (useMarginData). Per la quota struttura serve però la struttura
-  // NON-manodopera: la manodopera imputata alle commesse sta GIÀ nei
-  // consuntivi di questa tabella, contarla anche nella quota la
-  // raddoppierebbe. Manodopera = chi ha ore imputate (order_employees);
-  // il resto del personale (ufficio) è struttura.
-  const margin = useMarginData();
-
-  const strutturaQuery = useQuery({
-    queryKey: ["cg", "struttura-non-manodopera", companyId],
-    enabled: !!companyId,
-    staleTime: 5 * 60 * 1000,
-    queryFn: async () => {
-      const [operativiRes, attiviRes] = await Promise.all([
-        (supabase as any)
-          .from("order_employees")
-          .select("employee_id, orders!inner(company_id)")
-          .eq("orders.company_id", companyId!)
-          .limit(2000),
-        supabase
-          .from("employees")
-          .select("id, gross_salary, inps_rate")
-          .eq("company_id", companyId!)
-          .eq("is_active", true),
-      ]);
-      if (operativiRes.error) throw operativiRes.error;
-      if (attiviRes.error) throw attiviRes.error;
-      const operativi = new Set(
-        ((operativiRes.data ?? []) as Array<{ employee_id: string }>).map((r) => r.employee_id),
-      );
-      let stipendiUfficio = 0;
-      for (const e of attiviRes.data ?? []) {
-        if (operativi.has(e.id)) continue;
-        const lordo = Number(e.gross_salary) || 0;
-        stipendiUfficio += lordo * (1 + (Number(e.inps_rate) || 28) / 100);
-      }
-      return { stipendiUfficio, nOperativi: operativi.size };
-    },
-  });
+  // Formula condivisa con il dettaglio commessa. I costi legati a un ordine e
+  // gli operai già imputati restano costi diretti: qui entra solo la struttura.
+  const structure = useCompanyStructure();
 
   // Consegna promessa per commessa: la RPC non la espone, la leggiamo a parte
   // (una query leggera) per calcolare il costo del ritardo. La data-ancora
@@ -142,17 +106,9 @@ export function TabCommesse({ anno }: Props) {
   // struttura NON-manodopera ÷ cantieri paralleli): fissi aziendali senza
   // gli stipendi, più i soli stipendi di chi NON viene imputato ai cantieri.
   // Null (mai zero finto) finché mancano i fissi.
-  const strutturaNonManodopera = useMemo(() => {
-    if (strutturaQuery.data === undefined) return null;
-    const fissiNonPersonale = margin.totalFixedCostsMonthly - margin.salariesMonthly;
-    return fissiNonPersonale + strutturaQuery.data.stipendiUfficio;
-  }, [margin.totalFixedCostsMonthly, margin.salariesMonthly, strutturaQuery.data]);
-
-  const quotaStruttura = useMemo(() => {
-    const attivi = q.data?.kpi.n_in_corso ?? 0;
-    if (strutturaNonManodopera === null || strutturaNonManodopera <= 0 || attivi <= 0) return null;
-    return strutturaNonManodopera / attivi;
-  }, [strutturaNonManodopera, q.data?.kpi.n_in_corso]);
+  const strutturaNonManodopera = structure.data?.monthlyStructure ?? null;
+  const quotaStruttura = structure.data?.monthlyPerActiveOrder ?? null;
+  const cantieriAttiviStruttura = structure.data?.activeOrders ?? 0;
 
   const counts = useMemo(() => {
     if (!q.data) return null;
@@ -230,25 +186,25 @@ export function TabCommesse({ anno }: Props) {
         />
         <KPIMini
           label="Margine atteso fine"
-          value={formatCurrency(kpi.margine_atteso_totale)}
+          value={kpi.preventivo_valutabile > 0 ? formatCurrency(kpi.margine_atteso_totale) : "—"}
           sub={
-            kpi.preventivo_totale > 0
-              ? `${((kpi.margine_atteso_totale / kpi.preventivo_totale) * 100).toFixed(1)}% sul preventivo`
-              : "—"
+            kpi.preventivo_valutabile > 0
+              ? `${((kpi.margine_atteso_totale / kpi.preventivo_valutabile) * 100).toFixed(1)}% sui dati valutabili`
+              : "Costi da completare"
           }
-          tone={kpi.margine_atteso_totale > 0 ? "green" : "red"}
+          tone={kpi.preventivo_valutabile <= 0 ? "amber" : kpi.margine_atteso_totale > 0 ? "green" : "red"}
         />
         <KPIMini
-          label="Commesse in perdita"
-          value={String(kpi.n_in_perdita)}
-          sub={kpi.n_in_perdita > 0 ? "Richiede attenzione" : "Tutte ok"}
-          tone={kpi.n_in_perdita > 0 ? "red" : "green"}
+          label={kpi.n_da_completare > 0 ? "Dati da completare" : "Commesse in perdita"}
+          value={String(kpi.n_da_completare > 0 ? kpi.n_da_completare : kpi.n_in_perdita)}
+          sub={kpi.n_da_completare > 0 ? "Margine non ancora valutabile" : kpi.n_in_perdita > 0 ? "Richiede attenzione" : "Tutte ok"}
+          tone={kpi.n_da_completare > 0 ? "amber" : kpi.n_in_perdita > 0 ? "red" : "green"}
         />
         {isMobile ? null : quotaStruttura !== null ? (
           <KPIMini
             label="Quota struttura"
             value={`${formatCurrency(quotaStruttura)}/mese`}
-            sub={`${formatCurrency(strutturaNonManodopera ?? 0)} struttura (senza manodopera) ÷ ${kpi.n_in_corso} in corso`}
+            sub={`${formatCurrency(strutturaNonManodopera ?? 0)} struttura ÷ ${cantieriAttiviStruttura} cantieri attivi`}
             tone="blue"
           />
         ) : (
@@ -257,7 +213,9 @@ export function TabCommesse({ anno }: Props) {
               <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Quota struttura</p>
               <p className="mt-0.5 text-lg font-bold text-muted-foreground">—</p>
               <p className="text-[11px] text-muted-foreground">
-                {kpi.n_in_corso <= 0 ? (
+                {structure.isError ? (
+                  "Dati struttura non disponibili"
+                ) : cantieriAttiviStruttura <= 0 ? (
                   "Nessun cantiere in corso"
                 ) : (
                   <Link to="/azienda/costi" className="font-medium text-primary hover:underline">
@@ -367,7 +325,7 @@ export function TabCommesse({ anno }: Props) {
                     { header: "Manodopera €", key: "costo_manodopera", width: 14, type: "number" },
                     { header: "Ore manodopera", key: "ore_manodopera", width: 14, type: "number" },
                     { header: "Incid. manodopera %", key: "incid_mo", width: 16 },
-                    { header: "Margine ora", key: "margine", width: 14, type: "number" },
+                    { header: "Margine diretto ora", key: "margine_export", width: 16, type: "number" },
                     { header: "Costo atteso", key: "costo_atteso", width: 14, type: "number" },
                     { header: "Margine fine", key: "margine_atteso", width: 14, type: "number" },
                     { header: "Margine fine %", key: "margine_atteso_perc", width: 12 },
@@ -385,6 +343,7 @@ export function TabCommesse({ anno }: Props) {
                     );
                     return {
                       ...r,
+                      margine_export: r.dati_economici_completi ? r.margine : null,
                       pct_disp: `${(r.pct_avanzamento * 100).toFixed(0)}%`,
                       incid_mo: r.consuntivo > 0
                         ? `${((r.costo_manodopera / r.consuntivo) * 100).toFixed(0)}%`
@@ -421,7 +380,7 @@ export function TabCommesse({ anno }: Props) {
                     <th className="min-w-[130px] px-3 py-2 text-right text-xs font-medium text-muted-foreground">Manodopera</th>
                     <th className="min-w-[120px] px-3 py-2 text-left text-xs font-medium text-muted-foreground">Avanz.</th>
                     <th className="min-w-[130px] px-3 py-2 text-right text-xs font-medium text-muted-foreground">Tempo</th>
-                    <th className="min-w-[120px] px-3 py-2 text-right text-xs font-medium text-muted-foreground">Margine ora</th>
+                    <th className="min-w-[140px] px-3 py-2 text-right text-xs font-medium text-muted-foreground">Margine diretto ora</th>
                     <th className="min-w-[140px] px-3 py-2 text-right text-xs font-medium text-muted-foreground">Margine fine prev.</th>
                   </tr>
                 </thead>
@@ -498,11 +457,15 @@ export function TabCommesse({ anno }: Props) {
                           r.margine > 0 && "text-emerald-700",
                         )}
                       >
-                        {formatCurrency(r.margine)}
-                        {r.margine_perc !== 0 && (
-                          <span className="ml-1 text-[10px] text-muted-foreground">
-                            ({r.margine_perc.toFixed(1)}%)
-                          </span>
+                        {r.dati_economici_completi ? (
+                          <>
+                            {formatCurrency(r.margine)}
+                            <span className="ml-1 text-[10px] text-muted-foreground">
+                              ({r.margine_perc.toFixed(1)}%)
+                            </span>
+                          </>
+                        ) : (
+                          <span className="text-xs font-medium text-amber-700">Costi da completare</span>
                         )}
                       </td>
                       <td

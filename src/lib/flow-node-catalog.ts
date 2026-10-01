@@ -2,6 +2,7 @@
 // Catalogo completo di tutti i trigger, azioni e condizioni disponibili nel flow builder.
 // Self-contained — no dependency on automationBuilder.ts
 // OUTPUT VARIABLES ALIGNED TO REAL DB COLUMN NAMES
+import { emailContentEmpty, normalizeAutomationEmailConfig } from "../../supabase/functions/_shared/automationEmail";
 
 // ─── Tipi base ──────────────────────────────────────────────────────────────
 
@@ -255,7 +256,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
       { id: 'contatto.full_name', label: 'Nome completo', type: 'string' },
     ],
     configSchema: [
-      { id: 'date_field', label: 'Campo data (colonna DB)', type: 'text', required: true, placeholder: 'es. created_at, date_of_birth' },
+      { id: 'date_field', label: 'Campo data', type: 'select', required: true, options: [{ value: 'created_at', label: 'Data creazione contatto' }, { value: 'date_of_birth', label: 'Data di nascita' }], helpText: 'Per il compleanno ogni anno usa il trigger Compleanno contatto.' },
       { id: 'days_offset', label: 'Offset giorni', type: 'number', required: false, defaultValue: 0, helpText: 'Positivo = N giorni dopo la data; negativo = prima' },
     ],
   },
@@ -2461,10 +2462,11 @@ export function campiObbligatoriMancanti(
  */
 export function emailSenzaOggettoOTesto(itemId: string, data: Record<string, unknown> | undefined): boolean {
   if (!itemId.includes("email")) return false;
-  if (itemId === "invia_email" && !vuotoCampo(data?.modello_id)) return false;
+  const email = normalizeAutomationEmailConfig(data);
+  if (["invia_email", "send_email"].includes(itemId) && !vuotoCampo(email.template_id)) return false;
   const pieno = (v: unknown) => !vuotoCampo(v);
-  const oggetto = pieno(data?.oggetto) || pieno(data?.email_subject) || pieno(data?.subject);
-  const testo = pieno(data?.corpo) || pieno(data?.email_body) || pieno(data?.body) || pieno(data?.html);
+  const oggetto = pieno(email.email_subject);
+  const testo = !emailContentEmpty(email.email_body);
   return !oggetto || !testo;
 }
 

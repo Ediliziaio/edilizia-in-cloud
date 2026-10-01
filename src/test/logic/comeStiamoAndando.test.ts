@@ -21,6 +21,7 @@ function cantiere(p: Partial<CantiereMargine>): CantiereMargine {
   return {
     id: "1", order_code: null, description: null, cliente_nome: null,
     margine: null, margine_perc: null, preventivo_totale: null,
+    consuntivo: null,
     work_start_date: null, work_end_date: null,
     ...p,
   };
@@ -66,8 +67,8 @@ describe("eInRitardo", () => {
 
 describe("margineCantieriAperti", () => {
   const cantieri = [
-    cantiere({ id: "a", work_start_date: "2026-09-01", work_end_date: "2026-09-30", margine: 20_000, preventivo_totale: 200_000, margine_perc: 10 }),
-    cantiere({ id: "b", work_start_date: "2026-09-01", work_end_date: null, margine: 800, preventivo_totale: 2_000, margine_perc: 40 }),
+    cantiere({ id: "a", work_start_date: "2026-09-01", work_end_date: "2026-09-30", margine: 20_000, preventivo_totale: 200_000, consuntivo: 180_000, margine_perc: 10 }),
+    cantiere({ id: "b", work_start_date: "2026-09-01", work_end_date: null, margine: 800, preventivo_totale: 2_000, consuntivo: 1_200, margine_perc: 40 }),
     // chiuso: non deve entrare
     cantiere({ id: "c", work_start_date: "2026-01-01", work_end_date: "2026-02-01", margine: 999_999, preventivo_totale: 1, margine_perc: 99 }),
   ];
@@ -75,6 +76,7 @@ describe("margineCantieriAperti", () => {
   it("conta solo gli aperti", () => {
     const m = margineCantieriAperti(cantieri, OGGI);
     expect(m.quanti).toBe(2);
+    expect(m.quantiValutabili).toBe(2);
     expect(m.margineEuro).toBe(20_800);
     expect(m.valoreEuro).toBe(202_000);
   });
@@ -94,9 +96,24 @@ describe("margineCantieriAperti", () => {
     expect(m.marginePerc).toBeNull();
   });
 
+  it("non trasforma un cantiere senza costi in un falso margine del 100%", () => {
+    const m = margineCantieriAperti([
+      cantiere({
+        id: "x",
+        work_start_date: "2026-09-01",
+        preventivo_totale: 50_000,
+        consuntivo: 0,
+        margine: 50_000,
+        margine_perc: 100,
+      }),
+    ], OGGI);
+    expect(m).toMatchObject({ quanti: 1, quantiValutabili: 0, margineEuro: 0, valoreEuro: 0, marginePerc: null });
+    expect(m.peggiori).toEqual([]);
+  });
+
   it("nessun cantiere aperto: tutto a zero e percentuale nulla", () => {
     const m = margineCantieriAperti([], OGGI);
-    expect(m).toMatchObject({ quanti: 0, margineEuro: 0, valoreEuro: 0, marginePerc: null });
+    expect(m).toMatchObject({ quanti: 0, quantiValutabili: 0, margineEuro: 0, valoreEuro: 0, marginePerc: null });
     expect(m.peggiori).toEqual([]);
   });
 

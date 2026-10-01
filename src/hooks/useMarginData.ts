@@ -21,7 +21,7 @@ export interface OrderMargin {
   totalAmount: number; // imponibile (preventivo + variazioni approvate)
   vatRate: number;
   grossRevenue: number; // lordo con IVA (indicativo)
-  itemsCostNet: number; // acquisti ODA + errori + costi diretti di commessa
+  itemsCostNet: number; // acquisti ODA + materiali da scorta + errori + costi diretti
   teamsCostNet: number; // manodopera interna + squadre esterne
   commissions: number;
   totalVariableCosts: number; // = consuntivo della vista
@@ -66,6 +66,7 @@ interface MarginViewRow {
   preventivo_totale: number | null;
   consuntivo: number | null;
   costo_acquisti: number | null;
+  costo_materiali_magazzino: number | null;
   costo_errori: number | null;
   costo_manodopera: number | null;
   costo_provvigioni: number | null;
@@ -86,7 +87,7 @@ export function useMarginData(): MarginData {
       cutoff.setMonth(cutoff.getMonth() - 24);
       const { data, error } = await (supabase as any)
         .from("v_ordine_marginalita")
-        .select("id, order_code, description, cliente_nome, created_at, preventivo_totale, consuntivo, costo_acquisti, costo_errori, costo_manodopera, costo_provvigioni, costo_diretto, margine, margine_perc")
+        .select("id, order_code, description, cliente_nome, created_at, preventivo_totale, consuntivo, costo_acquisti, costo_materiali_magazzino, costo_errori, costo_manodopera, costo_provvigioni, costo_diretto, margine, margine_perc")
         .eq("company_id", companyId!)
         .gte("created_at", cutoff.toISOString())
         .order("created_at", { ascending: false })
@@ -106,7 +107,10 @@ export function useMarginData(): MarginData {
         .from("company_costs")
         .select("amount, category, recurrence")
         .eq("company_id", companyId!)
-        .eq("cost_type", "fixed");
+        .eq("cost_type", "fixed")
+        // Un costo con order_id è già nel consuntivo diretto della commessa:
+        // ripeterlo nel break-even/struttura lo conterebbe due volte.
+        .is("order_id", null);
       if (error) throw error;
       return data;
     },
@@ -138,7 +142,10 @@ export function useMarginData(): MarginData {
   const orders: OrderMargin[] = (ordersRaw || []).map((v) => {
     const totalAmount = Number(v.preventivo_totale) || 0;
     const itemsCostNet =
-      (Number(v.costo_acquisti) || 0) + (Number(v.costo_errori) || 0) + (Number(v.costo_diretto) || 0);
+      (Number(v.costo_acquisti) || 0)
+      + (Number(v.costo_materiali_magazzino) || 0)
+      + (Number(v.costo_errori) || 0)
+      + (Number(v.costo_diretto) || 0);
     const teamsCostNet = Number(v.costo_manodopera) || 0;
     const commissions = Number(v.costo_provvigioni) || 0;
     const totalVariableCosts = Number(v.consuntivo) || 0;

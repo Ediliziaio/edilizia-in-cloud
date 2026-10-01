@@ -9,6 +9,7 @@ import { Popover, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Check, ChevronLeft, ChevronsUpDown, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { cn } from "@/lib/utils";
 import { STATUS_OPTIONS } from "@/types/opportunities";
 import {
@@ -158,7 +159,7 @@ function ValoreDaElenco({
 }) {
   const [aperto, setAperto] = useState(false);
   const { data: voci = [], isLoading, isError } = useQuery({
-    queryKey: ["marketing-valori-filtro", companyId, elenco],
+    queryKey: queryKeys.marketingContacts.filterValues(companyId, elenco),
     queryFn: async (): Promise<VoceElenco[]> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any).rpc("marketing_valori_filtro_contatti", {

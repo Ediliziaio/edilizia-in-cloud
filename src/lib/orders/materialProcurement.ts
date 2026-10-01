@@ -26,6 +26,12 @@ export interface ProcurementCoverage {
 const roundQty = (value: number) => Math.round(value * 1_000_000) / 1_000_000;
 const positive = (value: unknown) => Number.isFinite(Number(value)) && Number(value) > 0;
 
+/** A draft or cancelled purchase is not a supplier commitment. Shared with
+ * the phase board, so its badge follows the same rules as procurement. */
+export function issuedPurchaseOrderNumber(order: { oda_number: string; status: string } | null | undefined): string | null {
+  return order && (ODA_STATI_EMESSI as string[]).includes(order.status) ? order.oda_number : null;
+}
+
 export function planMaterial(item: ProcurementItem, rows: ProcurementCoverage[]) {
   const active = rows.filter(r => r.order_item_id === item.id && r.purchase_orders.status !== "annullato");
   const drafted = roundQty(active.filter(r => r.purchase_orders.status === "bozza").reduce((n, r) => n + Number(r.quantity), 0));

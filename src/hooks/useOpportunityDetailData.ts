@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { queryKeys } from "@/lib/queryKeys";
 import { usePermissions } from "@/hooks/usePermissions";
+import { refreshCrmContacts } from "@/lib/refreshCrmContacts";
 
 function getErrorMessage(error: unknown) {
   if (error && typeof error === "object" && "message" in error) {
@@ -107,16 +108,14 @@ export function useUpdateContact() {
         .eq("company_id", companyId);
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.marketingContacts.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
-    },
+    onSuccess: (_, { id }) => refreshCrmContacts(queryClient, companyId, id),
     onError: (e: unknown) => toast.error(getErrorMessage(e)),
   });
 }
 
 export function useUpsertContactFieldValues() {
   const queryClient = useQueryClient();
+  const { effectiveCompany } = useAuth();
 
   return useMutation({
     mutationFn: async (values: { contact_id: string; field_id: string; value: string | null }[]) => {
@@ -158,10 +157,7 @@ export function useUpsertContactFieldValues() {
         if (result.error) throw result.error;
       }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.marketingContacts.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.customFields.all });
-    },
+    onSuccess: (_, values) => refreshCrmContacts(queryClient, effectiveCompany?.id, values[0]?.contact_id),
     onError: (e: unknown) => toast.error(getErrorMessage(e)),
   });
 }

@@ -1,9 +1,10 @@
 /**
  * emailVariableCatalog — costruisce le variabili email RAGGRUPPATE PER CATEGORIA
- * (stile GHL), aggregando le outputVariables REALI di tutti i trigger del
- * catalogo (nomi veri di DB) + eventuali campi personalizzati.
+ * mostrando solo i campi supportati del trigger selezionato, i campi base
+ * e gli eventuali campi personalizzati. Non propone dati di eventi estranei.
  */
-import { TRIGGER_CATALOG } from "@/lib/flow-node-catalog";
+import { TRIGGER_MAP } from "@/lib/flow-node-catalog";
+import { EMAIL_BASE_VARIABLES, emailVariableSupported } from "../../../../supabase/functions/_shared/automationEmail";
 
 /**
  * Genera la chiave snake_case del campo personalizzato per il merge-tag.
@@ -29,6 +30,7 @@ export interface PickerCategory {
 const CATEGORY_LABELS: Record<string, string> = {
   _generale: "Generale",
   contatto: "Contatto",
+  contact: "Campi personalizzati del contatto",
   azienda: "Azienda",
   opportunita: "Opportunità",
   appuntamento: "Appuntamento",
@@ -70,7 +72,7 @@ function prefixOf(key: string): string {
  * @param customFields variabili extra (es. campi personalizzati) da fondere nelle
  *        categorie giuste in base al prefisso della chiave.
  */
-export function buildVariableCategories(customFields: PickerVariable[] = []): PickerCategory[] {
+export function buildVariableCategories(customFields: PickerVariable[] = [], triggerItemId?: string): PickerCategory[] {
   const byCat = new Map<string, Map<string, PickerVariable>>();
   const add = (key: string, label: string) => {
     const cat = prefixOf(key);
@@ -79,8 +81,12 @@ export function buildVariableCategories(customFields: PickerVariable[] = []): Pi
     if (!m.has(key)) m.set(key, { key, label });
   };
 
-  for (const trig of TRIGGER_CATALOG) {
-    for (const v of trig.outputVariables ?? []) add(v.id, v.label);
+  // Never offer all fields from unrelated triggers, technical IDs or internal notes.
+  const triggerVariables = (triggerItemId ? TRIGGER_MAP[triggerItemId]?.outputVariables : []) ?? [];
+  const suCommessa = triggerVariables.some(v => v.id.startsWith("ordine.") || v.id.startsWith("cantiere."));
+  for (const v of EMAIL_BASE_VARIABLES) if (!suCommessa || v.key !== "unsubscribe_url") add(v.key, v.label);
+  for (const v of triggerVariables) {
+    if (emailVariableSupported(v.id)) add(v.id, v.label);
   }
   for (const cf of customFields) add(cf.key, cf.label);
 

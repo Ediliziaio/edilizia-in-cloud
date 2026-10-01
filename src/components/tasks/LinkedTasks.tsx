@@ -29,7 +29,18 @@ interface LinkedTasksProps {
 // Il passo che deve chiudersi prima (flusso di lavoro commessa): serve il
 // titolo, altrimenti "In attesa" non dice di CHI si sta aspettando.
 const SELECT_TASK =
-  "*, assigned:profiles!tasks_assigned_to_fkey(first_name, last_name), bloccata_da:tasks!tasks_bloccata_da_task_id_fkey(title), ufficio:company_uffici!tasks_ufficio_id_fkey(nome)";
+  "*, assigned:profiles!tasks_assigned_to_fkey(first_name, last_name), ufficio:company_uffici!tasks_ufficio_id_fkey(nome)";
+
+// PostgREST non espone sempre l'auto-relazione tasks -> tasks nella cache.
+// Carichiamo i predecessori in un'unica query, sempre nell'azienda corrente.
+async function withDependencies<T extends { bloccata_da_task_id?: string | null }>(tasks: T[], companyId: string) {
+  const ids = [...new Set(tasks.map(task => task.bloccata_da_task_id).filter((id): id is string => !!id))];
+  if (!ids.length) return tasks.map(task => ({ ...task, bloccata_da: null }));
+  const { data, error } = await supabase.from('tasks').select('id,title').eq('company_id', companyId).in('id', ids);
+  if (error) throw error;
+  const byId = new Map((data ?? []).map(task => [task.id, task]));
+  return tasks.map(task => ({ ...task, bloccata_da: byId.get(task.bloccata_da_task_id ?? '') ?? null }));
+}
 
 const PRIORITY_COLORS: Record<string, string> = {
   bassa: "bg-muted text-muted-foreground",
@@ -48,7 +59,7 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
 
   const filterKey = orderId ? `order-${orderId}` : stockItemId ? `stock-${stockItemId}` : costId ? `cost-${costId}` : contactId ? `contact-${contactId}` : opportunityId ? `opp-${opportunityId}` : ticketId ? `ticket-${ticketId}` : "none";
 
-  const { data: tasks = [] } = useQuery({
+  const { data: tasks = [], isLoading, isError, error, refetch } = useQuery({
     queryKey: queryKeys.tasks.linked(filterKey),
     queryFn: async () => {
       if (!companyId) return [];
@@ -84,7 +95,7 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
         // Merge and deduplicate
         const allTasks = [...(contactRes.data || []), ...oppTasks];
         const seen = new Set<string>();
-        return allTasks.filter((t) => { if (seen.has(t.id)) return false; seen.add(t.id); return true; });
+        return withDependencies(allTasks.filter((t) => { if (seen.has(t.id)) return false; seen.add(t.id); return true; }), companyId);
       }
 
       if (opportunityId) {
@@ -118,7 +129,7 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
         }
         const allTasks = [...(oppRes.data || []), ...contactTasks];
         const seen = new Set<string>();
-        return allTasks.filter((t) => { if (seen.has(t.id)) return false; seen.add(t.id); return true; });
+        return withDependencies(allTasks.filter((t) => { if (seen.has(t.id)) return false; seen.add(t.id); return true; }), companyId);
       }
 
       let query = supabase
@@ -135,7 +146,7 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
 
       const { data, error } = await query;
       if (error) throw error;
-      return data || [];
+      return withDependencies(data || [], companyId);
     },
     enabled: !!companyId && !!(orderId || stockItemId || costId || contactId || opportunityId || ticketId),
   });
@@ -216,7 +227,15 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
   }), [orderId, stockItemId, costId, contactId, opportunityId, ticketId, category]);
 
   const taskList = (
-    tasks.length === 0 ? (
+    isLoading ? (
+      <p role="status" className="py-3 text-sm text-muted-foreground">Caricamento attività…</p>
+    ) : isError ? (
+      <div role="alert" className="space-y-2 rounded-lg border border-destructive/20 p-3 text-sm">
+        <p>Non riesco a caricare le attività. Non significa che siano assenti.</p>
+        <details className="text-xs text-muted-foreground"><summary>Dettagli tecnici</summary>{error?.message}</details>
+        <Button size="sm" variant="outline" onClick={() => refetch()}>Riprova</Button>
+      </div>
+    ) : tasks.length === 0 ? (
       <p className={`text-muted-foreground text-center ${embedded ? "text-[11px] py-2" : "text-sm py-3"}`}>
         Nessuna attività collegata
       </p>
@@ -318,17 +337,17 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
         </div>
       ) : (
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+          <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2">
             <CardTitle className="text-base flex items-center gap-2 min-w-0">
               <CheckSquare className="h-4 w-4 shrink-0" />
-              <span className="truncate">Attività</span>
+              <span>Attività</span>
               {activeTasks.length > 0 && (
                 <Badge variant="secondary" className="ml-1 text-xs shrink-0">{activeTasks.length}</Badge>
               )}
             </CardTitle>
-            <Button variant="ghost" size="sm" onClick={handleAddTask} className="shrink-0">
+            <Button variant="outline" size="sm" onClick={handleAddTask} className="min-h-11 shrink-0 border-slate-300 font-semibold text-blue-950">
               <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline ml-1">Aggiungi</span>
+              <span className="ml-1">Aggiungi</span>
             </Button>
           </CardHeader>
           <CardContent className="pt-0">{taskList}</CardContent>

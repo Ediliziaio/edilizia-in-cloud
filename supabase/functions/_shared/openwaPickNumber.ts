@@ -113,13 +113,13 @@ export function totalRemainingOpenWa(numbers: OpenWaNumberState[], today: string
  * throttle: se passato, i numeri che hanno inviato troppo di recente sono esclusi.
  * Ritorna null se nessun numero è idoneo/ha capacità.
  */
-export function pickOpenWaNumber(
-  numbers: OpenWaNumberState[],
+export function pickOpenWaNumber<T extends OpenWaNumberState>(
+  numbers: T[],
   contactTags: string[],
   today: string,
   nowMs?: number,
   weekKey?: string,
-): OpenWaNumberState | null {
+): T | null {
   // Residuo effettivo = min(residuo giornaliero, residuo settimanale se attivo).
   const effRemaining = (n: OpenWaNumberState): number => {
     const daily = remainingTodayOpenWa(n, today);

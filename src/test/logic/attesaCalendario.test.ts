@@ -107,8 +107,7 @@ describe("il motore usa le regole del calendario", () => {
   });
 
   it("le condizioni leggono «calendario.*» come oggi a Roma", () => {
-    expect(motore).toContain('} else if (prefix === "calendario") {');
-    expect(motore).toContain("row = calendarioDelGiorno(romeGiorno(new Date()));");
+    expect(motore).toContain('prefix === "calendario" ? calendarioDelGiorno(romeGiorno(new Date()))');
   });
 
   it("dopo un salto di giorni l'orario scelto resta quello, anche col cambio dell'ora legale", () => {

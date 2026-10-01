@@ -84,7 +84,7 @@ describe("il motore usa numero scelto, fasce e risposte su WhatsApp", () => {
   });
 
   it("chi risponde su WhatsApp esce dalla sequenza", () => {
-    expect(motore).toMatch(/from\("openwa_messages"\)\s*\.select\("id"\)\.eq\("contact_id", item\.entity_id\)\.eq\("direction", "inbound"\)/);
+    expect(motore).toMatch(/from\("openwa_messages"\)\s*\.select\("id"\)\.eq\("contact_id", contactId\)\.eq\("direction", "inbound"\)/);
   });
 });
 

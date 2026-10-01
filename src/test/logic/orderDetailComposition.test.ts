@@ -39,10 +39,10 @@ describe("contratto di composizione del dettaglio commessa", () => {
   });
 
   it.each([
-    ["panoramica", ["OrdineCliente", "OrderSurveysCard", "MezziCommessaCard", "OrderActivityFeed", "OrderAssistenzaTab", "OrderAttachments", "OrdineNote", "OrderCommunicationsCard", "ContrattoAIDialog", "AllocazioneOperaiAIDialog"]],
-    ["cantiere", ["OrderWorkPhases", "OrdineTempistiche", "LinkedAppointments", "LinkedTasks", "OrdineRapportiniCampo", "OrdineFotoCantiere", "WhatsAppActivityFeed", "OrdineSAL", "TimelineCantiere"]],
-    ["articoli", ["OrderMeasureControl", "OrdineArticoli", "OrderUsciteCard", "LinkedPurchaseOrdersCard", "OrderSerialsTrackingCard"]],
-    ["finanza", ["OrderEconomicsSummary", "OrdineEconomico", "EsposizioneCommessa", "RitenuteTab", "OrdineVariazione", "SupplierPaymentsCard", "OrderErrors"]],
+    ["panoramica", ["OrdineCliente", "OrderSurveysCard", "OrderActivityFeed", "OrderAssistenzaTab", "OrderAttachments", "OrdineNote", "OrderCommunicationsCard", "ContrattoAIDialog", "AllocazioneOperaiAIDialog"]],
+    ["cantiere", ["OrderWorkPhases", "MezziCommessaCard", "OrdineTempistiche", "LinkedAppointments", "LinkedTasks", "OrdineRapportiniCampo", "OrdineFotoCantiere", "WhatsAppActivityFeed", "TimelineCantiere", "OrderAcceptanceReports", "CantiereViewNav"]],
+    ["articoli", ["OrderMeasureControl", "OrdineArticoli", "OrderProcurementTools", "OrderUsciteCard", "LinkedPurchaseOrdersCard", "OrderSerialsTrackingCard"]],
+    ["finanza", ["OrderEconomicsSummary", "OrdineEconomico", "EsposizioneCommessa", "RitenuteTab", "OrdineVariazione", "SupplierPaymentsCard", "OrderErrors", "OrdineSAL"]],
   ] as const)("preserva ogni funzione una sola volta nell'area %s", (expected, components) => {
     for (const component of components) {
       const matches = named(component);
@@ -58,6 +58,11 @@ describe("contratto di composizione del dettaglio commessa", () => {
     expect(value(sal, "financingCost")).toContain('order.payment_type === "financing"');
   });
 
+  it("sposta gli acquisti nella vista dedicata senza duplicarli negli articoli", () => {
+    expect(value(named("OrdineArticoli")[0], "showProcurement")).toBe("{false}");
+    expect(named("OrderWorkspaceNav")).toHaveLength(2);
+  });
+
   it("riepilogo, stato e azioni sono unici e precedono tutte le tab", () => {
     for (const name of ["OrderCommessaSummary", "OrdineStatusStrip", "OrderQuickActions"]) {
       expect(named(name)).toHaveLength(1);
@@ -68,6 +73,10 @@ describe("contratto di composizione del dettaglio commessa", () => {
     expect(value(actions, "onCreateTask")).toContain("setTaskDialogOpen(true)");
     expect(value(actions, "onApplyPlaybook")).toContain("handleApplyPlaybook");
     expect(value(actions, "onManagePlaybook")).toContain("setPlaybookEditorOpen(true)");
+    expect(value(actions, "onCreateInvoice")).toContain("permissions.canViewBilling");
+    expect(value(actions, "onCreateInvoice")).toContain("isNativeBilling && !permissions.solaLettura");
+    expect(value(actions, "customer")).toContain("order.client_phone");
+    expect(value(actions, "customer")).toContain("order.client_email");
     expect(value(named("OrdineStatusStrip")[0], "onStatusChange")).toContain("permissions.canEditOrders");
   });
 

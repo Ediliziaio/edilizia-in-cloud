@@ -218,6 +218,10 @@ export function PipelinesConfig() {
   const invalidaPipeline = () => {
     queryClient.invalidateQueries({ queryKey: queryKeys.pipelinesConfig.list(companyId) });
     queryClient.invalidateQueries({ queryKey: queryKeys.pipelines.list(companyId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.marketingContacts.all });
+    queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
+    queryClient.invalidateQueries({ queryKey: ["bulk-opp-pipelines", companyId] });
+    queryClient.invalidateQueries({ queryKey: ["bulk-opp-stages"] });
   };
 
   function openCreateDialog() {

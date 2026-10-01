@@ -1,4 +1,4 @@
-import { forwardRef } from "react";
+import { forwardRef, useRef, type RefObject } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Label } from "@/components/ui/label";
@@ -12,6 +12,7 @@ import { EmailBodyEditor, type EmailVariable } from "./EmailBodyEditor";
 import { EmailPreviewActions } from "./EmailPreviewActions";
 import { useModelliEmail } from "@/hooks/useModelliEmail";
 import { indirizzoMittenteValido } from "../../../../supabase/functions/_shared/mittenteAutomazione";
+import { emailContentEmpty, normalizeAutomationEmailConfig } from "../../../../supabase/functions/_shared/automationEmail";
 
 /** Variabili lato azienda (contatto/opportunità) per il corpo email. */
 const COMPANY_EMAIL_VARIABLES: EmailVariable[] = [
@@ -19,7 +20,6 @@ const COMPANY_EMAIL_VARIABLES: EmailVariable[] = [
   { key: "contatto.last_name", label: "Cognome contatto" },
   { key: "contatto.email", label: "Email contatto" },
   { key: "contatto.company_name", label: "Azienda contatto" },
-  { key: "opportunita.name", label: "Nome opportunità" },
 ];
 
 /**
@@ -27,6 +27,7 @@ const COMPANY_EMAIL_VARIABLES: EmailVariable[] = [
  * un evento di commessa (supabase/functions/_shared/variabiliCommessa.ts).
  */
 const COMMESSA_EMAIL_VARIABLES: EmailVariable[] = [
+  { key: "cliente.email", label: "Email cliente della commessa" },
   { key: "cliente.nome", label: "Nome cliente" },
   { key: "cliente.cognome", label: "Cognome cliente" },
   { key: "cliente.nome_completo", label: "Nome e cognome cliente" },
@@ -63,14 +64,26 @@ interface EmailConfigPanelProps {
   companyId?: string;
 }
 
-export const EmailConfigPanel = forwardRef<HTMLDivElement, EmailConfigPanelProps>(function EmailConfigPanel({ config, onChange, onPatch, triggerItemId, companyId }, ref) {
-  const { data: modelli = [] } = useModelliEmail(companyId);
+export const EmailConfigPanel = forwardRef<HTMLDivElement, EmailConfigPanelProps>(function EmailConfigPanel({ config: rawConfig, onChange, onPatch, triggerItemId, companyId }, ref) {
+  const normalized = normalizeAutomationEmailConfig(rawConfig);
+  const config: Record<string, any> = { ...rawConfig, destinatario: normalized.email_to, oggetto: normalized.email_subject, corpo: normalized.email_body, modello_id: normalized.template_id, da_nome: normalized.from_name, da_email: normalized.from_email };
+  const subjectRef = useRef<HTMLInputElement>(null);
+  const alternativeSubjectRef = useRef<HTMLInputElement>(null);
+  const insertSubjectVariable = (inputRef: RefObject<HTMLInputElement | null>, field: string, token: string) => {
+    const input = inputRef.current;
+    const text = String(config[field] ?? "");
+    const start = input?.selectionStart ?? text.length;
+    const end = input?.selectionEnd ?? start;
+    onChange(field, text.slice(0, start) + token + text.slice(end));
+    requestAnimationFrame(() => { input?.focus(); input?.setSelectionRange(start + token.length, start + token.length); });
+  };
+  const { data: modelli = [], isLoading: modelliLoading, isError: modelliError } = useModelliEmail(companyId);
   const suCommessa = !!triggerItemId && TRIGGER_COMMESSA.has(triggerItemId);
   const variabili = suCommessa ? [...COMMESSA_EMAIL_VARIABLES, ...COMPANY_EMAIL_VARIABLES] : COMPANY_EMAIL_VARIABLES;
 
   // Caselle collegate dall'azienda: l'email può partire da una di queste e
   // restare nella sua posta inviata, invece che dal dominio di piattaforma.
-  const { data: caselle = [] } = useQuery({
+  const { data: caselle = [], isLoading: caselleLoading, isError: caselleError } = useQuery({
     queryKey: ["flow-email-caselle", companyId],
     enabled: !!companyId,
     staleTime: 60_000,
@@ -90,7 +103,7 @@ export const EmailConfigPanel = forwardRef<HTMLDivElement, EmailConfigPanelProps
   const modello = modelli.find((m) => m.id === modelloId);
   // Modello scelto ma non più in elenco (cancellato, o azienda diversa):
   // va detto qui, non scoperto quando il motore non trova più il testo.
-  const modelloMancante = !!modelloId && modelli.length > 0 && !modello;
+  const modelloMancante = !!modelloId && !modelliLoading && !modelliError && !modello;
 
   const patch = (p: Record<string, any>) => {
     if (onPatch) { onPatch(p); return; }
@@ -104,13 +117,13 @@ export const EmailConfigPanel = forwardRef<HTMLDivElement, EmailConfigPanelProps
       patch({
         modello_id: "",
         modello_nome: "",
-        oggetto: config.oggetto || modello?.subject || "",
-        corpo: config.corpo || modello?.html_content || "",
+        oggetto: modello?.subject ?? config.oggetto ?? "",
+        corpo: modello?.html_content ?? config.corpo ?? "",
       });
       return;
     }
     const scelto = modelli.find((m) => m.id === valore);
-    patch({ modello_id: valore, modello_nome: scelto?.name ?? "" });
+    patch({ modello_id: valore, modello_nome: scelto?.name ?? "", ab_attivo: false });
   };
 
   return (
@@ -139,7 +152,8 @@ export const EmailConfigPanel = forwardRef<HTMLDivElement, EmailConfigPanelProps
             Il modello collegato non esiste più: scegline un altro o scrivi il testo qui.
           </p>
         )}
-        {!modelloId && modelli.length === 0 && (
+        {modelliError && <p role="alert" className="text-[11px] text-destructive">Non riesco a caricare i modelli. Riprova prima di cambiarne uno.</p>}
+        {!modelloId && !modelliLoading && !modelliError && modelli.length === 0 && (
           <p className="text-[11px] text-muted-foreground">
             Nessun modello salvato: scrivi il testo qui sotto, oppure creane uno in Email Marketing → Modelli.
           </p>
@@ -163,9 +177,10 @@ export const EmailConfigPanel = forwardRef<HTMLDivElement, EmailConfigPanelProps
             ))}
           </SelectContent>
         </Select>
-        {casellaId && !casella && caselle.length > 0 && (
+        {casellaId && !casella && !caselleLoading && !caselleError && (
           <p className="text-[11px] font-medium text-destructive">La casella scelta non è più collegata: scegline un'altra.</p>
         )}
+        {caselleError && <p role="alert" className="text-[11px] text-destructive">Non riesco a verificare le caselle collegate. Riprova prima di cambiare mittente.</p>}
         {casella && casella.status !== "active" && (
           <p className="text-[11px] font-medium text-destructive">
             {casella.email_address} è scollegata: finché non la ricolleghi da Impostazioni › Posta le email non partono.
@@ -174,7 +189,7 @@ export const EmailConfigPanel = forwardRef<HTMLDivElement, EmailConfigPanelProps
         {casella?.status === "active" && (
           <p className="text-[11px] text-muted-foreground">Parte da {casella.email_address} e la trovi nella sua posta inviata.</p>
         )}
-        {caselle.length === 0 && (
+        {!caselleLoading && !caselleError && caselle.length === 0 && (
           <p className="text-[11px] text-muted-foreground">
             Per inviare dalla casella dell'azienda collegala prima in Impostazioni › Posta.
           </p>
@@ -209,18 +224,20 @@ export const EmailConfigPanel = forwardRef<HTMLDivElement, EmailConfigPanelProps
       )}
 
       {/* Recipient */}
-      <EvidenzaObbligatoria mostra={campoVuoto(config.destinatario)}>
+      <EvidenzaObbligatoria mostra={false}>
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
           <Label className="text-xs">Destinatario</Label>
-          <VariablePicker onInsert={v => onChange("destinatario", (config.destinatario || "") + v)} />
+          <VariablePicker purpose="recipient" allowCustomFields={!suCommessa} companyId={companyId} triggerItemId={triggerItemId} extraVariables={variabili} onInsert={v => onChange("destinatario", v)} />
         </div>
         <Input
           value={config.destinatario || ""}
+          aria-label="Destinatario email"
           onChange={e => onChange("destinatario", e.target.value)}
           placeholder={suCommessa ? "{{cliente.email}}" : "{{contatto.email}}"}
           className="h-8 text-xs"
         />
+        <p className="text-[11px] text-muted-foreground">Vuoto: invia al {suCommessa ? "cliente della commessa" : "contatto del flusso"}. Per un altro destinatario, inserisci una sola email.</p>
         {suCommessa && (
           <p className="text-[11px] text-muted-foreground">
             {"{{cliente.email}}"} = il cliente della commessa.
@@ -252,10 +269,12 @@ export const EmailConfigPanel = forwardRef<HTMLDivElement, EmailConfigPanelProps
         <Label className="text-xs">CC (opzionale)</Label>
         <Input
           value={config.cc || ""}
+          aria-label="CC email"
           onChange={e => onChange("cc", e.target.value)}
           placeholder="cc@azienda.it"
           className="h-8 text-xs"
         />
+        <p className="text-[11px] text-muted-foreground">Separa gli indirizzi con una virgola. Le copie sono visibili ai destinatari; il canale marketing di sistema può richiedere una casella collegata.</p>
       </div>
 
       {/* Con un modello collegato oggetto e testo NON stanno nel nodo: si
@@ -284,10 +303,12 @@ export const EmailConfigPanel = forwardRef<HTMLDivElement, EmailConfigPanelProps
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
           <Label className="text-xs">Oggetto</Label>
-          <VariablePicker onInsert={v => onChange("oggetto", (config.oggetto || "") + v)} />
+          <VariablePicker purpose="email" allowCustomFields={!suCommessa} companyId={companyId} triggerItemId={triggerItemId} extraVariables={variabili} onInsert={v => insertSubjectVariable(subjectRef, "oggetto", v)} />
         </div>
         <Input
           value={config.oggetto || ""}
+          aria-label="Oggetto email"
+          ref={subjectRef}
           onChange={e => onChange("oggetto", e.target.value)}
           placeholder="Es: Conferma appuntamento - {{appuntamento.appointment_date}}"
           className="h-8 text-xs"
@@ -316,10 +337,12 @@ export const EmailConfigPanel = forwardRef<HTMLDivElement, EmailConfigPanelProps
         </div>
         <div className="flex items-center justify-between">
           <Label className="text-[11px] text-muted-foreground">Oggetto B</Label>
-          <VariablePicker onInsert={v => onChange("oggetto_b", (config.oggetto_b || "") + v)} />
+          <VariablePicker purpose="email" allowCustomFields={!suCommessa} companyId={companyId} triggerItemId={triggerItemId} extraVariables={variabili} onInsert={v => insertSubjectVariable(alternativeSubjectRef, "oggetto_b", v)} />
         </div>
         <Input
           value={config.oggetto_b || ""}
+          ref={alternativeSubjectRef}
+          aria-label="Oggetto alternativo email"
           onChange={e => onChange("oggetto_b", e.target.value)}
           placeholder="Lo stesso messaggio, detto in un altro modo"
           className="h-8 text-xs"
@@ -332,7 +355,7 @@ export const EmailConfigPanel = forwardRef<HTMLDivElement, EmailConfigPanelProps
       </div>
 
       {/* Body — editor visuale (niente HTML a mano) */}
-      <EvidenzaObbligatoria mostra={campoVuoto(config.corpo)}>
+      <EvidenzaObbligatoria mostra={emailContentEmpty(config.corpo)}>
       <div className="space-y-1.5">
         <Label className="text-xs">Corpo email</Label>
         <EmailBodyEditor
@@ -340,6 +363,8 @@ export const EmailConfigPanel = forwardRef<HTMLDivElement, EmailConfigPanelProps
           onChange={(html) => onChange("corpo", html)}
           variables={variabili}
           triggerItemId={triggerItemId}
+          companyId={companyId}
+          allowCustomFields={!suCommessa}
         />
       </div>
       </EvidenzaObbligatoria>
@@ -352,6 +377,7 @@ export const EmailConfigPanel = forwardRef<HTMLDivElement, EmailConfigPanelProps
         <div className="flex gap-2">
           <Input
             type="number"
+            aria-label="Ritardo invio email"
             min={0}
             value={config.ritardo_valore || 0}
             onChange={e => onChange("ritardo_valore", parseInt(e.target.value) || 0)}
@@ -375,6 +401,8 @@ export const EmailConfigPanel = forwardRef<HTMLDivElement, EmailConfigPanelProps
         oggetto={modello?.subject ?? config.oggetto}
         corpo={modello?.html_content ?? config.corpo}
         mittenteNome={config.da_nome}
+        companyId={companyId}
+        disabled={!!modelloId && (modelliLoading || modelliError || modelloMancante)}
       />
     </div>
   );

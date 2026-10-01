@@ -6,7 +6,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { queryKeys } from "@/lib/queryKeys";
 import { emailSenzaOggettoOTesto } from "@/lib/flow-node-catalog";
-import type { AutomationFlow, AutomationNode, AutomationConnection } from "@/types/automationBuilder";
+import { filterErrors } from "../../supabase/functions/_shared/automationFilters";
+import type { AutomationFlow, AutomationNode, AutomationConnection, RestoredAutomationGraph } from "@/types/automationBuilder";
 
 interface BuilderState {
   nodes: AutomationNode[];
@@ -50,8 +51,14 @@ export function useAutomationBuilder(flowId: string | undefined) {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveAllRef = useRef<() => Promise<boolean>>(async () => false);
+  const savedRevisionRef = useRef<string | null>(null);
+  const saveInFlightRef = useRef(false);
+  const dirtyRevisionRef = useRef(0);
+  const dirtyRef = useRef(false);
+  useEffect(() => { savedRevisionRef.current = null; }, [flowId]);
   const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  useEffect(() => { dirtyRef.current = false; dirtyRevisionRef.current = 0; setHasUnsavedChanges(false); }, [flowId]);
   useBeforeUnload(hasUnsavedChanges);
 
   // Use refs for history to avoid callback recreation cascades
@@ -137,13 +144,14 @@ export function useAutomationBuilder(flowId: string | undefined) {
 
   const [nodes, setNodes] = useState<AutomationNode[]>([]);
   const [connections, setConnections] = useState<AutomationConnection[]>([]);
+  useEffect(() => { if (flow && savedRevisionRef.current == null) savedRevisionRef.current = flow.updated_at; }, [flow]);
 
   // Sync from DB
   useEffect(() => {
-    if (dbNodes) setNodes(dbNodes);
+    if (dbNodes && !dirtyRef.current) setNodes(dbNodes);
   }, [dbNodes]);
   useEffect(() => {
-    if (dbConnections) setConnections(dbConnections);
+    if (dbConnections && !dirtyRef.current) setConnections(dbConnections);
   }, [dbConnections]);
 
   // History: reset al cambio flusso e seed del baseline caricato dal DB.
@@ -185,6 +193,8 @@ export function useAutomationBuilder(flowId: string | undefined) {
     setNodes(prev.nodes);
     setConnections(prev.connections);
     setRevision(r => r + 1);
+    dirtyRevisionRef.current++;
+    dirtyRef.current = true;
     setHasUnsavedChanges(true);
     updateUndoRedoState();
   }, [updateUndoRedoState]);
@@ -196,12 +206,16 @@ export function useAutomationBuilder(flowId: string | undefined) {
     setNodes(next.nodes);
     setConnections(next.connections);
     setRevision(r => r + 1);
+    dirtyRevisionRef.current++;
+    dirtyRef.current = true;
     setHasUnsavedChanges(true);
     updateUndoRedoState();
   }, [updateUndoRedoState]);
 
   // Mark as dirty (no auto-save — manual only)
   const markDirty = useCallback(() => {
+    dirtyRevisionRef.current++;
+    dirtyRef.current = true;
     setHasUnsavedChanges(true);
   }, []);
 
@@ -258,6 +272,8 @@ export function useAutomationBuilder(flowId: string | undefined) {
     let emailIncompleta = false;
     let smsIncompleto = false;
     for (const n of persistableNodes) {
+      const filters = getNodeConfig(n).trigger_filters ?? getNodeConfig(n).filters;
+      for (const message of filterErrors(filters as any)) errors.push(`${n.label || "Trigger"}: ${message}`);
       if (n.node_type !== "action") continue;
       const config = getNodeConfig(n);
       const actionId = String(config.action_type ?? config.itemId ?? config.item_id ?? "");
@@ -280,6 +296,7 @@ export function useAutomationBuilder(flowId: string | undefined) {
   // Ritorna true se il salvataggio è andato a buon fine (usato da togglePublish
   // per NON pubblicare un canvas non salvato).
   const saveAll = useCallback(async (): Promise<boolean> => {
+    if (saveInFlightRef.current) return false;
     if (!flowId || flowId === "nuova") return false;
     const persistCompanyId = effectiveCompany?.id ?? flow?.company_id;
     if (!persistCompanyId) {
@@ -290,85 +307,44 @@ export function useAutomationBuilder(flowId: string | undefined) {
       toast("Bozza vuota", { description: "Aggiungi almeno un trigger per un flusso completo." });
     }
     setIsSaving(true);
+    saveInFlightRef.current = true;
+    const savingRevision = dirtyRevisionRef.current;
     try {
       const persistableNodes = nodes.filter(isPersistableNode);
       const persistableNodeIds = new Set(persistableNodes.map(n => n.id));
       const persistableConnections = connections.filter(c => persistableNodeIds.has(c.from_node_id) && persistableNodeIds.has(c.to_node_id));
 
-      if (persistableNodes.length > 0) {
-        const { error: nErr } = await supabase
-          .from("automation_nodes")
-          .upsert(persistableNodes.map(n => ({
-            id: n.id,
-            flow_id: flowId,
-            company_id: persistCompanyId,
-            node_type: n.node_type,
-            position_x: n.position_x,
-            position_y: n.position_y,
-            config_json: n.config_json,
-            label: n.label,
-          })));
-        if (nErr) throw nErr;
+      const { data: saved, error } = await (supabase as any).rpc("save_automation_graph", {
+        p_flow_id: flowId, p_company_id: persistCompanyId,
+        p_expected_updated_at: savedRevisionRef.current ?? flow?.updated_at,
+        p_nodes: persistableNodes.map(n => ({ id: n.id, node_type: n.node_type, position_x: n.position_x,
+          position_y: n.position_y, config_json: n.config_json, label: n.label })),
+        p_connections: persistableConnections.map(c => ({ id: c.id, from_node_id: c.from_node_id, to_node_id: c.to_node_id, label: c.label })),
+      });
+      if (error) {
+        if (error.code === "PGRST202") throw new Error("Salvataggio protetto non ancora disponibile sul server: applicare l’aggiornamento automazioni prima di salvare.");
+        throw error;
       }
+      savedRevisionRef.current = saved.updated_at;
+      queryClient.setQueryData(queryKeys.automations.flow(flowId), (current: any) => current ? { ...current, updated_at: saved.updated_at, version: saved.version } : current);
+      queryClient.invalidateQueries({ queryKey: ["flow-versions", flowId] });
 
-      const nodeIds = persistableNodes.map(n => n.id);
-      if (dbNodes && dbNodes.length > 0) {
-        const removedIds = dbNodes.filter(n => !nodeIds.includes(n.id)).map(n => n.id);
-        if (removedIds.length > 0) {
-          await supabase
-            .from("automation_nodes")
-            .delete()
-            .eq("flow_id", flowId)
-            .eq("company_id", persistCompanyId)
-            .in("id", removedIds);
-        }
-      }
-
-      if (persistableConnections.length > 0) {
-        const { error: cErr } = await supabase
-          .from("automation_connections")
-          .upsert(persistableConnections.map(c => ({
-            id: c.id,
-            flow_id: flowId,
-            company_id: persistCompanyId,
-            from_node_id: c.from_node_id,
-            to_node_id: c.to_node_id,
-            label: c.label,
-          })));
-        if (cErr) throw cErr;
-      }
-
-      const connIds = persistableConnections.map(c => c.id);
-      if (dbConnections && dbConnections.length > 0) {
-        const removedConnIds = dbConnections.filter(c => !connIds.includes(c.id)).map(c => c.id);
-        if (removedConnIds.length > 0) {
-          await supabase
-            .from("automation_connections")
-            .delete()
-            .eq("flow_id", flowId)
-            .eq("company_id", persistCompanyId)
-            .in("id", removedConnIds);
-        }
-      }
-
-      await supabase
-        .from("automation_flows")
-        .update({ updated_at: new Date().toISOString() })
-        .eq("id", flowId)
-        .eq("company_id", persistCompanyId);
-
-      setHasUnsavedChanges(false);
+      const changedDuringSave = dirtyRevisionRef.current !== savingRevision;
+      dirtyRef.current = changedDuringSave;
+      setHasUnsavedChanges(changedDuringSave);
       toast.success("Salvato con successo");
       queryClient.invalidateQueries({ queryKey: queryKeys.automations.nodes(flowId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.automations.connections(flowId) });
       queryClient.invalidateQueries({ queryKey: ["automation-node-summaries", persistCompanyId] });
       // Bug 4 fix: invalidate flows list so updated_at refreshes
       queryClient.invalidateQueries({ queryKey: queryKeys.automations.all });
-      return true;
+      queryClient.invalidateQueries({ queryKey: ["automation-flows", persistCompanyId] });
+      return !changedDuringSave;
     } catch (err: any) {
       toast.error("Errore salvataggio", { description: err.message });
       return false;
     } finally {
+      saveInFlightRef.current = false;
       setIsSaving(false);
     }
   }, [flowId, effectiveCompany, flow, nodes, connections, dbNodes, dbConnections, queryClient]);
@@ -473,16 +449,23 @@ export function useAutomationBuilder(flowId: string | undefined) {
         safeUpdates.name = safeUpdates.name.trim().slice(0, 100);
         if (!safeUpdates.name) delete safeUpdates.name;
       }
-      const { error } = await supabase
+      if (saveInFlightRef.current) throw new Error("Attendi la fine del salvataggio prima di modificare le impostazioni.");
+      const { data, error } = await supabase
         .from("automation_flows")
         .update(safeUpdates)
         .eq("id", flowId)
-        .eq("company_id", persistCompanyId);
+        .eq("company_id", persistCompanyId)
+        .eq("updated_at", savedRevisionRef.current ?? flow!.updated_at)
+        .select("*").maybeSingle();
       if (error) throw error;
+      if (!data) throw new Error("Il flusso è stato modificato altrove. Ricarica prima di continuare.");
+      savedRevisionRef.current = data.updated_at;
+      queryClient.setQueryData(queryKeys.automations.flow(flowId), data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.automations.flow(flowId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.automations.all });
+      queryClient.invalidateQueries({ queryKey: ["automation-flows", effectiveCompany?.id] });
     },
     onError: (error: any) => {
       toast.error("Errore", { description: error.message || "Operazione non riuscita. Riprova." });
@@ -520,7 +503,8 @@ export function useAutomationBuilder(flowId: string | undefined) {
           }
         }
       }
-      const newVersion = newStatus === "published" ? flow.version + 1 : flow.version;
+      const currentFlow = queryClient.getQueryData<AutomationFlow>(queryKeys.automations.flow(flowId)) ?? flow;
+      const newVersion = newStatus === "published" ? currentFlow.version + 1 : currentFlow.version;
       await updateFlowMutation.mutateAsync({ status: newStatus, version: newVersion });
       toast.success(newStatus === "published" ? "Automazione pubblicata" : "Automazione in bozza");
     } catch (err: any) {
@@ -529,6 +513,22 @@ export function useAutomationBuilder(flowId: string | undefined) {
   }, [flow, updateFlowMutation, validateForPublish, hasUnsavedChanges, saveAll]);
 
   const isLoading = flowLoading || nodesLoading || connectionsLoading;
+  const applyRestoredGraph = useCallback((snapshot: RestoredAutomationGraph) => {
+    dirtyRef.current = false;
+    dirtyRevisionRef.current++;
+    savedRevisionRef.current = snapshot.updated_at;
+    setHasUnsavedChanges(false);
+    setNodes(snapshot.nodes);
+    setConnections(snapshot.connections);
+    historyRef.current = [{ nodes: snapshot.nodes, connections: snapshot.connections }];
+    historyIndexRef.current = 0;
+    historySeededRef.current = true;
+    updateUndoRedoState();
+    queryClient.setQueryData(queryKeys.automations.nodes(flowId), snapshot.nodes);
+    queryClient.setQueryData(queryKeys.automations.connections(flowId), snapshot.connections);
+    queryClient.setQueryData(queryKeys.automations.flow(flowId), (current: AutomationFlow | undefined) => current ? { ...current, updated_at: snapshot.updated_at, version: snapshot.version } : current);
+    setRevision(r => r + 1);
+  }, [flowId, queryClient, updateUndoRedoState]);
   const selectedNode = nodes.find(n => n.id === selectedNodeId) || null;
 
   // `remoteEmpty` è calcolato sui DATI GREZZI della query (dbNodes/dbConnections),
@@ -547,7 +547,7 @@ export function useAutomationBuilder(flowId: string | undefined) {
     addNode, updateNode, updateNodePositions, removeNode,
     addConnection, removeConnection,
     undo, redo, canUndo, canRedo, revision,
-    saveAll, saveImmediate, createFlowMutation, updateFlowMutation, togglePublish, validateForPublish,
+    saveAll, saveImmediate, createFlowMutation, updateFlowMutation, togglePublish, validateForPublish, applyRestoredGraph,
     effectiveCompany, user,
   };
 }

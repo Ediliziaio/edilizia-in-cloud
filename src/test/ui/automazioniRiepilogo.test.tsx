@@ -14,6 +14,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 let erroriUltimoGiorno = 0;
+let erroreLettura = false;
 const tabelleLette: string[] = [];
 
 // Il registro delle esecuzioni: 82 passaggi riusciti nell'ultima ora, 8 tre
@@ -29,8 +30,10 @@ function registro(): { status: string; created_at: string }[] {
 }
 
 // Il conteggio che il database darebbe per quella tabella e quei filtri.
-function conteggio(tabella: string, uguali: Record<string, string>, diversi: Record<string, string>, daQuando: string | null): number {
-  if (tabella === "automation_enrollments") return uguali.status === "active" ? 2 : 5;
+function conteggio(tabella: string, uguali: Record<string, string>, diversi: Record<string, string>, daQuando: string | null, inclusi: Record<string, string[]>): number {
+  if (tabella === "automation_enrollments") return ["active", "active", "waiting", "completed", "canceled"].filter(status =>
+    (!uguali.status || uguali.status === status) && (!inclusi.status || inclusi.status.includes(status)),
+  ).length;
   if (tabella !== "automation_execution_log") return 0;
   return registro().filter((r) =>
     (uguali.status === undefined || r.status === uguali.status)
@@ -43,15 +46,17 @@ function builder(tabella: string) {
   tabelleLette.push(tabella);
   const uguali: Record<string, string> = {};
   const diversi: Record<string, string> = {};
+  const inclusi: Record<string, string[]> = {};
   let daQuando: string | null = null;
   const b: Record<string, unknown> = {};
   b.select = () => b;
   b.is = () => b;
   b.eq = (colonna: string, valore: string) => { uguali[colonna] = valore; return b; };
   b.neq = (colonna: string, valore: string) => { diversi[colonna] = valore; return b; };
+  b.in = (colonna: string, valori: string[]) => { inclusi[colonna] = valori; return b; };
   b.gte = (_colonna: string, valore: string) => { daQuando = valore; return b; };
   b.then = (ok: (v: unknown) => unknown) =>
-    Promise.resolve({ data: null as unknown, error: null as unknown, count: conteggio(tabella, uguali, diversi, daQuando) }).then(ok);
+    Promise.resolve({ data: null as unknown, error: erroreLettura ? new Error("DB non disponibile") : null, count: conteggio(tabella, uguali, diversi, daQuando, inclusi) }).then(ok);
   return b;
 }
 
@@ -67,6 +72,7 @@ afterEach(() => {
   root = null;
   contenitore?.remove();
   erroriUltimoGiorno = 0;
+  erroreLettura = false;
   tabelleLette.length = 0;
 });
 
@@ -92,7 +98,7 @@ describe("numeri delle automazioni sotto il titolo", () => {
     await monta();
     expect(contenitore.querySelectorAll("p")).toHaveLength(1);
     expect(contenitore.textContent).toBe(
-      "2 iscrizioni in corso · 82 passaggi eseguiti nelle ultime 24 ore · 100% riusciti in 7 giorni · nessun errore",
+      "3 iscrizioni in corso · 82 passaggi eseguiti nelle ultime 24 ore · 100% riusciti in 7 giorni · nessun errore",
     );
     expect(contenitore.textContent).not.toContain("Flussi");
     expect(contenitore.textContent).not.toContain("Attivi");
@@ -108,5 +114,12 @@ describe("numeri delle automazioni sotto il titolo", () => {
     const errori = Array.from(contenitore.querySelectorAll("span")).find((s) => s.textContent === "3 errori nelle ultime 24 ore");
     expect(errori).toBeDefined();
     expect(errori?.className).toContain("text-destructive");
+  });
+
+  it("un errore di lettura non diventa falsamente nessun errore", async () => {
+    erroreLettura = true;
+    await monta();
+    expect(contenitore.textContent).toContain("Statistiche non disponibili");
+    expect(contenitore.textContent).not.toContain("nessun errore");
   });
 });

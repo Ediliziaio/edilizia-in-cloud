@@ -75,7 +75,7 @@ export function ActionCatalogList({ search, onSelect, onDragStart, includeCondit
 
     // Add conditions as "Logica" category
     if (includeConditions) {
-      const condItems: CatalogItem[] = CONDITION_CATALOG
+      const condItems: CatalogItem[] = [...CONDITION_CATALOG, ...(ACTIONS_BY_CATEGORY.logica ?? [])]
         .filter(c => !q || c.label.toLowerCase().includes(q) || c.description.toLowerCase().includes(q))
         .map(c => ({
           id: c.id, label: c.label, description: c.description, icon: c.icon,
@@ -95,7 +95,7 @@ export function ActionCatalogList({ search, onSelect, onDragStart, includeCondit
     }
 
     return result;
-  }, [search, includeConditions]);
+  }, [search, includeConditions, isAdmin]);
 
   const recentItems = useMemo(() => {
     if (search) return [];

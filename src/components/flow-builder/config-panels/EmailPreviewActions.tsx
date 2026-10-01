@@ -1,7 +1,7 @@
 /**
  * EmailPreviewActions — bottoni "Anteprima" e "Invia prova a me" per i nodi email
  * del builder. Chiama la edge function `automation-email-render` che usa lo stesso
- * wrapping brandizzato del send reale → l'anteprima è fedele all'email che arriva.
+ * wrapping brandizzato del send reale, ma con dati sintetici, non del destinatario.
  *
  * - Anteprima: apre un dialog con l'email finale renderizzata in un iframe isolato
  *   (così gli stili dell'email non si mescolano con quelli dell'app).
@@ -12,9 +12,11 @@ import { Eye, Send, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { emailContentEmpty } from "../../../../supabase/functions/_shared/automationEmail";
 
 interface EmailPreviewActionsProps {
   oggetto?: string;
@@ -22,19 +24,23 @@ interface EmailPreviewActionsProps {
   mittenteNome?: string;
   /** Valori d'esempio per le variabili (override dei default lato edge). */
   vars?: Record<string, string>;
+  companyId?: string;
+  disabled?: boolean;
 }
 
-export function EmailPreviewActions({ oggetto, corpo, mittenteNome, vars }: EmailPreviewActionsProps) {
+export function EmailPreviewActions({ oggetto, corpo, mittenteNome, vars, companyId, disabled }: EmailPreviewActionsProps) {
+  const { effectiveCompany } = useAuth();
   const [previewing, setPreviewing] = useState(false);
   const [sending, setSending] = useState(false);
   const [open, setOpen] = useState(false);
   const [previewHtml, setPreviewHtml] = useState("");
   const [previewSubject, setPreviewSubject] = useState("");
+  const [missingVariables, setMissingVariables] = useState<string[]>([]);
 
-  const body = { corpo: corpo || "", oggetto: oggetto || "", mittente_nome: mittenteNome || "", vars };
+  const body = { corpo: corpo || "", oggetto: oggetto || "", mittente_nome: mittenteNome || "", company_id: companyId ?? effectiveCompany?.id, vars };
 
   const handlePreview = async () => {
-    if (!corpo?.trim()) { toast.error("Scrivi prima il corpo dell'email"); return; }
+    if (emailContentEmpty(corpo) || !oggetto?.trim()) { toast.error("Compila prima oggetto e corpo dell'email"); return; }
     setPreviewing(true);
     try {
       const { data, error } = await supabase.functions.invoke("automation-email-render", {
@@ -44,6 +50,7 @@ export function EmailPreviewActions({ oggetto, corpo, mittenteNome, vars }: Emai
       if (!data?.ok || !data.html) throw new Error(data?.error || "Anteprima non disponibile");
       setPreviewHtml(data.html);
       setPreviewSubject(data.subject || oggetto || "");
+      setMissingVariables(Array.isArray(data.missingVariables) ? data.missingVariables : []);
       setOpen(true);
     } catch (e) {
       toast.error(`Anteprima fallita: ${e instanceof Error ? e.message : String(e)}`);
@@ -53,7 +60,7 @@ export function EmailPreviewActions({ oggetto, corpo, mittenteNome, vars }: Emai
   };
 
   const handleTest = async () => {
-    if (!corpo?.trim()) { toast.error("Scrivi prima il corpo dell'email"); return; }
+    if (emailContentEmpty(corpo) || !oggetto?.trim()) { toast.error("Compila prima oggetto e corpo dell'email"); return; }
     setSending(true);
     try {
       const { data, error } = await supabase.functions.invoke("automation-email-render", {
@@ -73,12 +80,12 @@ export function EmailPreviewActions({ oggetto, corpo, mittenteNome, vars }: Emai
     <>
       <div className="flex gap-2 pt-1">
         <Button type="button" variant="outline" size="sm" className="h-8 flex-1 gap-1.5 text-xs"
-          onClick={handlePreview} disabled={previewing}>
+          onClick={handlePreview} disabled={disabled || previewing || sending}>
           {previewing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eye className="h-3.5 w-3.5" />}
           Anteprima
         </Button>
         <Button type="button" variant="outline" size="sm" className="h-8 flex-1 gap-1.5 text-xs"
-          onClick={handleTest} disabled={sending}>
+          onClick={handleTest} disabled={disabled || sending || previewing}>
           {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
           Invia prova a me
         </Button>
@@ -90,6 +97,9 @@ export function EmailPreviewActions({ oggetto, corpo, mittenteNome, vars }: Emai
             <DialogTitle className="text-sm font-medium">
               Anteprima email{previewSubject ? ` — ${previewSubject}` : ""}
             </DialogTitle>
+            <DialogDescription className="text-xs">
+              Esempio grafico con dati fittizi. Le variabili saranno sostituite con i dati dell'evento durante l'invio reale.
+            </DialogDescription>
           </DialogHeader>
           <div className="rounded-md border bg-white overflow-hidden">
             <iframe
@@ -100,8 +110,9 @@ export function EmailPreviewActions({ oggetto, corpo, mittenteNome, vars }: Emai
             />
           </div>
           <p className="text-[11px] text-muted-foreground">
-            Variabili compilate con valori d'esempio. Layout identico all'email reale.
+            Dati di esempio, non dati del destinatario. La prova arriva solo a te e non avvia il flusso; non verifica mittente, CC, allegati o recapito al cliente.
           </p>
+          {missingVariables.length > 0 && <p role="alert" className="text-xs text-amber-700">Variabili senza esempio: {missingVariables.join(", ")}. Verifica che siano disponibili prima di attivare il flusso.</p>}
         </DialogContent>
       </Dialog>
     </>

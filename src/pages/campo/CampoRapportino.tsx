@@ -1304,7 +1304,7 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
           <>
             <h2 className="text-lg font-black text-foreground md:text-xl">Firma del cliente</h2>
             <p className="text-sm text-muted-foreground">
-              Fai firmare il cliente per confermare la fine dei lavori.
+              La firma conferma questo rapporto di fine lavori. Non approva costi extra e non sostituisce il verbale di collaudo con verifiche ed eventuali riserve.
             </p>
 
             <FirmaPad label="Firma del cliente" onChange={setFirmaCliente} />

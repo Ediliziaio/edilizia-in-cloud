@@ -25,6 +25,7 @@ interface OrdineArticoliProps {
   /** Mostra la card "Pagamenti Fornitori" (default true). Il desktop la sposta
    *  sotto la Manodopera → passa false. */
   showSupplierPayments?: boolean;
+  showProcurement?: boolean;
 }
 
 export function OrdineArticoli({
@@ -38,6 +39,7 @@ export function OrdineArticoli({
   onAttachmentsRefresh,
   showAttachments = true,
   showSupplierPayments = true,
+  showProcurement = true,
 }: OrdineArticoliProps) {
   const queryClient = useQueryClient();
   // Pagamenti fornitori = costi → visibili solo a chi ha canViewCosts.
@@ -69,17 +71,9 @@ export function OrdineArticoli({
 
   return (
     <div className="space-y-4 max-sm:space-y-3">
-      {/* Acquisti (riepilogo, ordini per fornitore, posa da spostare): lavoro
-          d'ufficio, dal telefono no — in cantiere servono gli articoli e il
-          loro stato, qui sotto. */}
-      <div className="space-y-4 max-sm:hidden">
-      <OrderMaterialsSummary items={displayItems} orderId={orderId} />
-      {/* Il lavoro dell'utente, fatto dal pannello: articoli da ordinare
-          raggruppati per fornitore, un click per OdA. E se fra gli articoli
-          c'e' della posa, il banner propone di spostarla nelle Lavorazioni. */}
-      <OrdinaPerFornitorePanel orderId={orderId} orderCode={orderCode} items={displayItems} />
-      {canEditOrders && canViewCosts && <PosaInLavorazioniBanner orderId={orderId} items={displayItems} />}
-      </div>
+      {/* Nel dettaglio commessa questi strumenti hanno una vista dedicata.
+          Gli altri contesti li mantengono qui, anche su mobile. */}
+      {showProcurement && <OrderProcurementTools orderId={orderId} orderCode={orderCode} items={displayItems} />}
           <OrderItemsList
             items={displayItems}
             onItemsChange={onItemsChange}
@@ -103,4 +97,13 @@ export function OrdineArticoli({
       )}
     </div>
   );
+}
+
+export function OrderProcurementTools({ orderId, orderCode, items }: { orderId: string; orderCode?: string | null; items: OrderItem[] }) {
+  const { canEditOrders, canViewCosts } = usePermissions();
+  return <div className="space-y-4">
+    <OrderMaterialsSummary items={items} orderId={orderId} />
+    <OrdinaPerFornitorePanel orderId={orderId} orderCode={orderCode} items={items} />
+    {canEditOrders && canViewCosts && <PosaInLavorazioniBanner orderId={orderId} items={items} />}
+  </div>;
 }

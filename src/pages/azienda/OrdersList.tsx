@@ -37,8 +37,6 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
-import { calculateNetFromGross } from "@/lib/vatUtils";
-import { calculateStoredCommissionNet } from "@/lib/commissions";
 import { exportToCSV, exportToXLSX } from "@/lib/csvExport";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -54,7 +52,7 @@ import { OrdersTable } from "@/components/orders/OrdersTable";
 import { CSVImportDialog } from "@/components/shared/CSVImportDialog";
 import { CustomerSheetsExportDialog } from "@/components/orders/CustomerSheetsExportDialog";
 import { useToast } from "@/hooks/use-toast";
-import { type OrderWithDetails, getAmountDue, getAmountCollected, getPendingPayments, deleteOrderCascading, getGrossOrderAmount, getOrderMargin } from "@/lib/orderUtils";
+import { type OrderWithDetails, getAmountDue, getAmountCollected, getPendingPayments, deleteOrderCascading, getGrossOrderAmount } from "@/lib/orderUtils";
 import { PlanLimitWarning } from "@/components/billing/PlanLimitWarning";
 import { ScopriProgressBanner } from "@/components/subscription/UpgradeScopriBanner";
 import { EsposizioneFlotta } from "@/components/orders/EsposizioneFlotta";
@@ -555,6 +553,25 @@ function OrdersListInner() {
   // Batch queries for cost calculations — use rawOrders IDs to avoid circular dep with salespeopleMap
   const orderIds = useMemo(() => rawOrders.map(o => o.id), [rawOrders]);
 
+  // Una sola fonte per i numeri economici: e' la stessa vista usata nel
+  // dettaglio commessa e nel Controllo di Gestione. Evita che la lista mostri
+  // un margine del 100% quando, in realta', i costi non sono ancora inseriti.
+  const { data: canonicalMargins = [], isLoading: isCanonicalMarginsLoading } = useQuery({
+    queryKey: ["orders-canonical-margins", effectiveCompany?.id, orderIds],
+    queryFn: async () => {
+      if (orderIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("v_ordine_marginalita")
+        .select("id, preventivo_totale, consuntivo, margine, margine_perc")
+        .in("id", orderIds);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: orderIds.length > 0,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
+
   const { data: itemCosts = [] } = useQuery({
     queryKey: ["order-items-costs", effectiveCompany?.id, orderIds],
     queryFn: async () => {
@@ -834,52 +851,30 @@ function OrdersListInner() {
     });
   };
 
-  // Build orderCosts map
+  // Snapshot economico canonico per la pagina corrente. "marginReliable"
+  // descrive la completezza minima del dato, non se il margine e' positivo.
   const orderCostsMap = useMemo(() => {
-    const map = new Map<string, { variableCosts: number; grossMargin: number }>();
-    const orderAmountMap = new Map(orders.map(o => [o.id, o.total_amount]));
+    const map = new Map<string, {
+      variableCosts: number;
+      grossMargin: number;
+      marginPercent: number;
+      marginReliable: boolean;
+    }>();
 
-    // Aggregate item costs per order (purchase_price is gross, needs VAT scorporo)
-    const itemCostsByOrder = new Map<string, number>();
-    for (const item of itemCosts) {
-      const gross = (item.purchase_price || 0) * (item.quantity || 1);
-      const { netAmount } = calculateNetFromGross(gross, item.vat_rate ?? 22);
-      itemCostsByOrder.set(item.order_id, (itemCostsByOrder.get(item.order_id) || 0) + netAmount);
-    }
-
-    // Aggregate employee costs per order (already net)
-    const empCostsByOrder = new Map<string, number>();
-    for (const e of employeeCosts) {
-      empCostsByOrder.set(e.order_id, (empCostsByOrder.get(e.order_id) || 0) + e.total_cost);
-    }
-
-    // Aggregate external team costs per order (gross, needs scorporo)
-    const teamCostsByOrder = new Map<string, number>();
-    for (const t of externalTeamCosts) {
-      const { netAmount } = calculateNetFromGross(t.total_cost, t.vat_rate ?? 22);
-      teamCostsByOrder.set(t.order_id, (teamCostsByOrder.get(t.order_id) || 0) + netAmount);
-    }
-
-    // Aggregate commissions per order. Stored values are the authoritative output of the commission engine.
-    const commissionsByOrder = new Map<string, number>();
-    for (const sp of salespeopleData) {
-      const commission = calculateStoredCommissionNet(sp.commission_amount, sp.deduction_amount);
-      commissionsByOrder.set(sp.order_id, (commissionsByOrder.get(sp.order_id) || 0) + commission);
-    }
-
-    for (const orderId of orderIds) {
-      const totalAmount = orderAmountMap.get(orderId) || 0;
-      const variableCosts =
-        (itemCostsByOrder.get(orderId) || 0) +
-        (empCostsByOrder.get(orderId) || 0) +
-        (teamCostsByOrder.get(orderId) || 0) +
-        (commissionsByOrder.get(orderId) || 0);
-      const grossMargin = totalAmount - variableCosts;
-      map.set(orderId, { variableCosts, grossMargin });
+    for (const row of canonicalMargins) {
+      if (!row.id) continue;
+      const revenue = Number(row.preventivo_totale || 0);
+      const variableCosts = Number(row.consuntivo || 0);
+      map.set(row.id, {
+        variableCosts,
+        grossMargin: Number(row.margine || 0),
+        marginPercent: Number(row.margine_perc || 0),
+        marginReliable: revenue > 0 && variableCosts > 0,
+      });
     }
 
     return map;
-  }, [orders, orderIds, itemCosts, employeeCosts, externalTeamCosts, salespeopleData]);
+  }, [canonicalMargins]);
 
   const { mutateAsync: updateOrderStatus } = useMutation({
     mutationFn: async ({ orderId, statusId }: { orderId: string; statusId: string }) => {
@@ -1133,6 +1128,9 @@ function OrdersListInner() {
 
   // Reset page to 1 when any filter changes
   const filterKey = `${searchQuery}|${statusFilter}|${paymentFilter}|${customerFilter}|${yearFilter}|${amountMin}|${amountMax}|${monthFilter}|${salespersonFilter}|${laborFilter}|${supplierFilter}|${controlFocus}|${hideCompleted}|${contractDateRange.from}|${contractDateRange.to}|${warehouseDateRange.from}|${warehouseDateRange.to}|${expectedDateRange.from}|${expectedDateRange.to}`;
+  // Il reset e' intenzionale: evita di lasciare l'utente su una pagina vuota
+  // quando un filtro server-side riduce il numero totale di risultati.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setPage(1); }, [filterKey]);
 
   // Server-side pagination
@@ -1153,20 +1151,19 @@ function OrdersListInner() {
     averageGross: (globalStats?.totalOrders ?? 0) > 0
       ? (globalStats?.totalGross ?? 0) / (globalStats?.totalOrders ?? 1)
       : 0,
-    grossMargin: orders.reduce((sum, order) => sum + (orderCostsMap.get(order.id)?.grossMargin ?? order.total_amount), 0),
-    lowMarginCount: orders.reduce((count, order) => {
-      const costs = orderCostsMap.get(order.id);
-      if (!costs) return count;
-      const margin = getOrderMargin(order.total_amount, costs.variableCosts);
-      return margin.level !== "good" ? count + 1 : count;
-    }, 0),
-  }), [globalStats, orders, orderCostsMap]);
+  }), [globalStats]);
 
   const controlRoom = useMemo(() => {
     const orderSignals = orders.map((order) => {
       const amountDue = getAmountDue(order);
       const costs = orderCostsMap.get(order.id);
-      const margin = getOrderMargin(order.total_amount || 0, costs?.variableCosts || 0);
+      const marginLevel = !costs?.marginReliable
+        ? "missing"
+        : costs.grossMargin < 0
+          ? "negative"
+          : costs.marginPercent < 20
+            ? "low"
+            : "good";
       const isSupport = Boolean(supportStatusId && order.current_status_id === supportStatusId);
       const isCompleted = Boolean(lastStatusId && order.current_status_id === lastStatusId);
       const isUnplanned = !order.expected_date && !order.work_start_date;
@@ -1175,16 +1172,21 @@ function OrdersListInner() {
       let tone: "red" | "orange" | "blue" | "emerald" = "blue";
       let amount = amountDue;
 
-      if (costs && margin.level === "negative") {
+      if (marginLevel === "missing") {
+        score += 72;
+        reason = "Costi da completare";
+        tone = "orange";
+        amount = 0;
+      } else if (costs && marginLevel === "negative") {
         score += 90;
         reason = "Margine negativo";
         tone = "red";
-        amount = Math.abs(margin.grossMargin);
-      } else if (costs && margin.level === "low") {
+        amount = Math.abs(costs.grossMargin);
+      } else if (costs && marginLevel === "low") {
         score += 62;
         reason = "Margine basso";
         tone = "orange";
-        amount = Math.max(0, (order.total_amount || 0) * 0.2 - margin.grossMargin);
+        amount = Math.max(0, (order.total_amount || 0) * 0.2 - costs.grossMargin);
       }
 
       if (amountDue > 0) {
@@ -1212,10 +1214,11 @@ function OrdersListInner() {
         }
       }
 
-      return { order, amountDue, costs, margin, isSupport, isCompleted, isUnplanned, score, reason, tone, amount };
+      return { order, amountDue, costs, marginLevel, isSupport, isCompleted, isUnplanned, score, reason, tone, amount };
     });
 
-    const lowMargin = orderSignals.filter((item) => item.costs && item.margin.level !== "good");
+    const lowMargin = orderSignals.filter((item) => item.marginLevel === "negative" || item.marginLevel === "low");
+    const missingFinancials = orderSignals.filter((item) => item.marginLevel === "missing");
     const support = orderSignals.filter((item) => item.isSupport);
     const toComplete = orderSignals.filter((item) => !item.isCompleted && !item.isSupport);
     const unplanned = orderSignals.filter((item) => item.isUnplanned && !item.isCompleted);
@@ -1225,6 +1228,7 @@ function OrdersListInner() {
       ...unplanned.map((item) => item.order.id),
       ...missingCustomer.map((item) => item.order.id),
       ...missingStatus.map((item) => item.order.id),
+      ...missingFinancials.map((item) => item.order.id),
     ]).size;
     const priorities = orderSignals
       .filter((item) => item.score > 0)
@@ -1236,7 +1240,8 @@ function OrdersListInner() {
       : "Nessuna priorità critica nella vista corrente.";
 
     return {
-      lowMarginCount: stats.lowMarginCount || lowMargin.length,
+      lowMarginCount: lowMargin.length,
+      missingFinancialCount: missingFinancials.length,
       supportCount: stats.countAssistenza || support.length,
       toCompleteCount: stats.countDaCompletare || toComplete.length,
       unplannedCount: unplanned.length,
@@ -1246,18 +1251,21 @@ function OrdersListInner() {
       priorities,
       insight,
     };
-  }, [orders, orderCostsMap, supportStatusId, lastStatusId, stats.lowMarginCount, stats.countAssistenza, stats.countDaCompletare]);
+  }, [orders, orderCostsMap, supportStatusId, lastStatusId, stats.countAssistenza, stats.countDaCompletare]);
 
   const visibleOrders = useMemo(() => {
     if (controlFocus === "low_margin") {
       return orders.filter((order) => {
         const costs = orderCostsMap.get(order.id);
-        if (!costs) return false;
-        return getOrderMargin(order.total_amount || 0, costs.variableCosts).level !== "good";
+        if (!costs?.marginReliable) return false;
+        return costs.grossMargin < 0 || costs.marginPercent < 20;
       });
     }
     if (controlFocus === "missing_data") {
-      return orders.filter((order) => !order.customer || !order.current_status_id || (!order.expected_date && !order.work_start_date));
+      return orders.filter((order) => {
+        const costs = orderCostsMap.get(order.id);
+        return !order.customer || !order.current_status_id || (!order.expected_date && !order.work_start_date) || !costs?.marginReliable;
+      });
     }
     return orders;
   }, [orders, orderCostsMap, controlFocus]);
@@ -1405,42 +1413,30 @@ function OrdersListInner() {
     const { data: allOrders, error } = await query;
     if (error) { toast({ title: "Errore export", variant: "destructive" }); return null; }
     const exportOrderIds = (allOrders || []).map((o) => o.id);
-    const exportCostsMap = new Map<string, { variableCosts: number; grossMargin: number; marginPercent: number }>();
+    const exportCostsMap = new Map<string, {
+      variableCosts: number;
+      grossMargin: number;
+      marginPercent: number;
+      marginReliable: boolean;
+    }>();
     if (exportOrderIds.length > 0) {
-      const [itemsRes, employeesRes, teamsRes, salespeopleRes] = await Promise.all([
-        supabase.from("order_items").select("order_id, purchase_price, quantity, vat_rate").in("order_id", exportOrderIds),
-        supabase.from("order_employees").select("order_id, total_cost").in("order_id", exportOrderIds),
-        supabase.from("order_external_teams").select("order_id, total_cost, vat_rate").in("order_id", exportOrderIds),
-        supabase.from("order_salespeople").select("order_id, commission_amount, deduction_amount").in("order_id", exportOrderIds),
-      ]);
-      if (itemsRes.error || employeesRes.error || teamsRes.error || salespeopleRes.error) {
-        toast({ title: "Export parziale", description: "Non riesco a calcolare tutti i margini, riprova tra poco.", variant: "destructive" });
+      const { data: marginRows, error: marginError } = await supabase
+        .from("v_ordine_marginalita")
+        .select("id, preventivo_totale, consuntivo, margine, margine_perc")
+        .in("id", exportOrderIds);
+      if (marginError) {
+        toast({ title: "Export non disponibile", description: "Non riesco a leggere i dati economici ufficiali, riprova tra poco.", variant: "destructive" });
         return null;
       }
-      const costAccumulator = new Map<string, number>();
-      for (const item of itemsRes.data || []) {
-        const gross = (item.purchase_price || 0) * (item.quantity || 1);
-        const { netAmount } = calculateNetFromGross(gross, item.vat_rate ?? 22);
-        costAccumulator.set(item.order_id, (costAccumulator.get(item.order_id) || 0) + netAmount);
-      }
-      for (const employee of employeesRes.data || []) {
-        costAccumulator.set(employee.order_id, (costAccumulator.get(employee.order_id) || 0) + (employee.total_cost || 0));
-      }
-      for (const team of teamsRes.data || []) {
-        const { netAmount } = calculateNetFromGross(team.total_cost || 0, team.vat_rate ?? 22);
-        costAccumulator.set(team.order_id, (costAccumulator.get(team.order_id) || 0) + netAmount);
-      }
-      for (const sp of salespeopleRes.data || []) {
-        const commission = calculateStoredCommissionNet(sp.commission_amount, sp.deduction_amount);
-        costAccumulator.set(sp.order_id, (costAccumulator.get(sp.order_id) || 0) + commission);
-      }
-      for (const order of allOrders || []) {
-        const variableCosts = costAccumulator.get(order.id) || 0;
-        const margin = getOrderMargin(order.total_amount || 0, variableCosts);
-        exportCostsMap.set(order.id, {
+      for (const row of marginRows || []) {
+        if (!row.id) continue;
+        const revenue = Number(row.preventivo_totale || 0);
+        const variableCosts = Number(row.consuntivo || 0);
+        exportCostsMap.set(row.id, {
           variableCosts,
-          grossMargin: margin.grossMargin,
-          marginPercent: margin.marginPercent,
+          grossMargin: Number(row.margine || 0),
+          marginPercent: Number(row.margine_perc || 0),
+          marginReliable: revenue > 0 && variableCosts > 0,
         });
       }
     }
@@ -1458,9 +1454,10 @@ function OrdersListInner() {
       { key: "deposit_2_amount", label: "Acconto 2" },
       { key: "financing_amount", label: "Finanziamento" },
       { key: "balance_amount", label: "Saldo" },
-      { key: "variable_costs", label: "Costi Variabili" },
-      { key: "gross_margin", label: "Margine Lordo" },
-      { key: "margin_percent", label: "Margine %" },
+      { key: "variable_costs", label: "Costi Diretti" },
+      { key: "gross_margin", label: "Margine Diretto" },
+      { key: "margin_percent", label: "Margine Diretto %" },
+      { key: "economic_quality", label: "Qualita Dati Economici" },
       { key: "status", label: "Stato" },
       { key: "created_at", label: "Data Contratto" },
       { key: "warehouse_arrival_date", label: "Data Magazzino" },
@@ -1489,8 +1486,9 @@ function OrdersListInner() {
         financing_amount: String(o.financing_amount || 0),
         balance_amount: String(o.balance_amount || 0),
         variable_costs: String(costs?.variableCosts ?? 0),
-        gross_margin: String(costs?.grossMargin ?? o.total_amount ?? 0),
-        margin_percent: costs ? `${costs.marginPercent.toFixed(1)}%` : "",
+        gross_margin: costs?.marginReliable ? String(costs.grossMargin) : "",
+        margin_percent: costs?.marginReliable ? `${costs.marginPercent.toFixed(1)}%` : "",
+        economic_quality: costs?.marginReliable ? "Dati attendibili" : "Costi da completare",
         status: (o.status as any)?.name || "",
         created_at: o.created_at ? format(new Date(o.created_at), "dd/MM/yyyy") : "",
         warehouse_arrival_date: o.warehouse_arrival_date ? format(new Date(o.warehouse_arrival_date), "dd/MM/yyyy") : "",
@@ -1593,7 +1591,7 @@ function OrdersListInner() {
         variant: "destructive",
       });
     }
-  }, [prepareExportData, effectiveCompany?.name, toast]);
+  }, [prepareExportData, effectiveCompany, toast]);
 
   // Export PDF: una scheda completa per ogni cliente con i suoi ordini
   // Export schede clienti PDF: apre dialog con quantity selector + progress bar
@@ -1682,7 +1680,7 @@ function OrdersListInner() {
 
     queryClient.invalidateQueries({ queryKey: ["orders"] });
     return { success, errors };
-  }, [effectiveCompany?.id, queryClient]);
+  }, [effectiveCompany, queryClient]);
 
   const hasStatsError = (isGlobalStatsError && !globalStats) || (isMonthlyOrdersError && monthlyOrders.length === 0);
   const isEconomicStatsLoading = !!effectiveCompany?.id && !hasStatsError && (
@@ -2201,8 +2199,14 @@ function OrdersListInner() {
         </span>
         <span className="inline-flex items-center gap-1.5">
           <AlertTriangle className="h-3.5 w-3.5 text-orange-600" />
-          <span className="text-muted-foreground">Margine basso</span>
-          {isOrdersLoading ? <Skeleton className="h-4 w-7" /> : <span className="font-bold tabular-nums text-orange-700">{controlRoom.lowMarginCount}</span>}
+          <span className="text-muted-foreground">Margine da verificare</span>
+          {isOrdersLoading || isCanonicalMarginsLoading ? (
+            <Skeleton className="h-4 w-7" />
+          ) : (
+            <span className="font-bold tabular-nums text-orange-700">
+              {controlRoom.lowMarginCount + controlRoom.missingFinancialCount}
+            </span>
+          )}
         </span>
       </section>
 
@@ -2256,7 +2260,7 @@ function OrdersListInner() {
             <div className="flex flex-col gap-2 rounded-xl border border-orange-200 bg-orange-50/70 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
               <div className="text-orange-900">
                 <span className="font-semibold">
-                  {controlFocus === "low_margin" ? "Filtro Margine basso attivo" : "Filtro Campi mancanti attivo"}
+                  {controlFocus === "low_margin" ? "Filtro Margine basso attivo" : "Filtro Dati mancanti attivo"}
                 </span>
                 <span className="ml-1 text-orange-800/80">
                   Stai vedendo {visibleOrders.length} commess{visibleOrders.length === 1 ? "a" : "e"} nella pagina corrente.

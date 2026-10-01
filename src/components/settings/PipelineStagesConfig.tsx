@@ -18,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AUTO_STATUS_OPTIONS } from "@/types/opportunities";
 import { usePermissions } from "@/hooks/usePermissions";
 import { AvvisoSolaLettura } from "@/components/common/AvvisoSolaLettura";
+import { queryKeys } from "@/lib/queryKeys";
 
 interface Stage {
   id: string;
@@ -324,7 +325,13 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
       setHasChanges(false);
       setStages(normalizedStages);
       queryClient.invalidateQueries({ queryKey: ["pipeline_stages", pipelineId] });
-      queryClient.invalidateQueries({ queryKey: ["marketing_pipelines", companyId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.pipelinesConfig.list(companyId) });
+      // Anche il Kanban mantiene le fasi in cache: deve rileggere subito nomi,
+      // ordine e nuove colonne quando si torna alle opportunità.
+      queryClient.invalidateQueries({ queryKey: queryKeys.pipelines.list(companyId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.marketingContacts.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
+      queryClient.invalidateQueries({ queryKey: ["bulk-opp-stages", pipelineId] });
       toast.success("Fasi salvate");
     } catch (e: unknown) {
       toast.error(getErrorMessage(e));

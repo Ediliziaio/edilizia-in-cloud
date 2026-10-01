@@ -78,6 +78,7 @@ const AdminSettingsIntegrations = lazy(() => import("@/pages/admin/settings/Admi
 const AdminSettingsApiMcp = lazy(() => import("@/pages/admin/settings/AdminSettingsApiMcp"));
 const AdminSettingsWhatsappLocale = lazy(() => import("@/pages/admin/settings/AdminSettingsWhatsappLocale"));
 const AdminSettingsMarketingCalendars = lazy(() => import("@/pages/admin/settings/AdminSettingsMarketingCalendars"));
+const AdminSettingsPipelines = lazy(() => import("@/pages/admin/settings/AdminSettingsPipelines"));
 const AdminSettingsBanking = lazy(() => import("@/pages/admin/settings/AdminSettingsBanking"));
 const AdminSettingsWebhooks = lazy(() => import("@/pages/admin/settings/AdminSettingsWebhooks"));
 const AdminSettingsWebhookLogs = lazy(() => import("@/pages/admin/settings/AdminSettingsWebhookLogs"));
@@ -301,6 +302,7 @@ export default function AdminRoutesContainer() {
         <Route path="impostazioni/api-mcp" element={<RequireSuperAdmin><AdminSettingsApiMcp /></RequireSuperAdmin>} />
         <Route path="impostazioni/whatsapp-locale" element={<RequireSuperAdmin><AdminSettingsWhatsappLocale /></RequireSuperAdmin>} />
         <Route path="impostazioni/calendari" element={<RequireSuperAdmin><AdminSettingsMarketingCalendars /></RequireSuperAdmin>} />
+        <Route path="impostazioni/sequenze" element={<RequireSuperAdmin><AdminSettingsPipelines /></RequireSuperAdmin>} />
         <Route path="impostazioni/banking" element={<RequireSuperAdmin><AdminSettingsBanking /></RequireSuperAdmin>} />
         <Route path="impostazioni/webhooks" element={<RequireSuperAdmin><AdminSettingsWebhooks /></RequireSuperAdmin>} />
         <Route path="impostazioni/webhook-logs" element={<RequireSuperAdmin><AdminSettingsWebhookLogs /></RequireSuperAdmin>} />

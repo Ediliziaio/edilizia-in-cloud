@@ -18,7 +18,9 @@
 //    propria azienda, quindi una mappa globale field_id→key risolve correttamente
 //    per ciascun contatto.
 //
-// Design: additivo, fail-safe (non lancia mai), e a costo ~zero quando i
+// Design: additivo; gli invii legacy non lanciano, il worker automazioni può
+// richiedere strict per bloccare l'invio se i valori non si possono leggere.
+// Costo ~zero quando i
 // contenuti non referenziano alcun campo custom (fast-path su "{{").
 
 /** Replica esatta di toSnakeCase del frontend (CustomFieldsConfig.tsx). */
@@ -50,27 +52,25 @@ type FieldDef = { id: string; name: string; deleted_at: string | null };
 /**
  * Core condiviso: dato l'elenco di definizioni custom field 'contact' già
  * caricate, individua quelle effettivamente referenziate nei contenuti e
- * pre-carica i valori per i contatti destinatari. Non lancia mai.
+ * pre-carica i valori per i contatti destinatari. Lancia gli errori solo in strict.
  */
 async function buildResolverFromDefs(
   adminClient: any,
   defs: FieldDef[],
   contactIds: string[],
   haystack: string,
+  strict = false,
 ): Promise<ContactCustomFieldResolver> {
-  const fieldKeyById = new Map<string, string>();
+  const fieldKeyById = new Map<string, string[]>();
   const referencedKeys: string[] = [];
   const referencedFieldIds: string[] = [];
   for (const d of defs) {
     if (d.deleted_at || !d.name) continue;
-    const key = toSnakeCase(d.name);
-    if (!key) continue;
-    const re = new RegExp(`\\{\\{\\s*contact\\.${escapeRegExp(key)}\\s*\\}\\}`);
-    if (re.test(haystack)) {
-      fieldKeyById.set(d.id, key);
-      referencedFieldIds.push(d.id);
-      if (!referencedKeys.includes(key)) referencedKeys.push(key);
-    }
+    const keys = [toSnakeCase(d.name), `custom_${d.id.replace(/-/g, "")}`].filter(key => key && new RegExp(`\\{\\{\\s*(?:contact|contatto)\\.${escapeRegExp(key)}\\s*\\}\\}`).test(haystack));
+    if (!keys.length) continue;
+    fieldKeyById.set(d.id, keys);
+    referencedFieldIds.push(d.id);
+    for (const key of keys) if (!referencedKeys.includes(key)) referencedKeys.push(key);
   }
   if (referencedFieldIds.length === 0) return EMPTY_RESOLVER;
 
@@ -83,12 +83,13 @@ async function buildResolverFromDefs(
       .select("contact_id, field_id, value")
       .in("contact_id", chunk)
       .in("field_id", referencedFieldIds);
+    if (valsErr && strict) throw valsErr;
     if (valsErr || !vals) continue;
     for (const v of vals as Array<{ contact_id: string; field_id: string; value: string | null }>) {
-      const key = fieldKeyById.get(v.field_id);
-      if (!key) continue;
+      const keys = fieldKeyById.get(v.field_id);
+      if (!keys) continue;
       const rec = valuesByContact.get(v.contact_id) ?? {};
-      rec[key] = v.value ?? "";
+      for (const key of keys) rec[key] = v.value ?? "";
       valuesByContact.set(v.contact_id, rec);
     }
   }
@@ -101,14 +102,15 @@ async function buildResolverFromDefs(
  * effettivamente referenziati nei contenuti passati ({{ contact.<key> }}),
  * pre-carica i valori per i contatti destinatari.
  *
- * Non lancia mai: in caso di errore (o schema incompleto) ritorna un resolver
- * vuoto, così l'invio email non viene mai bloccato da problemi sui custom field.
+ * Per compatibilità gli invii legacy ricevono un resolver vuoto sugli errori.
+ * Con strict il chiamante riceve l'errore e può fermare l'invio incompleto.
  */
 export async function loadContactCustomFieldResolver(
   adminClient: any,
   companyId: string,
   contactIds: string[],
   contents: Array<string | null | undefined>,
+  options?: { strict?: boolean },
 ): Promise<ContactCustomFieldResolver> {
   try {
     if (!companyId || contactIds.length === 0) return EMPTY_RESOLVER;
@@ -121,10 +123,12 @@ export async function loadContactCustomFieldResolver(
       .select("id, name, deleted_at")
       .eq("company_id", companyId)
       .eq("object_type", "contact");
+    if (defsErr && options?.strict) throw defsErr;
     if (defsErr || !defs) return EMPTY_RESOLVER;
 
-    return await buildResolverFromDefs(adminClient, defs as FieldDef[], contactIds, haystack);
-  } catch {
+    return await buildResolverFromDefs(adminClient, defs as FieldDef[], contactIds, haystack, options?.strict);
+  } catch (error) {
+    if (options?.strict) throw error;
     return EMPTY_RESOLVER;
   }
 }
@@ -175,6 +179,7 @@ export function applyContactCustomFields(
   text: string,
   contactId: string,
   resolver: ContactCustomFieldResolver,
+  escapeValue?: (value: string) => string,
 ): string {
   if (resolver.isEmpty || !text) return text;
   const values = resolver.valuesByContact.get(contactId) ?? {};
@@ -182,8 +187,8 @@ export function applyContactCustomFields(
   for (const key of resolver.referencedKeys) {
     const val = values[key] ?? "";
     out = out.replace(
-      new RegExp(`\\{\\{\\s*contact\\.${escapeRegExp(key)}\\s*\\}\\}`, "g"),
-      val,
+      new RegExp(`\\{\\{\\s*(?:contact|contatto)\\.${escapeRegExp(key)}\\s*\\}\\}`, "g"),
+      () => escapeValue ? escapeValue(val) : val,
     );
   }
   return out;

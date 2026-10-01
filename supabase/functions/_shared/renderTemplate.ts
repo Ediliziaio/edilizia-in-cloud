@@ -201,14 +201,18 @@ export async function renderEmailTemplate(params: {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
 
-  const rendererFn = TEMPLATE_REGISTRY[params.templateName] as unknown as
+  const rendererFn = (Object.prototype.hasOwnProperty.call(TEMPLATE_REGISTRY, params.templateName)
+    ? TEMPLATE_REGISTRY[params.templateName as keyof typeof TEMPLATE_REGISTRY]
+    : undefined) as unknown as
     | ((props: unknown, branding: Branding) => RenderedTemplate)
     | undefined;
   // Contenuto di sistema (58 copy riscritti) per le chiavi senza renderer code.
-  const systemContent = (SYSTEM_EMAIL_CONTENT as Record<
+  const systemContent = Object.prototype.hasOwnProperty.call(SYSTEM_EMAIL_CONTENT, params.templateName)
+    ? (SYSTEM_EMAIL_CONTENT as Record<
     string,
     { subject: string; html_body: string; text_body: string }
-  >)[params.templateName as string];
+  >)[params.templateName]
+    : undefined;
 
   if (!rendererFn && !systemContent) {
     throw new Error(

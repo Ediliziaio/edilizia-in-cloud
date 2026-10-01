@@ -29,6 +29,8 @@ interface MarginalitaRow {
   description: string;
   preventivo_totale: number;
   costo_acquisti: number;
+  costo_materiali_magazzino: number;
+  movimenti_magazzino_senza_costo: number;
   costo_errori: number;
   consuntivo: number;
   margine: number;
@@ -157,6 +159,8 @@ export default function MargineVociDetail({ open, onClose, row }: Props) {
   const preventivoTotale = safeNumber(row.preventivo_totale);
   const variazioniApprovate = safeNumber(row.variazioni_approvate);
   const costoAcquisti = safeNumber(row.costo_acquisti);
+  const costoMagazzino = safeNumber(row.costo_materiali_magazzino);
+  const prelieviSenzaCosto = safeNumber(row.movimenti_magazzino_senza_costo);
   const costoErrori = safeNumber(row.costo_errori);
   const consuntivo = safeNumber(row.consuntivo);
   const margine = safeNumber(row.margine);
@@ -189,7 +193,7 @@ export default function MargineVociDetail({ open, onClose, row }: Props) {
             <TrendingUp className="h-5 w-5 text-primary" aria-hidden="true" />
             <span>Marginalità per voce</span>
             <Link
-              to={`/azienda/ordini/${row.id}`}
+              to={`/azienda/ordini/${row.id}?tab=finanza`}
               className="flex items-center gap-1 text-sm text-primary hover:underline ml-1"
               onClick={onClose}
             >
@@ -236,11 +240,25 @@ export default function MargineVociDetail({ open, onClose, row }: Props) {
           <div className="space-y-3 p-4 rounded-lg bg-muted/30 border">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Breakdown costi</p>
             <BreakdownBar
-              label="Costi acquisti materiali"
+              label="Acquisti impegnati (ODA)"
               value={costoAcquisti}
               total={preventivoTotale}
               colorClass="bg-blue-500"
             />
+            {costoMagazzino > 0 && (
+              <BreakdownBar
+                label="Materiali prelevati da scorta"
+                value={costoMagazzino}
+                total={preventivoTotale}
+                colorClass="bg-orange-500"
+              />
+            )}
+            {prelieviSenzaCosto > 0 && (
+              <p className="flex items-start gap-1.5 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                {prelieviSenzaCosto} {prelieviSenzaCosto === 1 ? "prelievo non ha" : "prelievi non hanno"} un costo unitario: il margine è parziale.
+              </p>
+            )}
             {costoErrori > 0 && (
               <BreakdownBar
                 label="Costi errori / rilavorazioni"

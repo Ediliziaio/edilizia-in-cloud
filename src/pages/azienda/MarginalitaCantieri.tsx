@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import MargineVociDetail from "@/components/marginalita/MargineVociDetail";
@@ -8,8 +8,9 @@ import { formatCurrency } from "@/lib/formatters";
 import { escapeCsvCell } from "@/lib/csvExport";
 import { SedeFilterBar } from "@/components/sedi/SedeFilterBar";
 import { SedeMargineCard } from "@/components/sedi/SedeMargineCard";
-import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
 import { useSediAnalytics } from "@/hooks/useSediAnalytics";
+import { useCompanyStructure } from "@/hooks/controlloGestione/useCompanyStructure";
+import { calculateOrderStructureImpact } from "@/lib/controlloGestione/strutturaCommessa";
 import { useSedeFilter } from "@/store/sedeFilterStore";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -31,13 +32,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
-  TrendingUp,
-  TrendingDown,
   Search,
-  Euro,
   BarChart3,
-  AlertTriangle,
-  CheckCircle2,
   ArrowUpRight,
   Info,
   HardHat,
@@ -63,6 +59,8 @@ interface MarginalitaRow {
   variazioni_approvate: number;
   preventivo_totale: number;
   costo_acquisti: number;
+  costo_materiali_magazzino: number;
+  movimenti_magazzino_senza_costo: number;
   costo_errori: number;
   consuntivo: number;
   margine: number;
@@ -70,6 +68,7 @@ interface MarginalitaRow {
   cliente_nome: string;
   work_start_date: string | null;
   work_end_date: string | null;
+  percentuale_avanzamento: number | null;
   created_at: string;
 }
 
@@ -92,6 +91,24 @@ interface MarginSettings {
   // margine_minimo/target_percentuale (inesistenti → 400, KPI margine muto).
   margine_target_default?: number | null;
   soglia_margine_visibile?: number | null;
+}
+
+interface VehicleEstimateRow {
+  order_id: string;
+  costo_mezzi_stimato: number | null;
+  mezzi_usati: number | null;
+  giorni_mezzo: number | null;
+  mezzi_senza_costo: number | null;
+  dati_mezzi_visibili: boolean | null;
+}
+
+interface AdjustedMargin {
+  source: "automatic" | "fallback";
+  structureAmount: number;
+  structurePct: number;
+  adjustedMargin: number;
+  adjustedMarginPct: number;
+  months: number | null;
 }
 
 type SortDirection = "asc" | "desc";
@@ -122,6 +139,11 @@ function compareSortValues(
 function safeNumber(value: number | null | undefined): number {
   const n = Number(value ?? 0);
   return Number.isFinite(n) ? n : 0;
+}
+
+/** Senza ricavo e almeno un costo registrato il 100% e' solo un falso positivo. */
+function hasReliableMargin(row: Pick<MarginalitaRow, "preventivo_totale" | "consuntivo">): boolean {
+  return safeNumber(row.preventivo_totale) > 0 && safeNumber(row.consuntivo) > 0;
 }
 
 function clampPercentage(value: number): number {
@@ -233,8 +255,8 @@ export default function MarginalitaCantieri() {
   const [search, setSearch] = useState("");
   const [annoFilter, setAnnoFilter] = useState<string>("tutti");
   const [healthFilter, setHealthFilter] = useState<"tutti" | "critici" | "sotto_target" | "sani">("tutti");
-  const [overheadPct, setOverheadPct] = useState(20);
-  const [targetMarginPct, setTargetMarginPct] = useState(10);
+  const [overheadPctOverride, setOverheadPct] = useState<number | null>(null);
+  const [targetMarginPctOverride, setTargetMarginPct] = useState<number | null>(null);
   const [drillRow, setDrillRow] = useState<MarginalitaRow | null>(null);
   const [sort, setSort] = useState<{ key: MarginalitaSortKey; direction: SortDirection }>({
     key: "margineNetto",
@@ -245,16 +267,39 @@ export default function MarginalitaCantieri() {
     queryKey: ["marginalita-cantieri", companyId],
     queryFn: async () => {
       // Limit payload deterministically and expose the cap in UI instead of hiding truncated data.
-      const { data, error, count } = await supabase
+      const rich = await supabase
         .from("v_ordine_marginalita")
-        .select("id, company_id, order_code, description, preventivo_contratto, variazioni_approvate, preventivo_totale, costo_acquisti, costo_errori, consuntivo, margine, margine_perc, cliente_nome, work_start_date, work_end_date, created_at", { count: "exact" })
+        .select("id, company_id, order_code, description, preventivo_contratto, variazioni_approvate, preventivo_totale, costo_acquisti, costo_materiali_magazzino, movimenti_magazzino_senza_costo, costo_errori, consuntivo, margine, margine_perc, cliente_nome, work_start_date, work_end_date, percentuale_avanzamento, created_at", { count: "exact" })
         .eq("company_id", companyId!)
         .order("created_at", { ascending: false })
         .limit(MARGINALITA_FETCH_LIMIT);
-      if (error) throw error;
+
+      if (rich.error) {
+        const isOldView = /schema cache|column|costo_materiali_magazzino|movimenti_magazzino_senza_costo|percentuale_avanzamento/i
+          .test(rich.error.message || "");
+        if (!isOldView) throw rich.error;
+
+        const fallback = await supabase
+          .from("v_ordine_marginalita")
+          .select("id, company_id, order_code, description, preventivo_contratto, variazioni_approvate, preventivo_totale, costo_acquisti, costo_errori, consuntivo, margine, margine_perc, cliente_nome, work_start_date, work_end_date, created_at", { count: "exact" })
+          .eq("company_id", companyId!)
+          .order("created_at", { ascending: false })
+          .limit(MARGINALITA_FETCH_LIMIT);
+        if (fallback.error) throw fallback.error;
+        return {
+          rows: (fallback.data || []).map((row) => ({
+            ...row,
+            costo_materiali_magazzino: 0,
+            movimenti_magazzino_senza_costo: 0,
+            percentuale_avanzamento: null as number | null,
+          })) as MarginalitaRow[],
+          totalCount: fallback.count ?? (fallback.data?.length ?? 0),
+        };
+      }
+
       return {
-        rows: (data || []) as MarginalitaRow[],
-        totalCount: count ?? (data?.length ?? 0),
+        rows: (rich.data || []) as MarginalitaRow[],
+        totalCount: rich.count ?? (rich.data?.length ?? 0),
       };
     },
     enabled: !!companyId,
@@ -265,6 +310,30 @@ export default function MarginalitaCantieri() {
   const rows = useMemo(() => marginalitaData?.rows ?? [], [marginalitaData]);
   const totalRows = marginalitaData?.totalCount ?? rows.length;
   const hasMoreRows = totalRows > rows.length;
+
+  const {
+    data: vehicleEstimates = [],
+    isLoading: isLoadingVehicleEstimates,
+    refetch: refetchVehicleEstimates,
+  } = useQuery({
+    queryKey: ["marginalita-costi-mezzi-stimati", companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("v_ordine_costi_mezzi_stimati")
+        .select("order_id, costo_mezzi_stimato, mezzi_usati, giorni_mezzo, mezzi_senza_costo, dati_mezzi_visibili")
+        .eq("company_id", companyId!);
+      if (error) throw error;
+      return (data ?? []) as VehicleEstimateRow[];
+    },
+    enabled: !!companyId,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
+
+  const vehicleEstimateByOrder = useMemo(
+    () => new Map(vehicleEstimates.map((row) => [row.order_id, row])),
+    [vehicleEstimates],
+  );
 
   const { data: marginSettings } = useQuery({
     queryKey: ["preventivo-impostazioni-margin", companyId],
@@ -280,16 +349,54 @@ export default function MarginalitaCantieri() {
     staleTime: 5 * 60 * 1000,
   });
 
-  useEffect(() => {
-    if (!marginSettings) return;
-    if (marginSettings.overhead_percentuale != null) {
-      setOverheadPct(clampPercentage(Number(marginSettings.overhead_percentuale)));
+  const configuredOverheadPct = marginSettings?.overhead_percentuale;
+  const configuredTargetMarginPct = marginSettings?.margine_target_default
+    ?? marginSettings?.soglia_margine_visibile;
+  const overheadPct = overheadPctOverride
+    ?? clampPercentage(Number(configuredOverheadPct ?? 20));
+  const targetMarginPct = targetMarginPctOverride
+    ?? clampPercentage(Number(configuredTargetMarginPct ?? 10));
+  const structure = useCompanyStructure(!!companyId);
+
+  const getAdjustedMargin = useCallback((row: MarginalitaRow): AdjustedMargin => {
+    const revenue = safeNumber(row.preventivo_totale);
+    const directMargin = safeNumber(row.margine);
+    const automatic = calculateOrderStructureImpact({
+      directMargin,
+      revenue,
+      monthlyPerActiveOrder: structure.data?.monthlyPerActiveOrder ?? null,
+      workStartDate: row.work_start_date,
+      workEndDate: row.work_end_date,
+      progressPercent: row.percentuale_avanzamento,
+      today: structure.data?.today ?? new Date().toLocaleDateString("en-CA"),
+    });
+
+    if (
+      automatic.allocatedStructure !== null
+      && automatic.marginAfterStructure !== null
+      && automatic.marginAfterStructurePct !== null
+    ) {
+      return {
+        source: "automatic" as const,
+        structureAmount: automatic.allocatedStructure,
+        structurePct: revenue > 0 ? (automatic.allocatedStructure / revenue) * 100 : 0,
+        adjustedMargin: automatic.marginAfterStructure,
+        adjustedMarginPct: automatic.marginAfterStructurePct,
+        months: automatic.months,
+      };
     }
-    const dbTarget = marginSettings.margine_target_default ?? marginSettings.soglia_margine_visibile;
-    if (dbTarget != null) {
-      setTargetMarginPct(clampPercentage(Number(dbTarget)));
-    }
-  }, [marginSettings]);
+
+    const structureAmount = revenue * (overheadPct / 100);
+    const adjustedMargin = directMargin - structureAmount;
+    return {
+      source: "fallback" as const,
+      structureAmount,
+      structurePct: overheadPct,
+      adjustedMargin,
+      adjustedMarginPct: revenue > 0 ? (adjustedMargin / revenue) * 100 : 0,
+      months: null,
+    };
+  }, [overheadPct, structure.data]);
 
   const orderIds = useMemo(() => rows.map((row) => row.id), [rows]);
 
@@ -361,7 +468,7 @@ export default function MarginalitaCantieri() {
     return map;
   }, [anomalies]);
 
-  const getOrderAnomalySummary = (orderId: string) => {
+  const getOrderAnomalySummary = useCallback((orderId: string) => {
     const summary = anomaliesByOrder.get(orderId);
     if (!summary) return null;
     const topCause = [...summary.causes.entries()]
@@ -372,13 +479,13 @@ export default function MarginalitaCantieri() {
       topCauseAmount: topCause?.[1].amount ?? 0,
       topCauseCount: topCause?.[1].count ?? 0,
     };
-  };
+  }, [anomaliesByOrder]);
 
-  const getMarginDecision = (row: MarginalitaRow) => {
+  const getMarginDecision = useCallback((row: MarginalitaRow) => {
     const preventivoTotale = safeNumber(row.preventivo_totale);
     const consuntivo = safeNumber(row.consuntivo);
-    const marginePerc = safeNumber(row.margine_perc);
-    const margineNetto = marginePerc - overheadPct;
+    const adjusted = getAdjustedMargin(row);
+    const margineNetto = adjusted.adjustedMarginPct;
     const anomaly = getOrderAnomalySummary(row.id);
     const targetGapPct = Math.max(0, targetMarginPct - margineNetto);
     const recoveryAmount = preventivoTotale * (targetGapPct / 100);
@@ -391,12 +498,20 @@ export default function MarginalitaCantieri() {
         recoveryAmount,
       };
     }
+    if (!hasReliableMargin(row)) {
+      return {
+        label: "Costi da completare",
+        detail: "Nessun costo registrato: il margine non e' ancora calcolabile.",
+        tone: "orange" as const,
+        recoveryAmount: 0,
+      };
+    }
     if (margineNetto < 0) {
       return {
         label: "Perdita netta",
         detail: anomaly?.topCause
           ? `Prima causa da chiudere: ${anomaly.topCause}.`
-          : "Consuntivo e overhead superano il ricavo.",
+          : "Costi diretti e struttura stimata superano il ricavo.",
         tone: "red" as const,
         recoveryAmount,
       };
@@ -412,7 +527,7 @@ export default function MarginalitaCantieri() {
     if (margineNetto < targetMarginPct) {
       return {
         label: "Sotto target",
-        detail: `Mancano ${formatCurrency(recoveryAmount)} per arrivare al target netto ${targetMarginPct.toFixed(1)}%.`,
+        detail: `Mancano ${formatCurrency(recoveryAmount)} per arrivare al target dopo struttura ${targetMarginPct.toFixed(1)}%.`,
         tone: "amber" as const,
         recoveryAmount,
       };
@@ -427,11 +542,11 @@ export default function MarginalitaCantieri() {
     }
     return {
       label: "Sano",
-      detail: "Margine netto sopra target nella vista corrente.",
+      detail: "Margine dopo struttura sopra target nella vista corrente.",
       tone: "green" as const,
       recoveryAmount,
     };
-  };
+  }, [getAdjustedMargin, getOrderAnomalySummary, targetMarginPct]);
 
   // ── Anni disponibili per il filtro ───────────────────────────
   const anniDisponibili = useMemo(() => {
@@ -455,24 +570,22 @@ export default function MarginalitaCantieri() {
       );
     }
     result = result.filter((r) => {
-      const netto = safeNumber(r.margine_perc) - overheadPct;
-      if (healthFilter === "critici") return netto < 0;
-      if (healthFilter === "sotto_target") return netto >= 0 && netto < targetMarginPct;
-      if (healthFilter === "sani") return netto >= 25;
+      const reliable = hasReliableMargin(r);
+      const netto = getAdjustedMargin(r).adjustedMarginPct;
+      if (healthFilter === "critici") return !reliable || netto < 0;
+      if (healthFilter === "sotto_target") return reliable && netto >= 0 && netto < targetMarginPct;
+      if (healthFilter === "sani") return reliable && netto >= 25;
       return true;
     });
     const getSortValue = (row: MarginalitaRow, key: MarginalitaSortKey) => {
-      const margineNetto = safeNumber(row.margine_perc) - overheadPct;
-      const preventivoTotale = safeNumber(row.preventivo_totale);
-      const overheadAllocato = preventivoTotale * (overheadPct / 100);
-      const margineNettoAbs = preventivoTotale * (margineNetto / 100);
+      const adjusted = getAdjustedMargin(row);
       switch (key) {
         case "order":
           return row.order_code ?? row.description ?? "";
         case "cliente":
           return row.cliente_nome ?? "";
         case "stato":
-          return margineNetto;
+          return hasReliableMargin(row) ? adjusted.adjustedMarginPct : -Infinity;
         case "preventivo":
           return safeNumber(row.preventivo_totale);
         case "consuntivo":
@@ -482,11 +595,11 @@ export default function MarginalitaCantieri() {
         case "marginePerc":
           return safeNumber(row.margine_perc);
         case "overhead":
-          return overheadAllocato;
+          return adjusted.structureAmount;
         case "margineNetto":
-          return margineNettoAbs;
+          return adjusted.adjustedMargin;
         case "acquisti":
-          return safeNumber(row.costo_acquisti);
+          return safeNumber(row.costo_acquisti) + safeNumber(row.costo_materiali_magazzino);
         case "errori":
           return safeNumber(row.costo_errori);
         default:
@@ -498,7 +611,7 @@ export default function MarginalitaCantieri() {
       const order = compareSortValues(getSortValue(a, sort.key), getSortValue(b, sort.key));
       return sort.direction === "asc" ? order : -order;
     });
-  }, [rows, annoFilter, search, healthFilter, overheadPct, targetMarginPct, sort]);
+  }, [rows, annoFilter, search, healthFilter, targetMarginPct, sort, getAdjustedMargin]);
 
   const handleSort = (key: MarginalitaSortKey) => {
     setSort((current) => ({
@@ -513,13 +626,19 @@ export default function MarginalitaCantieri() {
       "Cliente",
       "Preventivo",
       "Consuntivo",
-      "Margine lordo",
-      "Margine lordo %",
-      "Overhead %",
-      "Target netto %",
-      "Margine netto %",
-      "Margine netto euro",
-      "Acquisti",
+      "Margine diretto",
+      "Margine diretto %",
+      "Metodo struttura",
+      "Quota struttura euro",
+      "Quota struttura %",
+      "Target dopo struttura %",
+      "Margine dopo struttura %",
+      "Margine dopo struttura euro",
+      "Acquisti ODA",
+      "Materiali da scorta",
+      "Mezzi stimati fuori consuntivo",
+      "Mezzi assegnati",
+      "Mezzi senza costo configurato",
       "Anomalie",
       "Anomalie aperte",
       "Motivo rischio",
@@ -527,21 +646,28 @@ export default function MarginalitaCantieri() {
     ];
     const rowsCsv = filtered.map((row) => {
       const preventivoTotale = safeNumber(row.preventivo_totale);
-      const margineNetto = safeNumber(row.margine_perc) - overheadPct;
+      const adjusted = getAdjustedMargin(row);
       const decision = getMarginDecision(row);
       const anomaly = getOrderAnomalySummary(row.id);
+      const reliable = hasReliableMargin(row);
       return [
         row.order_code ?? "",
         row.cliente_nome ?? "",
         preventivoTotale.toFixed(2),
         safeNumber(row.consuntivo).toFixed(2),
-        safeNumber(row.margine).toFixed(2),
-        safeNumber(row.margine_perc).toFixed(1),
-        overheadPct.toFixed(1),
+        reliable ? safeNumber(row.margine).toFixed(2) : "",
+        reliable ? safeNumber(row.margine_perc).toFixed(1) : "",
+        adjusted.source === "automatic" ? "Automatica per tempo" : "Fallback percentuale",
+        adjusted.structureAmount.toFixed(2),
+        adjusted.structurePct.toFixed(1),
         targetMarginPct.toFixed(1),
-        margineNetto.toFixed(1),
-        (preventivoTotale * (margineNetto / 100)).toFixed(2),
+        reliable ? adjusted.adjustedMarginPct.toFixed(1) : "",
+        reliable ? adjusted.adjustedMargin.toFixed(2) : "",
         safeNumber(row.costo_acquisti).toFixed(2),
+        safeNumber(row.costo_materiali_magazzino).toFixed(2),
+        safeNumber(vehicleEstimateByOrder.get(row.id)?.costo_mezzi_stimato).toFixed(2),
+        String(safeNumber(vehicleEstimateByOrder.get(row.id)?.mezzi_usati)),
+        String(safeNumber(vehicleEstimateByOrder.get(row.id)?.mezzi_senza_costo)),
         safeNumber(row.costo_errori).toFixed(2),
         String(anomaly?.openCount ?? 0),
         decision.label,
@@ -562,15 +688,35 @@ export default function MarginalitaCantieri() {
 
   // ── KPI aggregati (su filtered) ──────────────────────────────
   const kpi = useMemo(() => {
+    const reliableRows = filtered.filter(hasReliableMargin);
     const totPreventivo = filtered.reduce((s, r) => s + safeNumber(r.preventivo_totale), 0);
     const totConsuntivo = filtered.reduce((s, r) => s + safeNumber(r.consuntivo), 0);
-    const totMargine = filtered.reduce((s, r) => s + safeNumber(r.margine), 0);
-    const avgMarginePerc = totPreventivo > 0 ? (totMargine / totPreventivo) * 100 : 0;
-    const cantierInRosso = filtered.filter((r) => safeNumber(r.margine_perc) < 0).length;
-    const avgMargineNettoPerc = avgMarginePerc - overheadPct;
-    const riskCount = filtered.filter((r) => safeNumber(r.margine_perc) - overheadPct < targetMarginPct).length;
+    const reliableRevenue = reliableRows.reduce((s, r) => s + safeNumber(r.preventivo_totale), 0);
+    const totMargine = reliableRows.reduce((s, r) => s + safeNumber(r.margine), 0);
+    const avgMarginePerc = reliableRevenue > 0 ? (totMargine / reliableRevenue) * 100 : 0;
+    const cantierInRosso = reliableRows.filter((r) => safeNumber(r.margine_perc) < 0).length;
+    const adjustedMarginTotal = reliableRows.reduce((sum, row) => sum + getAdjustedMargin(row).adjustedMargin, 0);
+    const allocatedStructureTotal = reliableRows.reduce((sum, row) => sum + getAdjustedMargin(row).structureAmount, 0);
+    const avgMargineNettoPerc = reliableRevenue > 0 ? (adjustedMarginTotal / reliableRevenue) * 100 : 0;
+    const incompleteCount = filtered.length - reliableRows.length;
+    const riskCount = filtered.filter((r) => !hasReliableMargin(r) || getAdjustedMargin(r).adjustedMarginPct < targetMarginPct).length;
     const errorCost = filtered.reduce((s, r) => s + safeNumber(r.costo_errori), 0);
-    const purchaseCost = filtered.reduce((s, r) => s + safeNumber(r.costo_acquisti), 0);
+    const purchaseCost = filtered.reduce(
+      (s, r) => s + safeNumber(r.costo_acquisti) + safeNumber(r.costo_materiali_magazzino),
+      0,
+    );
+    const vehicleEstimateTotal = filtered.reduce(
+      (sum, row) => sum + safeNumber(vehicleEstimateByOrder.get(row.id)?.costo_mezzi_stimato),
+      0,
+    );
+    const vehiclesUsed = filtered.reduce(
+      (sum, row) => sum + safeNumber(vehicleEstimateByOrder.get(row.id)?.mezzi_usati),
+      0,
+    );
+    const vehiclesWithoutCost = filtered.reduce(
+      (sum, row) => sum + safeNumber(vehicleEstimateByOrder.get(row.id)?.mezzi_senza_costo),
+      0,
+    );
     const targetRecovery = filtered.reduce((sum, row) => sum + getMarginDecision(row).recoveryAmount, 0);
     const openAnomalyCost = filtered.reduce((sum, row) => sum + (getOrderAnomalySummary(row.id)?.openTotal ?? 0), 0);
     const openAnomalyCount = filtered.reduce((sum, row) => sum + (getOrderAnomalySummary(row.id)?.openCount ?? 0), 0);
@@ -581,20 +727,27 @@ export default function MarginalitaCantieri() {
       avgMarginePerc,
       cantierInRosso,
       avgMargineNettoPerc,
+      adjustedMarginTotal,
+      allocatedStructureTotal,
+      reliableCount: reliableRows.length,
+      incompleteCount,
       riskCount,
       errorCost,
       purchaseCost,
+      vehicleEstimateTotal,
+      vehiclesUsed,
+      vehiclesWithoutCost,
       targetRecovery,
       openAnomalyCost,
       openAnomalyCount,
     };
-  }, [filtered, overheadPct, targetMarginPct, anomaliesByOrder]);
+  }, [filtered, targetMarginPct, vehicleEstimateByOrder, getAdjustedMargin, getMarginDecision, getOrderAnomalySummary]);
 
   const marginControl = useMemo(() => {
     const riskRows = filtered
       .map((row) => {
         const decision = getMarginDecision(row);
-        const margineNetto = safeNumber(row.margine_perc) - overheadPct;
+        const margineNetto = getAdjustedMargin(row).adjustedMarginPct;
         return { row, decision, margineNetto };
       })
       .filter((item) => item.decision.tone !== "green")
@@ -619,24 +772,11 @@ export default function MarginalitaCantieri() {
       .slice(0, 5);
 
     const insight = riskRows.length > 0
-      ? `${riskRows.length} commesse sono sotto soglia. Gap economico rispetto al target netto ${targetMarginPct.toFixed(1)}%: ${formatCurrency(kpi.targetRecovery)}.`
-      : `Le commesse filtrate sono sopra il target netto ${targetMarginPct.toFixed(1)}%.`;
+      ? `${riskRows.length} commesse richiedono attenzione. Gap economico calcolabile rispetto al target dopo struttura ${targetMarginPct.toFixed(1)}%: ${formatCurrency(kpi.targetRecovery)}.${kpi.incompleteCount > 0 ? ` ${kpi.incompleteCount} senza costi completi.` : ""}`
+      : `Le commesse filtrate sono sopra il target dopo struttura ${targetMarginPct.toFixed(1)}%.`;
 
     return { riskRows: riskRows.slice(0, 5), topCauses, insight };
-  }, [filtered, overheadPct, targetMarginPct, anomaliesByOrder, kpi.targetRecovery]);
-
-  const recoveryPlan = useMemo(() => {
-    const anomalyToVerify = Math.min(kpi.openAnomalyCost, kpi.targetRecovery);
-    const compensationGap = Math.max(0, kpi.targetRecovery - anomalyToVerify);
-    const avgPerPriorityOrder = marginControl.riskRows.length > 0
-      ? kpi.targetRecovery / marginControl.riskRows.length
-      : 0;
-    return {
-      anomalyToVerify,
-      compensationGap,
-      avgPerPriorityOrder,
-    };
-  }, [kpi.openAnomalyCost, kpi.targetRecovery, marginControl.riskRows.length]);
+  }, [filtered, targetMarginPct, kpi.incompleteCount, kpi.targetRecovery, getAdjustedMargin, getMarginDecision, getOrderAnomalySummary]);
 
   const { sediSelezionate, periodo } = useSedeFilter();
   const { data: sediData, isLoading: sediLoading } = useSediAnalytics({
@@ -659,7 +799,7 @@ export default function MarginalitaCantieri() {
           <div className="min-w-0">
             <h1 className="text-lg sm:text-2xl font-bold text-slate-900 tracking-tight leading-tight">Marginalità Cantieri</h1>
             <p className="hidden sm:block text-sm text-slate-500 mt-0.5">
-              Controlla preventivo, acquisti, errori e overhead per capire quali commesse stanno erodendo margine.
+              Controlla preventivo, costi diretti e struttura per capire quali commesse stanno erodendo margine.
             </p>
           </div>
         </div>
@@ -668,7 +808,17 @@ export default function MarginalitaCantieri() {
               <FileDown className="h-3.5 w-3.5 sm:mr-1.5" />
               <span className="hidden sm:inline">Esporta vista</span>
             </Button>
-            <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching} className="shrink-0" aria-label="Aggiorna dati">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                void refetch();
+                void refetchVehicleEstimates();
+              }}
+              disabled={isFetching}
+              className="shrink-0"
+              aria-label="Aggiorna dati"
+            >
               <RefreshCw className={cn("h-3.5 w-3.5 sm:mr-1.5", isFetching && "animate-spin")} />
               <span className="hidden sm:inline">Aggiorna dati</span>
             </Button>
@@ -694,60 +844,35 @@ export default function MarginalitaCantieri() {
                 </div>
               </div>
               <Badge className="w-fit border border-white/20 bg-white/10 text-white hover:bg-white/10">
-                Target netto {targetMarginPct.toFixed(1)}%
+                Target dopo struttura {targetMarginPct.toFixed(1)}%
               </Badge>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-3">
+            <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
               <div className="rounded-xl border border-white/10 bg-white/10 p-3">
-                <p className="text-xs font-semibold uppercase text-blue-100">Gap dal target</p>
-                <p className="mt-1 text-2xl font-bold">{formatCurrency(kpi.targetRecovery)}</p>
-                <p className="text-xs text-blue-100/80">margine mancante rispetto al target, non credito certo</p>
+                <p className="text-[11px] font-semibold uppercase text-blue-100">Margine diretto</p>
+                <p className="mt-1 text-xl font-bold">{kpi.reliableCount > 0 ? formatCurrency(kpi.totMargine) : "—"}</p>
+                <p className="text-xs text-blue-100/75">{kpi.reliableCount} commesse calcolabili</p>
               </div>
               <div className="rounded-xl border border-white/10 bg-white/10 p-3">
-                <p className="text-xs font-semibold uppercase text-blue-100">Anomalie da verificare</p>
-                <p className="mt-1 text-2xl font-bold">{kpi.openAnomalyCount}</p>
-                <p className="text-xs text-blue-100/80">{formatCurrency(kpi.openAnomalyCost)} da validare o contestare</p>
+                <p className="text-[11px] font-semibold uppercase text-blue-100">Dopo struttura</p>
+                <p className="mt-1 text-xl font-bold">{kpi.reliableCount > 0 ? formatCurrency(kpi.adjustedMarginTotal) : "—"}</p>
+                <p className="text-xs text-blue-100/75">{kpi.reliableCount > 0 ? `${kpi.avgMargineNettoPerc.toFixed(1)}% medio` : "dati da completare"}</p>
               </div>
-              <div className="rounded-xl border border-white/10 bg-white/10 p-3">
-                <p className="text-xs font-semibold uppercase text-blue-100">Commesse sotto soglia</p>
-                <p className="mt-1 text-2xl font-bold">{marginControl.riskRows.length}</p>
-                <p className="text-xs text-blue-100/80">ordinate per impatto sul margine netto</p>
+              <div className="rounded-xl border border-orange-300/30 bg-orange-400/15 p-3">
+                <p className="text-[11px] font-semibold uppercase text-orange-100">Gap dal target</p>
+                <p className="mt-1 text-xl font-bold">{formatCurrency(kpi.targetRecovery)}</p>
+                <p className="text-xs text-orange-100/75">da recuperare o compensare</p>
+              </div>
+              <div className="rounded-xl border border-red-300/30 bg-red-400/15 p-3">
+                <p className="text-[11px] font-semibold uppercase text-red-100">Da controllare</p>
+                <p className="mt-1 text-xl font-bold">{kpi.riskCount}</p>
+                <p className="text-xs text-red-100/75">{kpi.incompleteCount} con dati incompleti</p>
               </div>
             </div>
-
-            <div className="rounded-2xl border border-white/10 bg-white/[0.07] p-4">
-              <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                <div>
-                  <p className="text-sm font-semibold">Come leggere il gap</p>
-                  <p className="mt-1 text-xs leading-relaxed text-blue-100/80">
-                    Non tutto il margine perso è recuperabile. Qui calcolo quanto manca al target netto
-                    ({targetMarginPct.toFixed(1)}%) dopo overhead ({overheadPct.toFixed(1)}%) e separo le azioni:
-                    anomalie da validare, costi da bloccare, extra lavori o varianti da fatturare.
-                  </p>
-                </div>
-                <Badge className="w-fit border border-white/20 bg-white/10 text-white hover:bg-white/10">
-                  Media {formatCurrency(recoveryPlan.avgPerPriorityOrder)} / priorità
-                </Badge>
-              </div>
-              <div className="mt-4 grid gap-2 md:grid-cols-3">
-                <div className="rounded-xl border border-white/10 bg-slate-950/20 p-3">
-                  <p className="text-xs font-semibold uppercase text-orange-200">1. Perdite da validare</p>
-                  <p className="mt-1 text-lg font-bold">{formatCurrency(recoveryPlan.anomalyToVerify)}</p>
-                  <p className="text-xs text-blue-100/75">errori, reclami fornitore o cause da confermare prima di imputare</p>
-                </div>
-                <div className="rounded-xl border border-white/10 bg-slate-950/20 p-3">
-                  <p className="text-xs font-semibold uppercase text-orange-200">2. Gap da compensare</p>
-                  <p className="mt-1 text-lg font-bold">{formatCurrency(recoveryPlan.compensationGap)}</p>
-                  <p className="text-xs text-blue-100/75">varianti cliente, extra lavori approvati, sconti acquisto o stop costi</p>
-                </div>
-                <div className="rounded-xl border border-white/10 bg-slate-950/20 p-3">
-                  <p className="text-xs font-semibold uppercase text-orange-200">3. Intervieni in ordine</p>
-                  <p className="mt-1 text-lg font-bold">{marginControl.riskRows.length}</p>
-                  <p className="text-xs text-blue-100/75">prima anomalie aperte, poi acquisti, poi varianti e costi residui</p>
-                </div>
-              </div>
-            </div>
+            <p className="text-xs text-blue-100/70">
+              Le stime di struttura e mezzi restano separate dal consuntivo. Apri una commessa prioritaria per completare i controlli e intervenire sui costi.
+            </p>
           </CardContent>
         </Card>
 
@@ -818,83 +943,51 @@ export default function MarginalitaCantieri() {
         </section>
       )}
 
-      {/* ── KPI Strip ──────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
-        <OperationalKpiCard
-          label="Preventivo Totale"
-          value={formatCurrency(kpi.totPreventivo)}
-          hint={`${filtered.length} ordini`}
-          icon={Euro}
-          tone="blue"
-          isLoading={isLoading}
-        />
-        <OperationalKpiCard
-          label="Consuntivo Totale"
-          value={formatCurrency(kpi.totConsuntivo)}
-          hint="acquisti + errori"
-          icon={BarChart3}
-          tone="slate"
-          isLoading={isLoading}
-        />
-        <OperationalKpiCard
-          label="Margine Lordo"
-          value={formatCurrency(kpi.totMargine)}
-          icon={kpi.totMargine >= 0 ? TrendingUp : TrendingDown}
-          tone={kpi.totMargine >= 0 ? "green" : "red"}
-          isLoading={isLoading}
-        />
-        <OperationalKpiCard
-          label="Margine Medio %"
-          value={`${kpi.avgMarginePerc.toFixed(1)}%`}
-          hint={kpi.cantierInRosso > 0 ? `${kpi.cantierInRosso} in perdita` : "Tutti positivi"}
-          icon={kpi.cantierInRosso > 0 ? AlertTriangle : CheckCircle2}
-          tone={kpi.avgMarginePerc >= 15 ? "green" : kpi.avgMarginePerc >= 0 ? "amber" : "red"}
-          isLoading={isLoading}
-        />
-        <OperationalKpiCard
-          label={`Margine Netto Medio (−${overheadPct}%)`}
-          value={`${kpi.avgMargineNettoPerc.toFixed(1)}%`}
-          hint="dopo overhead fissi"
-          icon={kpi.avgMargineNettoPerc >= 10 ? TrendingUp : TrendingDown}
-          tone={kpi.avgMargineNettoPerc >= 10 ? "green" : kpi.avgMargineNettoPerc >= 0 ? "amber" : "red"}
-          isLoading={isLoading}
-        />
-        <OperationalKpiCard
-          label="A rischio"
-          value={String(kpi.riskCount)}
-          hint={`netto sotto ${targetMarginPct.toFixed(1)}%`}
-          icon={AlertTriangle}
-          tone={kpi.riskCount > 0 ? "red" : "green"}
-          isLoading={isLoading}
-        />
-      </div>
-
-      <div className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-sm shadow-sm lg:grid-cols-4">
-        <div>
-          <p className="text-xs font-semibold uppercase text-muted-foreground">Acquisti registrati</p>
-          <p className="text-lg font-bold">{formatCurrency(kpi.purchaseCost)}</p>
+      <details className="group rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-slate-800">
+          <span>Dettagli economici e ipotesi di calcolo</span>
+          <span className="text-xs font-normal text-muted-foreground group-open:hidden">Mostra</span>
+          <span className="hidden text-xs font-normal text-muted-foreground group-open:inline">Nascondi</span>
+        </summary>
+        <div className="grid gap-4 border-t border-slate-100 p-4 text-sm sm:grid-cols-2 xl:grid-cols-4">
+          <div>
+            <p className="text-xs font-semibold uppercase text-muted-foreground">Ricavi e consuntivo</p>
+            <p className="mt-1 font-semibold">{formatCurrency(kpi.totPreventivo)} · {formatCurrency(kpi.totConsuntivo)}</p>
+            <p className="text-xs text-muted-foreground">preventivo totale · costi registrati</p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase text-muted-foreground">Materiali</p>
+            <p className="mt-1 font-semibold">{formatCurrency(kpi.purchaseCost)}</p>
+            <p className="text-xs text-muted-foreground">acquisti e prelievi da scorta</p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase text-sky-700">Mezzi stimati</p>
+            <p className="mt-1 font-semibold">{isLoadingVehicleEstimates ? "—" : formatCurrency(kpi.vehicleEstimateTotal)}</p>
+            <p className="text-xs text-muted-foreground">fuori consuntivo · {kpi.vehiclesUsed} assegnazioni{kpi.vehiclesWithoutCost > 0 ? ` · ${kpi.vehiclesWithoutCost} senza costo` : ""}</p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase text-red-700">Errori e anomalie</p>
+            <p className="mt-1 font-semibold">{formatCurrency(kpi.errorCost)}</p>
+            <p className="text-xs text-muted-foreground">{kpi.openAnomalyCount} ancora da verificare</p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase text-blue-700">Struttura mensile</p>
+            <p className="mt-1 font-semibold">{structure.data ? formatCurrency(structure.data.monthlyStructure) : "—"}</p>
+            <p className="text-xs text-muted-foreground">costi fissi e personale d'ufficio</p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase text-blue-700">Quota per commessa</p>
+            <p className="mt-1 font-semibold">{structure.data?.monthlyPerActiveOrder ? formatCurrency(structure.data.monthlyPerActiveOrder) : "—"}</p>
+            <p className="text-xs text-muted-foreground">{structure.data?.activeOrders ?? "—"} commesse attive</p>
+          </div>
+          <div className="sm:col-span-2">
+            <p className="text-xs font-semibold uppercase text-muted-foreground">Metodo</p>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+              La struttura viene ripartita automaticamente nel tempo. Se mancano date o dati viene applicato il fallback del {overheadPct.toFixed(1)}%. Mezzi e struttura sono letture gestionali e non modificano il consuntivo contabile.
+            </p>
+          </div>
         </div>
-        <div>
-          <p className="text-xs font-semibold uppercase text-muted-foreground">Errori / anomalie</p>
-          <p className={cn("text-lg font-bold", kpi.errorCost > 0 ? "text-red-600" : "text-green-600")}>{formatCurrency(kpi.errorCost)}</p>
-        </div>
-        <div>
-          <p className="text-xs font-semibold uppercase text-muted-foreground">Priorità operativa</p>
-          <p className="text-sm font-medium">
-            {kpi.riskCount > 0
-              ? `${kpi.riskCount} commesse richiedono controllo costi, anomalie e varianti.`
-              : "Nessuna commessa sotto soglia nella vista corrente."}
-          </p>
-        </div>
-        <div>
-          <p className="text-xs font-semibold uppercase text-muted-foreground">Causa ricorrente</p>
-          <p className="text-sm font-medium">
-            {marginControl.topCauses[0]
-              ? `${marginControl.topCauses[0].cause} · ${formatCurrency(marginControl.topCauses[0].amount)}`
-              : "Nessuna anomalia classificata nella vista."}
-          </p>
-        </div>
-      </div>
+      </details>
 
       {hasMoreRows && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
@@ -916,7 +1009,7 @@ export default function MarginalitaCantieri() {
           />
         </div>
         <div className="flex items-center gap-2">
-          <label className="text-sm text-muted-foreground whitespace-nowrap">Overhead fissi %</label>
+          <label className="text-sm text-muted-foreground whitespace-nowrap">Fallback struttura %</label>
           <Input
             type="number"
             min={0}
@@ -931,12 +1024,12 @@ export default function MarginalitaCantieri() {
               <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
             </TooltipTrigger>
             <TooltipContent>
-              <p className="text-xs max-w-[200px]">Percentuale di costi fissi aziendali da allocare su ogni commessa per calcolare il margine netto reale.</p>
+              <p className="text-xs max-w-[240px]">Usato solo quando la ripartizione automatica non può essere calcolata, per esempio se manca la data di inizio commessa.</p>
             </TooltipContent>
           </Tooltip>
         </div>
         <div className="flex items-center gap-2">
-          <label className="text-sm text-muted-foreground whitespace-nowrap">Target netto %</label>
+          <label className="text-sm text-muted-foreground whitespace-nowrap">Target dopo struttura %</label>
           <Input
             type="number"
             min={0}
@@ -951,7 +1044,7 @@ export default function MarginalitaCantieri() {
               <Target className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
             </TooltipTrigger>
             <TooltipContent>
-              <p className="text-xs max-w-[220px]">Soglia minima di marginalità netta usata per calcolare il gap dal target e ordinare le priorità operative.</p>
+              <p className="text-xs max-w-[220px]">Soglia minima dopo l'incidenza stimata della struttura, usata per calcolare il gap e ordinare le priorità operative.</p>
             </TooltipContent>
           </Tooltip>
         </div>
@@ -1045,11 +1138,11 @@ export default function MarginalitaCantieri() {
                   <SortableTableHead active={sort.key === "stato"} direction={sort.direction} onClick={() => handleSort("stato")}>Stato</SortableTableHead>
                   <SortableTableHead className="text-right" align="right" active={sort.key === "preventivo"} direction={sort.direction} onClick={() => handleSort("preventivo")}>Preventivo</SortableTableHead>
                   <SortableTableHead className="text-right" align="right" active={sort.key === "consuntivo"} direction={sort.direction} onClick={() => handleSort("consuntivo")}>Consuntivo</SortableTableHead>
-                  <SortableTableHead className="text-right" align="right" active={sort.key === "margine"} direction={sort.direction} onClick={() => handleSort("margine")}>Margine €</SortableTableHead>
-                  <SortableTableHead className="text-center w-32" align="center" active={sort.key === "marginePerc"} direction={sort.direction} onClick={() => handleSort("marginePerc")}>Margine %</SortableTableHead>
-                  <SortableTableHead className="text-right" align="right" active={sort.key === "overhead"} direction={sort.direction} onClick={() => handleSort("overhead")}>Overhead alloc.</SortableTableHead>
-                  <SortableTableHead className="text-right" align="right" active={sort.key === "margineNetto"} direction={sort.direction} onClick={() => handleSort("margineNetto")}>Margine netto</SortableTableHead>
-                  <SortableTableHead className="text-right" align="right" active={sort.key === "acquisti"} direction={sort.direction} onClick={() => handleSort("acquisti")}>Acquisti</SortableTableHead>
+                  <SortableTableHead className="text-right" align="right" active={sort.key === "margine"} direction={sort.direction} onClick={() => handleSort("margine")}>Margine diretto €</SortableTableHead>
+                  <SortableTableHead className="text-center w-32" align="center" active={sort.key === "marginePerc"} direction={sort.direction} onClick={() => handleSort("marginePerc")}>Margine diretto %</SortableTableHead>
+                  <SortableTableHead className="text-right" align="right" active={sort.key === "overhead"} direction={sort.direction} onClick={() => handleSort("overhead")}>Quota struttura</SortableTableHead>
+                  <SortableTableHead className="text-right" align="right" active={sort.key === "margineNetto"} direction={sort.direction} onClick={() => handleSort("margineNetto")}>Dopo struttura</SortableTableHead>
+                  <SortableTableHead className="text-right" align="right" active={sort.key === "acquisti"} direction={sort.direction} onClick={() => handleSort("acquisti")}>Materiali</SortableTableHead>
                   <SortableTableHead className="text-right" align="right" active={sort.key === "errori"} direction={sort.direction} onClick={() => handleSort("errori")}>Errori</SortableTableHead>
                 </TableRow>
               </TableHeader>
@@ -1060,12 +1153,15 @@ export default function MarginalitaCantieri() {
                   const margine = safeNumber(row.margine);
                   const marginePerc = safeNumber(row.margine_perc);
                   const costoAcquisti = safeNumber(row.costo_acquisti);
+                  const costoMagazzino = safeNumber(row.costo_materiali_magazzino);
                   const costoErrori = safeNumber(row.costo_errori);
-                  const margineNetto = marginePerc - overheadPct;
-                  const margineNettoAbs = preventivoTotale * (margineNetto / 100);
-                  const overheadAllocato = preventivoTotale * (overheadPct / 100);
+                  const adjusted = getAdjustedMargin(row);
+                  const margineNetto = adjusted.adjustedMarginPct;
+                  const margineNettoAbs = adjusted.adjustedMargin;
+                  const overheadAllocato = adjusted.structureAmount;
                   const decision = getMarginDecision(row);
                   const anomaly = getOrderAnomalySummary(row.id);
+                  const reliable = hasReliableMargin(row);
                   return (
                     <TableRow
                       key={row.id}
@@ -1082,7 +1178,9 @@ export default function MarginalitaCantieri() {
                       <TableCell className="text-sm text-muted-foreground">{row.cliente_nome || "–"}</TableCell>
                       <TableCell>
                         <div className="space-y-1">
-                          <MarginHealthBadge perc={margineNetto} />
+                          {reliable
+                            ? <MarginHealthBadge perc={margineNetto} />
+                            : <Badge variant="outline" className="border-orange-200 bg-orange-50 text-orange-700">Dati incompleti</Badge>}
                           <p
                             className={cn(
                               "max-w-[190px] text-xs",
@@ -1100,27 +1198,38 @@ export default function MarginalitaCantieri() {
                       <TableCell className="text-right font-medium">{formatCurrency(preventivoTotale)}</TableCell>
                       <TableCell className="text-right">{formatCurrency(consuntivo)}</TableCell>
                       <TableCell className={cn("text-right font-semibold", MargineColorClass(marginePerc))}>
-                        {formatCurrency(margine)}
+                        {reliable ? formatCurrency(margine) : "—"}
                       </TableCell>
                       <TableCell className="text-center">
-                        <div className="flex flex-col items-center gap-1">
+                        {reliable ? <div className="flex flex-col items-center gap-1">
                           <MargineBadge perc={marginePerc} />
                           <Progress
                             value={clampPercentage(marginePerc)}
                             className="h-1 w-20"
                             indicatorClassName={MargineProgressClass(marginePerc)}
                           />
-                        </div>
+                        </div> : <span className="text-muted-foreground">—</span>}
                       </TableCell>
                       <TableCell className="text-right text-sm text-muted-foreground">
-                        {formatCurrency(overheadAllocato)}
+                        <span title={adjusted.source === "automatic"
+                          ? `${adjusted.months?.toFixed(1) ?? "—"} mesi × quota mensile automatica`
+                          : `Fallback del ${adjusted.structurePct.toFixed(1)}% sul ricavo`}>
+                          {formatCurrency(overheadAllocato)}
+                        </span>
+                        <span className="ml-1 text-[10px] uppercase text-slate-400">
+                          {adjusted.source === "automatic" ? "auto" : "fallback"}
+                        </span>
                       </TableCell>
                       <TableCell className={cn("text-right font-semibold text-sm", MargineColorClass(margineNetto))}>
-                        {formatCurrency(margineNettoAbs)}
-                        <span className="text-xs ml-1">({margineNetto.toFixed(1)}%)</span>
+                        {reliable ? <>{formatCurrency(margineNettoAbs)}
+                        <span className="text-xs ml-1">({margineNetto.toFixed(1)}%)</span></> : "—"}
                       </TableCell>
                       <TableCell className="text-right text-sm text-muted-foreground">
-                        {costoAcquisti > 0 ? formatCurrency(costoAcquisti) : "–"}
+                        {costoAcquisti + costoMagazzino > 0 ? (
+                          <span title={`${formatCurrency(costoAcquisti)} ODA · ${formatCurrency(costoMagazzino)} scorta`}>
+                            {formatCurrency(costoAcquisti + costoMagazzino)}
+                          </span>
+                        ) : "–"}
                       </TableCell>
                       <TableCell className="text-right text-sm">
                         {costoErrori > 0 ? (
@@ -1162,7 +1271,9 @@ export default function MarginalitaCantieri() {
             const consuntivo = safeNumber(row.consuntivo);
             const margine = safeNumber(row.margine);
             const marginePerc = safeNumber(row.margine_perc);
+            const adjusted = getAdjustedMargin(row);
             const decision = getMarginDecision(row);
+            const reliable = hasReliableMargin(row);
             return (
             <Card key={row.id}>
               <CardContent className="pt-4 pb-3 space-y-2">
@@ -1180,16 +1291,18 @@ export default function MarginalitaCantieri() {
                       <p className="text-xs text-muted-foreground">{row.cliente_nome}</p>
                     )}
                   </div>
-                  <MargineBadge perc={marginePerc} />
+                  {reliable
+                    ? <MargineBadge perc={marginePerc} />
+                    : <Badge variant="outline" className="border-orange-200 bg-orange-50 text-orange-700">Dati incompleti</Badge>}
                 </div>
-                <MarginHealthBadge perc={marginePerc - overheadPct} />
+                {reliable && <MarginHealthBadge perc={adjusted.adjustedMarginPct} />}
                 {decision.tone !== "green" && (
                   <div className="rounded-lg border border-orange-100 bg-orange-50 px-3 py-2 text-xs text-orange-800">
                     <span className="font-semibold">{decision.label}:</span> {decision.detail}
                   </div>
                 )}
 
-                <div className="grid grid-cols-3 gap-2 text-xs">
+                <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
                   <div>
                     <p className="text-muted-foreground">Preventivo</p>
                     <p className="font-medium">{formatCurrency(preventivoTotale)}</p>
@@ -1199,18 +1312,24 @@ export default function MarginalitaCantieri() {
                     <p className="font-medium">{formatCurrency(consuntivo)}</p>
                   </div>
                   <div>
-                    <p className="text-muted-foreground">Margine</p>
+                    <p className="text-muted-foreground">Margine diretto</p>
                     <p className={cn("font-semibold", MargineColorClass(marginePerc))}>
-                      {formatCurrency(margine)}
+                      {reliable ? formatCurrency(margine) : "—"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Dopo struttura</p>
+                    <p className={cn("font-semibold", MargineColorClass(adjusted.adjustedMarginPct))}>
+                      {reliable ? formatCurrency(adjusted.adjustedMargin) : "—"}
                     </p>
                   </div>
                 </div>
 
-                <Progress
+                {reliable && <Progress
                   value={clampPercentage(marginePerc)}
                   className="h-1.5"
                   indicatorClassName={MargineProgressClass(marginePerc)}
-                />
+                />}
               </CardContent>
             </Card>
             );

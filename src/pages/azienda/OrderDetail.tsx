@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
-import { AlertTriangle, BellRing, AlertCircle, Package, Receipt, HardHat, Truck, FileText, FileWarning, Download, Sparkles, Wallet, Paperclip, ArrowRight } from "lucide-react";
+import { AlertTriangle, BellRing, AlertCircle, Package, Receipt, HardHat, Truck, FileText, FileWarning, Download, Sparkles, Wallet, ArrowRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { OrderSurveysCard } from "@/components/orders/OrderSurveysCard";
 import { MezziCommessaCard } from "@/components/mezzi/MezziCommessaCard";
@@ -13,6 +13,8 @@ import { OrderScheduleBadge } from "@/components/orders/OrderScheduleBadge";
 import { OrderNotesDialog } from "@/components/orders/OrderNotesDialog";
 import { OrderMeasureControl } from "@/components/orders/OrderMeasureControl";
 import { OrderEconomicsSummary } from "@/components/orders/OrderEconomicsSummary";
+import { useOrderVariations } from "@/hooks/useOrderVariations";
+import { agreedContractValue } from "@/lib/orders/contractValue";
 import { EsposizioneCommessa } from "@/components/orders/EsposizioneCommessa";
 import { RitenuteTab } from "@/components/ritenute/RitenuteTab";
 import { formatDateTime, formatCurrency } from "@/lib/formatters";
@@ -27,7 +29,6 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { QuoteCard } from "@/components/marketing/preventivi/ui/builderUI";
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -54,13 +55,16 @@ import { OrderFinancialOverview } from "@/components/orders/OrderFinancialOvervi
 import { OrderHeaderSummary } from "@/components/orders/OrderHeaderSummary";
 import { OrderDetailNavigation } from "@/components/orders/OrderDetailNavigation";
 import { useOrderDetailNavigation } from "@/hooks/useOrderDetailNavigation";
-import { isOrderDetailTab, type OrderDetailSection } from "@/lib/orders/detailNavigation";
+import { CantiereViewNav } from "@/components/orders/CantiereViewNav";
+import { OrderWorkspaceNav } from "@/components/orders/OrderWorkspaceNav";
+import { OrderDisclosure } from "@/components/orders/OrderDisclosure";
+import { ECONOMIA_VIEWS, MATERIALI_VIEWS, isOrderDetailTab, type OrderDetailSection } from "@/lib/orders/detailNavigation";
 import { OrderAssistenzaTab } from "@/components/orders/OrderAssistenzaTab";
 // ── New sub-components ──────────────────────────────────────────
 import { OrdineDetailHeader } from "@/components/orders/OrdineDetailHeader";
 import { ChiediASilvio } from "@/components/silvio/ChiediASilvio";
 import { OrdineStatusStrip } from "@/components/orders/OrdineStatusStrip";
-import { OrdineArticoli } from "@/components/orders/OrdineArticoli";
+import { OrdineArticoli, OrderProcurementTools } from "@/components/orders/OrdineArticoli";
 import { OrderAttachments } from "@/components/orders/OrderAttachments";
 import { SupplierPaymentsCard } from "@/components/orders/SupplierPaymentsCard";
 import { OrdineEconomico } from "@/components/orders/OrdineEconomico";
@@ -85,6 +89,7 @@ import { getOrderPlaybook, PLAYBOOK_LABELS, applyPlaybookToOrder } from "@/lib/o
 import { PlaybookEditorDialog } from "@/components/orders/PlaybookEditorDialog";
 
 import { OrdineRapportiniCampo } from "@/components/orders/OrdineRapportiniCampo";
+import { OrderAcceptanceReports } from "@/components/orders/OrderAcceptanceReports";
 import { OrdineFotoCantiere } from "@/components/campo/OrdineFotoCantiere";
 import { WhatsAppActivityFeed } from "@/components/whatsapp/WhatsAppActivityFeed";
 import { CreaFatturaDialog } from "@/components/orders/CreaFatturaDialog";
@@ -109,6 +114,7 @@ interface OrderAlert {
   /** true = alert rata scaduta: mostra il bottone "Sollecita ora" (apre il
    *  sollecito precompilato di OrderQuickActions via sollecitoRef). */
   sollecitabile?: boolean;
+  section?: OrderDetailSection;
 }
 
 function parseValidOrderDate(value: string | null): Date | null {
@@ -143,11 +149,13 @@ function getOrderAlerts(
           description: `${prossima.label} di ${formatCurrency(prossima.amount)} era previsto il ${format(dataRata, "dd/MM/yyyy")} — sollecita l'incasso.`,
           icon: <AlertTriangle className="h-4 w-4" />,
           sollecitabile: true,
+          section: "section-pagamenti",
         });
       } else if (giorni <= 14) {
         alerts.push({
           type: 'info',
           title: giorni === 0 ? 'Incasso previsto oggi' : `Prossimo incasso tra ${giorni} giorn${giorni === 1 ? 'o' : 'i'}`,
+          section: "section-pagamenti",
           description: `${prossima.label} di ${formatCurrency(prossima.amount)} previsto il ${format(dataRata, "dd/MM/yyyy")}.`,
           icon: <AlertCircle className="h-4 w-4" />,
         });
@@ -216,6 +224,8 @@ interface OrderDetail {
   client_name?: string | null;
   client_email?: string | null;
   client_phone?: string | null;
+  client_address?: string | null;
+  indirizzo_lavori?: string | null;
   deposit_amount: number;
   deposit_2_amount: number;
   financing_amount: number;
@@ -351,7 +361,13 @@ function OrderDetailInner() {
     gcTime: 10 * 60 * 1000,
   });
 
-  const { activeTab, navigateTo } = useOrderDetailNavigation(!!order?.id);
+  const variationsEnabled = permissions.canViewOrderAmounts || permissions.canViewMargins;
+  const variations = useOrderVariations(id, effectiveCompany?.id, variationsEnabled);
+  // The page stays on its loading/error shell until variants are resolved too.
+  const { activeTab, activeCantiereView, activeEconomiaView, activeMaterialiView, navigateTo } = useOrderDetailNavigation(
+    !!order?.id && !orderLoading && !(variationsEnabled && (variations.isPending || variations.isError)),
+  );
+  const agreedAmount = agreedContractValue(order?.total_amount ?? 0, variations.data ?? []);
 
   // Fetch order installments from DB
   const { data: dbInstallments = [], isPending: installmentsPending, isError: installmentsError } = useQuery({
@@ -948,7 +964,7 @@ function OrderDetailInner() {
     // Stessa matematica delle card rate: l'ULTIMA rata 'balance' vale il
     // residuo calcolato, le intermedie il loro importo. Senza questa mappa
     // l'alert diceva una cifra e la lista Pagamenti un'altra.
-    const totaleIvato = (order.total_amount || 0) * (1 + (order.vat_rate ?? 22) / 100);
+    const totaleIvato = agreedAmount * (1 + (order.vat_rate ?? 22) / 100);
     const costoFin = order.financing_cost ?? 0;
     const posSaldo = displayInstallments.reduce<number | null>(
       (acc, i) => (i.type === "balance" ? Math.max(acc ?? i.position, i.position) : acc),
@@ -975,7 +991,7 @@ function OrderDetailInner() {
       }) ?? i.expected_date,
     }));
     return conDataEffettiva;
-  }, [order, displayInstallments]);
+  }, [order, displayInstallments, agreedAmount]);
   const orderAlerts = useMemo(() => order ? getOrderAlerts(order, displayItems, resolvedInstallments) : [], [order, displayItems, resolvedInstallments]);
 
   const handleAttachmentsRefresh = () => { refetchAttachments(); };
@@ -1134,7 +1150,7 @@ function OrderDetailInner() {
     }
   }, [gatherPdfOpts, getPDFBlob, permissions.canViewOrderAmounts]);
 
-  if (orderLoading) {
+  if (orderLoading || (variationsEnabled && variations.isPending)) {
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-4">
@@ -1149,6 +1165,10 @@ function OrderDetailInner() {
     );
   }
 
+  if (variationsEnabled && variations.isError) {
+    return <div role="alert" className="p-6 space-y-3"><p>Impossibile verificare le varianti della commessa. Gli importi non vengono mostrati per evitare saldi incompleti.</p><Button onClick={() => void variations.refetch()}>Riprova</Button></div>;
+  }
+
   if (!order) {
     return (
       <div className="text-center py-12">
@@ -1160,7 +1180,7 @@ function OrderDetailInner() {
 
   const collectedAmount = calculateCollectedNetFromInstallments({
     installments: displayInstallments,
-    totalAmount: order.total_amount,
+    totalAmount: agreedAmount,
     vatRate: order.vat_rate ?? 22,
     financingCost: order.financing_cost ?? 0,
   });
@@ -1169,7 +1189,7 @@ function OrderDetailInner() {
   // incassato diverso (netto) da quello del piano rate. I margini restano netti.
   const collectedGross = calculateCollectedGrossFromInstallments({
     installments: displayInstallments,
-    totalAmount: order.total_amount,
+    totalAmount: agreedAmount,
     vatRate: order.vat_rate ?? 22,
     financingCost: order.financing_cost ?? 0,
   });
@@ -1177,7 +1197,7 @@ function OrderDetailInner() {
   // del piano rate), così la barra cassa combacia con l'Avanzamento incassi.
   const cashTotalGross = Math.max(
     0,
-    (order.total_amount || 0) * (1 + (order.vat_rate ?? 22) / 100) - (order.financing_cost ?? 0),
+    agreedAmount * (1 + (order.vat_rate ?? 22) / 100) - (order.financing_cost ?? 0),
   );
   // Avanzamento fisico (media % fasi) per esposizione e proiezione margine.
   const avanzamentoPct = phaseProgress?.avgPct ?? null;
@@ -1216,7 +1236,7 @@ function OrderDetailInner() {
         nomeCliente={
           order.customer
             ? `${order.customer.first_name} ${order.customer.last_name}`
-            : "Cliente non disponibile"
+            : order.client_name || "Cliente non disponibile"
         }
         orderType={order.order_type}
         onDuplica={() => setDuplicateDialogOpen(true)}
@@ -1284,7 +1304,7 @@ function OrderDetailInner() {
             if (isNativeBilling && !permissions.solaLettura) setCreaFatturaOpen(true);
           } : undefined}
           invoiceDisabled={!isNativeBilling || permissions.solaLettura}
-          invoiceHint={permissions.solaLettura ? "Il tuo ruolo è in sola lettura" : !isNativeBilling ? "Attiva la fatturazione nativa nelle Impostazioni per creare fatture" : "Prepara una fattura collegata alla commessa"}
+          invoiceHint={permissions.solaLettura ? "Accesso in sola lettura" : !isNativeBilling ? "Attiva la fatturazione nativa nelle Impostazioni per creare fatture" : "Prepara una fattura collegata alla commessa"}
           askSilvio={
             <ChiediASilvio
               className="h-8 ml-auto"
@@ -1302,7 +1322,7 @@ function OrderDetailInner() {
         <OrderHeaderSummary compact={isMobile && activeTab !== "panoramica"}>
         <OrderFinancialOverview
           orderId={id!}
-          totalAmount={order.total_amount}
+          totalAmount={agreedAmount}
           vatRate={order.vat_rate ?? 22}
           items={economicsItems}
           itemsLoading={orderItemsPending}
@@ -1379,41 +1399,19 @@ function OrderDetailInner() {
 
           {/* Tab: Panoramica */}
           <TabsContent value="panoramica" className="space-y-4 mt-4">
-            {/* ── Alerts ──────────────────────────────────────────── */}
-            {orderAlerts.length > 0 && (
-              <div className="space-y-3">
-                {orderAlerts.map((alert) => (
-                  <Alert
-                    key={`${alert.type}-${alert.title}`}
-                    variant={
-                      alert.type === "urgent" ? "destructive" : "default"
-                    }
-                    className={cn(
-                      alert.type === "warning" &&
-                        "border-amber-500 bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-100 [&>svg]:text-amber-600",
-                      alert.type === "info" &&
-                        "border-blue-500 bg-blue-50 text-blue-900 dark:bg-blue-950 dark:text-blue-100 [&>svg]:text-blue-600",
-                    )}
-                  >
-                    {alert.icon}
-                    <AlertTitle>{alert.title}</AlertTitle>
-                    <AlertDescription>{alert.description}</AlertDescription>
-                    {alert.sollecitabile &&
-                      (order.customer?.phone || order.customer?.email) && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="mt-2 h-7 border-red-300 bg-white text-xs text-red-700 hover:bg-red-50"
-                          onClick={() => sollecitoRef.current?.()}
-                        >
-                          <BellRing className="mr-1 h-3.5 w-3.5" /> Sollecita
-                          ora
-                        </Button>
-                      )}
-                  </Alert>
-                ))}
+            {orderAlerts.length > 0 && <section aria-labelledby="order-attention-title" className="rounded-xl border border-orange-200 bg-white">
+              <h2 id="order-attention-title" className="border-b border-orange-100 bg-orange-50 px-4 py-3 text-base font-semibold text-orange-950">Da controllare</h2>
+              <div className="divide-y divide-slate-100">
+                {orderAlerts.map(alert => <div key={alert.title} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start">
+                  <span className={cn("mt-1 hidden sm:block", alert.type === "urgent" ? "text-red-700" : "text-orange-700")}>{alert.icon}</span>
+                  <div className="min-w-0 flex-1"><h3 className="text-sm font-semibold">{alert.title}</h3><p className="mt-1 text-sm text-slate-600">{alert.description}</p></div>
+                  <Button variant="outline" className="min-h-11 shrink-0 border-slate-300 font-semibold text-blue-950" onClick={() => navigateTo({ tab: alert.section === "section-pagamenti" ? "finanza" : "articoli", section: alert.section ?? "section-materiali" })}>
+                    {alert.section === "section-pagamenti" ? "Apri pagamenti" : "Verifica materiali"}<ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                  {alert.sollecitabile && (order.customer?.phone || order.customer?.email) && <Button variant="outline" className="min-h-11 border-red-300 text-red-700" onClick={() => sollecitoRef.current?.()}><BellRing className="mr-2 h-4 w-4" />Sollecita ora</Button>}
+                </div>)}
               </div>
-            )}
+            </section>}
 
             {/* Origine ordine (badge riga): nato da preventivo o diretto. I rilievi/
             sopralluoghi sono spostati dentro la Panoramica (sono un'attività). */}
@@ -1437,11 +1435,12 @@ function OrderDetailInner() {
             <div className="grid gap-4 lg:grid-cols-2 items-start">
               <OrdineCliente
                 customer={order.customer}
-                indirizzoLavori={order.indirizzo_lavori}
+                snapshot={{ name: order.client_name, email: order.client_email, phone: order.client_phone }}
+                indirizzoLavori={order.indirizzo_lavori || order.work_address}
               />
               <div className="space-y-4">
                 {/* Mobile no: rimandava alla scheda Cantiere, che è lì accanto. */}
-                <Card className="max-sm:hidden">
+                <Card className="shadow-none">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base">
                       Organizzazione del cantiere
@@ -1456,6 +1455,7 @@ function OrderDetailInner() {
                     </p>
                     <Button
                       variant="outline"
+                      className="min-h-11 border-slate-300 font-semibold text-blue-950"
                       onClick={() =>
                         navigateTo({
                           tab: "cantiere",
@@ -1471,15 +1471,11 @@ function OrderDetailInner() {
                   <OrderSurveysCard orderId={id!} />
                 </ErrorBoundary>
               </div>
-              <div className="empty:hidden lg:col-span-2">
-                <ErrorBoundary fallback={<></>}>
-                  <MezziCommessaCard orderId={id!} />
-                </ErrorBoundary>
-              </div>
             </div>
 
             {/* Comunicazioni e attività: feed unico cliente + commessa (email, SMS,
                 WhatsApp, task) in ordine cronologico. Sostituisce le card sparse. */}
+            <OrderDisclosure title="Comunicazioni e storico" description="Messaggi e aggiornamenti della commessa.">
             <OrderActivityFeed
               orderId={id!}
               customerId={order.customer_id}
@@ -1491,35 +1487,23 @@ function OrderDetailInner() {
               }
             />
 
+            </OrderDisclosure>
+
             {/* Assistenza: prima occupava un tab intero per una sola card da
                 178px — un quarto della navigazione per due righe di testo.
                 Sta qui, sotto le comunicazioni: le richieste di assistenza sono
                 il seguito del rapporto col cliente, non un'area a se'.
                 Nessun titolo di sezione aggiunto: il componente ha gia' il suo
                 ("Assistenze su questa commessa"). */}
-            <div id="section-assistenza" className="scroll-mt-24">
+            <OrderDisclosure id="section-assistenza" title="Assistenza" description="Richieste e interventi successivi alla consegna.">
               <OrderAssistenzaTab orderId={id!} />
-            </div>
+            </OrderDisclosure>
 
             {/* Allegati operativi del cantiere: foto, disegni, permessi. Le
                 fatture stanno in Finanza, con gli altri soldi. */}
-            <div id="section-documenti" className="space-y-4 pt-2 scroll-mt-24">
-              <div className="flex items-center gap-2">
-                <Paperclip className="h-4 w-4 text-muted-foreground" />
-                <h2 className="text-base font-semibold">
-                  Documenti di cantiere
-                </h2>
-              </div>
-
-              {/* Una colonna sola: la card "Fatturazione e documenti fiscali"
-                  che stava a destra e' passata al tab Finanza, ma la griglia a
-                  due colonne era rimasta con la cella vuota — gli allegati
-                  occupavano meta' larghezza e l'altra meta' era bianca. */}
-              <OrderAttachments
-                orderId={id!}
-                editable={permissions.canEditOrders}
-              />
-            </div>
+            <OrderDisclosure id="section-documenti" title="Documenti di cantiere" description="Foto, disegni, permessi e allegati operativi.">
+              <OrderAttachments orderId={id!} editable={permissions.canEditOrders} />
+            </OrderDisclosure>
 
             <details className="rounded-lg border bg-white">
               <summary className="cursor-pointer px-4 py-3 text-sm font-medium">
@@ -1581,6 +1565,10 @@ function OrderDetailInner() {
 
           {/* Materiali: acquisti, consegne, uscite e matricole. Le lavorazioni sono in Cantiere. */}
           <TabsContent value="articoli" className="space-y-4 mt-4">
+            <div id="materiali-workspace" className="scroll-mt-24">
+              <OrderWorkspaceNav label="Viste dei materiali" views={MATERIALI_VIEWS} value={activeMaterialiView} onChange={materialiView => navigateTo({ tab: "articoli", materialiView })} />
+            </div>
+            {activeMaterialiView === "articoli" && <>
             <div id="section-materiali" className="scroll-mt-24">
               {/* Controllo misure: solo se ci sono articoli su misura (altrimenti null) */}
               <ErrorBoundary fallback={<></>}>
@@ -1656,6 +1644,7 @@ function OrderDetailInner() {
               onAttachmentsRefresh={handleAttachmentsRefresh}
               showAttachments={false}
               showSupplierPayments={false}
+              showProcurement={false}
             />
             <div className="flex justify-end">
               <Button
@@ -1672,8 +1661,14 @@ function OrderDetailInner() {
                 Cantiere <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </div>
-            <OrderUsciteCard orderId={id!} />
-            {permissions.canViewCosts && (
+            </>}
+            {activeMaterialiView === "magazzino" && <div id="section-magazzino" className="space-y-4 scroll-mt-24">
+              <OrderUsciteCard orderId={id!} />
+              <OrderSerialsTrackingCard orderId={id!} orderItems={orderItems} />
+            </div>}
+            {activeMaterialiView === "acquisti" && <div id="section-acquisti" className="space-y-4 scroll-mt-24">
+              <OrderProcurementTools orderId={id!} orderCode={order.order_code} items={displayItems} />
+            {permissions.canViewCosts ? (
               <LinkedPurchaseOrdersCard
                 orderId={id!}
                 orderCode={order.order_code}
@@ -1692,20 +1687,29 @@ function OrderDetailInner() {
                   stock_item_id: i.stock_item_id,
                 }))}
               />
-            )}
-            {/* Seriali e garanzie: da computer (a mano, articolo per articolo). */}
-            <div className="max-sm:hidden">
-              <OrderSerialsTrackingCard orderId={id!} orderItems={orderItems} />
-            </div>
+            ) : <p className="rounded-lg border bg-white p-4 text-sm text-slate-600">Il tuo ruolo non permette di consultare gli ordini d’acquisto di questa commessa.</p>}
+            </div>}
           </TabsContent>
 
           {/* Tab: Finanza */}
           <TabsContent value="finanza" className="space-y-4 mt-4">
+            <div id="economia-workspace" className="scroll-mt-24">
+              <OrderWorkspaceNav label="Viste economiche" views={ECONOMIA_VIEWS} value={activeEconomiaView} onChange={economiaView => navigateTo({ tab: "finanza", economiaView })} />
+            </div>
+            {activeEconomiaView === "documenti" && <details className="rounded-xl border border-slate-300 bg-white">
+              <summary id="section-sal" className="cursor-pointer scroll-mt-24 px-4 py-3 text-sm font-medium">SAL e avanzamento economico</summary>
+              <div className="p-4 pt-0">
+                {companyId && <OrdineSAL orderId={id!} companyId={companyId}
+                  showPaymentProgress={false} orderTotalAmount={agreedAmount}
+                  installments={displayInstallments} vatRate={order.vat_rate ?? 22}
+                  financingCost={order.payment_type === "financing" ? (order.financing_cost ?? 0) : 0} />}
+              </div>
+            </details>}
             {/* ── Card commessa: ognuna isolata in ErrorBoundary (fallback vuoto) così
                un errore in una NON può buttare giù il dettaglio commessa. ── */}
             {/* Conto economico: riepilogo a colpo d'occhio, sempre in cima */}
             {/* Conto economico = costi + margine → solo a chi può vederli. */}
-            {(permissions.canViewCosts || permissions.canViewMargins) && (
+            {activeEconomiaView === "margini" && (permissions.canViewCosts || permissions.canViewMargins) && (
               <ErrorBoundary fallback={<></>}>
                 <OrderEconomicsSummary
                   orderId={id!}
@@ -1717,16 +1721,19 @@ function OrderDetailInner() {
                   cashTotal={cashTotalGross}
                   itemsLoading={orderItemsPending}
                   avanzamentoPct={avanzamentoPct}
+                  workStartDate={order.work_start_date}
+                  workEndDate={order.work_end_date}
                 />
               </ErrorBoundary>
             )}
 
             {/* Piano rate: destinazione comune di "Registra incasso" e dei link dalla Panoramica. */}
+            {activeEconomiaView === "pagamenti" && <>
             <div id="section-pagamenti" className="scroll-mt-24">
               {permissions.canViewOrderAmounts && (
                 <OrdineEconomico
                   orderId={id!}
-                  totalAmount={order.total_amount}
+                  totalAmount={agreedAmount}
                   vatRate={order.vat_rate ?? 22}
                   paymentType={
                     (order.payment_type as PaymentType) || "standard"
@@ -1758,7 +1765,7 @@ function OrderDetailInner() {
               <ErrorBoundary fallback={<></>}>
                 <EsposizioneCommessa
                   orderId={id!}
-                  totalAmount={order.total_amount}
+                  totalAmount={agreedAmount}
                   vatRate={order.vat_rate ?? 22}
                   financingCost={order.financing_cost ?? 0}
                   installments={displayInstallments}
@@ -1778,7 +1785,8 @@ function OrderDetailInner() {
             {permissions.canViewOrderAmounts &&
               permissions.canViewCosts &&
               (collectedGross > 0 || costoMaterialiGross > 0) && (
-                <div className="max-sm:hidden">
+                <details className="rounded-lg border border-slate-300 bg-white">
+                <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-blue-950">Stima di cassa sui materiali · apri dettaglio</summary>
                 <QuoteCard
                   title={
                     <span className="flex items-center gap-2">
@@ -1868,24 +1876,26 @@ function OrderDetailInner() {
                     </p>
                   </div>
                 </QuoteCard>
-                </div>
+                </details>
               )}
+            </>}
 
             {/* Errori e perdite: il riquadro parla dell'azienda (ultimi 12 mesi)
                 e si registra al computer. */}
-            <div className="max-sm:hidden">
+            {activeEconomiaView === "margini" && <div>
               <OrderErrors orderId={id!} />
-            </div>
-            <div id="section-ritenute" className="scroll-mt-24">
+            </div>}
+            {activeEconomiaView === "margini" && !(permissions.canViewCosts || permissions.canViewMargins) && <p className="rounded-lg border bg-white p-4 text-sm text-slate-600">Il tuo ruolo non permette di consultare costi e margini. Puoi aprire le altre viste consentite.</p>}
+            {activeEconomiaView === "pagamenti" && <div id="section-ritenute" className="scroll-mt-24">
               <RitenuteTab orderId={id!} />
-            </div>
-            {effectiveCompany?.id && (
+            </div>}
+            {activeEconomiaView === "documenti" && effectiveCompany?.id && <div id="section-varianti" className="scroll-mt-24">
               <OrdineVariazione orderId={id!} companyId={effectiveCompany.id} />
-            )}
+            </div>}
 
             {/* Soldi in uscita: i pagamenti ai fornitori stavano in "Articoli e
                 lavori", lontani dagli incassi. Qui il quadro è completo. */}
-            {permissions.canViewCosts && (
+            {activeEconomiaView === "pagamenti" && permissions.canViewCosts && (
               <SupplierPaymentsCard
                 items={orderItems}
                 companyId={effectiveCompany?.id || ""}
@@ -1897,7 +1907,7 @@ function OrderDetailInner() {
                 Il database li mostra a chi vede gli importi della commessa o
                 ha «Fatturazione», e li crea solo con «Fatturazione» (i DDT
                 anche con commesse o magazzino): qui la stessa regola. */}
-            {(permissions.canViewOrderAmounts || permissions.canViewBilling) && (
+            {activeEconomiaView === "documenti" && (permissions.canViewOrderAmounts || permissions.canViewBilling) && <div id="section-fatturazione" className="scroll-mt-24">
             <QuoteCard
               title={
                 <span className="flex items-center gap-2">
@@ -2052,18 +2062,31 @@ function OrderDetailInner() {
                 </div>
               </div>
             </QuoteCard>
-            )}
+            </div>}
           </TabsContent>
 
           {/* Un solo percorso operativo su desktop e mobile. Nessuna duplicazione dei dati. */}
           <TabsContent value="cantiere" className="space-y-4 mt-4">
-            <div id="section-lavorazioni" className="scroll-mt-24">
+            <div id="cantiere-workspace" className="scroll-mt-24">
+              <CantiereViewNav value={activeCantiereView} onChange={cantiereView => navigateTo({ tab: "cantiere", cantiereView })} />
+            </div>
+            {(activeCantiereView === "lavorazioni" || activeCantiereView === "squadra") && <>
+            {activeCantiereView === "lavorazioni" && <div id="section-attivita" className="scroll-mt-24">
+              <LinkedTasks orderId={id} category="ordini" />
+            </div>}
+            <div id={activeCantiereView === "squadra" ? "section-squadra" : "section-lavorazioni"} className="scroll-mt-24">
               <OrderWorkPhases orderId={id!} orderCode={order.order_code}
+                view={activeCantiereView}
                 onOpenReports={() => navigateTo({ tab: "cantiere", section: "section-rapportini" })} />
             </div>
+            </>}
+            {activeCantiereView === "squadra" && <div id="section-mezzi" className="scroll-mt-24">
+              <ErrorBoundary><MezziCommessaCard orderId={id!} /></ErrorBoundary>
+            </div>}
+            {activeCantiereView === "lavorazioni" && <>
             <details className="rounded-lg border bg-white">
               <summary className="cursor-pointer px-4 py-3 text-sm font-medium">
-                Calendario, date e attività
+                Date e appuntamenti
               </summary>
               <div
                 id="section-pianificazione"
@@ -2081,56 +2104,40 @@ function OrderDetailInner() {
                 />
                 <div className="space-y-4">
                   <LinkedAppointments orderId={id!} />
-                  <div id="section-attivita" className="scroll-mt-24">
-                    <LinkedTasks orderId={id} category="ordini" />
-                  </div>
                 </div>
               </div>
             </details>
+            </>}
+            {activeCantiereView === "diario" && <>
             <div id="section-rapportini" className="scroll-mt-24">
               <OrdineRapportiniCampo orderId={id!} />
             </div>
-            <details className="rounded-lg border bg-white">
-              <summary className="cursor-pointer px-4 py-3 text-sm font-medium">
-                Foto e aggiornamenti dal campo
-              </summary>
-              <div id="section-foto" className="space-y-4 p-3 scroll-mt-24">
-                <OrdineFotoCantiere orderId={id!} />
-                <WhatsAppActivityFeed cantiereId={id!} />
-              </div>
-            </details>
-            <div id="section-sal" className="scroll-mt-24">
-              {companyId && (
-                <OrdineSAL
-                  orderId={id!}
-                  companyId={companyId}
-                  showPaymentProgress={false}
-                  orderTotalAmount={order.total_amount ?? undefined}
-                  installments={displayInstallments}
-                  vatRate={order.vat_rate ?? 22}
-                  financingCost={
-                    order.payment_type === "financing"
-                      ? (order.financing_cost ?? 0)
-                      : 0
-                  }
-                />
-              )}
+            <div id="section-foto" className="space-y-4 scroll-mt-24">
+              <OrdineFotoCantiere orderId={id!} />
+              <details className="rounded-lg border bg-white">
+                <summary className="cursor-pointer px-4 py-3 text-sm font-medium">Aggiornamenti WhatsApp</summary>
+                <div className="p-3 pt-0"><WhatsAppActivityFeed cantiereId={id!} /></div>
+              </details>
             </div>
             {effectiveCompany?.id && (
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base">
-                    Diario e avanzamento cantiere
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <TimelineCantiere
-                    orderId={id!}
-                    companyId={effectiveCompany.id}
-                    adminView={true}
-                  />
-                </CardContent>
-              </Card>
+              <details id="section-diario" className="rounded-lg border bg-white scroll-mt-24">
+                <summary className="cursor-pointer px-4 py-3 text-sm font-medium">Storico economico · varianti e SAL</summary>
+                <div className="p-4 pt-0">
+                  <TimelineCantiere orderId={id!} companyId={effectiveCompany.id} adminView={true} />
+                </div>
+              </details>
+            )}
+            </>}
+            {activeCantiereView === "collaudo" && companyId && (
+              <OrderAcceptanceReports
+                key={id}
+                orderId={id!}
+                companyId={companyId}
+                onOpenTasks={() => navigateTo({ tab: "cantiere", section: "section-attivita" })}
+                customer={order.customer
+                  ? [order.customer.first_name, order.customer.last_name].filter(Boolean).join(" ")
+                  : order.client_name || ""}
+              />
             )}
           </TabsContent>
         </Tabs>
@@ -2310,7 +2317,7 @@ function OrderDetailInner() {
         orderId={id!}
         orderCode={order.order_code}
         orderDescription={order.description}
-        totalAmount={order.total_amount}
+        totalAmount={agreedAmount}
         vatRate={order.vat_rate ?? 22}
         customerId={order.customer?.id ?? null}
         customerName={
@@ -2328,7 +2335,7 @@ function OrderDetailInner() {
         orderId={id!}
         orderCode={order.order_code}
         orderDescription={order.description}
-        totalAmount={order.total_amount}
+        totalAmount={agreedAmount}
         vatRate={order.vat_rate ?? 22}
         customerId={order.customer?.id ?? null}
         customerName={
@@ -2345,7 +2352,7 @@ function OrderDetailInner() {
         orderId={id!}
         orderCode={order.order_code}
         orderDescription={order.description}
-        totalAmount={order.total_amount}
+        totalAmount={agreedAmount}
         vatRate={order.vat_rate ?? 22}
         customerId={order.customer?.id ?? null}
         customerName={
@@ -2362,7 +2369,7 @@ function OrderDetailInner() {
         orderId={id!}
         orderCode={order.order_code}
         orderDescription={order.description}
-        totalAmount={order.total_amount}
+        totalAmount={agreedAmount}
         vatRate={order.vat_rate ?? 22}
         customerId={order.customer?.id ?? null}
         customerName={

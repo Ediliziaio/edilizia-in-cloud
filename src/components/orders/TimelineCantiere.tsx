@@ -18,6 +18,8 @@ interface TimelineCantiereProp {
   adminView?: boolean;
 }
 
+import { variationStatusLabel } from '@/lib/orders/contractValue';
+
 type EventType = 'stato' | 'lavori' | 'sal' | 'variante' | 'rapportino';
 
 interface TimelineEvent {
@@ -299,9 +301,9 @@ export function TimelineCantiere({ orderId, companyId, adminView = false }: Time
         type: 'variante' as EventType,
         date: (v.firmato_il ?? v.richiesto_il) as string,
         title: v.titolo ?? 'Variante commessa',
-        badge: v.status === 'approvata' ? 'Approvata' : 'Rifiutata',
-        badgeColor: v.status === 'approvata' ? '#16A34A' : '#DC2626',
-        amount: v.status === 'approvata' ? (v.impatto_economico ?? undefined) : undefined,
+        badge: variationStatusLabel(v.status),
+        badgeColor: v.status === 'approvato' ? '#16A34A' : '#DC2626',
+        amount: v.status === 'approvato' ? (v.impatto_economico ?? undefined) : undefined,
       })),
     ...rapportini.map((r: any) => ({
       id: `rapportino-${r.id as string}`,

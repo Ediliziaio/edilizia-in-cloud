@@ -1,4 +1,5 @@
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { missingCampoDocument, CAMPO_DOCUMENT_REQUIRED } from "../_shared/campoDocumentGuard.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
@@ -28,6 +29,11 @@ Deno.serve(async (req: Request) => {
     // "order".
     const categoria = typeof body.categoria === "string" ? body.categoria.slice(0, 64) : null;
     const noteRichiesta = typeof body.note === "string" && body.note.trim() ? body.note.trim().slice(0, 2000) : null;
+    if (missingCampoDocument(tipo_documento, categoria)) {
+      return new Response(JSON.stringify({ error: CAMPO_DOCUMENT_REQUIRED }), {
+        status: 422, headers: { ...corsH, "Content-Type": "application/json" },
+      });
+    }
     const expiresGiorniRaw = Number(body.expires_giorni ?? body.scadenza_giorni ?? 30);
     const expiresGiorni = Number.isFinite(expiresGiorniRaw)
       ? Math.min(Math.max(Math.trunc(expiresGiorniRaw), 1), 365)

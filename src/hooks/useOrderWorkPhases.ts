@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { refreshWorkQueries } from "@/lib/orders/refreshWorkQueries";
+import { issuedPurchaseOrderNumber } from "@/lib/orders/materialProcurement";
 
 export type PhaseStatus = "da_iniziare" | "in_corso" | "completata";
 export type ExecutorType = "interno" | "esterno";
@@ -339,8 +340,9 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
           order_item_id: string;
           purchase_orders: { oda_number: string; status: string };
         }>) {
-          if (!row.order_item_id || odaByItem.has(row.order_item_id)) continue;
-          odaByItem.set(row.order_item_id, row.purchase_orders?.oda_number ?? null);
+          const number = issuedPurchaseOrderNumber(row.purchase_orders);
+          if (!row.order_item_id || !number || odaByItem.has(row.order_item_id)) continue;
+          odaByItem.set(row.order_item_id, number);
         }
       }
 

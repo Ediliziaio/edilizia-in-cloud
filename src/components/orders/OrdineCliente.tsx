@@ -13,6 +13,7 @@ interface Cliente {
 
 interface OrdineClienteProps {
   customer: Cliente | null;
+  snapshot?: { name?: string | null; email?: string | null; phone?: string | null };
   /** Indirizzo del CANTIERE (orders.indirizzo_lavori): non è quello del
    *  cliente — prima viveva solo dentro il titolo libero della commessa. */
   indirizzoLavori?: string | null;
@@ -45,11 +46,14 @@ function BloccoCantiere({ indirizzo }: { indirizzo?: string | null }) {
   );
 }
 
-export function OrdineCliente({ customer, indirizzoLavori }: OrdineClienteProps) {
+export function OrdineCliente({ customer, snapshot, indirizzoLavori }: OrdineClienteProps) {
   if (!customer) {
     return (
       <QuoteCard title="Cliente" icon={<User className="h-4 w-4" />}>
-        <p className="text-sm text-slate-500">Cliente non disponibile</p>
+        <p className="text-sm font-medium text-slate-700">{snapshot?.name || "Cliente non disponibile"}</p>
+        {snapshot?.name && <p className="mt-1 text-xs text-slate-500">Dati salvati nella commessa · anagrafica non collegata</p>}
+        {snapshot?.email && <p className="mt-2 break-all text-sm text-slate-500">{snapshot.email}</p>}
+        {snapshot?.phone && <p className="text-sm text-slate-500">{snapshot.phone}</p>}
         <BloccoCantiere indirizzo={indirizzoLavori} />
       </QuoteCard>
     );

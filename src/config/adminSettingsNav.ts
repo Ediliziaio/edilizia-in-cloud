@@ -2,7 +2,7 @@ import {
   User, Users, Server, Mail, Bell,
   ScrollText, Globe, Zap, Plug, Landmark, Filter,
   Webhook, Activity, CalendarDays, Wrench, Variable, Package,
-  MessageCircle, AtSign,
+  MessageCircle, AtSign, GitBranch,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -87,6 +87,14 @@ export const ADMIN_SETTINGS_NAV: AdminSettingsGroup[] = [
         description: "Calendari CRM, disponibilita e sync Google/Apple",
         icon: CalendarDays,
         url: "/admin/impostazioni/calendari",
+        permission: "can_manage_admins",
+      },
+      {
+        id: "sequenze",
+        label: "Pipeline di vendita",
+        description: "Pipeline e fasi delle opportunità del CRM interno",
+        icon: GitBranch,
+        url: "/admin/impostazioni/sequenze",
         permission: "can_manage_admins",
       },
       {

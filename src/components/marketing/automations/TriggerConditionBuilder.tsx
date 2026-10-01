@@ -17,6 +17,7 @@ import {
   NO_VALUE_OPERATORS,
 } from "@/types/automationBuilder";
 import { ConditionValueInput } from "./ConditionValueInput";
+import { filterConditionError, filterErrors } from "../../../../supabase/functions/_shared/automationFilters";
 
 interface Props {
   triggerCategory: string;
@@ -47,6 +48,8 @@ export function TriggerConditionBuilder({ triggerCategory, filters, onChange, er
 
   // Load custom fields from DB
   useEffect(() => {
+    let active = true;
+    setCustomFields([]);
     if (!companyId) return;
     // FIX B2: mappa tutte le categorie trigger → object_type DB (non solo contact/opportunity)
     const CATEGORY_TO_OBJECT_TYPE: Record<string, string> = {
@@ -76,6 +79,7 @@ export function TriggerConditionBuilder({ triggerCategory, filters, onChange, er
       .eq("object_type", objectType)
       .is("deleted_at", null)
       .then(({ data, error }) => {
+        if (!active) return;
         if (error) {
           logger.error("Error loading custom fields:", error.message);
           setCustomFields([]);
@@ -85,7 +89,7 @@ export function TriggerConditionBuilder({ triggerCategory, filters, onChange, er
           setCustomFields(
             data.map((f: any) => {
               const def: TriggerFieldDef = {
-                key: `custom_field.${f.name}`,
+                key: `custom_field.${f.id}`,
                 label: f.name,
                 type: mapCustomFieldType(f.field_type),
                 group: "Campi personalizzati",
@@ -107,6 +111,7 @@ export function TriggerConditionBuilder({ triggerCategory, filters, onChange, er
           setCustomFields([]);
         }
       });
+    return () => { active = false; };
   }, [companyId, triggerCategory]);
 
   const fields = [...baseFields, ...customFields];
@@ -180,6 +185,11 @@ export function TriggerConditionBuilder({ triggerCategory, filters, onChange, er
 
   return (
     <div className="space-y-2">
+      <p className="text-xs text-muted-foreground">
+        {filters.logic === "OR" ? "Il flusso parte se almeno una condizione è vera." : "Il flusso parte solo se tutte le condizioni sono vere."}
+        {" "}Date e giorni sono valutati nel fuso orario del flusso (predefinito: Italia).
+      </p>
+      {filterErrors(filters).length > 0 && <p role="status" className="text-xs text-amber-700">Completa i filtri evidenziati prima di pubblicare.</p>}
       {filters.conditions.map((item, index) => (
         <div key={isConditionGroup(item) ? item.id : (item as TriggerCondition).id}>
           {index > 0 && (
@@ -230,13 +240,13 @@ function LogicToggle({ value, onChange }: { value: "AND" | "OR"; onChange: (v: "
         className={cn("px-2 py-0.5 transition-colors", value === "AND" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted")}
         onClick={() => onChange("AND")}
       >
-        E (AND)
+        Tutte (E)
       </button>
       <button
         className={cn("px-2 py-0.5 transition-colors", value === "OR" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted")}
         onClick={() => onChange("OR")}
       >
-        O (OR)
+        Almeno una (O)
       </button>
     </div>
   );
@@ -258,15 +268,19 @@ function ConditionRow({
   onRemove: () => void;
   errors?: Set<string>;
 }) {
-  const selectedField = fields.find((f) => f.key === condition.field);
+  const legacyField = condition.field?.startsWith("custom_field.")
+    ? fields.find(f => f.group === "Campi personalizzati" && f.label === condition.field.slice(13)) : undefined;
+  const selectedField = fields.find((f) => f.key === condition.field) ?? (legacyField ? { ...legacyField, key: condition.field } : undefined);
+  const visibleFields = selectedField && !fields.some(f => f.key === selectedField.key) ? [...fields, selectedField] : fields;
   const operators = selectedField ? getOperatorsForType(selectedField.type) : [];
   const selectedOp = operators.find((o) => o.value === condition.operator);
+  const validationError = filterConditionError(condition);
   const hasFieldErr = errors?.has(condition.id + "_field");
   const hasOpErr = errors?.has(condition.id + "_op");
   const hasValErr = errors?.has(condition.id + "_val");
 
   // Group fields
-  const grouped = fields.reduce<Record<string, TriggerFieldDef[]>>((acc, f) => {
+  const grouped = visibleFields.reduce<Record<string, TriggerFieldDef[]>>((acc, f) => {
     (acc[f.group] = acc[f.group] || []).push(f);
     return acc;
   }, {});
@@ -289,7 +303,8 @@ function ConditionRow({
         <Select
           value={condition.field || ""}
           onValueChange={(v) => {
-            onUpdate({ ...condition, field: v, operator: "", value: "" });
+            const nextField = fields.find(f => f.key === v);
+            onUpdate({ ...condition, field: v, fieldType: nextField?.type, operator: getOperatorsForType(nextField?.type ?? "text")[0].value, value: "" });
           }}
         >
           <SelectTrigger className={cn("h-8 text-xs flex-1 min-w-0", hasFieldErr && "border-destructive")}>
@@ -307,7 +322,7 @@ function ConditionRow({
           </SelectContent>
         </Select>
 
-        <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={onRemove}>
+        <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={onRemove} aria-label="Rimuovi condizione">
           <Trash2 className="h-3.5 w-3.5 text-destructive" />
         </Button>
       </div>
@@ -330,7 +345,7 @@ function ConditionRow({
           </SelectTrigger>
           <SelectContent>
             {operators.map((op) => (
-              <SelectItem key={op.value} value={op.value} className="text-xs">{op.label}</SelectItem>
+              <SelectItem key={op.value} value={op.value} className="text-xs">{selectedField?.type === "tags" ? (op.value === "contains" ? "Contiene tutti i tag selezionati" : "Non contiene nessuno dei tag selezionati") : op.label}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -346,6 +361,7 @@ function ConditionRow({
           companyId={companyId}
         />
       )}
+      {validationError && <p className="text-[11px] text-amber-700" role="status">{validationError}</p>}
     </div>
   );
 }
