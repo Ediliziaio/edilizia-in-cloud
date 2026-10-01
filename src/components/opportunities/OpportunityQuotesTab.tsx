@@ -41,6 +41,9 @@ import { it } from "date-fns/locale";
 import { formatCurrency } from "@/lib/formatters";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { allegaSchedeTecniche, avvisoSchedeNonAllegate } from "@/lib/quotes/allegatiPreventivo";
+import {
+  gruppoPreventivo as gruppoDi, ordinaPreventivi, riepilogoPreventivi, scadenzaPreventivo, valoreProposto, visioneCliente,
+} from "@/lib/quotes/riepilogoPreventivi";
 
 interface Props {
   contactId: string | null;
@@ -140,7 +143,7 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
     queryFn: async () => {
       const { data, error } = await supabase
         .from("quotes")
-        .select("id, quote_number, title, status, total, created_at")
+        .select("id, quote_number, title, status, total, created_at, sent_at, viewed_at, expires_at, opportunity_id")
         .eq("company_id", companyId!)
         .is("deleted_at", null)
         .eq("contact_id", contactId!)
@@ -150,6 +153,34 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
     },
     enabled: !!contactId && !!companyId,
   });
+
+  // Valore dell'opportunità: se è a zero e c'è un preventivo, si propone di allinearlo.
+  const { data: valoreOpp } = useQuery({
+    queryKey: ["quotes_tab_opp_value", companyId, opportunityId],
+    enabled: !!companyId && !!opportunityId,
+    staleTime: 30_000,
+    queryFn: async () => {
+      const { data } = await supabase.from("marketing_opportunities")
+        .select("value").eq("company_id", companyId!).eq("id", opportunityId!).maybeSingle();
+      return Number(data?.value ?? 0);
+    },
+  });
+  const [salvandoValore, setSalvandoValore] = useState(false);
+  const [filtroStato, setFiltroStato] = useState<"tutti" | "aperti" | "accettati" | "chiusi">("tutti");
+  const riepilogo = useMemo(() => riepilogoPreventivi(quotes), [quotes]);
+  const preventiviOrdinati = useMemo(() => ordinaPreventivi(quotes), [quotes]);
+  const proposto = useMemo(() => valoreProposto(quotes), [quotes]);
+  const impostaValoreOpportunita = async () => {
+    if (!proposto || !opportunityId || !companyId) return;
+    setSalvandoValore(true);
+    const { error } = await supabase.from("marketing_opportunities")
+      .update({ value: proposto.valore }).eq("company_id", companyId).eq("id", opportunityId);
+    setSalvandoValore(false);
+    if (error) { toast.error("Valore non aggiornato"); return; }
+    toast.success("Valore dell'opportunità aggiornato");
+    queryClient.invalidateQueries({ queryKey: ["quotes_tab_opp_value"] });
+    queryClient.invalidateQueries({ queryKey: ["opportunities"] });
+  };
 
   // Preventivi Serramenti: filtra prima per opportunità (se presente),
   // altrimenti per contatto. Mostriamo solo quelli del modulo attivo.
@@ -454,6 +485,40 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
           </Button>
         </div>
       </div>
+
+      {/* Colpo d'occhio: quanto vale la trattativa */}
+      {quotes.length > 0 && (
+        <div className="space-y-2">
+          <div className="grid grid-cols-3 gap-2">
+            {([
+              { chiave: "aperti", etichetta: "Aperti", d: riepilogo.aperti, colore: "text-blue-700" },
+              { chiave: "accettati", etichetta: "Accettati", d: riepilogo.accettati, colore: "text-green-700" },
+              { chiave: "chiusi", etichetta: "Rifiutati / scaduti", d: riepilogo.chiusi, colore: "text-muted-foreground" },
+            ] as const).map((c) => (
+              <button
+                key={c.chiave}
+                type="button"
+                onClick={() => setFiltroStato(filtroStato === c.chiave ? "tutti" : c.chiave)}
+                className={`rounded-lg border p-2 text-left transition-colors hover:bg-muted/50 ${filtroStato === c.chiave ? "ring-2 ring-primary/50" : ""}`}
+              >
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{c.etichetta}</p>
+                <p className={`text-base font-semibold tabular-nums ${c.colore}`}>{c.d.n}</p>
+                <p className="text-[11px] text-muted-foreground tabular-nums">{fmt(c.d.valore)}</p>
+              </button>
+            ))}
+          </div>
+          {proposto && opportunityId && (valoreOpp ?? 0) === 0 && (
+            <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              <span className="flex-1">
+                Il valore dell'opportunità è 0 €. Il preventivo {proposto.da === "accettato" ? "accettato" : "aperto"} più recente è di <strong>{fmt(proposto.valore)}</strong>.
+              </span>
+              <Button size="sm" variant="outline" className="h-7" disabled={salvandoValore} onClick={impostaValoreOpportunita}>
+                {salvandoValore ? <Loader2 className="h-3 w-3 animate-spin" /> : "Usalo come valore"}
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Lista Preventivi Serramenti collegati (se modulo attivo) */}
       {serramentiEnabled && (srProgetti.length > 0 || srLoading) && (
@@ -797,14 +862,26 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
 
       {/* Existing Quotes List */}
       {quotes.length === 0 && !showForm ? (
-        <div className="flex flex-col items-center justify-center py-10 text-center gap-2">
+        <div className="flex flex-col items-center justify-center py-8 text-center gap-3">
           <FileText className="h-8 w-8 text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">Nessun preventivo per questo contatto.</p>
+          <p className="text-sm font-medium">Nessun preventivo per questo contatto</p>
+          <div className="grid w-full max-w-md grid-cols-2 gap-2 text-left">
+            <div className="rounded-lg border p-3">
+              <p className="text-xs font-semibold">Preventivo rapido</p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">Poche righe e un totale: una bozza pronta in un minuto, da rifinire poi.</p>
+            </div>
+            <div className="rounded-lg border p-3">
+              <p className="text-xs font-semibold">Preventivo avanzato</p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">Articoli a listino, sconti, clausole e PDF completo da inviare per la firma.</p>
+            </div>
+          </div>
         </div>
       ) : (
         <div className="space-y-2">
-          {quotes.map((q: any) => {
+          {preventiviOrdinati.filter((q: any) => filtroStato === "tutti" || gruppoDi(q.status) === filtroStato).map((q: any) => {
             const st = STATUS_LABELS[q.status] || STATUS_LABELS.bozza;
+            const scad = scadenzaPreventivo(q);
+            const visione = visioneCliente(q);
             return (
               <button
                 key={q.id}
@@ -820,6 +897,12 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
                   </div>
                   {q.title && (
                     <p className="text-xs text-muted-foreground truncate mt-0.5">{q.title}</p>
+                  )}
+                  {(scad || visione) && (
+                    <p className="mt-0.5 flex flex-wrap gap-x-2 text-[10px]">
+                      {scad && <span className={scad.urgente ? "font-medium text-red-600" : "text-muted-foreground"}>{scad.testo}</span>}
+                      {visione && <span className="text-muted-foreground">{visione}</span>}
+                    </p>
                   )}
                 </div>
                 <div className="text-right shrink-0">
