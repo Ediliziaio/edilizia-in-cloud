@@ -26,6 +26,7 @@ export function AnteprimaAppunti({ opportunityId, totale }: { opportunityId: str
         .select("id, content, created_at, profiles:created_by(first_name, last_name)")
         .eq("company_id", companyId!)
         .eq("opportunity_id", opportunityId)
+        .eq("automatica", false)
         .order("created_at", { ascending: false })
         .limit(MOSTRATE);
       if (error) throw error;

@@ -117,7 +117,7 @@ export async function enrichPage(data: any[], companyId: string) {
 
     const [notesResults, docsResults, apptResults] = await Promise.all([
       Promise.all(oppChunks.map((ids) =>
-        supabase.from("marketing_contact_notes").select("opportunity_id").eq("company_id", companyId).in("opportunity_id", ids).limit(1000),
+        supabase.from("marketing_contact_notes").select("opportunity_id").eq("company_id", companyId).eq("automatica", false).in("opportunity_id", ids).limit(1000),
       )),
       Promise.all(oppChunks.map((ids) =>
         supabase.from("marketing_documents").select("opportunity_id").eq("company_id", companyId).in("opportunity_id", ids).limit(1000),
@@ -1047,6 +1047,7 @@ export function useOpportunityNotes(opportunityId: string | null, contactId?: st
           .select("*, profiles:created_by(first_name, last_name)")
           .eq("company_id", companyId!)
           .eq("opportunity_id", opportunityId!)
+          .eq("automatica", false)
           .order("created_at", { ascending: false });
         if (error) throw error;
         return data;
@@ -1057,6 +1058,7 @@ export function useOpportunityNotes(opportunityId: string | null, contactId?: st
         .select("*, profiles:created_by(first_name, last_name)")
         .eq("company_id", companyId!)
         .eq("contact_id", contactId)
+        .eq("automatica", false)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data;

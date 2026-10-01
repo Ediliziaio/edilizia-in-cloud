@@ -326,6 +326,7 @@ async function scriviRiepilogo(admin: Admin, r: {
       contact_id: r.contactId,
       opportunity_id: r.opportunityId,
       content: notaRiepilogo(testo, r.esito),
+      automatica: true,
     });
     if (error) console.warn("[lead-agente] riepilogo non salvato:", error.message);
   } catch (e) {

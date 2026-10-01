@@ -193,6 +193,10 @@ serveConMetriche("meta-process-leads", async (req) => {
                 page_id: event.payload?.page_id || null,
                 leadgen_id: event.payload?.leadgen_id || null,
                 campaign_name: result.campaignName || null,
+                ad_name: result.adName || null,
+                adset_name: result.adsetName || null,
+                platform: result.piattaforma || null,
+                lead_created_time: result.createdTime || null,
                 is_new_contact: result.isNew,
                 // Lead recuperato dallo storico, non appena arrivato: il motore
                 // automazioni lo mette in pipeline ma non manda notifiche né
@@ -349,7 +353,7 @@ async function getLeadDenylistPatterns(adminClient: any): Promise<string[]> {
   }
 }
 
-async function processLeadEvent(adminClient: any, event: any): Promise<{ contactId: string; isNew: boolean; campaignName?: string; arretrato?: boolean; giorniRitardo?: number; settore?: string | null } | null> {
+async function processLeadEvent(adminClient: any, event: any): Promise<{ contactId: string; isNew: boolean; campaignName?: string; adName?: string; adsetName?: string; piattaforma?: string; createdTime?: string; arretrato?: boolean; giorniRitardo?: number; settore?: string | null } | null> {
   const { company_id, integration_id, payload } = event;
   // Due formati di payload convivono in coda:
   //  - WEBHOOK: { leadgen_id, form_id, page_id } → il lead va fetchato da Graph
@@ -871,6 +875,10 @@ async function processLeadEvent(adminClient: any, event: any): Promise<{ contact
     contactId,
     isNew: !existingContact,
     campaignName: lead.campaign_name || undefined,
+    adName: lead.ad_name || undefined,
+    adsetName: lead.adset_name || undefined,
+    piattaforma: piattaforma || undefined,
+    createdTime: lead.created_time || undefined,
     arretrato,
     giorniRitardo: arretrato ? Math.floor((Date.now() - new Date(String(lead.created_time)).getTime()) / 86_400_000) : 0,
     settore,

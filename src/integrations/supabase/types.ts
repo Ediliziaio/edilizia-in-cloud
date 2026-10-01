@@ -50035,6 +50035,7 @@ export type Database = {
       }
       marketing_contact_notes: {
         Row: {
+          automatica: boolean
           company_id: string
           contact_id: string
           content: string
@@ -50044,6 +50045,7 @@ export type Database = {
           opportunity_id: string | null
         }
         Insert: {
+          automatica?: boolean
           company_id: string
           contact_id: string
           content: string
@@ -50053,6 +50055,7 @@ export type Database = {
           opportunity_id?: string | null
         }
         Update: {
+          automatica?: boolean
           company_id?: string
           contact_id?: string
           content?: string

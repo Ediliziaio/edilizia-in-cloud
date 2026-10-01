@@ -1852,6 +1852,7 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
               arretrato: leadArretrato,
             }),
             created_by: null,
+            automatica: true,
           });
 
           // Avviso a chi la segue adesso. Non per un lead recuperato dallo storico.

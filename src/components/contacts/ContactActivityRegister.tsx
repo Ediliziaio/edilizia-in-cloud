@@ -23,7 +23,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   UserPlus, StickyNote, Phone, Bot, Smartphone, MessageSquare,
   Mail, MailOpen, CalendarDays, Activity, ArrowUpRight, ArrowDownLeft,
-  Loader2, RefreshCw, Clock, CornerDownRight,
+  Loader2, RefreshCw, Clock, CornerDownRight, Megaphone,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { righeOrigine } from "@/lib/marketing/origineContatto";
@@ -46,7 +46,7 @@ interface Props {
 
 type EventKind =
   | "entry" | "note" | "call_human" | "call_ai" | "sms" | "whatsapp"
-  | "email_out" | "email_in" | "appointment" | "activity";
+  | "email_out" | "email_in" | "appointment" | "activity" | "meta";
 
 interface RegItem {
   id: string;
@@ -75,6 +75,7 @@ const KIND_META: Record<EventKind, { Icon: typeof Mail; color: string; bg: strin
   email_in:   { Icon: MailOpen,       color: "text-violet-600",  bg: "bg-violet-50" },
   appointment:{ Icon: CalendarDays,   color: "text-indigo-600",  bg: "bg-indigo-50" },
   activity:   { Icon: Activity,       color: "text-slate-600",   bg: "bg-slate-100" },
+  meta:       { Icon: Megaphone,      color: "text-blue-700",    bg: "bg-blue-100" },
 };
 
 
@@ -86,6 +87,7 @@ const FILTERS: { key: string; label: string; kinds: EventKind[] | null }[] = [
   { key: "email",  label: "Email",        kinds: ["email_in", "email_out"] },
   { key: "notes",  label: "Note",         kinds: ["note"] },
   { key: "appt",   label: "Appuntamenti", kinds: ["appointment"] },
+  { key: "meta",   label: "Richieste Meta", kinds: ["meta"] },
   { key: "system", label: "Sistema",      kinds: ["entry", "activity"] },
 ];
 
@@ -169,12 +171,33 @@ export function ContactActivityRegister({
     queryFn: async (): Promise<RegItem[]> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any).from("marketing_contact_activities")
-        .select("id, activity_type, description, created_by, created_at")
+        .select("id, activity_type, description, metadata, created_by, created_at")
         .eq("company_id", companyId).eq("contact_id", contactId)
-        .order("created_at", { ascending: false }).limit(50);
+        .order("created_at", { ascending: false }).limit(200);
       if (error) return [];
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return (data ?? []).map((r: any) => {
+        // Richiesta dal modulo Meta: icona Meta e dettagli (campagna, inserzione, modulo…).
+        if (r.activity_type === "lead_form_submission") {
+          const m = r.metadata ?? {};
+          const dettagli = righeOrigine({
+            piattaforma: m.platform,
+            campagna: m.campaign_name,
+            inserzione: m.ad_name,
+          });
+          const extra = [
+            m.adset_name ? `Gruppo di inserzioni: ${m.adset_name}` : null,
+            m.form_id ? `Modulo: ${m.form_id}` : null,
+            m.form_created_at ? `Compilato il ${new Date(m.form_created_at).toLocaleString("it-IT")}` : null,
+            m.arretrato || m.recuperata ? "Recuperata dallo storico di Facebook" : null,
+          ].filter(Boolean);
+          return {
+            id: `act_${r.id}`, kind: "meta" as const,
+            title: m.repeat ? "Nuova richiesta Meta (ha compilato di nuovo il modulo)" : "Richiesta Meta",
+            text: [dettagli, ...extra].filter(Boolean).join("\n") || r.description,
+            agentName: "Meta Lead Ads", at: r.created_at,
+          };
+        }
         return {
           id: `act_${r.id}`, kind: "activity" as const, title: etichettaAttivita(r.activity_type),
           text: r.description, agentId: r.created_by, at: r.created_at,
@@ -191,13 +214,16 @@ export function ContactActivityRegister({
     queryFn: async (): Promise<RegItem[]> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any).from("marketing_contact_notes")
-        .select("id, content, created_by, created_at")
+        .select("id, content, created_by, created_at, automatica")
         .eq("company_id", companyId).eq("contact_id", contactId)
-        .order("created_at", { ascending: false }).limit(30);
+        .order("created_at", { ascending: false }).limit(100);
       if (error) return [];
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return (data ?? []).map((r: any) => ({
-        id: `note_${r.id}`, kind: "note" as const, title: "Nota", text: r.content,
+        id: `note_${r.id}`,
+        // Le righe scritte dal sistema sono eventi, non appunti: restano nel registro, sotto «Sistema».
+        kind: (r.automatica ? "activity" : "note") as EventKind,
+        title: r.automatica ? "Annotazione automatica" : "Nota", text: r.content,
         agentId: r.created_by, at: r.created_at,
       }));
     },
@@ -414,8 +440,8 @@ export function ContactActivityRegister({
     const entry: RegItem[] = contactCreatedAt
       ? [{
           id: "entry",
-          kind: "entry",
-          title: "Contatto entrato in CRM",
+          kind: (origine?.meta_platform ? "meta" : "entry") as EventKind,
+          title: origine?.meta_platform ? "Contatto entrato in CRM · prima richiesta Meta" : "Contatto entrato in CRM",
           text: righeOrigine({
             fonte: origine?.source || contactSource,
             piattaforma: origine?.meta_platform,
@@ -592,7 +618,7 @@ export function ContactActivityRegister({
                     subParts.push(autore.automatica ? `dall'${agent.toLowerCase()}` : `di ${agent}`);
                   } else if (i.kind === "appointment") {
                     if (i.agentId || i.agentName) subParts.push(`assegnato a ${agent}`);
-                  } else if (i.kind === "entry") {
+                  } else if (i.kind === "entry" || i.kind === "meta") {
                     // nessun mittente
                   } else if (dir === "inbound") {
                     if (i.fromLabel) subParts.push(`da ${i.fromLabel}`);
