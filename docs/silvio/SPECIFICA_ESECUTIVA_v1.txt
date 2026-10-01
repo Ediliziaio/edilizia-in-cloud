@@ -1,0 +1,227 @@
+SPECIFICA ESECUTIVA SILVIO — VERSIONE 1
+1 ottobre 2026. Integrazione dei capitoli 81–87 del Mega Manuale v4.
+Base codice: 2bf6301b3812e01294ae7addf6c874642f088208.
+Questa specifica distingue decisioni progettuali, configurazioni aziendali da validare, comportamento richiesto e incremento effettivamente implementato. Le categorie e i 140 casi del manuale rimangono il perimetro di riferimento. La presenza di un requisito non attesta la sua implementazione.
+
+81. DECISIONI OPERATIVE, DEFAULT E LIMITI DELL'AUTOMAZIONE
+
+D01 — OBIETTIVO E PRIORITÀ
+Adottare inizialmente una decisione per priorità ordinate: rispettare vincoli tecnici/autorizzativi e contrattuali; mantenere fattibilità delle risorse e dei materiali; rispettare il limite di liquidità configurato; minimizzare ritardi; confrontare costo e margine; perseguire il target di volume. Questo è il default progettuale conservativo, modificabile e versionato per azienda. Non esiste un peso universale valido per tutte le imprese. Il target 50 lavori non può rendere fattibile una risorsa occupata o denaro inesistente.
+Una proposta che viola un vincolo obbligatorio rimane non ammissibile. Un obiettivo desiderato può essere rinegoziato dall'owner competente. La modifica del contratto richiede il percorso contrattuale, non un nuovo forecast.
+
+D02 — ACCETTARE UNA COMMESSA
+Prima della promessa commerciale eseguire una simulazione di inserimento nel portafoglio confermato. Input: perimetro, data, prezzo, calendario, risorse, fabbisogni, condizioni di incasso/pagamento, scenari di rischio e politica aziendale. Output: fattibile/con condizioni/non fattibile/dati insufficienti; prima data ammissibile; margine previsto; picco fabbisogno; impatto sulle commesse esistenti; condizioni da negoziare.
+Margine minimo, riserva di cassa, esposizione massima cliente e numero massimo di lavori aperti sono campi di policy. Se non configurati, il sistema calcola gli indicatori e dichiara il controllo non configurato; non approva una promessa vincolante assumendo che la soglia sia zero. La scelta commerciale può essere deliberata dall'utente autorizzato, con motivazione e traccia delle condizioni.
+
+D03 — COSTO MATERIALI
+Default proposto: mantenere costo specifico per lotto dove il lotto è rintracciabile; utilizzare la policy già validata dell'impresa per materiali fungibili e saldi iniziali. Metodo definitivo, recuperabilità IVA e riparto accessori richiedono configurazione. Le quantità trasferite mantengono il riferimento al valore originario. Non rivalutare lo storico al listino corrente. Il vecchio margine basato sugli OdA resta identificato come margine sull'impegnato finché non viene deliberata la transizione.
+
+D04 — COSTO MANODOPERA
+Tariffa aziendale versionata per persona/squadra/accordo; attività, trasferta, attesa, affiancamento e straordinario distinti. Subappalto a corpo/misura usa il contratto, non il numero delle presenze come seconda fattura. La tariffa operativa serve a imputare il costo; il payroll alimenta l'uscita monetaria aziendale secondo le sue scadenze. Non si sommano due uscite per la stessa retribuzione. Tariffe mancanti: budget incompleto, non costo zero.
+
+D05 — PREVISIONE SENZA STORICO
+Utilizzare coefficienti iniziali configurati con fonte e validazione, oppure una durata dichiarata come ipotesi di scenario. Nessuna percentuale probabilistica generata dal linguaggio naturale. Se manca il dato che determina una durata critica, l'output è condizionato/incompleto. Lo storico valido modifica coefficienti futuri tramite una nuova versione confrontata con baseline.
+
+D06 — AUTONOMIA DEL SISTEMA
+Livello A: leggere dati autorizzati, calcolare scenari, riconoscere condizioni da fatti approvati, aggiornare proiezioni e creare alert interni deduplicati. Esecuzione automatica con log e regole configurate.
+Livello B: proporre assegnazioni, acquisti, alternative materiali, revisione del piano, bozza SAL/fattura e riparti ambigui. Conferma dell'owner richiesta dalla policy prima della scrittura ufficiale.
+Livello C: inviare un ordine al fornitore, disporre un pagamento, inviare solleciti esterni, emettere documenti fiscali, modificare condizioni firmate o attribuire responsabilità contestabili. Permesso specifico e workflow applicabile; mai conseguenza implicita di una foto o di una chat.
+La piccola impresa può concentrare più ruoli sulla stessa persona. Questa scelta non elimina audit, importi, versioni e distinzioni fra proposta e fatto.
+
+D07 — QUALITÀ DATI E PREVISIONI
+Per ogni run: completa/parziale/stale/non calcolabile. Riportare campi mancanti, fonti, versioni e loro impatto. Il dato sconosciuto è null con motivo; zero è un valore. Registri legacy con fallback a zero/uno restano identificati nel piano di bonifica: il nuovo livello predittivo non deve interpretarli come dati validati solo perché la vecchia schermata li mostra.
+
+D08 — CHI APPROVA COSA
+Commerciale: perimetro e proposta. Tecnico/pianificatore: template, dipendenze, risorse e date. Capo cantiere: misure/rapporti/evidenze pertinenti. Acquisti: articolo, compatibilità e condizioni fornitore. Magazzino/campo: ricezione fisica e custodia. Amministrazione: titoli, IVA applicabile, scadenze e allocazioni. Direzione: policy, esposizione, deroghe economiche e priorità di portafoglio. Cliente/subappaltatore: esclusivamente le approvazioni previste dal contratto e dall'accesso assegnato. Mappare questi ambiti ai permessi effettivi del repository; verificare allow/deny lato server.
+
+D09 — TEMPI E CONFERME
+Europe/Rome; date civili, istanti e intervalli lavorativi sono tipi distinti. Attese tecniche in tempo trascorso; produzione nei calendari autorizzati. Termini fornitore decorrono dall'evento pattuito. Un ritardo modifica la previsione; una scadenza documentata cambia solo tramite atto autorizzato. Le soglie alert e il tempo massimo ammesso di proiezione stale sono policy misurate, non SLA inventati.
+
+D10 — STATO DELLE DECISIONI
+Per ogni decisione memorizzare: ID, proposta/default, azienda e ambito, versione, owner, evidenza, data, stato e decorrenza. Gli importi fiscali e le soglie critiche non vengono approvati dal silenzio. Configurazioni mancanti non bloccano analisi indipendenti, ma impediscono una promessa/azione che dipende da esse.
+
+82. MATRICE DEI REQUISITI, RIUSO E CRITERI DI USCITA
+
+Gli identificativi seguenti sono stabili per backlog e verifiche. Stato iniziale: SPECIFICATO, salvo l'incremento quote fornitore descritto nel capitolo 87. Le coperture del repository vanno verificate sul codice finale e sullo schema dell'ambiente consentito.
+
+ID | CAPITOLI DI RIFERIMENTO | BASE DA RIUTILIZZARE | RISULTATO VERIFICABILE
+R01 | 1–4,65,69,70,80 | manuale, istruzioni, ARCHITECTURE.md | matrice completa e checkpoint senza dichiarazioni di capacità non verificate
+R02 | 5,6,33–42 | preventivi/computi e conversioni esistenti | righe, unità, origine, lacune e template selezionato senza inventare quantità
+R03 | 7–9,34–42,43,48–50 | fasi, assegnazioni, risorse, workPlanning.ts | piano fattibile, calendari e conflitti espliciti, confronto scenari
+R04 | 10,44,45,51,74 | order_items, purchase_orders, materialProcurement.ts | residuo acquisto unico e condizioni ordine/pagamento strutturate
+R05 | 11,75 | warehouse_stock/movimenti e RPC trasferimento/prelievo | conservazione quantità/valore fra consumo, residuo e trasferimento
+R06 | 12,41,51 | mezzi/attrezzature, calendari e custodia | disponibilità e costo pertinente, proroghe e conflitti multicantiere
+R07 | 13,24,46,47,76 | company_costs, marginalità, cashflow | impegno/consumo/cassa distinti, residui e quadratura senza doppie fonti
+R08 | 14,15,25,38–40 | contratto, preventivo, conversioni | una commessa e baseline, varianti approvate e storico delle revisioni
+R09 | 16–18,49,50,52–54 | rapportini, misure, foto, presenze | approvazione/rettifica atomica e cause supportate da evidenze
+R10 | 19,20,23,77 | SAL, sal_voci, order_installments | condizione raggiunta riconosciuta, titolo e passaggi amministrativi unici
+R11 | 21,22,23,76,77 | fatture/documenti, scadenze, ritenute | componenti e regole fiscali validate, credito regolato e netto banca riconciliati
+R12 | 26,35–42,54 | qualità/documenti/garanzie | prove per template, difetti e chiusure tecniche/economiche distinte
+R13 | 27–29,59,78 | storico e servizi AI esistenti | aggregati riproducibili, strumenti compatti e misure di errore/token
+R14 | 30,55–58,71–73,78 | FK, comandi/RPC/trigger esistenti | un autore per effetto, idempotenza, allocazioni e recupero
+R15 | 31,53,63,78 | ruoli, RLS, grants e accessi documenti | tenant/ruolo coerenti su API, viste, cache e file
+R16 | 32,54,57,62 | alert, owner e automazioni | priorità/dedup/escalation e prossimo passo, invii esterni autorizzati
+R17 | 60,61,67,68,79 | fixture e test del progetto | otto piloti e 140 casi con dati, attesi, esecuzione ed evidenza
+R18 | 63,64,66,80 | job, osservabilità, rilascio | degrado visibile, SLO misurati, backup/recovery e rollout progressivo
+
+La matrice copre tutti i capitoli 1–80 senza sostituirne il dettaglio. Ogni requisito va scomposto in ticket con owner tecnico, dipendenze, oggetti toccati, comandi, permessi, migrazione, test e criterio di uscita. Un requisito che appare in più righe conserva un solo ID di dettaglio: non finanziare due implementazioni dello stesso servizio.
+
+REGISTRO DELLE FONTI
+Per ogni modulo identificare autorità del fatto, autore della scrittura, formule/proiezioni, consumatori UI/AI e recupero. Tabella/riga originale e ID collegati rimangono accessibili. Il piano predittivo legge registri esistenti e aggiunge esclusivamente informazioni che non possono essere rappresentate correttamente con il modello attuale. Nuovi adapter mantengono compatibilità dei percorsi manuali.
+
+83. SPECIFICA DEL MOTORE DEI TEMPI, DEI COSTI E DELLA CASSA
+
+INPUT DI ATTIVITÀ
+ID, zona, categoria, quantità/unità canonica, coefficiente ore-persona/unità e origine/versione, fattori di contesto validati, ore fisse di preparazione, ore macchina, min/max squadra, skill e composizione, curva capacità, calendario, prerequisiti, dipendenze, materiali/mezzi, attese tecniche, prove, costo e qualità dato. Un coefficiente di squadra e uno per persona non sono intercambiabili.
+
+CALCOLO DEL LAVORO
+H = H_preparazione + quantità_residua_conforme × coefficiente × fattori_compatibili.
+Se il coefficiente include già una componente, non applicarla nuovamente. Le ore già spese non determinano la quantità residua: utilizzare misure approvate. Per preventivo, resa e qualità attesa distinguere consumo conforme e scarti.
+La capacità produttiva effettiva della squadra è una funzione configurata di persone, skill, attrezzatura e spazio. Con curva lineare validata C=numero persone equivalenti, durata produttiva H/C; con curva diversa utilizzare quella curva. Se una squadra minima è assente o C non è determinabile, non costruire una data certa.
+Esempio artificiale: 20 m² × 0,8 ore-persona/m² + 2 ore-persona preparazione = 18 ore-persona. Con C=2 validato nel test, durata 9 ore produttive. Tre persone non implicano automaticamente 6 ore: serve la capacità C della composizione proposta.
+
+SCHEDULER DI BASE DA REALIZZARE
+Versione iniziale: generazione seriale di un piano fattibile con risorse finite. Le attività pronte hanno dipendenze soddisfatte e prerequisiti disponibili. Ordinare secondo policy aziendale, urgenza contrattuale, margine disponibile e ID stabile per pareggi. Cercare il primo intervallo ammesso da calendario, persone, skill, mezzi, luogo e materiali; prenotare le capacità; aggiornare successori. Le attività spezzabili seguono una regola esplicita; una posa/getto non spezzabile non viene interrotta per occupare arbitrariamente spazi liberi.
+L'attesa tecnica trascorre secondo la sua regola e non occupa automaticamente tutti gli operai. Risorsa e luogo possono restare vincolati se necessario. Vietare cicli e riferimenti a dipendenze mancanti. Le finestre senza soluzione producono un insieme di blocchi spiegato; non un calendario con sovrapposizioni.
+Calcolare prima una baseline delle dipendenze, poi vincoli delle risorse. Distinguere percorso critico teorico e criticità effettiva del piano a risorse finite. La versione iniziale non dichiara ottimo globale. Aggiungere algoritmi più sofisticati solo dopo benchmark su portafogli reali e limiti di tempo.
+
+BACKWARD PROCUREMENT
+Per ogni materiale: data utile in opera meno controllo/trasporto interno/buffer, meno lead time di fornitura secondo calendario ed evento di decorrenza. Rilievo, approvazione prodotto e acconto possono precedere l'avvio della produzione. La finestra ordine confronta prima data utile e ultima ammissibile. Finestra vuota: proposta non fattibile, con condizioni da cambiare. Lead time sconosciuto non diventa zero.
+
+COSTO FINALE E RECUPERO
+Costo finale atteso = maturato + residuo impegnato non maturato + residuo non impegnato + rischio incrementale non già coperto.
+Scenario di recupero = modifica esplicita di sequenza/risorse/materiali + ricalcolo tempi/costi/cassa di tutte le commesse toccate. Il beneficio va comparato al costo extra e alle conseguenze sulla qualità. Le ore aggiuntive si distribuiscono per skill disponibile, non per un generico «aggiungi due operai».
+
+CASH FORECAST CANONICO
+Saldo iniziale con data/copertura; titoli residui; impegni non coperti; fabbisogni ancora stimati; tempi di regolazione; componenti IVA/ritenute/garanzie; costi aziendali e fonti finanziarie confermate. Ogni porzione partecipa una volta alla proiezione; la fonte più autorevole sostituisce la sola quota coperta. Le transazioni già nel saldo iniziale non sono sommate di nuovo. Scaduti e flussi senza data sono bucket visibili.
+Il calendario di cassa usa data denaro effettivo/previsto, non data consumo. Giroconti interni non sono nuovi incassi consolidati. Plafond, disponibilità vincolata e saldo sono distinti. Un errore di una sorgente critica invalida il totale completo, mantenendo leggibili le fonti disponibili.
+
+FORMULE DI CONTROLLO
+EAC materiale = valore consumato/scartato pertinente + residuo previsto valorizzato, con oneri/rischi non già inclusi.
+Costo operativo ore = somma ore categoria × tariffa applicabile versione evento, oppure accordo a corpo/misura per subappalto.
+Residuo titolo = importo regolabile − allocazioni valide − componenti di regolazione non monetarie documentate, secondo natura del titolo.
+Fabbisogno massimo = massimo deficit della cassa disponibile rispetto alla riserva configurata sull'orizzonte; se mancano dati critici, mostra limite/condizioni.
+Errore previsione = differenza fra previsto alla data del run ed esito successivo comparabile. La durata osservata con variante di perimetro non viene attribuita interamente all'errore del modello.
+
+84. TEMPLATE OPERATIVI VERSIONATI PER I PRIMI CINQUE PROFILI
+
+Catalogo iniziale machine-readable: docs/silvio/templates.v1.json. È un seed progettuale da collegare ai moduli esistenti, non un catalogo già attivato nelle schermate. Coefficienti e durate universali non sono precompilati: servono quantità, prodotti, calendario e tariffe aziendali. Lo schema consente attività produttive, attese, approvazioni e milestone; ogni attività ha ID e dipendenze stabili. Le relazioni iniziali fine-inizio sono un default adattabile, non un divieto di parallelismo delle opere compatibili.
+
+T01 — BAGNO
+Input: quantità superfici/punti, accessi, supporti, impianti, layout, scelte e materiali. Sequenza base: rilievo/scelte → kit/allestimento → demolizione → predisposizioni murarie/impianti → prove → supporti → impermeabilizzazione e attese applicabili → posa/fughe → sanitari/accessori → prova/consegna.
+Skill: muratore, aiuto, idraulico, elettricista, posatore. Lead time critici: prodotti scelti e componenti su misura, non soltanto piastrelle. SAL legati alle clausole configurate, ad esempio impianti provati o consegna, senza percentuali universali. Accelerato ammesso soltanto con prerequisiti e prodotti idonei confermati.
+
+T02 — SERRAMENTI AD ALTO VOLUME
+Input: distinta aperture, misure/versioni, prodotti, accessi, smontaggio, smaltimento, sollevamento e squadre. Sequenza: sopralluogo → rilievo definitivo → scelte/conferma → ordine/anticipo → produzione/consegna → controllo kit → appuntamento/posa → regolazioni/accettazione → documenti/ripristini.
+Distinguere numero commesse, aperture installate e chiusure conformi. Target 30/40/50 controlla rilievi, kit, trasporto, posa e assistenza. Squadre posatori condivise, ritorni e visite singole consumano capacità. Una misura corretta dopo l'ordine apre revisione/fornitura da correggere, non modifica retroattiva senza traccia.
+
+T03 — FOTOVOLTAICO
+Input: progetto e quantità/componenti compatibili, copertura/accessi, condizioni tecniche/autorizzative, squadra e documenti richiesti. Sequenza: verifica/progetto → condizioni avvio → acquisti kit → allestimento → montaggio strutture/moduli → parte elettrica/accumulo/ricarica se prevista → prove → consegna documentale → pratiche/attivazione applicabili.
+Installato, verificato, consegnato, attivato e incassato sono milestone diverse. Le durate delle pratiche non sono ore di montaggio della squadra. Compatibilità inverter/batteria/moduli e potenze segue il progetto, non solo presenza di articoli in stock. Le attività operative usano risorse abilitate e prerequisiti verificati.
+
+T04 — RISTRUTTURAZIONE COMPLETA
+Input: ambienti, quantità, impianti, strutture, finiture, serramenti, occupazione, decisioni e contratto. Sequenza per zone: verifiche/allestimento → demolizioni → opere/impianti → prove prima di chiudere → supporti/finiture → installazioni → collaudi/difetti/consegna. Il percorso serramenti procede con rilievo definitivo, scelta, fornitura e posa alle condizioni compatibili con le opere.
+SAL multipli, varianti e subappalti passivi si collegano al piano; attività parallele richiedono capacità, accesso e qualità compatibili. Una fase genericamente «impianti» va scomposta se competenze, prove o condizioni di pagamento differiscono.
+
+T05 — COSTRUZIONE ANNUALE E SVILUPPO PROPRIO
+Input: progetto, lotti, terreno se proprio, autorizzazioni, opere, fasi finanziarie e calendario lungo. Struttura: condizioni preliminari → allestimento/scavi → fondazioni/struttura → involucro/impianti → finiture → prove/consegne; attività amministrative/finanziarie collegate e dettaglio progressivo delle settimane prossime.
+Modalità cliente: SAL attivi/passivi e contratto. Modalità sviluppo proprio: capitale, finanziamento, costi terreno/comuni e unità, vendite attese/confermate; nessun SAL cliente inventato prima del relativo contratto. Il forecast prosegue dopo la fine opere se vendite, imposte o garanzie richiedono ancora cassa.
+
+COMPILAZIONE DI UN TEMPLATE
+Seleziona versione e profilo → collega input e quantità → elimina solo attività non applicabili con motivazione → espandi per zona/lotto → risolvi coefficienti/calendari → collega persone/squadre/materiali/mezzi → valuta lacune → calcola scenari → approva baseline → converti tramite il percorso comune.
+Una modifica a un template crea una nuova versione; non cambia in silenzio una commessa firmata. Un nuovo settore usa lo stesso contratto dati. L'applicabilità normativa, le schede tecniche e le condizioni contrattuali sono configurazioni/evidenze validate, non decisioni autonome del modello.
+
+85. CONTRATTI DI COMANDO, STATI E PROPAGAZIONE
+
+Schema logico del comando: command_id/idempotency_key, tenant verificato, actor, oggetto/namespace, versione attesa, data effettiva, payload tipizzato, evidenze e correlazione. Risposta: esito, IDs/versioni, effetti committati, effetti pendenti, lacune e trace. I nomi logici sotto devono essere mappati a RPC/servizi esistenti prima di introdurre nuove funzioni.
+
+CMD01 ConvertPlan: collega contratto/piano a una commessa; conserva origine e acquisti preesistenti. Retry restituisce stessa commessa.
+CMD02 ConfirmPurchase: controlla copertura/versione e crea/conferma OdA con righe in modo coerente. Invio esterno separato.
+CMD03 ReceiveDelivery: risolve consegna fisica e righe; DDT, quantità, movimenti e stato ordine coerenti; righe sospese con ripresa individuale.
+CMD04 ConsumeOrReturn: verifica origine/proprietà/unità e valore; collega rapporto/movimento; consumo, reso e scarto distinti.
+CMD05 ApproveReport: ufficializza misure/ore/consumi pertinenti senza replicare fatti già confermati; invalida forecast e valutazioni SAL interessate.
+CMD06 EvaluateSAL: valuta clausole/versione/evidenze; singola transizione/pratica; non emette automaticamente fattura.
+CMD07 IssueDocument: servizio fiscale esistente, ruoli e verifiche; collega titolo/scadenze e adapter nativo/importato.
+CMD08 AllocatePayment: collega denaro a titoli/quote; residui e Prima Nota coerenti; import bancario successivo riconcilia lo stesso evento.
+CMD09 ReverseEffect: rettifica/storna al valore originario con motivazione; mantiene cronologia e riapre condizioni dove necessario.
+CMD10 RevisePlan: conserva baseline, impatti e approvazione; aggiorna scenario operativo, non documenti firmati autonomamente.
+
+STATI LOGICI
+Piano: proposta → incompleto/valutabile → scenario calcolato → approvato → baseline → revisione proposta/approvata.
+Rapporto: bozza → da verificare → approvato/respinto → rettificato con nuovo evento.
+Consegna/riga: proposta → da abbinare/verificare → accettata/respinta → registrata → rettificata/stornata.
+SAL: previsto → condizioni raggiunte → da validare se richiesto → certificato/fatturabile → coperto da titolo → regolato, con quote parziali separate.
+Titolo: previsto/confermato → emesso/esigibile secondo natura → parziale → regolato; rettifiche, note credito, anticipi e rimborsi separati.
+Questi stati descrivono semantica; non autorizzano a sostituire enum esistenti senza adapter e migrazione.
+
+Una scrittura ufficiale e i suoi effetti indivisibili hanno una transazione comune. Un ricalcolo pesante usa outbox/worker idempotente e versione. Trigger e consumer non scrivono entrambi lo stesso costo. Ogni evento contiene origine e versione per evitare cicli. Se il worker fallisce, il fatto resta rintracciabile e la proiezione mostra stato stale/errore, con recupero operativo.
+
+Mappa minima: contratto→piano/SAL/fabbisogni; OdA→copertura/impegno/scadenze previste; consegna→ricevuto/stock/readiness; consumo→valore/costo/residuo; rapporto→ore/misure/forecast; fattura→titolo/IVA/coperture; pagamento→residui/Prima Nota/match; rettifica→storno e proiezioni interessate. La sincronizzazione non richiede una chiamata in chat per attivarsi.
+
+86. PILOTA BAGNO NUMERICO, QUADRATURE E CRITERI DI SUCCESSO
+
+DATI ARTIFICIALI PER LA PROVA
+Calendario di test lunedì–venerdì 08:00–16:00 continuo; inizio 5 ottobre 2026. Attività in sequenza fine-inizio, durata produttiva di squadra e persone presenti configurate. Tutti i prerequisiti sono confermati, salvo l'attesa esplicita. Le durate, tariffe e attesa non costituiscono standard tecnici o aziendali.
+
+ATTIVITÀ | ORE PRODUTTIVE DI SQUADRA | RISORSE/TARIFFE TEST | COSTO ORE
+Allestimento | 4 | 1 × 30 | 120
+Demolizione | 8 | 1 × 30 e 1 × 20 | 400
+Idraulica | 8 | 1 × 40 | 320
+Elettrico | 4 | 1 × 40 | 160
+Supporti | 8 | 1 × 30 e 1 × 20 | 400
+Impermeabilizzazione | 4 | 1 × 30 | 120
+Attesa tecnica del sistema di test | 24 ore trascorse | nessuna persona occupata nel test | 0
+Posa/finiture | 16 | 1 × 30 | 480
+Installazioni finali | 4 | 1 × 40 | 160
+Verifica/consegna | 4 | 1 × 35 | 140
+
+Risultato atteso senza altri conflitti: 60 ore produttive di squadra, 76 ore-persona, costo operativo ore 2.300; fine 14 ottobre 2026 alle 16:00. La pausa tecnica parte il 9 ottobre alle 12:00 e termina il 10 alle 12:00; la posa inizia nel primo intervallo ammesso, il 12 alle 08:00. Nessuna compressione della pausa per raggiungere una promessa di cinque giorni. Scomporre le risorse reali in persone/squadre canoniche prima dell'uso applicativo.
+
+MATERIALI E CASSA
+Acquisto 100 unità × 10 netti, IVA 22% esclusivamente come parametro del test: totale 1.220. Due ricezioni da 50; consumo A 70; trasferimento residue 30; consumo B 15; giacenza finale 15. Valori: costo materiale A 700, B 150, rimanenza 150. Il consolidato materiale netto è 1.000; denaro fornitura 1.220, distinto dall'imputazione dei consumi.
+Pagamento documentato 244 + 366 + 610 = 1.220; i titoli/coperture devono mantenere quei residui durante acconto e fatturazione. Usare il percorso fiscale validato per i documenti, senza inferire la disciplina della fattura di acconto dal solo esempio.
+Il costo operativo diretto del bagno in questo perimetro limitato è 2.300 + 700 = 3.000 netti. Trasporto, indiretti, altri materiali e rischi non presenti nel dataset non possono essere dichiarati implicitamente inclusi in un preventivo reale.
+
+SAL DI TEST
+Condizione contrattuale artificiale: idraulica ed elettrico eseguiti e prove approvate. Alla fine dell'elettrico una prova ancora mancante produce SAL raggiunto operativamente/da completare; l'approvazione della prova rende la condizione soddisfatta una volta. Importo e termine derivano dal contratto del fixture, non da una percentuale universale. Il percorso prosegue fino a titolo, fattura e incasso con componenti riconciliate.
+
+VARIANTI OBBLIGATORIE
+Materiale arriva tardi; specialista assegnato a un altro cantiere; supporto non conforme; modifica quantità; acconto non accreditato e produzione non avviata; rapporto rettificato; DDT duplicato fra canali; fattura tardiva; pagamento parziale; ritenuta documentata; perdita rete e retry. Per ciascuna variante registrare date/importi attesi e limiti di fatturabilità, non soltanto un alert.
+
+GATE DI ACCETTAZIONE
+G0 Dati: quantità, unità, tariffe, calendari, documenti e policy identificati; assenze esplicite.
+G1 Registri: nessun doppio evento, stock e valori conservati, allocazioni riconciliate, accessi negati dove richiesto.
+G2 Piano: dipendenze e risorse rispettate; attese corrette; confronto fra baseline e forecast; blocchi spiegati.
+G3 Economia: budget/impegno/consumo/cassa distinti; SAL→titolo→incasso senza doppio credito; IVA/ritenute applicate solo con profilo validato.
+G4 Operatività: il fatto si inserisce una volta, tutti i consumatori pertinenti vedono stesso riferimento/versione o ritardo dichiarato; recupero senza riscrittura.
+G5 Qualità previsione: benchmark temporalmente separato e confronto con baseline, con errori misurati per settore/contesto.
+G6 Business: confronto prima/dopo di tempo amministrativo, tempi SAL, puntualità, rilavorazioni, recupero residui e costi AI. Target numerici approvati dopo baseline; non millantare risparmi già ottenuti.
+
+Metriche da raccogliere: errore assoluto giorni/ore e costo; copertura intervalli; anticipo utile alert; errori/falsi positivi; maturato non fatturato e giorni per passaggio; forecast vs cassa osservata; rotazione/residui e valore recuperato; ore amministrative evitate al netto delle verifiche; token/costo per richiesta e commessa; latenza/freschezza proiezioni. I gate G0–G4 sono necessari prima di promesse automatiche. Il beneficio G5–G6 si dimostra con dati reali.
+
+87. INCREMENTO REALIZZATO, BACKLOG E CHECKPOINT
+
+INCREMENTO DI CODICE REALIZZATO IN QUESTA ATTIVITÀ
+Piano quote fornitore comune in src/lib/finance/supplierPaymentSchedule.ts, riutilizzato da useCashFlowData e buildOrderItemCosts. Acconto e saldo sono contemporaneamente previsti; quote pagate escluse dal futuro; zero esplicito preservato; importi mancanti derivati secondo il piano 50/50 o 30/70 già supportato; precisione prezzo unitario conservata fino al totale; articolo già a costo escluso tramite la vista esistente. Lettura della copertura entra nello stato loading/error del previsionale.
+È un calcolo/proiezione sulle fonti esistenti: non crea registri, costi, scadenze o pagamenti. Le viste del previsionale che consumano expectedSupplierPayments ricevono lo stesso piano; la RPC storica get_cashflow_summary e altre proiezioni indipendenti restano da convergere nel servizio canonico completo. Non dichiarare che l'intera tesoreria aziendale sia stata unificata da questo incremento.
+Gli importi mantengono la convenzione legacy delle righe: nessun gross-up fiscale aggiunto automaticamente. La migrazione verso un forecast lordo per regimi/quote e coperture parziali rimane un ticket economico distinto. I default legacy purchase_price mancante=0 e quantità mancante=1 restano compatibilità della sorgente, da rendere espliciti nel nuovo modello di qualità dati. Documenti e policy fiscali richiedono la verifica già prevista dal manuale.
+
+BACKLOG ORDINATO
+B00 Inventario autori/schema/permessi, fonti e quadrature iniziali; definizioni dell'impegnato e dei consumi. Uscita: matrice runtime verificata e nessun autore concorrente per effetto.
+B01 Quote fornitore comuni e regressioni: incremento qui realizzato e verificabile prima del rilascio.
+B02 Coperture/allocazioni per porzione e identità documento/consegna condivisa; ricezioni parziali e righe sospese da ogni ingresso. Uscita: retry e import multicanale senza duplicati.
+B03 Consumo/reso/trasferimento valorizzato e integrazione rapporti; decimali e saldi iniziali. Uscita: pilota A/B con quadratura fisica ed economica.
+B04 Servizio canonico cassa: titoli/residui, IVA/regimi validati, scaduti, obblighi aziendali, banca/Prima Nota e soppressione fonti coperte; adapter degli hook/RPC. Uscita: tutti i consumatori concordano per definizione e versione.
+B05 Compilazione template, scheduler a capacità finita e inserimento nel portafoglio; baseline/revisioni. Uscita: bagno numerico e conflitti multicantiere verificati.
+B06 Condizioni SAL strutturate e collegamenti rata/fattura/incasso nativo/importato. Uscita: maturazione e ciclo attivo completo con rettifiche.
+B07 Outbox, recovery, cache e interfacce per ruolo; metriche di freschezza. Uscita: guasti e ripresa dimostrati.
+B08 Storico validato, coefficienti versionati, benchmark e strumenti Silvio compatti. Uscita: accuratezza/costo misurati rispetto alla baseline.
+B09 Serramenti/FV/ristrutturazione/costruzione: completamento di ogni verticale con casi propri, policy e formazione. Uscita: nessuna equivalenza fittizia fra semplice catalogo e settore operativo validato.
+
+B02–B08 hanno dipendenze parzialmente sovrapposte, da spezzare in PR secondo l'audit; non eseguire migrazioni su produzione per validare ipotesi ancora aperte. Le istruzioni CLAUDE.md del repository indicano deploy automatico da main e rischi delle migrazioni: questa consegna prepara un ramo revisionabile senza merge/deploy automatico.
+
+CHECKPOINT OBBLIGATORIO
+Commit di base; branch/PR; file cambiati; verifica codice vs database; decisioni D01–D10 e configurazioni mancanti; requisiti completati e pendenti; fixture/versioni; test eseguiti con esiti; limiti; prossimo ticket. Le 140 casistiche generali restano da trasformare ed eseguire per incrementi. I test del presente cambiamento verificano un sottoinsieme specifico; non attestano gli otto piloti completi.
+
+PROMPT ESECUTIVO FINALE
+Usa il Mega Manuale v4 e questa specifica come requisiti. Parti dal checkpoint e dalla matrice R01–R18; verifica il codice corrente prima di modificare gli autori. Per ogni ticket scegli riuso/estensione, scritture, stati, permessi, formule, effetti di sincronizzazione e verifica. Mantieni la stessa autorità per quantità, costo e denaro; separa impegno, consumo, documento e pagamento. Non approvare promesse quando mancano i dati/policy necessari. Completa il flusso del ticket fino alla quadratura e al recupero delle eccezioni, poi aggiorna il checkpoint con prove e limiti. I cinque template sono input configurabili e versionati, non standard universali. Nessuna esecuzione AI sostituisce la fonte fiscale, tecnica o contrattuale validata.

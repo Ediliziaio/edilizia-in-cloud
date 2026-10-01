@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "purpose": "benchmark artificiale; non è uno standard tecnico o aziendale",
+  "timezone": "Europe/Rome",
+  "calendar": {"weekdays": [0, 1, 2, 3, 4], "start_hour": 8, "end_hour": 16},
+  "start": "2026-10-05T08:00:00+02:00",
+  "activities": [
+    {"id":"setup", "production_hours":4, "crew_hourly_rates":[30]},
+    {"id":"demolition", "production_hours":8, "crew_hourly_rates":[30,20]},
+    {"id":"plumbing", "production_hours":8, "crew_hourly_rates":[40]},
+    {"id":"electrical", "production_hours":4, "crew_hourly_rates":[40]},
+    {"id":"substrates", "production_hours":8, "crew_hourly_rates":[30,20]},
+    {"id":"waterproofing", "production_hours":4, "crew_hourly_rates":[30]},
+    {"id":"technical_wait", "elapsed_hours":24, "crew_hourly_rates":[]},
+    {"id":"tiling", "production_hours":16, "crew_hourly_rates":[30]},
+    {"id":"fixtures", "production_hours":4, "crew_hourly_rates":[40]},
+    {"id":"handover", "production_hours":4, "crew_hourly_rates":[35]}
+  ],
+  "expected": {"finish":"2026-10-14T16:00:00+02:00", "crew_production_hours":60, "person_hours":76, "labor_cost":2300},
+  "materials": {"received_quantity":100, "unit_net_cost":10, "consumed_A":70, "transferred_residue":30, "consumed_B":15, "final_stock":15},
+  "expected_material_values": {"A":700, "B":150, "stock":150, "consolidated_net":1000},
+  "financial": {"currency":"EUR", "vat_rate_test_parameter":22, "gross_purchase":1220, "documented_payments":[244,366,610]},
+  "sal": {"contract_condition":"plumbing AND electrical AND approved_tests", "missing_test_state":"reached_pending_evidence", "approved_test_state":"eligible_once", "amount_source":"configured_contract"},
+  "scope_limits": ["solo sequenza FS del benchmark", "nessun conflitto esterno nel caso base", "nessuna regola fiscale certificata", "nessuna integrazione DB effettuata", "altri costi richiedono dataset aggiuntivo"]
+}

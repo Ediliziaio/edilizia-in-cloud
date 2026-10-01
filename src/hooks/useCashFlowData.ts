@@ -6,11 +6,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { queryKeys } from "@/lib/queryKeys";
 import { calculateStoredCommissionNet } from "@/lib/commissions";
+import { expectedSupplierPayments as buildExpectedSupplierPayments } from "@/lib/finance/supplierPaymentSchedule";
 import type {
   ExpectedPayment,
   ExpectedExpense,
   ExpectedCommission,
-  ExpectedSupplierPayment,
   CompanyCostEntry,
   ExternalTeamPayment,
   ForecastStats,
@@ -106,7 +106,7 @@ export function useCashFlowData({ monthsAhead = 6 }: { monthsAhead?: number } = 
   // fornitore contabilizzata): vanno esclusi dalle uscite stimate, altrimenti
   // lo stesso euro pesa due volte sulla cassa prevista — una come articolo da
   // pagare e una come costo da pagare.
-  const { data: articoliGiaACosto = [] } = useQuery({
+  const { data: articoliGiaACosto = [], isLoading: loadingCoveredItems, isError: errCoveredItems } = useQuery({
     queryKey: ["articoli-gia-a-costo", companyId],
     queryFn: async () => {
       const { data, error } = await (supabase as any)
@@ -367,12 +367,12 @@ export function useCashFlowData({ monthsAhead = 6 }: { monthsAhead?: number } = 
     gcTime: 15 * 60 * 1000,
   });
 
-  const isLoading = loadingOrders || loadingTeams || loadingItems || loadingCommissions || loadingCosts || loadingSupplierBalances || loadingPaidCosts || loadingPaidTeams || loadingPaidCommissions || loadingPaidSuppliers || loadingEmployees || loadingTreasuryCategories || loadingScadenze || loadingSummary;
+  const isLoading = loadingCoveredItems || loadingOrders || loadingTeams || loadingItems || loadingCommissions || loadingCosts || loadingSupplierBalances || loadingPaidCosts || loadingPaidTeams || loadingPaidCommissions || loadingPaidSuppliers || loadingEmployees || loadingTreasuryCategories || loadingScadenze || loadingSummary;
 
   // Errore sui dati CORE (quelli che alimentano tab e KPI sempre visibili).
   // Prima la pagina non aveva alcuno stato d'errore per questi: se una query
   // falliva, restava un previsionale vuoto silenzioso.
-  const isError = errOrders || errTeams || errCommissions || errItems || errSupplierBalances || errCosts || errScadenze || errSummary;
+  const isError = errCoveredItems || errOrders || errTeams || errCommissions || errItems || errSupplierBalances || errCosts || errScadenze || errSummary;
 
   // Backwards-compat: expose installmentsData as "orders" for treasury module
   const orders = installmentsData;
@@ -466,74 +466,12 @@ export function useCashFlowData({ monthsAhead = 6 }: { monthsAhead?: number } = 
     }));
   }, [companyCosts]);
 
-  // Pagamenti fornitori attesi (da order_items con supplier)
-  const expectedSupplierPayments = useMemo<ExpectedSupplierPayment[]>(() => {
-    const payments: ExpectedSupplierPayment[] = [];
-    supplierBalances.forEach((item: any) => {
-      // DEDUP uscite: se l'acquisto dell'articolo è GIÀ un costo (ODA
-      // ricevuto o fattura del fornitore contabilizzata — stessa vista usata
-      // per gli articoli da ordinare), l'uscita vera è quella registrata:
-      // contare anche l'articolo raddoppiava i fornitori nel previsionale.
-      if (idsGiaACosto.has(item.id)) return;
-      const supplierName = item.supplier?.name || "Fornitore sconosciuto";
-      const totalCost = (Number(item.purchase_price) || 0) * (Number(item.quantity) || 1);
-      const paymentMethod = item.payment_method;
-
-      if (paymentMethod === "50_50" || paymentMethod === "30_70") {
-        const depositPct = paymentMethod === "50_50" ? 0.5 : 0.3;
-        const depositAmt = Number(item.deposit_amount) || totalCost * depositPct;
-        const balanceAmt = Number(item.balance_amount) || totalCost - depositAmt;
-
-        if (!item.deposit_paid) {
-          payments.push({
-            orderItemId: item.id,
-            orderId: item.order.id,
-            orderCode: item.order.order_code,
-            supplierName,
-            type: "Acconto Fornitore",
-            amount: depositAmt,
-            expectedDate: item.deposit_expected_date ? new Date(item.deposit_expected_date) : null,
-            isPaid: false,
-            direction: "out",
-          });
-        }
-        if (item.deposit_paid && !item.balance_paid) {
-          payments.push({
-            orderItemId: item.id,
-            orderId: item.order.id,
-            orderCode: item.order.order_code,
-            supplierName,
-            type: "Saldo Fornitore",
-            amount: balanceAmt,
-            expectedDate: item.balance_expected_date ? new Date(item.balance_expected_date) : null,
-            isPaid: false,
-            direction: "out",
-          });
-        }
-      } else {
-        // Single payment methods (bonifico, riba, etc.)
-        if (!item.is_paid && totalCost > 0) {
-          payments.push({
-            orderItemId: item.id,
-            orderId: item.order.id,
-            orderCode: item.order.order_code,
-            supplierName,
-            type: "Pagamento Fornitore",
-            amount: totalCost,
-            expectedDate: item.balance_expected_date ? new Date(item.balance_expected_date) : null,
-            isPaid: false,
-            direction: "out",
-          });
-        }
-      }
-    });
-    return payments.sort((a, b) => {
-      if (!a.expectedDate && !b.expectedDate) return 0;
-      if (!a.expectedDate) return 1;
-      if (!b.expectedDate) return -1;
-      return a.expectedDate.getTime() - b.expectedDate.getTime();
-    });
-  }, [supplierBalances, idsGiaACosto]);
+  // Stesso piano quote usato dai costi derivati. Il saldo futuro è visibile
+  // anche prima di pagare l'acconto; la vista di copertura evita doppie uscite.
+  const expectedSupplierPayments = useMemo(
+    () => buildExpectedSupplierPayments(supplierBalances, idsGiaACosto),
+    [supplierBalances, idsGiaACosto],
+  );
 
 
   // Stats from RPC (server-side aggregation replaces heavy client-side useMemo)

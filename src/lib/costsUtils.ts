@@ -8,6 +8,7 @@ import { it } from "date-fns/locale";
 import { calculateGrossFromNet } from "@/lib/vatUtils";
 import { RECURRENCE_LABELS, COST_ID_PREFIX } from "@/lib/forecastTypes";
 import { calculateStoredCommissionNet } from "@/lib/commissions";
+import { supplierPaymentSchedule } from "@/lib/finance/supplierPaymentSchedule";
 
 export interface UnifiedCost {
   id: string;
@@ -35,6 +36,7 @@ export function buildOrderItemCosts(orderItemCosts: any[]): UnifiedCost[] {
   const rows: UnifiedCost[] = [];
   orderItemCosts.forEach((item: any) => {
     const pm = item.payment_method;
+    const schedule = supplierPaymentSchedule(item);
     const order = item.order ? { id: item.order.id, order_code: item.order.order_code } : null;
     const supplierName = item.supplier?.name || null;
     const supplierId = item.supplier_id || null;
@@ -45,11 +47,11 @@ export function buildOrderItemCosts(orderItemCosts: any[]): UnifiedCost[] {
         realOrderItemId: item.id,
         name: `Acconto - ${item.name}`,
         cost_type: "variable",
-        amount: Number(item.deposit_amount) || 0,
+        amount: schedule[0].amount,
         category: "Fornitori",
         recurrence: "once",
         due_date: item.deposit_expected_date || item.deposit_paid_date || "9999-12-31",
-        is_paid: !!item.deposit_paid,
+        is_paid: schedule[0].isPaid,
         paid_date: item.deposit_paid_date || null,
         notes: null,
         order_id: order?.id || null,
@@ -65,11 +67,11 @@ export function buildOrderItemCosts(orderItemCosts: any[]): UnifiedCost[] {
         realOrderItemId: item.id,
         name: `Saldo - ${item.name}`,
         cost_type: "variable",
-        amount: Number(item.balance_amount) || 0,
+        amount: schedule[1].amount,
         category: "Fornitori",
         recurrence: "once",
         due_date: item.balance_expected_date || item.balance_paid_date || "9999-12-31",
-        is_paid: !!item.balance_paid,
+        is_paid: schedule[1].isPaid,
         paid_date: item.balance_paid_date || null,
         notes: null,
         order_id: order?.id || null,
@@ -86,11 +88,11 @@ export function buildOrderItemCosts(orderItemCosts: any[]): UnifiedCost[] {
         realOrderItemId: item.id,
         name: item.name,
         cost_type: "variable",
-        amount: (Number(item.purchase_price) || 0) * (Number(item.quantity) || 1),
+        amount: schedule[0].amount,
         category: "Fornitori",
         recurrence: "once",
         due_date: item.balance_expected_date || item.deposit_expected_date || item.paid_date || "9999-12-31",
-        is_paid: !!item.is_paid,
+        is_paid: schedule[0].isPaid,
         paid_date: item.paid_date || null,
         notes: null,
         order_id: order?.id || null,
