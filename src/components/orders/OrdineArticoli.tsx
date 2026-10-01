@@ -8,11 +8,13 @@ import { SupplierPaymentsCard } from "./SupplierPaymentsCard";
 import { usePermissions } from "@/hooks/usePermissions";
 import type { OrderItemData } from "@/lib/orderUtils";
 import { OrderMaterialsSummary } from "./OrderMaterialsSummary";
+import { ProcurementTimelineGuide } from "./ProcurementTimelineGuide";
 
 interface OrdineArticoliProps {
   orderId: string;
   /** Codice commessa: finisce nei titoli di OdA e RDO generati dal pannello. */
   orderCode?: string | null;
+  requiredOnSite?: string | null;
   displayItems: OrderItem[];
   orderItems: OrderItemData[];
   companyId: string;
@@ -30,6 +32,7 @@ interface OrdineArticoliProps {
 export function OrdineArticoli({
   orderId,
   orderCode,
+  requiredOnSite,
   displayItems,
   orderItems,
   companyId,
@@ -74,6 +77,7 @@ export function OrdineArticoli({
           loro stato, qui sotto. */}
       <div className="space-y-4 max-sm:hidden">
       <OrderMaterialsSummary items={displayItems} orderId={orderId} />
+      {canViewCosts && <ProcurementTimelineGuide key={`${companyId}:${orderId}`} items={displayItems} requiredOnSite={requiredOnSite} />}
       {/* Il lavoro dell'utente, fatto dal pannello: articoli da ordinare
           raggruppati per fornitore, un click per OdA. E se fra gli articoli
           c'e' della posa, il banner propone di spostarla nelle Lavorazioni. */}

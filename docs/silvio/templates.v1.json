@@ -1,0 +1,1541 @@
+{
+  "schema_version": 1,
+  "runtime_activation": false,
+  "default_timezone": "Europe/Rome",
+  "note": "Seed da compilare nei moduli esistenti. Nessuna durata o aliquota universale; nessuna scrittura ufficiale.",
+  "templates": [
+    {
+      "id": "bathroom",
+      "version": 1,
+      "label": "Bagno",
+      "status": "design_seed",
+      "required_inputs": [
+        "survey",
+        "surfaces",
+        "plumbing_points",
+        "layout",
+        "access",
+        "product_choices",
+        "contract"
+      ],
+      "activities": [
+        {
+          "id": "survey",
+          "label": "Rilievo e scelte",
+          "kind": "approval",
+          "dependencies": [],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [
+            "technician"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "approved_measure_or_checklist"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "kit",
+          "label": "Conferma kit e prerequisiti",
+          "kind": "approval",
+          "dependencies": [
+            {
+              "activity_id": "survey",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [
+            "procurement"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "approved_measure_or_checklist"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "setup",
+          "label": "Protezioni e allestimento",
+          "kind": "production",
+          "dependencies": [
+            {
+              "activity_id": "kit",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [
+            "builder",
+            "helper"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "approved_measure_or_checklist"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "demolition",
+          "label": "Demolizione e smaltimento",
+          "kind": "production",
+          "dependencies": [
+            {
+              "activity_id": "setup",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [
+            "builder",
+            "helper"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "approved_measure_or_checklist"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "rough_plumbing",
+          "label": "Predisposizioni idrauliche",
+          "kind": "production",
+          "dependencies": [
+            {
+              "activity_id": "demolition",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.plumbing_points",
+          "unit": "punto",
+          "skills": [
+            "plumber"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "approved_measure_or_checklist"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "rough_electric",
+          "label": "Predisposizioni elettriche",
+          "kind": "production",
+          "dependencies": [
+            {
+              "activity_id": "rough_plumbing",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [
+            "electrician"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "approved_measure_or_checklist"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "tests",
+          "label": "Prove prima della chiusura",
+          "kind": "approval",
+          "dependencies": [
+            {
+              "activity_id": "rough_electric",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [
+            "technician"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "validated_test_results"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "substrates",
+          "label": "Supporti",
+          "kind": "production",
+          "dependencies": [
+            {
+              "activity_id": "tests",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.surfaces",
+          "unit": "m2",
+          "skills": [
+            "builder"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "approved_measure_or_checklist"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "waterproofing",
+          "label": "Sistema impermeabilizzazione",
+          "kind": "production",
+          "dependencies": [
+            {
+              "activity_id": "substrates",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [
+            "installer"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "approved_measure_or_checklist"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "technical_wait",
+          "label": "Attesa del sistema applicabile",
+          "kind": "technical_wait",
+          "dependencies": [
+            {
+              "activity_id": "waterproofing",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "validated_product_waiting_rule",
+            "required_conditions"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "tiling",
+          "label": "Posa e finiture",
+          "kind": "production",
+          "dependencies": [
+            {
+              "activity_id": "technical_wait",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.surfaces",
+          "unit": "m2",
+          "skills": [
+            "tiler"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "approved_measure_or_checklist"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "fixtures",
+          "label": "Sanitari e accessori",
+          "kind": "production",
+          "dependencies": [
+            {
+              "activity_id": "tiling",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [
+            "plumber",
+            "installer"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "approved_measure_or_checklist"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "handover",
+          "label": "Verifiche e consegna",
+          "kind": "milestone",
+          "dependencies": [
+            {
+              "activity_id": "fixtures",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [
+            "site_manager"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "accepted_tests",
+            "defect_list",
+            "required_documents"
+          ],
+          "calibration_state": "requires_company_configuration"
+        }
+      ],
+      "payment_rules": {
+        "source": "validated_contract",
+        "sal_conditions": [],
+        "supplier_terms": []
+      },
+      "prerequisites": [
+        "verified_substrate",
+        "confirmed_client_choices",
+        "compatible_products"
+      ],
+      "activation_gate": "validated_company_coefficients_calendar_resources_and_contract"
+    },
+    {
+      "id": "windows",
+      "version": 1,
+      "label": "Serramenti",
+      "status": "design_seed",
+      "required_inputs": [
+        "openings",
+        "survey_version",
+        "product_choices",
+        "access",
+        "supplier_terms",
+        "contract"
+      ],
+      "activities": [
+        {
+          "id": "visit",
+          "label": "Sopralluogo",
+          "kind": "production",
+          "dependencies": [],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [
+            "technician"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "approved_measure_or_checklist"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "survey",
+          "label": "Rilievo definitivo",
+          "kind": "approval",
+          "dependencies": [
+            {
+              "activity_id": "visit",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [
+            "surveyor"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "approved_measure_or_checklist"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "choice",
+          "label": "Conferma prodotto e distinta",
+          "kind": "approval",
+          "dependencies": [
+            {
+              "activity_id": "survey",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [
+            "technician"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "approved_measure_or_checklist"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "order",
+          "label": "Ordine e condizioni avvio",
+          "kind": "approval",
+          "dependencies": [
+            {
+              "activity_id": "choice",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [
+            "procurement"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "approved_measure_or_checklist"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "production_wait",
+          "label": "Produzione fornitore",
+          "kind": "supplier_wait",
+          "dependencies": [
+            {
+              "activity_id": "order",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "accepted_order",
+            "approved_measures",
+            "required_deposit",
+            "confirmed_lead_time"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "receive",
+          "label": "Ricezione e controllo kit",
+          "kind": "production",
+          "dependencies": [
+            {
+              "activity_id": "production_wait",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [
+            "warehouse"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "approved_measure_or_checklist"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "appointment",
+          "label": "Appuntamento e mezzi",
+          "kind": "approval",
+          "dependencies": [
+            {
+              "activity_id": "receive",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [
+            "planner"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "approved_measure_or_checklist"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "installation",
+          "label": "Rimozione e posa",
+          "kind": "production",
+          "dependencies": [
+            {
+              "activity_id": "appointment",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.openings",
+          "unit": "apertura",
+          "skills": [
+            "window_installer",
+            "helper"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "approved_measure_or_checklist"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "adjust",
+          "label": "Regolazioni e ripristini",
+          "kind": "production",
+          "dependencies": [
+            {
+              "activity_id": "installation",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [
+            "window_installer"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "approved_measure_or_checklist"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "accept",
+          "label": "Accettazione e documenti",
+          "kind": "milestone",
+          "dependencies": [
+            {
+              "activity_id": "adjust",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [
+            "site_manager"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "approved_measure_or_checklist"
+          ],
+          "calibration_state": "requires_company_configuration"
+        }
+      ],
+      "payment_rules": {
+        "source": "validated_contract",
+        "sal_conditions": [],
+        "supplier_terms": []
+      },
+      "prerequisites": [
+        "final_measure_revision",
+        "complete_compatible_kit",
+        "access_and_lifting_plan"
+      ],
+      "activation_gate": "validated_company_coefficients_calendar_resources_and_contract"
+    },
+    {
+      "id": "photovoltaic",
+      "version": 1,
+      "label": "Fotovoltaico",
+      "status": "design_seed",
+      "required_inputs": [
+        "validated_project",
+        "components",
+        "roof",
+        "access",
+        "practices_scope",
+        "contract"
+      ],
+      "activities": [
+        {
+          "id": "project",
+          "label": "Verifica e progetto",
+          "kind": "approval",
+          "dependencies": [],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [
+            "technician"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "approved_measure_or_checklist"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "readiness",
+          "label": "Condizioni avvio",
+          "kind": "approval",
+          "dependencies": [
+            {
+              "activity_id": "project",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [
+            "site_manager"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "approved_measure_or_checklist"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "kit",
+          "label": "Acquisti e kit compatibile",
+          "kind": "production",
+          "dependencies": [
+            {
+              "activity_id": "readiness",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [
+            "procurement",
+            "warehouse"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "approved_measure_or_checklist"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "setup",
+          "label": "Allestimento e accessi",
+          "kind": "production",
+          "dependencies": [
+            {
+              "activity_id": "kit",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [
+            "installer"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "approved_measure_or_checklist"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "mount",
+          "label": "Strutture e moduli",
+          "kind": "production",
+          "dependencies": [
+            {
+              "activity_id": "setup",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.module_count",
+          "unit": "modulo",
+          "skills": [
+            "pv_installer"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "approved_measure_or_checklist"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "electric",
+          "label": "Parte elettrica e componenti previsti",
+          "kind": "production",
+          "dependencies": [
+            {
+              "activity_id": "mount",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [
+            "electrician"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "approved_measure_or_checklist"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "tests",
+          "label": "Prove applicabili",
+          "kind": "approval",
+          "dependencies": [
+            {
+              "activity_id": "electric",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [
+            "technician"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "validated_test_results"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "handover",
+          "label": "Consegna documentale",
+          "kind": "milestone",
+          "dependencies": [
+            {
+              "activity_id": "tests",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [
+            "site_manager"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "approved_measure_or_checklist"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "activation",
+          "label": "Pratiche e attivazione applicabili",
+          "kind": "milestone",
+          "dependencies": [
+            {
+              "activity_id": "handover",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [
+            "technical_office"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "required_external_outcomes"
+          ],
+          "calibration_state": "requires_company_configuration"
+        }
+      ],
+      "payment_rules": {
+        "source": "validated_contract",
+        "sal_conditions": [],
+        "supplier_terms": []
+      },
+      "prerequisites": [
+        "project_compatibility",
+        "qualified_resources",
+        "verified_roof_access",
+        "applicable_authorizations"
+      ],
+      "activation_gate": "validated_company_coefficients_calendar_resources_and_contract"
+    },
+    {
+      "id": "renovation",
+      "version": 1,
+      "label": "Ristrutturazione completa",
+      "status": "design_seed",
+      "required_inputs": [
+        "zones",
+        "work_quantities",
+        "existing_conditions",
+        "window_scope",
+        "occupation",
+        "contract"
+      ],
+      "activities": [
+        {
+          "id": "survey",
+          "label": "Verifiche perimetro e zone",
+          "kind": "approval",
+          "dependencies": [],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [
+            "technician"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "approved_measure_or_checklist"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "setup",
+          "label": "Allestimento",
+          "kind": "production",
+          "dependencies": [
+            {
+              "activity_id": "survey",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [
+            "builder"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "approved_measure_or_checklist"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "demolition",
+          "label": "Demolizioni per zone",
+          "kind": "production",
+          "dependencies": [
+            {
+              "activity_id": "setup",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [
+            "builder",
+            "helper"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "approved_measure_or_checklist"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "structure",
+          "label": "Opere previste",
+          "kind": "production",
+          "dependencies": [
+            {
+              "activity_id": "demolition",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [
+            "builder"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "approved_measure_or_checklist"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "rough_services",
+          "label": "Impianti distinti per competenza",
+          "kind": "production",
+          "dependencies": [
+            {
+              "activity_id": "structure",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [
+            "plumber",
+            "electrician"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "approved_measure_or_checklist"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "tests",
+          "label": "Prove prima di chiudere",
+          "kind": "approval",
+          "dependencies": [
+            {
+              "activity_id": "rough_services",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [
+            "technician"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "approved_measure_or_checklist"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "substrates",
+          "label": "Supporti",
+          "kind": "production",
+          "dependencies": [
+            {
+              "activity_id": "tests",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [
+            "builder"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "approved_measure_or_checklist"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "finishes",
+          "label": "Finiture",
+          "kind": "production",
+          "dependencies": [
+            {
+              "activity_id": "substrates",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [
+            "tiler",
+            "decorator"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "approved_measure_or_checklist"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "installation",
+          "label": "Installazioni finali",
+          "kind": "production",
+          "dependencies": [
+            {
+              "activity_id": "finishes",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [
+            "installer"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "approved_measure_or_checklist"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "handover",
+          "label": "Collaudi, difetti e consegna",
+          "kind": "milestone",
+          "dependencies": [
+            {
+              "activity_id": "installation",
+              "relation": "FS"
+            },
+            {
+              "activity_id": "window_install",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [
+            "site_manager"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "approved_measure_or_checklist"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "window_survey",
+          "label": "Rilievo serramenti compatibile con opere",
+          "kind": "approval",
+          "dependencies": [
+            {
+              "activity_id": "structure",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [
+            "surveyor"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "approved_measure_or_checklist"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "window_delivery",
+          "label": "Fornitura serramenti",
+          "kind": "supplier_wait",
+          "dependencies": [
+            {
+              "activity_id": "window_survey",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "approved_measure_or_checklist"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "window_install",
+          "label": "Posa serramenti",
+          "kind": "production",
+          "dependencies": [
+            {
+              "activity_id": "window_delivery",
+              "relation": "FS"
+            },
+            {
+              "activity_id": "substrates",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [
+            "window_installer"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "approved_measure_or_checklist"
+          ],
+          "calibration_state": "requires_company_configuration"
+        }
+      ],
+      "payment_rules": {
+        "source": "validated_contract",
+        "sal_conditions": [],
+        "supplier_terms": []
+      },
+      "prerequisites": [
+        "zone_compatibility",
+        "client_decisions",
+        "subcontract_inclusions",
+        "approved_variations"
+      ],
+      "activation_gate": "validated_company_coefficients_calendar_resources_and_contract"
+    },
+    {
+      "id": "construction",
+      "version": 1,
+      "label": "Costruzione annuale / sviluppo proprio",
+      "status": "design_seed",
+      "required_inputs": [
+        "project",
+        "lots",
+        "ownership_mode",
+        "land_scope",
+        "funding",
+        "contract_or_sales_plan"
+      ],
+      "activities": [
+        {
+          "id": "conditions",
+          "label": "Condizioni preliminari",
+          "kind": "approval",
+          "dependencies": [],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [
+            "technical_office"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "approved_measure_or_checklist"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "setup",
+          "label": "Allestimento",
+          "kind": "production",
+          "dependencies": [
+            {
+              "activity_id": "conditions",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [
+            "builder"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "approved_measure_or_checklist"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "earthwork",
+          "label": "Scavi e opere preliminari",
+          "kind": "production",
+          "dependencies": [
+            {
+              "activity_id": "setup",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [
+            "machine_operator"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "approved_measure_or_checklist"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "foundations",
+          "label": "Fondazioni",
+          "kind": "production",
+          "dependencies": [
+            {
+              "activity_id": "earthwork",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [
+            "structural_crew"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "approved_measure_or_checklist"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "structure",
+          "label": "Struttura",
+          "kind": "production",
+          "dependencies": [
+            {
+              "activity_id": "foundations",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [
+            "structural_crew"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "approved_measure_or_checklist"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "envelope",
+          "label": "Involucro",
+          "kind": "production",
+          "dependencies": [
+            {
+              "activity_id": "structure",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [
+            "builder",
+            "roof_installer"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "approved_measure_or_checklist"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "services",
+          "label": "Impianti per lotti",
+          "kind": "production",
+          "dependencies": [
+            {
+              "activity_id": "envelope",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [
+            "plumber",
+            "electrician"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "approved_measure_or_checklist"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "tests",
+          "label": "Prove e verifiche",
+          "kind": "approval",
+          "dependencies": [
+            {
+              "activity_id": "services",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [
+            "technician"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "approved_measure_or_checklist"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "finishes",
+          "label": "Finiture",
+          "kind": "production",
+          "dependencies": [
+            {
+              "activity_id": "tests",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [
+            "tiler",
+            "decorator"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "approved_measure_or_checklist"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "handover",
+          "label": "Consegne e documenti",
+          "kind": "milestone",
+          "dependencies": [
+            {
+              "activity_id": "finishes",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [
+            "site_manager"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "approved_measure_or_checklist"
+          ],
+          "calibration_state": "requires_company_configuration"
+        },
+        {
+          "id": "financial_close",
+          "label": "Chiusura economica e unità",
+          "kind": "milestone",
+          "dependencies": [
+            {
+              "activity_id": "handover",
+              "relation": "FS"
+            }
+          ],
+          "quantity_source": "input.fixed_scope",
+          "unit": "intervento",
+          "skills": [
+            "administration"
+          ],
+          "hours_per_unit": null,
+          "setup_person_hours": null,
+          "crew_capacity_curve": null,
+          "calendar_id": null,
+          "material_requirements": [],
+          "completion_requirements": [
+            "approved_measure_or_checklist"
+          ],
+          "calibration_state": "requires_company_configuration"
+        }
+      ],
+      "payment_rules": {
+        "source": "validated_contract",
+        "sal_conditions": [],
+        "supplier_terms": []
+      },
+      "prerequisites": [
+        "confirmed_authorizations",
+        "funding_conditions",
+        "lot_allocation_policy",
+        "progressive_detail"
+      ],
+      "activation_gate": "validated_company_coefficients_calendar_resources_and_contract"
+    }
+  ]
+}

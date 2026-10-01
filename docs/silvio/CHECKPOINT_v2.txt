@@ -1,0 +1,42 @@
+CHECKPOINT SILVIO V5 — 1 OTTOBRE 2026
+
+Base incremento precedente: b38a058ef67befb8ef755a23b7009276621be4a9.
+Base iniziale verificata: 2bf6301b3812e01294ae7addf6c874642f088208.
+Branch: codex/silvio-specifiche-e-liquidita-20261001.
+PR in bozza: https://github.com/Ediliziaio/edilizia-in-cloud/pull/39
+Commit corrente: consultare il secondo incremento e l'head della PR (non incorporato nel proprio contenuto per evitare autoriferimento del commit).
+
+REALIZZATO
+- Nucleo tipizzato di confronto snapshot per contesto, unità, base, perimetro, cutoff e completezza; EAC da maturato/residui; non ancora persistente o collegato a tutti gli adapter.
+- Calcolo della fornitura dal contratto/autorizzazione e da prerequisiti, lead time minimo/massimo, calendario, logistica/buffer e preparazione residua. Date civili stabili al cambio dell'ora; rifiuto delle date e durate invalide.
+- Guida interattiva di scenario negli Articoli della commessa, con lettura del fornitore selezionato e filtro tenant; input locali espliciti, nessuna scrittura automatica.
+- Conto economico: variazioni ricavo escluse dal delta materiali; confronto netto/netto; impegno distinto da consuntivo validato; eliminata estrapolazione acquisti/percentuale dei lavori.
+- Lettori OdA/varianti con tenant, paginazione e propagazione degli errori; nessun totale parziale apparentemente completo.
+- Chiarimento manodopera e contratti senza forniture: costo registrato sotto budget non implica risparmio finale.
+- Manuale esteso a 93 capitoli, dieci piloti e 170 casi; cinque profili nella policy trasversale. Nessuna attivazione dei seed del planner.
+
+VERIFICHE ESEGUITE
+- 190 test mirati passati in Europe/Rome, 12 file: 61 nuovi di questo incremento, 26 nuovi del precedente e regressioni dei flussi materiali/manodopera/commessa/provvigioni.
+- 661 test della suite critica passati in UTC, 21 file. Rimane documentata nel checkpoint v1 la sensibilità al fuso di un test preesistente; non è prova di tutte le scadenze runtime.
+- Typecheck:ci passato con 0 errori riportati. Nessuna modifica alla soglia o al lockfile.
+- Build:fast completato. Prima esecuzione parallela interrotta dal sistema per risorse; rilancio completato dopo la fine delle suite. Warning di dimensioni chunk e annotazioni dipendenze esistenti.
+- ESLint dei file v5: 0 errori, 3 warning di variabili/importi any in file preesistenti. Due import inutilizzati rimossi nel file modificato.
+- git diff --check passato; catalogo cinque seed/56 attività e fixture bagno storica validati.
+- audit_manual.py: 93 capitoli sequenziali, indice coerente, tutti i 170 casi corrispondenti al registro, dieci piloti e limiti espliciti. Questo è controllo strutturale e di coerenza, non certificazione esaustiva del dominio.
+- Nuovi controlli dei casi limite (calendario anche a lead time zero, anno oltre 9999, importi oltre intervallo) verificati nei test mirati dopo i controlli generali; nessuna nuova dipendenza/API introdotta.
+
+LIMITI E STATO
+Guida = simulazione locale di una nuova fornitura; non verifica stock prenotato, ordini già avviati, cassa, posa/capacità o perimetro tecnico. Data d'uso iniziale da inizio/installazione della commessa, modificabile per fase. Firma/prerequisiti da input di scenario, non lettura canonica del contratto. Lead time di anagrafica indicativo; zero legacy è mancante fino a input esplicito. UI senza festività configurate; nucleo con calendario/chiusure supportati.
+Confronto economico = piano articoli corrente vs OdA netti impegnati; non è la baseline originaria o il consumo validato. Scope/articoli legacy, subappalti, costi diretti/IVA e altri consumatori devono essere riconciliati con vista ufficiale; non è una unificazione del controllo di gestione. B0/Bn/Ft/At e EAC ufficiali richiedono snapshot e adapter.
+Tutti i 170 casi hanno stato specificato o verifica parziale di nucleo/UI; nessuno è attestato end-to-end passato. I test usano sorgenti simulate per i lettori; non attestano RLS reali/schema in produzione. Nessuna migrazione, scrittura/query su database vivo, merge su main o deploy di produzione.
+La preview può essere generata dal workflow del branch: non attesta rilascio di produzione. Stato CI remoto da verificare sulla PR dopo il commit.
+
+DECISIONI E PROSSIMO TICKET
+B10: snapshot persistenti e confronto multidominio, dopo verifica schema/autori e riconciliazione impegni/consumi.
+B11: guida basata su firma, prerequisiti, calendari e coperture reali; deduplica task e proposta finanziaria aziendale.
+B12: risultati compatti negli strumenti Silvio, storico comparabile e benchmark ex ante/ex post.
+B02–B09 della specifica v1 restano applicabili; i nuovi nuclei riducono il lavoro, senza dichiarare implementato il planner, il motore SAL, l'outbox o la cassa canonica.
+
+FONTI CONSULTATE
+Repository CLAUDE.md/ARCHITECTURE.md e file del perimetro al commit di base. Per accesso ai dati: https://supabase.com/docs/guides/database/postgres/row-level-security (1 ottobre 2026); filtri client non sostituiscono policy/grants server. Il changelog Supabase era stato acquisito nel primo incremento della stessa sessione.
+Il portale Agenzia delle Entrate richiesto per la verifica v5 ha restituito errore di accesso. Nessuna nuova aliquota/regola fiscale hardcoded; restano i limiti e le fonti datate del manuale. Il 22% negli esempi è solo parametro di fixture.

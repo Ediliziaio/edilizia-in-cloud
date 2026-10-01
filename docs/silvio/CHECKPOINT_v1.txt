@@ -1,0 +1,33 @@
+CHECKPOINT SILVIO — 1 OTTOBRE 2026
+
+Base di sviluppo: 2bf6301b3812e01294ae7addf6c874642f088208.
+Ramo proposto: codex/silvio-specifiche-e-liquidita-20261001.
+
+REALIZZATO
+- Specifica esecutiva D01–D10, matrice R01–R18, formule, comandi/stati, backlog B00–B09.
+- Cinque seed progettuali, 56 attività; dipendenze e riferimenti validati, attivazione runtime disabilitata finché non compilati/integrati.
+- Registro dei 140 casi: 139 specificati/non eseguiti, caso 125 parzialmente verificato per quote legacy. Campi fixture/attesi ancora da compilare per i flussi futuri.
+- Dataset bagno numerico e controllo indipendente di calendario, ore, costo e quadrature. È un benchmark, non il motore runtime del gestionale.
+- Piano quote fornitore comune fra costi derivati e previsionale; entrambe le quote future visibili, pagati esclusi, copertura/errori gestiti nel hook.
+
+VERIFICA
+- Test mirati: 81 passati in 5 file, inclusi 26 nuovi test fra logica e hook e 55 regressioni esistenti.
+- Nuovi test in Europe/Rome: 26 passati in 2 file.
+- Suite test:critical in UTC: 661 passati in 21 file.
+- Typecheck:ci: 0 errori riportati.
+- Build:fast: completata; warning su dimensioni chunk e annotazioni di dipendenze.
+- ESLint sui file cambiati: 0 errori, 35 warning nei file preesistenti.
+- git diff --check: superato; validatori Python del catalogo/fixture: superati.
+
+LIMITI RISCONTRATI
+La prima esecuzione della suite critica nel fuso dell'ambiente America/Los_Angeles ha fallito un test preesistente (calcolaScadenza locale nel file fatturazione.test.ts, 90 giorni a cavallo dell'ora legale). La funzione è definita nel test stesso e non è stata modificata da questo incremento. La suite nel fuso UTC usato per la verifica qui passa. Registrare questo comportamento nel lavoro sui calendari/date civili; non attribuirlo a una prova completa delle scadenze runtime.
+Il primo tentativo build con checkout parziale mancava della directory shared; aggiunta la directory reale del repository e gli asset, il build completo è passato.
+Il codice nuovo non cambia schema, trigger, RPC fiscali, saldi bancari, ordini o registri ufficiali. Get_cashflow_summary e altre proiezioni indipendenti rimangono da convergere nel servizio canonico completo. Nessuna migrazione applicata, nessuna query su database vivo, nessun deploy/merge effettuato.
+Importi nella convenzione legacy, senza IVA ipotetica aggiunta; copertura legacy per articolo intero, non ancora per porzione. I coefficienti dei template e le policy aziendali critiche richiedono compilazione/validazione.
+
+PROSSIMO INCREMENTO
+B00: inventario effettivo degli autori/schema e dati di quadratura sull'ambiente consentito, con mappa dei consumatori della cassa e coperture per porzione. Poi B02–B04 per ricezioni/materiali/tesoreria e B05 per il planner del bagno. Tutto mantiene gli ID e i registri esistenti.
+
+FONTI TECNICHE CONSULTATE
+Supabase changelog.md letto tramite HTTPS dopo il mancato rendering text/markdown del servizio web; guida RLS consultata: https://supabase.com/docs/guides/database/postgres/row-level-security . Nessuna modifica Supabase nuova introdotta dal codice di questa PR: le query esistenti mantengono il filtro azienda. Grants/RLS e funzioni vive restano da verificare in B00.
+Regole operative repository: CLAUDE.md e ARCHITECTURE.md, commit di base sopra indicato.

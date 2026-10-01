@@ -1,0 +1,164 @@
+SILVIO — CONFRONTO PREVISIONALE/CONSUNTIVO E GUIDA DAL CONTRATTO
+1 ottobre 2026. Capitoli 88–93 del Mega Manuale v5; integrazione della specifica 81–87.
+I requisiti di questo documento valgono per ogni categoria dei capitoli 33–42. L'incremento realmente implementato è delimitato al capitolo 93. Gli altri comportamenti sono contratti di sviluppo, non funzioni già attive.
+
+88. PREVISIONALE, BASELINE, PIANO APPROVATO E CONSUNTIVO
+
+OBIETTIVO
+Rispondere sempre a quattro domande diverse: che cosa avevamo promesso e preventivato; che cosa è stato approvato dopo; che cosa è accaduto fino alla data di controllo; che cosa stimiamo ancora necessario per terminare. La dashboard deve funzionare per un bagno, una posa di serramenti, un impianto fotovoltaico, una commessa di sola manodopera, una ristrutturazione e un edificio annuale, mantenendo diverse le unità e le condizioni.
+
+QUATTRO COLONNE E DUE ORIZZONTI
+Colonne: B0 baseline originaria approvata alla firma/accettazione; Bn piano approvato vigente con modifiche autorizzate; Ft forecast operativo calcolato alla data t; At consuntivo validato disponibile alla stessa data t. La firma può richiedere successivamente l'approvazione del piano esecutivo: registrare la baseline commerciale e quella esecutiva separatamente e le differenze, senza fingere che siano lo stesso atto.
+Orizzonte 1, ALLA DATA: confrontare At con lavoro/costo/flussi previsti entro t, sullo stesso perimetro. Orizzonte 2, A FINIRE: confrontare Ft finale con B0 e Bn finali; confrontare il consuntivo finale con la previsione storica soltanto quando lo specifico dominio è completo. Fine fisica, chiusura amministrativa e costo completo sono milestone diverse.
+Un At di 2.000 contro budget finale 10.000 non dimostra 8.000 di risparmio. Un cantiere fisicamente finito può avere fatture, resi, garanzie o consumi ancora da verificare. Le percentuali di avanzamento non certificano il livello di completezza economica.
+
+CONTRATTO DEL DATO
+Ogni misura conserva company/order/activity/phase/material/person/cost code pertinente, fonte canonica/ID/versione, scope_version, unità, valuta, criterio IVA/competenza, calendario, effective_at e recorded_at, cutoff del controllo, completezza, approvatore e stato della correzione. Effective_at è quando è avvenuto il fatto; recorded_at è quando il sistema lo ha conosciuto. Un rapporto tardivo rettifica il consuntivo di competenza, ma non entra retroattivamente negli input di un forecast storico.
+Il forecast usa soltanto informazioni disponibili al suo cutoff. Il motore di confronto rifiuta tenant, commessa, unità, base economica o perimetro diversi e periodi non allineati. Euro netti di costo non sono euro lordi di cassa; ore-persona non sono ore di squadra; quantità acquistata non è quantità conforme posata. Un numero non disponibile rimane null; zero documentato è un valore; non applicabile è uno stato esplicito con motivo.
+La nuova funzione compareSnapshots verifica contesto, cutoff e completezza. È un nucleo riusabile; l'archivio ufficiale di B0/Bn/Ft/At e gli adapter dei registri non sono ancora realizzati da questo incremento. I campi live della commessa non vengono chiamati baseline originaria.
+
+VARIANTI E REVISIONI
+Conservare B0 immutabile, approvazione Bn, controvalore, quantità/attività aggiunte o rimosse e relazione con il contratto. Rendere visibili: delta commerciale da variante; delta di quantità/perimetro; delta prezzi e produttività a perimetro comparabile; delta da qualità/rilavorazione e rischio; delta da revisione della stima. Una variante ricavo non è un costo di materiale. Il costo conseguente va imputato alle proprie voci e fonti.
+Baseline B0 e Bn non si sommano. Ft non sovrascrive Bn. Un operatore che sposta una data sul piano live non cancella la promessa originaria né la storia dei forecast. Una modifica non approvata resta nello scenario, senza aumentare il ricavo ufficiale.
+Se le identità delle voci non permettono un ponte esatto fra perimetri, mostra «non confrontabile a parità di perimetro» e la porzione non ripartita. Non costruire una ripartizione inventata da nomi simili.
+
+MISURE PER DOMINIO
+Tempi: inizio/fine B0/Bn, date Ft, inizio/fine osservati, giorni trascorsi e ore lavorative, dipendenze, slack e impatto sulla consegna. Per la data finale usare delta in giorni, non percentuale dell'epoca della data.
+Produzione: quantità prevista/conforme alla data, quantità respinta e rifatta, unità/contesto, attività e zona. La media aritmetica delle percentuali di fasi diseguali non misura necessariamente l'avanzamento globale; definire pesi da quantità o budget validato. Il completamento materiale non coincide con collaudo o documenti.
+Manodopera: ore-persona produttive, preparazione, viaggio, attesa, affiancamento e straordinario; mix effettivo, tariffa snapshot, accordi esterni e residuo per skill. Non sommare presenze individuali e ore di squadra che rappresentano le stesse persone. Le ore registrate non diventano ore approvate automaticamente.
+Materiali: fabbisogno, riserva, acquistato, ricevuto/accettato, prelevato, consumato, scartato, trasferito, reso e giacenza, con unità/conversioni validate. La comparazione primaria di produttività usa consumo pertinente alla quantità conforme, non acquisto totale.
+Economia: budget consumo/competenza, costo maturato, impegno residuo, fabbisogno residuo non impegnato, rischio non duplicato, EAC e ricavo approvato. Accostare la vista legacy sull'impegnato identificandone il criterio; non sommarla a consumi che rappresentano lo stesso acquisto.
+SAL: data prevista di raggiungimento condizioni, raggiungimento operativo, evidenze, certificazione, fatturabilità, emissione e incasso. Maturato, fatturato, esigibile e incassato sono misure diverse dello stesso diritto, non quattro ricavi.
+Cassa: apertura e copertura dei conti, incassi/uscite previsti per giorno/settimana, effettivi riconciliati, variazione data/importo, netto bancario e componenti di regolazione. Giroconti e materiale trasferito fra cantieri non creano denaro aziendale.
+
+89. FORMULE DI SCOSTAMENTO E STIMA DEL RESIDUO
+
+CONFRONTI AMMESSI
+Delta semplice = osservato comparabile − riferimento comparabile. Percentuale = delta / valore assoluto riferimento, solo quando il denominatore è diverso da zero e ha senso fisico. Segno da interpretare secondo dominio: costo maggiore sfavorevole, data più tarda sfavorevole, quantità conforme maggiore potenzialmente favorevole. Un delta negativo di acquisti ancora aperti è una differenza di copertura, non una prova di risparmio.
+Ft EAC = costo maturato + impegno residuo non già maturato + fabbisogno residuo non impegnato + rischio incrementale non già incluso. Se manca una componente critica, EAC è incompleto. Il ricavo può essere sconosciuto senza impedire il costo completo; il margine invece rimane sconosciuto. La funzione estimateCostAtCompletion realizza questo nucleo, con residui a zero ammessi solo se esplicitamente determinati.
+ETC = costo residuo impegnato + costo residuo non impegnato + rischio incrementale. Ricavo approvato = contratto netto + varianti approvate − riduzioni approvate. Margine finale previsto = ricavo approvato − EAC. Costi finali non si stimano automaticamente come acquisti/percentuale fisica: un kit FV o serramenti già ordinati al 10% di posa renderebbero la formula incoerente.
+
+ORE E PRODUTTIVITÀ
+Per attività omogenea: resa = quantità conforme / ore-persona produttive validate; intensità = ore-persona / quantità conforme. A zero produzione la resa può essere zero se ci sono ore valide, ma l'intensità non è definita; zero ore con produzione positiva richiede verifica. Preparazione fissa, viaggio e attesa si stimano separatamente se non inclusi nel coefficiente.
+Ore residue = quantità conforme residua × coefficiente corrente validato × fattori pertinenti + preparazione residua + rilavorazioni previste documentate. Il coefficiente deriva da storia comparabile o scenario dichiarato. L'ETA dipende da mix di competenze, calendario, spazio, mezzi e materiali; non basta dividere ore residue per tutti gli operai presenti in azienda.
+Esempio artificiale: 100 m² previsti, coefficiente produttivo 0,8 ore-persona/m². A t sono conformi 40 m² con 40 ore produttive. Il riferimento per la porzione conforme era 32 ore: scarto esecutivo 8 ore, non confronto con le 80 ore finali. Se il tecnico valida 1 ora/m² per i 60 m² residui, previsione finale produttiva 100 ore; preparazione, viaggi e attese si aggiungono soltanto se non già inclusi. Non conclude chi abbia colpa: supporto, tagli, qualità e cause sono da verificare.
+
+PREZZO, QUANTITÀ E SFRIDO
+Su una sola classe omogenea e lo stesso perimetro: Cb=Qb×Pb; Ca=Qa×Pa; effetto prezzo=Qa×(Pa−Pb); effetto quantità=(Qa−Qb)×Pb. Somma effetti=Ca−Cb. Applicare la decomposizione solo se quantità, unità e prezzi sono comparabili e le componenti accessorie sono separate. Per mix di prodotti/lotti usare sotto-voci o lasciare quota non spiegata; non attribuirla al prezzo medio senza dichiarare il metodo.
+Esempio: consumo pianificato 70 unità a 10; effettivo pertinente 75 a 12. Delta 200 = prezzo 150 + quantità 50. Le 25 unità ancora in magazzino di un acquisto da 100 non si imputano come consumo di quella fase. Distinguere scarto, scorta consegnata al cliente, residuo utilizzabile e reso. Una rimanenza di proprietà cliente non è stock riutilizzabile dell'impresa.
+Trasporto, nolo, smaltimento e oneri diretti sono classi esplicite. Il prezzo corrente non rivaluta il consuntivo storico. Una nota di credito modifica il valore della porzione pertinente e la sua regolazione, non inventa un nuovo consumo negativo.
+
+CONTROLLO DI AVANZAMENTO ECONOMICO
+PV=valore a budget del lavoro previsto entro t; EV=valore a budget della quantità conforme accettata entro t; AC=costo di competenza pertinente maturato entro t. Se perimetro/base/qualità permettono il confronto, CPI=EV/AC e SPI=EV/PV, con denominatore non nullo. Gli OdA emessi non sono automaticamente AC; la percentuale lineare di calendario non è automaticamente EV.
+EAC=BAC/CPI è solo uno scenario di tendenza quando l'ipotesi di efficienza residua è fondata, con eccezioni documentate; il default è stima bottom-up del residuo. Lo SPI non fornisce da solo la data finale e può perdere capacità descrittiva a fine lavori. Il nuovo incremento non introduce un calcolo EVM automatico nelle schermate.
+
+SCOSTAMENTO DI CASSA
+Confrontare flussi previsti nello snapshot e movimenti effettivi per stesso perimetro/bucket; scomporre importo cambiato, data slittata, nuova porzione di contratto, componente fiscale e sorgente mancante. Una rata prevista in ottobre e incassata in novembre è uno scarto di timing, non credito cancellato.
+Incasso lordo regolato, accredito netto, ritenuta bancaria documentata, trattenute contrattuali e commissioni spiegano la quadratura secondo i capitoli 21–23/76. L'IVA recuperabile può non essere costo, pur muovendo cassa; quella non recuperabile segue policy validata. Non trattare come ritardo del cliente una differenza interamente spiegata da ritenuta documentata. Non applicare aliquote fisse dal prompt.
+
+90. GUIDA DAL CONTRATTO ALL'ORDINE E ALLA DATA DI POSA
+
+ANCORAGGI DISTINTI
+Conservare firma valida/versione contratto; data di efficacia ed eventuali condizioni sospensive; autorizzazione all'acquisto anticipato se distinta; acconto cliente previsto/accreditato; rilievo definitivo; scelta prodotto approvata; ordine accettato dal fornitore; acconto fornitore richiesto/accreditato; conferma avvio produzione; promessa e revisioni di consegna; richiesta slot; data disponibilità reale accettata; data d'uso di ogni attività. Created_at della commessa e data del preventivo non sono sostituti automatici della firma.
+Il sistema legge gli eventi già presenti e validati. Se documenti firmati multipli o collegamenti legacy non identificano il contratto canonico, propone risoluzione a chi ne ha competenza. La prima guida realizzata richiede l'inserimento della data di scenario proprio perché il dettaglio orders letto non espone una data canonica di firma: non fabbrica tale collegamento.
+
+CALCOLO A RITROSO
+Data limite consegna utile = data d'uso − trasporto interno/controllo − buffer configurato. Data limite avvio = ultima data che, con il lead time prudente e calendario del fornitore, consente consegna entro il termine. Termine decisione/preparazione = limite avvio − preparazione residua necessaria. Un termine di sabato con fornitore lunedì–venerdì va ricondotto alla consegna lavorativa precedente prima del calcolo a ritroso; includere chiusure e festività configurate.
+Per lead time indicato in settimane dichiarare conversione: 4–5 settimane solari=28–35 giorni; 4–5 settimane lavorative dipendono dal calendario e non diventano 28–35 giorni lavorativi. Conservare fonte, data, prodotto, decorrenza e certezza dell'offerta. Il massimo di un intervallo dichiarato non è automaticamente P80 statistico.
+
+CALCOLO IN AVANTI
+Prima data avvio possibile = massimo fra oggi, autorizzazione valida e completamento della preparazione residua, date dei prerequisiti richiesti e slot confermato. Lead time parte dall'evento pattuito o dalla congiunzione dei prerequisiti. Consegna minima/prudente = avvio possibile + lead time minimo/massimo nel calendario pertinente. Data pronta all'uso include logistica e buffer della policy. Un prerequisito senza data mantiene le scadenze a ritroso se calcolabili, ma non produce una promessa di consegna.
+Se avvio possibile supera l'ultimo ammissibile, piano incompatibile con le condizioni attuali. Mostrare ritardo prudenziale del solo fabbisogno, condizioni da cambiare e effetto da ricalcolare sulla commessa. Il ritardo del materiale non coincide automaticamente con ritardo finale: occorre verificare slack, attività alternative e risorse.
+Preparazione già completata non viene aggiunta nuovamente: questo incremento interpreta preparationDays come residuo da oggi/dall'autorizzazione. Un avvio di produzione già confermato prima di oggi deve usare la sua data effettiva e il residuo di lead time nell'adapter ufficiale futuro; la guida attuale simula una nuova fornitura e non tratta vecchi ordini come non ancora partiti.
+
+GUIDA OPERATIVA RICHIESTA
+Ogni suggerimento include articolo/fase, quantità residua e fonte copertura, destinatario operativo, azione, scadenza, dipendenza, effetto data/costo/SAL/cassa, evidenze, stato e link all'entità originale. Esempi: «fai approvare misure entro…», «negozia termini prima di…», «ordine e acconto devono risultare accettati entro…», «conferma slot scarico», «prepara mezzo e squadra», «collaudo necessario per SAL», «SAL raggiunto da validare», «fattura emessa: verifica incasso alla scadenza». Le azioni sono specifiche, senza raddoppiare task o acquisti già presenti.
+Un nuovo fabbisogno scoperto usa planMaterial, coperture e servizio di creazione OdA esistente. Una guida temporale non determina da sola la quantità da acquistare né autorizza il riordino. Bozze, consegne parziali, ordini senza mappatura riga e conversioni unità restano controllati dal flusso materiali esistente.
+
+PAGAMENTI E LIQUIDITÀ
+Ogni quota conserva trigger, base imponibile/lorda, aliquote applicabili, importo, stato effettivo e termine. Una dilazione 30/60/90 deve avere decorrenza documentata: fattura, consegna, fine mese o altra clausola. Saldo prima spedizione è un prerequisito di spedizione; acconto necessario alla produzione è un prerequisito di avvio. Spostare la cassa senza spostare la dipendenza fisica non è un piano valido.
+Prima di proporre l'ultima data utile, verificare cassa aziendale, tutti i cantieri, fidi confermati/riserva, salari/oneri, fornitori, imposte e obblighi rilevanti. Incasso cliente condizionato a SAL o finanziamento non conta come denaro certo. Quando il deficit blocca l'acconto, proporre alternative verificabili: anticipo cliente concordato, termini concessi, risorsa finanziaria confermata, acquisto frazionato, fonte tecnica equivalente approvata o revisione data. Nessuna spesa automatica da un suggerimento.
+Questa guida v5 calcola date di scenario, non la copertura finanziaria: rimanda ai pagamenti/tesoreria esistenti. La sincronizzazione automatica delle date derivate richiede condizioni strutturate, adapter e comando autorizzato già nel backlog B04/B05; non scrivere scadenze ufficiali da campi di simulazione.
+
+91. MODELLI DI ESECUZIONE COMUNI A TUTTI I SETTORI
+
+CLASSIFICARE IL CONTRATTO, NON IL NOME DELL'ARTICOLO
+Modalità: sola manodopera; sola fornitura; fornitura e posa; subappalto a corpo; subappalto a misura; contratto misto; manutenzione/assistenza; sviluppo proprio. Risorse interne, autonomi e squadre possono convivere. La modalità orienta attività/costi/obblighi ma non sostituisce il dettaglio del contratto. Una voce «posa» in order_items non viene trasferita automaticamente sulla manodopera solo per un riconoscimento testuale.
+Sola manodopera: nessun acquisto dei materiali di proprietà cliente, ma readiness per materiale consegnato/compatibile, accesso, rilievo, prove, mezzi e sicurezza. Presenze/costi operativi distinti dai salari in cassa. Subappalto a corpo non si conta di nuovo come costo orario delle stesse persone; presenze possono servire alla capacità senza produrre una seconda imputazione. Consumabili e attrezzature dell'impresa rimangono costi se previsti.
+Sola fornitura: obiettivi ordine, consegna accettata e documenti; non inventare operai di posa o avanzamento installazione. Se il saldo dipende da consegna, applicare quella clausola.
+Fornitura e posa: readiness kit completo e conforme + squadra/mezzi/accesso; fornitura ricevuta non significa posa conclusa. Nel misto, distinguere proprietario materiale e ambiti economici per porzione.
+
+PROFILI DI CONTROLLO
+Serramenti/oscuranti/vetrate/tende: misure e distinta delle posizioni; approvazione; slot produzione; apertura pronta; kit/accessori; logistica e sollevamento; rimozione/posa/sigillature; verifiche e consegna. Misure per elemento/tipologia; durata in opera separata dal lead time. Differenze fra posizione ordinata, consegnata e installata hanno identità, non matching libero di descrizioni.
+Fotovoltaico/accumulo/ricarica: progetto, compatibilità, componenti/seriali, copertura/accesso/mezzi, montaggio, cablaggio/prove, documentazione ed eventuali pratiche esterne. Moduli o kWp non rappresentano automaticamente ore elettriche o tempi di allaccio. Separare installato, collaudato, documentato e attivato.
+Bagno: superfici, punti impianto, layout, prodotti, attese tecniche e prove; controllo per fase/giorno; consegna finale conforme. Target 5/7/10 giorni è scenario aziendale validato, non durata predefinita del settore.
+Ristrutturazione: zone, sistemi, fasi e prodotti lunghi; alcuni ordini/acconti precedono attività installate molto dopo. Confronto per sottopiano e consolidato con costi comuni allocati una sola volta. Varianti di impianto possono cambiare finiture e data dei serramenti.
+Nuova costruzione/sviluppo: lotti, mezzi, getti, condizioni tecniche/progettuali, forniture a ondate, subappalti passivi, SAL cliente o vendite dello sviluppo, esposizione mensile e chiusura lunga. Il cemento disponibile localmente richiede comunque squadra, impianti/mezzi, accessi e finestra tecnica.
+Demolizioni/scavi/urbanizzazioni: quantità misurate per volume/massa/area pertinente, viaggi, mezzi, smaltimento e vincoli noti; condizioni non investigate non si trasformano in certezza.
+Strutture/carpenteria/prefabbricati: cicli/zone, sequenze, macchine, forniture e tempi tecnici. Tetti/lattoneria/impermeabilizzazione e cappotti/facciate: supporti, meteo, accessi, ponteggi, sistemi e prove. Pavimenti/parquet/rivestimenti e pitture/intonaci: formato/supporto/mani, scarti e attese. Cartongesso: stratigrafie, geometrie e interferenze. Impianti termici/elettrici/idraulici: punti/percorsi, componenti, prove e documentazione. Restauro: indagini/campioni e scelte approvate; industriale/commerciale: finestre di fermo e riconsegne. Manutenzione/emergenza: diagnosi, soluzione provvisoria/definitiva, ricambi, viaggio e ritorni. Produzione interna: distinta/cicli, macchine e capacità effettiva anziché lead time esterno inventato.
+Questi profili estendono i 20 gruppi originari, non li rimpiazzano. Ogni categoria nuova definisce quantità, contesto, prerequisiti, misure/evidenze, calendario, componenti economiche e casi di eccezione prima dell'attivazione.
+
+VOLUME E PORTAFOGLIO
+Definire cosa conta come lavoro concluso per settore. 30/40/50 lavori al mese non equivale a visite o ordini emessi. Misurare capacità per rilievi, progetto, ordini, produzione/fornitore, magazzino/kit, trasporti, posa, prove, documenti, fatture e assistenza; conservare work-in-progress e code per stadio.
+Un aumento dei posatori non elimina il collo di bottiglia degli approvatori o dei produttori. Riservare capacità ai ritorni/garanzie e variabilità. Confrontare target con throughput conforme, tempo di attraversamento, costi per lavoro omogeneo, cassa immobilizzata e margine finale, non soltanto ore di posa. Il nuovo lavoro passa per simulazione nel portafoglio prima della promessa.
+
+92. CASI AGGIUNTIVI E PROVE TRASVERSALI
+
+I casi 141–170 estendono il registro a 170; gli originari 1–140 rimangono. Il file casi-accettazione.v2.json è il registro vigente; v1 conserva lo storico. Le prove di funzioni e UI non equivalgono alla verifica end-to-end di tutti i registri o della produzione.
+
+141. Stesso tenant, commessa, unità, base, perimetro e cutoff: delta alla data corretto.
+142. Tenant o commessa differenti: confronto rifiutato.
+143. Euro netti e cassa lorda o ore-persona e squadra: confronto rifiutato.
+144. Perimetro modificato senza ponte delle voci: confronto diretto rifiutato.
+145. Budget finale contro consuntivo parziale: nessun risparmio dichiarato.
+146. Riferimento zero esplicito: delta assoluto valido, percentuale non disponibile.
+147. Valori mancanti/non finiti: stato incompleto o errore, nessun totale inventato.
+148. Report tardivo: competenza corretta senza riscrivere input di forecast storico.
+149. Variante ricavo approvata: ricavo aggiornato, scostamento materiali non gonfiato.
+150. Articolo lordo al 22% e OdA netto: confronto su base netta omogenea.
+151. Aliquote diverse per articolo: scorporo per riga e nessuna aliquota supposta.
+152. Materiali ordinati prima della posa: nessun EAC automatico acquisti/progresso.
+153. Costo maturato e residui separati: EAC senza doppia porzione.
+154. Solo manodopera: residui materiali non applicabili a zero esplicito, ore residue necessarie.
+155. Materiale cliente: costo acquisto impresa escluso, readiness ancora richiesta.
+156. Acconto fornitore tardivo: avvio e consegna ricalcolati insieme.
+157. Firma o autorizzazione mancante: non sostituita con created_at.
+158. Rilievo/progetto/acconto senza data: termini a ritroso disponibili, promessa non disponibile.
+159. Lead time nullo di anagrafica: sconosciuto fino a conferma esplicita, non zero automatico.
+160. Fornitura immediata con zero esplicito: scenario calcolabile.
+161. Scadenza sabato e calendario lavorativo: ultima data compatibile senza sforamento nascosto.
+162. Festività/chiusura produttore: calcolo nel calendario corretto.
+163. Cambio ora Europe/Rome: delta giorni civili stabile.
+164. Simulazione dopo l'ultima data ordine: termine passato e previsione aggiornata.
+165. Fornitore/registro economico non leggibile: errore visibile, niente risultati apparentemente completi.
+166. Oltre 500 ordini: paginazione e totale completo; errore in pagina successiva invalida totale.
+167. Stock collegato: disponibilità/riserva da verificare, nessun nuovo acquisto automatico.
+168. Portafoglio alto volume: fabbisogno operativo e deficit cassa valutati sull'azienda.
+169. Confronto SAL/cassa: ritenuta documentata separata da ritardo o insoluto.
+170. Responsabilità: scostamento e cause candidate non diventano colpa automatica.
+
+PILOTA TRASVERSALE DI REGRESSIONE
+Serramenti artificiale: oggi/firma 1 ottobre; uso 15 novembre; fornitura 28–35 giorni solari; logistica 2, buffer 3, preparazione residua 2; misure/acconto pronti 5 ottobre. Consegna utile entro 10 novembre, avvio entro 6 ottobre, decisione entro 4 ottobre. Avvio scenario 5 ottobre, consegna 2–9 novembre, prontezza prudente 14 novembre. Acconto pronto 12 ottobre porta prontezza 21 novembre e scarto prudenziale 6 giorni; il planner complessivo valuta poi l'impatto finale. È una fixture artificiale, non garanzia commerciale.
+Questa fixture è il decimo pilota oltre ai nove originari. Le stesse regole sono verificate per più prerequisiti FV, fornitura immediata, weekend e festività. Budget materiali artificiale 122 lordo al 22%=100 netto; OdA 90 netto; differenza −10. Variante ricavo +500 non cambia quella differenza. L'assenza di fatture/consumi validati impedisce di chiamare quel −10 risparmio finale.
+
+93. IMPLEMENTAZIONE V5, RICONTROLLO E PROSSIMO INCREMENTO
+
+CODICE REALIZZATO
+forecastComparison.ts: confronto tipizzato degli snapshot con rifiuto di mismatches; EAC bottom-up con gestione dei dati mancanti; confronto del piano articoli e OdA sulla stessa base netta. Il nucleo snapshot/EAC è testato, ma non persiste automaticamente baseline o consuntivi e non è ancora il motore finale aziendale.
+civilDate.ts/procurementTimeline.ts: date civili indipendenti da DST/fuso processo, calendario fornitore configurabile in input, calcolo a ritroso/in avanti, intervalli, prerequisiti, ritardo e lacune. Non è uno scheduler a capacità finita né gestione ufficiale di ordini già avviati.
+ProcurementTimelineGuide.tsx: guida di simulazione negli Articoli della commessa, per chi vede i costi. Legge il solo fornitore selezionato con filtro tenant; tempi di anagrafica indicativi. Contratto/prerequisiti sono input di scenario; data iniziale proposta è inizio lavori/installazione della commessa, da correggere con la data della singola fase. Nessuna salvataggio o invio automatico di ordini, contratti, date o pagamenti. Calendario UI: solare o lunedì–venerdì, senza festività configurate; il nucleo supporta festività ma la UI non le acquisisce ancora dalle anagrafiche.
+OrderEconomicsSummary.tsx: elimina somma delle variazioni di ricavo nei costi materiali; confronta netto con netto; chiarisce impegno/consumo/cassa; elimina l'estrapolazione acquisti/percentuale fisica. Fonti OdA e varianti paginano e gli errori non producono una falsa situazione completa. Le componenti economiche legacy non tutte omogenee restano da convergere con le viste ufficiali: la PR non dichiara risolto l'intero controllo di gestione.
+OrderWorkPhases.tsx: differenza costo registrato/budget identificata come parziale, senza colore di risparmio automatico. Per sola manodopera il confronto esistente rimane disponibile; la stima del residuo richiede gli adapter futuri.
+Il precedente piano acconto/saldo comune rimane nello stesso branch. Nessuna seconda anagrafica ufficiale, nessuna nuova migrazione, nessuna query su produzione.
+
+AUDIT DI COERENZA DEL MANUALE
+La ricontrollata v5 preserva categorie, CFO/fisco, SAL, magazzino e regole di sincronizzazione precedenti. Corregge quattro ambiguità: B0/Bn/Ft/At e orizzonti; impegnato rispetto a consuntivo validato; variante ricavo rispetto a costo; firma rispetto a rilascio produzione. Le date di scenario non diventano registri ufficiali. La funzione deterministica non consuma token AI; Silvio riceve risultati compatti, missing/azioni/fonti/versioni, senza ricostruire l'intero manuale.
+Matrice di uscita: R19 confronto multidominio alla data e a finire; R20 guida dal contratto/trigger fornitore con data utile; R21 modalità di esecuzione e portafoglio; R22 audit leggibile, prove e limiti. Fonte e criteri sono nei capitoli 88–92. R19 è parzialmente realizzato come nucleo e correzione UI; R20 è realizzato come simulazione locale di nuova fornitura; R21/R22 includono requisiti oltre il codice realizzato.
+Restano indispensabili: verifica schema effettivo e autori; snapshot B0/Bn/Ft/At immutabili; classificazione canonica costo/consumo e IVA; condizioni fornitore strutturate per riga; firma canonica; lettura readiness reale e disponibilità; scheduler multicantiere; SAL strutturati; servizio cassa canonico; outbox e recupero; dataset e calibrazione. Questi punti non sono omessi: sono separati dagli incrementi testati e hanno criteri di uscita.
+Una specifica può essere coerente e ampia senza essere validata al 100% su ogni impresa. Il gate finale è dimostrare i flussi con dati reali autorizzati per ciascun profilo e combinazione, verificando quantità, valori, diritti, calendari, cause, qualità e coperture. Non usare «1000% completo» come stato di rilascio.
+
+PROSSIMO INCREMENTO PRIORITARIO
+B10 acquisire baseline/versioni tramite i percorsi di approvazione/conversione esistenti e definire il confronto coerente per fase: stessa identità voce e perimetro, costi maturati e residui, quantità conformi, ore validate, date e cassa. Prima riconciliare gli autori senza introdurre trigger concorrenti. Contratto, firma e condizioni fornitore non identificati bloccano la promozione da scenario a piano ufficiale.
+B11 trasformare la guida in proposte per articolo/fase, alimentate da coperture/lead time/rilievi/acconti/slot reali e calendario aziendale/fornitore; link ai task canonici, deduplica, scenario finanziario aziendale e approvazione del responsabile.
+B12 collegare risultati di confronto e guida agli strumenti Silvio: output limitati al dominio autorizzato, benchmark errore ex ante/ex post, token/costi misurati, spiegazioni con evidenze e azioni. Nessun fine tuning necessario per correggere un importo o una data deterministicamente calcolabile.
+Per ogni B10–B12 applicare stati, permessi, comandi, idempotenza, recovery, migrazione e criteri dei capitoli precedenti. La PR contiene le prove reali elencate nel checkpoint; i 170 casi restano un registro di accettazione con stati espliciti.

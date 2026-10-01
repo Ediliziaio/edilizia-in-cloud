@@ -1645,6 +1645,7 @@ function OrderDetailInner() {
             <OrdineArticoli
               orderId={id!}
               orderCode={order.order_code}
+              requiredOnSite={order.work_start_date ?? order.expected_date}
               displayItems={displayItems}
               orderItems={orderItems}
               companyId={effectiveCompany?.id || ""}

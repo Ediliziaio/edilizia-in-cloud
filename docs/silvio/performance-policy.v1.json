@@ -1,0 +1,114 @@
+{
+  "schema_version": 1,
+  "runtime_activation": false,
+  "source": "Mega Manuale v5 88–91",
+  "snapshots": [
+    "original_baseline",
+    "approved_plan",
+    "as_of_forecast",
+    "validated_actual"
+  ],
+  "horizons": [
+    "to_date",
+    "at_completion"
+  ],
+  "required_comparability": [
+    "company_id",
+    "order_id",
+    "scope_version",
+    "quantity_unit",
+    "currency",
+    "economic_basis",
+    "cutoff",
+    "source_version",
+    "completeness"
+  ],
+  "execution_modes": [
+    "labor_only",
+    "supply_only",
+    "supply_and_install",
+    "lump_sum_subcontract",
+    "measured_subcontract",
+    "mixed",
+    "maintenance",
+    "own_development"
+  ],
+  "metrics": {
+    "production": {
+      "basis": "accepted_quantity",
+      "unit": "explicit_per_activity"
+    },
+    "labor": {
+      "basis": "validated_person_hours",
+      "exclude_double_count": "crew_hours_and_individual_presence"
+    },
+    "materials": {
+      "basis": "valued_consumption",
+      "separate": [
+        "committed",
+        "received",
+        "withdrawn",
+        "consumed",
+        "waste",
+        "returned",
+        "transferred",
+        "stock"
+      ]
+    },
+    "cost": {
+      "basis": "accrual_net_or_policy_nonrecoverable_vat",
+      "eac": "actual_accrued + remaining_committed + remaining_uncommitted + incremental_risk"
+    },
+    "cash": {
+      "basis": "gross_cash_and_documented_non_cash_settlement",
+      "exclude_double_count": "same_claim_and_paid_portions"
+    },
+    "sal": {
+      "basis": "validated_contract_condition",
+      "separate": [
+        "operational",
+        "certified",
+        "invoiceable",
+        "invoiced",
+        "collected"
+      ]
+    }
+  },
+  "template_profiles": [
+    {
+      "template_id": "bathroom",
+      "requires_company_configuration": true,
+      "contract_authority": "validated_source_not_order_created_at",
+      "supplier_origin": "validated_conjunction_of_required_gates",
+      "no_duration_or_vat_universal": true
+    },
+    {
+      "template_id": "windows",
+      "requires_company_configuration": true,
+      "contract_authority": "validated_source_not_order_created_at",
+      "supplier_origin": "validated_conjunction_of_required_gates",
+      "no_duration_or_vat_universal": true
+    },
+    {
+      "template_id": "photovoltaic",
+      "requires_company_configuration": true,
+      "contract_authority": "validated_source_not_order_created_at",
+      "supplier_origin": "validated_conjunction_of_required_gates",
+      "no_duration_or_vat_universal": true
+    },
+    {
+      "template_id": "renovation",
+      "requires_company_configuration": true,
+      "contract_authority": "validated_source_not_order_created_at",
+      "supplier_origin": "validated_conjunction_of_required_gates",
+      "no_duration_or_vat_universal": true
+    },
+    {
+      "template_id": "construction",
+      "requires_company_configuration": true,
+      "contract_authority": "validated_source_not_order_created_at",
+      "supplier_origin": "validated_conjunction_of_required_gates",
+      "no_duration_or_vat_universal": true
+    }
+  ]
+}
