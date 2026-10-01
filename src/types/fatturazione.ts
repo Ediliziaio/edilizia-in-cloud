@@ -173,6 +173,8 @@ export interface RigaDocumento {
   totale_riga: number;
   ritenuta?: boolean;
   riferimento_amministrazione?: string;
+  /** Categoria interna della riga (come in Fatture in Cloud): non va nell'XML né nel PDF. */
+  categoria?: string;
   note_riga?: string;
 }
 

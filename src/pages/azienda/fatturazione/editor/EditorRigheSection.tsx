@@ -1,12 +1,11 @@
 import { useState, useCallback, memo } from "react";
-import { Plus, Trash2, PackageSearch, Copy, ChevronDown, GripVertical, AlertTriangle, Calculator, Scale } from "lucide-react";
+import { Plus, Trash2, PackageSearch, Copy, GripVertical, AlertTriangle, Calculator, Scale } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectGroup, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Collapsible } from "@/components/ui/collapsible";
 import { Textarea } from "@/components/ui/textarea";
 import { useArticoliNative } from "@/hooks/useArticoliNative";
 import { createEmptyRiga } from "./useEditorState";
@@ -138,17 +137,6 @@ function SortableRowImpl({
   onDuplicate,
   prezziLordi,
 }: SortableRowProps) {
-  // Default collapsed: mostra solo TOP row (Codice + Nome + Qtà + UM + Prezzo).
-  // L'utente espande per vedere/modificare Descrizione + Sc% + IVA + Importo
-  // + checkbox + Categoria. Auto-espanso se contiene descrizione multiline o
-  // dati strutturati nei campi "avanzati".
-  const hasAdvancedData =
-    riga.descrizione.includes("\n") ||
-    !!riga.riferimento_amministrazione ||
-    (riga.sconto_percentuale ?? 0) > 0 ||
-    riga.natura_iva === "N1";
-  const [expanded, setExpanded] = useState(hasAdvancedData);
-
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: riga.id,
     disabled,
@@ -167,7 +155,6 @@ function SortableRowImpl({
 
   return (
     <div ref={setNodeRef} style={style}>
-      <Collapsible open={expanded} onOpenChange={setExpanded}>
         {/* Card grande con 2 colonne interne — replica Fatture in Cloud:
             LEFT col: Codice + Nome prodotto + Descrizione + Categoria
             RIGHT col: Qtà + U.M. + Prezzo netto + Sc.% + IVA + Importo totale
@@ -199,7 +186,7 @@ function SortableRowImpl({
                   un portatile con la barra laterale aperta al campo Descrizione
                   restavano 26px, illeggibile. Sotto lg le celle si impilano a due
                   per riga (Codice+Descrizione, Quantita'+U.M., Prezzo+Importo). */}
-              <div className="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-2 lg:grid-cols-[5.5rem_minmax(0,1fr)_4rem_4.5rem_5rem_5.5rem_auto]">
+              <div className="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-2 lg:grid-cols-[5.5rem_minmax(0,1fr)_4.5rem_5rem_7rem_auto]">
                 <div className="space-y-1">
                   <Label className="text-[10px] text-muted-foreground font-normal">Codice</Label>
                   <Input
@@ -278,24 +265,8 @@ function SortableRowImpl({
                     disabled={disabled}
                   />
                 </div>
-                <div className="space-y-1">
-                  <Label className="text-[10px] text-muted-foreground font-normal">Importo</Label>
-                  <div className="h-8 px-2 flex items-center justify-end text-sm font-semibold tabular-nums rounded-md border bg-muted/40">
-                    {formatCurrency(riga.totale_riga)}
-                  </div>
-                </div>
                 {/* Actions inline su una sola riga, allineate alla baseline degli input */}
                 <div className="self-end flex items-center gap-0.5 pb-0.5">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-9 w-9 md:h-7 md:w-7"
-                    onClick={() => setExpanded((e) => !e)}
-                    aria-label={expanded ? "Riduci riga" : "Espandi riga"}
-                    title={expanded ? "Riduci" : "Espandi per dettagli"}
-                  >
-                    <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${expanded ? "rotate-180" : ""}`} />
-                  </Button>
                   {!disabled && (
                     <>
                       <Button variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7" onClick={() => onDuplicate(index)} aria-label="Duplica">
@@ -309,9 +280,9 @@ function SortableRowImpl({
                 </div>
               </div>
 
-              {expanded && (<>
+              <>
               {/* MIDDLE ROW — grid 2 col: Descrizione (1fr) | Sc% IVA stacked */}
-              <div className="grid grid-cols-[minmax(0,1fr)_10rem] gap-3">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_17rem]">
                 <div className="space-y-1 min-w-0">
                   <Label className="text-[10px] text-muted-foreground font-normal">Descrizione</Label>
                   <Textarea
@@ -328,7 +299,7 @@ function SortableRowImpl({
                   />
                 </div>
                 <div className="space-y-2">
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-3 gap-2">
                     <div className="space-y-1">
                       <Label className="text-[10px] text-muted-foreground font-normal">Sconto %</Label>
                       <Input
@@ -395,6 +366,12 @@ function SortableRowImpl({
                         </Badge>
                       )}
                     </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-muted-foreground font-normal">Importo totale</Label>
+                  <div className="h-8 px-2 flex items-center justify-end text-sm font-semibold tabular-nums rounded-md border bg-muted/40">
+                    {formatCurrency(riga.totale_riga)}
+                  </div>
+                </div>
                   </div>
                 </div>
               </div>
@@ -429,27 +406,20 @@ function SortableRowImpl({
                 <div className="space-y-1 min-w-0">
                   <Label className="text-[10px] text-muted-foreground font-normal">Categoria</Label>
                   <Input
-                    value={riga.riferimento_amministrazione ?? ""}
-                    onChange={(e) => onUpdate(index, "riferimento_amministrazione", e.target.value)}
+                    value={riga.categoria ?? ""}
+                    onChange={(e) => onUpdate(index, "categoria", e.target.value)}
                     className="h-8 text-sm w-full"
                     placeholder="—"
                     disabled={disabled}
                   />
                 </div>
               </div>
-              </>)}
+              </>
 
-              {/* Hint compatto Sc.% / IVA quando collapsed (info read-only) */}
-              {!expanded && (riga.sconto_percentuale || ivaDisplayLabel(riga) !== "22%") && (
-                <div className="text-[10px] text-muted-foreground/70">
-                  Sc.% {riga.sconto_percentuale ?? 0} · IVA {ivaDisplayLabel(riga)}
-                </div>
-              )}
             </div>
 
           </div>
         </div>
-      </Collapsible>
     </div>
   );
 }
@@ -481,6 +451,7 @@ const SortableRow = memo(SortableRowImpl, (prev, next) => {
     a.aliquota_iva === b.aliquota_iva &&
     a.natura_iva === b.natura_iva &&
     a.totale_riga === b.totale_riga &&
+    a.categoria === b.categoria &&
     a.riferimento_amministrazione === b.riferimento_amministrazione
   );
 });

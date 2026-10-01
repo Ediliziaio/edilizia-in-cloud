@@ -64,8 +64,11 @@ function contiSdi(d: Document): string[] {
   }
   for (const r of Array.from(d.getElementsByTagName("DatiRiepilogo"))) {
     const al = n(r.getElementsByTagName("AliquotaIVA")[0]?.textContent);
+    const natura = r.getElementsByTagName("Natura")[0]?.textContent ?? "";
+    // Lo SDI raggruppa per aliquota E natura: due righe al 0% con natura diversa sono due riepiloghi.
     const somma = linee
-      .filter((l) => n(l.getElementsByTagName("AliquotaIVA")[0]?.textContent) === al)
+      .filter((l) => n(l.getElementsByTagName("AliquotaIVA")[0]?.textContent) === al
+        && (l.getElementsByTagName("Natura")[0]?.textContent ?? "") === natura)
       .reduce((s, l) => s + n(l.getElementsByTagName("PrezzoTotale")[0]?.textContent), 0);
     const imponibile = n(r.getElementsByTagName("ImponibileImporto")[0]?.textContent);
     if (Math.abs(somma - imponibile) > 1) errori.push(`00422 ${imponibile} ≠ ${somma}`);
@@ -199,5 +202,47 @@ describe("quello che la legge chiede nell'XML", () => {
   it("regime forfettario: la causale di legge senza caratteri fuori schema", () => {
     const d = fattura([riga("Consulenza", 1, 500, "0", { natura_iva: "N2_2" })], {}, {}, b2b, { ...renova, regime_fiscale: "RF19" });
     expect(testi(d, "Causale")[0]).toMatch(/legge 23 dicembre 2014, n\. 190 - Regime forfettario$/);
+  });
+});
+
+describe("IVA mista e tutti i codici natura (come nella tabella aliquote di Fatture in Cloud)", () => {
+  it("22%, 10%, 5%, 4%, esente e reverse charge insieme: un riepilogo per ciascuno, conti che tornano", () => {
+    const d = fattura([
+      riga("Fornitura", 1, 1000, "22"),
+      riga("Manutenzione", 1, 500, "10"),
+      riga("Libri", 1, 200, "5"),
+      riga("Prima casa", 1, 300, "4"),
+      riga("Visita medica", 1, 100, "0", { natura_iva: "N4" }),
+      riga("Subappalto", 1, 400, "0", { natura_iva: "N6_3" }),
+    ]);
+    const riepiloghi = Array.from(d.getElementsByTagName("DatiRiepilogo")).map((r) => [
+      r.getElementsByTagName("AliquotaIVA")[0]?.textContent, r.getElementsByTagName("Natura")[0]?.textContent ?? "-",
+    ].join("/"));
+    expect(riepiloghi.sort()).toEqual(["0.00/N4", "0.00/N6.3", "10.00/-", "22.00/-", "4.00/-", "5.00/-"]);
+    expect(testi(d, "Imposta").map(Number).reduce((s, v) => s + v, 0)).toBeCloseTo(220 + 50 + 10 + 12, 2);
+    expect(contiSdi(d)).toEqual([]);
+  });
+
+  it("ogni natura (N1…N7) esce nell'XML col suo codice e con il riferimento normativo", () => {
+    const codici = ["N1", "N2_1", "N2_2", "N3_1", "N3_2", "N3_3", "N3_4", "N3_5", "N3_6", "N4", "N5",
+      "N6_1", "N6_2", "N6_3", "N6_4", "N6_5", "N6_6", "N6_7", "N6_8", "N6_9", "N7"];
+    for (const natura of codici) {
+      const d = fattura([riga("Prova", 1, 100, "0", { natura_iva: natura })]);
+      expect(testi(d, "Natura")[0], natura).toBe(natura.replace("_", "."));
+      expect(testi(d, "RiferimentoNormativo")[0] ?? "", natura).not.toBe("");
+    }
+  });
+});
+
+describe("beni significativi (DM 29/12/1999): IVA mista 10% e 22% nello stesso documento", () => {
+  it("caldaia 2.000 + manodopera 800: 1.600 al 10% (manodopera + beni fino al suo valore), 1.200 al 22%, conti SDI tornano", async () => {
+    const { righeBeniSignificativi } = await import("@/lib/fatturazione/beniSignificativi");
+    const nuove = righeBeniSignificativi({ intervento: "Sostituzione caldaia", beni: "Caldaia 25 kW", valoreBeni: 2000, valoreAltro: 800 }, 1);
+    const d = fattura(nuove.map((r) => calcolaRiga(r)));
+    const per = Object.fromEntries(Array.from(d.getElementsByTagName("DatiRiepilogo")).map((r) => [
+      r.getElementsByTagName("AliquotaIVA")[0]?.textContent, Number(r.getElementsByTagName("ImponibileImporto")[0]?.textContent),
+    ]));
+    expect(per).toEqual({ "10.00": 1600, "22.00": 1200 });
+    expect(contiSdi(d)).toEqual([]);
   });
 });
