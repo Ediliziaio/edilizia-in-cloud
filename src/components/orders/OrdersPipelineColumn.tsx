@@ -59,8 +59,11 @@ export function OrdersPipelineColumn({ status, orders, isDragEnabled = true }: O
               {formatCurrency(totalAmount)}
             </p>
             {urgentCount > 0 && (
-              <span className="rounded-full bg-orange-50 px-1.5 py-0.5 text-[10px] font-medium text-orange-700 ring-1 ring-orange-200">
-                {urgentCount} urgenti
+              <span
+                className="rounded-full bg-orange-50 px-1.5 py-0.5 text-[10px] font-medium text-orange-700 ring-1 ring-orange-200"
+                title="Commesse con la data di posa prevista già passata"
+              >
+                {urgentCount} in ritardo
               </span>
             )}
           </div>

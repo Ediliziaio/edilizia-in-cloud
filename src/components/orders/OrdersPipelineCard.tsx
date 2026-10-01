@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
   Calendar as CalendarIcon,
+  ArrowRight,
   CheckCircle2,
   Euro,
   Eye,
@@ -19,6 +20,9 @@ import { CSS } from "@dnd-kit/utilities";
 import { formatCurrency, formatDateShort } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import { type OrderWithDetails, getAmountDue, getAmountCollected } from "@/lib/orderUtils";
+import {
+  prossimoPasso, statoIncasso, statoMateriali, statoPosa, statoSquadra, type Tono,
+} from "@/lib/orders/etichettePipeline";
 
 interface OrdersPipelineCardProps {
   order: OrderWithDetails;
@@ -81,15 +85,6 @@ function getMaterialSummary(order: OrderWithDetails) {
   return { total, ready, toOrder };
 }
 
-function getDateLabel(order: OrderWithDetails) {
-  const days = getDaysToExpectedDate(order);
-  if (days === null || !order.expected_date) return "Senza data posa";
-  if (days < 0) return `${Math.abs(days)}g in ritardo`;
-  if (days === 0) return "Posa oggi";
-  if (days <= 14) return `Posa tra ${days}g`;
-  return formatDateShort(order.expected_date);
-}
-
 function getFullDateLabel(date?: string | null) {
   return date ? formatDateShort(date) : "Non indicata";
 }
@@ -112,16 +107,6 @@ function getPaymentTypeLabel(paymentType?: string | null) {
     rateale: "Rateale",
   };
   return labels[normalized] || normalized;
-}
-
-function getNextAction(order: OrderWithDetails, due: number, materials: ReturnType<typeof getMaterialSummary>) {
-  const days = getDaysToExpectedDate(order);
-  if (due > 0 && getAmountCollected(order) === 0) return "Incassare acconto";
-  if (days !== null && days < 0) return "Sbloccare posa";
-  if (materials.total > 0 && materials.toOrder > 0) return "Ordinare materiali";
-  if (materials.total > 0 && materials.ready < materials.total) return "Verificare arrivi";
-  if (materials.total > 0 && materials.ready === materials.total) return "Preparare posa";
-  return "Aprire scheda";
 }
 
 function getCustomerName(order: OrderWithDetails) {
@@ -156,6 +141,28 @@ function getLaborSummary(order: OrderWithDetails) {
   };
 }
 
+const TONO_TESTO: Record<Tono, string> = {
+  critico: "text-red-700",
+  attenzione: "text-amber-700",
+  ok: "text-emerald-700",
+  neutro: "text-foreground",
+};
+
+/** Una riga con l'etichetta a sinistra, così si capisce di cosa parla il valore. */
+function RigaInfo({
+  etichetta, valore, tono, icona, suggerimento,
+}: { etichetta: string; valore: string; tono: Tono; icona: React.ReactNode; suggerimento: string }) {
+  return (
+    <div className="flex min-w-0 items-center gap-2 text-[11px]" title={suggerimento}>
+      <span className="w-[58px] shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/80">{etichetta}</span>
+      <span className={cn("flex min-w-0 items-center gap-1 font-medium", TONO_TESTO[tono])}>
+        <span className="shrink-0">{icona}</span>
+        <span className="truncate">{valore}</span>
+      </span>
+    </div>
+  );
+}
+
 function SummaryRow({ label, value, tone }: { label: string; value: string; tone?: "danger" | "success" | "warning" }) {
   return (
     <div className="rounded-md border bg-muted/20 px-2.5 py-2">
@@ -188,9 +195,17 @@ export const OrdersPipelineCard = memo(function OrdersPipelineCard({ order, isDr
   const paymentPct = order.total_amount > 0 ? Math.min(100, Math.round((collected / order.total_amount) * 100)) : 0;
   const isPaid = due === 0 && order.total_amount > 0;
   const needsMaterials = materials.total > 0 && materials.ready < materials.total;
-  const nextAction = getNextAction(order, due, materials);
   const customerName = getCustomerName(order);
   const labor = getLaborSummary(order);
+  const giorni = getDaysToExpectedDate(order);
+  const posa = statoPosa(giorni, order.expected_date ? formatDateShort(order.expected_date) : null);
+  const stMateriali = statoMateriali(materials.total, materials.ready, materials.toOrder);
+  const stIncasso = statoIncasso(order.total_amount, collected, due);
+  const stSquadra = statoSquadra(labor.names, labor.employees.length > 0, labor.teams.length > 0);
+  const passo = prossimoPasso({
+    giorniAllaPosa: giorni, daIncassare: due, incassato: collected,
+    articoli: materials.total, pronti: materials.ready, daOrdinare: materials.toOrder,
+  });
 
   const clearLongPressTimer = useCallback(() => {
     if (longPressTimerRef.current !== null) {
@@ -393,8 +408,11 @@ export const OrdersPipelineCard = memo(function OrdersPipelineCard({ order, isDr
             <div className="flex items-start gap-2">
               <p className="font-semibold text-sm leading-tight truncate">{order.order_code || "—"}</p>
               {overdue && (
-                <span className="ml-auto inline-flex items-center rounded-full bg-orange-50 px-1.5 py-0.5 text-[10px] font-semibold text-orange-700 ring-1 ring-orange-200">
-                  Urgente
+                <span
+                  className="ml-auto inline-flex items-center rounded-full bg-orange-50 px-1.5 py-0.5 text-[10px] font-semibold text-orange-700 ring-1 ring-orange-200"
+                  title={posa.dettaglio}
+                >
+                  In ritardo
                 </span>
               )}
             </div>
@@ -415,7 +433,7 @@ export const OrdersPipelineCard = memo(function OrdersPipelineCard({ order, isDr
             <div className="mt-2 space-y-1.5">
               <div className="flex items-center justify-between gap-2">
                 <p className="font-bold text-sm">{formatCurrency(order.total_amount)}</p>
-                <span className={cn(
+                <span title={stIncasso.dettaglio} className={cn(
                   "inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium",
                   isPaid
                     ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
@@ -424,54 +442,39 @@ export const OrdersPipelineCard = memo(function OrdersPipelineCard({ order, isDr
                       : "bg-muted text-muted-foreground"
                 )}>
                   <Euro className="h-2.5 w-2.5" />
-                  {isPaid ? "Pagata" : due > 0 ? `${paymentPct}% inc.` : "No incassi"}
+                  {stIncasso.testo}
                 </span>
               </div>
               <PaymentBar order={order} />
             </div>
 
-            <div className="mt-2 grid grid-cols-2 gap-1.5 text-[11px]">
-              <span className={cn(
-                "inline-flex min-w-0 items-center gap-1 rounded-md px-1.5 py-1",
-                overdue
-                  ? "bg-orange-50 text-orange-700 ring-1 ring-orange-200"
-                  : "bg-muted/60 text-muted-foreground"
-              )}>
-                {overdue ? <AlertTriangle className="h-3 w-3 shrink-0" /> : <CalendarIcon className="h-3 w-3 shrink-0" />}
-                <span className="truncate">{getDateLabel(order)}</span>
-              </span>
-              <span className={cn(
-                "inline-flex min-w-0 items-center gap-1 rounded-md px-1.5 py-1",
-                needsMaterials
-                  ? "bg-red-50 text-red-700 ring-1 ring-red-200"
-                  : materials.total > 0
-                    ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
-                    : "bg-muted/60 text-muted-foreground"
-              )}>
-                {needsMaterials ? <PackageX className="h-3 w-3 shrink-0" /> : <PackageCheck className="h-3 w-3 shrink-0" />}
-                <span className="truncate">
-                  {materials.total > 0 ? `${materials.ready}/${materials.total} pronti` : "No articoli"}
-                </span>
-              </span>
+            {/* Tre righe con l'etichetta: di cosa parla ogni valore */}
+            <div className="mt-2.5 space-y-1 border-t pt-2">
+              <RigaInfo
+                etichetta="Posa" valore={posa.testo} tono={posa.tono} suggerimento={posa.dettaglio}
+                icona={posa.tono === "critico" ? <AlertTriangle className="h-3 w-3" /> : <CalendarIcon className="h-3 w-3" />}
+              />
+              <RigaInfo
+                etichetta="Materiali" valore={stMateriali.testo} tono={stMateriali.tono} suggerimento={stMateriali.dettaglio}
+                icona={stMateriali.tono === "ok" ? <PackageCheck className="h-3 w-3" /> : <PackageX className="h-3 w-3" />}
+              />
+              <RigaInfo
+                etichetta="Squadra" valore={stSquadra.testo} tono={stSquadra.tono} suggerimento={stSquadra.dettaglio}
+                icona={<Users className="h-3 w-3" />}
+              />
             </div>
 
-            <div className={cn(
-              "mt-1.5 flex min-w-0 items-center gap-1 rounded-md px-1.5 py-1 text-[11px]",
-              labor.primary
-                ? "bg-blue-50 text-blue-700 ring-1 ring-blue-100"
-                : "bg-muted/60 text-muted-foreground"
-            )}>
-              <Users className="h-3 w-3 shrink-0" />
-              <span className="truncate">{labor.shortLabel}</span>
-            </div>
-
-            <div className="mt-2 flex items-center gap-1.5 rounded-md bg-primary/5 px-2 py-1.5 text-[11px] font-medium text-primary">
-              {nextAction === "Preparare posa" ? (
-                <CheckCircle2 className="h-3 w-3 shrink-0" />
-              ) : (
-                <AlertTriangle className="h-3 w-3 shrink-0" />
+            {/* Il prossimo passo: non è un avviso, è cosa fare adesso */}
+            <div
+              className={cn(
+                "mt-2 flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[11px] font-medium",
+                passo.tipo === "pronto" ? "bg-emerald-50 text-emerald-800" : "bg-primary/5 text-primary",
               )}
-              <span className="truncate">{nextAction}</span>
+              title={passo.motivo}
+            >
+              {passo.tipo === "pronto" ? <CheckCircle2 className="h-3 w-3 shrink-0" /> : <ArrowRight className="h-3 w-3 shrink-0" />}
+              <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide opacity-70">Ora</span>
+              <span className="truncate">{passo.testo}</span>
             </div>
           </div>
         </div>
@@ -542,7 +545,7 @@ export const OrdersPipelineCard = memo(function OrdersPipelineCard({ order, isDr
               <CalendarIcon className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               <span>
                 <span className="font-medium text-foreground">Posa: </span>
-                {getDateLabel(order)}
+                {posa.testo}
               </span>
             </div>
             <div className="flex items-start gap-2 text-muted-foreground">
@@ -570,7 +573,7 @@ export const OrdersPipelineCard = memo(function OrdersPipelineCard({ order, isDr
               <Wrench className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               <span>
                 <span className="font-medium text-foreground">Azione: </span>
-                {nextAction}
+                {passo.testo}
               </span>
             </div>
           </div>
@@ -591,7 +594,7 @@ export const OrdersPipelineCard = memo(function OrdersPipelineCard({ order, isDr
             />
             <SummaryRow
               label="Posa"
-              value={getDateLabel(order)}
+              value={posa.testo}
               tone={overdue ? "danger" : undefined}
             />
             <SummaryRow

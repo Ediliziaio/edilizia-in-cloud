@@ -13,6 +13,8 @@ import {
 import { OrdersPipelineColumn } from "./OrdersPipelineColumn";
 import { OrdersPipelineCard } from "./OrdersPipelineCard";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Info } from "lucide-react";
 import { type OrderWithDetails, type OrderStatus } from "@/lib/orderUtils";
 
 interface OrdersPipelineViewProps {
@@ -134,6 +136,27 @@ export function OrdersPipelineView({ orders, statuses, onStatusChange }: OrdersP
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
     >
+      <div className="mb-2 flex justify-end">
+        <Popover>
+          <PopoverTrigger asChild>
+            <button type="button" className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted">
+              <Info className="h-3.5 w-3.5" /> Come leggere le card
+            </button>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-[360px] space-y-2.5 text-xs">
+            <p className="text-sm font-semibold">Cosa dice ogni riga</p>
+            <dl className="space-y-2">
+              <div><dt className="font-semibold">Importo e incasso</dt><dd className="text-muted-foreground">Il valore della commessa e quanto è già stato incassato (barra e percentuale).</dd></div>
+              <div><dt className="font-semibold">Posa</dt><dd className="text-muted-foreground">La data di posa prevista. «Giorni di ritardo» = la data è passata e la commessa non è completata.</dd></div>
+              <div><dt className="font-semibold">Materiali</dt><dd className="text-muted-foreground">Articoli pronti su totali (in magazzino, prenotati o installati). Rosso se non ne è pronto nessuno.</dd></div>
+              <div><dt className="font-semibold">Squadra</dt><dd className="text-muted-foreground">Chi fa il lavoro: il primo nome e quanti altri sono assegnati. «Da assegnare» se manca.</dd></div>
+              <div><dt className="font-semibold">Ora</dt><dd className="text-muted-foreground">Il prossimo passo da fare, scelto in quest'ordine: incassare l'acconto, sbloccare la posa, ordinare i materiali, verificare gli arrivi, preparare la posa.</dd></div>
+              <div><dt className="font-semibold">«N in ritardo» sulla colonna</dt><dd className="text-muted-foreground">Quante commesse della colonna hanno la posa oltre la data prevista.</dd></div>
+            </dl>
+            <p className="text-muted-foreground">Passa il mouse su una riga per leggere la frase completa.</p>
+          </PopoverContent>
+        </Popover>
+      </div>
       <div className="flex gap-4 overflow-x-auto pb-4 min-h-[500px]">
         {/* Colonne per ogni stato */}
         {statuses.map(status => (
