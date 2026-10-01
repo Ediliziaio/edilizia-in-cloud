@@ -114,22 +114,41 @@ function inCorrezione(state: EditorState): boolean {
     && !["annullata", "stornata", "in_invio"].includes(String(state.stato));
 }
 
+// Colonne che a database sono uuid, date, timestamp o numeri: una stringa vuota non
+// è un valore valido (22P02) e fa rifiutare TUTTO il salvataggio. Il 01/10/2026, a
+// Renova, un cliente creato dal modulo portava anagrafica_id = "": da quel momento
+// ogni salvataggio della bozza falliva con 400, il lavoro non si salvava e uscendo
+// la fattura «spariva». Vuoto = nessun valore (null).
+const VUOTO_E_NULL = [
+  "anagrafica_id", "data_scadenza", "data_validita", "ddt_data_ora_consegna", "ddt_numero_colli", "probabilita_chiusura",
+  "sconto_globale_percentuale", "sconto_globale_valore", "bollo_importo", "ritenuta_aliquota", "cassa_aliquota", "cassa_imponibile",
+  "rivalsa_aliquota", "altra_ritenuta_aliquota", "arrotondamento", "ddt_porto",
+] as const;
+
+/** I totali derivati sono NOT NULL: un NaN (campo numerico svuotato) diventa 0, non null. */
+const finito = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+
 /** Payload completo per l'update: campi utente + totali derivati ricalcolati. */
-function buildSavePayload(state: EditorState) {
+export function buildSavePayload(state: EditorState) {
+  const campi = pickTracked(state);
+  for (const k of VUOTO_E_NULL) {
+    const v = campi[k];
+    if (v === "" || v === undefined || (typeof v === "number" && Number.isNaN(v))) campi[k] = null;
+  }
   return {
     id: state.id!,
-    ...pickTracked(state),
+    ...campi,
     riepilogo_iva: state.riepilogo_iva,
-    subtotale: state.subtotale,
-    imponibile_totale: state.imponibile_totale,
-    iva_totale: state.iva_totale,
-    totale_documento: state.totale_documento,
-    totale_da_pagare: state.totale_da_pagare,
-    ritenuta_importo: state.ritenuta_importo,
-    cassa_importo: state.cassa_importo,
-    rivalsa_importo: state.rivalsa_importo,
-    altra_ritenuta_importo: state.altra_ritenuta_importo,
-  } as Partial<DocumentoFiscale> & { id: string };
+    subtotale: finito(state.subtotale),
+    imponibile_totale: finito(state.imponibile_totale),
+    iva_totale: finito(state.iva_totale),
+    totale_documento: finito(state.totale_documento),
+    totale_da_pagare: finito(state.totale_da_pagare),
+    ritenuta_importo: finito(state.ritenuta_importo),
+    cassa_importo: finito(state.cassa_importo),
+    rivalsa_importo: finito(state.rivalsa_importo),
+    altra_ritenuta_importo: finito(state.altra_ritenuta_importo),
+  } as unknown as Partial<DocumentoFiscale> & { id: string };
 }
 
 // ─── Recalculate ─────────────────────────────────────────────
@@ -191,7 +210,8 @@ function editorReducer(state: EditorState, action: Action): EditorState {
     case "SET_CLIENTE":
       return recalculate({
         ...state,
-        anagrafica_id: action.anagrafica_id,
+        // Cliente nuovo (non ancora in anagrafica): nessun id, mai una stringa vuota.
+        anagrafica_id: action.anagrafica_id || undefined,
         // Per un privato la ragione sociale è «Nome Cognome»: sempre allineata.
         cliente_snapshot: normalizzaCliente(action.snapshot),
       });
