@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { useReducer } from "react";
 
-vi.mock("@/hooks/useArticoliNative", () => ({ useArticoliNative: () => ({ data: [] }) }));
+vi.mock("@/hooks/useArticoliNative", () => ({ useArticoliNative: () => ({ data: [] as unknown[] }) }));
 
 import { EditorRigheSection } from "@/pages/azienda/fatturazione/editor/EditorRigheSection";
 import { createEmptyRiga, editorReducer } from "@/pages/azienda/fatturazione/editor/useEditorState";
