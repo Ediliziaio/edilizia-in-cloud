@@ -87,9 +87,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { EmptyRow } from "./EmptyRow";
 import { InternalTeamShifts } from "./InternalTeamShifts";
 import { SquadreCommessa, SquadreFase } from "@/components/manodopera/SquadreCommessa";
 import { NoteCantiere } from "@/components/manodopera/NoteCantiere";
@@ -236,7 +234,7 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports }: OrderWork
     });
   };
 
-  const scostamentoClass = totals.scostamento > 0 ? "text-rose-600" : "text-emerald-600";
+  const scostamentoClass = totals.scostamento > 0 ? "text-rose-600" : "text-muted-foreground";
   const saveAssignment = async (id: string, source: AssignmentSource, patch: AssignmentPatch) => {
     const all = [...unassigned, ...phases.flatMap(p => p.assignments)];
     const current = all.find(a => a.id === id && a.source === source);
@@ -426,7 +424,7 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports }: OrderWork
         {canViewCosts && !isLoading && !isError && (phases.length > 0 || unassigned.length > 0) && (
         <details className="rounded-lg border p-3 max-sm:hidden">
         <summary className="cursor-pointer text-sm font-medium">Riepilogo costi della manodopera</summary>
-        <p className="my-2 text-xs text-muted-foreground">Somma delle assegnazioni. Il costo registrato non indica da solo lavoro approvato o pagamento eseguito.</p>
+        <p className="my-2 text-xs text-muted-foreground">Somma delle assegnazioni nel perimetro attuale, non baseline storica. Il costo registrato non indica da solo lavoro approvato o pagamento eseguito. Un importo sotto budget può dipendere da lavoro ancora da svolgere; per il costo finale serve una stima delle ore e dei subappalti residui.</p>
         <div className="grid grid-cols-1 gap-2 rounded-lg border bg-muted/40 p-3 text-center sm:grid-cols-3">
           <div className="flex items-center justify-between gap-2 sm:block">
             <p className="text-xs text-muted-foreground">Budget manodopera</p>
@@ -441,7 +439,7 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports }: OrderWork
             </p>
           </div>
           <div className="flex items-center justify-between gap-2 sm:block">
-            <p className="text-xs text-muted-foreground">Scostamento</p>
+            <p className="text-xs text-muted-foreground">Differenza registrato − budget</p>
             <p className={`text-sm font-semibold tabular-nums sm:text-base ${scostamentoClass}`}>
               {eur.format(totals.scostamento)}
             </p>
@@ -454,7 +452,7 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports }: OrderWork
               <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
                 <div
                   className={`h-full rounded-full transition-all ${
-                    totals.consuntivo > totals.preventivo ? "bg-rose-500" : "bg-emerald-500"
+                    totals.consuntivo > totals.preventivo ? "bg-rose-500" : "bg-slate-400"
                   }`}
                   style={{
                     width: `${Math.min(100, (totals.consuntivo / totals.preventivo) * 100)}%`,

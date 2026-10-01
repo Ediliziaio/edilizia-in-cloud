@@ -7,7 +7,7 @@ export function OrderMaterialsSummary({ items, orderId }: { items: ProcurementIt
   if (!items.length) return (
     <section aria-label="Flusso materiali" className="rounded-lg border bg-muted/20 p-4 space-y-1">
       <h3 className="font-medium">Organizza i materiali della commessa</h3>
-      <p className="text-sm text-muted-foreground">Aggiungi gli articoli e scegli il fornitore oppure la giacenza. Poi prepara l’ordine, registra le ricezioni e collega le uscite verso il cantiere.</p>
+      <p className="text-sm text-muted-foreground">Se il contratto comprende forniture, aggiungi gli articoli e scegli il fornitore oppure la giacenza; prepara l’ordine, registra le ricezioni e collega le uscite verso il cantiere. Per sola manodopera, pianifica esecutori, ore, mezzi e accesso nelle Lavorazioni; verifica anche eventuali materiali forniti dal cliente.</p>
     </section>
   );
   if (coverage.isPending || coverage.isError || unmapped.isPending || unmapped.isError) return null; // The actionable panel owns loading/errors.

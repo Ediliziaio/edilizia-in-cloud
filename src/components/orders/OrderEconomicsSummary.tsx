@@ -1,6 +1,8 @@
 import { useCallback, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { loadIssuedCommitments, loadApprovedRevenueVariations } from "@/lib/orders/loadEconomicCommitments";
+import { useAuth } from "@/contexts/AuthContext";
+import { compareMaterialCommitments } from "@/lib/orders/forecastComparison";
 import { useOrderEconomicsBase } from "@/hooks/useOrderEconomicsBase";
 import { calculateStoredCommissionNet } from "@/lib/commissions";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
@@ -46,20 +48,12 @@ interface OrderEconomicsSummaryProps {
   /** true mentre la query order_items del genitore è in corso: evita di mostrare
    *  un "Margine 100% / Costi 0" fuorviante prima che i costi articoli arrivino. */
   itemsLoading?: boolean;
-  /** Avanzamento fisico (media % fasi lavorazione). Con ≥15% sblocca la
-   *  proiezione del margine a fine lavori: costi a finire = consuntivo/avanzamento. */
+  /** Legacy interface; physical phase progress alone cannot project total costs. */
   avanzamentoPct?: number | null;
 }
 
 /** Percentuale it-IT a 1 decimale: 36,1 (virgola, non punto). */
 const pct1 = (n: number) => n.toFixed(1).replace(".", ",");
-
-/** "al 50%" ma "all'80%" / "all'8%" / "all'11%": articolo giusto davanti al numero. */
-const alPct = (n: number) => {
-  const r = Math.round(n);
-  const apostrofo = r === 8 || r === 11 || (r >= 80 && r <= 89) || (r >= 800 && r <= 899);
-  return `${apostrofo ? "all'" : "al "}${r}%`;
-};
 
 const CHART = {
   articoli: "hsl(var(--chart-1))",
@@ -78,66 +72,44 @@ export function OrderEconomicsSummary({
   cashCollected,
   cashTotal,
   itemsLoading = false,
-  avanzamentoPct = null,
+  avanzamentoPct: _avanzamentoPct = null,
 }: OrderEconomicsSummaryProps) {
+  void _avanzamentoPct; // Physical progress is not a cost allocation rule.
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
   void vatRate; // tenuto per parità d'interfaccia col conto economico esistente
 
   const { econ, employees, teams, salespeople, errors, isPending: basePending, isError: baseError } = useOrderEconomicsBase(orderId, totalAmount, items);
 
-  // CONSUNTIVO materiali = somma degli ordini fornitore (ODA) realmente emessi.
-  const { data: oda = [], isPending: odaPending } = useQuery({
-    queryKey: ["oes-oda", orderId], // chiave DEDICATA
-    enabled: !!orderId,
+  // Issued purchase commitments, not measured consumption or actual cash.
+  const { data: oda = [], isPending: odaPending, isError: odaError } = useQuery({
+    queryKey: ["oes-oda", orderId, companyId], // chiave DEDICATA
+    enabled: !!orderId && !!companyId,
     staleTime: 2 * 60 * 1000,
-    queryFn: async () => {
-      // Solo ODA realmente emessi: escludi bozza (e annullato) dal consuntivo
-      // materiali, altrimenti una bozza mai inviata gonfia costo/margine.
-      const { data, error } = await supabase
-        .from("purchase_orders")
-        .select("subtotal")
-        .eq("order_id", orderId)
-        .in("status", ["inviato", "confermato", "parziale", "ricevuto"]);
-      if (error) throw error;
-      return (data ?? []) as { subtotal: number | null }[];
-    },
+    queryFn: () => loadIssuedCommitments(companyId!, orderId),
   });
 
-  // Variazioni approvate (OdV) = extra del consuntivo.
-  const { data: variazioni = [] } = useQuery({
-    queryKey: ["oes-variazioni", orderId], // chiave DEDICATA
-    enabled: !!orderId,
+  // Approved sales variations affect revenue, not purchase cost.
+  const { data: variazioni = [], isPending: variazioniPending, isError: variazioniError } = useQuery({
+    queryKey: ["oes-variazioni", orderId, companyId], // chiave DEDICATA
+    enabled: !!orderId && !!companyId,
     staleTime: 2 * 60 * 1000,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("ordini_variazione")
-        .select("impatto_economico, status")
-        .eq("order_id", orderId)
-        .eq("status", "approvato");
-      if (error) throw error;
-      return (data ?? []) as { impatto_economico: number | null; status: string }[];
-    },
+    queryFn: () => loadApprovedRevenueVariations(companyId!, orderId),
   });
 
 
-  // ── PREVISIONALE vs CONSUNTIVO (costi materiali) ────────────────────────────
-  // Previsionale = costo materiali PIANIFICATO (order_items.purchase_price × qty,
-  // come inserito). Consuntivo = costo materiali REALE = somma ODA fornitore emessi
-  // (subtotal, netto) + variazioni approvate. Confronto sui valori "come inseriti"
-  // (niente scorporo differenziale) → scostamento leggibile: "ho ordinato più del
-  // preventivato?". È il controllo costi pianificato→reale chiesto dall'utente.
+  // Net material commitment comparison. Sales variations affect revenue only.
   const consuntivo = useMemo(() => {
-    const materialiPianificati = (items ?? []).reduce(
-      (s, i) => s + (Number(i.purchase_price) || 0) * (Number(i.quantity) || 0),
-      0,
-    );
-    const materialiOrdinati = oda.reduce((s, o) => s + (Number(o.subtotal) || 0), 0);
+    const comparison = compareMaterialCommitments(items ?? [], oda);
+    const materialiPianificati = comparison.planned;
+    const materialiOrdinati = comparison.committed;
     const odaCount = oda.length;
     const variazioniTot = variazioni.reduce((s, v) => s + (Number(v.impatto_economico) || 0), 0);
-    const scostamento = materialiOrdinati + variazioniTot - materialiPianificati;
-    const scostamentoPct = materialiPianificati > 0 ? (scostamento / materialiPianificati) * 100 : 0;
+    const scostamento = comparison.gap;
+    const scostamentoPct = comparison.percentage;
 
     // MARGINE CONSUNTIVO unificato con Controllo di Gestione (vista v_ordine_marginalita):
-    // costo = materiali REALI (ODA, subtotal netto) + manodopera (total_cost grezzo) +
+    // costo = acquisti IMPEGNATI (ODA, subtotal netto) + manodopera (total_cost grezzo) +
     // provvigioni nette (max(commission−deduction,0)) + errori; ricavo = total + variazioni.
     // Stesse formule della vista → stesso margine consuntivo su commessa e CG.
     const laborRaw =
@@ -149,7 +121,7 @@ export function OrderEconomicsSummary({
     );
     const errorsRaw = errors.reduce((s, e) => s + (Number(e.amount) || 0), 0);
     const ricavoTot = totalAmount + variazioniTot;
-    const consuntivoCost = materialiOrdinati + laborRaw + commissionsRaw + errorsRaw;
+    const consuntivoCost = (materialiOrdinati ?? 0) + laborRaw + commissionsRaw + errorsRaw;
     const consuntivoMargin = ricavoTot - consuntivoCost;
     const consuntivoMarginPct = ricavoTot > 0 ? (consuntivoMargin / ricavoTot) * 100 : 0;
 
@@ -210,8 +182,8 @@ export function OrderEconomicsSummary({
   // o dipendenti/squadre/provvigioni/errori), i costi sarebbero parziali → il
   // margine apparirebbe gonfiato (es. "100%"). Mostriamo uno skeleton: la card
   // di testata non deve MAI lampeggiare numeri sbagliati.
-  const costsLoading = itemsLoading || basePending || odaPending;
-  if (baseError) return <Card id="section-conto-economico" className="scroll-mt-24"><CardContent className="p-4 text-sm text-muted-foreground">Conto economico non disponibile: impossibile caricare tutti i costi.</CardContent></Card>;
+  const costsLoading = itemsLoading || basePending || odaPending || variazioniPending || !companyId;
+  if (baseError || odaError || variazioniError) return <Card id="section-conto-economico" className="scroll-mt-24"><CardContent className="p-4 text-sm text-muted-foreground">Conto economico non disponibile: impossibile caricare tutti i costi.</CardContent></Card>;
   if (costsLoading) {
     return (
       <Card id="section-conto-economico" className="scroll-mt-24 border-l-4 border-l-orange-400">
@@ -288,28 +260,27 @@ export function OrderEconomicsSummary({
               </p>
             )}
 
-            {/* Pianificato vs Consuntivo materiali: costo preventivato vs realmente
-                ordinato ai fornitori (ODA) + variazioni. Controllo sovracosti. */}
+            {/* Article plan vs committed purchases, same net basis. Revenue variations stay separate. */}
             <div className="rounded-lg border bg-muted/20 p-2.5 text-xs max-sm:hidden">
               <div className="mb-1.5 flex items-center justify-between">
-                <span className="font-medium text-foreground">Materiali: pianificato vs consuntivo</span>
+                <span className="font-medium text-foreground">Articoli: piano attuale vs acquisti impegnati</span>
                 {consuntivo.odaCount > 0 && (
                   <span className="text-muted-foreground">{consuntivo.odaCount} ODA emessi</span>
                 )}
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Pianificato</span>
-                <span>{formatCurrency(consuntivo.materialiPianificati)}</span>
+                <span>{consuntivo.materialiPianificati == null ? "Dati incompleti" : formatCurrency(consuntivo.materialiPianificati)} · netto</span>
               </div>
               {consuntivo.odaCount > 0 ? (
                 <>
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Ordinato ai fornitori</span>
-                    <span className="font-medium">{formatCurrency(consuntivo.materialiOrdinati)}</span>
+                    <span className="font-medium">{consuntivo.materialiOrdinati == null ? "Dati incompleti" : formatCurrency(consuntivo.materialiOrdinati)}</span>
                   </div>
                   {consuntivo.variazioniTot !== 0 && (
                     <div className="flex items-center justify-between text-amber-600 dark:text-amber-400">
-                      <span>Variazioni approvate</span>
+                      <span>Variazioni ricavo approvate · escluse dai materiali</span>
                       <span>
                         {consuntivo.variazioniTot > 0 ? "+" : ""}
                         {formatCurrency(consuntivo.variazioniTot)}
@@ -317,23 +288,23 @@ export function OrderEconomicsSummary({
                     </div>
                   )}
                   <div className="mt-1 flex items-center justify-between border-t pt-1">
-                    <span className="text-muted-foreground">Scostamento</span>
+                    <span className="text-muted-foreground">Differenza acquisti − piano</span>
                     <span
                       className={`font-semibold ${
-                        consuntivo.scostamento > 0
+                        consuntivo.scostamento != null && consuntivo.scostamento > 0
                           ? "text-red-600 dark:text-red-400"
-                          : "text-emerald-600 dark:text-emerald-400"
+                          : "text-muted-foreground"
                       }`}
                     >
-                      {consuntivo.scostamento > 0 ? "+" : ""}
-                      {formatCurrency(consuntivo.scostamento)}
-                      {Math.abs(consuntivo.scostamentoPct) >= 0.1 &&
-                        ` (${consuntivo.scostamento > 0 ? "+" : ""}${pct1(consuntivo.scostamentoPct)}%)`}
+                      {consuntivo.scostamento != null && consuntivo.scostamento > 0 ? "+" : ""}
+                      {consuntivo.scostamento == null ? "Non confrontabile" : formatCurrency(consuntivo.scostamento)}
+                      {consuntivo.scostamentoPct != null && Math.abs(consuntivo.scostamentoPct) >= 0.1 &&
+                        ` (${consuntivo.scostamento != null && consuntivo.scostamento > 0 ? "+" : ""}${pct1(consuntivo.scostamentoPct)}%)`}
                     </span>
                   </div>
                   <div className="mt-1.5 flex items-center justify-between border-t pt-1.5">
                     <span className="font-medium text-foreground">
-                      Margine consuntivo (reale)
+                      Margine su acquisti e costi registrati
                       <span className="ml-1 font-normal text-muted-foreground">· come Controllo di Gestione</span>
                     </span>
                     <span
@@ -345,46 +316,21 @@ export function OrderEconomicsSummary({
                             : "text-red-600 dark:text-red-400"
                       }`}
                     >
-                      {formatCurrency(consuntivo.consuntivoMargin)} · {pct1(consuntivo.consuntivoMarginPct)}%
+                      {consuntivo.materialiOrdinati == null ? "Dati incompleti" : `${formatCurrency(consuntivo.consuntivoMargin)} · ${pct1(consuntivo.consuntivoMarginPct)}%`}
                     </span>
                   </div>
                 </>
               ) : (
                 <p className="mt-1 text-muted-foreground">
-                  Nessun ordine fornitore (ODA) ancora emesso → consuntivo materiali in corso.
+                  Nessun OdA emesso. Per lavori di sola manodopera verifica il budget nelle Lavorazioni; l’assenza di acquisti non dimostra un risparmio.
                 </p>
               )}
-              {/* Proiezione a fine lavori: costi a finire = consuntivo/avanzamento.
-                  Solo con avanzamento ≥15% (sotto, la stima è rumore) e costi reali.
-                  "Di questo passo": se i materiali sono stati ordinati tutti subito,
-                  la proiezione è prudente per costruzione. */}
-              {(() => {
-                if (avanzamentoPct == null || avanzamentoPct < 15 || consuntivo.consuntivoCost <= 0) return null;
-                const ricavoTot = totalAmount + consuntivo.variazioniTot;
-                if (ricavoTot <= 0) return null;
-                const costiAFine = consuntivo.consuntivoCost / (avanzamentoPct / 100);
-                const margineProiettato = ricavoTot - costiAFine;
-                const pct = (margineProiettato / ricavoTot) * 100;
-                return (
-                  <div className="mt-1.5 flex items-center justify-between border-t pt-1.5">
-                    <span className="font-medium text-foreground">
-                      Di questo passo, a fine lavori
-                      <span className="ml-1 font-normal text-muted-foreground">· lavori {alPct(avanzamentoPct)}</span>
-                    </span>
-                    <span
-                      className={`font-semibold ${
-                        pct >= 20
-                          ? "text-emerald-600 dark:text-emerald-400"
-                          : pct >= 0
-                            ? "text-amber-600 dark:text-amber-400"
-                            : "text-red-600 dark:text-red-400"
-                      }`}
-                    >
-                      {formatCurrency(margineProiettato)} · {pct1(pct)}%
-                    </span>
-                  </div>
-                );
-              })()}
+              <p className="mt-2 text-muted-foreground">
+                Il piano attuale non è una baseline storica congelata. Gli OdA sono impegni di acquisto:
+                ricezione, consumo e pagamento restano distinti. Una differenza negativa può indicare
+                acquisti ancora da fare. Il costo finale richiede costi maturati e fabbisogni residui;
+                non si ricava dividendo gli acquisti per la percentuale dei lavori.
+              </p>
             </div>
 
             {/* Cassa — mobile no: incassato e residuo sono già nella testata della commessa. */}
@@ -412,11 +358,11 @@ export function OrderEconomicsSummary({
               <p className="flex items-start gap-1.5 text-xs text-amber-600 dark:text-amber-400">
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                 <span>
-                  Margine consuntivo <strong>parziale</strong>: mancano i costi{" "}
+                  Quadro costi <strong>da verificare</strong>: non risultano importi per{" "}
                   {[econ.itemsNet === 0 ? "articoli" : null, econ.laborNet === 0 ? "manodopera" : null]
                     .filter(Boolean)
                     .join(" e ")}{" "}
-                  → il margine reale sarà più basso.
+                  → verifica se la voce è necessaria, esclusa dal contratto o ancora da registrare.
                 </span>
               </p>
             )}
