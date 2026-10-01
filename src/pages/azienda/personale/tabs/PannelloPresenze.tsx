@@ -49,7 +49,7 @@ export function PannelloPresenze({
   };
 
   const perGruppo = useMemo(() => {
-    const m = new Map<Gruppo, LiveStatusProfilo[]>(ORDINE.map((g) => [g, []]));
+    const m = new Map<Gruppo, LiveStatusProfilo[]>(ORDINE.map((g): [Gruppo, LiveStatusProfilo[]] => [g, []]));
     for (const p of visibili) m.get(gruppoDi(p))!.push(p);
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps

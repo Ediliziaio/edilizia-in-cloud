@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 
-vi.mock("@/hooks/useRichieste", () => ({ useRichieste: () => ({ data: [] }), useCreateRichiesta: () => ({}), useUpdateRichiestaStato: () => ({}) }));
-vi.mock("@/hooks/useOrganigramma", () => ({ useAllHrProfili: () => ({ data: [] }) }));
+vi.mock("@/hooks/useRichieste", () => ({ useRichieste: () => ({ data: [] as unknown[] }), useCreateRichiesta: () => ({}), useUpdateRichiestaStato: () => ({}) }));
+vi.mock("@/hooks/useOrganigramma", () => ({ useAllHrProfili: () => ({ data: [] as unknown[] }) }));
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
 
 import { RichiestaRow } from "@/pages/azienda/personale/tabs/TabRichieste";
