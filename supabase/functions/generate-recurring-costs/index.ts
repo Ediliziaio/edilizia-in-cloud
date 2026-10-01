@@ -40,13 +40,29 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const companyId = body.company_id;
 
-    if (!companyId) {
+    // Con il segreto del cron e senza azienda (il job mensile manda solo {"scheduled": true})
+    // si generano i costi di TUTTE le aziende che ne hanno di ricorrenti. Prima rispondeva
+    // «company_id richiesto» e il job non aveva mai generato niente (01/10/2026). Un utente,
+    // invece, deve sempre indicare la sua azienda.
+    let aziende: string[] = [];
+    if (companyId) {
+      aziende = [String(companyId)];
+    } else if (isCronCall) {
+      const { data: righe, error: eAz } = await supabase
+        .from("company_costs")
+        .select("company_id")
+        .eq("recurrence_auto", true)
+        .neq("recurrence", "once");
+      if (eAz) throw eAz;
+      aziende = Array.from(new Set((righe ?? []).map((r: { company_id: string }) => r.company_id).filter(Boolean)));
+    } else {
       return new Response(JSON.stringify({ error: "company_id richiesto" }), {
         status: 400,
         headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
+    const generaPerAzienda = async (companyId: string): Promise<number> => {
     // Find recurring costs with auto-generation enabled
     const { data: recurringCosts, error: fetchError } = await supabase
       .from("company_costs")
@@ -140,8 +156,22 @@ Deno.serve(async (req) => {
       .eq("recurrence", "monthly");
     const companiesWithOverdue = [...new Set((overdueWarnings || []).map((c: any) => c.company_id))];
     console.log(`[ALERT] ${companiesWithOverdue.length} aziende con costi ricorrenti in ritardo`);
+      return createdCount;
+    };
 
-    return new Response(JSON.stringify({ success: true, created: createdCount }), {
+    let createdCount = 0;
+    const falliti: string[] = [];
+    for (const id of aziende) {
+      try {
+        createdCount += await generaPerAzienda(id);
+      } catch (e) {
+        // Un'azienda con un problema non ferma le altre.
+        falliti.push(id);
+        console.error(`generate-recurring-costs: azienda ${id}:`, e instanceof Error ? e.message : e);
+      }
+    }
+
+    return new Response(JSON.stringify({ success: falliti.length === 0, created: createdCount, aziende: aziende.length, falliti: falliti.length }), {
       headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });
   } catch (error) {

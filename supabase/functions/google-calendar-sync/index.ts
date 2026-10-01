@@ -500,7 +500,8 @@ async function pushEvent(userId: string, companyId: string, appointmentId: strin
     .select("id")
     .eq("appointment_id", appointmentId)
     .maybeSingle();
-  if (existing) return json({ error: "Already synced", mappingId: existing.id }, 409);
+  // Già sull'agenda (il sync automatico e il clic dell'utente arrivano quasi insieme): non è un errore.
+  if (existing) return json({ alreadySynced: true, mappingId: existing.id });
 
   const meetRequested = shouldUseGoogleMeet(apt);
   const scheda = await schedaPerEvento(admin, apt);

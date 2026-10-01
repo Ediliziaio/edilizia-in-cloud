@@ -24,6 +24,7 @@ import {
   ibanEquivalenti,
 } from "../_shared/doc-validation.ts";
 import { callOpenRouter } from "../_shared/ai-provider/openrouter.ts";
+import { alertOutreach } from "../_shared/outreachAlert.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -148,13 +149,32 @@ Deno.serve(async (req) => {
       }, { task_kind: "email_estrai_allegato", company_id: att.company_id });
       visText = vis.content || "{}";
     } catch (e) {
-      return json({ error: "vision_error", detail: e instanceof Error ? e.message : String(e) }, 502, cors);
+      const detail = e instanceof Error ? e.message : String(e);
+      // Credito OpenRouter esaurito (402 «requires at least $0.50 in balance for files»):
+      // non è un errore del documento. Prima il dispatcher (ogni 7 minuti) rifaceva la
+      // stessa mail all'infinito e ogni giro finiva nel registro errori: 107 righe in 12 ore
+      // (01/10/2026). Ora si ricorda il tentativo, si riprova fra un'ora e si avvisa UNA volta.
+      const credito = /\b402\b|requires at least|insufficient|credit|balance/i.test(detail);
+      await segnaTentativo(supabase, att.inbox_id, credito ? "credito" : "vision_error", detail);
+      if (credito) {
+        await alertOutreach(supabase, {
+          chiave: "openrouter-credito-esaurito",
+          tipo: "credito_ai_esaurito",
+          ogniOre: 24,
+          titolo: "Credito OpenRouter esaurito",
+          testo: "OpenRouter rifiuta le richieste con allegati (servono almeno 0,50 $ di credito). Le fatture ricevute per email non vengono lette finché non si ricarica l'account OpenRouter.",
+          url: "/admin/impostazioni",
+        });
+        return json({ skipped: "credito_ai_insufficiente", reason: "Credito OpenRouter insufficiente: riprovo fra un'ora." }, 200, cors);
+      }
+      return json({ error: "vision_error", detail }, 502, cors);
     }
     let extracted: any = {};
     try {
       const m = visText.match(/\{[\s\S]*\}/);
       extracted = m ? JSON.parse(m[0]) : {};
     } catch {
+      await segnaTentativo(supabase, att.inbox_id, "parse_failed", visText.slice(0, 200));
       return json({ error: "parse_failed", raw: visText.slice(0, 300) }, 502, cors);
     }
 
@@ -244,6 +264,7 @@ Deno.serve(async (req) => {
       .select("*")
       .single();
     if (insErr) return json({ error: "save_failed", detail: insErr.message }, 500, cors);
+    await supabase.from("email_estrazione_tentativi").delete().eq("email_id", att.inbox_id).then(() => null, () => null);
 
     return json({ ok: true, draft, model: SONNET_MODEL }, 200, cors);
   } catch (e) {
@@ -251,6 +272,29 @@ Deno.serve(async (req) => {
     return json({ error: e instanceof Error ? e.message : "Unknown error" }, 500, cors);
   }
 });
+
+/**
+ * Ricorda che l'estrazione di questa mail è fallita, e quando riprovare: dopo un
+ * errore di credito fra un'ora, dopo gli altri fra 30 minuti × 2^tentativi (al massimo
+ * un giorno), e dopo 6 fallimenti non si riprova più (il dispatcher la salta).
+ */
+async function segnaTentativo(db: any, emailId: string, esito: string, errore: string): Promise<void> {
+  try {
+    const { data: prima } = await db.from("email_estrazione_tentativi").select("tentativi").eq("email_id", emailId).maybeSingle();
+    const tentativi = ((prima?.tentativi as number | undefined) ?? 0) + 1;
+    const minuti = esito === "credito" ? 60 : Math.min(24 * 60, 30 * 2 ** tentativi);
+    await db.from("email_estrazione_tentativi").upsert({
+      email_id: emailId,
+      tentativi,
+      ultimo_esito: esito,
+      ultimo_errore: errore.slice(0, 300),
+      prossimo_tentativo: new Date(Date.now() + minuti * 60_000).toISOString(),
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "email_id" });
+  } catch (e) {
+    console.warn("[email-ai-estrai-allegato] tentativo non registrato:", e instanceof Error ? e.message : e);
+  }
+}
 
 function bytesToBase64(bytes: Uint8Array): string {
   let binary = "";
