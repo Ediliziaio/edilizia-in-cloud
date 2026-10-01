@@ -4,23 +4,49 @@
     {
       "name": "edilizia-dev",
       "runtimeExecutable": "bun",
-      "runtimeArgs": ["run", "dev", "--", "--port", "56835", "--strictPort"],
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "56835",
+        "--strictPort"
+      ],
       "port": 56835,
       "autoPort": false
     },
     {
       "name": "edilizia-dev-alt",
       "runtimeExecutable": "bun",
-      "runtimeArgs": ["run", "dev", "--", "--port", "56845"],
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "56845"
+      ],
       "port": 56845,
       "autoPort": true
     },
     {
       "name": "edilizia-prod-preview",
       "runtimeExecutable": "bunx",
-      "runtimeArgs": ["vite", "preview"],
+      "runtimeArgs": [
+        "vite",
+        "preview"
+      ],
       "port": 4173,
       "autoPort": true
+    },
+    {
+      "name": "complementi-anteprima",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "-lc",
+        "cd '/private/tmp/claude-501/-Users-florinandriciuc-Edilizia-in-Cloud/134c6877-7096-4b09-96f4-20a1978a8b03/scratchpad/wt-varianti' && bun run dev -- --port 56877 --strictPort"
+      ],
+      "port": 56877,
+      "autoPort": false
     }
   ]
 }
