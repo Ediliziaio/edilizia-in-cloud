@@ -4,8 +4,8 @@ import { OrdineRapportiniCampo } from '@/components/orders/OrdineRapportiniCampo
 import { OrdineCliente } from '@/components/orders/OrdineCliente';
 
 const reports = vi.hoisted(() => Array.from({length: 23}, (_,i) => ({
-  id: `report-${i}`, data_lavoro: '2026-09-30', stato: 'approvato', autore: null,
-  ore_lavorate: 8, ore_straordinario: 0, foto_urls: [], presenze: [], source: null,
+  id: `report-${i}`, data_lavoro: '2026-09-30', stato: 'approvato', autore: null as { first_name: string; last_name: string } | null,
+  ore_lavorate: 8, ore_straordinario: 0, foto_urls: [] as string[], presenze: [] as unknown[], source: null as string | null,
   descrizione_lavori: `Lavoro ${i}`, costo_manodopera: 240,
 })));
 vi.mock('@tanstack/react-query', () => ({
@@ -18,7 +18,7 @@ vi.mock('@/hooks/use-mobile', () => ({useIsMobile: () => false}));
 vi.mock('@/integrations/supabase/client', () => ({supabase:{}}));
 vi.mock('@/lib/campo/loadLaborReview', () => ({recheckLaborApproval:vi.fn()}));
 vi.mock('@/lib/campo/rapportinoPdf', () => ({notifyRapportinoPdf:vi.fn(),openRapportinoPdf:vi.fn()}));
-vi.mock('@/components/orders/LaborApprovalDialog', () => ({LaborApprovalDialog: () => null}));
+vi.mock('@/components/orders/LaborApprovalDialog', () => ({LaborApprovalDialog: (): null => null}));
 afterEach(cleanup);
 
 describe('Usabilità del collaudo commesse', () => {

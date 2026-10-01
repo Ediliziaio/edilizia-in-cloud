@@ -42,7 +42,7 @@ describe("payload di salvataggio della bozza", () => {
   });
 
   it("i totali sono sempre numeri: un NaN diventa 0 (le colonne sono NOT NULL)", () => {
-    const p = buildSavePayload(stato({ subtotale: NaN, totale_documento: undefined })) as Record<string, number>;
+    const p = buildSavePayload(stato({ subtotale: NaN, totale_documento: undefined }));
     expect(p.subtotale).toBe(0);
     expect(p.totale_documento).toBe(0);
     expect(p.imponibile_totale).toBe(100);

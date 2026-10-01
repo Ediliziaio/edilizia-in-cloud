@@ -14,12 +14,12 @@ vi.mock("@/contexts/AuthContext", () => ({
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: { from: m.from },
 }));
-vi.mock("@/components/tasks/TaskDialog", () => ({ TaskDialog: () => null }));
+vi.mock("@/components/tasks/TaskDialog", () => ({ TaskDialog: (): null => null }));
 vi.mock("@tanstack/react-query", () => ({
   useQuery: (config: { queryFn: () => Promise<unknown> }) => {
     m.queryFn = config.queryFn;
     return {
-      data: [],
+      data: [] as unknown[],
       isError: m.error,
       isLoading: m.loading,
       error: m.error ? new Error("Errore query") : null,

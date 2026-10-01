@@ -35,7 +35,7 @@ const SELECT_TASK =
 // Carichiamo i predecessori in un'unica query, sempre nell'azienda corrente.
 async function withDependencies<T extends { bloccata_da_task_id?: string | null }>(tasks: T[], companyId: string) {
   const ids = [...new Set(tasks.map(task => task.bloccata_da_task_id).filter((id): id is string => !!id))];
-  if (!ids.length) return tasks.map(task => ({ ...task, bloccata_da: null }));
+  if (!ids.length) return tasks.map((task): T & { bloccata_da: null } => ({ ...task, bloccata_da: null }));
   const { data, error } = await supabase.from('tasks').select('id,title').eq('company_id', companyId).in('id', ids);
   if (error) throw error;
   const byId = new Map((data ?? []).map(task => [task.id, task]));
