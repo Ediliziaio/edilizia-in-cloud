@@ -1,4 +1,5 @@
 import { costruisciEventoPosa, leggiDateDaEventoGoogle, stesseDate } from "../_shared/posaEvento.ts";
+import { schedaClienteEvento, senzaSchedaCliente, type ContattoPerEvento } from "../_shared/descrizioneAppuntamentoGoogle.ts";
 import { dataOraItaliana } from "../_shared/oraItaliana.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
@@ -501,7 +502,8 @@ async function pushEvent(userId: string, companyId: string, appointmentId: strin
   if (existing) return json({ error: "Already synced", mappingId: existing.id }, 409);
 
   const meetRequested = shouldUseGoogleMeet(apt);
-  const googleEvent = buildGoogleEvent(apt, { createMeet: meetRequested && !apt.meeting_url });
+  const contatto = await contattoPerEvento(admin, apt);
+  const googleEvent = buildGoogleEvent(apt, { createMeet: meetRequested && !apt.meeting_url, contatto });
 
   const res = await fetch(
     buildGoogleEventUrl(calendarioDestinazione, undefined, meetRequested),
@@ -594,7 +596,8 @@ async function updateEvent(userId: string, companyId: string, appointmentId: str
   if (!apt) return json({ error: "Appointment not found" }, 404);
 
   const meetRequested = shouldUseGoogleMeet(apt);
-  const googleEvent = buildGoogleEvent(apt, { createMeet: meetRequested && !apt.meeting_url });
+  const contatto = await contattoPerEvento(admin, apt);
+  const googleEvent = buildGoogleEvent(apt, { createMeet: meetRequested && !apt.meeting_url, contatto });
 
   const res = await fetch(
     buildGoogleEventUrl(mapping.google_calendar_id!, mapping.google_event_id, meetRequested),
@@ -1475,7 +1478,34 @@ function normalizeTime(t: string): string {
   return "00:00:00";
 }
 
-function buildGoogleEvent(apt: any, options: { createMeet?: boolean } = {}) {
+/**
+ * Il contatto dell'appuntamento, per la scheda cliente nella descrizione
+ * dell'evento (nome, telefono, indirizzo). Si arriva al contatto dall'appuntamento
+ * o, se manca, dall'opportunità collegata. Un errore qui non deve mai fermare la
+ * sincronizzazione: senza contatto l'evento parte come prima.
+ */
+async function contattoPerEvento(admin: any, apt: any): Promise<ContattoPerEvento | null> {
+  try {
+    let contactId: string | null = apt.contact_id ?? null;
+    if (!contactId && apt.opportunity_id) {
+      const { data: opp } = await admin.from("marketing_opportunities").select("contact_id").eq("id", apt.opportunity_id).maybeSingle();
+      contactId = opp?.contact_id ?? null;
+    }
+    if (!contactId) return null;
+    const { data } = await admin
+      .from("marketing_contacts")
+      .select("first_name, last_name, company_name, phone, email, address, city, postal_code, province")
+      .eq("id", contactId)
+      .eq("company_id", apt.company_id)
+      .maybeSingle();
+    return (data as ContattoPerEvento | null) ?? null;
+  } catch (e) {
+    console.warn("contattoPerEvento:", e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
+function buildGoogleEvent(apt: any, options: { createMeet?: boolean; contatto?: ContattoPerEvento | null } = {}) {
   const hasTime = !!apt.appointment_time;
   const dateStr = apt.appointment_date;
 
@@ -1495,8 +1525,10 @@ function buildGoogleEvent(apt: any, options: { createMeet?: boolean } = {}) {
     end = { date: dateStr };
   }
 
+  const scheda = schedaClienteEvento(options.contatto, apt.formatted_address);
   const description = [
     apt.description || "",
+    scheda ? `${apt.description ? "\n" : ""}${scheda}` : "",
     shouldUseGoogleMeet(apt) ? "\nVideochiamata: Google Meet" : "",
     apt.meeting_url
       ? apt.meeting_provider === "manual" ? `Link videochiamata: ${apt.meeting_url}` : `Link Meet: ${apt.meeting_url}`
@@ -1572,7 +1604,7 @@ function parseGoogleEventToCrmFields(gEvent: any): {
   const location = gEvent.location && gEvent.location !== linkFisso ? gEvent.location : null;
 
   // Strip CRM metadata from description
-  let description = gEvent.description || "";
+  let description = senzaSchedaCliente(gEvent.description || "");
   description = description
     .replace(/crm_appointment_id=[0-9a-f-]{36}/gi, "")
     .replace(/crm_sync=true/gi, "")
