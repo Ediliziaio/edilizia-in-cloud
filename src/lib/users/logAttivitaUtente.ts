@@ -10,7 +10,8 @@
 
 export type CategoriaLog =
   | "sicurezza" | "note" | "pipeline" | "contatti" | "chiamate"
-  | "email" | "appuntamenti" | "preventivi" | "attivita" | "documenti" | "altro";
+  | "email" | "appuntamenti" | "preventivi" | "attivita" | "documenti" | "altro"
+  | "commesse" | "calendario" | "magazzino" | "acquisti" | "finanza" | "personale";
 
 export const CATEGORIE_LOG: { chiave: CategoriaLog; etichetta: string }[] = [
   { chiave: "note", etichetta: "Note" },
@@ -19,7 +20,13 @@ export const CATEGORIE_LOG: { chiave: CategoriaLog; etichetta: string }[] = [
   { chiave: "chiamate", etichetta: "Chiamate" },
   { chiave: "email", etichetta: "Email" },
   { chiave: "appuntamenti", etichetta: "Appuntamenti" },
+  { chiave: "calendario", etichetta: "Calendario" },
+  { chiave: "commesse", etichetta: "Commesse e cantieri" },
+  { chiave: "magazzino", etichetta: "Magazzino" },
+  { chiave: "acquisti", etichetta: "Acquisti e fornitori" },
   { chiave: "preventivi", etichetta: "Preventivi" },
+  { chiave: "finanza", etichetta: "Fatture e finanza" },
+  { chiave: "personale", etichetta: "Personale e mezzi" },
   { chiave: "attivita", etichetta: "Attività e task" },
   { chiave: "documenti", etichetta: "Documenti" },
   { chiave: "sicurezza", etichetta: "Accessi e sicurezza" },
@@ -169,4 +176,133 @@ export function contaPerCategoria(voci: VoceLog[]): Record<string, number> {
   const out: Record<string, number> = {};
   for (const v of voci) out[v.categoria] = (out[v.categoria] ?? 0) + 1;
   return out;
+}
+
+// ── Registro azioni su tutta l'app (user_action_log) ────────────────────────
+
+interface InfoTabella { categoria: CategoriaLog; nome: string; femminile?: boolean }
+
+/** Tabella → modulo e nome dell'oggetto, per scrivere «Commessa modificata». */
+export const TABELLE_LOG: Record<string, InfoTabella> = {
+  orders: { categoria: "commesse", nome: "Commessa", femminile: true },
+  order_work_phases: { categoria: "commesse", nome: "Fase di lavoro", femminile: true },
+  order_campo_assignments: { categoria: "commesse", nome: "Assegnazione di cantiere", femminile: true },
+  order_phase_assignments: { categoria: "commesse", nome: "Assegnazione di fase", femminile: true },
+  order_document_folders: { categoria: "commesse", nome: "Cartella documenti", femminile: true },
+  order_variable_compensations: { categoria: "commesse", nome: "Compenso variabile" },
+  order_bonus_lines: { categoria: "commesse", nome: "Riga bonus", femminile: true },
+  ordini_variazione: { categoria: "commesse", nome: "Variazione d'ordine", femminile: true },
+  giornale_lavori: { categoria: "commesse", nome: "Giornale lavori" },
+  campo_rapportini: { categoria: "commesse", nome: "Rapportino" },
+  campo_timbrature: { categoria: "commesse", nome: "Timbratura di cantiere", femminile: true },
+  note_cantiere: { categoria: "commesse", nome: "Nota di cantiere", femminile: true },
+  foto_cantiere: { categoria: "commesse", nome: "Foto di cantiere", femminile: true },
+  squadre_commesse: { categoria: "commesse", nome: "Squadra della commessa", femminile: true },
+  squadre_componenti: { categoria: "commesse", nome: "Componente di squadra" },
+  sal_records: { categoria: "commesse", nome: "SAL" },
+  prelievi_campo: { categoria: "commesse", nome: "Prelievo di cantiere" },
+  site_deliveries: { categoria: "commesse", nome: "Consegna in cantiere", femminile: true },
+  shipments_to_site: { categoria: "commesse", nome: "Spedizione in cantiere", femminile: true },
+  appointments: { categoria: "calendario", nome: "Appuntamento" },
+  marketing_calendars: { categoria: "calendario", nome: "Calendario" },
+  marketing_calendar_availability: { categoria: "calendario", nome: "Disponibilità del calendario", femminile: true },
+  user_availability: { categoria: "calendario", nome: "Disponibilità", femminile: true },
+  warehouses: { categoria: "magazzino", nome: "Magazzino" },
+  warehouse_sections: { categoria: "magazzino", nome: "Zona del magazzino", femminile: true },
+  warehouse_stock: { categoria: "magazzino", nome: "Giacenza", femminile: true },
+  warehouse_movements: { categoria: "magazzino", nome: "Movimento di magazzino" },
+  warehouse_transfers: { categoria: "magazzino", nome: "Trasferimento", },
+  warehouse_uscite: { categoria: "magazzino", nome: "Uscita di magazzino", femminile: true },
+  warehouse_lotti: { categoria: "magazzino", nome: "Lotto" },
+  stock_lotti: { categoria: "magazzino", nome: "Lotto" },
+  stock_units: { categoria: "magazzino", nome: "Unità di magazzino", femminile: true },
+  goods_receipts: { categoria: "magazzino", nome: "Ricezione merce", femminile: true },
+  ddt_ricezione: { categoria: "magazzino", nome: "DDT ricevuto" },
+  scorte_furgone: { categoria: "magazzino", nome: "Scorta del furgone", femminile: true },
+  purchase_orders: { categoria: "acquisti", nome: "Ordine d'acquisto" },
+  purchase_order_items: { categoria: "acquisti", nome: "Riga ordine d'acquisto", femminile: true },
+  suppliers: { categoria: "acquisti", nome: "Fornitore" },
+  subappaltatori: { categoria: "acquisti", nome: "Subappaltatore" },
+  contratti_subappalto: { categoria: "acquisti", nome: "Contratto di subappalto" },
+  articoli_native: { categoria: "acquisti", nome: "Articolo" },
+  anagrafiche_native: { categoria: "acquisti", nome: "Anagrafica", femminile: true },
+  listini_fornitore: { categoria: "acquisti", nome: "Listino fornitore" },
+  listino_prezzi: { categoria: "acquisti", nome: "Listino prezzi" },
+  quotes: { categoria: "preventivi", nome: "Preventivo" },
+  quote_items: { categoria: "preventivi", nome: "Riga preventivo", femminile: true },
+  quote_versions: { categoria: "preventivi", nome: "Versione del preventivo", femminile: true },
+  signature_requests: { categoria: "preventivi", nome: "Richiesta di firma", femminile: true },
+  sr_progetti: { categoria: "preventivi", nome: "Progetto serramenti" },
+  fv_progetti: { categoria: "preventivi", nome: "Progetto fotovoltaico" },
+  rst_progetti: { categoria: "preventivi", nome: "Progetto ristrutturazione" },
+  bgn_progetti: { categoria: "preventivi", nome: "Progetto bagno" },
+  clm_progetti: { categoria: "preventivi", nome: "Progetto climatizzazione" },
+  ele_progetti: { categoria: "preventivi", nome: "Progetto impianto elettrico" },
+  idr_progetti: { categoria: "preventivi", nome: "Progetto idraulico" },
+  pav_progetti: { categoria: "preventivi", nome: "Progetto pavimenti" },
+  pis_progetti: { categoria: "preventivi", nome: "Progetto piscina" },
+  tet_progetti: { categoria: "preventivi", nome: "Progetto tetto" },
+  invoices: { categoria: "finanza", nome: "Fattura", femminile: true },
+  invoice_payments: { categoria: "finanza", nome: "Incasso" },
+  documenti_fiscali: { categoria: "finanza", nome: "Documento fiscale" },
+  fatture_ricevute: { categoria: "finanza", nome: "Fattura ricevuta", femminile: true },
+  prima_nota_entries: { categoria: "finanza", nome: "Movimento di prima nota" },
+  scadenze: { categoria: "finanza", nome: "Scadenza", femminile: true },
+  company_costs: { categoria: "finanza", nome: "Costo" },
+  expense_reports: { categoria: "finanza", nome: "Nota spese", femminile: true },
+  cespiti: { categoria: "finanza", nome: "Cespite" },
+  employees: { categoria: "personale", nome: "Dipendente" },
+  hr_richieste: { categoria: "personale", nome: "Richiesta HR", femminile: true },
+  hr_assenze: { categoria: "personale", nome: "Assenza", femminile: true },
+  hr_candidati: { categoria: "personale", nome: "Candidato" },
+  hr_cedolini: { categoria: "personale", nome: "Cedolino" },
+  hr_documenti: { categoria: "personale", nome: "Documento HR" },
+  leave_requests: { categoria: "personale", nome: "Richiesta di permesso", femminile: true },
+  mezzi: { categoria: "personale", nome: "Mezzo" },
+  mezzi_assegnazioni: { categoria: "personale", nome: "Assegnazione del mezzo", femminile: true },
+  mezzi_manutenzioni: { categoria: "personale", nome: "Manutenzione del mezzo", femminile: true },
+  marketing_pipelines: { categoria: "pipeline", nome: "Pipeline", femminile: true },
+  marketing_pipeline_stages: { categoria: "pipeline", nome: "Fase della pipeline", femminile: true },
+  marketing_tags: { categoria: "contatti", nome: "Etichetta", femminile: true },
+  marketing_documents: { categoria: "documenti", nome: "Documento" },
+  tasks: { categoria: "attivita", nome: "Attività", femminile: true },
+  tickets: { categoria: "attivita", nome: "Ticket" },
+  customer_documents: { categoria: "documenti", nome: "Documento del cliente" },
+  contratti_manutenzione: { categoria: "commesse", nome: "Contratto di manutenzione" },
+  social_posts: { categoria: "altro", nome: "Post social" },
+  email_templates: { categoria: "email", nome: "Modello email" },
+  automation_flows: { categoria: "altro", nome: "Automazione", femminile: true },
+  lead_forms: { categoria: "altro", nome: "Modulo lead" },
+};
+
+export interface RigaAzione {
+  id: number | string;
+  created_at: string;
+  azione: string;
+  tabella: string;
+  record_id?: string | null;
+  etichetta?: string | null;
+  campi_modificati?: string[] | null;
+}
+
+/** Una riga di user_action_log come voce del log: «Commessa modificata — Rossi (stato, note)». */
+export function voceDaAzione(r: RigaAzione): VoceLog {
+  const info = TABELLE_LOG[r.tabella];
+  const nome = info?.nome ?? r.tabella.replace(/_/g, " ");
+  const f = !!info?.femminile;
+  const verbo = r.azione === "insert" ? (f ? "creata" : "creato")
+    : r.azione === "delete" ? (f ? "eliminata" : "eliminato")
+      : (f ? "modificata" : "modificato");
+  const campi = (r.campi_modificati ?? []).map((c) => c.replace(/_/g, " "));
+  const dettaglio = [
+    r.etichetta,
+    r.azione === "update" && campi.length ? `Campi: ${campi.slice(0, 8).join(", ")}${campi.length > 8 ? `… (+${campi.length - 8})` : ""}` : null,
+  ].filter(Boolean).join(" — ");
+  return {
+    id: `azione_${r.id}`,
+    quando: r.created_at,
+    categoria: info?.categoria ?? "altro",
+    titolo: `${nome} ${verbo}`,
+    dettaglio: dettaglio || null,
+  };
 }

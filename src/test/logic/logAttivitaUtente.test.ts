@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   chiaveGiorno, contaPerCategoria, estremiIso, intervalloPreset, raggruppaPerGiorno,
-  vocedaAttivitaRegistro, vocedaLogAzienda, type VoceLog,
+  vocedaAttivitaRegistro, vocedaLogAzienda, voceDaAzione, type VoceLog,
 } from "@/lib/users/logAttivitaUtente";
 
 describe("log attività utente", () => {
@@ -33,5 +33,14 @@ describe("log attività utente", () => {
     expect(g.map((x) => x.giorno)).toEqual([chiaveGiorno("2026-09-29T10:00:00"), chiaveGiorno("2026-09-28T09:00:00")]);
     expect(g[0].voci.map((x) => x.id)).toEqual(["c", "b"]);
     expect(contaPerCategoria(voci)).toEqual({ note: 2, pipeline: 1 });
+  });
+
+  it("scrive le azioni dei moduli con genere e campi", () => {
+    const base = { id: 1, created_at: "2026-09-29T10:00:00Z", tabella: "orders", etichetta: "Rossi Mario" };
+    expect(voceDaAzione({ ...base, azione: "insert" })).toMatchObject({ categoria: "commesse", titolo: "Commessa creata", dettaglio: "Rossi Mario" });
+    expect(voceDaAzione({ ...base, azione: "update", campi_modificati: ["status", "data_fine"] }).dettaglio).toBe("Rossi Mario — Campi: status, data fine");
+    expect(voceDaAzione({ id: 2, created_at: "2026-09-29T10:00:00Z", tabella: "warehouse_movements", azione: "delete" }))
+      .toMatchObject({ categoria: "magazzino", titolo: "Movimento di magazzino eliminato" });
+    expect(voceDaAzione({ id: 3, created_at: "2026-09-29T10:00:00Z", tabella: "tabella_nuova", azione: "insert" }).categoria).toBe("altro");
   });
 });

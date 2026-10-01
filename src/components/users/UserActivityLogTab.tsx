@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 import {
   CATEGORIE_LOG, contaPerCategoria, estremiIso, etichettaGiorno, intervalloPreset,
   raggruppaPerGiorno, vocedaAttivitaRegistro, vocedaLogAzienda,
-  type CategoriaLog, type Intervallo, type PresetPeriodo, type VoceLog,
+  voceDaAzione, type CategoriaLog, type Intervallo, type PresetPeriodo, type VoceLog,
 } from "@/lib/users/logAttivitaUtente";
 
 interface UserActivityLogTabProps {
@@ -50,6 +50,12 @@ const COLORE_CATEGORIA: Record<CategoriaLog, string> = {
   attivita: "bg-teal-600/10 text-teal-700 border-teal-600/20",
   documenti: "bg-slate-500/10 text-slate-700 border-slate-500/20",
   altro: "bg-muted text-muted-foreground",
+  commesse: "bg-emerald-600/10 text-emerald-700 border-emerald-600/20",
+  calendario: "bg-indigo-600/10 text-indigo-700 border-indigo-600/20",
+  magazzino: "bg-stone-500/10 text-stone-700 border-stone-500/20",
+  acquisti: "bg-cyan-600/10 text-cyan-700 border-cyan-600/20",
+  finanza: "bg-rose-600/10 text-rose-700 border-rose-600/20",
+  personale: "bg-pink-600/10 text-pink-700 border-pink-600/20",
 };
 
 const PRESET: { chiave: PresetPeriodo; etichetta: string }[] = [
@@ -93,7 +99,7 @@ async function caricaLog(userId: string, companyId: string, intervallo: Interval
   if (estremi.da) sicurezzaQ = sicurezzaQ.gte("created_at", estremi.da);
   if (estremi.a) sicurezzaQ = sicurezzaQ.lte("created_at", estremi.a);
 
-  const [sicurezza, attivita, note, chiamate, chiamateUmane, email, appuntamenti, task, preventivi, logAzienda] = await Promise.all([
+  const [sicurezza, attivita, note, chiamate, chiamateUmane, email, appuntamenti, task, preventivi, logAzienda, azioni] = await Promise.all([
     sicurezzaQ.then((r: any) => (r.error ? [] : r.data ?? [])),
     leggiFonte("marketing_contact_activities", "id, activity_type, description, contact_id, created_at", "created_by", "created_at", userId, companyId, estremi),
     leggiFonte("marketing_contact_notes", "id, content, contact_id, automatica, created_at", "created_by", "created_at", userId, companyId, estremi),
@@ -104,7 +110,15 @@ async function caricaLog(userId: string, companyId: string, intervallo: Interval
     leggiFonte("tasks", "id, title, status, contact_id, created_at", "created_by", "created_at", userId, companyId, estremi),
     leggiFonte("quotes", "id, title, client_name, status, total, contact_id, created_at", "created_by", "created_at", userId, companyId, estremi),
     leggiFonte("company_activity_log", "id, action, description, target_label, created_at", "user_id", "created_at", userId, companyId, estremi),
+    // Commesse, calendario, magazzino, acquisti, fatture, personale… (trigger registra_azione_utente).
+    leggiFonte("user_action_log", "id, azione, tabella, record_id, etichetta, campi_modificati, created_at", "user_id", "created_at", userId, companyId, estremi),
   ]);
+
+  // Creazioni già coperte dal registro generale: le fonti storiche (appuntamenti,
+  // attività, preventivi) non le ripetono.
+  const giaCreate = new Set<string>(
+    azioni.filter((a: any) => a.azione === "insert").map((a: any) => `${a.tabella}:${a.record_id}`),
+  );
 
   const voci: VoceLog[] = [];
 
@@ -152,6 +166,7 @@ async function caricaLog(userId: string, companyId: string, intervallo: Interval
     });
   }
   for (const r of appuntamenti) {
+    if (giaCreate.has(`appointments:${r.id}`)) continue;
     voci.push({
       id: `ap_${r.id}`, quando: r.created_at, categoria: "appuntamenti", titolo: "Appuntamento fissato",
       dettaglio: [r.title, r.appointment_date ? `per il ${format(new Date(r.appointment_date), "dd/MM/yyyy")}` : null].filter(Boolean).join(" · ") || null,
@@ -159,9 +174,11 @@ async function caricaLog(userId: string, companyId: string, intervallo: Interval
     });
   }
   for (const r of task) {
+    if (giaCreate.has(`tasks:${r.id}`)) continue;
     voci.push({ id: `tk_${r.id}`, quando: r.created_at, categoria: "attivita", titolo: "Attività creata", dettaglio: r.title, contactId: r.contact_id });
   }
   for (const r of preventivi) {
+    if (giaCreate.has(`quotes:${r.id}`)) continue;
     voci.push({
       id: `qt_${r.id}`, quando: r.created_at, categoria: "preventivi", titolo: "Preventivo creato",
       dettaglio: [r.title, r.client_name, r.total != null ? `${Number(r.total).toLocaleString("it-IT")} €` : null].filter(Boolean).join(" · ") || null,
@@ -169,11 +186,15 @@ async function caricaLog(userId: string, companyId: string, intervallo: Interval
     });
   }
   for (const r of logAzienda) {
+    // Preventivi, commesse e attività ora hanno la riga del registro generale: niente doppioni.
+    if (azioni.length > 0 && /^(quote\.|order\.|task_)/.test(r.action ?? "")) continue;
     const v = vocedaLogAzienda(r.action);
     voci.push({ id: `la_${r.id}`, quando: r.created_at, categoria: v.categoria, titolo: v.titolo, dettaglio: [r.target_label, r.description].filter(Boolean).join(" — ") || null });
   }
 
-  const pieno = [sicurezza, attivita, note, chiamate, chiamateUmane, email, appuntamenti, task, preventivi, logAzienda]
+  for (const r of azioni) voci.push(voceDaAzione(r));
+
+  const pieno = [sicurezza, attivita, note, chiamate, chiamateUmane, email, appuntamenti, task, preventivi, logAzienda, azioni]
     .some((f: any[]) => f.length >= LIMITE_PER_FONTE);
   return { voci: voci.filter((v) => v.quando), troncato: pieno };
 }
