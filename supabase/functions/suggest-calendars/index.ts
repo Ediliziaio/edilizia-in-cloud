@@ -10,6 +10,7 @@ import {
 } from "./scoring.ts";
 
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { percorsoHere } from "../_shared/tragitto.ts";
 
 interface DirectionsLeg {
   distance_m: number;
@@ -50,6 +51,18 @@ async function getDirections(
       }
     } catch {
       // Fall through to haversine
+    }
+  }
+
+  // Senza Google: HERE (strade vere). Solo se anche HERE manca si stima in linea d'aria.
+  const chiaveHere = Deno.env.get("HERE_API_KEY");
+  if (chiaveHere) {
+    const tratte = await percorsoHere(waypoints, chiaveHere);
+    if (tratte) {
+      const legsHere: DirectionsLeg[] = tratte.map((t) => ({ distance_m: t.distance_m, duration_s: t.duration_s }));
+      const km = legsHere.reduce((s, l) => s + l.distance_m, 0) / 1000;
+      const min = legsHere.reduce((s, l) => s + l.duration_s, 0) / 60;
+      return { legs: legsHere, total_km: Math.round(km * 10) / 10, total_minutes: Math.round(min), isEstimate: false };
     }
   }
 

@@ -93,3 +93,19 @@ export function linkWhatsApp(telefono: string | null | undefined, testo: string)
   const internazionale = cifre.startsWith("00") ? cifre.slice(2) : cifre.length <= 10 && cifre.startsWith("3") ? `39${cifre}` : cifre;
   return `https://wa.me/${internazionale}?text=${encodeURIComponent(testo)}`;
 }
+
+/** Distanza in linea d'aria in km (formula di Haversine), arrotondata a 0,1. */
+export function distanzaLineaAria(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const rad = (g: number) => (g * Math.PI) / 180;
+  const dLat = rad(lat2 - lat1);
+  const dLng = rad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return Math.round(6371 * 2 * Math.asin(Math.sqrt(a)) * 10) / 10;
+}
+
+/** «5,2 km» a partire da metri; sotto il chilometro in metri. */
+export function testoKm(metri: number): string {
+  if (!Number.isFinite(metri) || metri < 0) return "";
+  if (metri < 1000) return `${Math.round(metri)} m`;
+  return `${(metri / 1000).toFixed(1).replace(".", ",")} km`;
+}

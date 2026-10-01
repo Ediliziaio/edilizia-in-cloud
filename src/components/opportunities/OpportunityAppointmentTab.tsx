@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -24,8 +24,9 @@ import { useGoogleCalendarSync } from "@/hooks/useGoogleCalendarSync";
 import { useAppleCalendarSync } from "@/hooks/useAppleCalendarSync";
 import { usePermissions } from "@/hooks/usePermissions";
 import { aggiornaAgendaSchede } from "@/lib/opportunitaAgenda";
+import { forwardGeocode } from "@/lib/geocoding";
 import {
-  linkWhatsApp, scorciatoieData, sovrapposizioni, testoConferma, titoloSuggerito,
+  distanzaLineaAria, linkWhatsApp, scorciatoieData, testoKm, sovrapposizioni, testoConferma, titoloSuggerito,
 } from "@/lib/opportunita/appuntamentoPrecompilato";
 
 interface Props {
@@ -328,21 +329,31 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
     if (teamUsers.some((u) => u.id === oppInfo.assigned_to)) setAssignedTo(oppInfo.assigned_to);
   }, [oppInfo, teamUsers, assegnatarioToccato, assignedTo]);
 
+  // L'indirizzo del contatto si propone una volta sola (chi lo toglie con la X non lo
+  // vede riapparire) e si geocodifica: senza coordinate non ci sono mappa, km né
+  // suggerimenti di calendario.
+  const indirizzoPrecompilato = useRef(false);
   useEffect(() => {
-    if (!contactInfo?.address || addressData.address_line || addressData.formatted_address) return;
+    if (indirizzoPrecompilato.current || !contactInfo?.address) return;
+    indirizzoPrecompilato.current = true;
     const citta = [contactInfo.postal_code, contactInfo.city].filter(Boolean).join(" ");
     const formatted = [contactInfo.address, [citta, contactInfo.province ? `(${contactInfo.province})` : ""].filter(Boolean).join(" ")]
       .filter(Boolean).join(", ");
-    setAddressData({
+    setAddressData((prev) => (prev.address_line || prev.formatted_address ? prev : {
       ...emptyAddress,
-      address_line: contactInfo.address,
+      address_line: contactInfo.address ?? "",
       address_city: contactInfo.city ?? "",
       address_postal_code: contactInfo.postal_code ?? "",
       address_province: contactInfo.province ?? "",
       address_country: contactInfo.country && contactInfo.country.length === 2 ? contactInfo.country : "IT",
       formatted_address: formatted,
+    }));
+    void forwardGeocode(formatted).then((c) => {
+      if (!c) return;
+      // Solo se nel frattempo l'utente non ha cambiato indirizzo.
+      setAddressData((prev) => (prev.formatted_address === formatted && prev.lat == null ? { ...prev, lat: c.lat, lng: c.lng } : prev));
     });
-  }, [contactInfo, addressData.address_line, addressData.formatted_address]);
+  }, [contactInfo]);
 
   const tipoEtichetta = OPP_APPOINTMENT_TYPES.find((t) => t.value === appointmentType)?.label ?? "";
   const nomePerTitolo = contactName || [contactInfo?.first_name, contactInfo?.last_name].filter(Boolean).join(" ");
@@ -373,11 +384,15 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
             ],
           },
         });
-        if (error || !data?.legs?.[0]) return null;
-        return { duration_text: data.legs[0].duration_text, distance_text: data.legs[0].distance_text };
+        if (!error && data?.legs?.[0]) {
+          return { duration_text: data.legs[0].duration_text as string, distance_text: data.legs[0].distance_text as string, stima: false };
+        }
       } catch {
-        return null;
+        // si ripiega sulla stima
       }
+      // Strada non calcolabile: almeno i km in linea d'aria, detti come tali.
+      const km = distanzaLineaAria(selectedCalendar.base_lat, selectedCalendar.base_lng, addressData.lat, addressData.lng);
+      return { duration_text: "", distance_text: testoKm(km * 1000), stima: true };
     },
     enabled: !!selectedCalendar?.base_lat && !!addressData.lat,
     staleTime: 5 * 60 * 1000,
@@ -678,16 +693,34 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
       {/* Mobile: senza riquadro intorno, i campi stanno in fila con gli altri. */}
       <div className="rounded-lg border bg-muted/30 p-3 space-y-3 max-sm:border-0 max-sm:bg-transparent max-sm:p-0">
         <AddressAutocomplete value={addressData} onChange={setAddressData} />
+        {(addressData.formatted_address || addressData.address_line) && (addressData.lat == null || addressData.lng == null) && (
+          <p className="text-xs text-muted-foreground">
+            Indirizzo senza posizione sulla mappa: tocca la X e cercalo di nuovo scegliendolo dai suggerimenti, così si calcolano i km.
+          </p>
+        )}
         {addressData.lat != null && addressData.lng != null && (
           <>
             <AddressMapPreview lat={addressData.lat} lng={addressData.lng} formattedAddress={addressData.formatted_address} />
             {baseDistance && (
               <div className="flex items-center gap-2 text-sm bg-background rounded-md border px-3 py-1.5">
                 <Car className="h-3.5 w-3.5 text-primary" />
-                <span className="font-medium">{baseDistance.duration_text}</span>
-                <span className="text-muted-foreground">- {baseDistance.distance_text}</span>
-                <span className="text-xs text-muted-foreground ml-auto">dalla base calendario</span>
+                {baseDistance.duration_text && <span className="font-medium">{baseDistance.duration_text}</span>}
+                <span className={baseDistance.duration_text ? "text-muted-foreground" : "font-medium"}>
+                  {baseDistance.duration_text ? "- " : "≈ "}{baseDistance.distance_text}
+                </span>
+                <span className="text-xs text-muted-foreground ml-auto">
+                  {baseDistance.stima ? "in linea d'aria dalla base" : "dalla base calendario"}
+                </span>
               </div>
+            )}
+            {selectedCalendar && !selectedCalendar.base_lat && (
+              <p className="flex items-start gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs text-amber-900">
+                <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+                <span>
+                  Il calendario «{selectedCalendar.name}» non ha un indirizzo base, quindi non si possono calcolare i km.
+                  Impostalo in Impostazioni → Calendari.
+                </span>
+              </p>
             )}
           </>
         )}
@@ -710,7 +743,14 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
           {sameDayWithCoords.map((a) => (
             <div key={a.id} className="flex items-center gap-2">
               <Clock className="h-3 w-3" />
-              <span>{a.appointment_time?.substring(0, 5)} — {a.title || a.formatted_address || "Appuntamento"}</span>
+              <span>
+                {a.appointment_time?.substring(0, 5)} — {a.title || a.formatted_address || "Appuntamento"}
+                {addressData.lat != null && addressData.lng != null && a.lat != null && a.lng != null && (
+                  <span className="ml-1 text-muted-foreground">
+                    · ≈ {testoKm(distanzaLineaAria(addressData.lat, addressData.lng, a.lat, a.lng) * 1000)} da qui
+                  </span>
+                )}
+              </span>
             </div>
           ))}
         </div>

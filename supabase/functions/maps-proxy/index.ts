@@ -4,6 +4,7 @@ import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 
 import { serveConMetriche } from "../_shared/withMetrics.ts";
+import { percorsoHere } from "../_shared/tragitto.ts";
 serveConMetriche("maps-proxy", async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: getCorsHeaders(req) });
@@ -272,14 +273,11 @@ serveConMetriche("maps-proxy", async (req) => {
       );
     }
 
-    // ── DIRECTIONS ── (deprecato: usare geo-router action=route / getRoute)
+    // ── DIRECTIONS ──
+    // Google se la chiave c'è; altrimenti (o se Google non trova la strada) HERE
+    // Routing, con la stessa forma di risposta: i km dalla base del calendario
+    // non devono dipendere da una chiave che non è mai stata configurata.
     if (action === "directions") {
-      if (!GOOGLE_MAPS_API_KEY) {
-        return new Response(
-          JSON.stringify({ error: "directions richiede GOOGLE_MAPS_API_KEY — usare geo-router (HERE)" }),
-          { status: 501, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
-        );
-      }
       const waypoints = body.waypoints as Array<{ lat: number; lng: number }>;
       if (!waypoints || waypoints.length < 2) {
         return new Response(
@@ -287,6 +285,27 @@ serveConMetriche("maps-proxy", async (req) => {
           { status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
         );
       }
+
+      const rispostaHere = async () => {
+        const tratte = HERE_API_KEY ? await percorsoHere(waypoints, HERE_API_KEY) : null;
+        if (!tratte) {
+          return new Response(
+            JSON.stringify({ error: "No route found", legs: [], total_duration_s: 0, total_distance_m: 0 }),
+            { headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
+          );
+        }
+        return new Response(
+          JSON.stringify({
+            legs: tratte,
+            total_duration_s: tratte.reduce((t, l) => t + l.duration_s, 0),
+            total_distance_m: tratte.reduce((t, l) => t + l.distance_m, 0),
+            provider: "here",
+          }),
+          { headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
+        );
+      };
+
+      if (!GOOGLE_MAPS_API_KEY) return await rispostaHere();
 
       const origin = `${waypoints[0].lat},${waypoints[0].lng}`;
       const destination = `${waypoints[waypoints.length - 1].lat},${waypoints[waypoints.length - 1].lng}`;
@@ -312,12 +331,7 @@ serveConMetriche("maps-proxy", async (req) => {
       );
       const data = await res.json();
 
-      if (!data.routes?.length) {
-        return new Response(
-          JSON.stringify({ error: "No route found", legs: [], total_duration_s: 0, total_distance_m: 0 }),
-          { headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
-        );
-      }
+      if (!data.routes?.length) return await rispostaHere();
 
       const route = data.routes[0];
       const legs = route.legs.map((leg: any) => ({
