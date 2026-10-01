@@ -9,6 +9,7 @@
 import type { AnagraficaAzienda, DocumentoFiscale } from "@/types/fatturazione";
 import { validateDocumento } from "@/lib/fatturazione/calcoli";
 import { validateXML } from "@/lib/fatturazione/generateXML";
+import { ePrivato, nomeCliente } from "@/lib/fatturazione/clienteSnapshot";
 import { validaCodiceFiscale, validaPartitaIva } from "@/lib/fatturazione/validazioniAnagrafiche";
 import { datiReaMancanti, eSocieta } from "../../../supabase/functions/_shared/datiSocietari";
 
@@ -58,7 +59,9 @@ export function verificaFormale(
   // ── Chi riceve ─────────────────────────────────────────────────────────
   const cl = ((doc.cliente_snapshot ?? {}) as unknown) as Dati;
   const nazione = String(cl.indirizzo_nazione || "IT").toUpperCase();
-  if (!String(cl.ragione_sociale ?? "").trim()) errore("Ragione sociale del cliente mancante"); else ok("Cliente indicato");
+  const clienteSnap = (doc.cliente_snapshot ?? null) as never;
+  if (!nomeCliente(clienteSnap)) errore(ePrivato(clienteSnap) ? "Cliente privato: servono nome e cognome" : "Ragione sociale del cliente mancante");
+  else ok(ePrivato(clienteSnap) ? "Nome e cognome del cliente indicati" : "Cliente indicato");
   const pivaCl = String(cl.partita_iva ?? "");
   const cfCl = String(cl.codice_fiscale ?? "");
   if (!pivaCl && !cfCl) {

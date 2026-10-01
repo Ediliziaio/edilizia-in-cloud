@@ -95,14 +95,16 @@ export function downloadFile(content: string, filename: string, mimeType: string
 export async function exportToXLSX(
   rows: Record<string, string>[],
   columns: CsvColumn[],
-  filename: string
+  filename: string,
+  /** Nome del foglio (prima era sempre «Contatti», anche per le fatture). */
+  sheetName: string = "Contatti"
 ) {
   const ExcelJS = (await import("exceljs")).default;
   const headerRow = columns.map((c) => c.label);
   const dataRows = rows.map((row) => columns.map((c) => neutralizeCsvFormula(row[c.key] || "")));
 
   const wb = new ExcelJS.Workbook();
-  const ws = wb.addWorksheet("Contatti");
+  const ws = wb.addWorksheet(sheetName.replace(/[\\/*?:\[\]]/g, " ").slice(0, 31) || "Foglio1");
 
   ws.columns = columns.map((c, i) => {
     const maxLen = Math.max(

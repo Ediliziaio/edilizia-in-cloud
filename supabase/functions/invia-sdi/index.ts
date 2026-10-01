@@ -233,8 +233,13 @@ Deno.serve(async (req) => {
     if (snap.codice_fiscale && !isValidCodiceFiscale(snap.codice_fiscale)) {
       validationErrors.push(`Codice Fiscale cliente non valido: ${snap.codice_fiscale}`);
     }
-    if (!snap.ragione_sociale) {
-      validationErrors.push("Ragione sociale cliente mancante");
+    // Un privato non ha ragione sociale: si identifica con nome e cognome.
+    if (!snap.ragione_sociale && !(String(snap.nome ?? "").trim() && String(snap.cognome ?? "").trim())) {
+      validationErrors.push(
+        snap.tipo_cliente === "B2C" && !snap.partita_iva
+          ? "Cliente privato: servono nome e cognome"
+          : "Ragione sociale cliente mancante",
+      );
     }
 
     if (validationErrors.length > 0) {

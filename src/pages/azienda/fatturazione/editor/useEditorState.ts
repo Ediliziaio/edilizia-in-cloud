@@ -1,3 +1,4 @@
+import { normalizzaCliente } from "@/lib/fatturazione/clienteSnapshot";
 import { useReducer, useEffect, useRef, useState } from "react";
 import type {
   DocumentoFiscale,
@@ -191,7 +192,8 @@ function editorReducer(state: EditorState, action: Action): EditorState {
       return recalculate({
         ...state,
         anagrafica_id: action.anagrafica_id,
-        cliente_snapshot: action.snapshot,
+        // Per un privato la ragione sociale è «Nome Cognome»: sempre allineata.
+        cliente_snapshot: normalizzaCliente(action.snapshot),
       });
 
     case "CLEAR_CLIENTE":

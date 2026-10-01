@@ -56,10 +56,15 @@ import {
   Euro,
   Sparkles,
   Printer,
+  FileSpreadsheet,
+  Archive,
+  ChevronDown,
 } from "lucide-react";
 import { NavyStatCard } from "@/components/costi/KpiCard";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { fatturaRicevutaHtml, type FatturaRicevutaVista } from "@/lib/fatturazione/fatturaRicevutaHtml";
 import { stampaPreventivoNativo } from "@/lib/fotovoltaico/htmlToPdf";
+import { esportaElencoRicevute, esportaXmlRicevuteZip, type RigaRicevuta } from "@/lib/fatturazione/esportaRicevute";
 import { toast } from "sonner";
 import {
   espandiXmlDaFiles,
@@ -153,6 +158,7 @@ export default function FattureRicevutePage() {
   const [annoFilter, setAnnoFilter] = useState(annoCorrente);
   const [xmlPreview, setXmlPreview] = useState<string | null>(null);
   const [fatturaVista, setFatturaVista] = useState<FatturaRicevutaVista | null>(null);
+  const [esportando, setEsportando] = useState<string | null>(null);
   const [contabilizzaFattura, setContabilizzaFattura] = useState<FatturaRicevuta | null>(null);
   const [collegaFattura, setCollegaFattura] = useState<FatturaRicevuta | null>(null);
   const [progress, setProgress] = useState<{ fatte: number; totale: number } | null>(null);
@@ -538,6 +544,9 @@ export default function FattureRicevutePage() {
             if (dettaglio?.error) motivo = dettaglio.error;
           } catch { /* resta il messaggio generico */ }
           esiti.push({ nome: f.nome, stato: "errore", motivo, direzione });
+        } else if (resp.data?.duplicate && resp.data?.completed) {
+          // Già registrata coi soli dati: ora ha anche il file originale.
+          esiti.push({ nome: f.nome, stato: "importata", direzione });
         } else if (resp.data?.duplicate) {
           esiti.push({ nome: f.nome, stato: "duplicata", direzione });
         } else if (resp.data?.success) {
@@ -626,6 +635,42 @@ export default function FattureRicevutePage() {
     setFatturaVista(vista);
   };
 
+  // ─── Esporta ────────────────────────────────────────────
+  // Quello che si vede nella lista (anno, stato e ricerca già applicati).
+  const etichettaEsporta = `${annoFilter === "all" ? "tutte" : annoFilter}${statoFilter !== "all" ? `_${statoFilter}` : ""}`;
+  const righeEsporta = filtered as unknown as RigaRicevuta[];
+
+  const handleEsportaElenco = async () => {
+    setEsportando("elenco");
+    try {
+      await esportaElencoRicevute(righeEsporta, etichettaEsporta);
+      toast.success(`${righeEsporta.length} fatture esportate in Excel`);
+    } catch (err) {
+      toast.error("Esportazione non riuscita", { description: err instanceof Error ? err.message : undefined });
+    } finally {
+      setEsportando(null);
+    }
+  };
+
+  const handleEsportaXml = async () => {
+    if (righeEsporta.length > 600) {
+      toast.error("Troppe fatture per uno zip solo", { description: "Restringi l'elenco (per anno o per stato): al massimo 600 alla volta." });
+      return;
+    }
+    setEsportando("xml");
+    try {
+      const esito = await esportaXmlRicevuteZip(supabase, companyId!, righeEsporta, etichettaEsporta, (fatte, totale) => setEsportando(`xml ${fatte}/${totale}`));
+      if (esito.inclusi === 0 && esito.senzaXml === 0) toast.info("Nessuna fattura da esportare");
+      else if (esito.senzaXml > 0) {
+        toast.warning(`${esito.inclusi} XML esportati, ${esito.senzaXml} senza file`, { description: "Le fatture senza XML sono elencate in LEGGIMI.txt dentro lo zip." });
+      } else toast.success(`${esito.inclusi} XML esportati`);
+    } catch (err) {
+      toast.error("Esportazione non riuscita", { description: err instanceof Error ? err.message : undefined });
+    } finally {
+      setEsportando(null);
+    }
+  };
+
   // ─── Render ─────────────────────────────────────────────
 
   return (
@@ -663,6 +708,23 @@ export default function FattureRicevutePage() {
                 : `Classifica con l'AI (${kpi.daClassificare})`}
             </Button>
           )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" disabled={esportando !== null || righeEsporta.length === 0} title="Esporta le fatture che vedi nella lista">
+                {esportando ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Download className="h-4 w-4 mr-2" />}
+                {esportando?.startsWith("xml ") ? `Zip ${esportando.slice(4)}…` : "Esporta"}
+                <ChevronDown className="h-3.5 w-3.5 ml-1.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => void handleEsportaElenco()}>
+                <FileSpreadsheet className="h-4 w-4 mr-2" /> Elenco in Excel ({righeEsporta.length})
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => void handleEsportaXml()}>
+                <Archive className="h-4 w-4 mr-2" /> XML originali (zip)
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button
             variant="outline"
             onClick={() => fileInputRef.current?.click()}

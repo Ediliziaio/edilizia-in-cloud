@@ -209,7 +209,7 @@ Deno.serve(async (req) => {
       const esito = await salvaFatturaRicevuta(supabase, { companyId: company_id, xml, letta: parsed, originale });
       if (esito.errore) throw new Error(esito.errore);
       if (esito.doppione) {
-        return new Response(JSON.stringify({ success: true, duplicate: true, id: esito.id }), {
+        return new Response(JSON.stringify({ success: true, duplicate: true, completed: !!esito.completata, id: esito.id }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }

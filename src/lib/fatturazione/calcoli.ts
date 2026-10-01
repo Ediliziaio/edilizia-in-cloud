@@ -2,6 +2,7 @@
 // Centralized calculation engine for native billing documents
 
 import { arrotondaCentesimi } from "@/lib/numberUtils";
+import { datiClienteMancanti, ePrivato, nomeCliente } from "@/lib/fatturazione/clienteSnapshot";
 import type {
   RigaDocumento,
   RiepilogoIVA,
@@ -303,12 +304,17 @@ export function validateDocumento(
   // Cliente required (except proforma/preventivo)
   if (!["proforma", "preventivo"].includes(tipo)) {
     const snap = doc.cliente_snapshot as ClienteSnapshot | undefined;
-    if (!snap?.ragione_sociale) {
+    if (!nomeCliente(snap)) {
       errors.push({
         field: "cliente",
-        message: "Il cliente è obbligatorio",
+        message: ePrivato(snap) ? "Cliente privato: servono nome e cognome" : "Il cliente è obbligatorio",
         severity: "error",
       });
+    } else if (ePrivato(snap)) {
+      // Un privato si identifica con nome, cognome, codice fiscale e indirizzo.
+      for (const m of datiClienteMancanti(snap)) {
+        errors.push({ field: "cliente", message: `Cliente privato: manca ${m}`, severity: "error" });
+      }
     }
   }
 

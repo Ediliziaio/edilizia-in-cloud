@@ -1,3 +1,4 @@
+import { nomeCliente } from "@/lib/fatturazione/clienteSnapshot";
 import { formatCurrency } from "@/lib/formatters";
 import { format, parseISO, isPast } from "date-fns";
 import { it } from "date-fns/locale";
@@ -133,10 +134,10 @@ export function PreviewFattura({ documento, azienda, scale = 0.65 }: Props) {
         </div>
 
         {/* ─── Client Box ─── */}
-        {snap?.ragione_sociale && (
+        {nomeCliente(snap) && (
           <div style={{ backgroundColor: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "6px", padding: "12px 16px", maxWidth: "55%", marginBottom: "20px" }}>
             <div style={{ fontSize: "7pt", textTransform: "uppercase", color: "#94a3b8", letterSpacing: "1px", marginBottom: "4px" }}>Destinatario</div>
-            <div style={{ fontWeight: 600, fontSize: "11pt" }}>{snap.ragione_sociale}</div>
+            <div style={{ fontWeight: 600, fontSize: "11pt" }}>{nomeCliente(snap)}</div>
             {snap.indirizzo_via && (
               <div style={{ fontSize: "8pt", color: "#64748b" }}>
                 {snap.indirizzo_via}, {snap.indirizzo_cap} {snap.indirizzo_comune}
