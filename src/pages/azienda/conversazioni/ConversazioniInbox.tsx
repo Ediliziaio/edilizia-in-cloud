@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   useConversazioniList,
   useConversazioneTimeline,
+  useConversazioneDettagli,
   useConversazioneOverlay,
   useConversazioniCerca,
   useAssistenteConversazione,
@@ -30,6 +31,10 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import ConversazioneComposer from "./ConversazioneComposer";
 import ContactDetailPanel from "./ContactDetailPanel";
+import {
+  FILTRI_CANALE, chiaveDettaglio, contaPerCanale, formattaContatto, percorsoMessaggio, rigaPercorsoWhatsApp,
+  type FiltroCanale,
+} from "@/lib/conversazioni/presentazione";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -132,10 +137,25 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
       : `/azienda/clienti/${selectedItem.entita_id}`
     : "";
 
-  const { data: timeline = [], isLoading: timelineLoading } = useConversazioneTimeline(
+  const { data: timelineTutta = [], isLoading: timelineLoading } = useConversazioneTimeline(
     selectedItem?.entita_tipo ?? null,
     selectedItem?.entita_id ?? null,
   );
+  // Da quale numero/casella è partito (o arrivato) ogni messaggio.
+  const { data: dettagli } = useConversazioneDettagli(
+    selectedItem?.entita_tipo ?? null,
+    selectedItem?.entita_id ?? null,
+  );
+  // Schede per canale nel filo: WhatsApp ed email si leggono separate.
+  const [canaleFilo, setCanaleFilo] = useState<FiltroCanale>("tutti");
+  const [emailAperte, setEmailAperte] = useState<Set<string>>(new Set());
+  const contiCanale = useMemo(() => contaPerCanale(timelineTutta), [timelineTutta]);
+  const timeline = useMemo(
+    () => (canaleFilo === "tutti" ? timelineTutta : timelineTutta.filter((m) => m.canale === canaleFilo)),
+    [timelineTutta, canaleFilo],
+  );
+  // Cambiando conversazione si torna a «Tutto».
+  useEffect(() => { setCanaleFilo("tutti"); }, [selectedKey]);
 
   // La chat parte dall'ultimo messaggio, come WhatsApp: all'apertura si va in
   // fondo, e quando arriva un messaggio nuovo si segue solo se si era già in
@@ -594,6 +614,33 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
               </div>
             </header>
 
+            {/* Canale del filo: WhatsApp ed email separati, con il conteggio */}
+            {!timelineLoading && (contiCanale.whatsapp > 0 || contiCanale.email > 0 || contiCanale.sms > 0) && (
+              <div className="flex items-center gap-1 border-b bg-background px-3 py-1.5 sm:px-6">
+                {FILTRI_CANALE.filter((f) => f.chiave === "tutti" || contiCanale[f.chiave] > 0).map((f) => (
+                  <button
+                    key={f.chiave}
+                    type="button"
+                    onClick={() => setCanaleFilo(f.chiave)}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] transition-colors",
+                      canaleFilo === f.chiave
+                        ? f.chiave === "whatsapp" ? "bg-green-600 text-white"
+                          : f.chiave === "email" ? "bg-blue-600 text-white"
+                          : "bg-foreground text-background"
+                        : "text-muted-foreground hover:bg-muted",
+                    )}
+                  >
+                    {f.chiave === "whatsapp" && <MessageCircle className="h-3 w-3" />}
+                    {f.chiave === "email" && <Mail className="h-3 w-3" />}
+                    {f.chiave === "sms" && <MessageSquare className="h-3 w-3" />}
+                    {f.etichetta}
+                    <span className="tabular-nums opacity-80">{contiCanale[f.chiave]}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
             <div
               ref={threadRef}
               onScroll={(e) => {
@@ -653,43 +700,107 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
                             </span>
                           </div>
                         )}
-                        <div className={cn("flex", out ? "justify-end" : "justify-start")}>
-                          <div
-                            className={cn(
-                              "relative max-w-[75%] min-w-[96px] rounded-lg px-2.5 py-1.5 shadow-sm",
-                              out
-                                ? "bg-[#d9fdd3] dark:bg-[#005c4b] text-foreground rounded-tr-none"
-                                : "bg-white dark:bg-[#202c33] text-foreground rounded-tl-none border-l-4 border-l-blue-500 border-y border-r border-y-blue-100 border-r-blue-100 dark:border-blue-900/40",
-                            )}
-                          >
-                            {(eEmail && oggetto) && (
-                              <p className="text-[11px] font-semibold text-[#54656f] dark:text-gray-300 truncate mb-0.5">{oggetto}</p>
-                            )}
-                            {modello && <p className="text-[10px] font-medium text-[#667781] mb-0.5">Modello WhatsApp</p>}
-                            {locale && oggetto && <p className="text-[10px] text-[#667781] mb-0.5">WA Locale · da {oggetto}</p>}
-                            <p className="text-[13px] leading-snug whitespace-pre-wrap break-words pr-[4.5rem]">
-                              {m.testo || (m.media_url ? "[allegato]" : "—")}
-                            </p>
-                            {nonConsegnato && (
-                              <p className="mt-1 text-[11px] font-medium text-red-600 dark:text-red-400 pr-[4.5rem]">
-                                {motivoMancataConsegna(oggetto)}
-                              </p>
-                            )}
-                            <span
-                              className="absolute bottom-1 right-2 flex items-center gap-0.5 text-[10px] text-[#667781] dark:text-gray-400"
-                              title={`${etichetta} · ${formatOra(m.ts)}`}
-                            >
-                              <meta.Icon className="h-2.5 w-2.5" />
-                              {oraDi(m.ts)}
-                              {out && !eEmail && !locale && (
-                                nonConsegnato ? <X className="h-3 w-3 text-red-500" />
-                                  : letto ? <CheckCheck className="h-3.5 w-3.5 text-blue-500" />
-                                  : consegnato ? <CheckCheck className="h-3.5 w-3.5" />
-                                  : <Check className="h-3 w-3" />
-                              )}
-                            </span>
-                          </div>
-                        </div>
+                        {eEmail ? (
+                          // ── EMAIL: scheda con intestazione, non una bolla di chat ──
+                          (() => {
+                            const perc = percorsoMessaggio(dettagli?.get(chiaveDettaglio(m.ref_tabella, m.ref_id)));
+                            const id = `${m.ref_id}-${i}`;
+                            const testo = (m.testo ?? "").trim();
+                            const lunga = testo.length > 360 || testo.split("\n").length > 8;
+                            const aperta = emailAperte.has(id);
+                            return (
+                              <div className={cn("flex", out ? "justify-end" : "justify-start")}>
+                                <div
+                                  className={cn(
+                                    "w-full max-w-[88%] rounded-lg border bg-white shadow-sm dark:bg-card",
+                                    out ? "border-blue-200 border-r-4 border-r-blue-500" : "border-slate-200 border-l-4 border-l-blue-500",
+                                  )}
+                                >
+                                  <div className="flex items-center gap-1.5 border-b bg-blue-50/70 px-3 py-1.5 text-[11px] dark:bg-blue-950/30">
+                                    <Mail className="h-3.5 w-3.5 text-blue-600" />
+                                    <span className="font-semibold text-blue-700 dark:text-blue-300">{out ? "Email inviata" : "Email ricevuta"}</span>
+                                    <span className="ml-auto text-muted-foreground" title={formatOra(m.ts)}>{oraDi(m.ts)}</span>
+                                  </div>
+                                  <div className="space-y-0.5 px-3 pt-2 text-[11px] text-muted-foreground">
+                                    {perc ? (
+                                      <>
+                                        <p><span className="font-medium text-foreground/70">Da:</span> {perc.da || "—"}</p>
+                                        <p><span className="font-medium text-foreground/70">A:</span> {perc.a || "—"}</p>
+                                        {perc.via && <p><span className="font-medium text-foreground/70">Tramite:</span> {perc.via}</p>}
+                                      </>
+                                    ) : (
+                                      <p><span className="font-medium text-foreground/70">{out ? "A:" : "Da:"}</span> {m.controparte || "—"}</p>
+                                    )}
+                                  </div>
+                                  <div className="px-3 pb-2.5 pt-1.5">
+                                    {oggetto && <p className="text-[13px] font-semibold leading-snug">{oggetto}</p>}
+                                    <p className={cn("mt-1 whitespace-pre-wrap break-words text-[13px] leading-snug", lunga && !aperta && "line-clamp-6")}>
+                                      {testo || "—"}
+                                    </p>
+                                    {lunga && (
+                                      <button
+                                        type="button"
+                                        className="mt-1 text-[11px] font-medium text-blue-600 hover:underline"
+                                        onClick={() => setEmailAperte((prev) => {
+                                          const next = new Set(prev);
+                                          if (next.has(id)) next.delete(id); else next.add(id);
+                                          return next;
+                                        })}
+                                      >
+                                        {aperta ? "Mostra meno" : "Mostra tutto"}
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })()
+                        ) : (
+                          // ── WHATSAPP / SMS / altro: bolla di chat con la riga «da → a» ──
+                          (() => {
+                            const perc = percorsoMessaggio(dettagli?.get(chiaveDettaglio(m.ref_tabella, m.ref_id)));
+                            const riga = locale ? "" : rigaPercorsoWhatsApp(perc) || (m.controparte ? `${out ? "→" : "←"} ${formattaContatto(m.controparte)}` : "");
+                            return (
+                              <div className={cn("flex", out ? "justify-end" : "justify-start")}>
+                                <div
+                                  className={cn(
+                                    "relative max-w-[75%] min-w-[96px] rounded-lg px-2.5 py-1.5 shadow-sm",
+                                    out
+                                      ? "bg-[#d9fdd3] dark:bg-[#005c4b] text-foreground rounded-tr-none"
+                                      : "bg-white dark:bg-[#202c33] text-foreground rounded-tl-none border-l-4 border-l-green-500 border-y border-r border-y-green-100 border-r-green-100 dark:border-green-900/40",
+                                  )}
+                                >
+                                  <p className="mb-0.5 flex items-center gap-1 text-[10px] font-semibold text-green-700 dark:text-green-400">
+                                    <meta.Icon className="h-3 w-3" />
+                                    {etichetta}{modello ? " · modello" : ""}
+                                  </p>
+                                  {riga && <p className="mb-0.5 text-[10px] text-[#667781]">{riga}</p>}
+                                  {locale && oggetto && <p className="text-[10px] text-[#667781] mb-0.5">Da {oggetto}</p>}
+                                  <p className="text-[13px] leading-snug whitespace-pre-wrap break-words pr-[4.5rem]">
+                                    {m.testo || (m.media_url ? "[allegato]" : "—")}
+                                  </p>
+                                  {nonConsegnato && (
+                                    <p className="mt-1 text-[11px] font-medium text-red-600 dark:text-red-400 pr-[4.5rem]">
+                                      {motivoMancataConsegna(oggetto)}
+                                    </p>
+                                  )}
+                                  <span
+                                    className="absolute bottom-1 right-2 flex items-center gap-0.5 text-[10px] text-[#667781] dark:text-gray-400"
+                                    title={`${etichetta} · ${formatOra(m.ts)}`}
+                                  >
+                                    {oraDi(m.ts)}
+                                    {out && !locale && (
+                                      nonConsegnato ? <X className="h-3 w-3 text-red-500" />
+                                        : letto ? <CheckCheck className="h-3.5 w-3.5 text-blue-500" />
+                                        : consegnato ? <CheckCheck className="h-3.5 w-3.5" />
+                                        : <Check className="h-3 w-3" />
+                                    )}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })()
+                        )}
                       </div>
                     );
                   })}

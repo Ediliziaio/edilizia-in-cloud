@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { chiaveDettaglio, type DettaglioInvio } from "@/lib/conversazioni/presentazione";
 
 export type CanaleConversazione = "email" | "sms" | "whatsapp" | "nota" | "instagram" | "messenger";
 export type DirezioneMessaggio = "in" | "out";
@@ -86,6 +87,30 @@ export function useConversazioneTimeline(
       });
       if (error) throw new Error(error.message);
       return data ?? [];
+    },
+  });
+}
+
+/** Da quale numero/indirizzo è partito ogni messaggio (RPC conversazione_dettagli_invio). */
+export function useConversazioneDettagli(
+  entitaTipo: EntitaTipo | null | undefined,
+  entitaId: string | null | undefined,
+) {
+  return useQuery<Map<string, DettaglioInvio>>({
+    queryKey: ["conversazione-dettagli", entitaTipo, entitaId],
+    enabled: entitaTipo === "contatto" && !!entitaId,
+    staleTime: 15_000,
+    queryFn: async () => {
+      // I dettagli arricchiscono la chat: se la funzione non è ancora sul database
+      // la chat si vede lo stesso, senza il «da → a».
+      const { data, error } = await callRpc<DettaglioInvio[]>("conversazione_dettagli_invio", {
+        p_entita_tipo: entitaTipo,
+        p_entita_id: entitaId,
+      });
+      const mappa = new Map<string, DettaglioInvio>();
+      if (error) return mappa;
+      for (const d of data ?? []) mappa.set(chiaveDettaglio(d.ref_tabella, d.ref_id), d);
+      return mappa;
     },
   });
 }
