@@ -418,10 +418,12 @@ export function useRichieste(filters?: { stato?: RichiestaStato; meseAnno?: stri
       // Richieste nate senza profilo HR collegato (solo con l'utente: succede con quelle
       // create da fuori la scheda Personale): il nome si cerca dal profilo HR di quell'utente
       // o, in mancanza, dalla sua anagrafica. Così la riga non resta senza nome.
-      const senzaProfilo = righe.filter((r) => !r.profilo && r.user_id);
+      type ProfiloRichiesta = { id: string; nome: string; cognome: string; colore_avatar: string; reparto: string | null; mansione: string | null };
+      const utenteDi = (r: RichiestaWithProfilo) => (r as unknown as { user_id?: string | null }).user_id ?? null;
+      const senzaProfilo = righe.filter((r) => !r.profilo && utenteDi(r));
       if (senzaProfilo.length > 0) {
-        const userIds = Array.from(new Set(senzaProfilo.map((r) => r.user_id as string)));
-        const nomi = new Map<string, NonNullable<RichiestaWithProfilo["profilo"]>>();
+        const userIds = Array.from(new Set(senzaProfilo.map((r) => utenteDi(r) as string)));
+        const nomi = new Map<string, ProfiloRichiesta>();
         const { data: hr } = await supabase
           .from("hr_profili")
           .select("id, user_id, nome, cognome, colore_avatar, reparto, mansione")
@@ -438,8 +440,8 @@ export function useRichieste(filters?: { stato?: RichiestaStato; meseAnno?: stri
           }
         }
         for (const r of senzaProfilo) {
-          const trovato = nomi.get(r.user_id as string);
-          if (trovato) r.profilo = trovato;
+          const trovato = nomi.get(utenteDi(r) as string);
+          if (trovato) r.profilo = trovato as unknown as RichiestaWithProfilo["profilo"];
         }
       }
       return righe;
