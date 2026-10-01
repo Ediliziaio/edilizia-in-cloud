@@ -126,6 +126,10 @@ interface SortableRowProps {
   onRemove: (index: number) => void;
   onDuplicate: (index: number) => void;
   prezziLordi?: boolean;
+  /** Il documento ha la ritenuta d'acconto: la riga può dire se ne fa parte. */
+  conRitenuta?: boolean;
+  ritenutaSuTutte?: boolean;
+  onRitenuta?: (index: number, applica: boolean) => void;
 }
 
 function SortableRowImpl({
@@ -136,6 +140,9 @@ function SortableRowImpl({
   onRemove,
   onDuplicate,
   prezziLordi,
+  conRitenuta,
+  ritenutaSuTutte,
+  onRitenuta,
 }: SortableRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: riga.id,
@@ -384,7 +391,7 @@ function SortableRowImpl({
               )}
 
               {/* FOOTER ROW — grid 2 col: checkbox (auto) | Categoria (1fr) */}
-              <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-3 items-end">
+              <div className="flex flex-wrap items-end gap-x-5 gap-y-2 [&>*:last-child]:flex-1 [&>*:last-child]:min-w-[10rem]">
                 <label className="flex items-center gap-2 text-xs cursor-pointer select-none pb-2">
                   <input
                     type="checkbox"
@@ -403,6 +410,18 @@ function SortableRowImpl({
                   />
                   <span className="text-muted-foreground whitespace-nowrap">Articolo non imponibile (anticipazione)</span>
                 </label>
+                {conRitenuta && (
+                  <label className="flex items-center gap-2 text-xs cursor-pointer select-none pb-2">
+                    <input
+                      type="checkbox"
+                      checked={ritenutaSuTutte ? true : riga.ritenuta === true}
+                      onChange={(e) => onRitenuta?.(index, e.target.checked)}
+                      className="h-3.5 w-3.5 rounded border-input"
+                      disabled={disabled}
+                    />
+                    <span className="text-muted-foreground whitespace-nowrap">Applica ritenuta</span>
+                  </label>
+                )}
                 <div className="space-y-1 min-w-0">
                   <Label className="text-[10px] text-muted-foreground font-normal">Categoria</Label>
                   <Input
@@ -434,6 +453,8 @@ const SortableRow = memo(SortableRowImpl, (prev, next) => {
   if (prev.index !== next.index) return false;
   if (prev.disabled !== next.disabled) return false;
   if (prev.prezziLordi !== next.prezziLordi) return false;
+  if (prev.conRitenuta !== next.conRitenuta || prev.ritenutaSuTutte !== next.ritenutaSuTutte) return false;
+  if (prev.onRitenuta !== next.onRitenuta) return false;
   if (prev.onUpdate !== next.onUpdate) return false;
   if (prev.onRemove !== next.onRemove) return false;
   if (prev.onDuplicate !== next.onDuplicate) return false;
@@ -452,6 +473,7 @@ const SortableRow = memo(SortableRowImpl, (prev, next) => {
     a.natura_iva === b.natura_iva &&
     a.totale_riga === b.totale_riga &&
     a.categoria === b.categoria &&
+    a.ritenuta === b.ritenuta &&
     a.riferimento_amministrazione === b.riferimento_amministrazione
   );
 });
@@ -561,6 +583,21 @@ export function EditorRigheSection({ state, dispatch, disabled }: Props) {
     [dispatch],
   );
 
+  // «Applica ritenuta» per riga: finché nessuna è segnata la ritenuta vale per tutte
+  // (così la legge l'XML). Togliere una riga segna tutte le altre; rimetterle tutte la azzera.
+  const ritenutaSuTutte = !righe.some((r) => r.ritenuta === true);
+  const impostaRitenuta = useCallback(
+    (index: number, applica: boolean) => {
+      const nuove = righe.map((r, i) => ({
+        ...r,
+        ritenuta: ritenutaSuTutte ? i !== index : i === index ? applica : r.ritenuta === true,
+      }));
+      const tutte = nuove.every((r) => r.ritenuta);
+      dispatch({ type: "REORDER_RIGHE", righe: nuove.map((r) => ({ ...r, ritenuta: tutte ? undefined : r.ritenuta })) });
+    },
+    [righe, ritenutaSuTutte, dispatch],
+  );
+
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
@@ -659,6 +696,9 @@ export function EditorRigheSection({ state, dispatch, disabled }: Props) {
                   onRemove={removeRiga}
                   onDuplicate={duplicateRiga}
                   prezziLordi={usePrezziLordi}
+                  conRitenuta={!!(state.ritenuta_acconto || state.altra_ritenuta)}
+                  ritenutaSuTutte={ritenutaSuTutte}
+                  onRitenuta={impostaRitenuta}
                 />
               ))}
             </SortableContext>
@@ -676,6 +716,33 @@ export function EditorRigheSection({ state, dispatch, disabled }: Props) {
             </Button>
             <Button variant="outline" size="sm" className="text-xs h-7" onClick={addDescriptiveRow}>
               + Riga descrittiva
+            </Button>
+            {/* Scorciatoie come in Fatture in Cloud: sconto sul totale e bollo a carico del cliente
+                (le stesse impostazioni di «Opzioni avanzate»). */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="text-xs h-7">
+                  + Sconto sul totale{state.sconto_globale_percentuale ? ` (${state.sconto_globale_percentuale}%)` : ""}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-56 p-3" align="start">
+                <label className="text-[10px] text-muted-foreground">Sconto % sul totale</label>
+                <Input
+                  type="number" inputMode="decimal" min="0" max="100" step="0.01"
+                  value={state.sconto_globale_percentuale ?? ""}
+                  onChange={(e) => dispatch({ type: "SET_FIELD", field: "sconto_globale_percentuale", value: e.target.value === "" ? undefined : Math.min(100, Math.max(0, parseDecimalIT(e.target.value))) })}
+                  className="h-7 text-xs mt-0.5"
+                  placeholder="0"
+                />
+              </PopoverContent>
+            </Popover>
+            <Button
+              variant={state.bollo_virtuale ? "default" : "outline"}
+              size="sm"
+              className="text-xs h-7"
+              onClick={() => dispatch({ type: "SET_FIELD", field: "bollo_virtuale", value: !state.bollo_virtuale })}
+            >
+              {state.bollo_virtuale ? "✓ Bollo a carico del cliente" : "+ Bollo a carico del cliente"}
             </Button>
           </div>
           <div className="flex gap-3 items-center">

@@ -246,3 +246,17 @@ describe("beni significativi (DM 29/12/1999): IVA mista 10% e 22% nello stesso d
     expect(contiSdi(d)).toEqual([]);
   });
 });
+
+describe("ritenuta solo su alcune righe", () => {
+  it("la base della ritenuta sono le sole righe segnate, e l'XML dice Ritenuta SI solo su quelle", () => {
+    const righe = [riga("Prestazione", 1, 1000, "22", { ritenuta: true }), riga("Materiali", 1, 500, "22", { ritenuta: false })];
+    const t = calcolaTotaliDocumento(righe, { ritenutaAcconto: true, ritenutaAliquota: 20 } as never);
+    expect(t.ritenuta_importo).toBe(200);
+    const d = fattura(righe, { ritenutaAcconto: true, ritenutaAliquota: 20, ritenutaTipo: "RT01" });
+    expect(testi(d, "Ritenuta")).toEqual(["SI"]);
+  });
+  it("senza righe segnate la ritenuta è su tutto", () => {
+    const t = calcolaTotaliDocumento([riga("A", 1, 1000, "22"), riga("B", 1, 500, "22")], { ritenutaAcconto: true, ritenutaAliquota: 20 } as never);
+    expect(t.ritenuta_importo).toBe(300);
+  });
+});

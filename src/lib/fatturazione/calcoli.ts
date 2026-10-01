@@ -244,8 +244,14 @@ export function calcolaTotaliDocumento(
 
   // FIX #2 — Se la cassa è soggetta a ritenuta (cassa_ritenuta → <Ritenuta>SI</Ritenuta>),
   // la base della ritenuta d'acconto include anche il contributo cassa (imponibile + cassa).
+  // Se qualche riga è segnata «Applica ritenuta» (come nell'XML: Ritenuta SI), la base
+  // è solo la loro parte (con lo sconto globale in proporzione); senza righe segnate, tutto.
+  const righeSegnate = computed.filter((r) => r.ritenuta === true);
+  const baseRighe = righeSegnate.length > 0
+    ? round2(righeSegnate.reduce((s, r) => s + r.imponibile, 0) * (1 - discountRatio))
+    : imponibile_totale;
   const ritenutaBase =
-    imponibile_totale + (options.cassaRitenuta ? cassa_importo : 0);
+    baseRighe + (options.cassaRitenuta ? cassa_importo : 0);
   const ritenuta_importo =
     options.ritenutaAcconto && options.ritenutaAliquota
       ? round2(ritenutaBase * (options.ritenutaAliquota / 100))
