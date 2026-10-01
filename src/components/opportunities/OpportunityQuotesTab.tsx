@@ -40,6 +40,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { formatCurrency } from "@/lib/formatters";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
+import { allegaSchedeTecniche, avvisoSchedeNonAllegate } from "@/lib/quotes/allegatiPreventivo";
 
 interface Props {
   contactId: string | null;
@@ -281,6 +282,16 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
     );
   };
 
+  const resetForm = () => {
+    setShowForm(false);
+    setTitle("Preventivo");
+    setNotes("");
+    setValidityDays(30);
+    setDiscountPercent(0);
+    setItems([emptyItem()]);
+    setSelectedMaterials([]);
+  };
+
   // Save
   const handleSave = async () => {
     if (!companyId || !user || !contactId) return;
@@ -291,6 +302,9 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
     }
 
     setSaving(true);
+    // Da quando il preventivo esiste, un errore non deve lasciare il modulo
+    // pronto a crearne un altro.
+    let creatoId: string | null = null;
     try {
       // Generate quote number
       const { data: numData } = await supabase.rpc("generate_quote_number", {
@@ -332,6 +346,7 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
       if (error) throw error;
 
       const quoteId = newQuote.id;
+      creatoId = quoteId;
 
       // Insert items
       if (validItems.length > 0) {
@@ -354,31 +369,43 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
         if (itemsErr) throw itemsErr;
       }
 
-      // Attachments
-      if (selectedMaterials.length > 0) {
-        const { error: attachErr } = await supabase.from("quote_pdf_attachments").insert(
-          selectedMaterials.map((mId, idx) => ({
-            quote_id: quoteId,
-            material_id: mId,
-            sort_order: idx,
-          }))
-        );
-        if (attachErr) throw attachErr;
-      }
+      // Attachments: il preventivo esiste già. Una scheda che il database
+      // rifiuta (dal 26/09 quella di un'altra azienda) non deve far sembrare
+      // fallito il salvataggio: chi riprovava creava un secondo preventivo.
+      const nonAllegate = await allegaSchedeTecniche(
+        quoteId,
+        selectedMaterials.map((mId, idx) => ({
+          material_id: mId,
+          sort_order: idx,
+          nome: materials.find((m) => m.id === mId)?.name ?? null,
+        }))
+      );
 
       queryClient.invalidateQueries({ queryKey: ["quotes_by_contact", contactId, companyId] });
-      toast.success("Preventivo creato in bozza");
-
-      // Reset form
-      setShowForm(false);
-      setTitle("Preventivo");
-      setNotes("");
-      setValidityDays(30);
-      setDiscountPercent(0);
-      setItems([emptyItem()]);
-      setSelectedMaterials([]);
+      const avviso = avvisoSchedeNonAllegate(nonAllegate);
+      if (avviso) {
+        toast.warning(`Preventivo creato in bozza: ${avviso.conteggio}`, { description: avviso.descrizione, duration: 10000 });
+      } else {
+        toast.success("Preventivo creato in bozza");
+      }
+      resetForm();
     } catch (err: any) {
-      toast.error(err.message || "Errore durante il salvataggio");
+      if (creatoId) {
+        // Il preventivo c'è già ma senza le sue righe, e quindi senza le schede,
+        // che vengono dopo (gli allegati non lanciano): il modulo si chiude,
+        // perché un nuovo «Salva» ne creerebbe un secondo. Si completa aprendolo.
+        const creato = creatoId;
+        const mancano = selectedMaterials.length > 0 ? "I prodotti e le schede tecniche" : "I prodotti";
+        queryClient.invalidateQueries({ queryKey: ["quotes_by_contact", contactId, companyId] });
+        resetForm();
+        toast.error("Preventivo creato, ma senza i prodotti", {
+          description: `${mancano} non sono stati salvati: apri il preventivo per aggiungerli, invece di crearne un altro.`,
+          duration: 10000,
+          action: { label: "Apri preventivo", onClick: () => navigate(`${routePrefix}/preventivi/${creato}`) },
+        });
+      } else {
+        toast.error(err.message || "Errore durante il salvataggio");
+      }
     } finally {
       setSaving(false);
     }

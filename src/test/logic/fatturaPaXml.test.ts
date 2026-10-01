@@ -179,6 +179,23 @@ describe("quello che la legge chiede nell'XML", () => {
     });
     expect(testi(rate, "CondizioniPagamento")).toEqual(["TP01"]);
   });
+  it("CUP e CIG: l'ordine dello schema è CodiceCUP prima di CodiceCIG (al contrario lo SDI scarta)", () => {
+    const d = fattura([riga("Manutenzione scuola", 1, 2400, "22")], {}, { cig: "ZA12345678", cup: "B12H20000070001" });
+    const ordine = Array.from(d.getElementsByTagName("DatiOrdineAcquisto")[0].children).map((e) => e.tagName);
+    expect(ordine.indexOf("CodiceCUP")).toBeGreaterThan(-1);
+    expect(ordine.indexOf("CodiceCUP")).toBeLessThan(ordine.indexOf("CodiceCIG"));
+  });
+  it("sconto in euro non esprimibile in centesimi: assorbito nel prezzo unitario, mai più di 2 decimali nell'Importo dello sconto", () => {
+    // 12 euro di sconto su 7 pezzi = 1,714285… a pezzo: nello schema Importo ha 2 decimali.
+    const r = riga("Maniglie", 7, 50, "22", { sconto_valore: 12 });
+    const d = fattura([r]);
+    expect(d.getElementsByTagName("ScontoMaggiorazione").length).toBe(0);
+    const pu = Number(testi(d, "PrezzoUnitario")[0]);
+    expect(Math.abs(pu * 7 - Number(testi(d, "PrezzoTotale")[0]))).toBeLessThan(0.01);
+    // Sconto esprimibile in centesimi (100 euro su 1 pezzo): resta uno sconto, con due decimali.
+    const d2 = fattura([riga("Porta blindata", 1, 1500, "22", { sconto_valore: 100 })]);
+    expect(testi(d2, "Importo")).toEqual(["100.00"]);
+  });
   it("regime forfettario: la causale di legge senza caratteri fuori schema", () => {
     const d = fattura([riga("Consulenza", 1, 500, "0", { natura_iva: "N2_2" })], {}, {}, b2b, { ...renova, regime_fiscale: "RF19" });
     expect(testi(d, "Causale")[0]).toMatch(/legge 23 dicembre 2014, n\. 190 - Regime forfettario$/);

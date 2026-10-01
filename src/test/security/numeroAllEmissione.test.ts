@@ -6,6 +6,11 @@
  * trasmessa allo SDI, e bozze emesse fuori ordine davano numeri più alti con
  * date più vecchie. Collaudato su dati veri in transazione annullata il
  * 24/09/2026; qui si tiene ferma la forma delle regole.
+ *
+ * Superata il 01/10/2026 dalla migrazione 20281001150000 (numeroSullaBozza.test.ts):
+ * il numero nasce di nuovo con la bozza, ma senza i buchi e i disordini di
+ * allora (serie controllata, rilascio, emissione che verifica anno e date).
+ * Qui resta la forma della migrazione del 24/09.
  */
 import { describe, expect, it } from "vitest";
 import sql from "../../../supabase/migrations/20280924235950_numero_fattura_all_emissione.sql?raw";

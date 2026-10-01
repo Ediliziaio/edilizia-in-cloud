@@ -1,3 +1,4 @@
+import { datiClienteMancanti, ePrivato, nomeCliente } from "@/lib/fatturazione/clienteSnapshot";
 import { useState, useMemo } from "react";
 import { Search, X, ChevronDown, Plus, MapPin, Building2, Pencil, AlertTriangle } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -74,7 +75,11 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
   const { data: anagrafiche } = useAnagraficheNative(search);
 
   const snapshot = state.cliente_snapshot;
-  const hasCliente = !!snapshot?.ragione_sociale;
+  // Un cliente scelto dall'anagrafica ma senza nome (succede: i privati importati hanno
+  // solo codice fiscale e indirizzo) resta davanti agli occhi, da completare: prima
+  // spariva e sembrava di non aver scelto niente.
+  const hasCliente = !!nomeCliente(snapshot) || !!state.anagrafica_id;
+  const mancanti = snapshot ? datiClienteMancanti(snapshot) : [];
 
   const filtered = useMemo(() => {
     if (!anagrafiche) return [];
@@ -85,7 +90,8 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
     const tipoCliente = (a.tipo_cliente as ClienteSnapshot["tipo_cliente"]) ?? "B2B";
     const nome = a.nome as string | undefined;
     const cognome = a.cognome as string | undefined;
-    const ragioneSociale = (a.ragione_sociale as string) ?? `${nome ?? ""} ${cognome ?? ""}`.trim();
+    // «||» e non «??»: una ragione sociale vuota ("") non vale come nome.
+    const ragioneSociale = (a.ragione_sociale as string) || `${nome ?? ""} ${cognome ?? ""}`.trim();
     const snap: ClienteSnapshot = {
       ragione_sociale: ragioneSociale,
       // For B2C (persone fisiche), copy nome/cognome separately for FatturaPA XML
@@ -107,6 +113,8 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
     setIsOpen(false);
     setShowNewForm(false);
     setDetailsOpen(true); // Auto-open details when selecting a client
+    // Anagrafica senza nome (o con dati mancanti): si apre già in modifica.
+    if (datiClienteMancanti(snap).length > 0) setEditingSnapshot(true);
   }
 
   // Update a field on the existing snapshot
@@ -119,8 +127,10 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
   // Create quick B2C client (occasionale)
   function createQuickB2C(name: string) {
     if (!name.trim()) return;
+    const parti = name.trim().split(/\s+/);
     const snap: ClienteSnapshot = {
       ragione_sociale: name.trim(),
+      ...(parti.length > 1 ? { nome: parti[0], cognome: parti.slice(1).join(" ") } : {}),
       tipo_cliente: "B2C",
       indirizzo_nazione: "IT",
     };
@@ -128,6 +138,8 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
     setSearch("");
     setIsOpen(false);
     setShowNewForm(false);
+    setDetailsOpen(true);
+    setEditingSnapshot(true); // codice fiscale e indirizzo da inserire
   }
 
   // Create new client from form
@@ -140,6 +152,8 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
 
     const snap: ClienteSnapshot = {
       ragione_sociale: ragioneSociale,
+      // Privato: nome e cognome separati (nell'XML sono Nome e Cognome, non Denominazione).
+      ...(newForm.tipo === "B2C" ? { nome: newForm.nome?.trim(), cognome: newForm.cognome?.trim() } : {}),
       partita_iva: newForm.partitaIva,
       codice_fiscale: newForm.codiceFiscale,
       codice_sdi: newForm.codiceSdi,
@@ -197,11 +211,13 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
         <div>
           {/* ─── Compact Client Card ─── */}
           <div className="flex items-center gap-2.5">
-            <div className={`h-9 w-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${avatarColor(snapshot!.ragione_sociale)}`}>
-              {getInitials(snapshot!.ragione_sociale)}
+            <div className={`h-9 w-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${avatarColor(nomeCliente(snapshot) || "?")}`}>
+              {getInitials(nomeCliente(snapshot) || "?")}
             </div>
             <div className="min-w-0 flex-1">
-              <div className="font-semibold text-sm leading-tight truncate">{snapshot!.ragione_sociale}</div>
+              <div className="font-semibold text-sm leading-tight truncate">
+                {nomeCliente(snapshot) || <span className="text-amber-600">Cliente senza nome</span>}
+              </div>
               <div className="flex items-center gap-1.5 mt-0.5">
                 {snapshot!.partita_iva && (
                   <span className="text-[10px] font-mono text-muted-foreground">P.IVA {snapshot!.partita_iva}</span>
@@ -217,6 +233,19 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
               </Badge>
             )}
           </div>
+
+          {/* Cosa manca per poter fatturare a questo cliente. */}
+          {mancanti.length > 0 && ePrivato(snapshot) && (
+            <div className="mt-2 flex items-start gap-1.5 rounded border border-amber-200 bg-amber-50 p-2 text-[11px] text-amber-800" role="alert">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span>
+                Per fatturare a un privato servono nome, cognome, codice fiscale e indirizzo. Manca: {mancanti.join(", ")}.
+                {!disabled && !editingSnapshot && (
+                  <button className="ml-1 font-semibold underline" onClick={() => { setDetailsOpen(true); setEditingSnapshot(true); }}>Completa i dati</button>
+                )}
+              </span>
+            </div>
+          )}
 
           {/* ─── Expandable Full Detail Panel ─── */}
           <Collapsible open={detailsOpen} onOpenChange={setDetailsOpen}>
@@ -235,10 +264,23 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
                 </div>
                 {editingSnapshot && !disabled ? (
                   <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <Label className="text-[9px] text-muted-foreground">Ragione Sociale</Label>
-                      <Input value={snapshot!.ragione_sociale ?? ""} onChange={(e) => updateSnapshotField("ragione_sociale", e.target.value)} className="h-6 text-[11px]" />
-                    </div>
+                    {snapshot!.tipo_cliente === "B2C" ? (
+                      <>
+                        <div>
+                          <Label className="text-[9px] text-muted-foreground">Nome *</Label>
+                          <Input value={snapshot!.nome ?? ""} onChange={(e) => updateSnapshotField("nome", e.target.value)} className="h-6 text-[11px]" />
+                        </div>
+                        <div>
+                          <Label className="text-[9px] text-muted-foreground">Cognome *</Label>
+                          <Input value={snapshot!.cognome ?? ""} onChange={(e) => updateSnapshotField("cognome", e.target.value)} className="h-6 text-[11px]" />
+                        </div>
+                      </>
+                    ) : (
+                      <div>
+                        <Label className="text-[9px] text-muted-foreground">Ragione Sociale</Label>
+                        <Input value={snapshot!.ragione_sociale ?? ""} onChange={(e) => updateSnapshotField("ragione_sociale", e.target.value)} className="h-6 text-[11px]" />
+                      </div>
+                    )}
                     <div>
                       <Label className="text-[9px] text-muted-foreground">P.IVA</Label>
                       <Input value={snapshot!.partita_iva ?? ""} onChange={(e) => updateSnapshotField("partita_iva", e.target.value)} className="h-6 text-[11px] font-mono" />
@@ -410,7 +452,9 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
               <div className="absolute z-50 w-full mt-1 border rounded-md bg-popover shadow-lg max-h-56 overflow-auto">
                 {filtered.length > 0 ? (
                   filtered.map((a) => {
-                    const name = (a.ragione_sociale as string) || `${a.nome ?? ""} ${a.cognome ?? ""}`.trim();
+                    const nomeAnagrafica = (a.ragione_sociale as string) || `${a.nome ?? ""} ${a.cognome ?? ""}`.trim();
+                    // Privato importato senza nome: si riconosce dal codice fiscale e dal comune.
+                    const name = nomeAnagrafica || "Privato senza nome";
                     const tipoCliente = a.tipo_cliente as string | undefined;
                     const addr = [a.indirizzo_comune as string, a.indirizzo_provincia as string].filter(Boolean).join(" ");
                     return (
@@ -426,6 +470,7 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
                           <div className="font-medium truncate">{name}</div>
                           <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
                             {a.partita_iva && <span className="font-mono">{a.partita_iva as string}</span>}
+                            {!a.partita_iva && a.codice_fiscale && <span className="font-mono">CF {a.codice_fiscale as string}</span>}
                             {addr && <span>{addr}</span>}
                           </div>
                         </div>
@@ -500,7 +545,7 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
                       </div>
                     </div>
                     <div>
-                      <Label className="text-[10px]">Codice Fiscale</Label>
+                      <Label className="text-[10px]">Codice Fiscale *</Label>
                       <Input placeholder="16 caratteri" value={newForm.codiceFiscale ?? ""} onChange={(e) => setNewForm({ ...newForm, codiceFiscale: e.target.value.toUpperCase() })} className="h-7 text-xs font-mono uppercase" />
                       {cfError && <p className="text-[9px] text-destructive mt-0.5">{cfError}</p>}
                     </div>
@@ -534,7 +579,7 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
                 <div className="border-t pt-2 space-y-2">
                   <div className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
                     <MapPin className="h-2.5 w-2.5" />
-                    Indirizzo (opzionale)
+                    {newClientTab === "B2C" ? "Indirizzo * (obbligatorio per i privati)" : "Indirizzo (opzionale)"}
                   </div>
                   <div>
                     <Input placeholder="Via / Indirizzo" value={newForm.indirizzo_via ?? ""} onChange={(e) => setNewForm({ ...newForm, indirizzo_via: e.target.value })} className="h-7 text-xs" />
@@ -552,7 +597,11 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
                     className="h-6 text-xs flex-1"
                     onClick={createNewClient}
                     disabled={
-                      (newClientTab === "B2B" || newClientTab === "PA" ? !newForm.ragioneSociale : !(newForm.nome || newForm.cognome)) ||
+                      (newClientTab === "B2B" || newClientTab === "PA"
+                        ? !newForm.ragioneSociale
+                        // Privato: nome, cognome, codice fiscale e indirizzo completo (come li vuole lo SDI).
+                        : !(newForm.nome?.trim() && newForm.cognome?.trim() && newForm.codiceFiscale?.trim()
+                          && newForm.indirizzo_via?.trim() && newForm.indirizzo_comune?.trim() && /^\d{5}$/.test(newForm.indirizzo_cap ?? ""))) ||
                       !!pivaError || !!cfError
                     }
                   >

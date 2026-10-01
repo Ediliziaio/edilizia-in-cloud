@@ -36,8 +36,8 @@ interface Props {
 export function EditorSendEmailDialog({ state, open, onOpenChange, saveNow }: Props) {
   const docLabel = TIPO_LABELS[state.tipo] || "Documento";
   const cliente = state.cliente_snapshot as Record<string, any> | null;
-  // Una bozza non ha un numero definitivo (è «Bozza XXX»): inviarla al cliente
-  // significa mandargli un documento non emesso. Si emette prima.
+  // Una bozza ha già il suo numero (01/10/2026) ma non è emessa: inviarla al
+  // cliente significa mandargli un documento non emesso. Si emette prima.
   const isBozza = state.stato === "bozza";
 
   // Fetch email from anagrafica if available
@@ -139,11 +139,11 @@ export function EditorSendEmailDialog({ state, open, onOpenChange, saveNow }: Pr
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          {/* Bozza: non si invia un documento senza numero definitivo */}
+          {/* Bozza: non si invia un documento non ancora emesso */}
           {isBozza && (
             <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-300">
               <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-              <span>Questo documento è ancora una <strong>bozza</strong>: il numero non è definitivo. Emettilo prima di inviarlo al cliente.</span>
+              <span>Questo documento è ancora una <strong>bozza</strong>: ha già il suo numero ({state.numero}), ma non è emesso. Emettilo prima di inviarlo al cliente.</span>
             </div>
           )}
 

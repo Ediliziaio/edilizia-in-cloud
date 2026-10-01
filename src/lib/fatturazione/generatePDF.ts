@@ -2,11 +2,10 @@
 // Client-side helper to call the generate-native-pdf edge function
 
 import { supabase } from "@/integrations/supabase/client";
+import { stampaPreventivoNativo } from "@/lib/fotovoltaico/htmlToPdf";
 
-/**
- * Calls the edge function to generate a PDF and triggers a download.
- */
-export async function downloadNativePDF(documentoId: string, filename?: string): Promise<void> {
+/** L'HTML del documento, come lo compone la funzione generate-native-pdf. */
+async function htmlDocumento(documentoId: string): Promise<string> {
   const { data, error } = await supabase.functions.invoke("generate-native-pdf", {
     body: { documento_id: documentoId },
   });
@@ -20,34 +19,41 @@ export async function downloadNativePDF(documentoId: string, filename?: string):
   if (!data?.html) {
     throw new Error("Nessun contenuto PDF generato");
   }
+  return data.html as string;
+}
 
-  // Open HTML in new tab for print/save as PDF
-  const blob = new Blob([data.html], { type: "text/html" });
-  const url = URL.createObjectURL(blob);
-  const w = window.open(url, "_blank");
+/**
+ * Apre il dialogo di stampa del documento (da lì: stampante o «Salva come PDF»).
+ *
+ * Stampa nativa del browser su un iframe nascosto (come i preventivi): testo vero
+ * e senza popup. Prima si apriva una nuova scheda: con i popup bloccati (frequente)
+ * l'utente si ritrovava un file .html al posto del PDF e non capiva come vedere
+ * la fattura.
+ */
+export async function downloadNativePDF(documentoId: string, filename?: string): Promise<void> {
+  const html = await htmlDocumento(documentoId);
+  await stampaPreventivoNativo(html, filename ? `Fattura ${filename}` : `Documento ${documentoId}`);
+}
 
-  // P1 FIX: popup bloccati → fallback download diretto invece di fallire
-  // silenziosamente. L'utente vede il file scaricato e sa cosa è successo.
-  if (!w) {
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = filename || `documento-${documentoId}.html`;
-    link.rel = "noopener";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    // Cleanup dopo il click (evitiamo revoke immediato)
-    setTimeout(() => URL.revokeObjectURL(url), 30000);
-    throw new Error(
-      "Popup bloccato dal browser. Il PDF è stato scaricato come file HTML. Abilita i popup per questo sito per la stampa diretta.",
-    );
+/**
+ * «Apri PDF»: il documento in una scheda a parte, da guardare (senza stampare).
+ * La scheda si apre subito, dentro il clic, e si riempie dopo: così il browser non
+ * la scambia per un popup.
+ */
+export async function apriDocumentoInScheda(documentoId: string): Promise<void> {
+  const scheda = window.open("", "_blank");
+  if (!scheda) {
+    throw new Error("Il browser ha bloccato la nuova scheda: consenti i popup per questo sito, oppure usa «Stampa».");
   }
-
-  w.onload = () => {
-    w.print();
-  };
-  // Cleanup after delay
-  setTimeout(() => URL.revokeObjectURL(url), 30000);
+  try {
+    const html = await htmlDocumento(documentoId);
+    scheda.document.open();
+    scheda.document.write(html);
+    scheda.document.close();
+  } catch (e) {
+    scheda.close();
+    throw e;
+  }
 }
 
 /**

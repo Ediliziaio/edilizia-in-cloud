@@ -43,6 +43,8 @@ export interface FatturaDaSalvare {
 export interface EsitoSalvataggio {
   id: string | null;
   doppione: boolean;
+  /** Era già registrata solo coi dati (senza il file): ora ha l'XML originale. */
+  completata?: boolean;
   errore?: string;
   percorso?: string;
 }
@@ -52,24 +54,24 @@ type Client = any;
 
 async function cercaDoppione(supabase: Client, f: FatturaDaSalvare, idSdi: string | null) {
   if (f.openapiId) {
-    const { data } = await supabase.from("fatture_ricevute").select("id, openapi_id")
+    const { data } = await supabase.from("fatture_ricevute").select("id, openapi_id, xml_raw, note")
       .eq("company_id", f.companyId).eq("openapi_id", f.openapiId).limit(1).maybeSingle();
-    if (data?.id) return data as { id: string; openapi_id: string | null };
+    if (data?.id) return data as { id: string; openapi_id: string | null; xml_raw: string | null; note: string | null };
   }
   if (idSdi) {
-    const { data } = await supabase.from("fatture_ricevute").select("id, openapi_id")
+    const { data } = await supabase.from("fatture_ricevute").select("id, openapi_id, xml_raw, note")
       .eq("company_id", f.companyId).eq("sdi_id_trasmissione", idSdi).limit(1).maybeSingle();
-    if (data?.id) return data as { id: string; openapi_id: string | null };
+    if (data?.id) return data as { id: string; openapi_id: string | null; xml_raw: string | null; note: string | null };
   }
   const l = f.letta;
   if (l.cedente_piva && l.numero_fattura && l.data_fattura) {
-    const { data } = await supabase.from("fatture_ricevute").select("id, openapi_id")
+    const { data } = await supabase.from("fatture_ricevute").select("id, openapi_id, xml_raw, note")
       .eq("company_id", f.companyId)
       .eq("cedente_piva", l.cedente_piva)
       .eq("numero_fattura", l.numero_fattura)
       .eq("data_fattura", l.data_fattura)
       .limit(1).maybeSingle();
-    if (data?.id) return data as { id: string; openapi_id: string | null };
+    if (data?.id) return data as { id: string; openapi_id: string | null; xml_raw: string | null; note: string | null };
   }
   return null;
 }
@@ -77,16 +79,6 @@ async function cercaDoppione(supabase: Client, f: FatturaDaSalvare, idSdi: strin
 export async function salvaFatturaRicevuta(supabase: Client, f: FatturaDaSalvare): Promise<EsitoSalvataggio> {
   const l = f.letta;
   const idSdi = (f.identificativoSdi || l.sdi_id_trasmissione || "").trim() || null;
-
-  const doppione = await cercaDoppione(supabase, f, idSdi);
-  if (doppione) {
-    // Già registrata a mano o da un altro canale: la si riconosce, non la si
-    // riscrive (il contenuto di una fattura ricevuta non si modifica).
-    if (f.openapiId && !doppione.openapi_id) {
-      await supabase.from("fatture_ricevute").update({ openapi_id: f.openapiId }).eq("id", doppione.id);
-    }
-    return { id: doppione.id, doppione: true };
-  }
 
   const firmata = (!!f.originale && f.originale[0] === 0x30) || /\.p7m$/i.test(f.nomeFileSdi ?? "");
   const percorso = percorsoOriginale(
@@ -98,6 +90,31 @@ export async function salvaFatturaRicevuta(supabase: Client, f: FatturaDaSalvare
     firmata,
   );
   const contenuto = f.originale ?? new TextEncoder().encode(f.xml);
+
+  const doppione = await cercaDoppione(supabase, f, idSdi);
+  if (doppione) {
+    // Già registrata a mano o da un altro canale: la si riconosce, non la si
+    // riscrive (il contenuto di una fattura ricevuta non si modifica).
+    if (f.openapiId && !doppione.openapi_id) {
+      await supabase.from("fatture_ricevute").update({ openapi_id: f.openapiId }).eq("id", doppione.id);
+    }
+    // Eccezione: una fattura caricata coi soli dati (senza xml_raw: il database
+    // permette di scriverlo una volta sola, mai di cambiarlo) si completa col file
+    // originale. Così lo zip del portale, importato dopo un caricamento dei dati,
+    // aggiunge i file veri senza creare doppioni.
+    if (!doppione.xml_raw) {
+      const { error: erroreArchivio } = await supabase.storage
+        .from("fatture-xml")
+        .upload(percorso, new Blob([new Uint8Array(contenuto)], { type: firmata ? "application/pkcs7-mime" : "application/xml" }), { upsert: true });
+      const campi: Record<string, unknown> = { xml_raw: f.xml, xml_url: erroreArchivio ? null : percorso };
+      if (/^Dati caricati dallo zip/.test(doppione.note ?? "")) campi.note = null;
+      const { error: erroreAggiornamento } = await supabase.from("fatture_ricevute").update(campi).eq("id", doppione.id);
+      if (!erroreAggiornamento) return { id: doppione.id, doppione: true, completata: true, percorso };
+      console.warn(`[salvaFatturaRicevuta] completamento ${doppione.id}: ${erroreAggiornamento.message}`);
+    }
+    return { id: doppione.id, doppione: true };
+  }
+
   const { error: erroreFile } = await supabase.storage
     .from("fatture-xml")
     .upload(percorso, new Blob([new Uint8Array(contenuto)], { type: firmata ? "application/pkcs7-mime" : "application/xml" }), {

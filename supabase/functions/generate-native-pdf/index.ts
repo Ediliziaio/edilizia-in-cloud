@@ -174,7 +174,7 @@ function buildNativeHtml(doc: Record<string, any>, azienda: Record<string, any>,
 ${snap.ragione_sociale ? `
 <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:12px 16px;max-width:55%;margin-bottom:20px;">
   <div style="font-size:7pt;text-transform:uppercase;color:#94a3b8;letter-spacing:1px;margin-bottom:4px;">Destinatario</div>
-  <div style="font-weight:600;font-size:11pt;">${escHtml(snap.ragione_sociale)}</div>
+  <div style="font-weight:600;font-size:11pt;">${escHtml(snap.ragione_sociale || [snap.nome, snap.cognome].filter(Boolean).join(' '))}</div>
   ${snap.indirizzo_via ? `<div style="font-size:8pt;color:#64748b;">${escHtml(snap.indirizzo_via)}, ${escHtml(snap.indirizzo_cap)} ${escHtml(snap.indirizzo_comune)}${snap.indirizzo_provincia ? ` (${escHtml(snap.indirizzo_provincia)})` : ''}</div>` : ''}
   ${snap.partita_iva ? `<div style="font-size:8pt;color:#64748b;font-family:monospace;">P.IVA: ${escHtml(snap.partita_iva)}</div>` : ''}
   ${snap.codice_fiscale ? `<div style="font-size:8pt;color:#64748b;font-family:monospace;">C.F.: ${escHtml(snap.codice_fiscale)}</div>` : ''}

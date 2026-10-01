@@ -1,3 +1,5 @@
+import { supabase } from "@/integrations/supabase/client";
+import { nomeCliente } from "@/lib/fatturazione/clienteSnapshot";
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { documentoDaConservare } from "@/lib/fatturazione/conservazione";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
@@ -429,14 +431,54 @@ function DocumentiFiscaliListInner() {
       numero: d.numero,
       tipo: d.tipo,
       data_emissione: d.data_emissione,
-      cliente: d.cliente_snapshot?.ragione_sociale ?? "",
+      // Un privato non ha ragione sociale: «Nome Cognome».
+      cliente: nomeCliente(d.cliente_snapshot as never),
       stato: d.stato,
       imponibile: String(d.imponibile_totale),
       iva: String(d.iva_totale),
       totale: String(d.totale_documento),
     }));
-    exportToXLSX(rows, columns, `documenti_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    exportToXLSX(rows, columns, `documenti_${new Date().toISOString().slice(0, 10)}.xlsx`, "Documenti");
     toast.success(`${rows.length} documenti esportati`);
+  };
+
+  // Gli XML partiti allo SDI dei documenti selezionati, in uno zip (quello che chiede il
+  // commercialista). Solo quelli già trasmessi: l'XML di una bozza non è ancora un documento.
+  const handleBulkExportXml = async () => {
+    const conXml = selectedDocs.filter((d) => !!d.sdi_file_xml_url);
+    if (conXml.length === 0) {
+      toast.info("Nessun XML da esportare", { description: "Gli XML ci sono solo per le fatture già inviate allo SDI." });
+      return;
+    }
+    try {
+      const { default: JSZip } = await import("jszip");
+      const zip = new JSZip();
+      const usati = new Set<string>();
+      let mancanti = 0;
+      for (const d of conXml) {
+        const { data, error } = await supabase.storage.from("fatture-xml").download(d.sdi_file_xml_url as string);
+        if (error || !data) { mancanti++; continue; }
+        let nome = `${d.data_emissione}_${String(d.numero).replace(/[^a-zA-Z0-9-]+/g, "_")}.xml`;
+        for (let n = 2; usati.has(nome); n++) nome = nome.replace(/(_\d+)?\.xml$/, `_${n}.xml`);
+        usati.add(nome);
+        zip.file(nome, await data.text());
+      }
+      if (usati.size === 0) throw new Error("Nessun file trovato nell'archivio");
+      const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `fatture_emesse_xml_${new Date().toISOString().slice(0, 10)}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      const senza = selectedDocs.length - conXml.length + mancanti;
+      if (senza > 0) toast.warning(`${usati.size} XML esportati, ${senza} senza file`, { description: "Mancano le bozze, le fatture non ancora inviate e i file non trovati." });
+      else toast.success(`${usati.size} XML esportati`);
+    } catch (err) {
+      toast.error("Esportazione non riuscita", { description: err instanceof Error ? err.message : undefined });
+    }
   };
 
   // «Segna pagate»: un incasso per fattura (registra_incasso_atomico), solo
@@ -561,7 +603,7 @@ function DocumentiFiscaliListInner() {
       case "convert_proforma":
         try {
           const fattura = await convertiProformaInFattura(doc.id);
-          toast.success("Convertito in fattura", { description: "È una bozza: prende il numero quando la emetti." });
+          toast.success("Convertito in fattura", { description: `Bozza ${fattura.numero}: il numero è già suo, emettila quando è pronta.` });
           navigate(`/azienda/documenti/${fattura.id}/dettaglio`);
         } catch (e: unknown) {
           toast.error(getErrorMessage(e));
@@ -780,10 +822,16 @@ function DocumentiFiscaliListInner() {
 
           {/* Niente export su telefono. */}
           {!isMobile && (
-            <Button variant="outline" size="sm" onClick={handleBulkExport}>
-              <FileSpreadsheet className="h-4 w-4 mr-1.5" />
-              Esporta XLS
-            </Button>
+            <>
+              <Button variant="outline" size="sm" onClick={handleBulkExport}>
+                <FileSpreadsheet className="h-4 w-4 mr-1.5" />
+                Esporta XLS
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => void handleBulkExportXml()}>
+                <FileText className="h-4 w-4 mr-1.5" />
+                Esporta XML (zip)
+              </Button>
+            </>
           )}
 
           {!isTrash && (

@@ -495,10 +495,10 @@ export function useEmittiDocumento() {
         throw new Error("Il cliente è obbligatorio per emettere il documento");
       }
 
-      // L'emissione la fa il database (documento_emetti, 24/09/2026): assegna
-      // il numero adesso e non alla creazione della bozza (niente buchi nella
-      // serie), rifiuta la data futura e la data fuori ordine rispetto alle
-      // fatture già emesse. Prima qui si cambiava solo lo stato.
+      // L'emissione la fa il database (documento_emetti, 24/09/2026): tiene il
+      // numero che la bozza ha già dalla creazione (01/10/2026), rifiuta la
+      // data futura e la data fuori ordine rispetto alle fatture già emesse.
+      // Prima qui si cambiava solo lo stato.
       const { error: rpcErr } = await supabase.rpc("documento_emetti" as never, { p_documento_id: id } as never);
       if (rpcErr) throw new Error(rpcErr.message);
 

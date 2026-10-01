@@ -1472,6 +1472,23 @@
 }
 },
 {
+"fn": "documento_assegna_numero",
+"body": {
+"p_documento_id": null,
+"p_numero_progressivo": null
+}
+},
+{
+"fn": "documento_numero_nella_serie",
+"body": {
+"p_company_id": null,
+"p_tipo": null,
+"p_anno": null,
+"p_numero_progressivo": null,
+"p_escludi_id": null
+}
+},
+{
 "fn": "email_ai_cascade_stats",
 "body": {
 "p_days": null
