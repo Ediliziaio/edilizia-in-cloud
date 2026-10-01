@@ -351,18 +351,27 @@ export function generateXML(
     // Lo sconto in euro va scritto per unità: lo SDI ricalcola PrezzoTotale come
     // quantità × (prezzo − sconto). Senza, «Porta blindata 1.500 − 100» usciva
     // con PrezzoTotale 1.400 e prezzo 1.500: scarto 00423.
+    // L'importo dello sconto per unità, negli schemi FatturaPA che abbiamo
+    // verificato (Schema 1.2 e 1.2.1), ammette SOLO due decimali: «2.08653061» fa
+    // scartare la fattura per formato. Se lo sconto per unità non è esprimibile in
+    // centesimi (sconto di 12 euro su 7 pezzi, 1,7142…), lo si assorbe nel prezzo
+    // unitario, che ammette otto decimali: PrezzoTotale resta quello di riga.
+    const scontoPerUnita = sc.importo ? sc.importo / q : 0;
+    const scontoInCentesimi = !sc.importo || Math.abs(scontoPerUnita * 100 - Math.round(scontoPerUnita * 100)) < 1e-6;
+    const assorbiSconto = !!sc.importo && !scontoInCentesimi;
     const scontoXml = sc.percentuale
       ? `<ScontoMaggiorazione><Tipo>SC</Tipo><Percentuale>${fmtNum(sc.percentuale)}</Percentuale></ScontoMaggiorazione>`
-      : sc.importo
-        ? `<ScontoMaggiorazione><Tipo>SC</Tipo><Importo>${fmtNum8(sc.importo / q)}</Importo></ScontoMaggiorazione>`
+      : sc.importo && !assorbiSconto
+        ? `<ScontoMaggiorazione><Tipo>SC</Tipo><Importo>${fmtNum(scontoPerUnita)}</Importo></ScontoMaggiorazione>`
         : "";
+    const prezzoUnitario = assorbiSconto ? (Number(r.imponibile) || 0) / q : segno * (Number(r.prezzo_unitario) || 0);
     return `      <DettaglioLinee>
         <NumeroLinea>${n}</NumeroLinea>
         ${r.codice_articolo ? `<CodiceArticolo><CodiceTipo>INTERNO</CodiceTipo><CodiceValore>${x(r.codice_articolo, 35)}</CodiceValore></CodiceArticolo>` : ""}
         <Descrizione>${x(r.descrizione, 1000) || "-"}</Descrizione>
         <Quantita>${fmtNum8(q)}</Quantita>
         ${r.unita_misura ? `<UnitaMisura>${x(r.unita_misura, 10)}</UnitaMisura>` : ""}
-        <PrezzoUnitario>${fmtNum8(segno * (Number(r.prezzo_unitario) || 0))}</PrezzoUnitario>
+        <PrezzoUnitario>${fmtNum8(prezzoUnitario)}</PrezzoUnitario>
         ${scontoXml}
         <PrezzoTotale>${fmtNum(r.imponibile)}</PrezzoTotale>
         <AliquotaIVA>${fmtNum(aliquota)}</AliquotaIVA>
@@ -421,7 +430,9 @@ export function generateXML(
   const causaliXml = causali.flatMap((c) => aPezzi(c, 200)).map((c) => `<Causale>${escXml(c)}</Causale>`).join("\n        ");
 
   const ordini = ((doc.riferimenti_ordine ?? []) as Dati[]).filter((o) => o && (o.IdDocumento || o.id_documento || o.numero));
-  const cigCup = `${doc.cig ? `<CodiceCIG>${x(doc.cig, 15)}</CodiceCIG>` : ""}${doc.cup ? `<CodiceCUP>${x(doc.cup, 15)}</CodiceCUP>` : ""}`;
+  // Ordine dello schema (DatiDocumentiCorrelatiType): CodiceCUP PRIMA di CodiceCIG.
+  // Scritti al contrario, una fattura con tutti e due veniva scartata per formato.
+  const cigCup = `${doc.cup ? `<CodiceCUP>${x(doc.cup, 15)}</CodiceCUP>` : ""}${doc.cig ? `<CodiceCIG>${x(doc.cig, 15)}</CodiceCIG>` : ""}`;
   const ordiniXml = ordini.length
     ? ordini.map((o) => {
       const data = fmtDate(String(o.Data ?? o.data ?? ""));
