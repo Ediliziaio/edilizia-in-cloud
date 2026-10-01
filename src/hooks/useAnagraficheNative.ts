@@ -21,9 +21,11 @@ export function useAnagraficheNative(search?: string, includeInactive = false) {
         query = query.eq("attivo", true);
       }
 
-      if (search) {
+      // Virgole, parentesi e apici romperebbero il filtro .or(); un privato si cerca anche per nome o cognome.
+      const termine = (search ?? "").replace(/[,()"'\\%*]/g, " ").trim();
+      if (termine) {
         query = query.or(
-          `ragione_sociale.ilike.%${search}%,partita_iva.ilike.%${search}%,codice_fiscale.ilike.%${search}%`
+          ["ragione_sociale", "nome", "cognome", "partita_iva", "codice_fiscale"].map((c) => `${c}.ilike.%${termine}%`).join(","),
         );
       }
 

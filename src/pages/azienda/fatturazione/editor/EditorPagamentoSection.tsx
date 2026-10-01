@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Plus, Trash2, AlertTriangle, ChevronDown } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -37,16 +37,44 @@ const PRESET_DAYS: { label: string; days: number[] }[] = [
   { label: "30/60/90", days: [30, 60, 90] },
 ];
 
+// IBAN italiano: IT + 2 cifre di controllo + CIN (lettera) + ABI (5 cifre) + CAB (5 cifre) +
+// numero di conto (12 caratteri, anche con lettere: alcune banche e Poste li usano).
+// Prima il conto doveva essere tutto numerico e un IBAN valido veniva segnato errato.
 function validateIBAN(iban: string): boolean {
-  const cleaned = iban.replace(/\s/g, "").toUpperCase();
-  return /^IT\d{2}[A-Z]\d{22}$/.test(cleaned);
+  return /^IT\d{2}[A-Z]\d{10}[A-Z0-9]{12}$/.test(pulisciIban(iban));
 }
+
+/** Senza spazi, tabulazioni e a capo (si incollano dall'home banking), in maiuscolo. */
+const pulisciIban = (v: string): string => String(v ?? "").replace(/\s+/g, "").toUpperCase();
 
 export function EditorPagamentoSection({ state, dispatch, disabled }: Props) {
   const { data: azienda } = useAnagraficaAzienda();
   const scadenze = state.scadenze_pagamento ?? [];
-  const isBonifico = state.metodo_pagamento_codice === "MP05";
+  // Il menu mostra «Bonifico» quando il metodo non è scelto: i «Dettagli bancari» devono
+  // comparire anche allora. Prima, con il metodo vuoto (tutte le bozze nuove), non c'era
+  // modo di inserire l'IBAN e Fabio (Renova) non lo trovava.
+  const metodoEffettivo = state.metodo_pagamento_codice ?? "MP05";
+  const isBonifico = metodoEffettivo === "MP05";
   const [detailsOpen, setDetailsOpen] = useState(false);
+
+  // Bozza nuova: metodo e coordinate bancarie dell'azienda (Impostazioni → Pagamenti) già
+  // compilati, una volta sola. Prima la fattura nasceva senza metodo e senza IBAN anche se
+  // l'azienda li aveva impostati, e l'IBAN non finiva nell'XML.
+  const precompilato = useRef(false);
+  useEffect(() => {
+    if (precompilato.current || disabled || !azienda || !state._initialized || state.stato !== "bozza") return;
+    precompilato.current = true;
+    const campi: Record<string, unknown> = {};
+    if (!state.metodo_pagamento_codice) campi.metodo_pagamento_codice = (azienda as { metodo_pagamento_default?: string | null }).metodo_pagamento_default || "MP05";
+    const metodo = String(campi.metodo_pagamento_codice ?? state.metodo_pagamento_codice ?? "MP05");
+    if (metodo === "MP05" && !state.iban_pagamento && azienda.iban_principale) {
+      campi.iban_pagamento = pulisciIban(azienda.iban_principale);
+      if (azienda.bic_swift) campi.bic_pagamento = String(azienda.bic_swift).trim();
+      if (azienda.nome_banca) campi.nome_banca = String(azienda.nome_banca).trim();
+      campi.intestatario_conto = String(azienda.intestatario_conto ?? azienda.ragione_sociale ?? "").trim();
+    }
+    if (Object.keys(campi).length > 0) dispatch({ type: "SET_PAGAMENTO", fields: campi });
+  }, [azienda, state._initialized, state.stato, state.metodo_pagamento_codice, state.iban_pagamento, disabled, dispatch]);
 
   function setField(field: string, value: unknown) {
     dispatch({ type: "SET_PAGAMENTO", fields: { [field]: value } });
@@ -57,10 +85,10 @@ export function EditorPagamentoSection({ state, dispatch, disabled }: Props) {
       dispatch({
         type: "SET_PAGAMENTO",
         fields: {
-          iban_pagamento: azienda.iban_principale ?? "",
-          bic_pagamento: azienda.bic_swift ?? "",
-          nome_banca: azienda.nome_banca ?? "",
-          intestatario_conto: azienda.intestatario_conto ?? azienda.ragione_sociale,
+          iban_pagamento: pulisciIban(azienda.iban_principale ?? ""),
+          bic_pagamento: String(azienda.bic_swift ?? "").trim(),
+          nome_banca: String(azienda.nome_banca ?? "").trim(),
+          intestatario_conto: String(azienda.intestatario_conto ?? azienda.ragione_sociale ?? "").trim(),
         },
       });
     }
@@ -228,11 +256,12 @@ export function EditorPagamentoSection({ state, dispatch, disabled }: Props) {
               <Label className="text-[10px] text-muted-foreground">IBAN</Label>
               <Input
                 value={ibanValue}
-                onChange={(e) => setField("iban_pagamento", e.target.value.toUpperCase())}
+                onChange={(e) => setField("iban_pagamento", pulisciIban(e.target.value))}
                 className={cn("h-6 text-[10px] font-mono", !ibanValid && "border-destructive")}
                 placeholder="IT60X0542811101..."
                 disabled={disabled}
               />
+              {!ibanValid && <p className="mt-0.5 text-[9px] text-destructive">IBAN non valido: 27 caratteri, IT + 2 cifre + lettera + 22 tra cifre e lettere.</p>}
             </div>
             <div className="grid grid-cols-2 gap-1.5">
               <div>

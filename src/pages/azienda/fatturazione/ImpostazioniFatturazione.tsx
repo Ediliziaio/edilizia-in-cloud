@@ -218,11 +218,23 @@ export default function ImpostazioniFatturazione() {
 
   const handleSave = async () => {
     if (!azienda?.id) return;
+    // Testo pulito: l'IBAN incollato dall'home banking porta spazi e tabulazioni, e il nome
+    // della banca uno spazio in fondo (Renova: «IT39…6098<tab>», «BANCA DELLA MARCA »).
+    const pulito: Record<string, unknown> = { ...form };
+    if (typeof pulito.iban_principale === "string") pulito.iban_principale = pulito.iban_principale.replace(/\s+/g, "").toUpperCase() || null;
+    for (const k of ["nome_banca", "intestatario_conto", "bic_swift"]) {
+      if (typeof pulito[k] === "string") pulito[k] = (pulito[k] as string).trim() || null;
+    }
+    const iban = pulito.iban_principale;
+    if (typeof iban === "string" && !/^IT\d{2}[A-Z]\d{10}[A-Z0-9]{12}$/.test(iban)) {
+      toast.error("IBAN non valido", { description: "Un IBAN italiano ha 27 caratteri: IT, 2 cifre, una lettera e 22 tra cifre e lettere." });
+      return;
+    }
     setSaving(true);
     try {
       const { error } = await supabase
         .from("anagrafica_azienda" as never)
-        .update({ ...form, updated_at: new Date().toISOString() } as never)
+        .update({ ...pulito, updated_at: new Date().toISOString() } as never)
         .eq("id", azienda.id);
       if (error) throw error;
       queryClient.invalidateQueries({ queryKey: queryKeys.anagraficaAzienda.all });
@@ -277,6 +289,19 @@ export default function ImpostazioniFatturazione() {
           </Button>
         </div>
       </div>
+
+      {/* Modifiche non salvate: si vedono da qualunque scheda, con il pulsante accanto.
+          Fabio (Renova) aveva scritto l'IBAN in Pagamenti e non l'aveva salvato perché il
+          pulsante «Salva modifiche» sta in alto e non lo si nota. */}
+      {isDirty && (
+        <div className="sticky top-2 z-30 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 shadow-sm dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-200" role="status">
+          <span className="flex items-center gap-2 font-medium"><AlertTriangle className="h-4 w-4 shrink-0" /> Hai modifiche non salvate.</span>
+          <Button size="sm" onClick={handleSave} disabled={saving} className="gap-1.5">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            Salva ora
+          </Button>
+        </div>
+      )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="flex flex-wrap h-auto gap-1 p-1 w-full justify-start bg-muted/50">
@@ -784,7 +809,7 @@ export default function ImpostazioniFatturazione() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label className="text-xs">IBAN</Label>
-                    <Input value={current.iban_principale ?? ""} onChange={(e) => updateField("iban_principale", e.target.value.toUpperCase())} className="font-mono uppercase text-xs" placeholder="IT60X0542811101000000123456" />
+                    <Input value={current.iban_principale ?? ""} onChange={(e) => updateField("iban_principale", e.target.value.replace(/\s+/g, "").toUpperCase())} className="font-mono uppercase text-xs" placeholder="IT60X0542811101000000123456" />
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs">BIC/SWIFT</Label>
