@@ -413,7 +413,36 @@ export function useRichieste(filters?: { stato?: RichiestaStato; meseAnno?: stri
 
       const { data, error } = await q;
       if (error) throw error;
-      return (data || []) as RichiestaWithProfilo[];
+      const righe = (data || []) as RichiestaWithProfilo[];
+
+      // Richieste nate senza profilo HR collegato (solo con l'utente: succede con quelle
+      // create da fuori la scheda Personale): il nome si cerca dal profilo HR di quell'utente
+      // o, in mancanza, dalla sua anagrafica. Così la riga non resta senza nome.
+      const senzaProfilo = righe.filter((r) => !r.profilo && r.user_id);
+      if (senzaProfilo.length > 0) {
+        const userIds = Array.from(new Set(senzaProfilo.map((r) => r.user_id as string)));
+        const nomi = new Map<string, NonNullable<RichiestaWithProfilo["profilo"]>>();
+        const { data: hr } = await supabase
+          .from("hr_profili")
+          .select("id, user_id, nome, cognome, colore_avatar, reparto, mansione")
+          .eq("company_id", companyId!)
+          .in("user_id", userIds);
+        for (const p of (hr ?? []) as Array<{ id: string; user_id: string | null; nome: string; cognome: string; colore_avatar: string; reparto: string | null; mansione: string | null }>) {
+          if (p.user_id) nomi.set(p.user_id, { id: p.id, nome: p.nome, cognome: p.cognome, colore_avatar: p.colore_avatar, reparto: p.reparto, mansione: p.mansione });
+        }
+        const mancanti = userIds.filter((id) => !nomi.has(id));
+        if (mancanti.length > 0) {
+          const { data: anag } = await supabase.from("profiles").select("id, first_name, last_name").in("id", mancanti);
+          for (const p of (anag ?? []) as Array<{ id: string; first_name: string | null; last_name: string | null }>) {
+            nomi.set(p.id, { id: "", nome: p.first_name ?? "", cognome: p.last_name ?? "", colore_avatar: "", reparto: null, mansione: null });
+          }
+        }
+        for (const r of senzaProfilo) {
+          const trovato = nomi.get(r.user_id as string);
+          if (trovato) r.profilo = trovato;
+        }
+      }
+      return righe;
     },
     staleTime: 5 * 60 * 1000,
     gcTime: 15 * 60 * 1000,

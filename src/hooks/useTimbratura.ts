@@ -14,6 +14,7 @@ type HrTimbraturaJoined = Tables<"hr_timbrature"> & {
     cognome: string | null;
     colore_avatar: string | null;
     mansione: string | null;
+    reparto?: string | null;
   } | null;
   orders?: { order_code: string | null; description: string | null } | null;
 };
@@ -22,11 +23,14 @@ export type TimbraturaAdminRow = HrTimbratura & {
   profilo_nome: string | null;
   profilo_cognome: string | null;
   profilo_colore: string | null;
+  profilo_reparto?: string | null;
+  profilo_mansione?: string | null;
   cantiere_codice: string | null;
   cantiere_descrizione: string | null;
 };
 
 export type LiveStatusProfilo = Pick<Tables<"hr_profili">, "id" | "nome" | "cognome" | "colore_avatar" | "mansione"> & {
+  reparto?: string | null;
   last_tipo: string | null;
   last_ora: string | null;
   is_present: boolean;
@@ -147,6 +151,43 @@ export function useTimbra() {
   });
 }
 
+/** Quante timbrature mostra l'elenco a schermo: oltre, si avvisa e si scarica il resto. */
+export const LIMITE_ELENCO_TIMBRATURE = 500;
+
+/**
+ * Tutte le timbrature di un periodo, per l'esportazione: a pagine da 1000, senza il
+ * tetto dell'elenco (prima un mese intero si sarebbe tagliato a 200 righe senza dirlo).
+ */
+export async function scaricaTimbratureAdmin(companyId: string, dateFrom: string, dateTo: string): Promise<TimbraturaAdminRow[]> {
+  const PAGINA = 1000;
+  const tutte: HrTimbraturaJoined[] = [];
+  for (let da = 0; da < 200_000; da += PAGINA) {
+    const { data, error } = await supabase
+      .from("hr_timbrature")
+      .select("*, hr_profili!hr_timbrature_profilo_id_fkey(nome, cognome, colore_avatar, mansione, reparto), orders(order_code, description)")
+      .eq("company_id", companyId)
+      .gte("data_evento", dateFrom)
+      .lte("data_evento", dateTo)
+      .order("timestamp", { ascending: true })
+      .order("id", { ascending: true })
+      .range(da, da + PAGINA - 1);
+    if (error) throw error;
+    const pagina = (data || []) as HrTimbraturaJoined[];
+    tutte.push(...pagina);
+    if (pagina.length < PAGINA) break;
+  }
+  return tutte.map((t) => ({
+    ...t,
+    profilo_nome: t.hr_profili?.nome ?? null,
+    profilo_cognome: t.hr_profili?.cognome ?? null,
+    profilo_colore: t.hr_profili?.colore_avatar ?? null,
+    profilo_reparto: t.hr_profili?.reparto ?? null,
+    profilo_mansione: t.hr_profili?.mansione ?? null,
+    cantiere_codice: t.orders?.order_code ?? null,
+    cantiere_descrizione: t.orders?.description ?? null,
+  })) as TimbraturaAdminRow[];
+}
+
 /** Admin: fetch all timbrature for a date range */
 export function useTimbratureAdmin(dateFrom: string, dateTo: string) {
   const companyId = useEffectiveCompanyId();
@@ -157,12 +198,12 @@ export function useTimbratureAdmin(dateFrom: string, dateTo: string) {
       if (!companyId) return [];
       const { data, error } = await supabase
         .from("hr_timbrature")
-        .select("*, hr_profili!hr_timbrature_profilo_id_fkey(nome, cognome, colore_avatar, mansione), orders(order_code, description)")
+        .select("*, hr_profili!hr_timbrature_profilo_id_fkey(nome, cognome, colore_avatar, mansione, reparto), orders(order_code, description)")
         .eq("company_id", companyId)
         .gte("data_evento", dateFrom)
         .lte("data_evento", dateTo)
         .order("timestamp", { ascending: false })
-        .limit(200);
+        .limit(LIMITE_ELENCO_TIMBRATURE);
 
       if (error) throw error;
       return ((data || []) as HrTimbraturaJoined[]).map((t) => ({
@@ -170,6 +211,8 @@ export function useTimbratureAdmin(dateFrom: string, dateTo: string) {
         profilo_nome: t.hr_profili?.nome ?? null,
         profilo_cognome: t.hr_profili?.cognome ?? null,
         profilo_colore: t.hr_profili?.colore_avatar ?? null,
+        profilo_reparto: t.hr_profili?.reparto ?? null,
+        profilo_mansione: t.hr_profili?.mansione ?? null,
         cantiere_codice: t.orders?.order_code ?? null,
         cantiere_descrizione: t.orders?.description ?? null,
       })) as TimbraturaAdminRow[];
@@ -195,7 +238,7 @@ export function useLiveStatus() {
       // Get all active profili
       const { data: profili, error: profiliError } = await supabase
         .from("hr_profili")
-        .select("id, nome, cognome, colore_avatar, mansione")
+        .select("id, nome, cognome, colore_avatar, mansione, reparto")
         .eq("company_id", companyId)
         .eq("attivo", true)
         .order("cognome");
@@ -214,7 +257,7 @@ export function useLiveStatus() {
       if (timbratureError) throw timbratureError;
 
       // Map: for each profilo, find last timbratura
-      return (profili as Pick<Tables<"hr_profili">, "id" | "nome" | "cognome" | "colore_avatar" | "mansione">[]).map((p) => {
+      return (profili as (Pick<Tables<"hr_profili">, "id" | "nome" | "cognome" | "colore_avatar" | "mansione"> & { reparto?: string | null })[]).map((p) => {
         const myTimbrature = (timbrature || []).filter((t) => t.profilo_id === p.id);
         const last = myTimbrature[0];
         return {
