@@ -60,7 +60,7 @@ export function MarginalitaWidget() {
   // conteggio "in perdita" non nasconde commesse a rischio fuori dalle prime N.
   const summary = summarizeScostamenti(rows);
   // Mostra le commesse più a rischio per prime (in perdita → margine % crescente).
-  const topRows = computeScostamenti(rows).slice(0, 5);
+  const topRows = computeScostamenti(rows).filter((row) => row.consuntivo > 0).slice(0, 5);
   const avgPerc = summary.margineMedioPerc;
 
   if (isLoading) {
@@ -95,6 +95,28 @@ export function MarginalitaWidget() {
     );
   }
 
+  if (summary.nConCosti === 0) {
+    return (
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <AlertTriangle className="h-4 w-4 text-amber-600" />
+            Marginalità Cantieri
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <p className="text-sm font-medium text-amber-800">Costi da completare</p>
+          <p className="text-sm text-muted-foreground">
+            {summary.nDaCompletare} {summary.nDaCompletare === 1 ? "commessa ha" : "commesse hanno"} un contratto, ma nessun costo registrato. Il margine non viene stimato.
+          </p>
+          <Button variant="outline" size="sm" asChild>
+            <Link to="/azienda/marginalita">Completa i dati</Link>
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader className="pb-3 flex flex-row items-center justify-between gap-2">
@@ -122,6 +144,11 @@ export function MarginalitaWidget() {
                 {summary.nConSforamento > 0 && `${summary.nConSforamento} sforamenti`}
                 {summary.nConSforamento > 0 && summary.nConErrori > 0 && " · "}
                 {summary.nConErrori > 0 && `${summary.nConErrori} con errori`}
+              </span>
+            )}
+            {summary.nDaCompletare > 0 && (
+              <span className="text-xs font-medium text-amber-700">
+                {summary.nDaCompletare} da completare
               </span>
             )}
           </div>
@@ -180,11 +207,11 @@ export function MarginalitaWidget() {
 
         {/* Summary totals */}
         <div className="border-t pt-2 flex justify-between text-sm">
-          <span className="text-muted-foreground">Totale preventivo</span>
-          <span className="font-medium">{formatCurrency(summary.preventivoTotale)}</span>
+          <span className="text-muted-foreground">Preventivo valutato</span>
+          <span className="font-medium">{formatCurrency(summary.preventivoValutabile)}</span>
         </div>
         <div className="flex justify-between text-sm">
-          <span className="text-muted-foreground">Margine totale</span>
+          <span className="text-muted-foreground">Margine diretto</span>
           <span className={cn("font-semibold", margineColor(avgPerc))}>
             {formatCurrency(summary.margineTotale)}
           </span>

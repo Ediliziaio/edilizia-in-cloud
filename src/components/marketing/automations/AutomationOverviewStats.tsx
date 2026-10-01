@@ -19,7 +19,7 @@ interface Props {
 const MS_DAY = 86400 * 1000;
 
 export function AutomationOverviewStats({ companyId }: Props) {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ["automation-overview-stats", companyId],
     queryFn: async () => {
       // Le finestre temporali si calcolano QUI: leggere l'orologio durante il
@@ -35,7 +35,7 @@ export function AutomationOverviewStats({ companyId }: Props) {
         logs7dSuccess,
         errors24h,
       ] = await Promise.all([
-        supabase.from("automation_enrollments").select("id", { count: "exact", head: true }).eq("company_id", companyId).eq("status", "active"),
+        supabase.from("automation_enrollments").select("id", { count: "exact", head: true }).eq("company_id", companyId).in("status", ["active", "waiting"]),
         // «skipped» = passo rinviato (WhatsApp fuori fascia, numeri occupati):
         // non è un passaggio eseguito, e non deve abbassare le riuscite.
         supabase.from("automation_execution_log").select("id", { count: "exact", head: true }).eq("company_id", companyId).gte("created_at", day1Iso).neq("status", "skipped"),
@@ -45,6 +45,7 @@ export function AutomationOverviewStats({ companyId }: Props) {
         // con "failed" la card Errori 24h restava a 0 anche con errori reali.
         supabase.from("automation_execution_log").select("id", { count: "exact", head: true }).eq("company_id", companyId).gte("created_at", day1Iso).eq("status", "error"),
       ]);
+      for (const result of [enrollmentsActive, logs24h, logs7d, logs7dSuccess, errors24h]) if (result.error) throw result.error;
 
       return {
         enrollmentsActive: enrollmentsActive.count ?? 0,
@@ -56,7 +57,10 @@ export function AutomationOverviewStats({ companyId }: Props) {
     },
     enabled: !!companyId,
     staleTime: 60 * 1000,
+    refetchInterval: 30 * 1000,
   });
+
+  if (error) return <p role="status" className="mt-1 text-sm text-amber-700">Statistiche non disponibili: impossibile verificare gli esiti.</p>;
 
   if (isLoading || !data) {
     return <Skeleton className="mt-1.5 h-4 w-96 max-w-full" />;

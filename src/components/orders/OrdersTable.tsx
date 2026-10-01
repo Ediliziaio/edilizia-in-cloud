@@ -41,6 +41,8 @@ import { type OrderWithDetails, type OrderStatus, getPendingPayments, getAmountD
 export interface OrderCosts {
   variableCosts: number;
   grossMargin: number;
+  marginPercent: number;
+  marginReliable: boolean;
 }
 
 interface OrdersTableProps {
@@ -82,7 +84,10 @@ export const OrdersTable = React.memo(function OrdersTable({
     collected: (o: OrderWithDetails) => getAmountCollected(o),
     due: (o: OrderWithDetails) => getAmountDue(o),
     variableCosts: (o: OrderWithDetails) => orderCosts.get(o.id)?.variableCosts ?? 0,
-    grossMargin: (o: OrderWithDetails) => orderCosts.get(o.id)?.grossMargin ?? o.total_amount,
+    grossMargin: (o: OrderWithDetails) => {
+      const costs = orderCosts.get(o.id);
+      return costs?.marginReliable ? costs.grossMargin : Number.NEGATIVE_INFINITY;
+    },
     salesperson: (o: OrderWithDetails) => (salespeopleMap.get(o.id) || []).join(", "),
     labor: (o: OrderWithDetails) => (laborMap.get(o.id) || []).join(", "),
     supplier: (o: OrderWithDetails) => (supplierMap.get(o.id) || []).join(", "),
@@ -333,10 +338,9 @@ export const OrdersTable = React.memo(function OrdersTable({
               const totalIvato = order.total_amount * (1 + vatRate / 100);
               const costs = orderCosts.get(order.id);
               const variableCosts = costs?.variableCosts ?? 0;
-              const grossMargin = costs?.grossMargin ?? order.total_amount;
-              const marginPercent = order.total_amount > 0
-                ? (grossMargin / order.total_amount) * 100
-                : 0;
+              const grossMargin = costs?.grossMargin ?? 0;
+              const marginPercent = costs?.marginPercent ?? 0;
+              const marginReliable = costs?.marginReliable ?? false;
               const isSelected = selectedIds.has(order.id);
 
               return (
@@ -429,15 +433,21 @@ export const OrdersTable = React.memo(function OrdersTable({
                   )}
                   {visibleColumns.has("margin") && (
                     <TableCell className="hidden lg:table-cell text-right">
-                      <span className={`font-medium ${
-                        marginPercent >= 30
-                          ? "text-emerald-600 dark:text-emerald-400"
-                          : marginPercent >= 15
-                            ? "text-amber-600 dark:text-amber-400"
-                            : "text-destructive"
-                      }`}>
-                        {formatCurrency(grossMargin)} ({marginPercent.toFixed(1)}%)
-                      </span>
+                      {marginReliable ? (
+                        <span className={`font-medium ${
+                          marginPercent >= 30
+                            ? "text-emerald-600 dark:text-emerald-400"
+                            : marginPercent >= 15
+                              ? "text-amber-600 dark:text-amber-400"
+                              : "text-destructive"
+                        }`}>
+                          {formatCurrency(grossMargin)} ({marginPercent.toFixed(1)}%)
+                        </span>
+                      ) : (
+                        <span className="inline-flex rounded-full bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+                          Costi da completare
+                        </span>
+                      )}
                     </TableCell>
                   )}
                   {visibleColumns.has("deposit") && (

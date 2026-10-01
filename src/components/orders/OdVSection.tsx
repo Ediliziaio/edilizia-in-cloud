@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useOrderVariations } from "@/hooks/useOrderVariations";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -55,20 +56,7 @@ export function OdVSection({ orderId, companyId }: OdVSectionProps) {
   const [expandedOdvId, setExpandedOdvId] = useState<string | null>(null);
   const [invioEmailLoading, setInvioEmailLoading] = useState<string | null>(null);
 
-  const { data: odvList = [], isLoading } = useQuery({
-    queryKey: ["ordini-variazione", orderId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("ordini_variazione")
-        .select("*")
-        .eq("order_id", orderId)
-        .eq("company_id", companyId)
-        .order("numero_odv", { ascending: true });
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!orderId && !!companyId,
-  });
+  const { data: odvList = [], isLoading, isError, refetch } = useOrderVariations(orderId, companyId);
 
   // Total approved variazioni
   const totaleApprovato = odvList
@@ -80,7 +68,10 @@ export function OdVSection({ orderId, companyId }: OdVSectionProps) {
       if (!form.titolo.trim()) throw new Error("Il titolo è obbligatorio");
       if (!form.descrizione.trim()) throw new Error("La descrizione è obbligatoria");
       const importo = parseFloat(form.impatto_economico);
-      if (isNaN(importo) || importo < 0) throw new Error("Importo non valido");
+      if (!Number.isFinite(importo) || importo < 0) throw new Error("Importo non valido");
+      const giorni = Number(form.impatto_giorni || 0);
+      if (!Number.isInteger(giorni) || giorni < 0) throw new Error("Indica un numero intero di giorni, maggiore o uguale a zero");
+      if (isLoading || isError) throw new Error("Attendi il caricamento delle varianti prima di aggiungerne una");
 
       // Get next numero_odv
       const nextNumero = (odvList.length > 0
@@ -92,6 +83,7 @@ export function OdVSection({ orderId, companyId }: OdVSectionProps) {
 
       const session = await supabase.auth.getSession();
       const userId = session.data.session?.user?.id;
+      if (!userId) throw new Error("Sessione scaduta: accedi nuovamente");
 
       const { data, error } = await supabase
         .from("ordini_variazione")
@@ -103,7 +95,7 @@ export function OdVSection({ orderId, companyId }: OdVSectionProps) {
           descrizione: form.descrizione.trim(),
           motivazione: form.motivazione.trim() || null,
           impatto_economico: importo,
-          impatto_giorni: parseInt(form.impatto_giorni) || 0,
+          impatto_giorni: giorni,
           richiesto_da: form.richiesto_da.trim() || null,
           note_interne: form.note_interne.trim() || null,
           firma_token: firmaToken,
@@ -159,14 +151,14 @@ export function OdVSection({ orderId, companyId }: OdVSectionProps) {
               <Badge variant="secondary" className="shrink-0 text-xs">{odvList.length}</Badge>
             )}
           </CardTitle>
-          <Button size="sm" className="shrink-0" onClick={() => setDialogOpen(true)}>
+          <Button size="sm" className="shrink-0" disabled={isLoading || isError} onClick={() => setDialogOpen(true)}>
             <Plus className="h-4 w-4" />
             <span className="hidden sm:inline ml-1.5">Nuovo OdV</span>
           </Button>
         </CardHeader>
 
         <CardContent className="space-y-3">
-          {isLoading ? (
+          {isError ? <div role="alert" className="text-sm text-destructive">Varianti non disponibili. <Button variant="outline" size="sm" onClick={() => refetch()}>Riprova</Button></div> : isLoading ? (
             <div className="space-y-2">
               <Skeleton className="h-16 w-full" />
               <Skeleton className="h-16 w-full" />
@@ -300,17 +292,19 @@ export function OdVSection({ orderId, companyId }: OdVSectionProps) {
               <GitBranch className="h-5 w-5 text-primary" />
               Nuova Variante di Commessa
             </DialogTitle>
+            <DialogDescription>Descrivi i lavori e il prezzo. La creazione prepara il link: l'invio al cliente è un passaggio separato.</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
             <div className="space-y-1.5">
-              <Label>Titolo *</Label>
-              <Input placeholder="es. Aggiunta impianto di ventilazione" value={form.titolo} onChange={f("titolo")} />
+              <Label htmlFor="odv-title">Titolo *</Label>
+              <Input id="odv-title" placeholder="es. Aggiunta impianto di ventilazione" value={form.titolo} onChange={f("titolo")} />
             </div>
 
             <div className="space-y-1.5">
-              <Label>Descrizione lavori extra *</Label>
+              <Label htmlFor="odv-description">Descrizione lavori extra *</Label>
               <Textarea
+                id="odv-description"
                 placeholder="Descrivi dettagliatamente i lavori aggiuntivi non previsti nel contratto originale..."
                 value={form.descrizione}
                 onChange={f("descrizione")}
@@ -320,8 +314,9 @@ export function OdVSection({ orderId, companyId }: OdVSectionProps) {
             </div>
 
             <div className="space-y-1.5">
-              <Label>Motivazione</Label>
+              <Label htmlFor="odv-reason">Motivazione</Label>
               <Textarea
+                id="odv-reason"
                 placeholder="Perché questi lavori sono necessari o richiesti dal cliente..."
                 value={form.motivazione}
                 onChange={f("motivazione")}
@@ -332,8 +327,9 @@ export function OdVSection({ orderId, companyId }: OdVSectionProps) {
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>Importo aggiuntivo (€) *</Label>
+                <Label htmlFor="odv-amount">Importo aggiuntivo, IVA esclusa (€) *</Label>
                 <Input
+                  id="odv-amount"
                   type="number"
                   min="0"
                   step="0.01"
@@ -343,8 +339,9 @@ export function OdVSection({ orderId, companyId }: OdVSectionProps) {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label>Giorni aggiuntivi</Label>
+                <Label htmlFor="odv-days">Giorni aggiuntivi</Label>
                 <Input
+                  id="odv-days"
                   type="number"
                   min="0"
                   placeholder="0"
@@ -355,13 +352,13 @@ export function OdVSection({ orderId, companyId }: OdVSectionProps) {
             </div>
 
             <div className="space-y-1.5">
-              <Label>Richiesto da</Label>
-              <Input placeholder="Nome cliente o responsabile" value={form.richiesto_da} onChange={f("richiesto_da")} />
+              <Label htmlFor="odv-requester">Richiesto da</Label>
+              <Input id="odv-requester" placeholder="Nome cliente o responsabile" value={form.richiesto_da} onChange={f("richiesto_da")} />
             </div>
 
             <div className="space-y-1.5">
-              <Label>Note interne</Label>
-              <Input placeholder="Note visibili solo internamente" value={form.note_interne} onChange={f("note_interne")} />
+              <Label htmlFor="odv-internal-notes">Note interne</Label>
+              <Input id="odv-internal-notes" placeholder="Note visibili solo internamente" value={form.note_interne} onChange={f("note_interne")} />
             </div>
 
             <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200 dark:bg-amber-950/20 dark:border-amber-700">
@@ -377,7 +374,7 @@ export function OdVSection({ orderId, companyId }: OdVSectionProps) {
             <Button onClick={() => createOdv.mutate()} disabled={createOdv.isPending}>
               {createOdv.isPending
                 ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Salvataggio...</>
-                : <><GitBranch className="h-4 w-4 mr-2" /> Salva e invia per firma</>
+                : <><GitBranch className="h-4 w-4 mr-2" /> Crea link di approvazione</>
               }
             </Button>
           </DialogFooter>

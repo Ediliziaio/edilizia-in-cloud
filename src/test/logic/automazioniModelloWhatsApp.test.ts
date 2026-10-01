@@ -102,7 +102,7 @@ describe("motore: il passo passa da whatsapp-send", () => {
 
   it("il messaggio porta il contatto e parte dal numero del modello", () => {
     expect(passo).toContain("wa_number_id: modello.wa_number_id,");
-    expect(passo).toContain("contact_id: contact.id,");
+    expect(passo).toContain("contact_id: recipientContact.id,");
   });
 
   it("il testo scritto dal passo AI (whatsapp_body) vale più del testo del passo", () => {
@@ -110,7 +110,7 @@ describe("motore: il passo passa da whatsapp-send", () => {
   });
 
   it("chi ha detto STOP non riceve niente", () => {
-    expect(passo).toContain("if (contact.optout_whatsapp || contact.opt_out) {");
+    expect(passo).toContain("if (recipientContact.optout_whatsapp || recipientContact.opt_out) {");
   });
 
   it("la finestra delle 24 ore chiusa si spiega a chi legge il registro", () => {

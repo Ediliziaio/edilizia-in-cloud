@@ -66,7 +66,7 @@ export async function openRapportinoPdf(report: { id: string; pdf_url?: string |
   }
   try {
     // One-time upgrade for existing exports, leaving the old object intact.
-    const result = report.pdf_url?.includes("/rapportino-v2-")
+    const result = report.pdf_url?.includes("/rapportino-v3-")
       ? { pdf_url: report.pdf_url, warnings: [] }
       : await requestRapportinoPdf(report.id);
     const signedUrl = await linkFileRiservato(result.pdf_url);

@@ -50,12 +50,29 @@ export interface UscitaRow {
   destinatario_libero: { ragione_sociale?: string } | null;
   cliente_snapshot: Partial<ClienteSnapshot> | null;
   vettore: VettoreJson | null;
-  righe: Array<{ descrizione: string; quantita: number }>;
+  righe: Array<{
+    descrizione: string;
+    quantita: number;
+    prezzo_unitario?: number | null;
+    imponibile?: number | null;
+    totale_riga?: number | null;
+  }>;
   stato: "registrata" | "ddt_creato" | "annullata";
   documento_id: string | null;
   note: string | null;
   warehouse_id: string | null;
   created_at: string;
+}
+
+/** Valore netto fotografato nell'uscita; compatibile anche con righe storiche. */
+export function valoreUscita(righe: UscitaRow["righe"] | null | undefined): number {
+  return (righe ?? []).reduce((totale, riga) => {
+    const imponibile = Number(riga.imponibile ?? riga.totale_riga);
+    if (Number.isFinite(imponibile)) return totale + imponibile;
+    const quantita = Number(riga.quantita ?? 0);
+    const prezzo = Number(riga.prezzo_unitario ?? 0);
+    return totale + (Number.isFinite(quantita) ? quantita : 0) * (Number.isFinite(prezzo) ? prezzo : 0);
+  }, 0);
 }
 
 /** Fase 1 — registra l'uscita (nessun DDT). */

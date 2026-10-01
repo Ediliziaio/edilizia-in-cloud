@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { WorkflowNotesPanel } from "./panels/WorkflowNotesPanel";
 import { WorkflowErrorsPanel, type WorkflowError } from "./panels/WorkflowErrorsPanel";
 import { WorkflowVersionsPanel } from "./panels/WorkflowVersionsPanel";
+import type { RestoredAutomationGraph } from "@/types/automationBuilder";
 
 export type LeftPanel = "none" | "notes" | "errors" | "versions" | "history" | "stats" | "ai";
 
@@ -22,9 +23,11 @@ interface FlowBuilderSidebarProps {
   flowId?: string;
   errors?: WorkflowError[];
   readinessChecks?: { label: string; ok: boolean }[];
+  onVersionRestored?: (snapshot: RestoredAutomationGraph) => void;
+  isSaving?: boolean;
 }
 
-export function FlowBuilderSidebar({ activePanel, onPanelChange, flowId, errors = [], readinessChecks = [] }: FlowBuilderSidebarProps) {
+export function FlowBuilderSidebar({ activePanel, onPanelChange, flowId, errors = [], readinessChecks = [], onVersionRestored, isSaving }: FlowBuilderSidebarProps) {
   const toggle = (key: LeftPanel) => onPanelChange(activePanel === key ? "none" : key);
 
   const erroriCount = errors.filter(e => e.tipo === "errore").length;
@@ -83,7 +86,7 @@ export function FlowBuilderSidebar({ activePanel, onPanelChange, flowId, errors 
             <WorkflowErrorsPanel errors={errors} readinessChecks={readinessChecks} />
           )}
           {activePanel === "versions" && flowId && (
-            <WorkflowVersionsPanel flowId={flowId} />
+            <WorkflowVersionsPanel flowId={flowId} onRestored={onVersionRestored} isSaving={isSaving} />
           )}
           {activePanel === "stats" && (
             <div className="flex-1 flex items-center justify-center p-4">
@@ -110,7 +113,7 @@ export function FlowBuilderSidebar({ activePanel, onPanelChange, flowId, errors 
                   <li>Aggiungi condizioni prima delle azioni critiche.</li>
                   <li>Configura mittenti, template e variabili.</li>
                   <li>Controlla il pannello Errori prima di pubblicare.</li>
-                  <li>Esegui un test su un contatto reale di prova.</li>
+                  <li>Verifica i filtri in anteprima. Collauda gli invii separatamente, con destinatari di prova.</li>
                 </ol>
               </div>
               <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800">

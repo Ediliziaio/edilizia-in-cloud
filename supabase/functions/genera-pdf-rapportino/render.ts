@@ -132,8 +132,8 @@ export async function renderRapportino(ctx: PdfContext, loadImage: (reference: s
   if (phases.length) {
     section("Lavorazioni e avanzamento dichiarato", 60);
     const names = new Map(ctx.phases.map(p => [text(p.id), text(p.name)]));
-    table(["Lavorazione", "Avanzamento dichiarato"], [CW - 148, 148], phases.map(p => [text(p.nome) || text(p.name) || names.get(text(p.phase_id)) || `Lavorazione ${text(p.phase_id) || "non identificata"}`, percentage(p.percentuale)]));
-    paragraph("Percentuali riferite alle singole lavorazioni, non alle ore della giornata. La dichiarazione non sostituisce la verifica dell'ufficio.", 8, muted);
+    table(["Lavorazione", "Ore fase", "Avanzamento"], [CW - 195, 85, 110], phases.map(p => [text(p.nome) || text(p.name) || names.get(text(p.phase_id)) || `Lavorazione ${text(p.phase_id) || "non identificata"}`, hours(p.ore), percentage(p.percentuale)]));
+    paragraph("Ore e percentuali riferite alle singole lavorazioni. Le ore di fase non si sommano nuovamente alle presenze della squadra. La dichiarazione non sostituisce la verifica dell'ufficio.", 8, muted);
   } else if (number(r.percentuale_avanzamento) !== null) {
     paragraph(`Avanzamento generale dichiarato della commessa: ${percentage(r.percentuale_avanzamento)}.`, 8, muted);
   }
@@ -162,10 +162,11 @@ export async function renderRapportino(ctx: PdfContext, loadImage: (reference: s
   if (summary.status === "approvato") { section("Verifica dell'ufficio"); paragraph(`Rapportino approvato il ${timestamp(r.approvato_at)}. L'approvazione del rapportino non è una firma del cliente.`); }
   if (summary.status === "rifiutato") { section("Esito della verifica"); paragraph(`Rapportino rifiutato. ${text(r.motivo_rifiuto) || "Motivazione non registrata."}`); }
 
-  // Photography has its own pages: consistent large images, no orphan headings.
+  // Keep large images, but use the remaining page space instead of leaving an
+  // almost empty notes page before the photo annex.
   const photos = Array.isArray(r.foto_urls) ? r.foto_urls.filter((u): u is string => typeof u === "string" && !!u) : [];
   for (let i = 0; i < photos.length; i++) {
-    if (i % 2 === 0) { nextPage(); section("Documentazione fotografica", 270); }
+    if (i === 0 || y - bottom < 285) section("Documentazione fotografica", 285);
     const img = await embed(photos[i], "photo");
     const height = 244;
     ensure(height + 35);
@@ -182,6 +183,7 @@ export async function renderRapportino(ctx: PdfContext, loadImage: (reference: s
   ].filter(s => s.ref || r.lavoro_completato === true);
   if (signatures.length) {
     section("Firme", 165);
+    paragraph("La firma si riferisce a questo rapportino: non approva costi extra e non sostituisce un verbale di collaudo con verifiche ed eventuali riserve.", 8, muted);
     for (const sig of signatures) {
       const img = sig.ref ? await embed(sig.ref, "signature") : null;
       ensure(140); draw(sig.label, M, y, 9, bold); y -= 14;

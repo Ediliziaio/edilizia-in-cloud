@@ -1,10 +1,56 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { calculateOrderEconomics, type EconItem } from "@/lib/orders/economics";
+import {
+  assessOrderEconomicsQuality,
+  calculateOrderEconomics,
+  canonicalOrderEconomics,
+  orderVehicleCostEstimate,
+  type CanonicalEconomicsRow,
+  type EconItem,
+  type OrderVehicleCostEstimateRow,
+} from "@/lib/orders/economics";
 
 /** Reuses dedicated query keys and invalidation of the detailed account. */
 export function useOrderEconomicsBase(orderId: string, totalAmount: number, items: EconItem[], enabled = true) {
+  const {
+    data: canonicalRow = null,
+    isPending: canonicalPending,
+    isError: canonicalError,
+  } = useQuery({
+    queryKey: ["order-economics-canonical", orderId],
+    enabled: enabled && !!orderId,
+    staleTime: 2 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("v_ordine_marginalita")
+        .select("preventivo_contratto, variazioni_approvate, preventivo_totale, costo_acquisti, costo_materiali_magazzino, movimenti_magazzino_senza_costo, costo_manodopera, costo_provvigioni, costo_rimborsi_km, rimborsi_km_da_approvare, numero_rimborsi_km_da_approvare, costo_errori, costo_diretto, consuntivo, margine, margine_perc")
+        .eq("id", orderId)
+        .maybeSingle();
+      if (error) throw error;
+      return (data ?? null) as CanonicalEconomicsRow | null;
+    },
+  });
+
+  const {
+    data: vehicleRow = null,
+    isPending: vehiclePending,
+    isError: vehicleError,
+  } = useQuery({
+    queryKey: ["order-economics-vehicles", orderId],
+    enabled: enabled && !!orderId,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("v_ordine_costi_mezzi_stimati")
+        .select("costo_mezzi_stimato, mezzi_usati, giorni_mezzo, mezzi_senza_costo, dati_mezzi_visibili")
+        .eq("order_id", orderId)
+        .maybeSingle();
+      if (error) throw error;
+      return (data ?? null) as OrderVehicleCostEstimateRow | null;
+    },
+  });
+
   const { data: employees = [], isPending: empPending, isError: empError } = useQuery({
     queryKey: ["oes-employees", orderId], // chiave DEDICATA: non condividere la cache di OrderLaborCosts/OrderEconomics (select diversi → dati incompleti → crash)
     enabled: enabled && !!orderId,
@@ -60,11 +106,19 @@ export function useOrderEconomicsBase(orderId: string, totalAmount: number, item
       return (data ?? []) as { amount: number }[];
     },
   });
-
-
   const econ = useMemo(() => calculateOrderEconomics({ totalAmount, items, employees, teams, salespeople, errors }), [totalAmount, items, employees, teams, salespeople, errors]);
-  return { econ, employees, teams, salespeople, errors,
-    isPending: empPending || teamsPending || spPending || errPending,
-    isError: empError || teamsError || spError || errError,
+  const actual = useMemo(() => canonicalOrderEconomics(canonicalRow), [canonicalRow]);
+  const vehicleCosts = useMemo(() => orderVehicleCostEstimate(vehicleRow), [vehicleRow]);
+  const quality = useMemo(() => assessOrderEconomicsQuality({
+    sourceAvailable: canonicalRow !== null && !canonicalError,
+    actual,
+    items,
+    employees,
+    teams,
+  }), [actual, canonicalError, canonicalRow, employees, items, teams]);
+
+  return { econ, actual, quality, vehicleCosts, vehicleCostsError: vehicleError, employees, teams, salespeople, errors,
+    isPending: canonicalPending || vehiclePending || empPending || teamsPending || spPending || errPending,
+    isError: canonicalError || empError || teamsError || spError || errError,
   };
 }

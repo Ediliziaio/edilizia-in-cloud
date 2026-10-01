@@ -45,7 +45,7 @@ export function OrderSurveysCard({ orderId }: OrderSurveysCardProps) {
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 max-sm:p-3 max-sm:pb-2">
+      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0 max-sm:p-3 max-sm:pb-2">
         <CardTitle className="flex items-center gap-2 text-base sm:text-lg min-w-0">
           <ClipboardCheck className="h-4 w-4 shrink-0 text-orange-500" />
           <span className="truncate">Rilievi e sopralluoghi</span>
@@ -53,9 +53,9 @@ export function OrderSurveysCard({ orderId }: OrderSurveysCardProps) {
             <span className="text-xs font-normal text-muted-foreground shrink-0">({surveys.length})</span>
           )}
         </CardTitle>
-        <Button size="sm" variant="outline" className="h-8 shrink-0" onClick={goNew} disabled={solaLettura} title={solaLettura ? "Sei in sola lettura" : undefined}>
-          <Plus className="h-4 w-4 sm:mr-1" />
-          <span className="hidden sm:inline">Nuovo sopralluogo</span>
+        <Button size="sm" variant="outline" className="min-h-11 shrink-0 border-slate-300 font-semibold text-blue-950" onClick={goNew} disabled={solaLettura} title={solaLettura ? "Sei in sola lettura" : undefined}>
+          <Plus className="h-4 w-4 mr-1" aria-hidden="true" />
+          <span>Nuovo sopralluogo</span>
         </Button>
       </CardHeader>
       <CardContent className="max-sm:p-3 max-sm:pt-0">

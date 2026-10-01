@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { filterErrors } from "../../../supabase/functions/_shared/automationFilters";
 import type { WorkflowError } from "./panels/WorkflowErrorsPanel";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import {
@@ -988,6 +989,9 @@ export function FlowBuilderPage() {
 
     for (const n of nonNoteNodes) {
       if (n.type === "end") continue;
+      for (const message of filterErrors(n.data?.trigger_filters ?? n.data?.filters)) {
+        errs.push({ nodeId: n.id, nodeLabel: n.data?.label || "Trigger", tipo: "errore", messaggio: message });
+      }
 
       // Trigger: empty placeholder not configured. Con almeno uno step
       // operativo NON è un errore: il flusso può vivere da "ricevente"
@@ -1078,6 +1082,7 @@ export function FlowBuilderPage() {
     const hasTrigger = nonNoteNodes.some(n => n.type === "trigger" && !n.data?.isEmpty);
     const hasAction = nonNoteNodes.some(n => ["action", "condition", "delay", "goal", "split"].includes(String(n.type)));
     const blockingErrors = validationErrors.filter(e => e.tipo === "errore").length;
+    const validFilters = nonNoteNodes.every(n => filterErrors(n.data?.trigger_filters ?? n.data?.filters).length === 0);
     const warnings = validationErrors.filter(e => e.tipo === "avviso").length;
 
     return [
@@ -1089,6 +1094,7 @@ export function FlowBuilderPage() {
         : { label: "Senza trigger: parte solo se richiamata da un'altra automazione", ok: hasAction, warning: true },
       { label: "Almeno uno step operativo", ok: hasAction },
       { label: "Nessun errore bloccante", ok: blockingErrors === 0 },
+      { label: "Filtri completi e validi", ok: validFilters },
       // Gli AVVISI non bloccano il publish: i nodi Fine non vengono persistiti
       // by-design, quindi alla riapertura l'ultimo nodo risulta "senza uscita"
       // e con `ok: warnings === 0` NESSUN flusso lineare era ripubblicabile.
@@ -1372,18 +1378,14 @@ export function FlowBuilderPage() {
         onClose={() => setTestDialogOpen(false)}
         flow={flow}
         companyId={effectiveCompany?.id}
-        onEnrollmentCreated={(id) => {
-          setTestEnrollmentId(id);
-          setActiveTab("cronologia");
-          toast.info("Test avviato — visualizzo il percorso in Cronologia");
-        }}
+        nodes={rfNodes}
       />
 
       {/* Body */}
       <div className="flex flex-1 overflow-hidden">
         {/* Left sidebar — only in builder tab */}
         {activeTab === "builder" && (
-          <FlowBuilderSidebar activePanel={leftPanel} onPanelChange={setLeftPanel} flowId={flowId} errors={validationErrors} readinessChecks={readinessChecks} />
+          <FlowBuilderSidebar activePanel={leftPanel} onPanelChange={setLeftPanel} flowId={flowId} errors={validationErrors} readinessChecks={readinessChecks} onVersionRestored={builder.applyRestoredGraph} isSaving={builder.isSaving} />
         )}
 
         {/* Center content */}

@@ -13,6 +13,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { TRIGGER_CATALOG, ACTION_CATALOG, CONDITION_CATALOG, campiObbligatoriMancanti, emailSenzaOggettoOTesto } from "@/lib/flow-node-catalog";
 import { FLOW_TEMPLATES } from "@/lib/flow-templates";
+import { evaluateAutomationFilters } from "../../../supabase/functions/_shared/automationFilters";
 
 const ROOT = join(__dirname, "../../..");
 const EXECUTOR = readFileSync(join(ROOT, "supabase/functions/process-automation/index.ts"), "utf8");
@@ -242,10 +243,9 @@ describe("coerenza catalogo ↔ executor ↔ emettitori", () => {
     // «Ha già la scheda?» deve rispondere come «Sposta», che lavora solo fuori
     // dal cestino: una scheda cestinata diceva sì, lo spostamento non trovava
     // niente e chi prenotava restava senza scheda in «Demo Fissata».
-    const inizio = EXECUTOR.indexOf('prefix === "opportunita"');
-    const risolutore = EXECUTOR.slice(inizio, EXECUTOR.indexOf('prefix === "appuntamento"', inizio));
-    expect(inizio).toBeGreaterThan(-1);
-    expect(risolutore).toContain('.is("deleted_at", null)');
+    const resolver = readFileSync(join(ROOT, "supabase/functions/_shared/automationContext.ts"), "utf8");
+    expect(EXECUTOR).toContain("resolveAutomationRecord(supabase, prefix");
+    expect(resolver).toContain('if (target === "opportunity") query = query.is("deleted_at", null)');
   });
 
   it("il modello salvato dell'email arriva fino al motore", () => {
@@ -262,9 +262,8 @@ describe("coerenza catalogo ↔ executor ↔ emettitori", () => {
     // «dvs» non deve risultare presente a chi ha solo «dvs ai»: sono due
     // percorsi diversi del sistema DVS. Vale sia nelle condizioni del flusso
     // sia nei filtri del trigger.
-    expect(EXECUTOR).toContain("const elenco = Array.isArray(actual)");
-    expect(EXECUTOR).toContain("elenco ? elenco.includes(cercato)");
-    expect(EXECUTOR).toContain("elenco ? elenco.includes(sv)");
+    expect(evaluateAutomationFilters({ conditions: [{ field: "tags", operator: "contains", value: "dvs" }] }, { tags: ["dvs ai"] })).toBe(false);
+    expect(evaluateAutomationFilters({ conditions: [{ field: "tags", operator: "contains", value: "dvs" }] }, { tags: ["dvs"] })).toBe(true);
     const pannello = readFileSync(join(ROOT, "src/components/flow-builder/config-panels/ConditionConfigPanel.tsx"), "utf8");
     expect(pannello).toContain("contatto.tags");
   });

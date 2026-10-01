@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { missingCampoDocument, CAMPO_DOCUMENT_REQUIRED } from "../_shared/campoDocumentGuard.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 
 // Risolve l'utente "proprietario" del documento a cui inviare la notifica:
@@ -93,7 +94,7 @@ Deno.serve(async (req: Request) => {
     // Carica sigReq via token
     const { data: sigReq, error: fetchErr } = await supabaseAdmin
       .from("signature_requests")
-      .select("id, status, tipo_firmatario, signer_email, signer_name, documento_hash, company_id, sessione_id, order_id, quote_id, fv_progetto_id, tipo_documento, created_by")
+      .select("id, status, tipo_firmatario, signer_email, signer_name, documento_hash, company_id, sessione_id, order_id, quote_id, fv_progetto_id, tipo_documento, created_by, categoria")
       .eq("token", token)
       .single();
 
@@ -102,6 +103,9 @@ Deno.serve(async (req: Request) => {
     }
 
     // Check: status deve essere otp_verified
+    if (missingCampoDocument(sigReq.tipo_documento, sigReq.categoria)) {
+      return errore(422, CAMPO_DOCUMENT_REQUIRED);
+    }
     if (sigReq.status !== "otp_verified") {
       if (sigReq.status === "signed") {
         return errore(409, "Documento già firmato");

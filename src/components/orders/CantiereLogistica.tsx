@@ -77,7 +77,7 @@ function MettiMezzoDialog({ orderId, aperto, onAperto, giaQui }: {
   );
 }
 
-export function CantiereLogistica({ orderId }: { orderId: string }) {
+export function CantiereLogistica({ orderId, showSiteEquipment = true }: { orderId: string; showSiteEquipment?: boolean }) {
   const qc = useQueryClient();
   const perms = usePermissions();
   const puoMezzi = (perms.canEditMezzi || perms.isAdmin) && !perms.solaLettura;
@@ -123,14 +123,14 @@ export function CantiereLogistica({ orderId }: { orderId: string }) {
         )}
       </div>
 
-      {(sulCantiere.length > 0 || conTutti.length > 0 || puoMezzi) && (
+      {((showSiteEquipment && (sulCantiere.length > 0 || puoMezzi)) || conTutti.length > 0) && (
         <div className="flex flex-wrap items-center gap-1.5 border-t pt-2.5">
           <Truck className="mr-0.5 h-4 w-4 shrink-0 text-teal-700" aria-hidden="true" />
-          <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Mezzi e attrezzi</span>
+          <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{showSiteEquipment ? "Mezzi e attrezzi" : "Al seguito della squadra"}</span>
           {sulCantiere.length === 0 && conTutti.length === 0 && (
             <span className="text-xs text-muted-foreground">nessuno sul cantiere</span>
           )}
-          {sulCantiere.map((m) => (
+          {(showSiteEquipment ? sulCantiere : []).map((m) => (
             <span key={m.id} className={cn("inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs", AZIONE_TENUE.mezzo)}>
               <b className="font-semibold">{m.nome}</b>{m.targa && <span className="opacity-80">{m.targa}</span>}
               <span className="opacity-80">· sul cantiere</span>
@@ -155,7 +155,7 @@ export function CantiereLogistica({ orderId }: { orderId: string }) {
               <span className="text-muted-foreground">· {m.persona}{m.a_bordo.length > 0 ? `, con ${m.a_bordo.join(", ")}` : ""}</span>
             </span>
           ))}
-          {puoMezzi && (
+          {puoMezzi && showSiteEquipment && (
             <Button size="sm" variant="outline" className={cn("h-7 rounded-full px-2.5 text-xs", AZIONE_TENUE.mezzo)} onClick={() => setAperto(true)}>
               <Plus className="mr-1 h-3.5 w-3.5" aria-hidden="true" />Mezzo o attrezzo
             </Button>

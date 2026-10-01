@@ -45,7 +45,7 @@ describe("apertura da un tap mobile", () => {
   it("non apre un vecchio URL pubblico se la firma fallisce", async () => {
     const tab = { document: { title: "", body: { textContent: "" } }, opener: {}, closed: false, location: { replace: vi.fn() }, close: vi.fn() };
     const open = vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
-    const url = "https://local.invalid/storage/v1/object/public/campo-rapportini/c/r/rapportino-v2-x.pdf";
+    const url = "https://local.invalid/storage/v1/object/public/campo-rapportini/c/r/rapportino-v3-x.pdf";
     m.sign.mockResolvedValue(url);
     await expect(openRapportinoPdf({ id: "g", pdf_url: url }, "order", qc)).rejects.toThrow("file riservato");
     expect(tab.close).toHaveBeenCalled(); expect(tab.location.replace).not.toHaveBeenCalled(); open.mockRestore();

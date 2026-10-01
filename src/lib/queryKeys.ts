@@ -40,6 +40,12 @@ export const queryKeys = {
   // ── Marketing Contacts ─────────────────────────────────
   marketingContacts: {
     all: ["marketing-contacts"] as const,
+    reachability: (companyId: string | undefined, assignedId: string | null) =>
+      ["marketing-contacts", "reachability", companyId, assignedId] as const,
+    fieldValues: (companyId: string | undefined, contactIds: string[]) =>
+      ["marketing-contacts", "field-values", companyId, contactIds] as const,
+    filterValues: (companyId: string | null | undefined, field: string) =>
+      ["marketing-contacts", "filter-values", companyId, field] as const,
     list: (companyId: string | undefined) => ["marketing-contacts", "list", companyId] as const,
     detail: (contactId: string | undefined) => ["marketing-contacts", "detail", contactId] as const,
     notes: (contactId: string | null | undefined, opportunityId?: string | null) =>
@@ -77,6 +83,8 @@ export const queryKeys = {
       ["marketing-opportunities", "etichette", companyId, pipelineId] as const,
     detail: (opportunityId: string | undefined) =>
       ["marketing-opportunities", "detail", opportunityId] as const,
+    deepLink: (companyId: string | undefined, opportunityId: string | null) =>
+      ["marketing-opportunities", "deep-link", companyId, opportunityId] as const,
     byContact: (contactId: string | undefined) =>
       ["marketing-opportunities", "by-contact", contactId] as const,
     cestino: (companyId: string | undefined) =>
@@ -709,6 +717,7 @@ export const queryKeys = {
   contactLists: {
     all: ["marketing-contact-lists"] as const,
     list: (companyId: string | undefined) => ["marketing-contact-lists", companyId] as const,
+    count: (companyId: string | undefined) => ["marketing-contact-lists", companyId, "count"] as const,
   },
 
   // ── AI Agents (Marketing/Sales) ─────────────────────

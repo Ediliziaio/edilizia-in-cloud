@@ -27,10 +27,12 @@ import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { createRequire } from "node:module";
 
 const RADICE = join(dirname(fileURLToPath(import.meta.url)), "..");
 const BASELINE = join(RADICE, "typecheck-baseline.json");
 const AGGIORNA = process.argv.includes("--update");
+const COMPILATORE = createRequire(import.meta.url).resolve("typescript/lib/tsc.js");
 
 /** Esegue tsc e restituisce le righe di errore. tsc esce con 2 se ne trova.
  *  TYPECHECK_OUTPUT_FILE riusa l'output di una corsa gia' fatta: serve a
@@ -40,16 +42,25 @@ function eseguiTsc() {
   if (gia) return readFileSync(gia, "utf8");
   try {
     execFileSync(
-      "npx",
-      ["tsc", "--noEmit", "-p", "tsconfig.app.json", "--incremental", "false"],
+      process.execPath,
+      [COMPILATORE, "--noEmit", "-p", "tsconfig.app.json", "--incremental", "false", "--pretty", "false"],
       { cwd: RADICE, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
         env: { ...process.env, NODE_OPTIONS: "--max-old-space-size=12288" } },
     );
     return "";
   } catch (e) {
-    // stdout porta gli errori; se tsc non parte proprio, si rilancia.
-    if (e.stdout == null && e.stderr == null) throw e;
-    return `${e.stdout ?? ""}${e.stderr ?? ""}`;
+    const output = `${e.stdout ?? ""}${e.stderr ?? ""}`;
+    // Only a completed compiler run with per-file diagnostics can be compared
+    // with the baseline. A killed/OOM compiler or a broken tsconfig is NOT a
+    // clean build, even when it emitted no diagnostics (or only a partial set).
+    const completedWithDiagnostics = (e.status === 1 || e.status === 2)
+      && !e.signal && !e.code
+      && /^.+?\(\d+,\d+\): error TS\d+:/m.test(output)
+      && !/^error TS\d+:/m.test(output);
+    if (!completedWithDiagnostics) {
+      throw new Error(`Controllo TypeScript non completato (exit=${e.status ?? "n/a"}, signal=${e.signal ?? "nessuno"}). ${output.slice(-1000)}`, { cause: e });
+    }
+    return output;
   }
 }
 

@@ -89,7 +89,8 @@ describe("opportunità in tempo reale", () => {
     expect(predicate(q(queryKeys.opportunities.fase("az1", "p1", "s1", {}, "created_at:desc")))).toBe(true);
     expect(predicate(q(queryKeys.opportunities.lista("az1", "p1", null, {}, "created_at:desc")))).toBe(true);
     expect(predicate(q(queryKeys.opportunities.riepilogo("az1", "p2", {})))).toBe(false);
-    expect(predicate(q(queryKeys.opportunities.etichette("az1", "p1")))).toBe(false);
+    expect(predicate(q(queryKeys.opportunities.etichette("az1", "p1")))).toBe(true);
+    expect(predicate(q(queryKeys.opportunities.riepilogo("altra-azienda", "p1", {})))).toBe(false);
     expect(predicate(q(queryKeys.opportunities.detail("o1")))).toBe(false);
   });
 

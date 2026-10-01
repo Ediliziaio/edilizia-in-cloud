@@ -9,7 +9,7 @@
  *
  * Semantica colonne (verificata su prod):
  *   preventivo = valore del contratto (ricavo)   → `preventivo_totale` || `preventivo_contratto`
- *   consuntivo = costi diretti sostenuti          → acquisti + errori
+ *   consuntivo = costi diretti sostenuti          → acquisti + errori + manodopera + provvigioni + costi diretti
  *   margine    = preventivo − consuntivo
  *   margine_perc = margine / preventivo × 100
  *
@@ -82,6 +82,8 @@ export interface ScostamentiSummary {
   nCommesse: number;
   /** Commesse con consuntivazione avviata (consuntivo > 0). */
   nConCosti: number;
+  /** Commesse con contratto ma senza costi: margine non ancora valutabile. */
+  nDaCompletare: number;
   /** Commesse in perdita (margine < 0). */
   nInPerdita: number;
   /** Commesse con margine 0..soglia (consuntivate, non in perdita ma sotto soglia). */
@@ -91,9 +93,11 @@ export interface ScostamentiSummary {
   /** Commesse con costi oltre il preventivo (sforamento). */
   nConSforamento: number;
   preventivoTotale: number;
+  /** Valore dei soli contratti con consuntivazione avviata. */
+  preventivoValutabile: number;
   consuntivoTotale: number;
   margineTotale: number;
-  /** Margine medio ponderato = margineTotale / preventivoTotale × 100. */
+  /** Margine medio ponderato sui soli dati valutabili. */
   margineMedioPerc: number;
   /** Commessa con marginalità peggiore tra quelle consuntivate. */
   peggiore: ScostamentoCommessa | null;
@@ -234,17 +238,22 @@ export function computeScostamenti(
     .sort(byRischio);
 }
 
-/** Aggregato di portafoglio (KPI) calcolato su tutte le commesse con preventivo > 0. */
+/**
+ * Aggregato di portafoglio. Il valore contratti comprende tutte le commesse,
+ * mentre margine e percentuale comprendono solo quelle con costi registrati:
+ * un costo mancante non puo' diventare un utile del 100%.
+ */
 export function summarizeScostamenti(rows: OrdineMarginalitaRow[]): ScostamentiSummary {
   const all = rows.map(toScostamento).filter((s) => s.preventivo > 0);
   const conCosti = all.filter((s) => s.consuntivo > 0);
 
   const preventivoTotale = all.reduce((s, r) => s + r.preventivo, 0);
+  const preventivoValutabile = conCosti.reduce((s, r) => s + r.preventivo, 0);
   const consuntivoTotale = all.reduce((s, r) => s + r.consuntivo, 0);
-  const margineTotale = all.reduce((s, r) => s + r.margine, 0);
-  const margineMedioPerc = preventivoTotale > 0 ? (margineTotale / preventivoTotale) * 100 : 0;
+  const margineTotale = conCosti.reduce((s, r) => s + r.margine, 0);
+  const margineMedioPerc = preventivoValutabile > 0 ? (margineTotale / preventivoValutabile) * 100 : 0;
 
-  const nInPerdita = all.filter((s) => s.isInPerdita).length;
+  const nInPerdita = conCosti.filter((s) => s.isInPerdita).length;
   const nSottoSoglia = conCosti.filter(
     (s) => !s.isInPerdita && s.marginePerc < SOGLIA_VERDE_PERC,
   ).length;
@@ -258,11 +267,13 @@ export function summarizeScostamenti(rows: OrdineMarginalitaRow[]): ScostamentiS
   return {
     nCommesse: all.length,
     nConCosti: conCosti.length,
+    nDaCompletare: all.length - conCosti.length,
     nInPerdita,
     nSottoSoglia,
     nConErrori,
     nConSforamento,
     preventivoTotale,
+    preventivoValutabile,
     consuntivoTotale,
     margineTotale,
     margineMedioPerc,
@@ -301,13 +312,22 @@ export function formatScostamentiForChat(
     return "Non ho trovato commesse con un preventivo associato da analizzare.";
   }
 
+  if (summary.nConCosti === 0) {
+    return `📊 *Marginalità commesse*\n\n${summary.nDaCompletare} commess${summary.nDaCompletare === 1 ? "a ha" : "e hanno"} un contratto, ma nessun costo registrato. Il margine non è ancora valutabile.`;
+  }
+
   const head = [
     `📊 *Marginalità commesse*`,
     "",
-    `Preventivo: ${formatEuroCompact(summary.preventivoTotale)}`,
+    `Preventivo valutato: ${formatEuroCompact(summary.preventivoValutabile)}`,
     `Consuntivo: ${formatEuroCompact(summary.consuntivoTotale)}`,
     `Margine: ${formatEuroCompact(summary.margineTotale)} (${summary.margineMedioPerc.toFixed(1)}%)`,
   ];
+
+
+  if (summary.nDaCompletare > 0) {
+    head.push(`⚪ ${summary.nDaCompletare} ${summary.nDaCompletare === 1 ? "commessa esclusa" : "commesse escluse"} dal margine: costi da completare`);
+  }
 
   if (summary.nInPerdita > 0) {
     head.push(`🔴 ${summary.nInPerdita} in perdita · 🟡 ${summary.nSottoSoglia} sotto soglia`);
@@ -323,7 +343,7 @@ export function formatScostamentiForChat(
   if (summary.nConErrori > 0) noteCause.push(`⚠️ ${summary.nConErrori} con errori/rilavorazioni`);
   if (noteCause.length) head.push(noteCause.join(" · "));
 
-  const lines = top.map((c) => {
+  const lines = top.filter((c) => c.consuntivo > 0).map((c) => {
     const nome = c.orderCode ? `#${c.orderCode}` : c.description.slice(0, 28);
     const base = `${semaforoEmoji(c.semaforo)} ${nome} — ${formatEuroCompact(c.margine)} (${c.marginePerc.toFixed(1)}%)`;
     // Mostra la causa principale (più grave) sotto la riga.

@@ -54,6 +54,7 @@ export default function FirmaOdV() {
   const [odv, setOdv] = useState<OdVData | null>(null);
   const [firmatoDa, setFirmatoDa] = useState("");
   const [hasDrawn, setHasDrawn] = useState(false);
+  const [accepted, setAccepted] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const isDrawingRef = useRef(false);
 
@@ -135,7 +136,7 @@ export default function FirmaOdV() {
 
   // ── Submit approve ───────────────────────────────────────────
   const handleApprove = async () => {
-    if (!hasDrawn || !token || !odv) return;
+    if (!hasDrawn || !token || !odv || !accepted || firmatoDa.trim().length < 2 || pageStatus === "submitting") return;
 
     // Guard: canvas must be serializable
     const firmaData = canvasRef.current?.toDataURL("image/png");
@@ -146,8 +147,8 @@ export default function FirmaOdV() {
 
     setPageStatus("submitting");
 
-    // Chiama firma-odv-webhook che aggiorna OdV + importo ordine + activity log
-    const { error: webhookError } = await supabase.functions.invoke("firma-odv-webhook", {
+    // Una sola transizione: non alterare il contratto base né ripetere alla cieca.
+    const { data, error } = await supabase.functions.invoke("firma-odv-webhook", {
       body: {
         token,
         firma_data_base64: firmaData,
@@ -155,19 +156,10 @@ export default function FirmaOdV() {
       },
     });
 
-    if (webhookError) {
-      // Fallback: la RPC scrive solo la riga di questo token.
-      const { data, error } = await supabase.rpc("odv_sign_with_token" as never, {
-        p_token: token,
-        p_firma_base64: firmaData,
-        p_firmato_da: firmatoDa.trim() || null,
-      } as never);
-
-      if (error || !(data as { success?: boolean } | null)?.success) {
-        toast.error("Errore durante il salvataggio. Riprova.");
-        setPageStatus("ready");
-        return;
-      }
+    if (error || !data?.success) {
+      toast.error("Esito della firma non confermato. Verifico lo stato della variante.");
+      await loadOdv();
+      return;
     }
 
     setPageStatus("approved");
@@ -239,7 +231,7 @@ export default function FirmaOdV() {
             <CheckCircle2 className="h-16 w-16 text-green-600" />
             <h2 className="text-xl font-semibold text-green-700">Ordine approvato!</h2>
             <p className="text-sm text-muted-foreground text-center">
-              Hai approvato l'ordine di variazione. L'azienda è stata notificata e i lavori potranno procedere.
+              L'approvazione è registrata nella commessa. Concorda con l'azienda la programmazione dei lavori.
             </p>
           </CardContent>
         </Card>
@@ -255,7 +247,7 @@ export default function FirmaOdV() {
             <XCircle className="h-16 w-16 text-red-500" />
             <h2 className="text-xl font-semibold text-red-700">Ordine rifiutato</h2>
             <p className="text-sm text-muted-foreground text-center">
-              Hai rifiutato l'ordine di variazione. L'azienda è stata notificata.
+              Il rifiuto è registrato nella commessa. Questa variante non aumenta l'importo approvato.
             </p>
           </CardContent>
         </Card>
@@ -312,7 +304,7 @@ export default function FirmaOdV() {
                 <div className="flex items-center gap-2">
                   <Euro className="h-4 w-4 text-muted-foreground" />
                   <div>
-                    <p className="text-xs text-muted-foreground">Importo aggiuntivo</p>
+                    <p className="text-xs text-muted-foreground">Importo aggiuntivo, IVA esclusa</p>
                     <p className="font-semibold text-sm">
                       {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(odv.impatto_economico)}
                     </p>
@@ -354,8 +346,10 @@ export default function FirmaOdV() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-1.5">
-              <Label>Il tuo nome (opzionale)</Label>
+              <Label htmlFor="odv-signer">Nome e cognome *</Label>
               <Input
+                id="odv-signer"
+                maxLength={200}
                 placeholder="es. Mario Rossi"
                 value={firmatoDa}
                 onChange={(e) => setFirmatoDa(e.target.value)}
@@ -391,6 +385,10 @@ export default function FirmaOdV() {
           </CardContent>
         </Card>
 
+        <label className="flex items-start gap-3 rounded-lg border p-4 text-sm">
+          <input type="checkbox" className="mt-1 h-4 w-4 shrink-0" checked={accepted} onChange={e => setAccepted(e.target.checked)} disabled={pageStatus === "submitting"} />
+          Ho letto la variante e approvo i lavori descritti, l'importo aggiuntivo IVA esclusa e gli eventuali giorni aggiuntivi.
+        </label>
         {/* Action Buttons */}
         <div className="grid grid-cols-2 gap-3 pb-8">
           {/* Reject */}
@@ -429,7 +427,7 @@ export default function FirmaOdV() {
           {/* Approve */}
           <Button
             onClick={handleApprove}
-            disabled={!hasDrawn || pageStatus === "submitting"}
+            disabled={!hasDrawn || !accepted || firmatoDa.trim().length < 2 || pageStatus === "submitting"}
             className="bg-green-600 hover:bg-green-700 text-white"
           >
             {pageStatus === "submitting" ? (

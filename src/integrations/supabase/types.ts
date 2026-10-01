@@ -39,6 +39,12 @@ export type Database = {
   }
   public: {
     Tables: {
+      order_acceptance_reports: {
+        Row: { id: string; company_id: string; order_id: string; created_by: string; content: Json; status: string; version: number; pdf_path: string | null; document_hash: string | null; finalized_at: string | null; created_at: string; updated_at: string }
+        Insert: { id?: string; company_id: string; order_id: string; created_by: string; content: Json; status?: string; version?: number; pdf_path?: string | null; document_hash?: string | null; finalized_at?: string | null; created_at?: string; updated_at?: string }
+        Update: { content?: Json; status?: string; version?: number; pdf_path?: string | null; document_hash?: string | null; finalized_at?: string | null; updated_at?: string }
+        Relationships: [{ foreignKeyName: "order_acceptance_reports_order_id_fkey"; columns: ["order_id"]; isOneToOne: false; referencedRelation: "orders"; referencedColumns: ["id"] }]
+      }
       _audit_pre_migration_snapshots: {
         Row: {
           id: string
@@ -88015,6 +88021,8 @@ export type Database = {
       }
       tasks: {
         Row: {
+          acceptance_report_id: string | null
+          acceptance_action_index: number | null
           actual_hours: number | null
           assigned_to: string | null
           bloccata_da_task_id: string | null
@@ -88049,6 +88057,8 @@ export type Database = {
         }
         Insert: {
           actual_hours?: number | null
+          acceptance_report_id?: string | null
+          acceptance_action_index?: number | null
           assigned_to?: string | null
           bloccata_da_task_id?: string | null
           category?: string
@@ -88082,6 +88092,8 @@ export type Database = {
         }
         Update: {
           actual_hours?: number | null
+          acceptance_report_id?: string | null
+          acceptance_action_index?: number | null
           assigned_to?: string | null
           bloccata_da_task_id?: string | null
           category?: string
@@ -98698,12 +98710,26 @@ export type Database = {
           },
         ]
       }
+      v_ordine_costi_mezzi_stimati: {
+        Row: {
+          company_id: string | null
+          costo_mezzi_stimato: number | null
+          dati_mezzi_visibili: boolean | null
+          giorni_mezzo: number | null
+          mezzi_senza_costo: number | null
+          mezzi_usati: number | null
+          order_id: string | null
+        }
+        Relationships: []
+      }
       v_ordine_marginalita: {
         Row: {
           cliente_nome: string | null
           company_id: string | null
           consuntivo: number | null
           costo_acquisti: number | null
+          costo_rimborsi_km: number | null
+          costo_materiali_magazzino: number | null
           costo_diretto: number | null
           costo_errori: number | null
           costo_manodopera: number | null
@@ -98713,9 +98739,13 @@ export type Database = {
           id: string | null
           margine: number | null
           margine_perc: number | null
+          movimenti_magazzino_senza_costo: number | null
           order_code: string | null
+          percentuale_avanzamento: number | null
           preventivo_contratto: number | null
           preventivo_totale: number | null
+          rimborsi_km_da_approvare: number | null
+          numero_rimborsi_km_da_approvare: number | null
           variazioni_approvate: number | null
           work_end_date: string | null
           work_start_date: string | null
@@ -99408,6 +99438,7 @@ export type Database = {
     }
     Functions: {
       _cg_assert_enabled: { Args: { p_company_id: string }; Returns: undefined }
+      create_acceptance_tasks: { Args: { p_report_id: string }; Returns: number }
       _dashboard_parse_period: {
         Args: { p_filters: Json }
         Returns: {

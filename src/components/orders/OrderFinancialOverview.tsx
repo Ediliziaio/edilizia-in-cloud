@@ -30,16 +30,26 @@ interface Props {
 /** Shared header, outside the tabs. No mutations or new financial data source. */
 export function OrderFinancialOverview(props: Props) {
   const { totalAmount, vatRate, items, canViewAmounts, canViewMargins } = props;
-  const { econ, isPending, isError } = useOrderEconomicsBase(props.orderId, totalAmount, items, canViewMargins);
+  const { actual, quality, isPending, isError } = useOrderEconomicsBase(props.orderId, totalAmount, items, canViewMargins);
   if (!canViewAmounts && !canViewMargins) return null;
   const loading = isPending || props.itemsLoading;
   const error = isError || props.itemsError;
-  const hasCosts = econ.costsTot !== 0;
-  const marginReady = !loading && !error && hasCosts;
-  const incomplete = items.some(i => !i.purchase_price) || econ.laborNet === 0;
-  const marginHint = error ? "Costi non disponibili" : loading ? "Caricamento costi…" : !hasCosts
-    ? "Inserisci i costi della commessa" : incomplete ? "Parziale · verifica i costi" : "Sui costi registrati · IVA esclusa";
-  const marginTone = marginReady ? econ.margin < 0 ? "text-red-200" : incomplete ? "text-amber-200" : "text-emerald-200" : "text-white";
+  const marginReady = !loading && !error && quality.canShowMargin;
+  const firstIssue = quality.issues[0]?.label;
+  const marginHint = error
+    ? "Costi non disponibili"
+    : loading
+      ? "Caricamento costi…"
+      : quality.status === "ready"
+        ? "Margine diretto · IVA esclusa"
+        : firstIssue ?? quality.label;
+  const marginTone = marginReady
+    ? actual.margin < 0
+      ? "text-red-200"
+      : quality.status === "partial"
+        ? "text-amber-200"
+        : "text-emerald-200"
+    : "text-white";
   const { grossAmount, vatAmount } = calculateGrossFromNet(totalAmount, vatRate);
   const payments = paymentOverview(props.cashTotalGross, props.collectedGross, props.installments);
   const paymentReady = !props.installmentsLoading && !props.installmentsError;
@@ -64,8 +74,8 @@ export function OrderFinancialOverview(props: Props) {
           <Metric label="Imponibile" value={formatCurrency(totalAmount)} hint={`IVA ${formatCurrency(vatAmount)}`} icon={<ReceiptText />} onClick={props.onOpenPayments} />
         </>}
         {canViewMargins && <>
-          <Metric label="Margine €" value={marginReady ? formatCurrency(econ.margin) : "—"} hint={marginHint} icon={<TrendingUp />} tone={marginTone} onClick={props.onOpenEconomics} />
-          <Metric label="Margine %" value={marginReady && totalAmount > 0 ? `${econ.marginPct.toLocaleString("it-IT", { maximumFractionDigits: 1 })}%` : "—"} hint={marginReady && totalAmount <= 0 ? "Imponibile non positivo" : "Margine / imponibile"} icon={<Percent />} tone={marginTone} onClick={props.onOpenEconomics} />
+          <Metric label="Margine diretto €" value={marginReady ? formatCurrency(actual.margin) : "—"} hint={marginHint} icon={<TrendingUp />} tone={marginTone} onClick={props.onOpenEconomics} />
+          <Metric label="Margine diretto %" value={marginReady ? `${actual.marginPct.toLocaleString("it-IT", { maximumFractionDigits: 1 })}%` : "—"} hint={marginReady ? `${quality.label} · margine / ricavi` : marginHint} icon={<Percent />} tone={marginTone} onClick={props.onOpenEconomics} />
         </>}
         {canViewAmounts && <button type="button" onClick={props.onOpenPayments} className={`col-span-2 min-w-0 ${canViewMargins ? "md:col-span-4 xl:col-span-2" : ""} rounded-xl border border-white/20 bg-white/[0.08] p-3 max-sm:px-2.5 max-sm:py-2 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition-colors hover:bg-white/[0.14] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#173b67] sm:p-4`} aria-label="Apri stato pagamenti">
           <span className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wide text-blue-100"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-orange-200/25 bg-orange-400/15 text-orange-100 max-sm:hidden"><Banknote className="h-3.5 w-3.5" /></span> Stato pagamenti <ArrowUpRight className="ml-auto h-3.5 w-3.5" /></span>

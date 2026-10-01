@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { calculateOrderEconomics, type EconomicsSources } from "@/lib/orders/economics";
+import {
+  assessOrderEconomicsQuality,
+  calculateOrderEconomics,
+  canonicalOrderEconomics,
+  orderVehicleCostEstimate,
+  type EconomicsSources,
+} from "@/lib/orders/economics";
 import { paymentOverview } from "@/lib/orders/paymentOverview";
 import { calculateGrossFromNet } from "@/lib/vatUtils";
 
@@ -25,6 +31,90 @@ describe("Economia condivisa della commessa", () => {
     expect(result.marginPct).toBe(-20);
   });
   it("non divide per zero", () => expect(calculateOrderEconomics({ ...sources, totalAmount: 0 }).marginPct).toBe(0));
+
+  it("normalizza lo snapshot ufficiale senza ricalcolare il margine", () => {
+    const actual = canonicalOrderEconomics({
+      preventivo_contratto: 1000,
+      variazioni_approvate: 100,
+      preventivo_totale: 1100,
+      costo_acquisti: 300,
+      costo_materiali_magazzino: 80,
+      movimenti_magazzino_senza_costo: 0,
+      costo_manodopera: 200,
+      costo_provvigioni: 50,
+      costo_rimborsi_km: 25,
+      rimborsi_km_da_approvare: 12,
+      numero_rimborsi_km_da_approvare: 1,
+      costo_errori: 20,
+      costo_diretto: 30,
+      consuntivo: 600,
+      margine: 500,
+      margine_perc: 45.5,
+    });
+    expect(actual).toMatchObject({
+      revenue: 1100,
+      costs: 600,
+      margin: 500,
+      marginPct: 45.5,
+      directCosts: 30,
+      warehouseMaterials: 80,
+      mileageReimbursements: 25,
+      pendingMileageReimbursements: 12,
+      pendingMileageReimbursementsCount: 1,
+    });
+  });
+
+  it("non considera attendibile un margine al 100% senza costi", () => {
+    const actual = canonicalOrderEconomics({ preventivo_totale: 1000, consuntivo: 0, margine: 1000, margine_perc: 100 });
+    const quality = assessOrderEconomicsQuality({ sourceAvailable: true, actual, items: [], employees: [], teams: [] });
+    expect(quality.status).toBe("missing");
+    expect(quality.canShowMargin).toBe(false);
+    expect(quality.issues.map((issue) => issue.code)).toContain("no_registered_costs");
+  });
+
+  it("marca come parziale il margine quando esistono righe senza costo", () => {
+    const actual = canonicalOrderEconomics({ preventivo_totale: 1000, consuntivo: 300, margine: 700, margine_perc: 70 });
+    const quality = assessOrderEconomicsQuality({
+      sourceAvailable: true,
+      actual,
+      items: [{ name: "Lavabo", quantity: 1, purchase_price: 0 }],
+      employees: [{ total_cost: 100 }],
+      teams: [],
+    });
+    expect(quality.status).toBe("partial");
+    expect(quality.canShowMargin).toBe(true);
+    expect(quality.issues[0]).toMatchObject({ code: "items_without_cost", count: 1 });
+  });
+
+  it("marca come parziale il margine quando un prelievo non ha costo unitario", () => {
+    const actual = canonicalOrderEconomics({
+      preventivo_totale: 1000,
+      costo_materiali_magazzino: 250,
+      movimenti_magazzino_senza_costo: 2,
+      consuntivo: 250,
+      margine: 750,
+      margine_perc: 75,
+    });
+    const quality = assessOrderEconomicsQuality({ sourceAvailable: true, actual, items: [], employees: [], teams: [] });
+    expect(quality.status).toBe("partial");
+    expect(quality.issues).toContainEqual(expect.objectContaining({ code: "warehouse_movements_without_cost", count: 2 }));
+  });
+
+  it("separa la stima mezzi dal consuntivo ufficiale", () => {
+    expect(orderVehicleCostEstimate({
+      costo_mezzi_stimato: 345.67,
+      mezzi_usati: 2,
+      giorni_mezzo: 18,
+      mezzi_senza_costo: 1,
+      dati_mezzi_visibili: true,
+    })).toEqual({
+      estimatedCost: 345.67,
+      vehiclesUsed: 2,
+      vehicleDays: 18,
+      vehiclesWithoutCost: 1,
+      dataVisible: true,
+    });
+  });
 });
 describe("Stato pagamenti in testata", () => {
   it.each([

@@ -8,7 +8,7 @@ describe("buildVariableCategories", () => {
     // Categorie attese dalle outputVariables reali dei trigger.
     expect(labels).toContain("Contatto");
     expect(labels).toContain("Azienda");
-    expect(labels).toContain("Opportunità");
+    expect(labels).not.toContain("Opportunità");
     // "Nome completo" (full_name) deve esistere nella categoria Contatto.
     const contatto = cats.find((c) => c.id === "contatto");
     expect(contatto?.variables.some((v) => v.key === "contatto.full_name")).toBe(true);
@@ -18,6 +18,14 @@ describe("buildVariableCategories", () => {
       const keys = c.variables.map((v) => v.key);
       expect(new Set(keys).size).toBe(keys.length); // niente duplicati
     }
+  });
+
+  it("mostra solo le variabili operative del trigger selezionato, senza ID tecnici", () => {
+    const cats = buildVariableCategories([], "opportunita_creata");
+    const keys = cats.flatMap(c => c.variables.map(v => v.key));
+    expect(keys).toContain("opportunita.name");
+    expect(keys).not.toContain("opportunita.stage_id");
+    expect(keys).not.toContain("fattura.total");
   });
 
   it("fonde i campi extra (es. personalizzati) nella categoria del prefisso", () => {

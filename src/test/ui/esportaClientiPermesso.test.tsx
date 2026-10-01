@@ -15,12 +15,14 @@
  *   · se il database rifiuta, il file non parte;
  *   · da telefono non si esporta, neanche col permesso.
  */
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { ReactNode } from "react";
-import { MemoryRouter } from "react-router-dom";
+import { cloneElement, isValidElement, type ReactNode } from "react";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { queryKeys } from "@/lib/queryKeys";
+import { refreshCrmContacts } from "@/lib/refreshCrmContacts";
 
 interface Risposta {
   data: unknown;
@@ -31,6 +33,14 @@ interface Risposta {
 const stato = vi.hoisted(() => ({
   ruolo: "company_staff",
   mobile: false,
+  pipelineVuote: false,
+  fasiVuote: false,
+  contattiTotali: null as number | null,
+  listeTotali: 0,
+  companyId: "azienda-1",
+  contattiInAttesa: null as Promise<void> | null,
+  emailContatto: "elide@example.it",
+  mostraRighe: false,
   rigaPermessi: null as Record<string, unknown> | null,
   /** L'ordine in cui avvengono registro e consegna del file. */
   sequenza: [] as string[],
@@ -67,8 +77,9 @@ vi.mock("@/integrations/supabase/client", () => {
       },
     ],
   };
-  const costruttore = (risposta: () => Risposta) => {
+  const costruttore = (risposta: () => Risposta | Promise<Risposta>) => {
     const b: Record<string, unknown> = {};
+    let singola = false;
     for (const m of [
       "select", "eq", "neq", "or", "in", "is", "not", "gte", "gt", "lte", "lt", "ilike", "like",
       "contains", "overlaps", "order", "range", "limit", "filter", "match", "textSearch", "returns",
@@ -76,7 +87,9 @@ vi.mock("@/integrations/supabase/client", () => {
     ]) {
       b[m] = () => b;
     }
-    b.then = (ok: (v: Risposta) => unknown, ko?: (e: unknown) => unknown) => Promise.resolve(risposta()).then(ok, ko);
+    b.maybeSingle = b.single = () => { singola = true; return b; };
+    b.then = (ok: (v: Risposta) => unknown, ko?: (e: unknown) => unknown) => Promise.resolve(risposta())
+      .then((r) => singola && Array.isArray(r.data) ? { ...r, data: r.data[0] ?? null } : r).then(ok, ko);
     return b;
   };
   const canale: Record<string, unknown> = {};
@@ -85,10 +98,16 @@ vi.mock("@/integrations/supabase/client", () => {
   canale.unsubscribe = finti.niente;
   return {
     supabase: {
-      from: (tabella: string) => costruttore(() => {
+      from: (tabella: string) => costruttore(async () => {
         if (tabella === "staff_permissions") return { data: stato.rigaPermessi, error: null };
-        const righe = RIGHE[tabella] ?? [];
-        return { data: righe, error: null, count: righe.length };
+        if (tabella === "marketing_contacts" && stato.contattiInAttesa) await stato.contattiInAttesa;
+        const righe = (RIGHE[tabella] ?? []).map((r) => {
+          const row = r as Record<string, unknown>;
+          if (tabella === "marketing_contacts" && row.id === "c1") return { ...row, email: stato.emailContatto };
+          if (tabella === "marketing_opportunities") return { ...row, marketing_contacts: { ...(row.marketing_contacts as object), email: stato.emailContatto } };
+          return row;
+        });
+        return { data: righe, error: null, count: tabella === "marketing_contacts" ? stato.contattiTotali ?? righe.length : tabella === "marketing_contact_lists" ? stato.listeTotali : righe.length };
       }),
       rpc: (nome: string, args: Record<string, unknown>) => {
         if (nome === "registra_esportazione_crm") {
@@ -108,7 +127,7 @@ vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => ({
     role: stato.ruolo,
     user: { id: "utente-1" },
-    effectiveCompany: { id: "azienda-1", name: "BeMade" },
+    effectiveCompany: { id: stato.companyId, name: "BeMade" },
     isImpersonating: false,
     isImpersonationReady: false,
     impersonatedCompanyId: null as string | null,
@@ -131,7 +150,14 @@ vi.mock("@/lib/csvExport", async (importOriginal) => ({
 
 // Contatti: la tabella e i pannelli non c'entrano con l'esportazione.
 vi.mock("@/components/marketing/ContactsTable", () => ({
-  ContactsTable: finti.nulla,
+  ContactsTable: ({ contacts, onOpenPreview, onPageChange }: {
+    contacts: Array<{ id: string; email: string }>;
+    onOpenPreview: (contact: unknown) => void;
+    onPageChange: (page: number) => void;
+  }) => stato.mostraRighe ? <div data-testid="righe-contatti">
+    {contacts.map((c) => <button key={c.id} onClick={() => onOpenPreview(c)}>{c.email}</button>)}
+    <button onClick={() => onPageChange(2)}>Pagina successiva test</button>
+  </div> : null,
   loadVisibleColumns: () => new Set<string>(),
   saveVisibleColumns: finti.niente,
   getStorageKey: () => "colonne-contatti",
@@ -159,7 +185,7 @@ vi.mock("@/hooks/useTagSync", () => ({ syncTagsToOpportunities: vi.fn(), removeT
 vi.mock("@/hooks/useOpportunitiesData", () => ({
   filtroSoloMiei: (id: string) => `assigned_to.eq.${id}`,
   usePipelines: () => ({
-    data: [{ id: "pipe-1", name: "Nuovo", marketing_pipeline_stages: [{ id: "fase-1", name: "Da chiamare", position: 0 }] }],
+    data: stato.pipelineVuote ? [] : [{ id: "pipe-1", name: "Nuovo", marketing_pipeline_stages: stato.fasiVuote ? [] : [{ id: "fase-1", name: "Da chiamare", position: 0 }] }],
     isLoading: false,
     error: null as unknown,
     refetch: finti.niente,
@@ -195,7 +221,10 @@ vi.mock("@/components/opportunities/OpportunityFiltersSheet", async (importOrigi
   OpportunityFiltersSheet: finti.nulla,
 }));
 vi.mock("@/components/opportunities/BulkEditSheet", () => ({ BulkEditSheet: finti.nulla }));
-vi.mock("@/components/opportunities/OpportunityDetailDialog", () => ({ OpportunityDetailDialog: finti.nulla }));
+vi.mock("@/components/opportunities/OpportunityDetailDialog", () => ({
+  OpportunityDetailDialog: ({ opportunity }: { opportunity: { marketing_contacts?: { email: string } } }) =>
+    <output data-testid="opportunita-da-link">{opportunity.marketing_contacts?.email}</output>,
+}));
 vi.mock("@/components/opportunities/OpportunitaCestinoDialog", () => ({ OpportunitaCestinoDialog: finti.nulla }));
 vi.mock("@/components/opportunities/OpportunityStatsStrip", () => ({ OpportunityStatsStrip: finti.nulla }));
 vi.mock("@/components/marketing/CreateListDialog", () => ({ CreateListDialog: finti.nulla }));
@@ -227,13 +256,20 @@ const staff = (esportaClienti: boolean) => ({
 });
 
 function monta(pagina: ReactNode, percorso: string) {
-  render(
-    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+  return montaConRerender(pagina, percorso).client;
+}
+
+function montaConRerender(pagina: ReactNode, percorso: string) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const contenuto = () => (
+    <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[percorso]}>
-        <TooltipProvider>{pagina}</TooltipProvider>
+        <TooltipProvider>{isValidElement(pagina) ? cloneElement(pagina) : pagina}</TooltipProvider>
       </MemoryRouter>
-    </QueryClientProvider>,
+    </QueryClientProvider>
   );
+  const vista = render(contenuto());
+  return { client, rerender: () => vista.rerender(contenuto()) };
 }
 
 const apriMenu = (bottone: HTMLElement) =>
@@ -247,6 +283,14 @@ const abilitato = (el: HTMLElement) => expect((el as HTMLButtonElement).disabled
 beforeEach(() => {
   stato.ruolo = "company_staff";
   stato.mobile = false;
+  stato.pipelineVuote = false;
+  stato.fasiVuote = false;
+  stato.contattiTotali = null;
+  stato.listeTotali = 0;
+  stato.companyId = "azienda-1";
+  stato.contattiInAttesa = null;
+  stato.emailContatto = "elide@example.it";
+  stato.mostraRighe = false;
   stato.rigaPermessi = null;
   stato.sequenza.length = 0;
   stato.registro.length = 0;
@@ -257,6 +301,131 @@ beforeEach(() => {
 });
 
 afterEach(() => cleanup());
+
+describe("CRM: isolamento e aggiornamento dei pannelli aperti", () => {
+  const sospendiContatti = () => {
+    let riprendi!: () => void;
+    stato.contattiInAttesa = new Promise<void>((resolve) => { riprendi = resolve; });
+    return riprendi;
+  };
+  const righe = () => screen.queryByTestId("righe-contatti")?.textContent ?? "";
+
+  it("cambio azienda lento: spariscono subito righe e anteprima dell'azienda precedente", async () => {
+    stato.ruolo = "company_admin";
+    stato.mostraRighe = true;
+    const vista = montaConRerender(<MarketingContacts />, "/azienda/marketing/contatti");
+    await waitFor(() => expect(righe()).toContain("elide@example.it"));
+    fireEvent.click(within(screen.getByTestId("righe-contatti")).getByText("elide@example.it"));
+    expect(await screen.findByRole("dialog")).toBeTruthy();
+    const riprendi = sospendiContatti();
+    try {
+      stato.companyId = "azienda-2";
+      vista.rerender();
+      expect(righe()).not.toContain("elide@example.it");
+      expect(screen.queryByRole("dialog")).toBeNull();
+    } finally { await act(async () => riprendi()); }
+  });
+
+  it("passando a «solo i propri» non riusa le righe né l'anteprima del perimetro completo", async () => {
+    stato.rigaPermessi = staff(false);
+    stato.mostraRighe = true;
+    const client = monta(<MarketingContacts />, "/azienda/marketing/contatti");
+    await waitFor(() => expect(righe()).toContain("elide@example.it"));
+    fireEvent.click(within(screen.getByTestId("righe-contatti")).getByText("elide@example.it"));
+    await screen.findByRole("dialog");
+    const riprendi = sospendiContatti();
+    try {
+      await act(async () => {
+        client.setQueryData(["staff-permissions", "utente-1", "azienda-1"], { ...staff(false), only_assigned: true });
+      });
+      expect(righe()).not.toContain("elide@example.it");
+      expect(screen.queryByRole("dialog")).toBeNull();
+    } finally { await act(async () => riprendi()); }
+  });
+
+  it("mantiene le righe durante la paginazione nello stesso perimetro", async () => {
+    stato.ruolo = "company_admin";
+    stato.mostraRighe = true;
+    monta(<MarketingContacts />, "/azienda/marketing/contatti");
+    await waitFor(() => expect(righe()).toContain("elide@example.it"));
+    const riprendi = sospendiContatti();
+    try {
+      fireEvent.click(screen.getByText("Pagina successiva test"));
+      expect(righe()).toContain("elide@example.it");
+    } finally { await act(async () => riprendi()); }
+  });
+
+  it.each(["company_admin", "super_admin"])("%s: l'anteprima aperta segue i dati aggiornati della lista", async (ruolo) => {
+    stato.ruolo = ruolo;
+    stato.mostraRighe = true;
+    const client = monta(<MarketingContacts />, `/${ruolo === "super_admin" ? "admin" : "azienda"}/marketing/contatti`);
+    await waitFor(() => expect(righe()).toContain("elide@example.it"));
+    fireEvent.click(within(screen.getByTestId("righe-contatti")).getByText("elide@example.it"));
+    expect((await screen.findByRole("dialog")).textContent).toContain("elide@example.it");
+    stato.emailContatto = "aggiornata@example.it";
+    await act(async () => { await refreshCrmContacts(client, "azienda-1", "c1"); });
+    await waitFor(() => expect(screen.getByRole("dialog").textContent).toContain("aggiornata@example.it"));
+    expect(screen.getByRole("dialog").textContent).not.toContain("elide@example.it");
+  });
+
+  it.each(["company_admin", "super_admin"])("%s: opportunità aperta da link segue modifiche a contatto e opportunità", async (ruolo) => {
+    stato.ruolo = ruolo;
+    const client = monta(<MarketingOpportunities />, `/${ruolo === "super_admin" ? "admin" : "azienda"}/marketing/opportunita?pipeline=pipe-1&apri=o1`);
+    await waitFor(() => expect(screen.getByTestId("opportunita-da-link").textContent).toBe("elide@example.it"));
+    stato.emailContatto = "aggiornata@example.it";
+    await act(async () => { await refreshCrmContacts(client, "azienda-1", "c1"); });
+    await waitFor(() => expect(screen.getByTestId("opportunita-da-link").textContent).toBe("aggiornata@example.it"));
+    stato.emailContatto = "ultima@example.it";
+    await act(async () => { await client.invalidateQueries({ queryKey: queryKeys.opportunities.all }); });
+    await waitFor(() => expect(screen.getByTestId("opportunita-da-link").textContent).toBe("ultima@example.it"));
+  });
+
+  it("chiude l'anteprima se il contatto esce dai risultati e non la riapre quando rientra", async () => {
+    stato.ruolo = "company_admin";
+    stato.mostraRighe = true;
+    const client = monta(<MarketingContacts />, "/azienda/marketing/contatti");
+    await waitFor(() => expect(righe()).toContain("elide@example.it"));
+    fireEvent.click(within(screen.getByTestId("righe-contatti")).getByText("elide@example.it"));
+    await screen.findByRole("dialog");
+    const lista = client.getQueryCache().findAll({ queryKey: ["marketing-contacts", "azienda-1"] })[0];
+    const prima = lista.state.data;
+    await act(async () => { client.setQueryData(lista.queryKey, { contacts: [], count: 0 }); });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await act(async () => { client.setQueryData(lista.queryKey, prima); });
+    await waitFor(() => expect(righe()).toContain("elide@example.it"));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+});
+
+describe("Contatti: aggiornamento delle viste dopo un salvataggio", () => {
+  // jsdom non applica i breakpoint Tailwind: i chip desktop hanno un
+  // antenato `hidden lg:block`. Controlliamo i valori renderizzati, mentre la
+  // visibilità responsive viene verificata nel browser.
+  const chip = (testo: RegExp) => screen.getAllByRole("button", { hidden: true })
+    .find((button) => testo.test(button.textContent?.replace(/\s+/g, " ") ?? ""));
+  it.each(["company_admin", "super_admin"])("%s: lista e contattabilità si aggiornano insieme senza ricaricare la pagina", async (ruolo) => {
+    stato.ruolo = ruolo;
+    const client = monta(<MarketingContacts />, `/${ruolo === "super_admin" ? "admin" : "azienda"}/marketing/contatti`);
+    await waitFor(() => expect(chip(/Con email\s*2/)).toBeTruthy());
+    stato.contattiTotali = 3;
+    await act(async () => { await refreshCrmContacts(client, "azienda-1"); });
+    await waitFor(() => expect(chip(/Con email\s*3/)).toBeTruthy());
+    expect(chip(/3 contattabili su 3/)).toBeTruthy();
+  });
+
+  it("la prima lista creata compare anche nel tab mobile, senza lasciare la pagina", async () => {
+    stato.ruolo = "company_admin";
+    stato.mobile = true;
+    const client = monta(<MarketingContacts />, "/azienda/marketing/contatti");
+    await screen.findByRole("heading", { name: "Contatti" });
+    await waitFor(() => expect(client.getQueryData(queryKeys.contactLists.count("azienda-1"))).toBe(0));
+    await waitFor(() => expect(screen.getByRole("tab", { name: /Liste/ }).closest('[dir="ltr"]')?.classList.contains("hidden")).toBe(true));
+    stato.listeTotali = 1;
+    await act(async () => { await client.invalidateQueries({ queryKey: queryKeys.contactLists.list("azienda-1") }); });
+    const tab = await screen.findByRole("tab", { name: /Liste 1/ });
+    expect(tab.closest('[dir="ltr"]')?.classList.contains("hidden")).toBe(false);
+  });
+});
 
 describe("Contatti: «Esporta» segue «Esporta Clienti»", () => {
   /** La pagina è pronta quando i permessi sono letti: «Importa» si accende. */
@@ -383,6 +552,54 @@ describe("Opportunità: «Esporta CSV» segue «Esporta Clienti»", () => {
     await waitFor(() => abilitato(screen.getByRole("button", { name: "Aggiungi opportunità" })));
     await apriAltreAzioni();
     expect(screen.queryByRole("menuitem", { name: /Esporta/ })).toBeNull();
+  });
+});
+
+function PercorsoAttuale() {
+  return <output data-testid="percorso">{useLocation().pathname}</output>;
+}
+
+describe("Opportunità: impostazioni pipeline nel contesto corretto", () => {
+  it.each([
+    ["super_admin", "/admin/marketing/opportunita", "/admin/impostazioni/sequenze"],
+    ["company_admin", "/azienda/marketing/opportunita", "/azienda/impostazioni/sequenze"],
+  ])("%s: pulsante e menu aprono le impostazioni del proprio contesto", async (ruolo, origine, destinazione) => {
+    stato.ruolo = ruolo;
+    monta(<><MarketingOpportunities /><PercorsoAttuale /></>, origine);
+    const impostazioni = await screen.findByRole("button", { name: "Impostazioni pipeline" });
+    apriMenu(screen.getByRole("button", { name: "Altre azioni" }));
+    expect(await screen.findByRole("menuitem", { name: "Impostazioni pipeline" })).toBeTruthy();
+    fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
+    fireEvent.click(impostazioni);
+    await waitFor(() => expect(screen.getByTestId("percorso").textContent).toBe(destinazione));
+  });
+
+  it.each(["platform_marketing", "company_staff"])("%s non ottiene accesso alle impostazioni del superadmin", async (ruolo) => {
+    stato.ruolo = ruolo;
+    stato.rigaPermessi = { ...staff(false), can_view_settings_customization: true };
+    monta(<MarketingOpportunities />, "/admin/marketing/opportunita");
+    apriMenu(await screen.findByRole("button", { name: "Altre azioni" }));
+    expect(screen.queryByRole("button", { name: "Impostazioni pipeline" })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "Impostazioni pipeline" })).toBeNull();
+  });
+
+  it("lo staff senza Personalizzazione non riceve un collegamento non autorizzato", async () => {
+    stato.rigaPermessi = staff(false);
+    monta(<MarketingOpportunities />, "/azienda/marketing/opportunita");
+    await waitFor(() => abilitato(screen.getByRole("button", { name: "Aggiungi opportunità" })));
+    expect(screen.queryByRole("button", { name: "Impostazioni pipeline" })).toBeNull();
+  });
+
+  it.each([
+    ["pipeline", "Vai alle Impostazioni"],
+    ["fasi", "Configura fasi"],
+  ])("superadmin senza %s: il recupero apre le impostazioni interne", async (vuoto, pulsante) => {
+    stato.ruolo = "super_admin";
+    stato.pipelineVuote = vuoto === "pipeline";
+    stato.fasiVuote = vuoto === "fasi";
+    monta(<><MarketingOpportunities /><PercorsoAttuale /></>, "/admin/marketing/opportunita");
+    fireEvent.click(await screen.findByRole("button", { name: pulsante }));
+    await waitFor(() => expect(screen.getByTestId("percorso").textContent).toBe("/admin/impostazioni/sequenze"));
   });
 });
 

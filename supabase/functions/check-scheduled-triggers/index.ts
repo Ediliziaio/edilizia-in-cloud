@@ -1,11 +1,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, secureHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
-import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { requireAuth, requireCompanyAccess, requireInternalSecret } from "../_shared/auth.ts";
 import { romaVersoUtc } from "../_shared/appuntamentiPubblici.ts";
 
 /**
  * 2026-05-27 SECURITY FIX: prima accettava QUALSIASI Bearer senza validare.
- * Ora verifica che il token sia service-role o un JWT utente valido.
+ * Global cron accepts internal/service credentials only; manual runs are tenant-scoped.
  */
 async function verifyCronOrAuth(req: Request): Promise<void> {
   const reqSecret = req.headers.get("x-cron-secret") ?? "";
@@ -37,14 +37,9 @@ async function verifyCronOrAuth(req: Request): Promise<void> {
       headers: secureHeaders,
     });
   }
-  const client = createClient(sbUrl, anonKey);
-  const { data: { user }, error } = await client.auth.getUser(token);
-  if (error || !user) {
-    throw new Response(JSON.stringify({ error: "Unauthorized: invalid JWT" }), {
-      status: 401,
-      headers: secureHeaders,
-    });
-  }
+  // Global scheduler: user authentication alone must never authorize all tenants.
+  // The company-scoped run_flow path has its own permission checks.
+  requireInternalSecret(req, getCorsHeaders(req));
 }
 
 // -- Mappa id-catalogo italiani (SCHEDULED) -> chiave handler / evento canonico.
@@ -80,23 +75,24 @@ const SCHEDULED_EVENT_MAP: Record<string, string> = {
 // ri-arruolamento sulla stessa entity, quindi una emissione e' sufficiente.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function emitEventOnce(supabase: any, companyId: string, event: string, entityId: string, entityType: string, payload: Record<string, unknown>): Promise<boolean> {
-  const { data: existing } = await supabase
-    .from("automation_trigger_events")
-    .select("id")
-    .eq("company_id", companyId)
-    .eq("trigger_event", event)
-    .eq("entity_id", String(entityId))
-    .limit(1)
-    .maybeSingle();
-  if (existing) return false;
-  await supabase.from("automation_trigger_events").insert({
-    company_id: companyId,
-    trigger_event: event,
-    entity_id: String(entityId),
-    entity_type: entityType,
-    payload,
+  const occurrence = payload._automation_occurrence ?? payload.prossima_scadenza ?? payload.data_scadenza
+    ?? payload.due_date ?? payload.expected_date ?? payload.expires_at ?? payload.sent_at ?? payload.work_end_date ?? payload.data_cessazione ?? "once";
+  const identity = JSON.stringify([companyId, event, entityId, payload._automation_flow_id, payload._automation_trigger_id, payload._automation_config, occurrence]);
+  const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(identity));
+  const key = Array.from(new Uint8Array(hash), n => n.toString(16).padStart(2, "0")).join("");
+  const { error } = await supabase.from("automation_trigger_events").insert({
+    company_id: companyId, trigger_event: event, entity_id: String(entityId), entity_type: entityType,
+    payload, dedup_key: key,
   });
+  if (error?.code === "23505") return false;
+  if (error) throw error;
   return true;
+}
+
+function integerSetting(value: unknown, fallback: number, signed = false): number {
+  const number = value == null || value === "" ? fallback : Number(value);
+  if (!Number.isSafeInteger(number) || (!signed && number < 0)) throw new Error("La durata deve essere un numero intero valido.");
+  return number;
 }
 
 // Arruola direttamente UN flusso specifico (bypassa il fan-out per-evento). Usato dai
@@ -347,90 +343,40 @@ Deno.serve(async (req) => {
         const cfg = node.config_json || {};
         const itemId = (cfg.item_id ?? cfg.trigger_event ?? "") as string;
         const triggerEvent = SCHEDULED_EVENT_MAP[itemId] ?? cfg.trigger_event ?? itemId;
+        if (body.mode === "appointment_triggers_only" && triggerEvent !== "appointment_reminder") continue;
+        const emitForTrigger = (db: any, company: string, event: string, entity: string, type: string, payload: Record<string, unknown>) =>
+          emitEventOnce(db, company, event, entity, type, { ...payload, _automation_flow_id: flow.id, _automation_trigger_id: node.id, _automation_config: cfg });
 
         switch (triggerEvent) {
           case "birthday_reminder": {
-            const daysBefore = parseInt(cfg.days_before) || 0;
-            const targetDate = new Date();
-            targetDate.setDate(targetDate.getDate() + daysBefore);
-            const month = targetDate.getMonth() + 1;
-            const day = targetDate.getDate();
-
-            // date_of_birth letta subito: prima c'era una ri-fetch PER OGNI
-            // contatto (N+1 — sul CRM piattaforma sarebbero 89k query).
-            const { data: contacts } = await supabase
-              .from("marketing_contacts")
-              .select("id, date_of_birth")
-              .eq("company_id", flow.company_id)
-              .not("date_of_birth", "is", null);
-
-            if (contacts) {
-              for (const c of contacts) {
-                if (!c?.date_of_birth) continue;
-                const dob = new Date(c.date_of_birth);
-                if (dob.getMonth() + 1 === month && dob.getDate() === day) {
-                  const today = new Date().toISOString().split("T")[0];
-                  const { data: existing } = await supabase
-                    .from("automation_trigger_events")
-                    .select("id")
-                    .eq("company_id", flow.company_id)
-                    .eq("trigger_event", "birthday_reminder")
-                    .eq("entity_id", c.id)
-                    .gte("created_at", today)
-                    .maybeSingle();
-
-                  if (!existing) {
-                    await supabase.from("automation_trigger_events").insert({
-                      company_id: flow.company_id,
-                      trigger_event: "birthday_reminder",
-                      entity_id: c.id,
-                      entity_type: "contact",
-                      payload: { date_of_birth: c.date_of_birth, days_before: daysBefore },
-                    });
-                    results.birthday++;
-                  }
-                }
-              }
+            const daysBefore = Math.max(0, Number(cfg.days_before ?? 0));
+            const today = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
+            const target = new Date(today + "T12:00:00Z");
+            target.setUTCDate(target.getUTCDate() + daysBefore);
+            const { data: contacts, error } = await supabase.from("marketing_contacts").select("id, date_of_birth")
+              .eq("company_id", flow.company_id).not("date_of_birth", "is", null);
+            if (error) throw error;
+            for (const c of contacts ?? []) {
+              if (String(c.date_of_birth).slice(5, 10) !== target.toISOString().slice(5, 10)) continue;
+              if (await emitForTrigger(supabase, flow.company_id, "birthday_reminder", c.id, "contact", {
+                date_of_birth: c.date_of_birth, days_before: daysBefore, _automation_occurrence: target.toISOString().slice(0, 10),
+              })) results.birthday++;
             }
             break;
           }
 
           case "opportunity_stale": {
-            const staleDays = parseInt(cfg.stale_days) || 30;
-            const cutoff = new Date();
-            cutoff.setDate(cutoff.getDate() - staleDays);
-
-            const { data: staleOpps } = await supabase
-              .from("marketing_opportunities")
-              .select("id, contact_id")
-              .eq("company_id", flow.company_id)
-              .eq("status", "open")
-              .lt("updated_at", cutoff.toISOString());
-
-            if (staleOpps) {
-              const today = new Date().toISOString().split("T")[0];
-              for (const opp of staleOpps) {
-                if (!opp.contact_id) continue;
-                const { data: existing } = await supabase
-                  .from("automation_trigger_events")
-                  .select("id")
-                  .eq("company_id", flow.company_id)
-                  .eq("trigger_event", "opportunity_stale")
-                  .eq("entity_id", opp.contact_id)
-                  .gte("created_at", today)
-                  .maybeSingle();
-
-                if (!existing) {
-                  await supabase.from("automation_trigger_events").insert({
-                    company_id: flow.company_id,
-                    trigger_event: "opportunity_stale",
-                    entity_id: opp.contact_id,
-                    entity_type: "contact",
-                    payload: { opportunity_id: opp.id, stale_days: staleDays },
-                  });
-                  results.opportunity_stale++;
-                }
-              }
+            const days = Math.max(0, Number(cfg.stale_days ?? 30));
+            const { data: opportunities, error } = await supabase.from("marketing_opportunities")
+              .select("id, contact_id, pipeline_id, stage_id, updated_at").eq("company_id", flow.company_id)
+              .eq("status", "open").is("deleted_at", null).lt("updated_at", new Date(Date.now() - days * 86400000).toISOString());
+            if (error) throw error;
+            for (const opp of opportunities ?? []) {
+              if (!opp.contact_id) continue;
+              if (await emitForTrigger(supabase, flow.company_id, "opportunity_stale", opp.contact_id, "contact", {
+                opportunity_id: opp.id, pipeline_id: opp.pipeline_id, stage_id: opp.stage_id, stale_days: days,
+                _automation_occurrence: opp.id + ":" + opp.updated_at,
+              })) results.opportunity_stale++;
             }
             break;
           }
@@ -439,7 +385,7 @@ Deno.serve(async (req) => {
             // ordine_in_ritardo: ordine oltre la data di consegna prevista, con N giorni di
             // tolleranza. NB: la colonna reale e' `expected_date` (non expected_delivery_date)
             // e lo stato testuale e' `status`.
-            const giorniTolleranza = parseInt(cfg.giorni_tolleranza) || 1;
+            const giorniTolleranza = integerSetting(cfg.giorni_tolleranza, 1);
             const cutoff = new Date();
             cutoff.setDate(cutoff.getDate() - giorniTolleranza);
             const cutoffStr = cutoff.toISOString().split("T")[0];
@@ -455,7 +401,7 @@ Deno.serve(async (req) => {
               const st = String(order.status || "").toLowerCase();
               if (["completato", "consegnato", "chiuso", "annullato", "completed", "delivered", "closed", "cancelled"].includes(st)) continue;
               const giorni = Math.max(0, Math.floor((Date.now() - new Date(order.expected_date).getTime()) / 86400000));
-              const emitted = await emitEventOnce(supabase, flow.company_id, "order_overdue", order.id, "order", {
+              const emitted = await emitForTrigger(supabase, flow.company_id, "order_overdue", order.id, "order", {
                 order_id: order.id, order_code: order.order_code, description: order.description,
                 customer_id: order.customer_id, expected_date: order.expected_date, giorni_ritardo: giorni,
               });
@@ -477,7 +423,7 @@ Deno.serve(async (req) => {
 
             for (const task of overdueTasks || []) {
               const giorni = Math.max(0, Math.floor((Date.now() - new Date(task.due_date).getTime()) / 86400000));
-              const emitted = await emitEventOnce(supabase, flow.company_id, "task_overdue", task.id, "task", {
+              const emitted = await emitForTrigger(supabase, flow.company_id, "task_overdue", task.id, "task", {
                 task_id: task.id, title: task.title, assigned_to: task.assigned_to, due_date: task.due_date, giorni_ritardo: giorni,
               });
               if (emitted) results.task_overdue++;
@@ -486,103 +432,50 @@ Deno.serve(async (req) => {
           }
 
           case "cost_due": {
-            // Fire when a cost is due within the configured days_before window (default 7 days)
-            const daysBefore = parseInt(cfg.days_before) || 7;
-            const dueFrom = new Date();
-            const dueTo = new Date();
-            dueTo.setDate(dueTo.getDate() + daysBefore);
-
-            const { data: dueCosts } = await supabase
-              .from("company_costs")
-              .select("id, name, amount, due_date")
-              .eq("company_id", flow.company_id)
-              .eq("is_paid", false)
-              .gte("due_date", dueFrom.toISOString().split("T")[0])
-              .lte("due_date", dueTo.toISOString().split("T")[0]);
-
-            if (dueCosts) {
-              const today = new Date().toISOString().split("T")[0];
-              for (const cost of dueCosts) {
-                const { data: existing } = await supabase
-                  .from("automation_trigger_events")
-                  .select("id")
-                  .eq("company_id", flow.company_id)
-                  .eq("trigger_event", "cost_due")
-                  .eq("entity_id", cost.id)
-                  .gte("created_at", today)
-                  .maybeSingle();
-
-                if (!existing) {
-                  await supabase.from("automation_trigger_events").insert({
-                    company_id: flow.company_id,
-                    trigger_event: "cost_due",
-                    entity_id: cost.id,
-                    entity_type: "cost",
-                    payload: { cost_id: cost.id, name: cost.name, amount: cost.amount, due_date: cost.due_date, days_before: daysBefore },
-                  });
-                  results.cost_due++;
-                }
-              }
+            const days = Math.max(0, Number(cfg.days_before ?? 7));
+            const today = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
+            const until = new Date(Date.now() + days * 86400000).toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
+            const { data: costs, error } = await supabase.from("company_costs").select("id, name, amount, due_date")
+              .eq("company_id", flow.company_id).eq("is_paid", false).gte("due_date", today).lte("due_date", until);
+            if (error) throw error;
+            for (const cost of costs ?? []) {
+              if (await emitForTrigger(supabase, flow.company_id, "cost_due", cost.id, "cost", {
+                cost_id: cost.id, name: cost.name, amount: cost.amount, due_date: cost.due_date, days_before: days,
+              })) results.cost_due++;
             }
             break;
           }
 
           case "appointment_reminder": {
-            // appuntamento_imminente: reminder X ore (ore_prima) / minuti (minutes_before)
-            // prima dell'appuntamento. Con cron giornaliero la granularita' e' il giorno:
-            // si emette per gli appuntamenti che cadono entro la finestra [now, now+anticipo].
-            const minutesBefore = cfg.minutes_before
-              ? parseInt(cfg.minutes_before)
-              : cfg.ore_prima
-                ? parseInt(cfg.ore_prima) * 60
-                : 1440;
+            const minutesBefore = cfg.minutes_before != null ? Number(cfg.minutes_before)
+              : cfg.ore_prima != null ? Number(cfg.ore_prima) * 60 : 1440;
+            if (!Number.isFinite(minutesBefore) || minutesBefore < 0) throw new Error("Anticipo appuntamento non valido");
             const now = new Date();
-            const horizon = new Date(now.getTime() + minutesBefore * 60 * 1000);
-            const todayStr = now.toISOString().split("T")[0];
-
-            const { data: flowApts } = await supabase
-              .from("appointments")
-              .select("id, title, appointment_date, appointment_time, contact_id")
-              .eq("company_id", flow.company_id)
-              .eq("is_blocked_slot", false)
-              .neq("status", "annullato")
-              .neq("status", "cancelled")
-              .gte("appointment_date", todayStr)
-              .lte("appointment_date", horizon.toISOString().split("T")[0]);
-
-            for (const apt of flowApts || []) {
+            const earliest = new Date(now.getTime() - 5 * 60000);
+            const horizon = new Date(now.getTime() + minutesBefore * 60000);
+            const { data: appointments, error } = await supabase.from("appointments")
+              .select("id, title, appointment_date, appointment_time, contact_id, calendar_id, appointment_type, status")
+              .eq("company_id", flow.company_id).eq("is_blocked_slot", false)
+              .not("status", "in", "(annullato,cancelled,canceled,completed,completato)")
+              .gte("appointment_date", earliest.toLocaleDateString("en-CA", { timeZone: "Europe/Rome" }))
+              .lte("appointment_date", horizon.toLocaleDateString("en-CA", { timeZone: "Europe/Rome" }));
+            if (error) throw error;
+            for (const apt of appointments ?? []) {
               if (!apt.contact_id) continue;
-              // Data e ora sono italiane: lette come UTC (setHours sul server)
-              // l'appuntamento risultava 1-2 ore più tardi del vero.
-              const aptDate = romaVersoUtc(String(apt.appointment_date), String(apt.appointment_time ?? "09:00").slice(0, 5));
-              if (aptDate < now || aptDate > horizon) continue;
-
-              const { data: existing } = await supabase
-                .from("automation_trigger_events")
-                .select("id")
-                .eq("company_id", flow.company_id)
-                .eq("trigger_event", "appointment_reminder")
-                .eq("entity_id", apt.contact_id)
-                .gte("created_at", todayStr)
-                .maybeSingle();
-
-              if (!existing) {
-                await supabase.from("automation_trigger_events").insert({
-                  company_id: flow.company_id,
-                  trigger_event: "appointment_reminder",
-                  entity_id: apt.contact_id,
-                  entity_type: "contact",
-                  payload: { appointment_id: apt.id, title: apt.title, date: apt.appointment_date, time: apt.appointment_time, minutes_before: minutesBefore },
-                });
-                results.appointment_reminder++;
-              }
+              const at = romaVersoUtc(String(apt.appointment_date), String(apt.appointment_time ?? "09:00").slice(0, 5));
+              if (at < earliest || at > horizon) continue;
+              if (await emitForTrigger(supabase, flow.company_id, "appointment_reminder", apt.contact_id, "contact", {
+                appointment_id: apt.id, title: apt.title, date: apt.appointment_date, time: apt.appointment_time,
+                calendar_id: apt.calendar_id, appointment_type: apt.appointment_type, status: apt.status, minutes_before: minutesBefore,
+                _automation_occurrence: apt.id + ":" + at.toISOString(),
+              })) results.appointment_reminder++;
             }
             break;
           }
 
           case "invoice_overdue": {
             // fattura_scaduta: fattura non pagata oltre N giorni dalla scadenza.
-            const giorni = parseInt(cfg.giorni_dopo_scadenza) || 3;
+            const giorni = integerSetting(cfg.giorni_dopo_scadenza, 3);
             const cutoff = new Date();
             cutoff.setDate(cutoff.getDate() - giorni);
             const cutoffStr = cutoff.toISOString().split("T")[0];
@@ -598,7 +491,7 @@ Deno.serve(async (req) => {
               const st = String(inv.status || "").toLowerCase();
               if (["paid", "pagata", "cancelled", "canceled", "annullata", "draft", "bozza"].includes(st)) continue;
               const giorniScaduta = Math.max(0, Math.floor((Date.now() - new Date(inv.due_date).getTime()) / 86400000));
-              const emitted = await emitEventOnce(supabase, flow.company_id, "invoice_overdue", inv.id, "invoice", {
+              const emitted = await emitForTrigger(supabase, flow.company_id, "invoice_overdue", inv.id, "invoice", {
                 invoice_id: inv.id, invoice_number: inv.invoice_number, total: inv.total,
                 client_company_name: inv.client_company_name, client_email: inv.client_email,
                 due_date: inv.due_date, giorni_scaduta: giorniScaduta,
@@ -610,7 +503,7 @@ Deno.serve(async (req) => {
 
           case "quote_expiring": {
             // preventivo_in_scadenza: scade entro N giorni e non ancora risposto.
-            const giorni = parseInt(cfg.giorni_prima) || 3;
+            const giorni = integerSetting(cfg.giorni_prima, 3);
             const now = new Date();
             const limit = new Date(now.getTime() + giorni * 86400000);
 
@@ -626,9 +519,9 @@ Deno.serve(async (req) => {
 
             for (const q of expiring || []) {
               const giorniAlla = Math.max(0, Math.ceil((new Date(q.expires_at).getTime() - Date.now()) / 86400000));
-              const emitted = await emitEventOnce(supabase, flow.company_id, "quote_expiring", q.id, "quote", {
+              const emitted = await emitForTrigger(supabase, flow.company_id, "quote_expiring", q.id, "quote", {
                 preventivo_id: q.id, quote_number: q.quote_number, total: q.total,
-                client_name: q.client_name, client_email: q.client_email, giorni_alla_scadenza: giorniAlla,
+                client_name: q.client_name, client_email: q.client_email, giorni_alla_scadenza: giorniAlla, expires_at: q.expires_at,
               });
               if (emitted) results.quote_expiring++;
             }
@@ -638,7 +531,7 @@ Deno.serve(async (req) => {
           case "quote_unanswered": {
             // preventivo_senza_risposta: inviato da almeno N giorni, né accettato né
             // rifiutato. Una sola emissione per preventivo (emitEventOnce).
-            const giorniAttesa = parseInt(cfg.giorni_senza_risposta) || 5;
+            const giorniAttesa = integerSetting(cfg.giorni_senza_risposta, 5);
             const cutoffInvio = new Date(Date.now() - giorniAttesa * 86400000).toISOString();
             const { data: senzaRisposta } = await supabase
               .from("quotes")
@@ -653,7 +546,7 @@ Deno.serve(async (req) => {
 
             for (const q of senzaRisposta || []) {
               const giorniDaInvio = Math.max(0, Math.floor((Date.now() - new Date(q.sent_at).getTime()) / 86400000));
-              const emitted = await emitEventOnce(supabase, flow.company_id, "quote_unanswered", q.id, "quote", {
+              const emitted = await emitForTrigger(supabase, flow.company_id, "quote_unanswered", q.id, "quote", {
                 preventivo_id: q.id, quote_number: q.quote_number, total: q.total,
                 client_name: q.client_name, client_email: q.client_email,
                 giorni_da_invio: giorniDaInvio, visualizzato: q.viewed_at != null, expires_at: q.expires_at,
@@ -665,7 +558,7 @@ Deno.serve(async (req) => {
 
           case "manutenzione_scheduled": {
             // Piano di manutenzione attivo con la prossima uscita entro N giorni.
-            const giorniPrima = parseInt(cfg.giorni_prima) || 30;
+            const giorniPrima = integerSetting(cfg.giorni_prima, 30);
             const limite = new Date(Date.now() + giorniPrima * 86400000).toISOString().split("T")[0];
             const oggiStr = new Date().toISOString().split("T")[0];
             const { data: piani } = await supabase
@@ -686,7 +579,7 @@ Deno.serve(async (req) => {
                   .from("contratti_manutenzione").select("customer_id").eq("id", piano.contratto_id).maybeSingle();
                 clienteId = contratto?.customer_id ?? null;
               }
-              const emitted = await emitEventOnce(supabase, flow.company_id, "manutenzione_scheduled", piano.id, "manutenzione", {
+              const emitted = await emitForTrigger(supabase, flow.company_id, "manutenzione_scheduled", piano.id, "manutenzione", {
                 piano_id: piano.id, titolo: piano.titolo, prossima_scadenza: piano.prossima_scadenza,
                 giorni_alla_scadenza: giorni, contratto_id: piano.contratto_id, cliente_id: clienteId,
                 tecnico_preferito: piano.tecnico_preferito,
@@ -698,7 +591,7 @@ Deno.serve(async (req) => {
 
           case "contratto_manut_expiring": {
             // Contratto di manutenzione attivo che scade entro N giorni.
-            const giorniPrima = parseInt(cfg.giorni_prima) || 60;
+            const giorniPrima = integerSetting(cfg.giorni_prima, 60);
             const limite = new Date(Date.now() + giorniPrima * 86400000).toISOString().split("T")[0];
             const oggiStr = new Date().toISOString().split("T")[0];
             const { data: contratti } = await supabase
@@ -714,7 +607,7 @@ Deno.serve(async (req) => {
               const stato = String(c.stato || "").toLowerCase();
               if (["cessato", "annullato", "sospeso", "scaduto"].includes(stato)) continue;
               const giorni = Math.max(0, Math.ceil((new Date(c.data_scadenza).getTime() - Date.now()) / 86400000));
-              const emitted = await emitEventOnce(supabase, flow.company_id, "contratto_manut_expiring", c.id, "contratto_manutenzione", {
+              const emitted = await emitForTrigger(supabase, flow.company_id, "contratto_manut_expiring", c.id, "contratto_manutenzione", {
                 contratto_id: c.id, nome: c.nome_contratto, canone: c.importo_canone,
                 data_scadenza: c.data_scadenza, giorni_alla_scadenza: giorni,
                 rinnovo_automatico: c.rinnovo_automatico, cliente_id: c.customer_id,
@@ -727,7 +620,7 @@ Deno.serve(async (req) => {
           case "order_work_completed": {
             // Fine lavori passata (più l'eventuale attesa) e commessa completata:
             // è il momento di chiedere la recensione o aprire la manutenzione.
-            const giorniDopo = parseInt(cfg.giorni_dopo) || 0;
+            const giorniDopo = integerSetting(cfg.giorni_dopo, 0);
             const soglia = new Date(Date.now() - giorniDopo * 86400000).toISOString().split("T")[0];
             const { data: concluse } = await supabase
               .from("orders")
@@ -740,7 +633,7 @@ Deno.serve(async (req) => {
               const stato = String(o.status || "").toLowerCase();
               if (!["completato", "completata", "completed", "chiuso", "consegnato", "delivered", "closed"].includes(stato)) continue;
               const giorni = Math.max(0, Math.floor((Date.now() - new Date(o.work_end_date).getTime()) / 86400000));
-              const emitted = await emitEventOnce(supabase, flow.company_id, "order_work_completed", o.id, "order", {
+              const emitted = await emitForTrigger(supabase, flow.company_id, "order_work_completed", o.id, "order", {
                 order_id: o.id, order_code: o.order_code, descrizione: o.description,
                 work_end_date: o.work_end_date, giorni_da_fine_lavori: giorni, cliente_id: o.customer_id,
               });
@@ -751,7 +644,7 @@ Deno.serve(async (req) => {
 
           case "ticket_unanswered": {
             // ticket_senza_risposta: ticket aperto/in lavorazione senza attivita' da N ore (SLA).
-            const oreSla = parseInt(cfg.ore_sla) || 24;
+            const oreSla = integerSetting(cfg.ore_sla, 24);
             const cutoff = new Date(Date.now() - oreSla * 3600000).toISOString();
 
             // NB: .lte esclude i NULL → un ticket MAI risposto (last_message_at
@@ -766,7 +659,7 @@ Deno.serve(async (req) => {
 
             for (const t of stale || []) {
               const oreApertura = Math.max(0, Math.floor((Date.now() - new Date(t.created_at).getTime()) / 3600000));
-              const emitted = await emitEventOnce(supabase, flow.company_id, "ticket_unanswered", t.id, "ticket", {
+              const emitted = await emitForTrigger(supabase, flow.company_id, "ticket_unanswered", t.id, "ticket", {
                 ticket_id: t.id, subject: t.subject, customer_id: t.customer_id,
                 assigned_to: t.assigned_to, ore_apertura: oreApertura,
               });
@@ -778,7 +671,7 @@ Deno.serve(async (req) => {
           case "contract_expiring": {
             // contratto_in_scadenza: contratto dipendente in scadenza entro N giorni.
             // Fonte dati: hr_profili.data_cessazione (data fine rapporto/contratto).
-            const giorni = parseInt(cfg.giorni_prima) || 30;
+            const giorni = integerSetting(cfg.giorni_prima, 30);
             const today = new Date();
             const limit = new Date(today.getTime() + giorni * 86400000);
             const todayStr = today.toISOString().split("T")[0];
@@ -796,7 +689,7 @@ Deno.serve(async (req) => {
             for (const c of contracts || []) {
               const entityId = c.employee_id || c.id;
               const giorniRim = Math.max(0, Math.ceil((new Date(c.data_cessazione).getTime() - Date.now()) / 86400000));
-              const emitted = await emitEventOnce(supabase, flow.company_id, "contract_expiring", entityId, "employee", {
+              const emitted = await emitForTrigger(supabase, flow.company_id, "contract_expiring", entityId, "employee", {
                 dipendente_id: entityId, first_name: c.nome, last_name: c.cognome,
                 data_cessazione: c.data_cessazione, giorni_rimanenti: giorniRim,
               });
@@ -807,7 +700,7 @@ Deno.serve(async (req) => {
 
           case "site_overdue": {
             // cantiere_in_ritardo: ordine/cantiere oltre la data di fine prevista (work_end_date).
-            const giorniTolleranza = parseInt(cfg.giorni_tolleranza) || 0;
+            const giorniTolleranza = integerSetting(cfg.giorni_tolleranza, 0);
             const cutoff = new Date();
             cutoff.setDate(cutoff.getDate() - giorniTolleranza);
             const cutoffStr = cutoff.toISOString().split("T")[0];
@@ -823,7 +716,7 @@ Deno.serve(async (req) => {
               const st = String(o.status || "").toLowerCase();
               if (["completato", "consegnato", "chiuso", "annullato", "completed", "delivered", "closed", "cancelled"].includes(st)) continue;
               const giorni = Math.max(0, Math.floor((Date.now() - new Date(o.work_end_date).getTime()) / 86400000));
-              const emitted = await emitEventOnce(supabase, flow.company_id, "site_overdue", o.id, "order", {
+              const emitted = await emitForTrigger(supabase, flow.company_id, "site_overdue", o.id, "order", {
                 cantiere_id: o.id, nome: o.order_code || o.description, giorni_ritardo: giorni, responsabile_id: o.assigned_to,
               });
               if (emitted) results.site_overdue++;
@@ -841,51 +734,36 @@ Deno.serve(async (req) => {
 
           case "custom_date": {
             const dateField = cfg.date_field;
-            const daysOffset = parseInt(cfg.days_offset) || 0;
-            if (!dateField) break;
-
-            const targetDate = new Date();
-            targetDate.setDate(targetDate.getDate() + daysOffset);
-            const targetStr = targetDate.toISOString().split("T")[0];
-
-            // cast: .eq(dateField, ...) con colonna dinamica genera TS2589
-            // (deep generic instantiation) sul query-builder tipizzato.
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const { data: contacts } = await (supabase as any)
-              .from("marketing_contacts")
-              .select("id")
-              .eq("company_id", flow.company_id)
-              .eq(dateField, targetStr);
-
-            if (contacts) {
-              const today = new Date().toISOString().split("T")[0];
-              for (const contact of contacts) {
-                const { data: existing } = await supabase
-                  .from("automation_trigger_events")
-                  .select("id")
-                  .eq("company_id", flow.company_id)
-                  .eq("trigger_event", "custom_date")
-                  .eq("entity_id", contact.id)
-                  .gte("created_at", today)
-                  .maybeSingle();
-
-                if (!existing) {
-                  await supabase.from("automation_trigger_events").insert({
-                    company_id: flow.company_id,
-                    trigger_event: "custom_date",
-                    entity_id: contact.id,
-                    entity_type: "contact",
-                    payload: { date_field: dateField, days_offset: daysOffset, target_date: targetStr },
-                  });
-                  results.custom_date++;
-                }
-              }
+            const daysOffset = integerSetting(cfg.days_offset, 0, true);
+            if (!["created_at", "date_of_birth"].includes(dateField)) throw new Error("Seleziona un campo data supportato per la ricorrenza.");
+            const today = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
+            const targetDate = new Date(today + "T12:00:00Z");
+            // Positive offset means AFTER the original date, as promised by the editor.
+            targetDate.setUTCDate(targetDate.getUTCDate() - daysOffset);
+            const targetStr = targetDate.toISOString().slice(0, 10);
+            let q = supabase.from("marketing_contacts").select("id")
+              .eq("company_id", flow.company_id).is("deleted_at", null);
+            if (dateField === "created_at") {
+              const next = new Date(targetDate); next.setUTCDate(next.getUTCDate() + 1);
+              q = q.gte("created_at", romaVersoUtc(targetStr, "00:00").toISOString())
+                .lt("created_at", romaVersoUtc(next.toISOString().slice(0, 10), "00:00").toISOString());
+            } else q = q.eq("date_of_birth", targetStr);
+            const { data: contacts, error } = await q;
+            if (error) throw error;
+            for (const contact of contacts ?? []) {
+              if (await emitForTrigger(supabase, flow.company_id, "custom_date", contact.id, "contact", {
+                date_field: dateField, days_offset: daysOffset, target_date: targetStr, _automation_occurrence: targetStr,
+              })) results.custom_date++;
             }
             break;
           }
         }
       }
     }
+
+    // Frequent run is limited to automation appointment triggers. Leave unrelated
+    // daily notifications on their existing cadence and deduplication strategy.
+    if (body.mode === "appointment_triggers_only") return jsonResponse({ results });
 
     // ── Custom Reminder Minutes (from appointments.reminder_minutes) ──
     const now = new Date();

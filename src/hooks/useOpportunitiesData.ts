@@ -9,6 +9,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { withClientTimeout, retryListQuery } from "@/lib/query-timeout";
 import { subscribeChannel } from "@/lib/realtime/subscribeChannel";
+import { createLiveRefresh } from "@/lib/realtime/createLiveRefresh";
 import { stessaColonna, type FiltriServerOpportunita } from "@/lib/marketingOpportunities";
 import { LIMITE_CESTINO, rigaCestino, type OpportunitaNelCestino, type RigaCestinoGrezza } from "@/lib/opportunitaCestino";
 
@@ -469,9 +470,6 @@ export function useOpportunityTags(pipelineId: string | null, enabled: boolean) 
  * l'ultima, fino a 2 minuti: un database lento riceve meno richieste, non di
  * più. La prima modifica dopo una pausa arriva comunque in un secondo.
  */
-const TEMPO_REALE_ATTESA_MS = 1000;
-const TEMPO_REALE_OGNI_MS = 15_000;
-const TEMPO_REALE_MASSIMO_MS = 120_000;
 
 /** La scheda è tra quelle caricate per questa pipeline (a schermo o in cache)? */
 function schedaCaricata(queryClient: ReturnType<typeof useQueryClient>, pipelineId: string, id: unknown): boolean {
@@ -490,38 +488,18 @@ export function useOpportunitiesLive(pipelineId: string | null) {
 
   useEffect(() => {
     if (!companyId || !pipelineId) return;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    let ultimaRicarica = 0;
-    let attesa = TEMPO_REALE_OGNI_MS;
-    let inCorso = false;
-    let arretrata = false;
     let giaAgganciato = false;
-
-    const ricarica = () => {
-      timer = undefined;
-      // Scheda del browser nascosta: nessuna richiesta, si ricarica al ritorno.
-      if (document.hidden) { arretrata = true; return; }
-      // Si riprova tra poco se uno spostamento sta ancora salvando (ricaricare
-      // adesso riporterebbe la scheda indietro per un attimo), se la ricarica
-      // precedente non è finita o se l'attesa dall'ultima non è passata.
-      if (inCorso || queryClient.isMutating() > 0 || Date.now() - ultimaRicarica < attesa) { programma(); return; }
-      inCorso = true;
-      const inizio = Date.now();
-      ultimaRicarica = inizio;
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.opportunities.all,
-        predicate: (q) => q.queryKey[3] === pipelineId
-          && ["riepilogo", "fase", "lista", "list"].includes(q.queryKey[1] as string),
-      }, { cancelRefetch: false }).finally(() => {
-        inCorso = false;
-        ultimaRicarica = Date.now();
-        attesa = Math.min(TEMPO_REALE_MASSIMO_MS, Math.max(TEMPO_REALE_OGNI_MS, (ultimaRicarica - inizio) * 5));
-      });
-    };
-    const programma = () => {
-      if (timer) return; // la ricarica già in coda vedrà anche questa modifica
-      timer = setTimeout(ricarica, Math.max(TEMPO_REALE_ATTESA_MS, attesa - (Date.now() - ultimaRicarica)));
-    };
+    let disposed = false;
+    const pipelineQuery = (q: { queryKey: readonly unknown[] }) => q.queryKey[0] === "marketing-opportunities"
+      && q.queryKey[2] === companyId && q.queryKey[3] === pipelineId
+      && ["riepilogo", "fase", "lista", "list", "etichette"].includes(q.queryKey[1] as string);
+    const queue = createLiveRefresh({
+      busy: () => queryClient.isMutating() > 0 || queryClient.isFetching({ predicate: pipelineQuery }) > 0,
+      refresh: (reconcile) => queryClient.invalidateQueries({
+        predicate: (q) => pipelineQuery(q) || (reconcile && q.queryKey[0] === "marketing-pipelines" && q.queryKey[2] === companyId),
+      }, { cancelRefetch: false }),
+    });
+    const programma = () => queue.request();
     // Arriva tutta l'azienda (il tempo reale accetta un solo filtro): conta la
     // pipeline aperta, o una scheda a schermo che se ne va in un'altra pipeline.
     const rigaNuovaOCambiata = (riga: { id?: string; pipeline_id?: string } | undefined) => {
@@ -532,10 +510,6 @@ export function useOpportunitiesLive(pipelineId: string | null) {
     const rigaCancellata = (id: unknown) => {
       if (schedaCaricata(queryClient, pipelineId, id)) programma();
     };
-    const alRitorno = () => {
-      if (!document.hidden && arretrata) { arretrata = false; programma(); }
-    };
-
     const tabella = { schema: "public", table: "marketing_opportunities" } as const;
     const canale = supabase
       .channel(`opportunita-live:${pipelineId}:${Math.random().toString(36).slice(2, 9)}`)
@@ -549,15 +523,15 @@ export function useOpportunitiesLive(pipelineId: string | null) {
       // Al primo aggancio i dati sono freschi; dopo una riconnessione no: quello
       // che è cambiato mentre la connessione era giù non ce l'ha mandato nessuno.
       onSubscribed: () => {
-        if (giaAgganciato) programma();
+        if (disposed) return;
+        if (giaAgganciato) queue.request(true);
         giaAgganciato = true;
       },
     });
-    document.addEventListener("visibilitychange", alRitorno);
 
     return () => {
-      if (timer) clearTimeout(timer);
-      document.removeEventListener("visibilitychange", alRitorno);
+      disposed = true;
+      queue.dispose();
       void supabase.removeChannel(canale);
     };
   }, [companyId, pipelineId, queryClient]);

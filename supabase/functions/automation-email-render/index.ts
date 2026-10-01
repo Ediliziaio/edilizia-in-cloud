@@ -1,50 +1,30 @@
 /**
  * automation-email-render — anteprima e invio di prova per le email dei nodi
  * automazione. Usa lo STESSO wrapping brandizzato del send reale (brandEmailBody),
- * quindi l'anteprima è fedele a quello che arriva davvero.
+ * con dati sintetici: non verifica il destinatario, il provider o il recapito.
  *
  * Body: { corpo, oggetto, mittente_nome?, vars?, mode: "preview" | "test" }
  *  - mode "preview" → ritorna { ok, html, subject } (HTML brandizzato finale).
  *  - mode "test"    → invia l'email all'INDIRIZZO DELL'UTENTE LOGGATO (mai ad altri,
  *                     per sicurezza) e ritorna { ok, sentTo }.
  *
- * Auth: JWT valido (qualsiasi utente loggato). Le variabili {{...}} vengono
+ * Auth: JWT valido e accesso all'azienda richiesta. Le variabili {{...}} vengono
  * sostituite con valori d'esempio (mergeabili dal client).
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { brandEmailBody } from "../_shared/brandEmailBody.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
+import { requireCompanyAccess } from "../_shared/auth.ts";
+import { emailContentEmpty, renderEmailSample } from "../_shared/automationEmail.ts";
+import { automationEmailSampleValues } from "../_shared/automationEmailSamples.ts";
 
-const SAMPLE_VARS: Record<string, string> = {
-  nome: "Marco",
-  cognome: "Rossi",
-  nome_completo: "Marco Rossi",
-  azienda: "Costruzioni Rossi",
-  "azienda.name": "Costruzioni Rossi",
-  "azienda.email": "marco@costruzionirossi.it",
-  "contatto.first_name": "Marco",
-  "contatto.last_name": "Rossi",
-  "contatto.full_name": "Marco Rossi",
-  "contatto.email": "marco@costruzionirossi.it",
-  "contatto.company_name": "Costruzioni Rossi",
-  "opportunita.name": "Ristrutturazione Via Roma",
-  giorni_rimasti: "5",
-  data_scadenza: "12/06/2026",
-};
-
-function resolveVars(s: string, vars: Record<string, string>): string {
-  return String(s || "").replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_m, k: string) => {
-    const v = vars[k];
-    return v == null ? "" : String(v);
-  });
-}
-
-Deno.serve(async (req) => {
+export async function handleAutomationEmailRender(req: Request): Promise<Response> {
   const cors = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   const json = (body: unknown, status = 200) =>
     new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
+  if (req.method !== "POST") return json({ error: "Metodo non consentito" }, 405);
 
   const url = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -56,27 +36,43 @@ Deno.serve(async (req) => {
   const { data: { user } } = await admin.auth.getUser(authHeader.replace("Bearer ", ""));
   if (!user) return json({ error: "Unauthorized" }, 401);
 
-  let payload: { corpo?: string; oggetto?: string; mittente_nome?: string; vars?: Record<string, string>; mode?: string };
+  let payload: { corpo?: string; oggetto?: string; mittente_nome?: string; vars?: Record<string, string>; mode?: string; company_id?: string };
   try {
     payload = await req.json();
   } catch {
     return json({ error: "Body JSON non valido" }, 400);
   }
 
+  if (!payload || typeof payload !== "object" || (payload.mode && !["preview", "test"].includes(payload.mode))) return json({ error: "Modalità non valida" }, 400);
+  if (typeof payload.corpo !== "string" || typeof payload.oggetto !== "string" || !payload.oggetto.trim() || emailContentEmpty(payload.corpo)) return json({ error: "Oggetto e corpo email sono obbligatori" }, 400);
+  if (payload.corpo.length > 200_000 || payload.oggetto.length > 1000) return json({ error: "Contenuto email troppo lungo" }, 400);
+  if (payload.vars && (typeof payload.vars !== "object" || Array.isArray(payload.vars) || Object.values(payload.vars).some(value => typeof value !== "string" || value.length > 10_000))) return json({ error: "Variabili di prova non valide" }, 400);
+  let companyId: string | null = payload.company_id || null;
+  if (!companyId) {
+    const { data: profile, error } = await admin.from("profiles").select("company_id").eq("id", user.id).maybeSingle();
+    if (error) return json({ error: "Impossibile verificare l’azienda" }, 403);
+    companyId = profile?.company_id || null;
+  }
+  if (companyId) {
+    try { await requireCompanyAccess(admin, user.id, companyId, cors); }
+    catch (error) { return error instanceof Response ? error : json({ error: "Accesso azienda negato" }, 403); }
+  }
   const mode = payload.mode === "test" ? "test" : "preview";
-  const vars = { ...SAMPLE_VARS, ...(payload.vars || {}) };
-  const subject = resolveVars(payload.oggetto || "(nessun oggetto)", vars);
-  const resolvedBody = resolveVars(payload.corpo || "", vars);
+  const vars = { ...automationEmailSampleValues(), ...(payload.vars || {}) };
+  const resolvedSubject = renderEmailSample(payload.oggetto, vars);
+  const resolvedBody = renderEmailSample(payload.corpo, vars, true);
+  const subject = resolvedSubject.text.replace(/[\r\n]/g, " ");
+  const missingVariables = Array.from(new Set([...resolvedSubject.missing, ...resolvedBody.missing]));
 
   let branded: { html: string; text: string };
   try {
-    branded = await brandEmailBody(admin, null, resolvedBody, subject);
+    branded = await brandEmailBody(admin, companyId, resolvedBody.text, subject);
   } catch (e) {
     return json({ error: `Render fallito: ${e instanceof Error ? e.message : String(e)}` }, 500);
   }
 
   if (mode === "preview") {
-    return json({ ok: true, html: branded.html, subject });
+    return json({ ok: true, html: branded.html, subject, missingVariables });
   }
 
   // mode === "test": invia SOLO all'email dell'utente loggato
@@ -84,7 +80,7 @@ Deno.serve(async (req) => {
   if (!to) return json({ error: "Il tuo account non ha un'email per il test" }, 400);
   try {
     const res = await sendEmailUnified({
-      companyId: null,
+      companyId,
       stream: "transactional",
       to,
       subject: `[PROVA] ${subject}`,
@@ -99,4 +95,5 @@ Deno.serve(async (req) => {
   } catch (e) {
     return json({ error: `Invio fallito: ${e instanceof Error ? e.message : String(e)}` }, 500);
   }
-});
+}
+Deno.serve(handleAutomationEmailRender);

@@ -14,7 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useBillingMode } from "@/contexts/BillingModeContext";
 import { useShipmentDDTPDF } from "@/hooks/useShipmentDDTPDF";
-import { useUsciteByOrder, useCreateDdtFromUscita, type UscitaRow } from "@/hooks/warehouse/useWarehouseUscita";
+import { formatCurrency } from "@/lib/formatters";
+import { useUsciteByOrder, useCreateDdtFromUscita, valoreUscita, type UscitaRow } from "@/hooks/warehouse/useWarehouseUscita";
 
 const STATO: Record<UscitaRow["stato"], { label: string; variant: "default" | "secondary" | "outline" }> = {
   registrata: { label: "Registrata", variant: "secondary" },
@@ -29,6 +30,9 @@ export function OrderUsciteCard({ orderId }: { orderId: string }) {
   const { data: uscite = [], isLoading, isError, refetch, isFetching } = useUsciteByOrder(orderId);
   const createDdt = useCreateDdtFromUscita();
   const [creatingId, setCreatingId] = useState<string | null>(null);
+  const valoreTotale = uscite
+    .filter((uscita) => uscita.stato !== "annullata")
+    .reduce((totale, uscita) => totale + valoreUscita(uscita.righe), 0);
 
   const handleCreateDdt = async (u: UscitaRow) => {
     setCreatingId(u.id);
@@ -52,8 +56,11 @@ export function OrderUsciteCard({ orderId }: { orderId: string }) {
   return (
     <Card className={vuota ? "max-sm:hidden" : undefined}>
       <CardHeader className="pb-2 max-sm:p-3 max-sm:pb-1">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <ArrowUpFromLine className="h-4 w-4 text-muted-foreground" /> Uscite di magazzino
+        <CardTitle className="flex items-center justify-between gap-2 text-base">
+          <span className="flex items-center gap-2">
+            <ArrowUpFromLine className="h-4 w-4 text-muted-foreground" /> Uscite di magazzino
+          </span>
+          {valoreTotale > 0 && <span className="text-sm tabular-nums text-orange-600">{formatCurrency(valoreTotale)}</span>}
         </CardTitle>
         <CardDescription className="text-xs max-sm:hidden">
           Merce uscita dal magazzino per questa commessa. Da qui generi il <strong>DDT</strong> quando vuoi.
@@ -82,6 +89,7 @@ export function OrderUsciteCard({ orderId }: { orderId: string }) {
             {uscite.map((u) => {
               const badge = STATO[u.stato];
               const nRighe = Array.isArray(u.righe) ? u.righe.length : 0;
+              const valore = valoreUscita(u.righe);
               return (
                 <div key={u.id} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/40 max-sm:px-3 max-sm:py-2.5">
                   <div className="min-w-0 flex-1">
@@ -96,6 +104,7 @@ export function OrderUsciteCard({ orderId }: { orderId: string }) {
                     </div>
                     <div className="text-xs text-muted-foreground mt-0.5">
                       {new Date(u.data).toLocaleDateString("it-IT")} · {nRighe} {nRighe === 1 ? "articolo" : "articoli"}
+                      {valore > 0 ? ` · ${formatCurrency(valore)}` : ""}
                       {u.note ? ` · ${u.note}` : ""}
                     </div>
                   </div>

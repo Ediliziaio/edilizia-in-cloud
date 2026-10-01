@@ -31,11 +31,11 @@ function Harness({ initiallyReady = true }: { initiallyReady?: boolean }) {
         <details><summary>Note</summary><div id="section-note">Strumenti</div></details>
       </TabsContent>
       <TabsContent value="cantiere">
-        <h2>Lavorazioni</h2><div id="section-rapportini">Rapportini</div><div id="section-sal">Verbali SAL</div>
+        <h2>Lavorazioni</h2><div id="section-rapportini">Rapportini</div>
         <details><summary>Calendario</summary><div id="section-pianificazione">Date e appuntamenti</div><div id="section-attivita">Attività del cantiere</div></details>
       </TabsContent>
       <TabsContent value="articoli"><h2>Materiali</h2></TabsContent>
-      <TabsContent value="finanza"><h2>Economia</h2><div id="section-pagamenti">Rate e incassi</div></TabsContent>
+      <TabsContent value="finanza"><h2>Economia</h2><div id="section-pagamenti">Rate e incassi</div><details><summary id="section-sal">Verbali SAL</summary><p>Dettaglio SAL</p></details></TabsContent>
     </Tabs></div>}
   </>;
 }
@@ -79,7 +79,7 @@ describe("navigazione commessa reale (Radix + React Router)", () => {
 
   it.each([
     ["campo", "Cantiere", "Rapportini"],
-    ["sal", "Cantiere", "Verbali SAL"],
+    ["sal", "Economia e pagamenti", "Verbali SAL"],
     ["stato", "Panoramica", "Storico"],
     ["altro", "Panoramica", "Strumenti"],
   ])("recupera il vecchio link %s e apre la sezione corretta", async (legacy, tab, content) => {

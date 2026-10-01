@@ -31,6 +31,7 @@ export function sanitizeFromName(raw: string | undefined | null): string | undef
 export interface EmailSendRequest {
   from: string;
   to: string[];
+  cc?: string[];
   subject: string;
   html: string;
   text?: string;
@@ -234,6 +235,7 @@ export async function sendViaProvider(
           from: fromEmail,
           fromName: fromName,
           to: req.to,
+          cc: req.cc,
           subject: req.subject,
           bodyHtml: req.html,
           bodyText: req.text ?? null,
@@ -254,7 +256,7 @@ export async function sendViaProvider(
       const fromObj: Record<string, string> = { email: fromEmail };
       if (fromName) fromObj.name = fromName;
       const payload: Record<string, unknown> = {
-        personalizations: [{ to: req.to.map((e) => ({ email: e })) }],
+        personalizations: [{ to: req.to.map((e) => ({ email: e })), ...(req.cc?.length ? { cc: req.cc.map(email => ({ email })) } : {}) }],
         from: fromObj,
         subject: req.subject,
         content: [{ type: "text/html", value: req.html }],
@@ -308,6 +310,7 @@ export async function sendViaProvider(
       const payload: Record<string, unknown> = {
         sender: senderObj,
         to: req.to.map((e) => ({ email: e })),
+        ...(req.cc?.length ? { cc: req.cc.map(email => ({ email })) } : {}),
         subject: req.subject,
         htmlContent: req.html,
       };
@@ -332,6 +335,7 @@ export async function sendViaProvider(
       // (notifiche operative interne). L'endpoint transactional non appende il
       // footer unsubscribe automatico e migliora la consegna in inbox.
       const elasticTransactional = stream !== "marketing" || opts?.elasticTransactionalClass === true;
+      if (req.cc?.length && !elasticTransactional) return { ok: false, status: 400, body: { error: "Le copie CC non sono supportate dal canale marketing Elastic Email: usa una casella collegata o un'email di servizio." }, providerUsed: provider };
       url = elasticTransactional
         ? "https://api.elasticemail.com/v4/emails/transactional"
         : "https://api.elasticemail.com/v4/emails";
@@ -367,6 +371,7 @@ export async function sendViaProvider(
         ? {
             Recipients: {
               To: req.to.map((e) => e),
+              ...(req.cc?.length ? { CC: req.cc } : {}),
             },
             Content: content,
           }
@@ -407,6 +412,7 @@ export async function sendViaProvider(
       const formData = new FormData();
       formData.append("from", req.from);
       req.to.forEach((t) => formData.append("to", t));
+      req.cc?.forEach((t) => formData.append("cc", t));
       formData.append("subject", req.subject);
       formData.append("html", req.html);
       if (req.text) formData.append("text", req.text);
@@ -447,6 +453,7 @@ export async function sendViaProvider(
       const payload: Record<string, unknown> = {
         from: req.from,
         to: req.to,
+        ...(req.cc?.length ? { cc: req.cc } : {}),
         subject: req.subject,
         html: req.html,
       };

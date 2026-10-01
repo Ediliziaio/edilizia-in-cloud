@@ -20,6 +20,7 @@ export interface CantiereMargine {
   margine: number | null;
   margine_perc: number | null;
   preventivo_totale: number | null;
+  consuntivo: number | null;
   work_start_date: string | null;
   work_end_date: string | null;
 }
@@ -50,6 +51,8 @@ export function eInRitardo(c: Pick<CantiereMargine, "work_start_date" | "work_en
 export interface MargineCantieriAperti {
   /** Quanti cantieri sono aperti adesso. */
   quanti: number;
+  /** Quanti hanno almeno un costo diretto e quindi un margine valutabile. */
+  quantiValutabili: number;
   /** Somma dei margini, in euro. */
   margineEuro: number;
   /** Somma dei preventivi, in euro: il denominatore della percentuale. */
@@ -71,14 +74,20 @@ export function margineCantieriAperti(
   quantiPeggiori = 3,
 ): MargineCantieriAperti {
   const aperti = cantieri.filter((c) => eAperto(c, oggi));
-  const margineEuro = aperti.reduce((s, c) => s + (c.margine ?? 0), 0);
-  const valoreEuro = aperti.reduce((s, c) => s + (c.preventivo_totale ?? 0), 0);
-  const peggiori = [...aperti]
+  // Una commessa senza costi non ha un margine del 100%: ha un dato ancora
+  // incompleto. Per il KPI pesato entrano solo i cantieri consuntivati.
+  const valutabili = aperti.filter(
+    (c) => (c.preventivo_totale ?? 0) > 0 && (c.consuntivo ?? 0) > 0,
+  );
+  const margineEuro = valutabili.reduce((s, c) => s + (c.margine ?? 0), 0);
+  const valoreEuro = valutabili.reduce((s, c) => s + (c.preventivo_totale ?? 0), 0);
+  const peggiori = [...valutabili]
     .filter((c) => c.margine_perc != null)
     .sort((a, b) => (a.margine_perc ?? 0) - (b.margine_perc ?? 0))
     .slice(0, quantiPeggiori);
   return {
     quanti: aperti.length,
+    quantiValutabili: valutabili.length,
     margineEuro,
     valoreEuro,
     marginePerc: valoreEuro > 0 ? (margineEuro / valoreEuro) * 100 : null,

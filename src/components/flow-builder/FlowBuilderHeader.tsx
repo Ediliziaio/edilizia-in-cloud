@@ -177,10 +177,10 @@ export function FlowBuilderHeader({
           <TooltipTrigger asChild>
             <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5" onClick={onTest}>
               <FlaskConical className="h-3.5 w-3.5" />
-              Test
+              Verifica filtri
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="bottom" className="text-xs">Testa il flusso su un contatto</TooltipContent>
+          <TooltipContent side="bottom" className="text-xs">Anteprima senza invii o modifiche ai dati</TooltipContent>
         </Tooltip>
 
         <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5 relative" onClick={onSave} disabled={isSaving}>

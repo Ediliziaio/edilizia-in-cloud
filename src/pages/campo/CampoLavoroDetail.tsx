@@ -3,6 +3,7 @@
  * Verifica accesso tramite order_campo_assignments — sicurezza obbligatoria.
  */
 import { useEffect, useMemo, useState } from "react";
+import { missingCampoDocument, CAMPO_DOCUMENT_REQUIRED } from "../../../supabase/functions/_shared/campoDocumentGuard";
 import { ImgRiservata } from "@/components/common/ImgRiservata";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -1418,6 +1419,7 @@ function DocumentiFirmaTab({ orderId, customer }: { orderId: string; customer: C
   const [showNewDoc, setShowNewDoc] = useState(false);
   const [selectedTipo, setSelectedTipo] = useState<string | null>(null);
   const [noteDoc, setNoteDoc] = useState("");
+  const documentMissing = missingCampoDocument("order", selectedTipo);
 
   // Richieste firma esistenti per questo ordine
   const { data: firmeRichieste = [], isLoading } = useQuery<SignatureRequestRow[]>({
@@ -1438,6 +1440,7 @@ function DocumentiFirmaTab({ orderId, customer }: { orderId: string; customer: C
   const { mutate: creaRichiestaFirma, isPending } = useMutation({
     mutationFn: async () => {
       if (!selectedTipo) throw new Error("Seleziona il tipo di documento");
+      if (documentMissing) throw new Error(CAMPO_DOCUMENT_REQUIRED);
       if (!customer?.email) throw new Error("Email del cliente non disponibile");
 
       const customerName = `${customer.first_name ?? ""} ${customer.last_name ?? ""}`.trim();
@@ -1537,6 +1540,13 @@ function DocumentiFirmaTab({ orderId, customer }: { orderId: string; customer: C
             })}
           </div>
 
+          {documentMissing && (
+            <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              <p className="font-semibold">Verbale da preparare prima della firma</p>
+              <p className="mt-1">{CAMPO_DOCUMENT_REQUIRED}</p>
+              <p className="mt-2">Prepara il verbale dalla commessa → Cantiere → Collaudo e consegna: verifiche, esito, riserve, responsabili e documenti consegnati. Il collegamento alla firma elettronica è ancora da completare: non inviare una richiesta basata sul solo titolo.</p>
+            </div>
+          )}
           {/* Destinatario */}
           {customer && (
             <div className="bg-muted/50 border border-border rounded-xl p-3">
@@ -1578,7 +1588,7 @@ function DocumentiFirmaTab({ orderId, customer }: { orderId: string; customer: C
             </button>
             <button
               onClick={() => creaRichiestaFirma()}
-              disabled={!selectedTipo || !customer?.email || isPending}
+              disabled={!selectedTipo || !customer?.email || isPending || documentMissing}
               className="flex-1 bg-primary text-primary-foreground font-bold py-3 rounded-xl text-sm active:scale-[0.98] transition-transform disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}

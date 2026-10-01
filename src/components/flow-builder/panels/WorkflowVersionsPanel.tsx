@@ -11,12 +11,16 @@ import {
 import { formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
+import { queryKeys } from "@/lib/queryKeys";
+import type { RestoredAutomationGraph } from "@/types/automationBuilder";
 
 interface Props {
   flowId: string;
+  onRestored?: (snapshot: RestoredAutomationGraph) => void;
+  isSaving?: boolean;
 }
 
-export function WorkflowVersionsPanel({ flowId }: Props) {
+export function WorkflowVersionsPanel({ flowId, onRestored, isSaving }: Props) {
   const qc = useQueryClient();
   const [restoreTarget, setRestoreTarget] = useState<any | null>(null);
 
@@ -40,42 +44,33 @@ export function WorkflowVersionsPanel({ flowId }: Props) {
       const nodes = version.nodes_snapshot ?? [];
       const connections = version.connections_snapshot ?? [];
 
-      // Delete current nodes and connections, then re-insert from snapshot
-      const { error: delNodes } = await (supabase as any)
-        .from("automation_nodes")
-        .delete()
-        .eq("flow_id", flowId);
-      if (delNodes) throw delNodes;
-
-      const { error: delConns } = await (supabase as any)
-        .from("automation_connections")
-        .delete()
-        .eq("flow_id", flowId);
-      if (delConns) throw delConns;
-
-      if (nodes.length > 0) {
-        const { error: insNodes } = await (supabase as any)
-          .from("automation_nodes")
-          .insert(nodes.map((n: any) => ({ ...n, flow_id: flowId })));
-        if (insNodes) throw insNodes;
-      }
-
-      if (connections.length > 0) {
-        const { error: insConns } = await (supabase as any)
-          .from("automation_connections")
-          .insert(connections.map((c: any) => ({ ...c, flow_id: flowId })));
-        if (insConns) throw insConns;
-      }
+      const { data: flow, error: flowError } = await supabase.from("automation_flows")
+        .select("company_id, updated_at").eq("id", flowId).single();
+      if (flowError) throw flowError;
+      if (isSaving) throw new Error("Attendi la fine del salvataggio prima di ripristinare.");
+      const { data: saved, error } = await (supabase as any).rpc("save_automation_graph", {
+        p_flow_id: flowId, p_company_id: flow.company_id, p_expected_updated_at: flow.updated_at,
+        p_nodes: nodes, p_connections: connections,
+      });
+      if (error) throw error;
+      return {
+        ...saved,
+        nodes: nodes.map((n: any) => ({ ...n, flow_id: flowId, company_id: flow.company_id, created_at: n.created_at ?? saved.updated_at, updated_at: saved.updated_at })),
+        connections: connections.map((c: any) => ({ ...c, flow_id: flowId, company_id: flow.company_id, created_at: c.created_at ?? saved.updated_at })),
+      } as RestoredAutomationGraph;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["automation-nodes"] });
-      qc.invalidateQueries({ queryKey: ["automation-connections"] });
+    onSuccess: (snapshot) => {
+      onRestored?.(snapshot);
+      qc.invalidateQueries({ queryKey: queryKeys.automations.nodes(flowId) });
+      qc.invalidateQueries({ queryKey: queryKeys.automations.connections(flowId) });
+      qc.invalidateQueries({ queryKey: queryKeys.automations.flow(flowId) });
       qc.invalidateQueries({ queryKey: ["flow-versions", flowId] });
+      qc.invalidateQueries({ queryKey: ["automation-flows"] });
       toast.success("Versione ripristinata con successo");
       setRestoreTarget(null);
     },
-    onError: () => {
-      toast.error("Errore nel ripristino della versione");
+    onError: (error: any) => {
+      toast.error("Versione non ripristinata", { description: error.message });
       setRestoreTarget(null);
     },
   });
@@ -151,7 +146,7 @@ export function WorkflowVersionsPanel({ flowId }: Props) {
                       </div>
                       <button
                         onClick={() => setRestoreTarget(v)}
-                        disabled={restoreMutation.isPending}
+                        disabled={restoreMutation.isPending || isSaving}
                         className="text-xs text-primary hover:text-primary/80 font-medium flex items-center gap-1 disabled:opacity-50"
                       >
                         <RotateCcw className="h-3 w-3" aria-hidden="true" /> Ripristina

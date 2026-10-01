@@ -22,6 +22,7 @@ import { Tags, DollarSign, Loader2, X } from "lucide-react";
 import { TagSelector } from "@/components/marketing/TagSelector";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { queryKeys } from "@/lib/queryKeys";
+import { refreshCrmContacts } from "@/lib/refreshCrmContacts";
 import { perOgniLotto, raccogliALotti, LOTTO_RIGHE } from "@/lib/lottiDiId";
 
 /** Quanti contatti si leggono per proporre i tag da rimuovere. */
@@ -116,7 +117,7 @@ export function BulkTagsDialog({ selectedIds }: { selectedIds: Set<string> }) {
       return aggiornati;
     },
     onSuccess: (n) => {
-      qc.invalidateQueries({ queryKey: queryKeys.marketingContacts.all });
+      void refreshCrmContacts(qc, effectiveCompany?.id);
       toast.success(n === 0 ? "Nessun contatto da aggiornare: avevano già questi tag" : `Tag aggiornati su ${n} contatti`);
       setOpen(false);
       setTagsToAdd([]);
@@ -280,6 +281,8 @@ export function BulkCreateOpportunitiesDialog({ selectedIds }: { selectedIds: Se
     },
     onSuccess: (n) => {
       qc.invalidateQueries({ queryKey: queryKeys.opportunities.all });
+      qc.invalidateQueries({ queryKey: queryKeys.marketingContacts.all });
+      qc.invalidateQueries({ queryKey: queryKeys.marketing.all });
       toast.success(`${n} opportunità create`, { description: "Le trovi nella pipeline selezionata." });
       setOpen(false);
     },

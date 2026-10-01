@@ -96,12 +96,17 @@ const OPP_IMPORT_FIELDS: ImportField[] = [
 function MarketingOpportunitiesContent() {
   const navigate = useNavigate();
   const isAdminContext = useIsAdminMarketing();
-  const { effectiveCompany, user, viewAsUserId } = useAuth();
+  const { effectiveCompany, user, role, viewAsUserId } = useAuth();
   const companyId = effectiveCompany?.id;
   // In «Vista come» la sessione resta del super admin: «i miei» e «vede solo i
   // propri» valgono per l'utente SIMULATO.
   const currentUserId = viewAsUserId ?? user?.id ?? null;
   const permissions = usePermissions();
+  const pipelineSettingsPath = isAdminContext
+    ? "/admin/impostazioni/sequenze"
+    : "/azienda/impostazioni/sequenze";
+  const canViewPipelineSettings = permissions.canViewSettingsCustomization
+    && (!isAdminContext || role === "super_admin");
   const canEditOpportunities = permissions.canEditMarketingOpportunities;
   // «Esporta Clienti»: l'export porta con sé nome, email e telefono dei
   // contatti. Gli amministratori ce l'hanno sempre; il database lo ricontrolla.
@@ -393,7 +398,7 @@ function MarketingOpportunitiesContent() {
   // Fetch dedicato per il deep-link ?apri=: l'opportunità potrebbe non stare
   // nelle pagine già caricate della lista paginata, quindi niente find sull'array.
   const { data: oppDaAprire } = useQuery({
-    queryKey: ["opportunita-deep-link", companyId, apriOppId],
+    queryKey: queryKeys.opportunities.deepLink(companyId, apriOppId),
     enabled: !!apriOppId && !!companyId,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -749,10 +754,12 @@ function MarketingOpportunitiesContent() {
         <Target className="h-16 w-16 text-muted-foreground/40" />
         <h1 className="text-2xl font-bold">Opportunità</h1>
         <p className="text-muted-foreground max-w-md">
-          Per iniziare, crea una sequenza (pipeline) nelle impostazioni sotto "Marketing e Vendita" → "Sequenze".
+          {canViewPipelineSettings
+            ? "Per iniziare, crea una pipeline e le sue fasi nelle impostazioni."
+            : "Non ci sono pipeline disponibili. Chiedi a un amministratore di configurarle o verificare il tuo accesso."}
         </p>
-        {!isAdminContext && (
-          <Button variant="outline" onClick={() => navigate("/azienda/impostazioni/sequenze")}>
+        {canViewPipelineSettings && (
+          <Button variant="outline" onClick={() => navigate(pipelineSettingsPath)}>
             Vai alle Impostazioni
           </Button>
         )}
@@ -771,6 +778,11 @@ function MarketingOpportunitiesContent() {
       <div className="flex shrink-0 flex-nowrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/50 p-3 shadow-sm sm:flex-wrap sm:gap-3 max-sm:rounded-none max-sm:border-0 max-sm:bg-none max-sm:p-0 max-sm:shadow-none">
         <div className="flex min-w-0 items-center gap-2">
           <PipelineSelector pipelines={pipelines} value={selectedPipelineId} onChange={setSelectedPipelineId} />
+          {canViewPipelineSettings && (
+            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" aria-label="Impostazioni pipeline" title="Gestisci pipeline e fasi" onClick={() => navigate(pipelineSettingsPath)}>
+              <Settings2 className="h-4 w-4" />
+            </Button>
+          )}
           {/* Il totale viene dal database: tutte le opportunità che passano i
               filtri, non solo quelle caricate nelle colonne. */}
           <Badge className="h-6 shrink-0 gap-1 bg-orange-100 px-2 text-xs tabular-nums text-orange-700 hover:bg-orange-100">
@@ -849,7 +861,7 @@ function MarketingOpportunitiesContent() {
                   <Trash2 className="mr-2 h-4 w-4" /> Cestino
                 </DropdownMenuItem>
               )}
-              {!isAdminContext && <DropdownMenuItem onClick={() => navigate("/azienda/impostazioni/sequenze")}>Impostazioni pipeline</DropdownMenuItem>}
+              {canViewPipelineSettings && <DropdownMenuItem onClick={() => navigate(pipelineSettingsPath)}>Impostazioni pipeline</DropdownMenuItem>}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -1122,7 +1134,7 @@ function MarketingOpportunitiesContent() {
       {stages.length === 0 ? (
         <div className="flex flex-col items-center justify-center flex-1 text-muted-foreground gap-2">
           <p className="text-sm">Questa pipeline non ha fasi configurate.</p>
-          {!isAdminContext && <Button variant="outline" size="sm" onClick={() => navigate("/azienda/impostazioni/sequenze")}>Configura fasi</Button>}
+          {canViewPipelineSettings && <Button variant="outline" size="sm" onClick={() => navigate(pipelineSettingsPath)}>Configura fasi</Button>}
         </div>
       ) : (
         <>

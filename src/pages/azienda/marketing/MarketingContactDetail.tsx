@@ -5,6 +5,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
 import { RigaMobile } from "@/components/mobile/FiltriMobile";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { refreshCrmContacts } from "@/lib/refreshCrmContacts";
 import { supabase } from "@/integrations/supabase/client";
 import { readInvokeError } from "@/lib/readInvokeError";
 import { useAuth } from "@/contexts/AuthContext";
@@ -545,7 +546,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
         created_by: user?.id,
         metadata: { source: "lead-scraper", fields: updated, website },
       });
-      queryClient.invalidateQueries({ queryKey: ["marketing_contact", id] });
+      void refreshCrmContacts(queryClient, companyId, id);
       queryClient.invalidateQueries({ queryKey: ["marketing_contact_activities", id] });
       toast.success(updated.length ? `Contatto arricchito: ${updated.length} campi compilati` : "Arricchimento completato");
     } catch (e) {
@@ -583,7 +584,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
           created_by: user?.id,
           metadata: { source: "openapi-visura", fields: updated, piva },
         });
-        queryClient.invalidateQueries({ queryKey: ["marketing_contact", id] });
+        void refreshCrmContacts(queryClient, companyId, id);
         queryClient.invalidateQueries({ queryKey: ["marketing_contact_activities", id] });
         toast.success(updated.length ? `Visura ok: ${updated.length} campi compilati` : "Visura scaricata");
       } else {
@@ -607,7 +608,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       if (error) throw error;
       if (data?.email) {
         toast.success(data.status === "guessed" ? `Email probabile trovata: ${data.email} (ipotesi su dominio valido)` : `Email trovata: ${data.email}`);
-        queryClient.invalidateQueries({ queryKey: ["marketing_contact", id] });
+        void refreshCrmContacts(queryClient, companyId, id);
       } else {
         toast.error("Nessuna email trovata: aggiungi il sito web e riprova.");
       }
@@ -668,7 +669,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["marketing_contact", id] });
+      void refreshCrmContacts(queryClient, companyId, id);
       queryClient.invalidateQueries({ queryKey: ["marketing_contact_activities", id] });
     },
     onError: (e: any) => toast.error(e.message),
@@ -684,7 +685,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["marketing_contact_field_values", id] });
+      void refreshCrmContacts(queryClient, companyId, id);
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -721,6 +722,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
     },
     onSuccess: () => {
       toast.success("Contatto eliminato");
+      void refreshCrmContacts(queryClient, companyId, id);
       navigate(`${routePrefix}/contatti`);
     },
     onError: (e: any) => toast.error(e.message),
@@ -1434,7 +1436,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                             icp_tier: tier,
                             last_score_update: new Date().toISOString(),
                           }).eq("id", id).eq("company_id", companyId);
-                          queryClient.invalidateQueries({ queryKey: ["marketing_contact", id] });
+                          void refreshCrmContacts(queryClient, companyId, id);
                           toast.success(`Lead Score aggiornato: ${result.leadScore}/100 (Tier ${tier})`);
                         } catch (err: any) {
                           toast.error(err.message || "Errore ricalcolo");
@@ -1460,7 +1462,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                           if (!data?.success) throw new Error(data?.error ?? "Scoring fallito");
                           const sc = data.scored?.[0];
                           if (sc?.error) throw new Error(sc.error);
-                          queryClient.invalidateQueries({ queryKey: ["marketing_contact", id] });
+                          void refreshCrmContacts(queryClient, companyId, id);
                           toast.success(
                             `AI Score: ${sc?.score}/100 (${sc?.tier}) · ${sc?.next_action ?? ""}`,
                           );

@@ -144,6 +144,7 @@ export default function AutomazioniUnified() {
         <div className="relative w-full max-w-xs max-md:max-w-none">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
+            aria-label={vistaTemplates ? "Cerca template" : "Cerca flusso"}
             placeholder={vistaTemplates ? "Cerca template..." : "Cerca flusso..."}
             className="h-9 pl-9"
             value={vistaTemplates ? cercaTemplate : searchQuery}
@@ -155,7 +156,7 @@ export default function AutomazioniUnified() {
           value={categoriaAttiva}
           onValueChange={(v) => setCategoriaAttiva(v as CategoriaFiltro)}
         >
-          <SelectTrigger className="h-9 w-full shrink-0 sm:w-[190px] max-md:hidden">
+          <SelectTrigger aria-label="Categoria automazioni" className="h-9 w-full shrink-0 sm:w-[190px] max-md:hidden">
             <SelectValue placeholder="Categoria" />
           </SelectTrigger>
           <SelectContent>
@@ -184,6 +185,9 @@ export default function AutomazioniUnified() {
           </Select>
         )}
 
+        {(categoriaAttiva !== "tutte" || (vistaTemplates ? cercaTemplate.trim() || livelloTemplate !== "tutti" : searchQuery.trim())) && (
+          <Button variant="ghost" size="sm" onClick={() => { setCategoriaAttiva("tutte"); setSearchQuery(""); setCercaTemplate(""); setLivelloTemplate("tutti"); }}>Azzera filtri</Button>
+        )}
         <div className="flex-1" />
 
         <button
@@ -212,6 +216,7 @@ export default function AutomazioniUnified() {
         <AutomationFlowsList
           searchQuery={searchQuery}
           categoryFilter={categoriaAttiva === "tutte" ? null : categoriaAttiva}
+          onResetFilters={() => { setCategoriaAttiva("tutte"); setSearchQuery(""); }}
         />
       )}
 

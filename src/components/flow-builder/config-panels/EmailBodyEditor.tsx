@@ -18,8 +18,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { RichTextEditor, type RichTextEditorHandle } from "@/components/ui/rich-text-editor";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { getCatalogItem } from "@/lib/flow-node-catalog";
-import { buildVariableCategories, slug, type PickerVariable, type PickerCategory } from "./emailVariableCatalog";
+import { buildVariableCategories, type PickerVariable, type PickerCategory } from "./emailVariableCatalog";
+import { emailCustomFieldKey } from "../../../../supabase/functions/_shared/automationEmail";
 
 export interface EmailVariable {
   key: string;
@@ -35,19 +35,22 @@ interface EmailBodyEditorProps {
   /** item_id del trigger del flusso: le sue variabili sono quelle che si COMPILANO
    *  davvero → mostrate in cima ("Disponibili in questo flusso"). */
   triggerItemId?: string;
+  companyId?: string;
+  allowCustomFields?: boolean;
   placeholder?: string;
   minHeight?: number;
 }
 
 export function EmailBodyEditor({
-  value, onChange, variables = [], triggerItemId, placeholder, minHeight = 200,
+  value, onChange, variables = [], triggerItemId, companyId: explicitCompanyId, allowCustomFields = true, placeholder, minHeight = 200,
 }: EmailBodyEditorProps) {
   const editorRef = useRef<RichTextEditorHandle>(null);
   const [search, setSearch] = useState("");
+  const [variablesOpen, setVariablesOpen] = useState(false);
   // La categoria "Disponibili in questo flusso" è espansa di default.
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({ _flow: true });
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({ contatto: true });
   const { effectiveCompany } = useAuth();
-  const companyId = effectiveCompany?.id;
+  const companyId = explicitCompanyId ?? effectiveCompany?.id;
 
   // Campi personalizzati reali (/admin/impostazioni/campi-personalizzati).
   const { data: customFields = [] } = useQuery({
@@ -56,35 +59,26 @@ export function EmailBodyEditor({
       if (!companyId) return [];
       const { data, error } = await supabase
         .from("marketing_custom_fields")
-        .select("name, object_type")
+        .select("id, name")
         .eq("company_id", companyId)
+        .eq("object_type", "contact")
         .is("deleted_at", null);
       if (error) throw error;
-      return (data || []).map((f: { name: string; object_type: string }) => ({
-        key: `${f.object_type}.${slug(f.name)}`,
+      return (data || []).map((f: { id: string; name: string }) => ({
+        key: emailCustomFieldKey(f.id),
         label: f.name,
       }));
     },
-    enabled: !!companyId,
+    enabled: !!companyId && allowCustomFields,
     staleTime: 5 * 60 * 1000,
   });
 
   const extra: PickerVariable[] = useMemo(
-    () => [...variables.map((v) => ({ key: v.key, label: v.label })), ...customFields],
-    [variables, customFields],
+    () => [...variables.map((v) => ({ key: v.key, label: v.label })), ...(allowCustomFields ? customFields : [])],
+    [variables, customFields, allowCustomFields],
   );
 
-  // Variabili del trigger del flusso = quelle che si compilano davvero.
-  const triggerVars: PickerVariable[] = useMemo(() => {
-    const item = triggerItemId ? getCatalogItem(triggerItemId) : null;
-    return (item?.outputVariables ?? []).map((v) => ({ key: v.id, label: v.label }));
-  }, [triggerItemId]);
-
-  const categories: PickerCategory[] = useMemo(() => {
-    const base = buildVariableCategories(extra);
-    if (triggerVars.length === 0) return base;
-    return [{ id: "_flow", label: "Disponibili in questo flusso", variables: triggerVars }, ...base];
-  }, [extra, triggerVars]);
+  const categories: PickerCategory[] = useMemo(() => buildVariableCategories(extra, triggerItemId), [extra, triggerItemId]);
 
   const q = search.trim().toLowerCase();
   const searchHits = useMemo(() => {
@@ -97,12 +91,12 @@ export function EmailBodyEditor({
     return out;
   }, [q, categories]);
 
-  const insertVariable = (key: string) => editorRef.current?.insertContent(`{{${key}}}`);
+  const insertVariable = (key: string) => { editorRef.current?.insertContent(`{{${key}}}`); setVariablesOpen(false); setSearch(""); };
 
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-end">
-        <Popover>
+        <Popover open={variablesOpen} onOpenChange={setVariablesOpen}>
           <PopoverTrigger asChild>
             <Button type="button" variant="outline" size="sm" className="h-7 gap-1 text-xs">
               <Variable className="h-3.5 w-3.5" />

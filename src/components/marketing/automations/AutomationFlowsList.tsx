@@ -34,6 +34,7 @@ import { ACTION_MAP, TRIGGER_MAP } from "@/lib/flow-node-catalog";
 
 import { ConfermaQuantita, useConfermaQuantita } from "@/components/shared/ConfermaQuantita";
 import { AutomazioniCestinoDialog } from "./AutomazioniCestinoDialog";
+import { filterErrors } from "../../../../supabase/functions/_shared/automationFilters";
 type AutomationNodeRow = {
   flow_id?: string;
   node_type: string;
@@ -80,6 +81,7 @@ function validateAutomationForPublish(nodes: AutomationNodeRow[] | null | undefi
     return !config.itemId && !config.item_id && !config.action_type;
   });
   if (incompleteAction) errors.push("Completa tutte le azioni prima di pubblicare.");
+  for (const node of rows) errors.push(...filterErrors((node.config_json?.trigger_filters ?? node.config_json?.filters) as any));
 
   const incompleteDelay = rows.find(n => n.node_type === "delay" && !hasDelayDuration(n.config_json));
   if (incompleteDelay) errors.push("Imposta una durata valida per tutte le attese.");
@@ -248,9 +250,10 @@ interface Props {
   folderId?: string | null;
   onNavigateFolder?: (folderId: string | null) => void;
   categoryFilter?: string | null;
+  onResetFilters?: () => void;
 }
 
-export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery = "", folderId = null, onNavigateFolder, categoryFilter = null }: Props) {
+export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery = "", folderId = null, onNavigateFolder, categoryFilter = null, onResetFilters }: Props) {
   const { effectiveCompany, user, role } = useAuth();
   const isMobile = useIsMobile();
   const navigate = useNavigate();
@@ -667,9 +670,9 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
       }
     }
     if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
+      const q = searchQuery.trim().toLowerCase();
       result = result.filter(f => {
-        const folderName = f.folder_id ? folderMap[f.folder_id] : "";
+        const folderName = (f.folder_id ? folderMap[f.folder_id] : "") ?? "";
         return (
           f.name.toLowerCase().includes(q) ||
           (f.description ?? "").toLowerCase().includes(q) ||
@@ -816,6 +819,11 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
   }
 
   if (!hasContent) {
+    if (categoryFilter) return <div className="py-12 text-center space-y-3">
+      <h3 className="text-sm font-medium">Nessuna automazione in questa categoria</h3>
+      <p className="text-sm text-muted-foreground">Rimuovi il filtro per vedere gli altri flussi.</p>
+      {onResetFilters && <Button variant="outline" onClick={onResetFilters}>Azzera filtri</Button>}
+    </div>;
     return (
       <div className="text-center py-16">
         <Zap className="h-12 w-12 mx-auto text-muted-foreground/40 mb-4" />
