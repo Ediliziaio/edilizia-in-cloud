@@ -6,6 +6,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/headers.ts";
 import { requireCompanyAccess } from "../_shared/auth.ts";
+import { richiediAmministratoreAzienda } from "../_shared/amministraAzienda.ts";
 
 interface RequestBody { company_id: string; numero_e164: string }
 
@@ -49,9 +50,10 @@ Deno.serve(async (req: Request) => {
     // 21/09/2026 — non bastava: mancava anche il ruolo. Solo l'amministratore
     // può acquistare, come per i numeri voce (telnyx-proxy, stesso giorno).
     try {
-      await requireCompanyAccess(adminClient, user.id, company_id, corsHeaders, {
-        allowedRoles: ["company_admin"],
-      });
+      // 26/09/2026: amministratore di QUESTA azienda, non di un'azienda
+      // qualsiasi (chi qui è entrato come staff comprava a spese dell'azienda).
+      const accesso = await requireCompanyAccess(adminClient, user.id, company_id, corsHeaders);
+      await richiediAmministratoreAzienda(adminClient, user.id, company_id, corsHeaders, accesso);
     } catch (e) {
       if (e instanceof Response) return e;
       throw e;

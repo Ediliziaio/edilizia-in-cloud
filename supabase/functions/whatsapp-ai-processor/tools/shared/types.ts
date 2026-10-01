@@ -12,7 +12,7 @@ export interface ToolCtx {
   locale: "it" | "en";
   waNumberId: string;
   sessionId: string | null;
-  kind: "operaio" | "titolare" | "admin" | "unknown";
+  kind: "operaio" | "ufficio" | "admin" | "unknown";
   /** Il file arrivato con questo messaggio, già salvato nel bucket (foto del DDT, foto di cantiere, vocale). */
   mediaCorrente?: { storagePath: string; url: string; tipo: string } | null;
 }

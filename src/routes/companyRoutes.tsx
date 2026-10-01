@@ -167,43 +167,43 @@ const SettingsFinanziamentiNuova = lazy(() => import("@/pages/azienda/settings/S
 const SettingsFinanziamentiDetail = lazy(() => import("@/pages/azienda/settings/SettingsFinanziamentiDetail"));
 const SettingsFinanziamentiCalcolatore = lazy(() => import("@/pages/azienda/settings/SettingsFinanziamentiCalcolatore"));
 // Modulo Fotovoltaico (gated da feature flag modulo_fotovoltaico_attivo)
-const FotovoltaicoIndex = lazy(() => import("@/pages/azienda/fotovoltaico/FotovoltaicoIndex"));
+const FotovoltaicoIndex = () => <Navigate to="/azienda/marketing/preventivi" replace />; // hub di modulo ritirato: si va all'elenco unico
 const FotovoltaicoWizard = lazy(() => import("@/pages/azienda/fotovoltaico/FotovoltaicoWizard"));
 const ComponentiFv = lazy(() => import("@/pages/azienda/fotovoltaico/ComponentiFv"));
 const FotovoltaicoDettaglio = lazy(() => import("@/pages/azienda/fotovoltaico/FotovoltaicoDettaglio"));
 // Modulo Preventivatore Serramenti
-const SerramentiIndex = lazy(() => import("@/pages/azienda/serramenti/SerramentiIndex"));
+const SerramentiIndex = () => <Navigate to="/azienda/marketing/preventivi" replace />; // hub di modulo ritirato: si va all'elenco unico
 const SerramentiWizard = lazy(() => import("@/pages/azienda/serramenti/SerramentiWizard"));
 // Modulo Ristrutturazione (permesso + modulo nel piano, come gli altri)
-const RistrutturazioneIndex = lazy(() => import("@/pages/azienda/ristrutturazione/RistrutturazioneIndex"));
+const RistrutturazioneIndex = () => <Navigate to="/azienda/marketing/preventivi" replace />; // hub di modulo ritirato: si va all'elenco unico
 const RistrutturazioneWizard = lazy(() => import("@/pages/azienda/ristrutturazione/RistrutturazioneWizard"));
 const RistrutturazioneListino = lazy(() => import("@/pages/azienda/ristrutturazione/RistrutturazioneListino"));
 // Modulo Bagni (clone Ristrutturazione; permesso + modulo nel piano)
-const BagniIndex = lazy(() => import("@/pages/azienda/bagni/BagniIndex"));
+const BagniIndex = () => <Navigate to="/azienda/marketing/preventivi" replace />; // hub di modulo ritirato: si va all'elenco unico
 const BagniWizard = lazy(() => import("@/pages/azienda/bagni/BagniWizard"));
 const BagniListino = lazy(() => import("@/pages/azienda/bagni/BagniListino"));
 // Modulo Tetti (clone Ristrutturazione; permesso + modulo nel piano)
-const TettiIndex = lazy(() => import("@/pages/azienda/tetti/TettiIndex"));
+const TettiIndex = () => <Navigate to="/azienda/marketing/preventivi" replace />; // hub di modulo ritirato: si va all'elenco unico
 const TettiWizard = lazy(() => import("@/pages/azienda/tetti/TettiWizard"));
 const TettiListino = lazy(() => import("@/pages/azienda/tetti/TettiListino"));
 // Modulo Climatizzazione (clone Ristrutturazione; permesso + modulo nel piano)
-const ClimatizzazioneIndex = lazy(() => import("@/pages/azienda/climatizzazione/ClimatizzazioneIndex"));
+const ClimatizzazioneIndex = () => <Navigate to="/azienda/marketing/preventivi" replace />; // hub di modulo ritirato: si va all'elenco unico
 const ClimatizzazioneWizard = lazy(() => import("@/pages/azienda/climatizzazione/ClimatizzazioneWizard"));
 const ClimatizzazioneListino = lazy(() => import("@/pages/azienda/climatizzazione/ClimatizzazioneListino"));
 // Modulo Elettrico/Domotica (clone Ristrutturazione; permesso + modulo nel piano)
-const ElettricoIndex = lazy(() => import("@/pages/azienda/elettrico/ElettricoIndex"));
+const ElettricoIndex = () => <Navigate to="/azienda/marketing/preventivi" replace />; // hub di modulo ritirato: si va all'elenco unico
 const ElettricoWizard = lazy(() => import("@/pages/azienda/elettrico/ElettricoWizard"));
 const ElettricoListino = lazy(() => import("@/pages/azienda/elettrico/ElettricoListino"));
 // Modulo Termoidraulico (clone Ristrutturazione; permesso + modulo nel piano)
-const TermoidraulicoIndex = lazy(() => import("@/pages/azienda/termoidraulico/TermoidraulicoIndex"));
+const TermoidraulicoIndex = () => <Navigate to="/azienda/marketing/preventivi" replace />; // hub di modulo ritirato: si va all'elenco unico
 const TermoidraulicoWizard = lazy(() => import("@/pages/azienda/termoidraulico/TermoidraulicoWizard"));
 const TermoidraulicoListino = lazy(() => import("@/pages/azienda/termoidraulico/TermoidraulicoListino"));
 // Modulo Pavimenti & Resine (clone Ristrutturazione; permesso + modulo nel piano)
-const PavimentiIndex = lazy(() => import("@/pages/azienda/pavimenti/PavimentiIndex"));
+const PavimentiIndex = () => <Navigate to="/azienda/marketing/preventivi" replace />; // hub di modulo ritirato: si va all'elenco unico
 const PavimentiWizard = lazy(() => import("@/pages/azienda/pavimenti/PavimentiWizard"));
 const PavimentiListino = lazy(() => import("@/pages/azienda/pavimenti/PavimentiListino"));
 // Modulo Piscine (clone Ristrutturazione; permesso + modulo nel piano)
-const PiscineIndex = lazy(() => import("@/pages/azienda/piscine/PiscineIndex"));
+const PiscineIndex = () => <Navigate to="/azienda/marketing/preventivi" replace />; // hub di modulo ritirato: si va all'elenco unico
 const PiscineWizard = lazy(() => import("@/pages/azienda/piscine/PiscineWizard"));
 const PiscineListino = lazy(() => import("@/pages/azienda/piscine/PiscineListino"));
 const ListiniFornitoriPage = lazy(() =>
@@ -240,7 +240,8 @@ const CompanyCustomerDetail = lazy(() => import("@/pages/azienda/CompanyCustomer
 const CashFlowForecast = lazy(() => import("@/pages/azienda/CashFlowForecast"));
 const Warehouse = lazy(() => import("@/pages/azienda/Warehouse"));
 const WarehouseManager = lazy(() => import("@/pages/azienda/WarehouseManager"));
-const MezziList = lazy(() => import("@/pages/azienda/MezziList"));
+const ManodoperaPage = lazy(() => import("@/pages/azienda/manodopera/ManodoperaPage"));
+const OperaioDetail = lazy(() => import("@/pages/azienda/manodopera/OperaioDetail"));
 const MezzoDetail = lazy(() => import("@/pages/azienda/MezzoDetail"));
 const CompanyCosts = lazy(() => import("@/pages/azienda/CompanyCosts"));
 const AnalisiAcquisti = lazy(() => import("@/pages/azienda/AnalisiAcquisti"));
@@ -374,15 +375,13 @@ const DDTRicezioneDetail = lazy(() => import("@/pages/azienda/DDTRicezioneDetail
 const SicurezzaCantiere = lazy(() => import("@/pages/azienda/SicurezzaCantiere"));
 const PosEditor = lazy(() => import("@/pages/azienda/sicurezza/PosEditor"));
 const GiornaleLavori = lazy(() => import("@/pages/azienda/GiornaleLavori"));
-const SubappaltatoriPage = lazy(() => import("@/pages/azienda/SubappaltatoriPage"));
 const SubappaltatoreDetail = lazy(() => import("@/pages/azienda/SubappaltatoreDetail"));
 // MarginalitaCantieri now rendered as tab inside OrdersList — lazy import removed
-const TicketsList = lazy(() => import("@/pages/azienda/TicketsList"));
+const AssistenzaPage = lazy(() => import("@/pages/azienda/AssistenzaPage"));
 const TicketDetail = lazy(() => import("@/pages/azienda/TicketDetail"));
 const CreateCompanyTicket = lazy(() => import("@/pages/azienda/CreateCompanyTicket"));
 // InterventiList/InterventiDetail rimossi: funzionalità unificata in TicketsList/TicketDetail
 const ChiusuraIntervento = lazy(() => import("@/pages/azienda/ChiusuraIntervento"));
-const ManutenzioneList = lazy(() => import("@/pages/azienda/ManutenzioneList"));
 const ImpiantoDetail = lazy(() => import("@/pages/azienda/ImpiantoDetail"));
 const StoricoImpianto = lazy(() => import("@/pages/azienda/StoricoImpianto"));
 
@@ -612,7 +611,11 @@ export default function CompanyRoutesContainer() {
         <Route path="ordini/:id/modifica" element={withCompanyPermissionOrCommercialista("canEditOrders", <CommercialistaOrderEditGuard><EditOrder /></CommercialistaOrderEditGuard>)} />
         <Route path="magazzino" element={withCompanyPermissionOrCommercialista("canViewWarehouse", <ErrorBoundary title="Errore nel caricamento magazzino"><Warehouse /></ErrorBoundary>)} />
         <Route path="magazzino/gestione" element={withCompanyPermissionOrCommercialista("canEditWarehouse", <CommercialistaWriteGuard fallback="/azienda/magazzino"><WarehouseManager /></CommercialistaWriteGuard>)} />
-        <Route path="mezzi" element={withCompanyPermission("canViewMezzi", <ErrorBoundary title="Errore nel caricamento dei mezzi"><MezziList /></ErrorBoundary>)} />
+        {/* Manodopera e Mezzi (26/09): Operai, Subappaltatori, Mezzi in schede; le
+            vecchie pagine elenco rimandano alla scheda, i dettagli restano. */}
+        <Route path="manodopera" element={<ErrorBoundary title="Errore in Manodopera e Mezzi"><ManodoperaPage /></ErrorBoundary>} />
+        <Route path="manodopera/operai/:id" element={withCompanyPermission("canViewOperai", <ErrorBoundary title="Errore nella scheda dell'operaio"><OperaioDetail /></ErrorBoundary>)} />
+        <Route path="mezzi" element={<Navigate to="/azienda/manodopera?tab=mezzi" replace />} />
         <Route path="mezzi/:id" element={withCompanyPermission("canViewMezzi", <ErrorBoundary title="Errore nella scheda del mezzo"><MezzoDetail /></ErrorBoundary>)} />
         <Route path="calendario" element={withCompanyPermission("canViewCalendar", <ErrorBoundary title="Errore nel caricamento calendario"><Calendar /></ErrorBoundary>)} />
         <Route path="clienti" element={withCompanyPermission("canViewCustomers", <ErrorBoundary title="Errore nel caricamento clienti"><CustomersList /></ErrorBoundary>)} />
@@ -625,7 +628,9 @@ export default function CompanyRoutesContainer() {
             reindirizzamento per i vecchi segnalibri. Le manutenzioni hanno la
             loro pagina, gli interventi il filtro "Interventi". */}
         <Route path="assistenza-lavori" element={<Navigate to="/azienda/assistenza" replace />} />
-        <Route path="assistenza" element={withCompanyPermission("canViewTickets", <ErrorBoundary title="Errore nel caricamento assistenza"><TicketsList /></ErrorBoundary>)} />
+        {/* Assistenza aggrega Richieste + Manutenzione a schede (?vista=). Visibile
+            con canViewTickets O canViewManutenzione. */}
+        <Route path="assistenza" element={withCompanyPermission("canViewTickets", <ErrorBoundary title="Errore nel caricamento assistenza"><AssistenzaPage /></ErrorBoundary>, (p) => p.canViewTickets || p.canViewManutenzione)} />
         <Route path="assistenza/nuovo" element={withCompanyPermission("canEditTickets", <ErrorBoundary title="Errore nella creazione ticket"><CreateCompanyTicket /></ErrorBoundary>)} />
         <Route path="assistenza/:id" element={withCompanyPermission("canViewTickets", <ErrorBoundary title="Errore nel dettaglio ticket"><TicketDetail /></ErrorBoundary>)} />
         <Route path="assistenza/:id/chiudi" element={withCompanyPermission("canEditTickets", <FeatureRoute featureKey="cantieri_avanzati"><ChiusuraIntervento /></FeatureRoute>)} />
@@ -634,7 +639,8 @@ export default function CompanyRoutesContainer() {
         <Route path="interventi/nuovo" element={<Navigate to="/azienda/assistenza/nuovo?tipo=intervento" replace />} />
         <Route path="interventi/:id" element={<InterventoDetailRedirect />} />
         <Route path="interventi/:id/chiudi" element={<InterventoChiusuraRedirect />} />
-        <Route path="manutenzione" element={withCompanyPermission("canViewManutenzione", <FeatureRoute featureKey="cantieri_avanzati"><ManutenzioneList /></FeatureRoute>)} />
+        {/* Manutenzione è ora una scheda dentro Assistenza. */}
+        <Route path="manutenzione" element={<Navigate to="/azienda/assistenza?vista=manutenzioni" replace />} />
         <Route path="manutenzione/impianto/:id" element={withCompanyPermission("canViewManutenzione", <FeatureRoute featureKey="cantieri_avanzati"><ImpiantoDetail /></FeatureRoute>)} />
         <Route path="impianti/:impiantoId/storico" element={withCompanyPermission("canViewManutenzione", <FeatureRoute featureKey="cantieri_avanzati"><StoricoImpianto /></FeatureRoute>)} />
         <Route path="previsionale" element={withCompanyPermission("canViewForecast", <CashFlowForecast />)} />
@@ -763,7 +769,7 @@ export default function CompanyRoutesContainer() {
         <Route path="sicurezza-cantiere" element={withCompanyPermission("canViewSicurezzaCantiere", <FeatureRoute featureKey="cantieri_avanzati"><SicurezzaCantiere /></FeatureRoute>)} />
         <Route path="sicurezza-cantiere/pos/:id" element={withCompanyPermission("canViewSicurezzaCantiere", <FeatureRoute featureKey="cantieri_avanzati"><ErrorBoundary title="Errore nel POS"><PosEditor /></ErrorBoundary></FeatureRoute>)} />
         <Route path="giornale-lavori" element={withCompanyPermission("canViewGiornaleLavori", <FeatureRoute featureKey="cantieri_avanzati"><GiornaleLavori /></FeatureRoute>)} />
-        <Route path="subappaltatori" element={withCompanyPermission("canViewSubappaltatori", <FeatureRoute featureKey="cantieri_avanzati"><SubappaltatoriPage /></FeatureRoute>)} />
+        <Route path="subappaltatori" element={<Navigate to="/azienda/manodopera?tab=subappaltatori" replace />} />
         <Route path="subappaltatori/:id" element={withCompanyPermission("canViewSubappaltatori", <FeatureRoute featureKey="cantieri_avanzati"><SubappaltatoreDetail /></FeatureRoute>)} />
         <Route path="marginalita" element={<Navigate to="/azienda/ordini?tab=marginalita" replace />} />
         {/* Unified Automazioni page — flow builder visuale + template gallery */}

@@ -31,7 +31,9 @@ describe("Shared module workspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "Modifica" }));
     expect(screen.getByRole("textbox", { name: "Testo da conservare" })).toBe(input);
     expect(input).toHaveValue("La mia modifica");
-    expect(container.querySelector("[data-template-save-bar]")).toHaveClass("flex-wrap", "sticky");
+    const saveBarEl = container.querySelector("[data-template-save-bar]");
+    expect(saveBarEl).toHaveClass("flex-wrap");
+    expect(saveBarEl).not.toHaveClass("sticky");
   });
   it("offers an accessible compact page chooser and closes it after a page choice", () => {
     render(<TemplateEditorNavigation><nav><button>Controlli di qualità</button></nav></TemplateEditorNavigation>);

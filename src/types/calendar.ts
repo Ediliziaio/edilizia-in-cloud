@@ -66,6 +66,9 @@ export interface GoogleBusySlot {
   is_all_day: boolean;
   user_id: string;
   google_calendar_id: string | null;
+  /** Id dell'evento Google: se corrisponde a un appuntamento CRM esportato,
+   *  il calendario non lo ridisegna come impegno esterno (evita i doppioni). */
+  google_event_id?: string | null;
   provider?: "google" | "apple" | "outlook";
   /** Se il calendario è di una squadra di posa: il suo nome e colore (arricchiti dal Calendar). */
   team_name?: string | null;

@@ -59,11 +59,11 @@ afterEach(cleanup);
 
 describe("Gestione Campo: protezioni e percorso semplice", () => {
   it("non chiama il database aprendo e annullando il dialog", () => {
-    draw(); fireEvent.click(screen.getByRole("button", { name: "Assegna accesso app Campo" }));
+    draw(); fireEvent.click(screen.getByRole("button", { name: "Dai l'accesso a una persona" }));
     fireEvent.click(screen.getByRole("button", { name: "Annulla" })); expect(state.from).not.toHaveBeenCalled();
   });
   it("seleziona il ruolo reale e blocca date invertite", () => {
-    draw(); fireEvent.click(screen.getByRole("button", { name: "Assegna accesso app Campo" })); choose("Luca Bianchi");
+    draw(); fireEvent.click(screen.getByRole("button", { name: "Dai l'accesso a una persona" })); choose("Luca Bianchi");
     expect(screen.getByRole("combobox", { name: "Ruolo nell'app" })).toHaveTextContent("Subappaltatore");
     expect(screen.getByRole("combobox", { name: "Ruolo nell'app" })).toBeDisabled();
     fireEvent.change(screen.getByLabelText("Data inizio"), { target: { value: "2026-10-12" } });
@@ -74,7 +74,7 @@ describe("Gestione Campo: protezioni e percorso semplice", () => {
   });
   it("non crea una riga dipendente quando assegna un subappaltatore", async () => {
     const q = builder(); state.from.mockReturnValue(q); draw();
-    fireEvent.click(screen.getByRole("button", { name: "Assegna accesso app Campo" })); choose("Luca Bianchi");
+    fireEvent.click(screen.getByRole("button", { name: "Dai l'accesso a una persona" })); choose("Luca Bianchi");
     fireEvent.click(screen.getAllByRole("button", { name: "Assegna" }).at(-1)!);
     await waitFor(() => expect(q.insert).toHaveBeenCalled());
     expect(q.insert).toHaveBeenCalledWith(expect.objectContaining({ user_id: "sub", role_type: "subcontractor" }));
@@ -95,7 +95,7 @@ describe("Gestione Campo: protezioni e percorso semplice", () => {
     state.assignmentsError = true; draw();
     expect(screen.getByRole("alert")).toHaveTextContent("Impossibile verificare gli accessi");
     expect(screen.queryByText("Nessun altro accesso esplicito registrato.")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Assegna accesso app Campo" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Dai l'accesso a una persona" })).toBeDisabled();
   });
   it("richiede conferma e spiega che rimuovere una riga non revoca ogni accesso", () => {
     state.assignments = [assignment]; draw();
@@ -121,7 +121,7 @@ describe("Gestione Campo: protezioni e percorso semplice", () => {
   it("non offre azioni senza permesso di modifica", () => {
     state.canEdit = false; state.assignments = [assignment]; draw();
     expect(screen.queryByRole("button", { name: /Rimuovi assegnazione/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Assegna accesso app Campo" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Dai l'accesso a una persona" })).not.toBeInTheDocument();
   });
   it("non comunica successo se la policy non ha rimosso nessuna riga", async () => {
     state.assignments = [assignment]; draw();

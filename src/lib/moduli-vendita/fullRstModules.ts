@@ -9,16 +9,26 @@ import { ristrutturazioneParzialeContent } from "./fullRistrutturazioneParziale"
 import { ristrutturazioneCommercialeContent } from "./fullRistrutturazioneCommerciale";
 import { ristrutturazioneSpaziContent } from "./fullRistrutturazioneSpazi";
 import { ristrutturazioneComputoContent } from "./fullRistrutturazioneComputo";
+import { tinteggiaturaInternaContent, cartaDaParatiContent, cartongessoContent, controsoffittiContent, decorativiContent, umiditaMuffaContent, acusticaContent } from "./fullParetiSoffitti";
+import { pergolaBioclimaticaContent, pergolaTeloContent, tendeSoleContent, vetrateChiusureContent, carportContent } from "./fullPergole";
+import { cucinaContent, sottotettoContent, aperturePortantiContent, condominioContent, montascaleContent } from "./fullRistrutturazioneExtra";
+import { facciataCappottoContent, facciataRifacimentoContent, facciataBalconiContent, facciataTinteggiaturaContent, facciataInternoContent, facciataRiparazioniContent, facciataVentilataContent, facciataPietraContent, facciataPuliziaContent } from "./fullFacciate";
 
-export const FULL_RST_MODULES = ["completa", "parziale", "commerciale", "spazi", "computo"] as const;
-export type FullRstModuleId = typeof FULL_RST_MODULES[number];
-export const RST_MODULE_TITLES: Record<FullRstModuleId, string> = { completa: "Ristrutturazione completa", parziale: "Ristrutturazione parziale", commerciale: "Negozi e uffici", spazi: "Redistribuzione degli spazi", computo: "Intervento a computo" };
-const CONTENT = { completa: ristrutturazioneCompletaContent, parziale: ristrutturazioneParzialeContent, commerciale: ristrutturazioneCommercialeContent, spazi: ristrutturazioneSpaziContent, computo: ristrutturazioneComputoContent };
+export const FULL_RST_MODULES = ["completa", "parziale", "commerciale", "spazi", "computo", "cucina", "sottotetto", "aperture-portanti", "condominio", "montascale"] as const;
+/** Facciate collegate al motore Ristrutturazioni (Lotto 10, Ricetta B): 6 modelli portati + 3 nuovi. */
+export const FULL_FACCIATE_MODULES = ["cappotto", "rifacimento", "balconi", "tinteggiatura", "interno", "riparazioni", "ventilata", "pietra", "pulizia"] as const;
+// Area «Pareti e soffitti» (Lotto 2): stesso motore Ristrutturazioni, id propri.
+export const FULL_PARETI_SOFFITTI_MODULES = ["tinteggiatura-interna", "carta-da-parati", "cartongesso", "controsoffitti", "decorativi", "umidita", "acustica"] as const;
+// Area «Pergole e tende» (Lotto 3): stesso motore Ristrutturazioni, id propri.
+export const FULL_PERGOLE_MODULES = ["pergola-bioclimatica", "pergola-telo", "tende-sole", "vetrate", "carport"] as const;
+export type FullRstModuleId = typeof FULL_RST_MODULES[number] | typeof FULL_PARETI_SOFFITTI_MODULES[number] | typeof FULL_PERGOLE_MODULES[number] | typeof FULL_FACCIATE_MODULES[number];
+export const RST_MODULE_TITLES: Record<FullRstModuleId, string> = { completa: "Ristrutturazione completa", parziale: "Ristrutturazione parziale", commerciale: "Negozi e uffici", spazi: "Redistribuzione degli spazi", computo: "Intervento a computo", "tinteggiatura-interna": "Tinteggiatura interna", "carta-da-parati": "Carta da parati", cartongesso: "Pareti in cartongesso", controsoffitti: "Controsoffitti e velette", decorativi: "Finiture decorative", umidita: "Umidità e muffa", acustica: "Isolamento acustico", "pergola-bioclimatica": "Pergola bioclimatica", "pergola-telo": "Pergola con telo", "tende-sole": "Tende da sole", vetrate: "Vetrate e chiusure balcone", carport: "Carport e tettoie", cucina: "Rifacimento cucina", sottotetto: "Mansarda e sottotetto", "aperture-portanti": "Aperture nei muri portanti", condominio: "Parti comuni del condominio", montascale: "Montascale e piattaforme", cappotto: "Cappotto termico esterno", rifacimento: "Rifacimento facciata", balconi: "Balconi e frontalini", tinteggiatura: "Tinteggiatura facciate", interno: "Isolamento interno", riparazioni: "Riparazioni di facciata", ventilata: "Facciata ventilata", pietra: "Rivestimenti in pietra", pulizia: "Pulizia e protezione facciate" };
+const CONTENT: Record<FullRstModuleId, import("./fullTettiFactory").TetEditorialContent> = { completa: ristrutturazioneCompletaContent, parziale: ristrutturazioneParzialeContent, commerciale: ristrutturazioneCommercialeContent, spazi: ristrutturazioneSpaziContent, computo: ristrutturazioneComputoContent, "tinteggiatura-interna": tinteggiaturaInternaContent, "carta-da-parati": cartaDaParatiContent, cartongesso: cartongessoContent, controsoffitti: controsoffittiContent, decorativi: decorativiContent, umidita: umiditaMuffaContent, acustica: acusticaContent, "pergola-bioclimatica": pergolaBioclimaticaContent, "pergola-telo": pergolaTeloContent, "tende-sole": tendeSoleContent, vetrate: vetrateChiusureContent, carport: carportContent, cucina: cucinaContent, sottotetto: sottotettoContent, "aperture-portanti": aperturePortantiContent, condominio: condominioContent, montascale: montascaleContent, cappotto: facciataCappottoContent, rifacimento: facciataRifacimentoContent, balconi: facciataBalconiContent, tinteggiatura: facciataTinteggiaturaContent, interno: facciataInternoContent, riparazioni: facciataRiparazioniContent, ventilata: facciataVentilataContent, pietra: facciataPietraContent, pulizia: facciataPuliziaContent };
 export type FullRstTemplate = RstTemplatePdf & RstCoverPatch & {
   pdf_cover_eyebrow: string | null; pdf_cover_hero: string | null; pdf_cover_subhero: string | null;
   pdf_cover_subhero_template?: string | null;
 };
-export const isFullRstModuleId = (id: string): id is FullRstModuleId => (FULL_RST_MODULES as readonly string[]).includes(id);
+export const isFullRstModuleId = (id: string): id is FullRstModuleId => (FULL_RST_MODULES as readonly string[]).includes(id) || (FULL_PARETI_SOFFITTI_MODULES as readonly string[]).includes(id) || (FULL_PERGOLE_MODULES as readonly string[]).includes(id) || (FULL_FACCIATE_MODULES as readonly string[]).includes(id);
 
 /** Each edition supplies the complete original editor/renderer schema, not the generic document. */
 export function createFullRstTemplate(base: RstTemplatePdf, id: FullRstModuleId): FullRstTemplate {
@@ -69,7 +79,204 @@ export function createFullRstTemplate(base: RstTemplatePdf, id: FullRstModuleId)
 /** Shared by sidebar, dialog, standalone preview and offline QA. No project is saved. */
 export function buildRstModulePreview(companyId: string, template: RstTemplatePdf, id: FullRstModuleId): { progetto: RstProgetto; computo: RstComputoVoce[]; media: RstProgettoMedia[]; template: RstTemplatePdf } {
   if (!isFullRstModuleId(id)) throw new Error("Modulo Ristrutturazioni non disponibile.");
-  const rows: Array<[string, string, RstComputoVoce["unita_misura"], number, number]> = id === "computo" ? [
+  const PARETI: Partial<Record<FullRstModuleId, Array<[string, string, RstComputoVoce["unita_misura"], number, number]>>> = {
+    "tinteggiatura-interna": [
+      ["Preparazioni", "Protezione dei pavimenti, degli infissi e dei mobili nelle stanze indicate", "corpo", 1, 250],
+      ["Preparazione fondo", "Stuccatura di fori e crepe e carteggiatura delle superfici da tinteggiare", "mq", 120, 6],
+      ["Preparazione fondo", "Applicazione della mano di fondo isolante dove prevista", "mq", 120, 3.5],
+      ["Tinteggiatura", "Due mani di idropittura lavabile su pareti e soffitti indicati", "mq", 120, 9],
+      ["Consegna", "Rimozione delle protezioni e pulizia delle aree trattate", "corpo", 1, 180],
+    ],
+    "carta-da-parati": [
+      ["Preparazioni", "Protezione della stanza e smontaggio delle placche elettriche", "corpo", 1, 200],
+      ["Preparazione fondo", "Rasatura e primer della parete da rivestire", "mq", 14, 12],
+      ["Fornitura", "Carta da parati in tessuto non tessuto, con lo sfrido del disegno", "mq", 17, 28],
+      ["Posa", "Posa allineata della carta con raccordi su angoli e prese", "mq", 14, 22],
+      ["Consegna", "Pulizia, ritiro degli scarti e rimontaggio delle placche", "corpo", 1, 150],
+    ],
+    cartongesso: [
+      ["Preparazioni", "Protezione dei pavimenti e dei passaggi nella zona di montaggio", "corpo", 1, 200],
+      ["Struttura", "Orditura metallica per parete divisoria, con rinforzi nei punti di carico", "mq", 12, 22],
+      ["Isolante", "Lana minerale nell'intercapedine per isolamento acustico", "mq", 12, 9],
+      ["Lastre", "Doppia lastra per lato, idonea alla stanza indicata", "mq", 12, 26],
+      ["Finitura", "Stuccatura e carteggiatura dei giunti, pronta alla pittura", "mq", 24, 7],
+    ],
+    controsoffitti: [
+      ["Preparazioni", "Protezione dei pavimenti e dei mobili sotto la zona di lavoro", "corpo", 1, 250],
+      ["Struttura", "Orditura metallica appesa per controsoffitto, con i rinforzi previsti", "mq", 18, 24],
+      ["Predisposizioni", "Fori e alimentazioni per i faretti a incasso e la botola d'ispezione", "corpo", 1, 350],
+      ["Lastre", "Chiusura con lastra di cartongesso e veletta perimetrale", "mq", 18, 28],
+      ["Finitura", "Stuccatura e carteggiatura dei giunti, pronta alla pittura", "mq", 18, 8],
+    ],
+    decorativi: [
+      ["Preparazioni", "Protezione accurata di pavimenti, infissi e bordi", "corpo", 1, 300],
+      ["Preparazione fondo", "Rasatura di finezza e primer del ciclo decorativo", "mq", 20, 16],
+      ["Finitura decorativa", "Applicazione a più strati dell'effetto scelto, approvato su campione", "mq", 20, 55],
+      ["Protezione", "Finitura protettiva sulle superfici d'uso previste", "mq", 20, 12],
+      ["Consegna", "Rimozione delle protezioni e pulizia", "corpo", 1, 200],
+    ],
+    umidita: [
+      ["Preparazioni", "Protezione della stanza e sopralluogo diagnostico", "corpo", 1, 300],
+      ["Rimozione", "Rimozione dell'intonaco ammalorato fino al vivo", "mq", 15, 22],
+      ["Risanamento", "Applicazione dell'intonaco deumidificante traspirante", "mq", 15, 45],
+      ["Finitura", "Pittura traspirante sulle superfici risanate", "mq", 15, 11],
+      ["Consegna", "Pulizia e indicazioni d'uso per prevenire il ritorno", "corpo", 1, 150],
+    ],
+    acustica: [
+      ["Preparazioni", "Protezione della stanza e individuazione della via del rumore", "corpo", 1, 300],
+      ["Struttura", "Controparete fonoisolante con struttura disaccoppiata dal muro", "mq", 16, 30],
+      ["Isolante", "Materiale fonoassorbente nell'intercapedine", "mq", 16, 14],
+      ["Lastre", "Doppia lastra fonoisolante con trattamento dei giunti e delle prese", "mq", 16, 30],
+      ["Finitura", "Stuccatura e carteggiatura, pronta alla pittura", "mq", 16, 7],
+    ],
+  };
+  const PERGOLE: Partial<Record<FullRstModuleId, Array<[string, string, RstComputoVoce["unita_misura"], number, number]>>> = {
+    "pergola-bioclimatica": [
+      ["Sopralluogo", "Rilievo dello spazio esterno, degli appoggi e dello scarico dell'acqua", "corpo", 1, 250],
+      ["Struttura", "Pergola bioclimatica in alluminio con lamelle orientabili, colore a scelta", "mq", 18, 320],
+      ["Ancoraggi", "Fissaggi a terra o a parete dimensionati sul supporto e sul vento", "corpo", 1, 600],
+      ["Comandi", "Motorizzazione delle lamelle con sensore di pioggia e vento", "corpo", 1, 900],
+      ["Avviamento", "Collegamenti, prova dei comandi e dello scarico, consegna", "corpo", 1, 350],
+    ],
+    "pergola-telo": [
+      ["Sopralluogo", "Rilievo della zona da coprire, degli appoggi e dell'esposizione", "corpo", 1, 200],
+      ["Struttura", "Pergola con telo avvolgibile impermeabile, profili in alluminio", "mq", 15, 260],
+      ["Ancoraggi", "Fissaggi a parete o autoportanti dimensionati sul supporto", "corpo", 1, 500],
+      ["Comandi", "Motorizzazione del telo con sensore vento", "corpo", 1, 700],
+      ["Avviamento", "Montaggio, tensione del telo e prova di apertura", "corpo", 1, 300],
+    ],
+    "tende-sole": [
+      ["Sopralluogo", "Misura delle aperture, verifica dei supporti e dell'esposizione", "corpo", 1, 150],
+      ["Fornitura", "Tenda a bracci con cassonetto, tessuto tecnico a scelta", "cad", 2, 780],
+      ["Fissaggi", "Staffe e tasselli adatti al supporto, idonei anche a cappotto", "cad", 2, 90],
+      ["Comandi", "Motorizzazione con telecomando e sensore vento", "cad", 2, 260],
+      ["Installazione", "Montaggio in quota, collegamenti e prova", "corpo", 1, 250],
+    ],
+    vetrate: [
+      ["Sopralluogo", "Rilievo dei lati da chiudere e verifica dei requisiti", "corpo", 1, 300],
+      ["Fornitura", "Vetrata panoramica a tutto vetro con ante impacchettabili", "mq", 12, 480],
+      ["Ferramenta", "Guide, carrelli e serrature del sistema scelto", "corpo", 1, 700],
+      ["Installazione", "Montaggio delle guide, posa dei vetri e regolazione", "mq", 12, 90],
+      ["Sigillature", "Tenuta ad acqua e aria e prova di apertura", "corpo", 1, 350],
+    ],
+    carport: [
+      ["Sopralluogo", "Rilievo dello spazio, del terreno e dello scarico dell'acqua", "corpo", 1, 250],
+      ["Fondazioni", "Plinti in calcestruzzo per gli appoggi della struttura", "cad", 4, 220],
+      ["Struttura", "Carport per un'auto in alluminio o acciaio zincato", "mq", 15, 240],
+      ["Copertura", "Pannelli coibentati con pendenza e fissaggi", "mq", 15, 85],
+      ["Scarico", "Canale di gronda e discesa dell'acqua al punto concordato", "corpo", 1, 300],
+    ],
+  };
+  const EXTRA: Partial<Record<FullRstModuleId, Array<[string, string, RstComputoVoce["unita_misura"], number, number]>>> = {
+    cucina: [
+      ["Preparazioni", "Protezioni della zona cucina e dei percorsi", "corpo", 1, 350],
+      ["Impianti", "Nuovi punti acqua, scarico e prese nel layout concordato", "corpo", 1, 1800],
+      ["Impianti", "Linea elettrica dedicata per il piano a induzione", "corpo", 1, 450],
+      ["Finiture", "Fornitura e posa del rivestimento paraschizzi", "mq", 6, 60],
+      ["Finiture", "Fornitura e posa del pavimento nella zona indicata", "mq", 16, 55],
+      ["Finiture", "Preparazione e tinteggiatura delle pareti della cucina", "mq", 40, 12],
+    ],
+    sottotetto: [
+      ["Preparazioni", "Protezioni e accessi per il recupero del sottotetto", "corpo", 1, 600],
+      ["Isolamento", "Coibentazione della falda con correzione dei ponti termici", "mq", 45, 55],
+      ["Aperture", "Fornitura e posa di finestre da tetto", "cad", 2, 900],
+      ["Impianti", "Impianto elettrico e terminali di riscaldamento della mansarda", "corpo", 1, 3200],
+      ["Finiture", "Contropareti, pavimento e tinteggiatura del sottotetto", "mq", 45, 70],
+    ],
+    "aperture-portanti": [
+      ["Preparazioni", "Puntellazioni provvisorie e protezioni come da progetto", "corpo", 1, 900],
+      ["Rinforzo", "Realizzazione della cerchiatura metallica secondo il progetto strutturale", "corpo", 1, 3800],
+      ["Rimozioni", "Taglio e demolizione controllata della muratura", "mq", 4, 180],
+      ["Ripristini", "Chiusure, intonaci e soglie attorno all'apertura", "corpo", 1, 700],
+      ["Finiture", "Rasatura e tinteggiatura delle superfici raccordate", "mq", 20, 12],
+    ],
+    condominio: [
+      ["Preparazioni", "Protezione dei passaggi comuni e organizzazione delle fasi", "corpo", 1, 800],
+      ["Rimozioni", "Rimozione delle finiture ammalorate di androne e vano scale", "mq", 60, 15],
+      ["Opere", "Rasatura e ripristino delle superfici delle parti comuni", "mq", 60, 28],
+      ["Finiture", "Tinteggiatura di androne, scale e ballatoi indicati", "mq", 220, 12],
+      ["Consegna", "Pulizia finale delle parti comuni interessate", "corpo", 1, 450],
+    ],
+    montascale: [
+      ["Sopralluogo", "Rilievo della scala, delle curve e dell'alimentazione", "corpo", 1, 300],
+      ["Fornitura", "Montascale a poltroncina con guida su misura per scala curva", "corpo", 1, 9500],
+      ["Ancoraggi", "Fissaggi della guida alla struttura della scala", "corpo", 1, 600],
+      ["Collegamenti", "Linea elettrica dedicata e messa in servizio", "corpo", 1, 500],
+      ["Collaudo", "Prova, istruzioni d'uso e consegna", "corpo", 1, 250],
+    ],
+  };
+  const FACCIATE: Partial<Record<FullRstModuleId, Array<[string, string, RstComputoVoce["unita_misura"], number, number]>>> = {
+    cappotto: [
+      ["Preparazioni", "Cappotto: allestimento e protezioni nell'ambito dimostrativo", "corpo", 1, 1800],
+      ["Preparazioni", "Cappotto: preparazione del supporto individuato", "mq", 120, 12],
+      ["Sistema isolante", "Cappotto: pannelli e posa del sistema da specificare", "mq", 120, 62],
+      ["Sistema isolante", "Cappotto: rasatura armata del sistema previsto", "mq", 120, 20],
+      ["Raccordi", "Cappotto: profili e raccordi descritti", "ml", 45, 18],
+      ["Finitura", "Cappotto: finitura nella tessitura concordata", "mq", 120, 17],
+    ],
+    rifacimento: [
+      ["Preparazioni", "Facciata: accessi e protezioni del prospetto di esempio", "corpo", 1, 1400],
+      ["Rimozioni", "Facciata: rimozione degli intonaci individuati", "mq", 35, 18],
+      ["Ripristini", "Facciata: ricostruzione dell'intonaco nelle zone previste", "mq", 35, 32],
+      ["Fondi", "Facciata: rasatura delle superfici indicate", "mq", 100, 16],
+      ["Fondi", "Facciata: fondo compatibile con il ciclo selezionato", "mq", 100, 5],
+      ["Finitura", "Facciata: rivestimento di finitura concordato", "mq", 100, 19],
+    ],
+    balconi: [
+      ["Preparazioni", "Balconi: accessi e delimitazioni per gli elementi di esempio", "corpo", 1, 950],
+      ["Rimozioni", "Balconi: rimozioni superficiali dei frontalini individuati", "ml", 24, 18],
+      ["Ripristini", "Balconi: ricostruzione locale dei frontalini previsti", "ml", 24, 42],
+      ["Ripristini", "Balconi: ripresa superficiale degli intradossi individuati", "mq", 18, 35],
+      ["Bordi", "Balconi: profili gocciolatoio nelle tratte indicate", "ml", 24, 16],
+      ["Finitura", "Balconi: ciclo di finitura delle superfici previste", "mq", 32, 19],
+    ],
+    tinteggiatura: [
+      ["Preparazioni", "Tinteggiatura: accesso e protezioni delle superfici di esempio", "corpo", 1, 800],
+      ["Preparazioni", "Tinteggiatura: pulizia del fondo indicato", "mq", 140, 4],
+      ["Riprese", "Tinteggiatura: piccole riprese superficiali individuate", "mq", 10, 22],
+      ["Ciclo colore", "Tinteggiatura: applicazione del fondo scelto", "mq", 140, 5],
+      ["Ciclo colore", "Tinteggiatura: pittura esterna del ciclo concordato", "mq", 140, 13],
+      ["Consegna", "Tinteggiatura: rimozione protezioni e pulizia prevista", "corpo", 1, 180],
+    ],
+    interno: [
+      ["Preparazioni", "Isolamento interno: protezioni del locale di esempio", "corpo", 1, 250],
+      ["Preparazioni", "Isolamento interno: preparazione delle pareti previste", "mq", 35, 9],
+      ["Sistema", "Isolamento interno: posa del sistema da specificare", "mq", 35, 58],
+      ["Raccordi", "Isolamento interno: raccordi e risvolti individuati", "ml", 18, 20],
+      ["Finiture", "Isolamento interno: rasatura delle superfici previste", "mq", 35, 16],
+      ["Finiture", "Isolamento interno: pittura delle superfici trattate", "mq", 35, 10],
+    ],
+    riparazioni: [
+      ["Preparazioni", "Riparazioni: accesso e protezioni delle zone di esempio", "corpo", 1, 380],
+      ["Preparazioni", "Riparazioni: pulizia e preparazione delle porzioni individuate", "mq", 8, 12],
+      ["Riprese", "Riparazioni: ripristino locale dell'intonaco indicato", "mq", 8, 38],
+      ["Riprese", "Riparazioni: trattamento dei raccordi descritti", "ml", 12, 16],
+      ["Finitura", "Riparazioni: finitura delle porzioni trattate", "mq", 12, 18],
+      ["Consegna", "Riparazioni: rimozione protezioni e pulizia prevista", "corpo", 1, 120],
+    ],
+    ventilata: [
+      ["Preparazioni", "Facciata ventilata: allestimento e protezioni dell'ambito dimostrativo", "corpo", 1, 2200],
+      ["Sottostruttura", "Facciata ventilata: staffe e montanti sul supporto individuato", "mq", 120, 45],
+      ["Isolante", "Facciata ventilata: isolante in intercapedine del sistema previsto", "mq", 120, 28],
+      ["Rivestimento", "Facciata ventilata: rivestimento a secco da specificare", "mq", 120, 85],
+      ["Nodi", "Facciata ventilata: angoli, aperture e coronamenti descritti", "ml", 60, 32],
+    ],
+    pietra: [
+      ["Preparazioni", "Rivestimento pietra: allestimento e protezioni dell'ambito dimostrativo", "corpo", 1, 1500],
+      ["Supporto", "Rivestimento pietra: preparazione del supporto individuato", "mq", 60, 14],
+      ["Posa", "Rivestimento pietra: fornitura e posa dei listelli da specificare", "mq", 60, 90],
+      ["Pezzi speciali", "Rivestimento pietra: angoli e davanzali descritti", "ml", 30, 45],
+      ["Finitura", "Rivestimento pietra: stuccatura e protezione previste", "mq", 60, 12],
+    ],
+    pulizia: [
+      ["Preparazioni", "Pulizia facciata: accesso e protezioni dell'ambito dimostrativo", "corpo", 1, 900],
+      ["Pulizia", "Pulizia facciata: rimozione di sporco e depositi sulle superfici indicate", "mq", 150, 9],
+      ["Trattamento", "Pulizia facciata: trattamento protettivo idrorepellente previsto", "mq", 150, 11],
+      ["Consegna", "Pulizia facciata: rimozione protezioni e pulizia finale", "corpo", 1, 250],
+    ],
+  };
+  const paretiRows = PARETI[id] ?? PERGOLE[id] ?? EXTRA[id] ?? FACCIATE[id];
+  const rows: Array<[string, string, RstComputoVoce["unita_misura"], number, number]> = paretiRows ? paretiRows : id === "computo" ? [
     ["Preparazioni", "Ambito A: protezioni delle superfici conservate e dei percorsi indicati", "corpo", 1, 400],
     ["Rimozioni", "Ambito A: rimozione della pavimentazione nelle zone individuate", "mq", 25, 12],
     ["Supporti", "Ambito A: preparazione del supporto nelle superfici previste", "mq", 25, 18],

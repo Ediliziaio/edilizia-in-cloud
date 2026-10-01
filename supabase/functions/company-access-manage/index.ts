@@ -229,16 +229,16 @@ Deno.serve(async (req) => {
         .from("profiles").select("id, email, company_id").eq("id", targetUserId).maybeSingle();
       if (!target) return errorResponse("Utente non trovato", 404, corsH);
 
-      // Il target deve appartenere all'azienda gestita (primaria o accesso attivo).
-      let appartiene = (target as { company_id?: string }).company_id === companyId;
-      if (!appartiene) {
-        const { data: mca } = await supabaseAdmin
-          .from("multi_company_access")
-          .select("id").eq("user_id", targetUserId).eq("company_id", companyId)
-          .eq("status", "active").maybeSingle();
-        appartiene = !!mca;
+      // L'email di ACCESSO è la credenziale di login (una per account auth): la
+      // cambia solo chi amministra l'azienda PRINCIPALE dell'utente (profiles.
+      // company_id), o il super admin. Prima bastava un accesso multi-azienda a
+      // QUESTA azienda: l'amministratore di B cambiava l'email — e prendeva
+      // l'account — di un utente la cui azienda vera è A, titolare compreso
+      // (26/09/2026).
+      const targetHome = (target as { company_id?: string | null }).company_id ?? "";
+      if (!(await canManage(supabaseAdmin, userId, targetHome))) {
+        return errorResponse("L'email di accesso la può cambiare solo un amministratore dell'azienda principale dell'utente.", 403, corsH);
       }
-      if (!appartiene) return errorResponse("L'utente non appartiene a questa azienda", 403, corsH);
 
       const emailAttuale = String((target as { email?: string }).email ?? "").toLowerCase();
       if (newEmail === emailAttuale) return errorResponse("La nuova email coincide con quella attuale", 400, corsH);

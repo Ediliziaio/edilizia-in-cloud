@@ -379,7 +379,7 @@ function renderPage2(d: SrPdfData, total = totalPages(d)): string {
     <main class="page-body">
       <h2 class="section-title">TOTALE PREVENTIVO</h2>
       <div class="big-price-box">
-        <p class="big-price">${fmtEurRangeOrSingle(d.totale_min, d.totale_max)}</p>
+        <p class="big-price">${fmtEurRangeOrSingle(d.totale_min, d.totale_max, 2)}</p>
         <p class="big-price-note">${d.iva_inclusa ? "IVA INCLUSA" : "IVA esclusa"}</p>
       </div>
       <p class="muted small">Importo calcolato sulla composizione dell'offerta, sugli sconti applicati e sull'IVA selezionata. Eventuali varianti future saranno indicate in una nuova revisione.</p>
@@ -418,7 +418,7 @@ function renderPage2(d: SrPdfData, total = totalPages(d)): string {
       ${d.fin_piani && d.fin_piani.length > 0 ? `
         <h2 class="section-title">SIMULAZIONE FINANZIAMENTO</h2>
         <div class="info-grid mb">
-          <div class="info-row"><span class="info-label">Importo di riferimento</span><span class="info-val">${fmtEurRangeOrSingle(d.totale_min, d.totale_max)} <span class="muted">(totale preventivo IVA inclusa)</span></span></div>
+          <div class="info-row"><span class="info-label">Importo di riferimento</span><span class="info-val">${fmtEurRangeOrSingle(d.totale_min, d.totale_max, 2)} <span class="muted">(totale preventivo IVA inclusa)</span></span></div>
           <div class="info-row"><span class="info-label">Anticipo</span><span class="info-val">${fmtNum(d.fin_anticipo_pct)}% · ${fmtEur(d.fin_anticipo_eur)}</span></div>
         </div>
         <div class="fin-grid">
@@ -553,7 +553,7 @@ function renderPage3(d: SrPdfData, total = totalPages(d)): string {
 
       <h2 class="section-title">INVESTIMENTO STIMATO</h2>
       <div class="big-price-box">
-        <p class="big-price">${fmtEur(d.totale_min)} <span class="dash">—</span> ${fmtEur(d.totale_max)}</p>
+        <p class="big-price">${fmtEurRangeOrSingle(d.totale_min, d.totale_max, 2)}</p>
         <p class="big-price-note">${d.iva_inclusa ? "IVA INCLUSA" : "IVA esclusa"}</p>
       </div>
       <p class="muted small">Validità ${d.valido_fino_giorni} giorni dalla data di emissione. Esempi di finanziamento a scopo informativo. Condizioni contrattuali disponibili in sede.</p>

@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { TicketPagamentoCard } from "@/components/tickets/TicketPagamentoCard";
@@ -19,11 +20,12 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import {
-  ArrowLeft, Package, User, Mail, Phone, MapPin, Clock, CalendarPlus,
+  ArrowLeft, Package, User, Mail, Phone, MapPin, Clock, CalendarPlus, MessageCircle,
   AlertCircle, RefreshCw, Save, ChevronDown, Wrench, Loader2, CheckCircle2,
   LifeBuoy, AlertTriangle, Sparkles, ListChecks,
 } from "lucide-react";
 import { AppointmentDialog } from "@/components/appointments/AppointmentDialog";
+import { QuickContactSendDialog } from "@/components/contacts/QuickContactSendDialog";
 import {
   formatRelativeTime,
   getTicketStatusColor,
@@ -41,6 +43,7 @@ import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import { PlaybookEditorDialog } from "@/components/orders/PlaybookEditorDialog";
 import { applyPlaybookToTicket } from "@/lib/ticketPlaybook";
 import { TicketAttachments } from "@/components/tickets/TicketAttachments";
+import { RapportiniIntervento } from "@/components/tickets/RapportiniIntervento";
 import { useUnreadTicketCounts } from "@/hooks/useUnreadTicketCounts";
 import type { TicketDetail as TicketDetailType, TicketMessage } from "@/types/tickets";
 import { SUPPORT_PRIORITIES, TICKET_STATI, TICKET_FASI } from "@/types/tickets";
@@ -51,6 +54,7 @@ export default function TicketDetail() {
   const navigate = useNavigate();
   
   const { effectiveCompany } = useAuth();
+  const { canEditTickets } = usePermissions();
   // Flusso di lavoro dell'assistenza: stesso motore delle commesse
   // (src/lib/flussoLavoro.ts), agganciato al ticket invece che alla commessa.
   const [flussoInCorso, setFlussoInCorso] = useState(false);
@@ -69,6 +73,8 @@ export default function TicketDetail() {
   const [escalationNote, setEscalationNote] = useState("");
   // Dialog appuntamento
   const [appointmentOpen, setAppointmentOpen] = useState(false);
+  // Canale aperto per scrivere al cliente (WhatsApp/Email), come nelle commesse.
+  const [contattoCanale, setContattoCanale] = useState<"whatsapp" | "email" | null>(null);
   // Editing "dettagli intervento" inline
   const [interventoIndirizzo, setInterventoIndirizzo] = useState("");
   const [interventoData, setInterventoData] = useState("");
@@ -96,10 +102,11 @@ export default function TicketDetail() {
         .from("tickets")
         .select(`
           id, subject, status, priority, tipo, fonte, created_at, customer_id, order_id,
-          assigned_to, category, internal_notes,
+          assigned_to, squadra_id, category, internal_notes,
           a_pagamento, motivo_gratuito, importo_preventivato, importo_finale,
           pagato, data_pagamento, metodo_pagamento, note_pagamento, merce_richiesta,
           ore_effettive, costo_orario_applicato, costo_trasferta, costo_materiale, scadenza_id,
+          documento_fiscale_id,
           richiami_count, ultimo_richiamo_at, note_richiami,
           merce_stato, merce_mancante, merce_arrivata_at,
           updated_at, last_message_at,
@@ -197,6 +204,25 @@ export default function TicketDetail() {
         .limit(200);
       if (error) throw error;
       return (data || []).filter((p) => p.first_name || p.last_name);
+    },
+    enabled: !!effectiveCompany?.id,
+    staleTime: 10 * 60 * 1000,
+  });
+
+  // Le squadre interne: sull'intervento si può mandare una squadra intera invece
+  // di una persona sola. Chi ne fa parte lo vede nell'app di cantiere.
+  const { data: squadre = [] } = useQuery({
+    queryKey: ["squadre-interne", effectiveCompany?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("external_teams")
+        .select("id, name")
+        .eq("company_id", effectiveCompany!.id)
+        .eq("kind", "interna")
+        .eq("is_active", true)
+        .order("name");
+      if (error) throw error;
+      return (data ?? []) as { id: string; name: string }[];
     },
     enabled: !!effectiveCompany?.id,
     staleTime: 10 * 60 * 1000,
@@ -463,6 +489,27 @@ export default function TicketDetail() {
         {/* Mobile: i tre bottoni sulla riga dei badge, in alto a destra (prima
             avevano una riga loro, vuota a sinistra). */}
         <div className="flex items-center gap-2 shrink-0 max-md:absolute max-md:right-0 max-md:top-0 max-md:gap-1.5 [&>button]:max-md:h-9 [&>button]:max-md:w-9 [&>button]:max-md:p-0">
+          {/* Azioni rapide come nelle commesse: scrivi al cliente senza uscire. */}
+          {ticket.customer?.phone && (
+            <Button
+              variant="outline"
+              className="tap-compact gap-2 text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+              onClick={() => setContattoCanale("whatsapp")}
+            >
+              <MessageCircle className="h-4 w-4" />
+              <span className="hidden sm:inline">WhatsApp</span>
+            </Button>
+          )}
+          {ticket.customer?.email && (
+            <Button
+              variant="outline"
+              className="tap-compact gap-2 text-blue-700 border-blue-300 hover:bg-blue-50"
+              onClick={() => setContattoCanale("email")}
+            >
+              <Mail className="h-4 w-4" />
+              <span className="hidden sm:inline">Email</span>
+            </Button>
+          )}
           {/* Escalation — solo per tipo=supporto */}
           {!isIntervento && (
             <Button
@@ -614,6 +661,28 @@ export default function TicketDetail() {
                   </SelectContent>
                 </Select>
               </div>
+              {/* Squadra: si può mandare una squadra intera. Chi ne fa parte
+                  vede l'intervento nell'app di cantiere, con data e indirizzo. */}
+              {squadre.length > 0 && (
+                <div className="flex items-center justify-between gap-2">
+                  <label className="text-xs text-muted-foreground shrink-0">Squadra</label>
+                  <Select
+                    value={ticket.squadra_id || "nessuna"}
+                    onValueChange={(v) => updateTicketMutation.mutate({ squadra_id: v === "nessuna" ? null : v })}
+                    disabled={updateTicketMutation.isPending}
+                  >
+                    <SelectTrigger className="tap-compact w-[160px] h-8 text-xs">
+                      <SelectValue placeholder="Nessuna squadra" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="nessuna">Nessuna squadra</SelectItem>
+                      {squadre.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               <Separator />
 
@@ -807,7 +876,10 @@ export default function TicketDetail() {
             </Card>
           </Collapsible>
 
-          {/* Allegati */}
+          {/* Rapportini dell'intervento: chi l'ha fatto, ore, foto, firma. */}
+          <RapportiniIntervento ticketId={ticket.id} canEdit={canEditTickets} />
+
+          {/* Documenti e foto allegati all'intervento. */}
           <TicketAttachments ticketId={ticket.id} />
 
           {/* Flusso di lavoro: crea in blocco le attività dell'assistenza,
@@ -975,6 +1047,19 @@ export default function TicketDetail() {
           queryClient.invalidateQueries({ queryKey: ["appointments"] });
           toast.success("Appuntamento creato in calendario");
         }}
+      />
+
+      {/* Scrivi al cliente: WhatsApp o Email, la stessa finestra delle commesse. */}
+      <QuickContactSendDialog
+        open={contattoCanale !== null}
+        onOpenChange={(o) => { if (!o) setContattoCanale(null); }}
+        contactId={ticket.customer_id}
+        name={ticket.customer ? `${ticket.customer.first_name ?? ""} ${ticket.customer.last_name ?? ""}`.trim() : null}
+        phone={ticket.customer?.phone}
+        email={ticket.customer?.email}
+        context={ticket.subject}
+        defaultChannel={contattoCanale ?? "whatsapp"}
+        orderId={ticket.order_id}
       />
     </div>
   );

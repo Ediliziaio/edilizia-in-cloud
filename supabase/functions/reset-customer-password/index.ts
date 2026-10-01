@@ -87,6 +87,23 @@ Deno.serve(conMetriche("reset-customer-password", async (req) => {
     if (callerRole.role === "company_admin" && targetRoleNames.includes("company_admin") && targetUserId !== caller.id) {
       throw new Error("Permission denied: Cannot reset another admin's password");
     }
+    // Un target che amministra un'ALTRA azienda via accesso multi-azienda non lo
+    // tocca un company_admin: resettargli la password gli darebbe le chiavi di
+    // quell'azienda (il ruolo globale non basta a vederlo — 26/09/2026). Solo il
+    // super admin.
+    if (callerRole.role === "company_admin" && targetUserId !== caller.id) {
+      const { data: mcaAdmin } = await supabaseAdmin
+        .from("multi_company_access")
+        .select("id")
+        .eq("user_id", targetUserId)
+        .eq("access_role", "company_admin")
+        .eq("status", "active")
+        .limit(1)
+        .maybeSingle();
+      if (mcaAdmin) {
+        throw new Error("Permission denied: Cannot reset the password of a multi-company administrator");
+      }
+    }
 
     // Col portale clienti spento il cliente non ha un accesso: nessuna password
     // nuova e nessuna email con le credenziali (24/09/2026).

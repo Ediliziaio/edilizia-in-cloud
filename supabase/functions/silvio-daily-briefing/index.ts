@@ -23,6 +23,7 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireCompanyAccess, requireInternalSecret } from "../_shared/auth.ts";
+import { richiediAmministratoreAzienda } from "../_shared/amministraAzienda.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 // 🛡️ Anti chain-of-thought leak — strip tool names + opener narrativi dal
@@ -68,15 +69,14 @@ serve(async (req: Request) => {
         .from("profiles").select("id, company_id").eq("id", body.user_id).maybeSingle();
       if (!profile?.company_id) return errorResponse("Utente target senza azienda", 404, corsHeaders);
       const auth = await requireAuth(req, corsHeaders);
-      await requireCompanyAccess(supabaseAdmin, auth.userId, profile.company_id, corsHeaders, {
-        allowedRoles: ["super_admin", "company_admin"],
-      });
+      // amministratore di QUELL'azienda (26/09/2026), non di un'azienda qualsiasi
+      const accesso = await requireCompanyAccess(supabaseAdmin, auth.userId, profile.company_id, corsHeaders);
+      await richiediAmministratoreAzienda(supabaseAdmin, auth.userId, profile.company_id, corsHeaders, accesso);
       if (profile?.company_id) targets.push({ user_id: profile.id, company_id: profile.company_id });
     } else if (mode === "company" && body.company_id) {
       const auth = await requireAuth(req, corsHeaders);
-      await requireCompanyAccess(supabaseAdmin, auth.userId, body.company_id, corsHeaders, {
-        allowedRoles: ["super_admin", "company_admin"],
-      });
+      const accesso = await requireCompanyAccess(supabaseAdmin, auth.userId, body.company_id, corsHeaders);
+      await richiediAmministratoreAzienda(supabaseAdmin, auth.userId, body.company_id, corsHeaders, accesso);
       // Tutti gli admin della company
       const { data: roles } = await supabaseAdmin
         .from("user_roles").select("user_id, role")

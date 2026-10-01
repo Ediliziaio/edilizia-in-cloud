@@ -1881,17 +1881,17 @@ function FotovoltaicoWizard() {
             <button
               type="button"
               onClick={() => {
-                if (readOnlyMode) { navigate("/azienda/marketing/fotovoltaico"); return; }
+                if (readOnlyMode) { navigate("/azienda/marketing/preventivi"); return; }
                 if (progettoId) {
                   // Diceva «salvata» senza salvare: l'autosave è solo nel browser.
                   // Ora salva davvero ed esce solo se il salvataggio riesce.
                   void handleSaveDraft().then((salvata) => {
-                    if (salvata) navigate("/azienda/marketing/fotovoltaico");
+                    if (salvata) navigate("/azienda/marketing/preventivi");
                   });
                   return;
                 }
                 const dirty = Boolean(data.cliente_nome || data.cliente_cognome || data.indirizzo);
-                if (!dirty) { navigate("/azienda/marketing/fotovoltaico"); return; }
+                if (!dirty) { navigate("/azienda/marketing/preventivi"); return; }
                 // Dati inseriti ma nessuna bozza DB ancora: chiedi cosa fare
                 setExitDialogOpen(true);
               }}
@@ -2014,7 +2014,7 @@ function FotovoltaicoWizard() {
               className="bg-slate-500 hover:bg-slate-600"
               onClick={() => {
                 clearPersistedDraft(null);
-                navigate("/azienda/marketing/fotovoltaico");
+                navigate("/azienda/marketing/preventivi");
               }}
             >
               Esci senza salvare
@@ -2026,7 +2026,7 @@ function FotovoltaicoWizard() {
                   if (!(await handleSalvaStep2())) return;
                   clearPersistedDraft(null);
                   toast.success("Bozza salvata — la ritrovi tra i preventivi");
-                  navigate("/azienda/marketing/fotovoltaico");
+                  navigate("/azienda/marketing/preventivi");
                 }}
               >
                 Salva bozza ed esci

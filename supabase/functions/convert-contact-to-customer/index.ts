@@ -1,6 +1,7 @@
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
 import { requireAuth, requireCompanyAccess, requireRole } from "../_shared/auth.ts";
+import { richiediAmministratoreAzienda } from "../_shared/amministraAzienda.ts";
 import { generateSecurePassword } from "../_shared/securePassword.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 
@@ -48,8 +49,11 @@ Deno.serve(async (req) => {
       return errorResponse("Campi obbligatori: contact_id, first_name, last_name, email, company_id");
 
     // Chi converte deve lavorare in QUESTA azienda: prima bastava essere
-    // amministratore di un'azienda qualsiasi (23/09/2026).
-    await requireCompanyAccess(supabaseAdmin, userId, String(company_id), corsH);
+    // amministratore di un'azienda qualsiasi (23/09/2026). E ne dev'essere
+    // amministratore: il ruolo sopra è globale, e chi qui è entrato come staff
+    // convertiva comunque (26/09/2026).
+    const accessoAzienda = await requireCompanyAccess(supabaseAdmin, userId, String(company_id), corsH);
+    await richiediAmministratoreAzienda(supabaseAdmin, userId, String(company_id), corsH, accessoAzienda);
 
     // Portale clienti: lo accende solo EdiliziaInCloud (23/09/2026, Florin). Se è
     // spento il cliente nasce SOLO in anagrafica: account bloccato con password

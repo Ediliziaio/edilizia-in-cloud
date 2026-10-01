@@ -1,9 +1,10 @@
 import { useMemo, useState, useRef, useEffect } from "react";
 import { format, isSameDay, parseISO, isToday } from "date-fns";
+import { partiOraRoma, oraRomaHM } from "@/lib/oraLocaleCalendario";
 import { it } from "date-fns/locale";
 import { DndContext, DragOverlay, MouseSensor, TouchSensor, useSensors, useSensor, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
 import { cn } from "@/lib/utils";
-import { Car, AlertTriangle, MapPinOff, User, Calendar as CalendarIcon } from "lucide-react";
+import { Car, AlertTriangle, MapPinOff, User, Calendar as CalendarIcon, Video } from "lucide-react";
 import type { MarketingAppointment, TravelLeg } from "@/types/marketingCalendar";
 import type { GoogleBusySlot } from "@/types/calendar";
 import { buildTimeSlots, buildColorMap, timeToMin, computeOverlapLayout } from "@/lib/marketingCalendarConstants";
@@ -76,6 +77,10 @@ export default function MarketingCalendarDayView({
   // stessa fascia vengono affiancati (mezza/un terzo larghezza). Solo quelli con
   // un orario di inizio; gli altri (senza orario) restano a piena larghezza.
   const overlapLayout = useMemo(() => {
+    const dayStr = format(date, "yyyy-MM-dd");
+    // Appuntamenti + blocchi Google/Apple/Outlook nello STESSO calcolo colonne:
+    // così un blocco (es. "Pausa pranzo") e un appuntamento alla stessa ora si
+    // affiancano in due colonne, invece di sovrapporsi (blocco come sfondo).
     const timed = dayAppointments
       .filter((a) => a.appointment_time)
       .map((a) => {
@@ -83,8 +88,18 @@ export default function MarketingCalendarDayView({
         const end = a.appointment_end_time ? timeToMin(a.appointment_end_time) : start + slotDurationMinutes;
         return { id: a.id, start, end: Math.max(end, start + 1) };
       });
-    return computeOverlapLayout(timed);
-  }, [dayAppointments, slotDurationMinutes]);
+    const busyTimed = busySlots
+      .filter((s) => !s.is_all_day)
+      .map((s) => {
+        const inizio = partiOraRoma(s.start_at);
+        if (inizio.data !== dayStr) return null;
+        const start = timeToMin(inizio.hm);
+        const end = timeToMin(oraRomaHM(s.end_at));
+        return { id: `busy-${s.id}`, start, end: Math.max(end, start + 1) };
+      })
+      .filter((x): x is { id: string; start: number; end: number } => x !== null);
+    return computeOverlapLayout([...timed, ...busyTimed]);
+  }, [dayAppointments, busySlots, slotDurationMinutes, date]);
 
   const travelLegMap = useMemo(() => {
     const map: Record<string, TravelLeg> = {};
@@ -98,9 +113,10 @@ export default function MarketingCalendarDayView({
     const dayStr = format(date, "yyyy-MM-dd");
     return busySlots.filter((s) => {
       if (s.is_all_day) return false;
-      if (s.start_at.slice(0, 10) !== dayStr) return false;
-      const sMin = timeToMin(s.start_at.slice(11, 16));
-      const eMin = timeToMin(s.end_at.slice(11, 16));
+      const inizio = partiOraRoma(s.start_at);
+      if (inizio.data !== dayStr) return false;
+      const sMin = timeToMin(inizio.hm);
+      const eMin = timeToMin(oraRomaHM(s.end_at));
       return sMin < slotEnd && eMin > slotStart;
     });
   };
@@ -267,22 +283,33 @@ export default function MarketingCalendarDayView({
                   {slotBusy.map((busy, bi) => {
                     const isApple = busy.provider === "apple";
                     const isOutlook = busy.provider === "outlook";
-                    const startHM = busy.start_at.slice(11, 16);
-                    const endHM = busy.end_at.slice(11, 16);
+                    const startHM = oraRomaHM(busy.start_at);
+                    const endHM = oraRomaHM(busy.end_at);
                     // L'etichetta va mostrata solo nella cella in cui l'evento INIZIA,
                     // così un evento multi-slot non ripete il titolo in ogni sotto-cella.
                     const sMin = timeToMin(startHM);
                     const cellMin = timeToMin(slotTime);
                     const isStartCell = sMin >= cellMin && sMin < cellMin + slotDurationMinutes;
                     const label = busy.summary || (isApple ? "Occupato (Apple)" : isOutlook ? "Occupato (Outlook)" : "Occupato (Google)");
+                    // Il blocco condivide le colonne con gli appuntamenti: se si
+                    // sovrappone a un appuntamento, occupa la sua colonna (affiancato)
+                    // invece di stendersi a tutta larghezza dietro.
+                    const busyPlacement = overlapLayout.get(`busy-${busy.id}`);
+                    const busyCols = busyPlacement?.columnsCount ?? 1;
+                    const busyCol = busyPlacement?.column ?? 0;
+                    const busyUseCols = busyCols > 1;
+                    const busyStyle = busyUseCols
+                      ? { left: `calc(${(busyCol * 100) / busyCols}% + 1px)`, width: `calc(${100 / busyCols}% - 2px)` }
+                      : { left: 0, right: 0 };
                     return (
                       <button
                         type="button"
                         key={`busy-${busy.id}-${bi}`}
                         onClick={(e) => { e.stopPropagation(); onClickBusySlot?.(busy); }}
                         title={`${busy.summary || "Occupato"} · ${startHM}–${endHM} (${isApple ? "Apple" : isOutlook ? "Outlook" : "Google"} Calendar)`}
+                        style={busyStyle}
                         className={cn(
-                          "absolute inset-0 z-0 flex flex-col items-start overflow-hidden border-l-2 px-1 py-0.5 text-left transition-colors",
+                          "absolute top-0 bottom-0 z-0 flex flex-col items-start overflow-hidden border-l-2 px-1 py-0.5 text-left transition-colors",
                           isApple
                             ? "border-zinc-400/70 bg-zinc-100/70 hover:bg-zinc-200/80 dark:bg-zinc-800/30"
                             : isOutlook
@@ -304,6 +331,10 @@ export default function MarketingCalendarDayView({
                   })}
                   {slotApts.map((apt) => {
                     const leg = travelLegMap[apt.id];
+                    // Videochiamata: l'"indirizzo" è il link Meet, non un luogo fisico.
+                    // meeting_provider vale "none" quando non è una call → va escluso.
+                    const aptMeetingProvider = (apt as any).meeting_provider as string | null;
+                    const isVideocall = !!(apt as any).meeting_url || (!!aptMeetingProvider && aptMeetingProvider !== "none");
                     const hasNoCoords = apt.lat == null || apt.lng == null;
                     const heightPx = getHeightPx(apt);
                     const topOffset = getTopOffsetPx(apt, slotTime);
@@ -343,12 +374,6 @@ export default function MarketingCalendarDayView({
                               )}
                             </div>
                           )}
-                          {hasNoCoords && !apt.is_blocked_slot && (
-                            <div className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded mb-0.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 border border-yellow-300 dark:border-yellow-700">
-                              <MapPinOff className="h-3 w-3" />
-                              <span>Indirizzo mancante</span>
-                            </div>
-                          )}
                           <div
                             onClick={(e) => {
                               e.stopPropagation();
@@ -365,9 +390,20 @@ export default function MarketingCalendarDayView({
                               // Annullato: spento e barrato — vedi WeekView.
                               apt.status === "annullato" && "opacity-50 saturate-50 line-through"
                             )}
-                            title={apt.title}
+                            title={
+                              isVideocall
+                                ? `${apt.title} · Videochiamata (Google Meet)`
+                                : hasNoCoords && !apt.is_blocked_slot
+                                  ? `${apt.title} · Indirizzo mancante`
+                                  : apt.title
+                            }
                           >
                             <div className="flex items-center gap-1 min-w-0">
+                              {isVideocall ? (
+                                <Video className="h-3 w-3 shrink-0 text-blue-600 dark:text-blue-400" />
+                              ) : hasNoCoords && !apt.is_blocked_slot ? (
+                                <MapPinOff className="h-3 w-3 shrink-0 text-amber-500" />
+                              ) : null}
                               <span className="truncate min-w-0 flex-1">
                                 {apt.appointment_time && (
                                   <span className="font-semibold">{apt.appointment_time.slice(0, 5)} </span>

@@ -561,7 +561,7 @@ function DocumentiFiscaliListInner() {
       case "convert_proforma":
         try {
           const fattura = await convertiProformaInFattura(doc.id);
-          toast.success("Convertito in fattura", { description: "È una bozza: prende il numero quando la emetti." });
+          toast.success("Convertito in fattura", { description: `Bozza ${fattura.numero}: il numero è già suo, emettila quando è pronta.` });
           navigate(`/azienda/documenti/${fattura.id}/dettaglio`);
         } catch (e: unknown) {
           toast.error(getErrorMessage(e));

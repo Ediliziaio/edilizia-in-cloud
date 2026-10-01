@@ -1,6 +1,7 @@
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
 import { requireAuth, isSuperAdminEmailAllowed, resolveUserEmail, aziendaAccessibile } from "../_shared/auth.ts";
+import { ruoliNellAzienda } from "../_shared/amministraAzienda.ts";
 import { generateSecurePassword } from "../_shared/securePassword.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { sanitizeCustomerInput } from "../_shared/customerDataSanitizer.ts";
@@ -50,14 +51,18 @@ async function autorizzaCreazioneCliente(
     return { ok: false, motivo: "Non autorizzato a creare clienti per questa azienda", stato: 403 };
   }
 
-  if (ruoli.includes("company_admin")) return { ok: true, ruolo: "company_admin" };
+  // Il ruolo vale per QUESTA azienda (26/09/2026): in un'azienda raggiunta con
+  // un accesso multi-azienda conta il grado di quell'accesso. Prima bastava
+  // essere amministratore della propria per saltare i permessi anche qui.
+  const ruoliQui = await ruoliNellAzienda(supabaseAdmin, userId, companyId);
+  if (ruoliQui.includes("company_admin")) return { ok: true, ruolo: "company_admin" };
 
   // Un permesso vale solo per chi ha un ruolo interno: una riga di
   // staff_permissions finita per sbaglio su un utente-cliente non deve aprire
   // niente. Oggi non ce ne sono — le 19 righe con questi permessi hanno tutte
   // un ruolo interno — ma la regola qui non dipende da quel dato.
   const RUOLI_INTERNI = ["company_staff", "company_admin", "super_admin", "salesperson"];
-  if (!ruoli.some((r) => RUOLI_INTERNI.includes(r))) {
+  if (!ruoliQui.some((r) => RUOLI_INTERNI.includes(r))) {
     return { ok: false, motivo: "Non autorizzato a creare clienti", stato: 403 };
   }
 

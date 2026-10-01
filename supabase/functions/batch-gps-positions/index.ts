@@ -196,12 +196,20 @@ async function checkGeofenceAlerts(
 
   if (!geofences || geofences.length === 0) return;
 
-  // Carica admin dell'azienda (destinatari delle notifiche)
-  const { data: adminRows } = await supabaseAdmin
-    .from("user_roles")
-    .select("user_id")
-    .eq("company_id", company_id)
-    .in("role", ["company_admin", "company_staff", "super_admin"]) as { data: AdminRow[] | null };
+  // Carica admin dell'azienda (destinatari delle notifiche). user_roles NON ha
+  // company_id: l'azienda di una persona è profiles.company_id. Prima la query
+  // falliva in silenzio (colonna inesistente) e non partiva nessuna notifica
+  // (26/09/2026).
+  const { data: adminProfili } = await supabaseAdmin
+    .from("profiles").select("id").eq("company_id", company_id) as { data: { id: string }[] | null };
+  const adminProfiloIds = (adminProfili ?? []).map((r) => r.id);
+  const { data: adminRows } = (adminProfiloIds.length
+    ? await supabaseAdmin
+        .from("user_roles")
+        .select("user_id")
+        .in("user_id", adminProfiloIds)
+        .in("role", ["company_admin", "company_staff"])
+    : { data: [] as AdminRow[] }) as { data: AdminRow[] | null };
 
   if (!adminRows || adminRows.length === 0) return;
 

@@ -31,9 +31,9 @@ const COPY: Record<AiLauncherContext, {
     cta: "Apri Silvio AI",
   },
   bom: {
-    title: "Silvio AI — assistente offerta",
-    description: "Foto del rilievo, dettatura o testo: Silvio prepara le righe, tu approvi solo quelle corrette.",
-    cta: "Crea con Silvio AI",
+    title: "Assistente offerta AI",
+    description: "Foto del rilievo, dettatura o testo: l'AI prepara le righe, tu approvi solo quelle corrette.",
+    cta: "Crea con l'AI",
   },
 };
 

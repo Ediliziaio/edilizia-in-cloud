@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
+import { CostoPersonaHr } from "@/components/hr/CostoPersonaHr";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useUpdateHrProfilo } from "@/hooks/useOrganigramma";
 import { useCreateHrProfilo } from "@/hooks/useCreateHrProfilo";
@@ -335,6 +336,17 @@ export function HrProfiloSheet({ open, onOpenChange, profilo, allProfili }: Prop
                         </div>
                         <Switch checked={watch("attivo") ?? true} onCheckedChange={(checked) => setValue("attivo", checked)} />
                       </div>
+                      <div className="col-span-2 flex items-center justify-between rounded-md border px-3 py-2 max-sm:order-last">
+                        <div>
+                          <Label htmlFor="hr-lavora-in-cantiere">Lavora in cantiere</Label>
+                          <p className="text-xs text-muted-foreground max-sm:hidden">Compare fra gli operai in Manodopera e Mezzi e si può mettere al lavoro nelle commesse.</p>
+                        </div>
+                        <Switch
+                          id="hr-lavora-in-cantiere"
+                          checked={watch("lavora_in_cantiere") ?? false}
+                          onCheckedChange={(checked) => setValue("lavora_in_cantiere", checked)}
+                        />
+                      </div>
                     </div>
                   </div>
 
@@ -361,6 +373,11 @@ export function HrProfiloSheet({ open, onOpenChange, profilo, allProfili }: Prop
                       <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1 max-sm:hidden">
                         <Info className="h-3 w-3" /> Carica il contratto firmato nella scheda <b>Documenti &amp; Scadenze</b>.
                       </p>
+                    )}
+                    {isEditing && profilo && (
+                      <div className="mt-3 max-sm:hidden">
+                        <CostoPersonaHr profiloId={profilo.id} />
+                      </div>
                     )}
                   </div>
 

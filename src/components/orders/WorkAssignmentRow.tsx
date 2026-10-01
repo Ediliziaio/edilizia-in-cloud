@@ -21,7 +21,7 @@ const eur = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" 
 function resolveExecutorLabel(a: PhaseAssignment, employees: ExecutorOption[], teams: ExecutorOption[]) {
   return a.executor_type === "interno"
     ? employees.find(e => e.id === a.employee_id)?.label ?? "Dipendente non disponibile"
-    : teams.find(t => t.id === a.external_team_id)?.label ?? "Squadra non disponibile";
+    : teams.find(t => t.id === a.external_team_id)?.label ?? "Ditta non disponibile";
 }
 
 interface Props {
@@ -37,6 +37,10 @@ export function WorkAssignmentRow({ assignment: a, employees, externalTeams, pha
   const { canEditOrders, canViewCosts, canManagePayments } = usePermissions();
   const internal = a.executor_type === "interno";
   const name = resolveExecutorLabel(a, employees, externalTeams);
+  // Chi è al lavoro vede la commessa nell'app nei giorni della fase: qui si
+  // vede subito chi l'app non ce l'ha.
+  const persona = internal ? employees.find(e => e.id === a.employee_id) : undefined;
+  const senzaApp = !!persona && !persona.campoUserId;
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -89,11 +93,15 @@ export function WorkAssignmentRow({ assignment: a, employees, externalTeams, pha
           <p className="break-words text-sm font-semibold">{name}</p>
           {/* Mobile: tipo e ore in una riga di testo (badge e ore andavano a capo). */}
           <p className="text-xs text-muted-foreground sm:hidden">
-            {internal ? `Dipendente · ${a.hours ?? 0} h registrate` : "Squadra esterna · affidamento"}
+            {internal ? `Dipendente · ${a.hours ?? 0} h registrate` : "Ditta esterna · affidamento"}
+            {senzaApp && <span className="font-medium text-amber-700"> · senza app</span>}
           </p>
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground max-sm:hidden">
-            <Badge variant="secondary">{internal ? "Dipendente" : "Squadra esterna"}</Badge>
+            <Badge variant="secondary">{internal ? "Dipendente" : "Ditta esterna"}</Badge>
             {internal && <span className="inline-flex items-center gap-1"><Clock3 className="h-3 w-3" />{a.hours ?? 0} h registrate</span>}
+            {senzaApp
+              ? <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-800">Senza app: non vede la commessa</Badge>
+              : persona && <span className="text-emerald-700">{a.phase_id ? "La vede nell'app nei giorni della fase" : "La vede nell'app"}</span>}
             {!internal && <span>Affidamento esterno</span>}
           </div>
           {a.notes && <p className="whitespace-pre-wrap break-words text-xs text-muted-foreground">{a.notes}</p>}
@@ -111,7 +119,7 @@ export function WorkAssignmentRow({ assignment: a, employees, externalTeams, pha
     </div>}
     <Dialog open={open} onOpenChange={v => { if (!busy) setOpen(v); }}>
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
-        <DialogHeader><DialogTitle>Gestisci assegnazione</DialogTitle><DialogDescription>{name} · {internal ? "Dipendente interno" : "Squadra esterna"}</DialogDescription></DialogHeader>
+        <DialogHeader><DialogTitle>Gestisci assegnazione</DialogTitle><DialogDescription>{name} · {internal ? "Dipendente interno" : "Ditta esterna"}</DialogDescription></DialogHeader>
         <div className="space-y-4">
           <label className="block space-y-1.5 text-sm font-medium">Lavorazione
             <select aria-label="Lavorazione assegnata" value={draft.phase} onChange={e => setDraft({ ...draft, phase: e.target.value })} disabled={busy}

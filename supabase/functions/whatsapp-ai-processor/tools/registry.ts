@@ -30,6 +30,7 @@ import {
   impostaCantiereCorrente,
   impostaCantiereCorrenteDef,
 } from "./operaio/imposta_cantiere_corrente.ts";
+import { caricaScontrino, caricaScontrinoDef } from "./operaio/carica_scontrino.ts";
 
 // Titolare
 import { statoCantiere, statoCantiereDef } from "./titolare/stato_cantiere.ts";
@@ -55,6 +56,11 @@ import {
   scostamentiCommesseDef,
 } from "./titolare/scostamenti_commesse.ts";
 
+// Ufficio e amministratore
+import { inviaPdfPreventivo, inviaPdfPreventivoDef } from "./ufficio/invia_pdf_preventivo.ts";
+import { inviaPreventivoBagno, inviaPreventivoBagnoDef } from "./ufficio/invia_preventivo_bagno.ts";
+import { creaPreventivoAi, creaPreventivoAiDef } from "./ufficio/crea_preventivo_ai.ts";
+
 // Shared (cross-ruolo)
 import { chiediConferma, chiediConfermaDef } from "./shared/chiedi_conferma.ts";
 
@@ -71,6 +77,7 @@ export const TOOLS_REGISTRY: ToolDef[] = [
   { ...creaSegnalazioneDef, handler: creaSegnalazione as ToolDef["handler"] },
   { ...elencaMieiCantieriOggiDef, handler: elencaMieiCantieriOggi as ToolDef["handler"] },
   { ...impostaCantiereCorrenteDef, handler: impostaCantiereCorrente as ToolDef["handler"] },
+  { ...caricaScontrinoDef, handler: caricaScontrino as ToolDef["handler"] },
 
   // Titolare (7)
   { ...statoCantiereDef, handler: statoCantiere as ToolDef["handler"] },
@@ -80,6 +87,11 @@ export const TOOLS_REGISTRY: ToolDef[] = [
   { ...listaApprovazioniDef, handler: listaApprovazioni as ToolDef["handler"] },
   { ...approvaRichiestaDef, handler: approvaRichiesta as ToolDef["handler"] },
   { ...scostamentiCommesseDef, handler: scostamentiCommesse as ToolDef["handler"] },
+
+  // Ufficio e amministratore (3)
+  { ...inviaPdfPreventivoDef, handler: inviaPdfPreventivo as ToolDef["handler"] },
+  { ...inviaPreventivoBagnoDef, handler: inviaPreventivoBagno as ToolDef["handler"] },
+  { ...creaPreventivoAiDef, handler: creaPreventivoAi as ToolDef["handler"] },
 ];
 
 /** Filtra tool disponibili in base ai grants dell'utente. */

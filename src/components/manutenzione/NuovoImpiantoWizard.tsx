@@ -1,14 +1,16 @@
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompanyCustomers } from "@/hooks/useCompanyCustomers";
+import { CreateCustomerDialog } from "@/components/orders/CreateCustomerDialog";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, ChevronRight, ChevronLeft, Check, Tag } from "lucide-react";
+import { Loader2, ChevronRight, ChevronLeft, Check, Tag, UserPlus, Users, CalendarClock } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { useTipiImpianto, useTipiIntervento } from "@/lib/manutenzione/tipiManutenzione";
@@ -50,19 +52,28 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
 
   // Step 1 fields
   const [customerId, setCustomerId] = useState("");
+  const [nuovoClienteOpen, setNuovoClienteOpen] = useState(false);
   const [tipoImpianto, setTipoImpianto] = useState("");
   const [marca, setMarca] = useState("");
   const [modello, setModello] = useState("");
   const [matricola, setMatricola] = useState("");
   const [dataInstallazione, setDataInstallazione] = useState("");
   const [garanziaScadenza, setGaranziaScadenza] = useState("");
+  const [noteTecniche, setNoteTecniche] = useState("");
 
-  // Step 2 fields
+  // Step 2 fields — piano ricorrente
   const [hasPiano, setHasPiano] = useState(false);
   const [titoloManutenzione, setTitoloManutenzione] = useState("Manutenzione ordinaria");
   const [frequenza, setFrequenza] = useState("annuale");
   const [primaManutenzione, setPrimaManutenzione] = useState("");
   const [tecnicoPreferito, setTecnicoPreferito] = useState("__none__");
+
+  // Step 2 fields — primo intervento in calendario (una tantum)
+  const [programmaPrimo, setProgrammaPrimo] = useState(false);
+  const [primoData, setPrimoData] = useState("");
+  const [primoTecnico, setPrimoTecnico] = useState("__none__");
+  const [primoSquadra, setPrimoSquadra] = useState("__none__");
+  const [primoNote, setPrimoNote] = useState("");
 
   // Step 3 fields
   const [hasContratto, setHasContratto] = useState(false);
@@ -76,6 +87,22 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
 
   const { data: clienti = [] } = useCompanyCustomers(companyId, open);
   const { data: tecnici = [] } = useCompanyStaffUsers(open ? companyId : null, "all");
+  const { data: squadre = [] } = useQuery({
+    queryKey: ["squadre-interne", companyId],
+    enabled: open,
+    staleTime: 10 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("external_teams")
+        .select("id, name")
+        .eq("company_id", companyId)
+        .eq("kind", "interna")
+        .eq("is_active", true)
+        .order("name");
+      if (error) throw error;
+      return (data ?? []) as { id: string; name: string }[];
+    },
+  });
   const { data: tipiImpianto = [] } = useTipiImpianto(open ? companyId : null);
   const { data: tipiIntervento = [] } = useTipiIntervento(open ? companyId : null);
   const { data: prezzoListino, isFetching: prezzoLoading } = usePrezzoIntervento({
@@ -113,6 +140,7 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
           matricola: matricola.trim() || null,
           data_installazione: dataInstallazione || null,
           garanzia_scadenza: garanziaScadenza || null,
+          note_tecniche: noteTecniche.trim() || null,
         })
         .select()
         .single();
@@ -153,6 +181,29 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
           });
         if (pianoErr) throw pianoErr;
       }
+
+      // 4. Programma il primo intervento (una tantum) come vero intervento
+      // sull'impianto: assegnato a operaio o squadra, con data e note. Compare
+      // in assistenza, nel calendario e nell'app di chi ci va.
+      if (programmaPrimo) {
+        const etichettaTipo = TIPI_IMPIANTO.find((t) => t.value === tipoImpianto)?.label?.replace(/^[^\p{L}]+/u, "").trim() || tipoImpianto;
+        const { error: tErr } = await supabase
+          .from("tickets")
+          .insert({
+            company_id: companyId,
+            customer_id: customerId,
+            impianto_id: impianto.id,
+            subject: `Primo intervento — ${etichettaTipo}`,
+            tipo: "intervento",
+            status: "aperto",
+            priority: "normale",
+            assigned_to: primoTecnico && primoTecnico !== "__none__" ? primoTecnico : null,
+            squadra_id: primoSquadra && primoSquadra !== "__none__" ? primoSquadra : null,
+            data_intervento_prevista: primoData ? new Date(primoData).toISOString() : null,
+            note_tecnico: primoNote.trim() || null,
+          } as never);
+        if (tErr) throw tErr;
+      }
     },
     onSuccess: () => {
       toast.success("Impianto registrato con successo");
@@ -165,9 +216,10 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
   const handleClose = () => {
     setStep(1);
     setCustomerId(""); setTipoImpianto(""); setMarca(""); setModello(""); setMatricola("");
-    setDataInstallazione(""); setGaranziaScadenza("");
+    setDataInstallazione(""); setGaranziaScadenza(""); setNoteTecniche("");
     setHasPiano(false); setTitoloManutenzione("Manutenzione ordinaria"); setFrequenza("annuale");
     setPrimaManutenzione(""); setTecnicoPreferito("__none__");
+    setProgrammaPrimo(false); setPrimoData(""); setPrimoTecnico("__none__"); setPrimoSquadra("__none__"); setPrimoNote("");
     setHasContratto(false); setNomeContratto(""); setImportoCanone(""); setTipoFatturazione("annuale");
     setRinnovoAutomatico(true);
     setCanoneTipoImpiantoId(""); setCanoneTipoInterventoId("");
@@ -177,6 +229,7 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
   const canNext1 = !!customerId && !!tipoImpianto;
 
   return (
+    <>
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
@@ -187,7 +240,7 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
             ))}
           </div>
           <p className="text-xs text-muted-foreground mt-1">
-            Passo {step} di 3: {step === 1 ? "Cliente e impianto" : step === 2 ? "Piano manutenzione" : "Contratto"}
+            Passo {step} di 3: {step === 1 ? "Cliente e impianto" : step === 2 ? "Manutenzione e primo intervento" : "Contratto"}
           </p>
         </DialogHeader>
 
@@ -197,12 +250,18 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
             <>
               <div className="space-y-1.5">
                 <Label>Cliente *</Label>
-                <Select value={customerId} onValueChange={setCustomerId}>
-                  <SelectTrigger><SelectValue placeholder="Seleziona cliente..." /></SelectTrigger>
-                  <SelectContent>
-                    {clienti.map((c) => <SelectItem key={c.id} value={c.id}>{[c.first_name, c.last_name].filter(Boolean).join(" ") || c.id}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <div className="flex gap-2">
+                  <Select value={customerId} onValueChange={setCustomerId}>
+                    <SelectTrigger className="flex-1"><SelectValue placeholder="Seleziona cliente..." /></SelectTrigger>
+                    <SelectContent>
+                      {clienti.map((c) => <SelectItem key={c.id} value={c.id}>{[c.first_name, c.last_name].filter(Boolean).join(" ") || c.id}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  {/* Cliente non ancora nel gestionale: si crea al volo. */}
+                  <Button type="button" variant="outline" className="shrink-0 gap-1.5" onClick={() => setNuovoClienteOpen(true)}>
+                    <UserPlus className="h-4 w-4" /><span className="max-sm:hidden">Nuovo</span>
+                  </Button>
+                </div>
               </div>
               <div className="space-y-1.5">
                 <Label>Tipo impianto *</Label>
@@ -232,6 +291,10 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
                   <Label>Scadenza garanzia</Label>
                   <Input type="date" value={garanziaScadenza} onChange={(e) => setGaranziaScadenza(e.target.value)} />
                 </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Note (posizione, matricola, accessi…)</Label>
+                <Textarea value={noteTecniche} onChange={(e) => setNoteTecniche(e.target.value)} rows={2} placeholder="Dove si trova, come si accede, dettagli utili…" />
               </div>
             </>
           )}
@@ -277,6 +340,47 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
                         {tecnici.map((t) => <SelectItem key={t.id} value={t.id}>{[t.first_name, t.last_name].filter(Boolean).join(" ") || t.id}</SelectItem>)}
                       </SelectContent>
                     </Select>
+                  </div>
+                </div>
+              )}
+
+              {/* Primo intervento una tantum: lo fissa in calendario e lo assegna
+                  a un operaio o a una squadra, come un'assistenza. */}
+              <label className="flex items-center gap-3 cursor-pointer pt-1">
+                <input type="checkbox" checked={programmaPrimo} onChange={(e) => setProgrammaPrimo(e.target.checked)} className="h-4 w-4 rounded" />
+                <span className="flex items-center gap-1.5 font-medium"><CalendarClock className="h-4 w-4 text-muted-foreground" />Programma il primo intervento</span>
+              </label>
+              {programmaPrimo && (
+                <div className="space-y-3 pl-7 max-sm:pl-0">
+                  <div className="space-y-1.5">
+                    <Label>Data e ora</Label>
+                    <Input type="datetime-local" value={primoData} onChange={(e) => setPrimoData(e.target.value)} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label>Assegna a un operaio</Label>
+                      <Select value={primoTecnico} onValueChange={setPrimoTecnico}>
+                        <SelectTrigger><SelectValue placeholder="Nessuno" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Nessuno</SelectItem>
+                          {tecnici.map((t) => <SelectItem key={t.id} value={t.id}>{[t.first_name, t.last_name].filter(Boolean).join(" ") || t.id}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="flex items-center gap-1"><Users className="h-3 w-3" /> Oppure a una squadra</Label>
+                      <Select value={primoSquadra} onValueChange={setPrimoSquadra}>
+                        <SelectTrigger><SelectValue placeholder="Nessuna squadra" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Nessuna squadra</SelectItem>
+                          {squadre.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Note per chi interviene</Label>
+                    <Textarea value={primoNote} onChange={(e) => setPrimoNote(e.target.value)} rows={2} placeholder="Cosa fare, materiali, accessi…" />
                   </div>
                 </div>
               )}
@@ -411,5 +515,12 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <CreateCustomerDialog
+      open={nuovoClienteOpen}
+      onOpenChange={setNuovoClienteOpen}
+      onCustomerCreated={(id) => { setCustomerId(id); setNuovoClienteOpen(false); }}
+    />
+    </>
   );
 }

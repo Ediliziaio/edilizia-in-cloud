@@ -1,5 +1,6 @@
 /**
- * CampoSquadra — «chi c'è oggi» per il capocantiere (e per l'ufficio).
+ * CampoSquadra — «chi c'è oggi»: il capocantiere vede tutto il cantiere, il
+ * caposquadra la sua squadra (e l'ufficio tutto).
  * Legge la RPC campo_squadra_oggi: per ogni persona assegnata al cantiere,
  * entrata/uscita di oggi, se è ancora dentro, le ore fatte e se ha mandato il
  * rapportino. Le timbrature altrui sono chiuse dalla RLS: passa dalla funzione.
@@ -15,10 +16,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 interface RigaSquadra {
-  user_id: string;
+  /** Vuoto per chi della squadra non ha l'app: le sue ore vengono dal Personale. */
+  user_id: string | null;
   nome: string;
   ruolo: "dipendente" | "sub";
   is_capocantiere: boolean;
+  /** La squadra della persona su questo cantiere. */
+  squadra?: string | null;
   entrata: string | null;
   uscita: string | null;
   in_cantiere: boolean;
@@ -88,15 +92,15 @@ export default function CampoSquadra() {
             </>
           ) : isError ? (
             <p className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
-              {error instanceof Error && /capocantiere|ufficio/i.test(error.message)
-                ? "Solo il capocantiere di questo cantiere può vedere la squadra."
+              {error instanceof Error && /capocantiere|caposquadra|ufficio/i.test(error.message)
+                ? "Solo il capocantiere e il caposquadra possono vedere chi c'è oggi."
                 : "Non riesco a leggere la squadra. Riprova tra poco."}
             </p>
           ) : squadra.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">Nessuno assegnato a questo cantiere.</p>
+            <p className="py-6 text-center text-sm text-muted-foreground">Oggi qui non è previsto nessuno.</p>
           ) : (
-            squadra.map((r) => (
-              <div key={r.user_id} className="flex items-center gap-3 rounded-xl border bg-muted/40 p-3">
+            squadra.map((r, i) => (
+              <div key={r.user_id ?? `senza-app-${i}`} className="flex items-center gap-3 rounded-xl border bg-muted/40 p-3">
                 <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold",
                   r.in_cantiere ? "bg-emerald-100 text-emerald-700" : r.uscita ? "bg-slate-200 text-slate-600" : "bg-amber-100 text-amber-700")}>
                   {r.nome.split(" ").map((p) => p[0]).join("").slice(0, 2).toUpperCase() || <HardHat className="h-4 w-4" />}
@@ -106,6 +110,7 @@ export default function CampoSquadra() {
                     <p className="truncate text-sm font-semibold">{r.nome || "Senza nome"}</p>
                     {r.is_capocantiere && <Badge variant="outline" className="h-4 px-1.5 text-[10px] border-primary/30 text-primary">Capo</Badge>}
                     {r.ruolo === "sub" && <Badge variant="outline" className="h-4 px-1.5 text-[10px]">Sub</Badge>}
+                    {r.squadra && <span className="text-[11px] text-muted-foreground">{r.squadra}</span>}
                   </div>
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {r.in_cantiere
@@ -119,9 +124,13 @@ export default function CampoSquadra() {
                   <p className="flex items-center justify-end gap-1 text-sm font-semibold tabular-nums">
                     <Clock className="h-3.5 w-3.5 text-muted-foreground" />{Number(r.ore).toLocaleString("it-IT")} h
                   </p>
-                  <p className={cn("mt-0.5 flex items-center justify-end gap-1 text-[11px]", r.rapportino_inviato ? "text-emerald-600" : "text-muted-foreground")}>
-                    <FileText className="h-3 w-3" />{r.rapportino_inviato ? "rapportino ok" : "senza rapportino"}
-                  </p>
+                  {r.user_id ? (
+                    <p className={cn("mt-0.5 flex items-center justify-end gap-1 text-[11px]", r.rapportino_inviato ? "text-emerald-600" : "text-muted-foreground")}>
+                      <FileText className="h-3 w-3" />{r.rapportino_inviato ? "rapportino ok" : "senza rapportino"}
+                    </p>
+                  ) : (
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">senza app</p>
+                  )}
                 </div>
               </div>
             ))

@@ -36,6 +36,8 @@ export const PERMISSION_LABELS: Record<string, string> = {
   can_edit_warehouse: "Modifica Magazzino",
   can_view_mezzi: "Mezzi e attrezzature",
   can_edit_mezzi: "Modifica Mezzi e attrezzature",
+  can_view_operai: "Operai",
+  can_edit_operai: "Modifica Operai",
   can_view_calendar: "Calendario",
   can_view_employees: "Dipendenti",
   can_view_tickets: "Ticket",

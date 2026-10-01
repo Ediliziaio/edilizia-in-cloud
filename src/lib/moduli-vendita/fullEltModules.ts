@@ -4,7 +4,7 @@ import { CAPITOLI_EDILI } from "@/components/preventivi/pdf/ordineCapitoli";
 import { ELT_EDITORIAL, type EltPair } from "./eltEditorialContent";
 
 export { ELT_EDITORIAL } from "./eltEditorialContent";
-export const FULL_ELT_MODULES = ["completo", "adeguamento", "punti", "quadro", "domotica", "videocitofonia", "ricarica"] as const;
+export const FULL_ELT_MODULES = ["completo", "adeguamento", "punti", "quadro", "domotica", "videocitofonia", "ricarica", "antifurto", "illuminazione", "automazioni", "rete-dati"] as const;
 export type FullEltModuleId = typeof FULL_ELT_MODULES[number];
 export const isFullEltModuleId = (id: string): id is FullEltModuleId => FULL_ELT_MODULES.some(v => v === id);
 export const ELT_MODULE_TITLES = Object.fromEntries(FULL_ELT_MODULES.map(id => [id, ELT_EDITORIAL[id].title])) as Record<FullEltModuleId, string>;

@@ -9,7 +9,7 @@ import { corpoDelModello, lingueDelModello, testoDelModello, valoriDaiComponenti
 import { PLATFORM_ADMIN_COMPANY_ID } from "../_shared/platformAutomation.ts";
 
 import { serveConMetriche } from "../_shared/withMetrics.ts";
-type SendType = "text" | "interactive" | "template";
+type SendType = "text" | "interactive" | "template" | "document";
 type TemplateLanguageInput = string | { code?: string } | undefined;
 
 interface SendBody {
@@ -19,6 +19,8 @@ interface SendBody {
   type?: SendType;
   text?: string | { body?: string };
   interactive?: Record<string, unknown>;
+  /** Un file (es. il PDF di un preventivo) da un link https: nella finestra delle 24 ore, come il testo. */
+  document?: { link?: string; filename?: string; caption?: string };
   template?: {
     name?: string;
     language?: string | { code?: string };
@@ -47,6 +49,7 @@ function inferType(body: SendBody): SendType | null {
   if (body.type) return body.type;
   if (body.template) return "template";
   if (body.interactive) return "interactive";
+  if (body.document) return "document";
   if (body.text) return "text";
   return null;
 }
@@ -63,6 +66,35 @@ function templateLanguage(language: TemplateLanguageInput) {
     return { code: language.code };
   }
   return { code: "it" };
+}
+
+/** Il componente «header» con foto/video/PDF da allegare all'invio, o null. */
+async function headerMediaDelModello(
+  // deno-lint-ignore no-explicit-any
+  adminClient: any,
+  companyId: string,
+  waNumberId: string | null,
+  nome: string,
+  lingua: string,
+): Promise<Record<string, unknown> | null> {
+  try {
+    let q = adminClient
+      .from("wa_meta_templates")
+      .select("header_format, header_media_url")
+      .eq("company_id", companyId)
+      .eq("template_name", nome)
+      .in("template_language", lingueDelModello(lingua));
+    if (waNumberId) q = q.eq("wa_number_id", waNumberId);
+    const { data } = await q.limit(1);
+    const riga = (data as Array<{ header_format?: string | null; header_media_url?: string | null }> | null)?.[0];
+    const formato = String(riga?.header_format ?? "").toUpperCase();
+    const link = typeof riga?.header_media_url === "string" ? riga.header_media_url.trim() : "";
+    if (!link || !["IMAGE", "VIDEO", "DOCUMENT"].includes(formato)) return null;
+    const tipo = formato.toLowerCase(); // image | video | document
+    return { type: "header", parameters: [{ type: tipo, [tipo]: { link } }] };
+  } catch {
+    return null;
+  }
 }
 
 function variablesToComponents(variables: Record<string, unknown> | undefined) {
@@ -158,9 +190,9 @@ serveConMetriche("whatsapp-send", async (req) => {
       );
     }
 
-    if (!["text", "interactive", "template"].includes(type)) {
+    if (!["text", "interactive", "template", "document"].includes(type)) {
       return new Response(
-        JSON.stringify({ error: "Tipo non valido. Valori ammessi: text, interactive, template" }),
+        JSON.stringify({ error: "Tipo non valido. Valori ammessi: text, interactive, template, document" }),
         { status: 400, headers: jsonHeaders },
       );
     }
@@ -293,6 +325,30 @@ serveConMetriche("whatsapp-send", async (req) => {
       }
       payload.text = { body: bodyText };
       logContent = bodyText;
+    } else if (type === "document") {
+      // Un file da link https (es. il PDF di un preventivo, 27/09/2026). Come il
+      // testo libero, solo nella finestra delle 24 ore.
+      const link = typeof body.document?.link === "string" ? body.document.link.trim() : "";
+      if (!/^https:\/\//i.test(link)) {
+        return new Response(JSON.stringify({ error: "Campo document.link (https) obbligatorio" }), {
+          status: 400,
+          headers: jsonHeaders,
+        });
+      }
+      const win = await getWhatsAppWindowStatus(adminClient, companyId, to);
+      if (!win.open) {
+        return new Response(
+          JSON.stringify({
+            error: "Finestra 24h chiusa: per scrivere a questo numero serve un template approvato.",
+            code: "window_closed",
+          }),
+          { status: 422, headers: jsonHeaders },
+        );
+      }
+      const filename = (body.document?.filename ?? "").trim().slice(0, 240) || "documento.pdf";
+      const caption = (body.document?.caption ?? "").trim().slice(0, 1024);
+      payload.document = caption ? { link, filename, caption } : { link, filename };
+      logContent = caption || `[Documento] ${filename}`;
     } else if (type === "interactive") {
       if (!body.interactive?.type || !body.interactive?.body || !body.interactive?.action) {
         return new Response(
@@ -310,12 +366,22 @@ serveConMetriche("whatsapp-send", async (req) => {
           headers: jsonHeaders,
         });
       }
-      const components = body.template.components ?? variablesToComponents(body.template.variables);
+      const componentiBase = body.template.components ?? variablesToComponents(body.template.variables);
       const language = templateLanguage(body.template.language);
+      // Intestazione con foto/video/PDF: Meta a ogni invio vuole il link del
+      // media (non l'handle della creazione). Lo prendiamo dalla riga del
+      // modello (header_format + header_media_url) e lo mettiamo davanti al
+      // corpo. I bottoni non servono all'invio: Meta li disegna dal modello.
+      const headerComponent = await headerMediaDelModello(
+        adminClient, companyId, body.wa_number_id ?? null, body.template.name, language.code,
+      );
+      const components = headerComponent
+        ? [headerComponent, ...((componentiBase as unknown[]) ?? [])]
+        : componentiBase;
       payload.template = {
         name: body.template.name,
         language,
-        ...(components ? { components } : {}),
+        ...(components && (components as unknown[]).length ? { components } : {}),
       };
       // Nella conversazione si salva il messaggio come lo legge il cliente,
       // non l'etichetta del modello.

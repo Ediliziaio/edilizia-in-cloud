@@ -5,6 +5,7 @@ import { getCompanyBillingConfig } from "../_shared/billingConfig.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 
 import { serveConMetriche } from "../_shared/withMetrics.ts";
+import { amministraAzienda } from "../_shared/amministraAzienda.ts";
 const TELNYX_BASE = "https://api.telnyx.com/v2";
 
 /** Confronto timing-safe per stringhe (prevenzione timing attack su secret) */
@@ -27,6 +28,12 @@ function timingSafeEqual(a: string, b: string): boolean {
 async function isCompanyAdmin(admin: any, userId: string): Promise<boolean> {
   const { data: roles } = await admin.from("user_roles").select("role").eq("user_id", userId);
   return (roles ?? []).some((r: { role: string }) => r.role === "company_admin");
+}
+
+// deno-lint-ignore no-explicit-any
+async function isSuperAdmin(admin: any, userId: string): Promise<boolean> {
+  const { data: roles } = await admin.from("user_roles").select("role").eq("user_id", userId);
+  return (roles ?? []).some((r: { role: string }) => r.role === "super_admin");
 }
 
 serveConMetriche("telnyx-proxy", async (req) => {
@@ -262,6 +269,12 @@ serveConMetriche("telnyx-proxy", async (req) => {
       }
 
       case "list_numbers": {
+        // L'account Telnyx è uno solo per tutta la piattaforma: qui escono i
+        // numeri di TUTTE le aziende. Lo usa solo la prova di connessione delle
+        // impostazioni piattaforma (26/09/2026: prima bastava aver fatto login).
+        if (!isServiceCall && !(userId && await isSuperAdmin(adminClient, userId))) {
+          return json({ error: "Solo il super admin può elencare i numeri della piattaforma." }, 403);
+        }
         const params = new URLSearchParams({ "page[size]": "100" });
         const res = await telnyxFetch(`/phone_numbers?${params}`, "GET", apiKey);
         result = { numbers: res?.data || [] };
@@ -271,19 +284,42 @@ serveConMetriche("telnyx-proxy", async (req) => {
       case "release_number": {
         if (!payload?.phone_number_id) throw new Error("phone_number_id richiesto");
 
-        // Solo l'amministratore, stessa regola dell'acquisto.
-        if (!isServiceCall && userId && !(await isCompanyAdmin(adminClient, userId))) {
-          return json({ error: "Solo un amministratore dell'azienda può rilasciare un numero." }, 403);
+        // Solo l'amministratore DELL'AZIENDA A CUI IL NUMERO APPARTIENE
+        // (26/09/2026). L'account Telnyx è uno per tutta la piattaforma: prima
+        // bastava essere amministratore di un'azienda qualsiasi per rilasciare
+        // il numero di un'altra, conoscendone l'id. Il numero si riconosce dalle
+        // righe che lo registrano (virtual_phone_numbers, ai_agent_phone_numbers).
+        let aziendaDelNumero: string | null = null;
+        if (!isServiceCall) {
+          const [{ data: virtuali }, { data: agenti }] = await Promise.all([
+            adminClient.from("virtual_phone_numbers").select("company_id").eq("telnyx_phone_id", payload.phone_number_id),
+            adminClient.from("ai_agent_phone_numbers").select("company_id").eq("telnyx_phone_id", payload.phone_number_id),
+          ]);
+          const proprietarie = [...new Set(
+            [...(virtuali ?? []), ...(agenti ?? [])]
+              .map((r: { company_id: string | null }) => r.company_id)
+              .filter((c: string | null): c is string => !!c),
+          )];
+          if (proprietarie.length !== 1) {
+            return json({ error: "Numero non trovato fra quelli della tua azienda." }, 404);
+          }
+          aziendaDelNumero = proprietarie[0];
+          if (!userId || !(await amministraAzienda(adminClient, userId, aziendaDelNumero))) {
+            return json({ error: "Solo un amministratore dell'azienda può rilasciare un numero." }, 403);
+          }
         }
 
         await telnyxFetch(`/phone_numbers/${payload.phone_number_id}`, "DELETE", apiKey);
 
-        // Remove from local DB
+        // Remove from local DB (solo le righe dell'azienda del numero, se si sa)
         if (payload.phone_number_id) {
-          await adminClient
+          let cancella = adminClient
             .from("ai_agent_phone_numbers")
             .delete()
             .eq("telnyx_phone_id", payload.phone_number_id);
+          const azienda = aziendaDelNumero ?? companyId;
+          if (azienda) cancella = cancella.eq("company_id", azienda);
+          await cancella;
         }
 
         result = { success: true };

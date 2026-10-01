@@ -1,58 +1,69 @@
-// MP02 — Identity resolution inline (no fetch inter-function, più robusto).
-// Stessa logica di whatsapp-identity-router ma eseguita con supabase client
-// condiviso. whatsapp-identity-router rimane deployata per usi esterni.
+// Chi sta scrivendo al bot operativo (27/09/2026).
+//
+// 1) Dipendente col telefono (employees.phone_whatsapp | phone): se ha un
+//    account, i suoi ruoli in QUESTA azienda decidono operaio/ufficio/admin.
+// 2) Utente dell'app col telefono nel profilo, senza scheda dipendente
+//    (tipico: il titolare, l'impiegata): serve un ruolo interno qui.
+// Prima si cercavano ruoli inesistenti (titolare, admin, proprietario) e un
+// company_admin non veniva mai riconosciuto.
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { ruoliNellAzienda } from "../_shared/amministraAzienda.ts";
+import { ruoloPrincipaleSilvio } from "../_shared/ruoloSilvio.ts";
+import {
+  chiaveTelefono,
+  eUtenteInterno,
+  stessoTelefono,
+  tipoUtenteBot,
+  type TipoUtenteBot,
+} from "../_shared/botOperativoRuoli.ts";
 
 export interface ResolvedIdentity {
   matched: boolean;
-  kind: "operaio" | "titolare" | "admin" | "unknown";
+  kind: TipoUtenteBot | "unknown";
   user_id: string | null;
   employee_id: string | null;
   display_name: string | null;
   role_grants: string[];
+  /** Il ruolo con cui lo trattano gli strumenti di Silvio; null = nessun account. */
+  ruolo_silvio: string | null;
   company_id: string;
   locale: "it" | "en";
 }
 
-const ROLE_GRANTS: Record<string, string[]> = {
-  operaio: [
-    "rapportino.write",
-    "rapportino.read_own",
-    "ddt.write",
-    "foto.write",
-    "presenze.write",
-    "segnalazione.write",
-    "cantieri.list_assigned",
-    "cantieri.read_assigned",
-  ],
-  titolare: [
-    "cantieri.read_all",
-    "cantieri.list_all",
-    "marginalita.read",
-    "fatture.read",
-    "scadenze.read",
-    "costi.read",
-    "rapportini.read_all",
-    "ddt.read_all",
-    "approvazioni.list",
-    "approvazioni.write",
-  ],
-};
+const GRANTS_OPERAIO = [
+  "rapportino.write",
+  "rapportino.read_own",
+  "ddt.write",
+  "foto.write",
+  "presenze.write",
+  "segnalazione.write",
+  "cantieri.list_assigned",
+  "cantieri.read_assigned",
+  "spese.write",
+];
 
-function normalizePhone(phone: string): string {
-  return (phone ?? "").replace(/[^0-9]/g, "");
-}
+const GRANTS_TITOLARE = [
+  "cantieri.read_all",
+  "cantieri.list_all",
+  "marginalita.read",
+  "fatture.read",
+  "scadenze.read",
+  "costi.read",
+  "rapportini.read_all",
+  "ddt.read_all",
+  "approvazioni.list",
+  "approvazioni.write",
+];
 
-function phoneVariants(phone: string): string[] {
-  const n = normalizePhone(phone);
-  if (!n) return [];
-  const variants = new Set<string>([n]);
-  if (n.startsWith("39") && n.length >= 12) variants.add(n.substring(2));
-  if (n.startsWith("0") && n.length > 1) variants.add("39" + n.substring(1));
-  if (n.length === 10) variants.add("39" + n);
-  if (n.startsWith("0039")) variants.add(n.substring(2));
-  return Array.from(variants);
+/** Cose d'ufficio del bot (oltre agli strumenti di Silvio): PDF del preventivo e preventivo col motore listino+manodopera. */
+const GRANTS_UFFICIO = ["preventivi.pdf", "preventivi.ai"];
+
+/** Ufficio e admin fanno anche tutto quello che fa un operaio. */
+function grantsPer(tipo: TipoUtenteBot): string[] {
+  if (tipo === "admin") return [...GRANTS_OPERAIO, ...GRANTS_UFFICIO, ...GRANTS_TITOLARE];
+  if (tipo === "ufficio") return [...GRANTS_OPERAIO, ...GRANTS_UFFICIO];
+  return GRANTS_OPERAIO;
 }
 
 function unknownResult(companyId: string): ResolvedIdentity {
@@ -63,6 +74,31 @@ function unknownResult(companyId: string): ResolvedIdentity {
     employee_id: null,
     display_name: null,
     role_grants: [],
+    ruolo_silvio: null,
+    company_id: companyId,
+    locale: "it",
+  };
+}
+
+function riconosciuto(
+  companyId: string,
+  tipo: TipoUtenteBot,
+  dati: { user_id: string | null; employee_id: string | null; display_name: string; ruoli: string[] },
+): ResolvedIdentity {
+  if (tipo === "admin") {
+    console.warn(
+      "[whatsapp-identity][SECURITY] poteri ADMIN concessi dal numero di telefono",
+      JSON.stringify({ company_id: companyId, user_id: dati.user_id, employee_id: dati.employee_id }),
+    );
+  }
+  return {
+    matched: true,
+    kind: tipo,
+    user_id: dati.user_id,
+    employee_id: dati.employee_id,
+    display_name: dati.display_name,
+    role_grants: grantsPer(tipo),
+    ruolo_silvio: dati.ruoli.length > 0 ? ruoloPrincipaleSilvio(dati.ruoli) : null,
     company_id: companyId,
     locale: "it",
   };
@@ -73,104 +109,44 @@ export async function resolveIdentity(
   fromPhone: string,
   companyId: string,
 ): Promise<ResolvedIdentity> {
-  const variants = phoneVariants(fromPhone);
-  if (variants.length === 0) return unknownResult(companyId);
+  if (!chiaveTelefono(fromPhone)) return unknownResult(companyId);
 
-  // Step 1: employees by phone_whatsapp | phone
+  // 1) Dipendente col telefono.
   const { data: employees } = await supabase
     .from("employees")
-    .select("id, user_id, first_name, last_name, role_type, phone_whatsapp, phone, is_active")
+    .select("id, user_id, first_name, last_name, phone_whatsapp, phone")
     .eq("company_id", companyId)
     .eq("is_active", true);
-
-  const matchEmp = (employees ?? []).find((e) => {
-    for (const f of [e.phone_whatsapp, e.phone]) {
-      const norm = normalizePhone(f ?? "");
-      if (norm && variants.includes(norm)) return true;
-    }
-    return false;
-  });
-
-  if (matchEmp) {
-    const ruolo = (matchEmp.role_type ?? "").toLowerCase();
-    const isAdmin = ["titolare", "admin", "proprietario", "amministratore"].includes(ruolo);
-    const kind: "operaio" | "admin" = isAdmin ? "admin" : "operaio";
-    const grants = isAdmin
-      ? [...ROLE_GRANTS.titolare, "users.manage", "company.manage"]
-      : ROLE_GRANTS.operaio;
-    const displayName = `${matchEmp.first_name ?? ""} ${matchEmp.last_name ?? ""}`.trim() ||
-      "Operaio";
-
-    if (isAdmin) {
-      console.warn("[whatsapp-identity][SECURITY] poteri ADMIN concessi via match-telefono SENZA verifica OTP (dipendente)",
-        JSON.stringify({ company_id: companyId, user_id: matchEmp.user_id, employee_id: matchEmp.id }));
-    }
-
-    return {
-      matched: true,
-      kind,
-      user_id: matchEmp.user_id,
-      employee_id: matchEmp.id,
-      display_name: displayName,
-      role_grants: grants,
-      company_id: companyId,
-      locale: "it",
-    };
+  const dip = (employees ?? []).find((e) =>
+    stessoTelefono(e.phone_whatsapp, fromPhone) || stessoTelefono(e.phone, fromPhone)
+  );
+  if (dip) {
+    const ruoli = dip.user_id ? await ruoliNellAzienda(supabase, dip.user_id, companyId) : [];
+    return riconosciuto(companyId, tipoUtenteBot(ruoli, !!dip.user_id), {
+      user_id: dip.user_id,
+      employee_id: dip.id,
+      display_name: `${dip.first_name ?? ""} ${dip.last_name ?? ""}`.trim() || "Operaio",
+      ruoli,
+    });
   }
 
-  // Step 2: profiles (titolare/admin)
-  const { data: profiles } = await supabase
+  // 2) Utente dell'app col telefono nel profilo (i clienti hanno un profilo
+  //    anche loro: senza un ruolo interno qui non entrano).
+  const { data: profili } = await supabase
     .from("profiles")
     .select("id, phone, first_name, last_name, full_name")
-    .eq("company_id", companyId);
-
-  if (profiles && profiles.length > 0) {
-    const matchProfile = profiles.find((p) => {
-      const norm = normalizePhone(p.phone ?? "");
-      return norm && variants.includes(norm);
-    });
-
-    if (matchProfile) {
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", matchProfile.id);
-
-      const roleList = (roles ?? []).map((r) => String(r.role).toLowerCase());
-      const isTitolare = roleList.some((r) =>
-        ["titolare", "admin", "super_admin", "proprietario"].includes(r)
-      );
-
-      if (isTitolare) {
-        const kind: "titolare" | "admin" = roleList.includes("super_admin") ||
-          roleList.includes("admin")
-          ? "admin"
-          : "titolare";
-
-        const displayName = matchProfile.full_name ||
-          `${matchProfile.first_name ?? ""} ${matchProfile.last_name ?? ""}`.trim() ||
-          "Titolare";
-
-        const grants = kind === "admin"
-          ? [...ROLE_GRANTS.titolare, "users.manage", "company.manage"]
-          : ROLE_GRANTS.titolare;
-
-        if (kind === "admin") {
-          console.warn("[whatsapp-identity][SECURITY] poteri ADMIN concessi via match-telefono SENZA verifica OTP (profilo)",
-            JSON.stringify({ company_id: companyId, user_id: matchProfile.id }));
-        }
-
-        return {
-          matched: true,
-          kind,
-          user_id: matchProfile.id,
-          employee_id: null,
-          display_name: displayName,
-          role_grants: grants,
-          company_id: companyId,
-          locale: "it",
-        };
-      }
+    .eq("company_id", companyId)
+    .not("phone", "is", null);
+  const prof = (profili ?? []).find((p) => stessoTelefono(p.phone, fromPhone));
+  if (prof) {
+    const ruoli = await ruoliNellAzienda(supabase, prof.id, companyId);
+    if (eUtenteInterno(ruoli)) {
+      return riconosciuto(companyId, tipoUtenteBot(ruoli, true), {
+        user_id: prof.id,
+        employee_id: null,
+        display_name: prof.full_name || `${prof.first_name ?? ""} ${prof.last_name ?? ""}`.trim() || "Utente",
+        ruoli,
+      });
     }
   }
 

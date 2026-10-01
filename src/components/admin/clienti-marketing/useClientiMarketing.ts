@@ -22,20 +22,49 @@ const NUMERICI: Array<keyof ClienteMarketing> = [
 ];
 const NUMERICI_O_NULL: Array<keyof ClienteMarketing> = ["ore_mediane_primo_contatto", "fatturato_mese", "fatturato_prec", "mese_dovuto", "mese_incassato", "giorni_senza_lead"];
 
-export function useClientiMarketing(mese: string, enabled = true) {
+/** Un intervallo di giorni [da, a] inclusi (ISO YYYY-MM-DD), per la vista «oggi/ieri/fascia». */
+export interface PeriodoRange {
+  da: string;
+  a: string;
+}
+
+/**
+ * Il riepilogo per cliente. Senza `periodo` è la vista mensile di sempre; con un
+ * `periodo` la stessa RPC risponde sui giorni scelti (p_da/p_a): stessi campi, ma
+ * lead/appuntamenti/vendite/spesa del solo intervallo (la spesa Meta arriva dal
+ * registro giornaliero). Il mese resta la chiave di base per costi e provvigioni.
+ */
+export function useClientiMarketing(mese: string, enabled = true, periodo?: PeriodoRange | null) {
+  const da = periodo?.da ?? null;
+  const a = periodo?.a ?? null;
   return useQuery({
-    queryKey: ["clienti-marketing", "riepilogo", mese],
+    queryKey: ["clienti-marketing", "riepilogo", mese, da, a],
     enabled,
     staleTime: 60_000,
     placeholderData: keepPreviousData,
     queryFn: async () => {
-      const { data, error } = await db.rpc("admin_clienti_marketing_riepilogo", { p_mese: mese });
-      if (error) throw error;
-      return ((data ?? []) as Array<Record<string, unknown>>).map((r) => {
+      // Il riepilogo e la divisione della spesa Meta per obiettivo (conversione
+      // vs traffico/interazioni/notorietà), sulla stessa finestra, in parallelo.
+      const [ric, spl] = await Promise.all([
+        db.rpc("admin_clienti_marketing_riepilogo", { p_mese: mese, p_da: da, p_a: a }),
+        db.rpc("admin_clienti_marketing_spesa_obiettivo", { p_mese: mese, p_da: da, p_a: a }),
+      ]);
+      if (ric.error) throw ric.error;
+      // La divisione è un di più: se la sua RPC fallisce la console resta in piedi
+      // con la spesa totale (conversione/altro a zero).
+      const perObiettivo = new Map<string, { conversione: number; altro: number; non: number }>();
+      for (const s of (spl.data ?? []) as Array<Record<string, unknown>>) {
+        perObiettivo.set(String(s.company_id), { conversione: n(s.spesa_conversione), altro: n(s.spesa_altro), non: n(s.spesa_non_classificata) });
+      }
+      return ((ric.data ?? []) as Array<Record<string, unknown>>).map((r) => {
         const out = { ...r } as Record<string, unknown>;
         for (const k of NUMERICI) out[k] = n(r[k]);
         for (const k of NUMERICI_O_NULL) out[k] = r[k] == null ? null : n(r[k]);
         out.lead_giorni = Array.isArray(r.lead_giorni) ? (r.lead_giorni as unknown[]).map(n) : [];
+        const o = perObiettivo.get(String(r.company_id));
+        out.spesa_meta_conversione = o?.conversione ?? 0;
+        out.spesa_meta_altro = o?.altro ?? 0;
+        out.spesa_meta_non_classificata = o?.non ?? 0;
         return out as unknown as ClienteMarketing;
       });
     },

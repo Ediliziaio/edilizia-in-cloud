@@ -82,12 +82,13 @@ describe("Preflight rapportino con API simulate e filtri aziendali", () => {
     expect(mocks.from).not.toHaveBeenCalledWith("contratti_subappalto");
   });
   it("riconosce il subappaltatore con contratto attivo sulla stessa commessa", async () => {
-    const q = arrange({ subappaltatori: { data: [{ id: "s" }, { id: "s2" }] }, contratti_subappalto: { data: { id: "contract" } } });
+    const q = arrange({ subappaltatori: { data: [{ id: "s" }, { id: "s2" }] }, subappaltatori_sicurezza: { data: [{ id: "ss" }, { id: "ss2" }] }, contratti_subappalto: { data: { id: "contract" } } });
     expect(await hasRapportinoAssignment("o", "u", "c")).toBe(true);
     expect(q.contratti_subappalto.eq).toHaveBeenCalledWith("order_id", "o");
     expect(q.contratti_subappalto.eq).toHaveBeenCalledWith("company_id", "c");
     expect(q.contratti_subappalto.eq).toHaveBeenCalledWith("stato", "attivo");
-    expect(q.contratti_subappalto.in).toHaveBeenCalledWith("subappaltatore_id", ["s", "s2"]);
+    expect(q.subappaltatori_sicurezza.in).toHaveBeenCalledWith("campo_subappaltatore_id", ["s", "s2"]);
+    expect(q.contratti_subappalto.in).toHaveBeenCalledWith("subappaltatore_id", ["ss", "ss2"]);
     expect(q.subappaltatori.eq).toHaveBeenCalledWith("user_id", "u");
   });
   it("non basta la sola anagrafica del subappaltatore", async () => {
@@ -98,8 +99,8 @@ describe("Preflight rapportino con API simulate e filtri aziendali", () => {
     arrange({ subappaltatori: { data: [] } });
     expect(await hasRapportinoAssignment("o", "u", "c")).toBe(false);
   });
-  it.each(["order_campo_assignments", "employees", "subappaltatori", "contratti_subappalto"])("non ignora errori su %s", async table => {
-    arrange({ subappaltatori: { data: [{ id: "s" }] }, [table]: { data: null, error: new Error("policy/network") } });
+  it.each(["order_campo_assignments", "employees", "subappaltatori", "subappaltatori_sicurezza", "contratti_subappalto"])("non ignora errori su %s", async table => {
+    arrange({ subappaltatori: { data: [{ id: "s" }] }, subappaltatori_sicurezza: { data: [{ id: "ss" }] }, [table]: { data: null, error: new Error("policy/network") } });
     await expect(hasRapportinoAssignment("o", "u", "c")).rejects.toThrow("policy/network");
   });
 });

@@ -9,9 +9,10 @@ import { riparazioniContent } from "./fullRiparazioniModule";
 import { isolamentoContent } from "./fullIsolamentoModule";
 import { impermeabilizzazioneContent } from "./fullImpermeabilizzazioneModule";
 import { lattoneriaContent } from "./fullLattoneriaModule";
+import { amiantoContent, lineaVitaContent, lucernariContent } from "./fullTettiExtra";
 
 /** Full editions keep the original DocumentoEdilePDF and the original area editor. */
-export const FULL_TETTI_MODULES: readonly TettiTemplateModuleId[] = ["rifacimento", "ripasso", "riparazioni", "isolamento", "impermeabilizzazione", "lattoneria"];
+export const FULL_TETTI_MODULES: readonly TettiTemplateModuleId[] = ["rifacimento", "ripasso", "riparazioni", "isolamento", "impermeabilizzazione", "lattoneria", "amianto", "linea-vita", "lucernari"];
 export const isFullTettiTemplate = (template: TetTemplatePdf) => template.pdf_blocchi?.modulo_edizione === 2;
 type Entry = readonly [string, string];
 const entries = (values: readonly Entry[]): TetListItem[] => values.map(([titolo, descrizione]) => ({ titolo, descrizione }));
@@ -33,6 +34,9 @@ export function createFullTettiTemplate(base: TetTemplatePdf, id: TettiTemplateM
   if (id === "isolamento") return completeTettiEdition(seed, base, isolamentoContent);
   if (id === "impermeabilizzazione") return completeTettiEdition(seed, base, impermeabilizzazioneContent);
   if (id === "lattoneria") return completeTettiEdition(seed, base, lattoneriaContent);
+  if (id === "amianto") return completeTettiEdition(seed, base, amiantoContent);
+  if (id === "linea-vita") return completeTettiEdition(seed, base, lineaVitaContent);
+  if (id === "lucernari") return completeTettiEdition(seed, base, lucernariContent);
   if (id !== "ripasso") return seed;
   const template: TetTemplatePdf = {
     ...seed,

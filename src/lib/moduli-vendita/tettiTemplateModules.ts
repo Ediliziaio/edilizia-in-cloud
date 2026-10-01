@@ -64,6 +64,36 @@ export const TETTI_TEMPLATE_MODULES = [
     question: "Materiale e colore si possono scegliere?", answer: "Sì, tra le soluzioni compatibili con progetto, vincoli e disponibilità. Materiale, finitura e sezioni devono essere indicati nell'offerta prima della conferma.",
     quantities: [30, 30, 18, 12], prices: [8, 38, 32, 36], units: ["ml", "ml", "ml", "ml"],
   },
+  {
+    id: "amianto", title: "Bonifica amianto", subtitle: "Rimozione o incapsulamento in sicurezza, con le carte in regola.",
+    summary: "Valutazione, piano di lavoro all'ASL, bonifica e smaltimento tracciato.",
+    needs: ["Valutare lo stato del cemento-amianto", "Scegliere tra rimozione e incapsulamento", "Rispettare la procedura e i tempi previsti"],
+    works: ["Valutazione dello stato e piano di lavoro", "Allestimento e messa in sicurezza dell'area", "Rimozione o incapsulamento delle lastre", "Imballaggio, trasporto e smaltimento tracciato"],
+    excluded: "La nuova copertura o sovracopertura, le pratiche per gli incentivi e le opere non descritte richiedono voci separate.",
+    check: "Superfici bonificate, imballo sigillato, formulario e certificazione di avvenuto smaltimento.",
+    question: "Posso rimuovere l'amianto da solo?", answer: "No, salvo i casi molto limitati previsti dalla normativa: la bonifica di una copertura la esegue una ditta abilitata, con un piano di lavoro trasmesso all'ASL prima di iniziare. È una tutela per la salute, non una formalità.",
+    quantities: [1, 120, 120, 120], prices: [350, 8, 22, 14], units: ["corpo", "mq", "mq", "mq"],
+  },
+  {
+    id: "linea-vita", title: "Linea vita e anticaduta", subtitle: "Ancoraggi e percorsi certificati per salire sul tetto in sicurezza.",
+    summary: "Progetto, ancoraggi certificati, posa e documentazione per chi salirà.",
+    needs: ["Rendere la copertura raggiungibile in sicurezza", "Progettare ancoraggi e percorsi", "Verificare la struttura di fissaggio"],
+    works: ["Progetto del sistema anticaduta (tecnico)", "Posa degli ancoraggi sulla struttura", "Realizzazione delle linee e dei percorsi", "Verifiche, elaborato e istruzioni d'uso"],
+    excluded: "Le verifiche periodiche successive, i rinforzi strutturali e le opere non elencate richiedono voci separate.",
+    check: "Tenuta e fissaggio degli ancoraggi, raccordi impermeabili e documentazione del sistema.",
+    question: "La linea vita è obbligatoria?", answer: "In molte situazioni è richiesta per accedere in sicurezza alla copertura, e alcune regioni la chiedono per gli interventi sul tetto. Le regole in vigore, che variano sul territorio, si verificano prima.",
+    quantities: [1, 6, 20, 1], prices: [450, 120, 22, 250], units: ["corpo", "cad", "ml", "corpo"],
+  },
+  {
+    id: "lucernari", title: "Lucernari e finestre da tetto", subtitle: "Luce dall'alto con raccordi a tenuta, senza infiltrazioni.",
+    summary: "Apertura del manto, posa, raccordi impermeabili e finiture interne.",
+    needs: ["Portare luce dove una finestra a parete non arriva", "Aprire il manto senza infiltrazioni", "Scegliere apertura e oscuramento"],
+    works: ["Apertura del manto nei punti previsti", "Fornitura e posa delle finestre da tetto", "Raccordi impermeabili e scossaline", "Finitura degli sguinci interni"],
+    excluded: "Le modifiche strutturali dell'orditura, le autorizzazioni e le opere non elencate richiedono voci separate.",
+    check: "Tenuta delle scossaline, funzionamento di apertura e oscuranti, finitura degli sguinci.",
+    question: "Non farà entrare acqua?", answer: "Non se i raccordi sono fatti bene: le scossaline attorno alla finestra, adatte al tipo di manto, sono ciò che tiene fuori l'acqua. È la parte più importante del lavoro.",
+    quantities: [3, 3, 3, 12], prices: [180, 520, 140, 28], units: ["cad", "cad", "cad", "ml"],
+  },
 ] as const;
 
 export type TettiTemplateModuleId = typeof TETTI_TEMPLATE_MODULES[number]["id"];

@@ -26,6 +26,22 @@ export const AREA_DESIGN: Record<
     scope:
       "Ogni ambiente e ogni lavorazione inclusa devono comparire nel computo.",
   },
+  "pareti-soffitti": {
+    color: "#4a4a52",
+    intro: "Pareti e soffitti curati: colore, materia e superfici sane.",
+    checks:
+      "Stato del fondo, umidità visibile, superfici comprese e protezioni.",
+    scope:
+      "Le superfici e le lavorazioni comprese sono quelle indicate in metri quadri nel computo.",
+  },
+  pergole: {
+    color: "#4d5b47",
+    intro: "Ombra, riparo e spazi esterni vivibili tutto l'anno.",
+    checks:
+      "Spazio, appoggi, esposizione al vento e scarico dell'acqua.",
+    scope:
+      "Struttura, copertura e accessori sono quelli del computo. Pratiche e opere edili restano a parte se non elencate.",
+  },
   bagni: {
     color: "#6b5546",
     intro: "Il tuo bagno, con scelte coordinate e un perimetro chiaro.",
@@ -78,6 +94,13 @@ export const AREA_DESIGN: Record<
     scope:
       "Dimensioni, dotazioni e opere esterne devono essere descritte separatamente.",
   },
+  giardini: {
+    color: "#3f6d43",
+    intro: "Verde, acqua e confini curati per gli spazi esterni.",
+    checks: "Terreno, drenaggio, esposizione, confine e accessi reali.",
+    scope:
+      "Prato, essenze, impianti e recinzioni sono inclusi solo nelle aree e nelle quantità indicate.",
+  },
   facciate: {
     color: "#71604a",
     intro: "Protezione e carattere per l'involucro dell'edificio.",
@@ -100,6 +123,40 @@ export const INTERVENTION_LIMITS: Record<string, string> = {
     "Non si presume che una parete sia demolibile: le verifiche sul progetto precedono la definizione delle opere.",
   "ristrutturazioni/computo":
     "Fa fede l'elenco delle voci con quantità e unità di misura. Le opere non descritte non sono automaticamente incluse.",
+  "ristrutturazioni/cucina":
+    "Mobili ed elettrodomestici sono esclusi se non elencati: si predispongono gli attacchi. Spostare finestre o muri è una valutazione separata.",
+  "ristrutturazioni/sottotetto":
+    "L'abitabilità dipende da altezze e regole del Comune, verificate prima. Incarico tecnico, calcoli sui carichi e pratiche sono a parte.",
+  "ristrutturazioni/aperture-portanti":
+    "Calcoli, progetto strutturale e pratica sono di un tecnico incaricato, a parte. L'esecuzione segue il progetto; infissi e finiture nell'apertura sono esclusi se non elencati.",
+  "ristrutturazioni/condominio":
+    "Delibere e ripartizione tra condòmini sono del condominio. Facciata esterna e impianti comuni sono a parte se non elencati.",
+  "ristrutturazioni/montascale":
+    "Opere edili (fosse, appoggi), pratiche e verifiche per le detrazioni sono a parte. La fattibilità dipende dalla scala reale, verificata al sopralluogo.",
+  "pareti-soffitti/tinteggiatura-interna":
+    "Il prezzo riguarda le superfici indicate in metri quadri. Stuccature, carteggiature e mani di fondo sono comprese solo dove elencate.",
+  "pareti-soffitti/carta-da-parati":
+    "La carta segue il fondo: rasature e preparazioni del muro sono comprese solo se computate. Metratura e sfrido dipendono dal disegno scelto.",
+  "pareti-soffitti/cartongesso":
+    "Il cablaggio elettrico, l'idraulica e la tinteggiatura sono esclusi se non elencati. I carichi da appendere vanno indicati per predisporre i rinforzi.",
+  "pareti-soffitti/controsoffitti":
+    "Corpi illuminanti e impianti a monte sono esclusi se non computati: qui si predispone la sede. L'abbassamento riduce l'altezza della stanza.",
+  "pareti-soffitti/decorativi":
+    "L'effetto approvato su campione è il riferimento. Piccole variazioni sono proprie di una finitura a mano. Risanamenti del fondo restano a parte.",
+  "pareti-soffitti/umidita":
+    "Si tratta la causa prima della finitura. Riparazioni esterne, barriere alla risalita e drenaggi sono interventi separati. Alcuni risultati dipendono dall'uso.",
+  "pareti-soffitti/acustica":
+    "L'isolamento attenua, non azzera, e agisce sulla via del rumore indicata. Interventi sulla sorgente (pavimento di sopra, impianti) sono a parte.",
+  "pergole/pergola-bioclimatica":
+    "Struttura, motori e accessori sono quelli del computo. Autorizzazioni, fondazioni e opere murarie restano a parte. Vento e neve hanno limiti dichiarati dal produttore.",
+  "pergole/pergola-telo":
+    "Struttura e telo sono quelli elencati. Con vento forte il telo va chiuso. Pratiche e opere edili sono a parte se non computate.",
+  "pergole/tende-sole":
+    "Le tende sono quelle delle aperture indicate. I fissaggi si scelgono sul supporto reale, cappotto compreso. Autorizzazioni condominiali e rinforzi sono a parte.",
+  "pergole/vetrate":
+    "Chiudere un balcone può incidere su volumi e pratiche: si verifica sul caso e sul Comune. Autorizzazioni e incarichi tecnici sono a parte se non elencati.",
+  "pergole/carport":
+    "Struttura, copertura e fondazioni sono quelle del computo. Permessi, calcoli e pavimentazioni restano a parte. Carichi di vento e neve sono dichiarati.",
   "bagni/completo":
     "Spostamenti degli impianti fuori dal bagno, porte e arredi non elencati richiedono una voce separata.",
   "bagni/vasca-doccia":
@@ -154,6 +211,12 @@ export const INTERVENTION_LIMITS: Record<string, string> = {
     "Il contributo del GSE è stimato: l'importo definitivo lo stabilisce il GSE. Distribuzione, terminali e opere non elencate sono esclusi.",
   "termoidraulica/full-electric":
     "Produzione, consumi e risparmi sono stime; gli incentivi dipendono dai requisiti. Opere, aumenti di potenza e adeguamenti non elencati sono esclusi.",
+  "termoidraulica/pellet":
+    "Lo scarico dei fumi va realizzato secondo le regole in vigore. Una stufa ad aria non scalda i termosifoni; canna fumaria e presa d'aria si verificano sul posto.",
+  "termoidraulica/solare-termico":
+    "Il solare copre parte del fabbisogno: in inverno serve l'integrazione del generatore. Resa ed esposizione si verificano; nessun risparmio è garantito dal solo impianto.",
+  "termoidraulica/trattamento-acqua":
+    "Il trattamento migliora aspetti specifici dell'acqua, non la rende di per sé potabile. Analisi, scarico della rigenerazione e alimentazione si verificano prima.",
   "elettrico/completo":
     "Opere murarie, finiture, impianti speciali e apparecchi illuminanti devono essere esplicitamente elencati.",
   "elettrico/adeguamento":
@@ -168,6 +231,14 @@ export const INTERVENTION_LIMITS: Record<string, string> = {
     "Riutilizzo dei cablaggi e compatibilità con accessi esistenti vanno verificati. Le opere sulle parti comuni sono da concordare.",
   "elettrico/ricarica":
     "Potenza disponibile, gestione carichi e percorso della linea precedono la scelta. Aumenti di potenza non sono automaticamente inclusi.",
+  "elettrico/antifurto":
+    "La videosorveglianza comporta obblighi su informativa, segnaletica e aree riprese, da verificare. Canoni, cloud e collegamento a vigilanza non sono inclusi salvo voce esplicita.",
+  "elettrico/illuminazione":
+    "Predisporre un punto luce e fornire l'apparecchio sono voci distinte. Resa e temperatura di colore dipendono dagli apparecchi scelti, non dalle foto.",
+  "elettrico/automazioni":
+    "Le protezioni del movimento vanno previste secondo le regole in vigore. Struttura del cancello, opere murarie e videocitofonia sono a parte salvo voce esplicita.",
+  "elettrico/rete-dati":
+    "La copertura Wi-Fi dipende da muri, apparati e dispositivi, non dal solo numero di prese. Apparati del gestore e access point sono a parte salvo voce esplicita.",
   "pavimenti/sovrapposizione":
     "La posa è subordinata alla compatibilità del supporto. Rettifiche di porte, soglie e quote vanno valutate.",
   "pavimenti/rifacimento":
@@ -180,6 +251,20 @@ export const INTERVENTION_LIMITS: Record<string, string> = {
     "Preparazione e impermeabilizzazione del supporto non sono comprese nella sola posa se non indicate.",
   "pavimenti/esterni":
     "Pendenze, drenaggi e resistenza del sottofondo vanno verificati. Non basta scegliere un materiale per esterno.",
+  "pavimenti/posa-parquet":
+    "Il fondo va verificato per planarità e umidità; incollato o flottante sono soluzioni diverse. Il legno lavora: i giunti di dilatazione sono necessari, non un optional.",
+  "pavimenti/scale":
+    "Pedate e alzate si rilevano gradino per gradino: raramente sono identiche. Struttura, corrimano e parapetti sono a parte salvo voce esplicita.",
+  "pavimenti/levigatura":
+    "Il risultato dipende dallo stato del materiale: macchie penetrate e dislivelli possono restare. Marmo e cotto hanno cicli diversi; si valuta su zona campione.",
+  "giardini/giardino":
+    "Terreno, drenaggio ed esposizione decidono prato ed essenze. Le piante sono vive: l'attecchimento non è garantito al 100% e dipende da stagione e cure.",
+  "giardini/verde":
+    "Interventi e frequenze si concordano prima. Potature in quota, abbattimenti e trattamenti fitosanitari sono a parte e a volte richiedono figure abilitate.",
+  "giardini/irrigazione":
+    "Portata e pressione al contatore dimensionano i settori. Nuovo allaccio, dispositivi di non ritorno e opere elettriche sono a parte, secondo le regole in vigore.",
+  "giardini/recinzioni":
+    "Il confine e le quote del terreno si verificano sul posto. Pratiche edilizie, automazione del cancello e opere elettriche sono a parte, secondo le regole in vigore.",
   "piscine/nuova":
     "Indagini sul terreno, opere esterne e allacci devono essere definiti. Dimensioni e dotazioni non si desumono dall'immagine.",
   "piscine/ristrutturazione":
@@ -204,6 +289,12 @@ export const INTERVENTION_LIMITS: Record<string, string> = {
     "Raccordi e gestione dell'umidità richiedono valutazione progettuale; lo spessore riduce lo spazio disponibile.",
   "facciate/riparazioni":
     "Le riparazioni riguardano le zone delimitate. Uniformità cromatica con le parti esistenti e difetti nascosti vanno valutati.",
+  "facciate/ventilata":
+    "Il supporto deve reggere gli ancoraggi della sottostruttura. Prestazioni e classe energetica dipendono dal progetto, non sono garantite.",
+  "facciate/pietra":
+    "Il supporto deve reggere il peso del rivestimento; posa incollata o ancorata secondo il materiale. Venature e tono della pietra variano.",
+  "facciate/pulizia":
+    "Il metodo si sceglie su sporco e materiale reali, con prova su zona campione. La protezione rallenta il ritorno di alghe e depositi, non lo elimina.",
 };
 
 export interface ModulePage {
@@ -241,6 +332,8 @@ export function documentImage(area: string, module: string) {
     return `/module-art/${area}-${module}.jpg`;
   if (area === "facciate" && module === "interno")
     return areaImage("ristrutturazioni");
+  if (area === "pareti-soffitti" || area === "pergole") return areaImage("ristrutturazioni");
+  if (area === "giardini") return "/module-art/pavimenti-esterni.jpg";
   return areaImage(area);
 }
 export function createModuleDocument(

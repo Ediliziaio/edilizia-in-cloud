@@ -13,6 +13,7 @@
  *                       proprio open state via prop `open`/`onOpenChange`)
  */
 import type React from "react";
+import { Sparkles } from "lucide-react";
 import {
   BrandIconShell,
   GoogleAdsLogo,
@@ -22,7 +23,13 @@ import {
   EmailLogo,
 } from "./brand-logos";
 
+/** Logo del connettore assistente AI (Claude · ChatGPT). */
+function AssistenteAiLogo({ className }: { className?: string }) {
+  return <Sparkles className={className} />;
+}
+
 export type IntegrationCategory =
+  | "ai"
   | "comunicazione"
   | "calendari"
   | "marketing"
@@ -31,6 +38,7 @@ export type IntegrationCategory =
 
 export const CATEGORY_LABELS: Record<IntegrationCategory | "tutte", string> = {
   tutte: "Tutte",
+  ai: "Assistenti AI",
   comunicazione: "Comunicazione",
   calendari: "Calendari",
   marketing: "Marketing & Ads",
@@ -40,6 +48,7 @@ export const CATEGORY_LABELS: Record<IntegrationCategory | "tutte", string> = {
 
 export const CATEGORY_ORDER: Array<IntegrationCategory | "tutte"> = [
   "tutte",
+  "ai",
   "comunicazione",
   "calendari",
   "marketing",
@@ -113,6 +122,18 @@ export function renderLogo(
  * tramite la mappa `INTEGRATIONS_POPUP_REGISTRY` definita più sotto.
  */
 export const INTEGRATIONS_CATALOG: IntegrationItem[] = [
+  {
+    id: "assistente-ai",
+    name: "Claude · ChatGPT",
+    description:
+      "Collega il gestionale al tuo assistente AI: fa domande sui tuoi dati, li estrae e — se vuoi — crea contatti, opportunità e attività. Solo sulla tua azienda.",
+    category: "ai",
+    Logo: AssistenteAiLogo,
+    gestisciMode: "popup",
+    pageHref: "/azienda/impostazioni/api",
+    connectCtaLabel: "Collega",
+    manageCtaLabel: "Gestisci",
+  },
   {
     id: "whatsapp",
     name: "WhatsApp Business + Bot AI",

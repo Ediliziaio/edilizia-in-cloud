@@ -62,6 +62,7 @@ export const TIPO_INTERVENTO_DEL_MODELLO: Record<ModuloConModelli, Readonly<Reco
   elettrico: {
     completo: "nuovo_impianto", adeguamento: "adeguamento_norma", punti: "ampliamento", quadro: "adeguamento_norma",
     domotica: "domotica", videocitofonia: "ampliamento", ricarica: "ampliamento",
+    antifurto: "ampliamento", illuminazione: "ampliamento", automazioni: "domotica", "rete-dati": "ampliamento",
   },
   termoidraulico: {
     caldaia: "sostituzione_generatore", "pompa-calore": "sostituzione_generatore", ibrido: "sostituzione_generatore",
@@ -69,10 +70,13 @@ export const TIPO_INTERVENTO_DEL_MODELLO: Record<ModuloConModelli, Readonly<Reco
     "acqua-calda": "sostituzione_generatore", manutenzione: "manutenzione_straordinaria",
     "conto-termico": "sostituzione_generatore",
     "full-electric": "sostituzione_generatore",
+    pellet: "sostituzione_generatore", "solare-termico": "ampliamento", "trattamento-acqua": "ampliamento",
   },
   pavimenti: {
     sovrapposizione: "sovrapposizione", rifacimento: "rifacimento", resina: "resina_microcemento",
     parquet: "levigatura_lucidatura", pareti: "nuova_posa", esterni: "nuova_posa",
+    "posa-parquet": "nuova_posa", scale: "nuova_posa", levigatura: "levigatura_lucidatura",
+    giardino: "nuova_posa", verde: "manutenzione", irrigazione: "nuova_posa", recinzioni: "nuova_posa",
   },
   piscine: {
     nuova: "nuova_costruzione", ristrutturazione: "ristrutturazione", rivestimento: "ristrutturazione",
@@ -81,12 +85,25 @@ export const TIPO_INTERVENTO_DEL_MODELLO: Record<ModuloConModelli, Readonly<Reco
   ristrutturazione: {
     completa: "ristrutturazione_completa", parziale: "ristrutturazione_parziale", commerciale: "ristrutturazione_completa",
     spazi: "ristrutturazione_parziale", computo: "altro",
+    cucina: "ristrutturazione_parziale", sottotetto: "ristrutturazione_completa", "aperture-portanti": "ristrutturazione_parziale", condominio: "ristrutturazione_completa", montascale: "ristrutturazione_parziale",
+    "tinteggiatura-interna": "ristrutturazione_parziale", "carta-da-parati": "ristrutturazione_parziale",
+    cartongesso: "ristrutturazione_parziale", controsoffitti: "ristrutturazione_parziale",
+    decorativi: "ristrutturazione_parziale", umidita: "ristrutturazione_parziale", acustica: "ristrutturazione_parziale",
+    "pergola-bioclimatica": "ristrutturazione_parziale", "pergola-telo": "ristrutturazione_parziale", "tende-sole": "ristrutturazione_parziale",
+    vetrate: "ristrutturazione_parziale", carport: "ristrutturazione_parziale",
+    cappotto: "efficientamento_energetico", rifacimento: "manutenzione_straordinaria", balconi: "manutenzione_straordinaria",
+    tinteggiatura: "manutenzione_straordinaria", interno: "efficientamento_energetico", riparazioni: "manutenzione_straordinaria",
+    ventilata: "efficientamento_energetico", pietra: "manutenzione_straordinaria", pulizia: "manutenzione_straordinaria",
   },
 };
 
-/** Gli interventi della libreria per un preventivatore (Impostazioni → Moduli vendita). */
+/**
+ * Gli interventi della libreria per un preventivatore (Impostazioni → Moduli vendita).
+ * Un preventivatore può ospitare più aree (es. Ristrutturazioni + Pareti e soffitti +
+ * Pergole): si prendono gli interventi di TUTTE le aree con quel sourceModule.
+ */
 export function interventiDelModulo(modulo: ModuloConModelloPreventivo): readonly SalesIntervention[] {
-  return SALES_AREAS.find((area) => area.sourceModule === modulo)?.interventions ?? [];
+  return SALES_AREAS.filter((area) => area.sourceModule === modulo).flatMap((area) => area.interventions);
 }
 
 /** L'intervento richiesto (?modello=…) o salvato nel preventivo; undefined se non esiste. */

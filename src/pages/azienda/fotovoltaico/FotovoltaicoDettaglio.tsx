@@ -41,6 +41,7 @@ import {
 import { FvCard, FvKpi, FvChip, FvCallout } from "@/lib/fotovoltaico/wizardUI";
 import { importoPreventivoFv, type ImportoPreventivoFvInput } from "@/lib/fotovoltaico/importoPreventivo";
 import { stampaPreventivoNativo } from "@/lib/fotovoltaico/htmlToPdf";
+import { costruisciPagineSchedeTecniche, inserisciPagineSchede } from "@/lib/fotovoltaico/schedeTecnichePreventivo";
 import {
   SendSignatureDialog,
   type SendSignatureResult,
@@ -207,7 +208,16 @@ export default function FotovoltaicoDettaglio() {
       const res = await fetch(data.signedUrl);
       if (!res.ok) throw new Error("Recupero preventivo fallito.");
       const html = await res.text();
-      await stampaPreventivoNativo(html, `Preventivo-${progetto?.numero ?? "FV"}`);
+      // Schede tecniche AUTORIZZATE dei prodotti usati → pagine A4 intere, subito
+      // prima delle condizioni contrattuali. Se falliscono (scheda irraggiungibile,
+      // nessuna autorizzata…) si stampa comunque il preventivo, senza allegati.
+      let finale = html;
+      try {
+        const articoloIds = (componenti ?? []).map((c) => (c as { articolo_id?: string | null }).articolo_id);
+        const pagineSchede = await costruisciPagineSchedeTecniche(articoloIds);
+        finale = inserisciPagineSchede(html, pagineSchede);
+      } catch { /* allegati non disponibili: preventivo senza schede */ }
+      await stampaPreventivoNativo(finale, `Preventivo-${progetto?.numero ?? "FV"}`);
       toast.success(
         "Nella finestra di stampa scegli “Salva come PDF”: il file sarà identico all'anteprima.",
         { id: tid, duration: 7000 },
@@ -226,7 +236,7 @@ export default function FotovoltaicoDettaglio() {
     if (!confirm("Annullare questo progetto?")) return;
     try {
       await elimina.mutateAsync(progetto.id);
-      navigate("/azienda/marketing/fotovoltaico");
+      navigate("/azienda/marketing/preventivi");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e));
     }

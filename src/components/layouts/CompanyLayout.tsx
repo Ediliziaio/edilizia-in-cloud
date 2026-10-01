@@ -9,6 +9,7 @@ import { etichettaRuoloAzienda, puoScegliereSettore } from "@/lib/auth/ruoloAzie
 import { usePermissions, type Permissions } from "@/hooks/usePermissions";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { useStatoPiano } from "@/hooks/useStatoPiano";
+import { useSchedeManodopera } from "@/hooks/useSchedeManodopera";
 import { useBranding } from "@/hooks/useBranding";
 import { useBrandSettings } from "@/hooks/useBrandSettings";
 import { applyBrandTheme, clearBrandTheme } from "@/lib/brandTheme";
@@ -122,6 +123,8 @@ import { NotificationsBellPopover } from "@/components/notifications/Notificatio
 import { NotificationsRealtime } from "@/hooks/useNotifications";
 import { useMyTaskCount } from "@/hooks/useMyTaskCount";
 import { useUnreadEmailCount } from "@/hooks/useUnreadEmailCount";
+import { useInternalChatUnreadTotal } from "@/hooks/useInternalChatUnreadTotal";
+import { useConversazioniNonLette } from "@/hooks/useConversazioniNonLette";
 
 import { CommandPalette } from "@/components/CommandPalette";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
@@ -288,6 +291,7 @@ const SCOPRI_LOCKED_ROUTES = [
   "/azienda/magazzino",
   "/azienda/giornale-lavori",
   "/azienda/subappaltatori",
+  "/azienda/manodopera",
   "/azienda/sicurezza-cantiere",
   "/azienda/render",
   "/azienda/agenti-ai",
@@ -316,6 +320,9 @@ const COMMERCIALISTA_ALLOWED_URLS = new Set([
   "/azienda/magazzino",
   "/azienda/clienti",
   "/azienda/subappaltatori",
+  // Manodopera e Mezzi: al commercialista resta la sola scheda Subappaltatori
+  // (operai e mezzi sono spenti nei suoi permessi).
+  "/azienda/manodopera",
   // "/azienda/firma-elettronica" rimosso — richiede ora canViewFirmaElettronica (non per il commercialista).
   "/azienda/assistenza",
   "/azienda/manutenzione",
@@ -376,6 +383,9 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
 }) {
   // Helper: è una voce in modalità DEMO (l'utente la vede ma non può agire)?
   const isDemoItem = (item: NavItem): boolean => {
+    // Una voce `hideWhenLocked` non fa mai da teaser DEMO: o il modulo è incluso
+    // (voce piena) o la voce è già filtrata via da filterNavItems. Mai badge Demo.
+    if (item.hideWhenLocked) return false;
     if (item.featureKey) {
       if (item.featureKey === "billing_external" || item.featureKey === "billing_native") return false;
       if (isFeaturePreview?.(item.featureKey)) return true;
@@ -669,6 +679,10 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
 function CruscottoNavItems({ filterNavItems }: { filterNavItems: (items: NavItem[]) => NavItem[] }) {
   const { data: taskCounts } = useMyTaskCount();
   const { data: emailCounts } = useUnreadEmailCount();
+  // Due conteggi per la voce «Chat»: la chat interna del team e le conversazioni
+  // esterne (WhatsApp/email/IG…). Due badge di colore diverso nella sidebar.
+  const internalChatUnread = useInternalChatUnreadTotal();
+  const conversazioniUnread = useConversazioniNonLette();
   const permissions = usePermissions();
   const { role } = useAuth();
   const items = filterNavItems(macroAreas.find(a => a.id === "area_cruscotto")?.items ?? []);
@@ -680,6 +694,7 @@ function CruscottoNavItems({ filterNavItems }: { filterNavItems: (items: NavItem
           {items.map((item) => {
             const isTaskItem = item.url === "/azienda/attivita";
             const isEmailItem = item.url === "/azienda/email";
+            const isChatItem = item.url === "/azienda/chat";
             const itemUrl =
               item.url === "/azienda/cruscotto"
                 ? (permissions.isLoading ? item.url : getSmartCruscottoPath(permissions, role))
@@ -717,6 +732,30 @@ function CruscottoNavItems({ filterNavItems }: { filterNavItems: (items: NavItem
                   >
                     <item.icon className="h-4 w-4" />
                     <span className="font-medium">{item.title}</span>
+                    {/* «Chat»: due badge di colore diverso, entrambi dai token del tema.
+                        - Team interno → navy (secondary): identico ai conteggi di Email/Attività.
+                        - Conversazioni esterne (WhatsApp/email/IG…) → verde (success): il canale coi clienti. */}
+                    {isChatItem && (internalChatUnread > 0 || conversazioniUnread > 0) && (
+                      <span className="ml-auto flex items-center gap-1">
+                        {internalChatUnread > 0 && (
+                          <Badge
+                            variant="secondary"
+                            className="h-5 min-w-[20px] px-1.5 text-[10px] font-bold"
+                            title={`${internalChatUnread} messaggi del team da leggere`}
+                          >
+                            {internalChatUnread > 99 ? "99+" : internalChatUnread}
+                          </Badge>
+                        )}
+                        {conversazioniUnread > 0 && (
+                          <Badge
+                            className="h-5 min-w-[20px] border-transparent bg-success px-1.5 text-[10px] font-bold text-success-foreground hover:bg-success/80"
+                            title={`${conversazioniUnread} conversazioni con messaggi da leggere`}
+                          >
+                            {conversazioniUnread > 99 ? "99+" : conversazioniUnread}
+                          </Badge>
+                        )}
+                      </span>
+                    )}
                     {showBadge && (
                       <Badge
                         variant={badgeVariant === "destructive" ? "destructive" : "secondary"}
@@ -1008,6 +1047,7 @@ const CompanySidebar = memo(function CompanySidebar() {
   // restituisce i permessi REALI dell'utente target (letti da staff_permissions),
   // così la sidebar riflette esattamente quello che vedrebbe quell'utente.
   const permissions = usePermissions();
+  const { schede: schedeManodopera } = useSchedeManodopera();
   // Le regole del piano (super admin, azienda demo, piano completo o limitato)
   // stanno in useStatoPiano: le stesse valgono per le impostazioni.
   const {
@@ -1219,6 +1259,32 @@ const CompanySidebar = memo(function CompanySidebar() {
       }
       if (item.demoCompanyOnly && !isDemoBaseline) return false;
       if (item.multiCompanyOnly && !hasMultipleCompanies) return false;
+      // Voci con `hideWhenLocked` (es. Assistenza, moduleKey "tickets"): quando
+      // il modulo NON è incluso nel piano, la voce si nasconde del tutto — niente
+      // teaser DEMO — su qualunque piano con un piano risolto (limited O full),
+      // ma resta sulla vetrina Demo Azienda. Deve stare PRIMA delle regole
+      // speciali qui sotto (/azienda/assistenza esce col solo permesso e
+      // salterebbe il module gate). Il bypass super-admin passa: isModuleEnabled
+      // ritorna true e la condizione non entra. Senza piano risolto → fail-open
+      // come il module gate più sotto (non nascondiamo al buio).
+      if (
+        item.hideWhenLocked &&
+        item.moduleKey &&
+        !isModuleEnabled(item.moduleKey) &&
+        !isDemoBaseline &&
+        !limitsLoading &&
+        currentPlan
+      ) {
+        return false;
+      }
+      // Manodopera e Mezzi: tre schede, ognuna col suo permesso e la sua parte
+      // di piano; la voce c'è se almeno una scheda è disponibile.
+      if (item.url === "/azienda/manodopera") return schedeManodopera.length > 0;
+      // Assistenza aggrega Richieste e Manutenzione: la voce c'è se si può
+      // vedere almeno una delle due (26/09/2026).
+      if (item.url === "/azienda/assistenza") {
+        return permissions.canViewTickets === true || permissions.canViewManutenzione === true;
+      }
       if (item.url === "/azienda/cruscotto") {
         if (
           !permissions.canViewCruscotto &&
@@ -1256,7 +1322,7 @@ const CompanySidebar = memo(function CompanySidebar() {
       }
       return true;
     }));
-  }, [permissions, gatingLoading, isModuleEnabled, billingMode, getFeatureAccessLevel, isLimitedPlan, isDemoBaseline, limitsLoading, currentPlan, isCommercialistaMode, hasMultipleCompanies]);
+  }, [permissions, gatingLoading, isModuleEnabled, billingMode, getFeatureAccessLevel, isLimitedPlan, isDemoBaseline, limitsLoading, currentPlan, isCommercialistaMode, hasMultipleCompanies, schedeManodopera]);
 
   useEffect(() => {
     if (!gatingLoading) {

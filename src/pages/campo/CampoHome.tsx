@@ -24,6 +24,9 @@ import { useGPS } from "@/hooks/useGPS";
 import { useIsCampo } from "@/hooks/useIsCampo";
 import { useCampoAssignments } from "@/hooks/campo/useCampoAssignments";
 import { CampoCrewAgenda } from "@/components/campo/CampoCrewAgenda";
+import { CampoOggi } from "@/components/campo/CampoOggi";
+import { InterventiCampo } from "@/components/campo/InterventiCampo";
+import { useMiaGiornata } from "@/hooks/campo/useCampoGiornata";
 import { CampoPunchActions } from "@/components/campo/CampoPunchActions";
 import { useCampoDayTime } from "@/hooks/campo/useCampoDayTime";
 import { campoPunchOrderId, campoReportHours, canRecordCampoPunch } from "@/lib/campo/timeSummary";
@@ -152,6 +155,9 @@ export default function CampoHome() {
       {import.meta.env.PROD && !isNative && !pushBannerNascosto && (
         <PushConsentBanner onDismiss={nascondiPushBanner} />
       )}
+      {/* Oggi: dove vai, cosa fai, con chi e chi chiamare — le TUE date */}
+      {(isOperaio || isSubappaltatore) && <CampoOggi />}
+
       {/* Timbratura — sempre in cima su mobile */}
       {isOperaio && <TimbraturaCampo />}
 
@@ -168,6 +174,7 @@ export default function CampoHome() {
         <div className="space-y-3 md:space-y-6">
           {/* 🆕 GAP 5b: prompt rapportini di OGGI non ancora compilati (priorità alta) */}
           {isOperaio && <RapportiniDaCompilareOggi />}
+          {(isOperaio || isSubappaltatore) && <InterventiCampo />}
           {isOperaio && <CantieriAssegnati />}
           {isOperaio && <MioMezzoCampoCard />}
           {isSubappaltatore && <CantieriSub />}
@@ -455,8 +462,13 @@ function AssistenteCampoOperaio() {
     staleTime: 60_000,
   });
 
+  // Il cantiere di oggi secondo le MIE date (fasi e squadra), se c'è.
+  const { data: giornata } = useMiaGiornata(14);
+  const cantiereDiOggi = giornata?.giorni?.[0]?.cantieri?.[0]?.order_id ?? null;
   const prossimoLavoro = useMemo(() => {
     if (!lavori.length) return null;
+    const diOggi = cantiereDiOggi ? lavori.find((l) => l.order?.id === cantiereDiOggi) : undefined;
+    if (diOggi) return diOggi;
     const today = startOfDay(new Date()).getTime();
     const sortable = [...lavori].sort((a, b) => {
       const aStart = a.order?.work_start_date ? startOfDay(new Date(a.order.work_start_date)).getTime() : today;
@@ -466,7 +478,7 @@ function AssistenteCampoOperaio() {
       return aScore - bScore;
     });
     return sortable[0] ?? null;
-  }, [lavori]);
+  }, [lavori, cantiereDiOggi]);
 
   const prossimoTask = useMemo(() => {
     const priorityScore: Record<string, number> = { urgente: 4, alta: 3, normale: 2, bassa: 1 };

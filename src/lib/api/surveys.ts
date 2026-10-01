@@ -68,6 +68,10 @@ export async function getTemplate(id: string): Promise<SurveyTemplateRow> {
 export interface CreateSurveyInput {
   template_id: string;
   client_id?: string | null;
+  /** Contatto CRM (prospect non ancora cliente). */
+  contact_id?: string | null;
+  /** Opportunità CRM: il suo contatto si eredita in contact_id. */
+  opportunity_id?: string | null;
   order_id?: string | null;
   technician_id?: string | null;
   scheduled_at?: string | null;
@@ -107,6 +111,8 @@ export async function createSurvey(
       company_id: companyId,
       template_id: input.template_id,
       client_id: input.client_id ?? null,
+      contact_id: input.contact_id ?? null,
+      opportunity_id: input.opportunity_id ?? null,
       order_id: input.order_id ?? null,
       technician_id: input.technician_id ?? null,
       scheduled_at: input.scheduled_at ?? null,
@@ -216,7 +222,7 @@ export async function listMySurveys(opts?: { status?: string; limit?: number; co
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let q = (supabase as any)
     .from("surveys")
-    .select("id, code, status, scheduled_at, address, city, client_id, order_id, technician_id, template_id, created_at, updated_at")
+    .select("id, code, status, scheduled_at, address, city, client_id, contact_id, opportunity_id, order_id, technician_id, template_id, created_at, updated_at")
     .order("created_at", { ascending: false });
   // Solo QUESTA azienda: il super admin (e chi ha più aziende) le vedeva tutte.
   if (opts?.companyId) q = q.eq("company_id", opts.companyId);
@@ -235,7 +241,7 @@ export async function listSurveysByOrder(orderId: string) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase as any)
     .from("surveys")
-    .select("id, code, status, scheduled_at, completed_at, address, city, client_id, order_id, estimate_id, technician_id, template_id, created_at, updated_at")
+    .select("id, code, status, scheduled_at, completed_at, address, city, client_id, contact_id, opportunity_id, order_id, estimate_id, technician_id, template_id, created_at, updated_at")
     .eq("order_id", orderId)
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
@@ -244,6 +250,88 @@ export async function listSurveysByOrder(orderId: string) {
     throw new Error("Errore caricamento sopralluoghi della commessa");
   }
   return (data ?? []) as SurveyRow[];
+}
+
+// ─── CRM: contatti e opportunità per il collegamento del sopralluogo ──────────
+// Il sopralluogo si può fare su un prospect (contatto/opportunità) non ancora
+// cliente. Queste liste alimentano il selettore «A chi si riferisce».
+
+export interface CrmContactLite {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+  city: string | null;
+}
+
+export interface CrmOpportunityLite {
+  id: string;
+  name: string | null;
+  value: number | null;
+  contact: CrmContactLite | null;
+}
+
+/** Nome leggibile di un contatto (nome + cognome). */
+export function nomeContatto(c: Pick<CrmContactLite, "first_name" | "last_name"> | null | undefined): string {
+  if (!c) return "";
+  return [c.first_name, c.last_name].filter(Boolean).join(" ").trim();
+}
+
+export async function listCrmContacts(companyId: string, search?: string, limit = 20): Promise<CrmContactLite[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let q = (supabase as any)
+    .from("marketing_contacts")
+    .select("id, first_name, last_name, phone, email, address, city")
+    .eq("company_id", companyId)
+    .order("last_name", { ascending: true })
+    .limit(limit);
+  const s = (search ?? "").trim();
+  if (s) q = q.or(`first_name.ilike.%${s}%,last_name.ilike.%${s}%,phone.ilike.%${s}%,email.ilike.%${s}%`);
+  const { data, error } = await q;
+  if (error) {
+    console.error("[surveys] listCrmContacts failed", error);
+    throw new Error("Errore caricamento contatti");
+  }
+  return (data ?? []) as CrmContactLite[];
+}
+
+export async function listCrmOpportunities(companyId: string, search?: string, limit = 20): Promise<CrmOpportunityLite[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any;
+  let q = sb
+    .from("marketing_opportunities")
+    .select("id, name, value, contact_id")
+    .eq("company_id", companyId)
+    .order("name", { ascending: true })
+    .limit(limit);
+  const s = (search ?? "").trim();
+  if (s) q = q.ilike("name", `%${s}%`);
+  const { data, error } = await q;
+  if (error) {
+    console.error("[surveys] listCrmOpportunities failed", error);
+    throw new Error("Errore caricamento opportunità");
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const opps = (data ?? []) as any[];
+  // Il contatto dell'opportunità si risolve a parte (niente embed: evita
+  // ambiguità di relazione su PostgREST) così si può ereditare in automatico.
+  const contactIds = [...new Set(opps.map((o) => o.contact_id).filter(Boolean))] as string[];
+  const contattiById: Record<string, CrmContactLite> = {};
+  if (contactIds.length > 0) {
+    const { data: cs } = await sb
+      .from("marketing_contacts")
+      .select("id, first_name, last_name, phone, email, address, city")
+      .in("id", contactIds);
+    (cs ?? []).forEach((c: CrmContactLite) => { contattiById[c.id] = c; });
+  }
+  return opps.map((o) => ({
+    id: o.id,
+    name: o.name,
+    value: o.value,
+    contact: o.contact_id ? (contattiById[o.contact_id] ?? null) : null,
+  }));
 }
 
 export async function listAssignedToMe() {

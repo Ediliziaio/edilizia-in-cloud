@@ -9,16 +9,21 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { AlertTriangle, ChevronLeft, ChevronRight, Loader2, RefreshCw, Users } from "lucide-react";
+import type { DateRange } from "react-day-picker";
+import { AlertTriangle, CalendarRange, ChevronLeft, ChevronRight, Loader2, RefreshCw, Users, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
 import { NewTaskDialog } from "@/components/admin/tasks/NewTaskDialog";
 import { ClienteMarketingCard } from "./ClienteMarketingCard";
 import { CosaFareOggi, type AllarmeConCliente } from "./CosaFareOggi";
 import { CostiMeseDialog } from "./CostiMeseDialog";
 import { SchedaClienteMarketing } from "./SchedaClienteMarketing";
 import { SoglieDialog } from "./SoglieDialog";
-import { useAggiornaSpesaMeta } from "./useClientiMarketing";
+import { dataBreve } from "./formato";
+import { useAggiornaSpesaMeta, type PeriodoRange } from "./useClientiMarketing";
 import { useChiudiAllarme, useMktConsole, useRicalcola } from "./useMktConsole";
 import { useEntraInAzienda } from "./useEntraInAzienda";
 import {
@@ -26,10 +31,51 @@ import {
   type AzioneOggi, type ClienteMarketing, type VoceOggi,
 } from "./provvigioni";
 
+/**
+ * La finestra scelta sulla console: oltre al mese, «oggi / ieri / ultimi giorni»
+ * o un intervallo dal calendario, per guardare al volo la spesa e i dati del
+ * periodo. `da`/`a` (inclusi) vanno alla RPC; `etichetta` è la frase nei
+ * sottotitoli delle schede («oggi», «negli ultimi 7 giorni», «dal 21 al 27 set»).
+ */
+export interface PeriodoConsole extends PeriodoRange {
+  id: "oggi" | "ieri" | "7" | "30" | "range";
+  etichetta: string;
+}
+
+const chiaveGiorno = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const menoGiorni = (d: Date, n: number) => new Date(d.getTime() - n * 86400000);
+const CHIP_PRESET: ReadonlyArray<{ id: "oggi" | "ieri" | "7" | "30"; label: string }> = [
+  { id: "oggi", label: "Oggi" },
+  { id: "ieri", label: "Ieri" },
+  { id: "7", label: "7 giorni" },
+  { id: "30", label: "30 giorni" },
+];
+
+/** Il periodo di un chip, calcolato rispetto a oggi (finestre recenti: le più coperte dal registro giornaliero). */
+function preset(id: "oggi" | "ieri" | "7" | "30", oggi: Date): PeriodoConsole {
+  if (id === "oggi") { const k = chiaveGiorno(oggi); return { id, da: k, a: k, etichetta: "oggi" }; }
+  if (id === "ieri") { const k = chiaveGiorno(menoGiorni(oggi, 1)); return { id, da: k, a: k, etichetta: "ieri" }; }
+  if (id === "7") return { id, da: chiaveGiorno(menoGiorni(oggi, 6)), a: chiaveGiorno(oggi), etichetta: "negli ultimi 7 giorni" };
+  return { id, da: chiaveGiorno(menoGiorni(oggi, 29)), a: chiaveGiorno(oggi), etichetta: "negli ultimi 30 giorni" };
+}
+
+/** L'intervallo scelto a mano nel calendario → periodo, con la frase per i sottotitoli. */
+function periodoDaRange(r: DateRange, oggi: Date): PeriodoConsole {
+  const da = chiaveGiorno(r.from!);
+  const a = chiaveGiorno(r.to ?? r.from!);
+  const etichetta = da === a
+    ? `il ${dataBreve(`${da}T12:00:00`, false, oggi)}`
+    : `dal ${dataBreve(`${da}T12:00:00`, false, oggi)} al ${dataBreve(`${a}T12:00:00`, false, oggi)}`;
+  return { id: "range", da, a, etichetta };
+}
+
 interface Props {
   mese: string;
   meseOggi: string;
   oggi: Date;
+  /** La finestra a giorni/intervallo scelta in cima; null = vista mensile. */
+  periodo: PeriodoConsole | null;
+  onPeriodo: (p: PeriodoConsole | null) => void;
   /** ?scheda=<id>: la scheda del cliente prende il posto dell'elenco */
   schedaId: string | null;
   onScheda: (id: string | null) => void;
@@ -48,10 +94,14 @@ interface Props {
 
 const SEMAFORO_ETICHETTA: Record<string, string> = { V: "verdi", G: "gialli", R: "rossi", N: "senza dati" };
 
-export function ClientiMarketingPanel({ mese, meseOggi, oggi, schedaId, onScheda, onNuovoServizio, onMese, righe, isLoading, isError, isFetching, refetch, onModifica, onIncassi, onReport, onVaiAiContratti }: Props) {
+export function ClientiMarketingPanel({ mese, meseOggi, oggi, periodo, onPeriodo, schedaId, onScheda, onNuovoServizio, onMese, righe, isLoading, isError, isFetching, refetch, onModifica, onIncassi, onReport, onVaiAiContratti }: Props) {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [mostraCessati, setMostraCessati] = useState(false);
+  // L'intervallo del calendario è stato solo dell'interfaccia; appena è completo
+  // diventa il periodo attivo. I chip (oggi/ieri/…) lo azzerano.
+  const [rangePers, setRangePers] = useState<DateRange | undefined>(undefined);
+  const [calAperto, setCalAperto] = useState(false);
   const [costiDi, setCostiDi] = useState<ClienteMarketing | null>(null);
   const [promemoriaDi, setPromemoriaDi] = useState<ClienteMarketing | null>(null);
   const [soglieDi, setSoglieDi] = useState<ClienteMarketing | null>(null);
@@ -179,12 +229,45 @@ export function ClientiMarketingPanel({ mese, meseOggi, oggi, schedaId, onScheda
       ) : (
       <>
       <div className="flex flex-wrap items-center gap-2">
-        <div className="inline-flex items-center rounded-lg border">
+        <div className={cn("inline-flex items-center rounded-lg border transition-opacity", periodo && "opacity-50")} title={periodo ? "Il mese è la base per costi e provvigioni; i numeri qui sotto seguono il periodo scelto" : undefined}>
           <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => onMese(spostaMese(mese, -1))} aria-label="Mese precedente"><ChevronLeft className="h-4 w-4" /></Button>
           <span className="min-w-[10rem] px-2 text-center text-sm font-semibold capitalize">{leggibile}</span>
           <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => onMese(spostaMese(mese, 1))} disabled={meseCorrente} aria-label="Mese successivo"><ChevronRight className="h-4 w-4" /></Button>
         </div>
         {!meseCorrente && <Button variant="ghost" size="sm" onClick={() => onMese(meseOggi)}>Mese in corso</Button>}
+        {/* Oltre al mese: oggi / ieri / ultimi giorni o un intervallo, per la spesa e i dati al volo del periodo. */}
+        <div className="inline-flex flex-wrap items-center gap-0.5 rounded-lg border p-0.5">
+          <button type="button" onClick={() => { onPeriodo(null); setRangePers(undefined); }}
+            className={cn("rounded-md px-2.5 py-1 text-xs font-medium transition-colors", !periodo ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>
+            Mese
+          </button>
+          {CHIP_PRESET.map((p) => (
+            <button key={p.id} type="button" onClick={() => { onPeriodo(preset(p.id, oggi)); setRangePers(undefined); }}
+              className={cn("rounded-md px-2.5 py-1 text-xs font-medium transition-colors", periodo?.id === p.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>
+              {p.label}
+            </button>
+          ))}
+          <Popover open={calAperto} onOpenChange={setCalAperto}>
+            <PopoverTrigger asChild>
+              <button type="button"
+                className={cn("inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors", periodo?.id === "range" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>
+                <CalendarRange className="h-3.5 w-3.5" />
+                {periodo?.id === "range" ? periodo.etichetta : "Intervallo"}
+                {periodo?.id === "range" && <X className="h-3 w-3 opacity-70" onClick={(e) => { e.stopPropagation(); onPeriodo(null); setRangePers(undefined); }} />}
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="range"
+                numberOfMonths={2}
+                selected={rangePers}
+                defaultMonth={rangePers?.from ?? new Date(oggi.getFullYear(), oggi.getMonth() - 1, 1)}
+                onSelect={(r) => { setRangePers(r); if (r?.from) onPeriodo(periodoDaRange(r, oggi)); if (r?.from && r?.to) setCalAperto(false); }}
+                disabled={{ after: oggi }}
+              />
+            </PopoverContent>
+          </Popover>
+        </div>
         {isFetching && !isLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-label="Aggiornamento in corso" />}
         {motoreAttivo && (
           <span className="text-xs text-muted-foreground">
@@ -247,8 +330,9 @@ export function ClientiMarketingPanel({ mese, meseOggi, oggi, schedaId, onScheda
               key={c.service_client_id}
               c={c}
               metriche={motore.data?.metriche.get(c.service_client_id) ?? null}
-              meseCorrente={meseCorrente}
+              meseCorrente={periodo ? false : meseCorrente}
               meseLeggibile={leggibile}
+              etichettaPeriodo={periodo?.etichetta}
               oggi={oggi}
               entraInCorso={inCorso === c.company_id}
               puoEntrare={permesso}

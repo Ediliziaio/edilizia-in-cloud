@@ -28,6 +28,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { CHART_RULES, FINANCE_RECONCILIATION_RULES, MONEY_CONFIRMATION_RULES } from "../_shared/chartRules.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { ruoliNellAzienda } from "../_shared/amministraAzienda.ts";
 import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import {
@@ -417,7 +418,9 @@ serve(async (req: Request) => {
     // dentro Promise.all diventa il rifiuto del gruppo e il catch in fondo la
     // restituisce com'e'. Gli esiti si valutano sotto, nello stesso ordine di
     // prima, cosi' i codici di errore non cambiano.
-    const [accesso, paymentBlock, credito, membershipRes, personaRes, rbacRes] = await Promise.all([
+    // requireCompanyAccess serve per il suo rifiuto (lancia una Response): i ruoli
+    // arrivano da ruoliNellAzienda, in fondo.
+    const [, paymentBlock, credito, membershipRes, personaRes, rbacRes, ruoliAzienda] = await Promise.all([
       requireCompanyAccess(supabaseAdmin, userId, companyId, corsHeaders),
       // Gate carta (audit AI 2026-06): l'ENTRY POINT principale di Silvio
       // erogava chiamate AI a pagamento senza alcun controllo sul metodo di
@@ -440,6 +443,10 @@ serve(async (req: Request) => {
         p_user_id: userId,
         p_persona_key: PERSONA_KEY,
       }),
+      // I ruoli IN QUESTA azienda (26/09/2026): quelli di requireCompanyAccess
+      // sono globali, e l'amministratore della propria azienda entrato qui come
+      // staff veniva trattato da titolare (cassa, HR, tutte le commesse).
+      ruoliNellAzienda(supabaseAdmin, userId, companyId),
     ]);
     if (paymentBlock) return paymentBlock;
 
@@ -546,7 +553,13 @@ serve(async (req: Request) => {
     }
 
     // ── 4) Ruolo (dalla verifica accesso, gia' letta) ───────────────────
-    const roleList: string[] = Array.isArray(accesso?.roles) ? accesso.roles : [];
+    const roleList: string[] = ruoliAzienda;
+    // Nessun ruolo in questa azienda (utente bloccato, o accesso revocato):
+    // niente Silvio. Prima il ripiego su company_staff lo faceva comunque
+    // entrare, saltando il blocco.
+    if (roleList.length === 0) {
+      return errorResponse("Non hai accesso a Silvio per questa azienda.", 403, corsHeaders);
+    }
     // La scala dei ruoli sta in _shared/ruoloSilvio.ts: la stessa del brief
     // del mattino, che non deve mostrare ciò che qui verrebbe negato.
     const primaryRole = ruoloPrincipaleSilvio(roleList);

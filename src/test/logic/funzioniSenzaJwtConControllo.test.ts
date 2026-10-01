@@ -241,3 +241,37 @@ describe("chiamataInternaValida: chi passa e chi no", () => {
     expect(chiamataInternaValida(richiesta({ "x-cron-secret": "" }))).toBe(false);
   });
 });
+
+describe("verify_jwt = false: nessuno autorizza leggendo il ruolo da un JWT non verificato", () => {
+  // Con verify_jwt = false il gateway non controlla la firma: un token con
+  // `role: service_role` se lo scrive chiunque. Chi decide «sei il servizio»
+  // decodificando il payload (atob) e guardando role apre la porta a tutti. Il
+  // controllo vero è la chiave di servizio uguale o il segreto del cron
+  // (chiamataInternaValida). Buco chiuso il 26/09/2026 su
+  // whatsapp-operational-reminders; qui si ferma il ritorno in ogni funzione aperta.
+  const FORGIABILE = /\bextractJwtRole\s*\(|["'`]service_role["'`]/;
+
+  it.each(aperte.filter((f) => existsSync(join(FUNZIONI, f, "index.ts"))))(
+    "%s — non decide dal ruolo dentro un JWT non firmato",
+    (funzione) => {
+      const codice = senzaCommenti(sorgente(funzione));
+      expect(
+        codice,
+        `${funzione}: con verify_jwt=false leggere il ruolo dal JWT non è un controllo — usa chiamataInternaValida`,
+      ).not.toMatch(FORGIABILE);
+    },
+  );
+
+  it("whatsapp-operational-reminders: solo chiamataInternaValida, prima di ogni lavoro", () => {
+    const testo = senzaCommenti(
+      readFileSync(join(FUNZIONI, "whatsapp-operational-reminders/index.ts"), "utf8"),
+    );
+    const controllo = testo.indexOf("chiamataInternaValida(req)");
+    expect(controllo).toBeGreaterThan(-1);
+    expect(testo).toContain("rispostaNonAutorizzata(");
+    expect(controllo).toBeLessThan(testo.indexOf("createClient("));
+    expect(testo).not.toContain("extractJwtRole");
+    expect(testo).not.toContain("atob(");
+    expect(aperte).toContain("whatsapp-operational-reminders");
+  });
+});

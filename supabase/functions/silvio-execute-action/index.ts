@@ -26,6 +26,7 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { ruoliNellAzienda } from "../_shared/amministraAzienda.ts";
 import { SILVIO_TOOLS, type Channel, type ToolContext } from "../_shared/silvioTools.ts";
 
 const SILVIO_SENDER_ID = "00000000-0000-0000-0000-000000000002";
@@ -235,10 +236,15 @@ serve(async (req: Request) => {
     if (autoExecuteBypass) {
       primaryRole = "ai_auto_execute";
     } else {
-      const access = await requireCompanyAccess(supabaseAdmin, userId, proposal.company_id, corsHeaders, {
-        allowedRoles: effectiveAllowedRoles,
-      });
-      primaryRole = pickPrimaryRole(access.roles);
+      // I ruoli IN QUESTA azienda (26/09/2026): con allowedRoles valevano i
+      // ruoli globali, e l'amministratore della propria azienda eseguiva qui le
+      // azioni da amministratore anche se era entrato come staff.
+      const access = await requireCompanyAccess(supabaseAdmin, userId, proposal.company_id, corsHeaders);
+      const ruoli = await ruoliNellAzienda(supabaseAdmin, userId, proposal.company_id);
+      if (!access.isSuperAdmin && !effectiveAllowedRoles.some((role) => ruoli.includes(role))) {
+        return errorResponse("Forbidden: insufficient permissions for this action", 403, corsHeaders);
+      }
+      primaryRole = pickPrimaryRole(ruoli);
     }
 
     const requiresStrongConfirmation =

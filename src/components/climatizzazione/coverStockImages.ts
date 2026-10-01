@@ -36,6 +36,13 @@ const ufy = (id: string) => ({
 export const COVER_STOCK_IMAGES: CoverStockImage[] = [
   // La copertina di serie, nostra (public/cover-stock/climatizzazione, 22/09/2026): la prima proposta.
   { id: "clm-eic-1", url: "/cover-stock/climatizzazione/1.jpg", thumb: "/cover-stock/climatizzazione/1-thumb.jpg", label: "Soggiorno climatizzato", categoria: "clima" },
+  // Cinque varianti nostre a piena grandezza (public/cover-stock/climatizzazione, 27/09/2026):
+  // ampliano la scelta senza dipendere da Unsplash. Il thumb, per ora, è l'URL pieno.
+  { id: "clm-eic-3", url: "/cover-stock/climatizzazione/climatizzazione-variante-03.jpg", thumb: "/cover-stock/climatizzazione/climatizzazione-variante-03.jpg", label: "Nostra · variante 3", categoria: "clima" },
+  { id: "clm-eic-4", url: "/cover-stock/climatizzazione/climatizzazione-variante-04.jpg", thumb: "/cover-stock/climatizzazione/climatizzazione-variante-04.jpg", label: "Nostra · variante 4", categoria: "clima" },
+  { id: "clm-eic-5", url: "/cover-stock/climatizzazione/climatizzazione-variante-05.jpg", thumb: "/cover-stock/climatizzazione/climatizzazione-variante-05.jpg", label: "Nostra · variante 5", categoria: "clima" },
+  { id: "clm-eic-6", url: "/cover-stock/climatizzazione/climatizzazione-variante-06.jpg", thumb: "/cover-stock/climatizzazione/climatizzazione-variante-06.jpg", label: "Nostra · variante 6", categoria: "clima" },
+  { id: "clm-eic-7", url: "/cover-stock/climatizzazione/climatizzazione-variante-07.jpg", thumb: "/cover-stock/climatizzazione/climatizzazione-variante-07.jpg", label: "Nostra · variante 7", categoria: "clima" },
   // ─── Clima / comfort (4) ─────────────────────────────────────────────
   { id: "clm-1", ...ufy("1631545806609-c2b999c9e9f9"), label: "Split a parete",        categoria: "clima" },
   { id: "clm-2", ...ufy("1567769541495-138a0a3b0d0e"), label: "Telecomando clima",     categoria: "clima" },

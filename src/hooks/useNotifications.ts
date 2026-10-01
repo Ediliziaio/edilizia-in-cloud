@@ -38,7 +38,12 @@ export interface Notification {
  * Il suffisso random nel channelId è ora superfluo (un solo canale per sessione)
  * ma lo manteniamo per safety in StrictMode (effect doppio in dev).
  */
-export function NotificationsRealtime() {
+export function NotificationsRealtime({
+  trasformaLink,
+}: {
+  /** Nel campo i link dell'ufficio vanno tradotti (linkPerCampo). */
+  trasformaLink?: (url: string) => string;
+} = {}) {
   const { profile, effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
   const companyId = effectiveCompany?.id;
@@ -69,7 +74,13 @@ export function NotificationsRealtime() {
           toast(newNotif.title, {
             description: newNotif.body ?? undefined,
             action: newNotif.action_url
-              ? { label: "Vai →", onClick: () => { safeRedirect(newNotif.action_url!, "/"); } }
+              ? {
+                  label: "Vai →",
+                  onClick: () => {
+                    const url = trasformaLink ? trasformaLink(newNotif.action_url!) : newNotif.action_url!;
+                    safeRedirect(url, "/");
+                  },
+                }
               : undefined,
             duration: 5000,
           });
@@ -93,7 +104,7 @@ export function NotificationsRealtime() {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [companyId, userId, queryClient]);
+  }, [companyId, userId, queryClient, trasformaLink]);
 
   return null;
 }

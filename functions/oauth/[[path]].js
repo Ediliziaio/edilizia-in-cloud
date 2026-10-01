@@ -31,6 +31,21 @@ export async function onRequest(context) {
   const url = new URL(request.url);
   const pezzi = Array.isArray(params.path) ? params.path : String(params.path ?? "").split("/");
   const funzione = (pezzi[0] ?? "").trim();
+
+  // /oauth/consent NON è un ritorno da Google: è la pagina di consenso del
+  // connettore AI, una route della SPA (src/pages/oauth/OAuthConsent.tsx). Questa
+  // funzione cattura tutto /oauth/*, quindi qui serviamo la shell (index.html) e
+  // ci pensa React Router — altrimenti finirebbe nel 404 qui sotto.
+  if (funzione === "consent") {
+    const shell = await env.ASSETS.fetch(
+      new Request(new URL("/index.html", url.origin), { headers: { accept: "text/html" } }),
+    );
+    return new Response(shell.body, {
+      status: 200,
+      headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "x-robots-tag": "noindex, nofollow" },
+    });
+  }
+
   if (!FUNZIONI_AMMESSE.has(funzione)) return testo("Indirizzo non valido.", 404);
   if (request.method !== "GET" && request.method !== "HEAD") return testo("Metodo non ammesso.", 405);
 

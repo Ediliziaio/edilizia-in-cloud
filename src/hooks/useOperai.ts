@@ -1,0 +1,578 @@
+/**
+ * Operai di cantiere per l'ufficio (Manodopera e Mezzi, 26/09/2026).
+ *
+ * Si leggono con le funzioni manodopera_* del database, che controllano il
+ * permesso «Operai» e restituiscono solo i campi che servono ai cantieri: le
+ * tabelle del Personale (IBAN, PIN, contatti privati) restano chiuse.
+ */
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import type { Database } from "@/integrations/supabase/types";
+
+type Funzioni = Database["public"]["Functions"];
+export type OperaioElenco = Funzioni["manodopera_operai"]["Returns"][number];
+export type OperaioOggi = Funzioni["manodopera_oggi"]["Returns"][number];
+
+export type StatoGiornata = "al_lavoro" | "in_pausa" | "uscito" | "uscita_mancante" | "assente" | "non_timbrato";
+
+export interface SchedaOperaio {
+  scheda: {
+    id: string;
+    company_id: string;
+    employee_id: string | null;
+    nome: string;
+    cognome: string;
+    mansione: string | null;
+    telefono: string | null;
+    email: string | null;
+    colore_avatar: string | null;
+    foto_url: string | null;
+    attivo: boolean;
+    lavora_in_cantiere: boolean;
+    data_assunzione: string | null;
+    data_cessazione: string | null;
+    tipo_contratto: string | null;
+    matricola: string | null;
+    ha_accesso_app: boolean;
+  };
+  puo_modificare: boolean;
+  squadra: {
+    id: string;
+    nome: string;
+    colore: string | null;
+    responsabile: { id: string; nome: string; cognome: string } | null;
+    compagni: { id: string; nome: string; cognome: string; colore_avatar: string | null }[];
+  } | null;
+  documenti: {
+    id: string;
+    categoria: string;
+    titolo: string;
+    ente: string | null;
+    data_rilascio: string | null;
+    data_scadenza: string | null;
+    stato: "scaduto" | "in_scadenza" | "valido" | "senza_scadenza";
+  }[];
+  giornate: {
+    data: string;
+    stato: string;
+    ore_lavorate: number | null;
+    ore_straordinario: number | null;
+    prima_entrata: string | null;
+    ultima_uscita: string | null;
+    anomalia: boolean;
+    anomalia_motivo: string | null;
+  }[];
+  cantieri: {
+    order_id: string;
+    codice: string | null;
+    cliente: string | null;
+    indirizzo: string | null;
+    dal: string | null;
+    al: string | null;
+    capocantiere: boolean;
+    /** Ci lavora perché ci lavora la sua squadra. */
+    con_la_squadra: boolean;
+    in_corso: boolean;
+  }[];
+  mezzi: { id: string; nome: string; tipo: string | null; targa: string | null }[];
+}
+
+export interface DatiOperaio {
+  nome?: string;
+  cognome?: string;
+  telefono?: string;
+  email?: string;
+  mansione?: string;
+  data_assunzione?: string;
+  tipo_contratto?: string;
+  attivo?: boolean;
+  lavora_in_cantiere?: boolean;
+}
+
+/** Oggi in Italia, come AAAA-MM-GG (le timbrature si contano sul giorno italiano). */
+export function oggiRoma(): string {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
+}
+
+/**
+ * I messaggi scritti dalle funzioni (permesso, nome mancante…) sono già frasi
+ * per chi usa l'app; tutto il resto diventa una frase generica.
+ */
+export function messaggioErroreOperai(err: unknown, ripiego: string): string {
+  const e = err as { code?: string; message?: string } | null;
+  if (e?.code === "42501" || e?.code === "22023") return e.message ?? ripiego;
+  return ripiego;
+}
+
+export const chiaviOperai = {
+  tutti: ["manodopera"] as const,
+  elenco: (companyId: string | null) => ["manodopera", "operai", companyId] as const,
+  giornata: (companyId: string | null, giorno: string) => ["manodopera", "oggi", companyId, giorno] as const,
+  scheda: (id: string | undefined) => ["manodopera", "operaio", id] as const,
+  squadre: (companyId: string | null) => ["manodopera", "squadre", companyId] as const,
+  persone: (companyId: string | null) => ["manodopera", "persone", companyId] as const,
+  squadreCommessa: (orderId: string | undefined) => ["manodopera", "commessa", orderId] as const,
+  diario: (companyId: string | null, giorno: string) => ["manodopera", "diario", companyId, giorno] as const,
+  mese: (id: string | undefined, mese: string) => ["manodopera", "mese", id, mese] as const,
+};
+
+export function useOperai() {
+  const companyId = useEffectiveCompanyId();
+  return useQuery({
+    queryKey: chiaviOperai.elenco(companyId),
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("manodopera_operai", { p_company_id: companyId! });
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!companyId,
+    staleTime: 60_000,
+  });
+}
+
+export function useGiornataOperai(giorno: string) {
+  const companyId = useEffectiveCompanyId();
+  const eOggi = giorno === oggiRoma();
+  return useQuery({
+    queryKey: chiaviOperai.giornata(companyId, giorno),
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("manodopera_oggi", { p_company_id: companyId!, p_giorno: giorno });
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!companyId,
+    staleTime: eOggi ? 30_000 : 5 * 60_000,
+    // Oggi si aggiorna da solo ogni minuto, come la Regia del Personale.
+    refetchInterval: eOggi ? 60_000 : false,
+    refetchIntervalInBackground: false,
+  });
+}
+
+export function useSchedaOperaio(id: string | undefined) {
+  return useQuery({
+    queryKey: chiaviOperai.scheda(id),
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("manodopera_operaio", { p_profilo_id: id! });
+      if (error) throw error;
+      return data as unknown as SchedaOperaio;
+    },
+    enabled: !!id,
+    staleTime: 30_000,
+  });
+}
+
+export function useSalvaOperaio() {
+  const companyId = useEffectiveCompanyId();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, dati }: { id: string | null; dati: DatiOperaio }) => {
+      if (!companyId) throw new Error("Azienda non trovata");
+      const { data, error } = await supabase.rpc("manodopera_salva_operaio", {
+        p_company_id: companyId,
+        p_profilo_id: id,
+        p_dati: dati as unknown as Database["public"]["Functions"]["manodopera_salva_operaio"]["Args"]["p_dati"],
+      });
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: chiaviOperai.tutti });
+      // Personale e Gestione staff leggono le stesse persone.
+      qc.invalidateQueries({ queryKey: ["hr-profili-all"] });
+      qc.invalidateQueries({ queryKey: ["hr-profili"] });
+      qc.invalidateQueries({ queryKey: ["hr-live-status"] });
+    },
+  });
+}
+
+/**
+ * Accesso all'app di cantiere per un operaio: crea l'account e manda le
+ * credenziali per email (funzione create-employee-user, solo amministratori).
+ */
+export function useDaiAccessoApp() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ employeeId, email }: { employeeId: string; email: string }) => {
+      const { data, error } = await supabase.functions.invoke("create-employee-user", {
+        body: { employee_id: employeeId, email },
+      });
+      if (error) {
+        let corpo: { error?: string } | null = null;
+        try {
+          const ctx = (error as { context?: unknown }).context;
+          if (ctx instanceof Response) corpo = await ctx.json();
+        } catch { /* risposta senza corpo leggibile */ }
+        throw new Error(corpo?.error ?? "Non sono riuscito a creare l'accesso. Riprova tra qualche secondo.");
+      }
+      if (!data?.success) throw new Error(data?.error ?? "Non sono riuscito a creare l'accesso.");
+      return data as { success: true; temp_password?: string; message?: string };
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: chiaviOperai.tutti });
+    },
+  });
+}
+
+// ── Squadre ──────────────────────────────────────────────────────────────────
+
+export interface PersonaSquadra {
+  id: string;
+  nome: string;
+  cognome: string;
+  mansione: string | null;
+  colore_avatar: string | null;
+  ha_accesso_app: boolean;
+}
+
+export interface Squadra {
+  id: string;
+  nome: string;
+  colore: string | null;
+  responsabile: (Omit<PersonaSquadra, "ha_accesso_app"> & { e_componente: boolean }) | null;
+  componenti: PersonaSquadra[];
+  /** Commesse in corso o in arrivo. */
+  commesse: { order_id: string; codice: string | null; cliente: string | null; dal: string | null; al: string | null; oggi: boolean }[];
+}
+
+export interface SquadraInCommessa {
+  squadra_id: string;
+  nome: string;
+  colore: string | null;
+  attiva: boolean;
+  /** Fase fatta dalla squadra; null = tutta la commessa. */
+  phase_id: string | null;
+  fase: string | null;
+  /** Le date seguono quelle della fase. */
+  segue_fase: boolean;
+  dal: string | null;
+  al: string | null;
+  capocantiere: boolean;
+  finita: boolean;
+  responsabile: { id: string; nome: string; cognome: string; colore_avatar: string | null } | null;
+  componenti: PersonaSquadra[];
+}
+
+export interface DatiSquadra {
+  nome?: string;
+  colore?: string;
+  responsabile_id?: string | null;
+  componenti?: string[];
+}
+
+/** Colori delle squadre: si leggono bene su bianco, come pallino e come fascia. */
+export const COLORI_SQUADRA = ["#EA580C", "#2563EB", "#16A34A", "#9333EA", "#DB2777", "#0891B2", "#CA8A04", "#475569"] as const;
+
+type ArgsJson = Database["public"]["Functions"]["manodopera_salva_squadra"]["Args"]["p_dati"];
+
+function aggiornaDopoSquadre(qc: ReturnType<typeof useQueryClient>) {
+  qc.invalidateQueries({ queryKey: chiaviOperai.tutti });
+  // Le note hanno i destinatari presi dalle squadre sulla commessa.
+  qc.invalidateQueries({ queryKey: ["note-cantiere"] });
+  // L'app di cantiere e la commessa leggono gli accessi dati dalla squadra.
+  qc.invalidateQueries({ queryKey: ["order-campo-assignments"] });
+  qc.invalidateQueries({ queryKey: ["external_teams_active"] });
+  qc.invalidateQueries({ queryKey: ["external-teams-list"] });
+}
+
+export function useSquadre() {
+  const companyId = useEffectiveCompanyId();
+  return useQuery({
+    queryKey: chiaviOperai.squadre(companyId),
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("manodopera_squadre", { p_company_id: companyId! });
+      if (error) throw error;
+      return (data ?? []) as unknown as Squadra[];
+    },
+    enabled: !!companyId,
+    staleTime: 60_000,
+  });
+}
+
+/** Le persone attive dell'azienda, per scegliere il responsabile (anche non operai). */
+export function usePersoneSquadra(abilitato: boolean) {
+  const companyId = useEffectiveCompanyId();
+  return useQuery({
+    queryKey: chiaviOperai.persone(companyId),
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("manodopera_persone", { p_company_id: companyId! });
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!companyId && abilitato,
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function useSalvaSquadra() {
+  const companyId = useEffectiveCompanyId();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, dati }: { id: string | null; dati: DatiSquadra }) => {
+      if (!companyId) throw new Error("Azienda non trovata");
+      const { data, error } = await supabase.rpc("manodopera_salva_squadra", {
+        p_company_id: companyId,
+        p_squadra_id: id,
+        p_dati: dati as unknown as ArgsJson,
+      });
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: () => aggiornaDopoSquadre(qc),
+  });
+}
+
+export function useSciogliSquadra() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.rpc("manodopera_sciogli_squadra", { p_squadra_id: id });
+      if (error) throw error;
+    },
+    onSuccess: () => aggiornaDopoSquadre(qc),
+  });
+}
+
+export function useSquadreCommessa(orderId: string | undefined) {
+  return useQuery({
+    queryKey: chiaviOperai.squadreCommessa(orderId),
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("manodopera_squadre_commessa", { p_order_id: orderId! });
+      if (error) throw error;
+      return (data ?? []) as unknown as SquadraInCommessa[];
+    },
+    enabled: !!orderId,
+    staleTime: 30_000,
+  });
+}
+
+export function useSquadraSuCommessa() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { orderId: string; squadraId: string; dal: string | null; al: string | null; capocantiere: boolean; phaseId?: string | null }) => {
+      const { error } = await supabase.rpc("manodopera_squadra_su_commessa", {
+        p_order_id: v.orderId,
+        p_squadra_id: v.squadraId,
+        p_dal: v.dal,
+        p_al: v.al,
+        p_capocantiere: v.capocantiere,
+        p_phase_id: v.phaseId ?? null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => aggiornaDopoSquadre(qc),
+  });
+}
+
+/**
+ * Sposta un operaio in un'altra squadra (null = fuori da tutte). Vale per
+ * tutte le commesse delle due squadre. Restituisce la squadra di prima, per
+ * «Annulla».
+ */
+export function useSpostaOperaio() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { profiloId: string; squadraId: string | null }) => {
+      const { data, error } = await supabase.rpc("manodopera_sposta_operaio", {
+        p_profilo_id: v.profiloId,
+        p_squadra_id: v.squadraId,
+      });
+      if (error) throw error;
+      return (data as string | null) ?? null;
+    },
+    onSuccess: () => aggiornaDopoSquadre(qc),
+  });
+}
+
+export function useTogliSquadraDaCommessa() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { orderId: string; squadraId: string; phaseId?: string | null }) => {
+      const { error } = await supabase.rpc("manodopera_togli_squadra_da_commessa", {
+        p_order_id: v.orderId,
+        p_squadra_id: v.squadraId,
+        p_phase_id: v.phaseId ?? null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => aggiornaDopoSquadre(qc),
+  });
+}
+
+// ── Diario del giorno e calendario del mese ──────────────────────────────────
+
+export type TipoEventoDiario = "rapportino" | "giornale" | "foto" | "mezzo" | "segnalazione" | "officina";
+
+export interface EventoDiario {
+  quando: string | null;
+  tipo: TipoEventoDiario;
+  titolo: string;
+  testo: string | null;
+  chi: string | null;
+  order_id: string | null;
+  cantiere: string | null;
+  mezzo_id: string | null;
+  mezzo: string | null;
+}
+
+/** Cosa è successo quel giorno: rapportini, giornale, foto, mezzi, guasti, officina. */
+export function useDiarioGiorno(giorno: string) {
+  const companyId = useEffectiveCompanyId();
+  return useQuery({
+    queryKey: chiaviOperai.diario(companyId, giorno),
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("manodopera_diario", { p_company_id: companyId!, p_giorno: giorno });
+      if (error) throw error;
+      return (data ?? []) as unknown as EventoDiario[];
+    },
+    enabled: !!companyId,
+    staleTime: 60_000,
+  });
+}
+
+export interface GiornoOperaio {
+  data: string;
+  futuro: boolean;
+  stato: "presente" | "assente" | "riposo" | "non_timbrato" | "futuro";
+  assenza: string | null;
+  prima_entrata: string | null;
+  ultima_uscita: string | null;
+  uscita_mancante: boolean;
+  fuori_zona: boolean;
+  ore: number | null;
+  cantiere_id: string | null;
+  cantiere: string | null;
+  cantiere_timbrato: boolean;
+  mezzi: string | null;
+  rapportino: string | null;
+}
+
+/** Il mese di un operaio giorno per giorno (mese = AAAA-MM-01). */
+export function useMeseOperaio(id: string | undefined, mese: string) {
+  return useQuery({
+    queryKey: chiaviOperai.mese(id, mese),
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("manodopera_operaio_mese", { p_profilo_id: id!, p_mese: mese });
+      if (error) throw error;
+      return (data ?? []) as unknown as GiornoOperaio[];
+    },
+    enabled: !!id,
+    staleTime: 60_000,
+  });
+}
+
+// ── Costo della persona (nel Personale) ──────────────────────────────────────
+
+export interface CostoPersona {
+  ha_scheda_costo: boolean;
+  costo_orario: number | null;
+  costo_orario_scritto: number | null;
+  stipendio_lordo: number | null;
+  ore_mese: number | null;
+  contributi_percento: number | null;
+}
+
+export function useCostoPersona(profiloId: string | undefined) {
+  return useQuery({
+    queryKey: ["personale", "costo", profiloId],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("personale_costo", { p_profilo_id: profiloId! });
+      if (error) throw error;
+      return data as unknown as CostoPersona;
+    },
+    enabled: !!profiloId,
+    staleTime: 60_000,
+  });
+}
+
+export function useSalvaCostoPersona(profiloId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (dati: { costo_orario?: string; stipendio_lordo?: string; ore_mese?: string; contributi_percento?: string }) => {
+      const { error } = await supabase.rpc("personale_salva_costo", {
+        p_profilo_id: profiloId,
+        p_dati: dati as unknown as ArgsJson,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["personale", "costo", profiloId] });
+      // Le commesse leggono il costo orario per la manodopera.
+      qc.invalidateQueries({ queryKey: ["employees_active"] });
+    },
+  });
+}
+
+// ── Note per gli operai ──────────────────────────────────────────────────────
+
+export type PerChiNota = "tutti" | "squadra" | "persona";
+
+export interface NotaCantiere {
+  id: string;
+  phase_id: string | null;
+  fase: string | null;
+  per: PerChiNota;
+  squadra_id: string | null;
+  squadra: string | null;
+  squadra_colore: string | null;
+  hr_profilo_id: string | null;
+  persona: string | null;
+  testo: string;
+  importante: boolean;
+  autore: string | null;
+  creata_il: string;
+  modificata_il: string | null;
+  /** Quanti devono leggerla nell'app. */
+  destinatari: number;
+  letta_da: { nome: string; il: string }[];
+}
+
+export interface DatiNota {
+  testo: string;
+  per: PerChiNota;
+  squadra_id?: string | null;
+  hr_profilo_id?: string | null;
+  phase_id?: string | null;
+  importante?: boolean;
+}
+
+export function useNoteCantiere(orderId: string | undefined) {
+  return useQuery({
+    queryKey: ["note-cantiere", orderId],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("note_cantiere_elenco", { p_order_id: orderId! });
+      if (error) throw error;
+      return (data ?? []) as unknown as NotaCantiere[];
+    },
+    enabled: !!orderId,
+    staleTime: 30_000,
+  });
+}
+
+export function useSalvaNota(orderId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, dati }: { id: string | null; dati: DatiNota }) => {
+      const { data, error } = await supabase.rpc("note_cantiere_salva", {
+        p_order_id: orderId,
+        p_nota_id: id,
+        p_dati: dati as unknown as ArgsJson,
+      });
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["note-cantiere", orderId] }),
+  });
+}
+
+export function useEliminaNota(orderId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.rpc("note_cantiere_elimina", { p_nota_id: id });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["note-cantiere", orderId] }),
+  });
+}
+

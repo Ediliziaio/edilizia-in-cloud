@@ -16,14 +16,19 @@
  */
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Package, AlertTriangle, Minus, Plus, Loader2, Warehouse, RefreshCcw, Search } from "lucide-react";
+import { Package, AlertTriangle, Minus, Plus, Loader2, Warehouse, RefreshCcw, Search, ShoppingCart, Check, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
+import { useCampoAssignments } from "@/hooks/campo/useCampoAssignments";
+import { usePrelievoRegistra, useMieiPrelievi, useRichiediDdt, type RigaPrelievo } from "@/hooks/campo/useCampoPrelievo";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Textarea } from "@/components/ui/textarea";
 
-type Tab = "furgone" | "magazzino";
+type Tab = "furgone" | "magazzino" | "prelievi";
 
 interface ScortaFurgone {
   id: string;
@@ -50,6 +55,19 @@ export default function CampoMagazzino() {
   const [activeTab, setActiveTab] = useState<Tab>("furgone");
   const [segnalazioneId, setSegnalazioneId] = useState<string | null>(null);
   const [ricerca, setRicerca] = useState("");
+  // Prelievo: carrello (stockId → quantità), commessa e note.
+  const permissions = usePermissions();
+  const puoPrelevare = permissions.canViewWarehouse === true;
+  const [cart, setCart] = useState<Record<string, number>>({});
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [commessaId, setCommessaId] = useState<string | null>(null);
+  const [notePrelievo, setNotePrelievo] = useState("");
+  const assegnazioniQuery = useCampoAssignments();
+  const assegnazioni = assegnazioniQuery.data ?? [];
+  const prelievoMut = usePrelievoRegistra();
+  const mieiPrelieviQuery = useMieiPrelievi();
+  const mieiPrelievi = mieiPrelieviQuery.data ?? [];
+  const richiediDdt = useRichiediDdt();
 
   // Scorte furgone personali
   const scorteQuery = useQuery({
@@ -86,7 +104,8 @@ export default function CampoMagazzino() {
     staleTime: 60_000,
   });
 
-  const stockFiltrato = (stockQuery.data ?? []).filter((r) => {
+  const stockList = stockQuery.data ?? [];
+  const stockFiltrato = stockList.filter((r) => {
     if (!ricerca.trim()) return true;
     const q = ricerca.toLowerCase();
     return (
@@ -95,6 +114,41 @@ export default function CampoMagazzino() {
       (r.internal_code ?? "").toLowerCase().includes(q)
     );
   });
+
+  // Carrello prelievo
+  const stockById = new Map(stockList.map((r) => [r.id, r]));
+  const cartEntries = Object.entries(cart).filter(([, q]) => q > 0);
+  const cartCount = cartEntries.reduce((n, [, q]) => n + q, 0);
+
+  const setCartQta = (item: StockRow, qta: number) => {
+    const disp = item.quantity_available ?? item.quantity ?? 0;
+    const clamped = Math.max(0, Math.min(qta, disp));
+    setCart((c) => {
+      const next = { ...c };
+      if (clamped <= 0) delete next[item.id];
+      else next[item.id] = clamped;
+      return next;
+    });
+  };
+
+  const confermaPrelievo = () => {
+    const righe: RigaPrelievo[] = cartEntries.map(([id, q]): RigaPrelievo => {
+      const it = stockById.get(id);
+      return { stock_item_id: id, name: it?.name || it?.description || "Articolo", quantita: q, unita: null };
+    });
+    if (righe.length === 0) return;
+    prelievoMut.mutate(
+      { orderId: commessaId, righe, note: notePrelievo.trim() || null },
+      {
+        onSuccess: (esito) => {
+          if (esito.stato === "consegnato") toast.success("Prelevato: giacenza aggiornata");
+          else toast.success("Richiesta inviata all'ufficio", { description: "Il prelievo sarà scaricato dopo la conferma." });
+          setCart({}); setNotePrelievo(""); setCommessaId(null); setSheetOpen(false);
+        },
+        onError: (e: unknown) => toast.error("Prelievo non riuscito", { description: e instanceof Error ? e.message : "Riprova." }),
+      },
+    );
+  };
 
   const updateQtaMutation = useMutation({
     mutationFn: async ({ id, delta }: { id: string; delta: number }) => {
@@ -149,21 +203,21 @@ export default function CampoMagazzino() {
 
   return (
     <div className="flex flex-col">
-      {/* Tab selector */}
-      <div className="bg-muted border-b border-border px-4 py-3">
+      {/* Tab selector — resta in alto scorrendo; le inattive si distinguono. */}
+      <div className="sticky top-0 z-10 border-b border-border bg-background px-4 py-3">
         <div className="flex gap-2">
-          {(["furgone", "magazzino"] as Tab[]).map(tab => (
+          {(["furgone", "magazzino", ...(puoPrelevare ? ["prelievi"] : [])] as Tab[]).map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={cn(
-                "flex-1 py-2 rounded-xl text-sm font-medium transition-colors",
+                "flex-1 min-h-11 rounded-xl text-sm font-medium transition-colors",
                 activeTab === tab
                   ? "bg-primary text-primary-foreground"
-                  : "bg-muted text-muted-foreground"
+                  : "border border-border bg-muted/40 text-foreground/70 active:bg-muted"
               )}
             >
-              {tab === "furgone" ? "Furgone" : "Magazzino"}
+              {tab === "furgone" ? "Furgone" : tab === "magazzino" ? "Magazzino" : "Prelievi"}
             </button>
           ))}
         </div>
@@ -309,12 +363,13 @@ export default function CampoMagazzino() {
                 {stockFiltrato.length === 0 ? (
                   <p className="py-10 text-center text-sm text-muted-foreground">Nessun materiale per "{ricerca}"</p>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-3 pb-24">
                     {stockFiltrato.map((item) => {
                       const disponibile = item.quantity_available ?? item.quantity ?? 0;
                       const scarso = item.min_stock_level != null && disponibile <= item.min_stock_level;
+                      const inCart = cart[item.id] ?? 0;
                       return (
-                        <div key={item.id} className="bg-muted border border-border rounded-2xl p-4">
+                        <div key={item.id} className={cn("bg-muted border rounded-2xl p-4", inCart > 0 ? "border-primary" : "border-border")}>
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
                               <p className="font-medium text-foreground truncate">{item.name || item.description || "Articolo"}</p>
@@ -329,6 +384,24 @@ export default function CampoMagazzino() {
                               <p className="text-[10px] text-muted-foreground">disponibili</p>
                             </div>
                           </div>
+                          {puoPrelevare && disponibile > 0 && (
+                            <div className="mt-3 flex items-center justify-between gap-2 border-t border-border pt-3">
+                              <span className="text-xs text-muted-foreground">Prelevo</span>
+                              <div className="flex items-center gap-2">
+                                <button onClick={() => setCartQta(item, inCart - 1)} disabled={inCart <= 0}
+                                  aria-label={`Togli ${item.name ?? "articolo"}`}
+                                  className="w-11 h-11 rounded-xl bg-background border border-border flex items-center justify-center active:bg-muted disabled:opacity-30">
+                                  <Minus className="w-4 h-4" />
+                                </button>
+                                <span className="w-8 text-center text-xl font-bold tabular-nums">{inCart}</span>
+                                <button onClick={() => setCartQta(item, inCart + 1)} disabled={inCart >= disponibile}
+                                  aria-label={`Aggiungi ${item.name ?? "articolo"}`}
+                                  className="w-11 h-11 rounded-xl bg-primary text-primary-foreground flex items-center justify-center active:opacity-80 disabled:opacity-30">
+                                  <Plus className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
@@ -338,7 +411,128 @@ export default function CampoMagazzino() {
             )}
           </>
         )}
+
+        {/* TAB PRELIEVI: cosa ho preso e lo stato del DDT */}
+        {activeTab === "prelievi" && (
+          <>
+            {mieiPrelieviQuery.isLoading ? (
+              <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
+            ) : mieiPrelievi.length === 0 ? (
+              <div className="flex flex-col items-center py-16 gap-3 text-center">
+                <Package className="w-10 h-10 text-muted-foreground" />
+                <p className="text-muted-foreground text-sm">Nessun prelievo ancora</p>
+                <p className="max-w-xs text-xs text-muted-foreground">Quando prelevi materiale dal magazzino lo ritrovi qui, col suo stato e il DDT.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {mieiPrelievi.map((p) => {
+                  const meta = p.stato === "consegnato" ? { label: "Consegnato", cls: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300" }
+                    : p.stato === "rifiutato" ? { label: "Rifiutato", cls: "bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-300" }
+                    : { label: "In attesa ufficio", cls: "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300" };
+                  const quando = new Date(p.data).toLocaleDateString("it-IT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+                  return (
+                    <div key={p.id} className="rounded-2xl border border-border bg-muted p-4">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs text-muted-foreground">{quando}</span>
+                        <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold", meta.cls)}>{meta.label}</span>
+                      </div>
+                      <ul className="mt-2 space-y-1 text-sm">
+                        {(p.righe ?? []).map((r, i) => (
+                          <li key={i} className="flex items-center justify-between gap-2">
+                            <span className="min-w-0 truncate">{r.name}</span>
+                            <span className="shrink-0 font-semibold tabular-nums">× {r.quantita}</span>
+                          </li>
+                        ))}
+                      </ul>
+                      {p.stato === "consegnato" && (
+                        <div className="mt-3 border-t border-border pt-3">
+                          {p.documento_numero ? (
+                            <p className="flex items-center gap-1.5 text-xs font-medium text-emerald-700"><Check className="h-3.5 w-3.5" /> DDT {p.documento_numero} pronto</p>
+                          ) : p.ddt_richiesto ? (
+                            <p className="text-xs text-muted-foreground">DDT richiesto — lo prepara l'ufficio.</p>
+                          ) : (
+                            <button
+                              onClick={() => richiediDdt.mutate(p.id, {
+                                onSuccess: () => toast.success("DDT richiesto all'ufficio"),
+                                onError: (e) => toast.error("Non riuscito", { description: e instanceof Error ? e.message : "Riprova" }),
+                              })}
+                              disabled={richiediDdt.isPending}
+                              className="w-full min-h-11 rounded-xl border border-border text-sm font-medium active:bg-background disabled:opacity-50"
+                            >
+                              Richiedi DDT
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
       </div>
+
+      {/* Barra fissa: apre la conferma prelievo */}
+      {activeTab === "magazzino" && puoPrelevare && cartCount > 0 && (
+        <div className="fixed inset-x-0 bottom-[calc(5.75rem+env(safe-area-inset-bottom))] z-40 px-4 md:bottom-4">
+          <button
+            onClick={() => setSheetOpen(true)}
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-base font-bold text-primary-foreground shadow-lg active:opacity-90"
+          >
+            <ShoppingCart className="h-5 w-5" />
+            Preleva {cartCount} {cartCount === 1 ? "pezzo" : "pezzi"}
+          </button>
+        </div>
+      )}
+
+      {/* Conferma prelievo */}
+      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+        <SheetContent side="bottom" className="max-h-[85dvh] overflow-y-auto rounded-t-2xl">
+          <SheetHeader>
+            <SheetTitle>Prelievo — {cartCount} {cartCount === 1 ? "pezzo" : "pezzi"}</SheetTitle>
+          </SheetHeader>
+          <div className="mt-4 space-y-4">
+            <div className="space-y-2">
+              {cartEntries.map(([id, q]) => {
+                const it = stockById.get(id);
+                return (
+                  <div key={id} className="flex items-center justify-between gap-2 rounded-xl border border-border p-3 text-sm">
+                    <span className="min-w-0 truncate font-medium">{it?.name || it?.description || "Articolo"}</span>
+                    <div className="flex shrink-0 items-center gap-3">
+                      <span className="text-lg font-bold tabular-nums">{q}</span>
+                      <button onClick={() => it && setCartQta(it, 0)} aria-label="Rimuovi" className="text-muted-foreground"><X className="h-4 w-4" /></button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Per quale cantiere?</p>
+              <div className="flex flex-wrap gap-2">
+                <button onClick={() => setCommessaId(null)} className={cn("rounded-full border px-3 py-2 text-sm", commessaId === null ? "border-primary bg-primary/10 text-primary" : "border-border")}>Nessuno</button>
+                {assegnazioni.map((a) => (
+                  <button key={a.order.id} onClick={() => setCommessaId(a.order.id)}
+                    className={cn("rounded-full border px-3 py-2 text-sm", commessaId === a.order.id ? "border-primary bg-primary/10 text-primary" : "border-border")}>
+                    {a.order.order_code || (a.order.description ?? "Cantiere").slice(0, 24)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <p className="text-sm font-medium">Note (facoltative)</p>
+              <Textarea value={notePrelievo} onChange={(e) => setNotePrelievo(e.target.value)} rows={2} placeholder="Es. per il ponteggio lato strada" />
+            </div>
+
+            <Button className="h-12 w-full text-base" onClick={confermaPrelievo} disabled={prelievoMut.isPending || cartCount === 0}>
+              {prelievoMut.isPending ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Check className="mr-2 h-5 w-5" />}
+              Conferma prelievo
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

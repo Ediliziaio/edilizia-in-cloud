@@ -44,10 +44,14 @@ describe("telefonia: solo l'amministratore, in ogni strato", () => {
     const buyBlocco = proxy.slice(proxy.indexOf('case "buy_number"'), proxy.indexOf('case "list_numbers"'));
     expect(buyBlocco).toContain("isCompanyAdmin(adminClient, userId)");
     const releaseBlocco = proxy.slice(proxy.indexOf('case "release_number"'), proxy.indexOf('case "send_sms"'));
-    expect(releaseBlocco).toContain("isCompanyAdmin(adminClient, userId)");
+    // 26/09/2026: amministratore dell'azienda a cui il numero appartiene
+    // (vedi amministraAziendaFunzioniServer.test.ts), non di un'azienda qualsiasi.
+    expect(releaseBlocco).toContain("amministraAzienda(adminClient, userId, aziendaDelNumero)");
 
     const acquistaSms = leggi("supabase/functions/telnyx-acquista-numero/index.ts");
-    expect(acquistaSms).toMatch(/requireCompanyAccess\([^)]*\{\s*\n?\s*allowedRoles:\s*\["company_admin"\]/);
+    // 26/09/2026: amministratore di QUESTA azienda. allowedRoles guardava il
+    // ruolo globale (vedi amministraAziendaFunzioniServer.test.ts).
+    expect(acquistaSms).toContain("richiediAmministratoreAzienda(adminClient, user.id, company_id, corsHeaders, accesso)");
   });
 
   it("la pagina Numeri di telefono nasconde acquisto, rilascio e import a chi non è amministratore", () => {

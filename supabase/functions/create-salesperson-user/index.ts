@@ -5,7 +5,7 @@ import { emailCredenziali } from "../_shared/emailCredenziali.ts";
 
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { buildStaffPermissionsRecord } from "../_shared/staffPermissionsDefaults.ts";
-import { aziendaAccessibile } from "../_shared/auth.ts";
+import { amministraAzienda } from "../_shared/amministraAzienda.ts";
 import { messaggioErroreAuth } from "../_shared/authErrorMessage.ts";
 
 interface CreateSalespersonUserRequest {
@@ -69,7 +69,9 @@ Deno.serve(async (req) => {
     // entrato in una seconda azienda dal selettore si vedeva rifiutare la
     // creazione, pur essendone amministratore. Stessa correzione fatta su
     // create-employee-user e create-customer.
-    if (!isSuperAdmin && !(await aziendaAccessibile(supabaseAdmin, caller.id, salesperson.company_id))) {
+    // 26/09/2026: e ne dev'essere AMMINISTRATORE, non amministratore di
+    // un'azienda qualsiasi entrato qui come staff.
+    if (!isSuperAdmin && !(await amministraAzienda(supabaseAdmin, caller.id, salesperson.company_id))) {
       throw new Error("Permessi insufficienti");
     }
 

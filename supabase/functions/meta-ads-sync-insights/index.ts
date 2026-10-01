@@ -104,12 +104,22 @@ Deno.serve(async (req) => {
       });
       const { data: { user } } = await userClient.auth.getUser(authHeader.replace("Bearer ", ""));
       if (!user) return json({ error: "unauthorized" }, 401, corsHeaders);
+      // Sincronizza solo un'azienda a cui l'utente ha accesso davvero
+      // (26/09/2026): prima filterCompanyId ripiegava su body.company_id quando
+      // il profilo era senza azienda (commercialista, o utente creato da Google
+      // senza invito), lasciando lanciare il sync di un'azienda qualsiasi.
+      let companyRichiesta: string | undefined;
+      try { companyRichiesta = (await req.clone().json())?.company_id; } catch { companyRichiesta = undefined; }
       const { data: profile } = await admin
         .from("profiles")
         .select("company_id")
         .eq("id", user.id)
         .maybeSingle();
-      userCompanyId = profile?.company_id;
+      const bersaglio = companyRichiesta ?? profile?.company_id ?? undefined;
+      if (!bersaglio) return json({ error: "no_company_id" }, 400, corsHeaders);
+      const { data: puoAccedere } = await userClient.rpc("user_can_access_company", { p_company_id: bersaglio });
+      if (puoAccedere !== true) return json({ error: "forbidden_company" }, 403, corsHeaders);
+      userCompanyId = bersaglio;
     }
 
     let body: SyncInsightsRequest = {};
@@ -122,7 +132,9 @@ Deno.serve(async (req) => {
     // Determina companies da processare
     let companies: { company_id: string; integration_id: string; ad_account_id: string; meta_act_id: string; token_encrypted: string }[] = [];
 
-    const filterCompanyId = isServiceRole ? body.company_id : (userCompanyId ?? body.company_id);
+    // Per l'utente vale solo l'azienda già verificata sopra (userCompanyId): mai
+    // body.company_id non controllato.
+    const filterCompanyId = isServiceRole ? body.company_id : userCompanyId;
 
     // FIX COLLEGAMENTO: la vecchia query usava l'embed `integrations!inner(access_token_encrypted)`
     // ma (1) non esiste una FK meta_ad_accounts→integrations (PostgREST: "Could not find a

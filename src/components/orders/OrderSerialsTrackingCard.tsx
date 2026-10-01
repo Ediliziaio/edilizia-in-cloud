@@ -9,7 +9,7 @@
  * Le query per i seriali partono solo quando la Card viene espansa (lazy),
  * per non scatenare N query in parallelo al mount della pagina commessa.
  */
-import { useState, useMemo } from "react";
+import { useState, useMemo, useId } from "react";
 import {
   Card,
   CardContent,
@@ -34,6 +34,7 @@ export function OrderSerialsTrackingCard({
   orderItems,
 }: OrderSerialsTrackingCardProps) {
   const [expanded, setExpanded] = useState(false);
+  const contentId = useId();
 
   // Filtra righe con quantity > 0 — niente da tracciare per qty=0
   const trackableItems = useMemo(
@@ -56,33 +57,30 @@ export function OrderSerialsTrackingCard({
 
   return (
     <Card>
-      <CardHeader
-        className="cursor-pointer hover:bg-muted/30 transition-colors pb-3"
-        onClick={() => setExpanded((v) => !v)}
-      >
+      <CardHeader className="pb-3">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            {expanded ? (
-              <ChevronDown className="h-4 w-4 text-muted-foreground" />
-            ) : (
-              <ChevronRight className="h-4 w-4 text-muted-foreground" />
-            )}
             <Package className="h-4 w-4 text-orange-600" />
-            <CardTitle className="text-base">Tracking Seriali & Garanzie</CardTitle>
+            <CardTitle className="text-base">Seriali e garanzie</CardTitle>
           </div>
-          <Badge variant="outline" className="text-xs">
+          <Badge variant="outline" className="shrink-0 text-xs">
             {trackableItems.length} {trackableItems.length === 1 ? "articolo" : "articoli"}
           </Badge>
         </div>
         {!expanded && (
-          <CardDescription className="text-xs ml-6">
+          <CardDescription className="hidden text-xs ml-6 md:block">
             Assegna i seriali dei pannelli/prodotti specifici a ogni riga della commessa.
             Scannerizza il QR del bancale o inserisci manualmente i seriali per garanzie individuali.
           </CardDescription>
         )}
+        <Button variant="outline" className="min-h-11 w-full justify-between border-slate-300 font-semibold text-blue-950"
+          aria-expanded={expanded} aria-controls={contentId} onClick={() => setExpanded(v => !v)}>
+          {expanded ? "Chiudi seriali" : "Apri seriali e garanzie"}
+          {expanded ? <ChevronDown className="h-4 w-4" aria-hidden="true" /> : <ChevronRight className="h-4 w-4" aria-hidden="true" />}
+        </Button>
       </CardHeader>
       {expanded && (
-        <CardContent className="space-y-2">
+        <CardContent id={contentId} className="space-y-2">
           {trackableItems.map((item) => (
             <SerialsTrackingRow
               key={item.id}
@@ -125,7 +123,7 @@ function SerialsTrackingRow({
 
   return (
     <>
-      <div className="flex items-center justify-between gap-3 border rounded-md p-3 hover:bg-muted/30 transition-colors">
+      <div className="flex flex-wrap items-center justify-between gap-3 border rounded-md p-3 hover:bg-muted/30 transition-colors">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-medium text-sm truncate">{itemName}</span>
@@ -155,6 +153,7 @@ function SerialsTrackingRow({
         <Button
           variant={complete ? "outline" : "default"}
           size="sm"
+          className="min-h-11 border border-slate-300 font-semibold"
           onClick={() => setDialogOpen(true)}
         >
           <ScanLine className="h-3.5 w-3.5 mr-1.5" />

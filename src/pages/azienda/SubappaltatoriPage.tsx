@@ -87,7 +87,11 @@ function DurcTesto({ scadenza }: { scadenza: string | null }) {
   return <span className="text-green-700">DURC ok</span>;
 }
 
-export default function SubappaltatoriPage() {
+/**
+ * `incorporata`: dentro Manodopera e Mezzi il titolo lo dà la pagina che la
+ * contiene; qui restano la frase e il bottone.
+ */
+export default function SubappaltatoriPage({ incorporata = false }: { incorporata?: boolean } = {}) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id ?? '';
   const queryClient = useQueryClient();
@@ -425,6 +429,20 @@ export default function SubappaltatoriPage() {
   return (
     <div className="space-y-6 max-sm:space-y-3">
       {/* Header */}
+      {incorporata ? (
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm text-slate-500 max-sm:hidden">Contratti, SAL, DURC e ritenute delle ditte in subappalto.</p>
+          <Button
+            size="sm"
+            onClick={() => setDialogOpen(true)}
+            className="ml-auto gap-1.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600"
+          >
+            <Plus className="h-4 w-4" />
+            <span className="hidden sm:inline">Nuovo subappaltatore</span>
+            <span className="sm:hidden">Nuovo</span>
+          </Button>
+        </div>
+      ) : (
       <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex min-w-0 items-start gap-3">
@@ -447,6 +465,7 @@ export default function SubappaltatoriPage() {
           </Button>
         </div>
       </div>
+      )}
 
       {/* Mobile: solo i due numeri che chiedono di fare qualcosa, e fanno da filtro. */}
       <KpiMobili

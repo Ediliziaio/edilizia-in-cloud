@@ -57,6 +57,8 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PrelieviCampoCard } from "@/components/warehouse/PrelieviCampoCard";
+import { ImpostazionePrelievoCampo } from "@/components/warehouse/ImpostazionePrelievoCampo";
 import {
   Select,
   SelectContent,
@@ -876,6 +878,12 @@ export default function Warehouse() {
 
       {/* Banner avvisi RIMOSSI completamente — riducono il rumore visivo
           e duplicano informazioni già presenti nelle KPI cliccabili sotto. */}
+
+      {/* Prelievi dal cantiere: impostazione (libero/conferma) + coda da confermare. */}
+      <div className="space-y-3 print:hidden">
+        <ImpostazionePrelievoCampo />
+        <PrelieviCampoCard />
+      </div>
 
       <div className="space-y-3 print:hidden">
         {/* «Personalizza i riquadri» sta nel menu ⋯ della testata: qui era una

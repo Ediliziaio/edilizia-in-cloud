@@ -54,6 +54,10 @@ export default function QuoteDetail() {
   const permessi = usePermissions();
   const puoCreareCommessa = permessi.isAdmin || permessi.canEditOrders;
   const puoVedereCommessa = permessi.isAdmin || permessi.canViewOrders;
+  // Mandare il preventivo al cliente (PDF, firma, link) lo cambia: serve poterlo
+  // modificare, non solo vederlo. Chi lo vede dalle Commesse o in sola lettura non ha
+  // questi pulsanti, e send-quote-signature lo rifiuta comunque (26/09/2026).
+  const puoInviare = permessi.canEditPreventivi;
   const queryClient = useQueryClient();
   const [generating, setGenerating] = useState(false);
   const [sendDialogOpen, setSendDialogOpen] = useState(false);
@@ -347,15 +351,17 @@ export default function QuoteDetail() {
                     </DropdownMenuItem>
                   </>
                 )}
-                <DropdownMenuItem
-                  disabled={!quote.client_email || inviandoPdf}
-                  onClick={() => inviaPdfSemplice(quote.client_email, quote.validity_days)}
-                >
-                  {inviandoPdf ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
-                  {quote.client_email
-                    ? `Invia PDF a ${quote.client_email}`
-                    : "Invia PDF (manca l'email del cliente)"}
-                </DropdownMenuItem>
+                {puoInviare && (
+                  <DropdownMenuItem
+                    disabled={!quote.client_email || inviandoPdf}
+                    onClick={() => inviaPdfSemplice(quote.client_email, quote.validity_days)}
+                  >
+                    {inviandoPdf ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
+                    {quote.client_email
+                      ? `Invia PDF a ${quote.client_email}`
+                      : "Invia PDF (manca l'email del cliente)"}
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem
                   className="text-destructive focus:text-destructive"
                   disabled={cestinando || rigaDiModulo}
@@ -395,7 +401,7 @@ export default function QuoteDetail() {
               </Button>
             )}
 
-            {(quote.status === "bozza" || quote.status === "inviata") && (
+            {(quote.status === "bozza" || quote.status === "inviata") && puoInviare && (
               <button
                 type="button"
                 onClick={() => setSendDialogOpen(true)}
@@ -448,7 +454,7 @@ export default function QuoteDetail() {
             )}
 
             {/* WhatsApp e copia link — visibili solo se il preventivo è stato inviato */}
-            {quote.status === "inviata" && quote.signature_token && (
+            {quote.status === "inviata" && quote.signature_token && puoInviare && (
               <>
                 <Button
                   variant="outline"

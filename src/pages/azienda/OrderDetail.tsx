@@ -6,6 +6,7 @@ import { AlertTriangle, BellRing, AlertCircle, Package, Receipt, HardHat, Truck,
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { OrderSurveysCard } from "@/components/orders/OrderSurveysCard";
 import { MezziCommessaCard } from "@/components/mezzi/MezziCommessaCard";
+import { SquadreInBreve } from "@/components/manodopera/SquadreCommessa";
 import { OrderActivityFeed } from "@/components/orders/OrderActivityFeed";
 import { OrderOriginBadge } from "@/components/orders/OrderOriginBadge";
 import { OrderScheduleBadge } from "@/components/orders/OrderScheduleBadge";
@@ -50,6 +51,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { OrderCommessaSummary } from "@/components/orders/OrderCommessaSummary";
 import { OrderFinancialOverview } from "@/components/orders/OrderFinancialOverview";
+import { OrderHeaderSummary } from "@/components/orders/OrderHeaderSummary";
 import { OrderDetailNavigation } from "@/components/orders/OrderDetailNavigation";
 import { useOrderDetailNavigation } from "@/hooks/useOrderDetailNavigation";
 import { isOrderDetailTab, type OrderDetailSection } from "@/lib/orders/detailNavigation";
@@ -211,6 +213,9 @@ interface OrderDetail {
   order_code: string | null;
   description: string;
   total_amount: number;
+  client_name?: string | null;
+  client_email?: string | null;
+  client_phone?: string | null;
   deposit_amount: number;
   deposit_2_amount: number;
   financing_amount: number;
@@ -1240,7 +1245,7 @@ function OrderDetailInner() {
                   phone: order.customer.phone,
                   email: order.customer.email,
                 }
-              : null
+              : { name: order.client_name || "Cliente", phone: order.client_phone, email: order.client_email }
           }
           workAddress={order.work_address}
           getPdfBlob={getPdfBlobForOrder}
@@ -1275,6 +1280,11 @@ function OrderDetailInner() {
           onOpenFiles={() => setFilesOpen(true)}
           onOpenNotes={() => setNotesOpen(true)}
           onOpenFirma={() => setFirmaOpen(true)}
+          onCreateInvoice={permissions.canViewBilling ? () => {
+            if (isNativeBilling && !permissions.solaLettura) setCreaFatturaOpen(true);
+          } : undefined}
+          invoiceDisabled={!isNativeBilling || permissions.solaLettura}
+          invoiceHint={permissions.solaLettura ? "Il tuo ruolo è in sola lettura" : !isNativeBilling ? "Attiva la fatturazione nativa nelle Impostazioni per creare fatture" : "Prepara una fattura collegata alla commessa"}
           askSilvio={
             <ChiediASilvio
               className="h-8 ml-auto"
@@ -1288,7 +1298,8 @@ function OrderDetailInner() {
         />
       )}
 
-      <div className="px-3 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
+      <div className="px-3 sm:px-6 py-3 sm:py-6 space-y-3 sm:space-y-6">
+        <OrderHeaderSummary compact={isMobile && activeTab !== "panoramica"}>
         <OrderFinancialOverview
           orderId={id!}
           totalAmount={order.total_amount}
@@ -1357,6 +1368,7 @@ function OrderDetailInner() {
             )}
           </QuoteCard>
         </OrderCommessaSummary>
+        </OrderHeaderSummary>
         <Tabs
           value={activeTab}
           onValueChange={(value) => {
@@ -1436,9 +1448,11 @@ function OrderDetailInner() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
+                    <ErrorBoundary fallback={<></>}>
+                      <SquadreInBreve orderId={id!} />
+                    </ErrorBoundary>
                     <p className="text-sm text-muted-foreground">
-                      Lavorazioni, dipendenti, subappaltatori, calendario e
-                      rapportini sono riuniti in Cantiere.
+                      Squadre, lavorazioni, ditte, calendario e rapportini sono in Cantiere.
                     </p>
                     <Button
                       variant="outline"

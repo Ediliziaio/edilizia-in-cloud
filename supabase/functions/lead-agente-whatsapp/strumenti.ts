@@ -535,7 +535,9 @@ export async function avvisaUtenti(
       p_body: testo,
       p_entity_type: "marketing_contact",
       p_entity_id: ctx.contactId,
-      p_action_url: "/azienda/conversazioni",
+      // Il filo del contatto nell'inbox (26/09/2026: «/azienda/conversazioni» non
+      // è una pagina e finiva sulla home).
+      p_action_url: `/azienda/chat?tab=conversazioni&filo=contatto:${ctx.contactId}`,
     });
     if (error) console.warn("[lead-agente] notifica non creata:", error.message);
   }

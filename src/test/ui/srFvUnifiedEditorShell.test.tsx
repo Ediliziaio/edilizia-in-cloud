@@ -52,14 +52,15 @@ function mount(fixture: typeof fixtures[number], saved = false, save = vi.fn()) 
   const { before, editor } = buildEditor();
   const view = render(<MemoryRouter initialEntries={["/?section=page_controlli"]}>{editor}</MemoryRouter>);
   const content = view.container.querySelector(`[data-template-editor-content="${fixture.sector}"]`)! as HTMLElement;
-  const bar = content.querySelector("[data-template-save-bar]")! as HTMLElement;
-  const saveButton = within(bar).getByRole("button", { name: "Salva modello" });
-  return { ...view, content, bar, saveButton, save, before, onDirtyChange };
+  // La barra in basso non esiste più: salvataggio e anteprima vivono nella barra in alto (non fissa).
+  const topbar = view.container.querySelector("[data-template-topbar]")! as HTMLElement;
+  const saveButton = within(topbar).getByRole("button", { name: "Salva" });
+  return { ...view, content, topbar, saveButton, save, before, onDirtyChange };
 }
 
 describe("Shell condivisa Sr/FV: tutti i 12 editor incorporati", () => {
-  it.each(fixtures)("$sector/$id: 2/6/4, footer nel form e copia conservata", fixture => {
-    const { content, bar, saveButton, save, before, onDirtyChange } = mount(fixture);
+  it.each(fixtures)("$sector/$id: 2/6/4, barra in alto non fissa e copia conservata", fixture => {
+    const { content, topbar, saveButton, save, before, onDirtyChange } = mount(fixture);
     expect(content.className).toBe(templateEditorLayout.content);
     expect(content.parentElement).toHaveClass(...templateEditorLayout.grid.split(" "));
     expect(content).toHaveAttribute("data-template-content");
@@ -73,16 +74,17 @@ describe("Shell condivisa Sr/FV: tutti i 12 editor incorporati", () => {
     expect(content.nextElementSibling?.className).toBe(templateEditorLayout.preview);
     expect(content.nextElementSibling).toHaveAttribute("data-template-preview");
     expect(content.nextElementSibling?.firstElementChild?.className).toBe(templateEditorLayout.previewPanel);
-    expect(bar.className).toBe(templateEditorLayout.saveBar);
-    expect(content.lastElementChild).toBe(bar);
-    expect(within(bar).getByRole("status")).toHaveTextContent("Modello da salvare");
+    // Niente più barra in basso: la barra in alto non è fissa e porta stato, anteprima e Salva.
+    expect(content.querySelector("[data-template-save-bar]")).toBeNull();
+    expect(topbar).not.toHaveClass("sticky");
+    expect(within(topbar).getByText(/Modello pronto/)).toBeInTheDocument();
     expect(onDirtyChange).toHaveBeenLastCalledWith(false);
     fireEvent.click(saveButton);
     expect(save).toHaveBeenCalledOnce();
     expect(save.mock.calls[0][0].pdf_cover_hero).toBe(before.pdf_cover_hero);
     expect(save.mock.calls[0][0].pdf_blocchi).toEqual(before.pdf_blocchi);
     expect(saveButton).toBeDisabled();
-    expect(within(bar).getByRole("status")).toHaveTextContent("Tutto salvato");
+    expect(within(topbar).getByText(/Salvato/)).toBeInTheDocument();
     expect(calls.remote).not.toHaveBeenCalled();
   });
 
@@ -101,15 +103,16 @@ describe("Shell condivisa Sr/FV: tutti i 12 editor incorporati", () => {
       expect(save).not.toHaveBeenCalled();
       expect(calls.remote).not.toHaveBeenCalled();
     });
-    it(`${fixture.sector}: mobile, anteprima dal footer e nessun salvataggio implicito`, async () => {
-      const { content, bar, save } = mount(fixture);
+    it(`${fixture.sector}: mobile, anteprima dalla barra in alto e nessun salvataggio implicito`, async () => {
+      const { content, topbar, save } = mount(fixture);
       const switcher = screen.getByRole("group", { name: "Vista del modello" });
       fireEvent.click(within(switcher).getByRole("button", { name: "Anteprima" }));
       expect(within(switcher).getByRole("button", { name: "Anteprima" })).toHaveAttribute("aria-pressed", "true");
       expect(content.parentElement).toHaveClass("[&>[data-template-content]]:hidden");
       fireEvent.click(within(switcher).getByRole("button", { name: "Modifica" }));
       expect(content.parentElement).toHaveClass("[&>[data-template-preview]]:hidden");
-      expect(content.querySelector("[data-template-save-bar]")).toBe(bar);
+      expect(content.querySelector("[data-template-save-bar]")).toBeNull();
+      expect(within(topbar).getByRole("button", { name: "Salva" })).toBeInTheDocument();
       const picker = screen.getByRole("button", { name: "Scegli la pagina da modificare" });
       fireEvent.click(picker);
       expect(picker).toHaveAttribute("aria-expanded", "true");
@@ -117,24 +120,24 @@ describe("Shell condivisa Sr/FV: tutti i 12 editor incorporati", () => {
       fireEvent.click(picker);
       expect(picker).toHaveAttribute("aria-expanded", "false");
       expect(document.getElementById(picker.getAttribute("aria-controls")!)).toHaveClass("hidden");
-      fireEvent.click(within(bar).getByRole("button", { name: "Apri anteprima PDF" }));
+      fireEvent.click(within(topbar).getByRole("button", { name: /anteprima pdf/i }));
       await waitFor(() => expect(screen.getByText(fixture.sector === "serramenti" ? "Dialog Sr" : "Dialog FV")).toBeInTheDocument());
       expect(save).not.toHaveBeenCalled();
       expect(calls.remote).not.toHaveBeenCalled();
     });
-    it(`${fixture.sector}: errore locale mantiene footer salvabile`, () => {
-      const { bar, saveButton } = mount(fixture, false, vi.fn(() => { throw new Error("Quota esaurita"); }));
+    it(`${fixture.sector}: errore locale mantiene la barra salvabile`, () => {
+      const { topbar, saveButton } = mount(fixture, false, vi.fn(() => { throw new Error("Quota esaurita"); }));
       fireEvent.click(saveButton);
       expect(calls.error).toHaveBeenCalled();
       expect(saveButton).toBeEnabled();
-      expect(within(bar).getByRole("status")).toHaveTextContent("Modello da salvare");
+      expect(within(topbar).getByText(/Modello pronto/)).toBeInTheDocument();
       expect(calls.remote).not.toHaveBeenCalled();
     });
     it(`${fixture.sector}: copia già salvata resta pulita all'apertura`, () => {
-      const { bar, saveButton, onDirtyChange } = mount(fixture, true);
+      const { topbar, saveButton, onDirtyChange } = mount(fixture, true);
       expect(saveButton).toBeDisabled();
       expect(onDirtyChange).toHaveBeenLastCalledWith(false);
-      expect(within(bar).getByRole("status")).toHaveTextContent("Tutto salvato");
+      expect(within(topbar).getByText(/Salvato/)).toBeInTheDocument();
     });
   }
 });

@@ -2,11 +2,12 @@ import type { SrProgettoRow, SrTemplatePdfRow } from "@/types/serramenti";
 
 /**
  * Gli interventi Serramenti che aprono il preventivatore col loro modello: tutti e
- * sette dal 25/09/2026 (prima solo finestre, persiane e combinato). Il modello decide
- * il documento, non i prodotti: dal preventivo si aggiunge sempre tutto il listino
- * dell'area (modelCatalog.ts suggerisce, non limita).
+ * sette dal 25/09/2026 (prima solo finestre, persiane e combinato), più portoni per
+ * garage e grate dal 26/09/2026. Il modello decide il documento, non i prodotti: dal
+ * preventivo si aggiunge sempre tutto il listino dell'area (modelCatalog.ts suggerisce,
+ * non limita).
  */
-export const SR_OPERATIONAL_MODELS = ["finestre", "persiane", "avvolgibili", "zanzariere", "porte-ingresso", "porte-interne", "combinato"] as const;
+export const SR_OPERATIONAL_MODELS = ["finestre", "persiane", "avvolgibili", "zanzariere", "porte-ingresso", "porte-interne", "combinato", "portoni-garage", "grate"] as const;
 export type SrQuoteModelId = typeof SR_OPERATIONAL_MODELS[number];
 export function isSrQuoteModelId(value: unknown): value is SrQuoteModelId {
   return typeof value === "string" && (SR_OPERATIONAL_MODELS as readonly string[]).includes(value);

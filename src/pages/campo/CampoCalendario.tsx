@@ -13,6 +13,7 @@ import {
   parseISO, isToday, isTomorrow, isYesterday,
   differenceInCalendarDays, eachDayOfInterval, getDay,
 } from "date-fns";
+import { lavoroQuelGiorno } from "@/lib/campo/mieiGiorni";
 import { it } from "date-fns/locale";
 import {
   ChevronLeft, ChevronRight, MapPin, Loader2, CalendarOff,
@@ -215,6 +216,24 @@ export default function CampoCalendario() {
     enabled: !!user?.id && !!profile?.company_id,
   });
 
+  // I MIEI giorni su ogni cantiere: le date del mio accesso, che seguono le
+  // fasi e la squadra. Dove non ci sono, valgono le date della commessa.
+  const { data: mieDate } = useQuery({
+    queryKey: ["campo-mie-date", user?.id],
+    enabled: !!user?.id,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("order_campo_assignments")
+        .select("order_id, data_inizio, data_fine_prevista")
+        .eq("user_id", user!.id);
+      if (error) throw error;
+      const m = new Map<string, { dal: string | null; al: string | null }>();
+      for (const r of data ?? []) m.set(r.order_id, { dal: r.data_inizio, al: r.data_fine_prevista });
+      return m;
+    },
+  });
+
   const isLoading = loadingCantieri || loadingApp;
 
   // Filtra items per giorno
@@ -223,6 +242,8 @@ export default function CampoCalendario() {
       const cantieri = allCantieri.filter((a) => {
         const o = a.order;
         if (!o) return false;
+        const mio = lavoroQuelGiorno(o.id ? mieDate?.get(o.id) : undefined, format(day, "yyyy-MM-dd"));
+        if (mio !== null) return mio;
         if (o.work_start_date && o.work_end_date) {
           if (isWithinInterval(day, { start: parseISO(o.work_start_date), end: parseISO(o.work_end_date) })) {
             return true;
@@ -251,7 +272,7 @@ export default function CampoCalendario() {
 
       return [...sortedApp, ...cantieri] as CalendarItem[];
     };
-  }, [allCantieri, allAppuntamenti]);
+  }, [allCantieri, allAppuntamenti, mieDate]);
 
   const dayItems = useMemo(() => itemsForDay(selectedDay), [itemsForDay, selectedDay]);
 

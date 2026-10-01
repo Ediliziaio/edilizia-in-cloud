@@ -6,13 +6,19 @@ import { cn } from "@/lib/utils";
 /** Shared visual contract. Sector editors keep their own data and save handlers. */
 export const templateEditorLayout = {
   grid: "grid grid-cols-12 items-start gap-4",
-  navigation: "col-span-12 md:col-span-3 xl:col-span-2 min-w-0 md:sticky md:top-[68px] md:self-start",
+  // Da md a xl il toggle «Modifica/Anteprima» è sticky a 68px: la sidebar deve
+  // incollarsi SOTTO di esso (68 header + ~56 toggle), altrimenti i due si
+  // sovrappongono. Da xl in su il toggle sparisce e la sidebar torna a 68px.
+  navigation: "col-span-12 md:col-span-3 xl:col-span-2 min-w-0 md:sticky md:top-[124px] xl:top-[68px] md:self-start",
   navigationPanel: "rounded-xl border bg-card p-2 max-h-[calc(100vh-90px)] overflow-y-auto",
   content: "col-span-12 md:col-span-9 xl:col-span-6 min-w-0 space-y-4",
   // Sticky belongs on the grid item, not a child constrained by a short parent.
   preview: "col-span-12 xl:col-span-4 min-w-0 xl:sticky xl:top-[68px] xl:self-start",
   previewPanel: "xl:h-[calc(100vh-96px)] h-[75vh] min-h-[360px]",
-  saveBar: "sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom))] md:bottom-0 z-10 flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-background/95 px-3 py-2.5 shadow-sm backdrop-blur [&>span]:w-full [&>[role=status]]:w-full [&>div]:ml-auto [&>div]:flex-wrap [&>div]:max-w-full [&_button]:whitespace-normal [&_button]:h-auto [&_button]:min-h-10 [&_button]:py-2",
+  // La barra di salvataggio non è più fissa: sta in cima al pannello del modulo
+  // e scorre con la pagina (scelta del titolare). Mantiene il layout flex e gli
+  // stessi selettori sui figli (stato a tutta larghezza, bottoni a destra).
+  saveBar: "flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-background/95 px-3 py-2.5 shadow-sm [&>span]:w-full [&>[role=status]]:w-full [&>div]:ml-auto [&>div]:flex-wrap [&>div]:max-w-full [&_button]:whitespace-normal [&_button]:h-auto [&_button]:min-h-10 [&_button]:py-2",
 } as const;
 
 export function TemplateEditorSaveBar({ children }: { children: ReactNode }) {

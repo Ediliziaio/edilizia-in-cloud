@@ -28,11 +28,17 @@ interface Props {
   state: EditorState;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Salva le modifiche in volo prima di inviare: il server genera l'email dal
+   *  documento salvato, non da ciò che è a schermo. */
+  saveNow: () => Promise<void>;
 }
 
-export function EditorSendEmailDialog({ state, open, onOpenChange }: Props) {
+export function EditorSendEmailDialog({ state, open, onOpenChange, saveNow }: Props) {
   const docLabel = TIPO_LABELS[state.tipo] || "Documento";
   const cliente = state.cliente_snapshot as Record<string, any> | null;
+  // Una bozza ha già il suo numero (01/10/2026) ma non è emessa: inviarla al
+  // cliente significa mandargli un documento non emesso. Si emette prima.
+  const isBozza = state.stato === "bozza";
 
   // Fetch email from anagrafica if available
   const { data: anagraficaData } = useQuery({
@@ -70,12 +76,26 @@ export function EditorSendEmailDialog({ state, open, onOpenChange }: Props) {
 
   const handleSend = useCallback(async () => {
     if (!state.id || !toEmail) return;
+    if (isBozza) {
+      toast.error("Documento in bozza", { description: "Emetti il documento prima di inviarlo via email." });
+      return;
+    }
     if (!isValidEmail(toEmail)) {
       toast.error("Indirizzo email non valido");
       return;
     }
 
     setIsSending(true);
+    // Il salvataggio automatico aspetta 2 secondi: un dettaglio appena modificato
+    // (una riga, una nota) non sarebbe nel PDF allegato, perché l'email si genera
+    // dal documento salvato. Salviamo prima, come per «Emetti» e «Invia a SDI».
+    try {
+      await saveNow();
+    } catch (err) {
+      toast.error("Modifiche non salvate: email non inviata", { description: (err as Error).message });
+      setIsSending(false);
+      return;
+    }
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const resp = await supabase.functions.invoke("send-documento-email", {
@@ -103,7 +123,7 @@ export function EditorSendEmailDialog({ state, open, onOpenChange }: Props) {
     } finally {
       setIsSending(false);
     }
-  }, [state.id, toEmail, subject, message, onOpenChange]);
+  }, [state.id, toEmail, subject, message, onOpenChange, saveNow, isBozza]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -119,6 +139,14 @@ export function EditorSendEmailDialog({ state, open, onOpenChange }: Props) {
         </DialogHeader>
 
         <div className="space-y-4 py-2">
+          {/* Bozza: non si invia un documento non ancora emesso */}
+          {isBozza && (
+            <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-300">
+              <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+              <span>Questo documento è ancora una <strong>bozza</strong>: ha già il suo numero ({state.numero}), ma non è emesso. Emettilo prima di inviarlo al cliente.</span>
+            </div>
+          )}
+
           {/* Destinatario */}
           <div className="space-y-1.5">
             <Label className="text-sm font-medium">Destinatario *</Label>
@@ -186,7 +214,7 @@ export function EditorSendEmailDialog({ state, open, onOpenChange }: Props) {
           </Button>
           <Button
             onClick={handleSend}
-            disabled={isSending || !toEmail || !isValidEmail(toEmail)}
+            disabled={isSending || isBozza || !toEmail || !isValidEmail(toEmail)}
           >
             {isSending ? (
               <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />

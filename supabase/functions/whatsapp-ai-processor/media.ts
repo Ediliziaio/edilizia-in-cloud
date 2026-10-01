@@ -14,6 +14,7 @@ import { resolveWhatsAppSender } from "../_shared/resolveWhatsAppSender.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { bytesToBase64 } from "../_shared/base64.ts";
 import { normalizzaDdtLetto, sembraDdtDallaDidascalia, testoDdtPerAssistente } from "../_shared/ddtLetto.ts";
+import { tipoDocumento } from "../_shared/documentoInGingresso.ts";
 
 /** Quanto vale il link a un file salvato: basta per registrare DDT e foto nei giorni seguenti. */
 const DURATA_LINK_SECONDI = 60 * 60 * 24 * 30;
@@ -233,7 +234,9 @@ export async function leggiFotoOperativa(
   let descrizione = "";
   const descrivi = async () => {
     const resp = await callOpenAI({
-      model: "gpt-4o-mini",
+      // Nome completo: il modello passa tale e quale a OpenRouter, che
+      // senza «openai/» non lo riconosce (27/09/2026).
+      model: "openai/gpt-4o-mini",
       temperature: 0.2,
       max_tokens: 300,
       company_id: opts.companyId,
@@ -282,4 +285,58 @@ export async function leggiFotoOperativa(
     if (!descrizione) await descrivi().catch(() => false);
   }
   return `[Foto — cosa si vede]: ${descrizione || "non sono riuscito a vederla bene"}\n\nTesto dell'utente: ${didascalia ?? "(nessuno)"}`;
+}
+
+/**
+ * Legge un documento arrivato al bot: foto → come sempre; PDF → estrae il testo
+ * col lettore dell'app (silvio-extract-pdf) e dice che tipo è (28/09/2026).
+ * Prima i PDF venivano scaricati e poi ignorati.
+ */
+export async function leggiDocumentoOperativo(
+  supabase: SupabaseClient,
+  opts: { storagePath: string; companyId: string; userId: string | null; didascalia: string | null; messageId: string; mime: string },
+): Promise<string> {
+  const mime = (opts.mime || "").toLowerCase();
+  const isPdf = mime.includes("pdf") || opts.storagePath.toLowerCase().endsWith(".pdf");
+  if (!isPdf) {
+    return leggiFotoOperativa(supabase, {
+      storagePath: opts.storagePath,
+      companyId: opts.companyId,
+      userId: opts.userId,
+      didascalia: opts.didascalia,
+      messageId: opts.messageId,
+    });
+  }
+  const base = Deno.env.get("SUPABASE_URL")!;
+  const chiave = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  let testo = "";
+  try {
+    const res = await fetch(`${base}/functions/v1/silvio-extract-pdf`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${chiave}` },
+      body: JSON.stringify({
+        storage_path: opts.storagePath,
+        company_id: opts.companyId,
+        per_utente: opts.userId,
+        bucket: "whatsapp-media",
+        max_chars: 8000,
+      }),
+    });
+    const j = await res.json().catch(() => null) as { text?: string } | null;
+    testo = (j?.text ?? "").trim();
+  } catch (e) {
+    console.error(JSON.stringify({ level: "error", fn: "leggi_documento_pdf", error: String(e) }));
+  }
+  if (!testo) {
+    return `[Documento PDF ricevuto — non sono riuscito a leggerlo]\n\nTesto dell'utente: ${opts.didascalia ?? "(nessuno)"}`;
+  }
+  const etichetta: Record<string, string> = {
+    ddt: "DDT (documento di trasporto)",
+    fattura: "fattura del fornitore",
+    computo: "computo metrico",
+    scontrino: "scontrino/ricevuta",
+    altro: "documento",
+  };
+  const tipo = tipoDocumento(testo, opts.didascalia);
+  return `[Documento PDF — ${etichetta[tipo]}, testo letto]:\n${testo}\n\nTesto dell'utente: ${opts.didascalia ?? "(nessuno)"}`;
 }

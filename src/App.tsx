@@ -164,6 +164,7 @@ const SelezionaAzienda = lazy(() => import("@/pages/SelezionaAzienda"));
 const AccettaPreventivo = lazy(() => import("@/pages/public/AccettaPreventivo"));
 const NpsSurvey = lazy(() => import("@/pages/feedback/NpsSurvey"));
 const ResetPassword = lazy(() => import("@/pages/auth/ResetPassword"));
+const OAuthConsent = lazy(() => import("@/pages/oauth/OAuthConsent"));
 const PublicBooking = lazy(() => import("@/pages/public/PublicBooking"));
 const PublicAppointmentManage = lazy(() => import("./pages/public/PublicAppointmentManage"));
 const PublicChatWidgetPage = lazy(() => import("@/pages/widget/PublicChatWidgetPage"));
@@ -735,6 +736,7 @@ const App = () => (
               <Route path="/cambia-password" element={<ChangePassword />} />
               <Route path="/seleziona-azienda" element={<ProtectedRoute><Suspense fallback={<div style={{display:"flex",alignItems:"center",justifyContent:"center",minHeight:"60vh"}}><Loader2 className="h-6 w-6 animate-spin" /></div>}><SelezionaAzienda /></Suspense></ProtectedRoute>} />
               <Route path="/reset-password" element={<ResetPassword />} />
+              <Route path="/oauth/consent" element={<OAuthConsent />} />
               <Route path="/prenota/:slug" element={<PublicBooking />} />
               <Route path="/appuntamento/:token" element={<PublicAppointmentManage />} />
               {/* Widget chatbot pubblico embeddable (usato da public/embed.js dentro iframe) */}

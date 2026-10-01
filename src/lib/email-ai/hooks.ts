@@ -411,6 +411,7 @@ export interface DocumentoEstratto {
 // Tabella non ancora nei tipi generati (schema applicato al release MP-06): cast localizzato.
 const sbAny = supabase as unknown as {
   from: (t: string) => ReturnType<typeof supabase.from>;
+  rpc: (fn: string, args?: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>;
 };
 
 export function useEstraiAllegato() {
@@ -554,21 +555,34 @@ export function useAggiornaStatoCaricoDdt() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: { id: string; stato: "confermato" | "scartato"; email_id?: string }) => {
-      const patch: Record<string, unknown> = { stato: input.stato };
       if (input.stato === "confermato") {
-        const { data: u } = await supabase.auth.getUser();
-        patch.confirmed_by = u.user?.id ?? null;
-        patch.confirmed_at = new Date().toISOString();
+        // Conferma = carico vero (27/09/2026): ricezione sull'ordine, movimenti
+        // e giacenza per gli articoli riconosciuti. Prima cambiava solo lo stato.
+        const { data, error } = await sbAny.rpc("conferma_carico_ddt", { p_carico_id: input.id });
+        if (error) throw new Error(error.message);
+        const esito = data as { ok: boolean; errore?: string; caricati?: unknown[]; da_abbinare?: unknown[] };
+        if (!esito?.ok) throw new Error(esito?.errore ?? "Conferma non riuscita");
+        return { ...input, caricati: esito.caricati?.length ?? 0, daAbbinare: esito.da_abbinare?.length ?? 0 };
       }
+      const patch: Record<string, unknown> = { stato: input.stato };
       const { error } = await sbAny.from("email_ddt_carico").update(patch).eq("id", input.id);
       if (error) throw error;
-      return input;
+      return { ...input, caricati: 0, daAbbinare: 0 };
     },
     onSuccess: (input) => {
-      toast.success(input.stato === "confermato" ? "Carico confermato" : "Carico scartato");
+      if (input.stato === "confermato") {
+        toast.success("Carico confermato", {
+          description: input.daAbbinare > 0
+            ? `${input.caricati} articoli caricati in magazzino, ${input.daAbbinare} da abbinare a mano in Magazzino.`
+            : `${input.caricati} articoli caricati in magazzino.`,
+        });
+      } else {
+        toast.success("Carico scartato");
+      }
       void qc.invalidateQueries({ queryKey: ["email-ddt-carichi", input.email_id] });
       // P0-A: rinfresca anche il pannello company-wide dei DDT fotografati (email_id NULL).
       void qc.invalidateQueries({ queryKey: ["email-ddt-carichi-da-registrare"] });
+      void qc.invalidateQueries({ queryKey: ["warehouse"] });
     },
     onError: (e) => toast.error("Errore", { description: e instanceof Error ? e.message : String(e) }),
   });

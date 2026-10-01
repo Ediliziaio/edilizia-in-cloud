@@ -15,6 +15,8 @@ import {
 interface ChiediConfermaArgs {
   domanda?: string;
   opzioni?: string[];
+  /** Strumento che il Sì potrà eseguire (27/09/2026): il Sì sblocca solo quello. */
+  azione?: string;
 }
 
 export const chiediConfermaDef = {
@@ -40,6 +42,12 @@ export const chiediConfermaDef = {
         items: { type: "string" },
         description:
           "Etichette delle risposte. Default ['Sì','No']. Massimo 10. Tienile brevissime (≤20 caratteri per i bottoni).",
+      },
+      azione: {
+        type: "string",
+        description:
+          "Nome dello strumento che eseguirai se l'utente dice Sì (es. 'carica_ddt', 'crea_rapportino'). " +
+          "Il Sì sblocca SOLO quello. Lascialo vuoto solo se la domanda serve a scegliere, non a confermare.",
       },
     },
     required: ["domanda"],
@@ -73,6 +81,10 @@ export function chiediConferma(
   // user_message vuoto: la domanda è già nel payload interactive; il loop NON
   // deve inviare un secondo messaggio testuale.
   return Promise.resolve(
-    okResult({ inviato: true, __interactive: interactive }, ""),
+    okResult({
+      inviato: true,
+      __interactive: interactive,
+      azione: typeof args.azione === "string" ? args.azione.trim() || null : null,
+    }, ""),
   );
 }

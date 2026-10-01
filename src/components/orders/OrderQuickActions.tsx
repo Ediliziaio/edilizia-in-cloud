@@ -3,11 +3,8 @@
  * Riduce l'attrito operativo: contatta il cliente (chiama/WhatsApp/email),
  * invia il PDF della commessa, fissa un appuntamento — senza uscire dalla pagina.
  *
- * UX (2026-07): le azioni erano ~11 pill che andavano a capo su 2 righe
- * sprecando spazio. Ora sono data-driven: su schermi larghi (xl) le più usate
- * restano inline come scorciatoia, tutto il resto vive in un dropdown animato
- * "Azioni" raggruppato (Comunica / Gestisci). Su mobile/iPad c'è solo il
- * dropdown compatto + "Chiedi a Silvio" → una sola riga a ogni breakpoint.
+ * Le azioni frequenti hanno etichette visibili su tutti gli schermi.
+ * Le altre sono raccolte nel menu, senza duplicare le scorciatoie.
  */
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -19,7 +16,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Phone, MessageSquare, Mail, FileText, CalendarPlus, Loader2, BellRing, UserCog, FolderOpen, StickyNote, PenLine, ChevronDown, Zap, ListPlus, Sparkles, Settings2, type LucideIcon } from "lucide-react";
+import { Phone, MessageSquare, Smartphone, Receipt, Mail, FileText, CalendarPlus, Loader2, BellRing, UserCog, FolderOpen, StickyNote, PenLine, ChevronDown, Zap, ListPlus, Sparkles, Settings2, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -28,6 +25,7 @@ import { useSoftphoneOptional } from "@/components/telephony/SoftphoneProvider";
 import { QuickContactSendDialog, type QuickSendChannel } from "@/components/contacts/QuickContactSendDialog";
 import { AppointmentDialog } from "@/components/appointments/AppointmentDialog";
 import { useQueryClient } from "@tanstack/react-query";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface Customer {
   id?: string | null;
@@ -61,6 +59,9 @@ interface Props {
   onOpenNotes?: () => void;
   /** Apre il popup "Firma digitale" (invio/gestione firma cliente). */
   onOpenFirma?: () => void;
+  onCreateInvoice?: () => void;
+  invoiceDisabled?: boolean;
+  invoiceHint?: string;
   onCreateTask?: () => void;
   onApplyPlaybook?: () => void;
   onManagePlaybook?: () => void;
@@ -94,10 +95,12 @@ type QuickAction = {
 export function OrderQuickActions({
   orderId, orderCode, customer, workAddress, workCity, workProvince, getPdfBlob, paymentDue, onOpenOps, onOpenFiles, onOpenNotes, onOpenFirma, askSilvio, sollecitoRef,
   onCreateTask, onApplyPlaybook, onManagePlaybook, applyingPlaybook = false, playbookLabel,
+  onCreateInvoice, invoiceDisabled = false, invoiceHint,
 }: Props) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const softphone = useSoftphoneOptional();
+  const isMobile = useIsMobile();
 
   const hasPhone = !!customer?.phone && customer.phone.replace(/\D/g, "").length >= 6;
   const hasEmail = !!customer?.email && customer.email.includes("@");
@@ -175,7 +178,8 @@ export function OrderQuickActions({
     ...(onManagePlaybook ? [{ id: "manage-playbook", label: "Gestisci flusso", icon: Settings2, iconClass: "text-slate-600", onClick: onManagePlaybook, group: "pianifica" as const }] : []),
     // Comunica col cliente
     { id: "call", label: "Chiama", icon: Phone, iconClass: "text-emerald-600", onClick: handleCall, group: "comunica", disabled: !hasPhone, hint: hasPhone ? `Chiama ${customer?.phone}` : "Telefono cliente mancante" },
-    { id: "whatsapp", label: "WhatsApp", icon: MessageSquare, iconClass: "text-emerald-600", onClick: () => openContact("whatsapp"), group: "comunica", primary: true, disabled: !hasPhone, hint: hasPhone ? "Invia WhatsApp/SMS" : "Telefono cliente mancante" },
+    { id: "whatsapp", label: "WhatsApp", icon: MessageSquare, iconClass: "text-emerald-700", onClick: () => openContact("whatsapp"), group: "comunica", disabled: !hasPhone, hint: hasPhone ? "Scrivi un WhatsApp al cliente" : "Telefono cliente mancante" },
+    { id: "sms", label: "SMS", icon: Smartphone, iconClass: "text-blue-700", onClick: () => openContact("sms"), group: "comunica", disabled: !hasPhone, hint: hasPhone ? "Scrivi un SMS al cliente" : "Telefono cliente mancante" },
     { id: "email", label: "Email", icon: Mail, iconClass: "text-violet-600", onClick: () => openContact("email"), group: "comunica", primary: true, disabled: !hasEmail, hint: hasEmail ? "Invia email" : "Email cliente mancante" },
     { id: "pdf", label: "Invia PDF", icon: FileText, iconClass: "text-blue-600", onClick: () => { void handleSendPdf(); }, group: "comunica", disabled: !hasEmail || pdfBusy, busy: pdfBusy, hint: hasEmail ? "Genera e invia il PDF al cliente via email" : "Email cliente mancante" },
     ...(paymentDue && paymentDue.amount > 0 && (hasPhone || hasEmail)
@@ -187,90 +191,54 @@ export function OrderQuickActions({
     ...(onOpenNotes ? [{ id: "notes", label: "Note interne", icon: StickyNote, iconClass: "text-violet-600", onClick: onOpenNotes, group: "gestisci" as const, hint: "Note interne e chat di team sulla commessa (@menziona i colleghi)" }] : []),
     ...(onOpenFirma ? [{ id: "firma", label: "Firma", icon: PenLine, iconClass: "text-blue-600", onClick: onOpenFirma, group: "gestisci" as const, hint: "Firma digitale: invia il documento al cliente e gestisci la firma" }] : []),
     { id: "appt", label: "Appuntamento", icon: CalendarPlus, iconClass: "text-indigo-600", onClick: () => setApptOpen(true), group: "gestisci", primary: true, hint: "Fissa un appuntamento/sopralluogo/posa per questa commessa" },
+    ...(onCreateInvoice ? [{ id: "invoice", label: "Crea fattura", icon: Receipt, iconClass: "text-orange-700", onClick: onCreateInvoice, group: "gestisci" as const, disabled: invoiceDisabled, hint: invoiceHint ?? "Prepara una fattura collegata alla commessa" }] : []),
   ];
 
-  const primaryActions = actions.filter((a) => a.primary);
+  // Sul telefono una sola riga: attività, documenti, menu. Stessi callback,
+  // nessuna funzione rimossa: contatti, fattura e appuntamento stanno nel menu.
+  const primaryActions = actions.filter((a) => (isMobile ? ["task", "files"] : ["task", "files", "appt"]).includes(a.id));
+  const shortcuts = isMobile ? [] : ["email", "whatsapp", "sms", "invoice"].flatMap(id => actions.filter(a => a.id === id));
   const comunica = actions.filter((a) => a.group === "comunica");
   const gestisci = actions.filter((a) => a.group === "gestisci");
   const pianifica = actions.filter((a) => a.group === "pianifica");
 
   const renderMenuItem = (a: QuickAction) => {
+    if ([...primaryActions, ...shortcuts].some(primary => primary.id === a.id)) return null;
     const Icon = a.icon;
     return (
       <DropdownMenuItem
         key={a.id}
         disabled={a.disabled}
+        aria-label={a.label}
+        aria-description={a.disabled ? a.hint : undefined}
         onSelect={a.onClick}
-        // Le azioni "primary" sono già inline su xl → nel menu le nascondiamo lì
-        // per evitare doppioni (restano visibili sotto xl).
-        className={cn("gap-2.5 cursor-pointer", a.primary && "xl:hidden", a.tone === "warning" && "text-amber-700 focus:text-amber-700")}
+        className={cn("min-h-11 gap-2.5 cursor-pointer", a.tone === "warning" && "text-amber-700 focus:text-amber-700")}
       >
         {a.busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Icon className={cn("h-4 w-4", a.iconClass)} />}
-        <span>{a.label}</span>
+        <span className="min-w-0"><span className="block">{a.label}</span>{a.disabled && a.hint && <span className="block text-[11px] font-normal">{a.hint}</span>}</span>
       </DropdownMenuItem>
     );
   };
 
   return (
     <div role="region" aria-label="Azioni rapide commessa" className="bg-white border-b border-gray-100 px-3 sm:px-6 py-2">
-      <div className="flex flex-wrap items-center gap-1.5 max-sm:flex-nowrap">
-        {/* Scorciatoie inline (solo desktop largo): le azioni più usate, come
-            icone col nome nel suggerimento. Prima erano sei bottoni con la
-            scritta dopo l'etichetta «Azioni rapide»: con i sei della testata
-            la scheda si apriva con dodici bottoni. */}
-        <div className="hidden xl:flex flex-wrap items-center gap-1.5">
-          {primaryActions.map((a) => {
-            const Icon = a.icon;
-            return (
-              <Button
-                key={a.id}
-                variant="outline"
-                size="icon"
-                className="h-8 w-8"
-                onClick={a.onClick}
-                disabled={a.disabled}
-                title={a.hint ? `${a.label} — ${a.hint}` : a.label}
-                aria-label={a.label}
-              >
-                {a.busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Icon className={cn("h-3.5 w-3.5", a.iconClass)} />}
-              </Button>
-            );
-          })}
-        </div>
+      <div className="flex items-center gap-1.5 md:flex-wrap md:gap-2">
+        {primaryActions.map(a => {
+          const Icon = a.icon;
+          return <Button key={a.id} variant="outline" onClick={a.onClick} disabled={a.disabled}
+            title={a.hint ?? a.label} aria-label={a.label}
+            className={cn("h-11 min-h-11 min-w-0 flex-1 gap-1.5 whitespace-nowrap rounded-lg border-slate-300 px-2 text-xs font-semibold md:h-auto md:flex-none md:gap-2 md:px-3 md:py-2 md:text-sm",
+              a.id === "task" ? "border-orange-700 bg-orange-700 text-white hover:bg-orange-800 hover:text-white" : "bg-white text-blue-950 hover:bg-blue-50")}>
+            <Icon className="h-4 w-4 shrink-0" aria-hidden="true" /><span>{isMobile && a.id === "task" ? "Attività" : a.label}</span>
+          </Button>;
+        })}
 
-        {/* Mobile: le azioni da cantiere a portata di pollice, tonde con la
-            sola icona (telefono, WhatsApp, appuntamento, cartella): con le
-            etichette non entravano e la terza restava tagliata («Do…»). Il
-            resto sta in «Altro». */}
-        <div className="flex min-w-0 flex-1 items-center gap-2 sm:hidden">
-          {actions.filter((a) => ["call", "whatsapp", "appt", "files"].includes(a.id)).map((a) => {
-            const Icon = a.icon;
-            return (
-              <Button
-                key={a.id}
-                variant="outline"
-                size="icon"
-                className="tap-compact h-9 w-9 shrink-0 rounded-full"
-                onClick={a.onClick}
-                disabled={a.disabled}
-                aria-label={a.label}
-                title={a.hint ?? a.label}
-              >
-                <Icon className={cn("h-4 w-4", a.iconClass)} />
-              </Button>
-            );
-          })}
-        </div>
-
-        {/* Dropdown "Azioni" — animato (fade/zoom/slide dallo shadcn) e raggruppato.
-            Contiene TUTTO sotto xl; su xl mostra solo le azioni non-primary. */}
+        {/* Azioni secondarie raggruppate, uguali su desktop e mobile. */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="tap-compact h-8 gap-1.5 group max-sm:shrink-0 max-sm:rounded-full max-sm:px-2.5">
-              <Zap className="h-3.5 w-3.5 text-primary max-sm:hidden" />
-              <span className="sm:hidden">Altro</span>
-              <span className="hidden sm:inline xl:hidden">Azioni</span>
-              <span className="hidden xl:inline">Altre azioni</span>
+            <Button variant="outline" size="sm" aria-label="Altre azioni" className="group h-11 min-h-11 gap-1.5 rounded-lg border-slate-300 px-2 text-xs font-semibold text-blue-950 md:gap-2 md:px-3 md:text-sm">
+              {!isMobile && <Zap className="h-3.5 w-3.5 text-primary" />}
+              <span>{isMobile ? "Altro" : "Altre azioni"}</span>
               <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
             </Button>
           </DropdownMenuTrigger>
@@ -279,7 +247,7 @@ export function OrderQuickActions({
             // collisionPadding: lascia respiro dalla bottom-nav mobile;
             // max-h + overflow: se le azioni non entrano, il menu scrolla
             // (prima le ultime finivano sotto la barra e non erano raggiungibili).
-            collisionPadding={16}
+            collisionPadding={{ top: 16, right: 16, bottom: isMobile ? 96 : 16, left: 16 }}
             className="w-60 max-h-[min(60vh,26rem)] overflow-y-auto overscroll-contain"
           >
             {pianifica.length > 0 && <>
@@ -301,12 +269,25 @@ export function OrderQuickActions({
           </DropdownMenuContent>
         </DropdownMenu>
 
+        {!isMobile && <div role="group" aria-label="Contatta il cliente e fattura" className="flex flex-wrap gap-2 border-l border-slate-200 pl-2">
+          {shortcuts.map(action => {
+            const Icon = action.icon;
+            return <span key={action.id} title={action.hint} className="flex min-w-0 flex-1 sm:flex-none">
+              <Button variant="outline" disabled={action.disabled} onClick={action.onClick} aria-label={action.label}
+                className="h-auto min-h-14 w-full flex-col gap-1 whitespace-normal rounded-lg border-slate-300 bg-white px-2 py-2 text-[11px] font-semibold text-blue-950 shadow-sm hover:bg-blue-50 sm:min-h-11 sm:flex-row sm:gap-2 sm:text-xs">
+                <Icon className={cn("h-4 w-4 shrink-0", action.iconClass)} aria-hidden="true" />
+                <span>{action.label}</span>
+              </Button>
+            </span>;
+          })}
+        </div>}
+
         {/* Silvio: CTA AI distinta, spinta a destra su desktop */}
         {/* Mobile no: c'è già il bottone Silvio al centro della barra in basso. */}
-        {askSilvio && <div className="xl:ml-auto max-sm:hidden">{askSilvio}</div>}
+        {!isMobile && askSilvio && <div className="xl:ml-auto">{askSilvio}</div>}
       </div>
 
-      {(hasPhone || hasEmail) && customer && (
+      {quickSend.open && (hasPhone || hasEmail) && customer && (
         <QuickContactSendDialog
           open={quickSend.open}
           onOpenChange={(v) => setQuickSend((s) => ({ ...s, open: v }))}

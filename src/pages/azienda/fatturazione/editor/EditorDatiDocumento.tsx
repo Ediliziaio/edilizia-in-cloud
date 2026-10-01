@@ -23,6 +23,7 @@ const TIPO_TO_TD: Record<string, string> = {
   fattura_differita_b: "TD25", autoconsumo: "TD27",
 };
 import type { EditorState, Action } from "./useEditorState";
+import { NumeroDocumentoField, TIPI_NUMERO_SULLA_BOZZA, haSegnapostoBozza } from "./NumeroDocumentoField";
 
 interface Props {
   state: EditorState;
@@ -70,21 +71,21 @@ export function EditorDatiDocumento({ state, dispatch, disabled, dataBloccata }:
                 mode="single"
                 selected={state.data_emissione ? parseISO(state.data_emissione) : undefined}
                 onSelect={(d) => d && setField("data_emissione", format(d, "yyyy-MM-dd"))}
+                disabled={{ after: new Date() }}
                 autoFocus
                 className="p-3 pointer-events-auto"
               />
             </PopoverContent>
           </Popover>
         </div>
-        <div>
-          <Label className="text-[10px] text-muted-foreground">Numero</Label>
-          <Input
-            value={state.numero ?? ""}
-            readOnly
-            className="h-7 text-xs font-mono bg-muted/50"
-          />
-        </div>
+        <NumeroDocumentoField state={state} dispatch={dispatch} disabled={disabled} />
       </div>
+
+      {state.stato === "bozza" && TIPI_NUMERO_SULLA_BOZZA.includes(state.tipo) && !haSegnapostoBozza(state.numero) && (
+        <p className="text-[10px] leading-snug text-muted-foreground">
+          Il numero è già di questa fattura: il cliente può pagare citandolo. Allo SDI parte quando la emetti e la invii.
+        </p>
+      )}
 
       {/* Tipo SDI / Serie */}
       <div className="grid grid-cols-2 gap-2">

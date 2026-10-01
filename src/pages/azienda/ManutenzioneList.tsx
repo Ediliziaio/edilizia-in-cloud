@@ -1,43 +1,31 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { createPortal } from "react-dom";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import {
-  Settings, AlertCircle, CheckCircle2, TrendingUp, Plus, Calendar,
-  User, Zap, Sun, Wind, Bolt, Home, Droplets, CheckSquare, ClipboardCheck, Users
+  Settings, AlertCircle, Plus, Search, List, Columns3, ClipboardList, FileText,
+  AlertTriangle, CheckCircle2, CircleDashed,
 } from "lucide-react";
-import { format, addDays, differenceInDays } from "date-fns";
-import { it } from "date-fns/locale";
+import { addDays } from "date-fns";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { NuovoImpiantoWizard } from "@/components/manutenzione/NuovoImpiantoWizard";
-import { type StaffUser, useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
-import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
-import { KpiMobili } from "@/components/mobile/FiltriMobile";
+import { StatTile } from "@/components/common/StatTile";
+import { ExportButton } from "@/components/shared/ExportButton";
+import { ManutenzionePipeline, type ImpiantoStato } from "@/components/manutenzione/ManutenzionePipeline";
+import { ImpiantiTable } from "@/components/manutenzione/ImpiantiTable";
+import { statoManutenzione, type StatoManutenzione } from "@/lib/manutenzione/statoManutenzione";
 
-const KEEP_VALUE = "__keep__";
-const UNASSIGNED_VALUE = "__unassigned__";
-
-type ProfileSummary = {
-  first_name: string | null;
-  last_name: string | null;
-};
+type ProfileSummary = { first_name: string | null; last_name: string | null };
 
 type ImpiantoCliente = {
   id: string;
@@ -56,73 +44,61 @@ type ContrattoManutenzione = {
   importo_canone: number;
   tipo_fatturazione: string | null;
   customer: ProfileSummary | null;
-  impianto: {
-    tipo_impianto: string | null;
-    marca: string | null;
-    modello: string | null;
-  } | null;
+  impianto: { tipo_impianto: string | null; marca: string | null; modello: string | null } | null;
 };
 
-type MaintenancePlan = {
+/** Piano con quel che serve per pianificare/completare + il legame all'impianto. */
+type PianoAttivo = {
   id: string;
   titolo: string;
-  contratto: {
-    nome_contratto: string | null;
-    customer_id: string | null;
-    impianto_id: string | null;
-    customer: ProfileSummary | null;
-  } | null;
-  tecnico: ProfileSummary | null;
-  tecnico_preferito: string | null;
   frequenza_tipo: string;
   frequenza_giorni: number | null;
   prossima_scadenza: string | null;
+  tecnico_preferito: string | null;
+  contratto: { nome_contratto: string | null; customer_id: string | null; impianto_id: string | null } | null;
 };
 
-const TIPO_ICONE: Record<string, React.ElementType> = {
-  caldaia: Zap,
-  fotovoltaico: Sun,
-  climatizzatore: Wind,
-  impianto_elettrico: Bolt,
-  infissi: Home,
-  idraulico: Droplets,
-};
-
-function GaranziaScadenzaBadge({ date }: { date: string | null }) {
-  if (!date) return null;
-  const days = differenceInDays(new Date(date), new Date());
-  if (days < 0) return <Badge className="text-xs bg-red-100 text-red-800">Garanzia scaduta</Badge>;
-  if (days < 90) return <Badge className="text-xs bg-yellow-100 text-yellow-800">Garanzia: {days}gg</Badge>;
-  return <Badge className="text-xs bg-green-100 text-green-800">Garanzia ok</Badge>;
-}
-
-export default function ManutenzioneList() {
+/** `incorporata`: dentro Assistenza (scheda «Manutenzioni»); `actionsSlot`: dove
+ *  teletrasportare i pulsanti, sulla riga delle due schede. */
+export default function ManutenzioneList({ incorporata = false, actionsSlot = null }: { incorporata?: boolean; actionsSlot?: HTMLElement | null } = {}) {
   const { effectiveCompany, user } = useAuth();
   const permissions = usePermissions();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [wizardOpen, setWizardOpen] = useState(false);
-  const [selectedPianoIds, setSelectedPianoIds] = useState<Set<string>>(new Set());
-  const [bulkOpen, setBulkOpen] = useState(false);
-  const [bulkTecnico, setBulkTecnico] = useState(KEEP_VALUE);
+  const [search, setSearch] = useState("");
+  // Pillola attiva (per STATO, non per tipo): "all" · "urgenti" (scadenza
+  // imminente = scadute o in scadenza) · "in_regola" · "senza_piano" · "__contratti__".
+  const [pill, setPill] = useState("all");
+  const [vista, setVista] = useState<"tabella" | "kanban">(() => {
+    try { return (localStorage.getItem("manutenzione-vista") as "tabella" | "kanban") || "tabella"; }
+    catch { return "tabella"; }
+  });
+  const cambiaVista = (v: "tabella" | "kanban") => {
+    setVista(v);
+    try { localStorage.setItem("manutenzione-vista", v); } catch { /* private mode */ }
+  };
+  // Selezione righe (come l'assistenza): l'Esporta segue la selezione.
+  const [selezionati, setSelezionati] = useState<Set<string>>(new Set());
+  const toggleUno = (id: string) => setSelezionati((prev) => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
 
-  const { data: staffList = [] } = useCompanyStaffUsers(effectiveCompany?.id);
+  const soloMie = permissions.onlyAssigned && user?.id;
 
-  // 2026-05-27 (Security audit): tecnico con only_assigned=true vede SOLO
-  // impianti / contratti / piani col proprio tecnico_preferito. Senza filtro
-  // server-side il tecnico scaricava tutto e vedeva su UI dati di colleghi.
   const { data: impianti = [], isLoading: loadingImpianti, isError: impiantiError } = useQuery({
     queryKey: ["impianti", effectiveCompany?.id, permissions.onlyAssigned, user?.id],
     queryFn: async () => {
       if (!effectiveCompany?.id) return [];
       let query = supabase
         .from("impianti_cliente")
-        .select("*, customer:profiles!impianti_cliente_customer_id_fkey(first_name, last_name)")
+        .select("id, tipo_impianto, marca, modello, garanzia_scadenza, data_installazione, customer:profiles!impianti_cliente_customer_id_fkey(first_name, last_name)")
         .eq("company_id", effectiveCompany.id)
         .eq("attivo", true)
         .order("created_at", { ascending: false });
-      if (permissions.onlyAssigned && user?.id) {
-        query = query.eq("tecnico_preferito", user.id);
-      }
+      if (soloMie) query = query.eq("tecnico_preferito", user!.id);
       const { data, error } = await query;
       if (error) throw error;
       return (data ?? []) as unknown as ImpiantoCliente[];
@@ -139,9 +115,7 @@ export default function ManutenzioneList() {
         .select("*, impianto:impianti_cliente(tipo_impianto, marca, modello), customer:profiles!contratti_manutenzione_customer_id_fkey(first_name, last_name)")
         .eq("company_id", effectiveCompany.id)
         .order("created_at", { ascending: false });
-      if (permissions.onlyAssigned && user?.id) {
-        query = query.eq("tecnico_preferito", user.id);
-      }
+      if (soloMie) query = query.eq("tecnico_preferito", user!.id);
       const { data, error } = await query;
       if (error) throw error;
       return (data ?? []) as unknown as ContrattoManutenzione[];
@@ -149,42 +123,65 @@ export default function ManutenzioneList() {
     enabled: !!effectiveCompany?.id,
   });
 
-  const { data: pianiInScadenza = [], isLoading: loadingPiani, isError: pianiError } = useQuery({
-    queryKey: ["piani-scadenza", effectiveCompany?.id, permissions.onlyAssigned, user?.id],
+  // Tutti i piani attivi: servono a dare a ogni impianto la sua prossima
+  // manutenzione (e quindi lo stato del kanban), non solo quelli in scadenza.
+  const { data: piani = [], isError: pianiError } = useQuery({
+    queryKey: ["piani-attivi", effectiveCompany?.id, permissions.onlyAssigned, user?.id],
     queryFn: async () => {
       if (!effectiveCompany?.id) return [];
-      const scadenza14 = addDays(new Date(), 14).toISOString().split("T")[0];
       let query = supabase
         .from("piani_manutenzione")
-        .select("*, contratto:contratti_manutenzione(nome_contratto, customer_id, impianto_id, customer:profiles!contratti_manutenzione_customer_id_fkey(first_name, last_name)), tecnico:profiles!piani_manutenzione_tecnico_preferito_fkey(first_name, last_name)")
+        .select("id, titolo, frequenza_tipo, frequenza_giorni, prossima_scadenza, tecnico_preferito, contratto:contratti_manutenzione(nome_contratto, customer_id, impianto_id)")
         .eq("company_id", effectiveCompany.id)
         .eq("attivo", true)
-        .lte("prossima_scadenza", scadenza14)
         .order("prossima_scadenza", { ascending: true });
-      if (permissions.onlyAssigned && user?.id) {
-        query = query.eq("tecnico_preferito", user.id);
-      }
+      if (soloMie) query = query.eq("tecnico_preferito", user!.id);
       const { data, error } = await query;
       if (error) throw error;
-      return (data ?? []) as unknown as MaintenancePlan[];
+      return (data ?? []) as unknown as PianoAttivo[];
     },
     enabled: !!effectiveCompany?.id,
   });
 
-  const pianificaMutation = useMutation({
-    mutationFn: async (piano: MaintenancePlan) => {
-      // Calcola prossima scadenza in base alla frequenza
-      const oggi = new Date();
-      const FREQ_GIORNI: Record<string, number> = {
-        mensile: 30, trimestrale: 90, semestrale: 180, annuale: 365
-      };
-      const giorniFreq = piano.frequenza_giorni ?? FREQ_GIORNI[piano.frequenza_tipo] ?? 365;
-      const prossima = addDays(oggi, giorniFreq).toISOString().split("T")[0];
+  // Per ogni impianto: il piano con la scadenza più vicina (se c'è).
+  const pianoPerImpianto = useMemo(() => {
+    const m = new Map<string, PianoAttivo>();
+    for (const p of piani) {
+      const imp = p.contratto?.impianto_id;
+      if (!imp) continue;
+      const cur = m.get(imp);
+      if (!cur || (p.prossima_scadenza ?? "9999") < (cur.prossima_scadenza ?? "9999")) m.set(imp, p);
+    }
+    return m;
+  }, [piani]);
 
-      // Crea ticket intervento
+  // Nome del tecnico assegnato (sta sul piano, non sull'impianto): risolvo gli
+  // id in nomi, come fa l'assistenza con l'assegnatario.
+  const tecnicoIds = useMemo(
+    () => [...new Set(piani.map((p) => p.tecnico_preferito).filter(Boolean))] as string[],
+    [piani],
+  );
+  const { data: tecnici = {} } = useQuery({
+    queryKey: ["manutenzione-tecnici", effectiveCompany?.id, tecnicoIds],
+    enabled: !!effectiveCompany?.id && tecnicoIds.length > 0,
+    staleTime: 10 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("profiles").select("id, first_name, last_name").in("id", tecnicoIds);
+      if (error) throw error;
+      const m: Record<string, string> = {};
+      (data ?? []).forEach((p) => { m[p.id] = [p.first_name, p.last_name].filter(Boolean).join(" ") || "Tecnico"; });
+      return m;
+    },
+  });
+
+  const FREQ_GIORNI: Record<string, number> = { mensile: 30, trimestrale: 90, semestrale: 180, annuale: 365 };
+
+  const pianificaMutation = useMutation({
+    mutationFn: async (piano: PianoAttivo) => {
       const customerId = piano.contratto?.customer_id;
       if (!customerId || !effectiveCompany?.id) throw new Error("Dati mancanti");
-
+      const giorni = piano.frequenza_giorni ?? FREQ_GIORNI[piano.frequenza_tipo] ?? 365;
+      const prossima = addDays(new Date(), giorni).toISOString().split("T")[0];
       const { error: ticketErr } = await supabase.from("tickets").insert({
         company_id: effectiveCompany.id,
         customer_id: customerId,
@@ -194,196 +191,225 @@ export default function ManutenzioneList() {
         priority: "normale",
         assigned_to: piano.tecnico_preferito || null,
         impianto_id: piano.contratto?.impianto_id ?? null,
-      });
+      } as never);
       if (ticketErr) throw ticketErr;
-
-      // Aggiorna solo la prossima scadenza: l'esecuzione si registra quando l'intervento viene completato.
-      const { error: pianoErr } = await supabase
-        .from("piani_manutenzione")
-        .update({ prossima_scadenza: prossima })
-        .eq("id", piano.id);
+      const { error: pianoErr } = await supabase.from("piani_manutenzione").update({ prossima_scadenza: prossima }).eq("id", piano.id);
       if (pianoErr) throw pianoErr;
     },
     onSuccess: () => {
       toast.success("Intervento pianificato e ticket creato");
-      queryClient.invalidateQueries({ queryKey: ["piani-scadenza", effectiveCompany?.id] });
+      queryClient.invalidateQueries({ queryKey: ["piani-attivi", effectiveCompany?.id] });
     },
     onError: (err: Error) => toast.error(err.message || "Errore nella pianificazione"),
   });
 
-  const selectedPiani = useMemo(
-    () => pianiInScadenza.filter((piano) => selectedPianoIds.has(piano.id)),
-    [pianiInScadenza, selectedPianoIds],
-  );
-  const selectedAllDue = pianiInScadenza.length > 0 && pianiInScadenza.every((piano) => selectedPianoIds.has(piano.id));
-
-  const togglePianoSelection = (pianoId: string) => {
-    setSelectedPianoIds((current) => {
-      const next = new Set(current);
-      if (next.has(pianoId)) next.delete(pianoId);
-      else next.add(pianoId);
-      return next;
-    });
-  };
-
-  const toggleAllDue = () => {
-    setSelectedPianoIds((current) => {
-      const next = new Set(current);
-      if (selectedAllDue) pianiInScadenza.forEach((piano) => next.delete(piano.id));
-      else pianiInScadenza.forEach((piano) => next.add(piano.id));
-      return next;
-    });
-  };
-
-  const clearSelection = () => {
-    setSelectedPianoIds(new Set());
-    setBulkTecnico(KEEP_VALUE);
-  };
-
-  const updatePianiTecnicoMutation = useMutation({
-    mutationFn: async ({ ids, tecnicoId }: { ids: string[]; tecnicoId: string | null }) => {
-      if (!effectiveCompany?.id || ids.length === 0) return;
-      const { error } = await supabase
-        .from("piani_manutenzione")
-        .update({ tecnico_preferito: tecnicoId })
-        .eq("company_id", effectiveCompany.id)
-        .in("id", ids);
-      if (error) throw error;
+  const completaMutation = useMutation({
+    mutationFn: async (piano: PianoAttivo) => {
+      if (!effectiveCompany?.id) return;
+      const todayIso = new Date().toISOString().split("T")[0];
+      const giorni = piano.frequenza_giorni ?? FREQ_GIORNI[piano.frequenza_tipo] ?? 365;
+      const prossima = addDays(new Date(), giorni).toISOString().split("T")[0];
+      const { error: eErr } = await supabase.from("esecuzioni_manutenzione").insert({
+        piano_id: piano.id,
+        tecnico_id: piano.tecnico_preferito || null,
+        data_esecuzione: todayIso,
+        esito: "ok",
+        note: "Manutenzione completata dalla lista",
+      });
+      if (eErr) throw eErr;
+      const { error: pErr } = await supabase.from("piani_manutenzione")
+        .update({ ultima_esecuzione: todayIso, prossima_scadenza: prossima })
+        .eq("company_id", effectiveCompany.id).eq("id", piano.id);
+      if (pErr) throw pErr;
     },
-    onSuccess: async (_data, variables) => {
-      await queryClient.invalidateQueries({ queryKey: ["piani-scadenza", effectiveCompany?.id] });
-      toast.success(variables.ids.length === 1 ? "Tecnico aggiornato" : `${variables.ids.length} piani aggiornati`);
-    },
-    onError: (err: Error) => toast.error(err.message || "Aggiornamento tecnico non riuscito"),
-  });
-
-  const completePianiMutation = useMutation({
-    mutationFn: async (piani: MaintenancePlan[]) => {
-      if (!effectiveCompany?.id || piani.length === 0) return;
-      const today = new Date();
-      const todayIso = today.toISOString().split("T")[0];
-      const FREQ_GIORNI: Record<string, number> = {
-        mensile: 30,
-        trimestrale: 90,
-        semestrale: 180,
-        annuale: 365,
-      };
-
-      for (const piano of piani) {
-        const giorniFreq = piano.frequenza_giorni ?? FREQ_GIORNI[piano.frequenza_tipo] ?? 365;
-        const prossima = addDays(today, giorniFreq).toISOString().split("T")[0];
-        const { error: esecuzioneError } = await supabase.from("esecuzioni_manutenzione").insert({
-          piano_id: piano.id,
-          tecnico_id: piano.tecnico_preferito || null,
-          data_esecuzione: todayIso,
-          esito: "ok",
-          note: "Manutenzione completata da azione massiva",
-        });
-        if (esecuzioneError) throw esecuzioneError;
-
-        const { error: pianoError } = await supabase
-          .from("piani_manutenzione")
-          .update({ ultima_esecuzione: todayIso, prossima_scadenza: prossima })
-          .eq("company_id", effectiveCompany.id)
-          .eq("id", piano.id);
-        if (pianoError) throw pianoError;
-      }
-    },
-    onSuccess: async (_data, piani) => {
-      await queryClient.invalidateQueries({ queryKey: ["piani-scadenza", effectiveCompany?.id] });
-      toast.success(piani.length === 1 ? "Manutenzione completata" : `${piani.length} manutenzioni completate`);
-      clearSelection();
-      setBulkOpen(false);
+    onSuccess: () => {
+      toast.success("Manutenzione completata");
+      queryClient.invalidateQueries({ queryKey: ["piani-attivi", effectiveCompany?.id] });
     },
     onError: (err: Error) => toast.error(err.message || "Completamento non riuscito"),
   });
 
-  const applyBulkTecnico = () => {
-    const ids = Array.from(selectedPianoIds);
-    if (bulkTecnico === KEEP_VALUE) {
-      toast.info("Seleziona un tecnico da applicare");
-      return;
-    }
-    updatePianiTecnicoMutation.mutate(
-      { ids, tecnicoId: bulkTecnico === UNASSIGNED_VALUE ? null : bulkTecnico },
-      {
-        onSuccess: () => {
-          clearSelection();
-          setBulkOpen(false);
-        },
-      },
-    );
-  };
+  // ── Impianti arricchiti con lo stato + filtri ────────────────────────────
+  const q = search.trim().toLowerCase();
+  const nomeCliente = (c: ProfileSummary | null) => [c?.first_name, c?.last_name].filter(Boolean).join(" ").toLowerCase();
 
-  const mrr = contratti
-    .filter((c) => c.stato === "attivo")
-    .reduce((sum: number, c) => {
-      const mensile = c.tipo_fatturazione === "mensile" ? c.importo_canone
-        : c.tipo_fatturazione === "trimestrale" ? c.importo_canone / 3
-        : c.tipo_fatturazione === "semestrale" ? c.importo_canone / 6
-        : c.importo_canone / 12;
-      return sum + mensile;
-    }, 0);
+  const impiantiConStato = useMemo<ImpiantoStato[]>(() => impianti.map((im) => {
+    const piano = pianoPerImpianto.get(im.id) ?? null;
+    const stato = statoManutenzione(piano?.prossima_scadenza ?? null, !!piano);
+    // Priorità = urgenza derivata dallo stato (l'impianto non ne ha una propria).
+    const priorita = stato === "scaduta" ? "alta" : stato === "in_scadenza" ? "media" : stato === "in_regola" ? "bassa" : null;
+    const tecnicoId = piano?.tecnico_preferito ?? null;
+    return {
+      id: im.id,
+      tipo_impianto: im.tipo_impianto,
+      marca: im.marca,
+      modello: im.modello,
+      garanzia_scadenza: im.garanzia_scadenza,
+      data_installazione: im.data_installazione,
+      customer: im.customer,
+      stato,
+      prossimaScadenza: piano?.prossima_scadenza ?? null,
+      prossimoPianoId: piano?.id ?? null,
+      contrattoNome: piano?.contratto?.nome_contratto ?? null,
+      tecnicoId,
+      tecnicoNome: tecnicoId ? (tecnici[tecnicoId] ?? null) : null,
+      priorita,
+    };
+  }), [impianti, pianoPerImpianto, tecnici]);
+
+  const impiantiFiltrati = useMemo(() => impiantiConStato.filter((im) => {
+    if (pill === "urgenti" && !(im.stato === "scaduta" || im.stato === "in_scadenza")) return false;
+    if (pill === "in_regola" && im.stato !== "in_regola") return false;
+    if (pill === "senza_piano" && im.stato !== "senza_piano") return false;
+    if (!q) return true;
+    return `${im.tipo_impianto} ${im.marca ?? ""} ${im.modello ?? ""} ${nomeCliente(im.customer)}`.toLowerCase().includes(q);
+  }), [impiantiConStato, pill, q]);
+
+  const contrattiFiltrati = useMemo(() => contratti.filter((c) => {
+    if (!q) return true;
+    return `${c.nome_contratto} ${c.impianto?.tipo_impianto ?? ""} ${nomeCliente(c.customer)}`.toLowerCase().includes(q);
+  }), [contratti, q]);
+
+  // Conteggi per stato — per le pillole e i KPI.
+  const contaStato = useMemo(() => {
+    const c: Record<StatoManutenzione, number> = { scaduta: 0, in_scadenza: 0, in_regola: 0, senza_piano: 0 };
+    impiantiConStato.forEach((im) => { c[im.stato] += 1; });
+    return c;
+  }, [impiantiConStato]);
+  const nScaduteInScadenza = contaStato.scaduta + contaStato.in_scadenza;
+  const mrr = contratti.filter((c) => c.stato === "attivo").reduce((sum, c) => {
+    const mensile = c.tipo_fatturazione === "mensile" ? c.importo_canone
+      : c.tipo_fatturazione === "trimestrale" ? c.importo_canone / 3
+      : c.tipo_fatturazione === "semestrale" ? c.importo_canone / 6
+      : c.importo_canone / 12;
+    return sum + mensile;
+  }, 0);
+
+  // Selezione "tutti": sugli impianti visibili (filtrati).
+  const tutteSelezionate = impiantiFiltrati.length > 0 && impiantiFiltrati.every((im) => selezionati.has(im.id));
+  const toggleTutti = () => setSelezionati((prev) => {
+    if (impiantiFiltrati.every((im) => prev.has(im.id))) {
+      const next = new Set(prev);
+      impiantiFiltrati.forEach((im) => next.delete(im.id));
+      return next;
+    }
+    return new Set([...prev, ...impiantiFiltrati.map((im) => im.id)]);
+  });
+  const impiantiDaEsportare = selezionati.size > 0
+    ? impiantiConStato.filter((im) => selezionati.has(im.id))
+    : impiantiFiltrati;
+
+  const openImpianto = (id: string) => navigate(`/azienda/manutenzione/impianto/${id}`);
+  const pianificaImpianto = (impiantoId: string) => {
+    const piano = pianoPerImpianto.get(impiantoId);
+    if (piano) pianificaMutation.mutate(piano);
+  };
+  const completaImpianto = (impiantoId: string) => {
+    const piano = pianoPerImpianto.get(impiantoId);
+    if (piano) completaMutation.mutate(piano);
+  };
+  const busy = pianificaMutation.isPending || completaMutation.isPending;
+
+  const mostraContratti = pill === "__contratti__";
+
+  const azioni = (
+    <>
+      <div className="hidden sm:contents">
+        <ExportButton
+          getData={() => impiantiDaEsportare.map((im) => ({
+            tipo: im.tipo_impianto?.replace("_", " ") || "",
+            marca: im.marca || "",
+            modello: im.modello || "",
+            cliente: [im.customer?.first_name, im.customer?.last_name].filter(Boolean).join(" "),
+            stato: im.stato,
+            prossima_manutenzione: im.prossimaScadenza ? new Date(im.prossimaScadenza).toLocaleDateString("it-IT") : "",
+            garanzia: im.garanzia_scadenza ? new Date(im.garanzia_scadenza).toLocaleDateString("it-IT") : "",
+          }))}
+          columns={[
+            { key: "tipo", label: "Tipo" },
+            { key: "marca", label: "Marca" },
+            { key: "modello", label: "Modello" },
+            { key: "cliente", label: "Cliente" },
+            { key: "stato", label: "Stato" },
+            { key: "prossima_manutenzione", label: "Prossima manutenzione" },
+            { key: "garanzia", label: "Scadenza garanzia" },
+          ]}
+          filename="impianti-manutenzione"
+        />
+      </div>
+      <Button
+        onClick={() => setWizardOpen(true)}
+        className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-9 max-sm:px-3 max-sm:text-xs"
+      >
+        <Plus className="mr-2 h-4 w-4" />
+        <span className="sm:hidden">Nuovo</span>
+        <span className="hidden sm:inline">Nuovo Impianto</span>
+      </Button>
+    </>
+  );
 
   return (
-    // Niente p-6: il margine lo dà già il layout (sul telefono era già p-0).
     <div className="space-y-6 max-sm:space-y-3">
-      {/* Header */}
-      <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex min-w-0 items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
-              <Settings className="h-5 w-5" />
-            </div>
-            <div className="min-w-0">
-              <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">Manutenzione<span className="max-sm:hidden"> Programmata</span></h1>
-              <p className="mt-0.5 text-sm text-slate-500">Impianti, contratti e piani manutenzione clienti.</p>
-            </div>
-          </div>
-          <Button
-            onClick={() => setWizardOpen(true)}
-            className="self-start gap-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600 sm:self-auto"
-          >
-            <Plus className="h-4 w-4" />
-            <span className="max-sm:hidden">Nuovo Impianto</span>
-            <span className="sm:hidden">Nuovo</span>
-          </Button>
-        </div>
-      </div>
-
-      {/* Mobile: le scadenze e i canoni; impianti e contratti hanno il numero
-          sulla loro scheda. */}
-      <KpiMobili
-        className="sm:hidden"
-        voci={[
-          { label: "In scadenza (14 gg)", valore: String(pianiInScadenza.length), tono: pianiInScadenza.length > 0 ? "text-orange-600" : undefined },
-          { label: "Canoni al mese", valore: `${mrr.toLocaleString("it-IT", { maximumFractionDigits: 0, useGrouping: true })} €` },
-        ]}
-      />
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 max-sm:hidden">
-        {/* Resta solo la nota che aggiunge un dato (la finestra dei 14 giorni);
-            «installazioni censite» e simili ripetevano l'etichetta. */}
-        <OperationalKpiCard icon={Settings} label="Impianti" value={impianti.length} tone="blue" />
-        <OperationalKpiCard icon={AlertCircle} label="In scadenza" value={pianiInScadenza.length} hint="prossimi 14 giorni" tone={pianiInScadenza.length > 0 ? "orange" : "green"} />
-        <OperationalKpiCard icon={CheckCircle2} label="Contratti attivi" value={contratti.filter((c) => c.stato === "attivo").length} tone="green" />
-        <OperationalKpiCard icon={TrendingUp} label="Canoni al mese" value={`${mrr.toLocaleString("it-IT", { maximumFractionDigits: 0, useGrouping: true })} €`} tone="amber" />
-      </div>
-
-      {selectedPianoIds.size > 0 && (
-        <div className="flex flex-col gap-3 rounded-xl border border-orange-200 bg-orange-50/80 p-3 text-sm text-orange-950 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge className="bg-orange-600">{selectedPianoIds.size} selezionati</Badge>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={clearSelection}>Annulla selezione</Button>
-            <Button size="sm" onClick={() => setBulkOpen(true)}>Azioni manutenzione</Button>
+      {/* Azioni: sulla riga delle schede (portal) o, da soli, con la testata. */}
+      {incorporata && actionsSlot ? (
+        createPortal(azioni, actionsSlot)
+      ) : (
+        <div className={incorporata ? "flex items-center justify-end gap-2" : "testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6"}>
+          <div className={incorporata ? "flex items-center gap-2" : "flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4"}>
+            {!incorporata && (
+              <div className="flex min-w-0 items-start gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
+                  <Settings className="h-5 w-5" />
+                </div>
+                <div className="min-w-0">
+                  <h1 className="text-2xl font-bold tracking-tight">Manutenzione</h1>
+                  <p className="text-sm text-muted-foreground">Impianti, contratti e piani di manutenzione dei clienti.</p>
+                </div>
+              </div>
+            )}
+            <div className="flex items-center gap-2">{azioni}</div>
           </div>
         </div>
       )}
 
-      {/* Errore di caricamento — non mascherare con l'empty-state "Nessun impianto/contratto" */}
+      {/* Pill in alto — per STATO (come le pill dell'assistenza): Tutti ·
+          Scadenza imminente · In regola · Senza piano · Contratti. */}
+      <div className="flex gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+        {[
+          { value: "all", label: "Tutti", icon: ClipboardList, n: impianti.length },
+          { value: "urgenti", label: "Scadenza imminente", icon: AlertTriangle, n: nScaduteInScadenza },
+          { value: "in_regola", label: "In regola", icon: CheckCircle2, n: contaStato.in_regola },
+          { value: "senza_piano", label: "Senza piano", icon: CircleDashed, n: contaStato.senza_piano },
+          { value: "__contratti__", label: "Contratti", icon: FileText, n: contratti.length },
+        ].map((tab) => {
+          const Icon = tab.icon;
+          const active = pill === tab.value;
+          return (
+            <button
+              key={tab.value}
+              onClick={() => setPill(tab.value)}
+              className={cn(
+                "tap-compact flex shrink-0 items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-medium transition-all whitespace-nowrap max-sm:h-8 max-sm:rounded-full max-sm:border max-sm:px-3 max-sm:py-0 max-sm:text-xs",
+                active ? "bg-orange-50 text-orange-700 shadow-sm ring-1 ring-orange-100" : "text-muted-foreground hover:bg-slate-50 hover:text-slate-900",
+              )}
+            >
+              <Icon className="h-4 w-4" />
+              {tab.label}
+              <span className={cn("ml-0.5 rounded-full px-1.5 text-[11px] font-semibold tabular-nums", active ? "bg-orange-100 text-orange-700" : "bg-slate-100 text-slate-500")}>{tab.n}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* KPI desktop — StatTile come l'assistenza. Su telefono i numeri stanno
+          già nelle pillole in alto (come le assistenze): niente riga in più. */}
+      <div className="hidden grid-cols-2 gap-2 sm:grid sm:grid-cols-4 sm:gap-3">
+        <StatTile label="Impianti" value={impianti.length} tone={impianti.length > 0 ? "blue" : "neutral"} />
+        <StatTile label="Da manutenere" value={nScaduteInScadenza} hint="scadute o in scadenza" tone={nScaduteInScadenza > 0 ? "amber" : "neutral"} />
+        <StatTile label="Contratti attivi" value={contratti.filter((c) => c.stato === "attivo").length} tone={contratti.some((c) => c.stato === "attivo") ? "green" : "neutral"} />
+        <StatTile label="Canoni al mese" value={`${mrr.toLocaleString("it-IT", { maximumFractionDigits: 0, useGrouping: true })} €`} tone={mrr > 0 ? "violet" : "neutral"} />
+      </div>
+
       {(impiantiError || contrattiError || pianiError) && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
@@ -391,195 +417,104 @@ export default function ManutenzioneList() {
         </Alert>
       )}
 
-      <Tabs defaultValue="scadenza">
-        <TabsList className="max-sm:grid max-sm:w-full max-sm:grid-cols-3">
-          <TabsTrigger value="scadenza" className="max-sm:text-xs">
-            <span className="max-sm:hidden">In Scadenza</span><span className="sm:hidden">Scadenze</span> {pianiInScadenza.length > 0 && <span className="ml-1 text-xs bg-orange-100 text-orange-700 rounded-full px-1.5">{pianiInScadenza.length}</span>}
-          </TabsTrigger>
-          <TabsTrigger value="impianti" className="max-sm:text-xs">Impianti ({impianti.length})</TabsTrigger>
-          <TabsTrigger value="contratti" className="max-sm:text-xs">Contratti ({contratti.length})</TabsTrigger>
-        </TabsList>
+      {/* Toolbar: ricerca + (per gli impianti) filtro stato e toggle vista */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+        <div className="relative flex-1 min-w-0 sm:min-w-[220px]">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder={mostraContratti ? "Cerca un contratto…" : "Cerca per cliente o impianto…"}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="h-9 bg-white pl-10"
+          />
+        </div>
+        {/* Toggle elenco/kanban: solo da tablet in su. Su telefono la vista è
+            sempre l'elenco compatto, come le assistenze (la pipeline è desktop). */}
+        {!mostraContratti && (
+          <ToggleGroup type="single" value={vista} onValueChange={(v) => v && cambiaVista(v as "tabella" | "kanban")} className="hidden shrink-0 sm:flex">
+            <ToggleGroupItem value="tabella" aria-label="Vista elenco" className="px-3"><List className="h-4 w-4" /></ToggleGroupItem>
+            <ToggleGroupItem value="kanban" aria-label="Vista kanban" className="px-3"><Columns3 className="h-4 w-4" /></ToggleGroupItem>
+          </ToggleGroup>
+        )}
+      </div>
 
-        {/* Tab: In Scadenza */}
-        <TabsContent value="scadenza" className="mt-4 space-y-3 max-sm:mt-3 max-sm:space-y-2">
-          {loadingPiani ? (
-            <div className="space-y-3">{[1,2,3].map((n) => <Skeleton key={n} className="h-16 rounded-lg" />)}</div>
-          ) : pianiInScadenza.length === 0 ? (
-            <div className="text-center py-12 text-gray-500 max-sm:py-6 max-sm:text-sm">
-              <CheckCircle2 className="h-10 w-10 text-gray-300 mx-auto mb-2 max-sm:hidden" />
-              <p>Nessuna manutenzione in scadenza nei prossimi 14 giorni</p>
-            </div>
-          ) : (
-            <>
-              {/* Mobile: niente selezione multipla (le azioni in blocco sono al computer). */}
-              <div className="flex items-center justify-between rounded-lg border bg-white px-4 py-2 text-sm max-sm:hidden">
-                <label className="flex items-center gap-2 font-medium">
-                  <Checkbox checked={selectedAllDue} onCheckedChange={toggleAllDue} aria-label="Seleziona manutenzioni in scadenza" />
-                  Seleziona manutenzioni visibili
-                </label>
-                <span className="text-slate-500">{pianiInScadenza.length} piani in scadenza</span>
-              </div>
-              {pianiInScadenza.map((piano) => {
-            const days = piano.prossima_scadenza ? differenceInDays(new Date(piano.prossima_scadenza), new Date()) : null;
-            return (
-              <div key={piano.id} className="bg-white rounded-lg border p-4 flex items-start justify-between gap-4 max-sm:flex-wrap max-sm:gap-2 max-sm:p-3">
-                <Checkbox checked={selectedPianoIds.has(piano.id)} onCheckedChange={() => togglePianoSelection(piano.id)} aria-label={`Seleziona ${piano.titolo}`} className="mt-1 max-sm:hidden" />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-semibold max-sm:text-[13px]">{piano.titolo}</span>
-                    {days !== null && (
-                      <Badge className={days < 0 ? "bg-red-100 text-red-800 text-xs" : days <= 7 ? "bg-orange-100 text-orange-800 text-xs" : "bg-yellow-100 text-yellow-800 text-xs"}>
-                        {days < 0 ? `Scaduto ${Math.abs(days)}gg fa` : days === 0 ? "Scade oggi" : `Scade tra ${days}gg`}
-                      </Badge>
-                    )}
+      {/* Barra selezione (desktop): l'Esporta in alto segue la selezione. */}
+      {selezionati.size > 0 && !mostraContratti && (
+        <div className="hidden items-center justify-between gap-2 rounded-xl border border-orange-200 bg-orange-50/60 px-4 py-2 text-sm sm:flex">
+          <span className="font-medium text-orange-800">{selezionati.size} impianti selezionati · l'Esporta scarica solo questi</span>
+          <Button variant="ghost" size="sm" className="h-8" onClick={() => setSelezionati(new Set())}>Deseleziona</Button>
+        </div>
+      )}
+
+      {/* Contenuto */}
+      {mostraContratti ? (
+        loadingContratti ? (
+          <div className="space-y-3">{[1, 2].map((n) => <Skeleton key={n} className="h-16 rounded-lg" />)}</div>
+        ) : contrattiFiltrati.length === 0 ? (
+          <div className="rounded-2xl border border-dashed py-12 text-center text-sm text-muted-foreground">
+            {q ? "Nessun contratto con questa ricerca" : "Nessun contratto attivo"}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {contrattiFiltrati.map((c) => (
+              <div key={c.id} className="rounded-lg border bg-white p-4 max-sm:px-3 max-sm:py-2.5">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold max-sm:truncate max-sm:text-[13px]">{c.nome_contratto}</span>
+                      <Badge className={cn("text-xs capitalize", c.stato === "attivo" ? "bg-emerald-100 text-emerald-700" : c.stato === "sospeso" ? "bg-yellow-100 text-yellow-800" : "bg-slate-100 text-slate-600")}>{c.stato}</Badge>
+                    </div>
+                    <div className="mt-1 truncate text-sm text-muted-foreground max-sm:text-[11px]">
+                      {[c.customer?.first_name, c.customer?.last_name].filter(Boolean).join(" ") || "—"} · {c.impianto?.tipo_impianto?.replace("_", " ")} {c.impianto?.marca}
+                    </div>
                   </div>
-                  <div className="text-sm text-gray-500 mt-1 flex gap-3 flex-wrap max-sm:gap-2 max-sm:text-[11px]">
-                    {(piano.contratto?.customer?.first_name || piano.contratto?.customer?.last_name) && (
-                      <span className="flex items-center gap-1">
-                        <User className="h-3 w-3" />
-                        {[piano.contratto.customer?.first_name, piano.contratto.customer?.last_name].filter(Boolean).join(" ")}
-                      </span>
-                    )}
-                    {piano.prossima_scadenza && (
-                      <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{format(new Date(piano.prossima_scadenza), "dd MMM yyyy", { locale: it })}</span>
-                    )}
-                    {(piano.tecnico?.first_name || piano.tecnico?.last_name) && (
-                      <span className="text-blue-600">
-                        {[piano.tecnico.first_name, piano.tecnico.last_name].filter(Boolean).join(" ")}
-                      </span>
-                    )}
-                  </div>
-                  <div className="mt-3 max-w-xs max-sm:hidden">
-                    <Select
-                      value={piano.tecnico_preferito || UNASSIGNED_VALUE}
-                      onValueChange={(value) => updatePianiTecnicoMutation.mutate({
-                        ids: [piano.id],
-                        tecnicoId: value === UNASSIGNED_VALUE ? null : value,
-                      })}
-                      disabled={updatePianiTecnicoMutation.isPending}
-                    >
-                      <SelectTrigger className="h-8 text-xs">
-                        <SelectValue placeholder="Tecnico preferito" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={UNASSIGNED_VALUE}>Tecnico da assegnare</SelectItem>
-                        {staffList.map((staff) => (
-                          <SelectItem key={staff.id} value={staff.id}>
-                            {[staff.first_name, staff.last_name].filter(Boolean).join(" ") || "Senza nome"}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                  <div className="shrink-0 text-right">
+                    <div className="font-bold text-violet-700 max-sm:text-[13px]">{Number(c.importo_canone).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })} €</div>
+                    <div className="text-xs text-muted-foreground">{c.tipo_fatturazione}</div>
                   </div>
                 </div>
-                <div className="flex flex-col gap-2 max-sm:w-full max-sm:flex-row">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="max-sm:h-8 max-sm:flex-1 max-sm:text-xs"
-                    disabled={pianificaMutation.isPending}
-                    onClick={() => pianificaMutation.mutate(piano)}
-                  >
-                    Pianifica
-                  </Button>
-                  <Button
-                    size="sm"
-                    className="max-sm:h-8 max-sm:flex-1 max-sm:text-xs"
-                    disabled={completePianiMutation.isPending}
-                    onClick={() => completePianiMutation.mutate([piano])}
-                  >
-                    Completa
-                  </Button>
-                </div>
               </div>
-            );
-              })}
-            </>
-          )}
-        </TabsContent>
-
-        {/* Tab: Impianti */}
-        <TabsContent value="impianti" className="mt-4 space-y-3 max-sm:mt-3 max-sm:space-y-2">
-          {loadingImpianti ? (
-            <div className="space-y-3">{[1,2,3].map((n) => <Skeleton key={n} className="h-16 rounded-lg" />)}</div>
-          ) : impianti.length === 0 ? (
-            <div className="text-center py-12 text-gray-500 max-sm:py-6 max-sm:text-sm">
-              <Settings className="h-10 w-10 text-gray-300 mx-auto mb-2 max-sm:hidden" />
+            ))}
+          </div>
+        )
+      ) : loadingImpianti ? (
+        <div className="space-y-3">{[1, 2, 3].map((n) => <Skeleton key={n} className="h-16 rounded-lg" />)}</div>
+      ) : impiantiFiltrati.length === 0 ? (
+        <div className="rounded-2xl border border-dashed py-12 text-center text-sm text-muted-foreground">
+          {q || pill !== "all" ? "Nessun impianto con questi filtri" : (
+            <div className="space-y-3">
               <p>Nessun impianto registrato</p>
-              <Button className="mt-4 gap-2" size="sm" onClick={() => setWizardOpen(true)}>
-                <Plus className="h-4 w-4" /> Aggiungi Impianto
-              </Button>
+              <Button size="sm" className="gap-2" onClick={() => setWizardOpen(true)}><Plus className="h-4 w-4" /> Aggiungi impianto</Button>
             </div>
-          ) : impianti.map((impianto) => {
-            const ImpiantoIcon = TIPO_ICONE[impianto.tipo_impianto] ?? Settings;
-            return (
-              <Link key={impianto.id} to={`/azienda/manutenzione/impianto/${impianto.id}`}
-                className="block bg-white rounded-lg border p-4 hover:shadow-md transition-shadow max-sm:px-3 max-sm:py-2.5">
-                <div className="flex items-start justify-between max-sm:items-center max-sm:gap-2">
-                  <div className="flex items-start gap-3 max-sm:min-w-0 max-sm:gap-2.5">
-                    <div className="p-2 bg-blue-50 rounded-lg max-sm:p-1.5">
-                      <ImpiantoIcon className="h-5 w-5 text-blue-600 max-sm:h-4 max-sm:w-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap max-sm:flex-nowrap">
-                        <span className="font-semibold capitalize max-sm:truncate max-sm:text-[13px]">{impianto.tipo_impianto.replace('_', ' ')}</span>
-                        {impianto.marca && <span className="text-gray-500 text-sm max-sm:hidden">{impianto.marca} {impianto.modello}</span>}
-                      </div>
-                      <div className="text-sm text-gray-500 mt-0.5 flex items-center gap-1 max-sm:block max-sm:truncate max-sm:text-[11px]">
-                        <User className="h-3 w-3 max-sm:hidden" />
-                        {/* Mobile: il tipo ha la riga tutta per sé, la marca scende qui. */}
-                        {impianto.marca && <span className="sm:hidden">{[impianto.marca, impianto.modello].filter(Boolean).join(" ")} · </span>}
-                        {[impianto.customer?.first_name, impianto.customer?.last_name].filter(Boolean).join(" ") || "—"}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-right space-y-1 shrink-0">
-                    <GaranziaScadenzaBadge date={impianto.garanzia_scadenza} />
-                    {impianto.data_installazione && (
-                      <div className="text-xs text-gray-400 max-sm:hidden">
-                        Installato: {format(new Date(impianto.data_installazione), "dd/MM/yyyy")}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </Link>
-            );
-          })}
-        </TabsContent>
-
-        {/* Tab: Contratti */}
-        <TabsContent value="contratti" className="mt-4 space-y-3 max-sm:mt-3 max-sm:space-y-2">
-          {loadingContratti ? (
-            <div className="space-y-3">{[1,2].map((n) => <Skeleton key={n} className="h-16 rounded-lg" />)}</div>
-          ) : contratti.length === 0 ? (
-            <div className="text-center py-12 text-gray-500 max-sm:py-6 max-sm:text-sm">
-              <TrendingUp className="h-10 w-10 text-gray-300 mx-auto mb-2 max-sm:hidden" />
-              <p>Nessun contratto attivo</p>
+          )}
+        </div>
+      ) : (
+        <>
+          {/* Kanban: solo desktop (come la pipeline dell'assistenza). */}
+          {vista === "kanban" && (
+            <div className="hidden sm:block">
+              <ManutenzionePipeline
+                impianti={impiantiFiltrati}
+                onOpen={openImpianto}
+                onPianifica={pianificaImpianto}
+                onCompleta={completaImpianto}
+                busy={busy}
+              />
             </div>
-          ) : contratti.map((contratto) => (
-            <div key={contratto.id} className="bg-white rounded-lg border p-4 max-sm:px-3 max-sm:py-2.5">
-              <div className="flex items-start justify-between max-sm:gap-2">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold max-sm:truncate max-sm:text-[13px]">{contratto.nome_contratto}</span>
-                    {/* Mobile: lo stato si vede solo quando non è «attivo», il caso normale. */}
-                    <Badge className={(contratto.stato === "attivo" ? "bg-green-100 text-green-800 text-xs max-sm:hidden" : contratto.stato === "sospeso" ? "bg-yellow-100 text-yellow-800 text-xs" : "bg-gray-100 text-gray-600 text-xs") + " sm:capitalize"}>
-                      {contratto.stato}
-                    </Badge>
-                  </div>
-                  <div className="text-sm text-gray-500 mt-1 max-sm:mt-0.5 max-sm:truncate max-sm:text-[11px]">
-                    {[contratto.customer?.first_name, contratto.customer?.last_name].filter(Boolean).join(" ") || "—"} · {contratto.impianto?.tipo_impianto?.replace('_', ' ')} {contratto.impianto?.marca}
-                  </div>
-                </div>
-                <div className="text-right shrink-0">
-                  <div className="font-bold text-purple-700 max-sm:text-[13px]">{Number(contratto.importo_canone).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true })} €</div>
-                  <div className="text-xs text-gray-400">{contratto.tipo_fatturazione}</div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </TabsContent>
-      </Tabs>
+          )}
+          {/* Elenco: sempre su telefono; su desktop quando la vista è «tabella». */}
+          <div className={vista === "kanban" ? "sm:hidden" : undefined}>
+            <ImpiantiTable
+              impianti={impiantiFiltrati}
+              onOpen={openImpianto}
+              selezionati={selezionati}
+              onToggle={toggleUno}
+              onToggleTutti={toggleTutti}
+              tutteSelezionate={tutteSelezionate}
+            />
+          </div>
+        </>
+      )}
 
       <NuovoImpiantoWizard
         open={wizardOpen}
@@ -588,118 +523,9 @@ export default function ManutenzioneList() {
         onSuccess={() => {
           queryClient.invalidateQueries({ queryKey: ["impianti", effectiveCompany?.id] });
           queryClient.invalidateQueries({ queryKey: ["contratti-manutenzione", effectiveCompany?.id] });
+          queryClient.invalidateQueries({ queryKey: ["piani-attivi", effectiveCompany?.id] });
         }}
       />
-
-      <ManutenzioneBulkSheet
-        open={bulkOpen}
-        onOpenChange={setBulkOpen}
-        selectedPiani={selectedPiani}
-        staffList={staffList}
-        bulkTecnico={bulkTecnico}
-        onBulkTecnicoChange={setBulkTecnico}
-        onApplyTecnico={applyBulkTecnico}
-        onComplete={() => completePianiMutation.mutate(selectedPiani)}
-        onClear={clearSelection}
-        isPending={updatePianiTecnicoMutation.isPending || completePianiMutation.isPending}
-      />
-    </div>
-  );
-}
-
-function ManutenzioneBulkSheet({
-  open,
-  onOpenChange,
-  selectedPiani,
-  staffList,
-  bulkTecnico,
-  onBulkTecnicoChange,
-  onApplyTecnico,
-  onComplete,
-  onClear,
-  isPending,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  selectedPiani: MaintenancePlan[];
-  staffList: StaffUser[];
-  bulkTecnico: string;
-  onBulkTecnicoChange: (value: string) => void;
-  onApplyTecnico: () => void;
-  onComplete: () => void;
-  onClear: () => void;
-  isPending: boolean;
-}) {
-  const overdue = selectedPiani.filter((piano) => {
-    if (!piano.prossima_scadenza) return false;
-    return differenceInDays(new Date(piano.prossima_scadenza), new Date()) < 0;
-  }).length;
-  const assigned = selectedPiani.filter((piano) => piano.tecnico_preferito).length;
-
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full overflow-y-auto sm:max-w-md">
-        <SheetHeader>
-          <SheetTitle>Azioni manutenzione</SheetTitle>
-          <SheetDescription>
-            Gestisci piu piani insieme: tecnico responsabile e completamento operativo.
-          </SheetDescription>
-        </SheetHeader>
-
-        <div className="mt-6 space-y-5">
-          <div className="grid grid-cols-2 gap-3">
-            <MaintenanceBulkStat icon={<CheckSquare className="h-4 w-4" />} label="Selezionati" value={selectedPiani.length} />
-            <MaintenanceBulkStat icon={<AlertCircle className="h-4 w-4" />} label="Scaduti" value={overdue} />
-            <MaintenanceBulkStat icon={<Users className="h-4 w-4" />} label="Assegnati" value={assigned} />
-            <MaintenanceBulkStat icon={<ClipboardCheck className="h-4 w-4" />} label="Da verificare" value={selectedPiani.length - assigned} />
-          </div>
-
-          <Alert>
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              Il completamento registra una esecuzione manutenzione e sposta la prossima scadenza in base alla frequenza del piano.
-            </AlertDescription>
-          </Alert>
-
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Tecnico preferito</label>
-            <Select value={bulkTecnico} onValueChange={onBulkTecnicoChange}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value={KEEP_VALUE}>Non cambiare tecnico</SelectItem>
-                <SelectItem value={UNASSIGNED_VALUE}>Rimuovi tecnico</SelectItem>
-                {staffList.map((staff) => (
-                  <SelectItem key={staff.id} value={staff.id}>
-                    {[staff.first_name, staff.last_name].filter(Boolean).join(" ") || "Senza nome"}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button variant="outline" className="w-full" onClick={onApplyTecnico} disabled={isPending || selectedPiani.length === 0}>
-              Applica tecnico
-            </Button>
-          </div>
-        </div>
-
-        <SheetFooter className="mt-6 gap-2 sm:flex-col">
-          <Button onClick={onComplete} disabled={isPending || selectedPiani.length === 0}>
-            {isPending ? "Aggiornamento..." : "Segna completate"}
-          </Button>
-          <Button variant="outline" onClick={onClear} disabled={isPending}>Svuota selezione</Button>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
-  );
-}
-
-function MaintenanceBulkStat({ icon, label, value }: { icon: React.ReactNode; label: string; value: number }) {
-  return (
-    <div className="rounded-lg border bg-white p-3">
-      <div className="flex items-center gap-2 text-slate-500">
-        {icon}
-        <span className="text-xs">{label}</span>
-      </div>
-      <div className="mt-1 text-xl font-bold text-slate-900">{value}</div>
     </div>
   );
 }

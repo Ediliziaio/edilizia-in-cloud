@@ -14,15 +14,12 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { TICKET_MERCE_STATI, type TicketMerceStato } from "@/types/tickets";
 import { queryKeys } from "@/lib/queryKeys";
-import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { OrdinaMerceDialog } from "@/components/tickets/OrdinaMerceDialog";
 
 interface OdaRow {
   id: string;
@@ -75,11 +72,7 @@ export function TicketMerceCard({
     onError: (e) => toast.error("Non salvato", { description: (e as Error).message }),
   });
 
-  const { user } = useAuth();
   const [aperto, setAperto] = useState(false);
-  const [supplierId, setSupplierId] = useState("");
-  const [descrizione, setDescrizione] = useState("");
-  const [attesa, setAttesa] = useState("");
 
   const { data: ordini = [], isLoading } = useQuery({
     queryKey: ["ticket-merce", ticketId],
@@ -92,55 +85,6 @@ export function TicketMerceCard({
       if (error) throw error;
       return (data ?? []) as unknown as OdaRow[];
     },
-  });
-
-  const { data: fornitori = [] } = useQuery({
-    queryKey: ["fornitori-attivi", companyId],
-    enabled: aperto,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("suppliers").select("id, name")
-        .eq("company_id", companyId).eq("is_active", true)
-        .order("name").limit(200);
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
-
-  const crea = useMutation({
-    mutationFn: async () => {
-      if (!supplierId) throw new Error("Scegli il fornitore");
-      if (!descrizione.trim()) throw new Error("Scrivi cosa stai ordinando");
-      const { data: po, error } = await supabase
-        .from("purchase_orders")
-        .insert({
-          company_id: companyId,
-          supplier_id: supplierId,
-          order_id: orderId,
-          ticket_id: ticketId,
-          status: "bozza",
-          expected_delivery_date: attesa || null,
-          created_by: user?.id,
-          notes: `Materiale per assistenza — ${descrizione.trim()}`,
-        } as never)
-        .select("id")
-        .single();
-      if (error) throw error;
-      // Il ticket entra in attesa merce: è lo stato che spiega perché è fermo.
-      const { error: tErr } = await supabase
-        .from("tickets")
-        .update({ merce_richiesta: true, status: "in_attesa_merce" } as never)
-        .eq("id", ticketId);
-      if (tErr) throw tErr;
-      return (po as { id: string }).id;
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["ticket-merce", ticketId] });
-      qc.invalidateQueries({ queryKey: ["ticket", ticketId] });
-      toast.success("Ordine creato: l'assistenza è in attesa merce");
-      setAperto(false); setSupplierId(""); setDescrizione(""); setAttesa("");
-    },
-    onError: (e: Error) => toast.error(e.message || "Non sono riuscito a creare l'ordine"),
   });
 
   const inArrivo = ordini.filter(o => !o.actual_delivery_date && o.status !== "annullato");
@@ -257,42 +201,13 @@ export function TicketMerceCard({
         )}
       </CardContent>
 
-      <Dialog open={aperto} onOpenChange={setAperto}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>Ordina materiale per l'assistenza</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-1.5">
-              <Label className="text-xs">Fornitore *</Label>
-              <Select value={supplierId} onValueChange={setSupplierId}>
-                <SelectTrigger><SelectValue placeholder="Scegli il fornitore" /></SelectTrigger>
-                <SelectContent>
-                  {fornitori.map(f => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Cosa serve *</Label>
-              <Input value={descrizione} onChange={e => setDescrizione(e.target.value)}
-                     placeholder="Es. maniglia cromata + cerniera anta" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Arrivo previsto</Label>
-              <Input type="date" value={attesa} onChange={e => setAttesa(e.target.value)} />
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Viene creato un ordine fornitore in bozza collegato a questa assistenza
-              {orderId ? " e alla commessa" : ""}. L'assistenza passa in “attesa merce”.
-            </p>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAperto(false)}>Annulla</Button>
-            <Button onClick={() => crea.mutate()} disabled={crea.isPending}>
-              {crea.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
-              Crea ordine
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <OrdinaMerceDialog
+        open={aperto}
+        onOpenChange={setAperto}
+        ticketId={ticketId}
+        orderId={orderId}
+        companyId={companyId}
+      />
     </Card>
   );
 }

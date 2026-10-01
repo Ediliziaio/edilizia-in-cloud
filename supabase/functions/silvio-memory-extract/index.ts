@@ -19,6 +19,7 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { isInternalRequest, requireAuth, requireCompanyAccess, requireInternalSecret } from "../_shared/auth.ts";
+import { richiediAmministratoreAzienda } from "../_shared/amministraAzienda.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { generateEmbedding, contentHash } from "../_shared/brainEmbed.ts";
 import { chargeDirectAiCall, estimateEmbeddingUsage } from "../_shared/directAiLedger.ts";
@@ -106,9 +107,9 @@ serve(async (req: Request) => {
         .from("profiles").select("company_id").eq("id", body.user_id).maybeSingle();
       if (profile?.company_id) {
         const auth = await requireAuth(req, corsHeaders);
-        await requireCompanyAccess(supabase, auth.userId, profile.company_id, corsHeaders, {
-          allowedRoles: ["super_admin", "company_admin"],
-        });
+        // amministratore di QUELL'azienda (26/09/2026), non di un'azienda qualsiasi
+        const accesso = await requireCompanyAccess(supabase, auth.userId, profile.company_id, corsHeaders);
+        await richiediAmministratoreAzienda(supabase, auth.userId, profile.company_id, corsHeaders, accesso);
         targets.push({
           user_id: body.user_id,
           company_id: profile.company_id,
@@ -129,9 +130,8 @@ serve(async (req: Request) => {
         if (!callerProfile?.company_id) {
           return errorResponse("Utente senza azienda", 403, corsHeaders);
         }
-        const access = await requireCompanyAccess(supabase, auth.userId, callerProfile.company_id, corsHeaders, {
-          allowedRoles: ["super_admin", "company_admin"],
-        });
+        const access = await requireCompanyAccess(supabase, auth.userId, callerProfile.company_id, corsHeaders);
+        await richiediAmministratoreAzienda(supabase, auth.userId, callerProfile.company_id, corsHeaders, access);
         if (!access.isSuperAdmin) restrictedCompanyId = access.companyId;
       }
 

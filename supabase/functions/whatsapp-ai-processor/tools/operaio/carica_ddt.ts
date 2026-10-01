@@ -248,6 +248,23 @@ export async function caricaDDT(
     ctx.user_id,
   );
 
+  // Da chi lavora in ufficio o amministra, il «Sì» in chat vale come conferma
+  // a gestionale: il carico entra subito in magazzino (27/09/2026). Dagli
+  // operai resta una bozza che l'ufficio conferma nell'app.
+  type EsitoMagazzino = { caricati: Array<{ articolo: string; quantita: number }>; da_abbinare: unknown[] };
+  let esitoMagazzino: EsitoMagazzino | null = null;
+  if (carico.ok && carico.carico?.id && ctx.user_id && (ctx.kind === "admin" || ctx.kind === "ufficio")) {
+    const { data: conf, error: confErr } = await ctx.supabase.rpc("conferma_carico_ddt", {
+      p_carico_id: carico.carico.id,
+      p_utente: ctx.user_id,
+    });
+    if (confErr) {
+      console.error(JSON.stringify({ level: "error", fn: "conferma_carico_ddt", error: confErr.message }));
+    } else if ((conf as { ok?: boolean } | null)?.ok) {
+      esitoMagazzino = conf as EsitoMagazzino;
+    }
+  }
+
   // ── Segnalazione di visibilità al titolare (arricchita con l'esito) ───────
   const esitoCarico = carico.ok
     ? (carico.ordine_collegato
@@ -263,19 +280,22 @@ export async function caricaDDT(
     args.note ? `Note: ${args.note}` : "",
   ].filter(Boolean).join("\n");
 
-  await ctx.supabase
-    .from("cantiere_segnalazioni")
-    .insert({
-      company_id: ctx.company_id,
-      order_id: orderId,
-      employee_id: ctx.employee_id,
-      user_id: ctx.user_id,
-      descrizione,
-      urgenza: "media",
-      tipo_problema: "ddt_da_registrare",
-      photo_urls: fotoUrl ? [fotoUrl] : [],
-      source: "whatsapp",
-    });
+  // Se il carico è già entrato in magazzino non c'è niente «da registrare».
+  if (!esitoMagazzino) {
+    await ctx.supabase
+      .from("cantiere_segnalazioni")
+      .insert({
+        company_id: ctx.company_id,
+        order_id: orderId,
+        employee_id: ctx.employee_id,
+        user_id: ctx.user_id,
+        descrizione,
+        urgenza: "media",
+        tipo_problema: "ddt_da_registrare",
+        photo_urls: fotoUrl ? [fotoUrl] : [],
+        source: "whatsapp",
+      });
+  }
 
   // ── Messaggio all'operaio ─────────────────────────────────────────────────
   let userMsg: string;
@@ -293,6 +313,19 @@ export async function caricaDDT(
     userMsg =
       `📄 DDT #${numero || "(senza numero)"} di ${fornitore} ricevuto e salvato. ` +
       `L'ufficio completa la registrazione del carico.`;
+  }
+
+  if (esitoMagazzino) {
+    const caricati = esitoMagazzino.caricati;
+    const daAbbinare = esitoMagazzino.da_abbinare.length;
+    userMsg =
+      `📄 DDT #${numero || "(senza numero)"} di ${fornitore} confermato. ` +
+      (caricati.length > 0
+        ? `In magazzino: ${caricati.map((c) => `${c.articolo} +${c.quantita}`).join(", ")}.`
+        : "Nessun articolo riconosciuto in magazzino.") +
+      (daAbbinare > 0
+        ? ` ${daAbbinare} ${daAbbinare === 1 ? "riga va abbinata" : "righe vanno abbinate"} a un articolo dall'app, in Magazzino.`
+        : "");
   }
 
   return okResult(

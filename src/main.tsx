@@ -10,47 +10,68 @@ import { isNative } from "./lib/mobile/platform";
 import { bloccaZoomCampiIos } from "./lib/mobile/zoomCampiIos";
 import { mettiDaParteLaPaginaPreparata } from "@/lib/paginaPreparata";
 
-// 🚨 ESPLICITO unregister di service worker stale.
+// 🚨 Service worker stale: si toglie tutto tranne il nostro /sw.js.
 //
-// La config vite-plugin-pwa è `selfDestroying: true` — il nuovo SW si
-// auto-distrugge — MA solo dopo aver completato il ciclo install→activate.
-// Su alcuni browser (specie Brave + Chrome con shield aggressivo) il nuovo
-// SW non viene mai scaricato perché viene servito un index.html stale dalla
-// cache CDN, che continua a registrare il vecchio SW. Risultato:
-// `app.ediliziaincloud.com` mostra contenuti vecchi/marketing al posto del
-// login app.
+// Maggio 2026: un vecchio SW (precache di index.html) serviva contenuti
+// vecchi/marketing al posto del login di `app.ediliziaincloud.com`, e qui si
+// cancellavano TUTTI i SW e tutte le cache a ogni avvio.
 //
-// Forziamo unregister di TUTTI i SW al boot dell'app. Idempotente, safe.
-if ("serviceWorker" in navigator) {
-  void navigator.serviceWorker.getRegistrations().then((regs) => {
-    if (regs.length === 0) return;
-    Promise.all(regs.map((r) => r.unregister()))
-      .then(() => {
-        // Svuota anche le caches Workbox per buona misura.
-        if ("caches" in window) {
-          return caches.keys().then((keys) =>
-            Promise.all(keys.map((k) => caches.delete(k))),
-          );
-        }
-        return Promise.resolve();
-      })
-      .then(() => {
-        // Marca con un flag per non loopare sui reload.
-        const KEY = "sw_cleanup_done_v1";
-        if (sessionStorage.getItem(KEY)) return;
-        sessionStorage.setItem(KEY, "1");
-        // Reload necessario solo se l'utente sta vedendo contenuto stale:
-        // verifichiamo guardando se la pagina contiene markup marketing.
-        // (è un'euristica: l'app non ha mai "Richiedi una demo")
-        const isMarketingFallback = document.body?.textContent?.includes("Richiedi una demo");
-        if (isMarketingFallback) {
-          window.location.reload();
-        }
-      })
-      .catch(() => {
-        // Silent: se l'unregister fallisce non c'è niente che possiamo fare
-      });
-  });
+// Dal 6/9/2026 /sw.js è di nuovo acceso con regole sicure (vite.config.ts:
+// niente precache di index.html, niente cache delle API): serve alle Web Push e
+// alla shell offline del campo. Cancellarlo a ogni avvio cancellava con lui
+// l'iscrizione push del telefono (26/09/2026: 0 iscrizioni in tutta la
+// piattaforma) e la cache offline. Ora:
+//   - /sw.js resta, e gli si chiede di aggiornarsi (un /sw.js vecchio diventa
+//     quello nuovo: stesso indirizzo, skipWaiting + clientsClaim);
+//   - ogni altro SW va via, come prima;
+//   - delle cache restano solo quelle del SW di oggi.
+const CACHE_DEL_SW = /^(campo-shell-v1|eic-assets-v1|workbox-precache-v2-)/;
+if ("serviceWorker" in navigator && !isNative) {
+  void navigator.serviceWorker.getRegistrations().then(async (regs) => {
+    let tolti = 0;
+    for (const r of regs) {
+      const script = r.active?.scriptURL || r.waiting?.scriptURL || r.installing?.scriptURL || "";
+      let percorso = "";
+      try {
+        percorso = new URL(script, window.location.href).pathname;
+      } catch {
+        // indirizzo illeggibile: si tratta come un SW estraneo
+      }
+      if (percorso === "/sw.js") {
+        void r.update().catch(() => {
+          // Senza rete: si aggiorna al prossimo avvio.
+        });
+        continue;
+      }
+      await r.unregister();
+      tolti++;
+    }
+    return tolti;
+  })
+    .then(async (tolti) => {
+      // Svuota le cache che il SW di oggi non usa (quelle dei SW vecchi).
+      if ("caches" in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.filter((k) => !CACHE_DEL_SW.test(k)).map((k) => caches.delete(k)));
+      }
+      return tolti;
+    })
+    .then((tolti) => {
+      // Si ricarica solo se è stato tolto un SW estraneo e la pagina è quella
+      // stale (euristica: l'app non ha mai "Richiedi una demo").
+      if (!tolti) return;
+      // Marca con un flag per non loopare sui reload.
+      const KEY = "sw_cleanup_done_v1";
+      if (sessionStorage.getItem(KEY)) return;
+      sessionStorage.setItem(KEY, "1");
+      const isMarketingFallback = document.body?.textContent?.includes("Richiedi una demo");
+      if (isMarketingFallback) {
+        window.location.reload();
+      }
+    })
+    .catch(() => {
+      // Silent: se l'unregister fallisce non c'è niente che possiamo fare
+    });
 }
 
 installInvalidAuthSessionRecovery();

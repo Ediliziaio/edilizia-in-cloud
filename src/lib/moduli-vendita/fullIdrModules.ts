@@ -8,10 +8,10 @@ import { IDR_PHOTO_CORRECTIONS } from "./idrPhotoCorrections";
 import { DATI_CONTO_TERMICO_DIMOSTRATIVI } from "@/lib/contoTermico/anteprima";
 import { DATI_FULL_ELECTRIC_DIMOSTRATIVI } from "@/lib/fullElectric/anteprima";
 
-export const FULL_IDR_MODULES = ["caldaia", "pompa-calore", "ibrido", "radiante", "terminali", "idrico", "acqua-calda", "manutenzione", "conto-termico", "full-electric"] as const;
+export const FULL_IDR_MODULES = ["caldaia", "pompa-calore", "ibrido", "radiante", "terminali", "idrico", "acqua-calda", "manutenzione", "conto-termico", "full-electric", "pellet", "solare-termico", "trattamento-acqua"] as const;
 export type FullIdrModuleId = typeof FULL_IDR_MODULES[number];
 export const isFullIdrModuleId = (id: string): id is FullIdrModuleId => FULL_IDR_MODULES.some(v => v === id);
-export const IDR_MODULE_TITLES = { caldaia: "Sostituzione caldaia", "pompa-calore": "Pompa di calore", ibrido: "Sistema ibrido", radiante: "Riscaldamento a pavimento", terminali: "Radiatori e terminali", idrico: "Impianto idrico-sanitario", "acqua-calda": "Acqua calda sanitaria", manutenzione: "Riparazione e manutenzione", "conto-termico": "Conto Termico 3.0", "full-electric": "Casa Full Electric" };
+export const IDR_MODULE_TITLES = { caldaia: "Sostituzione caldaia", "pompa-calore": "Pompa di calore", ibrido: "Sistema ibrido", radiante: "Riscaldamento a pavimento", terminali: "Radiatori e terminali", idrico: "Impianto idrico-sanitario", "acqua-calda": "Acqua calda sanitaria", manutenzione: "Riparazione e manutenzione", "conto-termico": "Conto Termico 3.0", "full-electric": "Casa Full Electric", pellet: "Stufe e caldaie a pellet", "solare-termico": "Solare termico", "trattamento-acqua": "Trattamento dell'acqua" };
 export const IDR_EDITORIAL = {
   ...IDR_REMAINING_EDITORIAL,
   ibrido: {

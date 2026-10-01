@@ -1,9 +1,12 @@
 import React, { useState, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { TICKET_STATI, TICKET_STATI_CHIUSI, TICKET_FASI } from "@/types/tickets";
 import { calcolaFermo, CLASSI_FERMO } from "@/lib/assistenzaSla";
 import { AssistenzaPipeline } from "@/components/tickets/AssistenzaPipeline";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams, useNavigate } from "react-router-dom";
+import { NuovoTicketDialog } from "@/components/tickets/NuovoTicketDialog";
+import { StatTile, type StatTileTone } from "@/components/common/StatTile";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Enums } from "@/integrations/supabase/types";
@@ -12,7 +15,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { NavyStatCard } from "@/components/costi/KpiCard";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -41,8 +43,6 @@ import {
   LifeBuoy,
   Wrench,
   AlertTriangle,
-  CalendarClock,
-  UserX,
   ClipboardList,
   ArrowUpDown,
   ArrowUp,
@@ -50,10 +50,8 @@ import {
   CheckSquare,
   Euro,
   BriefcaseBusiness,
-  Hourglass,
   LayoutList,
   Columns3,
-  PhoneCall,
   SlidersHorizontal,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -175,10 +173,15 @@ function compareSortValues(a: string | number, b: string | number): number {
   return String(a).localeCompare(String(b), "it", { numeric: true, sensitivity: "base" });
 }
 
-const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
+// «Assistenza» vive dentro AssistenzaPage, che in cima mostra le due schede
+// grandi (Assistenza | Manutenzioni). Qui restano i soli ticket. `incorporata`:
+// la testata grande la dà AssistenzaPage, così non la ripetiamo.
+const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; actionsSlot?: HTMLElement | null }>(({ incorporata = false, actionsSlot = null }, ref) => {
   const { effectiveCompany, user } = useAuth();
   const permissions = usePermissions();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const [nuovoOpen, setNuovoOpen] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -576,78 +579,100 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
     merceFilter !== "tutte",
   ].filter(Boolean).length;
 
+  // I pulsanti azione: dentro Assistenza vanno a destra della riga delle schede
+  // (portal nello slot), da soli hanno la loro testata.
+  const azioni = (
+    <>
+      {selectedTicketIds.size > 0 && (
+        <Button variant="outline" onClick={() => setBulkOpen(true)} className="gap-2 max-sm:hidden">
+          <CheckSquare className="h-4 w-4" />
+          {selectedTicketIds.size} selezionati
+        </Button>
+      )}
+      {/* Mobile no: niente esportazioni da telefono. */}
+      <div className="hidden sm:contents">
+        <ExportButton
+          getData={() => filteredTickets.map((t) => ({
+            id: t.id?.slice(0, 8) || "",
+            subject: t.subject || "",
+            tipo: TIPO_LABEL[t.tipo ?? "supporto"] ?? t.tipo ?? "",
+            status: getTicketStatusLabel(t.status) || t.status || "",
+            priority: getTicketPriorityLabel(t.priority) || t.priority || "",
+            customer: t.customer ? `${t.customer.first_name || ""} ${t.customer.last_name || ""}`.trim() : "",
+            assigned: t.assignee ? `${t.assignee.first_name || ""} ${t.assignee.last_name || ""}`.trim() : "",
+            order: t.order?.description || "",
+            scadenza: t.data_intervento_prevista ?? "",
+            created: t.created_at ? new Date(t.created_at).toLocaleDateString("it-IT") : "",
+          }))}
+          columns={[
+            { key: "id", label: "ID" },
+            { key: "subject", label: "Oggetto" },
+            { key: "tipo", label: "Tipo" },
+            { key: "status", label: "Stato" },
+            { key: "priority", label: "Priorità" },
+            { key: "customer", label: "Cliente" },
+            { key: "assigned", label: "Assegnato" },
+            { key: "order", label: "Ordine" },
+            { key: "scadenza", label: "Scadenza" },
+            { key: "created", label: "Creato il" },
+          ]}
+          filename="assistenza-interventi"
+        />
+      </div>
+      <Button
+        onClick={() => setNuovoOpen(true)}
+        className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-9 max-sm:px-3 max-sm:text-xs"
+      >
+        <Plus className="mr-2 h-4 w-4" />
+        <span className="sm:hidden">Nuovo</span>
+        <span className="hidden sm:inline">Nuovo Ticket</span>
+      </Button>
+    </>
+  );
+
   return (
     <div ref={ref} className="space-y-6 max-sm:space-y-3">
-      {/* Header */}
-      <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-          <div className="flex min-w-0 items-start gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
-              <LifeBuoy className="h-5 w-5" />
-            </div>
-            <div className="min-w-0">
-              <h1 className="text-2xl font-bold tracking-tight">Assistenza</h1>
-              <p className="text-sm text-muted-foreground">
-                Ticket clienti, interventi collegati alle commesse, responsabilita e costi da tenere sotto controllo.
-              </p>
-            </div>
+      {/* Dentro AssistenzaPage i pulsanti stanno sulla riga delle schede (a
+          destra): niente riga vuota qui. Da soli, la testata con titolo. */}
+      {incorporata && actionsSlot ? (
+        createPortal(azioni, actionsSlot)
+      ) : (
+        <div className={incorporata ? "flex items-center justify-end gap-2" : "testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6"}>
+          <div className={incorporata ? "flex items-center gap-2" : "flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4"}>
+            {!incorporata && (
+              <div className="flex min-w-0 items-start gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
+                  <LifeBuoy className="h-5 w-5" />
+                </div>
+                <div className="min-w-0">
+                  <h1 className="text-2xl font-bold tracking-tight">Assistenza</h1>
+                  <p className="text-sm text-muted-foreground">
+                    Ticket clienti, interventi collegati alle commesse, responsabilita e costi da tenere sotto controllo.
+                  </p>
+                </div>
+              </div>
+            )}
+            <div className="flex items-center gap-2">{azioni}</div>
           </div>
-        <div className="flex items-center gap-2">
-          {selectedTicketIds.size > 0 && (
-            <Button variant="outline" onClick={() => setBulkOpen(true)} className="gap-2 max-sm:hidden">
-              <CheckSquare className="h-4 w-4" />
-              {selectedTicketIds.size} selezionati
-            </Button>
-          )}
-          {/* Mobile no: niente esportazioni da telefono. */}
-          <div className="hidden sm:contents">
-          <ExportButton
-            getData={() => filteredTickets.map((t) => ({
-              id: t.id?.slice(0, 8) || "",
-              subject: t.subject || "",
-              tipo: TIPO_LABEL[t.tipo ?? "supporto"] ?? t.tipo ?? "",
-              status: getTicketStatusLabel(t.status) || t.status || "",
-              priority: getTicketPriorityLabel(t.priority) || t.priority || "",
-              customer: t.customer ? `${t.customer.first_name || ""} ${t.customer.last_name || ""}`.trim() : "",
-              assigned: t.assignee ? `${t.assignee.first_name || ""} ${t.assignee.last_name || ""}`.trim() : "",
-              order: t.order?.description || "",
-              scadenza: t.data_intervento_prevista ?? "",
-              created: t.created_at ? new Date(t.created_at).toLocaleDateString("it-IT") : "",
-            }))}
-            columns={[
-              { key: "id", label: "ID" },
-              { key: "subject", label: "Oggetto" },
-              { key: "tipo", label: "Tipo" },
-              { key: "status", label: "Stato" },
-              { key: "priority", label: "Priorità" },
-              { key: "customer", label: "Cliente" },
-              { key: "assigned", label: "Assegnato" },
-              { key: "order", label: "Ordine" },
-              { key: "scadenza", label: "Scadenza" },
-              { key: "created", label: "Creato il" },
-            ]}
-            filename="assistenza-interventi"
-          />
-          </div>
-          <Button asChild className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-9 max-sm:px-3 max-sm:text-xs">
-            <Link to="/azienda/assistenza/nuovo">
-              <Plus className="mr-2 h-4 w-4" />
-              <span className="sm:hidden">Nuovo</span>
-              <span className="hidden sm:inline">Nuovo Ticket</span>
-            </Link>
-          </Button>
         </div>
-        </div>
-      </div>
+      )}
+
+      {/* Apertura assistenza in finestra, come «Nuovo Impianto». */}
+      <NuovoTicketDialog
+        open={nuovoOpen}
+        onOpenChange={setNuovoOpen}
+        initial={tipoFilter !== "all" ? { tipo: tipoFilter } : undefined}
+        onCreated={(id) => navigate(`/azienda/assistenza/${id}`)}
+      />
 
       {/* Tab tipo (supporto / intervento / emergenza / tutti) */}
       {/* Mobile: il tipo sta nel pannello dei filtri (una riga di pillole in meno). */}
       <div className="flex gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm max-sm:hidden">
         {[
-          { value: "all",        label: "Tutti",         icon: ClipboardList },
-          { value: "supporto",   label: "Supporto",      icon: LifeBuoy },
-          { value: "intervento", label: "Interventi",    icon: Wrench },
-          { value: "emergenza",  label: "Emergenze",     icon: AlertTriangle },
+          { value: "all",           label: "Tutti",        icon: ClipboardList },
+          { value: "supporto",      label: "Supporto",     icon: LifeBuoy },
+          { value: "intervento",    label: "Interventi",   icon: Wrench },
+          { value: "emergenza",     label: "Emergenze",    icon: AlertTriangle },
         ].map(tab => {
           const Icon = tab.icon;
           const active = tipoFilter === tab.value;
@@ -700,94 +725,24 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
         ))}
       </div>
 
-      {/* Nove riquadri: cinque per riga solo da 1280px. A 1024 erano larghi
-          100px e le etichette andavano su tre righe («MERCE / DA / ARRIVARE»). */}
-      <div className="hidden rounded-2xl bg-[#173b67] p-3 sm:block sm:p-4">
-        <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-3 xl:grid-cols-5">
-          <NavyStatCard
-            label="Totale"
-            value={metrics.totale}
-            sub={totalUnread > 0 ? `${totalUnread} non lett${totalUnread === 1 ? "o" : "i"}` : "tutti letti"}
-            icon={ClipboardList}
-            tone={totalUnread > 0 ? "text-orange-300" : "text-blue-100"}
-            active={statusFilter === "all"}
-            onClick={() => setStatusFilter("all")}
+      {/* Quattro numeri che contano (27/09): via le nove caselle blu. Gli altri
+          (ferme, merce, richiami, da incassare) sono in «Altri filtri». */}
+      <div className="hidden grid-cols-2 gap-2 sm:grid sm:grid-cols-4 sm:gap-3">
+        {([
+          { key: "aperti", label: "Da lavorare", n: metrics.aperti, tono: "red", attivo: statusFilter === "aperto", onClick: () => setStatusFilter(statusFilter === "aperto" ? "all" : "aperto") },
+          { key: "urgenti", label: "Urgenti", n: metrics.urgenti, tono: "amber", attivo: priorityFilter === "urgente" || priorityFilter === "alta", onClick: () => setPriorityFilter(priorityFilter === "urgente" ? "all" : "urgente") },
+          { key: "scadenza", label: "In scadenza", n: metrics.inScadenza, tono: "amber", attivo: scadenzaFilter === "scaduto_oggi" || scadenzaFilter === "settimana", onClick: () => setScadenzaFilter(scadenzaFilter === "scaduto_oggi" ? "tutte" : "scaduto_oggi") },
+          { key: "nonassegnati", label: "Senza tecnico", n: metrics.nonAssegnati, tono: "blue", attivo: assegnatoFilter === "unassigned", onClick: () => setAssegnatoFilter(assegnatoFilter === "unassigned" ? "tutti" : "unassigned") },
+        ] as { key: string; label: string; n: number; tono: StatTileTone; attivo: boolean; onClick: () => void }[]).map((t) => (
+          <StatTile
+            key={t.key}
+            label={t.label}
+            value={t.n}
+            tone={t.n > 0 ? t.tono : "neutral"}
+            active={t.attivo}
+            onClick={t.onClick}
           />
-          <NavyStatCard
-            label="Aperti"
-            value={metrics.aperti}
-            sub={metrics.aperti > 0 ? "da lavorare" : "nessuno aperto"}
-            icon={MessageSquare}
-            tone="text-blue-100"
-            active={statusFilter === "aperto"}
-            onClick={() => setStatusFilter(statusFilter === "aperto" ? "all" : "aperto")}
-          />
-          <NavyStatCard
-            label="Urgenti / Alta"
-            value={metrics.urgenti}
-            sub={metrics.urgenti > 0 ? "priorità alta" : "niente urgenze"}
-            icon={AlertTriangle}
-            tone={metrics.urgenti > 0 ? "text-red-300" : "text-blue-100"}
-            active={priorityFilter === "urgente" || priorityFilter === "alta"}
-            onClick={() => setPriorityFilter(priorityFilter === "urgente" ? "all" : "urgente")}
-          />
-          <NavyStatCard
-            label="In scadenza"
-            value={metrics.inScadenza}
-            sub={metrics.inScadenza > 0 ? "entro oggi/settimana" : "nessuna scadenza"}
-            icon={CalendarClock}
-            tone={metrics.inScadenza > 0 ? "text-orange-300" : "text-blue-100"}
-            active={scadenzaFilter === "scaduto_oggi" || scadenzaFilter === "settimana"}
-            onClick={() => setScadenzaFilter(scadenzaFilter === "scaduto_oggi" ? "tutte" : "scaduto_oggi")}
-          />
-          <NavyStatCard
-            label="Ferme troppo"
-            value={metrics.ferme}
-            sub={metrics.ferme > 0 ? "oltre il tempo previsto" : "nessuna in ritardo"}
-            icon={Hourglass}
-            tone={metrics.ferme > 0 ? "text-red-300" : "text-blue-100"}
-            active={soloFerme}
-            onClick={() => setSoloFerme(v => !v)}
-          />
-          <NavyStatCard
-            label="Merce da arrivare"
-            value={metricheMerce.inArrivo}
-            sub={metricheMerce.incomplete > 0
-              ? `${metricheMerce.incomplete} bolla${metricheMerce.incomplete === 1 ? "" : "e"} incompleta`
-              : "nessuna incompleta"}
-            icon={Package}
-            tone={metricheMerce.incomplete > 0 ? "text-red-300" : "text-blue-100"}
-            active={merceFilter !== "tutte"}
-            onClick={() => setMerceFilter(merceFilter === "tutte" ? "in_arrivo" : merceFilter === "in_arrivo" ? "incompleta" : "tutte")}
-          />
-          <NavyStatCard
-            label="Richiamano"
-            value={metricheMerce.solleciti}
-            sub={metricheMerce.solleciti > 0 ? "3 o più solleciti" : "nessun insistente"}
-            icon={PhoneCall}
-            tone={metricheMerce.solleciti > 0 ? "text-amber-300" : "text-blue-100"}
-            active={soloRichiami}
-            onClick={() => setSoloRichiami((v) => !v)}
-          />
-          <NavyStatCard
-            label="Da incassare"
-            value={metrics.daIncassare > 0
-              ? metrics.daIncassare.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: true })
-              : "—"}
-            sub={metrics.daIncassare > 0 ? "interventi a pagamento" : "niente in sospeso"}
-            icon={Euro}
-            tone={metrics.daIncassare > 0 ? "text-orange-300" : "text-blue-100"}
-          />
-          <NavyStatCard
-            label="Non assegnati"
-            value={metrics.nonAssegnati}
-            sub={metrics.nonAssegnati > 0 ? "senza responsabile" : "tutti assegnati"}
-            icon={UserX}
-            tone={metrics.nonAssegnati > 0 ? "text-orange-300" : "text-blue-100"}
-            active={assegnatoFilter === "unassigned"}
-            onClick={() => setAssegnatoFilter(assegnatoFilter === "unassigned" ? "tutti" : "unassigned")}
-          />
-        </div>
+        ))}
       </div>
 
       {selectedTicketIds.size > 0 && (
@@ -932,6 +887,15 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
                   <SelectItem value="arrivata">Merce arrivata</SelectItem>
                 </SelectContent>
               </Select>
+              {/* Interruttori: prima erano due delle nove caselle blu. */}
+              <label className="flex cursor-pointer items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm">
+                <span>Solo ferme troppo {metrics.ferme > 0 && <span className="font-semibold text-red-600">({metrics.ferme})</span>}</span>
+                <Checkbox checked={soloFerme} onCheckedChange={() => setSoloFerme((v) => !v)} />
+              </label>
+              <label className="flex cursor-pointer items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm">
+                <span>Solo chi richiama {metricheMerce.solleciti > 0 && <span className="font-semibold text-amber-600">({metricheMerce.solleciti})</span>}</span>
+                <Checkbox checked={soloRichiami} onCheckedChange={() => setSoloRichiami((v) => !v)} />
+              </label>
             </PopoverContent>
           </Popover>
           {/* Tabella o pipeline — solo desktop, come in Commesse */}

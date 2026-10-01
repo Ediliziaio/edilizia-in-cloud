@@ -59,7 +59,7 @@ describe("popup unico di creazione preventivi", () => {
     mount();
     expect(screen.getByRole("dialog")).toHaveAccessibleName("Che preventivo vuoi creare?");
     expect(screen.getByTestId("route")).toHaveTextContent("/azienda/marketing/preventivi");
-    expect(screen.getAllByRole("button", { name: /^Scegli area/ })).toHaveLength(10);
+    expect(screen.getAllByRole("button", { name: /^Scegli area/ })).toHaveLength(14);
     expect(screen.getByRole("link", { name: /^Preventivo classico/ })).toHaveAttribute("href", "/azienda/marketing/preventivi/nuovo");
     expect(screen.queryByRole("link", { name: /PDF|Impostazioni/ })).not.toBeInTheDocument();
   });
@@ -68,7 +68,7 @@ describe("popup unico di creazione preventivi", () => {
     state.views.find(view => view.modulo.slug === "bagni")!.stato = "bloccato";
     state.views.find(view => view.modulo.slug === "serramenti")!.isError = true;
     mount();
-    for (const title of ["Tetti", "Bagni", "Serramenti", "Facciate e isolamento"]) expect(screen.queryByRole("button", { name: `Scegli area ${title}` })).not.toBeInTheDocument();
+    for (const title of ["Tetti", "Bagni", "Serramenti"]) expect(screen.queryByRole("button", { name: `Scegli area ${title}` })).not.toBeInTheDocument();
   });
   it("non espone moduli marketing a chi può creare soltanto classico e fotovoltaico", () => {
     state.permissions.canEditMarketingOpportunities = false;
@@ -84,7 +84,7 @@ describe("popup unico di creazione preventivi", () => {
   it("porta Ripasso al suo wizard e conserva soltanto il contesto CRM", () => {
     mount("contact_id=c1&opportunity_id=o1&section=page_cover&modello=sbagliato");
     fireEvent.click(screen.getByRole("button", { name: "Scegli area Tetti" }));
-    expect(screen.getAllByRole("link", { name: /^Apri preventivatore/ })).toHaveLength(6);
+    expect(screen.getAllByRole("link", { name: /^Apri preventivatore/ })).toHaveLength(9);
     fireEvent.click(screen.getByRole("link", { name: "Apri preventivatore Ripasso del tetto" }));
     expect(screen.getByTestId("route")).toHaveTextContent("/azienda/tetti/nuovo?modello=ripasso&contact_id=c1&opportunity_id=o1");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -97,7 +97,7 @@ describe("popup unico di creazione preventivi", () => {
   it("apre ogni intervento Serramenti col suo modello, e resta il preventivo generale", () => {
     // Dal 25/09/2026 anche avvolgibili, zanzariere e porte (prima solo tre su sette).
     mount("area=serramenti");
-    expect(screen.getAllByRole("link", { name: /^Apri preventivatore/ })).toHaveLength(7);
+    expect(screen.getAllByRole("link", { name: /^Apri preventivatore/ })).toHaveLength(9);
     expect(screen.queryByLabelText(/^Intervento non disponibile/)).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: /^Apri preventivatore Zanzariere/ })).toHaveAttribute("href", "/azienda/serramenti/nuovo?modello=zanzariere");
     expect(screen.getByRole("link", { name: /^Preventivo Serramenti generale/ })).toHaveAttribute("href", "/azienda/serramenti/nuovo");
@@ -109,13 +109,20 @@ describe("popup unico di creazione preventivi", () => {
     fireEvent.click(screen.getByRole("link", { name: "Apri preventivatore Da vasca a doccia" }));
     expect(screen.getByTestId("route")).toHaveTextContent("/azienda/bagni/nuovo?modello=vasca-doccia&contact_id=c1");
   });
-  it.each([["termoidraulica", 10], ["elettrico", 7], ["ristrutturazioni", 5], ["fotovoltaico", 5]] as const)("apre i preventivatori %s coi loro %i interventi", (area, quanti) => {
+  it("porta gli interventi Giardini al preventivatore Pavimenti col modello scelto", () => {
+    // Giardini è un'area a sé sul motore Pavimenti: la creazione resta semplice, apre lo stesso preventivatore.
+    mount("area=giardini&contact_id=c1");
+    expect(screen.getAllByRole("link", { name: /^Apri preventivatore/ })).toHaveLength(4);
+    fireEvent.click(screen.getByRole("link", { name: "Apri preventivatore Realizzazione giardino" }));
+    expect(screen.getByTestId("route")).toHaveTextContent("/azienda/pavimenti/nuovo?modello=giardino&contact_id=c1");
+  });
+  it.each([["termoidraulica", 13], ["elettrico", 11], ["ristrutturazioni", 10], ["giardini", 4], ["fotovoltaico", 5]] as const)("apre i preventivatori %s coi loro %i interventi", (area, quanti) => {
     mount(`area=${area}`);
     expect(screen.getAllByRole("link", { name: /^Apri preventivatore/ })).toHaveLength(quanti);
   });
   it("distingue accesso all'area da disponibilità del salvataggio", () => {
     state.support.supported = false; mount("area=tetti");
-    expect(screen.getAllByText("Salvataggio da attivare")).toHaveLength(6);
+    expect(screen.getAllByText("Salvataggio da attivare")).toHaveLength(9);
     expect(screen.queryByText("Apri preventivatore", { exact: true })).not.toBeInTheDocument();
   });
   it.each(["loading", "visibleLoading", "error"] as const)("non presenta accessi confermati durante %s", key => {

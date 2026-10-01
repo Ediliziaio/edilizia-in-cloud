@@ -19,7 +19,10 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { useAssegnaMezzoACommessa, useCostiParco, useMezzi, useMezziDellaCommessa } from "@/hooks/useMezzi";
 import { formatCurrency } from "@/lib/formatters";
 import { IconaMezzo } from "@/components/mezzi/IconaMezzo";
-import { costoAnnuoMezzo, formatData, giornoItaliano, giorniSovrapposti, oggiIso } from "@/types/mezzi";
+import { aggiungiGiorni, costoAnnuoMezzo, formatData, giornoItaliano, giorniSovrapposti, oggiIso } from "@/types/mezzi";
+import { useDistanzeCantieri } from "@/hooks/useDistanzaCantieri";
+import { TIPI_CHE_VIAGGIANO, formatKm, giorniLavorativiSovrapposti, kmStimati } from "@/lib/manodopera/km";
+import { TimelineUso } from "@/components/mezzi/TimelineUso";
 
 interface Props {
   orderId: string;
@@ -45,9 +48,14 @@ export function MezziCommessaCard({ orderId }: Props) {
   const [scelto, setScelto] = useState<string>("");
 
   const oggi = oggiIso();
+  const { data: distanze } = useDistanzeCantieri(puoVedere && sulCantiere.length > 0 ? [orderId] : []);
+  const distanza = distanze?.[orderId] ?? null;
   const righe = useMemo(() => {
     return sulCantiere.map((m) => {
       const giorni = m.periodi.reduce((t, p) => t + giorniSovrapposti(p.dal, p.al, "2000-01-01", oggi), 0);
+      // I mezzi che guidano fino al cantiere: andata e ritorno ogni giorno lavorativo.
+      const giorniLavoro = m.periodi.reduce((t, p) => t + giorniLavorativiSovrapposti(p.dal, p.al, "2000-01-01", oggi), 0);
+      const km = TIPI_CHE_VIAGGIANO.has(m.tipo) ? kmStimati(giorniLavoro, distanza?.km) : null;
       const costo = costiParco
         ? costoAnnuoMezzo(
             { rata_mensile: m.rata_mensile },
@@ -58,11 +66,17 @@ export function MezziCommessaCard({ orderId }: Props) {
         : null;
       // Dal totale annuo, arrotondando una volta sola alla fine.
       const stima = costo && costo.totale > 0 ? Math.round(((costo.totale * giorni) / 365) * 100) / 100 : null;
-      return { ...m, giorni, stima };
+      return { ...m, giorni, giorniLavoro, km, stima };
     });
-  }, [sulCantiere, costiParco, oggi]);
+  }, [sulCantiere, costiParco, oggi, distanza?.km]);
 
   const stimaTotale = righe.reduce((t, r) => t + (r.stima ?? 0), 0);
+  const kmTotali = righe.reduce((t, r) => t + (r.km ?? 0), 0);
+  const inizioTimeline = righe.length
+    ? righe.flatMap((r) => r.periodi.map((p) => giornoItaliano(p.dal))).sort()[0]
+    : oggi;
+  // Almeno due settimane di asse, così un mezzo arrivato ieri non riempie tutto.
+  const daTimeline = inizioTimeline < aggiungiGiorni(oggi, -14) ? inizioTimeline : aggiungiGiorni(oggi, -14);
   const giaQui = new Set(righe.filter((r) => r.adesso).map((r) => r.mezzo_id));
   // Si mettono sul cantiere i mezzi che lavorano; un attrezzo a bordo di un
   // furgone segue il furgone e non si sposta da solo.
@@ -126,6 +140,7 @@ export function MezziCommessaCard({ orderId }: Props) {
                   </div>
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {descriviPeriodi(r.periodi)} · {r.giorni === 1 ? "1 giorno" : `${r.giorni} giorni`}
+                    {r.km != null && <> · circa {formatKm(r.km)}</>}
                     {r.stima != null && <> · circa {formatCurrency(r.stima)}</>}
                   </p>
                 </div>
@@ -145,6 +160,27 @@ export function MezziCommessaCard({ orderId }: Props) {
               </li>
             ))}
           </ul>
+        )}
+        {righe.length > 1 && (
+          <TimelineUso
+            className="rounded-lg border bg-white px-3 py-2.5"
+            da={daTimeline}
+            a={oggi}
+            righe={righe.map((r) => ({
+              id: r.mezzo_id,
+              etichetta: r.nome,
+              colore: TIPI_CHE_VIAGGIANO.has(r.tipo) ? "#F97316" : "#64748B",
+              periodi: r.periodi.map((p) => ({ dal: giornoItaliano(p.dal), al: p.al ? giornoItaliano(p.al) : null })),
+              dettaglio: r.km != null ? formatKm(r.km) : r.giorni === 1 ? "1 giorno" : `${r.giorni} giorni`,
+            }))}
+          />
+        )}
+        {distanza && (
+          <p className="text-xs text-muted-foreground">
+            Dalla sede al cantiere: <span className="font-medium text-foreground">{formatKm(distanza.km)}</span>
+            {distanza.minuti != null && <> · {distanza.minuti} min</>} su strada.
+            {kmTotali > 0 && <> Km stimati dei mezzi su questo cantiere, andata e ritorno nei giorni lavorativi: <span className="font-medium text-foreground">{formatKm(kmTotali)}</span>.</>}
+          </p>
         )}
         {stimaTotale > 0 && (
           <p className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">

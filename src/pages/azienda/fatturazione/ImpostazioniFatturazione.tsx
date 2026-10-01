@@ -185,6 +185,11 @@ export default function ImpostazioniFatturazione() {
 
   const current: Record<string, any> = { ...azienda, ...form };
   const updateField = (key: string, value: any) => setForm((p) => ({ ...p, [key]: value }));
+  // Rende il numero come il backend (formatta_numero_documento): stesso template nella scheda.
+  const renderNumero = (formato: string | null | undefined, prefisso: string, n: number, anno: number): string => {
+    const tpl = formato && String(formato).trim() ? String(formato) : "{prefisso}-{yyyy}-{nnnn}";
+    return tpl.replaceAll("{prefisso}", prefisso).replaceAll("{yyyy}", String(anno)).replaceAll("{yy}", String(anno).slice(-2)).replaceAll("{nnnn}", String(n).padStart(4, "0")).replaceAll("{n}", String(n));
+  };
 
   // Initialize conti from azienda data
   if (conti.length === 0 && azienda?.iban_principale) {
@@ -210,7 +215,7 @@ export default function ImpostazioniFatturazione() {
       queryClient.invalidateQueries({ queryKey: queryKeys.anagraficaAzienda.all });
       setForm({});
       toast.success("Impostazioni salvate");
-    } catch (err: any) { toast.error(err.message); }
+    } catch (err: any) { toast.error("Salvataggio non riuscito", { description: err.message }); }
     finally { setSaving(false); }
   };
 
@@ -1191,15 +1196,23 @@ export default function ImpostazioniFatturazione() {
             { tipo: "Fattura", prefix: "prefisso_fattura", numero: "ultimo_numero_fattura", default: "FT", icon: "📄" },
             { tipo: "Nota di Credito", prefix: "prefisso_nc", numero: "ultimo_numero_nc", default: "NC", icon: "📋" },
             { tipo: "DDT", prefix: "prefisso_ddt", numero: "ultimo_numero_ddt", default: "DDT", icon: "🚚" },
-          ].map((item) => (
+          ].map((item) => {
+            const anno = current.anno_corrente_fattura ?? new Date().getFullYear();
+            const eFattura = item.prefix === "prefisso_fattura";
+            const ncSegue = item.prefix === "prefisso_nc" && !!current.nc_serie_condivisa;
+            const badge = eFattura || ncSegue
+              ? renderNumero(current.formato_numero, current.prefisso_fattura ?? "FT", (current.ultimo_numero_fattura ?? 0) + 1, anno)
+              : renderNumero(null, current[item.prefix] ?? item.default, (current[item.numero] ?? 0) + 1, anno);
+            return (
             <Card key={item.tipo}>
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="font-semibold text-sm">{item.tipo}</h3>
-                  <Badge variant="outline" className="font-mono text-xs">
-                    {current[item.prefix] ?? item.default}-{current.anno_corrente ?? new Date().getFullYear()}-{String((current[item.numero] ?? 0) + 1).padStart(4, "0")}
-                  </Badge>
+                  <Badge variant="outline" className="font-mono text-xs">{badge}</Badge>
                 </div>
+                {ncSegue ? (
+                  <p className="text-sm text-muted-foreground">Segue la serie delle Fatture (serie unica): il prossimo numero è <span className="font-mono">{badge}</span>.</p>
+                ) : (
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label className="text-xs">Prefisso</Label>
@@ -1220,9 +1233,27 @@ export default function ImpostazioniFatturazione() {
                     />
                   </div>
                 </div>
+                )}
+                {eFattura && (
+                  <div className="mt-4 space-y-4 border-t pt-4">
+                    <div className="space-y-2">
+                      <Label className="text-xs">Formato del numero</Label>
+                      <Input value={current.formato_numero ?? ""} onChange={(e) => updateField("formato_numero", e.target.value || null)} placeholder="{prefisso}-{yyyy}-{nnnn}" className="font-mono" />
+                      <p className="text-[11px] text-muted-foreground">Segnaposto: <span className="font-mono">{"{prefisso} {n} {nnnn} {yyyy} {yy}"}</span>. Vuoto = standard (<span className="font-mono">FT-2026-0001</span>).</p>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label className="text-xs">Serie unica con le Note di Credito</Label>
+                        <p className="text-[11px] text-muted-foreground">La nota di credito prende il numero successivo della serie Fatture.</p>
+                      </div>
+                      <Switch checked={!!current.nc_serie_condivisa} onCheckedChange={(v) => updateField("nc_serie_condivisa", v)} />
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
-          ))}
+            );
+          })}
           <Card>
             <CardContent className="pt-6 flex items-center justify-between">
               <div>

@@ -1,0 +1,44 @@
+COMMESSA MOBILE — BLOCCO ISOLATO PER MAIN
+
+Obiettivo: ridurre comandi e testo nel telefono senza rimuovere funzioni.
+
+Incluso nel rilascio
+- Una riga di azioni mobile: Attività, Documenti, Altro. Altezza 44 px.
+- Contatti, fattura e appuntamenti nel menu; motivi dei comandi disabilitati.
+- Menu scorrevole con spazio riservato alla navigazione inferiore mobile.
+- Riepilogo numeri/stato richiudibile nelle schede operative mobile;
+  aperto normalmente in Panoramica e sul desktop.
+- Recapiti di commessa come fallback e fattura vincolata ai permessi e alla
+  modalità nativa già esistente. Nessun cambiamento del motore fatturazione.
+- Seriali: titolo breve, spiegazione lunga solo desktop, apertura esplicita,
+  query differite finché il dettaglio non viene aperto.
+
+Verifiche sul checkout isolato da origin/main
+- 98 test in 9 suite UI/navigazione/commessa.
+- 661 test critici in 21 suite.
+- 17 test del catalogo automazioni.
+- ESLint sui file modificati: zero errori, un any preesistente in OrderDetail.
+- Build Vite produzione (build:fast), comprensiva di CSS/HTML e PWA.
+- git diff --check.
+La build non sostituisce TypeScript integrale, non rieseguito in questo blocco.
+Non è stato eseguito il prerender SEO né il collaudo integrale della piattaforma.
+
+Verifiche aggiuntive sul workspace condiviso
+- 279 test in 22 suite, inclusi runtime e filtri automazioni in lavorazione.
+- Browser locale: 320 e 390 px, barra a tre comandi, menu scorrevole,
+  apertura/chiusura riepilogo e accesso alle viste.
+- Questi test non provano che tutte le automazioni distribuite siano operative.
+  Nessuna email/SMS/WhatsApp inviata; nessuna fattura emessa.
+
+Escluso deliberatamente dal push
+- Automazioni backend e modifiche degli altri terminali.
+- Calcoli/varianti, collaudi e migrazioni in corso.
+- Riordino completo delle sottoviste Cantiere/Economia/Materiali e relativo
+  selettore mobile, perché intrecciato alle integrazioni non ancora pubblicate.
+  Rimane nel workspace locale, con i suoi test, senza essere eliminato.
+
+Metodo di isolamento
+Checkout temporaneo da origin/main; solo file/hunk attribuibili alla UI di
+questa sessione. OrderDetail aggiornato per blocchi, non copiato interamente.
+La mappa Graphify ha indicato il componente condiviso da riusare; le dipendenze
+non presenti nella mappa sono state verificate direttamente nel diff.

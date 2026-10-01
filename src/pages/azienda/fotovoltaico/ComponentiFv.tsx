@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { SchedeTecnicheFvSection } from "@/components/fotovoltaico/SchedeTecnicheFvSection";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -533,6 +534,19 @@ export default function ComponentiFv() {
               </p>
             </div>
           </div>
+
+          {/* Schede tecniche PDF del prodotto: più file, ognuno con toggle «Allega»;
+              le autorizzate si accodano come pagine intere nel preventivo. Serve
+              l'id del componente, quindi solo dopo il primo salvataggio. */}
+          {form.id ? (
+            <div className="border-t pt-3">
+              <SchedeTecnicheFvSection articoloId={form.id} puoModificare={puoModificare} />
+            </div>
+          ) : (
+            <p className="border-t pt-3 text-[11px] text-muted-foreground">
+              Salva il componente per poter caricare le sue schede tecniche PDF.
+            </p>
+          )}
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Annulla</Button>

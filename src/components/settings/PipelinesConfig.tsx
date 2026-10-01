@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { Plus, Loader2, MoreHorizontal, Trash2, Pencil, ArrowLeft } from "lucide-react";
+import { Plus, Loader2, MoreHorizontal, Trash2, Pencil, ArrowLeft, Copy, ChevronUp, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -23,6 +23,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSepa
 type PipelineRow = {
   id: string;
   name: string;
+  position: number;
   updated_at: string;
   marketing_pipeline_stages?: { id: string; name: string; position: number; auto_status: string | null }[] | null;
 };
@@ -211,6 +212,14 @@ export function PipelinesConfig() {
   // quelle con almeno una fase (una sequenza vuota non copierebbe niente).
   const pipelineCopiabili = pipelines.filter((p) => (p.marketing_pipeline_stages?.length ?? 0) > 0);
 
+  // Le sequenze si leggono in due punti con chiavi query diverse (Impostazioni e
+  // pagina Opportunità): invalido ENTRAMBE, così duplica/riordino/rinomina si
+  // vedono anche nel selettore della pagina Opportunità.
+  const invalidaPipeline = () => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.pipelinesConfig.list(companyId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.pipelines.list(companyId) });
+  };
+
   function openCreateDialog() {
     setTemplateId(PIPELINE_TEMPLATES[0].id);
     setNewName("");
@@ -296,7 +305,7 @@ export function PipelinesConfig() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.pipelinesConfig.list(companyId) });
+      invalidaPipeline();
       setCreateOpen(false);
       setNewName("");
       setCreateStages([]);
@@ -318,7 +327,7 @@ export function PipelinesConfig() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.pipelinesConfig.list(companyId) });
+      invalidaPipeline();
       setEditOpen(false);
       toast.success("Sequenza aggiornata");
     },
@@ -340,7 +349,7 @@ export function PipelinesConfig() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.pipelinesConfig.list(companyId) });
+      invalidaPipeline();
       setDeleteOpen(false);
       setDeleteId(null);
       toast.success("Sequenza eliminata");
@@ -348,6 +357,80 @@ export function PipelinesConfig() {
     onError: (e: unknown) => {
       toast.error(e instanceof PipelineInUseError ? e.message : getErrorMessage(e));
     },
+  });
+
+  // Duplica una sequenza: nuova pipeline «Nome (copia)» in fondo + copia FEDELE
+  // di tutte le fasi (anche i campi non mostrati in lista: probabilità, durate,
+  // playbook…). La duplicata nasce senza opportunità collegate.
+  const duplicatePipeline = useMutation({
+    mutationFn: async (source: PipelineRow) => {
+      if (!companyId) throw new Error("Azienda non disponibile. Ricarica la pagina e riprova.");
+      const base = normalizeName(source.name);
+      const esistenti = new Set(pipelines.map((p) => normalizeName(p.name).toLowerCase()));
+      let nome = `${base} (copia)`;
+      for (let n = 2; esistenti.has(nome.toLowerCase()); n++) nome = `${base} (copia ${n})`;
+
+      const { data: nuova, error: pErr } = await supabase
+        .from("marketing_pipelines")
+        .insert({ company_id: companyId, name: nome, position: pipelines.length })
+        .select("id")
+        .single();
+      if (pErr) throw pErr;
+
+      // Fasi complete dalla sorgente (la lista ne carica solo 4 campi).
+      const { data: fasi, error: fErr } = await supabase
+        .from("marketing_pipeline_stages")
+        .select("name, position, auto_status, show_in_reports, win_probability, expected_duration_days, stalled_threshold_days, playbook")
+        .eq("pipeline_id", source.id)
+        .eq("company_id", companyId)
+        .order("position");
+      if (fErr) throw fErr;
+
+      const righe = (fasi ?? []).map((s, idx) => ({
+        pipeline_id: nuova.id,
+        company_id: companyId,
+        name: s.name,
+        position: idx,
+        auto_status: s.auto_status,
+        show_in_reports: s.show_in_reports,
+        win_probability: s.win_probability,
+        expected_duration_days: s.expected_duration_days,
+        stalled_threshold_days: s.stalled_threshold_days,
+        playbook: s.playbook,
+      }));
+      if (righe.length > 0) {
+        const { error: sErr } = await supabase.from("marketing_pipeline_stages").insert(righe);
+        if (sErr) throw sErr;
+      }
+    },
+    onSuccess: () => { invalidaPipeline(); toast.success("Sequenza duplicata"); },
+    onError: (e: unknown) => toast.error(getErrorMessage(e)),
+  });
+
+  // Riordina: sposta una sequenza su/giù e NORMALIZZA le posizioni a 0..n-1
+  // (robusto anche se le position avessero buchi o duplicati). L'ordine vale sia
+  // qui sia nel selettore delle Opportunità.
+  const reorderPipeline = useMutation({
+    mutationFn: async ({ id, direzione }: { id: string; direzione: -1 | 1 }) => {
+      if (!companyId) throw new Error("Azienda non disponibile. Ricarica la pagina e riprova.");
+      const ordinate = [...pipelines].sort((a, b) => a.position - b.position || a.name.localeCompare(b.name));
+      const idx = ordinate.findIndex((p) => p.id === id);
+      const target = idx + direzione;
+      if (idx < 0 || target < 0 || target >= ordinate.length) return;
+      const nuovo = [...ordinate];
+      [nuovo[idx], nuovo[target]] = [nuovo[target], nuovo[idx]];
+      for (let i = 0; i < nuovo.length; i++) {
+        if (nuovo[i].position === i) continue; // già a posto
+        const { error } = await supabase
+          .from("marketing_pipelines")
+          .update({ position: i })
+          .eq("id", nuovo[i].id)
+          .eq("company_id", companyId);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => invalidaPipeline(),
+    onError: (e: unknown) => toast.error(getErrorMessage(e)),
   });
 
   if (isLoading) {
@@ -416,7 +499,7 @@ export function PipelinesConfig() {
             </div>
           ) : (
             <div className="space-y-2">
-              {pipelines.map((p) => (
+              {pipelines.map((p, idx) => (
                 <div
                   key={p.id}
                   className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 cursor-pointer transition-colors"
@@ -429,21 +512,44 @@ export function PipelinesConfig() {
                     </p>
                   </div>
                   {puoModificare && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setEditId(p.id); setEditName(p.name); setEditOpen(true); }}>
-                        <Pencil className="h-4 w-4 mr-2" /> Rinomina
-                      </DropdownMenuItem>
-                      <DropdownMenuItem className="text-destructive" onClick={(e) => { e.stopPropagation(); setDeleteId(p.id); setDeleteOpen(true); }}>
-                        <Trash2 className="h-4 w-4 mr-2" /> Elimina
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                    {pipelines.length > 1 && (
+                      <div className="flex flex-col">
+                        <Button
+                          variant="ghost" size="icon" className="h-4 w-6" aria-label="Sposta su"
+                          disabled={idx === 0 || reorderPipeline.isPending}
+                          onClick={() => reorderPipeline.mutate({ id: p.id, direzione: -1 })}
+                        >
+                          <ChevronUp className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost" size="icon" className="h-4 w-6" aria-label="Sposta giù"
+                          disabled={idx === pipelines.length - 1 || reorderPipeline.isPending}
+                          onClick={() => reorderPipeline.mutate({ id: p.id, direzione: 1 })}
+                        >
+                          <ChevronDown className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    )}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setEditId(p.id); setEditName(p.name); setEditOpen(true); }}>
+                          <Pencil className="h-4 w-4 mr-2" /> Rinomina
+                        </DropdownMenuItem>
+                        <DropdownMenuItem disabled={duplicatePipeline.isPending} onClick={(e) => { e.stopPropagation(); duplicatePipeline.mutate(p); }}>
+                          <Copy className="h-4 w-4 mr-2" /> Duplica
+                        </DropdownMenuItem>
+                        <DropdownMenuItem className="text-destructive" onClick={(e) => { e.stopPropagation(); setDeleteId(p.id); setDeleteOpen(true); }}>
+                          <Trash2 className="h-4 w-4 mr-2" /> Elimina
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                   )}
                 </div>
               ))}

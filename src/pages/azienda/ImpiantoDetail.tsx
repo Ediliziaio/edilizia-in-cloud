@@ -5,17 +5,22 @@ import { NuovoInterventoDialog } from "@/components/interventi/NuovoInterventoDi
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, AlertCircle, Plus, Loader2, Wrench, Pencil, Archive, ArchiveRestore } from "lucide-react";
+import { ArrowLeft, AlertCircle, Plus, Loader2, Wrench, Pencil, Archive, ArchiveRestore, MessageCircle, Mail, History, Camera, Receipt, Settings, FileText, Calendar } from "lucide-react";
+import { QuickContactSendDialog } from "@/components/contacts/QuickContactSendDialog";
+import { RapportiniIntervento } from "@/components/tickets/RapportiniIntervento";
+import { CreaFatturaAssistenzaDialog } from "@/components/tickets/CreaFatturaAssistenzaDialog";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -38,6 +43,8 @@ export default function ImpiantoDetail() {
   // La scheda impianto era di sola lettura: una matricola sbagliata o un
   // impianto smantellato restavano lì com'erano, per sempre.
   const [modificaOpen, setModificaOpen] = useState(false);
+  const [fatturaOpen, setFatturaOpen] = useState(false);
+  const [contattoCanale, setContattoCanale] = useState<"whatsapp" | "email" | null>(null);
   const [archiviaOpen, setArchiviaOpen] = useState(false);
   const [formImpianto, setFormImpianto] = useState({
     tipo_impianto: "", marca: "", modello: "", matricola: "",
@@ -54,7 +61,7 @@ export default function ImpiantoDetail() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("impianti_cliente")
-        .select("*, customer:profiles!impianti_cliente_customer_id_fkey(id, first_name, last_name, email)")
+        .select("*, customer:profiles!impianti_cliente_customer_id_fkey(id, first_name, last_name, email, phone)")
         .eq("id", id!)
         .single();
       if (error) throw error;
@@ -307,6 +314,28 @@ export default function ImpiantoDetail() {
         </div>
         {/* Barra azioni: secondaria icon-only, CTA che riempie su mobile. */}
         <div className="flex w-full items-center gap-2 sm:w-auto max-sm:w-auto max-sm:shrink-0">
+          {/* Scrivi al cliente dell'impianto, come nelle commesse. */}
+          {(impianto.customer as { phone?: string | null } | null)?.phone && (
+            <Button variant="outline" size="icon" className="shrink-0 tap-compact text-emerald-700 max-sm:h-8 max-sm:w-8" title="WhatsApp al cliente" onClick={() => setContattoCanale("whatsapp")}>
+              <MessageCircle className="h-4 w-4" />
+            </Button>
+          )}
+          {(impianto.customer as { email?: string | null } | null)?.email && (
+            <Button variant="outline" size="icon" className="shrink-0 tap-compact text-blue-700 max-sm:h-8 max-sm:w-8" title="Email al cliente" onClick={() => setContattoCanale("email")}>
+              <Mail className="h-4 w-4" />
+            </Button>
+          )}
+          {/* Storico completo: la linea del tempo di tutti gli interventi, con
+              foto, ore e firma. Prima esisteva ma non la raggiungeva nessuno. */}
+          <Button
+            variant="outline"
+            size="icon"
+            className="shrink-0 tap-compact max-sm:h-8 max-sm:w-8"
+            title="Storico interventi e rapportini"
+            onClick={() => navigate(`/azienda/impianti/${id}/storico`)}
+          >
+            <History className="h-4 w-4" />
+          </Button>
           <Button
             variant="outline"
             size="icon"
@@ -332,171 +361,198 @@ export default function ImpiantoDetail() {
         </Alert>
       )}
 
-      <Tabs defaultValue="scheda">
-        {/* Mobile: scheda, piano e interventi (quel che serve sul posto); il
-            contratto si gestisce al computer. */}
-        <TabsList className="max-sm:grid max-sm:w-full max-sm:grid-cols-3">
-          <TabsTrigger value="scheda" className="max-sm:text-xs"><span className="max-sm:hidden">Scheda Tecnica</span><span className="sm:hidden">Scheda</span></TabsTrigger>
-          <TabsTrigger value="piano" className="max-sm:text-xs"><span className="max-sm:hidden">Piano Manutenzione ({piani.length})</span><span className="sm:hidden">Piano ({piani.length})</span></TabsTrigger>
-          <TabsTrigger value="interventi" className="max-sm:text-xs">Interventi ({interventiImpianto.length})</TabsTrigger>
-          <TabsTrigger value="contratto" className="max-sm:hidden">Contratto</TabsTrigger>
-        </TabsList>
+      <Separator className="mb-4 max-sm:mb-1" />
 
-        {/* Scheda Tecnica */}
-        <TabsContent value="scheda" className="mt-4 space-y-4 max-sm:mt-3 max-sm:space-y-3">
-          <div className="bg-white rounded-lg border p-4 grid grid-cols-2 gap-4 text-sm lg:grid-cols-3 max-sm:gap-3 max-sm:p-3 max-sm:text-[13px]">
-            {[
-              { label: "Tipo", value: impianto.tipo_impianto?.replace("_", " ") },
-              { label: "Marca", value: impianto.marca },
-              { label: "Modello", value: impianto.modello },
-              { label: "Matricola", value: impianto.matricola },
-              { label: "Data installazione", value: impianto.data_installazione ? format(new Date(impianto.data_installazione), "dd MMMM yyyy", { locale: it }) : null },
-              { label: "Scadenza garanzia", value: impianto.garanzia_scadenza ? format(new Date(impianto.garanzia_scadenza), "dd MMMM yyyy", { locale: it }) : null },
-            ].map((f) => f.value && (
-              <div key={f.label}>
-                <div className="text-gray-400 text-xs">{f.label}</div>
-                <div className="font-medium mt-0.5">{f.value}</div>
-              </div>
-            ))}
-          </div>
-          {garanziaGiorni !== null && (
-            <Badge className={garanziaGiorni < 0 ? "bg-red-100 text-red-800" : garanziaGiorni < 90 ? "bg-yellow-100 text-yellow-800" : "bg-green-100 text-green-800"}>
-              {garanziaGiorni < 0 ? `Garanzia scaduta ${Math.abs(garanziaGiorni)}gg fa` : `Garanzia valida ancora ${garanziaGiorni} giorni`}
-            </Badge>
-          )}
-          {impianto.note_tecniche && (
-            <div className="bg-gray-50 rounded p-3 text-sm text-gray-700">{impianto.note_tecniche}</div>
-          )}
-        </TabsContent>
-
-        {/* Piano Manutenzione */}
-        <TabsContent value="piano" className="mt-4 space-y-4 max-sm:mt-3 max-sm:space-y-3">
-          {/* Mobile: senza piani il bottone spento non serve; il titolo è la scheda. */}
-          <div className={`flex items-center justify-between max-sm:justify-end ${piani.length === 0 ? "max-sm:hidden" : ""}`}>
-            <h3 className="font-semibold max-sm:hidden">Piani di manutenzione</h3>
-            <Button size="sm" onClick={() => { setSelectedPianoId(piani[0]?.id ?? null); setEsecuzioneOpen(true); }} disabled={piani.length === 0} className="gap-2 max-sm:h-8 max-sm:text-xs">
-              <Plus className="h-4 w-4" /> Registra Esecuzione
-            </Button>
-          </div>
-
-          {piani.length === 0 ? (
-            <p className="text-center text-gray-500 py-8 max-sm:py-5 max-sm:text-sm">Nessun piano configurato per questo impianto</p>
-          ) : piani.map((piano: any) => (
-            <div key={piano.id} className="bg-white rounded-lg border p-4 max-sm:p-3">
-              <div className="flex items-start justify-between">
-                <div>
-                  <span className="font-medium">{piano.titolo}</span>
-                  <div className="text-sm text-gray-500 mt-1">
-                    Frequenza: {piano.frequenza_tipo} · Prossima: {piano.prossima_scadenza ? format(new Date(piano.prossima_scadenza), "dd MMM yyyy", { locale: it }) : "—"}
-                  </div>
-                  {piano.ultima_esecuzione && (
-                    <div className="text-xs text-gray-400 mt-0.5">
-                      Ultima: {format(new Date(piano.ultima_esecuzione), "dd MMM yyyy", { locale: it })}
-                    </div>
-                  )}
-                </div>
-                <Button size="sm" variant="outline" onClick={() => { setSelectedPianoId(piano.id); setEsecuzioneOpen(true); }}>
-                  Esegui
-                </Button>
-              </div>
-            </div>
-          ))}
-
-          {esecuzioni.length > 0 && (
-            <div>
-              <h4 className="font-medium text-gray-700 mb-2">Storico esecuzioni</h4>
-              <div className="space-y-2">
-                {esecuzioni.map((e: any) => (
-                  <div key={e.id} className="bg-gray-50 rounded p-3 flex items-center justify-between text-sm">
-                    <div>
-                      <span className="font-medium">{e.piano?.titolo}</span>
-                      <span className="text-gray-400 ml-2">{format(new Date(e.data_esecuzione), "dd MMM yyyy", { locale: it })}</span>
-                    </div>
-                    <Badge className={e.esito === "ok" ? "bg-green-100 text-green-800 text-xs" : e.esito === "anomalia_rilevata" ? "bg-red-100 text-red-800 text-xs" : "bg-gray-100 text-gray-600 text-xs"}>
-                      {e.esito === "ok" ? "OK" : e.esito === "anomalia_rilevata" ? "Anomalia" : "Rinviata"}
-                    </Badge>
+      {/* Layout come la scheda di un'assistenza: a sinistra i dati dell'impianto
+          e il contratto, a destra il lavoro (piano, interventi, rapportini). */}
+      <div className="flex flex-col md:grid md:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[360px_minmax(0,1fr)] gap-6 max-md:gap-3">
+        {/* ── Colonna sinistra: identità impianto + contratto ── */}
+        <div className="space-y-4 max-md:space-y-3">
+          <Card>
+            <CardContent className="p-4 space-y-3">
+              <h3 className="flex items-center gap-2 text-sm font-semibold">
+                <Settings className="h-4 w-4 text-muted-foreground" /> Scheda tecnica
+              </h3>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                {[
+                  { label: "Tipo", value: impianto.tipo_impianto?.replace("_", " ") },
+                  { label: "Marca", value: impianto.marca },
+                  { label: "Modello", value: impianto.modello },
+                  { label: "Matricola", value: impianto.matricola },
+                  { label: "Data installazione", value: impianto.data_installazione ? format(new Date(impianto.data_installazione), "dd MMM yyyy", { locale: it }) : null },
+                  { label: "Scadenza garanzia", value: impianto.garanzia_scadenza ? format(new Date(impianto.garanzia_scadenza), "dd MMM yyyy", { locale: it }) : null },
+                ].map((f) => f.value && (
+                  <div key={f.label}>
+                    <div className="text-xs text-muted-foreground">{f.label}</div>
+                    <div className="mt-0.5 font-medium capitalize">{f.value}</div>
                   </div>
                 ))}
               </div>
-            </div>
-          )}
-        </TabsContent>
-
-        {/* Interventi collegati all'impianto */}
-        <TabsContent value="interventi" className="mt-4 space-y-3 max-sm:mt-3">
-          <div className="flex items-center justify-between max-sm:justify-end">
-            <h3 className="font-semibold max-sm:hidden">Interventi su questo impianto</h3>
-            <Button size="sm" variant="outline" onClick={() => setNuovoInterventoOpen(true)} className="gap-2 max-sm:h-8 max-sm:text-xs">
-              <Plus className="h-4 w-4" /> Nuovo Intervento
-            </Button>
-          </div>
-          {interventiImpianto.length === 0 ? (
-            <div className="text-center py-12 text-gray-400 max-sm:py-5 max-sm:text-sm">
-              <Wrench className="h-10 w-10 mx-auto mb-3 opacity-30 max-sm:hidden" />
-              <p>Nessun intervento registrato per questo impianto</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {interventiImpianto.map((iv: any) => (
-                <div
-                  key={iv.id}
-                  className="bg-white rounded-lg border p-3 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors"
-                  onClick={() => navigate(`/azienda/assistenza/${iv.id}`)}
-                >
-                  <div className="flex items-center gap-3">
-                    <Wrench className="h-4 w-4 text-orange-500 shrink-0" />
-                    <div>
-                      <div className="font-medium text-sm">{iv.subject}</div>
-                      <div className="text-xs text-gray-400 mt-0.5">
-                        {iv.tipo ?? "supporto"} · {format(new Date(iv.created_at), "dd MMM yyyy", { locale: it })}
-                        {iv.data_intervento_prevista && ` · Previsto: ${format(new Date(iv.data_intervento_prevista), "dd MMM yyyy", { locale: it })}`}
-                      </div>
+              {garanziaGiorni !== null && (
+                <Badge className={garanziaGiorni < 0 ? "bg-red-100 text-red-800" : garanziaGiorni < 90 ? "bg-yellow-100 text-yellow-800" : "bg-emerald-100 text-emerald-700"}>
+                  {garanziaGiorni < 0 ? `Garanzia scaduta ${Math.abs(garanziaGiorni)}gg fa` : `Garanzia valida ancora ${garanziaGiorni} giorni`}
+                </Badge>
+              )}
+              {impianto.note_tecniche && (
+                <div className="rounded bg-muted/50 p-3 text-sm text-muted-foreground">{impianto.note_tecniche}</div>
+              )}
+              {/* Foto dell'impianto (targa, matricola, posizione). Le foto di ogni
+                  intervento stanno nei rapportini. */}
+              {Array.isArray((impianto as { foto_urls?: string[] | null }).foto_urls) &&
+                ((impianto as { foto_urls?: string[] | null }).foto_urls?.length ?? 0) > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                      <Camera className="h-3.5 w-3.5" /> Foto impianto
+                    </h4>
+                    <div className="flex flex-wrap gap-2">
+                      {(impianto as { foto_urls?: string[] | null }).foto_urls!.map((url, i) => (
+                        <a key={i} href={url} target="_blank" rel="noopener noreferrer"
+                           className="h-16 w-16 overflow-hidden rounded border transition-opacity hover:opacity-80">
+                          <img loading="lazy" src={url} alt={`Foto impianto ${i + 1}`} className="h-full w-full object-cover" />
+                        </a>
+                      ))}
                     </div>
                   </div>
-                  <Badge className={
-                    iv.status === "risolto" ? "bg-green-100 text-green-800 text-xs" :
-                    iv.status === "in_lavorazione" ? "bg-blue-100 text-blue-800 text-xs" :
-                    "bg-gray-100 text-gray-600 text-xs"
-                  }>
-                    {iv.status === "risolto" ? "Risolto" : iv.status === "in_lavorazione" ? "In lavorazione" : "Aperto"}
-                  </Badge>
-                </div>
-              ))}
-            </div>
-          )}
-        </TabsContent>
+                )}
+            </CardContent>
+          </Card>
 
-        {/* Contratto */}
-        <TabsContent value="contratto" className="mt-4">
-          {!contratto ? (
-            <div className="text-center py-12 text-gray-500">
-              <p>Nessun contratto collegato a questo impianto</p>
-            </div>
-          ) : (
-            <div className="bg-white rounded-lg border p-4 space-y-3 text-sm">
-              <div className="flex items-start justify-between">
-                <div>
-                  <h3 className="font-semibold text-base">{contratto.nome_contratto}</h3>
-                  <div className="text-gray-500 mt-1">{contratto.tipo_fatturazione} · Inizio: {format(new Date(contratto.data_inizio), "dd/MM/yyyy")}</div>
+          {/* Contratto */}
+          <Card>
+            <CardContent className="p-4 space-y-3">
+              <h3 className="flex items-center gap-2 text-sm font-semibold">
+                <FileText className="h-4 w-4 text-muted-foreground" /> Contratto
+              </h3>
+              {!contratto ? (
+                <p className="text-sm text-muted-foreground">Nessun contratto collegato a questo impianto.</p>
+              ) : (
+                <div className="space-y-3 text-sm">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-semibold">{contratto.nome_contratto}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">{contratto.tipo_fatturazione} · Inizio {format(new Date(contratto.data_inizio), "dd/MM/yyyy")}</p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <div className="text-lg font-bold text-violet-700">€{Number(contratto.importo_canone).toFixed(2)}</div>
+                      <Badge className={cn("text-xs capitalize", contratto.stato === "attivo" ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600")}>{contratto.stato}</Badge>
+                    </div>
+                  </div>
+                  {contratto.rinnovo_automatico && <Badge className="bg-blue-100 text-blue-800 text-xs">Rinnovo automatico</Badge>}
+                  {contratto.note && <p className="rounded bg-muted/50 p-2 text-muted-foreground">{contratto.note}</p>}
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Button variant="outline" size="sm" className="w-full gap-2 sm:flex-1" onClick={apriModificaContratto}>
+                      <Pencil className="h-4 w-4" /> Modifica
+                    </Button>
+                    <Button variant="outline" size="sm" className="w-full gap-2 sm:flex-1" onClick={() => setFatturaOpen(true)}>
+                      <Receipt className="h-4 w-4" /> Fattura canone
+                    </Button>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <div className="font-bold text-purple-700 text-lg">€{Number(contratto.importo_canone).toFixed(2)}</div>
-                  <Badge className={contratto.stato === "attivo" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-600"}>
-                    {contratto.stato}
-                  </Badge>
-                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* ── Colonna destra: piano, interventi, rapportini ── */}
+        <div className="space-y-4 max-md:space-y-3">
+          {/* Piano di manutenzione */}
+          <Card>
+            <CardContent className="p-4 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="flex items-center gap-2 text-sm font-semibold">
+                  <Calendar className="h-4 w-4 text-muted-foreground" /> Piano di manutenzione
+                  {piani.length > 0 && <span className="text-muted-foreground">({piani.length})</span>}
+                </h3>
+                <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs" disabled={piani.length === 0}
+                        onClick={() => { setSelectedPianoId(piani[0]?.id ?? null); setEsecuzioneOpen(true); }}>
+                  <Plus className="h-3.5 w-3.5" /> Registra esecuzione
+                </Button>
               </div>
-              {contratto.rinnovo_automatico && <Badge className="text-xs bg-blue-100 text-blue-800">Rinnovo automatico</Badge>}
-              {contratto.note && <p className="text-gray-600 bg-gray-50 p-2 rounded">{contratto.note}</p>}
-              {/* Il contratto era di sola lettura: un canone sbagliato o una
-                  disdetta non si potevano registrare da nessuna parte. */}
-              <Button variant="outline" size="sm" className="w-full gap-2 sm:w-auto" onClick={apriModificaContratto}>
-                <Pencil className="h-4 w-4" /> Modifica contratto
-              </Button>
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
+              {piani.length === 0 ? (
+                <p className="py-6 text-center text-sm text-muted-foreground">Nessun piano configurato per questo impianto.</p>
+              ) : (
+                <div className="space-y-2">
+                  {piani.map((piano: any) => (
+                    <div key={piano.id} className="rounded-lg border p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <span className="text-sm font-medium">{piano.titolo}</span>
+                          <div className="mt-0.5 text-xs text-muted-foreground">
+                            {piano.frequenza_tipo} · Prossima: {piano.prossima_scadenza ? format(new Date(piano.prossima_scadenza), "dd MMM yyyy", { locale: it }) : "—"}
+                            {piano.ultima_esecuzione && ` · Ultima: ${format(new Date(piano.ultima_esecuzione), "dd MMM yyyy", { locale: it })}`}
+                          </div>
+                        </div>
+                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setSelectedPianoId(piano.id); setEsecuzioneOpen(true); }}>
+                          Esegui
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {esecuzioni.length > 0 && (
+                <div className="space-y-2 border-t pt-3">
+                  <h4 className="text-xs font-medium text-muted-foreground">Storico esecuzioni</h4>
+                  {esecuzioni.map((e: any) => (
+                    <div key={e.id} className="flex items-center justify-between rounded bg-muted/50 p-2.5 text-sm">
+                      <div className="min-w-0">
+                        <span className="font-medium">{e.piano?.titolo}</span>
+                        <span className="ml-2 text-xs text-muted-foreground">{format(new Date(e.data_esecuzione), "dd MMM yyyy", { locale: it })}</span>
+                      </div>
+                      <Badge className={cn("text-[10px]", e.esito === "ok" ? "bg-emerald-100 text-emerald-700" : e.esito === "anomalia_rilevata" ? "bg-red-100 text-red-700" : "bg-slate-100 text-slate-600")}>
+                        {e.esito === "ok" ? "OK" : e.esito === "anomalia_rilevata" ? "Anomalia" : "Rinviata"}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Interventi sull'impianto */}
+          <Card>
+            <CardContent className="p-4 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="flex items-center gap-2 text-sm font-semibold">
+                  <Wrench className="h-4 w-4 text-muted-foreground" /> Interventi
+                  {interventiImpianto.length > 0 && <span className="text-muted-foreground">({interventiImpianto.length})</span>}
+                </h3>
+                <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs" onClick={() => setNuovoInterventoOpen(true)}>
+                  <Plus className="h-3.5 w-3.5" /> Nuovo intervento
+                </Button>
+              </div>
+              {interventiImpianto.length === 0 ? (
+                <p className="py-6 text-center text-sm text-muted-foreground">Nessun intervento registrato per questo impianto.</p>
+              ) : (
+                <div className="space-y-2">
+                  {interventiImpianto.map((iv: any) => (
+                    <button key={iv.id} type="button"
+                            className="flex w-full items-center justify-between gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-muted/50"
+                            onClick={() => navigate(`/azienda/assistenza/${iv.id}`)}>
+                      <div className="flex min-w-0 items-center gap-3">
+                        <Wrench className="h-4 w-4 shrink-0 text-orange-500" />
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-medium">{iv.subject}</div>
+                          <div className="mt-0.5 text-xs text-muted-foreground">
+                            {iv.tipo ?? "supporto"} · {format(new Date(iv.created_at), "dd MMM yyyy", { locale: it })}
+                            {iv.data_intervento_prevista && ` · Previsto ${format(new Date(iv.data_intervento_prevista), "dd MMM yyyy", { locale: it })}`}
+                          </div>
+                        </div>
+                      </div>
+                      <Badge className={cn("shrink-0 text-[10px]", iv.status === "risolto" ? "bg-emerald-100 text-emerald-700" : iv.status === "in_lavorazione" ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-600")}>
+                        {iv.status === "risolto" ? "Risolto" : iv.status === "in_lavorazione" ? "In lavorazione" : "Aperto"}
+                      </Badge>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Rapportini fatti su questo impianto: chi c'è stato, ore, foto, firma. */}
+          <RapportiniIntervento impiantoId={id} />
+        </div>
+      </div>
 
       {/* Modifica impianto */}
       <Dialog open={modificaOpen} onOpenChange={setModificaOpen}>
@@ -702,6 +758,31 @@ export default function ImpiantoDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Scrivi al cliente dell'impianto: WhatsApp o Email. */}
+      <QuickContactSendDialog
+        open={contattoCanale !== null}
+        onOpenChange={(o) => { if (!o) setContattoCanale(null); }}
+        contactId={(impianto.customer as { id?: string } | null)?.id ?? null}
+        name={[(impianto.customer as { first_name?: string | null } | null)?.first_name, (impianto.customer as { last_name?: string | null } | null)?.last_name].filter(Boolean).join(" ") || null}
+        phone={(impianto.customer as { phone?: string | null } | null)?.phone}
+        email={(impianto.customer as { email?: string | null } | null)?.email}
+        context={impianto.tipo_impianto ? `Impianto ${impianto.tipo_impianto}` : "Impianto"}
+        defaultChannel={contattoCanale ?? "whatsapp"}
+      />
+
+      {/* Fattura del canone di manutenzione. */}
+      <CreaFatturaAssistenzaDialog
+        open={fatturaOpen}
+        onOpenChange={setFatturaOpen}
+        customerId={(impianto.customer as { id?: string } | null)?.id ?? null}
+        customerName={[(impianto.customer as { first_name?: string | null } | null)?.first_name, (impianto.customer as { last_name?: string | null } | null)?.last_name].filter(Boolean).join(" ") || "Cliente"}
+        defaultDescrizione={contratto?.nome_contratto
+          ? `Canone manutenzione — ${contratto.nome_contratto}`
+          : `Manutenzione ${impianto.tipo_impianto ?? ""}`.trim()}
+        defaultImporto={Number(contratto?.importo_canone ?? 0)}
+        defaultNota={contratto?.nome_contratto ? `Rif. contratto ${contratto.nome_contratto}` : "Rif. manutenzione"}
+      />
     </div>
   );
 }

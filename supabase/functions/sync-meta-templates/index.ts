@@ -119,7 +119,7 @@ Deno.serve(async (req) => {
 
       const json = await resp.json() as { data?: Array<{
         name: string; language: string; status: string; category: string;
-        components?: Array<{ type: string; text?: string }>;
+        components?: Array<{ type: string; text?: string; format?: string }>;
       }>; };
 
       for (const tpl of json.data ?? []) {
@@ -127,6 +127,11 @@ Deno.serve(async (req) => {
         const bodyText = bodyComp?.text ?? "";
         const varMatches = Array.from(bodyText.matchAll(/\{\{(\d+)\}\}/g));
         const variablesCount = new Set(varMatches.map((m) => m[1])).size;
+        // Formato dell'intestazione (TEXT/IMAGE/VIDEO/DOCUMENT). Il link del
+        // media NON si tocca: lo teniamo noi (Meta non lo restituisce), quindi
+        // header_media_url resta quello salvato alla creazione.
+        const headerComp = (tpl.components ?? []).find((c) => c.type === "HEADER");
+        const headerFormat = typeof headerComp?.format === "string" ? headerComp.format.toUpperCase() : null;
 
         await supabase.from("wa_meta_templates").upsert({
           company_id: n.company_id,
@@ -137,6 +142,7 @@ Deno.serve(async (req) => {
           status: tpl.status,
           components_json: tpl.components,
           variables_count: variablesCount,
+          header_format: headerFormat,
           synced_at: new Date().toISOString(),
         }, { onConflict: "wa_number_id,template_name,template_language" });
 

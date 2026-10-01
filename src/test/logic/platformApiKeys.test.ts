@@ -32,6 +32,8 @@ describe("platformApi — chiavi", () => {
   it("catalogo scope: valori univoci nel formato risorsa:azione", () => {
     const values = API_SCOPES.map((s) => s.value);
     expect(new Set(values).size).toBe(values.length);
-    for (const v of values) expect(v).toMatch(/^[a-z]+:(read|write|send)$/);
+    // Azioni ammesse: lettura/scrittura, invio email e il meta-scope «sensitive»
+    // (azioni con invio reale o costo AI: actions:sensitive).
+    for (const v of values) expect(v).toMatch(/^[a-z]+:(read|write|send|sensitive)$/);
   });
 });
