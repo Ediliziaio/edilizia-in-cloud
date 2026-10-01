@@ -1,5 +1,5 @@
 import { useState, useCallback, memo } from "react";
-import { Plus, Trash2, PackageSearch, Copy, GripVertical, AlertTriangle, Calculator, Scale } from "lucide-react";
+import { Plus, Trash2, ChevronDown, PackageSearch, Copy, GripVertical, AlertTriangle, Calculator, Scale } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -127,6 +127,9 @@ interface SortableRowProps {
   onDuplicate: (index: number) => void;
   prezziLordi?: boolean;
   /** Il documento ha la ritenuta d'acconto: la riga può dire se ne fa parte. */
+  /** Riga aperta in modifica, o chiusa come una riga di riepilogo (come in Fatture in Cloud). */
+  aperta: boolean;
+  onToggle: (id: string) => void;
   conRitenuta?: boolean;
   ritenutaSuTutte?: boolean;
   onRitenuta?: (index: number, applica: boolean) => void;
@@ -140,6 +143,8 @@ function SortableRowImpl({
   onRemove,
   onDuplicate,
   prezziLordi,
+  aperta,
+  onToggle,
   conRitenuta,
   ritenutaSuTutte,
   onRitenuta,
@@ -159,6 +164,45 @@ function SortableRowImpl({
 
   // "Articolo non imponibile (anticipazione)" = aliquota 0% + natura N1
   const isAnticipazione = (parseFloat(riga.aliquota_iva) || 0) === 0 && riga.natura_iva === "N1";
+
+  const [nome, ...resto] = (riga.descrizione ?? "").split("\n");
+  const dettaglio = resto.join(" ").trim();
+
+  if (!aperta) {
+    return (
+      <div ref={setNodeRef} style={style}>
+        <div
+          className={`mb-2 flex items-center gap-3 rounded-lg border px-3 py-2.5 transition-colors hover:border-primary/40 ${isDragging ? "bg-muted/40" : "bg-card"}`}
+        >
+          <button className="cursor-grab text-muted-foreground/40 hover:text-muted-foreground" {...attributes} {...listeners} aria-label="Trascina riga">
+            <GripVertical className="h-4 w-4" />
+          </button>
+          <button type="button" className="flex min-w-0 flex-1 items-center gap-3 text-left" onClick={() => onToggle(riga.id)} aria-label={`Modifica la riga ${index + 1}`}>
+            <span className="w-5 shrink-0 text-[10px] font-medium text-muted-foreground/60">{index + 1}</span>
+            <span className="min-w-0 flex-1">
+              <span className={`block truncate text-sm font-semibold ${nome.trim() ? "" : "text-muted-foreground/60"}`}>
+                {nome.trim() || "Articolo senza nome"}
+              </span>
+              <span className="block truncate text-[11px] text-muted-foreground">
+                {riga.codice_articolo ? `${riga.codice_articolo} · ` : ""}{dettaglio || "Nessuna descrizione"}
+              </span>
+            </span>
+            <span className="hidden shrink-0 text-xs tabular-nums text-muted-foreground sm:block">
+              {riga.quantita} {riga.unita_misura} × {formatCurrency(riga.prezzo_unitario)}
+            </span>
+            <span className="w-14 shrink-0 text-right text-xs text-muted-foreground">{ivaDisplayLabel(riga)} IVA</span>
+            <span className="w-24 shrink-0 text-right text-sm font-semibold tabular-nums">{formatCurrency(riga.imponibile ?? riga.totale_riga)}</span>
+          </button>
+          {!disabled && (
+            <div className="flex shrink-0 items-center">
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onDuplicate(index)} aria-label="Duplica"><Copy className="h-3.5 w-3.5 text-muted-foreground" /></Button>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onRemove(index)} aria-label="Elimina"><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div ref={setNodeRef} style={style}>
@@ -274,6 +318,9 @@ function SortableRowImpl({
                 </div>
                 {/* Actions inline su una sola riga, allineate alla baseline degli input */}
                 <div className="self-end flex items-center gap-0.5 pb-0.5">
+                  <Button variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7" onClick={() => onToggle(riga.id)} aria-label="Chiudi riga" title="Chiudi la riga">
+                    <ChevronDown className="h-4 w-4 rotate-180 text-muted-foreground" />
+                  </Button>
                   {!disabled && (
                     <>
                       <Button variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7" onClick={() => onDuplicate(index)} aria-label="Duplica">
@@ -452,6 +499,7 @@ function SortableRowImpl({
 const SortableRow = memo(SortableRowImpl, (prev, next) => {
   if (prev.index !== next.index) return false;
   if (prev.disabled !== next.disabled) return false;
+  if (prev.aperta !== next.aperta || prev.onToggle !== next.onToggle) return false;
   if (prev.prezziLordi !== next.prezziLordi) return false;
   if (prev.conRitenuta !== next.conRitenuta || prev.ritenutaSuTutte !== next.ritenutaSuTutte) return false;
   if (prev.onRitenuta !== next.onRitenuta) return false;
@@ -473,6 +521,8 @@ const SortableRow = memo(SortableRowImpl, (prev, next) => {
     a.natura_iva === b.natura_iva &&
     a.totale_riga === b.totale_riga &&
     a.categoria === b.categoria &&
+    a.imponibile === b.imponibile &&
+    a.codice_articolo === b.codice_articolo &&
     a.ritenuta === b.ritenuta &&
     a.riferimento_amministrazione === b.riferimento_amministrazione
   );
@@ -501,6 +551,16 @@ export function EditorRigheSection({ state, dispatch, disabled }: Props) {
   const bsRiparto = bsBeniNum > 0 ? ripartoBeniSignificativi({ valoreBeni: bsBeniNum, valoreAltro: bsAltroNum }) : null;
   const bsCompleto = !!bsIntervento.trim() && !!bsBeni.trim() && bsBeniNum > 0;
   const [catalogSearch, setCatalogSearch] = useState("");
+  // Righe aperte in modifica: le nuove e quelle ancora senza nome; le altre stanno chiuse
+  // come righe di riepilogo (si riaprono con un clic), come in Fatture in Cloud.
+  const [aperte, setAperte] = useState<Set<string>>(() => new Set((state.righe ?? []).filter((r) => !r.descrizione?.trim()).map((r) => r.id)));
+  const toggleRiga = useCallback((id: string) => {
+    setAperte((prima) => {
+      const dopo = new Set(prima);
+      if (dopo.has(id)) dopo.delete(id); else dopo.add(id);
+      return dopo;
+    });
+  }, []);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -515,6 +575,7 @@ export function EditorRigheSection({ state, dispatch, disabled }: Props) {
       riga.natura_iva = "N6_3";
     }
     dispatch({ type: "ADD_RIGA", riga });
+    setAperte((prima) => new Set(prima).add(riga.id));
   }
 
   function addDescriptiveRow() {
@@ -527,6 +588,7 @@ export function EditorRigheSection({ state, dispatch, disabled }: Props) {
       riga.natura_iva = "N6_3";
     }
     dispatch({ type: "ADD_RIGA", riga });
+    setAperte((prima) => new Set(prima).add(riga.id));
   }
 
   function addBeniSignificativi() {
@@ -696,6 +758,8 @@ export function EditorRigheSection({ state, dispatch, disabled }: Props) {
                   onRemove={removeRiga}
                   onDuplicate={duplicateRiga}
                   prezziLordi={usePrezziLordi}
+                  aperta={aperte.has(riga.id)}
+                  onToggle={toggleRiga}
                   conRitenuta={!!(state.ritenuta_acconto || state.altra_ritenuta)}
                   ritenutaSuTutte={ritenutaSuTutte}
                   onRitenuta={impostaRitenuta}

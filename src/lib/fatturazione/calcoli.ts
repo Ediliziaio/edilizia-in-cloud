@@ -352,7 +352,8 @@ export function validateDocumento(
         severity: "error",
       });
     }
-    if (!isNC && r.quantita <= 0) {
+    // Una voce senza importo (riga descrittiva: quantità 0, prezzo 0) è ammessa; con un prezzo serve la quantità.
+    if (!isNC && r.quantita <= 0 && (Number(r.prezzo_unitario) || 0) !== 0) {
       errors.push({
         field: `righe[${i}].quantita`,
         message: `Riga ${i + 1}: quantità deve essere > 0`,

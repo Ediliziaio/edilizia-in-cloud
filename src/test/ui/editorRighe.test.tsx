@@ -46,3 +46,15 @@ describe("riga dell'editor come in Fatture in Cloud", () => {
     expect(aliquote).toContain("22");
   });
 });
+
+describe("righe chiuse come riepilogo", () => {
+  it("una riga con nome sta chiusa e si riapre con un clic; una senza importo è ammessa", () => {
+    render(<Harness />);
+    fireEvent.change(screen.getAllByRole("textbox")[1], { target: { value: "PORTE" } });
+    fireEvent.click(screen.getByLabelText("Chiudi riga"));
+    expect(screen.getByText("PORTE")).toBeTruthy();
+    expect(screen.queryByText("Nome prodotto")).toBeNull();
+    fireEvent.click(screen.getByLabelText("Modifica la riga 1"));
+    expect(screen.getByText("Nome prodotto")).toBeTruthy();
+  });
+});

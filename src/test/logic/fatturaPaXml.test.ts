@@ -260,3 +260,15 @@ describe("ritenuta solo su alcune righe", () => {
     expect(t.ritenuta_importo).toBe(300);
   });
 });
+
+describe("voce senza importo", () => {
+  it("una riga descrittiva (quantità 0, prezzo 0) non blocca il documento e l'XML esce con prezzo 0", async () => {
+    const { validateDocumento } = await import("@/lib/fatturazione/calcoli");
+    const righe = [riga("Fornitura", 1, 100, "22"), riga("Come da accordi", 0, 0, "22")];
+    const errori = validateDocumento({ tipo: "fattura", righe, cliente_snapshot: b2b, data_emissione: "2026-10-01" } as never)
+      .filter((e) => e.severity === "error" && /quantit/i.test(e.message));
+    expect(errori).toEqual([]);
+    const d = fattura(righe);
+    expect(testi(d, "PrezzoUnitario")).toEqual(["100.00", "0.00"]);
+  });
+});
