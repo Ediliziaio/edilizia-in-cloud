@@ -22,7 +22,7 @@ import { percorsoOriginale } from "./ricevuteOpenapi.ts";
 export interface FatturaDaSalvare {
   companyId: string;
   /** L'XML in chiaro: se il file era firmato, il suo contenuto. */
-  xml: string;
+  xml: string; // vuoto se del file non si è letto niente
   letta: FatturaRicevutaLetta;
   /** Il file ricevuto, byte per byte. Se manca si salva l'XML in chiaro. */
   originale?: Uint8Array | null;
@@ -147,13 +147,13 @@ export async function salvaFatturaRicevuta(supabase: Client, f: FatturaDaSalvare
       totale_documento: l.totale_documento,
       righe: l.righe,
       riepilogo_iva: l.riepilogo_iva,
-      xml_raw: f.xml,
+      xml_raw: f.xml || null,
       xml_url: erroreFile ? null : percorso,
       openapi_id: f.openapiId ?? null,
       data_ricezione_sdi: f.ricevutaIl ?? null,
-      note: l.fatture_nel_file > 1
+      note: l.note_import ?? (l.fatture_nel_file > 1
         ? `Il file contiene ${l.fatture_nel_file} fatture (un lotto): qui c'è la prima. Le altre vanno registrate a mano dal file originale.`
-        : null,
+        : null),
       stato: "non_letta",
     })
     .select("id")

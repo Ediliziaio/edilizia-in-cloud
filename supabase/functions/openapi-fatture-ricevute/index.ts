@@ -32,7 +32,7 @@ import { chiamataInternaValida, rispostaNonAutorizzata } from "../_shared/chiama
 import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
 import { leggiImpostazionePiattaforma } from "../_shared/getPlatformSetting.ts";
 import type { LettoreXml } from "../_shared/fatturapaReader.ts";
-import { leggiFatturaRicevuta, motivoNonLeggibile } from "../_shared/fatturaRicevutaXml.ts";
+import { leggiFatturaRicevuta, lettaDiRiserva, motivoNonLeggibile } from "../_shared/fatturaRicevutaXml.ts";
 import { avvisaFatturaRicevuta, salvaFatturaRicevuta } from "../_shared/salvaFatturaRicevuta.ts";
 import {
   allegatoFattura,
@@ -181,10 +181,19 @@ async function importaUna(acc: Accesso, cfg: Config, id: string, giaLetta?: unkn
 
   const file = await scaricaFile(acc, id, fattura);
   if ("errore" in file) return { esito: "errore", motivo: file.errore };
-  const xml = xmlDaFile(file);
-  if (!xml) return { esito: "errore", motivo: `il file (${file.length} byte) non contiene una fattura leggibile` };
-  const letta = leggiFatturaRicevuta(xml, new DOMParser() as unknown as LettoreXml);
-  if (!letta) return { esito: "errore", motivo: `fattura senza fornitore, numero o data: ${motivoNonLeggibile(xml, new DOMParser() as unknown as LettoreXml)}` };
+  let xml = xmlDaFile(file);
+  let letta = xml ? leggiFatturaRicevuta(xml, new DOMParser() as unknown as LettoreXml) : null;
+  if (!letta) {
+    // Una fattura che arriva deve entrare, anche se non si legge per intero:
+    // con i dati che si trovano e l'avviso «da controllare», e il file originale
+    // nello storage. Prima restava fuori e il fornitore non compariva mai.
+    const motivo = xml
+      ? motivoNonLeggibile(xml, new DOMParser() as unknown as LettoreXml)
+      : `il file (${file.length} byte) non contiene un XML leggibile`;
+    letta = lettaDiRiserva(xml, { nomeFile: nomeFileSdi(fattura), idOpenapi: id, ricevutaIl: ricevutaIl(fattura), motivo });
+    console.error(`[openapi-fatture-ricevute] ${cfg.company_id} ${id}: importata incompleta — ${motivo}`);
+  }
+  xml = xml ?? "";
 
   const idSdi = identificativoSdi(fattura);
   const salvata = await salvaFatturaRicevuta(supabase, {

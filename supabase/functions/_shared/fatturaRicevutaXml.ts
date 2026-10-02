@@ -41,6 +41,8 @@ export interface FatturaRicevutaLetta {
   sdi_progressivo: string;
   /** Fatture nel file: più di una è un lotto, e qui c'è solo la prima. */
   fatture_nel_file: number;
+  /** Avviso per chi apre la fattura: dati presi alla meglio, da controllare sul file. */
+  note_import?: string;
 }
 
 type Nodo = ElementoXml | DocumentoXml;
@@ -190,5 +192,72 @@ export function leggiFatturaRicevuta(xml: string, parser: LettoreXml): FatturaRi
     sdi_id_trasmissione: testo(doc, "IdentificativoSdI"),
     sdi_progressivo: testo(primo(header, "DatiTrasmissione"), "ProgressivoInvio"),
     fatture_nel_file: corpi.length,
+  };
+}
+
+/**
+ * Una fattura che non si riesce a leggere per intero entra lo stesso, coi dati
+ * che si trovano, e dice di essere da controllare: meglio una riga incompleta
+ * che una fattura di un fornitore che non arriva mai in contabilità. Si cerca
+ * col testo, senza interpretare lo schema: funziona anche su file strani.
+ * L'originale resta nello storage, quindi niente si perde.
+ */
+export function lettaDiRiserva(
+  xml: string | null,
+  contesto: { nomeFile?: string | null; idOpenapi: string; ricevutaIl?: string | null; motivo: string },
+): FatturaRicevutaLetta {
+  const t = xml ? senzaPrefissi(xml) : "";
+  const blocco = (nome: string, dentro = t): string => {
+    const m = dentro.match(new RegExp(`<${nome}(?:\\s[^>]*)?>([\\s\\S]*?)</${nome}>`));
+    return m ? m[1] : "";
+  };
+  const campo = (nome: string, dentro = t): string => {
+    const m = dentro.match(new RegExp(`<${nome}(?:\\s[^>]*)?>\\s*([^<]*?)\\s*</${nome}>`));
+    return (m ? m[1] : "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").trim();
+  };
+  const importo = (nome: string, dentro = t) => {
+    const n = parseFloat(campo(nome, dentro).replace(",", "."));
+    return Number.isFinite(n) ? Math.round((n + Number.EPSILON) * 100) / 100 : 0;
+  };
+
+  const ced = blocco("CedentePrestatore");
+  const idIva = blocco("IdFiscaleIVA", ced);
+  const sede = blocco("Sede", ced);
+  const generali = blocco("DatiGeneraliDocumento", blocco("FatturaElettronicaBody"));
+  let ragione = campo("Denominazione", ced);
+  if (!ragione) ragione = [campo("Nome", ced), campo("Cognome", ced)].filter(Boolean).join(" ");
+
+  const data = campo("Data", generali);
+  const dataValida = /^\d{4}-\d{2}-\d{2}$/.test(data)
+    ? data
+    : (contesto.ricevutaIl && /^\d{4}-\d{2}-\d{2}/.test(contesto.ricevutaIl) ? contesto.ricevutaIl.slice(0, 10) : new Date().toISOString().slice(0, 10));
+  const riepilogo = blocco("DatiRiepilogo");
+  const imponibile = importo("ImponibileImporto", riepilogo);
+  const imposta = importo("Imposta", riepilogo);
+  const totale = importo("ImportoTotaleDocumento", generali) || due(imponibile + imposta);
+
+  return {
+    cedente_piva: campo("IdCodice", idIva),
+    cedente_cf: campo("CodiceFiscale", blocco("DatiAnagrafici", ced)),
+    cedente_ragione_sociale: ragione || "Fornitore da identificare",
+    cedente_paese: campo("IdPaese", idIva) || campo("Nazione", sede) || "IT",
+    cedente_indirizzo: campo("Indirizzo", sede),
+    cedente_cap: campo("CAP", sede),
+    cedente_comune: campo("Comune", sede),
+    cedente_provincia: campo("Provincia", sede),
+    cessionario_piva: campo("IdCodice", blocco("IdFiscaleIVA", blocco("CessionarioCommittente"))),
+    cessionario_cf: "",
+    tipo_documento: campo("TipoDocumento", generali) || "TD01",
+    numero_fattura: campo("Numero", generali) || contesto.nomeFile || `openapi-${contesto.idOpenapi.slice(-8)}`,
+    data_fattura: dataValida,
+    imponibile_totale: imponibile,
+    iva_totale: imposta,
+    totale_documento: totale,
+    righe: [],
+    riepilogo_iva: [],
+    sdi_id_trasmissione: "",
+    sdi_progressivo: campo("ProgressivoInvio"),
+    fatture_nel_file: 1,
+    note_import: `Dati incompleti (${contesto.motivo}): controlla fornitore, numero e importi sul file originale.`,
   };
 }
