@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { DOMParser } from "https://deno.land/x/deno_dom@v0.1.45/deno-dom-wasm.ts";
+import { LettoreXmlMinimo } from "../_shared/xmlMinimo.ts";
 import { corsHeaders } from "../_shared/headers.ts";
 import { aggiornaStatoDaNotifica, statoDopoEsito } from "../_shared/sdiInvioGuard.ts";
 
@@ -50,8 +50,8 @@ Deno.serve(async (req) => {
       return new Response("Unauthorized: invalid signature", { status: 401 });
     }
 
-    // Parse notification from XML body using DOMParser (deno-dom WASM)
-    const xmlDoc = new DOMParser().parseFromString(body, "text/xml");
+    // Notifica XML dello SDI. Non si usa deno_dom: non sa leggere XML ("text/xml" unimplemented).
+    const xmlDoc = new LettoreXmlMinimo().parseFromString(body, "text/xml");
     if (!xmlDoc) {
       await supabase.from("sdi_log").insert({
         company_id: null as unknown as string,

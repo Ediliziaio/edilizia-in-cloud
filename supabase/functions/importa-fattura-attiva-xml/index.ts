@@ -18,7 +18,7 @@
  *      conflitto e non si tocca nulla: la numerazione e' materia fiscale.
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { DOMParser } from "https://deno.land/x/deno_dom@v0.1.45/deno-dom-wasm.ts";
+import { LettoreXmlMinimo } from "../_shared/xmlMinimo.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 // Il lettore e' condiviso e testato: quello che gira qui e' esattamente il
@@ -61,7 +61,7 @@ Deno.serve(async (req) => {
 
     // deno_dom soddisfa l'interfaccia strutturalmente; il cast serve solo a
     // togliere di mezzo la differenza fra i tipi delle due implementazioni.
-    const fattura = leggiFatturaPA(String(xml_content), new DOMParser() as unknown as LettoreXml);
+    const fattura = leggiFatturaPA(String(xml_content), new LettoreXmlMinimo());
     if (!fattura) return json({ error: "XML non leggibile come fattura elettronica." }, 422);
 
     // PALETTO 1 — la direzione la stabilisce il server.

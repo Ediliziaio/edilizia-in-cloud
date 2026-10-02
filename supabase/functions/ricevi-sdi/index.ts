@@ -12,7 +12,7 @@
 // conserva, non quello che dice il browser.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { DOMParser } from "https://deno.land/x/deno_dom@v0.1.45/deno-dom-wasm.ts";
+import { LettoreXmlMinimo } from "../_shared/xmlMinimo.ts";
 import { corsHeaders } from "../_shared/headers.ts";
 import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
 import type { LettoreXml } from "../_shared/fatturapaReader.ts";
@@ -21,7 +21,7 @@ import { avvisaFatturaRicevuta, salvaFatturaRicevuta } from "../_shared/salvaFat
 import { base64ToBytes } from "../_shared/base64.ts";
 import { fileOriginale, xmlDaFile } from "../_shared/ricevuteOpenapi.ts";
 
-const lettore = () => new DOMParser() as unknown as LettoreXml;
+const lettore = (): LettoreXml => new LettoreXmlMinimo();
 
 // ─── Main Handler ────────────────────────────────────────────────
 
