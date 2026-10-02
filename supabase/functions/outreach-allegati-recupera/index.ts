@@ -14,9 +14,9 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const CRON_SECRET = Deno.env.get("PROACTIVE_CRON_SECRET") || "";
 const TEMPO_MASSIMO_MS = 120_000;
-const MAX_MESSAGGI = 60;
+const MAX_MESSAGGI = 60; // ignorato nella ricerca per Message-ID
 /** Poche caselle per chiamata: leggere i corpi con gli allegati pesa, e oltre il limite il worker muore. */
-const MAX_CASELLE = 4;
+const MAX_CASELLE = 10;
 
 Deno.serve(async (req) => {
   const cors = getCorsHeaders(req);
@@ -64,10 +64,9 @@ Deno.serve(async (req) => {
         const { data: password } = await admin.rpc("outreach_mailbox_secret", { p_ref: mb.secret_ref });
         if (!password) { esito.errori.push(`${mb.email}: segreto non risolto`); continue; }
         const cfg: ImapConfig = { host: mb.imap_host, port: mb.imap_port, secure: mb.imap_secure, username: mb.smtp_username ?? mb.email, password };
-        // Si parte dalla risposta più vecchia ancora da controllare di questa casella.
+        // Si cercano per Message-ID solo le risposte di questa casella ancora da controllare.
         const sue = [...daFare.values()].filter((r) => r.sender_account_id === mb.id);
-        const dal = new Date(Math.min(...sue.map((r) => new Date(r.received_at).getTime())) - 86_400_000);
-        const messaggi = await imapFetchUnreadSince(cfg, dal < since ? since : dal, MAX_MESSAGGI, null, true);
+        const messaggi = await imapFetchUnreadSince(cfg, since, MAX_MESSAGGI, null, true, sue.map((r) => String(r.message_id)));
         esito.caselle++; fatte++;
         const trovati = new Set<string>();
         for (const m of messaggi) {
@@ -83,7 +82,7 @@ Deno.serve(async (req) => {
           if (salvati.length) { esito.aggiornate++; esito.allegati += salvati.length; }
         }
         // Lettura completa della finestra: i messaggi non trovati non sono più in casella, non si cercano più.
-        if (messaggi.length < MAX_MESSAGGI) {
+        {
           for (const r of sue) {
             if (trovati.has(String(r.message_id))) continue;
             await admin.from("outreach_replies")

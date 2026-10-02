@@ -603,6 +603,11 @@ export async function imapScaricaNuovi(
   sinceUid?: number | null,
   /** Senza cursore: prendere anche i messaggi già letti altrove. */
   includiLette = false,
+  /**
+   * Se presente, si cercano SOLO questi messaggi per Message-ID (ignora data e
+   * cursore): serve a ritrovare risposte vecchie senza leggere tutta la casella.
+   */
+  perMessageId?: string[],
 ): Promise<ImapMessage[]> {
   const conn = cfg.secure
     ? await Deno.connectTls({ hostname: cfg.host, port: cfg.port })
@@ -674,8 +679,23 @@ export async function imapScaricaNuovi(
     const ricerca = conCursore
       ? `UID SEARCH UID ${sinceUid! + 1}:*`
       : `UID SEARCH ${includiLette ? "" : "UNSEEN "}SINCE ${dateStr}`;
-    const searchResp = await send(ricerca);
-    const searchLine = searchResp.split("\r\n").find((l) => l.startsWith("* SEARCH")) ?? null;
+    let searchResp = "";
+    let searchLine: string | null = null;
+    let uidsPerId: string[] | null = null;
+    if (perMessageId?.length) {
+      uidsPerId = [];
+      for (const id of perMessageId) {
+        const nudo = id.replace(/[<>]/g, "").trim();
+        if (!nudo) continue;
+        const r = await send(`UID SEARCH HEADER Message-ID ${citata(nudo)}`);
+        const riga = r.split("\r\n").find((l) => l.startsWith("* SEARCH"));
+        if (riga) for (const u of riga.replace("* SEARCH", "").trim().split(/\s+/).filter(Boolean)) uidsPerId.push(u);
+      }
+      searchLine = "* SEARCH " + uidsPerId.join(" ");
+    } else {
+      searchResp = await send(ricerca);
+      searchLine = searchResp.split("\r\n").find((l) => l.startsWith("* SEARCH")) ?? null;
+    }
     if (searchLine === null) {
       // Il server ha rifiutato la ricerca. Senza questo controllo la risposta
       // «BAD» diventava silenziosamente «nessun messaggio nuovo».
@@ -687,7 +707,7 @@ export async function imapScaricaNuovi(
       .filter((u) => !conCursore || parseInt(u, 10) > (sinceUid as number))
       // I più recenti: su una casella con storico, i primi per UID sono i più
       // vecchi e riempirebbero il tetto senza mai arrivare a oggi.
-      .slice(-maxMessages);
+      .slice(uidsPerId ? 0 : -maxMessages);
 
     const messages: ImapMessage[] = [];
     for (const uid of uids) {
