@@ -27,6 +27,7 @@ import {
   Mail, Send, Clock, Info,
 } from "lucide-react";
 import { ProviderGuideAccordion } from "@/components/email/ProviderGuideAccordion";
+import { nomeBreve } from "@/lib/email/nomiDns";
 import { edgeErrorMessage } from "@/lib/edgeFunctionError";
 import {
   type CanaleEmail,
@@ -48,6 +49,8 @@ interface DnsRecord {
   verified: boolean;
   /** Una riga in più dal server (es. «hai già un SPF: non aggiungerne un secondo»). */
   nota?: string;
+  /** Perche' il record non risulta ancora verificato (controllo sul DNS pubblico, lato server). */
+  diagnosi?: { stato: "ok" | "non_trovato" | "nome_doppio" | "valore_diverso" | "non_leggibile"; messaggio: string };
 }
 
 interface DomainStatus {
@@ -97,6 +100,8 @@ interface DomainResponse {
   tutti?: Array<{ domain: DomainStatus; dnsRecords: DnsRecord[] }>;
   /** Errori dei provider durante add/verify (non i record non ancora propagati). */
   providerErrors?: Record<string, string | null>;
+  /** Guasto lato piattaforma (es. chiave del provider transazionale): non dipende dai DNS dell'azienda. */
+  avvisoPiattaforma?: string | null;
   /** Da dove partono davvero le email di ogni canale (get_status). */
   mittenti?: Mittenti;
   /** I canali di cui il dominio è diventato il mittente con questa verifica (verify). */
@@ -170,6 +175,7 @@ function normalizeDomainResponse(resp: unknown): DomainResponse {
       domain: r.domain_row,
       dnsRecords: r.dns_records ?? [],
       providerErrors: r.provider_errors,
+      avvisoPiattaforma: r.avviso_piattaforma ?? null,
       collegati: r.collegati,
     };
   }
@@ -177,9 +183,12 @@ function normalizeDomainResponse(resp: unknown): DomainResponse {
 }
 
 // ─── DNS record row with copy-to-clipboard ────────────────────────────────
-function DnsRow({ record }: { record: DnsRecord }) {
+function DnsRow({ record, dominio }: { record: DnsRecord; dominio: string }) {
   const [copied, setCopied] = useState<"host" | "value" | null>(null);
   const { titolo, dettaglio } = etichettaRecord(record.purpose);
+  // Molti registrar (OVH, Aruba…) aggiungono da soli il dominio al nome: da incollare e' la parte breve.
+  const breve = nomeBreve(record.host, dominio);
+  const mostraBreve = breve !== record.host;
 
   async function copyText(text: string, which: "host" | "value") {
     try {
@@ -214,11 +223,17 @@ function DnsRow({ record }: { record: DnsRecord }) {
 
       <div className="grid grid-cols-[80px_1fr_auto] items-center gap-2 text-xs">
         <span className="text-muted-foreground">Nome</span>
-        <code className="font-mono break-all bg-background px-2 py-1 rounded border">{record.host}</code>
-        <Button variant="ghost" size="sm" onClick={() => copyText(record.host, "host")} className="h-7 w-7 p-0">
+        <code className="font-mono break-all bg-background px-2 py-1 rounded border">{breve}</code>
+        <Button variant="ghost" size="sm" onClick={() => copyText(breve, "host")} className="h-7 w-7 p-0">
           {copied === "host" ? <CheckCircle2 className="h-3 w-3 text-green-600" /> : <Copy className="h-3 w-3" />}
         </Button>
       </div>
+      {mostraBreve && (
+        <p className="text-[11px] text-muted-foreground pl-[88px] -mt-1">
+          Nome completo: <span className="font-mono">{record.host}</span> — nel pannello del registrar scrivi solo{" "}
+          <span className="font-mono">{breve}</span> (il dominio lo aggiunge lui).
+        </p>
+      )}
 
       <div className="grid grid-cols-[80px_1fr_auto] items-center gap-2 text-xs">
         <span className="text-muted-foreground">Valore</span>
@@ -229,6 +244,18 @@ function DnsRow({ record }: { record: DnsRecord }) {
       </div>
       {typeof record.priority === "number" && (
         <p className="text-xs text-muted-foreground">Priorità {record.priority}</p>
+      )}
+
+      {!record.verified && record.diagnosi && record.diagnosi.stato !== "ok" && (
+        <p
+          className={`text-xs rounded border px-2 py-1.5 ${
+            record.diagnosi.stato === "nome_doppio" || record.diagnosi.stato === "valore_diverso"
+              ? "border-red-200 bg-red-50 text-red-900"
+              : "border-slate-200 bg-slate-50 text-slate-700"
+          }`}
+        >
+          {record.diagnosi.messaggio}
+        </p>
       )}
 
       {record.nota && !record.verified && (
@@ -402,6 +429,8 @@ export default function SettingsEmailDomain() {
         toast.success("Dominio verificato: tutti i record sono a posto.");
       } else if (marketingOk && d?.is_active) {
         toast.success("Marketing verificato. Il canale transazionale si attiverà quando anche i suoi record saranno propagati.");
+      } else if (resp.avvisoPiattaforma && !marketingOk) {
+        toast.message(resp.avvisoPiattaforma);
       } else if (resp.providerErrors?.elastic_email) {
         // Non sono i record: è il canale marketing che non ha potuto controllare.
         // Prima finiva sotto «record non ancora propagati» e si aspettava per niente.
@@ -794,7 +823,8 @@ export default function SettingsEmailDomain() {
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
             Aggiungi i record DNS qui sotto nel pannello del tuo registrar (Aruba, Register.it, GoDaddy, Cloudflare…).
-            La propagazione può richiedere da pochi minuti fino a 48h. Quando hai finito clicca "Verifica DNS".
+            Nel campo «Nome» scrivi solo la parte indicata (es. <code>api._domainkey</code>): il registrar aggiunge da solo il tuo dominio.
+            La propagazione può richiedere da pochi minuti fino a 48h. L'aggiornamento automatico della pagina legge soltanto lo stato già salvato: per far controllare i record ai provider clicca sempre "Verifica DNS".
           </AlertDescription>
         </Alert>
       )}
@@ -811,7 +841,7 @@ export default function SettingsEmailDomain() {
         </CardHeader>
         <CardContent className="space-y-3">
           {records.filter((r) => !etichettaRecord(r.purpose).facoltativo).map((r, idx) => (
-            <DnsRow key={idx} record={r} />
+            <DnsRow key={idx} record={r} dominio={domain.domain} />
           ))}
           {records.some((r) => etichettaRecord(r.purpose).facoltativo) && (
             <>
@@ -825,7 +855,7 @@ export default function SettingsEmailDomain() {
                 {mostraAltriRecord ? "Nascondi i record facoltativi" : "Mostra anche i record facoltativi"}
               </Button>
               {mostraAltriRecord && records.filter((r) => etichettaRecord(r.purpose).facoltativo).map((r, idx) => (
-                <DnsRow key={idx} record={r} />
+                <DnsRow key={idx} record={r} dominio={domain.domain} />
               ))}
             </>
           )}

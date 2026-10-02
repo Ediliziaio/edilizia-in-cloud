@@ -38,6 +38,8 @@ import {
   trovaSpf,
   unisciSpf,
 } from "../_shared/dominioEmailAzienda.ts";
+import { diagnosticaRecord, erroreChiaveTransazionale, MESSAGGIO_CANALE_TRANSAZIONALE, type Risolutore } from "../_shared/diagnosiDnsEmail.ts";
+import { alertOutreach } from "../_shared/outreachAlert.ts";
 const ELASTIC_DKIM_PUBLIC_KEY =
   "k=rsa;t=s;p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCbmGbQMzYeMvxwtNQoXN0waGYaciuKx8mtMh5czguT4EZlJXuCt6V+l56mmt3t68FEX5JJ0q4ijG71BGoFRkl87uJi7LrQt1ZZmZCvrEII0YO4mp8sDLXC8g1aUAoi8TJgxq2MJqCaMyj5kAm3Fdy2tzftPCV/lbdiJqmBnWKjtwIDAQAB";
 
@@ -194,6 +196,41 @@ async function txtPubblici(nome: string): Promise<string[] | null> {
   } catch {
     return null;
   }
+}
+
+/** Risolutore DoH (TXT/CNAME) per la diagnosi dei record. null = DNS non leggibile. */
+const risolviPubblico: Risolutore = async (nome, tipo) => {
+  try {
+    const res = await fetch(
+      `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(nome)}&type=${tipo}`,
+      { headers: { accept: "application/dns-json" }, signal: AbortSignal.timeout(4000) },
+    );
+    if (!res.ok) return null;
+    const dati = await res.json().catch(() => null);
+    if (!dati) return null;
+    return Array.isArray(dati.Answer)
+      ? dati.Answer.filter((a: { type?: number }) => a?.type === (tipo === "TXT" ? 16 : 5)).map((a: { data?: string }) => String(a?.data ?? ""))
+      : [];
+  } catch {
+    return null;
+  }
+};
+
+/** Aggiunge a ogni record non ancora verificato il motivo per cui non lo e'. */
+async function conDiagnosi<T extends { type: string; host: string; value: string; verified: boolean; purpose: string }>(
+  recs: T[],
+  domain: string,
+): Promise<Array<T & { diagnosi?: { stato: string; messaggio: string } }>> {
+  return await Promise.all(recs.map(async (r) => {
+    if (r.verified) return r;
+    // SPF/DMARC si fondono con record preesistenti: basta che il nome esista.
+    const soloPresenza = /SPF|DMARC/i.test(r.purpose);
+    try {
+      return { ...r, diagnosi: await diagnosticaRecord(r, domain, risolviPubblico, { soloPresenza }) };
+    } catch {
+      return r;
+    }
+  }));
 }
 
 /**
@@ -715,9 +752,26 @@ async function actionVerifyDomain(
     );
   }
 
-  if (resendKey && row.resend_domain_id) {
+  // Il dominio non era mai arrivato su Resend (chiave rifiutata all'aggiunta):
+  // si riprova adesso, cosi' appena la piattaforma sistema la chiave basta
+  // «Verifica DNS», senza dover eliminare e riaggiungere il dominio.
+  let resendId: string | null = row.resend_domain_id ?? null;
+  if (resendKey && !resendId) {
+    try {
+      const rd = await resendAddDomain(resendKey, row.domain, row.resend_region ?? "eu-west-1");
+      resendId = rd.id;
+      updates.resend_domain_id = rd.id;
+      updates.resend_status = rd.status;
+      updates.resend_dns_records = rd.records;
+      updates.failure_reason = null;
+    } catch (e) {
+      providerErrors.resend = e instanceof Error ? e.message : String(e);
+    }
+  }
+
+  if (resendKey && resendId) {
     tasks.push(
-      resendVerifyDomain(resendKey, row.resend_domain_id)
+      resendVerifyDomain(resendKey, resendId)
         .then((rd) => {
           updates.resend_status = rd.status;
           updates.resend_dns_records = rd.records;
@@ -763,11 +817,26 @@ async function actionVerifyDomain(
   // 21/09/2026 si collegava solo il marketing, e solo all'attivazione.
   const collegati = await collegaComeMittente(admin, companyId, row, finale);
 
+  // Una chiave transazionale rifiutata e' un guasto di piattaforma, non dell'azienda:
+  // si avvisa il super admin (dedup 12h) e all'azienda si dice la verita'.
+  let avvisoPiattaforma: string | null = null;
+  if (erroreChiaveTransazionale(providerErrors.resend)) {
+    avvisoPiattaforma = MESSAGGIO_CANALE_TRANSAZIONALE;
+    await alertOutreach(admin, {
+      chiave: "resend_chiave_rifiutata",
+      ogniOre: 12,
+      titolo: "Email transazionali: chiave Resend rifiutata",
+      testo: "Resend rifiuta la chiave (\"restricted to only send emails\"): i nuovi domini aziendali non si possono registrare. Inserisci una chiave con accesso completo in Impostazioni piattaforma.",
+      url: "/admin/impostazioni",
+    });
+  }
+
   return {
     domain_row: finale,
     // L'SPF mostrato è quello del dominio con dentro la nostra autorizzazione.
-    dns_records: buildDnsRecords(finale, await spfDaMostrare(row.domain)),
+    dns_records: await conDiagnosi(buildDnsRecords(finale, await spfDaMostrare(row.domain)), row.domain),
     provider_errors: providerErrors,
+    avviso_piattaforma: avvisoPiattaforma,
     collegati,
   };
 }
@@ -890,7 +959,10 @@ async function actionGetStatus(admin: SupabaseClient, companyId: string) {
   const [domains, marketing, transactional] = await Promise.all([
     Promise.all((rows ?? []).map(async (r: Record<string, unknown>) => ({
       ...r,
-      dns_records: buildDnsRecords(r, await spfDaMostrare(String(r.domain ?? ""))),
+      dns_records: await conDiagnosi(
+        buildDnsRecords(r, await spfDaMostrare(String(r.domain ?? ""))),
+        String(r.domain ?? ""),
+      ),
     }))),
     mittenteVero(admin, companyId, "marketing"),
     mittenteVero(admin, companyId, "transactional"),
