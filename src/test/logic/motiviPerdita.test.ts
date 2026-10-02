@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   MOTIVI_PERDITA_DEFAULT,
   etichettaMotivo,
+  testoMotivoPerdita,
   nomeMotivoValido,
   unisciMotivi,
 } from "@/lib/opportunita/motiviPerdita";
@@ -37,5 +38,20 @@ describe("motivi di perdita", () => {
     expect(etichettaMotivo("prezzo", MOTIVI_PERDITA_DEFAULT)).toBe("Prezzo troppo alto");
     expect(etichettaMotivo("Vecchio motivo", MOTIVI_PERDITA_DEFAULT)).toBe("Vecchio motivo");
     expect(etichettaMotivo(null, MOTIVI_PERDITA_DEFAULT)).toBe("");
+  });
+});
+
+describe("testoMotivoPerdita", () => {
+  it("mostra la causa con la sua etichetta e il dettaglio utile", () => {
+    expect(testoMotivoPerdita({ lost_reason_category: "prezzo", lost_reason: "Troppo caro rispetto a X" }, MOTIVI_PERDITA_DEFAULT))
+      .toBe("Prezzo troppo alto — Troppo caro rispetto a X");
+  });
+  it("un dettaglio di sola punteggiatura non copre la causa (card «Motivo perdita: .»)", () => {
+    expect(testoMotivoPerdita({ lost_reason_category: "NUMERO ERRATO", lost_reason: "." }, MOTIVI_PERDITA_DEFAULT)).toBe("NUMERO ERRATO");
+    expect(testoMotivoPerdita({ lost_reason_category: "prezzo", loss_reason: " - " }, MOTIVI_PERDITA_DEFAULT)).toBe("Prezzo troppo alto");
+  });
+  it("senza causa si legge il dettaglio, senza niente è vuoto", () => {
+    expect(testoMotivoPerdita({ loss_reason: "Importato" }, MOTIVI_PERDITA_DEFAULT)).toBe("Importato");
+    expect(testoMotivoPerdita({}, MOTIVI_PERDITA_DEFAULT)).toBe("");
   });
 });

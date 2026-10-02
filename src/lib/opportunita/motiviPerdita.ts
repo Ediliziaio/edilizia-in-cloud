@@ -63,3 +63,19 @@ export function etichettaMotivo(valore: string | null | undefined, motivi: Motiv
   if (!valore) return "";
   return motivi.find((m) => m.value === valore)?.label ?? valore;
 }
+
+/**
+ * Il motivo di perdita come si legge nella scheda e nella card: la causa scelta
+ * (con la sua etichetta) e, se c'è, il dettaglio. Un dettaglio fatto solo di
+ * punteggiatura («.», «-») non è un dettaglio: prima la card mostrava solo quello
+ * e la causa spariva (Ener Italia, 02/10/2026: «Motivo perdita: .»).
+ */
+export function testoMotivoPerdita(
+  opp: { lost_reason_category?: string | null; lost_reason?: string | null; loss_reason?: string | null },
+  motivi: MotivoPerdita[],
+): string {
+  const causa = etichettaMotivo(opp.lost_reason_category, motivi).trim();
+  const grezzo = (opp.lost_reason || opp.loss_reason || "").trim();
+  const dettaglio = /[\p{L}\p{N}]/u.test(grezzo) ? grezzo : "";
+  return [causa, dettaglio].filter(Boolean).join(" — ");
+}

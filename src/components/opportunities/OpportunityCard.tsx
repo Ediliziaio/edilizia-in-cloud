@@ -7,6 +7,8 @@ import { formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
+import { useLossReasons } from "@/hooks/useLossReasons";
+import { testoMotivoPerdita } from "@/lib/opportunita/motiviPerdita";
 import { DealHealthBadge } from "./DealHealthBadge";
 import { RichiestaRipetutaBadge } from "./RichiestaRipetutaBadge";
 import { AnteprimaAppunti } from "./AnteprimaAppunti";
@@ -411,6 +413,7 @@ function CardDetailRows({ opportunity, contact, activeFields, layout }: {
   activeFields: string[];
   layout: CardLayout;
 }) {
+  const { motivi: motiviPerdita } = useLossReasons();
   const rows = useMemo(() => {
     const r: { label: string; value: string; highlight?: boolean }[] = [];
     const fieldMap: Record<string, () => { label: string; value: string; highlight?: boolean } | null> = {
@@ -426,7 +429,7 @@ function CardDetailRows({ opportunity, contact, activeFields, layout }: {
         if (opportunity.status !== "lost" && opportunity.status !== "abandoned") return null;
         return {
           label: "Motivo perdita",
-          value: opportunity.lost_reason || opportunity.loss_reason || opportunity.lost_reason_category || "—",
+          value: testoMotivoPerdita(opportunity, motiviPerdita) || "—",
         };
       },
       created_at: () => ({ label: "Creato il", value: opportunity.created_at ? new Date(opportunity.created_at).toLocaleDateString("it-IT") : "—" }),

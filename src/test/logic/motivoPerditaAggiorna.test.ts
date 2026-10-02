@@ -7,7 +7,7 @@ const SALVA = DIALOG.split("const handleSave = async () => {")[1].split("updateO
 
 describe("Opportunità persa: «Aggiorna» e il motivo", () => {
   it("senza motivo apre la finestra del motivo invece dell'errore", () => {
-    expect(SALVA).toMatch(/status === "lost" && !motivoCategoria && !motivoDettaglio[\s\S]*?setShowLostDialog\(true\)/);
+    expect(SALVA).toMatch(/\(status === "lost" \|\| status === "abandoned"\) && !motivoCategoria && !motivoDettaglio[\s\S]*?setShowLostDialog\(true\)/);
   });
 
   it("il motivo già scritto (finestra o opportunità) viaggia nel salvataggio", () => {

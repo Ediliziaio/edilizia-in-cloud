@@ -102,8 +102,8 @@ export function BulkEditSheet({ open, onOpenChange, selectedIds, stages, onDone,
         return;
       }
       data.value = numericValue;
-    } else if (selectedField === "status" && fieldValue === "lost") {
-      toast.error("Per segnare opportunità perse serve indicare il motivo dal dettaglio opportunità");
+    } else if (selectedField === "status" && (fieldValue === "lost" || fieldValue === "abandoned")) {
+      toast.error("Per segnare opportunità perse o abbandonate serve indicare il motivo dal dettaglio opportunità");
       return;
     } else if (selectedField === "assigned_to" || selectedField === "call_center_id" || selectedField === "follower_id") {
       data[selectedField] = fieldValue === "none" ? null : fieldValue;
@@ -120,8 +120,8 @@ export function BulkEditSheet({ open, onOpenChange, selectedIds, stages, onDone,
       // divergevano dalla colonna. Verso una fase "persa" vale la stessa
       // regola del bulk-lost: serve il motivo, quindi si blocca.
       const targetStage = stages.find((st) => st.id === fieldValue);
-      if (targetStage?.auto_status === "lost") {
-        toast.error("La fase scelta segna le opportunità come perse: serve il motivo, fallo dal dettaglio");
+      if (targetStage?.auto_status === "lost" || targetStage?.auto_status === "abandoned") {
+        toast.error("La fase scelta segna le opportunità come perse o abbandonate: serve il motivo, fallo dal dettaglio");
         return;
       }
       data.stage_id = fieldValue;

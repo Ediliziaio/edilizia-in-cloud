@@ -47,7 +47,7 @@ import { cn } from "@/lib/utils";
 import { syncTagsToContact, removeTagFromContact } from "@/hooks/useTagSync";
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import { useLossReasons } from "@/hooks/useLossReasons";
-import { etichettaMotivo } from "@/lib/opportunita/motiviPerdita";
+import { testoMotivoPerdita } from "@/lib/opportunita/motiviPerdita";
 import { LinkedRendersList } from "@/components/render/LinkedRendersList";
 import { MarketingDocumentsPanel } from "@/components/marketing/MarketingDocumentsPanel";
 import { OpportunityAppointmentTab } from "@/components/opportunities/OpportunityAppointmentTab";
@@ -243,10 +243,10 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
   // La scheda si monta anche senza opportunità (nessuna card aperta): il
   // «return null» sta più sotto, quindi qui si legge col punto interrogativo.
   // Senza, la pagina Opportunità andava in errore appena aperta (23/09/2026).
-  const motivoPerditaScritto = [
-    etichettaMotivo(motivoCategoriaAttuale, motiviPerdita),
-    motivoDettaglioAttuale,
-  ].filter(Boolean).join(" — ");
+  const motivoPerditaScritto = testoMotivoPerdita(
+    { lost_reason_category: motivoCategoriaAttuale, lost_reason: motivoDettaglioAttuale },
+    motiviPerdita,
+  );
 
   // Change contact state
   const [changingContact, setChangingContact] = useState(false);
@@ -451,8 +451,8 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
     // e se non c'è si apre la finestra (BeMade/Suntech, Sonia, 16/09).
     const motivoCategoria = motivoCategoriaAttuale || null;
     const motivoDettaglio = motivoDettaglioAttuale || null;
-    if (status === "lost" && !motivoCategoria && !motivoDettaglio) {
-      setPendingLostStatus("lost");
+    if ((status === "lost" || status === "abandoned") && !motivoCategoria && !motivoDettaglio) {
+      setPendingLostStatus(status);
       riprendiSalvataggio.current = true;
       setShowLostDialog(true);
       return;
@@ -1098,7 +1098,13 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                             setStageId(newStageId);
                             // Auto-update status based on stage's auto_status
                             const targetStage = fasiDisponibili.find((s) => s.id === newStageId);
-                            setStatus(inferOpportunityStatusFromStage(targetStage, "open"));
+                            const statoDellaFase = inferOpportunityStatusFromStage(targetStage, "open");
+                            // Una fase persa/abbandonata chiede subito il motivo, come il menu Stato.
+                            if (statoDellaFase === "lost" || statoDellaFase === "abandoned") {
+                              apriMotivoPerdita(statoDellaFase);
+                            } else {
+                              setStatus(statoDellaFase);
+                            }
                           }}>
                             <SelectTrigger className={SELECT_TRIGGER_CLS}><SelectValue /></SelectTrigger>
                             <SelectContent>

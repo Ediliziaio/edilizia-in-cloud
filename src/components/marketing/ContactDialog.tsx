@@ -73,12 +73,18 @@ export function ContactDialog({ open, onOpenChange, onSave, initialData, isEditi
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
 
+  // Il genitore passa initialData come oggetto nuovo a ogni render: con la
+  // dipendenza sull'oggetto qualsiasi aggiornamento della pagina mentre il
+  // dialog è aperto (refetch, focus della finestra) cancellava quello che
+  // l'utente stava scrivendo. Si resetta solo se cambia il CONTENUTO.
+  const chiaveDati = JSON.stringify(initialData ?? null);
   useEffect(() => {
     if (open) {
       setForm({ ...emptyForm, ...initialData });
       setErrors({});
     }
-  }, [open, initialData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, chiaveDati]);
 
   const hasEmailOrPhone = form.email.trim() !== "" || form.phone.trim() !== "";
 

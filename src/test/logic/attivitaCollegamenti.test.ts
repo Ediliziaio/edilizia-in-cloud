@@ -80,15 +80,16 @@ describe("motivo della perdita", () => {
   });
 
   it("la finestra si apre con il motivo già scritto, non vuota", () => {
-    expect(scheda).toContain('setLostCategory(lostCategory || opportunity.lost_reason_category || "")');
-    expect(scheda).toContain('setLostReason(lostReason || opportunity.lost_reason || opportunity.loss_reason || "")');
+    // Dal salvato di QUESTA opportunità, non dallo stato rimasto in memoria (il ripiego con || lo faceva riapparire).
+    expect(scheda).toContain('setLostCategory(opportunity.lost_reason_category || "")');
+    expect(scheda).toContain('setLostReason(opportunity.lost_reason || opportunity.loss_reason || "")');
     // Prima la svuotava a ogni apertura.
     expect(scheda).not.toContain('      setLostReason("");\n      setLostCategory("");');
   });
 
   it("gli import ci sono: senza, la scheda muore aprendosi", () => {
     expect(scheda).toContain('import { useLossReasons } from "@/hooks/useLossReasons";');
-    expect(scheda).toContain('import { etichettaMotivo } from "@/lib/opportunita/motiviPerdita";');
+    expect(scheda).toContain('import { testoMotivoPerdita } from "@/lib/opportunita/motiviPerdita";');
   });
 });
 

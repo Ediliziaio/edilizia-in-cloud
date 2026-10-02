@@ -218,6 +218,8 @@ export const ContactActionsTab = forwardRef<HTMLDivElement, ContactActionsTabPro
 
       {/* Dialog conversione */}
       <ConvertToCustomerDialog
+        // Si rimonta a ogni apertura: campi e passo ripartono dal contatto di adesso.
+        key={`${contact.id}-${convertOpen}`}
         open={convertOpen}
         onOpenChange={setConvertOpen}
         contact={{

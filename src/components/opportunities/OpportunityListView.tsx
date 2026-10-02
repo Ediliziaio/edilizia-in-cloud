@@ -12,6 +12,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 // Table components removed — desktop view uses flex grid for proper column alignment with virtualizer
 import { OpportunityDetailDialog } from "./OpportunityDetailDialog";
+import { LossReasonDialog } from "./LossReasonDialog";
 import { DealHealthBadge } from "./DealHealthBadge";
 import { RichiestaRipetutaBadge } from "./RichiestaRipetutaBadge";
 import { cn } from "@/lib/utils";
@@ -70,6 +71,12 @@ export const OpportunityListView = memo(function OpportunityListView({
   // Pipeline scelta nel pannello «Sposta»: di solito quella dell'opportunità,
   // ma si può spostare in un'altra (es. da «DVS Pipeline» a «2° Fase»).
   const [movePipelineId, setMovePipelineId] = useState<string | null>(null);
+  // Spostamento verso una fase persa/abbandonata: resta in sospeso finché non
+  // arriva il motivo, come nel kanban (prima dalla lista si segnava persa senza
+  // chiedere niente e i report dei motivi restavano vuoti).
+  const [perditaInSospeso, setPerditaInSospeso] = useState<{
+    opp: any; stageId: string; status: string; pipelineId: string | null;
+  } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const updateStage = useUpdateOpportunityStage();
   const { data: pipelines = [] } = usePipelines();
@@ -107,6 +114,17 @@ export const OpportunityListView = memo(function OpportunityListView({
     }
     const targetStage = fasiDaMostrare.find((s) => s.id === targetStageId);
     const nextStatus = inferOpportunityStatusFromStage(targetStage, "open");
+    if (nextStatus === "lost" || nextStatus === "abandoned") {
+      setPerditaInSospeso({
+        opp: moveOpp,
+        stageId: targetStageId,
+        status: nextStatus,
+        pipelineId: cambiaPipeline ? pipelineScelta.id : null,
+      });
+      setMoveOpp(null);
+      setMovePipelineId(null);
+      return;
+    }
     updateStage.mutate(
       {
         id: moveOpp.id,
@@ -351,6 +369,30 @@ export const OpportunityListView = memo(function OpportunityListView({
           </div>
         </SheetContent>
       </Sheet>
+
+      <LossReasonDialog
+        key={perditaInSospeso?.opp?.id ?? "chiuso"}
+        open={!!perditaInSospeso}
+        titolo={perditaInSospeso?.opp?.name}
+        inCorso={updateStage.isPending}
+        onClose={() => setPerditaInSospeso(null)}
+        onConfirm={(esito) => {
+          if (!perditaInSospeso) return;
+          updateStage.mutate(
+            {
+              id: perditaInSospeso.opp.id,
+              stage_id: perditaInSospeso.stageId,
+              auto_status: perditaInSospeso.status,
+              ...(perditaInSospeso.pipelineId ? { pipeline_id: perditaInSospeso.pipelineId } : {}),
+              perdita: esito,
+            },
+            {
+              onSuccess: () => { toast.success("Opportunità segnata come persa"); setPerditaInSospeso(null); },
+              onError: (e: Error) => toast.error(e.message),
+            },
+          );
+        }}
+      />
 
       {/* ── DESKTOP: griglia con colonne fisse ── */}
       {!isMobile && (
