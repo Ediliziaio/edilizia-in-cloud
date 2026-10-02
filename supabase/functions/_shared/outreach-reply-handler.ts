@@ -60,6 +60,8 @@ export interface InboundReply {
   invito?: string | null;
   /** L'email a cui risponde (riga di outreach_send_queue): si rimanda se l'indirizzo è cambiato. */
   invioId?: string | null;
+  /** Allegati già salvati nel bucket (vedi outreachAllegati.ts). */
+  allegati?: Array<{ filename: string; mime: string; size: number; bucket: string; path: string }>;
 }
 
 const INTENTO_IN_CHIARO: Record<string, string> = {
@@ -400,6 +402,7 @@ export async function handleInboundReply(admin: any, r: InboundReply): Promise<v
       message_id: r.messageId ?? null,
       text: r.text ?? null,
       auto_reply: autoReply,
+      ...(r.allegati?.length ? { attachments: r.allegati } : {}),
     },
   };
   let { data: inserted, error: insErr } = await admin.from("outreach_replies").insert(riga).select("id").single();

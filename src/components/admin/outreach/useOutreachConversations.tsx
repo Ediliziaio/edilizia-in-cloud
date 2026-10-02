@@ -141,10 +141,14 @@ interface ReplyRow {
   /** Casella che l'ha ricevuta. */
   sender_account_id: string | null;
   enrollment_id: string | null;
+  /** Allegati della risposta (raw.attachments), se ce ne sono. */
+  allegati: AllegatoRisposta[] | null;
+  /** Il testo intero della risposta (raw.text); l'anteprima `snippet` è tagliata. */
+  testo: string | null;
 }
 
-/** Colonne lette dalle risposte: `raw` (l'email intera) non serve alla lista. */
-const REPLY_COLS = "id,contact_id,from_email,subject,snippet,received_at,status,intent,brand_id,sender_account_id,enrollment_id";
+/** Colonne lette dalle risposte: di `raw` solo testo intero e allegati, non l'email intera. */
+const REPLY_COLS = "id,contact_id,from_email,subject,snippet,received_at,status,intent,brand_id,sender_account_id,enrollment_id,allegati:raw->attachments,testo:raw->>text";
 
 export interface ContactRow {
   id: string;
@@ -182,6 +186,9 @@ export interface LeadContext {
   lastActivityAt: string | null;
 }
 
+/** Un file allegato a una risposta, salvato nel bucket privato «outreach-attachments». */
+export interface AllegatoRisposta { filename: string; mime: string; size: number; bucket: string; path: string }
+
 export interface ThreadMsg {
   id: string;
   direction: "out" | "in";
@@ -194,6 +201,8 @@ export interface ThreadMsg {
   delivery?: MsgDelivery;
   /** Casella che ha spedito (inviate) o ricevuto (risposte), se nota. */
   senderAccountId?: string | null;
+  /** Allegati (solo risposte). */
+  allegati?: AllegatoRisposta[];
 }
 
 /** Riepilogo AI di una conversazione (edge outreach-ai-summary). */
@@ -926,10 +935,11 @@ export function useOutreachConversations(companyId: string) {
         id: `r:${r.id}`,
         direction: "in",
         subject: r.subject,
-        body: r.snippet,
+        body: r.testo?.trim() ? r.testo : r.snippet,
         at: r.received_at,
         intent: r.intent,
         senderAccountId: r.sender_account_id,
+        allegati: Array.isArray(r.allegati) ? r.allegati : undefined,
       });
       conv.replyIds.push(r.id);
       if (r.status === UNREAD) { conv.unread = true; conv.unreadReplyIds.push(r.id); }
