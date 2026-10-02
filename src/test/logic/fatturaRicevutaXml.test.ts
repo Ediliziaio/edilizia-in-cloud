@@ -2,7 +2,7 @@
 // (caricamento a mano) e openapi-fatture-ricevute (importazione automatica),
 // provato col DOM di jsdom come fatturapaReader.
 import { describe, it, expect } from "vitest";
-import { leggiFatturaRicevuta, motivoNonLeggibile, senzaPrefissi } from "../../../supabase/functions/_shared/fatturaRicevutaXml";
+import { leggiFatturaRicevuta, lettaDiRiserva, motivoNonLeggibile, senzaPrefissi } from "../../../supabase/functions/_shared/fatturaRicevutaXml";
 import type { LettoreXml } from "../../../supabase/functions/_shared/fatturapaReader";
 
 const parser = new DOMParser() as unknown as LettoreXml;
@@ -160,5 +160,39 @@ describe("motivoNonLeggibile", () => {
     const senzaNumero = "<F><FatturaElettronicaHeader><CedentePrestatore/></FatturaElettronicaHeader><FatturaElettronicaBody><DatiGenerali><DatiGeneraliDocumento><Data>2026-01-01</Data></DatiGeneraliDocumento></DatiGenerali></FatturaElettronicaBody></F>";
     expect(motivoNonLeggibile(senzaNumero, parser)).toBe("manca il Numero della fattura");
     expect(motivoNonLeggibile(senzaNumero.replace("<Data>", "<Numero>1</Numero><Data>").replace("2026-01-01", "01/01/2026"), parser)).toMatch(/data non valida/);
+  });
+});
+
+describe("lettaDiRiserva: una fattura che arriva entra comunque", () => {
+  const ctx = { idOpenapi: "6abf96ab82e756b1aa0afa59", ricevutaIl: "2026-10-02T11:30:00Z", motivo: "prova" };
+
+  it("recupera fornitore, numero, data e importi a testo, anche con prefissi e senza intestazione valida", () => {
+    const xml = `<ns3:Doc><ns3:CedentePrestatore><ns3:DatiAnagrafici><ns3:IdFiscaleIVA><ns3:IdPaese>IT</ns3:IdPaese><ns3:IdCodice>01234567890</ns3:IdCodice></ns3:IdFiscaleIVA>
+      <ns3:Anagrafica><ns3:Denominazione>Ferramenta &amp; Figli Srl</ns3:Denominazione></ns3:Anagrafica></ns3:DatiAnagrafici></ns3:CedentePrestatore>
+      <ns3:FatturaElettronicaBody><ns3:DatiGeneraliDocumento><ns3:TipoDocumento>TD01</ns3:TipoDocumento><ns3:Data>2026-09-30</ns3:Data><ns3:Numero>55/A</ns3:Numero>
+      <ns3:ImportoTotaleDocumento>1220.00</ns3:ImportoTotaleDocumento></ns3:DatiGeneraliDocumento></ns3:FatturaElettronicaBody></ns3:Doc>`;
+    const l = lettaDiRiserva(xml, ctx);
+    expect(l.cedente_ragione_sociale).toBe("Ferramenta & Figli Srl");
+    expect(l.cedente_piva).toBe("01234567890");
+    expect(l.numero_fattura).toBe("55/A");
+    expect(l.data_fattura).toBe("2026-09-30");
+    expect(l.totale_documento).toBe(1220);
+    expect(l.note_import).toMatch(/controlla fornitore, numero e importi/);
+  });
+
+  it("senza niente di leggibile: segnaposto, data di ricezione, mai un campo vuoto che blocchi il salvataggio", () => {
+    const l = lettaDiRiserva(null, ctx);
+    expect(l.cedente_ragione_sociale).toBe("Fornitore da identificare");
+    expect(l.numero_fattura).toBe("openapi-b1aa0afa59".slice(0, 8) === "openapi-" ? l.numero_fattura : "");
+    expect(l.numero_fattura.startsWith("openapi-")).toBe(true);
+    expect(l.data_fattura).toBe("2026-10-02");
+    expect(l.totale_documento).toBe(0);
+    expect(l.righe).toEqual([]);
+  });
+
+  it("la data scritta male cade sulla data di ricezione dello SDI", () => {
+    const l = lettaDiRiserva("<a><FatturaElettronicaBody><DatiGeneraliDocumento><Data>30/09/2026</Data><Numero>9</Numero></DatiGeneraliDocumento></FatturaElettronicaBody></a>", ctx);
+    expect(l.numero_fattura).toBe("9");
+    expect(l.data_fattura).toBe("2026-10-02");
   });
 });
