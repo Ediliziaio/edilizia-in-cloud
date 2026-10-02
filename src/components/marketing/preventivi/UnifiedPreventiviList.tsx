@@ -41,7 +41,7 @@ import {
   Search, ChevronRight, ChevronLeft, FileText, RectangleVertical, Sun,
   Inbox, X, Target, TrendingUp, Clock, FileCheck2, Euro,
   SlidersHorizontal, Download, Loader2, Hammer, Bath, Home, Wind, Zap, Flame, LayoutGrid, Waves,
-  Trash2,
+  Trash2, MoreHorizontal, ExternalLink, AlertTriangle, FileX2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, subMonths, startOfMonth, isSameMonth } from "date-fns";
@@ -62,7 +62,19 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTableSelection } from "@/hooks/useTableSelection";
-import { UnifiedBulkToolbar } from "./UnifiedBulkToolbar";
+import { UnifiedBulkToolbar, spostaNelCestino } from "./UnifiedBulkToolbar";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  appartieneAllaVista, contaPerStato, eBozzaVuota, eDaSeguire, etichettaEta, giorniDa,
+  GIORNI_DA_SEGUIRE, vistaDaTesto, type VistaElenco,
+} from "@/lib/preventivi/elencoPreventivi";
 import { PreventiviCestinoDialog } from "./PreventiviCestinoDialog";
 import { CercaConFiltri, PannelloFiltri, PilloleFiltro, RigaMobile } from "@/components/mobile/FiltriMobile";
 import { eRigaDiModulo } from "@/lib/moduli/quoteBridge";
@@ -146,6 +158,10 @@ export function UnifiedPreventiviList() {
     commercialeId: searchParams.get("comm") ?? "all",
     sort: (searchParams.get("sort") as UnifiedFilters["sort"]) ?? "recent",
   }));
+  const [vista, setVista] = useState<VistaElenco>(() => vistaDaTesto(searchParams.get("vista")));
+  const { role } = useAuth();
+  const puoEliminare = role === "super_admin" || role === "company_admin";
+  const [daCestinare, setDaCestinare] = useState<UnifiedRow | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [insightsOpen, setInsightsOpen] = useState(false);
   const [cestinoOpen, setCestinoOpen] = useState(false);
@@ -160,9 +176,10 @@ export function UnifiedPreventiviList() {
     if (filters.tipi.length > 0) next.set("tipi", filters.tipi.join(",")); else next.delete("tipi");
     if (filters.commercialeId !== "all") next.set("comm", filters.commercialeId); else next.delete("comm");
     if (filters.sort !== "recent") next.set("sort", filters.sort); else next.delete("sort");
+    if (vista !== "tutte") next.set("vista", vista); else next.delete("vista");
     setSearchParams(next, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, statoTab, filters.tipi, filters.commercialeId, filters.sort]);
+  }, [search, statoTab, filters.tipi, filters.commercialeId, filters.sort, vista]);
 
   const serramentiEnabled = useMemo(
     () => moduli.find((m) => m.modulo.slug === "serramenti")?.isEnabled ?? false,
@@ -765,8 +782,10 @@ export function UnifiedPreventiviList() {
       [dateFrom, dateTo] = [dateTo, dateFrom];
     }
 
+    const adesso = new Date();
     let out = allRows.filter((r) => {
       if (statoTab !== "all" && r.stato_unif !== statoTab) return false;
+      if (!appartieneAllaVista(r, vista, adesso)) return false;
       if (filters.tipi.length > 0 && !filters.tipi.includes(r.tipo)) return false;
       if (filters.commercialeId !== "all") {
         if (filters.commercialeId === "none") {
@@ -797,6 +816,8 @@ export function UnifiedPreventiviList() {
     };
     out = [...out].sort((a, b) => {
       switch (filters.sort) {
+        case "oldest":     return tsOf(a.data) - tsOf(b.data);
+        case "client_desc": return b.cliente.localeCompare(a.cliente);
         case "value_desc": return (b.totale ?? 0) - (a.totale ?? 0);
         case "value_asc":  return (a.totale ?? 0) - (b.totale ?? 0);
         case "code_asc":   return a.numero.localeCompare(b.numero);
@@ -808,11 +829,11 @@ export function UnifiedPreventiviList() {
       }
     });
     return out;
-  }, [allRows, search, statoTab, filters]);
+  }, [allRows, search, statoTab, filters, vista]);
 
   // Reset pagina su cambio filtri (reset intenzionale di stato derivato).
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { setPage(1); }, [search, statoTab, filters]);
+  useEffect(() => { setPage(1); }, [search, statoTab, filters, vista]);
 
   // ─── Paginazione ─────────────────────────────────────────────────────────
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -836,13 +857,14 @@ export function UnifiedPreventiviList() {
     return n;
   }, [filters]);
 
-  const hasAnyFilter = search !== "" || statoTab !== "all" || advancedFiltersCount > 0;
+  const hasAnyFilter = search !== "" || statoTab !== "all" || vista !== "tutte" || advancedFiltersCount > 0;
   // Telefono: il numero sul bottone dei filtri.
-  const filtriMobileAttivi = (statoTab !== "all" ? 1 : 0) + advancedFiltersCount;
+  const filtriMobileAttivi = (statoTab !== "all" ? 1 : 0) + (vista !== "tutte" ? 1 : 0) + advancedFiltersCount;
 
   const reset = () => {
     setSearch("");
     setStatoTab("all");
+    setVista("tutte");
     setFilters(DEFAULT_FILTERS);
   };
 
@@ -931,7 +953,37 @@ export function UnifiedPreventiviList() {
     in_corso: kpi.inCorsoCount,
     vinto: kpi.vintaCount,
     perso: kpi.persoCount,
+    // Stati che non rientrano nei quattro principali (es. archiviati): senza
+    // questo la somma delle schede non tornava con «Tutti».
+    altro: contaPerStato(allRows).altro ?? 0,
   };
+  const adessoElenco = new Date();
+  const conteggiVista = {
+    da_seguire: allRows.filter((r) => eDaSeguire(r, adessoElenco)).length,
+    bozze_vuote: allRows.filter((r) => eBozzaVuota(r)).length,
+  };
+  // Tipi presenti con quanti sono: i bottoni rapidi sopra la tabella.
+  const tipiConteggio = (Object.keys(TIPO_LABEL) as PreventivoTipo[])
+    .map((t) => ({ tipo: t, n: allRows.filter((r) => r.tipo === t).length }))
+    .filter((x) => x.n > 0);
+  const bozzeVuoteVisibili = filtered.filter((r) => eBozzaVuota(r));
+  const cestinaSingolo = async () => {
+    const riga = daCestinare;
+    setDaCestinare(null);
+    if (!riga || !companyId) return;
+    const { deleted, errors } = await spostaNelCestino([riga], companyId);
+    if (errors.length) toast.error("Non sono riuscito a spostarlo nel cestino: " + errors[0]);
+    else if (deleted === 0) toast.warning("Non spostato (permessi insufficienti o già rimosso)");
+    else toast.success("Spostato nel cestino — recuperabile per 30 giorni");
+    void queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && String(q.queryKey[0]).startsWith("unified-prev") });
+  };
+  const freccia = (primo: UnifiedFilters["sort"], secondo: UnifiedFilters["sort"]) =>
+    filters.sort === primo ? " ↓" : filters.sort === secondo ? " ↑" : "";
+  const ordinaAria = (primo: UnifiedFilters["sort"], secondo: UnifiedFilters["sort"]): "ascending" | "descending" | "none" =>
+    filters.sort === primo ? "descending" : filters.sort === secondo ? "ascending" : "none";
+  // Intestazione cliccabile: un clic ordina, il secondo inverte.
+  const ordinaPer = (primo: UnifiedFilters["sort"], secondo: UnifiedFilters["sort"]) =>
+    setFilters({ ...filters, sort: filters.sort === primo ? secondo : primo });
   // Telefono: nel pannello solo i tipi che ci sono davvero in lista.
   const tipiPresenti = Array.from(new Set(allRows.map((r) => r.tipo)));
 
@@ -1060,19 +1112,30 @@ export function UnifiedPreventiviList() {
         aperto={filtriMobileAperti}
         onAperto={setFiltriMobileAperti}
         attivi={filtriMobileAttivi}
-        onAzzera={() => { setStatoTab("all"); setFilters(DEFAULT_FILTERS); }}
+        onAzzera={() => { setStatoTab("all"); setVista("tutte"); setFilters(DEFAULT_FILTERS); }}
         risultati={filtered.length}
       >
         <PilloleFiltro
           titolo="Stato"
           valore={statoTab}
-          onScegli={(v) => setStatoTab(v)}
+          onScegli={(v: UnifiedStato | "all") => setStatoTab(v)}
           scelte={[
-            { value: "all", label: "Tutti", n: tabCounts.all },
+            { value: "all" as UnifiedStato | "all", label: "Tutti", n: tabCounts.all },
             { value: "bozza", label: "Bozze", n: tabCounts.bozza },
             { value: "in_corso", label: "In corso", n: tabCounts.in_corso },
             { value: "vinto", label: "Vinte", n: tabCounts.vinto },
             { value: "perso", label: "Perse", n: tabCounts.perso },
+            ...(tabCounts.altro > 0 ? [{ value: "altro" as UnifiedStato | "all", label: "Altre", n: tabCounts.altro }] : []),
+          ]}
+        />
+        <PilloleFiltro
+          titolo="Da fare"
+          valore={vista}
+          onScegli={(v) => setVista(vistaDaTesto(v))}
+          scelte={[
+            { value: "tutte", label: "Tutti" },
+            { value: "da_seguire", label: `Da seguire (>${GIORNI_DA_SEGUIRE}gg)`, n: conteggiVista.da_seguire },
+            { value: "bozze_vuote", label: "Bozze vuote", n: conteggiVista.bozze_vuote },
           ]}
         />
         {tipiPresenti.length > 1 && (
@@ -1138,8 +1201,9 @@ export function UnifiedPreventiviList() {
             </Button>
           )}
           <span className="text-xs text-muted-foreground ml-auto tabular-nums">
-            {filtered.length} di {allRows.length}
-            {totalPages > 1 && ` · pag ${currentPage}/${totalPages}`}
+            {filtered.length === allRows.length
+              ? `${allRows.length} preventivi`
+              : `${filtered.length} di ${allRows.length} preventivi`}
           </span>
         </CardContent>
       </Card>
@@ -1174,6 +1238,61 @@ export function UnifiedPreventiviList() {
         <StatoTab label="In corso" count={tabCounts.in_corso} active={statoTab === "in_corso"} onClick={() => setStatoTab("in_corso")} tone="blue" />
         <StatoTab label="Vinte" count={tabCounts.vinto} active={statoTab === "vinto"} onClick={() => setStatoTab("vinto")} tone="emerald" />
         <StatoTab label="Perse" count={tabCounts.perso} active={statoTab === "perso"} onClick={() => setStatoTab("perso")} tone="rose" />
+        {tabCounts.altro > 0 && (
+          <StatoTab label="Altre" count={tabCounts.altro} active={statoTab === "altro"} onClick={() => setStatoTab("altro")} />
+        )}
+      </div>
+
+      {/* ─── Viste rapide e tipi: un clic invece di aprire il pannello filtri ─── */}
+      <div className="flex flex-wrap items-center gap-1.5 max-md:hidden" aria-label="Viste rapide">
+        <VistaChip
+          attiva={vista === "da_seguire"}
+          onClick={() => setVista(vista === "da_seguire" ? "tutte" : "da_seguire")}
+          icon={<AlertTriangle className="h-3 w-3" />}
+          label={`Da seguire`}
+          n={conteggiVista.da_seguire}
+          titolo={`Preventivi in corso fermi da almeno ${GIORNI_DA_SEGUIRE} giorni`}
+          tono="amber"
+        />
+        <VistaChip
+          attiva={vista === "bozze_vuote"}
+          onClick={() => setVista(vista === "bozze_vuote" ? "tutte" : "bozze_vuote")}
+          icon={<FileX2 className="h-3 w-3" />}
+          label="Bozze vuote"
+          n={conteggiVista.bozze_vuote}
+          titolo="Bozze senza importo: spesso tentativi abbandonati"
+          tono="slate"
+        />
+        {tipiConteggio.length > 1 && <span className="mx-1 h-4 w-px bg-border" aria-hidden="true" />}
+        {tipiConteggio.length > 1 && tipiConteggio.map(({ tipo, n }) => {
+          const attivo = filters.tipi.includes(tipo);
+          const cfg = TIPO_LABEL[tipo];
+          return (
+            <button
+              key={tipo}
+              type="button"
+              aria-pressed={attivo}
+              onClick={() => setFilters({ ...filters, tipi: attivo ? filters.tipi.filter((t) => t !== tipo) : [...filters.tipi, tipo] })}
+              className={cn(
+                "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors",
+                attivo ? cfg.className + " ring-1 ring-current" : "bg-background text-muted-foreground hover:bg-muted",
+              )}
+            >
+              <cfg.Icon className="h-3 w-3" /> {cfg.label}
+              <span className="tabular-nums opacity-70">{n}</span>
+            </button>
+          );
+        })}
+        {vista === "bozze_vuote" && puoEliminare && bozzeVuoteVisibili.length > 0 && (
+          <Button
+            variant="outline" size="sm"
+            className="ml-auto h-7 gap-1.5 text-xs"
+            onClick={() => sel.toggleAll(bozzeVuoteVisibili.map((r) => `${r.tipo}:${r.id}`))}
+          >
+            <Trash2 className="h-3 w-3" />
+            {bozzeVuoteVisibili.every((r) => sel.isSelected(`${r.tipo}:${r.id}`)) ? "Deseleziona" : "Seleziona"} le {bozzeVuoteVisibili.length} bozze vuote
+          </Button>
+        )}
       </div>
 
       {/* ─── Tabella ─── */}
@@ -1228,14 +1347,22 @@ export function UnifiedPreventiviList() {
                           aria-label="Seleziona pagina"
                         />
                       </TableHead>
-                      <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-slate-600">Numero</TableHead>
-                      <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-slate-600">Cliente</TableHead>
+                      <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-slate-600" aria-sort={ordinaAria("code_asc","code_desc")}>
+                        <button type="button" className="inline-flex items-center gap-1 uppercase tracking-wider hover:text-slate-900" onClick={() => ordinaPer("code_asc", "code_desc")}>Numero{freccia("code_asc","code_desc")}</button>
+                      </TableHead>
+                      <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-slate-600" aria-sort={ordinaAria("client_asc","client_desc")}>
+                        <button type="button" className="inline-flex items-center gap-1 uppercase tracking-wider hover:text-slate-900" onClick={() => ordinaPer("client_asc", "client_desc")}>Cliente{freccia("client_asc","client_desc")}</button>
+                      </TableHead>
                       <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-slate-600">Tipo</TableHead>
                       <TableHead className="hidden text-[11px] uppercase tracking-wider font-semibold text-slate-600 xl:table-cell">Commerciale</TableHead>
                       <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-slate-600">Stato</TableHead>
-                      <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-slate-600 text-right">Totale</TableHead>
-                      <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-slate-600">Data</TableHead>
-                      <TableHead className="w-8"></TableHead>
+                      <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-slate-600 text-right" aria-sort={ordinaAria("value_desc","value_asc")}>
+                        <button type="button" className="inline-flex items-center gap-1 uppercase tracking-wider hover:text-slate-900" onClick={() => ordinaPer("value_desc", "value_asc")}>Totale{freccia("value_desc","value_asc")}</button>
+                      </TableHead>
+                      <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-slate-600" aria-sort={ordinaAria("recent","oldest")}>
+                        <button type="button" className="inline-flex items-center gap-1 uppercase tracking-wider hover:text-slate-900" onClick={() => ordinaPer("recent", "oldest")}>Aggiornato{freccia("recent","oldest")}</button>
+                      </TableHead>
+                      <TableHead className="w-10"><span className="sr-only">Azioni</span></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1270,14 +1397,42 @@ export function UnifiedPreventiviList() {
                             <Badge variant="outline" className={cn("text-[10px] font-medium", statoCfg.className)}>
                               {statoCfg.label}
                             </Badge>
+                            {eDaSeguire(r, adessoElenco) && (
+                              <p className="mt-0.5 text-[10px] font-medium text-amber-700">
+                                Fermo da {giorniDa(r.data, adessoElenco)} giorni
+                              </p>
+                            )}
+                            {eBozzaVuota(r) && <p className="mt-0.5 text-[10px] text-muted-foreground">Da completare</p>}
                           </TableCell>
                           <TableCell className="text-xs text-right tabular-nums font-medium">
-                            {r.totale != null ? formatCurrency(r.totale) : <span className="text-muted-foreground">—</span>}
+                            {r.totale != null && r.totale > 0 ? formatCurrency(r.totale) : <span className="text-muted-foreground">—</span>}
                           </TableCell>
-                          <TableCell className="whitespace-nowrap text-[11px] text-muted-foreground">
-                            {formatDateSafe(r.data)}
+                          <TableCell className="whitespace-nowrap text-[11px] text-muted-foreground" title={formatDateSafe(r.data)}>
+                            {etichettaEta(r.data, adessoElenco) ?? formatDateSafe(r.data)}
                           </TableCell>
-                          <TableCell><ChevronRight className="h-4 w-4 text-muted-foreground" /></TableCell>
+                          <TableCell className="w-10" onClick={(e) => e.stopPropagation()}>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-7 w-7" aria-label={`Azioni per ${r.numero}`}>
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => navigate(r.href)}>
+                                  <ChevronRight className="mr-2 h-3.5 w-3.5" /> Apri
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => window.open(r.href, "_blank", "noopener,noreferrer")}>
+                                  <ExternalLink className="mr-2 h-3.5 w-3.5" /> Apri in una nuova scheda
+                                </DropdownMenuItem>
+                                {puoEliminare && <DropdownMenuSeparator />}
+                                {puoEliminare && (
+                                  <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => setDaCestinare(r)}>
+                                    <Trash2 className="mr-2 h-3.5 w-3.5" /> Sposta nel cestino
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
                         </TableRow>
                       );
                     })}
@@ -1305,7 +1460,7 @@ export function UnifiedPreventiviList() {
                       // Senza cliente il titolo è il numero (una riga «—» non si riconosce).
                       titolo={senzaCliente ? r.numero : r.cliente}
                       sottotitolo={[senzaCliente ? null : r.numero, tipoCfg.label, formatDateSafe(r.data)].filter(Boolean).join(" · ")}
-                      valore={r.totale != null ? formatCurrency(r.totale) : "—"}
+                      valore={r.totale != null && r.totale > 0 ? formatCurrency(r.totale) : "—"}
                       stato={<span className={coloreStato}>{statoCfg.label}</span>}
                     />
                   );
@@ -1337,6 +1492,23 @@ export function UnifiedPreventiviList() {
         </CardContent>
       </Card>
 
+      <AlertDialog open={!!daCestinare} onOpenChange={(o) => { if (!o) setDaCestinare(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Sposta {daCestinare?.numero} nel cestino</AlertDialogTitle>
+            <AlertDialogDescription>
+              Sparisce dalla lista e resta recuperabile dal Cestino per 30 giorni. Dopo, l'eliminazione è definitiva.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction onClick={cestinaSingolo} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Sposta nel cestino
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* ─── Sheet filtri laterale ─── */}
       <UnifiedFiltersSheet
         open={filtersOpen}
@@ -1363,11 +1535,13 @@ export function UnifiedPreventiviList() {
 /* ─── Sort labels (esportati per chip) ──────────────────────────────────── */
 const SORT_LABEL: Record<UnifiedFilters["sort"], string> = {
   recent: "Più recenti",
+  oldest: "Più vecchi",
   value_desc: "Importo ↓",
   value_asc: "Importo ↑",
   code_asc: "Codice A→Z",
   code_desc: "Codice Z→A",
   client_asc: "Cliente A→Z",
+  client_desc: "Cliente Z→A",
 };
 
 /* ─── Componenti interni ────────────────────────────────────────────────── */
@@ -1429,6 +1603,27 @@ function StatoTab({
     >
       {label}
       <span className={cn("text-[10px] px-1.5 py-0.5 rounded tabular-nums", toneClass)}>{count}</span>
+    </button>
+  );
+}
+
+function VistaChip({
+  attiva, onClick, icon, label, n, titolo, tono,
+}: { attiva: boolean; onClick: () => void; icon: React.ReactNode; label: string; n: number; titolo: string; tono: "amber" | "slate" }) {
+  const attivo = tono === "amber" ? "border-amber-300 bg-amber-100 text-amber-800" : "border-slate-300 bg-slate-200 text-slate-800";
+  return (
+    <button
+      type="button"
+      title={titolo}
+      aria-pressed={attiva}
+      onClick={onClick}
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors",
+        attiva ? attivo : "bg-background text-muted-foreground hover:bg-muted",
+      )}
+    >
+      {icon} {label}
+      <span className="tabular-nums opacity-70">{n}</span>
     </button>
   );
 }
