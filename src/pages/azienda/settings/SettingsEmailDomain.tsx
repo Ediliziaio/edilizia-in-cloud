@@ -158,6 +158,7 @@ function normalizeDomainResponse(resp: unknown): DomainResponse {
     domain_row?: DomainStatus;
     dns_records?: DnsRecord[];
     provider_errors?: Record<string, string | null>;
+    avviso_piattaforma?: string | null;
     mittenti?: Mittenti;
     collegati?: CanaleEmail[];
   } | null;

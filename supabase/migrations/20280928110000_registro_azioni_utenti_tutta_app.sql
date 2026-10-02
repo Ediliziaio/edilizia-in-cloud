@@ -44,12 +44,10 @@ create policy user_action_log_lettura
   on public.user_action_log for select to authenticated
   using (
     (select public.has_role(auth.uid(), 'super_admin'::public.app_role))
+    or public.e_amministratore_di(company_id)
     or (
       company_id = (select public.get_user_company_id(auth.uid()))
-      and (
-        (select public.has_role(auth.uid(), 'company_admin'::public.app_role))
-        or (select public.has_permission(auth.uid(), 'can_view_settings'))
-      )
+      and (select public.has_permission(auth.uid(), 'can_view_settings'))
     )
   );
 -- Nessuna policy di scrittura: scrive solo il trigger (security definer).
