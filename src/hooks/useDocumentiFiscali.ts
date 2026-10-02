@@ -370,7 +370,7 @@ export function useCreateDocumento() {
     },
     onSuccess: (doc) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.documentiFiscali.all });
-      if (doc.riutilizzata) toast.info(`Ripresa la bozza ${doc.numero} non ancora completata`);
+      if (doc.riutilizzata) toast.info("Hai già una bozza aperta: completala o eliminala prima di crearne un'altra", { description: "Riprendi da dove eri rimasto." });
       else toast.success("Documento creato");
     },
     onError: (err: Error) => {

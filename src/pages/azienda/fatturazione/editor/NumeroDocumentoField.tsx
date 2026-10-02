@@ -1,15 +1,16 @@
 /**
- * Il numero della fattura, vero già sulla bozza (01/10/2026): il cliente può
- * pagare citandolo prima che la fattura parta per lo SDI.
+ * Il numero della fattura si assegna all'EMISSIONE (02/10/2026, Renova): una bozza
+ * non ha numero e non ne consuma, mostra «Bozza». Se l'ultima emessa è la 73, la
+ * prossima emessa è la 74, qualunque cosa sia successa alle bozze. Il numero lo dà
+ * documento_emetti.
  *
- * Finché è bozza si cambia a mano (es. se l'ultimo numero emesso con il vecchio
- * programma non è quello atteso). Lo fa il database con documento_assegna_numero,
- * che rifiuta un numero già usato nella serie (fatture e, se la serie è unica,
- * note di credito). Le bozze nate prima col segnaposto «Bozza XXXXXXXX» prendono
- * il numero appena si aprono. Il salvataggio dell'editor non scrive mai il
- * numero (non è fra i campi salvati): qui lo si aggiorna solo nello stato.
+ * Una bozza che il numero lo ha già (nata dal 01/10 al 02/10/2026, quando si
+ * numerava alla creazione) lo tiene, e finché è bozza si cambia a mano con
+ * documento_assegna_numero, che rifiuta un numero già usato nella serie. Il
+ * salvataggio dell'editor non scrive mai il numero: qui lo si aggiorna solo nello
+ * stato.
  */
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Pencil } from "lucide-react";
 import { toast } from "sonner";
@@ -20,7 +21,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import type { EditorState, Action } from "./useEditorState";
 
-/** I documenti che vanno allo SDI: il loro numero nasce con la bozza. */
+/** I documenti che vanno allo SDI: il numero arriva all'emissione. */
 export const TIPI_NUMERO_SULLA_BOZZA = [
   "fattura", "fattura_pa", "nota_credito", "nota_debito", "autofattura", "fattura_riepilogativa",
 ];
@@ -40,7 +41,6 @@ export function NumeroDocumentoField({ state, dispatch, disabled }: Props) {
   const [inModifica, setInModifica] = useState(false);
   const [valore, setValore] = useState("");
   const [salvando, setSalvando] = useState(false);
-  const assegnazioneTentata = useRef<string | null>(null);
 
   const numerataSullaBozza = state.stato === "bozza" && TIPI_NUMERO_SULLA_BOZZA.includes(state.tipo);
   const modificabile = !disabled && numerataSullaBozza && !!state.id && !haSegnapostoBozza(state.numero);
@@ -60,17 +60,6 @@ export function NumeroDocumentoField({ state, dispatch, disabled }: Props) {
     if (error) throw new Error(error.message);
     return (data ?? {}) as NumeroAssegnato;
   };
-
-  // Bozza nata col segnaposto (prima del 01/10/2026): prende subito il suo numero.
-  useEffect(() => {
-    if (!state.id || !numerataSullaBozza || !haSegnapostoBozza(state.numero)) return;
-    if (assegnazioneTentata.current === state.id) return;
-    assegnazioneTentata.current = state.id;
-    assegna(null)
-      .then(applica)
-      .catch((e: Error) => toast.error("Numero della fattura non assegnato", { description: e.message }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- una volta per bozza
-  }, [state.id, state.numero, numerataSullaBozza]);
 
   const apri = () => {
     setValore(state.numero_progressivo ? String(state.numero_progressivo) : "");
@@ -125,7 +114,7 @@ export function NumeroDocumentoField({ state, dispatch, disabled }: Props) {
       ) : (
         <div className="flex gap-1">
           <Input
-            value={haSegnapostoBozza(state.numero) && numerataSullaBozza ? "Assegnazione…" : state.numero ?? ""}
+            value={haSegnapostoBozza(state.numero) && numerataSullaBozza ? "Bozza (senza numero)" : state.numero ?? ""}
             readOnly
             className="h-7 text-xs font-mono bg-muted/50"
           />

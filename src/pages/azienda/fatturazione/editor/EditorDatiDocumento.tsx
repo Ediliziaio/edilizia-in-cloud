@@ -81,9 +81,11 @@ export function EditorDatiDocumento({ state, dispatch, disabled, dataBloccata }:
         <NumeroDocumentoField state={state} dispatch={dispatch} disabled={disabled} />
       </div>
 
-      {state.stato === "bozza" && TIPI_NUMERO_SULLA_BOZZA.includes(state.tipo) && !haSegnapostoBozza(state.numero) && (
+      {state.stato === "bozza" && TIPI_NUMERO_SULLA_BOZZA.includes(state.tipo) && (
         <p className="text-[10px] leading-snug text-muted-foreground">
-          Il numero è già di questa fattura: il cliente può pagare citandolo. Allo SDI parte quando la emetti e la invii.
+          {haSegnapostoBozza(state.numero)
+            ? "La bozza non ha numero: lo riceve quando la emetti, subito dopo l'ultima fattura emessa."
+            : "Questa bozza ha già il suo numero. Allo SDI parte quando la emetti e la invii."}
         </p>
       )}
 

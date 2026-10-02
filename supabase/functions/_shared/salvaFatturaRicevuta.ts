@@ -92,6 +92,22 @@ export async function salvaFatturaRicevuta(supabase: Client, f: FatturaDaSalvare
   const contenuto = f.originale ?? new TextEncoder().encode(f.xml);
 
   const doppione = await cercaDoppione(supabase, f, idSdi);
+  // Registrata prima coi dati trovati a testo («Dati incompleti…», perché il file
+  // non si leggeva) e ora il file si legge per intero: si corregge la riga al suo
+  // posto, senza cancellare niente (quando il lettore XML delle funzioni non
+  // funzionava, 02/10/2026, sono entrate così).
+  if (doppione && /^Dati incompleti/.test(doppione.note ?? "") && !l.note_import) {
+    const { error: erroreCompleta } = await supabase.from("fatture_ricevute").update({
+      cedente_piva: l.cedente_piva, cedente_cf: l.cedente_cf, cedente_ragione_sociale: l.cedente_ragione_sociale,
+      cedente_paese: l.cedente_paese, cedente_indirizzo: l.cedente_indirizzo, cedente_cap: l.cedente_cap,
+      cedente_comune: l.cedente_comune, cedente_provincia: l.cedente_provincia, tipo_documento: l.tipo_documento,
+      numero_fattura: l.numero_fattura, data_fattura: l.data_fattura, imponibile_totale: l.imponibile_totale,
+      iva_totale: l.iva_totale, totale_documento: l.totale_documento, righe: l.righe, riepilogo_iva: l.riepilogo_iva,
+      sdi_progressivo: l.sdi_progressivo || null, xml_raw: f.xml || null, note: null,
+    }).eq("id", doppione.id);
+    if (!erroreCompleta) return { id: doppione.id, doppione: true, completata: true, percorso };
+    console.warn(`[salvaFatturaRicevuta] correzione ${doppione.id}: ${erroreCompleta.message}`);
+  }
   if (doppione) {
     // Già registrata a mano o da un altro canale: la si riconosce, non la si
     // riscrive (il contenuto di una fattura ricevuta non si modifica).

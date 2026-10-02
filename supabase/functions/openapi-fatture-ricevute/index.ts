@@ -262,12 +262,18 @@ async function giroAzienda(acc: Accesso, cfg: Config, completo: boolean, budget:
       // Solo gli id di questa pagina: PostgREST taglia a mille righe, e
       // un'azienda può averne di più.
       const { data: note, error } = await supabase.from("fatture_ricevute")
-        .select("openapi_id").eq("company_id", cfg.company_id).in("openapi_id", ids);
+        .select("openapi_id, note").eq("company_id", cfg.company_id).in("openapi_id", ids);
       if (error) {
         r.errore = `Errore interno nel confronto con le fatture già registrate: ${error.message}`;
         break;
       }
-      const noti = new Set(((note ?? []) as Array<{ openapi_id: string }>).map((n) => n.openapi_id));
+      // Le registrate «con dati incompleti» si riprovano: ora il file si legge per intero
+      // e salvaFatturaRicevuta corregge la riga al suo posto.
+      const noti = new Set(
+        ((note ?? []) as Array<{ openapi_id: string; note: string | null }>)
+          .filter((n) => !/^Dati incompleti/.test(n.note ?? ""))
+          .map((n) => n.openapi_id),
+      );
       for (const id of ids) if (!noti.has(id) && !nuove.includes(id)) nuove.push(id);
     }
     if (lunghezzaElenco(pagina) < PER_PAGINA) {

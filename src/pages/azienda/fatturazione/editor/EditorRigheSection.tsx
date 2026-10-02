@@ -9,7 +9,10 @@ import { Select, SelectContent, SelectItem, SelectGroup, SelectLabel, SelectTrig
 import { Textarea } from "@/components/ui/textarea";
 import { useArticoliNative } from "@/hooks/useArticoliNative";
 import { createEmptyRiga } from "./useEditorState";
-import { ripartoBeniSignificativi, righeBeniSignificativi } from "@/lib/fatturazione/beniSignificativi";
+import {
+  altrePrestazioniDalleRighe, causaliConValoreBeni, contoDalTotaleConcordato, contoDalValoreBeni, righeConBeniSignificativi,
+  type ContoDalTotale,
+} from "@/lib/fatturazione/beniSignificativi";
 import { formatCurrency } from "@/lib/formatters";
 import { parseDecimalIT } from "@/lib/parseDecimalIT";
 import { NATURE_IVA } from "@/types/fatturazione";
@@ -541,15 +544,39 @@ export function EditorRigheSection({ state, dispatch, disabled }: Props) {
   const [calcoloAliquota, setCalcoloAliquota] = useState("22");
   const calcoloNetto = calcoloLordo ? calcoloInverso(parseFloat(calcoloLordo) || 0, calcoloAliquota) : null;
   // Beni significativi (IVA 10% in manutenzione, DM 29/12/1999): vedi lib/fatturazione/beniSignificativi.ts
+  // Si parte dal prezzo concordato (IVA inclusa), come si fa in cantiere: il valore dei beni ne risulta.
   const [bsOpen, setBsOpen] = useState(false);
-  const [bsIntervento, setBsIntervento] = useState("");
+  const [bsModo, setBsModo] = useState<"totale" | "valore">("totale");
   const [bsBeni, setBsBeni] = useState("");
+  const [bsTotale, setBsTotale] = useState("");
   const [bsValoreBeni, setBsValoreBeni] = useState("");
-  const [bsValoreAltro, setBsValoreAltro] = useState("");
+  const [bsAltro, setBsAltro] = useState("");
+  const [bsRigaInfo, setBsRigaInfo] = useState(true);
+  const bsTotaleNum = parseDecimalIT(bsTotale) || 0;
   const bsBeniNum = parseDecimalIT(bsValoreBeni) || 0;
-  const bsAltroNum = parseDecimalIT(bsValoreAltro) || 0;
-  const bsRiparto = bsBeniNum > 0 ? ripartoBeniSignificativi({ valoreBeni: bsBeniNum, valoreAltro: bsAltroNum }) : null;
-  const bsCompleto = !!bsIntervento.trim() && !!bsBeni.trim() && bsBeniNum > 0;
+  const bsAltroManuale = parseDecimalIT(bsAltro) || 0;
+  // Le altre prestazioni sono righe vere della fattura: il conto le legge da lì.
+  // Se non ci sono ancora, si scrivono qui e diventano una riga.
+  const bsAltreDalleRighe = altrePrestazioniDalleRighe(righe);
+  const bsAltre = { al10: bsAltreDalleRighe.al10 + bsAltroManuale, al22: bsAltreDalleRighe.al22 };
+  const bsConto: ContoDalTotale | null =
+    bsModo === "totale"
+      ? (bsTotaleNum > 0 ? contoDalTotaleConcordato(bsTotaleNum, bsAltre) : null)
+      : (bsBeniNum > 0 ? contoDalValoreBeni(bsBeniNum, bsAltre) : null);
+  const bsCompleto = !!bsBeni.trim() && !!bsConto;
+  const bsRighe = (bsConto && bsBeni.trim()
+    ? righeConBeniSignificativi({
+        beni: bsBeni,
+        conto: bsConto,
+        righeEsistenti: [
+          ...righe,
+          ...(bsAltroManuale > 0 ? [{ id: "bs-altro", numero_linea: 0, descrizione: "x", quantita: 1, unita_misura: "pz", prezzo_unitario: bsAltroManuale, aliquota_iva: "10", imponibile: 0, imposta: 0, totale_riga: 0 } as RigaDocumento] : []),
+        ],
+        primoNumero: righe.length + (bsAltroManuale > 0 ? 2 : 1),
+        totaleConcordato: bsModo === "totale" ? bsTotaleNum : undefined,
+        conRigaCorrispettivo: bsRigaInfo,
+      })
+    : null);
   const [catalogSearch, setCatalogSearch] = useState("");
   // Righe aperte in modifica: le nuove e quelle ancora senza nome; le altre stanno chiuse
   // come righe di riepilogo (si riaprono con un clic), come in Fatture in Cloud.
@@ -592,17 +619,27 @@ export function EditorRigheSection({ state, dispatch, disabled }: Props) {
   }
 
   function addBeniSignificativi() {
-    if (!bsCompleto) return;
-    const nuove = righeBeniSignificativi(
-      { intervento: bsIntervento, beni: bsBeni, valoreBeni: bsBeniNum, valoreAltro: bsAltroNum },
-      righe.length + 1,
-    );
-    for (const riga of nuove) dispatch({ type: "ADD_RIGA", riga });
+    if (!bsCompleto || !bsConto || !bsRighe) return;
+    let numero = righe.length + 1;
+    // Altre prestazioni scritte qui: una riga vera, al 10%.
+    if (bsAltroManuale > 0) {
+      dispatch({
+        type: "ADD_RIGA",
+        riga: {
+          id: crypto.randomUUID(), numero_linea: numero++, descrizione: "Manodopera e altre prestazioni", quantita: 1,
+          unita_misura: "pz", prezzo_unitario: bsAltroManuale, aliquota_iva: "10", imponibile: 0, imposta: 0, totale_riga: 0,
+        } as RigaDocumento,
+      });
+    }
+    for (const riga of bsRighe.righe) dispatch({ type: "ADD_RIGA", riga: { ...riga, numero_linea: numero++ } });
+    // La fattura deve dire il valore dei beni (art. 1 c. 19 L. 205/2017): oltre alla riga
+    // informativa, la frase in Causale, che è il testo libero che arriva nell'XML allo SDI.
+    dispatch({ type: "SET_FIELD", field: "causale", value: causaliConValoreBeni(state.causale as string[] | undefined, bsConto.valoreBeni) });
     setBsOpen(false);
-    setBsIntervento("");
     setBsBeni("");
+    setBsTotale("");
     setBsValoreBeni("");
-    setBsValoreAltro("");
+    setBsAltro("");
   }
 
   function addFromCatalog(art: ArticoloNative) {
@@ -828,36 +865,56 @@ export function EditorRigheSection({ state, dispatch, disabled }: Props) {
                   Beni significativi (IVA 10%)
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-80 p-3" align="end">
+              <PopoverContent className="w-96 p-3" align="end">
                 <p className="text-xs font-medium">Manutenzione con beni significativi</p>
                 <p className="text-[10px] text-muted-foreground mt-0.5 mb-2">
-                  Infissi, caldaie, condizionatori, sanitari, ascensori, videocitofoni, impianti di sicurezza: al 10% solo fino al
-                  valore del resto dell'intervento, l'eccedenza al 22% (DM 29/12/1999). La fattura deve indicarli con il loro valore.
+                  Infissi, caldaie, condizionatori, sanitari…: al 10% solo fino al valore del resto dell'intervento, l'eccedenza al 22%
+                  (DM 29/12/1999). Inserisci prima le altre voci (manodopera, materiali…): il conto le legge dalle righe.
                 </p>
                 <div className="space-y-2">
-                  <div>
-                    <label className="text-[10px] text-muted-foreground">Intervento</label>
-                    <Input value={bsIntervento} onChange={(e) => setBsIntervento(e.target.value)} placeholder="es. Sostituzione caldaia" className="h-7 text-xs mt-0.5" />
+                  <div className="grid grid-cols-2 gap-1 rounded-md bg-muted p-0.5 text-[11px]">
+                    <button type="button" className={`rounded px-2 py-1 ${bsModo === "totale" ? "bg-background font-medium shadow-sm" : "text-muted-foreground"}`} onClick={() => setBsModo("totale")}>Ho il prezzo concordato</button>
+                    <button type="button" className={`rounded px-2 py-1 ${bsModo === "valore" ? "bg-background font-medium shadow-sm" : "text-muted-foreground"}`} onClick={() => setBsModo("valore")}>Ho il valore dei beni</button>
                   </div>
                   <div>
                     <label className="text-[10px] text-muted-foreground">Beni significativi forniti</label>
                     <Input value={bsBeni} onChange={(e) => setBsBeni(e.target.value)} placeholder="es. Caldaia a condensazione 25 kW" className="h-7 text-xs mt-0.5" />
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
+                  {bsModo === "totale" ? (
+                    <div>
+                      <label className="text-[10px] text-muted-foreground">Totale concordato, IVA inclusa (€)</label>
+                      <Input inputMode="decimal" value={bsTotale} onChange={(e) => setBsTotale(e.target.value)} placeholder="27.500,00" className="h-7 text-xs mt-0.5" />
+                    </div>
+                  ) : (
                     <div>
                       <label className="text-[10px] text-muted-foreground">Valore dei beni (€)</label>
                       <Input inputMode="decimal" value={bsValoreBeni} onChange={(e) => setBsValoreBeni(e.target.value)} placeholder="2.000,00" className="h-7 text-xs mt-0.5" />
                     </div>
-                    <div>
-                      <label className="text-[10px] text-muted-foreground">Manodopera e altro (€)</label>
-                      <Input inputMode="decimal" value={bsValoreAltro} onChange={(e) => setBsValoreAltro(e.target.value)} placeholder="800,00" className="h-7 text-xs mt-0.5" />
-                    </div>
+                  )}
+                  <div>
+                    <label className="text-[10px] text-muted-foreground">
+                      Altre prestazioni al 10%: {formatCurrency(bsAltreDalleRighe.al10)} dalle righe già inserite
+                    </label>
+                    <Input inputMode="decimal" value={bsAltro} onChange={(e) => setBsAltro(e.target.value)} placeholder="800,00" className="h-7 text-xs mt-0.5" />
+                    <p className="mt-0.5 text-[10px] text-muted-foreground">Solo se non le hai ancora inserite: le aggiungo come riga «Manodopera e altre prestazioni».</p>
                   </div>
-                  {bsRiparto && (
+                  <label className="flex items-center gap-1.5 text-[11px]">
+                    <input type="checkbox" checked={bsRigaInfo} onChange={(e) => setBsRigaInfo(e.target.checked)} />
+                    Riga informativa «corrispettivo imponibile pattuito»
+                  </label>
+                  {bsConto && (
                     <div className="bg-muted/50 rounded p-2 text-[11px] tabular-nums space-y-0.5">
-                      <div className="flex justify-between"><span>Imponibile al 10%</span><span>{formatCurrency(bsRiparto.imponibile10)}</span></div>
-                      <div className="flex justify-between"><span>Imponibile al 22%</span><span>{formatCurrency(bsRiparto.imponibile22)}</span></div>
+                      <div className="flex justify-between"><span>Valore dei beni significativi</span><span>{formatCurrency(bsConto.valoreBeni)}</span></div>
+                      <div className="flex justify-between"><span>Beni al 10% (fino al valore del resto)</span><span>{formatCurrency(bsRighe?.righe.find((x) => x.aliquota_iva === "10" && x.prezzo_unitario > 0)?.prezzo_unitario ?? bsConto.quota10)}</span></div>
+                      <div className="flex justify-between"><span>Beni al 22% (eccedenza)</span><span>{formatCurrency(bsRighe?.righe.find((x) => x.aliquota_iva === "22")?.prezzo_unitario ?? bsConto.quota22)}</span></div>
+                      {bsRighe && <div className="flex justify-between border-t pt-0.5 font-medium"><span>Totale della fattura</span><span>{formatCurrency(bsRighe.totale)}</span></div>}
+                      {bsModo === "totale" && bsRighe && Math.abs(bsRighe.totale - bsTotaleNum) > 0.001 && (
+                        <p className="text-amber-700">Il totale non torna esatto al prezzo concordato: controlla le altre righe.</p>
+                      )}
                     </div>
+                  )}
+                  {bsModo === "totale" && bsTotaleNum > 0 && !bsConto && (
+                    <p className="text-[11px] text-amber-700">Il totale non basta nemmeno per le altre prestazioni: controlla gli importi.</p>
                   )}
                   <Button size="sm" className="w-full h-7 text-xs" disabled={!bsCompleto} onClick={addBeniSignificativi}>
                     Aggiungi le righe
