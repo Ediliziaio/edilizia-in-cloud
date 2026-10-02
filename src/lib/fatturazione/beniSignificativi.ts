@@ -250,3 +250,17 @@ export function noteConValoreBeni(note: string | null | undefined, valoreBeni: n
   if (esistente.test(attuale)) return attuale.replace(esistente, frase) + "\n";
   return attuale ? `${attuale}\n${frase}\n` : `${frase}\n`;
 }
+
+/**
+ * Lo stesso, per la Causale: è l'unico testo libero che arriva nell'XML allo SDI
+ * (le note del documento restano sul PDF). La frase del valore dei beni sta qui,
+ * una volta sola; se c'era già con un altro valore, si aggiorna.
+ */
+export function causaliConValoreBeni(causali: readonly string[] | null | undefined, valoreBeni: number): string[] {
+  const frase = fraseValoreBeniSignificativi(valoreBeni);
+  const attuali = [...(causali ?? [])];
+  const i = attuali.findIndex((c) => /valore complessivo dei beni significativi/i.test(c));
+  if (i >= 0) attuali[i] = frase;
+  else attuali.push(frase);
+  return attuali;
+}

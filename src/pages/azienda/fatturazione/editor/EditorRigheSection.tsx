@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useArticoliNative } from "@/hooks/useArticoliNative";
 import { createEmptyRiga } from "./useEditorState";
 import {
-  altrePrestazioniDalleRighe, contoDalTotaleConcordato, contoDalValoreBeni, noteConValoreBeni, righeConBeniSignificativi,
+  altrePrestazioniDalleRighe, causaliConValoreBeni, contoDalTotaleConcordato, contoDalValoreBeni, righeConBeniSignificativi,
   type ContoDalTotale,
 } from "@/lib/fatturazione/beniSignificativi";
 import { formatCurrency } from "@/lib/formatters";
@@ -632,8 +632,9 @@ export function EditorRigheSection({ state, dispatch, disabled }: Props) {
       });
     }
     for (const riga of bsRighe.righe) dispatch({ type: "ADD_RIGA", riga: { ...riga, numero_linea: numero++ } });
-    // La fattura deve dire il valore dei beni (art. 1 c. 19 L. 205/2017): nelle note.
-    dispatch({ type: "SET_FIELD", field: "note_documento", value: noteConValoreBeni(state.note_documento, bsConto.valoreBeni) });
+    // La fattura deve dire il valore dei beni (art. 1 c. 19 L. 205/2017): oltre alla riga
+    // informativa, la frase in Causale, che è il testo libero che arriva nell'XML allo SDI.
+    dispatch({ type: "SET_FIELD", field: "causale", value: causaliConValoreBeni(state.causale as string[] | undefined, bsConto.valoreBeni) });
     setBsOpen(false);
     setBsBeni("");
     setBsTotale("");

@@ -39,7 +39,7 @@ describe("beni significativi", () => {
 
 // ─── Il conto di Fabio (FPR 73/26, 02/10/2026) ──────────────────────────────
 import {
-  altrePrestazioniDalleRighe, contoDalTotaleConcordato, contoDalValoreBeni, noteConValoreBeni, righeConBeniSignificativi,
+  altrePrestazioniDalleRighe, causaliConValoreBeni, contoDalTotaleConcordato, contoDalValoreBeni, noteConValoreBeni, righeConBeniSignificativi,
 } from "@/lib/fatturazione/beniSignificativi";
 import { calcolaTotaliDocumento } from "@/lib/fatturazione/calcoli";
 import type { RigaDocumento } from "@/types/fatturazione";
@@ -120,5 +120,16 @@ describe("frase del valore dei beni", () => {
     expect(b.match(/valore complessivo dei beni significativi/g)).toHaveLength(1);
     expect(b).toContain("€ 9000");
     expect(b).toContain("Fornitura e posa infissi");
+  });
+});
+
+describe("causale con il valore dei beni (arriva nell'XML)", () => {
+  it("una volta sola, e si aggiorna se cambia il valore", () => {
+    const a = causaliConValoreBeni(["Detrazione 50%"], 13608.52);
+    expect(a).toEqual(["Detrazione 50%", "Ai fini dell'art. 7 comma 1 lett. b) L. 488/1999 e DM 29/12/1999 il valore complessivo dei beni significativi è pari a € 13608.52"]);
+    const b = causaliConValoreBeni(a, 9000);
+    expect(b).toHaveLength(2);
+    expect(b[1]).toContain("€ 9000");
+    expect(causaliConValoreBeni(undefined, 100)).toHaveLength(1);
   });
 });
