@@ -12,13 +12,35 @@ import { BUILTIN_FIELDS } from "@/components/settings/CustomFieldsConfig";
 import { EMAIL_PREFIX_TYPES, EMAIL_RECORD_FIELDS } from "../../../supabase/functions/_shared/automationEmail";
 
 /** Tipo del motore → prefisso usato nel dizionario. */
-const PREFISSO: Record<string, string> = {
-  contact: "contact", opportunity: "opportunity", appointment: "appointment", order: "order",
-  quote: "quote", invoice: "invoice", task: "task", ticket: "ticket",
-};
+const TIPI = [
+  "contact", "opportunity", "appointment", "order", "quote", "invoice", "task", "ticket",
+  "supplier", "ordine_acquisto", "ddt_ricezione", "ordini_variazione", "giornale_lavori", "pos_document", "duvri_document",
+  "impianto", "contratto_manutenzione", "rapportino", "subappaltatore", "contratto_subappalto", "sal_subappaltatore",
+  "costo_aziendale", "salesperson", "external_team", "piano_manutenzione", "employee", "company",
+];
+/** Il prefisso del dizionario è il nome del tipo. */
+const PREFISSO: Record<string, string> = Object.fromEntries(TIPI.map((t) => [t, t]));
 
 /** Campi che il dizionario mostra ma il motore NON deve mettere nei testi, con la ragione. */
+const INTERNO = "dato interno, non per i messaggi";
 const NON_NEI_TESTI: Record<string, Record<string, string>> = {
+  supplier: { rating: INTERNO, credit_limit: INTERNO, notes: INTERNO },
+  salesperson: { commission_type: "compenso", commission_value: "compenso", compensation_mode: "compenso", fixed_monthly_eur: "compenso", notes: INTERNO },
+  employee: {
+    gross_salary: "retribuzione", net_salary: "retribuzione", monthly_hours: "dato di paga", hourly_cost: "retribuzione",
+    costo_orario: "retribuzione", retribuzione_lorda_annua: "retribuzione", visita_medica_esito: "dato sanitario", notes: INTERNO,
+  },
+  ordine_acquisto: { notes: INTERNO },
+  subappaltatore: { note: INTERNO },
+  ddt_ricezione: {},
+  giornale_lavori: { note: INTERNO },
+  rapportino: { note_chiusura: INTERNO },
+  impianto: { note_tecniche: INTERNO },
+  contratto_manutenzione: { note: INTERNO },
+  sal_subappaltatore: { note_contestazione: INTERNO },
+  costo_aziendale: { notes: INTERNO },
+  external_team: { notes: INTERNO },
+  company: {},
   contact: { notes: "note interne del CRM", type: "alias vecchio, non è una colonna" },
   opportunity: { notes: "testo scritto dai flussi automatici", loss_notes: "note interne sulla perdita" },
   appointment: { internal_notes: "note interne" },
@@ -32,7 +54,9 @@ const NON_NEI_TESTI: Record<string, Record<string, string>> = {
 const CALCOLATI = new Set(["full_name", "giorno", "data", "ora", "ora_fine", "titolo", "luogo", "link_riprogramma", "link_sposta", "link_call"]);
 
 /** Riferimenti tecnici: restano nel dizionario (servono a filtri e report) ma non nei testi ai clienti. */
-const TECNICO = /(_id|^assigned_to|^created_by)$/;
+const TECNICO = /(_id|^assigned_to|^created_by|^user_id)$/;
+/** Note interne di qualunque oggetto: mai in un messaggio al cliente. */
+const NOTE_INTERNE = /^(notes?|internal_notes|note_interne|note_tecniche?|note_contestazione|note_chiusura|note_richiami|note_pagamento)$/;
 
 const campiDizionario = (prefisso: string) =>
   BUILTIN_FIELDS.filter((f) => f.uniqueKey.startsWith(`{{ ${prefisso}.`)).map((f) => f.uniqueKey.replace(`{{ ${prefisso}.`, "").replace(" }}", ""));
@@ -42,7 +66,7 @@ describe("dizionario campi di sistema ↔ motore dei testi", () => {
     it(`${tipo}: ogni campo del dizionario si risolve nei testi (salvo quelli interni)`, () => {
       const motore = new Set(EMAIL_RECORD_FIELDS[tipo]);
       const esclusi = NON_NEI_TESTI[tipo] ?? {};
-      const mancanti = campiDizionario(prefisso).filter((k) => !motore.has(k) && !(k in esclusi) && !TECNICO.test(k));
+      const mancanti = campiDizionario(prefisso).filter((k) => !motore.has(k) && !(k in esclusi) && !TECNICO.test(k) && !NOTE_INTERNE.test(k));
       expect(mancanti).toEqual([]);
     });
 

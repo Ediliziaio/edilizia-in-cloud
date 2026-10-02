@@ -253,7 +253,6 @@ export const BUILTIN_FIELDS: UnifiedField[] = [
   sysField("sys_phone", "Phone", "Contatto", "contact", "{{ contact.phone }}"),
   sysField("sys_dob", "Date Of Birth", "Contatto", "contact", "{{ contact.date_of_birth }}"),
   sysField("sys_source", "Contact Source", "Contatto", "contact", "{{ contact.source }}"),
-  sysField("sys_type", "Contact Type", "Contatto", "contact", "{{ contact.type }}"),
   sysField("sys_contact_type", "Tipo Contatto (B2B/B2C)", "Contatto", "contact", "{{ contact.contact_type }}"),
   sysField("sys_assigned_to", "Assigned To", "Contatto", "contact", "{{ contact.assigned_to }}"),
   sysField("sys_c_fiscal_code", "Codice Fiscale", "Contatto", "contact", "{{ contact.fiscal_code }}"),
@@ -543,9 +542,6 @@ export const BUILTIN_FIELDS: UnifiedField[] = [
   sysField("sys_sp_phone", "Telefono", "Venditore", "salesperson", "{{ salesperson.phone }}"),
   sysField("sys_sp_comm_type", "Tipo Provvigione", "Venditore", "salesperson", "{{ salesperson.commission_type }}"),
   sysField("sys_sp_comm_value", "Valore Provvigione", "Venditore", "salesperson", "{{ salesperson.commission_value }}"),
-  sysField("sys_sp_area", "Area Geografica", "Venditore", "salesperson", "{{ salesperson.area_geografica }}"),
-  sysField("sys_sp_zona", "Zona", "Venditore", "salesperson", "{{ salesperson.zona }}"),
-  sysField("sys_sp_start", "Data Inizio", "Venditore", "salesperson", "{{ salesperson.data_inizio }}"),
   sysField("sys_sp_active", "Attivo", "Venditore", "salesperson", "{{ salesperson.is_active }}"),
 
   // ══════════════════════════════════════
@@ -607,12 +603,7 @@ export const BUILTIN_FIELDS: UnifiedField[] = [
   // ══════════════════════════════════════
   sysField("sys_gl_id",         "ID Report",           "Giornale dei Lavori", "giornale_lavori", "{{ giornale_lavori.id }}"),
   sysField("sys_gl_data",       "Data Lavori",         "Giornale dei Lavori", "giornale_lavori", "{{ giornale_lavori.data_lavori }}"),
-  sysField("sys_gl_resp",       "Responsabile",        "Giornale dei Lavori", "giornale_lavori", "{{ giornale_lavori.responsabile_lavori }}"),
-  sysField("sys_gl_meteo",      "Meteo",               "Giornale dei Lavori", "giornale_lavori", "{{ giornale_lavori.meteo }}"),
   sysField("sys_gl_avanz",      "Avanzamento %",       "Giornale dei Lavori", "giornale_lavori", "{{ giornale_lavori.avanzamento_percentuale }}"),
-  sysField("sys_gl_attivita",   "Attività Svolte",     "Giornale dei Lavori", "giornale_lavori", "{{ giornale_lavori.attivita_svolte }}"),
-  sysField("sys_gl_problemi",   "Problemi Riscontrati","Giornale dei Lavori", "giornale_lavori", "{{ giornale_lavori.problemi_riscontrati }}"),
-  sysField("sys_gl_operai",     "N° Operai",           "Giornale dei Lavori", "giornale_lavori", "{{ giornale_lavori.numero_operai }}"),
 
   // ══════════════════════════════════════
   // ── POS – Sicurezza Cantiere ──
@@ -621,7 +612,6 @@ export const BUILTIN_FIELDS: UnifiedField[] = [
   sysField("sys_pos_order",     "Ordine",              "POS – Sicurezza", "pos_document", "{{ pos_document.order_id }}"),
   sysField("sys_pos_indirizzo", "Indirizzo Cantiere",  "POS – Sicurezza", "pos_document", "{{ pos_document.indirizzo_cantiere }}"),
   sysField("sys_pos_resp",      "Responsabile Sic.",   "POS – Sicurezza", "pos_document", "{{ pos_document.responsabile_sicurezza }}"),
-  sysField("sys_pos_costi",     "Costi Sicurezza",     "POS – Sicurezza", "pos_document", "{{ pos_document.costi_sicurezza }}"),
   sysField("sys_pos_status",    "Stato",               "POS – Sicurezza", "pos_document", "{{ pos_document.status }}"),
 
   // ══════════════════════════════════════
@@ -629,8 +619,6 @@ export const BUILTIN_FIELDS: UnifiedField[] = [
   // ══════════════════════════════════════
   sysField("sys_duvri_id",      "ID Documento DUVRI",  "DUVRI – Sicurezza", "duvri_document", "{{ duvri_document.id }}"),
   sysField("sys_duvri_order",   "Ordine",              "DUVRI – Sicurezza", "duvri_document", "{{ duvri_document.order_id }}"),
-  sysField("sys_duvri_indirizzo","Indirizzo Cantiere", "DUVRI – Sicurezza", "duvri_document", "{{ duvri_document.indirizzo_cantiere }}"),
-  sysField("sys_duvri_resp",    "Responsabile Sic.",   "DUVRI – Sicurezza", "duvri_document", "{{ duvri_document.responsabile_sicurezza }}"),
   sysField("sys_duvri_status",  "Stato",               "DUVRI – Sicurezza", "duvri_document", "{{ duvri_document.status }}"),
 
   // ══════════════════════════════════════
@@ -830,41 +818,43 @@ export const BUILTIN_FIELDS: UnifiedField[] = [
   sysField("sys_co_logo_url",          "Logo URL",              "Azienda", "company", "{{ company.logo_url }}"),
   sysField("sys_co_regime_fiscale",    "Regime Fiscale",        "Azienda", "company", "{{ company.regime_fiscale }}"),
 
+  sysField("sys_x_co_forma_giuridica", "Forma Giuridica", "Azienda", "company", "{{ company.forma_giuridica }}"),
+  sysField("sys_x_co_capitale_sociale", "Capitale Sociale", "Azienda", "company", "{{ company.capitale_sociale }}"),
+  sysField("sys_x_co_codice_rea", "Codice REA", "Azienda", "company", "{{ company.codice_rea }}"),
+  sysField("sys_x_co_rea_ufficio", "Ufficio REA", "Azienda", "company", "{{ company.rea_ufficio }}"),
+  sysField("sys_x_co_numero_iscr_registro_imprese", "N° Iscrizione Registro Imprese", "Azienda", "company", "{{ company.numero_iscr_registro_imprese }}"),
+  sysField("sys_x_co_bic_swift", "BIC / SWIFT", "Azienda", "company", "{{ company.bic_swift }}"),
+  sysField("sys_x_co_condizioni_pagamento_default", "Condizioni di Pagamento Predefinite", "Azienda", "company", "{{ company.condizioni_pagamento_default }}"),
+  sysField("sys_x_co_note_fattura_default", "Note Fattura Predefinite", "Azienda", "company", "{{ company.note_fattura_default }}"),
+  sysField("sys_x_co_sector", "Settore", "Azienda", "company", "{{ company.sector }}"),
+  sysField("sys_x_co_legal_address", "Sede Legale · Indirizzo", "Azienda", "company", "{{ company.legal_address }}"),
+  sysField("sys_x_co_legal_city", "Sede Legale · Città", "Azienda", "company", "{{ company.legal_city }}"),
+  sysField("sys_x_co_legal_province", "Sede Legale · Provincia", "Azienda", "company", "{{ company.legal_province }}"),
+  sysField("sys_x_co_legal_postal_code", "Sede Legale · CAP", "Azienda", "company", "{{ company.legal_postal_code }}"),
+  sysField("sys_x_co_operational_address", "Sede Operativa · Indirizzo", "Azienda", "company", "{{ company.operational_address }}"),
+  sysField("sys_x_co_operational_city", "Sede Operativa · Città", "Azienda", "company", "{{ company.operational_city }}"),
+  sysField("sys_x_co_operational_province", "Sede Operativa · Provincia", "Azienda", "company", "{{ company.operational_province }}"),
+  sysField("sys_x_co_operational_postal_code", "Sede Operativa · CAP", "Azienda", "company", "{{ company.operational_postal_code }}"),
+  sysField("sys_x_co_anno_fondazione", "Anno di Fondazione", "Azienda", "company", "{{ company.anno_fondazione }}"),
+  sysField("sys_x_co_numero_rea", "Numero REA", "Azienda", "company", "{{ company.numero_rea }}"),
+
   // ══════════════════════════════════════════════════════════════════════════
   // ── Catalogo Esteso (Sprint C) ─ Prodotto / Articolo ─────────────────────
   // ══════════════════════════════════════════════════════════════════════════
   sysField("sys_prod_id",              "ID Prodotto",           "Prodotto", "product", "{{ product.id }}"),
-  sysField("sys_prod_code",            "Codice Articolo",       "Prodotto", "product", "{{ product.code }}"),
   sysField("sys_prod_name",            "Nome / Descrizione",    "Prodotto", "product", "{{ product.name }}"),
   sysField("sys_prod_description",     "Descrizione Estesa",    "Prodotto", "product", "{{ product.description }}"),
   sysField("sys_prod_category",        "Categoria",             "Prodotto", "product", "{{ product.category }}"),
   sysField("sys_prod_family_id",       "Famiglia",              "Prodotto", "product", "{{ product.family_id }}"),
   sysField("sys_prod_supplier_id",     "Fornitore",             "Prodotto", "product", "{{ product.supplier_id }}"),
-  sysField("sys_prod_unit",            "Unità di Misura",       "Prodotto", "product", "{{ product.unit }}"),
-  sysField("sys_prod_base_price",      "Prezzo Base",           "Prodotto", "product", "{{ product.base_price }}"),
-  sysField("sys_prod_list_price",      "Prezzo Listino",        "Prodotto", "product", "{{ product.list_price }}"),
-  sysField("sys_prod_cost",            "Costo",                 "Prodotto", "product", "{{ product.cost }}"),
-  sysField("sys_prod_margin_pct",      "Margine %",             "Prodotto", "product", "{{ product.margin_pct }}"),
   sysField("sys_prod_vat_rate",        "Aliquota IVA",          "Prodotto", "product", "{{ product.vat_rate }}"),
-  sysField("sys_prod_barcode",         "Barcode / EAN",         "Prodotto", "product", "{{ product.barcode }}"),
   sysField("sys_prod_sku",             "SKU",                   "Prodotto", "product", "{{ product.sku }}"),
-  sysField("sys_prod_weight",          "Peso (kg)",             "Prodotto", "product", "{{ product.weight }}"),
-  sysField("sys_prod_notes",           "Note",                  "Prodotto", "product", "{{ product.notes }}"),
-  sysField("sys_prod_active",          "Attivo",                "Prodotto", "product", "{{ product.active }}"),
 
   // ══════════════════════════════════════════════════════════════════════════
   // ── Catalogo Esteso (Sprint C) ─ Famiglia Prodotto ───────────────────────
   // ══════════════════════════════════════════════════════════════════════════
   sysField("sys_fam_id",               "ID Famiglia",           "Famiglia", "family", "{{ family.id }}"),
-  sysField("sys_fam_name",             "Nome Famiglia",         "Famiglia", "family", "{{ family.name }}"),
-  sysField("sys_fam_code",             "Codice Famiglia",       "Famiglia", "family", "{{ family.code }}"),
-  sysField("sys_fam_parent_id",        "Famiglia Padre",        "Famiglia", "family", "{{ family.parent_id }}"),
   sysField("sys_fam_supplier_id",      "Fornitore di Origine",  "Famiglia", "family", "{{ family.supplier_id }}"),
-  sysField("sys_fam_default_margin",   "Margine Default %",     "Famiglia", "family", "{{ family.default_margin_pct }}"),
-  sysField("sys_fam_default_markup",   "Ricarico Default %",    "Famiglia", "family", "{{ family.default_markup_pct }}"),
-  sysField("sys_fam_description",      "Descrizione",           "Famiglia", "family", "{{ family.description }}"),
-  sysField("sys_fam_notes",            "Note",                  "Famiglia", "family", "{{ family.notes }}"),
-  sysField("sys_fam_active",           "Attiva",                "Famiglia", "family", "{{ family.active }}"),
 
   // ══════════════════════════════════════════════════════════════════════════
   // ── Catalogo Esteso (Sprint C) ─ Tariffa / Manodopera ────────────────────
@@ -872,17 +862,6 @@ export const BUILTIN_FIELDS: UnifiedField[] = [
   sysField("sys_tar_id",               "ID Tariffa",            "Tariffa", "tariffa", "{{ tariffa.id }}"),
   sysField("sys_tar_nome",             "Nome Tariffa",          "Tariffa", "tariffa", "{{ tariffa.nome }}"),
   sysField("sys_tar_codice",           "Codice Tariffa",        "Tariffa", "tariffa", "{{ tariffa.codice }}"),
-  sysField("sys_tar_categoria",        "Categoria (Operaio/Tecnico)", "Tariffa", "tariffa", "{{ tariffa.categoria }}"),
-  sysField("sys_tar_qualifica",        "Qualifica / Livello",   "Tariffa", "tariffa", "{{ tariffa.qualifica }}"),
-  sysField("sys_tar_costo_orario",     "Costo Orario Base",     "Tariffa", "tariffa", "{{ tariffa.costo_orario }}"),
-  sysField("sys_tar_costo_giornaliero","Costo Giornaliero",     "Tariffa", "tariffa", "{{ tariffa.costo_giornaliero }}"),
-  sysField("sys_tar_prezzo_orario",    "Prezzo Vendita Orario", "Tariffa", "tariffa", "{{ tariffa.prezzo_orario }}"),
-  sysField("sys_tar_margine_pct",      "Margine %",             "Tariffa", "tariffa", "{{ tariffa.margine_pct }}"),
-  sysField("sys_tar_ore_giornaliere",  "Ore Giornaliere Std.",  "Tariffa", "tariffa", "{{ tariffa.ore_giornaliere }}"),
-  sysField("sys_tar_ccnl",             "CCNL di Riferimento",   "Tariffa", "tariffa", "{{ tariffa.ccnl }}"),
-  sysField("sys_tar_valida_dal",       "Valida Dal",            "Tariffa", "tariffa", "{{ tariffa.valida_dal }}"),
-  sysField("sys_tar_valida_al",        "Valida Al",             "Tariffa", "tariffa", "{{ tariffa.valida_al }}"),
-  sysField("sys_tar_note",             "Note",                  "Tariffa", "tariffa", "{{ tariffa.note }}"),
   sysField("sys_tar_attiva",           "Attiva",                "Tariffa", "tariffa", "{{ tariffa.attiva }}"),
   // ══════════════════════════════════════════════════════════════════════════
   // ── Campi aggiunti il 02/10/2026: colonne reali che mancavano nel dizionario ──
@@ -1248,10 +1227,11 @@ export const BUILTIN_FIELDS: UnifiedField[] = [
   sysField("sys_x_cm2_created_at", "Data Creazione", "Contratto Manutenzione", "contratto_manutenzione", "{{ contratto_manutenzione.created_at }}"),
   // ── Subappaltatore ──
   sysField("sys_x_sub2_email", "Email", "Subappaltatore", "subappaltatore", "{{ subappaltatore.email }}"),
+  sysField("sys_x_sub2_pec", "PEC", "Subappaltatore", "subappaltatore", "{{ subappaltatore.pec }}"),
   sysField("sys_x_sub2_piva", "Partita IVA", "Subappaltatore", "subappaltatore", "{{ subappaltatore.piva }}"),
+  sysField("sys_x_sub2_codice_fiscale", "Codice Fiscale", "Subappaltatore", "subappaltatore", "{{ subappaltatore.codice_fiscale }}"),
   sysField("sys_x_sub2_indirizzo", "Indirizzo", "Subappaltatore", "subappaltatore", "{{ subappaltatore.indirizzo }}"),
-  sysField("sys_x_sub2_is_active", "Attivo", "Subappaltatore", "subappaltatore", "{{ subappaltatore.is_active }}"),
-  sysField("sys_x_sub2_notes", "Note", "Subappaltatore", "subappaltatore", "{{ subappaltatore.notes }}"),
+  sysField("sys_x_sub2_note", "Note", "Subappaltatore", "subappaltatore", "{{ subappaltatore.note }}"),
   sysField("sys_x_sub2_created_at", "Data Creazione", "Subappaltatore", "subappaltatore", "{{ subappaltatore.created_at }}"),
   // ── Contratto Subappalto ──
   sysField("sys_x_csub2_created_at", "Data Creazione", "Contratto Subappalto", "contratto_subappalto", "{{ contratto_subappalto.created_at }}"),
