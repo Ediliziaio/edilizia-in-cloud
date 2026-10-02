@@ -20,9 +20,12 @@ describe("numero all'emissione", () => {
     const fiscale = crea.slice(crea.indexOf("v_numero := 'Bozza '"), crea.indexOf("  else\n"));
     expect(fiscale).not.toMatch(/genera_numero_documento_native/);
   });
-  it("la ripresa della bozza senza cliente riconosce anche le bozze col segnaposto", () => {
-    expect(sql).not.toMatch(/d\.numero not like 'Bozza %'/);
-    expect(sql).toContain("'riutilizzata', true");
+  it("«Nuovo documento» riprende la bozza aperta (la più recente), non ne apre un'altra", () => {
+    const rip = leggi("supabase/migrations/20281002150000_nuovo_documento_riprende_la_bozza.sql");
+    expect(rip).toContain("order by d.updated_at desc nulls last, d.created_at desc");
+    expect(rip).toContain("'riutilizzata', true");
+    expect(rip).not.toMatch(/anagrafica_id is null/);
+    expect(rip).toContain("(p_dati - 'tipo' - 'data_emissione') = '{}'::jsonb");
   });
   it("l'editor non assegna più il numero all'apertura della bozza", () => {
     expect(campo).not.toMatch(/assegna\(null\)/);
