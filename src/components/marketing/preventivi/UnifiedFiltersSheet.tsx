@@ -25,8 +25,8 @@ import { cn } from "@/lib/utils";
 import type { PreventivoTipo, UnifiedStato } from "./UnifiedPreventiviList";
 
 export type UnifiedSort =
-  | "recent" | "value_desc" | "value_asc"
-  | "code_asc" | "code_desc" | "client_asc";
+  | "recent" | "oldest" | "value_desc" | "value_asc"
+  | "code_asc" | "code_desc" | "client_asc" | "client_desc";
 
 export interface UnifiedFilters {
   tipi: PreventivoTipo[];
@@ -73,11 +73,13 @@ const STATO_OPTIONS: Array<{ value: UnifiedStato; label: string; toneCls: string
 
 const SORT_OPTIONS: Array<{ value: UnifiedSort; label: string }> = [
   { value: "recent",     label: "Più recenti" },
+  { value: "oldest",     label: "Più vecchi (fermi da più tempo)" },
   { value: "value_desc", label: "Importo: alto → basso" },
   { value: "value_asc",  label: "Importo: basso → alto" },
   { value: "code_asc",   label: "Codice: A → Z" },
   { value: "code_desc",  label: "Codice: Z → A" },
   { value: "client_asc", label: "Cliente: A → Z" },
+  { value: "client_desc", label: "Cliente: Z → A" },
 ];
 
 interface Props {

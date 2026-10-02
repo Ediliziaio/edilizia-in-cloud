@@ -41,6 +41,40 @@ interface Props {
   onDone: () => void;
 }
 
+/**
+ * Sposta nel Cestino (soft delete) le righe date, tabella per tabella, e
+ * restituisce il conteggio REALE. Usata dalla barra delle azioni di massa e dal
+ * menu della singola riga.
+ */
+export async function spostaNelCestino(rows: UnifiedRow[], companyId: string): Promise<{ deleted: number; errors: string[] }> {
+  // Raggruppa gli id selezionati per tabella di appartenenza.
+  const byTable = new Map<string, string[]>();
+  for (const r of rows) {
+    const tbl = TIPO_TABLE[r.tipo];
+    if (!tbl) continue;
+    if (!byTable.has(tbl)) byTable.set(tbl, []);
+    byTable.get(tbl)!.push(r.id);
+  }
+  let deleted = 0;
+  const errors: string[] = [];
+  for (const [tbl, ids] of byTable) {
+    // Soft delete → Cestino: recuperabile 30 giorni, poi il purge notturno
+    // (purge_cestino_preventivi) elimina DAVVERO da Supabase. Il DELETE
+    // fisico qui falliva anche per le FK NO ACTION (es. fv_eventi).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase as any)
+      .from(tbl)
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("company_id", companyId)
+      .is("deleted_at", null)
+      .in("id", ids)
+      .select("id");
+    if (error) errors.push(`${tbl}: ${error.message}`);
+    else deleted += data?.length ?? 0;
+  }
+  return { deleted, errors };
+}
+
 export function UnifiedBulkToolbar({ selectedRows, companyId, onClear, onDone }: Props) {
   const { role } = useAuth();
   const canDelete = role === "super_admin" || role === "company_admin";
@@ -54,31 +88,7 @@ export function UnifiedBulkToolbar({ selectedRows, companyId, onClear, onDone }:
     if (!canDelete) { toast.error("Solo un amministratore può eliminare i preventivi"); setConfirm(false); return; }
     setWorking(true);
     try {
-      // Raggruppa gli id selezionati per tabella di appartenenza.
-      const byTable = new Map<string, string[]>();
-      for (const r of selectedRows) {
-        const tbl = TIPO_TABLE[r.tipo];
-        if (!tbl) continue;
-        if (!byTable.has(tbl)) byTable.set(tbl, []);
-        byTable.get(tbl)!.push(r.id);
-      }
-      let deleted = 0;
-      const errors: string[] = [];
-      for (const [tbl, ids] of byTable) {
-        // Soft delete → Cestino: recuperabile 30 giorni, poi il purge notturno
-        // (purge_cestino_preventivi) elimina DAVVERO da Supabase. Il DELETE
-        // fisico qui falliva anche per le FK NO ACTION (es. fv_eventi).
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data, error } = await (supabase as any)
-          .from(tbl)
-          .update({ deleted_at: new Date().toISOString() })
-          .eq("company_id", companyId)
-          .is("deleted_at", null)
-          .in("id", ids)
-          .select("id");
-        if (error) errors.push(`${tbl}: ${error.message}`);
-        else deleted += data?.length ?? 0;
-      }
+      const { deleted, errors } = await spostaNelCestino(selectedRows, companyId);
       if (errors.length) {
         toast.error(`Alcune eliminazioni non riuscite (${errors.length}). ${deleted} rimossi.`);
       } else if (deleted === 0) {
