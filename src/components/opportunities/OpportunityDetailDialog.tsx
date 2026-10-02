@@ -214,16 +214,38 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
   const [lostReason, setLostReason] = useState("");
   const [lostCategory, setLostCategory] = useState("");
   const [competitorWon, setCompetitorWon] = useState("");
+  // La finestra del motivo ha una copia di lavoro. Finché non viene aperta
+  // contano i valori salvati sull'opportunità; una volta aperta, quelli scritti
+  // lì (anche vuoti: cancellare una nota deve restare cancellato).
+  const [motivoToccato, setMotivoToccato] = useState(false);
   const updateOpportunity = useUpdateOpportunityMutation();
   const { motivi: motiviPerdita } = useLossReasons();
+  const motivoCategoriaAttuale = motivoToccato ? lostCategory : (opportunity?.lost_reason_category || "");
+  const motivoDettaglioAttuale = motivoToccato ? lostReason : (opportunity?.lost_reason || opportunity?.loss_reason || "");
+  // La scheda resta montata e cambia solo l'opportunità: senza questo il motivo
+  // scelto sulla precedente si ritrovava sulla successiva (Elena, Ener Italia,
+  // 02/10/2026: «mi rimane in memoria anche per il cliente successivo»).
+  const azzeraMotivoPerdita = () => {
+    setLostCategory("");
+    setLostReason("");
+    setCompetitorWon("");
+    setPendingLostStatus(null);
+    setMotivoToccato(false);
+    riprendiSalvataggio.current = false;
+  };
+  useEffect(() => {
+    azzeraMotivoPerdita();
+    setShowLostDialog(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [opportunity?.id]);
   // Il motivo che risulta scritto adesso: prima quello appena scelto, poi
   // quello salvato (lost_reason e la vecchia loss_reason delle importazioni).
   // La scheda si monta anche senza opportunità (nessuna card aperta): il
   // «return null» sta più sotto, quindi qui si legge col punto interrogativo.
   // Senza, la pagina Opportunità andava in errore appena aperta (23/09/2026).
   const motivoPerditaScritto = [
-    etichettaMotivo(lostCategory || opportunity?.lost_reason_category || "", motiviPerdita),
-    lostReason || opportunity?.lost_reason || opportunity?.loss_reason || "",
+    etichettaMotivo(motivoCategoriaAttuale, motiviPerdita),
+    motivoDettaglioAttuale,
   ].filter(Boolean).join(" — ");
 
   // Change contact state
@@ -427,8 +449,8 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
     // motivo non viaggiava nel salvataggio) o dopo aver scelto una fase persa
     // (la finestra del motivo non si apriva). Ora si usa quello già scritto,
     // e se non c'è si apre la finestra (BeMade/Suntech, Sonia, 16/09).
-    const motivoCategoria = lostCategory || opportunity.lost_reason_category || null;
-    const motivoDettaglio = lostReason || opportunity.lost_reason || opportunity.loss_reason || null;
+    const motivoCategoria = motivoCategoriaAttuale || null;
+    const motivoDettaglio = motivoDettaglioAttuale || null;
     if (status === "lost" && !motivoCategoria && !motivoDettaglio) {
       setPendingLostStatus("lost");
       riprendiSalvataggio.current = true;
@@ -555,9 +577,12 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
    */
   const apriMotivoPerdita = (statoPerdita: string) => {
     setPendingLostStatus(statoPerdita);
-    setLostCategory(lostCategory || opportunity.lost_reason_category || "");
-    setLostReason(lostReason || opportunity.lost_reason || opportunity.loss_reason || "");
-    setCompetitorWon(competitorWon || opportunity.competitor_won || "");
+    // Si parte SEMPRE da quello salvato su QUESTA opportunità, mai da quello
+    // rimasto in memoria da un'altra o da una apertura precedente.
+    setLostCategory(opportunity.lost_reason_category || "");
+    setLostReason(opportunity.lost_reason || opportunity.loss_reason || "");
+    setCompetitorWon(opportunity.competitor_won || "");
+    setMotivoToccato(true);
     setShowLostDialog(true);
   };
 
@@ -1591,7 +1616,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
     </AlertDialog>
 
     {/* SALES OS: Dialog motivo perdita */}
-    <Dialog open={showLostDialog} onOpenChange={setShowLostDialog}>
+    <Dialog open={showLostDialog} onOpenChange={(o) => { setShowLostDialog(o); if (!o) azzeraMotivoPerdita(); }}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -1624,7 +1649,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => { riprendiSalvataggio.current = false; setShowLostDialog(false); }}>
+          <Button variant="outline" onClick={() => { setShowLostDialog(false); azzeraMotivoPerdita(); }}>
             Annulla
           </Button>
           <Button
