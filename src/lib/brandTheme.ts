@@ -10,6 +10,8 @@
  * Nessun altro hook deve scrivere queste variabili.
  */
 
+import { garantisciContrasto, tintaChiara } from "./brandPalette";
+
 export interface BrandThemeColors {
   primaryColor: string;
   accentColor: string;
@@ -75,7 +77,39 @@ const THEME_VARS = [
   "--sidebar-primary-foreground",
   "--sidebar-ring",
   "--sidebar-accent",
+  "--sidebar-accent-foreground",
 ] as const;
+
+/**
+ * I colori effettivamente applicati. Il brand arriva dall'azienda e può avere
+ * un contrasto scarso (un verde lime con testo bianco): qui si corregge SENZA
+ * cambiare i dati salvati, tenendo la tinta e regolando solo la luminosità.
+ *   · primario: scurito finché il testo sopra si legge (4.5:1);
+ *   · evidenziazione della barra: se non è un fondo chiaro si usa una tinta
+ *     delicata del primario, altrimenti le voci attive escono illeggibili;
+ *   · testo sulla voce evidenziata: il primario scurito fino a un contrasto alto.
+ */
+export function coloriApplicati(colors: BrandThemeColors): {
+  primary: string | null;
+  textOnPrimary: string;
+  sidebarAccent: string | null;
+  accentText: string | null;
+} {
+  const testo = isValidHexColor(colors.textOnPrimary) ? colors.textOnPrimary : "#FFFFFF";
+  const primary = isValidHexColor(colors.primaryColor)
+    ? garantisciContrasto(colors.primaryColor, testo, 4.5)
+    : null;
+  let sidebarAccent: string | null = null;
+  if (isValidHexColor(colors.accentColor)) {
+    sidebarAccent = perceivedLightness(colors.accentColor) >= 0.85
+      ? colors.accentColor
+      : (primary ? tintaChiara(primary) : null);
+  } else if (primary) {
+    sidebarAccent = tintaChiara(primary);
+  }
+  const accentText = primary && sidebarAccent ? garantisciContrasto(primary, sidebarAccent, 7) : primary;
+  return { primary, textOnPrimary: testo, sidebarAccent, accentText };
+}
 
 /**
  * Applica i colori brand alle variabili tema. I valori non validi vengono
@@ -84,29 +118,33 @@ const THEME_VARS = [
  */
 export function applyBrandTheme(colors: BrandThemeColors): void {
   const root = document.documentElement;
+  const c = coloriApplicati(colors);
 
-  const primary = hexToHslComponents(colors.primaryColor);
+  const primary = c.primary ? hexToHslComponents(c.primary) : null;
   if (primary) {
     root.style.setProperty("--primary", primary);
     root.style.setProperty("--ring", primary);
     root.style.setProperty("--sidebar-primary", primary);
     root.style.setProperty("--sidebar-ring", primary);
 
-    const fg = hexToHslComponents(colors.textOnPrimary) ?? "0 0% 100%";
+    const fg = hexToHslComponents(c.textOnPrimary) ?? "0 0% 100%";
     root.style.setProperty("--primary-foreground", fg);
     root.style.setProperty("--sidebar-primary-foreground", fg);
   }
 
-  const accent = hexToHslComponents(colors.accentColor);
-  if (accent) {
-    root.style.setProperty("--accent", accent);
-    root.style.setProperty("--sidebar-accent", accent);
-    // Testo leggibile sull'accent: scuro se il fondo è chiaro, bianco se scuro
-    if (isValidHexColor(colors.accentColor)) {
-      const accentFg = perceivedLightness(colors.accentColor) > 0.6
-        ? (primary ?? "222 47% 11%")
-        : "0 0% 100%";
-      root.style.setProperty("--accent-foreground", accentFg);
+  // Le voci evidenziate (barra laterale, hover) restano coerenti con la tinta
+  // scelta. Nel tema scuro si lasciano i colori del tema: sono fondi scuri.
+  const scuro = root.classList.contains("dark");
+  if (c.sidebarAccent && !scuro) {
+    const accent = hexToHslComponents(c.sidebarAccent);
+    if (accent) {
+      root.style.setProperty("--accent", accent);
+      root.style.setProperty("--sidebar-accent", accent);
+      const accentFg = c.accentText ? hexToHslComponents(c.accentText) : null;
+      if (accentFg) {
+        root.style.setProperty("--accent-foreground", accentFg);
+        root.style.setProperty("--sidebar-accent-foreground", accentFg);
+      }
     }
   }
 }

@@ -22,7 +22,8 @@ import {
   useVerifyCustomDomain,
   useRemoveCustomDomain,
 } from "@/hooks/useBrandingByDomain";
-import { isValidHexColor } from "@/lib/brandTheme";
+import { isValidHexColor, coloriApplicati } from "@/lib/brandTheme";
+import { coloreDelLogo, paletteDaColore } from "@/lib/brandPalette";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useQueryClient } from "@tanstack/react-query";
@@ -33,7 +34,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
@@ -42,7 +42,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   Loader2, Upload, Palette, Lock, HeadphonesIcon, Globe, Copy,
-  CheckCircle2, RefreshCw, Image as ImageIcon,
+  CheckCircle2, RefreshCw, Image as ImageIcon, Wand2,
 } from "lucide-react";
 import { LogoUploader } from "@/components/settings/LogoUploader";
 
@@ -138,31 +138,53 @@ function HexColorInput({
   );
 }
 
-/** Anteprima statica dei colori scelti — non tocca il tema globale finché non salvi. */
-function PalettePreview({ primary, accent, textOnPrimary }: { primary: string; accent: string; textOnPrimary: string }) {
-  const safePrimary = isValidHexColor(primary) ? primary : "#1E40AF";
-  const safeAccent = isValidHexColor(accent) ? accent : "#DBEAFE";
-  const safeText = isValidHexColor(textOnPrimary) ? textOnPrimary : "#FFFFFF";
+/**
+ * Anteprima di come verrà la piattaforma: mini barra laterale con una voce
+ * attiva, un bottone e un link. Usa gli stessi colori che il tema applica
+ * davvero (coloriApplicati), quindi quello che vedi qui è quello che vedranno
+ * i tuoi utenti. Non tocca il tema globale finché non salvi.
+ */
+function AnteprimaPiattaforma({
+  primary, accent, textOnPrimary, logoUrl, nome,
+}: { primary: string; accent: string; textOnPrimary: string; logoUrl?: string | null; nome: string }) {
+  const c = coloriApplicati({ primaryColor: primary, accentColor: accent, textOnPrimary });
+  const p = c.primary ?? "#1E40AF";
+  const att = c.sidebarAccent ?? "#DBEAFE";
+  const attTesto = c.accentText ?? p;
+  const scurito = isValidHexColor(primary) && c.primary && c.primary.toLowerCase() !== primary.toLowerCase();
   return (
-    <div className="rounded-lg border p-4 space-y-3 bg-muted/20">
-      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Anteprima</p>
-      <div className="flex items-center gap-2 flex-wrap">
-        <span
-          className="inline-flex items-center rounded-md px-3 py-1.5 text-sm font-medium shadow-sm"
-          style={{ backgroundColor: safePrimary, color: safeText }}
-        >
-          Bottone primario
-        </span>
-        <span
-          className="inline-flex items-center rounded-md px-3 py-1.5 text-sm border"
-          style={{ backgroundColor: safeAccent, color: safePrimary }}
-        >
-          Voce evidenziata
-        </span>
-        <span className="text-sm font-medium" style={{ color: safePrimary }}>
-          Link e icone
-        </span>
+    <div className="space-y-2">
+      <div className="flex overflow-hidden rounded-lg border bg-white text-slate-700">
+        <div className="w-40 shrink-0 space-y-1 border-r bg-white p-2.5">
+          <div className="mb-2 flex h-7 items-center">
+            {logoUrl ? (
+              <img src={logoUrl} alt="" className="max-h-7 max-w-full object-contain" />
+            ) : (
+              <span className="truncate text-xs font-semibold" style={{ color: p }}>{nome || "La tua azienda"}</span>
+            )}
+          </div>
+          <div className="rounded-md px-2 py-1.5 text-xs font-medium" style={{ backgroundColor: att, color: attTesto }}>
+            Commesse
+          </div>
+          <div className="rounded-md px-2 py-1.5 text-xs">Clienti</div>
+          <div className="rounded-md px-2 py-1.5 text-xs">Calendario</div>
+        </div>
+        <div className="flex flex-1 flex-col items-start justify-center gap-3 bg-slate-50 p-4">
+          <span
+            className="inline-flex items-center rounded-md px-3 py-1.5 text-sm font-medium shadow-sm"
+            style={{ backgroundColor: p, color: c.textOnPrimary }}
+          >
+            Nuova commessa
+          </span>
+          <span className="text-sm font-medium" style={{ color: p }}>Vedi tutte le commesse →</span>
+        </div>
       </div>
+      {scurito && (
+        <p className="text-[11px] text-muted-foreground">
+          Il colore scelto è troppo chiaro per il testo bianco: per tenerlo leggibile nei bottoni
+          viene usato un tono più scuro della stessa tinta ({c.primary}).
+        </p>
+      )}
     </div>
   );
 }
@@ -186,6 +208,7 @@ export default function SettingsBranding() {
   const [confirmRemoveSub, setConfirmRemoveSub] = useState(false);
   const [confirmResetSystem, setConfirmResetSystem] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [leggendoLogo, setLeggendoLogo] = useState(false);
 
   const saveSubdomainMut = useSaveSubdomain(companyId);
   const requestVerifMut = useRequestDomainVerification(companyId);
@@ -378,6 +401,33 @@ export default function SettingsBranding() {
     }
   };
 
+  // Si salva il colore COME LO HA SCELTO (o come è nel logo): il tono scurito per
+  // la leggibilità lo applica il tema in esecuzione (coloriApplicati), non i dati.
+  const coloriDaPalette = (p: ReturnType<typeof paletteDaColore>) => ({
+    brand_primary_color: p.secondary,
+    brand_secondary_color: p.secondary,
+    brand_accent_color: p.accent,
+    brand_text_on_primary: p.textOnPrimary,
+  });
+
+  /** Prende la tinta dominante del logo e ne ricava la palette (poi si salva col bottone in basso). */
+  const usaColoriDelLogo = async () => {
+    const url = effectiveCompany?.logo_url;
+    if (!url) return;
+    setLeggendoLogo(true);
+    try {
+      const colore = await coloreDelLogo(url);
+      if (!colore) {
+        toast.error("Nel logo non trovo un colore del marchio (è tutto bianco, nero o grigio). Scegli il colore a mano.");
+        return;
+      }
+      setForm((f) => ({ ...f, ...coloriDaPalette(paletteDaColore(colore)) }));
+      toast.success(`Colore del logo: ${colore}. Controlla l'anteprima e salva.`);
+    } finally {
+      setLeggendoLogo(false);
+    }
+  };
+
   const handleFileUpload = async (file: File, field: string, path: string) => {
     if (!canEdit) {
       toast.error("Non hai i permessi per modificare il branding");
@@ -564,46 +614,21 @@ export default function SettingsBranding() {
         <>
           <div className="flex items-center gap-2">
             <h2 className="text-lg font-semibold flex items-center gap-2">
-              <Palette className="h-5 w-5" /> Brand Personalizzato
+              <Palette className="h-5 w-5" /> Brand personalizzato
             </h2>
-            <Badge className="bg-emerald-500/10 text-emerald-700 border-emerald-200">ATTIVO</Badge>
-            {wlGate.tier !== "none" && (
-              <Badge variant="outline" className="text-[10px]">Tier: {wlGate.name || wlGate.tier}</Badge>
-            )}
+            <Badge className="bg-emerald-500/10 text-emerald-700 border-emerald-200">Attivo</Badge>
           </div>
 
-          {/* ═════ LAYOUT FULL-WIDTH (preview colori rimossa: la palette è in arrivo) ═ */}
           <div className="space-y-6">
-              {/* Nome piattaforma */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Nome piattaforma</CardTitle>
-                  <CardDescription>
-                    Sostituisce "EdiliziaInCloud" in navbar e titolo browser. Lascia vuoto per il default.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Input
-                    value={form.brand_platform_name}
-                    onChange={(e) => setForm((f) => ({ ...f, brand_platform_name: e.target.value }))}
-                    placeholder="EdiliziaInCloud"
-                    maxLength={50}
-                    disabled={!canEdit}
-                  />
-                </CardContent>
-              </Card>
-
-              {/* Palette colori — i valori HEX vengono convertiti in HSL e
-                  applicati alle variabili del design system (--primary, --accent,
-                  sidebar) da applyBrandTheme nei layout. */}
+              {/* 1 · COLORI — si sceglie UN colore (o si prende dal logo) e il resto si ricava da solo. */}
               <Card>
                 <CardHeader>
                   <CardTitle className="text-base flex items-center gap-2">
-                    <Palette className="h-4 w-4 text-muted-foreground" /> Palette colori
+                    <Palette className="h-4 w-4 text-muted-foreground" /> Colori
                   </CardTitle>
                   <CardDescription>
-                    Il colore primario viene applicato a bottoni, link, icone e voci attive
-                    della piattaforma. Le modifiche sono visibili subito dopo il salvataggio.
+                    Scegli il colore del tuo marchio: bottoni, link e voci attive della piattaforma
+                    si adattano da soli, restando sempre leggibili.
                   </CardDescription>
                   {!canChangeColors && (
                     <CardDescription className="text-amber-600">
@@ -611,144 +636,155 @@ export default function SettingsBranding() {
                     </CardDescription>
                   )}
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid gap-4 sm:grid-cols-3">
+                <CardContent className="space-y-5">
+                  <div className="flex flex-wrap items-end gap-4">
                     <HexColorInput
-                      label="Colore primario"
+                      label="Colore del marchio"
                       value={form.brand_primary_color}
-                      onChange={(v) => setForm((f) => ({ ...f, brand_primary_color: v }))}
+                      onChange={(v) => setForm((f) => (
+                        isValidHexColor(v)
+                          ? { ...f, ...coloriDaPalette(paletteDaColore(v)) }
+                          : { ...f, brand_primary_color: v }
+                      ))}
                       disabled={!canEdit || !canChangeColors}
-                      hint="Bottoni, link, icone"
                     />
-                    <HexColorInput
-                      label="Colore evidenziazione"
-                      value={form.brand_accent_color}
-                      onChange={(v) => setForm((f) => ({ ...f, brand_accent_color: v }))}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={!canEdit || !canChangeColors || !effectiveCompany?.logo_url || leggendoLogo}
+                      onClick={usaColoriDelLogo}
+                    >
+                      {leggendoLogo ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Wand2 className="h-4 w-4 mr-2" />}
+                      Usa i colori del logo
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       disabled={!canEdit || !canChangeColors}
-                      hint="Sfondo voci attive e hover"
-                    />
-                    <HexColorInput
-                      label="Testo su primario"
-                      value={form.brand_text_on_primary}
-                      onChange={(v) => setForm((f) => ({ ...f, brand_text_on_primary: v }))}
-                      disabled={!canEdit || !canChangeColors}
-                      hint="Di solito bianco"
-                    />
+                      onClick={() => setForm((f) => ({ ...f, ...coloriDaPalette(paletteDaColore("#1E40AF")) }))}
+                    >
+                      Colori di EdiliziaInCloud
+                    </Button>
                   </div>
-                  <PalettePreview
+
+                  <AnteprimaPiattaforma
                     primary={form.brand_primary_color}
                     accent={form.brand_accent_color}
                     textOnPrimary={form.brand_text_on_primary}
+                    logoUrl={effectiveCompany?.logo_url}
+                    nome={form.brand_platform_name || effectiveCompany?.name || ""}
                   />
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={!canEdit || !canChangeColors}
-                    onClick={() => setForm((f) => ({
-                      ...f,
-                      brand_primary_color: "#1E40AF",
-                      brand_secondary_color: "#3B82F6",
-                      brand_accent_color: "#DBEAFE",
-                      brand_text_on_primary: "#FFFFFF",
-                    }))}
-                  >
-                    Ripristina colori predefiniti
-                  </Button>
+
+                  <details className="rounded-lg border px-4 py-3 text-sm">
+                    <summary className="cursor-pointer select-none font-medium">Regola i dettagli</summary>
+                    <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                      <HexColorInput
+                        label="Sfondo delle voci attive"
+                        value={form.brand_accent_color}
+                        onChange={(v) => setForm((f) => ({ ...f, brand_accent_color: v }))}
+                        disabled={!canEdit || !canChangeColors}
+                        hint="Barra laterale e hover: un tono molto chiaro"
+                      />
+                      <HexColorInput
+                        label="Testo sui bottoni"
+                        value={form.brand_text_on_primary}
+                        onChange={(v) => setForm((f) => ({ ...f, brand_text_on_primary: v }))}
+                        disabled={!canEdit || !canChangeColors}
+                        hint="Bianco o quasi nero, secondo il colore"
+                      />
+                    </div>
+                  </details>
                 </CardContent>
               </Card>
 
-              {/* Logo versione chiara — per copertine/sfondi scuri dei preventivi.
-                  Vive qui (Brand & Azienda), non più dentro i singoli template. */}
+              {/* 2 · NOME E IMMAGINI */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">Logo — versione chiara (sfondo scuro)</CardTitle>
-                  <CardDescription className="text-xs">
-                    Versione bianca/chiara del logo, usata sulle copertine dei preventivi con sfondo scuro.
-                    Se vuota, viene usato il logo principale.
+                  <CardTitle className="text-base">Nome e immagini</CardTitle>
+                  <CardDescription>
+                    Come si presenta la piattaforma ai tuoi utenti e ai tuoi clienti.
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="h-16 w-32 rounded border bg-slate-900 flex items-center justify-center p-2">
-                    {brand?.brand_logo_dark_url ? (
-                      <img loading="lazy" src={brand.brand_logo_dark_url} alt="Logo versione chiara" className="h-full w-full object-contain" />
-                    ) : (
-                      <span className="text-[9px] text-slate-400 text-center leading-tight px-1">Nessuno · usa il logo principale</span>
-                    )}
-                  </div>
-                  <FileUploadButton
-                    label={brand?.brand_logo_dark_url ? "Cambia logo chiaro" : "Carica logo chiaro"}
-                    isUploading={uploading === "brand_logo_dark_url"}
-                    onUpload={(f) => handleFileUpload(f, "brand_logo_dark_url", "logo-dark")}
-                    accept="image/png,image/svg+xml,image/webp"
-                    disabled={!canEdit}
-                  />
-                </CardContent>
-              </Card>
-
-              {/* Favicon + Login BG: grid 2-col */}
-              <div className="grid gap-6 sm:grid-cols-2">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">Favicon</CardTitle>
-                    <CardDescription className="text-xs">Icona del browser (64×64px, PNG/ICO/SVG)</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="h-10 w-10 rounded border bg-muted/30 flex items-center justify-center p-1">
-                      {brand?.brand_favicon_url ? (
-                        <img loading="lazy" src={brand.brand_favicon_url} alt="Favicon" className="h-full w-full object-contain" />
-                      ) : (
-                        <span className="text-[9px] text-muted-foreground">Vuoto</span>
-                      )}
-                    </div>
-                    <FileUploadButton
-                      label="Carica favicon"
-                      isUploading={uploading === "brand_favicon_url"}
-                      onUpload={(f) => handleFileUpload(f, "brand_favicon_url", "favicon")}
-                      accept="image/png,image/x-icon,image/svg+xml"
+                <CardContent className="space-y-6">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="bnd-name">Nome della piattaforma</Label>
+                    <Input
+                      id="bnd-name"
+                      value={form.brand_platform_name}
+                      onChange={(e) => setForm((f) => ({ ...f, brand_platform_name: e.target.value }))}
+                      placeholder="EdiliziaInCloud"
+                      maxLength={50}
                       disabled={!canEdit}
                     />
-                  </CardContent>
-                </Card>
+                    <p className="text-xs text-muted-foreground">
+                      Sostituisce «EdiliziaInCloud» nella barra e nel titolo del browser. Vuoto = nome standard.
+                    </p>
+                  </div>
 
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">Sfondo login</CardTitle>
-                    <CardDescription className="text-xs">Opzionale (1920×1080px raccomandato)</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="h-16 w-full rounded border bg-muted/30 overflow-hidden flex items-center justify-center">
-                      {brand?.brand_login_bg_url ? (
-                        <img loading="lazy" src={brand.brand_login_bg_url} alt="" className="h-full w-full object-cover" />
-                      ) : (
-                        <span className="text-[10px] text-muted-foreground">Nessuno sfondo</span>
-                      )}
+                  <div className="grid gap-6 md:grid-cols-3">
+                    <div className="space-y-2">
+                      <Label>Logo chiaro</Label>
+                      <p className="text-xs text-muted-foreground">Versione bianca, per le copertine scure dei preventivi.</p>
+                      <div className="h-16 w-full rounded border bg-slate-900 flex items-center justify-center p-2">
+                        {brand?.brand_logo_dark_url ? (
+                          <img loading="lazy" src={brand.brand_logo_dark_url} alt="Logo versione chiara" className="h-full w-full object-contain" />
+                        ) : (
+                          <span className="text-[10px] text-slate-400 text-center leading-tight px-1">Si usa il logo principale</span>
+                        )}
+                      </div>
+                      <FileUploadButton
+                        label={brand?.brand_logo_dark_url ? "Cambia" : "Carica"}
+                        isUploading={uploading === "brand_logo_dark_url"}
+                        onUpload={(f) => handleFileUpload(f, "brand_logo_dark_url", "logo-dark")}
+                        accept="image/png,image/svg+xml,image/webp"
+                        disabled={!canEdit}
+                      />
                     </div>
-                    <FileUploadButton
-                      label="Carica sfondo"
-                      isUploading={uploading === "brand_login_bg_url"}
-                      onUpload={(f) => handleFileUpload(f, "brand_login_bg_url", "login-bg")}
-                      disabled={!canEdit || !canLoginPage}
-                    />
-                    {!canLoginPage && (
-                      <p className="text-[10px] text-amber-600">Non incluso nel tuo tier</p>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
 
-              {/* Opzioni avanzate */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Opzioni avanzate</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center justify-between gap-4">
+                    <div className="space-y-2">
+                      <Label>Icona del browser</Label>
+                      <p className="text-xs text-muted-foreground">Quadrata, 64×64 px (PNG, ICO o SVG).</p>
+                      <div className="h-16 w-16 rounded border bg-muted/30 flex items-center justify-center p-1.5">
+                        {brand?.brand_favicon_url ? (
+                          <img loading="lazy" src={brand.brand_favicon_url} alt="Favicon" className="h-full w-full object-contain" />
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground">Vuota</span>
+                        )}
+                      </div>
+                      <FileUploadButton
+                        label={brand?.brand_favicon_url ? "Cambia" : "Carica"}
+                        isUploading={uploading === "brand_favicon_url"}
+                        onUpload={(f) => handleFileUpload(f, "brand_favicon_url", "favicon")}
+                        accept="image/png,image/x-icon,image/svg+xml"
+                        disabled={!canEdit}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Sfondo della pagina di accesso</Label>
+                      <p className="text-xs text-muted-foreground">Facoltativo, 1920×1080 px.</p>
+                      <div className="h-16 w-full rounded border bg-muted/30 overflow-hidden flex items-center justify-center">
+                        {brand?.brand_login_bg_url ? (
+                          <img loading="lazy" src={brand.brand_login_bg_url} alt="" className="h-full w-full object-cover" />
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground">Nessuno sfondo</span>
+                        )}
+                      </div>
+                      <FileUploadButton
+                        label={brand?.brand_login_bg_url ? "Cambia" : "Carica"}
+                        isUploading={uploading === "brand_login_bg_url"}
+                        onUpload={(f) => handleFileUpload(f, "brand_login_bg_url", "login-bg")}
+                        disabled={!canEdit || !canLoginPage}
+                      />
+                      {!canLoginPage && <p className="text-[10px] text-amber-600">Non incluso nel tuo tier</p>}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-4 border-t pt-4">
                     <div className="min-w-0">
-                      <Label htmlFor="bnd-hide-pby">Nascondi "Powered by EdiliziaInCloud"</Label>
-                      <p className="text-xs text-muted-foreground">Rimuove il riferimento alla piattaforma nel footer e nelle email</p>
-                      {!canHidePoweredBy && (
-                        <p className="text-[10px] text-amber-600 mt-1">Non incluso nel tuo tier</p>
-                      )}
+                      <Label htmlFor="bnd-hide-pby">Nascondi «Powered by EdiliziaInCloud»</Label>
+                      <p className="text-xs text-muted-foreground">Toglie il riferimento alla piattaforma dal footer e dalle email.</p>
+                      {!canHidePoweredBy && <p className="text-[10px] text-amber-600 mt-1">Non incluso nel tuo tier</p>}
                     </div>
                     <Switch
                       id="bnd-hide-pby"
@@ -760,7 +796,8 @@ export default function SettingsBranding() {
                 </CardContent>
               </Card>
 
-              <Separator />
+              {/* 3 · INDIRIZZO WEB */}
+              <h3 className="pt-2 text-base font-semibold">Indirizzo web</h3>
 
               {/* Subdomain */}
               <Card>
@@ -966,29 +1003,21 @@ export default function SettingsBranding() {
                   )}
                 </CardContent>
               </Card>
-              {/* Ripristino impostazioni di sistema */}
-              <Card className="border-dashed">
-                <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <RefreshCw className="h-4 w-4 text-muted-foreground" /> Ripristina impostazioni di sistema
-                  </CardTitle>
-                  <CardDescription>
-                    Riporta colori, nome piattaforma e "Powered by" all'aspetto originale di
-                    EdiliziaInCloud. Logo, favicon, subdomain e dominio personalizzato non vengono toccati.
-                    Potrai riattivare il tuo brand in qualsiasi momento salvando di nuovo.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button
-                    variant="outline"
-                    disabled={!canEdit || resetting || saving}
-                    onClick={() => setConfirmResetSystem(true)}
-                  >
-                    {resetting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-                    Ripristina aspetto di sistema
-                  </Button>
-                </CardContent>
-              </Card>
+              {/* Ripristino */}
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed px-4 py-3">
+                <p className="text-sm text-muted-foreground">
+                  Vuoi tornare all'aspetto originale? Cambiano colori, nome e «Powered by»; logo, icona e indirizzi restano.
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!canEdit || resetting || saving}
+                  onClick={() => setConfirmResetSystem(true)}
+                >
+                  {resetting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                  Ripristina aspetto standard
+                </Button>
+              </div>
           </div>
 
           {/* Save bar sticky in basso */}
