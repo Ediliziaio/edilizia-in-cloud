@@ -13,7 +13,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { cn } from "@/lib/utils";
 import {
   Inbox, Mailbox, Mail, Search, ChevronLeft, MessageSquare, AlertTriangle, Building2,
-  Send, Loader2, Wand2, CheckCheck, Archive, Layers,
+  Send, Loader2, Wand2, CheckCheck, Archive, Layers, Paperclip,
   User, Phone, Tag, ShieldBan, Pause, Play, ThumbsUp, ThumbsDown, Clock, Briefcase,
   Activity, ShieldCheck, Check, XCircle, Ban, MessageSquareReply, X, CalendarClock, GitBranch, Sparkles,
   AlarmClock, AlarmClockOff, Eye, PenSquare, SlidersHorizontal, MoreHorizontal, CornerUpLeft, PanelRightClose,
@@ -32,7 +32,7 @@ import { OutreachNewMailDialog } from "./OutreachNewMailDialog";
 import {
   INTENT_META, ENROLLMENT_STATUS_META, type Conversation, type DateFilter,
   type SequenceOption, type LeadContext, type LeadSequence, type MsgDelivery, type AiSummary,
-  type SnoozePreset, type SenderRow, type ThreadMsg, type BrandRow, contactName, iniziali, relativeTime, fullTime,
+  type SnoozePreset, type SenderRow, type ThreadMsg, type AllegatoRisposta, type BrandRow, contactName, iniziali, relativeTime, fullTime,
   providerLabel, senderStatusColor, stripHtml, snoozeUntil, dateFilterFloor,
   useOutreachConversations, useReplyComposer, useLeadContext, useLeadActions, isEnrollmentLive,
 } from "./useOutreachConversations";
@@ -45,6 +45,7 @@ import { avatarTint } from "./outreachAvatar";
 import { useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 /**
  * OutreachMailClient — la Posta del cold outreach (tab «Posta» dell'Outreach Engine).
@@ -1367,8 +1368,45 @@ function ThreadBubble({ msg, showSubject, casella }: { msg: ThreadMsg; showSubje
           // Risposte: testo/snippet grezzo → niente HTML non fidato.
           <p className={cn("whitespace-pre-wrap break-words text-sm", automatica ? "text-muted-foreground" : "text-foreground")}>{msg.body || "—"}</p>
         )}
+        {!out && msg.allegati && msg.allegati.length > 0 && <AllegatiRisposta allegati={msg.allegati} />}
         <div className="mt-1.5 text-right text-[10px] tabular-nums text-muted-foreground">{fullTime(msg.at)}</div>
       </div>
+    </div>
+  );
+}
+
+/** Gli allegati mandati da chi risponde: un clic e si apre il file (link firmato, valido 10 minuti). */
+function AllegatiRisposta({ allegati }: { allegati: AllegatoRisposta[] }) {
+  const [apertura, setApertura] = useState<string | null>(null);
+  const apri = async (a: AllegatoRisposta) => {
+    setApertura(a.path);
+    try {
+      const { data, error } = await supabase.storage.from(a.bucket).createSignedUrl(a.path, 600);
+      if (error || !data?.signedUrl) throw error ?? new Error("link non disponibile");
+      window.open(data.signedUrl, "_blank", "noopener");
+    } catch {
+      toast.error("Non riesco ad aprire l'allegato");
+    } finally {
+      setApertura(null);
+    }
+  };
+  const peso = (n: number) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
+  return (
+    <div className="mt-2 flex flex-wrap gap-1.5 border-t pt-2">
+      {allegati.map((a) => (
+        <button
+          key={a.path}
+          type="button"
+          onClick={() => apri(a)}
+          disabled={apertura === a.path}
+          className="inline-flex max-w-full items-center gap-1.5 rounded-md border bg-muted/40 px-2 py-1 text-xs hover:bg-muted disabled:opacity-60"
+          title={a.filename}
+        >
+          {apertura === a.path ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Paperclip className="h-3.5 w-3.5" />}
+          <span className="truncate">{a.filename}</span>
+          <span className="shrink-0 text-muted-foreground">{peso(a.size)}</span>
+        </button>
+      ))}
     </div>
   );
 }

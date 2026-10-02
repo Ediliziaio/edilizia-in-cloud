@@ -41,6 +41,7 @@ import { idsCitati, scegliInvio, scegliIscrizione, testoInvito, type InvioFatto 
 import { parseBounce, type BounceInfo } from "../_shared/outreach-bounce.ts";
 import { htmlToPlainText } from "../_shared/outreach-template.ts";
 import { shouldAutoPause } from "../_shared/outreach-dispatch-logic.ts";
+import { salvaAllegatiRisposta } from "../_shared/outreachAllegati.ts";
 import { alertOutreach, logRun } from "../_shared/outreachAlert.ts";
 
 import { serveConMetricheRapida } from "../_shared/withMetricsRapida.ts";
@@ -64,6 +65,7 @@ interface MsgIn {
   inReplyTo: string | null;
   references: string[];
   headers: Record<string, string>;
+  allegati?: Array<{ filename: string; mime: string; contentBase64: string }>;
 }
 
 /** Estrae l'indirizzo bare da "Nome <email@x.com>" o "email@x.com". Lowercase. */
@@ -226,6 +228,7 @@ async function processa(admin: any, mb: Casella, msg: MsgIn, poolEmails?: Set<st
     brandId, senderAccountId: mb.id, invito: testoInvito(scelta, mb.email), invioId: scelta?.invio.id ?? null,
     from: msg.from, subject: msg.subject, text: msg.text, messageId: msg.messageId, headers: msg.headers,
     casella: mb.email,
+    allegati: await salvaAllegatiRisposta(admin, msg.messageId, msg.allegati),
   });
   return "risposta";
 }
@@ -294,7 +297,7 @@ serveConMetricheRapida("outreach-imap-poll", async (req) => {
             conta(await processa(admin, mb, {
               messageId: m.messageId || null, from: m.from, subject: m.subject,
               text: m.text || (m.html ? htmlToPlainText(m.html) : ""),
-              inReplyTo: m.inReplyTo, references: m.references ?? [], headers: m.headers ?? {},
+              inReplyTo: m.inReplyTo, references: m.references ?? [], headers: m.headers ?? {}, allegati: m.attachments,
             }, poolEmails));
           } catch (e) { esito.errors.push(`${mb.email}/${m.uid}: ${e instanceof Error ? e.message : String(e)}`); }
         }
