@@ -1,4 +1,4 @@
-import { EMAIL_PREFIX_TYPES } from "./automationEmail.ts";
+import { EMAIL_PREFIX_TYPES, EMAIL_RECORD_FIELDS } from "./automationEmail.ts";
 
 /** Synthetic examples only: never reads contact data or produces actionable links. */
 export function automationEmailSampleValues(now = new Date()): Record<string, string> {
@@ -25,6 +25,16 @@ export function automationEmailSampleValues(now = new Date()): Record<string, st
     task: { title: "Richiamare il cliente (esempio)", priority: "medium", due_date: date, status: "pending" },
     ticket: { subject: "Richiesta di esempio", priority: "medium", category: "assistenza", status: "open" },
   };
+  // Ogni campo che il motore sa risolvere ha un esempio: quelli non scritti sopra
+  // ricevono un valore generico (una data per i campi data), così un campo nuovo
+  // non resta senza anteprima.
+  for (const [type, campi] of Object.entries(EMAIL_RECORD_FIELDS)) {
+    records[type] ??= {};
+    for (const campo of campi) {
+      if (campo in records[type]) continue;
+      records[type][campo] = /(_at|_date|^date|scadenza)$/.test(campo) ? date : "Esempio";
+    }
+  }
   const values: Record<string, string> = {};
   for (const [prefix, type] of Object.entries(EMAIL_PREFIX_TYPES)) {
     for (const [field, value] of Object.entries(records[type] ?? {})) values[`${prefix}.${field}`] = value;

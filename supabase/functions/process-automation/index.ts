@@ -4550,7 +4550,7 @@ async function variabiliAppuntamento(
 
   const oggi = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
   const base = () => supabase.from("appointments")
-    .select("id, title, appointment_date, appointment_time, appointment_end_time, meeting_url, formatted_address, manage_token, status")
+    .select("*")
     .eq(appointmentId ? "id" : "contact_id", appointmentId || contactId).eq("company_id", companyId);
 
   let { data: app, error } = appointmentId ? await base().maybeSingle() : await base()
@@ -4645,6 +4645,14 @@ async function resolveContactText(
     // «Rossi Serramenti» al posto di «ROSSI SERRAMENTI S.R.L.».
     azienda_breve: nomeAzienda(contact?.company_name),
   };
+  // Gli altri campi del contatto elencati nel dizionario di sistema (attribuzione
+  // campagna, consensi, punteggi, date…): erano nel dizionario ma non si
+  // risolvevano, e uscivano stampati come {{contact.attr_campaign}}.
+  for (const campo of EMAIL_RECORD_FIELDS.contact) {
+    if (Object.prototype.hasOwnProperty.call(map, campo)) continue;
+    const valore = contact?.[campo];
+    map[campo] = valore == null ? "" : Array.isArray(valore) ? valore.join(", ") : String(valore);
+  }
 
   // Appuntamento: si legge solo se il testo lo nomina davvero, per non fare
   // una query in più su ogni email che non ne ha bisogno.
