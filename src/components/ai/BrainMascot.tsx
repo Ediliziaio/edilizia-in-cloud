@@ -193,13 +193,13 @@ export function BrainMascot({ memories, personas, crossPersonaLinks, onNodeClick
     <div className={cn("absolute bottom-3 right-3 z-30 max-w-xs pointer-events-auto animate-in slide-in-from-bottom-2 fade-in duration-500", className)}>
       <div
         className={cn(
-          "group relative bg-gradient-to-br from-orange-500 to-amber-500 rounded-2xl shadow-2xl shadow-orange-500/20 p-3 pr-7 cursor-pointer transition-all hover:shadow-orange-500/40 hover:scale-[1.02]",
+          "group relative bg-gradient-to-br from-orange-500 to-eic-amber-strong rounded-2xl shadow-2xl shadow-orange-500/20 p-3 pr-7 cursor-pointer transition-all hover:shadow-orange-500/40 hover:scale-[1.02]",
           fade && "opacity-0",
         )}
         onClick={handleClick}
       >
         {/* Coda fumetto */}
-        <div className="absolute -bottom-1.5 right-5 w-3 h-3 bg-gradient-to-br from-orange-500 to-amber-500 transform rotate-45" />
+        <div className="absolute -bottom-1.5 right-5 w-3 h-3 bg-gradient-to-br from-orange-500 to-eic-amber-strong transform rotate-45" />
 
         {/* Close button */}
         <button

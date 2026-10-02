@@ -3085,7 +3085,7 @@ function SectionHeader({
 }) {
   return (
     <div className="flex items-start gap-3 pt-3 pb-1 border-t-2 border-orange-100 first:border-t-0 first:pt-0">
-      <div className="h-9 w-9 rounded-full bg-gradient-to-br from-orange-500 to-amber-400 text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-sm">
+      <div className="h-9 w-9 rounded-full bg-gradient-to-br from-orange-500 to-eic-amber text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-sm">
         {number}
       </div>
       <div className="min-w-0 flex-1">

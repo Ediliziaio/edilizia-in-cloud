@@ -80,7 +80,7 @@ export function QuotePageHeader({
       <div className={cn("flex items-start justify-between gap-3 sm:gap-4 flex-wrap", azioniInRiga && "max-sm:flex-nowrap max-sm:items-center")}>
         <div className={cn("flex items-start gap-2.5 sm:gap-3 min-w-0 flex-1", titoloSoloDaComputer && "max-sm:hidden")}>
           {icon && (
-            <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white flex items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
+            <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white flex items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
               {icon}
             </div>
           )}
@@ -147,7 +147,7 @@ export function QuoteCard({
           {title && (
             <div className="min-w-0">
               <h3 className="text-[15px] font-bold text-slate-900 flex items-center gap-2.5">
-                <span className="block w-1 h-4 rounded-sm bg-gradient-to-b from-orange-500 to-amber-400" />
+                <span className="block w-1 h-4 rounded-sm bg-gradient-to-b from-orange-500 to-eic-amber" />
                 {icon && <span className="text-orange-500">{icon}</span>}
                 {title}
               </h3>
@@ -206,10 +206,10 @@ export function QuoteKpi({
   };
   const accentBar: Record<KpiVariant, string> = {
     default: "bg-slate-300",
-    orange: "bg-gradient-to-b from-orange-500 to-amber-400",
+    orange: "bg-gradient-to-b from-orange-500 to-eic-amber",
     green: "bg-emerald-500",
     red: "bg-red-500",
-    navy: "bg-[#1E3A5F]",
+    navy: "bg-eic-navy",
     blue: "bg-blue-500",
     slate: "bg-slate-400",
   };
@@ -218,7 +218,7 @@ export function QuoteKpi({
     orange: "text-orange-500",
     green: "text-emerald-500",
     red: "text-red-500",
-    navy: "text-[#1E3A5F]",
+    navy: "text-eic-navy",
     blue: "text-blue-500",
     slate: "text-slate-400",
   };
@@ -449,7 +449,7 @@ export function QuoteStepper({
                     !isCompleted &&
                     "bg-slate-100 border-slate-300 text-slate-500",
                   isActive &&
-                    "border-orange-500 text-white shadow-[0_2px_8px_rgba(249,115,22,0.4)] bg-gradient-to-br from-orange-500 to-amber-400",
+                    "border-orange-500 text-white shadow-[0_2px_8px_rgba(249,115,22,0.4)] bg-gradient-to-br from-orange-500 to-eic-amber",
                   isCompleted &&
                     "bg-emerald-600 border-emerald-600 text-white",
                 )}
@@ -476,7 +476,7 @@ export function QuoteStepper({
         </span>
         <div className="flex-1 max-w-[240px] h-1 bg-slate-200 rounded-full overflow-hidden">
           <div
-            className="h-full bg-gradient-to-r from-orange-500 to-amber-400 rounded-full transition-all duration-500"
+            className="h-full bg-gradient-to-r from-orange-500 to-eic-amber rounded-full transition-all duration-500"
             style={{ width: `${pct}%` }}
           />
         </div>
@@ -672,7 +672,7 @@ export function QuotePrimaryButton({
       disabled={loading || disabled}
       className={cn(
         "inline-flex items-center gap-2 font-bold rounded-lg text-white transition-all",
-        "bg-gradient-to-br from-orange-500 to-amber-400 shadow-[0_4px_12px_rgba(249,115,22,0.3)]",
+        "bg-gradient-to-br from-orange-500 to-eic-amber shadow-[0_4px_12px_rgba(249,115,22,0.3)]",
         "hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(249,115,22,0.4)]",
         "disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:shadow-none",
         sizeCls,

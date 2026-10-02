@@ -374,7 +374,7 @@ export default function Home() {
           <div className="my-4 flex justify-center">
             <Link
               to="/software-gestionale-edilizia/"
-              className="text-sm font-semibold text-[#F97415] hover:underline"
+              className="text-sm font-semibold text-eic-orange hover:underline"
             >
               Vedi tutte le 43 città →
             </Link>
@@ -428,7 +428,7 @@ export default function Home() {
               <Link
                 key={city.slug}
                 to={`/software-gestionale-edilizia-${city.slug}`}
-                className="rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:border-[#F97415] hover:text-[#F97415] md:text-sm"
+                className="rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:border-eic-orange hover:text-eic-orange md:text-sm"
               >
                 {city.name}
               </Link>

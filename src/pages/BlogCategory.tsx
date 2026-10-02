@@ -198,7 +198,7 @@ export default function BlogCategory() {
                 to={`/blog/categoria/${catSlug}`}
                 className={`whitespace-nowrap px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 flex-shrink-0 ${
                   catSlug === slug
-                    ? "bg-[#F97415] text-white shadow-md shadow-[#F97415]/30"
+                    ? "bg-eic-orange text-white shadow-md shadow-eic-orange/30"
                     : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                 }`}
               >
@@ -214,7 +214,7 @@ export default function BlogCategory() {
         {posts.length === 0 ? (
           <div className="text-center py-24">
             <p className="text-gray-400 text-lg">Nessun articolo in questa categoria.</p>
-            <Link to="/blog/" className="mt-4 inline-block text-[#F97415] font-medium hover:underline">
+            <Link to="/blog/" className="mt-4 inline-block text-eic-orange font-medium hover:underline">
               Vai al blog
             </Link>
           </div>
@@ -245,7 +245,7 @@ export default function BlogCategory() {
                       <Clock size={12} /> {featured.readTime} min
                     </span>
                   </div>
-                  <h2 className="text-2xl font-bold text-[#111111] mb-3 group-hover:text-[#F97415] transition-colors leading-snug">
+                  <h2 className="text-2xl font-bold text-[#111111] mb-3 group-hover:text-eic-orange transition-colors leading-snug">
                     {featured.title}
                   </h2>
                   <p className="text-gray-500 text-sm leading-relaxed mb-6 line-clamp-3">
@@ -253,7 +253,7 @@ export default function BlogCategory() {
                   </p>
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-gray-400">{formatDate(featured.publishedAt)}</span>
-                    <span className="flex items-center gap-1 text-[#F97415] font-semibold text-xs group-hover:gap-2 transition-all">
+                    <span className="flex items-center gap-1 text-eic-orange font-semibold text-xs group-hover:gap-2 transition-all">
                       Leggi <ArrowRight size={13} />
                     </span>
                   </div>
@@ -285,7 +285,7 @@ export default function BlogCategory() {
                       <Clock size={11} /> {post.readTime} min
                     </span>
                   </div>
-                  <h2 className="text-lg font-bold text-[#111111] mb-2 group-hover:text-[#F97415] transition-colors leading-snug line-clamp-2 flex-1">
+                  <h2 className="text-lg font-bold text-[#111111] mb-2 group-hover:text-eic-orange transition-colors leading-snug line-clamp-2 flex-1">
                     {post.title}
                   </h2>
                   <p className="text-gray-500 text-sm leading-relaxed mb-4 line-clamp-2">
@@ -293,7 +293,7 @@ export default function BlogCategory() {
                   </p>
                   <div className="flex items-center justify-between mt-auto">
                     <span className="text-xs text-gray-400">{formatDate(post.publishedAt)}</span>
-                    <span className="flex items-center gap-1 text-[#F97415] font-semibold text-xs group-hover:gap-2 transition-all">
+                    <span className="flex items-center gap-1 text-eic-orange font-semibold text-xs group-hover:gap-2 transition-all">
                       Leggi <ArrowRight size={13} />
                     </span>
                   </div>
@@ -316,7 +316,7 @@ export default function BlogCategory() {
           </p>
           <Link
             to="/demo/"
-            className="inline-flex items-center gap-2 px-8 py-4 rounded-full bg-[#F97415] text-white font-bold hover:bg-[#e8650e] hover:scale-105 transition-all duration-200 shadow-lg shadow-[#F97415]/30"
+            className="inline-flex items-center gap-2 px-8 py-4 rounded-full bg-eic-orange text-white font-bold hover:bg-eic-orange-dark hover:scale-105 transition-all duration-200 shadow-lg shadow-eic-orange/30"
           >
             Richiedi una Demo Gratuita <ArrowRight size={18} />
           </Link>

@@ -189,7 +189,7 @@ export function OnboardingChecklist() {
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <CardTitle className="text-base flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shrink-0">
+            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-eic-amber to-orange-500 flex items-center justify-center shrink-0">
               {isAllDone ? <Sparkles className="h-4 w-4 text-white" /> : <ListChecks className="h-4 w-4 text-white" />}
             </div>
             <span>{isAllDone ? "Sei pronto!" : "Inizia in 5 minuti"}</span>

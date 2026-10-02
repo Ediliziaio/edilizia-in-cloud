@@ -1148,7 +1148,7 @@ export default function SilvioAIPage() {
           onClick={handleNuova}
           title="Nuova chat"
           aria-label="Nuova chat"
-          className="h-9 w-9 flex items-center justify-center rounded-lg bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow hover:from-orange-600 hover:to-amber-500"
+          className="h-9 w-9 flex items-center justify-center rounded-lg bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow hover:from-orange-600 hover:to-amber-500"
         >
           <SquarePen className="h-4 w-4" />
         </button>
@@ -1333,7 +1333,7 @@ export default function SilvioAIPage() {
               </p>
               <button
                 onClick={handleNuova}
-                className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-br from-orange-500 to-amber-400 px-3 py-2 text-sm font-semibold text-white shadow hover:from-orange-600 hover:to-amber-500"
+                className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-br from-orange-500 to-eic-amber px-3 py-2 text-sm font-semibold text-white shadow hover:from-orange-600 hover:to-amber-500"
               >
                 <Plus className="h-4 w-4" /> Avvia una nuova chat
               </button>

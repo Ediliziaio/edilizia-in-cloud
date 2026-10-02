@@ -23,7 +23,7 @@ const openModal = () => {
 function Cell({ cell, highlight = false }: { cell: TableCell; highlight?: boolean }) {
   if (cell.type === "check") {
     return (
-      <div className={`flex items-center justify-center ${highlight ? "text-[#F97415]" : "text-[#F97415]"}`}>
+      <div className={`flex items-center justify-center ${highlight ? "text-eic-orange" : "text-eic-orange"}`}>
         <CheckCircle2 className="w-5 h-5" />
       </div>
     );
@@ -44,7 +44,7 @@ function Cell({ cell, highlight = false }: { cell: TableCell; highlight?: boolea
     );
   }
   return (
-    <span className={`text-sm ${highlight ? "font-semibold text-[#F97415]" : "text-[#111111]"}`}>
+    <span className={`text-sm ${highlight ? "font-semibold text-eic-orange" : "text-[#111111]"}`}>
       {cell.text}
     </span>
   );
@@ -416,12 +416,12 @@ export default function Confronto() {
         style={{ background: "linear-gradient(160deg, #111111 0%, #111111 100%)" }}
       >
         <div className="max-w-3xl mx-auto">
-          <span className="inline-block bg-[#F97415]/20 text-[#F97415] text-xs font-bold tracking-widest uppercase px-4 py-1.5 rounded-full mb-6 border border-[#F97415]/30">
+          <span className="inline-block bg-eic-orange/20 text-eic-orange text-xs font-bold tracking-widest uppercase px-4 py-1.5 rounded-full mb-6 border border-eic-orange/30">
             CONFRONTO ONESTO
           </span>
           <h1 className="text-3xl md:text-5xl font-extrabold text-white leading-tight mb-4">
             Edilizia in Cloud vs.{" "}
-            <span className="text-[#F97415]">le Alternative</span>
+            <span className="text-eic-orange">le Alternative</span>
           </h1>
           <p className="text-lg text-blue-100/80 mb-10 max-w-xl mx-auto">
             Confronto onesto e dettagliato. Senza marketing. Decide tu.
@@ -435,7 +435,7 @@ export default function Confronto() {
                 onClick={() => scrollTo(tab.id)}
                 className={`px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-200 border ${
                   activeSection === tab.id
-                    ? "bg-[#F97415] text-white border-[#F97415] shadow-lg shadow-[#F97415]/30"
+                    ? "bg-eic-orange text-white border-eic-orange shadow-lg shadow-eic-orange/30"
                     : "bg-white/10 text-white border-white/20 hover:bg-white/20"
                 }`}
               >
@@ -468,19 +468,19 @@ export default function Confronto() {
               aggettivi. Voto e prezzi sono gli STESSI dichiarati in home. */}
           <ul className="mb-7 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs md:text-sm text-[#111111]/70">
             <li className="flex items-center gap-1.5">
-              <CheckCircle2 className="h-4 w-4 shrink-0 text-[#F97415]" />
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-eic-orange" />
               <span><strong className="text-[#111111]">4,9/5</strong> su 127 recensioni</span>
             </li>
             <li className="flex items-center gap-1.5">
-              <CheckCircle2 className="h-4 w-4 shrink-0 text-[#F97415]" />
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-eic-orange" />
               <span>SAL aggiornato dal cantiere in <strong className="text-[#111111]">pochi secondi</strong></span>
             </li>
             <li className="flex items-center gap-1.5">
-              <CheckCircle2 className="h-4 w-4 shrink-0 text-[#F97415]" />
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-eic-orange" />
               <span>Operativo in <strong className="text-[#111111]">48 ore</strong>, migrazione inclusa</span>
             </li>
             <li className="flex items-center gap-1.5">
-              <CheckCircle2 className="h-4 w-4 shrink-0 text-[#F97415]" />
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-eic-orange" />
               <span>Da <strong className="text-[#111111]">€127/mese</strong> (€99 su base annuale)</span>
             </li>
           </ul>
@@ -488,20 +488,20 @@ export default function Confronto() {
           {/* Panoramica di mercato: intercetta chi non ha ancora un nome in testa */}
           <Link
             to="/blog/migliori-software-gestionali-edilizia-confronto"
-            className="group mb-4 flex flex-col gap-2 rounded-2xl border border-[#F97415]/40 bg-[#F97415]/5 p-5 transition-all hover:shadow-md sm:flex-row sm:items-center sm:justify-between sm:gap-6"
+            className="group mb-4 flex flex-col gap-2 rounded-2xl border border-eic-orange/40 bg-eic-orange/5 p-5 transition-all hover:shadow-md sm:flex-row sm:items-center sm:justify-between sm:gap-6"
           >
             <div className="min-w-0">
-              <span className="mb-1.5 inline-flex w-fit items-center rounded-full bg-[#F97415]/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#F97415]">
+              <span className="mb-1.5 inline-flex w-fit items-center rounded-full bg-eic-orange/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-eic-orange">
                 Panoramica di mercato
               </span>
-              <p className="text-base font-bold leading-snug text-[#111111] group-hover:text-[#F97415]">
+              <p className="text-base font-bold leading-snug text-[#111111] group-hover:text-eic-orange">
                 I migliori software gestionali per l'edilizia nel 2026
               </p>
               <p className="mt-1 text-sm leading-relaxed text-[#111111]/65">
                 Non sai da quale partire? Qui c'è chi fa cosa, e per che tipo di impresa.
               </p>
             </div>
-            <span className="inline-flex shrink-0 items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[#F97415]">
+            <span className="inline-flex shrink-0 items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-eic-orange">
               Leggi l'analisi <ArrowRight className="h-4 w-4" />
             </span>
           </Link>
@@ -513,13 +513,13 @@ export default function Confronto() {
               <Link
                 key={v.to}
                 to={v.to}
-                className="group flex min-h-[132px] flex-col gap-2 rounded-xl border border-gray-200 bg-white p-4 transition-all hover:border-[#F97415] hover:shadow-md"
+                className="group flex min-h-[132px] flex-col gap-2 rounded-xl border border-gray-200 bg-white p-4 transition-all hover:border-eic-orange hover:shadow-md"
               >
-                <span className="text-sm font-bold leading-snug text-[#111111] group-hover:text-[#F97415]">
+                <span className="text-sm font-bold leading-snug text-[#111111] group-hover:text-eic-orange">
                   {v.name}
                 </span>
                 <span className="flex-1 text-xs leading-relaxed text-[#111111]/60">{v.tagline}</span>
-                <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-[#F97415]">
+                <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-eic-orange">
                   {v.approfondito ? "Leggi l'analisi" : "Apri confronto"}
                   <ArrowRight className="h-3 w-3" />
                 </span>
@@ -528,14 +528,14 @@ export default function Confronto() {
           </div>
 
           {/* Obiezione migrazione: il confronto convince, il passaggio spaventa */}
-          <div className="mt-6 flex flex-col items-center justify-between gap-3 rounded-2xl border border-[#F97415]/25 bg-[#F97415]/5 px-5 py-4 text-center sm:flex-row sm:text-left">
+          <div className="mt-6 flex flex-col items-center justify-between gap-3 rounded-2xl border border-eic-orange/25 bg-eic-orange/5 px-5 py-4 text-center sm:flex-row sm:text-left">
             <p className="text-sm text-[#111111]">
               <strong>Usi già uno di questi software?</strong> La migrazione è assistita e gratuita:
               importiamo anagrafiche, preventivi, fatture e cantieri, con setup in 48 ore.
             </p>
             <Link
               to="/pianifica-migrazione/"
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-[#F97415] px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#e8650e]"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-eic-orange px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-eic-orange-dark"
             >
               Come funziona la migrazione <ArrowRight className="h-4 w-4" />
             </Link>
@@ -546,8 +546,8 @@ export default function Confronto() {
       {/* ── TL;DR BOX ── */}
       <section className="bg-white pt-10 pb-4 px-4">
         <div className="max-w-4xl mx-auto">
-          <div className="rounded-2xl border-l-4 border-[#F97415] bg-[#F97415]/5 p-6 md:p-7">
-            <p className="text-xs font-bold tracking-widest uppercase text-[#F97415] mb-3">TL;DR — 3 differenze chiave</p>
+          <div className="rounded-2xl border-l-4 border-eic-orange bg-eic-orange/5 p-6 md:p-7">
+            <p className="text-xs font-bold tracking-widest uppercase text-eic-orange mb-3">TL;DR — 3 differenze chiave</p>
             <p className="text-[#111111] text-sm md:text-base leading-relaxed">
               <strong>(1)</strong> Edilizia in Cloud include AI per analisi margini in tempo reale, mentre Primus, TeamSystem ed Edilnet richiedono moduli aggiuntivi.{" "}
               <strong>(2)</strong> Setup in 48 ore garantito vs 4-12 settimane dei concorrenti.{" "}
@@ -563,7 +563,7 @@ export default function Confronto() {
           <div className="text-center mb-10">
             <h2 className="text-3xl md:text-4xl font-extrabold text-[#111111] mb-3">
               Edilizia in Cloud vs.{" "}
-              <span className="text-[#F97415]">Excel</span>
+              <span className="text-eic-orange">Excel</span>
             </h2>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto">
               Excel non è colpa tua. Ma ti sta costando più di quanto pensi.
@@ -591,7 +591,7 @@ export default function Confronto() {
                 <tr className="border-b border-gray-200">
                   <th className="text-left p-4 text-sm font-semibold text-gray-500 w-2/5 bg-white">Funzionalità</th>
                   <th className="text-center p-4 text-sm font-semibold text-gray-700 w-[30%] bg-white">Excel</th>
-                  <th className="text-center p-4 text-sm font-bold text-[#F97415] w-[30%] bg-[#F97415]/5 border-l-2 border-[#F97415]">
+                  <th className="text-center p-4 text-sm font-bold text-eic-orange w-[30%] bg-eic-orange/5 border-l-2 border-eic-orange">
                     Edilizia in Cloud
                   </th>
                 </tr>
@@ -603,7 +603,7 @@ export default function Confronto() {
                     <td className="p-4 text-center">
                       <Cell cell={row.excel} />
                     </td>
-                    <td className="p-4 text-center bg-[#F97415]/5 border-l-2 border-[#F97415]">
+                    <td className="p-4 text-center bg-eic-orange/5 border-l-2 border-eic-orange">
                       <Cell cell={row.eic} highlight />
                     </td>
                   </tr>
@@ -619,15 +619,15 @@ export default function Confronto() {
             </h3>
             <div className="space-y-2 text-sm text-gray-700 mb-4">
               <div className="flex items-start gap-2">
-                <span className="text-[#F97415] font-bold mt-0.5">•</span>
+                <span className="text-eic-orange font-bold mt-0.5">•</span>
                 <span>10 ore/settimana media spese su fogli Excel</span>
               </div>
               <div className="flex items-start gap-2">
-                <span className="text-[#F97415] font-bold mt-0.5">•</span>
+                <span className="text-eic-orange font-bold mt-0.5">•</span>
                 <span>Costo medio imprenditore: <strong>€50/ora</strong></span>
               </div>
               <div className="flex items-start gap-2">
-                <span className="text-[#F97415] font-bold mt-0.5">•</span>
+                <span className="text-eic-orange font-bold mt-0.5">•</span>
                 <span>= <strong className="text-[#111111] text-base">€500/settimana = €2.000/mese = €24.000/anno</strong></span>
               </div>
             </div>
@@ -637,7 +637,7 @@ export default function Confronto() {
           <div className="text-center">
             <button
               onClick={openModal}
-              className="inline-flex items-center gap-2 bg-[#F97415] hover:bg-[#e8650e] text-white font-bold px-8 py-4 rounded-xl transition-colors shadow-lg shadow-[#F97415]/20 text-base"
+              className="inline-flex items-center gap-2 bg-eic-orange hover:bg-eic-orange-dark text-white font-bold px-8 py-4 rounded-xl transition-colors shadow-lg shadow-eic-orange/20 text-base"
             >
               Smetti di usare Excel. Inizia gratis.
               <ArrowRight className="w-5 h-5" />
@@ -652,7 +652,7 @@ export default function Confronto() {
           <div className="text-center mb-10">
             <h2 className="text-3xl md:text-4xl font-extrabold text-[#111111] mb-3">
               Edilizia in Cloud vs.{" "}
-              <span className="text-[#F97415]">ERP Generici</span>
+              <span className="text-eic-orange">ERP Generici</span>
             </h2>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto">
               SAP, Zucchetti, TeamSystem e simili sono potenti. Ma non parlano la lingua del cantiere.
@@ -668,7 +668,7 @@ export default function Confronto() {
                 <tr className="border-b border-gray-200">
                   <th className="text-left p-4 text-sm font-semibold text-gray-500 w-2/5 bg-white">Funzionalità</th>
                   <th className="text-center p-4 text-sm font-semibold text-gray-700 w-[30%] bg-white">ERP Generici</th>
-                  <th className="text-center p-4 text-sm font-bold text-[#F97415] w-[30%] bg-[#F97415]/5 border-l-2 border-[#F97415]">
+                  <th className="text-center p-4 text-sm font-bold text-eic-orange w-[30%] bg-eic-orange/5 border-l-2 border-eic-orange">
                     Edilizia in Cloud
                   </th>
                 </tr>
@@ -680,7 +680,7 @@ export default function Confronto() {
                     <td className="p-4 text-center">
                       <Cell cell={row.erp} />
                     </td>
-                    <td className="p-4 text-center bg-[#F97415]/5 border-l-2 border-[#F97415]">
+                    <td className="p-4 text-center bg-eic-orange/5 border-l-2 border-eic-orange">
                       <Cell cell={row.eic} highlight />
                     </td>
                   </tr>
@@ -692,8 +692,8 @@ export default function Confronto() {
           {/* Testimonial */}
           <div className="rounded-2xl border border-gray-200 bg-white p-6 md:p-8 mb-8 shadow-sm">
             <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-full bg-[#F97415]/10 flex items-center justify-center shrink-0 mt-1">
-                <span className="text-[#F97415] text-xl font-bold leading-none">"</span>
+              <div className="w-10 h-10 rounded-full bg-eic-orange/10 flex items-center justify-center shrink-0 mt-1">
+                <span className="text-eic-orange text-xl font-bold leading-none">"</span>
               </div>
               <div>
                 <p className="text-gray-700 italic text-sm md:text-base leading-relaxed mb-4">
@@ -711,7 +711,7 @@ export default function Confronto() {
           <div className="rounded-2xl bg-[#111111] text-white p-6 md:p-8 text-center">
             <p className="text-sm text-blue-200 mb-2 uppercase tracking-widest font-semibold">Risparmio medio</p>
             <p className="text-2xl md:text-3xl font-extrabold">
-              €2.500 – €6.000<span className="text-[#F97415]">/anno</span>
+              €2.500 – €6.000<span className="text-eic-orange">/anno</span>
             </p>
             <p className="text-blue-200 text-sm mt-2">passando da un ERP generico a Edilizia in Cloud</p>
           </div>
@@ -724,7 +724,7 @@ export default function Confronto() {
           <div className="text-center mb-10">
             <h2 className="text-3xl md:text-4xl font-extrabold text-[#111111] mb-3">
               Edilizia in Cloud vs.{" "}
-              <span className="text-[#F97415]">Commercialista per il Controllo</span>
+              <span className="text-eic-orange">Commercialista per il Controllo</span>
             </h2>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto">
               Il commercialista è fondamentale per la contabilità. Ma non è il posto giusto per controllare i margini.
@@ -757,9 +757,9 @@ export default function Confronto() {
                 </li>
               </ul>
             </div>
-            <div className="p-6 md:p-8 bg-[#F97415]/5 border-l-2 border-[#F97415]">
-              <h3 className="text-base font-bold text-[#F97415] mb-5 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-[#F97415] inline-block" />
+            <div className="p-6 md:p-8 bg-eic-orange/5 border-l-2 border-eic-orange">
+              <h3 className="text-base font-bold text-eic-orange mb-5 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-eic-orange inline-block" />
                 Edilizia in Cloud
               </h3>
               <ul className="space-y-4 text-sm text-[#111111]">
@@ -793,7 +793,7 @@ export default function Confronto() {
                 <tr className="border-b border-gray-200 bg-gray-50/95 backdrop-blur">
                   <th className="text-left p-4 text-sm font-semibold text-gray-500 w-2/5">Voce</th>
                   <th className="text-center p-4 text-sm font-semibold text-gray-700 w-[28%]">Solo Commercialista</th>
-                  <th className="text-center p-4 text-sm font-bold text-[#F97415] w-[32%] bg-[#F97415]/5 border-l-2 border-[#F97415]">
+                  <th className="text-center p-4 text-sm font-bold text-eic-orange w-[32%] bg-eic-orange/5 border-l-2 border-eic-orange">
                     EiC + Commercialista (contabilità)
                   </th>
                 </tr>
@@ -805,7 +805,7 @@ export default function Confronto() {
                     <td className="p-4 text-center">
                       <Cell cell={row.solo} />
                     </td>
-                    <td className="p-4 text-center bg-[#F97415]/5 border-l-2 border-[#F97415]">
+                    <td className="p-4 text-center bg-eic-orange/5 border-l-2 border-eic-orange">
                       <Cell cell={row.combined} highlight />
                     </td>
                   </tr>
@@ -818,7 +818,7 @@ export default function Confronto() {
           <div className="rounded-2xl bg-[#111111] text-white p-6 md:p-8 text-center">
             <p className="text-lg md:text-xl font-bold leading-relaxed max-w-2xl mx-auto">
               "Non si tratta di sostituire il commercialista. Si tratta di{" "}
-              <span className="text-[#F97415]">non aspettare fine anno</span> per scoprire se hai guadagnato."
+              <span className="text-eic-orange">non aspettare fine anno</span> per scoprire se hai guadagnato."
             </p>
           </div>
         </div>
@@ -830,7 +830,7 @@ export default function Confronto() {
           <div className="text-center mb-10">
             <h2 className="text-3xl md:text-4xl font-extrabold text-[#111111] mb-3">
               Edilizia in Cloud vs.{" "}
-              <span className="text-[#F97415]">Primus ACCA & TeamSystem Construction</span>
+              <span className="text-eic-orange">Primus ACCA & TeamSystem Construction</span>
             </h2>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto">
               Esistono altri software per l'edilizia. Ecco perché i nostri clienti scelgono noi.
@@ -845,8 +845,8 @@ export default function Confronto() {
                 onClick={() => setFilter(f.value)}
                 className={`px-4 py-1.5 rounded-full text-xs font-semibold border transition-all ${
                   filter === f.value
-                    ? "bg-[#F97415] text-white border-[#F97415] shadow shadow-[#F97415]/20"
-                    : "bg-white text-[#111111] border-gray-200 hover:border-[#F97415]/40"
+                    ? "bg-eic-orange text-white border-eic-orange shadow shadow-eic-orange/20"
+                    : "bg-white text-[#111111] border-gray-200 hover:border-eic-orange/40"
                 }`}
               >
                 {f.label}
@@ -870,9 +870,9 @@ export default function Confronto() {
                     TeamSystem Construction
                     <span className="block text-xs font-normal text-gray-400">da €250/mese</span>
                   </th>
-                  <th className="text-center p-4 text-sm font-bold text-[#F97415] bg-[#F97415]/5 border-l-2 border-[#F97415]" style={{ minWidth: "160px" }}>
+                  <th className="text-center p-4 text-sm font-bold text-eic-orange bg-eic-orange/5 border-l-2 border-eic-orange" style={{ minWidth: "160px" }}>
                     Edilizia in Cloud
-                    <span className="block text-xs font-normal text-[#F97415]/70">da €127/mese</span>
+                    <span className="block text-xs font-normal text-eic-orange/70">da €127/mese</span>
                   </th>
                 </tr>
               </thead>
@@ -890,7 +890,7 @@ export default function Confronto() {
                     <td className="p-4 text-center">
                       <Cell cell={row.teamsystem} />
                     </td>
-                    <td className="p-4 text-center bg-[#F97415]/5 border-l-2 border-[#F97415]">
+                    <td className="p-4 text-center bg-eic-orange/5 border-l-2 border-eic-orange">
                       <Cell cell={row.eic} highlight />
                     </td>
                   </tr>
@@ -907,8 +907,8 @@ export default function Confronto() {
           </div>
 
           {/* Final diff box */}
-          <div className="rounded-2xl border-2 border-[#F97415] bg-white p-6 md:p-8">
-            <p className="text-sm font-bold text-[#F97415] uppercase tracking-widest mb-3">La differenza vera</p>
+          <div className="rounded-2xl border-2 border-eic-orange bg-white p-6 md:p-8">
+            <p className="text-sm font-bold text-eic-orange uppercase tracking-widest mb-3">La differenza vera</p>
             <p className="text-[#111111] font-medium text-sm md:text-base leading-relaxed">
               Edilizia in Cloud ha più funzionalità a un prezzo inferiore di TeamSystem Construction (€250-400/mese) e copertura più ampia di Primus ACCA. Ma la differenza vera è questa:{" "}
               <strong>siamo gli unici ad avere un Consulente del Controllo dedicato incluso nel piano.</strong>
@@ -939,7 +939,7 @@ export default function Confronto() {
                 >
                   <span className="font-semibold text-[#111111] text-sm md:text-base pr-4">{item.q}</span>
                   {openFaq === i ? (
-                    <ChevronUp className="w-5 h-5 text-[#F97415] shrink-0" />
+                    <ChevronUp className="w-5 h-5 text-eic-orange shrink-0" />
                   ) : (
                     <ChevronDown className="w-5 h-5 text-gray-400 shrink-0" />
                   )}
@@ -969,71 +969,71 @@ export default function Confronto() {
           <div className="grid sm:grid-cols-2 gap-5">
             <Link
               to="/confronto/vs-primus/"
-              className="group flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white hover:border-[#F97415]/40 p-6 transition-all hover:shadow-md hover:-translate-y-0.5"
+              className="group flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white hover:border-eic-orange/40 p-6 transition-all hover:shadow-md hover:-translate-y-0.5"
             >
-              <h3 className="font-bold text-[#111111] text-base group-hover:text-[#F97415] transition-colors">
+              <h3 className="font-bold text-[#111111] text-base group-hover:text-eic-orange transition-colors">
                 Edilizia in Cloud vs Primus ACCA
               </h3>
               <p className="text-sm text-[#111111]/60 leading-relaxed">
                 Confronto completo su gestione cantieri, preventivi, fatturazione e assistenza clienti.
               </p>
-              <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#F97415] mt-auto">
+              <span className="inline-flex items-center gap-1 text-xs font-semibold text-eic-orange mt-auto">
                 Leggi il confronto <ArrowRight className="w-3.5 h-3.5" />
               </span>
             </Link>
             <Link
               to="/confronto/vs-edilnet/"
-              className="group flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white hover:border-[#F97415]/40 p-6 transition-all hover:shadow-md hover:-translate-y-0.5"
+              className="group flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white hover:border-eic-orange/40 p-6 transition-all hover:shadow-md hover:-translate-y-0.5"
             >
-              <h3 className="font-bold text-[#111111] text-base group-hover:text-[#F97415] transition-colors">
+              <h3 className="font-bold text-[#111111] text-base group-hover:text-eic-orange transition-colors">
                 Edilizia in Cloud vs Edilnet
               </h3>
               <p className="text-sm text-[#111111]/60 leading-relaxed">
                 Differenze su prezzo, funzionalità cloud, app mobile e qualità del supporto.
               </p>
-              <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#F97415] mt-auto">
+              <span className="inline-flex items-center gap-1 text-xs font-semibold text-eic-orange mt-auto">
                 Leggi il confronto <ArrowRight className="w-3.5 h-3.5" />
               </span>
             </Link>
             <Link
               to="/confronto/vs-teamsystem/"
-              className="group flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white hover:border-[#F97415]/40 p-6 transition-all hover:shadow-md hover:-translate-y-0.5"
+              className="group flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white hover:border-eic-orange/40 p-6 transition-all hover:shadow-md hover:-translate-y-0.5"
             >
-              <h3 className="font-bold text-[#111111] text-base group-hover:text-[#F97415] transition-colors">
+              <h3 className="font-bold text-[#111111] text-base group-hover:text-eic-orange transition-colors">
                 Edilizia in Cloud vs TeamSystem Construction
               </h3>
               <p className="text-sm text-[#111111]/60 leading-relaxed">
                 ERP generalista vs gestionale nativo edilizia: funzionalità, prezzo e semplicità d'uso a confronto.
               </p>
-              <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#F97415] mt-auto">
+              <span className="inline-flex items-center gap-1 text-xs font-semibold text-eic-orange mt-auto">
                 Leggi il confronto <ArrowRight className="w-3.5 h-3.5" />
               </span>
             </Link>
             <Link
               to="/confronto/vs-excel/"
-              className="group flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white hover:border-[#F97415]/40 p-6 transition-all hover:shadow-md hover:-translate-y-0.5"
+              className="group flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white hover:border-eic-orange/40 p-6 transition-all hover:shadow-md hover:-translate-y-0.5"
             >
-              <h3 className="font-bold text-[#111111] text-base group-hover:text-[#F97415] transition-colors">
+              <h3 className="font-bold text-[#111111] text-base group-hover:text-eic-orange transition-colors">
                 Edilizia in Cloud vs Excel
               </h3>
               <p className="text-sm text-[#111111]/60 leading-relaxed">
                 Il vero costo nascosto di gestire i cantieri con i fogli di calcolo. Confronto completo 2026.
               </p>
-              <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#F97415] mt-auto">
+              <span className="inline-flex items-center gap-1 text-xs font-semibold text-eic-orange mt-auto">
                 Leggi il confronto <ArrowRight className="w-3.5 h-3.5" />
               </span>
             </Link>
             <Link
               to="/confronto/vs-buildertrend/"
-              className="group flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white hover:border-[#F97415]/40 p-6 transition-all hover:shadow-md hover:-translate-y-0.5"
+              className="group flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white hover:border-eic-orange/40 p-6 transition-all hover:shadow-md hover:-translate-y-0.5"
             >
-              <h3 className="font-bold text-[#111111] text-base group-hover:text-[#F97415] transition-colors">
+              <h3 className="font-bold text-[#111111] text-base group-hover:text-eic-orange transition-colors">
                 Edilizia in Cloud vs Buildertrend
               </h3>
               <p className="text-sm text-[#111111]/60 leading-relaxed">
                 Software americano vs gestionale italiano: SDI, Cassa Edile, italiano e prezzo a confronto.
               </p>
-              <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#F97415] mt-auto">
+              <span className="inline-flex items-center gap-1 text-xs font-semibold text-eic-orange mt-auto">
                 Leggi il confronto <ArrowRight className="w-3.5 h-3.5" />
               </span>
             </Link>
@@ -1050,14 +1050,14 @@ export default function Confronto() {
         <div className="max-w-2xl mx-auto">
           <h2 className="text-3xl md:text-4xl font-extrabold text-white mb-4">
             Visto abbastanza?{" "}
-            <span className="text-[#F97415]">Parliamo.</span>
+            <span className="text-eic-orange">Parliamo.</span>
           </h2>
           <p className="text-blue-200/80 text-base mb-8 max-w-md mx-auto">
             Demo gratuita e personalizzata. Nessun obbligo. Il nostro consulente del controllo ti mostra esattamente cosa cambierebbe nella tua impresa.
           </p>
           <button
             onClick={openModal}
-            className="inline-flex items-center gap-2 bg-[#F97415] hover:bg-[#e8650e] text-white font-bold px-10 py-4 rounded-xl transition-colors shadow-xl shadow-[#F97415]/30 text-base"
+            className="inline-flex items-center gap-2 bg-eic-orange hover:bg-eic-orange-dark text-white font-bold px-10 py-4 rounded-xl transition-colors shadow-xl shadow-eic-orange/30 text-base"
           >
             Prenota la tua demo gratuita
             <ArrowRight className="w-5 h-5" />

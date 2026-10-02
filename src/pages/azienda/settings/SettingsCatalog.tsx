@@ -64,7 +64,7 @@ export default function SettingsCatalog() {
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-3">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-orange-500 to-amber-400 shadow-sm">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-orange-500 to-eic-amber shadow-sm">
           <Package className="h-5 w-5 text-white" aria-hidden="true" />
         </div>
         <div className="min-w-0">
@@ -86,7 +86,7 @@ export default function SettingsCatalog() {
         <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <div className="flex items-start gap-3">
-              <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-orange-500 to-amber-400 flex items-center justify-center shrink-0 shadow-sm">
+              <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-orange-500 to-eic-amber flex items-center justify-center shrink-0 shadow-sm">
                 <FolderTree className="h-4.5 w-4.5 text-white" aria-hidden="true" />
               </div>
               <div className="min-w-0">

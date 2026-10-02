@@ -924,7 +924,7 @@ html .react-flow .react-flow__edges svg {
   }
   /* Solo il quadratino dell'icona (un div): i bottoni «brand» come
      «+ Nuovo» usano lo stesso sfumato e devono restare. */
-  .testata-pagina div.from-orange-500.to-amber-400 {
+  .testata-pagina div.from-orange-500.to-eic-amber {
     display: none !important;
   }
   .testata-pagina h1 + p {
@@ -962,7 +962,7 @@ html .react-flow .react-flow__edges svg {
   }
   /* Solo il quadratino dell'icona (un div): i bottoni «brand» come
      «+ Nuovo» usano lo stesso sfumato e devono restare. */
-  .testata-pagina div.from-orange-500.to-amber-400 {
+  .testata-pagina div.from-orange-500.to-eic-amber {
     display: none !important;
   }
   .testata-pagina h1 + p {

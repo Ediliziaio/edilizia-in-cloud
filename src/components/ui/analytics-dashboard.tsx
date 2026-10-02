@@ -152,7 +152,7 @@ export function AnalyticsDashboardCard({
             </button>
           ))}
           <div
-            className="absolute bottom-0 h-0.5 rounded-full bg-gradient-to-r from-orange-500 to-amber-500 transition-all duration-300 ease-in-out"
+            className="absolute bottom-0 h-0.5 rounded-full bg-gradient-to-r from-orange-500 to-eic-amber-strong transition-all duration-300 ease-in-out"
             style={{ left: underline.left, width: underline.width }}
           />
         </div>
@@ -196,7 +196,7 @@ export function DashboardStatCard({
       {progress != null && (
         <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
           <div
-            className="h-full rounded-full bg-gradient-to-r from-orange-400 to-amber-400 transition-all duration-500"
+            className="h-full rounded-full bg-gradient-to-r from-orange-400 to-eic-amber transition-all duration-500"
             style={{ width: `${Math.max(0, Math.min(100, progress))}%` }}
           />
         </div>

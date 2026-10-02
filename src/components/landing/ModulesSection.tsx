@@ -173,7 +173,7 @@ export default function ModulesSection() {
           <h2 className="text-3xl md:text-5xl font-extrabold text-[#111111] mb-4">
             5 aree operative. 26 moduli collegati.
             <br />
-            <span className="text-[#F97415]">Silvio tiene insieme cantieri, cassa, vendite, persone e documenti.</span>
+            <span className="text-eic-orange">Silvio tiene insieme cantieri, cassa, vendite, persone e documenti.</span>
           </h2>
           <p className="text-gray-500 text-lg max-w-2xl mx-auto">
             Non devi imparare 26 strumenti diversi. Parti dall'area che ti fa perdere piu' margine oggi e il resto resta collegato alla stessa azienda.

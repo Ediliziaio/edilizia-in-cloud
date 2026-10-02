@@ -104,7 +104,7 @@ export default function PlatformMockup() {
   return (
     <div className="gsap-dashboard relative mx-auto mb-8 mt-10 max-w-5xl">
       {/* Alone dietro alla finestra, come prima */}
-      <div className="pointer-events-none absolute -inset-8 rounded-full bg-[#F97415]/15 blur-[80px] animate-pulse-glow" />
+      <div className="pointer-events-none absolute -inset-8 rounded-full bg-eic-orange/15 blur-[80px] animate-pulse-glow" />
 
       {/* Su telefono (sotto md) la finestra non si riflette più a 330 px — codici
           spezzati su tre righe, margine tagliato, grafici alti mezzo schermo — ma

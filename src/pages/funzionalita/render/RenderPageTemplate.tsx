@@ -192,7 +192,7 @@ function BeforeAfterSlider({ vertical }: { vertical: string }) {
       <div className="absolute left-4 top-4 rounded-md bg-slate-900/80 px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-white backdrop-blur">
         Prima
       </div>
-      <div className="absolute right-4 top-4 inline-flex items-center gap-2 rounded-md bg-[#F97415] px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-white shadow-md">
+      <div className="absolute right-4 top-4 inline-flex items-center gap-2 rounded-md bg-eic-orange px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-white shadow-md">
         <Sparkles className="h-3 w-3" />
         Dopo · AI
       </div>
@@ -279,8 +279,8 @@ function VideoDemo({
                 Carichi la foto · Imposti finiture · Generi prima/dopo · Invii al cliente
               </span>
             </span>
-            <span className="relative flex h-20 w-20 items-center justify-center rounded-full bg-[#F97415] text-white shadow-2xl ring-4 ring-white/20 transition-transform group-hover:scale-110 sm:h-24 sm:w-24">
-              <span className="absolute inset-0 animate-ping rounded-full bg-[#F97415] opacity-40" />
+            <span className="relative flex h-20 w-20 items-center justify-center rounded-full bg-eic-orange text-white shadow-2xl ring-4 ring-white/20 transition-transform group-hover:scale-110 sm:h-24 sm:w-24">
+              <span className="absolute inset-0 animate-ping rounded-full bg-eic-orange opacity-40" />
               <Play className="relative h-9 w-9 fill-white sm:h-10 sm:w-10" />
             </span>
           </button>
@@ -342,7 +342,7 @@ function RoiCalculator({
           <div>
             <div className="flex items-center justify-between text-sm font-bold text-[#0f172a]">
               <label htmlFor="preventivi-mese">{preventiviLabel}</label>
-              <span className="text-[#D95E0B]">{preventiviMese}</span>
+              <span className="text-eic-orange-dark">{preventiviMese}</span>
             </div>
             <input
               id="preventivi-mese"
@@ -352,7 +352,7 @@ function RoiCalculator({
               step={1}
               value={preventiviMese}
               onChange={(e) => setPreventiviMese(Number(e.target.value))}
-              className="mt-3 w-full accent-[#F97415]"
+              className="mt-3 w-full accent-eic-orange"
             />
             <div className="mt-1 flex justify-between text-xs text-slate-500">
               <span>5</span>
@@ -362,7 +362,7 @@ function RoiCalculator({
           <div>
             <div className="flex items-center justify-between text-sm font-bold text-[#0f172a]">
               <label htmlFor="ticket-medio">{ticketLabel}</label>
-              <span className="text-[#D95E0B]">{formatEuro(ticketMedio)}</span>
+              <span className="text-eic-orange-dark">{formatEuro(ticketMedio)}</span>
             </div>
             <input
               id="ticket-medio"
@@ -372,7 +372,7 @@ function RoiCalculator({
               step={ticketStep}
               value={ticketMedio}
               onChange={(e) => setTicketMedio(Number(e.target.value))}
-              className="mt-3 w-full accent-[#F97415]"
+              className="mt-3 w-full accent-eic-orange"
             />
             <div className="mt-1 flex justify-between text-xs text-slate-500">
               <span>{formatEuro(ticketMin)}</span>
@@ -382,7 +382,7 @@ function RoiCalculator({
           <div>
             <div className="flex items-center justify-between text-sm font-bold text-[#0f172a]">
               <label htmlFor="close-rate">Close rate attuale</label>
-              <span className="text-[#D95E0B]">{closeRateAttuale}%</span>
+              <span className="text-eic-orange-dark">{closeRateAttuale}%</span>
             </div>
             <input
               id="close-rate"
@@ -392,7 +392,7 @@ function RoiCalculator({
               step={1}
               value={closeRateAttuale}
               onChange={(e) => setCloseRateAttuale(Number(e.target.value))}
-              className="mt-3 w-full accent-[#F97415]"
+              className="mt-3 w-full accent-eic-orange"
             />
             <div className="mt-1 flex justify-between text-xs text-slate-500">
               <span>5%</span>
@@ -402,7 +402,7 @@ function RoiCalculator({
         </div>
 
         <div className="rounded-xl border border-orange-200 bg-gradient-to-br from-[#fff4e6] to-[#ffe9d2] p-6">
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-[#D95E0B]">
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-eic-orange-dark">
             Stima conservativa
           </p>
           <p className="mt-1 text-sm leading-6 text-slate-600">
@@ -438,7 +438,7 @@ function RoiCalculator({
           <button
             type="button"
             onClick={onRequestInfo}
-            className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#F97415] px-5 py-3 text-sm font-extrabold text-white shadow-md transition hover:bg-[#D95E0B]"
+            className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-eic-orange px-5 py-3 text-sm font-extrabold text-white shadow-md transition hover:bg-eic-orange-dark"
           >
             Sblocca il render in demo
             <ArrowRight className="h-4 w-4" />
@@ -782,7 +782,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
               <button
                 type="button"
                 onClick={openLeadModal}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#F97415] px-7 py-4 text-base font-extrabold text-white shadow-lg shadow-orange-950/30 transition hover:bg-[#D95E0B] sm:w-auto"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-eic-orange px-7 py-4 text-base font-extrabold text-white shadow-lg shadow-orange-950/30 transition hover:bg-eic-orange-dark sm:w-auto"
               >
                 {config.heroPrimaryCta || "Prova GRATIS la Demo"}
                 <ArrowRight className="h-5 w-5" />
@@ -854,7 +854,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
         {/* SCARCITY */}
         <section
           aria-labelledby="beta-title"
-          className="relative overflow-hidden bg-gradient-to-r from-[#F97415] to-[#D95E0B] px-6 py-12 text-white"
+          className="relative overflow-hidden bg-gradient-to-r from-eic-orange to-eic-orange-dark px-6 py-12 text-white"
         >
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_85%_50%,rgba(255,255,255,0.18),transparent_55%)]" />
           <div className="relative mx-auto flex max-w-6xl flex-col items-start justify-between gap-6 lg:flex-row lg:items-center">
@@ -871,7 +871,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
             <button
               type="button"
               onClick={openLeadModal}
-              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-white px-6 py-4 text-base font-extrabold text-[#D95E0B] shadow-lg transition hover:bg-orange-50"
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-white px-6 py-4 text-base font-extrabold text-eic-orange-dark shadow-lg transition hover:bg-orange-50"
             >
               Riserva il tuo posto
               <ArrowRight className="h-5 w-5" />
@@ -883,7 +883,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
         <section aria-labelledby="speed-title" className="bg-[#fff7ed] px-6 py-16">
           <div className="mx-auto max-w-6xl">
             <div className="mx-auto max-w-3xl text-center">
-              <p className="text-sm font-black uppercase tracking-[0.2em] text-[#D95E0B]">
+              <p className="text-sm font-black uppercase tracking-[0.2em] text-eic-orange-dark">
                 Risposta immediata
               </p>
               <h2
@@ -900,7 +900,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
                   key={item.label}
                   className="rounded-2xl border border-orange-200 bg-white p-6 shadow-sm transition hover:shadow-md"
                 >
-                  <p className="text-5xl font-black tracking-tight text-[#D95E0B]">
+                  <p className="text-5xl font-black tracking-tight text-eic-orange-dark">
                     <CountUp value={item.value} prefix={item.prefix} suffix={item.suffix} />
                   </p>
                   <p className="mt-3 text-sm font-semibold leading-6 text-slate-700">{item.label}</p>
@@ -915,8 +915,8 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
         <section id="video-demo" aria-labelledby="video-title" className="bg-white px-6 py-20">
           <div className="mx-auto max-w-5xl">
             <div className="mx-auto max-w-3xl text-center">
-              <div className="inline-flex items-center gap-2 rounded-full bg-orange-100 px-3 py-1 text-xs font-black uppercase tracking-[0.18em] text-[#D95E0B]">
-                <Play className="h-3.5 w-3.5 fill-[#D95E0B]" />
+              <div className="inline-flex items-center gap-2 rounded-full bg-orange-100 px-3 py-1 text-xs font-black uppercase tracking-[0.18em] text-eic-orange-dark">
+                <Play className="h-3.5 w-3.5 fill-eic-orange-dark" />
                 Guarda il video demo
               </div>
               <h2
@@ -946,7 +946,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
         >
           <div className="mx-auto max-w-6xl">
             <div className="mx-auto max-w-3xl text-center">
-              <div className="inline-flex items-center gap-2 rounded-full bg-orange-100 px-3 py-1 text-xs font-black uppercase tracking-[0.18em] text-[#D95E0B]">
+              <div className="inline-flex items-center gap-2 rounded-full bg-orange-100 px-3 py-1 text-xs font-black uppercase tracking-[0.18em] text-eic-orange-dark">
                 <Sparkles className="h-3.5 w-3.5" />
                 Famiglia Render AI
               </div>
@@ -967,7 +967,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
                 >
                   <div className="pointer-events-none absolute -top-10 -right-10 h-32 w-32 rounded-full bg-orange-500/10 blur-2xl transition group-hover:bg-orange-500/20" />
                   <div className="relative flex items-start justify-between">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-orange-100 to-orange-200 text-[#D95E0B] shadow-sm">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-orange-100 to-orange-200 text-eic-orange-dark shadow-sm">
                       <m.icon className="h-6 w-6" />
                     </div>
                     <span
@@ -982,14 +982,14 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
                   </div>
                   <h3 className="relative mt-5 text-xl font-black text-[#0f172a]">{m.title}</h3>
                   <p className="relative mt-2 text-sm leading-7 text-slate-600">{m.text}</p>
-                  <div className="relative mt-5 inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-[#D95E0B]">
+                  <div className="relative mt-5 inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-eic-orange-dark">
                     <Sparkles className="h-3 w-3" />
                     Prima/dopo · PDF · CRM
                   </div>
                 </div>
               ))}
 
-              <div className="relative overflow-hidden rounded-2xl border-2 border-[#F97415] bg-gradient-to-br from-[#0f172a] to-[#1a2540] p-6 text-white shadow-xl">
+              <div className="relative overflow-hidden rounded-2xl border-2 border-eic-orange bg-gradient-to-br from-[#0f172a] to-[#1a2540] p-6 text-white shadow-xl">
                 <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_70%_30%,rgba(249,116,21,0.35),transparent_55%)]" />
                 <div className="relative">
                   <div className="inline-flex items-center gap-2 rounded-full bg-orange-500/20 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-orange-200">
@@ -1001,7 +1001,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
                   <button
                     type="button"
                     onClick={openLeadModal}
-                    className="mt-5 inline-flex items-center justify-center gap-2 rounded-lg bg-[#F97415] px-4 py-2.5 text-xs font-extrabold text-white shadow-md transition hover:bg-[#D95E0B]"
+                    className="mt-5 inline-flex items-center justify-center gap-2 rounded-lg bg-eic-orange px-4 py-2.5 text-xs font-extrabold text-white shadow-md transition hover:bg-eic-orange-dark"
                   >
                     Sblocca tutta la suite
                     <ArrowRight className="h-3.5 w-3.5" />
@@ -1016,7 +1016,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
         <section className="bg-[#f8fafc] px-6 py-20">
           <div className="mx-auto max-w-6xl">
             <div className="max-w-3xl">
-              <p className="text-sm font-black uppercase tracking-[0.2em] text-[#D95E0B]">
+              <p className="text-sm font-black uppercase tracking-[0.2em] text-eic-orange-dark">
                 {config.painKicker}
               </p>
               <h2 className="mt-3 text-3xl font-black tracking-tight text-[#0f172a] sm:text-4xl">
@@ -1032,7 +1032,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
                   className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 >
                   <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-orange-50">
-                    <item.icon className="h-6 w-6 text-[#F97415]" />
+                    <item.icon className="h-6 w-6 text-eic-orange" />
                   </div>
                   <h3 className="mt-5 text-xl font-black text-[#0f172a]">{item.title}</h3>
                   <p className="mt-3 text-sm leading-7 text-slate-600">{item.text}</p>
@@ -1046,7 +1046,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
         <section className="bg-white px-6 py-20">
           <div className="mx-auto max-w-6xl">
             <div className="max-w-3xl">
-              <p className="text-sm font-black uppercase tracking-[0.2em] text-[#D95E0B]">
+              <p className="text-sm font-black uppercase tracking-[0.2em] text-eic-orange-dark">
                 {config.baKicker}
               </p>
               <h2 className="mt-3 text-3xl font-black tracking-tight text-[#0f172a] sm:text-4xl">
@@ -1068,7 +1068,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
                       <p className="mt-4 text-sm leading-7 text-slate-300">{area.before}</p>
                     </div>
                     <div className="bg-orange-50 p-5 text-[#0f172a]">
-                      <p className="text-xs font-black uppercase tracking-[0.18em] text-[#D95E0B]">Dopo</p>
+                      <p className="text-xs font-black uppercase tracking-[0.18em] text-eic-orange-dark">Dopo</p>
                       <h3 className="mt-4 text-xl font-black">Nuovo impatto visivo</h3>
                       <p className="mt-4 text-sm leading-7 text-slate-700">{area.after}</p>
                     </div>
@@ -1083,7 +1083,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
         <section id="meccanismo" aria-labelledby="meccanismo-title" className="bg-white px-6 py-20">
           <div className="mx-auto max-w-6xl">
             <div className="mx-auto max-w-3xl text-center">
-              <p className="text-sm font-black uppercase tracking-[0.2em] text-[#D95E0B]">
+              <p className="text-sm font-black uppercase tracking-[0.2em] text-eic-orange-dark">
                 {config.mechanismKicker}
               </p>
               <h2
@@ -1103,11 +1103,11 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
               <div className="grid gap-8 md:grid-cols-3">
                 {config.mechanismSteps.map((step, index) => (
                   <div key={step.title} id={`step-${index + 1}`} className="relative">
-                    <div className="relative z-10 mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#F97415] text-white shadow-lg shadow-orange-200">
+                    <div className="relative z-10 mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-eic-orange text-white shadow-lg shadow-orange-200">
                       <step.icon className="h-5 w-5" />
                     </div>
                     <div className="mt-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                      <p className="text-xs font-black uppercase tracking-[0.18em] text-[#D95E0B]">
+                      <p className="text-xs font-black uppercase tracking-[0.18em] text-eic-orange-dark">
                         Step {index + 1}
                       </p>
                       <h3 className="mt-2 text-lg font-black text-[#0f172a]">{step.title}</h3>
@@ -1164,7 +1164,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
         <section className="bg-gradient-to-br from-[#fff7ed] via-white to-[#fff1e0] px-6 py-20">
           <div className="mx-auto max-w-6xl">
             <div className="mx-auto max-w-3xl text-center">
-              <div className="inline-flex items-center gap-2 rounded-full bg-orange-100 px-3 py-1 text-xs font-black uppercase tracking-[0.18em] text-[#D95E0B]">
+              <div className="inline-flex items-center gap-2 rounded-full bg-orange-100 px-3 py-1 text-xs font-black uppercase tracking-[0.18em] text-eic-orange-dark">
                 <TrendingUp className="h-3.5 w-3.5" />
                 {config.resultsKicker}
               </div>
@@ -1183,7 +1183,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
                     className="rounded-xl border border-orange-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                   >
                     <div className="flex gap-4">
-                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-orange-50 text-[#D95E0B]">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-orange-50 text-eic-orange-dark">
                         <p.icon className="h-5 w-5" />
                       </div>
                       <div>
@@ -1214,7 +1214,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
               <button
                 type="button"
                 onClick={openLeadModal}
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#F97415] px-7 py-4 text-base font-extrabold text-white shadow-lg shadow-orange-900/20 transition hover:bg-[#D95E0B]"
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-eic-orange px-7 py-4 text-base font-extrabold text-white shadow-lg shadow-orange-900/20 transition hover:bg-eic-orange-dark"
               >
                 {config.resultsCta}
                 <ArrowRight className="h-5 w-5" />
@@ -1227,7 +1227,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
         <section className="bg-white px-6 py-20">
           <div className="mx-auto max-w-6xl">
             <div className="mx-auto max-w-3xl text-center">
-              <div className="inline-flex items-center gap-2 rounded-full bg-orange-100 px-3 py-1 text-xs font-black uppercase tracking-[0.18em] text-[#D95E0B]">
+              <div className="inline-flex items-center gap-2 rounded-full bg-orange-100 px-3 py-1 text-xs font-black uppercase tracking-[0.18em] text-eic-orange-dark">
                 <TrendingUp className="h-3.5 w-3.5" />
                 {config.roiKicker}
               </div>
@@ -1259,7 +1259,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
           <div className="mx-auto max-w-6xl">
             <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
               <div>
-                <p className="text-sm font-black uppercase tracking-[0.2em] text-[#D95E0B]">
+                <p className="text-sm font-black uppercase tracking-[0.2em] text-eic-orange-dark">
                   {config.salesKicker}
                 </p>
                 <h2 className="mt-3 text-3xl font-black tracking-tight text-[#0f172a] sm:text-4xl">
@@ -1287,7 +1287,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
         <section className="bg-white px-6 py-20">
           <div className="mx-auto max-w-6xl">
             <div className="max-w-3xl">
-              <p className="text-sm font-black uppercase tracking-[0.2em] text-[#D95E0B]">
+              <p className="text-sm font-black uppercase tracking-[0.2em] text-eic-orange-dark">
                 {config.featureKicker}
               </p>
               <h2 className="mt-3 text-3xl font-black tracking-tight text-[#0f172a] sm:text-4xl">
@@ -1304,7 +1304,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <ImageIcon className="h-5 w-5 text-[#F97415]" />
+                    <ImageIcon className="h-5 w-5 text-eic-orange" />
                     <p className="font-black text-[#0f172a]">{row.label}</p>
                   </div>
                   <p className="text-sm leading-7 text-slate-600">{row.value}</p>
@@ -1319,7 +1319,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
           <div className="mx-auto max-w-6xl">
             <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
               <div>
-                <p className="text-sm font-black uppercase tracking-[0.2em] text-[#D95E0B]">
+                <p className="text-sm font-black uppercase tracking-[0.2em] text-eic-orange-dark">
                   {config.scenarioKicker}
                 </p>
                 <h2 className="mt-3 text-3xl font-black tracking-tight text-[#0f172a] sm:text-4xl">
@@ -1345,7 +1345,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
         <section id="faq" aria-labelledby="faq-title" className="bg-white px-6 py-20">
           <div className="mx-auto max-w-5xl">
             <div className="text-center">
-              <p className="text-sm font-black uppercase tracking-[0.2em] text-[#D95E0B]">
+              <p className="text-sm font-black uppercase tracking-[0.2em] text-eic-orange-dark">
                 {config.faqKicker}
               </p>
               <h2 id="faq-title" className="mt-3 text-3xl font-black tracking-tight text-[#0f172a] sm:text-4xl">
@@ -1357,7 +1357,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
                 <details key={item.q} className="group p-5">
                   <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-left text-base font-black text-[#0f172a]">
                     {item.q}
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-orange-50 text-[#D95E0B] transition group-open:rotate-45">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-orange-50 text-eic-orange-dark transition group-open:rotate-45">
                       +
                     </span>
                   </summary>
@@ -1372,7 +1372,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
         <section aria-labelledby="approfondisci-title" className="bg-[#f8fafc] px-6 py-16">
           <div className="mx-auto max-w-6xl">
             <div className="max-w-3xl">
-              <p className="text-sm font-black uppercase tracking-[0.2em] text-[#D95E0B]">
+              <p className="text-sm font-black uppercase tracking-[0.2em] text-eic-orange-dark">
                 {config.internalLinksKicker}
               </p>
               <h2
@@ -1397,7 +1397,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
                       onClick={openLeadModal}
                       className="group flex flex-col rounded-xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-orange-300 hover:shadow-md"
                     >
-                      <span className="inline-flex items-center gap-2 text-base font-black text-[#0f172a] group-hover:text-[#D95E0B]">
+                      <span className="inline-flex items-center gap-2 text-base font-black text-[#0f172a] group-hover:text-eic-orange-dark">
                         {link.title}
                         <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
                       </span>
@@ -1412,7 +1412,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
                     to={link.to}
                     className="group flex flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-orange-300 hover:shadow-md"
                   >
-                    <span className="inline-flex items-center gap-2 text-base font-black text-[#0f172a] group-hover:text-[#D95E0B]">
+                    <span className="inline-flex items-center gap-2 text-base font-black text-[#0f172a] group-hover:text-eic-orange-dark">
                       {link.title}
                       <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
                     </span>
@@ -1443,7 +1443,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
               <button
                 type="button"
                 onClick={openLeadModal}
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#F97415] px-8 py-4 text-base font-extrabold text-white shadow-lg shadow-orange-900/30 transition hover:bg-[#D95E0B]"
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-eic-orange px-8 py-4 text-base font-extrabold text-white shadow-lg shadow-orange-900/30 transition hover:bg-eic-orange-dark"
               >
                 {config.finalCtaButton}
                 <ArrowRight className="h-5 w-5" />
@@ -1459,7 +1459,7 @@ export default function RenderPageTemplate({ config }: { config: RenderPageConfi
         <button
           type="button"
           onClick={openLeadModal}
-          className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#F97415] px-5 py-3 text-sm font-extrabold text-white shadow-md transition hover:bg-[#D95E0B]"
+          className="flex w-full items-center justify-center gap-2 rounded-lg bg-eic-orange px-5 py-3 text-sm font-extrabold text-white shadow-md transition hover:bg-eic-orange-dark"
         >
           {config.stickyCtaLabel}
           <ArrowRight className="h-4 w-4" />

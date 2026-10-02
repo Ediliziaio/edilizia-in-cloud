@@ -15,7 +15,7 @@ const config: PerTipoConfig = {
   heroTitle: (
     <>
       <span className="text-white">Aumenta i margini. Blinda la cassa.</span>{" "}
-      <span className="text-[#F97415]">Controlla ogni cantiere di ristrutturazione.</span>
+      <span className="text-eic-orange">Controlla ogni cantiere di ristrutturazione.</span>
     </>
   ),
   heroSubtitle: "Non è solo un software per varianti e bonus: è il sistema che governa tutta l'azienda. Il margine reale di ogni cantiere lo vedi mentre lavori (+18% medio sulle commesse monitorate), la cassa la conosci a 90 giorni, varianti e SAL filano senza contestazioni — e sì, la documentazione bonus esce con checklist sempre aggiornate. Con l'AI che ti avvisa prima che una variante non tracciata diventi una perdita.",
@@ -24,7 +24,7 @@ const config: PerTipoConfig = {
 
   socialProof: [
     { initials: "RM", name: "Ristrutturazioni Marchetti", city: "Bologna", months: 14, gradient: "from-[#0d8f79] to-[#0a6b5a]" },
-    { initials: "EC", name: "Edil Conti Srl", city: "Roma", months: 9, gradient: "from-[#F97415] to-[#c85e0a]" },
+    { initials: "EC", name: "Edil Conti Srl", city: "Roma", months: 9, gradient: "from-eic-orange to-[#c85e0a]" },
     { initials: "BF", name: "Bonus & Fix Srl", city: "Milano", months: 18, gradient: "from-[#1a6fad] to-[#0d4f80]" },
     { initials: "TR", name: "Tecnoristruttura Snc", city: "Torino", months: 11, gradient: "from-[#7c3aed] to-[#5b21b6]" },
   ],
@@ -217,7 +217,7 @@ const config: PerTipoConfig = {
     person: "Andrea Martini",
     role: "Titolare",
     initials: "AM",
-    gradient: "from-[#0d8f79] to-[#F97415]",
+    gradient: "from-[#0d8f79] to-eic-orange",
     quote: "Avevo 11 cantieri aperti con pratiche Superbonus ed Ecobonus. Non dormivo la notte pensando a quali documenti mancavano. Con Edilizia in Cloud ogni pratica ha la sua scheda: APE pre e post, documenti ENEA, stato SAL, scadenze. Ho portato il preventivo da 3 ore a 25 minuti e non ho perso un solo bonus dal primo giorno di utilizzo.",
     metrics: [
       { label: "Tempo per preventivo con varianti", before: "3 ore", after: "25 minuti" },
@@ -290,7 +290,7 @@ const config: PerTipoConfig = {
   ctaTitle: (
     <>
       <span className="text-white">Margini protetti. Cassa blindata.</span>{" "}
-      <span className="text-[#F97415]">Ogni variante firmata, ogni cantiere sotto controllo.</span>
+      <span className="text-eic-orange">Ogni variante firmata, ogni cantiere sotto controllo.</span>
     </>
   ),
   ctaSubtitle: "30 minuti di demo: ti mostriamo come tracciare margini, cassa e varianti su un cantiere tipo — con i tuoi numeri. Nessun impegno.",

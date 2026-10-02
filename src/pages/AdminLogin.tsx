@@ -173,8 +173,8 @@ export default function AdminLogin() {
         <div className="animate-in fade-in-0 slide-in-from-bottom-4 duration-500 w-full max-w-md space-y-6 bg-white/[0.04] backdrop-blur-xl border border-white/10 rounded-2xl p-8">
           <div className="text-center space-y-4">
             <div className="flex justify-center">
-              <div className="rounded-full bg-[#F97415]/20 ring-4 ring-[#F97415]/30 p-5">
-                <Lock className="h-10 w-10 text-[#F97415]" />
+              <div className="rounded-full bg-eic-orange/20 ring-4 ring-eic-orange/30 p-5">
+                <Lock className="h-10 w-10 text-eic-orange" />
               </div>
             </div>
             <div className="space-y-1">
@@ -210,12 +210,12 @@ export default function AdminLogin() {
                   required
                   autoFocus
                   disabled={isResetting}
-                  className="h-11 bg-white/[0.06] border-white/10 text-white placeholder:text-white/30 focus-visible:ring-[#F97415] focus-visible:border-[#F97415]/50"
+                  className="h-11 bg-white/[0.06] border-white/10 text-white placeholder:text-white/30 focus-visible:ring-eic-orange focus-visible:border-eic-orange/50"
                 />
               </div>
               <Button
                 type="submit"
-                className="w-full h-11 bg-[#F97415] hover:bg-[#F97415]/90 text-white font-semibold"
+                className="w-full h-11 bg-eic-orange hover:bg-eic-orange/90 text-white font-semibold"
                 disabled={isResetting}
               >
                 {isResetting ? (
@@ -264,8 +264,8 @@ export default function AdminLogin() {
         <div className="animate-in fade-in-0 slide-in-from-bottom-4 duration-500 w-full max-w-md space-y-6 bg-white/[0.04] backdrop-blur-xl border border-white/10 rounded-2xl p-8">
           <div className="text-center space-y-4">
             <div className="flex justify-center">
-              <div className="rounded-full bg-[#F97415]/20 ring-4 ring-[#F97415]/30 p-5">
-                <Shield className="h-10 w-10 text-[#F97415]" />
+              <div className="rounded-full bg-eic-orange/20 ring-4 ring-eic-orange/30 p-5">
+                <Shield className="h-10 w-10 text-eic-orange" />
               </div>
             </div>
             <div className="space-y-1">
@@ -290,7 +290,7 @@ export default function AdminLogin() {
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a]">
-        <Loader2 className="h-8 w-8 animate-spin text-[#F97415]" />
+        <Loader2 className="h-8 w-8 animate-spin text-eic-orange" />
       </div>
     );
   }
@@ -300,13 +300,13 @@ export default function AdminLogin() {
       {/* Left dark panel — desktop only */}
       <div className="hidden lg:flex lg:w-[40%] flex-col items-center justify-center p-12 bg-[#0a0a0a] relative overflow-hidden">
         {/* Orange ambient orb */}
-        <div className="absolute top-10 left-1/2 -translate-x-1/2 w-[400px] h-[250px] bg-[#F97415]/[0.18] blur-[90px] rounded-full pointer-events-none" />
+        <div className="absolute top-10 left-1/2 -translate-x-1/2 w-[400px] h-[250px] bg-eic-orange/[0.18] blur-[90px] rounded-full pointer-events-none" />
 
         <div className="max-w-xs w-full space-y-10 relative z-10">
           {/* Shield icon with orange glow ring */}
           <div className="flex justify-center">
-            <div className="rounded-full bg-[#F97415]/20 ring-4 ring-[#F97415]/30 p-6">
-              <Shield className="h-12 w-12 text-[#F97415]" />
+            <div className="rounded-full bg-eic-orange/20 ring-4 ring-eic-orange/30 p-6">
+              <Shield className="h-12 w-12 text-eic-orange" />
             </div>
           </div>
 
@@ -347,8 +347,8 @@ export default function AdminLogin() {
           {/* Mobile header */}
           <div className="lg:hidden text-center space-y-5 mb-8">
             <div className="flex justify-center">
-              <div className="rounded-full bg-[#F97415]/20 ring-4 ring-[#F97415]/30 p-5">
-                <Shield className="h-10 w-10 text-[#F97415]" />
+              <div className="rounded-full bg-eic-orange/20 ring-4 ring-eic-orange/30 p-5">
+                <Shield className="h-10 w-10 text-eic-orange" />
               </div>
             </div>
             <div className="space-y-1">
@@ -388,7 +388,7 @@ export default function AdminLogin() {
                   autoFocus
                   autoComplete="email"
                   disabled={isSubmitting}
-                  className="h-11 bg-white/[0.06] border-white/10 text-white placeholder:text-white/30 focus-visible:ring-[#F97415] focus-visible:border-[#F97415]/50"
+                  className="h-11 bg-white/[0.06] border-white/10 text-white placeholder:text-white/30 focus-visible:ring-eic-orange focus-visible:border-eic-orange/50"
                 />
               </div>
 
@@ -412,7 +412,7 @@ export default function AdminLogin() {
                     required
                     autoComplete="current-password"
                     disabled={isSubmitting}
-                    className="h-11 pr-10 bg-white/[0.06] border-white/10 text-white placeholder:text-white/30 focus-visible:ring-[#F97415] focus-visible:border-[#F97415]/50"
+                    className="h-11 pr-10 bg-white/[0.06] border-white/10 text-white placeholder:text-white/30 focus-visible:ring-eic-orange focus-visible:border-eic-orange/50"
                   />
                   <button
                     type="button"
@@ -438,7 +438,7 @@ export default function AdminLogin() {
 
               <Button
                 type="submit"
-                className="w-full h-11 bg-[#F97415] hover:bg-[#F97415]/90 text-white font-semibold"
+                className="w-full h-11 bg-eic-orange hover:bg-eic-orange/90 text-white font-semibold"
                 disabled={isSubmitting}
               >
                 {isSubmitting ? (
@@ -458,7 +458,7 @@ export default function AdminLogin() {
             <button
               type="button"
               onClick={() => { setView("forgot-password"); setFormError(null); }}
-              className="w-full text-center text-sm text-white/50 hover:text-[#F97415] transition-colors"
+              className="w-full text-center text-sm text-white/50 hover:text-eic-orange transition-colors"
             >
               Password dimenticata?
             </button>

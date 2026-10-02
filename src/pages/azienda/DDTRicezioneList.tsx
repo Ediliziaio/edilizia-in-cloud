@@ -390,7 +390,7 @@ export default function DDTRicezioneList() {
           filtri e «Nuovo», senza esportazioni. ─────────────────────── */}
       <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-3 sm:px-6 py-3 sm:py-5 shadow-sm flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
         <div className="flex items-start gap-2.5 sm:gap-3 min-w-0 max-sm:hidden">
-          <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white flex items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
+          <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white flex items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
             <FileCheck className="h-4 w-4 sm:h-5 sm:w-5" />
           </div>
           <div className="min-w-0">
@@ -497,7 +497,7 @@ export default function DDTRicezioneList() {
             onClick={() => setNewOpen(true)}
             size="sm"
             disabled={availablePOs.length === 0}
-            className="shrink-0 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-500/20 hover:from-orange-600 hover:to-amber-500 hover:shadow-md hover:shadow-orange-500/25 max-sm:flex-1"
+            className="shrink-0 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm shadow-orange-500/20 hover:from-orange-600 hover:to-amber-500 hover:shadow-md hover:shadow-orange-500/25 max-sm:flex-1"
           >
             <Plus className="h-4 w-4 mr-1" />
             <span className="hidden sm:inline">Nuovo DDT</span>
@@ -778,7 +778,7 @@ function EmptyState({
           : "Registra il primo DDT per tracciare le ricezioni merce con allegati, dati corriere e verifica qualità."}
       </p>
       {canCreate && !hasFilter && (
-        <Button onClick={onCreate} className="mt-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
+        <Button onClick={onCreate} className="mt-2 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
           <Plus className="h-4 w-4 mr-1" /> Registra primo DDT
         </Button>
       )}

@@ -92,7 +92,7 @@ export function InterventiTab({ tipiIntervento, loadingInterventi, onAdd, onEdit
           <Button
             size="sm"
             onClick={onAdd}
-            className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 text-white shadow-sm"
+            className="bg-gradient-to-br from-orange-500 to-eic-amber hover:from-orange-600 hover:to-amber-500 text-white shadow-sm"
           >
             <Plus className="h-4 w-4 mr-1" />Nuovo intervento
           </Button>

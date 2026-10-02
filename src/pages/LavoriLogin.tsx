@@ -29,9 +29,9 @@ import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
 
 type ViewMode = "login" | "forgot" | "2fa";
 
-const GRADIENT = "from-orange-600 via-orange-500 to-amber-400";
+const GRADIENT = "from-orange-600 via-orange-500 to-eic-amber";
 const BTN_GRADIENT =
-  "bg-gradient-to-r from-orange-600 to-amber-500 hover:from-orange-700 hover:to-amber-600 text-white font-medium shadow-md";
+  "bg-gradient-to-r from-orange-600 to-eic-amber-strong hover:from-orange-700 hover:to-amber-600 text-white font-medium shadow-md";
 
 export default function LavoriLogin() {
   const { user, role, isLoading, signIn, signOut } = useAuth();

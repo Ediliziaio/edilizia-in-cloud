@@ -18,7 +18,7 @@ const config: PerTipoConfig = {
   heroTitle: (
     <>
       <span className="text-white">50+ persone, 30 cantieri,</span>{" "}
-      <span className="text-[#F97415]">un'unica fonte di verità</span>
+      <span className="text-eic-orange">un'unica fonte di verità</span>
     </>
   ),
   heroSubtitle:
@@ -27,10 +27,10 @@ const config: PerTipoConfig = {
 
   // Social proof
   socialProof: [
-    { initials: "CG", name: "Costruzioni Grandi SpA", city: "Milano", months: 22, gradient: "from-[#F97415] to-[#0d8f79]" },
-    { initials: "EH", name: "Edilholding Group", city: "Roma", months: 18, gradient: "from-[#111111] to-[#F97415]" },
+    { initials: "CG", name: "Costruzioni Grandi SpA", city: "Milano", months: 22, gradient: "from-eic-orange to-[#0d8f79]" },
+    { initials: "EH", name: "Edilholding Group", city: "Roma", months: 18, gradient: "from-[#111111] to-eic-orange" },
     { initials: "GC", name: "Gruppo Costanzi", city: "Bologna", months: 14, gradient: "from-[#0d8f79] to-[#111111]" },
-    { initials: "MI", name: "Marini Infrastrutture", city: "Torino", months: 11, gradient: "from-[#1a1a2e] to-[#F97415]" },
+    { initials: "MI", name: "Marini Infrastrutture", city: "Torino", months: 11, gradient: "from-[#1a1a2e] to-eic-orange" },
   ],
 
   // Problems
@@ -242,7 +242,7 @@ const config: PerTipoConfig = {
     person: "Marco D'Amico",
     role: "CFO di Gruppo",
     initials: "MD",
-    gradient: "from-[#F97415] to-[#0d8f79]",
+    gradient: "from-eic-orange to-[#0d8f79]",
     quote:
       "Avevamo l'ERP per la contabilità e 4 Excel di controllo cantiere mantenuti da 3 controller. Il margine consolidato di gruppo lo avevo il 25 del mese, su numeri del mese prima. Con Edilizia in Cloud accanto all'ERP ora apro il portatile alle 8 del lunedì e vedo i 18 cantieri di tutte le 3 società, il margine atteso vs realizzato, gli scostamenti rossi. Nei primi 6 mesi abbiamo recuperato 380k€ solo riallineando i prezzi dei subappaltatori che ogni cantiere trattava in autonomia.",
     metrics: [
@@ -327,7 +327,7 @@ const config: PerTipoConfig = {
   ctaTitle: (
     <>
       <span className="text-white">Il tuo gruppo merita</span>{" "}
-      <span className="text-[#F97415]">una sola fonte di verità</span>
+      <span className="text-eic-orange">una sola fonte di verità</span>
     </>
   ),
   ctaSubtitle:

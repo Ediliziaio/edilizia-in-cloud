@@ -321,10 +321,10 @@ export default function ChiSiamo() {
           </p>
 
           <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-sm text-white/70">
-            <span className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-[#F97415]" /> Dal 2021</span>
-            <span className="flex items-center gap-2"><MapPin className="w-4 h-4 text-[#F97415]" /> Sede Milano</span>
-            <span className="flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-[#F97415]" /> GDPR</span>
-            <span className="flex items-center gap-2"><Code2 className="w-4 h-4 text-[#F97415]" /> Made in Italy</span>
+            <span className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-eic-orange" /> Dal 2021</span>
+            <span className="flex items-center gap-2"><MapPin className="w-4 h-4 text-eic-orange" /> Sede Milano</span>
+            <span className="flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-eic-orange" /> GDPR</span>
+            <span className="flex items-center gap-2"><Code2 className="w-4 h-4 text-eic-orange" /> Made in Italy</span>
           </div>
         </div>
       </section>
@@ -411,7 +411,7 @@ export default function ChiSiamo() {
             >
               <p className="italic text-[#111111]/80 text-base md:text-lg leading-relaxed">
                 Il fatturato è vanità. Il margine è sanità. La cassa è realtà. <br />
-                <span className="text-sm not-italic font-semibold text-[#F97415]">
+                <span className="text-sm not-italic font-semibold text-eic-orange">
                   — È il principio attorno al quale è stato pensato ogni schermo del software.
                 </span>
               </p>
@@ -706,7 +706,7 @@ export default function ChiSiamo() {
               <details key={f.q} className="bg-white rounded-2xl group" style={{ border: "1px solid #e8ecf0" }}>
                 <summary className="flex items-center justify-between gap-4 p-5 cursor-pointer list-none">
                   <span className="font-semibold text-[#111111] text-sm md:text-base">{f.q}</span>
-                  <ChevronDown className="w-5 h-5 text-[#F97415] flex-shrink-0 group-open:rotate-180 transition-transform" />
+                  <ChevronDown className="w-5 h-5 text-eic-orange flex-shrink-0 group-open:rotate-180 transition-transform" />
                 </summary>
                 <p className="px-5 pb-5 text-[#111111]/65 text-sm leading-relaxed">{f.a}</p>
               </details>
@@ -768,13 +768,13 @@ export default function ChiSiamo() {
           {/* Link di approfondimento */}
           <div className="mt-10 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm">
             <span className="text-white/40">Oppure esplora:</span>
-            <Link to="/funzionalita/" className="text-white/75 hover:text-[#F97415] transition-colors underline-offset-4 hover:underline">
+            <Link to="/funzionalita/" className="text-white/75 hover:text-eic-orange transition-colors underline-offset-4 hover:underline">
               Funzionalità
             </Link>
-            <Link to="/prezzi/" className="text-white/75 hover:text-[#F97415] transition-colors underline-offset-4 hover:underline">
+            <Link to="/prezzi/" className="text-white/75 hover:text-eic-orange transition-colors underline-offset-4 hover:underline">
               Prezzi
             </Link>
-            <Link to="/diventa-partner/" className="text-white/75 hover:text-[#F97415] transition-colors underline-offset-4 hover:underline">
+            <Link to="/diventa-partner/" className="text-white/75 hover:text-eic-orange transition-colors underline-offset-4 hover:underline">
               Diventa Partner
             </Link>
           </div>

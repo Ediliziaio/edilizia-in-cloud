@@ -299,7 +299,7 @@ export function BulkPriceAdjustDialog({
           <Button
             onClick={() => mutation.mutate()}
             disabled={!canApply || mutation.isPending}
-            className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 text-white"
+            className="bg-gradient-to-br from-orange-500 to-eic-amber hover:from-orange-600 hover:to-amber-500 text-white"
           >
             {mutation.isPending ? "Applico…" : `Applica a ${changed.length} ${changed.length === 1 ? "voce" : "voci"}`}
           </Button>

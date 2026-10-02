@@ -68,7 +68,7 @@ function VarianteCard({ v }: { v: VarianteKPI }) {
       )}
     >
       {v.is_consigliata && (
-        <span className="absolute -top-2.5 left-4 inline-flex items-center gap-1 rounded-full bg-gradient-to-br from-orange-500 to-amber-400 px-2.5 py-0.5 text-[10px] font-bold text-white shadow">
+        <span className="absolute -top-2.5 left-4 inline-flex items-center gap-1 rounded-full bg-gradient-to-br from-orange-500 to-eic-amber px-2.5 py-0.5 text-[10px] font-bold text-white shadow">
           <Check className="h-3 w-3" /> Consigliata
         </span>
       )}

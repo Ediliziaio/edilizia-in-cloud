@@ -185,7 +185,7 @@ export function NewPreventivoMenu({
 }
 
 function triggerClass(size: "sm" | "default" | "lg") {
-  const base = "bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)] hover:shadow-[0_6px_16px_rgba(249,115,22,0.4)] hover:-translate-y-px transition-all border-0";
+  const base = "bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)] hover:shadow-[0_6px_16px_rgba(249,115,22,0.4)] hover:-translate-y-px transition-all border-0";
   if (size === "lg") return `${base} h-11`;
   if (size === "default") return `${base} h-10`;
   return `${base} h-9`;

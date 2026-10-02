@@ -124,17 +124,17 @@ export function CalculatorShell({
       <main className="pt-24 pb-16 md:pt-28">
         <div className="mx-auto w-full max-w-3xl px-4 sm:px-6">
           <nav aria-label="Percorso" className="mb-5 text-sm text-gray-500">
-            <Link to="/" className="hover:text-[#F97415]">
+            <Link to="/" className="hover:text-eic-orange">
               Home
             </Link>
             <span className="mx-1.5">/</span>
-            <Link to="/strumenti" className="hover:text-[#F97415]">
+            <Link to="/strumenti" className="hover:text-eic-orange">
               Strumenti
             </Link>
           </nav>
 
           <header className="mb-7">
-            <span className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-[#F97415]/10 px-3 py-1 text-xs font-semibold text-[#F97415]">
+            <span className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-eic-orange/10 px-3 py-1 text-xs font-semibold text-eic-orange">
               <Calculator className="h-3.5 w-3.5" aria-hidden="true" />
               Strumento gratuito · nessuna registrazione
             </span>
@@ -163,9 +163,9 @@ export function CalculatorShell({
           {guida && (
             <Link
               to={guida.href}
-              className="mt-8 flex items-center gap-3 rounded-xl border border-gray-200 p-4 transition-colors hover:border-[#F97415]/50 hover:bg-[#F97415]/5"
+              className="mt-8 flex items-center gap-3 rounded-xl border border-gray-200 p-4 transition-colors hover:border-eic-orange/50 hover:bg-eic-orange/5"
             >
-              <BookOpen className="h-5 w-5 shrink-0 text-[#F97415]" aria-hidden="true" />
+              <BookOpen className="h-5 w-5 shrink-0 text-eic-orange" aria-hidden="true" />
               <span className="min-w-0 flex-1">
                 <span className="block text-xs font-medium uppercase tracking-wide text-gray-500">
                   Approfondisci
@@ -188,7 +188,7 @@ export function CalculatorShell({
                       {f.q}
                       <span
                         aria-hidden="true"
-                        className="shrink-0 text-xl leading-none text-[#F97415] transition-transform group-open:rotate-45"
+                        className="shrink-0 text-xl leading-none text-eic-orange transition-transform group-open:rotate-45"
                       >
                         +
                       </span>
@@ -213,7 +213,7 @@ export function CalculatorShell({
               <button
                 type="button"
                 onClick={openModal}
-                className="rounded-full bg-[#F97415] px-6 py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+                className="rounded-full bg-eic-orange px-6 py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90"
               >
                 Prova gratis 31 giorni
               </button>
@@ -275,7 +275,7 @@ export function CampoNumero({
             onChange(Number.isNaN(n) ? 0 : n);
           }}
           aria-describedby={aiuto ? `${id}-aiuto` : undefined}
-          className={`w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-base text-gray-900 outline-none transition-colors focus:border-[#F97415] focus:ring-2 focus:ring-[#F97415]/20 ${
+          className={`w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-base text-gray-900 outline-none transition-colors focus:border-eic-orange focus:ring-2 focus:ring-eic-orange/20 ${
             suffisso ? "pr-12" : ""
           }`}
         />

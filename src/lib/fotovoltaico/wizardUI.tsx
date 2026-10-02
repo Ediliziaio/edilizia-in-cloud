@@ -90,7 +90,7 @@ export function FvTabBar({ tabs, current, completed, allowJumpForward, onSelect 
                 className={cn(
                   "flex items-center justify-center w-6 h-6 rounded-full border text-[11px] font-bold flex-shrink-0 transition-all max-md:hidden",
                   !isActive && !isCompleted && "bg-slate-100 border-slate-300 text-slate-500",
-                  isActive && "border-orange-500 text-white shadow-[0_2px_8px_rgba(249,115,22,0.4)] bg-gradient-to-br from-orange-500 to-amber-400",
+                  isActive && "border-orange-500 text-white shadow-[0_2px_8px_rgba(249,115,22,0.4)] bg-gradient-to-br from-orange-500 to-eic-amber",
                   isCompleted && "bg-emerald-600 border-emerald-600 text-white",
                 )}
               >
@@ -118,7 +118,7 @@ export function FvTabBar({ tabs, current, completed, allowJumpForward, onSelect 
         </span>
         <div className="flex-1 max-w-[200px] h-1 bg-slate-200 rounded-full overflow-hidden">
           <div
-            className="h-full bg-gradient-to-r from-orange-500 to-amber-400 rounded-full transition-all duration-500"
+            className="h-full bg-gradient-to-r from-orange-500 to-eic-amber rounded-full transition-all duration-500"
             style={{ width: `${pct}%` }}
           />
         </div>
@@ -239,7 +239,7 @@ export function FvCard({ title, action, children, className, compact }: FvCardPr
         <div className="flex items-center justify-between mb-4 gap-3 flex-wrap max-md:mb-2">
           {title && (
             <h3 className="text-[15px] font-bold text-slate-900 flex items-center gap-2.5 max-md:text-sm">
-              <span className="block w-1 h-4 rounded-sm bg-gradient-to-b from-orange-500 to-amber-400" />
+              <span className="block w-1 h-4 rounded-sm bg-gradient-to-b from-orange-500 to-eic-amber" />
               {title}
             </h3>
           )}
@@ -473,7 +473,7 @@ export function FvFooter({
             disabled={nextDisabled || saving}
             className={cn(
               "px-5 py-2 text-sm font-bold rounded-lg text-white transition-all",
-              "bg-gradient-to-br from-orange-500 to-amber-400 shadow-[0_4px_12px_rgba(249,115,22,0.3)]",
+              "bg-gradient-to-br from-orange-500 to-eic-amber shadow-[0_4px_12px_rgba(249,115,22,0.3)]",
               "hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(249,115,22,0.4)]",
               "disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:shadow-none",
               "max-md:flex-1",

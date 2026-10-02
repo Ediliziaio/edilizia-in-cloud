@@ -16,7 +16,7 @@ const config: PerTipoConfig = {
   heroTitle: (
     <>
       <span className="text-white">Anche tu fai le fatture</span>{" "}
-      <span className="text-[#F97415]">la domenica sera?</span>
+      <span className="text-eic-orange">la domenica sera?</span>
     </>
   ),
   heroSubtitle:
@@ -25,10 +25,10 @@ const config: PerTipoConfig = {
 
   // Social proof
   socialProof: [
-    { initials: "LC", name: "Conti Murature", city: "Bergamo", months: 16, gradient: "from-[#F97415] to-[#0d8f79]" },
-    { initials: "MR", name: "Rossi Imbianchino", city: "Milano", months: 8, gradient: "from-[#111111] to-[#F97415]" },
+    { initials: "LC", name: "Conti Murature", city: "Bergamo", months: 16, gradient: "from-eic-orange to-[#0d8f79]" },
+    { initials: "MR", name: "Rossi Imbianchino", city: "Milano", months: 8, gradient: "from-[#111111] to-eic-orange" },
     { initials: "EF", name: "Edil Fontana", city: "Brescia", months: 12, gradient: "from-[#0d8f79] to-[#111111]" },
-    { initials: "GT", name: "Grandi Tinteggiature", city: "Torino", months: 6, gradient: "from-[#1a1a2e] to-[#F97415]" },
+    { initials: "GT", name: "Grandi Tinteggiature", city: "Torino", months: 6, gradient: "from-[#1a1a2e] to-eic-orange" },
   ],
 
   // Problems
@@ -240,7 +240,7 @@ const config: PerTipoConfig = {
     person: "Luca Conti",
     role: "Titolare e artigiano",
     initials: "LC",
-    gradient: "from-[#F97415] to-[#0d8f79]",
+    gradient: "from-eic-orange to-[#0d8f79]",
     quote:
       "Ero uno di quelli che faceva le fatture la domenica sera. Ci perdevo 2-3 ore, sbagliavo, rifacevo. Ora le faccio dal telefono mentre sono ancora in macchina davanti al cantiere. Ma la cosa che mi ha cambiato di più è sapere ogni giorno quanto ho guadagnato davvero su ogni lavoro — prima non lo sapevo mai.",
     metrics: [
@@ -317,7 +317,7 @@ const config: PerTipoConfig = {
   ctaTitle: (
     <>
       <span className="text-white">La domenica sera</span>{" "}
-      <span className="text-[#F97415]">torna tua.</span>
+      <span className="text-eic-orange">torna tua.</span>
     </>
   ),
   ctaSubtitle:

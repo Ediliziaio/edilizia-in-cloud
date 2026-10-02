@@ -3739,7 +3739,7 @@ export default function QuoteBuilder() {
                 type="button"
                 onClick={handleNext}
                 disabled={saving}
-                className="inline-flex items-center gap-1.5 px-3.5 sm:px-5 py-2 text-sm font-bold rounded-lg text-white transition-all bg-gradient-to-br from-orange-500 to-amber-400 shadow-[0_4px_12px_rgba(249,115,22,0.3)] hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(249,115,22,0.4)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 h-9 max-sm:flex-1 max-sm:justify-center"
+                className="inline-flex items-center gap-1.5 px-3.5 sm:px-5 py-2 text-sm font-bold rounded-lg text-white transition-all bg-gradient-to-br from-orange-500 to-eic-amber shadow-[0_4px_12px_rgba(249,115,22,0.3)] hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(249,115,22,0.4)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 h-9 max-sm:flex-1 max-sm:justify-center"
               >
                 Avanti<span className="hidden sm:inline"> · {STEPS[step + 1]?.label}</span>
                 <ArrowRight className="h-4 w-4" />

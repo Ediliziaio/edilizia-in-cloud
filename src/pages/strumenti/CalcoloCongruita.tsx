@@ -112,7 +112,7 @@ export default function CalcoloCongruita() {
               id="categoria"
               value={categoriaId}
               onChange={(e) => setCategoriaId(e.target.value)}
-              className="mt-1.5 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-base text-gray-900 outline-none transition-colors focus:border-[#F97415] focus:ring-2 focus:ring-[#F97415]/20"
+              className="mt-1.5 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-base text-gray-900 outline-none transition-colors focus:border-eic-orange focus:ring-2 focus:ring-eic-orange/20"
             >
               {CATEGORIE_CONGRUITA.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -156,7 +156,7 @@ export default function CalcoloCongruita() {
                   aria-pressed={pubblico === o.v}
                   className={`flex-1 rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors ${
                     pubblico === o.v
-                      ? "border-[#F97415] bg-[#F97415]/10 text-[#F97415]"
+                      ? "border-eic-orange bg-eic-orange/10 text-eic-orange"
                       : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
                   }`}
                 >

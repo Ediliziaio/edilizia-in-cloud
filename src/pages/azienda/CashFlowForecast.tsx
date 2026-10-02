@@ -196,7 +196,7 @@ export default function CashFlowForecast() {
       <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6 print:mb-4">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex min-w-0 items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
               <TrendingUp className="h-5 w-5" />
             </div>
             <div className="min-w-0">
@@ -258,7 +258,7 @@ export default function CashFlowForecast() {
         // Testata navy di famiglia. Formato euro standard it-IT ("52.942 €",
         // non "€52.942"): come nel resto del gestionale.
         <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm max-sm:hidden">
-          <div className="bg-[#173b67] p-4 text-white sm:p-5">
+          <div className="bg-eic-navy-deep p-4 text-white sm:p-5">
             {/* Senza titoletto «Previsionale — La cassa che verrà»: ripeteva
                 il titolo della pagina. */}
             <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">

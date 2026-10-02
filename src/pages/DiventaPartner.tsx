@@ -274,12 +274,12 @@ function CommissionCalculator() {
   const annuale = mensile * 12;
 
   return (
-    <div className="bg-white rounded-3xl p-6 md:p-10 shadow-2xl border border-[#F97415]/10 relative overflow-hidden">
-      <div className="absolute top-0 right-0 w-48 h-48 bg-[#F97415]/5 rounded-full -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+    <div className="bg-white rounded-3xl p-6 md:p-10 shadow-2xl border border-eic-orange/10 relative overflow-hidden">
+      <div className="absolute top-0 right-0 w-48 h-48 bg-eic-orange/5 rounded-full -translate-y-1/2 translate-x-1/2 pointer-events-none" />
 
       <div className="relative z-10">
         <div className="flex items-center gap-3 mb-6">
-          <div className="w-12 h-12 rounded-2xl bg-[#F97415] flex items-center justify-center">
+          <div className="w-12 h-12 rounded-2xl bg-eic-orange flex items-center justify-center">
             <Calculator className="w-6 h-6 text-white" />
           </div>
           <div>
@@ -296,7 +296,7 @@ function CommissionCalculator() {
           <div>
             <label className="block text-sm font-semibold text-[#111111] mb-2">
               Clienti edili attivi che pensi di portare:{" "}
-              <span className="text-[#F97415] font-extrabold">{clienti}</span>
+              <span className="text-eic-orange font-extrabold">{clienti}</span>
             </label>
             <input
               type="range"
@@ -304,7 +304,7 @@ function CommissionCalculator() {
               max="50"
               value={clienti}
               onChange={(e) => setClienti(parseInt(e.target.value))}
-              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#F97415]"
+              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-eic-orange"
             />
             <div className="grid grid-cols-4 text-[10px] text-gray-400 mt-1">
               <span className="text-left">1-5 Partner</span>
@@ -326,7 +326,7 @@ function CommissionCalculator() {
                   onClick={() => setPianoMedio(p)}
                   className={`py-3 px-2 rounded-xl text-xs md:text-sm font-bold transition-all ${
                     pianoMedio === p
-                      ? "bg-[#F97415] text-white shadow-lg"
+                      ? "bg-eic-orange text-white shadow-lg"
                       : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                   }`}
                 >
@@ -345,7 +345,7 @@ function CommissionCalculator() {
             </div>
           </div>
 
-          <div className="bg-gradient-to-br from-[#F97415] to-[#C94F06] rounded-2xl p-6 text-white">
+          <div className="bg-gradient-to-br from-eic-orange to-eic-orange-deep rounded-2xl p-6 text-white">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-semibold uppercase tracking-widest opacity-90">
                 Il tuo livello
@@ -526,24 +526,24 @@ export default function DiventaPartner() {
             <strong className="text-[#111111]">48 ore</strong> (controllo P.IVA + due
             diligence light) e poi ti programmiamo la call di onboarding di 60 minuti.
           </p>
-          <div className="bg-[#F97415]/5 border border-[#F97415]/20 rounded-2xl p-6 text-left">
+          <div className="bg-eic-orange/5 border border-eic-orange/20 rounded-2xl p-6 text-left">
             <p className="text-sm font-bold text-[#111111] mb-2">Cosa succede ora:</p>
             <ul className="space-y-2 text-sm text-gray-600">
               <li className="flex items-start gap-2">
-                <CheckCircle2 className="w-4 h-4 text-[#F97415] mt-0.5 flex-shrink-0" />
+                <CheckCircle2 className="w-4 h-4 text-eic-orange mt-0.5 flex-shrink-0" />
                 <span>
                   Ti inviamo via email il kit partner di benvenuto e il documento
                   termini & condizioni
                 </span>
               </li>
               <li className="flex items-start gap-2">
-                <CheckCircle2 className="w-4 h-4 text-[#F97415] mt-0.5 flex-shrink-0" />
+                <CheckCircle2 className="w-4 h-4 text-eic-orange mt-0.5 flex-shrink-0" />
                 <span>
                   Generiamo il tuo codice partner univoco e il link di tracciamento
                 </span>
               </li>
               <li className="flex items-start gap-2">
-                <CheckCircle2 className="w-4 h-4 text-[#F97415] mt-0.5 flex-shrink-0" />
+                <CheckCircle2 className="w-4 h-4 text-eic-orange mt-0.5 flex-shrink-0" />
                 <span>
                   Programmiamo la call di onboarding 60 minuti: prodotto, ICP, pitch in
                   3 minuti, gestione obiezioni
@@ -554,7 +554,7 @@ export default function DiventaPartner() {
           <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
             <Link
               to="/"
-              className="inline-flex items-center gap-2 text-[#F97415] hover:text-[#C94F06] font-semibold"
+              className="inline-flex items-center gap-2 text-eic-orange hover:text-eic-orange-deep font-semibold"
             >
               ← Torna alla home
             </Link>
@@ -562,7 +562,7 @@ export default function DiventaPartner() {
             <button
               type="button"
               onClick={handleReset}
-              className="inline-flex items-center gap-2 text-[#111111]/60 hover:text-[#F97415] font-semibold underline"
+              className="inline-flex items-center gap-2 text-[#111111]/60 hover:text-eic-orange font-semibold underline"
             >
               Invia un'altra candidatura
             </button>
@@ -634,7 +634,7 @@ export default function DiventaPartner() {
         <div className="relative max-w-6xl mx-auto px-5 sm:px-6">
           <div className="grid md:grid-cols-2 gap-8 sm:gap-10 items-center">
             <div>
-              <span className="inline-flex items-center gap-2 mb-4 sm:mb-5 px-3 sm:px-4 py-1.5 rounded-full bg-[#F97415]/10 border border-[#F97415]/30 text-[#F97415] text-[10px] sm:text-xs font-bold tracking-widest uppercase">
+              <span className="inline-flex items-center gap-2 mb-4 sm:mb-5 px-3 sm:px-4 py-1.5 rounded-full bg-eic-orange/10 border border-eic-orange/30 text-eic-orange text-[10px] sm:text-xs font-bold tracking-widest uppercase">
                 <Sparkles className="w-3.5 h-3.5" />
                 Partner Program 2026
               </span>
@@ -642,9 +642,9 @@ export default function DiventaPartner() {
               <h1 className="text-[28px] leading-[1.15] sm:text-4xl md:text-6xl font-extrabold sm:leading-[1.05] tracking-tight mb-5 sm:mb-6">
                 Fino al{" "}
                 <span className="relative inline-block">
-                  <span className="relative z-10 text-[#F97415]">30% ricorrente</span>
+                  <span className="relative z-10 text-eic-orange">30% ricorrente</span>
                   <span
-                    className="absolute bottom-1 left-0 right-0 h-3 bg-[#F97415]/15 -z-0"
+                    className="absolute bottom-1 left-0 right-0 h-3 bg-eic-orange/15 -z-0"
                     aria-hidden
                   />
                 </span>{" "}
@@ -665,7 +665,7 @@ export default function DiventaPartner() {
                 <button
                   type="button"
                   onClick={scrollToForm}
-                  className="inline-flex items-center justify-center gap-2 w-full sm:w-auto px-6 sm:px-8 py-4 rounded-full bg-[#F97415] hover:bg-[#C94F06] text-white font-bold text-base transition-all hover:scale-105 shadow-lg shadow-[#F97415]/30"
+                  className="inline-flex items-center justify-center gap-2 w-full sm:w-auto px-6 sm:px-8 py-4 rounded-full bg-eic-orange hover:bg-eic-orange-deep text-white font-bold text-base transition-all hover:scale-105 shadow-lg shadow-eic-orange/30"
                 >
                   Candidati ora — è gratis
                   <ArrowRight className="w-5 h-5" />
@@ -698,11 +698,11 @@ export default function DiventaPartner() {
             {/* Stats card — esempio realistico Silver/Gold */}
             <div className="relative">
               <div className="bg-white rounded-3xl p-6 md:p-8 shadow-xl border border-gray-100 relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-[#F97415]/5 rounded-full -translate-y-1/2 translate-x-1/2" />
+                <div className="absolute top-0 right-0 w-32 h-32 bg-eic-orange/5 rounded-full -translate-y-1/2 translate-x-1/2" />
 
                 <div className="relative z-10 space-y-5">
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#F97415] to-[#C94F06] flex items-center justify-center">
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-eic-orange to-eic-orange-deep flex items-center justify-center">
                       <HeartHandshake className="w-6 h-6 text-white" />
                     </div>
                     <div>
@@ -726,13 +726,13 @@ export default function DiventaPartner() {
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-gray-600">Tier raggiunto</span>
-                      <span className="font-extrabold text-[#F97415]">Silver — 20%</span>
+                      <span className="font-extrabold text-eic-orange">Silver — 20%</span>
                     </div>
                   </div>
 
-                  <div className="text-center bg-[#F97415]/5 rounded-2xl py-4">
+                  <div className="text-center bg-eic-orange/5 rounded-2xl py-4">
                     <p className="text-xs text-gray-500 mb-1">Rendita mensile ricorrente</p>
-                    <p className="text-3xl md:text-4xl font-extrabold text-[#F97415]">
+                    <p className="text-3xl md:text-4xl font-extrabold text-eic-orange">
                       592€
                     </p>
                     <p className="text-xs text-gray-500 mt-1">
@@ -756,12 +756,12 @@ export default function DiventaPartner() {
       <section className="py-14 sm:py-20 md:py-28 bg-white">
         <div className="max-w-6xl mx-auto px-5 sm:px-6">
           <div className="text-center mb-14 md:mb-16">
-            <span className="inline-block mb-4 px-4 py-1.5 rounded-full bg-[#F97415]/10 border border-[#F97415]/30 text-[#F97415] text-xs font-bold tracking-widest uppercase">
+            <span className="inline-block mb-4 px-4 py-1.5 rounded-full bg-eic-orange/10 border border-eic-orange/30 text-eic-orange text-xs font-bold tracking-widest uppercase">
               Per chi è il programma
             </span>
             <h2 className="text-3xl md:text-5xl font-extrabold mb-4 leading-tight">
               Se il tuo lavoro ti porta a contatto con{" "}
-              <span className="text-[#F97415]">imprese edili</span>, sei nel posto giusto
+              <span className="text-eic-orange">imprese edili</span>, sei nel posto giusto
             </h2>
             <p className="text-gray-600 text-lg max-w-2xl mx-auto">
               Il programma è pensato per professionisti che hanno{" "}
@@ -774,11 +774,11 @@ export default function DiventaPartner() {
             {personas.map((p) => (
               <div
                 key={p.title}
-                className="group bg-white rounded-2xl p-7 border border-gray-100 hover:border-[#F97415]/30 hover:shadow-xl transition-all duration-300"
+                className="group bg-white rounded-2xl p-7 border border-gray-100 hover:border-eic-orange/30 hover:shadow-xl transition-all duration-300"
               >
                 <div className="flex items-start gap-4 mb-5">
-                  <div className="w-14 h-14 rounded-2xl bg-[#F97415]/10 flex items-center justify-center flex-shrink-0 group-hover:bg-[#F97415] group-hover:scale-110 transition-all">
-                    <p.icon className="w-7 h-7 text-[#F97415] group-hover:text-white transition-colors" />
+                  <div className="w-14 h-14 rounded-2xl bg-eic-orange/10 flex items-center justify-center flex-shrink-0 group-hover:bg-eic-orange group-hover:scale-110 transition-all">
+                    <p.icon className="w-7 h-7 text-eic-orange group-hover:text-white transition-colors" />
                   </div>
                   <div className="flex-1">
                     <h3 className="text-xl font-extrabold text-[#111111] mb-1">
@@ -794,14 +794,14 @@ export default function DiventaPartner() {
                       key={idx}
                       className="flex items-start gap-2 text-sm text-gray-700"
                     >
-                      <CheckCircle2 className="w-4 h-4 text-[#F97415] mt-0.5 flex-shrink-0" />
+                      <CheckCircle2 className="w-4 h-4 text-eic-orange mt-0.5 flex-shrink-0" />
                       <span>{b}</span>
                     </li>
                   ))}
                 </ul>
 
-                <div className="bg-[#F97415]/5 border-l-4 border-[#F97415] rounded-r-lg p-3.5">
-                  <p className="text-[11px] uppercase tracking-widest text-[#F97415] font-bold mb-1">
+                <div className="bg-eic-orange/5 border-l-4 border-eic-orange rounded-r-lg p-3.5">
+                  <p className="text-[11px] uppercase tracking-widest text-eic-orange font-bold mb-1">
                     Esempio guadagno
                   </p>
                   <p className="text-sm font-semibold text-[#111111] leading-snug">
@@ -827,11 +827,11 @@ export default function DiventaPartner() {
       >
         <div className="max-w-6xl mx-auto px-5 sm:px-6">
           <div className="text-center mb-14 md:mb-16">
-            <span className="inline-block mb-4 px-4 py-1.5 rounded-full bg-[#F97415]/10 border border-[#F97415]/30 text-[#F97415] text-xs font-bold tracking-widest uppercase">
+            <span className="inline-block mb-4 px-4 py-1.5 rounded-full bg-eic-orange/10 border border-eic-orange/30 text-eic-orange text-xs font-bold tracking-widest uppercase">
               Il viaggio del partner
             </span>
             <h2 className="text-3xl md:text-5xl font-extrabold mb-4">
-              Dai primi <span className="text-[#F97415]">7 giorni</span> al primo Platinum
+              Dai primi <span className="text-eic-orange">7 giorni</span> al primo Platinum
             </h2>
             <p className="text-gray-600 text-lg max-w-xl mx-auto">
               Niente burocrazia, niente formazione di 3 mesi. Si parte subito.
@@ -880,10 +880,10 @@ export default function DiventaPartner() {
               <div key={i} className="relative">
                 <div className="bg-white rounded-3xl p-6 md:p-7 shadow-sm border border-gray-100 h-full hover:shadow-lg transition-all">
                   <div className="flex items-center justify-between mb-4">
-                    <div className="w-12 h-12 rounded-2xl bg-[#F97415]/10 flex items-center justify-center">
-                      <s.icon className="w-6 h-6 text-[#F97415]" />
+                    <div className="w-12 h-12 rounded-2xl bg-eic-orange/10 flex items-center justify-center">
+                      <s.icon className="w-6 h-6 text-eic-orange" />
                     </div>
-                    <span className="text-[10px] font-mono font-bold tracking-widest text-[#F97415] uppercase">
+                    <span className="text-[10px] font-mono font-bold tracking-widest text-eic-orange uppercase">
                       {s.n}
                     </span>
                   </div>
@@ -902,11 +902,11 @@ export default function DiventaPartner() {
       <section className="py-14 sm:py-20 md:py-28 bg-white">
         <div className="max-w-6xl mx-auto px-5 sm:px-6">
           <div className="text-center mb-14 md:mb-16">
-            <span className="inline-block mb-4 px-4 py-1.5 rounded-full bg-[#F97415]/10 border border-[#F97415]/30 text-[#F97415] text-xs font-bold tracking-widest uppercase">
+            <span className="inline-block mb-4 px-4 py-1.5 rounded-full bg-eic-orange/10 border border-eic-orange/30 text-eic-orange text-xs font-bold tracking-widest uppercase">
               4 tier meritocratici
             </span>
             <h2 className="text-3xl md:text-5xl font-extrabold mb-4">
-              Sale di livello <span className="text-[#F97415]">chi performa</span>
+              Sale di livello <span className="text-eic-orange">chi performa</span>
             </h2>
             <p className="text-gray-600 text-lg max-w-2xl mx-auto">
               Niente fee di ingresso, niente membership annuali, niente livelli pagati.
@@ -921,12 +921,12 @@ export default function DiventaPartner() {
                 key={t.name}
                 className={`relative rounded-3xl p-6 md:p-7 transition-all ${
                   t.highlight
-                    ? "bg-[#111111] text-white shadow-2xl border-2 border-[#F97415]"
+                    ? "bg-[#111111] text-white shadow-2xl border-2 border-eic-orange"
                     : "bg-white text-[#111111] shadow-sm border border-gray-100"
                 }`}
               >
                 {t.highlight && (
-                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-[#F97415] text-white text-xs font-bold rounded-full uppercase tracking-widest whitespace-nowrap">
+                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-eic-orange text-white text-xs font-bold rounded-full uppercase tracking-widest whitespace-nowrap">
                     Sweet spot
                   </span>
                 )}
@@ -944,12 +944,12 @@ export default function DiventaPartner() {
                   </div>
                   <div
                     className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 ${
-                      t.highlight ? "bg-[#F97415]" : "bg-[#F97415]/10"
+                      t.highlight ? "bg-eic-orange" : "bg-eic-orange/10"
                     }`}
                   >
                     <t.icon
                       className={`w-6 h-6 ${
-                        t.highlight ? "text-white" : "text-[#F97415]"
+                        t.highlight ? "text-white" : "text-eic-orange"
                       }`}
                     />
                   </div>
@@ -964,7 +964,7 @@ export default function DiventaPartner() {
                 </p>
 
                 <div className="mb-5">
-                  <span className="text-4xl md:text-5xl font-extrabold text-[#F97415]">
+                  <span className="text-4xl md:text-5xl font-extrabold text-eic-orange">
                     {t.rate}
                   </span>
                   <span
@@ -979,7 +979,7 @@ export default function DiventaPartner() {
                 <ul className="space-y-2">
                   {t.perks.map((perk, idx) => (
                     <li key={idx} className="flex items-start gap-2 text-xs">
-                      <CheckCircle2 className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-[#F97415]" />
+                      <CheckCircle2 className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-eic-orange" />
                       <span
                         className={t.highlight ? "text-white/90" : "text-gray-700"}
                       >
@@ -1004,11 +1004,11 @@ export default function DiventaPartner() {
       <section className="py-14 sm:py-20 md:py-28" style={{ backgroundColor: "#f8fafb" }}>
         <div className="max-w-5xl mx-auto px-5 sm:px-6">
           <div className="text-center mb-12">
-            <span className="inline-block mb-4 px-4 py-1.5 rounded-full bg-[#F97415]/10 border border-[#F97415]/30 text-[#F97415] text-xs font-bold tracking-widest uppercase">
+            <span className="inline-block mb-4 px-4 py-1.5 rounded-full bg-eic-orange/10 border border-eic-orange/30 text-eic-orange text-xs font-bold tracking-widest uppercase">
               Trasparenza totale
             </span>
             <h2 className="text-3xl md:text-5xl font-extrabold mb-4">
-              Cosa si commissiona, <span className="text-[#F97415]">cosa no</span>
+              Cosa si commissiona, <span className="text-eic-orange">cosa no</span>
             </h2>
             <p className="text-gray-600 text-lg max-w-2xl mx-auto">
               La regola d'oro: si commissiona solo il canone mensile del piano.
@@ -1061,7 +1061,7 @@ export default function DiventaPartner() {
           </div>
 
           <div className="mt-8 bg-[#111111] rounded-2xl p-6 md:p-8 text-white">
-            <p className="text-xs font-mono font-bold tracking-widest text-[#F97415] uppercase mb-3">
+            <p className="text-xs font-mono font-bold tracking-widest text-eic-orange uppercase mb-3">
               Pagamenti & fatturazione
             </p>
             <div className="grid md:grid-cols-2 gap-4 text-sm">
@@ -1108,11 +1108,11 @@ export default function DiventaPartner() {
       >
         <div className="max-w-4xl mx-auto px-5 sm:px-6">
           <div className="text-center mb-12">
-            <span className="inline-block mb-4 px-4 py-1.5 rounded-full bg-[#F97415]/10 border border-[#F97415]/30 text-[#F97415] text-xs font-bold tracking-widest uppercase">
+            <span className="inline-block mb-4 px-4 py-1.5 rounded-full bg-eic-orange/10 border border-eic-orange/30 text-eic-orange text-xs font-bold tracking-widest uppercase">
               Calcolatore guadagno
             </span>
             <h2 className="text-3xl md:text-5xl font-extrabold mb-4">
-              Quanto puoi guadagnare con il <span className="text-[#F97415]">tuo network</span>?
+              Quanto puoi guadagnare con il <span className="text-eic-orange">tuo network</span>?
             </h2>
             <p className="text-gray-600 text-lg max-w-xl mx-auto">
               Sposta lo slider e cambia il piano per vedere il tuo tier e la rendita
@@ -1128,11 +1128,11 @@ export default function DiventaPartner() {
       <section className="py-14 sm:py-20 md:py-28 bg-white">
         <div className="max-w-6xl mx-auto px-5 sm:px-6">
           <div className="text-center mb-14 md:mb-16">
-            <span className="inline-block mb-4 px-4 py-1.5 rounded-full bg-[#F97415]/10 border border-[#F97415]/30 text-[#F97415] text-xs font-bold tracking-widest uppercase">
+            <span className="inline-block mb-4 px-4 py-1.5 rounded-full bg-eic-orange/10 border border-eic-orange/30 text-eic-orange text-xs font-bold tracking-widest uppercase">
               Cosa ricevi
             </span>
             <h2 className="text-3xl md:text-5xl font-extrabold mb-4">
-              Tutto quello che ti serve per <span className="text-[#F97415]">raccomandare bene</span>
+              Tutto quello che ti serve per <span className="text-eic-orange">raccomandare bene</span>
             </h2>
           </div>
 
@@ -1140,10 +1140,10 @@ export default function DiventaPartner() {
             {benefits.map((b) => (
               <div
                 key={b.title}
-                className="bg-white rounded-2xl p-6 border border-gray-100 hover:border-[#F97415]/30 hover:shadow-lg transition-all"
+                className="bg-white rounded-2xl p-6 border border-gray-100 hover:border-eic-orange/30 hover:shadow-lg transition-all"
               >
-                <div className="w-12 h-12 rounded-2xl bg-[#F97415]/10 flex items-center justify-center mb-4">
-                  <b.icon className="w-6 h-6 text-[#F97415]" />
+                <div className="w-12 h-12 rounded-2xl bg-eic-orange/10 flex items-center justify-center mb-4">
+                  <b.icon className="w-6 h-6 text-eic-orange" />
                 </div>
                 <h3 className="text-lg font-extrabold text-[#111111] mb-2">{b.title}</h3>
                 <p className="text-sm text-gray-600 leading-relaxed">{b.description}</p>
@@ -1158,17 +1158,17 @@ export default function DiventaPartner() {
         <div className="max-w-4xl mx-auto px-5 sm:px-6 text-center">
           <div className="flex items-center justify-center gap-1 mb-6">
             {[...Array(5)].map((_, i) => (
-              <Star key={i} className="w-5 h-5 fill-[#F97415] text-[#F97415]" />
+              <Star key={i} className="w-5 h-5 fill-eic-orange text-eic-orange" />
             ))}
           </div>
           <blockquote className="text-2xl md:text-3xl font-bold text-white leading-snug mb-8">
             "La struttura a tier non serve a 'incentivare di più chi vende di più'.
-            Serve a <span className="text-[#F97415]">premiare chi costruisce un pezzo
+            Serve a <span className="text-eic-orange">premiare chi costruisce un pezzo
             di azienda con noi</span>. Il Platinum non è un partner — è un socio
             commerciale."
           </blockquote>
           <div className="flex items-center justify-center gap-4">
-            <div className="w-14 h-14 rounded-full bg-[#F97415] flex items-center justify-center">
+            <div className="w-14 h-14 rounded-full bg-eic-orange flex items-center justify-center">
               <span className="text-white text-xl font-bold">F</span>
             </div>
             <div className="text-left">
@@ -1183,11 +1183,11 @@ export default function DiventaPartner() {
       <section className="py-14 sm:py-20 md:py-28 bg-white">
         <div className="max-w-3xl mx-auto px-5 sm:px-6">
           <div className="text-center mb-12">
-            <span className="inline-block mb-4 px-4 py-1.5 rounded-full bg-[#F97415]/10 border border-[#F97415]/30 text-[#F97415] text-xs font-bold tracking-widest uppercase">
+            <span className="inline-block mb-4 px-4 py-1.5 rounded-full bg-eic-orange/10 border border-eic-orange/30 text-eic-orange text-xs font-bold tracking-widest uppercase">
               Domande frequenti
             </span>
             <h2 className="text-3xl md:text-5xl font-extrabold mb-4">
-              Risposte dirette, <span className="text-[#F97415]">senza zone grigie</span>
+              Risposte dirette, <span className="text-eic-orange">senza zone grigie</span>
             </h2>
           </div>
 
@@ -1199,7 +1199,7 @@ export default function DiventaPartner() {
                   key={i}
                   className={`rounded-2xl overflow-hidden border transition-all ${
                     isOpen
-                      ? "border-[#F97415]/30 shadow-lg shadow-[#F97415]/5"
+                      ? "border-eic-orange/30 shadow-lg shadow-eic-orange/5"
                       : "border-gray-100"
                   }`}
                 >
@@ -1211,14 +1211,14 @@ export default function DiventaPartner() {
                   >
                     <span
                       className={`font-bold text-sm md:text-base ${
-                        isOpen ? "text-[#F97415]" : "text-[#111111]"
+                        isOpen ? "text-eic-orange" : "text-[#111111]"
                       }`}
                     >
                       {faq.q}
                     </span>
                     <ChevronDown
                       className={`w-5 h-5 flex-shrink-0 transition-transform ${
-                        isOpen ? "rotate-180 text-[#F97415]" : "text-gray-400"
+                        isOpen ? "rotate-180 text-eic-orange" : "text-gray-400"
                       }`}
                     />
                   </button>
@@ -1245,11 +1245,11 @@ export default function DiventaPartner() {
       >
         <div className="max-w-3xl mx-auto px-5 sm:px-6">
           <div className="text-center mb-12">
-            <span className="inline-block mb-4 px-4 py-1.5 rounded-full bg-[#F97415]/10 border border-[#F97415]/30 text-[#F97415] text-xs font-bold tracking-widest uppercase">
+            <span className="inline-block mb-4 px-4 py-1.5 rounded-full bg-eic-orange/10 border border-eic-orange/30 text-eic-orange text-xs font-bold tracking-widest uppercase">
               Candidatura partner
             </span>
             <h2 className="text-3xl md:text-5xl font-extrabold mb-4">
-              Pronto a <span className="text-[#F97415]">candidarti</span>?
+              Pronto a <span className="text-eic-orange">candidarti</span>?
             </h2>
             <p className="text-gray-600 text-lg max-w-xl mx-auto">
               Compila il form. Verifica P.IVA + due diligence light entro 48 ore. Poi
@@ -1260,7 +1260,7 @@ export default function DiventaPartner() {
           <form
             onSubmit={handleSubmit}
             noValidate
-            className="bg-white rounded-3xl p-6 md:p-10 shadow-2xl border border-[#F97415]/10 space-y-5"
+            className="bg-white rounded-3xl p-6 md:p-10 shadow-2xl border border-eic-orange/10 space-y-5"
           >
             {/* Honeypot anti-bot: invisibile e fuori dal tab order */}
             <input
@@ -1283,7 +1283,7 @@ export default function DiventaPartner() {
                   required
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#F97415] focus:ring-2 focus:ring-[#F97415]/20 outline-none transition-all text-base sm:text-sm"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-eic-orange focus:ring-2 focus:ring-eic-orange/20 outline-none transition-all text-base sm:text-sm"
                   placeholder="Mario Rossi"
                   autoComplete="name"
                 />
@@ -1297,7 +1297,7 @@ export default function DiventaPartner() {
                   required
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#F97415] focus:ring-2 focus:ring-[#F97415]/20 outline-none transition-all text-base sm:text-sm"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-eic-orange focus:ring-2 focus:ring-eic-orange/20 outline-none transition-all text-base sm:text-sm"
                   placeholder="mario@esempio.it"
                   autoComplete="email"
                   inputMode="email"
@@ -1314,7 +1314,7 @@ export default function DiventaPartner() {
                   type="tel"
                   value={form.phone}
                   onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#F97415] focus:ring-2 focus:ring-[#F97415]/20 outline-none transition-all text-base sm:text-sm"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-eic-orange focus:ring-2 focus:ring-eic-orange/20 outline-none transition-all text-base sm:text-sm"
                   placeholder="+39 333 1234567"
                   autoComplete="tel"
                   inputMode="tel"
@@ -1328,7 +1328,7 @@ export default function DiventaPartner() {
                   type="text"
                   value={form.company}
                   onChange={(e) => setForm({ ...form, company: e.target.value })}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#F97415] focus:ring-2 focus:ring-[#F97415]/20 outline-none transition-all text-base sm:text-sm"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-eic-orange focus:ring-2 focus:ring-eic-orange/20 outline-none transition-all text-base sm:text-sm"
                   placeholder="Studio Rossi & Associati"
                   autoComplete="organization"
                 />
@@ -1354,7 +1354,7 @@ export default function DiventaPartner() {
                       onClick={() => setForm({ ...form, partner_type: opt.v })}
                       className={`flex flex-col items-center gap-1.5 px-3 py-3 rounded-xl border-2 transition-all text-xs font-semibold ${
                         active
-                          ? "border-[#F97415] bg-[#F97415]/5 text-[#F97415]"
+                          ? "border-eic-orange bg-eic-orange/5 text-eic-orange"
                           : "border-gray-200 text-gray-600 hover:border-gray-300"
                       }`}
                     >
@@ -1376,7 +1376,7 @@ export default function DiventaPartner() {
                 step="1"
                 value={form.network_size}
                 onChange={(e) => setForm({ ...form, network_size: e.target.value })}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#F97415] focus:ring-2 focus:ring-[#F97415]/20 outline-none transition-all text-base sm:text-sm"
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-eic-orange focus:ring-2 focus:ring-eic-orange/20 outline-none transition-all text-base sm:text-sm"
                 placeholder="es. 8"
                 inputMode="numeric"
               />
@@ -1391,7 +1391,7 @@ export default function DiventaPartner() {
                 rows={4}
                 value={form.notes}
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#F97415] focus:ring-2 focus:ring-[#F97415]/20 outline-none transition-all text-base sm:text-sm resize-none"
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-eic-orange focus:ring-2 focus:ring-eic-orange/20 outline-none transition-all text-base sm:text-sm resize-none"
                 placeholder="Chi sei, settore di attività, come conosci le imprese edili, perché vuoi entrare nel programma..."
               />
             </div>
@@ -1399,7 +1399,7 @@ export default function DiventaPartner() {
             {/* GDPR Consents */}
             <div className="pt-4 border-t border-gray-100 space-y-3">
               <p className="text-[10px] font-bold tracking-widest uppercase text-gray-500">
-                Consensi privacy <span className="text-[#F97415]">(art. 13 GDPR)</span>
+                Consensi privacy <span className="text-eic-orange">(art. 13 GDPR)</span>
               </p>
 
               <label className="flex items-start gap-3 cursor-pointer group">
@@ -1409,15 +1409,15 @@ export default function DiventaPartner() {
                   onChange={(e) =>
                     setForm({ ...form, privacy_consent: e.target.checked })
                   }
-                  className="mt-0.5 w-4 h-4 rounded border-2 border-gray-300 cursor-pointer accent-[#F97415] flex-shrink-0"
+                  className="mt-0.5 w-4 h-4 rounded border-2 border-gray-300 cursor-pointer accent-eic-orange flex-shrink-0"
                 />
                 <span className="text-xs text-gray-600 leading-relaxed">
-                  <strong className="text-[#F97415]">*</strong> Ho letto e accetto la{" "}
+                  <strong className="text-eic-orange">*</strong> Ho letto e accetto la{" "}
                   <Link
                     to="/privacy-policy/"
                     target="_blank"
                     rel="noopener"
-                    className="text-[#F97415] hover:text-[#C94F06] underline font-semibold"
+                    className="text-eic-orange hover:text-eic-orange-deep underline font-semibold"
                   >
                     Privacy Policy
                   </Link>{" "}
@@ -1434,7 +1434,7 @@ export default function DiventaPartner() {
                   onChange={(e) =>
                     setForm({ ...form, marketing_consent: e.target.checked })
                   }
-                  className="mt-0.5 w-4 h-4 rounded border-2 border-gray-300 cursor-pointer accent-[#F97415] flex-shrink-0"
+                  className="mt-0.5 w-4 h-4 rounded border-2 border-gray-300 cursor-pointer accent-eic-orange flex-shrink-0"
                 />
                 <span className="text-xs text-gray-600 leading-relaxed">
                   Acconsento a ricevere comunicazioni commerciali, materiale formativo e
@@ -1450,7 +1450,7 @@ export default function DiventaPartner() {
               type="submit"
               disabled={loading}
               aria-busy={loading}
-              className="w-full inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full bg-[#F97415] hover:bg-[#C94F06] text-white font-bold text-base transition-all hover:scale-[1.02] shadow-lg shadow-[#F97415]/30 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100"
+              className="w-full inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full bg-eic-orange hover:bg-eic-orange-deep text-white font-bold text-base transition-all hover:scale-[1.02] shadow-lg shadow-eic-orange/30 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100"
             >
               {loading ? (
                 <>

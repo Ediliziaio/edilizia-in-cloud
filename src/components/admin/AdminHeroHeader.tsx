@@ -28,13 +28,13 @@ export function AdminHeroHeader({
   inlineBadge,
 }: AdminHeroHeaderProps) {
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-[#173b67] p-4 text-white shadow-sm dark:border-slate-800 md:p-5">
+    <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-eic-navy-deep p-4 text-white shadow-sm dark:border-slate-800 md:p-5">
       <HeroAurora />
       <div className="relative z-10 flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-4">
         <div className="flex items-start gap-3 min-w-0">
           <div
             aria-hidden="true"
-            className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-sm"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-sm"
           >
             <Icon className="h-5 w-5" />
           </div>

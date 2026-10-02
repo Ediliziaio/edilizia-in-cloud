@@ -222,7 +222,7 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
       title: "Liquidità Totale",
       value: toFiniteAmount(summary?.total_balance),
       icon: Wallet,
-      tile: "from-orange-500 to-amber-400 shadow-[0_4px_12px_rgba(249,115,22,0.3)]",
+      tile: "from-orange-500 to-eic-amber shadow-[0_4px_12px_rgba(249,115,22,0.3)]",
       tint: "to-orange-50/60 dark:to-orange-950/20",
       valueColor: "text-foreground",
       sub: "Saldo di tutti i conti",

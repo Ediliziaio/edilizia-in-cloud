@@ -51,7 +51,7 @@ export function SedeIncidenzaTable() {
   return (
     <div className="overflow-x-auto rounded-lg border">
       <table className="w-full text-sm">
-        <thead className="bg-[#1E3A5F] text-white">
+        <thead className="bg-eic-navy text-white">
           <tr>
             <th className="p-3 text-left">Sede</th>
             <th className="p-3 text-right">Ricavi</th>

@@ -478,7 +478,7 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
     <Sheet open={!!task} onOpenChange={(open) => !open && onClose()}>
       <SheetContent side="right" className="w-full sm:max-w-xl lg:max-w-2xl p-0 flex flex-col">
         {/* Header: striscia nei colori del brand, poi titolo e stato */}
-        <div className="h-1 w-full shrink-0 bg-gradient-to-r from-[#1E3A5F] via-[#1E3A5F] to-orange-500" />
+        <div className="h-1 w-full shrink-0 bg-gradient-to-r from-eic-navy via-eic-navy to-orange-500" />
         <div className="border-b bg-card p-4 space-y-3">
           {/* Title */}
           <div className="pr-8">
@@ -499,7 +499,7 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
               />
             ) : (
               <h2
-                className="text-lg font-semibold text-[#1E3A5F] dark:text-slate-100 cursor-pointer hover:text-orange-600 transition-colors"
+                className="text-lg font-semibold text-eic-navy dark:text-slate-100 cursor-pointer hover:text-orange-600 transition-colors"
                 onClick={() => {
                   setTitle(task.title);
                   setEditingTitle(true);
@@ -703,7 +703,7 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
                     {c.to && (
                       <Link
                         to={c.to}
-                        className="text-[#1E3A5F] hover:text-orange-600 dark:text-blue-300"
+                        className="text-eic-navy hover:text-orange-600 dark:text-blue-300"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <ExternalLink className="w-4 h-4" />

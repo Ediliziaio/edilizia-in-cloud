@@ -15,7 +15,7 @@ const config: PerTipoConfig = {
   heroTitle: (
     <>
       <span className="text-white">I tuoi clienti edili</span>{" "}
-      <span className="text-[#F97415]">parlano la stessa lingua</span>
+      <span className="text-eic-orange">parlano la stessa lingua</span>
     </>
   ),
   heroSubtitle:
@@ -24,10 +24,10 @@ const config: PerTipoConfig = {
 
   // Social proof
   socialProof: [
-    { initials: "SB", name: "Studio Bianchi", city: "Milano", months: 14, gradient: "from-[#F97415] to-[#0d8f79]" },
-    { initials: "RP", name: "Rossi & Partners", city: "Torino", months: 9, gradient: "from-[#111111] to-[#F97415]" },
+    { initials: "SB", name: "Studio Bianchi", city: "Milano", months: 14, gradient: "from-eic-orange to-[#0d8f79]" },
+    { initials: "RP", name: "Rossi & Partners", city: "Torino", months: 9, gradient: "from-[#111111] to-eic-orange" },
     { initials: "CV", name: "Studio Conti & Verdi", city: "Bologna", months: 18, gradient: "from-[#0d8f79] to-[#111111]" },
-    { initials: "FT", name: "Ferrari Tributaristi", city: "Padova", months: 11, gradient: "from-[#1a1a2e] to-[#F97415]" },
+    { initials: "FT", name: "Ferrari Tributaristi", city: "Padova", months: 11, gradient: "from-[#1a1a2e] to-eic-orange" },
   ],
 
   // Problems
@@ -171,7 +171,7 @@ const config: PerTipoConfig = {
     person: "Andrea Bianchi",
     role: "Dottore Commercialista",
     initials: "AB",
-    gradient: "from-[#F97415] to-[#0d8f79]",
+    gradient: "from-eic-orange to-[#0d8f79]",
     quote:
       "Avevamo 38 clienti edili e ogni mese era un incubo: WhatsApp infiniti per recuperare i documenti, errori sui F24 della cassa edile, DURC scaduti scoperti per caso. Con Edilizia in Cloud abbiamo dato a ogni cliente un portale dove carica tutto. Noi vediamo 38 aziende da una sola dashboard, con il nostro logo. Lo studio fattura il 28% in più con 1 collaboratore in meno.",
     metrics: [
@@ -263,7 +263,7 @@ const config: PerTipoConfig = {
   ctaTitle: (
     <>
       <span className="text-white">30+ clienti edili,</span>{" "}
-      <span className="text-[#F97415]">una sola dashboard.</span>
+      <span className="text-eic-orange">una sola dashboard.</span>
     </>
   ),
   ctaSubtitle:

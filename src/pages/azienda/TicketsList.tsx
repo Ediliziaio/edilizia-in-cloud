@@ -621,7 +621,7 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
       </div>
       <Button
         onClick={() => setNuovoOpen(true)}
-        className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-9 max-sm:px-3 max-sm:text-xs"
+        className="bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-9 max-sm:px-3 max-sm:text-xs"
       >
         <Plus className="mr-2 h-4 w-4" />
         <span className="sm:hidden">Nuovo</span>
@@ -641,7 +641,7 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
           <div className={incorporata ? "flex items-center gap-2" : "flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4"}>
             {!incorporata && (
               <div className="flex min-w-0 items-start gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
                   <LifeBuoy className="h-5 w-5" />
                 </div>
                 <div className="min-w-0">

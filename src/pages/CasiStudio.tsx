@@ -319,11 +319,11 @@ export default function CasiStudio() {
         <div className="absolute bottom-0 left-0 w-[400px] h-[400px] rounded-full blur-[130px]" style={{ background: "radial-gradient(circle, rgba(249,116,21,0.12) 0%, transparent 65%)" }} />
         <div ref={heroAnim.ref as React.RefObject<HTMLDivElement>} className="relative z-10 max-w-4xl mx-auto px-5 sm:px-6 text-center">
           <div className={`transition-all duration-700 ${heroAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
-            <span className="inline-flex items-center gap-2 mb-5 sm:mb-6 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full border border-[#F97415]/40 bg-[#F97415]/10 text-[#F97415] text-[10px] sm:text-xs font-bold uppercase tracking-widest">
+            <span className="inline-flex items-center gap-2 mb-5 sm:mb-6 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full border border-eic-orange/40 bg-eic-orange/10 text-eic-orange text-[10px] sm:text-xs font-bold uppercase tracking-widest">
               <Star size={12} className="fill-current" /> Casi Studio Reali
             </span>
             <h1 className="text-[28px] leading-[1.15] sm:text-4xl md:text-5xl font-extrabold text-white sm:leading-tight mb-4 px-1">
-              Imprese come la tua. <span className="text-[#F97415]">Risultati veri.</span>
+              Imprese come la tua. <span className="text-eic-orange">Risultati veri.</span>
             </h1>
             <p className="text-white/60 text-base sm:text-lg leading-relaxed max-w-2xl mx-auto mb-7 sm:mb-8">
               Esempi concreti per imprese di costruzione, serramentisti, aziende di tetti, fotovoltaico, impiantisti e ristrutturatori. Numeri, problemi iniziali, moduli usati e risultati misurati.
@@ -334,7 +334,7 @@ export default function CasiStudio() {
                 { Icon: BarChart3, label: "ROI medio 10x" },
                 { Icon: TrendingUp, label: "4.9/5 soddisfazione" },
               ].map(({ Icon, label }, i) => (
-                <span key={i} className="flex items-center gap-2 text-white/60 text-sm"><Icon size={14} className="text-[#F97415]" />{label}</span>
+                <span key={i} className="flex items-center gap-2 text-white/60 text-sm"><Icon size={14} className="text-eic-orange" />{label}</span>
               ))}
             </div>
           </div>
@@ -354,15 +354,15 @@ export default function CasiStudio() {
           </div>
           <div className="mt-6 grid md:grid-cols-3 gap-4 text-sm text-gray-600">
             <div className="flex gap-3 bg-white border border-gray-100 rounded-2xl p-4">
-              <ClipboardList className="w-5 h-5 text-[#F97415] shrink-0" />
+              <ClipboardList className="w-5 h-5 text-eic-orange shrink-0" />
               <p><strong className="text-[#111111]">Prima:</strong> dati sparsi tra Excel, WhatsApp, PDF, fogli cantiere e memoria del titolare.</p>
             </div>
             <div className="flex gap-3 bg-white border border-gray-100 rounded-2xl p-4">
-              <Clock className="w-5 h-5 text-[#F97415] shrink-0" />
+              <Clock className="w-5 h-5 text-eic-orange shrink-0" />
               <p><strong className="text-[#111111]">Durante:</strong> avvio guidato con import dati, template, checklist e abitudini operative semplici.</p>
             </div>
             <div className="flex gap-3 bg-white border border-gray-100 rounded-2xl p-4">
-              <Building2 className="w-5 h-5 text-[#F97415] shrink-0" />
+              <Building2 className="w-5 h-5 text-eic-orange shrink-0" />
               <p><strong className="text-[#111111]">Dopo:</strong> cantieri, preventivi, SAL, documenti, incassi e margini collegati in un unico flusso.</p>
             </div>
           </div>
@@ -388,7 +388,7 @@ export default function CasiStudio() {
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2 mb-5">
-                  {c.tags.map((t, j) => <span key={j} className="px-2 py-0.5 bg-[#F97415]/10 text-[#F97415] text-xs font-bold rounded">{t}</span>)}
+                  {c.tags.map((t, j) => <span key={j} className="px-2 py-0.5 bg-eic-orange/10 text-eic-orange text-xs font-bold rounded">{t}</span>)}
                   <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded">Fatturato: {c.revenue}</span>
                 </div>
                 <div className="mb-5">
@@ -396,7 +396,7 @@ export default function CasiStudio() {
                   <p className="text-gray-600 text-sm leading-relaxed">{c.challenge}</p>
                 </div>
                 <div className="mb-5">
-                  <p className="text-xs font-bold uppercase tracking-wide text-[#F97415] mb-1">La Soluzione</p>
+                  <p className="text-xs font-bold uppercase tracking-wide text-eic-orange mb-1">La Soluzione</p>
                   <p className="text-gray-700 text-sm leading-relaxed">{c.solution}</p>
                 </div>
                 <div className="mb-5 rounded-2xl bg-gray-50 border border-gray-100 p-4">
@@ -404,13 +404,13 @@ export default function CasiStudio() {
                   <ul className="space-y-2">
                     {c.examples.map((example, j) => (
                       <li key={j} className="flex gap-2 text-sm text-gray-700 leading-relaxed">
-                        <CheckCircle2 className="w-4 h-4 text-[#F97415] shrink-0 mt-0.5" />
+                        <CheckCircle2 className="w-4 h-4 text-eic-orange shrink-0 mt-0.5" />
                         <span>{example}</span>
                       </li>
                     ))}
                   </ul>
                 </div>
-                <blockquote className="border-l-4 border-[#F97415] pl-4 italic text-gray-700 text-sm leading-relaxed">"{c.quote}"</blockquote>
+                <blockquote className="border-l-4 border-eic-orange pl-4 italic text-gray-700 text-sm leading-relaxed">"{c.quote}"</blockquote>
               </div>
               {/* Right: results */}
               <div className={`bg-[#111111] rounded-3xl p-5 sm:p-6 md:p-8 ${i % 2 === 1 ? "md:order-1" : ""}`}>
@@ -418,7 +418,7 @@ export default function CasiStudio() {
                 <div className="space-y-5">
                   {c.results.map((r, j) => (
                     <div key={j} className="flex items-start gap-3">
-                      <CheckCircle2 className="w-5 h-5 text-[#F97415] shrink-0 mt-0.5" />
+                      <CheckCircle2 className="w-5 h-5 text-eic-orange shrink-0 mt-0.5" />
                       <div>
                         <p className="text-white font-bold">{r.value}</p>
                         <p className="text-white/50 text-sm">{r.label}</p>
@@ -428,7 +428,7 @@ export default function CasiStudio() {
                 </div>
                 <div className="mt-7 pt-6 border-t border-white/10">
                   <div className="flex items-start gap-3 mb-5">
-                    <Clock className="w-5 h-5 text-[#F97415] shrink-0 mt-0.5" />
+                    <Clock className="w-5 h-5 text-eic-orange shrink-0 mt-0.5" />
                     <div>
                       <p className="text-white font-bold text-sm">Avvio operativo</p>
                       <p className="text-white/55 text-sm leading-relaxed">{c.timeline}</p>
@@ -445,7 +445,7 @@ export default function CasiStudio() {
                 </div>
                 <div className="mt-8 pt-6 border-t border-white/10">
                   <div className="flex items-center gap-1 mb-1">
-                    {[...Array(5)].map((_, k) => <Star key={k} size={14} className="text-[#F97415] fill-[#F97415]" />)}
+                    {[...Array(5)].map((_, k) => <Star key={k} size={14} className="text-eic-orange fill-eic-orange" />)}
                   </div>
                   <p className="text-white/60 text-xs">{c.sector}</p>
                 </div>
@@ -462,10 +462,10 @@ export default function CasiStudio() {
         <div className="relative z-10 max-w-3xl mx-auto px-5 sm:px-6 text-center">
           <div className={`transition-all duration-700 ${ctaAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
             <h2 className="text-[26px] leading-tight sm:text-3xl md:text-5xl font-extrabold text-white mb-4 px-1">
-              La prossima storia di successo <span className="text-[#F97415]">è la tua.</span>
+              La prossima storia di successo <span className="text-eic-orange">è la tua.</span>
             </h2>
             <p className="text-white/50 text-base sm:text-lg mb-8 sm:mb-10 leading-relaxed">30 minuti di demo gratuita. Nessun impegno. Solo chiarezza su cosa puoi ottenere.</p>
-            <Link to="/demo/" className="inline-flex items-center justify-center gap-2 w-full sm:w-auto px-6 sm:px-8 py-4 rounded-xl bg-[#F97415] hover:bg-[#e8650e] text-white font-bold text-base sm:text-lg hover:scale-105 transition-all shadow-lg shadow-[#F97415]/30">
+            <Link to="/demo/" className="inline-flex items-center justify-center gap-2 w-full sm:w-auto px-6 sm:px-8 py-4 rounded-xl bg-eic-orange hover:bg-eic-orange-dark text-white font-bold text-base sm:text-lg hover:scale-105 transition-all shadow-lg shadow-eic-orange/30">
               Richiedi Demo Gratuita <ArrowRight size={18} />
             </Link>
           </div>

@@ -832,7 +832,7 @@ export default function FattureRicevutePage() {
       <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm max-sm:hidden">
         {/* Senza il titoletto «Fatture ricevute — Quello che i fornitori ti
             mandano»: ripeteva il titolo della pagina. */}
-        <div className="bg-[#173b67] p-4 text-white sm:p-5">
+        <div className="bg-eic-navy-deep p-4 text-white sm:p-5">
           <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
             <NavyStatCard
               label={annoFilter === "all" ? "Totale ricevute" : `Ricevute nel ${annoFilter}`}

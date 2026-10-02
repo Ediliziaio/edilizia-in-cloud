@@ -2974,7 +2974,7 @@ function Step4Tetto({
             type="button"
             onClick={onAnalizza}
             disabled={analizzando || readOnlyMode}
-            className="mt-4 w-full px-5 py-3 text-sm font-bold rounded-lg text-white bg-gradient-to-br from-orange-500 to-amber-400 shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="mt-4 w-full px-5 py-3 text-sm font-bold rounded-lg text-white bg-gradient-to-br from-orange-500 to-eic-amber shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {analizzando ? (
               <>
@@ -3285,7 +3285,7 @@ function FvScontoCard({
       type="button"
       onClick={onRicalcola}
       disabled={calcolando}
-      className="shrink-0 px-3 py-1.5 text-xs font-bold rounded-lg text-white bg-gradient-to-br from-orange-500 to-amber-400 shadow hover:shadow-md transition-all inline-flex items-center gap-1.5 disabled:opacity-60"
+      className="shrink-0 px-3 py-1.5 text-xs font-bold rounded-lg text-white bg-gradient-to-br from-orange-500 to-eic-amber shadow hover:shadow-md transition-all inline-flex items-center gap-1.5 disabled:opacity-60"
     >
       {calcolando ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
       Ricalcola
@@ -5050,7 +5050,7 @@ function Step6Finanziario({
           <button
             type="button"
             onClick={onRicalcola}
-            className="px-5 py-2.5 text-sm font-bold rounded-lg text-white bg-gradient-to-br from-orange-500 to-amber-400 shadow-md hover:shadow-lg transition-all inline-flex items-center gap-2"
+            className="px-5 py-2.5 text-sm font-bold rounded-lg text-white bg-gradient-to-br from-orange-500 to-eic-amber shadow-md hover:shadow-lg transition-all inline-flex items-center gap-2"
           >
             <RefreshCw className="h-4 w-4" />
             {error ? "Riprova calcolo" : "Calcola scenario"}
@@ -6099,7 +6099,7 @@ function Step8Genera({
             type="button"
             onClick={onEmetti}
             disabled={salvando || readOnly}
-            className="px-6 py-3 text-sm font-bold rounded-lg text-white bg-gradient-to-br from-orange-500 to-amber-400 shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2 max-md:w-full max-md:justify-center"
+            className="px-6 py-3 text-sm font-bold rounded-lg text-white bg-gradient-to-br from-orange-500 to-eic-amber shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2 max-md:w-full max-md:justify-center"
           >
             {salvando ? (
               <>

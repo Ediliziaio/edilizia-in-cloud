@@ -246,7 +246,7 @@ export function ListinoBarra({
           {onNuovoProdotto && (
             <Button
               size="sm"
-              className="h-9 gap-1.5 bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-sm hover:from-orange-600 hover:to-amber-500"
+              className="h-9 gap-1.5 bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-sm hover:from-orange-600 hover:to-amber-500"
               onClick={onNuovoProdotto}
             >
               <Plus className="h-4 w-4" aria-hidden="true" />

@@ -16,7 +16,7 @@ const config: PerTipoConfig = {
   heroTitle: (
     <>
       <span className="text-white">Gestionale per muratori: il preventivo non si fa più la sera al tavolo.</span>{" "}
-      <span className="text-[#F97415]">Ore, cantieri e fatture in ordine, dal telefono.</span>
+      <span className="text-eic-orange">Ore, cantieri e fatture in ordine, dal telefono.</span>
     </>
   ),
   heroSubtitle:
@@ -25,9 +25,9 @@ const config: PerTipoConfig = {
 
   // Social proof
   socialProof: [
-    { initials: "FE", name: "F.lli Esposito Costruzioni", city: "Caserta", months: 12, gradient: "from-[#111111] to-[#F97415]" },
+    { initials: "FE", name: "F.lli Esposito Costruzioni", city: "Caserta", months: 12, gradient: "from-[#111111] to-eic-orange" },
     { initials: "MR", name: "Muratura Rinaldi", city: "Perugia", months: 7, gradient: "from-[#0d8f79] to-[#111111]" },
-    { initials: "EB", name: "Edile Barbieri", city: "Cremona", months: 15, gradient: "from-[#F97415] to-[#c45a0c]" },
+    { initials: "EB", name: "Edile Barbieri", city: "Cremona", months: 15, gradient: "from-eic-orange to-[#c45a0c]" },
     { initials: "CV", name: "Costruzioni Vitale", city: "Foggia", months: 9, gradient: "from-[#1a1a2e] to-[#0d8f79]" },
   ],
 
@@ -245,7 +245,7 @@ const config: PerTipoConfig = {
     person: "Antonio Esposito",
     role: "Titolare",
     initials: "AE",
-    gradient: "from-[#111111] to-[#F97415]",
+    gradient: "from-[#111111] to-eic-orange",
     quote:
       "Io e mio fratello abbiamo 5 operai. Prima facevo i preventivi la sera e le ore le raccoglievo dai foglietti il sabato mattina. Le fatture partivano quando il commercialista aveva tempo, e i lavori extra li regalavamo perché non c'era mai niente di scritto. Adesso il preventivo lo faccio in dieci minuti dal furgone, gli operai timbrano dal telefono e la fattura parte appena chiudiamo il cantiere. Solo di extra recuperati, quest'anno ci abbiamo pagato il software dieci volte.",
     metrics: [
@@ -326,7 +326,7 @@ const config: PerTipoConfig = {
   ctaTitle: (
     <>
       <span className="text-white">Il cantiere lo sai fare.</span>{" "}
-      <span className="text-[#F97415]">Al resto pensa il gestionale.</span>
+      <span className="text-eic-orange">Al resto pensa il gestionale.</span>
     </>
   ),
   ctaSubtitle:

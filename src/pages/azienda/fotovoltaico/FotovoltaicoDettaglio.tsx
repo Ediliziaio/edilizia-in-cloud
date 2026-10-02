@@ -304,7 +304,7 @@ export default function FotovoltaicoDettaglio() {
               {progetto.stato !== "firmato" && progetto.stato !== "annullato" && (
                 <Button
                   asChild
-                  className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 text-white shadow border-0 max-sm:flex-1"
+                  className="bg-gradient-to-br from-orange-500 to-eic-amber hover:from-orange-600 hover:to-amber-500 text-white shadow border-0 max-sm:flex-1"
                 >
                   <Link to={`/azienda/marketing/fotovoltaico/${progetto.id}/modifica`}>
                     <Pencil className="h-4 w-4 mr-1.5" /> Modifica
@@ -756,7 +756,7 @@ export default function FotovoltaicoDettaglio() {
                     <Button
                       onClick={() => handleScarica(progetto.pdf_vendita_url, "vendita")}
                       disabled={scaricando === "vendita"}
-                      className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 text-white border-0"
+                      className="bg-gradient-to-br from-orange-500 to-eic-amber hover:from-orange-600 hover:to-amber-500 text-white border-0"
                     >
                       {scaricando === "vendita" ? (
                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />

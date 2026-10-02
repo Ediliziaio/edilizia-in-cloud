@@ -246,7 +246,7 @@ function LegacyModuliVenditaPanel({ initialModulo }: { initialModulo?: string })
   const header = (
     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
       <div className="flex items-start gap-3 min-w-0">
-        <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-orange-500 to-amber-400 flex items-center justify-center shrink-0 shadow-sm">
+        <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-orange-500 to-eic-amber flex items-center justify-center shrink-0 shadow-sm">
           <ShoppingBag className="h-5 w-5 text-white" />
         </div>
         <div className="min-w-0">
@@ -345,7 +345,7 @@ function LegacyModuliVenditaPanel({ initialModulo }: { initialModulo?: string })
                 <div className="flex items-start gap-3">
                   <div className={
                     "h-11 w-11 rounded-lg flex items-center justify-center shrink-0 " +
-                    (isDisabled || !visibile ? "bg-slate-200" : "bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-sm")
+                    (isDisabled || !visibile ? "bg-slate-200" : "bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-sm")
                   }>
                     <Icon className={isDisabled || !visibile ? "h-5 w-5 text-slate-400" : "h-5 w-5 text-white"} />
                   </div>

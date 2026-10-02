@@ -377,7 +377,7 @@ export function MobileBottomNav() {
                 aria-label="Apri Silvio AI"
               >
                 {/* Punch button: tondo, gradient arancione, leggermente sollevato */}
-                <div className="-mt-4 h-12 w-12 rounded-full bg-gradient-to-br from-orange-500 to-amber-400 text-white flex items-center justify-center shadow-lg shadow-orange-300/50 ring-4 ring-background active:scale-95 transition-transform">
+                <div className="-mt-4 h-12 w-12 rounded-full bg-gradient-to-br from-orange-500 to-eic-amber text-white flex items-center justify-center shadow-lg shadow-orange-300/50 ring-4 ring-background active:scale-95 transition-transform">
                   <Sparkles className="h-5 w-5 stroke-[2.5]" />
                 </div>
                 <span className="text-[10px] leading-none font-semibold text-orange-600">

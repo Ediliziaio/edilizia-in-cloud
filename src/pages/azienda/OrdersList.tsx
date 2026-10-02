@@ -1703,7 +1703,7 @@ function OrdersListInner() {
           «Importa», che da telefono non serve. */}
       <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-3 sm:px-4 py-2.5 sm:py-3 shadow-sm flex flex-wrap items-center justify-between gap-x-4 gap-y-2.5 max-sm:rounded-none max-sm:border-0 max-sm:bg-none max-sm:p-0 max-sm:shadow-none">
         <div className="flex items-center gap-2.5 min-w-[8rem] flex-1">
-          <div className="hidden h-8 w-8 sm:flex sm:h-9 sm:w-9 rounded-lg bg-gradient-to-br from-orange-500 to-amber-400 text-white items-center justify-center shrink-0 shadow-[0_3px_10px_rgba(249,115,22,0.28)]">
+          <div className="hidden h-8 w-8 sm:flex sm:h-9 sm:w-9 rounded-lg bg-gradient-to-br from-orange-500 to-eic-amber text-white items-center justify-center shrink-0 shadow-[0_3px_10px_rgba(249,115,22,0.28)]">
             <Package className="h-4 w-4" />
           </div>
           <div className="min-w-0">
@@ -1838,7 +1838,7 @@ function OrdersListInner() {
             <Button
               onClick={() => setShowOrderTypeDialog(true)}
               size="sm"
-              className="tap-compact h-8 px-3 text-xs font-semibold bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-500/20 hover:from-orange-600 hover:to-amber-500 hover:shadow-md hover:shadow-orange-500/25 max-sm:h-9"
+              className="tap-compact h-8 px-3 text-xs font-semibold bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm shadow-orange-500/20 hover:from-orange-600 hover:to-amber-500 hover:shadow-md hover:shadow-orange-500/25 max-sm:h-9"
             >
               <Plus className="h-3.5 w-3.5 mr-1" />
               <span className="hidden sm:inline">Nuova Commessa</span>
@@ -1848,7 +1848,7 @@ function OrdersListInner() {
             <Button
               asChild
               size="sm"
-              className="tap-compact h-8 px-3 text-xs font-semibold bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-500/20 hover:from-orange-600 hover:to-amber-500 hover:shadow-md hover:shadow-orange-500/25 max-sm:h-9"
+              className="tap-compact h-8 px-3 text-xs font-semibold bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm shadow-orange-500/20 hover:from-orange-600 hover:to-amber-500 hover:shadow-md hover:shadow-orange-500/25 max-sm:h-9"
             >
               <Link to="/azienda/ordini/nuovo">
                 <Plus className="h-3.5 w-3.5 mr-1" />
@@ -1914,7 +1914,7 @@ function OrdersListInner() {
           è l'unico pezzo azionabile del blocco. empty:hidden — se il componente
           non ha nulla da dire (rende null), sparisce anche la cornice scura. */}
       {!analisiAperta && orderPerms.canViewOrderAmounts && orderPerms.canViewCosts && (
-        <div className="order-1 rounded-2xl bg-[#173b67] px-3 pb-3 empty:hidden sm:order-none [&:not(:has(*))]:hidden max-sm:p-1.5">
+        <div className="order-1 rounded-2xl bg-eic-navy-deep px-3 pb-3 empty:hidden sm:order-none [&:not(:has(*))]:hidden max-sm:p-1.5">
           <EsposizioneFlotta
             companyId={effectiveCompany?.id}
             excludeStatusIds={[lastStatusId]}
@@ -1926,10 +1926,10 @@ function OrdersListInner() {
       <section className="order-1 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden sm:order-none">
         {/* 50/50: a 0.58fr il pannello blu strozzava i numeri ("1.794.1…"). */}
         <div className="grid gap-0 xl:grid-cols-2">
-          <div className="bg-[#173b67] p-3 sm:p-5 md:p-6 text-white">
+          <div className="bg-eic-navy-deep p-3 sm:p-5 md:p-6 text-white">
             <div className="flex items-start gap-3">
               <div className="flex items-start gap-2.5 sm:gap-3 min-w-0">
-                <div className="flex h-9 w-9 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)]">
+                <div className="flex h-9 w-9 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)]">
                   <Target className="h-4 w-4 sm:h-5 sm:w-5" />
                 </div>
                 <div className="min-w-0">

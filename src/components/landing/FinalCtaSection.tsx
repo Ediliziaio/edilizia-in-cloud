@@ -79,7 +79,7 @@ export default function FinalCtaSection() {
           }`}
         >
           Pronto a vedere i numeri{" "}
-          <span className="text-[#F97415]">VERI della tua azienda?</span>
+          <span className="text-eic-orange">VERI della tua azienda?</span>
         </h2>
         <p
           className={`text-white/60 text-lg md:text-xl mb-10 max-w-2xl mx-auto transition-all duration-700 delay-150 ${
@@ -93,26 +93,26 @@ export default function FinalCtaSection() {
             Un timer "scadenza trial" uguale per tutti è trasparentemente finto
             e mina la fiducia proprio nel punto di massima intenzione. */}
         <div
-          className={`inline-flex items-center gap-3 mb-10 px-5 py-3 rounded-xl bg-[#F97415]/10 border border-[#F97415]/25 transition-all duration-700 delay-200 ${
+          className={`inline-flex items-center gap-3 mb-10 px-5 py-3 rounded-xl bg-eic-orange/10 border border-eic-orange/25 transition-all duration-700 delay-200 ${
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
           }`}
         >
-          <TrendingDown className="w-5 h-5 shrink-0 text-[#F97415]" />
+          <TrendingDown className="w-5 h-5 shrink-0 text-eic-orange" />
           <span className="text-white/80 text-sm font-medium text-left">
-            Su 500.000€ di fatturato, il 5% di margine perso sono <strong className="text-[#F97415]">oltre 2.000€ al mese</strong>. Ogni mese senza numeri è margine che non recuperi più.
+            Su 500.000€ di fatturato, il 5% di margine perso sono <strong className="text-eic-orange">oltre 2.000€ al mese</strong>. Ogni mese senza numeri è margine che non recuperi più.
           </span>
         </div>
 
         {/* Central box */}
         <div
-          className={`border border-[#F97415]/40 rounded-2xl md:rounded-3xl p-6 md:p-12 bg-[#F97415]/5 backdrop-blur max-w-3xl mx-auto transition-all duration-700 delay-300 ${
+          className={`border border-eic-orange/40 rounded-2xl md:rounded-3xl p-6 md:p-12 bg-eic-orange/5 backdrop-blur max-w-3xl mx-auto transition-all duration-700 delay-300 ${
             isVisible ? "opacity-100 scale-100" : "opacity-0 scale-95"
           }`}
         >
           {/* Icon */}
           <div className="flex justify-center mb-6">
-            <div className="w-20 h-20 rounded-2xl bg-[#F97415]/15 border border-[#F97415]/30 flex items-center justify-center animate-pulse-glow">
-              <Building2 className="w-10 h-10 text-[#F97415]" />
+            <div className="w-20 h-20 rounded-2xl bg-eic-orange/15 border border-eic-orange/30 flex items-center justify-center animate-pulse-glow">
+              <Building2 className="w-10 h-10 text-eic-orange" />
             </div>
           </div>
 
@@ -126,7 +126,7 @@ export default function FinalCtaSection() {
             <button
               type="button"
               onClick={() => { import("@/components/landing/QuickContactModal").then(m => m.openContactModal()); }}
-              className="inline-flex items-center justify-center gap-2 px-6 md:px-8 py-3 md:py-4 rounded-xl bg-[#C94F06] hover:bg-[#A84305] text-white font-bold text-base md:text-lg hover:scale-105 transition-all duration-300 shadow-lg shadow-[#C94F06]/30"
+              className="inline-flex items-center justify-center gap-2 px-6 md:px-8 py-3 md:py-4 rounded-xl bg-eic-orange-deep hover:bg-[#A84305] text-white font-bold text-base md:text-lg hover:scale-105 transition-all duration-300 shadow-lg shadow-eic-orange-deep/30"
             >
               Richiedi Demo Gratuita
               <ArrowRight className="w-5 h-5" />
@@ -135,7 +135,7 @@ export default function FinalCtaSection() {
               href="tel:+393501780908"
               className="inline-flex items-center justify-center gap-2 px-6 md:px-8 py-3 md:py-4 rounded-xl border border-white/20 text-white font-bold text-base md:text-lg hover:border-white/40 hover:bg-white/5 hover:scale-105 transition-all duration-300"
             >
-              <Phone className="w-5 h-5 text-[#F97415]" />
+              <Phone className="w-5 h-5 text-eic-orange" />
               Oppure chiama: <span className="whitespace-nowrap">350 178 0908</span>
             </a>
           </div>
@@ -143,12 +143,12 @@ export default function FinalCtaSection() {
           {/* Micro-promises */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-5 text-white/70 text-sm">
             <span className="flex items-center gap-2">
-              <Shield className="w-4 h-4 text-[#F97415]" />
+              <Shield className="w-4 h-4 text-eic-orange" />
               Dati al sicuro
             </span>
             <span className="hidden sm:block w-1 h-1 rounded-full bg-white/20" />
             <span className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-[#F97415]" />
+              <Clock className="w-4 h-4 text-eic-orange" />
               Risposta entro 24h
             </span>
             <span className="hidden sm:block w-1 h-1 rounded-full bg-white/20" />

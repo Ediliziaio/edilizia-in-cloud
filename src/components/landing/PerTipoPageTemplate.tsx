@@ -171,8 +171,8 @@ function FaqAccordion({ item }: { item: FaqItem }) {
       >
         <span className="font-semibold text-[#111111] text-sm md:text-base pr-4">{item.q}</span>
         {open
-          ? <ChevronUp className="w-5 h-5 text-[#F97415] shrink-0" />
-          : <ChevronDown className="w-5 h-5 text-[#F97415] shrink-0" />}
+          ? <ChevronUp className="w-5 h-5 text-eic-orange shrink-0" />
+          : <ChevronDown className="w-5 h-5 text-eic-orange shrink-0" />}
       </button>
       {open && (
         <div className="px-6 pb-5 border-t border-gray-100">
@@ -324,13 +324,13 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
         <div className="absolute top-10 right-0 w-[600px] h-[600px] rounded-full blur-[160px] pointer-events-none" style={{ background: "radial-gradient(circle, rgba(249,116,21,0.20) 0%, transparent 65%)" }} />
         <div className="absolute bottom-0 left-0 w-[400px] h-[400px] rounded-full blur-[130px] pointer-events-none" style={{ background: "radial-gradient(circle, rgba(249,116,21,0.14) 0%, transparent 65%)" }} />
         {/* Floating particle orbs */}
-        <div className="hero-particle-1 absolute top-[15%] left-[8%] w-3 h-3 rounded-full bg-[#F97415]/40 blur-sm pointer-events-none" />
-        <div className="hero-particle-2 absolute top-[30%] right-[12%] w-2 h-2 rounded-full bg-[#F97415]/30 blur-sm pointer-events-none" />
-        <div className="hero-particle-3 absolute bottom-[20%] left-[20%] w-4 h-4 rounded-full bg-[#F97415]/20 blur-md pointer-events-none" />
+        <div className="hero-particle-1 absolute top-[15%] left-[8%] w-3 h-3 rounded-full bg-eic-orange/40 blur-sm pointer-events-none" />
+        <div className="hero-particle-2 absolute top-[30%] right-[12%] w-2 h-2 rounded-full bg-eic-orange/30 blur-sm pointer-events-none" />
+        <div className="hero-particle-3 absolute bottom-[20%] left-[20%] w-4 h-4 rounded-full bg-eic-orange/20 blur-md pointer-events-none" />
 
         <div ref={heroAnim.ref as React.RefObject<HTMLDivElement>} className="relative z-10 max-w-4xl mx-auto px-6 text-center">
           <div className={`transition-all duration-700 ${heroAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
-            <span className="inline-flex items-center gap-2 mb-6 px-4 py-2 rounded-full border border-[#F97415]/40 bg-[#F97415]/10 text-[#C2410C] text-xs font-bold uppercase tracking-widest">
+            <span className="inline-flex items-center gap-2 mb-6 px-4 py-2 rounded-full border border-eic-orange/40 bg-eic-orange/10 text-eic-orange-deep text-xs font-bold uppercase tracking-widest">
               <span className="w-2 h-2 rounded-full bg-green-400 animate-ping flex-shrink-0" />
               {config.badge}
             </span>
@@ -346,7 +346,7 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
             </p>
           </div>
           <div className={`flex flex-col sm:flex-row items-center justify-center gap-4 transition-all duration-700 delay-300 ${heroAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
-            <Link to="/demo/" className="w-full sm:w-auto px-8 py-4 rounded-full bg-[#F97415] text-white font-bold text-lg hover:bg-[#e8650e] hover:scale-105 transition-all shadow-lg shadow-[#F97415]/30">
+            <Link to="/demo/" className="w-full sm:w-auto px-8 py-4 rounded-full bg-eic-orange text-white font-bold text-lg hover:bg-eic-orange-dark hover:scale-105 transition-all shadow-lg shadow-eic-orange/30">
               Prova Gratis 31 Giorni →
             </Link>
             <Link to="/prezzi/" className="w-full sm:w-auto px-8 py-4 rounded-full border border-white/20 text-white font-semibold hover:bg-white/5 hover:border-white/40 transition-all">
@@ -360,7 +360,7 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
               { Icon: Shield, label: "GDPR" },
             ].map(({ Icon, label }, i) => (
               <span key={i} className="flex items-center gap-2 text-white/45 text-sm">
-                <Icon size={14} className="text-[#F97415] flex-shrink-0" />
+                <Icon size={14} className="text-eic-orange flex-shrink-0" />
                 {label}
               </span>
             ))}
@@ -408,7 +408,7 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
             {config.problems.map((p, i) => (
               <div
                 key={i}
-                className={`relative flex gap-4 p-5 md:p-6 rounded-2xl bg-white border border-gray-200 hover:border-[#F97415]/30 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 ${problemsAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}
+                className={`relative flex gap-4 p-5 md:p-6 rounded-2xl bg-white border border-gray-200 hover:border-eic-orange/30 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 ${problemsAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}
                 style={{ transitionDelay: `${150 + i * 80}ms` }}
               >
                 <span className="absolute top-3 right-4 text-[42px] font-extrabold text-gray-100 leading-none pointer-events-none select-none">
@@ -435,7 +435,7 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
         <section className="py-16 md:py-28 bg-white">
           <div ref={featuresAnim.ref as React.RefObject<HTMLDivElement>} className="max-w-5xl mx-auto px-6">
             <div className={`text-center mb-14 transition-all duration-700 ${featuresAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
-              <span className="inline-block mb-3 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest text-[#C2410C] bg-[#F97415]/10 border border-[#F97415]/20">
+              <span className="inline-block mb-3 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest text-eic-orange-deep bg-eic-orange/10 border border-eic-orange/20">
                 Funzionalità per il tuo settore
               </span>
               <h2 className="text-2xl md:text-4xl font-extrabold text-[#111111] mb-3">
@@ -449,13 +449,13 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
               {config.verticalFeatures.map((feat, i) => (
                 <div
                   key={i}
-                  className={`grid md:grid-cols-12 gap-0 rounded-2xl border border-gray-200 overflow-hidden hover:border-[#F97415]/30 hover:shadow-lg transition-all duration-500 ${featuresAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}
+                  className={`grid md:grid-cols-12 gap-0 rounded-2xl border border-gray-200 overflow-hidden hover:border-eic-orange/30 hover:shadow-lg transition-all duration-500 ${featuresAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}
                   style={{ transitionDelay: `${150 + i * 100}ms` }}
                 >
                   {/* Left: icon + problem */}
                   <div className="md:col-span-3 bg-[#f8f9fa] p-6 md:p-8 flex flex-col items-start justify-center gap-4 border-b md:border-b-0 md:border-r border-gray-200">
-                    <div className="w-12 h-12 rounded-xl bg-[#F97415]/10 flex items-center justify-center">
-                      <feat.icon className="w-6 h-6 text-[#F97415]" />
+                    <div className="w-12 h-12 rounded-xl bg-eic-orange/10 flex items-center justify-center">
+                      <feat.icon className="w-6 h-6 text-eic-orange" />
                     </div>
                     <p className="text-[#111111] font-extrabold text-sm uppercase tracking-wide leading-snug">
                       {feat.problem}
@@ -467,7 +467,7 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
                   </div>
                   {/* Right: economic benefit */}
                   <div className="md:col-span-3 bg-[#111111] p-6 md:p-8 flex flex-col items-center justify-center text-center gap-2">
-                    <p className="text-[#F97415] text-2xl md:text-3xl font-extrabold">{feat.economicBenefit}</p>
+                    <p className="text-eic-orange text-2xl md:text-3xl font-extrabold">{feat.economicBenefit}</p>
                     <p className="text-white/50 text-xs uppercase tracking-widest">{feat.benefitLabel}</p>
                   </div>
                 </div>
@@ -523,13 +523,13 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
               <div className="text-white/30 text-3xl font-thin hidden md:block">vs</div>
               <div className="text-center md:text-left">
                 <p className="text-white/40 text-xs uppercase tracking-widest mb-1">Edilizia in Cloud ti costa</p>
-                <p className="text-4xl md:text-5xl font-extrabold text-[#F97415]">{config.roi.softwareCost}</p>
+                <p className="text-4xl md:text-5xl font-extrabold text-eic-orange">{config.roi.softwareCost}</p>
                 <p className="text-white/30 text-xs mt-1">all'anno (piano Professionista)</p>
               </div>
               <div className="text-center">
-                <div className="inline-flex flex-col items-center justify-center w-28 h-28 rounded-full border-2 border-[#F97415]/50 bg-[#F97415]/10">
+                <div className="inline-flex flex-col items-center justify-center w-28 h-28 rounded-full border-2 border-eic-orange/50 bg-eic-orange/10">
                   <p className="text-white/40 text-[10px] uppercase tracking-wide">ROI</p>
-                  <p className="text-3xl font-extrabold text-[#F97415]">{config.roi.roiX}</p>
+                  <p className="text-3xl font-extrabold text-eic-orange">{config.roi.roiX}</p>
                   <p className="text-white/40 text-[10px]">nel 1° anno</p>
                 </div>
               </div>
@@ -538,7 +538,7 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
               <p className="text-white/40 text-sm">
                 🎯 <span className="text-white/60">31 giorni gratis</span> per verificarlo tu stesso. Se non vedi i risultati, non paghi nulla.
               </p>
-              <Link to="/demo/" className="flex-shrink-0 inline-flex items-center gap-2 px-6 py-3 rounded-full bg-[#F97415] text-white font-bold text-sm hover:bg-[#e8650e] hover:scale-105 transition-all shadow-lg shadow-[#F97415]/30">
+              <Link to="/demo/" className="flex-shrink-0 inline-flex items-center gap-2 px-6 py-3 rounded-full bg-eic-orange text-white font-bold text-sm hover:bg-eic-orange-dark hover:scale-105 transition-all shadow-lg shadow-eic-orange/30">
                 Calcola il tuo ROI reale <ArrowRight size={14} />
               </Link>
             </div>
@@ -572,20 +572,20 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
               </ul>
             </div>
             {/* After */}
-            <div className="rounded-2xl border-2 border-[#F97415]/20 bg-[#F97415]/5 p-6 md:p-8 relative overflow-hidden">
-              <div className="absolute top-3 right-3 px-2 py-1 bg-[#F97415] text-white text-[10px] font-bold rounded-full uppercase tracking-wide">
+            <div className="rounded-2xl border-2 border-eic-orange/20 bg-eic-orange/5 p-6 md:p-8 relative overflow-hidden">
+              <div className="absolute top-3 right-3 px-2 py-1 bg-eic-orange text-white text-[10px] font-bold rounded-full uppercase tracking-wide">
                 Con Edilizia in Cloud
               </div>
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-8 h-8 rounded-full bg-[#F97415]/20 flex items-center justify-center">
-                  <CheckCircle2 className="w-4 h-4 text-[#F97415]" />
+                <div className="w-8 h-8 rounded-full bg-eic-orange/20 flex items-center justify-center">
+                  <CheckCircle2 className="w-4 h-4 text-eic-orange" />
                 </div>
-                <span className="font-bold text-[#F97415] text-sm uppercase tracking-wide">{config.transformation.toTitle}</span>
+                <span className="font-bold text-eic-orange text-sm uppercase tracking-wide">{config.transformation.toTitle}</span>
               </div>
               <ul className="space-y-3">
                 {config.transformation.toItems.map((item, i) => (
                   <li key={i} className="flex items-start gap-3 text-sm text-gray-700">
-                    <span className="text-[#F97415] mt-0.5 flex-shrink-0">✓</span>
+                    <span className="text-eic-orange mt-0.5 flex-shrink-0">✓</span>
                     {item}
                   </li>
                 ))}
@@ -606,7 +606,7 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
                 className={`transition-all duration-700 ${statsAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}
                 style={{ transitionDelay: `${i * 120}ms` }}
               >
-                <p className="text-4xl md:text-5xl font-extrabold text-[#F97415] mb-2">
+                <p className="text-4xl md:text-5xl font-extrabold text-eic-orange mb-2">
                   <StatCounter value={s.value} trigger={statsAnim.isVisible} />
                 </p>
                 <p className="text-white font-bold text-sm mb-1">{s.label}</p>
@@ -628,11 +628,11 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
             {config.modules.map((m, i) => (
               <div
                 key={i}
-                className={`p-6 rounded-2xl border border-gray-200 hover:border-[#F97415]/40 hover:shadow-lg transition-all duration-500 group ${modulesAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}
+                className={`p-6 rounded-2xl border border-gray-200 hover:border-eic-orange/40 hover:shadow-lg transition-all duration-500 group ${modulesAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}
                 style={{ transitionDelay: `${150 + i * 80}ms` }}
               >
-                <div className="w-11 h-11 rounded-xl bg-[#F97415]/10 flex items-center justify-center mb-4 group-hover:scale-110 group-hover:bg-[#F97415]/20 transition-all duration-300">
-                  <m.icon className="w-5 h-5 text-[#F97415]" />
+                <div className="w-11 h-11 rounded-xl bg-eic-orange/10 flex items-center justify-center mb-4 group-hover:scale-110 group-hover:bg-eic-orange/20 transition-all duration-300">
+                  <m.icon className="w-5 h-5 text-eic-orange" />
                 </div>
                 <h3 className="font-bold text-[#111111] mb-2">{m.name}</h3>
                 <p className="text-gray-500 text-sm leading-relaxed mb-4">{m.desc}</p>
@@ -643,7 +643,7 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
             ))}
           </div>
           <div className={`text-center mt-10 transition-all duration-700 ${modulesAnim.isVisible ? "opacity-100" : "opacity-0"}`}>
-            <Link to="/funzionalita/" className="inline-flex items-center gap-2 text-[#F97415] font-bold hover:underline">
+            <Link to="/funzionalita/" className="inline-flex items-center gap-2 text-eic-orange font-bold hover:underline">
               Vedi tutti i 26 moduli <ArrowRight size={16} />
             </Link>
           </div>
@@ -667,7 +667,7 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
                 decoding="async"
                 className="mx-auto mb-4 h-[72px] w-[72px] rounded-full ring-2 ring-orange-300/60 shadow-[0_0_40px_rgba(249,116,21,0.45)]"
               />
-              <span className="inline-block mb-4 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest text-orange-200 bg-[#F97415]/10 border border-[#F97415]/25">
+              <span className="inline-block mb-4 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest text-orange-200 bg-eic-orange/10 border border-eic-orange/25">
                 Silvio · La regia AI
               </span>
               <h2 className="text-2xl md:text-4xl font-extrabold text-white mb-3">{config.aiShowcase.title}</h2>
@@ -681,7 +681,7 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
                   style={{ transitionDelay: `${150 + i * 90}ms` }}
                 >
                   <div className="flex items-start justify-between gap-3 mb-3">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#F97415]/15 text-[#F97415]">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-eic-orange/15 text-eic-orange">
                       <a.icon className="h-5 w-5" />
                     </div>
                     <span className="rounded-full bg-white/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-white/55">
@@ -714,10 +714,10 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
               {config.platformExtra.items.map((item, i) => (
                 <div
                   key={item.name}
-                  className={`flex gap-3.5 rounded-2xl border border-gray-200 bg-white p-5 transition-all duration-500 hover:-translate-y-0.5 hover:border-[#F97415]/40 hover:shadow-lg ${extraAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}
+                  className={`flex gap-3.5 rounded-2xl border border-gray-200 bg-white p-5 transition-all duration-500 hover:-translate-y-0.5 hover:border-eic-orange/40 hover:shadow-lg ${extraAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}
                   style={{ transitionDelay: `${100 + i * 60}ms` }}
                 >
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#F97415]/10 text-[#F97415]">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-eic-orange/10 text-eic-orange">
                     <item.icon className="h-5 w-5" />
                   </div>
                   <div>
@@ -737,11 +737,11 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
         <div className="absolute top-0 right-0 w-[600px] h-[600px] rounded-full blur-[150px] pointer-events-none" style={{ background: "radial-gradient(circle, rgba(249,116,21,0.18) 0%, transparent 65%)" }} />
         <div ref={caseAnim.ref as React.RefObject<HTMLDivElement>} className="max-w-5xl mx-auto px-6 relative z-10">
           <div className={`text-center mb-12 transition-all duration-700 ${caseAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
-            <span className="inline-block mb-4 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest text-[#C2410C] bg-[#F97415]/10 border border-[#F97415]/20">
+            <span className="inline-block mb-4 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest text-eic-orange-deep bg-eic-orange/10 border border-eic-orange/20">
               Caso Studio Reale
             </span>
             <h2 className="text-2xl md:text-4xl font-extrabold text-white">
-              Risultati concreti. <span className="text-[#F97415]">Numeri veri.</span>
+              Risultati concreti. <span className="text-eic-orange">Numeri veri.</span>
             </h2>
           </div>
 
@@ -755,7 +755,7 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
                 <div>
                   <p className="text-white font-bold">{cs.company}</p>
                   <p className="text-white/50 text-xs">{cs.city} · {cs.sector}</p>
-                  <span className="inline-block mt-1 px-2 py-0.5 bg-[#F97415]/20 text-[#F97415] text-xs font-bold rounded-full">Fatturato {cs.revenue}</span>
+                  <span className="inline-block mt-1 px-2 py-0.5 bg-eic-orange/20 text-eic-orange text-xs font-bold rounded-full">Fatturato {cs.revenue}</span>
                 </div>
               </div>
               <div className="flex gap-1 mb-5">
@@ -771,19 +771,19 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
               </p>
             </div>
             {/* Right: metrics */}
-            <div className="md:col-span-2 bg-[#F97415]/10 border-t border-white/10 md:border-t-0 md:border-l border-white/10 p-7 md:p-8 flex flex-col justify-center gap-6">
+            <div className="md:col-span-2 bg-eic-orange/10 border-t border-white/10 md:border-t-0 md:border-l border-white/10 p-7 md:p-8 flex flex-col justify-center gap-6">
               {cs.metrics.map((m, i) => (
                 <div key={i}>
                   <p className="text-white/50 text-xs uppercase tracking-wide mb-2">{m.label}</p>
                   <div className="flex items-center gap-3">
                     <span className="text-red-300/70 line-through text-sm">{m.before}</span>
-                    <ArrowRight className="w-3 h-3 text-[#F97415] flex-shrink-0" />
+                    <ArrowRight className="w-3 h-3 text-eic-orange flex-shrink-0" />
                     <span className="text-white font-bold">{m.after}</span>
                   </div>
                 </div>
               ))}
               <div className="mt-2 pt-4 border-t border-white/10">
-                <Link to="/casi-studio/" className="inline-flex items-center gap-2 text-[#F97415] text-sm font-bold hover:underline">
+                <Link to="/casi-studio/" className="inline-flex items-center gap-2 text-eic-orange text-sm font-bold hover:underline">
                   Leggi tutti i casi studio <ArrowRight size={14} />
                 </Link>
               </div>
@@ -846,11 +846,11 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
               </div>
             </div>
             {/* GARANZIA 3 */}
-            <div className={`rounded-2xl border-2 border-[#F97415]/30 bg-white p-7 md:p-8 transition-all duration-700 ${garantieAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`} style={{ transitionDelay: "200ms" }}>
+            <div className={`rounded-2xl border-2 border-eic-orange/30 bg-white p-7 md:p-8 transition-all duration-700 ${garantieAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`} style={{ transitionDelay: "200ms" }}>
               <div className="flex items-center gap-3 mb-5">
-                <div className="w-10 h-10 rounded-full bg-[#F97415]/10 flex items-center justify-center text-xl">🎯</div>
+                <div className="w-10 h-10 rounded-full bg-eic-orange/10 flex items-center justify-center text-xl">🎯</div>
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-[#F97415]">Garanzia 3</p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-eic-orange">Garanzia 3</p>
                   <p className="font-extrabold text-[#111111] text-lg leading-tight">Risultato 60 Giorni</p>
                 </div>
               </div>
@@ -922,7 +922,7 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
                   <Link
                     key={post.id}
                     to={`/blog/${post.slug}/`}
-                    className="group flex flex-col bg-gray-50 rounded-2xl overflow-hidden border border-gray-200 hover:border-[#F97415]/40 hover:shadow-lg transition-all duration-300"
+                    className="group flex flex-col bg-gray-50 rounded-2xl overflow-hidden border border-gray-200 hover:border-eic-orange/40 hover:shadow-lg transition-all duration-300"
                   >
                     <BlogCover
                       src={post.coverImage}
@@ -933,13 +933,13 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
                       className="w-full h-36 object-cover group-hover:scale-105 transition-transform duration-500"
                     />
                     <div className="p-5 flex flex-col flex-1">
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-[#F97415] mb-2">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-eic-orange mb-2">
                         {post.category}
                       </span>
-                      <p className="text-sm font-semibold text-[#111111] leading-snug group-hover:text-[#F97415] transition-colors line-clamp-2 flex-1">
+                      <p className="text-sm font-semibold text-[#111111] leading-snug group-hover:text-eic-orange transition-colors line-clamp-2 flex-1">
                         {post.title}
                       </p>
-                      <span className="mt-3 inline-flex items-center gap-1 text-xs text-[#F97415] font-semibold group-hover:gap-2 transition-all">
+                      <span className="mt-3 inline-flex items-center gap-1 text-xs text-eic-orange font-semibold group-hover:gap-2 transition-all">
                         Leggi <ArrowRight size={11} />
                       </span>
                     </div>
@@ -967,8 +967,8 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
                   aria-current={isCurrent ? "page" : undefined}
                   className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold border transition-all duration-200 ${
                     isCurrent
-                      ? "bg-[#F97415] text-white border-[#F97415] shadow-md shadow-[#F97415]/20 cursor-default"
-                      : "bg-white text-gray-700 border-gray-200 hover:border-[#F97415]/40 hover:text-[#F97415] hover:bg-[#F97415]/5"
+                      ? "bg-eic-orange text-white border-eic-orange shadow-md shadow-eic-orange/20 cursor-default"
+                      : "bg-white text-gray-700 border-gray-200 hover:border-eic-orange/40 hover:text-eic-orange hover:bg-eic-orange/5"
                   }`}
                 >
                   <span>{s.emoji}</span> {s.label}
@@ -985,16 +985,16 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
         <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse 80% 60% at 50% 50%, rgba(249,116,21,0.12) 0%, transparent 100%)" }} />
         <div className="relative z-10 max-w-3xl mx-auto px-6 text-center">
           {/* Urgency row */}
-          <div className="inline-flex items-center gap-2 mb-6 px-4 py-2 rounded-full border border-[#F97415]/30 bg-[#F97415]/10">
+          <div className="inline-flex items-center gap-2 mb-6 px-4 py-2 rounded-full border border-eic-orange/30 bg-eic-orange/10">
             <span className="w-2 h-2 rounded-full bg-green-400 animate-ping" />
-            <p className="text-[#F97415] text-sm font-bold">
+            <p className="text-eic-orange text-sm font-bold">
               ⏰ 31 giorni gratis + onboarding dedicato incluso — cancella quando vuoi
             </p>
           </div>
           <h2 className="text-3xl md:text-5xl font-extrabold text-white mb-4 leading-tight">{config.ctaTitle}</h2>
           <p className="text-white/50 text-lg mb-10">{config.ctaSubtitle}</p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-10">
-            <Link to="/demo/" className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl bg-[#F97415] hover:bg-[#e8650e] text-white font-bold text-lg hover:scale-105 transition-all shadow-lg shadow-[#F97415]/30">
+            <Link to="/demo/" className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl bg-eic-orange hover:bg-eic-orange-dark text-white font-bold text-lg hover:scale-105 transition-all shadow-lg shadow-eic-orange/30">
               Prova Gratis 31 Giorni <ArrowRight size={18} />
             </Link>
             <Link to="/prezzi/" className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl border border-white/20 text-white font-bold hover:border-white/40 hover:bg-white/5 transition-all">
@@ -1009,8 +1009,8 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
               { Icon: TrendingUp, label: "ROI medio 10x", sub: "Nel primo anno" },
             ].map(({ Icon, label, sub }, i) => (
               <div key={i} className="text-center">
-                <div className="w-9 h-9 rounded-full bg-[#F97415]/10 flex items-center justify-center mx-auto mb-2">
-                  <Icon size={16} className="text-[#F97415]" />
+                <div className="w-9 h-9 rounded-full bg-eic-orange/10 flex items-center justify-center mx-auto mb-2">
+                  <Icon size={16} className="text-eic-orange" />
                 </div>
                 <p className="text-white/70 text-xs font-bold">{label}</p>
                 <p className="text-white/30 text-[10px] mt-0.5">{sub}</p>

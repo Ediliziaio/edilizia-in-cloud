@@ -108,10 +108,10 @@ export default function RitenuteGaranzia() {
 
       {/* Testata navy di famiglia: i soldi parcheggiati, in chiaro. */}
       <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
-        <div className="bg-[#173b67] p-4 text-white sm:p-5">
+        <div className="bg-eic-navy-deep p-4 text-white sm:p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="flex items-start gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)] sm:h-11 sm:w-11">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)] sm:h-11 sm:w-11">
                 <ShieldCheck className="h-4 w-4 sm:h-5 sm:w-5" />
               </div>
               <div className="min-w-0">
@@ -122,7 +122,7 @@ export default function RitenuteGaranzia() {
             <Button
               size="sm"
               onClick={() => setNuovaOpen(true)}
-              className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600"
+              className="bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600"
             >
               <Plus className="mr-1 h-4 w-4" /> Nuova ritenuta
             </Button>
@@ -404,7 +404,7 @@ function NuovaRitenutaDialog({
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Annulla</Button>
-          <Button onClick={salva} disabled={saving} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:from-orange-600 hover:to-amber-600">
+          <Button onClick={salva} disabled={saving} className="bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white hover:from-orange-600 hover:to-amber-600">
             {saving ? 'Salvataggio…' : 'Registra'}
           </Button>
         </DialogFooter>

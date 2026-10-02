@@ -99,7 +99,7 @@ function StepIndicator({ current }: { current: Step }) {
               className={cn(
                 "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors",
                 isActive
-                  ? "bg-[#1E3A5F] text-white"
+                  ? "bg-eic-navy text-white"
                   : isDone
                   ? "bg-green-100 text-green-700"
                   : "bg-gray-100 text-gray-400"
@@ -333,7 +333,7 @@ export default function ChiusuraIntervento() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              <Info className="h-4 w-4 text-[#1E3A5F]" />
+              <Info className="h-4 w-4 text-eic-navy" />
               Riepilogo Intervento
             </CardTitle>
           </CardHeader>
@@ -403,7 +403,7 @@ export default function ChiusuraIntervento() {
             </div>
 
             <div className="flex justify-end pt-2">
-              <Button onClick={goNext} className="gap-2 bg-[#1E3A5F] hover:bg-[#162d4a]">
+              <Button onClick={goNext} className="gap-2 bg-eic-navy hover:bg-[#162d4a]">
                 Avanti
                 <ArrowLeft className="h-4 w-4 rotate-180" />
               </Button>
@@ -417,7 +417,7 @@ export default function ChiusuraIntervento() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              <ClipboardList className="h-4 w-4 text-[#1E3A5F]" />
+              <ClipboardList className="h-4 w-4 text-eic-navy" />
               Note di Chiusura
             </CardTitle>
           </CardHeader>
@@ -471,7 +471,7 @@ export default function ChiusuraIntervento() {
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 Indietro
               </Button>
-              <Button onClick={goNext} className="gap-2 bg-[#1E3A5F] hover:bg-[#162d4a]">
+              <Button onClick={goNext} className="gap-2 bg-eic-navy hover:bg-[#162d4a]">
                 Avanti — Firma
                 <PenTool className="h-4 w-4" />
               </Button>
@@ -485,7 +485,7 @@ export default function ChiusuraIntervento() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              <PenTool className="h-4 w-4 text-[#1E3A5F]" />
+              <PenTool className="h-4 w-4 text-eic-navy" />
               Firma Tecnico Digitale
             </CardTitle>
           </CardHeader>

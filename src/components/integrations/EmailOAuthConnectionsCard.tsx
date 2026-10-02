@@ -266,7 +266,7 @@ export function EmailOAuthConnectionsCard() {
         {/* Hero AI: cosa fa l'AI con le tue email */}
         <div className="rounded-lg border border-orange-200 bg-gradient-to-br from-orange-50/60 via-amber-50/40 to-white p-3">
           <div className="flex items-start gap-2.5">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-orange-500 to-amber-500 shadow-sm">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-orange-500 to-eic-amber-strong shadow-sm">
               <Sparkles className="h-4 w-4 text-white" />
             </div>
             <div className="min-w-0">

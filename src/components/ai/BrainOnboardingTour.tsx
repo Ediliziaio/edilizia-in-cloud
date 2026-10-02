@@ -93,7 +93,7 @@ export function BrainOnboardingTour() {
           </button>
 
           {/* Icona grande */}
-          <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-orange-400 to-amber-500 flex items-center justify-center shadow-lg shadow-orange-500/30 mb-3">
+          <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-orange-400 to-eic-amber-strong flex items-center justify-center shadow-lg shadow-orange-500/30 mb-3">
             <Icon className="h-6 w-6 text-white" />
           </div>
 

@@ -793,7 +793,7 @@ export default function MarginalitaCantieri() {
       <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-3 sm:px-6 py-3 sm:py-5 shadow-sm">
         <div className="flex flex-col gap-3 sm:gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="flex items-start gap-2.5 sm:gap-3">
-          <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white flex items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
+          <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white flex items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
             <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5" />
           </div>
           <div className="min-w-0">
@@ -827,7 +827,7 @@ export default function MarginalitaCantieri() {
       </div>
 
       <section className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-        <Card className="overflow-hidden border-slate-200 bg-[#173b67] text-white shadow-sm">
+        <Card className="overflow-hidden border-slate-200 bg-eic-navy-deep text-white shadow-sm">
           <CardContent className="space-y-4 p-5">
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
               <div className="flex gap-3">
@@ -921,7 +921,7 @@ export default function MarginalitaCantieri() {
       {(sediVisibili.length > 0 || sediLoading) && (
         <section className="space-y-4">
           <div className="flex items-center justify-between flex-wrap gap-2">
-            <h2 className="text-lg font-semibold text-[#1E3A5F]">Performance per Sede</h2>
+            <h2 className="text-lg font-semibold text-eic-navy">Performance per Sede</h2>
             <SedeFilterBar />
           </div>
           {sediLoading ? (

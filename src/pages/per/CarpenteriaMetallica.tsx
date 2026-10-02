@@ -16,7 +16,7 @@ const config: PerTipoConfig = {
   heroTitle: (
     <>
       <span className="text-white">Software per carpenteria metallica: officina e cantiere non si parlano.</span>{" "}
-      <span className="text-[#F97415]">Una commessa sola: distinte, DDT, posa e avanzamento.</span>
+      <span className="text-eic-orange">Una commessa sola: distinte, DDT, posa e avanzamento.</span>
     </>
   ),
   heroSubtitle:
@@ -25,9 +25,9 @@ const config: PerTipoConfig = {
 
   // Social proof
   socialProof: [
-    { initials: "CF", name: "Carpenteria Ferraro", city: "Vicenza", months: 14, gradient: "from-[#111111] to-[#F97415]" },
+    { initials: "CF", name: "Carpenteria Ferraro", city: "Vicenza", months: 14, gradient: "from-[#111111] to-eic-orange" },
     { initials: "SM", name: "Strutture Metalliche Bassi", city: "Lecco", months: 9, gradient: "from-[#0d8f79] to-[#111111]" },
-    { initials: "AC", name: "Acciai Conti", city: "Terni", months: 16, gradient: "from-[#F97415] to-[#c45a0c]" },
+    { initials: "AC", name: "Acciai Conti", city: "Terni", months: 16, gradient: "from-eic-orange to-[#c45a0c]" },
     { initials: "MS", name: "Metal Sud Carpenterie", city: "Taranto", months: 11, gradient: "from-[#1a1a2e] to-[#0d8f79]" },
   ],
 
@@ -245,7 +245,7 @@ const config: PerTipoConfig = {
     person: "Giulio Ferraro",
     role: "Titolare",
     initials: "GF",
-    gradient: "from-[#111111] to-[#F97415]",
+    gradient: "from-[#111111] to-eic-orange",
     quote:
       "Facciamo capannoni, scale e soppalchi: metà del lavoro in officina, metà in cantiere. Il mio problema era che i due mondi non si parlavano — la squadra di posa scopriva in cantiere che mancava una trave, e la gru noleggiata stava ferma. Adesso la commessa è una: la distinta dice cosa è arrivato, l'officina carica le foto dei pezzi finiti, i DDT dicono cosa è partito. E per la prima volta so quanto mi costa produrre un kg di struttura e quanto montarlo. I preventivi sono un'altra cosa.",
     metrics: [
@@ -330,7 +330,7 @@ const config: PerTipoConfig = {
   ctaTitle: (
     <>
       <span className="text-white">Officina e cantiere, una commessa sola.</span>{" "}
-      <span className="text-[#F97415]">E il margine si vede prima di montare.</span>
+      <span className="text-eic-orange">E il margine si vede prima di montare.</span>
     </>
   ),
   ctaSubtitle:

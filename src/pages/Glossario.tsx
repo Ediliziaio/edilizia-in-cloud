@@ -152,9 +152,9 @@ export default function Glossario() {
       {/* Hero */}
       <section className="bg-[#111111] pt-36 pb-20">
         <div className="max-w-4xl mx-auto px-6 text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#F97415]/10 border border-[#F97415]/20 mb-6">
-            <BookOpen size={14} className="text-[#F97415]" />
-            <span className="text-[#F97415] text-xs font-bold uppercase tracking-widest">Glossario</span>
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-eic-orange/10 border border-eic-orange/20 mb-6">
+            <BookOpen size={14} className="text-eic-orange" />
+            <span className="text-eic-orange text-xs font-bold uppercase tracking-widest">Glossario</span>
           </div>
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white mb-6 leading-tight">
             Glossario Edilizia
@@ -171,7 +171,7 @@ export default function Glossario() {
               placeholder="Cerca un termine (es. SAL, DURC, Margine…)"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-12 pr-5 py-4 rounded-full bg-white/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-[#F97415]/60 focus:bg-white/15 transition-all"
+              className="w-full pl-12 pr-5 py-4 rounded-full bg-white/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-eic-orange/60 focus:bg-white/15 transition-all"
             />
           </div>
         </div>
@@ -188,7 +188,7 @@ export default function Glossario() {
                 onClick={() => setActiveCategory(cat)}
                 className={`whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-semibold transition-all flex-shrink-0 ${
                   activeCategory === cat
-                    ? "bg-[#F97415] text-white"
+                    ? "bg-eic-orange text-white"
                     : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                 }`}
               >
@@ -221,7 +221,7 @@ export default function Glossario() {
           <div className="text-center py-16">
             <p className="text-gray-400">Nessun termine trovato per "{search}".</p>
             <button onClick={() => { setSearch(""); setActiveCategory("Tutte"); setActiveLetter("Tutte"); }}
-              className="mt-4 text-[#F97415] font-medium hover:underline">
+              className="mt-4 text-eic-orange font-medium hover:underline">
               Mostra tutti i termini
             </button>
           </div>
@@ -253,7 +253,7 @@ export default function Glossario() {
                             setActiveLetter("Tutte");
                             setSearch("");
                           }}
-                          className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#F97415]/10 text-[#F97415] hover:bg-[#F97415]/20 transition-colors"
+                          className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-eic-orange/10 text-eic-orange hover:bg-eic-orange/20 transition-colors"
                         >
                           {rt}
                         </a>
@@ -292,7 +292,7 @@ export default function Glossario() {
           </p>
           <Link
             to="/demo/"
-            className="inline-flex items-center gap-2 px-8 py-4 rounded-full bg-[#F97415] text-white font-bold hover:bg-[#e8650e] hover:scale-105 transition-all shadow-lg shadow-[#F97415]/30"
+            className="inline-flex items-center gap-2 px-8 py-4 rounded-full bg-eic-orange text-white font-bold hover:bg-eic-orange-dark hover:scale-105 transition-all shadow-lg shadow-eic-orange/30"
           >
             Prova Gratis 31 Giorni <ArrowRight size={18} />
           </Link>
@@ -314,11 +314,11 @@ export default function Glossario() {
               { slug: "attestazione-soa-imprese-edili", label: "Attestazione SOA: Come Ottenerla e Mantenerla" },
             ].map((post) => (
               <Link key={post.slug} to={`/blog/${post.slug}/`}
-                className="flex items-center gap-3 p-4 rounded-xl border border-gray-200 hover:border-[#F97415]/40 hover:bg-[#F97415]/5 transition-all group">
-                <span className="flex-1 text-sm font-semibold text-[#111111] group-hover:text-[#F97415] transition-colors">
+                className="flex items-center gap-3 p-4 rounded-xl border border-gray-200 hover:border-eic-orange/40 hover:bg-eic-orange/5 transition-all group">
+                <span className="flex-1 text-sm font-semibold text-[#111111] group-hover:text-eic-orange transition-colors">
                   {post.label}
                 </span>
-                <ArrowRight size={14} className="text-[#F97415] flex-shrink-0" />
+                <ArrowRight size={14} className="text-eic-orange flex-shrink-0" />
               </Link>
             ))}
           </div>

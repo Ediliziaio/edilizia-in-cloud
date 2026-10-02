@@ -180,3 +180,64 @@ export async function coloreDelLogo(url: string): Promise<string | null> {
     return null;
   }
 }
+
+/**
+ * La rampa di toni del marchio, nel formato che Tailwind usa per le variabili
+ * con trasparenza: tre numeri RGB separati da spazi («130 184 69»).
+ *
+ * La piattaforma colora le sue parti in evidenza con l'arancione di EdiliziaInCloud
+ * (classi `orange-*`, `eic-orange`) e con un blu scuro (`eic-navy`). In white-label
+ * quelle classi leggono queste variabili al posto dei colori fissi: il marchio
+ * dell'azienda prende il posto dell'arancione e del blu in tutta l'applicazione.
+ *
+ * `base` è il colore GIÀ reso leggibile con testo bianco (vedi coloriApplicati):
+ * sta al posto dell'arancione 500, quello dei bottoni; 600-950 sono più scuri
+ * (testi, hover), 50-400 più chiari (fondi delicati, bordi).
+ */
+export interface RampaBrand {
+  orange: Record<"50" | "100" | "200" | "300" | "400" | "500" | "600" | "700" | "800" | "900" | "950", string>;
+  /** eic-orange: il colore di punta (bottoni, link). */
+  accent: string;
+  /** Un tono più scuro per hover e testi su fondo chiaro. */
+  accentDark: string;
+  /** Ancora più scuro. */
+  accentDeep: string;
+  /** Un tono più chiaro, per la fine delle sfumature. */
+  accentSoft: string;
+  /** I blocchi scuri (riepiloghi, intestazioni): la stessa tinta, molto profonda. */
+  navy: string;
+  navyDeep: string;
+}
+
+const triplet = (rgb: Rgb): string => rgb.map((v) => Math.max(0, Math.min(255, Math.round(v)))).join(" ");
+
+export function rampaBrand(base: string): RampaBrand | null {
+  if (!hexValido(base)) return null;
+  const [h, s, l] = rgbToHsl(hexToRgb(base));
+  const chiaro = (luce: number, sat: number): string => triplet(hslToRgb(h, Math.max(0.2, Math.min(sat, 0.65)), luce));
+  const scuro = (f: number): string => triplet(hslToRgb(h, s, l * f));
+  const profondo = (luce: number): string => triplet(hslToRgb(h, Math.min(s, 0.5), luce));
+  const principale = triplet(hexToRgb(base));
+  const orange = {
+    "50": chiaro(0.96, s),
+    "100": chiaro(0.92, s),
+    "200": chiaro(0.85, s),
+    "300": chiaro(0.75, s),
+    "400": chiaro(Math.min(0.62, l + 0.12), s),
+    "500": principale,
+    "600": scuro(0.88),
+    "700": scuro(0.76),
+    "800": scuro(0.64),
+    "900": scuro(0.52),
+    "950": scuro(0.38),
+  };
+  return {
+    orange,
+    accent: principale,
+    accentDark: orange["600"],
+    accentDeep: orange["700"],
+    accentSoft: orange["400"],
+    navy: profondo(0.24),
+    navyDeep: profondo(0.2),
+  };
+}

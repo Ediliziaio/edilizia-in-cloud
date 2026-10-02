@@ -9,7 +9,7 @@ export const STATI_LABEL: Record<SrStatoProgetto, { label: string; className: st
   bozza:           { label: "Bozza",          className: "bg-slate-100 text-slate-700 border-slate-200" },
   da_consegnare:   { label: "Da consegnare",  className: "bg-amber-100 text-amber-800 border-amber-200" },
   consegnato:      { label: "Consegnato",     className: "bg-sky-100 text-sky-800 border-sky-200" },
-  in_valutazione:  { label: "In valutazione", className: "bg-blue-50 text-[#173b67] border-blue-200" },
+  in_valutazione:  { label: "In valutazione", className: "bg-blue-50 text-eic-navy-deep border-blue-200" },
   accettato:       { label: "Accettato",      className: "bg-orange-100 text-orange-700 border-orange-200" },
   rifiutato:       { label: "Rifiutato",      className: "bg-rose-100 text-rose-700 border-rose-200" },
   scaduto:         { label: "Scaduto",        className: "bg-slate-100 text-slate-500 border-slate-200" },

@@ -69,7 +69,7 @@ export function PlatformSmsActivationCard() {
     <Card className="max-w-lg mx-auto">
       <CardContent className="pt-8 pb-8 text-center space-y-4">
         <div className="mx-auto h-14 w-14 rounded-full bg-blue-50 flex items-center justify-center">
-          <MessageSquare className="h-7 w-7 text-[#1E3A5F]" />
+          <MessageSquare className="h-7 w-7 text-eic-navy" />
         </div>
         <div className="space-y-1">
           <div className="flex items-center justify-center gap-2">

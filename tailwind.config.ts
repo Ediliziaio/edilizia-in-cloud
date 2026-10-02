@@ -1,6 +1,15 @@
 import type { Config } from "tailwindcss";
 import tailwindcssAnimate from "tailwindcss-animate";
 
+/**
+ * Colore che in white-label diventa quello del marchio. Senza la variabile vale il
+ * colore di EdiliziaInCloud (stesso aspetto di prima); con `<alpha-value>` restano
+ * validi i modificatori di trasparenza (`bg-orange-500/10`, `border-eic-orange/30`).
+ * Le variabili le imposta applyBrandTheme (src/lib/brandTheme.ts).
+ */
+const marchio = (variabile: string, predefinito: string): string =>
+  `rgb(var(--${variabile}, ${predefinito}) / <alpha-value>)`;
+
 export default {
   darkMode: ["class"],
   content: ["./pages/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}", "./app/**/*.{ts,tsx}", "./src/**/*.{ts,tsx}"],
@@ -16,13 +25,33 @@ export default {
     extend: {
       colors: {
         eic: {
-          navy: "#1E3A5F",
+          navy: marchio("brand-navy", "30 58 95"),
+          "navy-deep": marchio("brand-navy-deep", "23 59 103"),
           "navy-90": "#0F1E33",
           "navy-50": "#3B5A85",
-          orange: "#F97316",
-          "orange-soft": "#FDA76B",
+          orange: marchio("brand-accent", "249 115 22"),
+          "orange-dark": marchio("brand-accent-dark", "217 94 11"),
+          "orange-deep": marchio("brand-accent-deep", "201 79 6"),
+          "orange-soft": marchio("brand-accent-soft", "253 167 107"),
+          // La fine delle sfumature arancione→ambra («Nuovo …»).
+          amber: marchio("brand-orange-400", "251 191 36"),
+          "amber-strong": marchio("brand-orange-600", "245 158 11"),
           cream: "#FAF7F2",
           ink: "#0A0A0A",
+        },
+        // La palette arancione di Tailwind: in white-label prende i toni del marchio.
+        orange: {
+          50: marchio("brand-orange-50", "255 247 237"),
+          100: marchio("brand-orange-100", "255 237 213"),
+          200: marchio("brand-orange-200", "254 215 170"),
+          300: marchio("brand-orange-300", "253 186 116"),
+          400: marchio("brand-orange-400", "251 146 60"),
+          500: marchio("brand-orange-500", "249 115 22"),
+          600: marchio("brand-orange-600", "234 88 12"),
+          700: marchio("brand-orange-700", "194 65 12"),
+          800: marchio("brand-orange-800", "154 52 18"),
+          900: marchio("brand-orange-900", "124 45 18"),
+          950: marchio("brand-orange-950", "67 20 7"),
         },
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",

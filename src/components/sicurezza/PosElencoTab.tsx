@@ -71,7 +71,7 @@ export function PosElencoTab({ orders }: Props) {
           Senza la frase sul decreto: resta il bottone, a destra. */}
       <div className="flex flex-wrap items-center justify-end gap-2 max-sm:hidden">
         {puoScrivere && (
-          <Button size="sm" onClick={() => { setOrderId(""); setRuolo("affidataria_esecutrice"); setNuovoAperto(true); }} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
+          <Button size="sm" onClick={() => { setOrderId(""); setRuolo("affidataria_esecutrice"); setNuovoAperto(true); }} className="bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
             <Plus className="mr-1 h-4 w-4" />Nuovo POS
           </Button>
         )}

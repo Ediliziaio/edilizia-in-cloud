@@ -165,8 +165,8 @@ export default function QuickContactModal() {
         {submitted ? (
           /* SUCCESS STATE */
           <div className="p-8 text-center">
-            <div className="w-16 h-16 mx-auto mb-5 rounded-full bg-[#F97415]/10 flex items-center justify-center">
-              <CheckCircle2 className="w-9 h-9 text-[#F97415]" />
+            <div className="w-16 h-16 mx-auto mb-5 rounded-full bg-eic-orange/10 flex items-center justify-center">
+              <CheckCircle2 className="w-9 h-9 text-eic-orange" />
             </div>
             <h3 className="text-xl font-bold text-[#111111] mb-2">
               Richiesta ricevuta!
@@ -177,13 +177,13 @@ export default function QuickContactModal() {
             </p>
             {/* Speed-to-lead: chi vuole fare subito non deve aspettare la
                 nostra chiamata — gli diamo il canale immediato. */}
-            <div className="mb-5 rounded-xl bg-[#F97415]/5 border border-[#F97415]/15 p-4">
+            <div className="mb-5 rounded-xl bg-eic-orange/5 border border-eic-orange/15 p-4">
               <p className="text-[#111111]/70 text-xs font-semibold mb-2.5">
                 Vuoi fare prima? Parliamo subito:
               </p>
               <a
                 href="tel:+393501780908"
-                className="inline-flex items-center justify-center gap-2 w-full py-2.5 rounded-lg bg-[#111111] text-white font-semibold text-sm hover:bg-[#F97415] transition-colors"
+                className="inline-flex items-center justify-center gap-2 w-full py-2.5 rounded-lg bg-[#111111] text-white font-semibold text-sm hover:bg-eic-orange transition-colors"
               >
                 <Phone className="w-4 h-4" />
                 Chiama ora: 350 178 0908
@@ -194,7 +194,7 @@ export default function QuickContactModal() {
             </div>
             <button
               onClick={close}
-              className="px-6 py-2.5 rounded-full bg-[#F97415] text-white font-semibold text-sm hover:bg-[#C94F06] transition-colors"
+              className="px-6 py-2.5 rounded-full bg-eic-orange text-white font-semibold text-sm hover:bg-eic-orange-deep transition-colors"
             >
               Chiudi
             </button>
@@ -203,7 +203,7 @@ export default function QuickContactModal() {
           /* FORM */
           <div className="p-6 md:p-7">
             <div className="mb-5">
-              <p className="text-[10px] font-bold tracking-widest uppercase text-[#F97415] mb-1.5">
+              <p className="text-[10px] font-bold tracking-widest uppercase text-eic-orange mb-1.5">
                 Demo Gratuita · 31 giorni di prova
               </p>
               <h3 id="qcm-title" className="text-xl font-extrabold text-[#111111] leading-tight">
@@ -223,7 +223,7 @@ export default function QuickContactModal() {
                   onChange={handleChange}
                   placeholder="Nome e cognome *"
                   className={`w-full px-3.5 py-2.5 rounded-lg border text-sm focus:outline-none focus:ring-2 transition-all ${
-                    errors.nome ? "border-red-400 focus:ring-red-200" : "border-gray-200 focus:ring-[#F97415]/30 focus:border-[#F97415]"
+                    errors.nome ? "border-red-400 focus:ring-red-200" : "border-gray-200 focus:ring-eic-orange/30 focus:border-eic-orange"
                   }`}
                 />
                 {errors.nome && <p className="text-red-500 text-xs mt-1">{errors.nome}</p>}
@@ -237,7 +237,7 @@ export default function QuickContactModal() {
                   onChange={handleChange}
                   placeholder="Email *"
                   className={`w-full px-3.5 py-2.5 rounded-lg border text-sm focus:outline-none focus:ring-2 transition-all ${
-                    errors.email ? "border-red-400 focus:ring-red-200" : "border-gray-200 focus:ring-[#F97415]/30 focus:border-[#F97415]"
+                    errors.email ? "border-red-400 focus:ring-red-200" : "border-gray-200 focus:ring-eic-orange/30 focus:border-eic-orange"
                   }`}
                 />
                 {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
@@ -251,7 +251,7 @@ export default function QuickContactModal() {
                   onChange={handleChange}
                   placeholder="Telefono *"
                   className={`w-full px-3.5 py-2.5 rounded-lg border text-sm focus:outline-none focus:ring-2 transition-all ${
-                    errors.telefono ? "border-red-400 focus:ring-red-200" : "border-gray-200 focus:ring-[#F97415]/30 focus:border-[#F97415]"
+                    errors.telefono ? "border-red-400 focus:ring-red-200" : "border-gray-200 focus:ring-eic-orange/30 focus:border-eic-orange"
                   }`}
                 />
                 {errors.telefono && <p className="text-red-500 text-xs mt-1">{errors.telefono}</p>}
@@ -265,7 +265,7 @@ export default function QuickContactModal() {
                   onChange={handleChange}
                   placeholder="Nome azienda *"
                   className={`w-full px-3.5 py-2.5 rounded-lg border text-sm focus:outline-none focus:ring-2 transition-all ${
-                    errors.azienda ? "border-red-400 focus:ring-red-200" : "border-gray-200 focus:ring-[#F97415]/30 focus:border-[#F97415]"
+                    errors.azienda ? "border-red-400 focus:ring-red-200" : "border-gray-200 focus:ring-eic-orange/30 focus:border-eic-orange"
                   }`}
                 />
                 {errors.azienda && <p className="text-red-500 text-xs mt-1">{errors.azienda}</p>}
@@ -278,7 +278,7 @@ export default function QuickContactModal() {
                   name="cantieri"
                   value={form.cantieri}
                   onChange={handleChange}
-                  className={`w-full px-3.5 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#F97415]/30 focus:border-[#F97415] transition-all bg-white ${
+                  className={`w-full px-3.5 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-eic-orange/30 focus:border-eic-orange transition-all bg-white ${
                     form.cantieri ? "text-[#111111]" : "text-gray-400"
                   }`}
                 >
@@ -297,13 +297,13 @@ export default function QuickContactModal() {
                     name="privacy"
                     checked={form.privacy}
                     onChange={handleChange}
-                    className={`mt-0.5 w-4 h-4 rounded border-2 cursor-pointer accent-[#F97415] flex-shrink-0 ${
+                    className={`mt-0.5 w-4 h-4 rounded border-2 cursor-pointer accent-eic-orange flex-shrink-0 ${
                       errors.privacy ? "border-red-400" : "border-gray-300"
                     }`}
                   />
                   <span className="text-[11px] text-[#111111]/70 leading-relaxed">
-                    <strong className="text-[#F97415]">*</strong> Accetto la{" "}
-                    <Link to="/privacy-policy/" target="_blank" rel="noopener" className="text-[#F97415] hover:text-[#C94F06] underline font-semibold">
+                    <strong className="text-eic-orange">*</strong> Accetto la{" "}
+                    <Link to="/privacy-policy/" target="_blank" rel="noopener" className="text-eic-orange hover:text-eic-orange-deep underline font-semibold">
                       Privacy Policy
                     </Link>{" "}
                     (art. 6.1.b GDPR — gestione richiesta demo).
@@ -317,7 +317,7 @@ export default function QuickContactModal() {
                     name="marketing"
                     checked={form.marketing}
                     onChange={handleChange}
-                    className="mt-0.5 w-4 h-4 rounded border-2 border-gray-300 cursor-pointer accent-[#F97415] flex-shrink-0"
+                    className="mt-0.5 w-4 h-4 rounded border-2 border-gray-300 cursor-pointer accent-eic-orange flex-shrink-0"
                   />
                   <span className="text-[11px] text-[#111111]/70 leading-relaxed">
                     Acconsento a ricevere comunicazioni commerciali e novità via email e telefono, anche tramite assistente automatico. <span className="opacity-60">Facoltativo.</span>
@@ -328,7 +328,7 @@ export default function QuickContactModal() {
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full mt-3 py-3 rounded-xl bg-[#F97415] hover:bg-[#C94F06] text-white font-bold text-sm tracking-wide transition-all disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2 shadow-lg shadow-[#F97415]/25"
+                className="w-full mt-3 py-3 rounded-xl bg-eic-orange hover:bg-eic-orange-deep text-white font-bold text-sm tracking-wide transition-all disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2 shadow-lg shadow-eic-orange/25"
               >
                 {submitting ? (
                   <>

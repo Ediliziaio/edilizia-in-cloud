@@ -15,7 +15,7 @@ const config: PerTipoConfig = {
   heroTitle: (
     <>
       <span className="text-white">Aumenta i margini. Blinda la cassa.</span>{" "}
-      <span className="text-[#F97415]">Il gestionale con AI per chi installa fotovoltaico.</span>
+      <span className="text-eic-orange">Il gestionale con AI per chi installa fotovoltaico.</span>
     </>
   ),
   heroSubtitle: "Non è solo un software per le pratiche GSE: è il sistema che governa tutta l'azienda. Il margine reale per kWp lo vedi mentre lavori (+12% medio per impianto), la cassa la conosci a 90 giorni, le squadre sono coordinate senza WhatsApp — e sì, le pratiche GSE escono con template automatici. Con l'AI che ti avvisa prima che un problema diventi una perdita.",
@@ -23,7 +23,7 @@ const config: PerTipoConfig = {
   heroImage: "/hero/stock/cantiere-1509391366360-1400.webp",
 
   socialProof: [
-    { initials: "SE", name: "SolarEnergy Sud Srl", city: "Bari", months: 16, gradient: "from-[#F97415] to-[#c85e0a]" },
+    { initials: "SE", name: "SolarEnergy Sud Srl", city: "Bari", months: 16, gradient: "from-eic-orange to-[#c85e0a]" },
     { initials: "FV", name: "FotoVerde Impianti", city: "Palermo", months: 8, gradient: "from-[#0d8f79] to-[#0a6b5a]" },
     { initials: "PR", name: "PowerRoof Srl", city: "Catania", months: 22, gradient: "from-[#1a6fad] to-[#0d4f80]" },
     { initials: "SI", name: "SunInstall Snc", city: "Salerno", months: 13, gradient: "from-[#7c3aed] to-[#5b21b6]" },
@@ -217,7 +217,7 @@ const config: PerTipoConfig = {
     person: "Francesco Esposito",
     role: "CEO",
     initials: "FE",
-    gradient: "from-[#F97415] to-[#0a7a65]",
+    gradient: "from-eic-orange to-[#0a7a65]",
     quote: "Prima ogni pratica GSE era una storia a sé: documenti su email, scadenze su Post-it, stato sconosciuto. Gestivamo 3 impianti al mese e stavamo annegando nella burocrazia. Oggi ne gestiamo 7 con le stesse 2 persone in ufficio. Il salto l'ha fatto il gestionale: pratiche GSE con template, SAL generati dall'app, margini per kWp sempre aggiornati. Ho smesso di dormire male.",
     metrics: [
       { label: "Impianti gestiti al mese", before: "3 impianti", after: "7 impianti" },
@@ -290,7 +290,7 @@ const config: PerTipoConfig = {
   ctaTitle: (
     <>
       <span className="text-white">Più impianti. Margini monitorati.</span>{" "}
-      <span className="text-[#F97415]">Cassa sempre sotto controllo.</span>
+      <span className="text-eic-orange">Cassa sempre sotto controllo.</span>
     </>
   ),
   ctaSubtitle: "30 minuti di demo: ti mostriamo come controllare margini per kWp, cassa e pratiche GSE su un impianto tipo — con i tuoi numeri.",

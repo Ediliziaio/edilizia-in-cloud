@@ -16,7 +16,7 @@ const config: PerTipoConfig = {
   heroTitle: (
     <>
       <span className="text-white">Gestionale per installatori: dieci interventi al giorno, zero fogli in furgone.</span>{" "}
-      <span className="text-[#F97415]">Rapportino, materiale e fattura chiusi sul posto.</span>
+      <span className="text-eic-orange">Rapportino, materiale e fattura chiusi sul posto.</span>
     </>
   ),
   heroSubtitle:
@@ -25,9 +25,9 @@ const config: PerTipoConfig = {
 
   // Social proof
   socialProof: [
-    { initials: "IR", name: "Installazioni Riva", city: "Monza", months: 10, gradient: "from-[#111111] to-[#F97415]" },
+    { initials: "IR", name: "Installazioni Riva", city: "Monza", months: 10, gradient: "from-[#111111] to-eic-orange" },
     { initials: "TG", name: "Tecno Impianti Galli", city: "Torino", months: 14, gradient: "from-[#0d8f79] to-[#111111]" },
-    { initials: "SA", name: "Sicurezza & Antenne", city: "Firenze", months: 7, gradient: "from-[#F97415] to-[#c45a0c]" },
+    { initials: "SA", name: "Sicurezza & Antenne", city: "Firenze", months: 7, gradient: "from-eic-orange to-[#c45a0c]" },
     { initials: "CD", name: "Clima Due", city: "Bari", months: 19, gradient: "from-[#1a1a2e] to-[#0d8f79]" },
   ],
 
@@ -245,7 +245,7 @@ const config: PerTipoConfig = {
     person: "Stefano Riva",
     role: "Titolare",
     initials: "SR",
-    gradient: "from-[#111111] to-[#F97415]",
+    gradient: "from-[#111111] to-eic-orange",
     quote:
       "Con tre tecnici facevamo dodici interventi al giorno e la sera io stavo un'ora a rimettere insieme i fogli di lavoro. Le fatture partivano a fine mese, quando andava bene. Adesso ogni tecnico chiude l'intervento sul posto: foto, pezzi usati, firma del cliente — e la fattura parte in giornata. Il furgone non parte più senza i pezzi giusti perché le scorte le vediamo, e io la sera vado a casa. La cassa è un'altra cosa: incassiamo tre settimane prima di prima.",
     metrics: [
@@ -326,7 +326,7 @@ const config: PerTipoConfig = {
   ctaTitle: (
     <>
       <span className="text-white">Chiudi l'intervento sul posto.</span>{" "}
-      <span className="text-[#F97415]">Fattura prima di risalire sul furgone.</span>
+      <span className="text-eic-orange">Fattura prima di risalire sul furgone.</span>
     </>
   ),
   ctaSubtitle:

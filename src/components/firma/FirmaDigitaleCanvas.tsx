@@ -150,7 +150,7 @@ export function FirmaDigitaleCanvas({
       {/* Canvas header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
-          <PenTool className="h-4 w-4 text-[#1E3A5F]" />
+          <PenTool className="h-4 w-4 text-eic-navy" />
           Firma del tecnico
         </div>
         <Button
@@ -206,7 +206,7 @@ export function FirmaDigitaleCanvas({
           type="button"
           onClick={handleConferma}
           disabled
-          className="gap-2 bg-[#1E3A5F] hover:bg-[#162d4a] opacity-50 cursor-not-allowed"
+          className="gap-2 bg-eic-navy hover:bg-[#162d4a] opacity-50 cursor-not-allowed"
         >
           <Check className="h-4 w-4" />
           Conferma firma

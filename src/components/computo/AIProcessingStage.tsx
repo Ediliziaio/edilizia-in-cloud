@@ -235,7 +235,7 @@ export function AIProcessingStage({ status, progress, error, onRetry, onCancel, 
             animate={{ scale: 1, opacity: 1, rotateY: 0 }}
             exit={{ scale: 0.6, opacity: 0, rotateY: 90 }}
             transition={{ duration: 0.4 }}
-            className="relative z-10 h-14 w-14 rounded-2xl bg-gradient-to-br from-orange-500 to-amber-400 flex items-center justify-center shadow-lg shadow-orange-300/40"
+            className="relative z-10 h-14 w-14 rounded-2xl bg-gradient-to-br from-orange-500 to-eic-amber flex items-center justify-center shadow-lg shadow-orange-300/40"
           >
             {(() => {
               const Icon = PHASES[phaseIdx].icon;
@@ -333,7 +333,7 @@ export function AIProcessingStage({ status, progress, error, onRetry, onCancel, 
       <div className="space-y-2">
         <div className="relative h-2 bg-slate-100 rounded-full overflow-hidden">
           <motion.div
-            className="absolute inset-y-0 left-0 bg-gradient-to-r from-orange-500 to-amber-400 rounded-full"
+            className="absolute inset-y-0 left-0 bg-gradient-to-r from-orange-500 to-eic-amber rounded-full"
             animate={{ width: `${progressPct}%` }}
             transition={{ duration: 0.6, ease: "easeOut" }}
           />

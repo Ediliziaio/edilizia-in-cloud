@@ -1866,7 +1866,7 @@ export default function SettingsTariffe() {
           stava sotto la piega (~870px di testate). */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-orange-500 to-amber-400 flex items-center justify-center shrink-0 shadow-sm">
+          <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-orange-500 to-eic-amber flex items-center justify-center shrink-0 shadow-sm">
             <Wrench className="h-5 w-5 text-white" />
           </div>
           <div className="min-w-0">
@@ -1936,7 +1936,7 @@ export default function SettingsTariffe() {
             <Button
               size="sm"
               onClick={openNew}
-              className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 text-white shadow-sm"
+              className="bg-gradient-to-br from-orange-500 to-eic-amber hover:from-orange-600 hover:to-amber-500 text-white shadow-sm"
             >
               <Plus className="h-4 w-4 mr-1.5" />Nuova voce
             </Button>

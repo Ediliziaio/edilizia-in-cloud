@@ -543,7 +543,7 @@ function FieldIntelligenceVisual() {
                     <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">App campo</p>
                     <p className="text-sm font-black">Via Roma 15</p>
                   </div>
-                  <span className="rounded-full bg-orange-100 px-2 py-1 text-[9px] font-black text-[#D95E0B]">Nuovo</span>
+                  <span className="rounded-full bg-orange-100 px-2 py-1 text-[9px] font-black text-eic-orange-dark">Nuovo</span>
                 </div>
                 <div className="mt-3 overflow-hidden rounded-2xl bg-slate-200">
                   <img
@@ -643,10 +643,10 @@ export default function AISystemShowcaseSection() {
 
   return (
     <section ref={sectionRef} className="relative overflow-hidden bg-[#f8fafc] py-14 pb-28 md:py-28">
-      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#F97415] to-transparent" />
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-eic-orange to-transparent" />
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <div data-ai-reveal className="mx-auto max-w-3xl text-center">
-          <div className="inline-flex max-w-full items-center justify-center gap-2 rounded-full bg-orange-100 px-3 py-1 text-center text-[10px] font-black uppercase tracking-[0.14em] text-[#D95E0B] sm:text-xs sm:tracking-[0.18em]">
+          <div className="inline-flex max-w-full items-center justify-center gap-2 rounded-full bg-orange-100 px-3 py-1 text-center text-[10px] font-black uppercase tracking-[0.14em] text-eic-orange-dark sm:text-xs sm:tracking-[0.18em]">
             <Sparkles className="h-3.5 w-3.5" />
             Il sistema operativo AI dell'impresa edile
           </div>
@@ -682,7 +682,7 @@ export default function AISystemShowcaseSection() {
             ].map((item) => (
               <div key={item.title} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg md:p-5">
                 <div className="flex gap-3 md:gap-4">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-50 text-[#D95E0B] md:h-11 md:w-11">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-50 text-eic-orange-dark md:h-11 md:w-11">
                     <item.icon className="h-5 w-5" />
                   </div>
                   <div>
@@ -695,7 +695,7 @@ export default function AISystemShowcaseSection() {
             <button
               type="button"
               onClick={openContactModal}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#F97415] px-5 py-3.5 text-sm font-extrabold text-white shadow-lg shadow-orange-900/20 transition hover:bg-[#D95E0B] sm:w-auto md:px-6 md:py-4 md:text-base"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-eic-orange px-5 py-3.5 text-sm font-extrabold text-white shadow-lg shadow-orange-900/20 transition hover:bg-eic-orange-dark sm:w-auto md:px-6 md:py-4 md:text-base"
             >
               Fai lavorare Silvio sulla tua impresa
               <ArrowRight className="h-5 w-5" />
@@ -708,7 +708,7 @@ export default function AISystemShowcaseSection() {
         <div data-ai-reveal className="mt-12 overflow-hidden rounded-[26px] border border-gray-200 bg-white p-4 shadow-xl md:mt-16 md:rounded-[32px] md:p-8">
           <div className="grid gap-8 lg:grid-cols-[0.82fr_1.18fr] lg:items-center">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-[#D95E0B] md:text-sm md:tracking-[0.2em]">AI che produce lavoro</p>
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-eic-orange-dark md:text-sm md:tracking-[0.2em]">AI che produce lavoro</p>
               <h2 className="mt-3 text-[2rem] font-black leading-[1.05] tracking-normal md:tracking-tight text-[#111111] md:text-4xl">
                 Dal computo metrico al preventivo, dal cantiere al rapportino.
               </h2>
@@ -726,7 +726,7 @@ export default function AISystemShowcaseSection() {
                 </Link>
                 <Link
                   to="/funzionalita/"
-                  className="inline-flex items-center justify-center gap-2 rounded-full border border-gray-200 px-5 py-3 text-sm font-extrabold text-[#111111] transition hover:border-[#F97415] hover:text-[#D95E0B]"
+                  className="inline-flex items-center justify-center gap-2 rounded-full border border-gray-200 px-5 py-3 text-sm font-extrabold text-[#111111] transition hover:border-eic-orange hover:text-eic-orange-dark"
                 >
                   Tutti i moduli AI
                 </Link>
@@ -761,7 +761,7 @@ export default function AISystemShowcaseSection() {
 
         <div data-ai-reveal className="mt-12 md:mt-16">
           <div className="mx-auto max-w-3xl text-center">
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-[#D95E0B] md:text-sm md:tracking-[0.2em]">Per problemi reali, non per menu software</p>
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-eic-orange-dark md:text-sm md:tracking-[0.2em]">Per problemi reali, non per menu software</p>
             <h2 className="mt-3 text-[2rem] font-black leading-[1.05] tracking-normal md:tracking-tight text-[#111111] md:text-4xl">
               L'imprenditore non cerca moduli. Cerca risposte.
             </h2>
@@ -769,7 +769,7 @@ export default function AISystemShowcaseSection() {
           <div className="mt-8 grid gap-3 md:mt-10 md:grid-cols-2 md:gap-5 lg:grid-cols-4">
             {painFlows.map((flow) => (
               <div key={flow.problem} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition hover:-translate-y-1 hover:shadow-xl md:p-6">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#F97415]/10 text-[#D95E0B] md:h-12 md:w-12">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-eic-orange/10 text-eic-orange-dark md:h-12 md:w-12">
                   <flow.icon className="h-5 w-5 md:h-6 md:w-6" />
                 </div>
                 <h3 className="mt-4 text-base font-black text-[#111111] md:mt-5 md:text-lg">{flow.problem}</h3>
@@ -781,7 +781,7 @@ export default function AISystemShowcaseSection() {
             <button
               type="button"
               onClick={openContactModal}
-              className="inline-flex items-center justify-center gap-2 rounded-full bg-[#F97415] px-7 py-4 text-base font-extrabold text-white shadow-lg shadow-orange-900/20 transition hover:bg-[#D95E0B]"
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-eic-orange px-7 py-4 text-base font-extrabold text-white shadow-lg shadow-orange-900/20 transition hover:bg-eic-orange-dark"
             >
               Scopri dove perdi margine
               <ArrowRight className="h-5 w-5" />

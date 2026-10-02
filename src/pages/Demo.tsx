@@ -227,7 +227,7 @@ export default function Demo() {
     `w-full px-4 py-3 rounded-lg border text-[#111111] text-base sm:text-sm focus:outline-none focus:ring-2 transition-all ${
       errors[field]
         ? "border-red-400 focus:ring-red-200"
-        : "border-gray-200 focus:ring-[#F97415]/30 focus:border-[#F97415]"
+        : "border-gray-200 focus:ring-eic-orange/30 focus:border-eic-orange"
     }`;
 
   return (
@@ -382,7 +382,7 @@ export default function Demo() {
                   <button
                     type="button"
                     onClick={handleReset}
-                    className="inline-flex items-center justify-center px-6 py-3 rounded-full text-[#F97415] text-sm font-bold border-2 border-[#F97415]/30 hover:bg-[#F97415]/5 transition-all"
+                    className="inline-flex items-center justify-center px-6 py-3 rounded-full text-eic-orange text-sm font-bold border-2 border-eic-orange/30 hover:bg-eic-orange/5 transition-all"
                   >
                     Invia un'altra richiesta
                   </button>
@@ -398,8 +398,8 @@ export default function Demo() {
                 </p>
 
                 {renderContext && (
-                  <div className="mb-7 rounded-2xl border border-[#F97415]/20 bg-[#F97415]/5 px-4 py-4">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#F97415]">
+                  <div className="mb-7 rounded-2xl border border-eic-orange/20 bg-eic-orange/5 px-4 py-4">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-eic-orange">
                       Richiesta contestualizzata
                     </p>
                     <p className="mt-1 text-base font-bold text-[#111111]">{renderContext.label}</p>
@@ -414,7 +414,7 @@ export default function Demo() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-semibold text-[#111111]/70 mb-1.5 uppercase tracking-wide">
-                        Nome <span className="text-[#F97415]">*</span>
+                        Nome <span className="text-eic-orange">*</span>
                       </label>
                       <input
                         type="text"
@@ -430,7 +430,7 @@ export default function Demo() {
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-[#111111]/70 mb-1.5 uppercase tracking-wide">
-                        Cognome <span className="text-[#F97415]">*</span>
+                        Cognome <span className="text-eic-orange">*</span>
                       </label>
                       <input
                         type="text"
@@ -449,7 +449,7 @@ export default function Demo() {
                   {/* Azienda */}
                   <div>
                     <label className="block text-xs font-semibold text-[#111111]/70 mb-1.5 uppercase tracking-wide">
-                      Nome Azienda <span className="text-[#F97415]">*</span>
+                      Nome Azienda <span className="text-eic-orange">*</span>
                     </label>
                     <input
                       type="text"
@@ -468,7 +468,7 @@ export default function Demo() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-semibold text-[#111111]/70 mb-1.5 uppercase tracking-wide">
-                        Telefono <span className="text-[#F97415]">*</span>
+                        Telefono <span className="text-eic-orange">*</span>
                       </label>
                       <input
                         type="tel"
@@ -485,7 +485,7 @@ export default function Demo() {
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-[#111111]/70 mb-1.5 uppercase tracking-wide">
-                        Email <span className="text-[#F97415]">*</span>
+                        Email <span className="text-eic-orange">*</span>
                       </label>
                       <input
                         type="email"
@@ -505,7 +505,7 @@ export default function Demo() {
                   {/* Fatturato */}
                   <div>
                     <label className="block text-xs font-semibold text-[#111111]/70 mb-1.5 uppercase tracking-wide">
-                      Fatturato Annuo <span className="text-[#F97415]">*</span>
+                      Fatturato Annuo <span className="text-eic-orange">*</span>
                     </label>
                     <select
                       name="fatturato"
@@ -533,7 +533,7 @@ export default function Demo() {
                       value={formData.messaggio}
                       onChange={handleChange}
                       rows={3}
-                      className="w-full px-4 py-3 rounded-lg border border-gray-200 text-[#111111] text-sm focus:outline-none focus:ring-2 focus:ring-[#F97415]/30 focus:border-[#F97415] transition-all resize-none"
+                      className="w-full px-4 py-3 rounded-lg border border-gray-200 text-[#111111] text-sm focus:outline-none focus:ring-2 focus:ring-eic-orange/30 focus:border-eic-orange transition-all resize-none"
                       placeholder={renderContext?.messagePlaceholder || "Cosa vorresti vedere nella demo?"}
                     />
                   </div>
@@ -541,7 +541,7 @@ export default function Demo() {
                   {/* Consensi GDPR */}
                   <div className="pt-2 border-t border-gray-100 space-y-3">
                     <p className="text-[10px] font-bold tracking-widest uppercase text-[#111111]/40">
-                      Consensi privacy <span className="text-[#F97415]">(art. 13 GDPR)</span>
+                      Consensi privacy <span className="text-eic-orange">(art. 13 GDPR)</span>
                     </p>
 
                     {/* Privacy obbligatorio */}
@@ -552,13 +552,13 @@ export default function Demo() {
                         checked={formData.privacyConsent}
                         onChange={handleChange}
                         aria-invalid={!!errors.privacyConsent}
-                        className={`mt-0.5 w-4 h-4 rounded border-2 cursor-pointer accent-[#F97415] flex-shrink-0 ${
+                        className={`mt-0.5 w-4 h-4 rounded border-2 cursor-pointer accent-eic-orange flex-shrink-0 ${
                           errors.privacyConsent ? "border-red-400" : "border-gray-300"
                         }`}
                       />
                       <span className="text-xs text-[#111111]/75 leading-relaxed">
-                        <strong className="text-[#F97415]">*</strong> Ho letto e accetto la{" "}
-                        <Link to="/privacy-policy/" target="_blank" rel="noopener" className="text-[#F97415] hover:text-[#C94F06] underline font-semibold">
+                        <strong className="text-eic-orange">*</strong> Ho letto e accetto la{" "}
+                        <Link to="/privacy-policy/" target="_blank" rel="noopener" className="text-eic-orange hover:text-eic-orange-deep underline font-semibold">
                           Privacy Policy
                         </Link>{" "}
                         e acconsento al trattamento dei miei dati personali per finalità connesse alla gestione della richiesta di demo (art. 6.1.b GDPR — misura precontrattuale).{" "}
@@ -576,7 +576,7 @@ export default function Demo() {
                         name="marketingConsent"
                         checked={formData.marketingConsent}
                         onChange={handleChange}
-                        className="mt-0.5 w-4 h-4 rounded border-2 border-gray-300 cursor-pointer accent-[#F97415] flex-shrink-0"
+                        className="mt-0.5 w-4 h-4 rounded border-2 border-gray-300 cursor-pointer accent-eic-orange flex-shrink-0"
                       />
                       <span className="text-xs text-[#111111]/75 leading-relaxed">
                         Acconsento a ricevere comunicazioni commerciali e promozionali via email e telefono, anche tramite assistente automatico, su prodotti, novità ed eventi di Edilizia in Cloud (art. 6.1.a GDPR).{" "}
@@ -612,7 +612,7 @@ export default function Demo() {
                     Preferisci parlare subito con una persona?{" "}
                     <a
                       href="tel:+393501780908"
-                      className="font-bold text-[#F97415] hover:text-[#C94F06] whitespace-nowrap"
+                      className="font-bold text-eic-orange hover:text-eic-orange-deep whitespace-nowrap"
                     >
                       Chiama 350 178 0908
                     </a>
@@ -621,7 +621,7 @@ export default function Demo() {
                   <p className="text-center text-[#111111]/45 text-xs pt-1 leading-relaxed">
                     Titolare del trattamento: <strong>Domus Group S.r.l.</strong> — Via Aurelio Saffi 29, 20123 Milano.{" "}
                     Per esercitare i tuoi diritti (accesso, rettifica, cancellazione) scrivi a{" "}
-                    <a href="mailto:privacy@ediliziaincloud.com" className="text-[#F97415] hover:text-[#C94F06] underline">privacy@ediliziaincloud.com</a>.
+                    <a href="mailto:privacy@ediliziaincloud.com" className="text-eic-orange hover:text-eic-orange-deep underline">privacy@ediliziaincloud.com</a>.
                   </p>
                 </form>
               </>
@@ -698,7 +698,7 @@ export default function Demo() {
               { time: "28–30 min", title: "Domande tue + numeri reali", desc: "Tempi di implementazione sul tuo caso, costo esatto, condizioni contrattuali. Nessun obbligo: decidi con calma." },
             ].map((s, i) => (
               <div key={i} className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-md transition-all">
-                <div className="text-[10px] font-bold uppercase tracking-widest text-[#F97415] mb-2">{s.time}</div>
+                <div className="text-[10px] font-bold uppercase tracking-widest text-eic-orange mb-2">{s.time}</div>
                 <h3 className="font-bold text-[#111111] text-base mb-1.5">{s.title}</h3>
                 <p className="text-[#111111]/60 text-sm leading-relaxed">{s.desc}</p>
               </div>
@@ -721,7 +721,7 @@ export default function Demo() {
               <details key={i} className="group bg-[#fafafa] rounded-xl border border-gray-100 overflow-hidden">
                 <summary className="cursor-pointer px-5 py-4 font-bold text-[#111111] text-sm md:text-base list-none flex items-center justify-between gap-4">
                   <span>{f.q}</span>
-                  <span className="text-[#F97415] text-xl flex-shrink-0 group-open:rotate-45 transition-transform">+</span>
+                  <span className="text-eic-orange text-xl flex-shrink-0 group-open:rotate-45 transition-transform">+</span>
                 </summary>
                 <div className="px-5 pb-5 text-[#111111]/65 text-sm leading-relaxed">
                   {f.a}

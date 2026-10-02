@@ -341,7 +341,7 @@ export default function PurchaseOrderDetail() {
           <QuoteCard noHeader className="p-0 sm:p-0">
             <div className="px-5 sm:px-6 pt-5 pb-4 flex items-center justify-between gap-3 flex-wrap">
               <h3 className="text-[15px] font-bold text-slate-900 flex items-center gap-2.5">
-                <span className="block w-1 h-4 rounded-sm bg-gradient-to-b from-orange-500 to-amber-400" />
+                <span className="block w-1 h-4 rounded-sm bg-gradient-to-b from-orange-500 to-eic-amber" />
                 <span className="text-orange-500"><Package className="h-4 w-4" /></span>
                 Articoli
               </h3>
@@ -589,7 +589,7 @@ export default function PurchaseOrderDetail() {
                   <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
                     <div
                       className={`h-full rounded-full transition-all duration-500 ${
-                        pct === 100 ? "bg-emerald-500" : pct > 0 ? "bg-gradient-to-r from-orange-500 to-amber-400" : "bg-slate-300"
+                        pct === 100 ? "bg-emerald-500" : pct > 0 ? "bg-gradient-to-r from-orange-500 to-eic-amber" : "bg-slate-300"
                       }`}
                       style={{ width: `${pct}%` }}
                     />

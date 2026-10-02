@@ -635,7 +635,7 @@ function GuidaCantiere({ puoFasi, puoSquadre, onFasi, onSquadra }: {
       </ol>
       <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
         {puoFasi && (
-          <Button size="sm" onClick={onFasi} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:from-orange-600 hover:to-amber-600">
+          <Button size="sm" onClick={onFasi} className="bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white hover:from-orange-600 hover:to-amber-600">
             <ListPlus className="mr-1 h-4 w-4" />Scegli le fasi
           </Button>
         )}

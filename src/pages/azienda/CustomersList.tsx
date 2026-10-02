@@ -816,7 +816,7 @@ function CustomersListInner() {
       <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-3 py-3 sm:py-5 shadow-sm sm:px-6">
         <div className="flex flex-col gap-3 sm:gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex min-w-0 items-start gap-2.5 sm:gap-3">
-            <div className="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
+            <div className="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
               <Users className="h-4 w-4 sm:h-5 sm:w-5" />
             </div>
             <div className="min-w-0">
@@ -942,7 +942,7 @@ function CustomersListInner() {
       {/* Mobile no: i numeri erano già nascosti e restava un riquadro blu vuoto
           con scritto «Clienti». */}
       {/* Senza l'etichetta «Clienti»: ripeteva il titolo della pagina. */}
-      <div className="hidden rounded-2xl bg-[#173b67] p-3 sm:block sm:p-4">
+      <div className="hidden rounded-2xl bg-eic-navy-deep p-3 sm:block sm:p-4">
         {statsLoading ? (
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
             {[...Array(4)].map((_, i) => (

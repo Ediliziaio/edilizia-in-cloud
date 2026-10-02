@@ -14,7 +14,7 @@ const buttonVariants = cva(
         /** Azione primaria di pagina (audit UX 2026-09): l'arancio EiC, uguale
          *  ovunque — "Nuova Commessa", "Nuova voce", "Nuovo cliente"… Prima
          *  ogni area sceglieva un colore suo (blu, verde, arancio). */
-        brand: "bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-sm hover:from-orange-600 hover:to-amber-500",
+        brand: "bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-sm hover:from-orange-600 hover:to-amber-500",
         destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
         // Niente `!`: servivano (b55758bd4) contro il reset inline di index.html,
         // ma index.css ora ridà ai bottoni stile e colore del bordo, e i `!`

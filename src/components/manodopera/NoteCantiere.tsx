@@ -354,7 +354,7 @@ function NotaDialog({
 
         <DialogFooter className="gap-2 sm:gap-0">
           <Button variant="outline" onClick={onChiudi} disabled={salva.isPending}>Annulla</Button>
-          <Button onClick={invia} disabled={salva.isPending} className="gap-1.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:from-orange-600 hover:to-amber-600">
+          <Button onClick={invia} disabled={salva.isPending} className="gap-1.5 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white hover:from-orange-600 hover:to-amber-600">
             {salva.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
             {nota ? "Salva" : "Invia la nota"}
           </Button>

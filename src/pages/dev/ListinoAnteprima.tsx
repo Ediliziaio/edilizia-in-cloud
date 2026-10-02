@@ -88,7 +88,7 @@ export default function ListinoAnteprima() {
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-orange-500 to-amber-400 shadow-sm">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-orange-500 to-eic-amber shadow-sm">
             <Package className="h-5 w-5 text-white" aria-hidden="true" />
           </div>
           <div className="min-w-0">

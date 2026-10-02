@@ -319,7 +319,7 @@ export default function PianificaMigrazione() {
     `w-full px-4 py-3 rounded-lg border text-[#111111] text-base sm:text-sm focus:outline-none focus:ring-2 transition-all ${
       errors[field]
         ? "border-red-400 focus:ring-red-200"
-        : "border-gray-200 focus:ring-[#F97415]/30 focus:border-[#F97415]"
+        : "border-gray-200 focus:ring-eic-orange/30 focus:border-eic-orange"
     }`;
 
   return (
@@ -426,10 +426,10 @@ export default function PianificaMigrazione() {
 
           {/* Trust pills */}
           <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-sm text-white/65">
-            <span className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-[#F97415]" /> Migrazione 100% gratuita</span>
-            <span className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-[#F97415]" /> Zero downtime</span>
-            <span className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-[#F97415]" /> GDPR + ISO 27001</span>
-            <span className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-[#F97415]" /> Cancelli quando vuoi</span>
+            <span className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-eic-orange" /> Migrazione 100% gratuita</span>
+            <span className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-eic-orange" /> Zero downtime</span>
+            <span className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-eic-orange" /> GDPR + ISO 27001</span>
+            <span className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-eic-orange" /> Cancelli quando vuoi</span>
           </div>
         </div>
       </section>
@@ -466,7 +466,7 @@ export default function PianificaMigrazione() {
             {sourceSoftware.map((s, i) => (
               <div
                 key={s.name}
-                className="bg-white rounded-xl border border-gray-100 p-5 text-center hover:border-[#F97415]/30 hover:shadow-md transition-all duration-300"
+                className="bg-white rounded-xl border border-gray-100 p-5 text-center hover:border-eic-orange/30 hover:shadow-md transition-all duration-300"
                 style={{
                   opacity: sourcesAnim.isVisible ? 1 : 0,
                   transform: sourcesAnim.isVisible ? "translateY(0)" : "translateY(20px)",
@@ -788,7 +788,7 @@ export default function PianificaMigrazione() {
               <button
                 type="button"
                 onClick={handleReset}
-                className="mt-4 text-xs text-[#111111]/55 underline hover:text-[#F97415] transition"
+                className="mt-4 text-xs text-[#111111]/55 underline hover:text-eic-orange transition"
               >
                 Invia un'altra richiesta
               </button>
@@ -864,7 +864,7 @@ export default function PianificaMigrazione() {
               {/* Consent */}
               <div className="mt-6 space-y-3">
                 <label className="flex items-start gap-3 cursor-pointer">
-                  <input type="checkbox" name="privacy" checked={form.privacy} onChange={handleChange} className="mt-1 accent-[#F97415]" />
+                  <input type="checkbox" name="privacy" checked={form.privacy} onChange={handleChange} className="mt-1 accent-eic-orange" />
                   <span className="text-xs text-[#111111]/70 leading-relaxed">
                     Ho letto la <Link to="/privacy-policy/" className="underline font-semibold">Privacy Policy</Link> (art. 13 GDPR) e
                     autorizzo Domus Group S.r.l. al trattamento dei dati per la valutazione della migrazione (base giuridica: art. 6.1.b GDPR — pre-contrattuale). *
@@ -873,7 +873,7 @@ export default function PianificaMigrazione() {
                 {errors.privacy && <p className="text-red-500 text-xs">{errors.privacy}</p>}
 
                 <label className="flex items-start gap-3 cursor-pointer">
-                  <input type="checkbox" name="marketing" checked={form.marketing} onChange={handleChange} className="mt-1 accent-[#F97415]" />
+                  <input type="checkbox" name="marketing" checked={form.marketing} onChange={handleChange} className="mt-1 accent-eic-orange" />
                   <span className="text-xs text-[#111111]/70 leading-relaxed">
                     Acconsento a ricevere comunicazioni commerciali (case study, novità prodotto). Facoltativo, revocabile in ogni momento.
                   </span>
@@ -962,7 +962,7 @@ export default function PianificaMigrazione() {
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <a
                 href="mailto:info@ediliziaincloud.com?subject=Domanda%20migrazione"
-                className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full font-semibold text-sm bg-white border border-[#111111]/15 text-[#111111] hover:border-[#F97415] hover:text-[#F97415] transition"
+                className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full font-semibold text-sm bg-white border border-[#111111]/15 text-[#111111] hover:border-eic-orange hover:text-eic-orange transition"
               >
                 <Mail className="w-4 h-4" />
                 Scrivici via email

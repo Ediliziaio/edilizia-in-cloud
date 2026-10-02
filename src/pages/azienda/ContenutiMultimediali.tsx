@@ -1703,7 +1703,7 @@ export default function ContenutiMultimediali() {
                 // Azienda nuova senza alcun documento: onboarding ricco con 3 azioni
                 <div className="space-y-4 p-6">
                   <div className="text-center">
-                    <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-md">
+                    <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-eic-amber-strong text-white shadow-md">
                       <FileText className="h-8 w-8" />
                     </div>
                     <h3 className="mt-4 text-xl font-bold tracking-tight text-slate-950">Il Drive è vuoto, iniziamo</h3>

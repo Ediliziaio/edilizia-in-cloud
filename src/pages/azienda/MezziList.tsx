@@ -116,7 +116,7 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
             <Button
               size="sm"
               onClick={() => setNuovoAperto(true)}
-              className="ml-auto gap-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600"
+              className="ml-auto gap-2 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600"
             >
               <Plus className="h-4 w-4" aria-hidden="true" />Nuovo mezzo
             </Button>
@@ -125,7 +125,7 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
       ) : (
       <div className="flex flex-col gap-3 testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-3 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-5">
         <div className="flex min-w-0 items-start gap-2.5 sm:gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)] sm:h-10 sm:w-10">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)] sm:h-10 sm:w-10">
             <Truck className="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
           </div>
           <div className="min-w-0">
@@ -139,7 +139,7 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
           <Button
             size="sm"
             onClick={() => setNuovoAperto(true)}
-            className="gap-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600"
+            className="gap-2 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600"
           >
             <Plus className="h-4 w-4" aria-hidden="true" />Nuovo mezzo
           </Button>

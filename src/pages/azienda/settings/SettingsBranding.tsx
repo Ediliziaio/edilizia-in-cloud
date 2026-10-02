@@ -23,7 +23,7 @@ import {
   useRemoveCustomDomain,
 } from "@/hooks/useBrandingByDomain";
 import { isValidHexColor, coloriApplicati } from "@/lib/brandTheme";
-import { coloreDelLogo, paletteDaColore } from "@/lib/brandPalette";
+import { coloreDelLogo, paletteDaColore, rampaBrand, hexValido } from "@/lib/brandPalette";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useQueryClient } from "@tanstack/react-query";
@@ -35,6 +35,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -42,7 +43,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   Loader2, Upload, Palette, Lock, HeadphonesIcon, Globe, Copy,
-  CheckCircle2, RefreshCw, Image as ImageIcon, Wand2,
+  CheckCircle2, RefreshCw, Image as ImageIcon, Wand2, Monitor, LogIn,
 } from "lucide-react";
 import { LogoUploader } from "@/components/settings/LogoUploader";
 
@@ -138,47 +139,107 @@ function HexColorInput({
   );
 }
 
+/** Colori proposti: un clic e la palette si ricava da sola. */
+const COLORI_SUGGERITI = ["#1E40AF", "#0F766E", "#15803D", "#B45309", "#B91C1C", "#7E22CE", "#BE185D", "#334155"];
+
 /**
- * Anteprima di come verrà la piattaforma: mini barra laterale con una voce
- * attiva, un bottone e un link. Usa gli stessi colori che il tema applica
- * davvero (coloriApplicati), quindi quello che vedi qui è quello che vedranno
- * i tuoi utenti. Non tocca il tema globale finché non salvi.
+ * Anteprima di come verrà la piattaforma, a due viste: «Piattaforma» (barra
+ * laterale, bottone, link, riquadro scuro di riepilogo) e «Accesso» (pagina di
+ * login). Usa gli stessi colori che il tema applica davvero (coloriApplicati e
+ * rampaBrand), quindi quello che vedi qui è quello che vedranno i tuoi utenti.
+ * Non tocca il tema globale finché non salvi.
  */
 function AnteprimaPiattaforma({
-  primary, accent, textOnPrimary, logoUrl, nome,
-}: { primary: string; accent: string; textOnPrimary: string; logoUrl?: string | null; nome: string }) {
+  primary, accent, textOnPrimary, logoUrl, nome, sfondoLogin,
+}: {
+  primary: string; accent: string; textOnPrimary: string;
+  logoUrl?: string | null; nome: string; sfondoLogin?: string | null;
+}) {
+  const [vista, setVista] = useState<"piattaforma" | "accesso">("piattaforma");
   const c = coloriApplicati({ primaryColor: primary, accentColor: accent, textOnPrimary });
   const p = c.primary ?? "#1E40AF";
   const att = c.sidebarAccent ?? "#DBEAFE";
   const attTesto = c.accentText ?? p;
   const scurito = isValidHexColor(primary) && c.primary && c.primary.toLowerCase() !== primary.toLowerCase();
+  const rampa = hexValido(p) ? rampaBrand(p) : null;
+  const scuro = rampa ? `rgb(${rampa.navy.split(" ").join(",")})` : "#1E3A5F";
+  const logo = logoUrl ? (
+    <img src={logoUrl} alt="" className="max-h-7 max-w-full object-contain" />
+  ) : (
+    <span className="truncate text-xs font-semibold" style={{ color: p }}>{nome || "La tua azienda"}</span>
+  );
+  const voci = ["Commesse", "Clienti", "Calendario"];
   return (
-    <div className="space-y-2">
-      <div className="flex overflow-hidden rounded-lg border bg-white text-slate-700">
-        <div className="w-40 shrink-0 space-y-1 border-r bg-white p-2.5">
-          <div className="mb-2 flex h-7 items-center">
-            {logoUrl ? (
-              <img src={logoUrl} alt="" className="max-h-7 max-w-full object-contain" />
-            ) : (
-              <span className="truncate text-xs font-semibold" style={{ color: p }}>{nome || "La tua azienda"}</span>
-            )}
-          </div>
-          <div className="rounded-md px-2 py-1.5 text-xs font-medium" style={{ backgroundColor: att, color: attTesto }}>
-            Commesse
-          </div>
-          <div className="rounded-md px-2 py-1.5 text-xs">Clienti</div>
-          <div className="rounded-md px-2 py-1.5 text-xs">Calendario</div>
-        </div>
-        <div className="flex flex-1 flex-col items-start justify-center gap-3 bg-slate-50 p-4">
-          <span
-            className="inline-flex items-center rounded-md px-3 py-1.5 text-sm font-medium shadow-sm"
-            style={{ backgroundColor: p, color: c.textOnPrimary }}
+    <div className="space-y-3">
+      <div className="inline-flex rounded-md border p-0.5 text-xs" role="tablist" aria-label="Vista anteprima">
+        {([["piattaforma", "Piattaforma", Monitor], ["accesso", "Accesso", LogIn]] as const).map(([k, t, Icona]) => (
+          <button
+            key={k}
+            type="button"
+            role="tab"
+            aria-selected={vista === k}
+            onClick={() => setVista(k)}
+            className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1 font-medium transition-colors ${
+              vista === k ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground"
+            }`}
           >
-            Nuova commessa
-          </span>
-          <span className="text-sm font-medium" style={{ color: p }}>Vedi tutte le commesse →</span>
-        </div>
+            <Icona className="h-3.5 w-3.5" /> {t}
+          </button>
+        ))}
       </div>
+
+      {vista === "piattaforma" ? (
+        <div className="flex overflow-hidden rounded-lg border bg-white text-slate-700">
+          <div className="w-32 shrink-0 space-y-1 border-r bg-white p-2.5">
+            <div className="mb-2 flex h-7 items-center">{logo}</div>
+            {voci.map((v, i) => (
+              <div
+                key={v}
+                className="rounded-md px-2 py-1.5 text-xs"
+                style={i === 0 ? { backgroundColor: att, color: attTesto, fontWeight: 500 } : undefined}
+              >
+                {v}
+              </div>
+            ))}
+          </div>
+          <div className="flex min-w-0 flex-1 flex-col items-start gap-3 bg-slate-50 p-3">
+            <span
+              className="inline-flex items-center rounded-md px-3 py-1.5 text-xs font-medium shadow-sm"
+              style={{ backgroundColor: p, color: c.textOnPrimary }}
+            >
+              Nuova commessa
+            </span>
+            <div className="w-full rounded-md p-2.5 text-white" style={{ backgroundColor: scuro }}>
+              <div className="text-[10px] opacity-80">Riepilogo</div>
+              <div className="text-sm font-semibold">€ 48.250</div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full px-2 py-0.5 text-[10px] font-medium" style={{ backgroundColor: att, color: attTesto }}>
+                In corso
+              </span>
+              <span className="text-xs font-medium" style={{ color: p }}>Vedi tutte →</span>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div
+          className="flex h-44 items-center justify-center overflow-hidden rounded-lg border bg-slate-100"
+          style={sfondoLogin ? { backgroundImage: `url("${sfondoLogin.replace(/"/g, "%22")}")`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}
+        >
+          <div className="w-44 space-y-2 rounded-lg bg-white p-3 text-slate-700 shadow-lg">
+            <div className="flex h-7 items-center justify-center">{logo}</div>
+            <div className="h-6 rounded border bg-slate-50" />
+            <div className="h-6 rounded border bg-slate-50" />
+            <div
+              className="rounded-md py-1.5 text-center text-xs font-medium"
+              style={{ backgroundColor: p, color: c.textOnPrimary }}
+            >
+              Accedi
+            </div>
+          </div>
+        </div>
+      )}
+
       {scurito && (
         <p className="text-[11px] text-muted-foreground">
           Il colore scelto è troppo chiaro per il testo bianco: per tenerlo leggibile nei bottoni
@@ -619,7 +680,15 @@ export default function SettingsBranding() {
             <Badge className="bg-emerald-500/10 text-emerald-700 border-emerald-200">Attivo</Badge>
           </div>
 
-          <div className="space-y-6">
+          <Tabs defaultValue="aspetto" className="space-y-6">
+            <TabsList>
+              <TabsTrigger value="aspetto">Aspetto</TabsTrigger>
+              <TabsTrigger value="indirizzo">Indirizzo web</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="aspetto" className="mt-0">
+            <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
+            <div className="space-y-6">
               {/* 1 · COLORI — si sceglie UN colore (o si prende dal logo) e il resto si ricava da solo. */}
               <Card>
                 <CardHeader>
@@ -667,13 +736,25 @@ export default function SettingsBranding() {
                     </Button>
                   </div>
 
-                  <AnteprimaPiattaforma
-                    primary={form.brand_primary_color}
-                    accent={form.brand_accent_color}
-                    textOnPrimary={form.brand_text_on_primary}
-                    logoUrl={effectiveCompany?.logo_url}
-                    nome={form.brand_platform_name || effectiveCompany?.name || ""}
-                  />
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Oppure parti da uno di questi</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {COLORI_SUGGERITI.map((hex) => (
+                        <button
+                          key={hex}
+                          type="button"
+                          aria-label={`Usa il colore ${hex}`}
+                          title={hex}
+                          disabled={!canEdit || !canChangeColors}
+                          onClick={() => setForm((f) => ({ ...f, ...coloriDaPalette(paletteDaColore(hex)) }))}
+                          className={`h-7 w-7 rounded-full border-2 transition-transform hover:scale-110 disabled:cursor-not-allowed disabled:opacity-50 ${
+                            form.brand_primary_color.toUpperCase() === hex ? "border-foreground ring-2 ring-offset-2 ring-offset-background" : "border-white shadow"
+                          }`}
+                          style={{ backgroundColor: hex }}
+                        />
+                      ))}
+                    </div>
+                  </div>
 
                   <details className="rounded-lg border px-4 py-3 text-sm">
                     <summary className="cursor-pointer select-none font-medium">Regola i dettagli</summary>
@@ -796,9 +877,46 @@ export default function SettingsBranding() {
                 </CardContent>
               </Card>
 
-              {/* 3 · INDIRIZZO WEB */}
-              <h3 className="pt-2 text-base font-semibold">Indirizzo web</h3>
+              {/* Ripristino */}
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed px-4 py-3">
+                <p className="text-sm text-muted-foreground">
+                  Vuoi tornare all'aspetto originale? Cambiano colori, nome e «Powered by»; logo, icona e indirizzi restano.
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!canEdit || resetting || saving}
+                  onClick={() => setConfirmResetSystem(true)}
+                >
+                  {resetting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                  Ripristina aspetto standard
+                </Button>
+              </div>
+            </div>
 
+            {/* Anteprima sempre in vista mentre si scorre */}
+            <div className="lg:sticky lg:top-4">
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">Anteprima</CardTitle>
+                  <CardDescription>Si aggiorna mentre scegli. Dopo «Salva brand» la vedono tutti gli utenti.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <AnteprimaPiattaforma
+                    primary={form.brand_primary_color}
+                    accent={form.brand_accent_color}
+                    textOnPrimary={form.brand_text_on_primary}
+                    logoUrl={effectiveCompany?.logo_url}
+                    nome={form.brand_platform_name || effectiveCompany?.name || ""}
+                    sfondoLogin={brand?.brand_login_bg_url}
+                  />
+                </CardContent>
+              </Card>
+            </div>
+            </div>
+            </TabsContent>
+
+            <TabsContent value="indirizzo" className="mt-0 space-y-6">
               {/* Subdomain */}
               <Card>
                 <CardHeader>
@@ -1003,22 +1121,8 @@ export default function SettingsBranding() {
                   )}
                 </CardContent>
               </Card>
-              {/* Ripristino */}
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed px-4 py-3">
-                <p className="text-sm text-muted-foreground">
-                  Vuoi tornare all'aspetto originale? Cambiano colori, nome e «Powered by»; logo, icona e indirizzi restano.
-                </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={!canEdit || resetting || saving}
-                  onClick={() => setConfirmResetSystem(true)}
-                >
-                  {resetting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-                  Ripristina aspetto standard
-                </Button>
-              </div>
-          </div>
+            </TabsContent>
+          </Tabs>
 
           {/* Save bar sticky in basso */}
           <div className="flex items-center justify-end gap-3 pt-4 border-t sticky bottom-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 -mx-4 px-4 py-3 z-10">

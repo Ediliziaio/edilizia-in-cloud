@@ -182,7 +182,7 @@ export default function HeroSection() {
       {floatingIcons.map(({ Icon, top, left, right, size, delay, anim }, i) => (
         <div
           key={i}
-          className={`absolute text-[#F97415] ${anim} hidden md:block`}
+          className={`absolute text-eic-orange ${anim} hidden md:block`}
           style={{
             top, left, right,
             animationDelay: delay,
@@ -195,14 +195,14 @@ export default function HeroSection() {
       ))}
 
       {/* Gradient orbs */}
-      <div className="absolute top-1/4 left-1/4 w-48 h-48 md:w-96 md:h-96 bg-[#F97415]/[0.10] rounded-full blur-[120px]" />
-      <div className="absolute bottom-1/4 right-1/4 w-40 h-40 md:w-80 md:h-80 bg-[#F97415]/[0.07] rounded-full blur-[100px]" />
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-[#F97415]/[0.04] rounded-full blur-[80px]" />
+      <div className="absolute top-1/4 left-1/4 w-48 h-48 md:w-96 md:h-96 bg-eic-orange/[0.10] rounded-full blur-[120px]" />
+      <div className="absolute bottom-1/4 right-1/4 w-40 h-40 md:w-80 md:h-80 bg-eic-orange/[0.07] rounded-full blur-[100px]" />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-eic-orange/[0.04] rounded-full blur-[80px]" />
 
       <div className="relative z-10 max-w-5xl mx-auto px-6 text-center">
         {/* 1. Badge animato */}
         <div className="gsap-hero-item">
-          <span className="inline-flex items-center gap-2 mb-6 px-3 md:px-5 py-2 rounded-full border border-[#F97415]/40 bg-[#F97415]/10 text-[#F97415] text-[10px] md:text-xs font-semibold uppercase tracking-wider md:tracking-widest relative overflow-hidden">
+          <span className="inline-flex items-center gap-2 mb-6 px-3 md:px-5 py-2 rounded-full border border-eic-orange/40 bg-eic-orange/10 text-eic-orange text-[10px] md:text-xs font-semibold uppercase tracking-wider md:tracking-widest relative overflow-hidden">
             <span className="absolute inset-0 animate-shimmer" style={{ backgroundImage: "linear-gradient(90deg, transparent 0%, rgba(249,116,21,0.15) 50%, transparent 100%)", backgroundSize: "200% 100%" }} />
             {/* Pulsing dot */}
             <span className="relative flex h-2 w-2 shrink-0">
@@ -223,7 +223,7 @@ export default function HeroSection() {
                 ("gestionale edilizia"): chi la cercava trovava una pagina che
                 non lo diceva nel titolo principale. La prima riga resta (è il
                 testo LCP), la seconda dice cosa siamo. */}
-            <span className="mt-2 block text-[#F97415] text-[clamp(1.95rem,4.45vw,4.6rem)] md:mt-3">
+            <span className="mt-2 block text-eic-orange text-[clamp(1.95rem,4.45vw,4.6rem)] md:mt-3">
               Il gestionale edilizia con AI che tiene tutto sotto controllo.
             </span>
           </h1>
@@ -232,7 +232,7 @@ export default function HeroSection() {
           <div className="mb-3 text-lg font-bold text-white/90 sm:text-2xl md:text-3xl lg:text-4xl">
             Controlla{" "}
             <span
-              className="inline-block min-w-[118px] text-[#F97415] transition-all duration-350 sm:min-w-[160px] md:min-w-[250px]"
+              className="inline-block min-w-[118px] text-eic-orange transition-all duration-350 sm:min-w-[160px] md:min-w-[250px]"
               style={{
                 opacity: fadeState === "in" ? 1 : 0,
                 transform: fadeState === "in" ? "translateY(0)" : "translateY(-8px)",
@@ -254,7 +254,7 @@ export default function HeroSection() {
           <button
             type="button"
             onClick={() => { import("@/components/landing/QuickContactModal").then(m => m.openContactModal()); }}
-            className="w-full sm:w-auto px-6 md:px-8 py-3 md:py-4 rounded-full bg-[#C94F06] text-white font-bold text-base md:text-lg hover:bg-[#A84305] hover:scale-105 transition-all duration-200 animate-pulse-glow shadow-lg shadow-[#C94F06]/30"
+            className="w-full sm:w-auto px-6 md:px-8 py-3 md:py-4 rounded-full bg-eic-orange-deep text-white font-bold text-base md:text-lg hover:bg-[#A84305] hover:scale-105 transition-all duration-200 animate-pulse-glow shadow-lg shadow-eic-orange-deep/30"
           >
             Inizia Gratis — 31 Giorni
           </button>
@@ -274,7 +274,7 @@ export default function HeroSection() {
               key={i}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/8 border border-white/12 text-white/60 text-[10px] md:text-xs font-medium"
             >
-              <Icon size={12} className="text-[#F97415]" />
+              <Icon size={12} className="text-eic-orange" />
               {label}
             </span>
           ))}

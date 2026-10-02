@@ -34,7 +34,7 @@ export default function StickyBottomBar() {
     >
       {/* Shimmer border */}
       <div className="absolute top-0 left-0 right-0 h-[2px] overflow-hidden">
-        <div className="absolute inset-0 bg-[#F97415]/60" />
+        <div className="absolute inset-0 bg-eic-orange/60" />
         <div
           className="absolute inset-0 animate-shimmer"
           style={{
@@ -60,7 +60,7 @@ export default function StickyBottomBar() {
 
         {/* Text — short, sticky */}
         <p className="flex min-w-0 items-center gap-2 text-left text-[11px] font-medium leading-snug md:text-sm">
-          <ShieldCheck size={16} className="shrink-0 text-[#F97415] md:size-[18px]" />
+          <ShieldCheck size={16} className="shrink-0 text-eic-orange md:size-[18px]" />
           <span>
             <strong>31 giorni gratis</strong> per vedere i numeri veri
           </span>
@@ -69,7 +69,7 @@ export default function StickyBottomBar() {
         {/* CTA — compact */}
         <button
           onClick={handleClick}
-          className="group flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg bg-[#F97415] px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-white shadow-[0_0_20px_rgba(249,116,21,0.4)] transition-all hover:scale-105 hover:bg-[#C94F06] hover:shadow-[0_0_30px_rgba(249,116,21,0.6)] md:gap-2 md:px-5 md:py-2.5 md:text-sm animate-pulse-glow"
+          className="group flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg bg-eic-orange px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-white shadow-[0_0_20px_rgba(249,116,21,0.4)] transition-all hover:scale-105 hover:bg-eic-orange-deep hover:shadow-[0_0_30px_rgba(249,116,21,0.6)] md:gap-2 md:px-5 md:py-2.5 md:text-sm animate-pulse-glow"
         >
           Inizia
           <ArrowRight size={14} className="transition-transform group-hover:translate-x-1 md:size-4" />

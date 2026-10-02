@@ -69,7 +69,7 @@ export default function DemoGrazie() {
                 </Link>
                 <Link
                   to="/funzionalita"
-                  className="inline-flex items-center justify-center rounded-full border-2 border-[#F97415]/30 px-6 py-3 text-sm font-bold text-[#F97415] transition-all hover:bg-[#F97415]/5"
+                  className="inline-flex items-center justify-center rounded-full border-2 border-eic-orange/30 px-6 py-3 text-sm font-bold text-eic-orange transition-all hover:bg-eic-orange/5"
                 >
                   Intanto guarda cosa fa
                 </Link>

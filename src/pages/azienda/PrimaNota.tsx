@@ -198,7 +198,7 @@ function PrimaNotaInner() {
       <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex min-w-0 items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
               <BookOpen className="h-5 w-5" />
             </div>
             <div className="min-w-0">
@@ -251,7 +251,7 @@ function PrimaNotaInner() {
               />
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button onClick={() => setNewOpen(true)} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-8 max-sm:px-3 max-sm:text-xs">
+          <Button onClick={() => setNewOpen(true)} className="bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-8 max-sm:px-3 max-sm:text-xs">
             <Plus className="h-4 w-4 mr-1" />
             <span className="hidden sm:inline">Nuova Registrazione</span>
             <span className="sm:hidden">Nuova</span>
@@ -266,7 +266,7 @@ function PrimaNotaInner() {
         {/* Senza il titoletto «Prima Nota — La cassa, giorno per giorno» e
             senza «periodo filtrato» sotto ogni numero: il periodo è nei
             filtri qui sotto. */}
-        <div className="bg-[#173b67] p-4 text-white sm:p-5">
+        <div className="bg-eic-navy-deep p-4 text-white sm:p-5">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">
             <NavyStatCard
               label="Entrate"

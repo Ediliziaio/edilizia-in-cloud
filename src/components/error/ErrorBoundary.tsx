@@ -340,7 +340,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
                   onClick={this.handleSendTicket}
                   disabled={this.state.ticketState === "submitting"}
                   size="sm"
-                  className="w-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white"
+                  className="w-full bg-gradient-to-r from-orange-500 to-eic-amber-strong hover:from-orange-600 hover:to-amber-600 text-white"
                 >
                   {this.state.ticketState === "submitting" ? (
                     <>

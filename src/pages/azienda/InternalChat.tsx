@@ -825,7 +825,7 @@ const ChatListItem = React.memo(function ChatListItem({
           <span className={cn("text-[15px] truncate flex items-center gap-1.5", unread > 0 ? "font-semibold text-foreground" : "font-normal text-foreground")}>
             {/* v8.6.51 — Pin icon visibile sempre se pinnato */}
             {isPinned && (
-              <Pin className="h-3 w-3 text-[#F97316] shrink-0" fill="currentColor" aria-label="Pinnata" />
+              <Pin className="h-3 w-3 text-eic-orange shrink-0" fill="currentColor" aria-label="Pinnata" />
             )}
             <span className="truncate">{displayName}</span>
           </span>
@@ -855,7 +855,7 @@ const ChatListItem = React.memo(function ChatListItem({
                 aria-label={isPinned ? "Rimuovi pin" : "Pinna chat"}
                 title={isPinned ? "Rimuovi pin" : "Pinna chat in alto"}
               >
-                <Pin className={cn("h-3.5 w-3.5", isPinned ? "text-[#F97316]" : "text-muted-foreground")} fill={isPinned ? "currentColor" : "none"} />
+                <Pin className={cn("h-3.5 w-3.5", isPinned ? "text-eic-orange" : "text-muted-foreground")} fill={isPinned ? "currentColor" : "none"} />
               </button>
             )}
             {!isDm && !isAI && (
@@ -2806,7 +2806,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                     className="w-[340px] sm:w-[380px] p-0 border-orange-100 shadow-2xl rounded-2xl overflow-hidden flex flex-col"
                     style={{ maxHeight: "min(70vh, 540px)" }}
                   >
-                    <div className="bg-gradient-to-br from-orange-500 to-amber-400 px-3 py-2 text-white shrink-0">
+                    <div className="bg-gradient-to-br from-orange-500 to-eic-amber px-3 py-2 text-white shrink-0">
                       <div className="flex items-center gap-2">
                         <Sparkles className="h-4 w-4" fill="currentColor" />
                         <p className="text-xs font-semibold">Skill rapide di Silvio</p>

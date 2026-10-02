@@ -35,7 +35,7 @@ export function SedeIncidenceChart({ sedi, metric, title }: Props) {
   if (chartData.length === 0) {
     return (
       <div>
-        <h3 className="text-sm font-semibold text-[#1E3A5F] mb-3">{title}</h3>
+        <h3 className="text-sm font-semibold text-eic-navy mb-3">{title}</h3>
         <div className="h-40 flex items-center justify-center text-sm text-muted-foreground">
           Nessun dato disponibile
         </div>
@@ -45,7 +45,7 @@ export function SedeIncidenceChart({ sedi, metric, title }: Props) {
 
   return (
     <div>
-      <h3 className="text-sm font-semibold text-[#1E3A5F] mb-3">{title}</h3>
+      <h3 className="text-sm font-semibold text-eic-navy mb-3">{title}</h3>
       <ResponsiveContainer width="100%" height={220}>
         <PieChart>
           <Pie

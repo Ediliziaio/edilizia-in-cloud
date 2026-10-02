@@ -132,7 +132,7 @@ export function UnlockFeatureDialog({
             {/* Hero con gradient */}
             <div className="bg-gradient-to-br from-amber-50 via-orange-50 to-amber-50 dark:from-amber-950/30 dark:via-orange-950/20 dark:to-amber-950/30 px-6 pt-6 pb-5 border-b">
               <div className="flex items-start gap-3">
-                <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shrink-0 shadow-sm">
+                <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-eic-amber to-orange-500 flex items-center justify-center shrink-0 shadow-sm">
                   <Sparkles className="h-6 w-6 text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
