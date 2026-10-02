@@ -1,12 +1,11 @@
 import { useState, useCallback, memo } from "react";
-import { Plus, Trash2, PackageSearch, Copy, ChevronDown, GripVertical, AlertTriangle, Calculator, Scale } from "lucide-react";
+import { Plus, Trash2, ChevronDown, PackageSearch, Copy, GripVertical, AlertTriangle, Calculator, Scale } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectGroup, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Collapsible } from "@/components/ui/collapsible";
 import { Textarea } from "@/components/ui/textarea";
 import { useArticoliNative } from "@/hooks/useArticoliNative";
 import { createEmptyRiga } from "./useEditorState";
@@ -127,6 +126,13 @@ interface SortableRowProps {
   onRemove: (index: number) => void;
   onDuplicate: (index: number) => void;
   prezziLordi?: boolean;
+  /** Il documento ha la ritenuta d'acconto: la riga può dire se ne fa parte. */
+  /** Riga aperta in modifica, o chiusa come una riga di riepilogo (come in Fatture in Cloud). */
+  aperta: boolean;
+  onToggle: (id: string) => void;
+  conRitenuta?: boolean;
+  ritenutaSuTutte?: boolean;
+  onRitenuta?: (index: number, applica: boolean) => void;
 }
 
 function SortableRowImpl({
@@ -137,18 +143,12 @@ function SortableRowImpl({
   onRemove,
   onDuplicate,
   prezziLordi,
+  aperta,
+  onToggle,
+  conRitenuta,
+  ritenutaSuTutte,
+  onRitenuta,
 }: SortableRowProps) {
-  // Default collapsed: mostra solo TOP row (Codice + Nome + Qtà + UM + Prezzo).
-  // L'utente espande per vedere/modificare Descrizione + Sc% + IVA + Importo
-  // + checkbox + Categoria. Auto-espanso se contiene descrizione multiline o
-  // dati strutturati nei campi "avanzati".
-  const hasAdvancedData =
-    riga.descrizione.includes("\n") ||
-    !!riga.riferimento_amministrazione ||
-    (riga.sconto_percentuale ?? 0) > 0 ||
-    riga.natura_iva === "N1";
-  const [expanded, setExpanded] = useState(hasAdvancedData);
-
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: riga.id,
     disabled,
@@ -165,9 +165,47 @@ function SortableRowImpl({
   // "Articolo non imponibile (anticipazione)" = aliquota 0% + natura N1
   const isAnticipazione = (parseFloat(riga.aliquota_iva) || 0) === 0 && riga.natura_iva === "N1";
 
+  const [nome, ...resto] = (riga.descrizione ?? "").split("\n");
+  const dettaglio = resto.join(" ").trim();
+
+  if (!aperta) {
+    return (
+      <div ref={setNodeRef} style={style}>
+        <div
+          className={`mb-2 flex items-center gap-3 rounded-lg border px-3 py-2.5 transition-colors hover:border-primary/40 ${isDragging ? "bg-muted/40" : "bg-card"}`}
+        >
+          <button className="cursor-grab text-muted-foreground/40 hover:text-muted-foreground" {...attributes} {...listeners} aria-label="Trascina riga">
+            <GripVertical className="h-4 w-4" />
+          </button>
+          <button type="button" className="flex min-w-0 flex-1 items-center gap-3 text-left" onClick={() => onToggle(riga.id)} aria-label={`Modifica la riga ${index + 1}`}>
+            <span className="w-5 shrink-0 text-[10px] font-medium text-muted-foreground/60">{index + 1}</span>
+            <span className="min-w-0 flex-1">
+              <span className={`block truncate text-sm font-semibold ${nome.trim() ? "" : "text-muted-foreground/60"}`}>
+                {nome.trim() || "Articolo senza nome"}
+              </span>
+              <span className="block truncate text-[11px] text-muted-foreground">
+                {riga.codice_articolo ? `${riga.codice_articolo} · ` : ""}{dettaglio || "Nessuna descrizione"}
+              </span>
+            </span>
+            <span className="hidden shrink-0 text-xs tabular-nums text-muted-foreground sm:block">
+              {riga.quantita} {riga.unita_misura} × {formatCurrency(riga.prezzo_unitario)}
+            </span>
+            <span className="w-14 shrink-0 text-right text-xs text-muted-foreground">{ivaDisplayLabel(riga)} IVA</span>
+            <span className="w-24 shrink-0 text-right text-sm font-semibold tabular-nums">{formatCurrency(riga.imponibile ?? riga.totale_riga)}</span>
+          </button>
+          {!disabled && (
+            <div className="flex shrink-0 items-center">
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onDuplicate(index)} aria-label="Duplica"><Copy className="h-3.5 w-3.5 text-muted-foreground" /></Button>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onRemove(index)} aria-label="Elimina"><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div ref={setNodeRef} style={style}>
-      <Collapsible open={expanded} onOpenChange={setExpanded}>
         {/* Card grande con 2 colonne interne — replica Fatture in Cloud:
             LEFT col: Codice + Nome prodotto + Descrizione + Categoria
             RIGHT col: Qtà + U.M. + Prezzo netto + Sc.% + IVA + Importo totale
@@ -199,7 +237,7 @@ function SortableRowImpl({
                   un portatile con la barra laterale aperta al campo Descrizione
                   restavano 26px, illeggibile. Sotto lg le celle si impilano a due
                   per riga (Codice+Descrizione, Quantita'+U.M., Prezzo+Importo). */}
-              <div className="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-2 lg:grid-cols-[5.5rem_minmax(0,1fr)_4rem_4.5rem_5rem_5.5rem_auto]">
+              <div className="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-2 lg:grid-cols-[5.5rem_minmax(0,1fr)_4.5rem_5rem_7rem_auto]">
                 <div className="space-y-1">
                   <Label className="text-[10px] text-muted-foreground font-normal">Codice</Label>
                   <Input
@@ -278,23 +316,10 @@ function SortableRowImpl({
                     disabled={disabled}
                   />
                 </div>
-                <div className="space-y-1">
-                  <Label className="text-[10px] text-muted-foreground font-normal">Importo</Label>
-                  <div className="h-8 px-2 flex items-center justify-end text-sm font-semibold tabular-nums rounded-md border bg-muted/40">
-                    {formatCurrency(riga.totale_riga)}
-                  </div>
-                </div>
                 {/* Actions inline su una sola riga, allineate alla baseline degli input */}
                 <div className="self-end flex items-center gap-0.5 pb-0.5">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-9 w-9 md:h-7 md:w-7"
-                    onClick={() => setExpanded((e) => !e)}
-                    aria-label={expanded ? "Riduci riga" : "Espandi riga"}
-                    title={expanded ? "Riduci" : "Espandi per dettagli"}
-                  >
-                    <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${expanded ? "rotate-180" : ""}`} />
+                  <Button variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7" onClick={() => onToggle(riga.id)} aria-label="Chiudi riga" title="Chiudi la riga">
+                    <ChevronDown className="h-4 w-4 rotate-180 text-muted-foreground" />
                   </Button>
                   {!disabled && (
                     <>
@@ -309,9 +334,9 @@ function SortableRowImpl({
                 </div>
               </div>
 
-              {expanded && (<>
+              <>
               {/* MIDDLE ROW — grid 2 col: Descrizione (1fr) | Sc% IVA stacked */}
-              <div className="grid grid-cols-[minmax(0,1fr)_10rem] gap-3">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_17rem]">
                 <div className="space-y-1 min-w-0">
                   <Label className="text-[10px] text-muted-foreground font-normal">Descrizione</Label>
                   <Textarea
@@ -328,7 +353,7 @@ function SortableRowImpl({
                   />
                 </div>
                 <div className="space-y-2">
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-3 gap-2">
                     <div className="space-y-1">
                       <Label className="text-[10px] text-muted-foreground font-normal">Sconto %</Label>
                       <Input
@@ -395,6 +420,12 @@ function SortableRowImpl({
                         </Badge>
                       )}
                     </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-muted-foreground font-normal">Importo totale</Label>
+                  <div className="h-8 px-2 flex items-center justify-end text-sm font-semibold tabular-nums rounded-md border bg-muted/40">
+                    {formatCurrency(riga.totale_riga)}
+                  </div>
+                </div>
                   </div>
                 </div>
               </div>
@@ -407,7 +438,7 @@ function SortableRowImpl({
               )}
 
               {/* FOOTER ROW — grid 2 col: checkbox (auto) | Categoria (1fr) */}
-              <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-3 items-end">
+              <div className="flex flex-wrap items-end gap-x-5 gap-y-2 [&>*:last-child]:flex-1 [&>*:last-child]:min-w-[10rem]">
                 <label className="flex items-center gap-2 text-xs cursor-pointer select-none pb-2">
                   <input
                     type="checkbox"
@@ -426,30 +457,35 @@ function SortableRowImpl({
                   />
                   <span className="text-muted-foreground whitespace-nowrap">Articolo non imponibile (anticipazione)</span>
                 </label>
+                {conRitenuta && (
+                  <label className="flex items-center gap-2 text-xs cursor-pointer select-none pb-2">
+                    <input
+                      type="checkbox"
+                      checked={ritenutaSuTutte ? true : riga.ritenuta === true}
+                      onChange={(e) => onRitenuta?.(index, e.target.checked)}
+                      className="h-3.5 w-3.5 rounded border-input"
+                      disabled={disabled}
+                    />
+                    <span className="text-muted-foreground whitespace-nowrap">Applica ritenuta</span>
+                  </label>
+                )}
                 <div className="space-y-1 min-w-0">
                   <Label className="text-[10px] text-muted-foreground font-normal">Categoria</Label>
                   <Input
-                    value={riga.riferimento_amministrazione ?? ""}
-                    onChange={(e) => onUpdate(index, "riferimento_amministrazione", e.target.value)}
+                    value={riga.categoria ?? ""}
+                    onChange={(e) => onUpdate(index, "categoria", e.target.value)}
                     className="h-8 text-sm w-full"
                     placeholder="—"
                     disabled={disabled}
                   />
                 </div>
               </div>
-              </>)}
+              </>
 
-              {/* Hint compatto Sc.% / IVA quando collapsed (info read-only) */}
-              {!expanded && (riga.sconto_percentuale || ivaDisplayLabel(riga) !== "22%") && (
-                <div className="text-[10px] text-muted-foreground/70">
-                  Sc.% {riga.sconto_percentuale ?? 0} · IVA {ivaDisplayLabel(riga)}
-                </div>
-              )}
             </div>
 
           </div>
         </div>
-      </Collapsible>
     </div>
   );
 }
@@ -463,7 +499,10 @@ function SortableRowImpl({
 const SortableRow = memo(SortableRowImpl, (prev, next) => {
   if (prev.index !== next.index) return false;
   if (prev.disabled !== next.disabled) return false;
+  if (prev.aperta !== next.aperta || prev.onToggle !== next.onToggle) return false;
   if (prev.prezziLordi !== next.prezziLordi) return false;
+  if (prev.conRitenuta !== next.conRitenuta || prev.ritenutaSuTutte !== next.ritenutaSuTutte) return false;
+  if (prev.onRitenuta !== next.onRitenuta) return false;
   if (prev.onUpdate !== next.onUpdate) return false;
   if (prev.onRemove !== next.onRemove) return false;
   if (prev.onDuplicate !== next.onDuplicate) return false;
@@ -481,6 +520,10 @@ const SortableRow = memo(SortableRowImpl, (prev, next) => {
     a.aliquota_iva === b.aliquota_iva &&
     a.natura_iva === b.natura_iva &&
     a.totale_riga === b.totale_riga &&
+    a.categoria === b.categoria &&
+    a.imponibile === b.imponibile &&
+    a.codice_articolo === b.codice_articolo &&
+    a.ritenuta === b.ritenuta &&
     a.riferimento_amministrazione === b.riferimento_amministrazione
   );
 });
@@ -508,6 +551,16 @@ export function EditorRigheSection({ state, dispatch, disabled }: Props) {
   const bsRiparto = bsBeniNum > 0 ? ripartoBeniSignificativi({ valoreBeni: bsBeniNum, valoreAltro: bsAltroNum }) : null;
   const bsCompleto = !!bsIntervento.trim() && !!bsBeni.trim() && bsBeniNum > 0;
   const [catalogSearch, setCatalogSearch] = useState("");
+  // Righe aperte in modifica: le nuove e quelle ancora senza nome; le altre stanno chiuse
+  // come righe di riepilogo (si riaprono con un clic), come in Fatture in Cloud.
+  const [aperte, setAperte] = useState<Set<string>>(() => new Set((state.righe ?? []).filter((r) => !r.descrizione?.trim()).map((r) => r.id)));
+  const toggleRiga = useCallback((id: string) => {
+    setAperte((prima) => {
+      const dopo = new Set(prima);
+      if (dopo.has(id)) dopo.delete(id); else dopo.add(id);
+      return dopo;
+    });
+  }, []);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -522,6 +575,7 @@ export function EditorRigheSection({ state, dispatch, disabled }: Props) {
       riga.natura_iva = "N6_3";
     }
     dispatch({ type: "ADD_RIGA", riga });
+    setAperte((prima) => new Set(prima).add(riga.id));
   }
 
   function addDescriptiveRow() {
@@ -534,6 +588,7 @@ export function EditorRigheSection({ state, dispatch, disabled }: Props) {
       riga.natura_iva = "N6_3";
     }
     dispatch({ type: "ADD_RIGA", riga });
+    setAperte((prima) => new Set(prima).add(riga.id));
   }
 
   function addBeniSignificativi() {
@@ -588,6 +643,21 @@ export function EditorRigheSection({ state, dispatch, disabled }: Props) {
   const duplicateRiga = useCallback(
     (index: number) => dispatch({ type: "DUPLICATE_RIGA", index }),
     [dispatch],
+  );
+
+  // «Applica ritenuta» per riga: finché nessuna è segnata la ritenuta vale per tutte
+  // (così la legge l'XML). Togliere una riga segna tutte le altre; rimetterle tutte la azzera.
+  const ritenutaSuTutte = !righe.some((r) => r.ritenuta === true);
+  const impostaRitenuta = useCallback(
+    (index: number, applica: boolean) => {
+      const nuove = righe.map((r, i) => ({
+        ...r,
+        ritenuta: ritenutaSuTutte ? i !== index : i === index ? applica : r.ritenuta === true,
+      }));
+      const tutte = nuove.every((r) => r.ritenuta);
+      dispatch({ type: "REORDER_RIGHE", righe: nuove.map((r) => ({ ...r, ritenuta: tutte ? undefined : r.ritenuta })) });
+    },
+    [righe, ritenutaSuTutte, dispatch],
   );
 
   function handleDragEnd(event: DragEndEvent) {
@@ -688,6 +758,11 @@ export function EditorRigheSection({ state, dispatch, disabled }: Props) {
                   onRemove={removeRiga}
                   onDuplicate={duplicateRiga}
                   prezziLordi={usePrezziLordi}
+                  aperta={aperte.has(riga.id)}
+                  onToggle={toggleRiga}
+                  conRitenuta={!!(state.ritenuta_acconto || state.altra_ritenuta)}
+                  ritenutaSuTutte={ritenutaSuTutte}
+                  onRitenuta={impostaRitenuta}
                 />
               ))}
             </SortableContext>
@@ -705,6 +780,33 @@ export function EditorRigheSection({ state, dispatch, disabled }: Props) {
             </Button>
             <Button variant="outline" size="sm" className="text-xs h-7" onClick={addDescriptiveRow}>
               + Riga descrittiva
+            </Button>
+            {/* Scorciatoie come in Fatture in Cloud: sconto sul totale e bollo a carico del cliente
+                (le stesse impostazioni di «Opzioni avanzate»). */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="text-xs h-7">
+                  + Sconto sul totale{state.sconto_globale_percentuale ? ` (${state.sconto_globale_percentuale}%)` : ""}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-56 p-3" align="start">
+                <label className="text-[10px] text-muted-foreground">Sconto % sul totale</label>
+                <Input
+                  type="number" inputMode="decimal" min="0" max="100" step="0.01"
+                  value={state.sconto_globale_percentuale ?? ""}
+                  onChange={(e) => dispatch({ type: "SET_FIELD", field: "sconto_globale_percentuale", value: e.target.value === "" ? undefined : Math.min(100, Math.max(0, parseDecimalIT(e.target.value))) })}
+                  className="h-7 text-xs mt-0.5"
+                  placeholder="0"
+                />
+              </PopoverContent>
+            </Popover>
+            <Button
+              variant={state.bollo_virtuale ? "default" : "outline"}
+              size="sm"
+              className="text-xs h-7"
+              onClick={() => dispatch({ type: "SET_FIELD", field: "bollo_virtuale", value: !state.bollo_virtuale })}
+            >
+              {state.bollo_virtuale ? "✓ Bollo a carico del cliente" : "+ Bollo a carico del cliente"}
             </Button>
           </div>
           <div className="flex gap-3 items-center">

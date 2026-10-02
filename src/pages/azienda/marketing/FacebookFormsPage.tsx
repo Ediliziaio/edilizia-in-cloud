@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { useState } from "react";
 import { queryKeys } from "@/lib/queryKeys";
 import { MetaIntegrationWizard } from "@/components/integrations/MetaIntegrationWizard";
+import { RientroLeadCard } from "@/components/integrations/RientroLeadCard";
 import type { Integration } from "@/types/integrations";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -371,6 +372,9 @@ export default function FacebookFormsPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Lead che rientrano dopo una chiusura: impostazione dell'integrazione Meta */}
+      <RientroLeadCard integration={integration} canManage={canManageMeta} />
 
       {/* M10 — Meta App Review Banner */}
       {!reviewDismissed && (() => {

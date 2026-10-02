@@ -32,6 +32,9 @@ export interface Integration {
   last_error_code: string | null;
   last_error_message: string | null;
   health: IntegrationHealth;
+  /** Lead che ricompilano dopo una chiusura: off | segnala | blocca (vedi RientroLeadCard). */
+  rientro_lead_modo?: "off" | "segnala" | "blocca";
+  rientro_lead_giorni?: number;
   created_at: string;
   updated_at: string;
 }

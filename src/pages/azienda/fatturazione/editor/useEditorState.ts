@@ -199,7 +199,7 @@ function recalculate(state: EditorState): EditorState {
 
 // ─── Reducer ─────────────────────────────────────────────────
 
-function editorReducer(state: EditorState, action: Action): EditorState {
+export function editorReducer(state: EditorState, action: Action): EditorState {
   switch (action.type) {
     case "INIT":
       return recalculate({ ...action.payload, _initialized: true });

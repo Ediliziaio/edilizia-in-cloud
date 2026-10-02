@@ -260,7 +260,8 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
               <div className="flex items-center gap-1 min-w-0">
                 <LeadTemperatureBadge lastActivityAt={contact.last_activity_at} hasOpenOpportunity createdAt={contact.created_at} compact />
                 <p
-                  className="text-xs md:text-sm font-bold leading-tight truncate cursor-pointer hover:underline"
+                  className="text-xs md:text-sm font-bold leading-tight line-clamp-2 break-words cursor-pointer hover:underline"
+                  title={displayName}
                   onClick={(e) => { e.stopPropagation(); navigate(`${routePrefix}/contatti/${contact.id}`); }}
                   onPointerDown={(e) => e.stopPropagation()}
                 >
@@ -268,10 +269,8 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
                 </p>
               </div>
             ) : (
-              <p className="text-sm font-bold leading-tight truncate">{displayName}</p>
+              <p className="text-sm font-bold leading-tight line-clamp-2 break-words" title={displayName}>{displayName}</p>
             )}
-            {/* Ha già fatto richiesta: è rientrato nello stesso flusso, non è un lead nuovo. */}
-            <RichiestaRipetutaBadge dati={opportunity.richiesta_ripetuta} className="mt-0.5" />
           </div>
           <div className="flex items-center gap-1.5">
           {opportunity.status === 'open' && <DealHealthBadge opportunity={opportunity} compact />}
@@ -303,6 +302,10 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
           )}
           </div>
         </div>
+
+        {/* Ha già fatto richiesta: è rientrato nello stesso flusso, non è un lead nuovo.
+            Sta sotto il nome, non accanto: accanto gli toglieva lo spazio. */}
+        <RichiestaRipetutaBadge dati={opportunity.richiesta_ripetuta} className="self-start" />
 
         {/* Detail rows - driven by field preferences */}
         <CardDetailRows opportunity={opportunity} contact={contact} activeFields={activeFields} layout={layout} />

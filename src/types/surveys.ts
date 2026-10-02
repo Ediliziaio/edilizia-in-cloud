@@ -285,6 +285,8 @@ export interface SurveyRow {
   project_id: string | null;
   pdf_report_url: string | null;
   scheduled_at: string | null;
+  /** Appuntamento in calendario collegato (creato dalla pianificazione). */
+  appointment_id?: string | null;
   started_at: string | null;
   completed_at: string | null;
   reviewed_at: string | null;

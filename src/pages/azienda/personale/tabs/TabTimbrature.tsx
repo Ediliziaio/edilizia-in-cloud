@@ -1,6 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useTimbratureAdmin, useLiveStatus, type LiveStatusProfilo, type TimbraturaAdminRow } from "@/hooks/useTimbratura";
+import { useTimbratureAdmin, useLiveStatus, scaricaTimbratureAdmin, LIMITE_ELENCO_TIMBRATURE, type LiveStatusProfilo, type TimbraturaAdminRow } from "@/hooks/useTimbratura";
+import { useRichieste } from "@/hooks/useRichieste";
+import { toast } from "sonner";
+import { PannelloPresenze } from "./PannelloPresenze";
+import { filtraTimbrature, valoriDistinti, type Raggruppa, type RigaTimbratura } from "@/lib/personale/timbrature";
+import { esportaTimbratureCsv, esportaTimbratureXlsx } from "@/lib/personale/esportaTimbrature";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
@@ -11,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { AlertCircle, Clock, LogIn, LogOut, Coffee, MapPin, ChevronDown } from "lucide-react";
+import { AlertCircle, Clock, LogIn, LogOut, Coffee, MapPin, ChevronDown, Download, Loader2 } from "lucide-react";
 import { CercaConFiltri, PannelloFiltri, PilloleFiltro } from "@/components/mobile/FiltriMobile";
 
 const TIPO_ICONS: Record<string, { icon: typeof LogIn; label: string; color: string }> = {
@@ -21,6 +28,25 @@ const TIPO_ICONS: Record<string, { icon: typeof LogIn; label: string; color: str
   pausa_fine: { icon: Coffee, label: "Fine Pausa", color: "text-blue-500" },
   inizio_pausa: { icon: Coffee, label: "Inizio Pausa", color: "text-amber-500" },
   fine_pausa: { icon: Coffee, label: "Fine Pausa", color: "text-blue-500" },
+};
+
+const TUTTI = "__tutti__";
+
+/** La riga di hr_timbrature nel formato dei filtri e dell'esportazione. */
+function aRiga(t: TimbraturaAdminRow): RigaTimbratura {
+  return {
+    id: t.id, data_evento: t.data_evento, ora_evento: t.ora_evento ?? null, timestamp: t.timestamp ?? null,
+    tipo: t.tipo, fonte: t.fonte ?? null, note: t.note ?? null, lat: t.lat ?? null, lng: t.lng ?? null,
+    profilo_id: t.profilo_id, profilo_nome: t.profilo_nome, profilo_cognome: t.profilo_cognome,
+    reparto: t.profilo_reparto ?? null, mansione: t.profilo_mansione ?? null,
+    cantiere_codice: t.cantiere_codice, cantiere_descrizione: t.cantiere_descrizione,
+  };
+}
+
+const ETICHETTA_ASSENZA: Record<string, string> = {
+  ferie: "In ferie", permesso: "In permesso", malattia: "In malattia", rol: "In permesso (ROL)",
+  infortunio: "Infortunio", maternita: "Maternità", paternita: "Paternità", lutto: "Lutto",
+  smart_working: "Smart working", trasferta: "In trasferta", formazione: "In formazione",
 };
 
 // Timbrature dal cantiere che il trigger DB non ha potuto specchiare nel
@@ -56,6 +82,10 @@ export function TabTimbrature() {
   const [dateFrom, setDateFrom] = useState(today);
   const [dateTo, setDateTo] = useState(today);
   const [filterName, setFilterName] = useState("");
+  const [filtroReparto, setFiltroReparto] = useState(TUTTI);
+  const [filtroRuolo, setFiltroRuolo] = useState(TUTTI);
+  const [filtroTipo, setFiltroTipo] = useState(TUTTI);
+  const [esportando, setEsportando] = useState(false);
   // Mobile: date in un pannello dal basso; chi non ha timbrato sta in una riga
   // che si apre (prima diciotto riquadri prima della lista).
   const [filtriMobileAperti, setFiltriMobileAperti] = useState(false);
@@ -98,12 +128,60 @@ export function TabTimbrature() {
 
   const normalizedFilter = filterName.trim().toLowerCase();
 
-  const filtered = (timbrature as TimbraturaAdminRow[]).filter((t) => {
-    if (!normalizedFilter) return true;
-    const persona = `${t.profilo_nome} ${t.profilo_cognome}`.toLowerCase();
-    const cantiere = `${t.cantiere_codice ?? ""} ${t.cantiere_descrizione ?? ""}`.toLowerCase();
-    return persona.includes(normalizedFilter) || cantiere.includes(normalizedFilter);
-  });
+  const righeAdmin = useMemo(() => (timbrature as TimbraturaAdminRow[]).map(aRiga), [timbrature]);
+  const filtriAttivi = {
+    testo: filterName,
+    reparto: filtroReparto === TUTTI ? undefined : filtroReparto,
+    mansione: filtroRuolo === TUTTI ? undefined : filtroRuolo,
+    tipo: filtroTipo === TUTTI ? undefined : filtroTipo,
+  };
+  const reparti = useMemo(() => valoriDistinti(righeAdmin, "reparto"), [righeAdmin]);
+  const ruoli = useMemo(() => valoriDistinti(righeAdmin, "mansione"), [righeAdmin]);
+  const filtered = useMemo(() => {
+    const ids = new Set(filtraTimbrature(righeAdmin, filtriAttivi).map((r) => r.id));
+    return (timbrature as TimbraturaAdminRow[]).filter((t) => ids.has(t.id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [righeAdmin, timbrature, filterName, filtroReparto, filtroRuolo, filtroTipo]);
+  const nFiltri = [filtroReparto, filtroRuolo, filtroTipo].filter((v) => v !== TUTTI).length;
+
+  // Ferie e permessi approvati che coprono oggi: chi non ha timbrato per questo non è «assente».
+  const { data: richieste = [] } = useRichieste();
+  const assentiGiustificati = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const r of richieste) {
+      if (r.stato !== "approvata" || !r.profilo_id) continue;
+      if (r.data_inizio <= today && today <= r.data_fine) m[r.profilo_id] = ETICHETTA_ASSENZA[r.tipo] ?? "Assente giustificato";
+    }
+    return m;
+  }, [richieste, today]);
+
+  const impostaPeriodo = (da: string, a: string) => { setDateFrom(da); setDateTo(a); };
+  const inizioMese = (offset: number) => {
+    const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() + offset);
+    return d.toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
+  };
+  const fineMese = (offset: number) => {
+    const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() + offset + 1); d.setDate(0);
+    return d.toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
+  };
+
+  // Esporta TUTTE le timbrature del periodo (non solo le prime dell'elenco), con gli stessi filtri.
+  const esporta = async (formato: "xlsx" | "csv", raggruppa: Raggruppa = "nessuno") => {
+    if (!companyId) return;
+    setEsportando(true);
+    try {
+      const tutte = (await scaricaTimbratureAdmin(companyId, rangeFrom, rangeTo)).map(aRiga);
+      const righe = filtraTimbrature(tutte, filtriAttivi);
+      if (righe.length === 0) { toast.info("Nessuna timbratura da esportare con questi filtri"); return; }
+      if (formato === "csv") esportaTimbratureCsv({ righe, da: rangeFrom, a: rangeTo });
+      else await esportaTimbratureXlsx({ righe, da: rangeFrom, a: rangeTo, raggruppa });
+      toast.success(`${righe.length} timbrature esportate`);
+    } catch (e) {
+      toast.error("Esportazione non riuscita", { description: getErrorMessage(e) });
+    } finally {
+      setEsportando(false);
+    }
+  };
 
   const orfaneFiltrate = orfane.filter((t) => {
     if (!normalizedFilter) return true;
@@ -137,51 +215,10 @@ export function TabTimbrature() {
 
   return (
     <div className="space-y-4 max-sm:space-y-3">
-      {/* Live Status Panel */}
-      <Card className="max-sm:hidden">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Clock className="h-4 w-4" />
-            Chi è in azienda oggi
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {liveStatus.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nessun profilo HR attivo</p>
-          ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-              {(liveStatus as LiveStatusProfilo[]).map((p) => (
-                <div
-                  key={p.id}
-                  className="flex items-center gap-2 rounded-lg border p-2"
-                >
-                  <div className="relative">
-                    <div
-                      className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold"
-                      style={{ backgroundColor: p.colore_avatar || "#0EA5E9" }}
-                    >
-                      {p.nome?.[0]}{p.cognome?.[0]}
-                    </div>
-                    <div
-                      className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-background ${
-                        p.is_present ? "bg-emerald-500" : "bg-muted-foreground/40"
-                      }`}
-                    />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium truncate">{p.nome} {p.cognome}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {p.last_tipo
-                        ? `${TIPO_ICONS[p.last_tipo]?.label || p.last_tipo} ${p.last_ora || ""}`
-                        : "Non timbrato"}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* Live Status Panel (desktop) */}
+      <div className="max-sm:hidden">
+        <PannelloPresenze persone={liveStatus as LiveStatusProfilo[]} assentiGiustificati={assentiGiustificati} />
+      </div>
 
       {/* Mobile: chi è presente a righe, chi non ha timbrato in una riga che si
           apre. Dopo il riquadro del desktop: da primo figlio nascosto lo sposterebbe. */}
@@ -218,26 +255,92 @@ export function TabTimbrature() {
       />
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-2 items-center max-sm:hidden">
-        <Input
-          type="date"
-          value={dateFrom}
-          onChange={(e) => setDateFrom(e.target.value)}
-          className="w-[160px]"
-        />
-        <span className="text-sm text-muted-foreground">a</span>
-        <Input
-          type="date"
-          value={dateTo}
-          onChange={(e) => setDateTo(e.target.value)}
-          className="w-[160px]"
-        />
-        <Input
-          placeholder="Filtra per nome..."
-          value={filterName}
-          onChange={(e) => setFilterName(e.target.value)}
-          className="max-w-[200px]"
-        />
+      <div className="space-y-2 max-sm:hidden">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex rounded-lg border p-0.5" role="group" aria-label="Periodo">
+            {[
+              { k: "oggi", label: "Oggi", da: today, a: today },
+              { k: "ieri", label: "Ieri", da: ieri, a: ieri },
+              { k: "7", label: "7 giorni", da: settimana, a: today },
+              { k: "mese", label: "Questo mese", da: inizioMese(0), a: today },
+              { k: "scorso", label: "Mese scorso", da: inizioMese(-1), a: fineMese(-1) },
+            ].map((p) => (
+              <button
+                key={p.k}
+                type="button"
+                onClick={() => impostaPeriodo(p.da, p.a)}
+                className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${dateFrom === p.da && dateTo === p.a ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+          <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-[150px]" aria-label="Dal" />
+          <span className="text-sm text-muted-foreground">a</span>
+          <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-[150px]" aria-label="Al" />
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="ml-auto gap-1.5" disabled={esportando}>
+                {esportando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                Scarica
+                <ChevronDown className="h-3.5 w-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64">
+              <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                Tutto il periodo ({rangeFrom === rangeTo ? rangeFrom : `${rangeFrom} → ${rangeTo}`}), con i filtri scelti
+              </DropdownMenuLabel>
+              <DropdownMenuItem onClick={() => esporta("xlsx")}>Excel: riepilogo ore + dettaglio</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => esporta("xlsx", "reparto")}>Excel diviso per reparto</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => esporta("xlsx", "mansione")}>Excel diviso per ruolo</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => esporta("xlsx", "dipendente")}>Excel diviso per dipendente</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => esporta("csv")}>CSV (una tabella sola)</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Input placeholder="Cerca persona o cantiere..." value={filterName} onChange={(e) => setFilterName(e.target.value)} className="max-w-[220px]" />
+          <Select value={filtroReparto} onValueChange={setFiltroReparto}>
+            <SelectTrigger className="h-9 w-[160px]" aria-label="Reparto"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value={TUTTI}>Tutti i reparti</SelectItem>
+              {reparti.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={filtroRuolo} onValueChange={setFiltroRuolo}>
+            <SelectTrigger className="h-9 w-[170px]" aria-label="Ruolo"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value={TUTTI}>Tutti i ruoli</SelectItem>
+              {ruoli.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={filtroTipo} onValueChange={setFiltroTipo}>
+            <SelectTrigger className="h-9 w-[150px]" aria-label="Tipo"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value={TUTTI}>Tutti i tipi</SelectItem>
+              <SelectItem value="entrata">Entrate</SelectItem>
+              <SelectItem value="uscita">Uscite</SelectItem>
+              <SelectItem value="pausa_inizio">Inizio pausa</SelectItem>
+              <SelectItem value="pausa_fine">Fine pausa</SelectItem>
+            </SelectContent>
+          </Select>
+          {nFiltri > 0 && (
+            <Button variant="ghost" size="sm" onClick={() => { setFiltroReparto(TUTTI); setFiltroRuolo(TUTTI); setFiltroTipo(TUTTI); }}>
+              Azzera filtri
+            </Button>
+          )}
+          <span className="ml-auto text-xs text-muted-foreground tabular-nums">
+            {isLoading ? "" : `${filtered.length} timbrature`}
+          </span>
+        </div>
+        {!isLoading && timbrature.length >= LIMITE_ELENCO_TIMBRATURE && (
+          <p className="text-xs text-amber-700">
+            Sono mostrate le ultime {LIMITE_ELENCO_TIMBRATURE} timbrature del periodo: restringi le date o i filtri, oppure usa «Scarica» per averle tutte.
+          </p>
+        )}
       </div>
 
       {/* Mobile: una timbratura per riga (persona; tipo, cantiere e fonte; ora). */}

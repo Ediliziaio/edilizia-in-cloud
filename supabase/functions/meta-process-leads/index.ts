@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { decidiRientro, notaRientro, type ChiusuraPassata } from "../_shared/rientroLead.ts";
 import { piattaformaDelLead } from "../_shared/metaPiattaforma.ts";
 import { getCorsHeaders, jsonResponse, errorResponse, secureHeaders } from "../_shared/headers.ts";
 import { decrypt, getEncryptionKey } from "../_shared/encryption.ts";
@@ -179,7 +180,9 @@ serveConMetriche("meta-process-leads", async (req) => {
         // un recupero ha mandato 91 notifiche «Nuovo lead» in un'ora e mezza
         // per richieste vecchie fino a tre settimane. Chi riceve la notifica
         // deve poter presumere che il contatto sia appena arrivato.
-        if (result?.contactId) {
+        if (result?.contactId && result.bloccato) {
+          console.log(`[meta-process-leads] rientro dopo chiusura BLOCCATO — contatto ${result.contactId}: nessuna automazione`);
+        } else if (result?.contactId) {
           const triggerEvent = result.isNew ? "facebook_lead_received" : "facebook_lead_updated";
           adminClient
             .from("automation_trigger_events")
@@ -353,7 +356,7 @@ async function getLeadDenylistPatterns(adminClient: any): Promise<string[]> {
   }
 }
 
-async function processLeadEvent(adminClient: any, event: any): Promise<{ contactId: string; isNew: boolean; campaignName?: string; adName?: string; adsetName?: string; piattaforma?: string; createdTime?: string; arretrato?: boolean; giorniRitardo?: number; settore?: string | null } | null> {
+async function processLeadEvent(adminClient: any, event: any): Promise<{ contactId: string; isNew: boolean; campaignName?: string; adName?: string; adsetName?: string; piattaforma?: string; createdTime?: string; arretrato?: boolean; giorniRitardo?: number; settore?: string | null; bloccato?: boolean } | null> {
   const { company_id, integration_id, payload } = event;
   // Due formati di payload convivono in coda:
   //  - WEBHOOK: { leadgen_id, form_id, page_id } → il lead va fetchato da Graph
@@ -798,7 +801,56 @@ async function processLeadEvent(adminClient: any, event: any): Promise<{ contact
   // sia di oggi.
   const arretrato = isLeadArretrato(lead.created_time);
 
-  if (pipelineSettings.pipeline_id && pipelineSettings.stage_id) {
+  // ─── Rientro dopo una chiusura (impostazione dell'integrazione Meta) ─────────
+  // Chi ha la richiesta persa o abbandonata e ricompila il modulo non deve far
+  // perdere tempo al team (Giulietta Baso, Green Energy, 01/10/2026). Il contatto
+  // resta aggiornato qui sopra; se la regola dice «blocca» non si apre nessuna
+  // opportunità e il chiamante non fa partire automazioni. Vedi _shared/rientroLead.ts.
+  let rientro: ReturnType<typeof decidiRientro> = { azione: "normale", giorniDallaChiusura: null, motivo: "regola spenta" };
+  try {
+    const { data: impostazioni } = await adminClient
+      .from("integrations")
+      .select("rientro_lead_modo, rientro_lead_giorni")
+      .eq("id", integration_id)
+      .maybeSingle();
+    if (impostazioni && impostazioni.rientro_lead_modo && impostazioni.rientro_lead_modo !== "off") {
+      const { data: opp } = await adminClient
+        .from("marketing_opportunities")
+        .select("id, status, lost_at, stage_changed_at, updated_at")
+        .eq("company_id", company_id)
+        .eq("contact_id", contactId)
+        .is("deleted_at", null)
+        .in("status", ["open", "lost", "abandoned"])
+        .order("updated_at", { ascending: false })
+        .limit(50);
+      const righe = (opp ?? []) as Array<{ id: string; status: string; lost_at: string | null; stage_changed_at: string | null; updated_at: string | null }>;
+      const chiusure: ChiusuraPassata[] = righe
+        .filter((o) => o.status !== "open")
+        .map((o) => ({ status: o.status, chiusaIl: o.lost_at ?? o.stage_changed_at ?? o.updated_at }));
+      rientro = decidiRientro({
+        modo: impostazioni.rientro_lead_modo,
+        giorni: impostazioni.rientro_lead_giorni,
+        chiusure,
+        aperte: righe.filter((o) => o.status === "open").length,
+      });
+      if (rientro.azione !== "normale") {
+        const ultima = righe.find((o) => o.status !== "open");
+        await adminClient.from("marketing_contact_notes").insert({
+          company_id,
+          contact_id: contactId,
+          opportunity_id: ultima?.id ?? null,
+          content: notaRientro(rientro, lead.campaign_name),
+          created_by: null,
+        });
+      }
+    }
+  } catch (e) {
+    // La regola non deve mai far perdere un lead: se non si legge, vale il comportamento di sempre.
+    console.warn("[meta-process-leads] regola rientro non applicata:", e instanceof Error ? e.message : e);
+    rientro = { azione: "normale", giorniDallaChiusura: null, motivo: "errore" };
+  }
+
+  if (rientro.azione !== "blocca" && pipelineSettings.pipeline_id && pipelineSettings.stage_id) {
     const { data: existingOpp } = await adminClient
       .from("marketing_opportunities")
       .select("id")
@@ -818,7 +870,7 @@ async function processLeadEvent(adminClient: any, event: any): Promise<{ contact
         status: "open",
         source: `meta_lead_${leadgenId}`,
         notes: arretrato ? notaArretrato(lead.created_time) : null,
-        tags: arretrato ? ["lead-recuperato"] : [],
+        tags: [...(arretrato ? ["lead-recuperato"] : []), ...(rientro.azione === "segnala" ? ["rientro-dopo-chiusura"] : [])],
         assigned_to: pipelineSettings.owner_user_id || null,
         meta_campaign_id: lead.campaign_id || null,
         meta_adset_id: lead.adset_id || null,
@@ -844,6 +896,7 @@ async function processLeadEvent(adminClient: any, event: any): Promise<{ contact
       ad_id: lead.ad_id || null,
       ad_name: lead.ad_name || null,
       dedupe: existingContact ? "updated" : "created",
+      rientro: rientro.azione === "normale" ? null : { azione: rientro.azione, motivo: rientro.motivo },
       speed_to_lead_seconds: speedToLeadSeconds,
       is_test: payload.is_test || false,
     },
@@ -882,6 +935,7 @@ async function processLeadEvent(adminClient: any, event: any): Promise<{ contact
     arretrato,
     giorniRitardo: arretrato ? Math.floor((Date.now() - new Date(String(lead.created_time)).getTime()) / 86_400_000) : 0,
     settore,
+    bloccato: rientro.azione === "blocca",
   };
 }
 

@@ -61,6 +61,7 @@ type MarketingCalendar = {
   messaggi_crm_dal?: string | null;
   firma_messaggi?: string | null;
   cosa_preparare?: string | null;
+  modello_descrizione_evento?: string | null;
   mittente_nome?: string | null;
   mittente_email?: string | null;
   created_by: string;
@@ -405,6 +406,7 @@ export default function MarketingCalendarsConfig() {
         messaggi_crm_dal: data.messaggi_crm_dal ?? null,
         firma_messaggi: data.firma_messaggi.trim() || null,
         cosa_preparare: data.cosa_preparare.trim() || null,
+        modello_descrizione_evento: data.modello_descrizione_evento.trim() || null,
         mittente_nome: data.mittente_nome.trim() || null,
         mittente_email: data.mittente_email.trim().toLowerCase() || null,
         max_daily_km: maxDailyKm,
@@ -500,6 +502,7 @@ export default function MarketingCalendarsConfig() {
         messaggi_crm_dal: data.messaggi_crm_dal ?? null,
         firma_messaggi: data.firma_messaggi.trim() || null,
         cosa_preparare: data.cosa_preparare.trim() || null,
+        modello_descrizione_evento: data.modello_descrizione_evento.trim() || null,
         mittente_nome: data.mittente_nome.trim() || null,
         mittente_email: data.mittente_email.trim().toLowerCase() || null,
         max_daily_km: maxDailyKm,

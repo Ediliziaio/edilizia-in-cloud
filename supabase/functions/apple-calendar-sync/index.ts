@@ -239,7 +239,7 @@ async function pushEvent(userId: string, companyId: string, appointmentId: strin
     .select("id")
     .eq("appointment_id", appointmentId)
     .maybeSingle();
-  if (existing) return json({ error: "Già sincronizzato", mappingId: existing.id }, 409);
+  if (existing) return json({ alreadySynced: true, mappingId: existing.id });
 
   const uid = `apt-${apt.id}@ediliziacloud`;
   const icsData = buildICalendar(apt);
@@ -294,7 +294,8 @@ async function updateEvent(userId: string, companyId: string, appointmentId: str
   const effectiveUserId: string = mapping?.user_id ?? userId;
   const creds = await getConnectionWithCredentials(admin, effectiveUserId, companyId);
   if (!creds) return json({ error: "Apple Calendar non connesso" }, 404);
-  if (!mapping) return json({ error: "Nessuna mappatura trovata, usa push-event" }, 404);
+  // Mai arrivato su Apple (altro calendario, o creato prima del collegamento): niente da aggiornare.
+  if (!mapping) return json({ skipped: true, motivo: "Appuntamento non presente su Apple Calendar" });
 
   const { data: apt } = await admin
     .from("appointments")

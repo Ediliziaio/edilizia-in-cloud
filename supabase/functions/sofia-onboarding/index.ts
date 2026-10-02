@@ -61,6 +61,12 @@ Deno.serve(async (req: Request) => {
     const body = await req.json();
     const { run_id, workflow_key, company_id, payload } = body;
 
+    // Il cron delle 05:07 chiama con solo workflow_key = onboarding.daily_sweep: il giro
+    // giornaliero per tutte le aziende non esiste ancora. Prima rispondeva 400 ogni giorno
+    // e finiva nel registro errori; ora si dice chiaro che non è attivo (nessuna email parte).
+    if (workflow_key === "onboarding.daily_sweep" && !run_id && !company_id) {
+      return jsonResponse({ skipped: "sweep_non_attivo", reason: "Il giro giornaliero dell'onboarding non è ancora implementato." });
+    }
     if (!run_id || !workflow_key || !company_id) {
       return errorResponse("Missing run_id / workflow_key / company_id", 400);
     }

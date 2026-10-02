@@ -17,6 +17,7 @@ import { it } from "date-fns/locale";
 import type { HrProfilo, RichiestaTipo, RichiestaStato } from "@/types/hr";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { CercaConFiltri, KpiMobili, PannelloFiltri, PilloleFiltro } from "@/components/mobile/FiltriMobile";
+import { colleghiGiaAssenti, inizialiRichiedente, nomeRichiedente } from "@/lib/personale/richieste";
 
 const TIPO_LABELS: Record<RichiestaTipo, string> = {
   ferie: "Ferie",
@@ -87,7 +88,14 @@ export function TabRichieste() {
   // server → contatori sbagliati).
   const { data: richieste = [], isLoading, isError, error, refetch, isFetching } = useRichieste();
   const { data: profili = [] } = useAllHrProfili();
+  const aggiorna = useUpdateRichiestaStato();
   const loadingTimedOut = useLoadingTimeout(isLoading);
+  // Per chi approva: chi altro è già assente negli stessi giorni (solo per le richieste in attesa).
+  const giaAssenti = useMemo(() => {
+    const m = new Map<string, string[]>();
+    for (const r of richieste) if (r.stato === "in_attesa") m.set(r.id, colleghiGiaAssenti(r, richieste));
+    return m;
+  }, [richieste]);
 
   const filtered = useMemo(() => {
     let list = richieste;
@@ -95,7 +103,7 @@ export function TabRichieste() {
     if (searchText) {
       const s = searchText.toLowerCase();
       list = list.filter((r) => {
-        const nome = `${r.profilo?.nome ?? ""} ${r.profilo?.cognome ?? ""}`.toLowerCase();
+        const nome = nomeRichiedente(r).toLowerCase();
         return nome.includes(s) || TIPO_LABELS[r.tipo]?.toLowerCase().includes(s);
       });
     }
@@ -206,7 +214,15 @@ export function TabRichieste() {
       ) : (
         <div className="space-y-2 max-sm:space-y-0 max-sm:divide-y max-sm:divide-border max-sm:overflow-hidden max-sm:rounded-lg max-sm:border max-sm:bg-card">
           {filtered.map((r) => (
-            <RichiestaRow key={r.id} richiesta={r} onClick={() => setDetailReq(r)} />
+            <RichiestaRow
+              key={r.id}
+              richiesta={r}
+              onClick={() => setDetailReq(r)}
+              giaAssenti={giaAssenti.get(r.id) ?? []}
+              inCorso={aggiorna.isPending && aggiorna.variables?.id === r.id}
+              onApprova={() => aggiorna.mutate({ id: r.id, stato: "approvata" })}
+              onRifiuta={() => setDetailReq(r)}
+            />
           ))}
         </div>
       )}
@@ -269,7 +285,16 @@ function KpiCard({ title, value, icon: Icon, className }: { title: string; value
   );
 }
 
-function RichiestaRow({ richiesta: r, onClick }: { richiesta: RichiestaWithProfilo; onClick: () => void }) {
+export function RichiestaRow({
+  richiesta: r, onClick, giaAssenti = [], inCorso = false, onApprova, onRifiuta,
+}: {
+  richiesta: RichiestaWithProfilo;
+  onClick: () => void;
+  giaAssenti?: string[];
+  inCorso?: boolean;
+  onApprova?: () => void;
+  onRifiuta?: () => void;
+}) {
   const st = STATO_STYLE[r.stato] || STATO_STYLE.in_attesa;
   const Icon = st.icon;
   const days = differenceInCalendarDays(new Date(r.data_fine), new Date(r.data_inizio)) + 1;
@@ -284,16 +309,14 @@ function RichiestaRow({ richiesta: r, onClick }: { richiesta: RichiestaWithProfi
           className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 max-sm:hidden"
           style={{ backgroundColor: r.profilo?.colore_avatar || "hsl(var(--primary))" }}
         >
-          {(r.profilo?.nome?.[0] ?? "")}{(r.profilo?.cognome?.[0] ?? "")}
+          {inizialiRichiedente(r)}
         </div>
 
         {/* Info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className="font-medium text-sm truncate max-sm:text-[13px] max-sm:font-semibold max-sm:leading-tight">
-              {r.profilo?.nome} {r.profilo?.cognome}
-              {/* Mobile: senza profilo collegato la riga resterebbe senza titolo. */}
-              {!r.profilo && <span className="sm:hidden">Dipendente non trovato</span>}
+              {nomeRichiedente(r)}
             </span>
             <Badge variant="outline" className="text-xs max-sm:hidden">{TIPO_LABELS[r.tipo] || r.tipo}</Badge>
           </div>
@@ -303,7 +326,27 @@ function RichiestaRow({ richiesta: r, onClick }: { richiesta: RichiestaWithProfi
             {" · "}{days} {days === 1 ? "giorno" : "giorni"}
             {r.ore_richieste ? ` · ${r.ore_richieste}h` : ""}
           </p>
+          {/* Chi approva vede subito se gli stessi giorni sono già coperti da altri. */}
+          {r.stato === "in_attesa" && giaAssenti.length > 0 && (
+            <p className="mt-0.5 flex items-center gap-1 text-[11px] text-amber-700 max-sm:hidden" title={giaAssenti.join(", ")}>
+              <AlertCircle className="h-3 w-3 shrink-0" />
+              {giaAssenti.length === 1 ? `${giaAssenti[0]} è già assente` : `${giaAssenti.length} colleghi già assenti`} in quei giorni
+            </p>
+          )}
         </div>
+
+        {/* Approva / rifiuta senza aprire la scheda (solo in attesa, solo desktop). */}
+        {r.stato === "in_attesa" && onApprova && onRifiuta && (
+          <div className="flex shrink-0 items-center gap-1.5 max-sm:hidden" onClick={(e) => e.stopPropagation()}>
+            <Button size="sm" variant="outline" className="h-8 gap-1 text-red-600 hover:text-red-700" onClick={onRifiuta} disabled={inCorso}>
+              <XCircle className="h-3.5 w-3.5" /> Rifiuta
+            </Button>
+            <Button size="sm" className="h-8 gap-1" onClick={onApprova} disabled={inCorso || !r.profilo_id}
+              title={!r.profilo_id ? "La richiesta non è collegata a un profilo HR: non si può approvare finché non lo è" : undefined}>
+              <CheckCircle2 className="h-3.5 w-3.5" /> Approva
+            </Button>
+          </div>
+        )}
 
         {/* Status badge */}
         <Badge className={`${st.bg} ${st.text} gap-1 max-sm:hidden`}>
@@ -482,9 +525,9 @@ function DettaglioRichiestaDialog({ richiesta: r, open, onClose }: { richiesta: 
       <DialogContent className="max-w-md">
         {/* Mobile: chi e che cosa nel titolo, senza la descrizione sotto. */}
         <DialogHeader>
-          <DialogTitle>{isMobile ? `${r.profilo?.nome ?? ""} ${r.profilo?.cognome ?? ""} — ${TIPO_LABELS[r.tipo] || r.tipo}` : "Dettaglio Richiesta"}</DialogTitle>
+          <DialogTitle>{isMobile ? `${nomeRichiedente(r)} — ${TIPO_LABELS[r.tipo] || r.tipo}` : "Dettaglio Richiesta"}</DialogTitle>
           <DialogDescription className="max-sm:sr-only">
-            {r.profilo?.nome} {r.profilo?.cognome} — {TIPO_LABELS[r.tipo] || r.tipo}
+            {nomeRichiedente(r)} — {TIPO_LABELS[r.tipo] || r.tipo}
           </DialogDescription>
         </DialogHeader>
 
