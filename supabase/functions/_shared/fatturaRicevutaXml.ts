@@ -68,7 +68,44 @@ const due = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
  * leggibile (manca l'intestazione, il corpo o il fornitore): mai un oggetto a
  * metà, che diventerebbe un costo sbagliato in contabilità.
  */
+/**
+ * Toglie i prefissi di namespace dai nomi degli elementi (`p:Numero`,
+ * `ns3:Data` → `Numero`, `Data`). Nello schema FatturaPA i figli non hanno
+ * prefisso e basta il nome, ma alcuni programmi di fatturazione lo scrivono su
+ * ogni elemento: con `getElementsByTagName("Numero")` quei file risultavano
+ * senza numero, data e fornitore. Gli attributi (xmlns:p, xsi:…) non si toccano.
+ */
+export function senzaPrefissi(xml: string): string {
+  return xml.replace(/<(\/?)[A-Za-z_][\w.-]*:(?=[A-Za-z_])/g, "<$1");
+}
+
+/**
+ * Perché un file non è una fattura leggibile, in una riga per il registro degli
+ * errori (sdi_log): il messaggio generico non dice quale pezzo manca.
+ */
+export function motivoNonLeggibile(xml: string, parser: LettoreXml): string {
+  const pulito = senzaPrefissi(xml);
+  let doc: DocumentoXml | null;
+  try {
+    doc = parser.parseFromString(pulito, "text/xml");
+  } catch (e) {
+    return `XML non interpretabile (${e instanceof Error ? e.message : "errore"})`;
+  }
+  if (!doc) return "XML vuoto";
+  if (doc.getElementsByTagName("parsererror").length > 0) return "XML malformato";
+  const inizio = pulito.replace(/<\?xml[^>]*\?>/i, "").trim().slice(0, 80).replace(/\s+/g, " ");
+  if (doc.getElementsByTagName("FatturaElettronicaHeader").length === 0) return `manca FatturaElettronicaHeader (il file inizia con: ${inizio})`;
+  const corpi = doc.getElementsByTagName("FatturaElettronicaBody");
+  if (corpi.length === 0) return "manca FatturaElettronicaBody";
+  if (doc.getElementsByTagName("CedentePrestatore").length === 0) return "manca CedentePrestatore";
+  const dgd = primo(corpi[0], "DatiGeneraliDocumento");
+  if (!dgd) return "manca DatiGeneraliDocumento";
+  if (!testo(dgd, "Numero")) return "manca il Numero della fattura";
+  return `data non valida: «${testo(dgd, "Data")}»`;
+}
+
 export function leggiFatturaRicevuta(xml: string, parser: LettoreXml): FatturaRicevutaLetta | null {
+  xml = senzaPrefissi(xml);
   let doc: DocumentoXml | null;
   try {
     doc = parser.parseFromString(xml, "text/xml");

@@ -2,7 +2,7 @@
 // (caricamento a mano) e openapi-fatture-ricevute (importazione automatica),
 // provato col DOM di jsdom come fatturapaReader.
 import { describe, it, expect } from "vitest";
-import { leggiFatturaRicevuta } from "../../../supabase/functions/_shared/fatturaRicevutaXml";
+import { leggiFatturaRicevuta, motivoNonLeggibile, senzaPrefissi } from "../../../supabase/functions/_shared/fatturaRicevutaXml";
 import type { LettoreXml } from "../../../supabase/functions/_shared/fatturapaReader";
 
 const parser = new DOMParser() as unknown as LettoreXml;
@@ -125,5 +125,40 @@ describe("leggiFatturaRicevuta", () => {
     expect(leggiFatturaRicevuta(senzaNumero, parser)).toBeNull();
     const dataStorta = fattura(cedenteSocieta, corpo("9", "05/05/2026", "", riepilogo("22.00", "1.00", "0.22")));
     expect(leggiFatturaRicevuta(dataStorta, parser)).toBeNull();
+  });
+});
+
+
+describe("fatture con il prefisso di namespace su ogni elemento", () => {
+  const base = fattura(cedenteSocieta, corpo("88/B", "2026-09-30",
+    riga(1, "Porta interna", "1", "500.00", "500.00"), riepilogo("22.00", "500.00", "110.00"), "610.00"));
+  // Come la scrivono alcuni programmi: ns3:/p: davanti a ogni elemento.
+  const conPrefissi = base.replace(/<(\/?)(?!p:)([A-Za-z])/g, "<$1ns3:$2").replace("<ns3:?xml", "<?xml");
+
+  it("senzaPrefissi toglie il prefisso dagli elementi e lascia gli attributi", () => {
+    expect(senzaPrefissi('<ns3:Numero a:b="1">x</ns3:Numero>')).toBe('<Numero a:b="1">x</Numero>');
+    expect(senzaPrefissi('<?xml version="1.0"?><p:Root xmlns:p="u"/>')).toBe('<?xml version="1.0"?><Root xmlns:p="u"/>');
+  });
+
+  it("si legge come la stessa fattura senza prefissi", () => {
+    expect(conPrefissi).toContain("<ns3:Numero>");
+    const a = leggiFatturaRicevuta(base, parser)!;
+    const b = leggiFatturaRicevuta(conPrefissi, parser)!;
+    expect(b).not.toBeNull();
+    expect(b.numero_fattura).toBe("88/B");
+    expect(b.cedente_ragione_sociale).toBe(a.cedente_ragione_sociale);
+    expect(b.totale_documento).toBe(610);
+  });
+});
+
+describe("motivoNonLeggibile", () => {
+  it("dice quale pezzo manca", () => {
+    expect(motivoNonLeggibile("<a/>", parser)).toMatch(/manca FatturaElettronicaHeader/);
+    expect(motivoNonLeggibile("<FatturaElettronica><FatturaElettronicaHeader/></FatturaElettronica>", parser)).toBe("manca FatturaElettronicaBody");
+    const senzaCedente = "<F><FatturaElettronicaHeader/><FatturaElettronicaBody/></F>";
+    expect(motivoNonLeggibile(senzaCedente, parser)).toBe("manca CedentePrestatore");
+    const senzaNumero = "<F><FatturaElettronicaHeader><CedentePrestatore/></FatturaElettronicaHeader><FatturaElettronicaBody><DatiGenerali><DatiGeneraliDocumento><Data>2026-01-01</Data></DatiGeneraliDocumento></DatiGenerali></FatturaElettronicaBody></F>";
+    expect(motivoNonLeggibile(senzaNumero, parser)).toBe("manca il Numero della fattura");
+    expect(motivoNonLeggibile(senzaNumero.replace("<Data>", "<Numero>1</Numero><Data>").replace("2026-01-01", "01/01/2026"), parser)).toMatch(/data non valida/);
   });
 });

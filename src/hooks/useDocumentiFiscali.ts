@@ -350,7 +350,7 @@ export function useCreateDocumento() {
       const { data: creato, error: rpcError } = await supabase.rpc("documento_crea", {
         p_company_id: companyId,
         p_dati: input as never,
-      }) as { data: { id?: string } | null; error: { message?: string } | null };
+      }) as { data: { id?: string; numero?: string; riutilizzata?: boolean } | null; error: { message?: string } | null };
 
       if (rpcError) throw new Error(rpcError.message ?? "Creazione documento non riuscita");
       if (!creato?.id) throw new Error("Il documento non e' stato creato");
@@ -362,11 +362,16 @@ export function useCreateDocumento() {
         .single();
 
       if (error) throw error;
-      return mapRow(data as Record<string, unknown>);
+      // «Nuovo documento» riprende la bozza senza cliente già iniziata invece di
+      // aprirne un'altra (e bruciare un numero): lo si dice, non è «creato».
+      return Object.assign(mapRow(data as Record<string, unknown>), {
+        riutilizzata: creato.riutilizzata === true,
+      });
     },
-    onSuccess: () => {
+    onSuccess: (doc) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.documentiFiscali.all });
-      toast.success("Documento creato");
+      if (doc.riutilizzata) toast.info(`Ripresa la bozza ${doc.numero} non ancora completata`);
+      else toast.success("Documento creato");
     },
     onError: (err: Error) => {
       toast.error("Errore nella creazione", { description: err.message });
@@ -421,13 +426,14 @@ export function useDeleteDocumento() {
     mutationFn: async (id: string) => {
       const { data: doc, error: fetchErr } = await supabase
         .from("documenti_fiscali" as never)
-        .select("stato")
+        .select("stato, tipo")
         .eq("id", id)
         .eq("company_id", companyId!)
         .single();
 
       if (fetchErr) throw fetchErr;
       const stato = (doc as Record<string, unknown>)?.stato as string | undefined;
+      const tipo = (doc as Record<string, unknown>)?.tipo as string | undefined;
 
       if (!stato) throw new Error("Documento non trovato");
 
@@ -435,6 +441,19 @@ export function useDeleteDocumento() {
         throw new Error(
           "I documenti emessi non possono essere eliminati. Emetti una nota di credito per stornare la fattura."
         );
+      }
+
+      // Bozza di un documento fiscale: il numero va restituito alla serie, se no
+      // la fattura dopo salta un numero. Lo fa il database (documento_elimina_bozza):
+      // la bozza va nel cestino con un segnaposto al posto del numero e il
+      // contatore torna al più alto ancora in uso.
+      if (stato === "bozza" && tipo && ["fattura", "fattura_pa", "nota_credito", "nota_debito", "autofattura", "fattura_riepilogativa"].includes(tipo)) {
+        const { error: rpcErr } = await (supabase.rpc.bind(supabase) as unknown as (
+          fn: string,
+          args: Record<string, unknown>,
+        ) => Promise<{ error: { message: string } | null }>)("documento_elimina_bozza", { p_documento_id: id });
+        if (rpcErr) throw new Error(rpcErr.message);
+        return;
       }
 
       // Soft delete: annul + mark as deleted (hidden from all views)

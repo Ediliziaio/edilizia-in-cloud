@@ -32,7 +32,7 @@ import { chiamataInternaValida, rispostaNonAutorizzata } from "../_shared/chiama
 import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
 import { leggiImpostazionePiattaforma } from "../_shared/getPlatformSetting.ts";
 import type { LettoreXml } from "../_shared/fatturapaReader.ts";
-import { leggiFatturaRicevuta } from "../_shared/fatturaRicevutaXml.ts";
+import { leggiFatturaRicevuta, motivoNonLeggibile } from "../_shared/fatturaRicevutaXml.ts";
 import { avvisaFatturaRicevuta, salvaFatturaRicevuta } from "../_shared/salvaFatturaRicevuta.ts";
 import {
   allegatoFattura,
@@ -184,7 +184,7 @@ async function importaUna(acc: Accesso, cfg: Config, id: string, giaLetta?: unkn
   const xml = xmlDaFile(file);
   if (!xml) return { esito: "errore", motivo: `il file (${file.length} byte) non contiene una fattura leggibile` };
   const letta = leggiFatturaRicevuta(xml, new DOMParser() as unknown as LettoreXml);
-  if (!letta) return { esito: "errore", motivo: "fattura senza fornitore, numero o data" };
+  if (!letta) return { esito: "errore", motivo: `fattura senza fornitore, numero o data: ${motivoNonLeggibile(xml, new DOMParser() as unknown as LettoreXml)}` };
 
   const idSdi = identificativoSdi(fattura);
   const salvata = await salvaFatturaRicevuta(supabase, {
