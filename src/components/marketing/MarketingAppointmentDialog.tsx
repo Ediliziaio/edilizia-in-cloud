@@ -32,6 +32,7 @@ import { useGoogleCalendarSync } from "@/hooks/useGoogleCalendarSync";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useAppleCalendarSync } from "@/hooks/useAppleCalendarSync";
 import { queryKeys } from "@/lib/queryKeys";
+import { testoNotaPerRegistro } from "@/lib/appuntamenti/notaInternaNelRegistro";
 import {
   MARKETING_APPOINTMENT_STATUS_OPTIONS,
   getMarketingAppointmentStatusMeta,
@@ -718,6 +719,32 @@ export default function MarketingAppointmentDialog({
 
       // Sync address to contact
       const effectiveContactId = !isBlocked && contactId && contactId !== "none" ? contactId : null;
+
+      // La nota interna sta sull'appuntamento, ma chi apre la scheda del cliente
+      // cerca negli «Appunti»: la nota nuova o cambiata va riportata anche lì.
+      const testoNota = effectiveContactId
+        ? testoNotaPerRegistro({
+            titolo: title,
+            data: format(appointmentDate, "yyyy-MM-dd"),
+            ora: startTime,
+            nota: internalNotes,
+            notaPrecedente: appointment?.internal_notes,
+          })
+        : null;
+      if (effectiveContactId && testoNota) {
+        const { error: notaError } = await supabase.from("marketing_contact_notes").insert({
+          contact_id: effectiveContactId,
+          opportunity_id: appointment?.opportunity_id ?? selectedOpportunity?.id ?? null,
+          company_id: companyId!,
+          content: testoNota,
+          created_by: user.id,
+        });
+        if (notaError) console.warn("[appuntamento] nota non riportata negli appunti", notaError.message);
+        else {
+          void queryClient.invalidateQueries({ queryKey: queryKeys.marketingContacts.all });
+          void queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
+        }
+      }
       if (effectiveContactId && addressData.address_line) {
         await supabase
           .from("marketing_contacts")
