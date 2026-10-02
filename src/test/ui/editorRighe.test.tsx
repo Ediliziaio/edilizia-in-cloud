@@ -33,17 +33,34 @@ describe("riga dell'editor come in Fatture in Cloud", () => {
     expect(screen.getByTestId("righe").textContent).toContain("Infissi");
   });
 
-  it("beni significativi: dal popover nascono le righe al 10% e al 22%", () => {
+  it("beni significativi, dal valore dei beni: nascono le righe al 10% e al 22%", () => {
     render(<Harness />);
     fireEvent.click(screen.getByText(/Beni significativi/));
-    fireEvent.change(screen.getByPlaceholderText("es. Sostituzione caldaia"), { target: { value: "Sostituzione caldaia" } });
+    fireEvent.click(screen.getByText("Ho il valore dei beni"));
     fireEvent.change(screen.getByPlaceholderText("es. Caldaia a condensazione 25 kW"), { target: { value: "Caldaia 25 kW" } });
     fireEvent.change(screen.getByPlaceholderText("2.000,00"), { target: { value: "2000" } });
     fireEvent.change(screen.getByPlaceholderText("800,00"), { target: { value: "800" } });
     fireEvent.click(screen.getByText("Aggiungi le righe"));
-    const aliquote = JSON.parse(screen.getByTestId("righe").textContent ?? "[]").map((r: unknown[]) => r[1]);
+    const righe = JSON.parse(screen.getByTestId("righe").textContent ?? "[]") as unknown[][];
+    const aliquote = righe.map((r) => r[1]);
     expect(aliquote).toContain("10");
     expect(aliquote).toContain("22");
+    // Le altre prestazioni scritte nel popover diventano una riga vera.
+    expect(righe.map((r) => r[0])).toContain("Manodopera e altre prestazioni");
+  });
+
+  it("beni significativi, dal prezzo concordato: il totale della fattura torna al centesimo (FPR 73/26)", () => {
+    render(<Harness />);
+    fireEvent.click(screen.getByText(/Beni significativi/));
+    fireEvent.change(screen.getByPlaceholderText("es. Caldaia a condensazione 25 kW"), { target: { value: "16 infissi + 1 portoncino" } });
+    fireEvent.change(screen.getByPlaceholderText("27.500,00"), { target: { value: "27500" } });
+    fireEvent.change(screen.getByPlaceholderText("800,00"), { target: { value: "11120" } });
+    expect(screen.getByText("Valore dei beni significativi").parentElement?.textContent).toContain("13.608,52");
+    expect(screen.queryByText(/non torna esatto/)).toBeNull();
+    fireEvent.click(screen.getByText("Aggiungi le righe"));
+    const righe = JSON.parse(screen.getByTestId("righe").textContent ?? "[]") as unknown[][];
+    expect(righe.map((r) => r[0])).toContain("valore bene significativo (dm 29/12/1999) 13608.52");
+    expect(righe.map((r) => r[0])).toContain("16 infissi + 1 portoncino — quota residua beni significativi");
   });
 });
 
