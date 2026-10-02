@@ -106,7 +106,7 @@ export default function SilvioAdminPage() {
       {/* HEADER — stesso stile arancione di Silvio cliente */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3">
-          <div className="h-12 w-12 rounded-full bg-gradient-to-br from-orange-500 via-orange-500 to-amber-400 flex items-center justify-center text-white shrink-0 ring-1 ring-orange-300/40 shadow-sm shadow-orange-300/30">
+          <div className="h-12 w-12 rounded-full bg-gradient-to-br from-orange-500 via-orange-500 to-eic-amber flex items-center justify-center text-white shrink-0 ring-1 ring-orange-300/40 shadow-sm shadow-orange-300/30">
             <Sparkles className="h-6 w-6" />
           </div>
           <div>

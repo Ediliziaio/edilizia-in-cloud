@@ -108,7 +108,7 @@ export function linkifyNormative(text: string | undefined, seen: Set<string>): R
             target="_blank"
             rel="noopener noreferrer"
             title={fonte.title}
-            className="text-[#F97415] font-medium underline decoration-[#F97415]/40 underline-offset-2 hover:decoration-[#F97415]"
+            className="text-eic-orange font-medium underline decoration-eic-orange/40 underline-offset-2 hover:decoration-eic-orange"
           >
             {part}
           </a>

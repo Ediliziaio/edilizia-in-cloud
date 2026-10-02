@@ -154,7 +154,7 @@ function RigaDipendente({ d }: { d: DipendenteMese }) {
       >
         {/* Nome + qualifica */}
         <div className="col-span-2 flex min-w-0 items-center gap-2.5 sm:col-span-1">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 to-amber-400 text-sm font-semibold text-white">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 to-eic-amber text-sm font-semibold text-white">
             {d.nome
               .split(" ")
               .map((p) => p[0])
@@ -519,11 +519,11 @@ export function PersonnelCostsTab({
 
       {/* Testata navy di famiglia (stessa delle Spese fisse/variabili). */}
       <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
-        <div className="bg-[#173b67] p-4 text-white sm:p-5">
+        <div className="bg-eic-navy-deep p-4 text-white sm:p-5">
           {/* Da 640 niente titoletto «Personale — Le persone: ore vere, costo
               vero»: la linguetta aperta dice già dove sei. */}
           <div className="flex items-start gap-3 sm:hidden">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)] sm:h-11 sm:w-11">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)] sm:h-11 sm:w-11">
               <HardHat className="h-4 w-4 sm:h-5 sm:w-5" />
             </div>
             <div className="min-w-0">

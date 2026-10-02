@@ -117,7 +117,7 @@ export default function CommercialistaLogin() {
             </p>
           </div>
           <Button
-            className="mt-6 w-full bg-[#F97415] text-white hover:bg-[#ea6506]"
+            className="mt-6 w-full bg-eic-orange text-white hover:bg-[#ea6506]"
             onClick={async () => {
               await signOut();
             }}

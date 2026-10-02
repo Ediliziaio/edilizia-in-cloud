@@ -16,7 +16,7 @@ const config: PerTipoConfig = {
   heroTitle: (
     <>
       <span className="text-white">Gestionale per cartongessisti: i metri quadri li posi tu, i conti li fa lui.</span>{" "}
-      <span className="text-[#F97415]">Preventivi al mq e squadre su più cantieri, senza fogli.</span>
+      <span className="text-eic-orange">Preventivi al mq e squadre su più cantieri, senza fogli.</span>
     </>
   ),
   heroSubtitle:
@@ -25,9 +25,9 @@ const config: PerTipoConfig = {
 
   // Social proof
   socialProof: [
-    { initials: "CG", name: "Cartongessi Greco", city: "Bari", months: 12, gradient: "from-[#111111] to-[#F97415]" },
+    { initials: "CG", name: "Cartongessi Greco", city: "Bari", months: 12, gradient: "from-[#111111] to-eic-orange" },
     { initials: "OS", name: "Opere a Secco Martini", city: "Rimini", months: 8, gradient: "from-[#0d8f79] to-[#111111]" },
-    { initials: "IC", name: "Interni Costa", city: "Genova", months: 15, gradient: "from-[#F97415] to-[#c45a0c]" },
+    { initials: "IC", name: "Interni Costa", city: "Genova", months: 15, gradient: "from-eic-orange to-[#c45a0c]" },
     { initials: "DP", name: "DP Controsoffitti", city: "Catania", months: 10, gradient: "from-[#1a1a2e] to-[#0d8f79]" },
   ],
 
@@ -245,7 +245,7 @@ const config: PerTipoConfig = {
     person: "Nicola Greco",
     role: "Titolare",
     initials: "NG",
-    gradient: "from-[#111111] to-[#F97415]",
+    gradient: "from-[#111111] to-eic-orange",
     quote:
       "Ho due squadre e in stagione arriviamo a cinque cantieri aperti insieme. Prima passavo le mattine a fare il giro per vedere a che punto erano, e la sera facevo i preventivi. I SAL li segnavo sull'agenda: qualcuno partiva in ritardo di settimane. Adesso il preventivo al mq lo chiudo in dieci minuti con le mie lavorazioni, le squadre timbrano e caricano le foto, e lo scadenzario mi dice cosa incassare questa settimana. Ho smesso di fare il controllore e ho ripreso a fare l'imprenditore.",
     metrics: [
@@ -326,7 +326,7 @@ const config: PerTipoConfig = {
   ctaTitle: (
     <>
       <span className="text-white">Tu pensa a montare.</span>{" "}
-      <span className="text-[#F97415]">Ai conti al mq pensa il gestionale.</span>
+      <span className="text-eic-orange">Ai conti al mq pensa il gestionale.</span>
     </>
   ),
   ctaSubtitle:

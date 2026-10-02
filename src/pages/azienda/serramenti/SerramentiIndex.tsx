@@ -452,7 +452,7 @@ export default function SerramentiIndex() {
             </Button>
             <Button
               onClick={() => navigate("/azienda/serramenti/nuovo")}
-              className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 text-white shadow-lg border-0 flex-1 sm:flex-initial h-10 sm:h-11 text-xs sm:text-sm max-sm:flex-none max-sm:h-9 max-sm:px-3"
+              className="bg-gradient-to-br from-orange-500 to-eic-amber hover:from-orange-600 hover:to-amber-500 text-white shadow-lg border-0 flex-1 sm:flex-initial h-10 sm:h-11 text-xs sm:text-sm max-sm:flex-none max-sm:h-9 max-sm:px-3"
             >
               <Plus className="h-4 w-4 mr-1.5" />
               <span className="sm:hidden">Nuovo</span>
@@ -1043,7 +1043,7 @@ export default function SerramentiIndex() {
                 <div className="grid grid-cols-2 gap-2">
                   {[
                     { value: "all", label: "Tutti", tone: "" },
-                    { value: "aperti", label: "Aperti", tone: "border-[#173b67] text-[#173b67] bg-blue-50" },
+                    { value: "aperti", label: "Aperti", tone: "border-eic-navy-deep text-eic-navy-deep bg-blue-50" },
                     { value: "vinti", label: "Vinti", tone: "border-orange-500 text-orange-600 bg-orange-50" },
                     { value: "persi", label: "Persi", tone: "border-rose-400 text-rose-700 bg-rose-50" },
                   ].map((g) => (
@@ -1277,7 +1277,7 @@ type KpiTone = "slate" | "navy" | "orange" | "rose" | "emerald";
 
 const TONE_CLASS: Record<KpiTone, { border: string; iconBg: string; iconText: string; valueText: string }> = {
   slate:   { border: "border-l-slate-400",         iconBg: "bg-slate-100",         iconText: "text-slate-600",         valueText: "text-slate-900" },
-  navy:    { border: "border-l-[#173b67]",         iconBg: "bg-blue-50",           iconText: "text-[#173b67]",         valueText: "text-[#173b67]" },
+  navy:    { border: "border-l-eic-navy-deep",         iconBg: "bg-blue-50",           iconText: "text-eic-navy-deep",         valueText: "text-eic-navy-deep" },
   orange:  { border: "border-l-orange-500",        iconBg: "bg-orange-100",        iconText: "text-orange-600",        valueText: "text-orange-600" },
   rose:    { border: "border-l-rose-400",          iconBg: "bg-rose-100",          iconText: "text-rose-600",          valueText: "text-rose-700" },
   emerald: { border: "border-l-emerald-500",       iconBg: "bg-emerald-100",       iconText: "text-emerald-600",       valueText: "text-emerald-700" },

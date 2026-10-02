@@ -215,12 +215,12 @@ export default function Formazione() {
         <div className="absolute top-0 right-0 w-[500px] h-[500px] rounded-full blur-[150px] pointer-events-none" style={{ background: "radial-gradient(circle, rgba(249,116,21,0.18) 0%, transparent 65%)" }} />
         <div ref={heroAnim.ref as React.RefObject<HTMLDivElement>} className="relative z-10 max-w-4xl mx-auto px-6 text-center">
           <div className={`transition-all duration-700 ${heroAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
-            <span className="inline-flex items-center gap-2 mb-6 px-4 py-2 rounded-full border border-[#F97415]/40 bg-[#F97415]/10 text-[#F97415] text-xs font-bold uppercase tracking-widest">
+            <span className="inline-flex items-center gap-2 mb-6 px-4 py-2 rounded-full border border-eic-orange/40 bg-eic-orange/10 text-eic-orange text-xs font-bold uppercase tracking-widest">
               <BookOpen size={12} /> EiC Academy
             </span>
             <h1 className="text-3xl sm:text-5xl font-extrabold text-white mb-4 leading-tight">
               Impara a usarlo.<br />
-              <span className="text-[#F97415]">Inizia a guadagnare di più.</span>
+              <span className="text-eic-orange">Inizia a guadagnare di più.</span>
             </h1>
             <p className="text-white/60 text-lg max-w-2xl mx-auto mb-8">
               Chi padroneggia il gestionale guadagna in media il 23% in più per cantiere.
@@ -234,11 +234,11 @@ export default function Formazione() {
                 { Icon: MessageCircle, label: "Supporto 1:1" },
               ].map(({ Icon, label }, i) => (
                 <span key={i} className="flex items-center gap-2 text-white/60 text-sm">
-                  <Icon size={14} className="text-[#F97415]" />{label}
+                  <Icon size={14} className="text-eic-orange" />{label}
                 </span>
               ))}
             </div>
-            <p className="text-[#F97415] text-sm font-bold">
+            <p className="text-eic-orange text-sm font-bold">
               ✓ Tutto incluso nel tuo piano — nessun costo aggiuntivo
             </p>
           </div>
@@ -249,7 +249,7 @@ export default function Formazione() {
       <section className="py-16 md:py-24 bg-white">
         <div className="max-w-6xl mx-auto px-6">
           <div className="text-center mb-12">
-            <span className="inline-block mb-3 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest text-[#F97415] bg-[#F97415]/10 border border-[#F97415]/20">
+            <span className="inline-block mb-3 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest text-eic-orange bg-eic-orange/10 border border-eic-orange/20">
               Da dove vuoi partire?
             </span>
             <h2 className="text-2xl md:text-4xl font-extrabold text-[#111111] mb-3">Scegli il tuo percorso</h2>
@@ -259,7 +259,7 @@ export default function Formazione() {
           </div>
           <div className="grid md:grid-cols-3 gap-6">
             {learningPaths.map((path, i) => (
-              <div key={i} className="rounded-2xl border-2 border-gray-200 hover:border-[#F97415]/40 hover:shadow-lg transition-all duration-300 overflow-hidden group">
+              <div key={i} className="rounded-2xl border-2 border-gray-200 hover:border-eic-orange/40 hover:shadow-lg transition-all duration-300 overflow-hidden group">
                 <div className="bg-[#f8f9fa] p-6 border-b border-gray-200">
                   <div className="text-4xl mb-3">{path.icon}</div>
                   <div className="flex items-center gap-2 mb-2">
@@ -273,14 +273,14 @@ export default function Formazione() {
                   <ul className="space-y-2 mb-5">
                     {path.steps.map((step, j) => (
                       <li key={j} className="flex items-start gap-2 text-sm text-gray-600">
-                        <span className="text-[#F97415] mt-0.5 flex-shrink-0">✓</span>
+                        <span className="text-eic-orange mt-0.5 flex-shrink-0">✓</span>
                         {step}
                       </li>
                     ))}
                   </ul>
                   <div className="mt-auto pt-4 border-t border-gray-100">
                     <p className="text-[#111111] font-bold text-sm mb-3">🎯 {path.result}</p>
-                    <Link to="/demo/" className="block text-center px-4 py-2.5 rounded-xl bg-[#111111] text-white text-sm font-bold hover:bg-[#F97415] transition-colors">
+                    <Link to="/demo/" className="block text-center px-4 py-2.5 rounded-xl bg-[#111111] text-white text-sm font-bold hover:bg-eic-orange transition-colors">
                       {path.cta}
                     </Link>
                   </div>
@@ -295,24 +295,24 @@ export default function Formazione() {
       <section className="py-16 md:py-24 bg-[#f8f9fa]">
         <div ref={guidesAnim.ref as React.RefObject<HTMLDivElement>} className="max-w-6xl mx-auto px-6">
           <div className={`text-center mb-12 transition-all duration-700 ${guidesAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
-            <span className="inline-block mb-3 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest text-[#F97415] bg-[#F97415]/10 border border-[#F97415]/20">Guide Pratiche</span>
+            <span className="inline-block mb-3 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest text-eic-orange bg-eic-orange/10 border border-eic-orange/20">Guide Pratiche</span>
             <h2 className="text-2xl md:text-4xl font-extrabold text-[#111111]">Leggi. Applica subito. Vedi i risultati.</h2>
             <p className="text-gray-500 text-lg mt-2">Ogni guida finisce con qualcosa che puoi fare entro 30 minuti.</p>
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {guides.map((g, i) => (
               <div key={i}
-                className={`p-6 rounded-2xl border border-gray-200 bg-white hover:border-[#F97415]/40 hover:shadow-md transition-all duration-500 group cursor-pointer flex flex-col ${guidesAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}
+                className={`p-6 rounded-2xl border border-gray-200 bg-white hover:border-eic-orange/40 hover:shadow-md transition-all duration-500 group cursor-pointer flex flex-col ${guidesAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}
                 style={{ transitionDelay: `${100 + i * 80}ms` }}>
-                <span className="inline-block mb-3 px-2 py-0.5 bg-[#F97415]/10 text-[#F97415] text-xs font-bold rounded">{g.category}</span>
-                <h3 className="font-bold text-[#111111] text-base mb-2 group-hover:text-[#F97415] transition-colors flex-1">{g.title}</h3>
+                <span className="inline-block mb-3 px-2 py-0.5 bg-eic-orange/10 text-eic-orange text-xs font-bold rounded">{g.category}</span>
+                <h3 className="font-bold text-[#111111] text-base mb-2 group-hover:text-eic-orange transition-colors flex-1">{g.title}</h3>
                 <p className="text-gray-500 text-sm leading-relaxed mb-4">{g.desc}</p>
                 <div className="pt-4 border-t border-gray-100">
                   <div className="flex items-center justify-between mb-2">
                     <span className="flex items-center gap-1.5 text-gray-400 text-xs"><Clock size={12} />{g.readTime}</span>
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${g.level === "Principiante" ? "bg-green-50 text-green-700" : "bg-blue-50 text-blue-700"}`}>{g.level}</span>
                   </div>
-                  <p className="text-[#F97415] text-xs font-bold">🎯 {g.result}</p>
+                  <p className="text-eic-orange text-xs font-bold">🎯 {g.result}</p>
                 </div>
               </div>
             ))}
@@ -324,25 +324,25 @@ export default function Formazione() {
       <section className="py-16 md:py-24 bg-white">
         <div ref={videosAnim.ref as React.RefObject<HTMLDivElement>} className="max-w-6xl mx-auto px-6">
           <div className={`text-center mb-12 transition-all duration-700 ${videosAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
-            <span className="inline-block mb-3 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest text-[#F97415] bg-[#F97415]/10 border border-[#F97415]/20">Video Tutorial</span>
+            <span className="inline-block mb-3 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest text-eic-orange bg-eic-orange/10 border border-eic-orange/20">Video Tutorial</span>
             <h2 className="text-2xl md:text-4xl font-extrabold text-[#111111]">Guarda. Replica subito.</h2>
             <p className="text-gray-500 text-lg mt-2">Niente teoria. Solo schermo condiviso — vedi esattamente cosa fare, clic per clic.</p>
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {videos.map((v, i) => (
               <Link key={i} to="/demo/"
-                className={`group block rounded-2xl overflow-hidden border border-gray-200 hover:border-[#F97415]/40 hover:shadow-md transition-all duration-500 ${videosAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}
+                className={`group block rounded-2xl overflow-hidden border border-gray-200 hover:border-eic-orange/40 hover:shadow-md transition-all duration-500 ${videosAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}
                 style={{ transitionDelay: `${100 + i * 80}ms` }}>
                 <div className="relative bg-[#111111] h-36 flex items-center justify-center">
-                  <div className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-[#F97415] group-hover:scale-110 transition-all duration-300">
+                  <div className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-eic-orange group-hover:scale-110 transition-all duration-300">
                     <Play size={20} className="text-white ml-1" fill="currentColor" />
                   </div>
                   <span className="absolute bottom-3 right-3 px-2 py-0.5 bg-black/60 text-white text-xs rounded">{v.duration}</span>
-                  <span className="absolute top-3 left-3 px-2 py-0.5 bg-[#F97415]/80 text-white text-xs font-bold rounded">{v.category}</span>
+                  <span className="absolute top-3 left-3 px-2 py-0.5 bg-eic-orange/80 text-white text-xs font-bold rounded">{v.category}</span>
                 </div>
                 <div className="p-4 bg-white">
-                  <p className="font-semibold text-[#111111] text-sm group-hover:text-[#F97415] transition-colors mb-1">{v.title}</p>
-                  <p className="text-[#F97415] text-xs font-bold">🎯 {v.result}</p>
+                  <p className="font-semibold text-[#111111] text-sm group-hover:text-eic-orange transition-colors mb-1">{v.title}</p>
+                  <p className="text-eic-orange text-xs font-bold">🎯 {v.result}</p>
                 </div>
               </Link>
             ))}
@@ -356,12 +356,12 @@ export default function Formazione() {
         <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse 70% 50% at 50% 50%, rgba(249,116,21,0.09) 0%, transparent 100%)" }} />
         <div className="relative z-10 max-w-5xl mx-auto px-6">
           <div className="text-center mb-12">
-            <span className="inline-flex items-center gap-2 mb-4 px-4 py-2 rounded-full border border-[#F97415]/40 bg-[#F97415]/10 text-[#F97415] text-xs font-bold uppercase tracking-widest">
+            <span className="inline-flex items-center gap-2 mb-4 px-4 py-2 rounded-full border border-eic-orange/40 bg-eic-orange/10 text-eic-orange text-xs font-bold uppercase tracking-widest">
               <span className="w-2 h-2 rounded-full bg-green-400 animate-ping" />
               Masterclass dal Vivo — Gratis
             </span>
             <h2 className="text-2xl md:text-4xl font-extrabold text-white mb-3">
-              Impara dai migliori. <span className="text-[#F97415]">Gratis.</span>
+              Impara dai migliori. <span className="text-eic-orange">Gratis.</span>
             </h2>
             <p className="text-white/60 text-lg max-w-2xl mx-auto">
               Sessioni live mensili con Florin Andriciuc e il team EiC. Casi reali, Q&A, problemi concreti.
@@ -370,7 +370,7 @@ export default function Formazione() {
           </div>
           <div className="grid md:grid-cols-3 gap-5">
             {masterclasses.map((m, i) => (
-              <div key={i} className="rounded-2xl bg-white/[0.05] border border-white/10 hover:border-[#F97415]/40 p-6 transition-all duration-300">
+              <div key={i} className="rounded-2xl bg-white/[0.05] border border-white/10 hover:border-eic-orange/40 p-6 transition-all duration-300">
                 <div className="flex items-center justify-between mb-4">
                   <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs font-bold rounded-full">
                     {m.free ? "GRATUITO" : "A pagamento"}
@@ -390,7 +390,7 @@ export default function Formazione() {
                     </p>
                   ))}
                 </div>
-                <Link to="/demo/" className="block text-center mt-5 px-4 py-2.5 rounded-xl bg-[#F97415] text-white text-sm font-bold hover:bg-[#e8650e] transition-colors">
+                <Link to="/demo/" className="block text-center mt-5 px-4 py-2.5 rounded-xl bg-eic-orange text-white text-sm font-bold hover:bg-eic-orange-dark transition-colors">
                   Prenota il tuo posto
                 </Link>
               </div>
@@ -427,9 +427,9 @@ export default function Formazione() {
                 badge: "Incluso nel piano Professionista",
               },
             ].map(({ Icon, title, desc, badge }, i) => (
-              <div key={i} className="p-6 rounded-2xl border-2 border-gray-200 hover:border-[#F97415]/40 hover:shadow-md transition-all duration-300">
-                <div className="w-12 h-12 rounded-xl bg-[#F97415]/10 flex items-center justify-center mb-4">
-                  <Icon className="w-6 h-6 text-[#F97415]" />
+              <div key={i} className="p-6 rounded-2xl border-2 border-gray-200 hover:border-eic-orange/40 hover:shadow-md transition-all duration-300">
+                <div className="w-12 h-12 rounded-xl bg-eic-orange/10 flex items-center justify-center mb-4">
+                  <Icon className="w-6 h-6 text-eic-orange" />
                 </div>
                 <h3 className="text-[#111111] font-bold mb-2">{title}</h3>
                 <p className="text-gray-500 text-sm leading-relaxed mb-4">{desc}</p>
@@ -452,9 +452,9 @@ export default function Formazione() {
           </h2>
           <div className="space-y-4">
             {faqs.map((f, i) => (
-              <div key={i} className="border border-gray-200 rounded-xl p-6 hover:border-[#F97415]/30 transition-colors">
+              <div key={i} className="border border-gray-200 rounded-xl p-6 hover:border-eic-orange/30 transition-colors">
                 <div className="flex gap-3">
-                  <HelpCircle className="w-5 h-5 text-[#F97415] shrink-0 mt-0.5" />
+                  <HelpCircle className="w-5 h-5 text-eic-orange shrink-0 mt-0.5" />
                   <div>
                     <p className="font-bold text-[#111111] mb-2">{f.q}</p>
                     <p className="text-gray-500 text-sm leading-relaxed">{f.a}</p>
@@ -472,12 +472,12 @@ export default function Formazione() {
         <div className="relative z-10 max-w-3xl mx-auto px-6 text-center">
           <h2 className="text-2xl md:text-4xl font-extrabold text-white mb-4">
             La formazione non serve a niente<br />
-            <span className="text-[#F97415]">finché non inizi a usarlo.</span>
+            <span className="text-eic-orange">finché non inizi a usarlo.</span>
           </h2>
           <p className="text-white/60 mb-8">
             31 giorni gratis. Onboarding 1:1 incluso. Setup in 48 ore.
           </p>
-          <Link to="/demo/" className="inline-flex items-center gap-2 px-8 py-4 bg-[#F97415] text-white font-bold text-lg rounded-xl hover:scale-105 transition-all shadow-lg shadow-[#F97415]/30">
+          <Link to="/demo/" className="inline-flex items-center gap-2 px-8 py-4 bg-eic-orange text-white font-bold text-lg rounded-xl hover:scale-105 transition-all shadow-lg shadow-eic-orange/30">
             Inizia la prova gratuita <ArrowRight size={18} />
           </Link>
           <p className="text-white/25 text-xs mt-4">Cancella quando vuoi. Nessun obbligo.</p>
@@ -549,7 +549,7 @@ export default function Formazione() {
               <details key={q} className="bg-white rounded-xl border border-gray-200 group">
                 <summary className="flex items-center justify-between px-5 py-4 cursor-pointer font-medium text-[#111111] list-none gap-4">
                   <span>{q}</span>
-                  <ChevronDown className="w-5 h-5 text-[#F97415] flex-shrink-0 group-open:rotate-180 transition-transform" />
+                  <ChevronDown className="w-5 h-5 text-eic-orange flex-shrink-0 group-open:rotate-180 transition-transform" />
                 </summary>
                 <p className="px-5 pb-4 text-[#111111]/70 text-sm leading-relaxed">{a}</p>
               </details>

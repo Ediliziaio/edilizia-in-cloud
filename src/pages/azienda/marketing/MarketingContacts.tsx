@@ -1711,7 +1711,7 @@ export default function MarketingContacts() {
       <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3">
         <div className="flex min-w-0 items-center gap-2.5">
           {/* Telefono e tablet no: l'icona arancione prendeva il posto delle schede. */}
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200 max-lg:hidden">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber-strong text-white shadow-sm shadow-orange-200 max-lg:hidden">
             <ContactRound className="h-4 w-4" />
           </div>
           <h1 className="text-lg font-bold text-slate-950 sm:text-xl">Contatti</h1>
@@ -1761,7 +1761,7 @@ export default function MarketingContacts() {
           {/* Mobile no: il menu «…» aveva solo Importa e Gestisci campi (colonne
               della tabella, che su telefono non c'è): lavoro da scrivania. */}
           {/* Mobile: CTA compatta (richiesta utente: bottone più piccolo). */}
-          <Button className="tap-compact h-8 shrink-0 bg-gradient-to-r from-orange-500 to-amber-500 px-2.5 text-xs text-white shadow-sm shadow-orange-200 hover:from-orange-600 hover:to-amber-600 sm:h-9 sm:px-4 sm:text-sm" onClick={() => { setEditingContact(null); setDialogOpen(true); }} disabled={!canEditContacts}>
+          <Button className="tap-compact h-8 shrink-0 bg-gradient-to-r from-orange-500 to-eic-amber-strong px-2.5 text-xs text-white shadow-sm shadow-orange-200 hover:from-orange-600 hover:to-amber-600 sm:h-9 sm:px-4 sm:text-sm" onClick={() => { setEditingContact(null); setDialogOpen(true); }} disabled={!canEditContacts}>
             <Plus className="h-4 w-4 sm:mr-1" />
             <span className="hidden lg:inline">Aggiungi contatto</span>
             <span className="ml-1 lg:hidden">Aggiungi</span>

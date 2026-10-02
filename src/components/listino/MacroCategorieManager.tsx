@@ -443,7 +443,7 @@ export function MacroCategorieManager() {
           <Button
             size="sm"
             onClick={() => openForm({ kind: "macro-new" })}
-            className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 text-white shadow-sm"
+            className="bg-gradient-to-br from-orange-500 to-eic-amber hover:from-orange-600 hover:to-amber-500 text-white shadow-sm"
           >
             <Plus className="h-4 w-4 mr-1.5" aria-hidden="true" />
             Nuova tipologia
@@ -521,7 +521,7 @@ export function MacroCategorieManager() {
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <div className="flex items-start gap-3">
-              <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-orange-500 to-amber-400 flex items-center justify-center shrink-0 shadow-sm">
+              <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-orange-500 to-eic-amber flex items-center justify-center shrink-0 shadow-sm">
                 <Folder className="h-4.5 w-4.5 text-white" aria-hidden="true" />
               </div>
               <div className="min-w-0">
@@ -829,7 +829,7 @@ export function MacroCategorieManager() {
             <Button
               onClick={handleSubmit}
               disabled={!formNome.trim() || saving}
-              className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 text-white shadow-sm"
+              className="bg-gradient-to-br from-orange-500 to-eic-amber hover:from-orange-600 hover:to-amber-500 text-white shadow-sm"
             >
               {saving ? (
                 <>

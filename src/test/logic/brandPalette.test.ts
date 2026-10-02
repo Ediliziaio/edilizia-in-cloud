@@ -81,3 +81,51 @@ describe("coloriApplicati (tema): la barra laterale resta leggibile", () => {
     expect(c.sidebarAccent).toBeNull();
   });
 });
+
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
+import { rampaBrand } from "../../lib/brandPalette";
+
+describe("rampaBrand: il marchio al posto dell'arancione e del blu di EdiliziaInCloud", () => {
+  it("dal verde del logo: 11 toni dal chiaro allo scuro, in formato «R G B»", () => {
+    const r = rampaBrand("#5B8030")!;
+    expect(Object.keys(r.orange)).toHaveLength(11);
+    for (const v of [...Object.values(r.orange), r.accent, r.navy, r.navyDeep]) expect(v).toMatch(/^\d{1,3} \d{1,3} \d{1,3}$/);
+    const lum = (t: string) => t.split(" ").map(Number).reduce((a, b) => a + b, 0);
+    expect(lum(r.orange["50"])).toBeGreaterThan(lum(r.orange["500"]));
+    expect(lum(r.orange["500"])).toBeGreaterThan(lum(r.orange["900"]));
+    expect(r.orange["500"]).toBe("91 128 48");
+    // i blocchi scuri sono davvero scuri (testo bianco sopra si legge)
+    expect(Math.max(...r.navyDeep.split(" ").map(Number))).toBeLessThan(110);
+  });
+
+  it("colore non valido: nessuna rampa (restano i colori di EdiliziaInCloud)", () => {
+    expect(rampaBrand("verde")).toBeNull();
+  });
+});
+
+describe("l'arancione e il blu scuro non si scrivono più come colori fissi nelle classi", () => {
+  // Con `bg-[#F97415]` il white-label non può cambiarli: si usano i nomi del tema
+  // (eic-orange, eic-orange-dark, eic-orange-deep, eic-navy, eic-navy-deep, orange-*).
+  const VIETATI = /(?:bg|text|border|from|to|via|ring|shadow|accent|fill|stroke|outline|decoration|divide|caret)-\[#(?:F97415|D95E0B|d95f0e|e8650e|C94F06|173b67|1E3A5F)\]/i;
+  const files: string[] = [];
+  const cammina = (d: string) => {
+    for (const f of readdirSync(d)) {
+      const p = join(d, f);
+      if (statSync(p).isDirectory()) { if (f !== "test") cammina(p); }
+      else if (/\.(ts|tsx)$/.test(f)) files.push(p);
+    }
+  };
+  it("nessun file", () => {
+    cammina(join(__dirname, "../.."));
+    const colpevoli = files.filter((f) => VIETATI.test(readFileSync(f, "utf8")));
+    expect(colpevoli.map((f) => f.split("/src/")[1])).toEqual([]);
+  });
+
+  it("tailwind.config legge le variabili del marchio, con i colori di sempre come valore predefinito", () => {
+    const cfg = readFileSync(join(__dirname, "../../../tailwind.config.ts"), "utf8");
+    expect(cfg).toContain('marchio("brand-accent", "249 115 22")');
+    expect(cfg).toContain('marchio("brand-orange-500", "249 115 22")');
+    expect(cfg).toContain('marchio("brand-navy-deep", "23 59 103")');
+  });
+});

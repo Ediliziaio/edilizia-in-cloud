@@ -105,9 +105,9 @@ export function AdminSummaryPanel({
         )}
       >
         {/* ─── Dark blue panel (Riepilogo) ───────────────────────────── */}
-        <div className="bg-[#173b67] p-5 sm:p-6 text-white">
+        <div className="bg-eic-navy-deep p-5 sm:p-6 text-white">
           <div className="flex items-start gap-3 min-w-0">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-sm">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-sm">
               <Icon className="h-5 w-5" />
             </div>
             <div className="min-w-0">

@@ -167,7 +167,7 @@ export function AdminFirstRunTour() {
           <div className="flex items-start gap-3">
             <div
               aria-hidden="true"
-              className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-md"
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-md"
             >
               <StepIcon className="h-5 w-5" />
             </div>

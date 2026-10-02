@@ -405,7 +405,7 @@ export default function QuoteDetail() {
               <button
                 type="button"
                 onClick={() => setSendDialogOpen(true)}
-                className="inline-flex flex-1 sm:flex-none justify-center items-center gap-2 px-4 py-2 text-sm font-bold rounded-md text-white transition-all bg-gradient-to-br from-orange-500 to-amber-400 shadow-[0_4px_12px_rgba(249,115,22,0.3)] hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(249,115,22,0.4)] h-9"
+                className="inline-flex flex-1 sm:flex-none justify-center items-center gap-2 px-4 py-2 text-sm font-bold rounded-md text-white transition-all bg-gradient-to-br from-orange-500 to-eic-amber shadow-[0_4px_12px_rgba(249,115,22,0.3)] hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(249,115,22,0.4)] h-9"
               >
                 <Send className="h-4 w-4" />
                 {quote.status === "inviata" ? "Reinvia" : "Invia per Firma"}

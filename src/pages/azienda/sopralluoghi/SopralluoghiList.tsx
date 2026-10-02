@@ -83,7 +83,7 @@ export default function SopralluoghiList() {
           titolo lo dice già la scheda in alto e le impostazioni sono dal computer. */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 max-sm:hidden">
-          <div className="h-9 w-9 sm:h-12 sm:w-12 rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center text-white shadow-lg shrink-0">
+          <div className="h-9 w-9 sm:h-12 sm:w-12 rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber-strong flex items-center justify-center text-white shadow-lg shrink-0">
             <ClipboardList className="h-4 w-4 sm:h-6 sm:w-6" />
           </div>
           <div className="min-w-0 flex-1">

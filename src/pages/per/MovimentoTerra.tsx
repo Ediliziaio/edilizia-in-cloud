@@ -16,7 +16,7 @@ const config: PerTipoConfig = {
   heroTitle: (
     <>
       <span className="text-white">Software per movimento terra: a fine mese le ore macchina non tornano mai.</span>{" "}
-      <span className="text-[#F97415]">Mezzi, gasolio e noli sulla commessa giusta.</span>
+      <span className="text-eic-orange">Mezzi, gasolio e noli sulla commessa giusta.</span>
     </>
   ),
   heroSubtitle:
@@ -25,9 +25,9 @@ const config: PerTipoConfig = {
 
   // Social proof
   socialProof: [
-    { initials: "SB", name: "Scavi Bonetti", city: "Brescia", months: 13, gradient: "from-[#111111] to-[#F97415]" },
+    { initials: "SB", name: "Scavi Bonetti", city: "Brescia", months: 13, gradient: "from-[#111111] to-eic-orange" },
     { initials: "MT", name: "Movimento Terra Rossi", city: "Piacenza", months: 9, gradient: "from-[#0d8f79] to-[#111111]" },
-    { initials: "ED", name: "Escavazioni De Luca", city: "Frosinone", months: 17, gradient: "from-[#F97415] to-[#c45a0c]" },
+    { initials: "ED", name: "Escavazioni De Luca", city: "Frosinone", months: 17, gradient: "from-eic-orange to-[#c45a0c]" },
     { initials: "GS", name: "Gerardi Scavi e Demolizioni", city: "Sassari", months: 11, gradient: "from-[#1a1a2e] to-[#0d8f79]" },
   ],
 
@@ -245,7 +245,7 @@ const config: PerTipoConfig = {
     person: "Davide Bonetti",
     role: "Titolare",
     initials: "DB",
-    gradient: "from-[#111111] to-[#F97415]",
+    gradient: "from-[#111111] to-eic-orange",
     quote:
       "Ho sei mezzi tra escavatori, pale e camion. Prima le ore le segnavano gli operatori su un blocchetto, il gasolio era una voce unica a fine mese e i noli li fatturavo ricostruendo l'agenda. Quando ho iniziato a caricare tutto sulla commessa mi è preso un colpo: c'erano cantieri che credevo buoni dove praticamente pagavo io per scavare. Adesso ogni ora macchina ha il suo cantiere, i fermi li documento con le foto e i preventivi li faccio sui costi veri. Il margine è salito senza prendere un metro cubo in più.",
     metrics: [
@@ -326,7 +326,7 @@ const config: PerTipoConfig = {
   ctaTitle: (
     <>
       <span className="text-white">I mezzi costano anche da fermi.</span>{" "}
-      <span className="text-[#F97415]">Almeno sappi quanto rendono quando girano.</span>
+      <span className="text-eic-orange">Almeno sappi quanto rendono quando girano.</span>
     </>
   ),
   ctaSubtitle:

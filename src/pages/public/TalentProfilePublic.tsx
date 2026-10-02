@@ -456,7 +456,7 @@ export default function TalentProfilePublic() {
                   initial={{ scale: 0.8, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   transition={{ delay: 0.1, type: "spring", stiffness: 180 }}
-                  className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-lg shadow-orange-200"
+                  className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 to-eic-amber-strong text-white shadow-lg shadow-orange-200"
                 >
                   <BrainCircuit className="h-8 w-8" />
                 </motion.div>
@@ -502,7 +502,7 @@ export default function TalentProfilePublic() {
 
               <Button
                 size="lg"
-                className="h-12 w-full bg-gradient-to-r from-orange-600 to-amber-500 text-base font-semibold hover:from-orange-700 hover:to-amber-600"
+                className="h-12 w-full bg-gradient-to-r from-orange-600 to-eic-amber-strong text-base font-semibold hover:from-orange-700 hover:to-amber-600"
                 disabled={!privacyAccepted || saving}
                 onClick={acceptPrivacyAndStart}
               >
@@ -528,7 +528,7 @@ export default function TalentProfilePublic() {
         aria-valuetext={`${answeredCount} di ${questions.length} domande risposte`}
       >
         <motion.div
-          className="h-full bg-gradient-to-r from-orange-500 to-amber-500"
+          className="h-full bg-gradient-to-r from-orange-500 to-eic-amber-strong"
           initial={{ width: 0 }}
           animate={{ width: `${progressPct}%` }}
           transition={{ duration: 0.5, ease: "easeOut" }}
@@ -689,7 +689,7 @@ export default function TalentProfilePublic() {
                 size="lg"
                 disabled={saving}
                 onClick={goNextPage}
-                className="flex-[2] bg-gradient-to-r from-orange-600 to-amber-500 font-semibold hover:from-orange-700 hover:to-amber-600"
+                className="flex-[2] bg-gradient-to-r from-orange-600 to-eic-amber-strong font-semibold hover:from-orange-700 hover:to-amber-600"
               >
                 Avanti →
               </Button>

@@ -625,7 +625,7 @@ export default function InvoicesList() {
               fatturato, quanto ti devono», che ripeteva quello della pagina. */}
           <div className={cn("grid gap-6 max-sm:hidden", recupero.totale > 0.005 && "xl:grid-cols-2")}>
           <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
-            <div className="h-full bg-[#173b67] p-4 text-white sm:p-5">
+            <div className="h-full bg-eic-navy-deep p-4 text-white sm:p-5">
               <div className={cn("grid grid-cols-2 gap-2 sm:gap-3", recupero.totale > 0.005 ? "xl:h-full xl:content-center" : "xl:grid-cols-4")}>
                 <NavyStatCard
                   label="Da incassare"

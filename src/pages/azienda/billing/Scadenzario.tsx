@@ -232,7 +232,7 @@ export default function Scadenzario() {
               ))}
             </SelectContent>
           </Select>
-          <Button onClick={() => setNewOpen(true)} className="tap-compact bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-8 max-sm:px-3 max-sm:text-xs">
+          <Button onClick={() => setNewOpen(true)} className="tap-compact bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-8 max-sm:px-3 max-sm:text-xs">
             <Plus className="h-4 w-4 mr-1" /> <span className="max-sm:hidden">Nuova Scadenza</span><span className="sm:hidden">Nuova</span>
           </Button>
         </div>

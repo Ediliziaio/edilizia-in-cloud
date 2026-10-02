@@ -76,7 +76,7 @@ function PostCard({ post, featured = false }: PostCardProps) {
               In evidenza
             </span>
           </div>
-          <h2 className="text-2xl md:text-3xl font-bold text-[#111111] mb-4 group-hover:text-[#F97415] transition-colors leading-tight">
+          <h2 className="text-2xl md:text-3xl font-bold text-[#111111] mb-4 group-hover:text-eic-orange transition-colors leading-tight">
             {post.title}
           </h2>
           <p className="text-gray-500 leading-relaxed mb-6 line-clamp-3">
@@ -95,7 +95,7 @@ function PostCard({ post, featured = false }: PostCardProps) {
                 {post.readTime} min
               </span>
             </div>
-            <span className="flex items-center gap-1 text-[#F97415] font-semibold text-sm group-hover:gap-2 transition-all">
+            <span className="flex items-center gap-1 text-eic-orange font-semibold text-sm group-hover:gap-2 transition-all">
               Leggi <ArrowRight size={15} />
             </span>
           </div>
@@ -127,7 +127,7 @@ function PostCard({ post, featured = false }: PostCardProps) {
         </div>
       </div>
       <div className="p-6 flex flex-col flex-1">
-        <h3 className="text-lg font-bold text-[#111111] mb-3 group-hover:text-[#F97415] transition-colors leading-snug line-clamp-2">
+        <h3 className="text-lg font-bold text-[#111111] mb-3 group-hover:text-eic-orange transition-colors leading-snug line-clamp-2">
           {post.title}
         </h3>
         <p className="text-gray-500 text-sm leading-relaxed mb-4 line-clamp-2 flex-1">
@@ -142,7 +142,7 @@ function PostCard({ post, featured = false }: PostCardProps) {
               {post.readTime} min
             </span>
           </div>
-          <span className="flex items-center gap-1 text-[#F97415] font-semibold text-xs group-hover:gap-2 transition-all">
+          <span className="flex items-center gap-1 text-eic-orange font-semibold text-xs group-hover:gap-2 transition-all">
             Leggi <ArrowRight size={13} />
           </span>
         </div>
@@ -261,12 +261,12 @@ export default function Blog() {
       {/* Hero */}
       <section className="bg-[#111111] pt-36 pb-20">
         <div className="max-w-6xl mx-auto px-6 text-center">
-          <p className="text-[#F97415] font-semibold text-sm uppercase tracking-widest mb-4">
+          <p className="text-eic-orange font-semibold text-sm uppercase tracking-widest mb-4">
             Edilizia in Cloud Blog
           </p>
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white mb-6 leading-tight">
             Insights per{" "}
-            <span className="text-[#F97415]">Imprenditori Edili</span>
+            <span className="text-eic-orange">Imprenditori Edili</span>
           </h1>
           <p className="text-white/60 text-lg md:text-xl max-w-2xl mx-auto mb-10 leading-relaxed">
             Guide pratiche, strategie testate e analisi di settore per far crescere
@@ -284,7 +284,7 @@ export default function Blog() {
               placeholder="Cerca articoli, temi, tag…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-12 pr-5 py-4 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-[#F97415]/60 focus:bg-white/15 transition-all"
+              className="w-full pl-12 pr-5 py-4 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-eic-orange/60 focus:bg-white/15 transition-all"
             />
           </div>
         </div>
@@ -304,7 +304,7 @@ export default function Blog() {
                     onClick={() => { setActiveCategory("Tutti"); setSearchQuery(""); }}
                     className={`whitespace-nowrap px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 flex-shrink-0 ${
                       activeCategory === "Tutti" && !searchQuery
-                        ? "bg-[#F97415] text-white shadow-md shadow-[#F97415]/30"
+                        ? "bg-eic-orange text-white shadow-md shadow-eic-orange/30"
                         : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                     }`}
                   >
@@ -316,7 +316,7 @@ export default function Blog() {
                 <Link
                   key={cat}
                   to={catSlug ? `/blog/categoria/${catSlug}` : "/blog"}
-                  className="whitespace-nowrap px-4 py-2 rounded-full text-sm font-medium bg-gray-100 text-gray-600 hover:bg-[#F97415] hover:text-white transition-all duration-200 flex-shrink-0"
+                  className="whitespace-nowrap px-4 py-2 rounded-full text-sm font-medium bg-gray-100 text-gray-600 hover:bg-eic-orange hover:text-white transition-all duration-200 flex-shrink-0"
                 >
                   {cat}
                 </Link>
@@ -338,7 +338,7 @@ export default function Blog() {
                 setSearchQuery("");
                 setActiveCategory("Tutti");
               }}
-              className="mt-4 text-[#F97415] font-medium hover:underline"
+              className="mt-4 text-eic-orange font-medium hover:underline"
             >
               Mostra tutti gli articoli
             </button>
@@ -364,7 +364,7 @@ export default function Blog() {
               <button
                 type="button"
                 onClick={() => setTuttiSuTelefono(true)}
-                className="rounded-full border border-[#F97415] px-6 py-3 text-sm font-semibold text-[#C2410C] hover:bg-orange-50"
+                className="rounded-full border border-eic-orange px-6 py-3 text-sm font-semibold text-eic-orange-deep hover:bg-orange-50"
               >
                 Mostra altri {rest.length - ARTICOLI_SU_TELEFONO} articoli
               </button>
@@ -386,7 +386,7 @@ export default function Blog() {
           </p>
           <Link
             to="/demo/"
-            className="inline-flex items-center gap-2 px-8 py-4 rounded-full bg-[#F97415] text-white font-bold hover:bg-[#e8650e] hover:scale-105 transition-all duration-200 shadow-lg shadow-[#F97415]/30"
+            className="inline-flex items-center gap-2 px-8 py-4 rounded-full bg-eic-orange text-white font-bold hover:bg-eic-orange-dark hover:scale-105 transition-all duration-200 shadow-lg shadow-eic-orange/30"
           >
             Richiedi una Demo Gratuita <ArrowRight size={18} />
           </Link>

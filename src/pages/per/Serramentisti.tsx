@@ -16,7 +16,7 @@ const config: PerTipoConfig = {
   heroTitle: (
     <>
       <span className="text-white">Aumenta i margini. Blinda la cassa. Controlla ogni commessa.</span>{" "}
-      <span className="text-[#F97415]">Il gestionale con AI per chi produce e posa serramenti.</span>
+      <span className="text-eic-orange">Il gestionale con AI per chi produce e posa serramenti.</span>
     </>
   ),
   heroSubtitle:
@@ -25,9 +25,9 @@ const config: PerTipoConfig = {
 
   // Social proof
   socialProof: [
-    { initials: "IF", name: "Infissi Ferretti", city: "Verona", months: 14, gradient: "from-[#111111] to-[#F97415]" },
+    { initials: "IF", name: "Infissi Ferretti", city: "Verona", months: 14, gradient: "from-[#111111] to-eic-orange" },
     { initials: "SP", name: "Serramenti Pellegrini", city: "Brescia", months: 9, gradient: "from-[#0d8f79] to-[#111111]" },
-    { initials: "FC", name: "Finestre & Co.", city: "Treviso", months: 18, gradient: "from-[#F97415] to-[#c45a0c]" },
+    { initials: "FC", name: "Finestre & Co.", city: "Treviso", months: 18, gradient: "from-eic-orange to-[#c45a0c]" },
     { initials: "AM", name: "Alluminio Moretti", city: "Bergamo", months: 11, gradient: "from-[#1a1a2e] to-[#0d8f79]" },
   ],
 
@@ -250,7 +250,7 @@ const config: PerTipoConfig = {
     person: "Roberto Bianchi",
     role: "Titolare",
     initials: "RB",
-    gradient: "from-[#111111] to-[#F97415]",
+    gradient: "from-[#111111] to-eic-orange",
     quote:
       "Per anni ho scoperto quanto guadagnavo solo a fine anno, dal commercialista. Adesso il margine di ogni commessa lo vedo mentre è ancora aperta: se scende, intervengo subito. So chi mi deve il saldo senza cercare tra le carte, e quanto sto anticipando ai fornitori. E i preventivi, che facevo la sera con la calcolatrice in due ore, escono in un minuto — anche dal telefono, davanti al cliente.",
     metrics: [
@@ -350,7 +350,7 @@ const config: PerTipoConfig = {
   ctaTitle: (
     <>
       <span className="text-white">Più margine, più controllo, zero sorprese.</span>{" "}
-      <span className="text-[#F97415]">E i preventivi escono in 60 secondi.</span>
+      <span className="text-eic-orange">E i preventivi escono in 60 secondi.</span>
     </>
   ),
   ctaSubtitle:

@@ -21,7 +21,7 @@ interface TableRow {
 function Cell({ type, text, highlight = false }: { type: CellType; text?: string; highlight?: boolean }) {
   if (type === "check")
     return (
-      <div className={`flex items-center justify-center ${highlight ? "text-[#F97415]" : "text-[#F97415]"}`}>
+      <div className={`flex items-center justify-center ${highlight ? "text-eic-orange" : "text-eic-orange"}`}>
         <CheckCircle2 className="w-5 h-5" />
       </div>
     );
@@ -38,7 +38,7 @@ function Cell({ type, text, highlight = false }: { type: CellType; text?: string
         <span className="text-xs font-medium">Parziale</span>
       </div>
     );
-  return <span className={`text-sm ${highlight ? "font-semibold text-[#F97415]" : "text-[#111111]"}`}>{text}</span>;
+  return <span className={`text-sm ${highlight ? "font-semibold text-eic-orange" : "text-[#111111]"}`}>{text}</span>;
 }
 
 const rows: TableRow[] = [
@@ -221,7 +221,7 @@ export default function VsTeamSystem() {
       {/* ── HERO ── */}
       <section className="bg-[#111111] pt-36 pb-24 px-4 text-center">
         <div className="max-w-3xl mx-auto">
-          <span className="inline-block bg-[#F97415]/20 text-[#F97415] text-xs font-bold tracking-widest uppercase px-4 py-1.5 rounded-full mb-6 border border-[#F97415]/30">
+          <span className="inline-block bg-eic-orange/20 text-eic-orange text-xs font-bold tracking-widest uppercase px-4 py-1.5 rounded-full mb-6 border border-eic-orange/30">
             CONFRONTO ONESTO — 2026
           </span>
           <h1 className="text-3xl md:text-5xl font-extrabold text-white leading-tight mb-6">
@@ -235,7 +235,7 @@ export default function VsTeamSystem() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button
               onClick={openModal}
-              className="inline-flex items-center gap-2 bg-[#F97415] hover:bg-[#e8650e] text-white font-bold px-8 py-4 rounded-2xl transition-colors text-lg"
+              className="inline-flex items-center gap-2 bg-eic-orange hover:bg-eic-orange-dark text-white font-bold px-8 py-4 rounded-2xl transition-colors text-lg"
             >
               Prova gratis 31 giorni <ArrowRight className="w-5 h-5" />
             </button>
@@ -252,14 +252,14 @@ export default function VsTeamSystem() {
       {/* ── TL;DR ── */}
       <section className="bg-white pt-14 px-4">
         <div className="max-w-3xl mx-auto">
-          <div className="rounded-2xl border-l-4 border-[#F97415] bg-[#F97415]/5 p-6 md:p-7">
-            <p className="text-xs font-bold tracking-widest uppercase text-[#F97415] mb-3 flex items-center gap-2">
+          <div className="rounded-2xl border-l-4 border-eic-orange bg-eic-orange/5 p-6 md:p-7">
+            <p className="text-xs font-bold tracking-widest uppercase text-eic-orange mb-3 flex items-center gap-2">
               <Sparkles className="w-4 h-4" /> TL;DR — 3 differenze chiave
             </p>
             <ul className="space-y-2 text-[#111111] text-sm md:text-base leading-relaxed">
               {tldrPoints.map((p, i) => (
                 <li key={i} className="flex gap-2">
-                  <span className="text-[#F97415] font-bold shrink-0">{i + 1}.</span>
+                  <span className="text-eic-orange font-bold shrink-0">{i + 1}.</span>
                   <span>{p}</span>
                 </li>
               ))}
@@ -284,7 +284,7 @@ export default function VsTeamSystem() {
               <thead>
                 <tr className="bg-[#111111]">
                   <th className="text-left px-6 py-4 text-white/70 font-semibold w-1/2">Funzionalità</th>
-                  <th className="text-center px-6 py-4 text-[#F97415] font-bold">Edilizia in Cloud</th>
+                  <th className="text-center px-6 py-4 text-eic-orange font-bold">Edilizia in Cloud</th>
                   <th className="text-center px-6 py-4 text-white/70 font-semibold">TeamSystem</th>
                 </tr>
               </thead>
@@ -373,7 +373,7 @@ export default function VsTeamSystem() {
               ))}
             </ul>
           </div>
-          <div className="bg-[#111111] rounded-2xl p-8 border border-[#F97415]/30">
+          <div className="bg-[#111111] rounded-2xl p-8 border border-eic-orange/30">
             <div className="text-2xl mb-3">🟠</div>
             <h3 className="text-xl font-extrabold text-white mb-4">Per chi ha senso Edilizia in Cloud</h3>
             <ul className="mt-4 space-y-2">
@@ -383,7 +383,7 @@ export default function VsTeamSystem() {
                 "Vuoi partire in 48 ore provando il software da solo, senza progetto di implementazione",
               ].map((item) => (
                 <li key={item} className="flex items-start gap-2 text-sm text-white/70">
-                  <CheckCircle2 className="w-4 h-4 text-[#F97415] mt-0.5 flex-shrink-0" />
+                  <CheckCircle2 className="w-4 h-4 text-eic-orange mt-0.5 flex-shrink-0" />
                   {item}
                 </li>
               ))}
@@ -396,7 +396,7 @@ export default function VsTeamSystem() {
       {/* ── MIGRATION BOX ── */}
       <section className="bg-white py-16 px-4">
         <div className="max-w-3xl mx-auto">
-          <div className="bg-[#F97415]/10 border border-[#F97415]/30 rounded-2xl p-8 text-center">
+          <div className="bg-eic-orange/10 border border-eic-orange/30 rounded-2xl p-8 text-center">
             <div className="text-3xl mb-4">📦</div>
             <h3 className="text-xl font-extrabold text-[#111111] mb-3">Usi già TeamSystem?</h3>
             <p className="text-gray-600 leading-relaxed mb-6">
@@ -405,7 +405,7 @@ export default function VsTeamSystem() {
             </p>
             <button
               onClick={openModal}
-              className="inline-flex items-center gap-2 bg-[#F97415] hover:bg-[#e8650e] text-white font-bold px-8 py-4 rounded-2xl transition-colors"
+              className="inline-flex items-center gap-2 bg-eic-orange hover:bg-eic-orange-dark text-white font-bold px-8 py-4 rounded-2xl transition-colors"
             >
               Richiedi migrazione gratuita <ArrowRight className="w-5 h-5" />
             </button>
@@ -454,13 +454,13 @@ export default function VsTeamSystem() {
       {/* ── 4-WAY INTERNAL LINKING ── */}
       <section className="bg-white py-10 px-4 border-t border-gray-100">
         <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-sm font-bold tracking-widest uppercase text-[#F97415] mb-4">Confronta anche con</h2>
+          <h2 className="text-sm font-bold tracking-widest uppercase text-eic-orange mb-4">Confronta anche con</h2>
           <div className="flex flex-wrap gap-3 justify-center">
             {otherVsLinks.map((l) => (
               <Link
                 key={l.to}
                 to={l.to}
-                className="inline-flex items-center gap-1.5 bg-white border border-gray-200 hover:border-[#F97415] hover:text-[#F97415] text-[#111111] font-semibold px-5 py-2.5 rounded-full transition-colors text-sm"
+                className="inline-flex items-center gap-1.5 bg-white border border-gray-200 hover:border-eic-orange hover:text-eic-orange text-[#111111] font-semibold px-5 py-2.5 rounded-full transition-colors text-sm"
               >
                 {l.label} <ArrowRight className="w-3.5 h-3.5" />
               </Link>
@@ -478,7 +478,7 @@ export default function VsTeamSystem() {
               <Link
                 key={link.to}
                 to={link.to}
-                className="inline-flex items-center gap-2 bg-white border border-gray-200 hover:border-[#F97415] hover:text-[#F97415] text-[#111111] font-semibold px-6 py-3 rounded-2xl transition-colors text-sm"
+                className="inline-flex items-center gap-2 bg-white border border-gray-200 hover:border-eic-orange hover:text-eic-orange text-[#111111] font-semibold px-6 py-3 rounded-2xl transition-colors text-sm"
               >
                 {link.label} <ArrowRight className="w-4 h-4" />
               </Link>
@@ -517,7 +517,7 @@ export default function VsTeamSystem() {
                       href="https://www.numerinedilizia.com/"
                       target="_blank"
                       rel="noopener"
-                      className="font-semibold text-[#F97415] underline underline-offset-2 hover:text-[#d95f0e]"
+                      className="font-semibold text-eic-orange underline underline-offset-2 hover:text-eic-orange-dark"
                     >
                       Numeri in Edilizia
                     </a>{" "}
@@ -534,7 +534,7 @@ export default function VsTeamSystem() {
                       href="https://venditaedile.it/"
                       target="_blank"
                       rel="nofollow noopener noreferrer"
-                      className="font-semibold text-[#F97415] underline underline-offset-2 hover:text-[#d95f0e]"
+                      className="font-semibold text-eic-orange underline underline-offset-2 hover:text-eic-orange-dark"
                     >
                       VENDITA EDILE®
                     </a>{" "}
@@ -551,7 +551,7 @@ export default function VsTeamSystem() {
                       href="https://www.marketingedile.com/"
                       target="_blank"
                       rel="nofollow noopener noreferrer"
-                      className="font-semibold text-[#F97415] underline underline-offset-2 hover:text-[#d95f0e]"
+                      className="font-semibold text-eic-orange underline underline-offset-2 hover:text-eic-orange-dark"
                     >
                       Marketing Edile®
                     </a>{" "}
@@ -595,7 +595,7 @@ export default function VsTeamSystem() {
               "Per ogni modifica futura ti servirà un consulente o la farai da solo dalle impostazioni?",
             ].map((q, i) => (
               <li key={q} className="flex items-start gap-3 bg-[#f8f9fa] rounded-2xl p-5 border border-gray-100">
-                <span className="text-[#F97415] font-extrabold shrink-0">{i + 1}.</span>
+                <span className="text-eic-orange font-extrabold shrink-0">{i + 1}.</span>
                 <span className="text-[#111111] text-sm md:text-base leading-relaxed">{q}</span>
               </li>
             ))}
@@ -614,7 +614,7 @@ export default function VsTeamSystem() {
           </p>
           <button
             onClick={openModal}
-            className="inline-flex items-center gap-2 bg-[#F97415] hover:bg-[#e8650e] text-white font-bold px-10 py-5 rounded-2xl transition-colors text-lg"
+            className="inline-flex items-center gap-2 bg-eic-orange hover:bg-eic-orange-dark text-white font-bold px-10 py-5 rounded-2xl transition-colors text-lg"
           >
             Prova gratis 31 giorni <ArrowRight className="w-5 h-5" />
           </button>
@@ -627,10 +627,10 @@ export default function VsTeamSystem() {
             <h2 className="text-lg font-bold text-[#111111] mb-6">Leggi anche</h2>
             <div className="grid sm:grid-cols-3 gap-4">
               {vsRelatedPosts.map((p) => (
-                <Link key={p.slug} to={`/blog/${p.slug}/`} className="group flex flex-col gap-2 rounded-xl border border-gray-200 hover:border-[#F97415]/40 p-4 transition-all hover:shadow-sm">
+                <Link key={p.slug} to={`/blog/${p.slug}/`} className="group flex flex-col gap-2 rounded-xl border border-gray-200 hover:border-eic-orange/40 p-4 transition-all hover:shadow-sm">
                   <img src={p.coverImage} alt={p.title} className="w-full h-28 object-cover rounded-lg" loading="lazy" />
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#F97415]">{p.category}</span>
-                  <span className="text-sm font-semibold text-[#111111] leading-snug group-hover:text-[#F97415] transition-colors line-clamp-2">{p.title}</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-eic-orange">{p.category}</span>
+                  <span className="text-sm font-semibold text-[#111111] leading-snug group-hover:text-eic-orange transition-colors line-clamp-2">{p.title}</span>
                   <span className="text-xs text-[#111111]/50">{p.readTime} min di lettura</span>
                 </Link>
               ))}
@@ -644,7 +644,7 @@ export default function VsTeamSystem() {
       {/* ── STICKY CTA ── */}
       <button
         onClick={openModal}
-        className="fixed bottom-6 right-6 left-6 sm:left-auto z-40 inline-flex items-center justify-center gap-2 bg-[#F97415] hover:bg-[#e8650e] text-white font-bold px-6 py-3.5 rounded-full transition-colors shadow-2xl shadow-[#F97415]/40 text-sm"
+        className="fixed bottom-6 right-6 left-6 sm:left-auto z-40 inline-flex items-center justify-center gap-2 bg-eic-orange hover:bg-eic-orange-dark text-white font-bold px-6 py-3.5 rounded-full transition-colors shadow-2xl shadow-eic-orange/40 text-sm"
       >
         Provala gratis 31 giorni <ArrowRight className="w-4 h-4" />
       </button>

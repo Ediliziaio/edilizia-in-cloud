@@ -145,11 +145,11 @@ export default function Novita() {
       {/* HERO */}
       <section className="bg-[#111111] pt-28 pb-14 px-4 md:pt-36 md:pb-20">
         <div className="max-w-4xl mx-auto text-center">
-          <p className="inline-block mb-4 px-4 py-1.5 rounded-full text-xs font-semibold uppercase tracking-widest text-[#F97415] bg-[#F97415]/10 border border-[#F97415]/25">
+          <p className="inline-block mb-4 px-4 py-1.5 rounded-full text-xs font-semibold uppercase tracking-widest text-eic-orange bg-eic-orange/10 border border-eic-orange/25">
             Prodotto vivo
           </p>
           <h1 className="text-3xl md:text-5xl font-extrabold text-white mb-4">
-            Le novità di <span className="text-[#F97415]">Edilizia in Cloud</span>
+            Le novità di <span className="text-eic-orange">Edilizia in Cloud</span>
           </h1>
           <p className="text-white/60 text-base md:text-lg max-w-2xl mx-auto">
             Rilasciamo miglioramenti ogni settimana e sono sempre inclusi nel canone, per tutti i
@@ -216,13 +216,13 @@ export default function Novita() {
           <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
             <Link
               to="/demo/"
-              className="inline-flex items-center gap-2 rounded-xl bg-[#F97415] px-7 py-3.5 font-bold text-white shadow-lg shadow-[#F97415]/30 transition-all hover:bg-[#e8650e] hover:scale-105"
+              className="inline-flex items-center gap-2 rounded-xl bg-eic-orange px-7 py-3.5 font-bold text-white shadow-lg shadow-eic-orange/30 transition-all hover:bg-eic-orange-dark hover:scale-105"
             >
               Prova gratis 31 giorni <ArrowRight className="h-5 w-5" />
             </Link>
             <Link
               to="/funzionalita/"
-              className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-6 py-3.5 font-semibold text-[#111111] transition-colors hover:border-[#F97415]/50 hover:text-[#F97415]"
+              className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-6 py-3.5 font-semibold text-[#111111] transition-colors hover:border-eic-orange/50 hover:text-eic-orange"
             >
               Vedi tutte le funzionalità
             </Link>

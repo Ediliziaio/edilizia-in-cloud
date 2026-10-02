@@ -199,7 +199,7 @@ export default function Tesoreria() {
       <div className="space-y-6 max-sm:space-y-3">
         <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
           <div className="flex min-w-0 items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
               <Landmark className="h-5 w-5" />
             </div>
             <div className="min-w-0">
@@ -225,7 +225,7 @@ export default function Tesoreria() {
             <Badge variant="outline">Sicuro e crittografato</Badge>
             <Badge variant="outline">Aggiornamento automatico</Badge>
           </div>
-          <Button onClick={() => navigate("/azienda/impostazioni/integrazioni")} className="mt-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:mt-0 max-sm:h-9 max-sm:text-xs">
+          <Button onClick={() => navigate("/azienda/impostazioni/integrazioni")} className="mt-2 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:mt-0 max-sm:h-9 max-sm:text-xs">
             <Link className="h-4 w-4 mr-2" />
             Collega primo conto
           </Button>
@@ -265,7 +265,7 @@ export default function Tesoreria() {
       <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex min-w-0 items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
               <Landmark className="h-5 w-5" />
             </div>
             <div className="min-w-0">
@@ -279,7 +279,7 @@ export default function Tesoreria() {
           <div className="flex items-center gap-3">
             <Badge variant="outline" className="text-xs max-sm:hidden">{hasConnections ? "Open Banking · PSD2" : "Gestione manuale"}</Badge>
             {hasConnections && (
-              <Button onClick={handleSync} disabled={syncing} size="sm" aria-label="Sincronizza" className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-8 max-sm:w-8 max-sm:px-0">
+              <Button onClick={handleSync} disabled={syncing} size="sm" aria-label="Sincronizza" className="bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-8 max-sm:w-8 max-sm:px-0">
                 {syncing ? <Loader2 className="h-4 w-4 mr-2 animate-spin max-sm:mr-0" /> : <RefreshCw className="h-4 w-4 mr-2 max-sm:mr-0" />}
                 <span className="max-sm:hidden">Sincronizza</span>
               </Button>

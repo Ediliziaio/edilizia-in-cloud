@@ -1013,7 +1013,7 @@ export default function SettingsQuoteTemplates() {
       <TabsContent value="documenti" className="space-y-6 mt-0">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
       <div className="flex items-start gap-3 min-w-0">
-          <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-orange-500 to-amber-400 flex items-center justify-center shrink-0 shadow-sm">
+          <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-orange-500 to-eic-amber flex items-center justify-center shrink-0 shadow-sm">
             <FileText className="h-5 w-5 text-white" />
           </div>
           <div className="min-w-0">
@@ -1038,7 +1038,7 @@ export default function SettingsQuoteTemplates() {
             </Badge>
           )}
           {isAdmin && !editing && (
-            <Button onClick={() => setCreateDialogOpen(true)} size="sm" className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500">
+            <Button onClick={() => setCreateDialogOpen(true)} size="sm" className="bg-gradient-to-br from-orange-500 to-eic-amber hover:from-orange-600 hover:to-amber-500">
               <Plus className="h-4 w-4 mr-1.5" />
               Nuovo template
             </Button>
@@ -1152,7 +1152,7 @@ export default function SettingsQuoteTemplates() {
                   </p>
                 </div>
                 {isAdmin && (
-                  <Button onClick={() => activeKind === 'offerta' ? setCreateDialogOpen(true) : handleNew(activeKind)} className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500">
+                  <Button onClick={() => activeKind === 'offerta' ? setCreateDialogOpen(true) : handleNew(activeKind)} className="bg-gradient-to-br from-orange-500 to-eic-amber hover:from-orange-600 hover:to-amber-500">
                     <Plus className="mr-2 h-4 w-4" />{activeKind === 'offerta' ? "Scegli un'offerta completa" : "Crea il primo"}
                   </Button>
                 )}
@@ -1261,7 +1261,7 @@ export default function SettingsQuoteTemplates() {
                   size="sm"
                   onClick={() => handleSave(true)}
                   disabled={upsertTemplate.isPending}
-                  className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 gap-1.5"
+                  className="bg-gradient-to-br from-orange-500 to-eic-amber hover:from-orange-600 hover:to-amber-500 gap-1.5"
                 >
                   <Star className="h-3.5 w-3.5" />
                   Salva e usa default
@@ -2283,7 +2283,7 @@ export default function SettingsQuoteTemplates() {
                   setEditId(null);
                 }}
                 disabled={upsertTemplate.isPending}
-                className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500"
+                className="bg-gradient-to-br from-orange-500 to-eic-amber hover:from-orange-600 hover:to-amber-500"
               >
                 {upsertTemplate.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
                 Salva e torna alla libreria
@@ -2427,7 +2427,7 @@ export default function SettingsQuoteTemplates() {
                       className="group rounded-xl border-2 border-orange-200 bg-gradient-to-b from-white to-orange-50/60 p-4 text-left transition-all hover:-translate-y-0.5 hover:border-orange-400 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-orange-400"
                     >
                       <div className="mb-3 flex items-start justify-between gap-2">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-sm">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-sm">
                           <FileText className="h-5 w-5" />
                         </div>
                         <span className="rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-slate-600 shadow-sm">

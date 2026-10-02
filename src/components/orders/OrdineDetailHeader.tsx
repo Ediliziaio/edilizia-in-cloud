@@ -80,7 +80,7 @@ export function OrdineDetailHeader({
       {/* Title row */}
       <div className="flex items-start justify-between gap-3 sm:gap-4 flex-col sm:flex-row sm:flex-wrap max-sm:gap-2">
         <div className="flex items-start gap-2.5 sm:gap-3 min-w-0 w-full sm:w-auto">
-          <div className="hidden sm:flex h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
+          <div className="hidden sm:flex h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
             <ClipboardList className="h-4 w-4 sm:h-5 sm:w-5" />
           </div>
           <div className="min-w-0 flex-1">

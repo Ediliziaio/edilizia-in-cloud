@@ -2656,7 +2656,7 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
           />
           <div className="relative flex flex-col md:flex-row md:items-center gap-4">
             <div className="flex items-center gap-3">
-              <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-orange-400 to-amber-500 flex items-center justify-center shadow-lg shadow-orange-500/30">
+              <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-orange-400 to-eic-amber-strong flex items-center justify-center shadow-lg shadow-orange-500/30">
                 <Brain className="h-6 w-6 text-white" />
               </div>
               <div>
@@ -2945,7 +2945,7 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
             className={cn(
               "h-7 px-2.5 text-[10px] gap-1 backdrop-blur-sm shadow-sm border",
               viewDim === "core"
-                ? "bg-gradient-to-r from-orange-500 to-amber-500 text-white border-orange-400 hover:opacity-90"
+                ? "bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white border-orange-400 hover:opacity-90"
                 : "bg-slate-900/95 text-slate-200 border-slate-600 hover:bg-slate-800 hover:text-white",
             )}
             onClick={() => setViewDim(viewDim === "core" ? "2d" : "core")}

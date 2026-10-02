@@ -166,7 +166,7 @@ export function OperaioDialog({
             <Button
               type="submit"
               disabled={salva.isPending}
-              className="bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:from-orange-600 hover:to-amber-600"
+              className="bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white hover:from-orange-600 hover:to-amber-600"
             >
               {salva.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden="true" />}
               {nuovo ? "Aggiungi operaio" : "Salva"}

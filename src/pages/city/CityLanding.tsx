@@ -3099,9 +3099,9 @@ export default function CityLanding() {
           <div className="absolute inset-0 bg-gradient-to-b from-[#0d0d0d]/60 via-[#0d0d0d]/40 to-[#0d0d0d]" />
         </div>
         <div className="relative z-10 max-w-5xl mx-auto px-6 text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#F97415]/10 border border-[#F97415]/20 mb-6">
-            <MapPin size={13} className="text-[#F97415]" />
-            <span className="text-[#F97415] text-xs font-bold uppercase tracking-widest">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-eic-orange/10 border border-eic-orange/20 mb-6">
+            <MapPin size={13} className="text-eic-orange" />
+            <span className="text-eic-orange text-xs font-bold uppercase tracking-widest">
               {config.name} · {config.region}
             </span>
           </div>
@@ -3114,7 +3114,7 @@ export default function CityLanding() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
               to="/demo/"
-              className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl bg-[#F97415] text-white font-bold text-lg hover:bg-[#e8650e] hover:scale-105 transition-all shadow-lg shadow-[#F97415]/30"
+              className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl bg-eic-orange text-white font-bold text-lg hover:bg-eic-orange-dark hover:scale-105 transition-all shadow-lg shadow-eic-orange/30"
             >
               Prova Gratis 31 Giorni <ArrowRight size={18} />
             </Link>
@@ -3134,7 +3134,7 @@ export default function CityLanding() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
             {config.localStats.map((s, i) => (
               <div key={i}>
-                <p className="text-3xl md:text-4xl font-extrabold text-[#F97415]">{s.value}</p>
+                <p className="text-3xl md:text-4xl font-extrabold text-eic-orange">{s.value}</p>
                 <p className="text-sm text-gray-500 mt-1">{s.label}</p>
               </div>
             ))}
@@ -3176,14 +3176,14 @@ export default function CityLanding() {
               <ul className="space-y-3">
                 {FEATURES.map((f, i) => (
                   <li key={i} className="flex items-start gap-3">
-                    <CheckCircle2 size={18} className="text-[#F97415] mt-0.5 shrink-0" />
+                    <CheckCircle2 size={18} className="text-eic-orange mt-0.5 shrink-0" />
                     <span className="text-gray-700 text-sm">{f}</span>
                   </li>
                 ))}
               </ul>
               <Link
                 to="/funzionalita/"
-                className="inline-flex items-center gap-2 mt-8 text-[#F97415] font-semibold hover:gap-3 transition-all"
+                className="inline-flex items-center gap-2 mt-8 text-eic-orange font-semibold hover:gap-3 transition-all"
               >
                 Vedi tutte le funzionalità <ArrowRight size={16} />
               </Link>
@@ -3191,7 +3191,7 @@ export default function CityLanding() {
             <div className="bg-[#f8f9fa] rounded-3xl p-8">
               <div className="flex items-center gap-2 mb-6">
                 {[...Array(5)].map((_, i) => (
-                  <Star key={i} size={18} fill="#F97415" className="text-[#F97415]" />
+                  <Star key={i} size={18} fill="#F97415" className="text-eic-orange" />
                 ))}
                 <span className="text-sm font-bold text-[#111111] ml-1">4.9/5</span>
               </div>
@@ -3199,7 +3199,7 @@ export default function CityLanding() {
                 "{config.localTestimonial.quote}"
               </blockquote>
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-[#F97415] flex items-center justify-center text-white text-sm font-bold">
+                <div className="w-10 h-10 rounded-full bg-eic-orange flex items-center justify-center text-white text-sm font-bold">
                   {config.localTestimonial.initials}
                 </div>
                 <div>
@@ -3227,7 +3227,7 @@ export default function CityLanding() {
                 href={config.localContext.prezzarioLink}
                 target="_blank"
                 rel="noopener nofollow"
-                className="inline-flex items-center gap-2 text-[#F97415] font-semibold hover:gap-3 transition-all text-sm"
+                className="inline-flex items-center gap-2 text-eic-orange font-semibold hover:gap-3 transition-all text-sm"
               >
                 <MapPin size={16} /> {config.localContext.prezzarioLabel}
                 <ArrowRight size={14} />
@@ -3267,7 +3267,7 @@ export default function CityLanding() {
                       <h3 className="font-bold text-[#111111] text-base md:text-lg leading-snug pr-4">
                         {f.q}
                       </h3>
-                      <span className="text-[#F97415] text-2xl leading-none shrink-0 transition-transform group-open:rotate-45">
+                      <span className="text-eic-orange text-2xl leading-none shrink-0 transition-transform group-open:rotate-45">
                         +
                       </span>
                     </summary>
@@ -3295,7 +3295,7 @@ export default function CityLanding() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
             <Link
               to="/demo/"
-              className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl bg-[#F97415] text-white font-bold text-lg hover:bg-[#e8650e] hover:scale-105 transition-all shadow-lg shadow-[#F97415]/30"
+              className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl bg-eic-orange text-white font-bold text-lg hover:bg-eic-orange-dark hover:scale-105 transition-all shadow-lg shadow-eic-orange/30"
             >
               Richiedi Demo Gratuita <ArrowRight size={18} />
             </Link>
@@ -3327,15 +3327,15 @@ export default function CityLanding() {
               <Link
                 key={f.href}
                 to={f.href}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white border border-gray-200 text-gray-700 font-semibold text-sm hover:border-[#F97415]/40 hover:text-[#F97415] transition-all"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white border border-gray-200 text-gray-700 font-semibold text-sm hover:border-eic-orange/40 hover:text-eic-orange transition-all"
               >
-                <CheckCircle2 size={13} className="text-[#F97415]" /> {f.label}
+                <CheckCircle2 size={13} className="text-eic-orange" /> {f.label}
               </Link>
             ))}
           </div>
           <Link
             to="/software-gestionale-edilizia/"
-            className="inline-flex items-center gap-2 text-[#F97415] font-semibold hover:gap-3 transition-all"
+            className="inline-flex items-center gap-2 text-eic-orange font-semibold hover:gap-3 transition-all"
           >
             Scopri il software gestionale edilizia per tutta Italia <ArrowRight size={16} />
           </Link>
@@ -3353,7 +3353,7 @@ export default function CityLanding() {
               <Link
                 key={c.slug}
                 to={`/software-gestionale-edilizia-${c.slug}`}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white border border-gray-200 text-gray-700 font-semibold text-sm hover:border-[#F97415]/40 hover:text-[#F97415] transition-all"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white border border-gray-200 text-gray-700 font-semibold text-sm hover:border-eic-orange/40 hover:text-eic-orange transition-all"
               >
                 <MapPin size={13} /> {c.name}
               </Link>

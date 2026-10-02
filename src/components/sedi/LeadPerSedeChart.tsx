@@ -37,7 +37,7 @@ export function LeadPerSedeChart() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-[#1E3A5F] text-base">Lead & CPL per Sede</CardTitle>
+          <CardTitle className="text-eic-navy text-base">Lead & CPL per Sede</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="h-40 flex items-center justify-center text-sm text-muted-foreground">
@@ -51,7 +51,7 @@ export function LeadPerSedeChart() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-[#1E3A5F] text-base">Lead & CPL per Sede</CardTitle>
+        <CardTitle className="text-eic-navy text-base">Lead & CPL per Sede</CardTitle>
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={280}>

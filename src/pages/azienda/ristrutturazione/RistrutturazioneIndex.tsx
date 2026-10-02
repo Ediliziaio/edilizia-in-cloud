@@ -180,7 +180,7 @@ export default function RistrutturazioneIndex() {
             )}
             <Button
               onClick={() => navigate("/azienda/ristrutturazione/nuovo")}
-              className={cn("bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 text-white shadow-lg border-0 flex-1 sm:flex-initial h-10 sm:h-11 text-xs sm:text-sm max-sm:flex-none max-sm:h-9 max-sm:px-3", progetti.length === 0 && "max-sm:hidden")}
+              className={cn("bg-gradient-to-br from-orange-500 to-eic-amber hover:from-orange-600 hover:to-amber-500 text-white shadow-lg border-0 flex-1 sm:flex-initial h-10 sm:h-11 text-xs sm:text-sm max-sm:flex-none max-sm:h-9 max-sm:px-3", progetti.length === 0 && "max-sm:hidden")}
             >
               <Plus className="h-4 w-4 mr-1.5" />
               <span className="sm:hidden">Nuovo</span>

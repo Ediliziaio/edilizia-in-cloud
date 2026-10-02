@@ -129,7 +129,7 @@ export function RenderLeadModal({ slug, open, onOpenChange }: RenderLeadModalPro
     `w-full rounded-xl border px-4 py-3 text-sm text-slate-950 outline-none transition focus:ring-2 ${
       errors[field]
         ? "border-red-300 focus:border-red-400 focus:ring-red-100"
-        : "border-slate-200 focus:border-[#F97415] focus:ring-orange-100"
+        : "border-slate-200 focus:border-eic-orange focus:ring-orange-100"
     }`;
 
   return (
@@ -162,7 +162,7 @@ export function RenderLeadModal({ slug, open, onOpenChange }: RenderLeadModalPro
             <button
               type="button"
               onClick={() => handleOpenChange(false)}
-              className="mt-6 rounded-xl bg-[#F97415] px-6 py-3 text-sm font-extrabold text-white transition hover:bg-[#D95E0B]"
+              className="mt-6 rounded-xl bg-eic-orange px-6 py-3 text-sm font-extrabold text-white transition hover:bg-eic-orange-dark"
             >
               Chiudi
             </button>
@@ -224,7 +224,7 @@ export function RenderLeadModal({ slug, open, onOpenChange }: RenderLeadModalPro
                 onChange={handleChange}
                 rows={3}
                 placeholder={context?.messagePlaceholder || "Che render vuoi vedere nella demo?"}
-                className="w-full resize-none rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-950 outline-none transition focus:border-[#F97415] focus:ring-2 focus:ring-orange-100"
+                className="w-full resize-none rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-950 outline-none transition focus:border-eic-orange focus:ring-2 focus:ring-orange-100"
               />
             </div>
 
@@ -235,7 +235,7 @@ export function RenderLeadModal({ slug, open, onOpenChange }: RenderLeadModalPro
                   type="checkbox"
                   checked={form.privacyConsent}
                   onChange={handleChange}
-                  className="mt-1 h-4 w-4 rounded border-slate-300 accent-[#F97415]"
+                  className="mt-1 h-4 w-4 rounded border-slate-300 accent-eic-orange"
                 />
                 <span>
                   Accetto la Privacy Policy e autorizzo il contatto per questa richiesta.
@@ -250,7 +250,7 @@ export function RenderLeadModal({ slug, open, onOpenChange }: RenderLeadModalPro
                   type="checkbox"
                   checked={form.marketingConsent}
                   onChange={handleChange}
-                  className="mt-1 h-4 w-4 rounded border-slate-300 accent-[#F97415]"
+                  className="mt-1 h-4 w-4 rounded border-slate-300 accent-eic-orange"
                 />
                 <span>Voglio ricevere aggiornamenti su render AI, cantieri e funzionalita.</span>
               </label>
@@ -265,7 +265,7 @@ export function RenderLeadModal({ slug, open, onOpenChange }: RenderLeadModalPro
             <button
               type="submit"
               disabled={submitting}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#F97415] px-5 py-4 text-sm font-extrabold text-white shadow-lg shadow-orange-200 transition hover:bg-[#D95E0B] disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-eic-orange px-5 py-4 text-sm font-extrabold text-white shadow-lg shadow-orange-200 transition hover:bg-eic-orange-dark disabled:cursor-not-allowed disabled:opacity-60"
             >
               {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
               {submitting ? "Invio in corso..." : `Invia richiesta ${label}`}

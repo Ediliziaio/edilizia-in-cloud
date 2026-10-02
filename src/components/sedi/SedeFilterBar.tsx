@@ -53,7 +53,7 @@ export function SedeFilterBar() {
           <Button
             variant="outline"
             size="sm"
-            className="gap-2 border-[#1E3A5F] text-[#1E3A5F] hover:bg-[#1E3A5F]/5"
+            className="gap-2 border-eic-navy text-eic-navy hover:bg-eic-navy/5"
           >
             <MapPin className="h-4 w-4" />
             {label}
@@ -94,7 +94,7 @@ export function SedeFilterBar() {
               <p className="text-sm text-muted-foreground">Nessuna sede attiva</p>
               <Link
                 to="/azienda/impostazioni/sedi"
-                className="flex items-center gap-1.5 text-xs text-[#1E3A5F] hover:underline"
+                className="flex items-center gap-1.5 text-xs text-eic-navy hover:underline"
               >
                 <Settings className="h-3 w-3" />
                 Configura sedi

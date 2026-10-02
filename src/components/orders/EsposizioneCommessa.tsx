@@ -100,7 +100,7 @@ export function CassaVerdettoBand({
   if (cashTotalGross <= 0 && !esposizione.hasMovimenti) return null;
 
   return (
-    <div className="rounded-2xl bg-[#173b67] p-3 sm:p-4">
+    <div className="rounded-2xl bg-eic-navy-deep p-3 sm:p-4">
       <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-orange-100">
         La cassa di questa commessa
       </p>

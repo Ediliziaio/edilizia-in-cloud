@@ -115,7 +115,7 @@ export default function MezzoDetail() {
                 className="h-16 w-20 shrink-0 rounded-xl border object-cover shadow-sm sm:h-20 sm:w-28 max-sm:h-11 max-sm:w-14 max-sm:rounded-lg"
               />
             ) : (
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)] sm:h-12 sm:w-12">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)] sm:h-12 sm:w-12">
                 <IconaMezzo tipo={mezzo.tipo} className="h-5 w-5 sm:h-6 sm:w-6" />
               </div>
             )}

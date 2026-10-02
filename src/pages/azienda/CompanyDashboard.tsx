@@ -126,10 +126,10 @@ function ManagementOverview({
   return (
     <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="grid gap-0 xl:grid-cols-[minmax(620px,0.62fr)_minmax(420px,0.38fr)]">
-        <div className="bg-[#173b67] p-5 text-white sm:p-6">
+        <div className="bg-eic-navy-deep p-5 text-white sm:p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="flex min-w-0 gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)]">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)]">
                 <LayoutDashboard className="h-5 w-5" />
               </div>
               <div className="min-w-0">

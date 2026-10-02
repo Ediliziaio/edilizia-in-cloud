@@ -189,7 +189,7 @@ export default function FotovoltaicoIndex() {
                 <Button
                   asChild
                   size="default"
-                  className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 text-white shadow-lg border-0 flex-1 sm:flex-initial sm:size-lg h-10 sm:h-11 text-xs sm:text-sm max-sm:h-9 max-sm:px-3"
+                  className="bg-gradient-to-br from-orange-500 to-eic-amber hover:from-orange-600 hover:to-amber-500 text-white shadow-lg border-0 flex-1 sm:flex-initial sm:size-lg h-10 sm:h-11 text-xs sm:text-sm max-sm:h-9 max-sm:px-3"
                 >
                   <Link to="/azienda/marketing/fotovoltaico/nuovo">
                     <Plus className="h-4 w-4 mr-1.5" />
@@ -389,7 +389,7 @@ export default function FotovoltaicoIndex() {
                 <Button
                   asChild
                   size="lg"
-                  className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 shadow-lg"
+                  className="bg-gradient-to-br from-orange-500 to-eic-amber hover:from-orange-600 hover:to-amber-500 shadow-lg"
                 >
                   <Link to="/azienda/marketing/fotovoltaico/nuovo">
                     <Plus className="h-4 w-4 mr-2" />

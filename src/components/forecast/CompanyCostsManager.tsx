@@ -740,7 +740,7 @@ export default function CompanyCostsManager({
             contrasto e le card bordate portano i numeri che contano. Ogni
             card cliccabile filtra (anello arancio quando attiva). Le azioni
             vivono nella riga dei filtri, sotto. */}
-        <div className="bg-[#173b67] p-4 text-white sm:p-5 max-sm:hidden">
+        <div className="bg-eic-navy-deep p-4 text-white sm:p-5 max-sm:hidden">
           {/* Senza il titoletto con lo slogan («La struttura: li paghi
               comunque»): la linguetta aperta dice già quali spese sono. */}
           <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
@@ -974,7 +974,7 @@ export default function CompanyCostsManager({
                 </DropdownMenuContent>
               </DropdownMenu>
               {!soloLettura && (
-                <Button size="sm" onClick={() => openCreate(typeLock)} className="h-9 gap-1 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
+                <Button size="sm" onClick={() => openCreate(typeLock)} className="h-9 gap-1 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
                   <Plus className="h-4 w-4" /> {typeLock === "fixed" ? "Nuovo costo fisso" : "Nuovo costo variabile"}
                 </Button>
               )}
@@ -1010,7 +1010,7 @@ export default function CompanyCostsManager({
                 size="icon"
                 onClick={() => openCreate(typeLock)}
                 aria-label={typeLock === "fixed" ? "Nuovo costo fisso" : "Nuovo costo variabile"}
-                className="tap-compact h-9 w-9 shrink-0 bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:from-orange-600 hover:to-amber-600"
+                className="tap-compact h-9 w-9 shrink-0 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white hover:from-orange-600 hover:to-amber-600"
               >
                 <Plus className="h-4 w-4" />
               </Button>

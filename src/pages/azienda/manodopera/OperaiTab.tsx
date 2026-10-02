@@ -102,7 +102,7 @@ export default function OperaiTab() {
               <Button
                 size="sm"
                 onClick={() => setNuovoAperto(true)}
-                className="gap-1.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600"
+                className="gap-1.5 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600"
               >
                 <Plus className="h-4 w-4" aria-hidden="true" />Nuovo operaio
               </Button>
@@ -113,7 +113,7 @@ export default function OperaiTab() {
                 <Button
                   size="icon"
                   aria-label="Aggiungi"
-                  className="h-9 w-9 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm sm:hidden"
+                  className="h-9 w-9 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm sm:hidden"
                 >
                   <Plus className="h-4 w-4" />
                 </Button>
@@ -420,7 +420,7 @@ function SquadreOperai({ puoModificare, onNuova }: { puoModificare: boolean; onN
             Dai un nome alla squadra, scegli chi ci lavora e chi la guida. Poi la metti sulle commesse: i suoi operai si trovano il cantiere nell'app.
           </p>
           {puoModificare && (
-            <Button onClick={onNuova} className="mt-4 gap-1.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:from-orange-600 hover:to-amber-600">
+            <Button onClick={onNuova} className="mt-4 gap-1.5 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white hover:from-orange-600 hover:to-amber-600">
               <Plus className="h-4 w-4" aria-hidden="true" />Crea la prima squadra
             </Button>
           )}
@@ -750,7 +750,7 @@ function NessunOperaio({ onNuovo }: { onNuovo?: () => void }) {
         Aggiungi chi lavora nei tuoi cantieri. Se è già nel Personale, apri la sua scheda e accendi «Lavora in cantiere».
       </p>
       {onNuovo && (
-        <Button onClick={onNuovo} className="mt-4 gap-1.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:from-orange-600 hover:to-amber-600">
+        <Button onClick={onNuovo} className="mt-4 gap-1.5 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white hover:from-orange-600 hover:to-amber-600">
           <Plus className="h-4 w-4" aria-hidden="true" />Aggiungi il primo operaio
         </Button>
       )}

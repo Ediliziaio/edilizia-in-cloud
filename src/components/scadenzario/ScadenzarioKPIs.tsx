@@ -25,7 +25,7 @@ export default function ScadenzarioKPIs({ summary, isLoading, className }: Props
   if (isLoading || !summary) {
     return (
       <div className={cn("overflow-hidden rounded-2xl border border-slate-200 shadow-sm", className)}>
-        <div className="bg-[#173b67] p-4 sm:p-5">
+        <div className="bg-eic-navy-deep p-4 sm:p-5">
           <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
             {[...Array(4)].map((_, i) => (
               <div key={i} className="h-20 animate-pulse rounded-xl border border-white/12 bg-white/9" />
@@ -42,7 +42,7 @@ export default function ScadenzarioKPIs({ summary, isLoading, className }: Props
     <div className={cn("overflow-hidden rounded-2xl border border-slate-200 shadow-sm", className)}>
       {/* Senza il titoletto «Scadenzario — Cosa entra, cosa esce, quando»:
           ripeteva il titolo della pagina subito sopra. */}
-      <div className="bg-[#173b67] p-4 text-white sm:p-5">
+      <div className="bg-eic-navy-deep p-4 text-white sm:p-5">
         <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
           {/* Prima questa scheda mostrava "Scadute" sommando quello che i
               clienti devono all'azienda con quello che l'azienda deve ai

@@ -195,7 +195,7 @@ export function TabRegiaHr({ onNavigate }: TabRegiaHrProps) {
     <div className="space-y-4">
       {/* Testata navy famiglia (come Costi/Commesse): i quattro numeri di
           controllo HR, cliccabili → portano al tab che li gestisce. */}
-      <div className="rounded-2xl bg-[#173b67] p-3 sm:p-4">
+      <div className="rounded-2xl bg-eic-navy-deep p-3 sm:p-4">
         <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-orange-100">Regia HR</p>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
           <NavyStatCard

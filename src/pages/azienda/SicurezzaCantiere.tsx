@@ -414,7 +414,7 @@ export default function SicurezzaCantiere() {
       {/* Header */}
       <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
             <ShieldAlert className="h-5 w-5" />
           </div>
           <div className="min-w-0">
@@ -499,7 +499,7 @@ export default function SicurezzaCantiere() {
           {/* Le schede avevano una riga di spiegazione accanto al bottone:
               il nome della scheda basta, resta il bottone a destra. */}
           <div className="flex items-center justify-end">
-            <Button size="sm" onClick={() => setDuvriDialogOpen(true)} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
+            <Button size="sm" onClick={() => setDuvriDialogOpen(true)} className="bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
               <Plus className="h-4 w-4 mr-1" /> Genera DUVRI
             </Button>
           </div>
@@ -637,7 +637,7 @@ export default function SicurezzaCantiere() {
         <TabsContent value="verbali" className="space-y-4 mt-4 max-sm:mt-3 max-sm:space-y-2">
           {/* Telefono: «Aggiungi» a tutta riga, non da solo in fondo a destra. */}
           <div className="flex items-center justify-end">
-            <Button size="sm" onClick={nuovoVerbale} className="max-sm:h-9 max-sm:w-full max-sm:text-xs bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
+            <Button size="sm" onClick={nuovoVerbale} className="max-sm:h-9 max-sm:w-full max-sm:text-xs bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
               <Plus className="h-4 w-4 mr-1" /> Nuovo verbale
             </Button>
           </div>
@@ -708,7 +708,7 @@ export default function SicurezzaCantiere() {
         {/* ───── SUBAPPALTATORI TAB ───── */}
         <TabsContent value="subappaltatori" className="space-y-4 mt-4 max-sm:mt-3 max-sm:space-y-2">
           <div className="flex items-center justify-end">
-            <Button size="sm" onClick={nuovoSubappaltatore} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
+            <Button size="sm" onClick={nuovoSubappaltatore} className="bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
               <Plus className="h-4 w-4 mr-1" /> Aggiungi
             </Button>
           </div>
@@ -800,7 +800,7 @@ export default function SicurezzaCantiere() {
         <TabsContent value="scadenzario" className="space-y-4 mt-4 max-sm:mt-3 max-sm:space-y-2">
           {/* Telefono: «Aggiungi» a tutta riga, non da solo in fondo a destra. */}
           <div className="flex items-center justify-end">
-            <Button size="sm" onClick={nuovoAdempimento} className="max-sm:h-9 max-sm:w-full max-sm:text-xs bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
+            <Button size="sm" onClick={nuovoAdempimento} className="max-sm:h-9 max-sm:w-full max-sm:text-xs bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
               <Plus className="h-4 w-4 mr-1" /> Aggiungi
             </Button>
           </div>

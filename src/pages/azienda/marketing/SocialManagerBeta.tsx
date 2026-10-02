@@ -1226,7 +1226,7 @@ function CalendarioTab({
                 <p className="text-sm font-medium text-slate-600">
                   {vista === "month" ? "Nessun post in questo mese" : "Nessun post in questa settimana"}
                 </p>
-                <Button size="sm" className="mt-3 gap-1.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white" onClick={() => onNuovoPost(null)}>
+                <Button size="sm" className="mt-3 gap-1.5 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white" onClick={() => onNuovoPost(null)}>
                   <Plus className="h-3.5 w-3.5" /> Crea post
                 </Button>
               </div>
@@ -1279,7 +1279,7 @@ function CalendarioTab({
               <Calendar className="mx-auto mb-2 h-6 w-6 text-slate-300" />
               <p className="text-sm font-medium text-slate-600">Nessun post ancora</p>
               <p className="mt-1 text-xs text-slate-400">Clicca un giorno del calendario o crea il primo post.</p>
-              <Button size="sm" className="mt-3 gap-1.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white" onClick={() => onNuovoPost(null)}>
+              <Button size="sm" className="mt-3 gap-1.5 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white" onClick={() => onNuovoPost(null)}>
                 <Plus className="h-3.5 w-3.5" /> Crea post
               </Button>
             </div>
@@ -2428,7 +2428,7 @@ function ContentStudioTab({
                   </Field>
                 </div>
                 <Button size="sm" onClick={() => void onGeneratePost()} disabled={!brief.trim() || isGeneratingCopy}
-                  className="h-9 gap-1.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:from-orange-600 hover:to-amber-600">
+                  className="h-9 gap-1.5 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white hover:from-orange-600 hover:to-amber-600">
                   {isGeneratingCopy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
                   Scrivi il testo
                 </Button>
@@ -2827,7 +2827,7 @@ function ContentStudioTab({
                 Il post è da approvare: salvando le modifiche resta in attesa del titolare o di un amministratore.
               </p>
               <Button onClick={() => void salvaBozza("review")} disabled={isSubmitting}
-                className="w-full bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:from-orange-600 hover:to-amber-600">
+                className="w-full bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white hover:from-orange-600 hover:to-amber-600">
                 {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Pencil className="mr-2 h-4 w-4" />}
                 Salva le modifiche
               </Button>
@@ -2838,7 +2838,7 @@ function ContentStudioTab({
             <Button onClick={() => void onSchedulePost()} disabled={isSubmitting || nessunaPronta || !SOCIAL_LIVE_PUBLISHING_ENABLED}
               className={cn("flex-1 text-white shadow-sm max-sm:min-w-0 max-sm:px-3 max-sm:text-[13px]",
                 publishNow ? "bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600"
-                  : "bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600")}>
+                  : "bg-gradient-to-r from-orange-500 to-eic-amber-strong hover:from-orange-600 hover:to-amber-600")}>
               {!SOCIAL_LIVE_PUBLISHING_ENABLED
                 ? <><Send className="mr-2 h-4 w-4" />Publisher live non attivo</>
                 : isSubmitting
@@ -3021,7 +3021,7 @@ function GalleriaTab({
             {mediaItems.length} file · {aiGenCount} AI-generati · {totalUsed} utilizzi totali
           </p>
         </div>
-        <Button size="sm" className="gap-1.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm"
+        <Button size="sm" className="gap-1.5 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm"
           onClick={onUploadRequested}>
           <Upload className="h-3.5 w-3.5" /> Carica media
         </Button>
@@ -3547,7 +3547,7 @@ function GridPlannerTab({
         {/* ── Accanto: comandi, in programma, come sono andati ── */}
         <div className="min-w-0 space-y-4">
           <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" className="gap-1.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:from-orange-600 hover:to-amber-600"
+            <Button size="sm" className="gap-1.5 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white hover:from-orange-600 hover:to-amber-600"
               onClick={() => onNuovoPost({ modo: "nuovo", piattaforme: ["instagram"], ...(demo ? {} : { destinazioni: { instagram: account.pageId } }) })}>
               <Plus className="h-3.5 w-3.5" /> Nuovo post Instagram
             </Button>
@@ -3969,7 +3969,7 @@ function InboxTab({ onUnreadChange, demoMode = false }: { onUnreadChange?: (n: n
                     className="resize-none rounded-xl text-xs max-sm:text-base"
                   />
                   <button type="button" onClick={() => sendReply(selectedItem.id)} disabled={!replyText.trim()}
-                    className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 py-2 text-xs font-bold text-white shadow-sm transition hover:from-orange-600 hover:to-amber-600 disabled:opacity-40">
+                    className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-orange-500 to-eic-amber-strong py-2 text-xs font-bold text-white shadow-sm transition hover:from-orange-600 hover:to-amber-600 disabled:opacity-40">
                     <Send className="h-3.5 w-3.5" /> Invia risposta
                   </button>
                 </div>
@@ -4191,7 +4191,7 @@ function BulkScheduleModal({
 
           {step === "input" && (
             <button type="button" onClick={handlePreview} disabled={!csvText.trim()}
-              className="rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 px-5 py-2 text-sm font-bold text-white shadow-sm transition hover:from-orange-600 hover:to-amber-600 disabled:opacity-40">
+              className="rounded-xl bg-gradient-to-r from-orange-500 to-eic-amber-strong px-5 py-2 text-sm font-bold text-white shadow-sm transition hover:from-orange-600 hover:to-amber-600 disabled:opacity-40">
               Anteprima →
             </button>
           )}
@@ -4573,7 +4573,7 @@ function GestioneSocial({
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-2xl font-bold text-slate-900 max-sm:text-lg">Gestione social</h1>
-              <Badge className="border-0 bg-gradient-to-r from-orange-500 to-amber-500 text-white max-sm:px-1.5 max-sm:py-0 max-sm:text-[10px]">Beta</Badge>
+              <Badge className="border-0 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white max-sm:px-1.5 max-sm:py-0 max-sm:text-[10px]">Beta</Badge>
             </div>
           </div>
           {/* Senza sottotitolo; Collegamenti e Importa da CSV in un menu «⋯»
@@ -4594,7 +4594,7 @@ function GestioneSocial({
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <Button size="sm" className="gap-1.5 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white shadow-sm"
+            <Button size="sm" className="gap-1.5 bg-gradient-to-r from-orange-500 to-eic-amber-strong hover:from-orange-600 hover:to-amber-600 text-white shadow-sm"
               onClick={() => setTab("crea-post")}>
               <Plus className="h-3.5 w-3.5" /> Crea post
             </Button>

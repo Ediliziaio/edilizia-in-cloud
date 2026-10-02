@@ -237,14 +237,14 @@ export default function Funzionalita() {
 
         <div className="max-w-6xl mx-auto relative">
           <div className="max-w-3xl">
-            <span className="inline-flex items-center gap-2 bg-[#F97415]/10 text-[#F97415] text-[11px] font-bold tracking-widest uppercase px-4 py-1.5 rounded-full mb-6 border border-[#F97415]/30">
+            <span className="inline-flex items-center gap-2 bg-eic-orange/10 text-eic-orange text-[11px] font-bold tracking-widest uppercase px-4 py-1.5 rounded-full mb-6 border border-eic-orange/30">
               <Sparkles className="w-3 h-3" />
               Piattaforma all-in-one
             </span>
 
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-[#111111] leading-[1.05] tracking-tight mb-6">
               Una piattaforma.{" "}
-              <span className="text-[#F97415]">{TOTAL_COUNT} funzionalità.</span>
+              <span className="text-eic-orange">{TOTAL_COUNT} funzionalità.</span>
               <br />
               Zero integrazioni esterne.
             </h1>
@@ -265,7 +265,7 @@ export default function Funzionalita() {
                   key={stat.label}
                   className="rounded-xl px-4 py-3 border border-gray-200 bg-gray-50/60"
                 >
-                  <p className="text-2xl font-extrabold text-[#F97415] leading-tight">{stat.value}</p>
+                  <p className="text-2xl font-extrabold text-eic-orange leading-tight">{stat.value}</p>
                   <p className="text-xs text-[#111111]/55 mt-0.5 leading-tight">{stat.label}</p>
                 </div>
               ))}
@@ -318,7 +318,7 @@ export default function Funzionalita() {
             <div className="text-center py-20 text-[#111111]/55">
               Nessuna funzionalità trovata per "<span className="font-semibold text-[#111111]">{query}</span>".
               <button
-                className="block mx-auto mt-4 text-sm font-bold text-[#F97415] hover:underline"
+                className="block mx-auto mt-4 text-sm font-bold text-eic-orange hover:underline"
                 onClick={() => { setQuery(""); setActiveFilter("tutti"); }}
               >
                 Mostra tutto
@@ -335,7 +335,7 @@ export default function Funzionalita() {
                   </h2>
                   <p className="text-sm text-[#111111]/60 mt-1.5 max-w-2xl">{cat.description}</p>
                 </div>
-                <span className="text-xs font-bold tracking-widest uppercase text-[#F97415]/80">
+                <span className="text-xs font-bold tracking-widest uppercase text-eic-orange/80">
                   {cat.items.length} moduli
                 </span>
               </header>
@@ -349,10 +349,10 @@ export default function Funzionalita() {
           ))}
 
           {filteredCategories.renderItems.length > 0 && (
-            <div id="render-ai" className="rounded-3xl bg-gradient-to-br from-[#F97415]/8 via-white to-white p-6 md:p-10 border border-[#F97415]/20">
+            <div id="render-ai" className="rounded-3xl bg-gradient-to-br from-eic-orange/8 via-white to-white p-6 md:p-10 border border-eic-orange/20">
               <header className="mb-7 flex items-baseline justify-between flex-wrap gap-2">
                 <div>
-                  <span className="inline-flex items-center gap-1.5 bg-[#F97415] text-white text-[10px] font-black tracking-widest uppercase px-2.5 py-1 rounded-full mb-3">
+                  <span className="inline-flex items-center gap-1.5 bg-eic-orange text-white text-[10px] font-black tracking-widest uppercase px-2.5 py-1 rounded-full mb-3">
                     <Sparkles className="w-3 h-3" /> AI Generativa
                   </span>
                   <h2 className="text-2xl md:text-3xl font-extrabold text-[#111111] tracking-tight">
@@ -363,7 +363,7 @@ export default function Funzionalita() {
                     Genera anteprime fotorealistiche in 30 secondi e chiudi il preventivo prima.
                   </p>
                 </div>
-                <span className="text-xs font-bold tracking-widest uppercase text-[#F97415]/80">
+                <span className="text-xs font-bold tracking-widest uppercase text-eic-orange/80">
                   {filteredCategories.renderItems.length} verticali
                 </span>
               </header>
@@ -383,7 +383,7 @@ export default function Funzionalita() {
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-10">
             <h2 className="text-2xl md:text-3xl font-extrabold text-[#111111] mb-3">
-              Tutto incluso, <span className="text-[#F97415]">senza add-on a pagamento</span>
+              Tutto incluso, <span className="text-eic-orange">senza add-on a pagamento</span>
             </h2>
             <p className="text-[#111111]/60 text-sm md:text-base max-w-xl mx-auto">
               Le {TOTAL_COUNT} funzionalità sono incluse in ogni piano. Nessun modulo a parte, nessun upgrade nascosto.
@@ -400,7 +400,7 @@ export default function Funzionalita() {
             ].map((b) => (
               <span
                 key={b.label}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold border border-[#F97415]/25 bg-[#F97415]/5 text-[#C94F06]"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold border border-eic-orange/25 bg-eic-orange/5 text-eic-orange-deep"
               >
                 <b.icon className="w-3.5 h-3.5" />
                 {b.label}
@@ -411,14 +411,14 @@ export default function Funzionalita() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
               to="/demo/"
-              className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl bg-[#F97415] hover:bg-[#C94F06] text-white font-bold text-base transition-colors shadow-lg shadow-[#F97415]/20"
+              className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl bg-eic-orange hover:bg-eic-orange-deep text-white font-bold text-base transition-colors shadow-lg shadow-eic-orange/20"
             >
               Richiedi una Demo Gratuita
               <ArrowRight className="w-5 h-5" />
             </Link>
             <Link
               to="/prezzi/"
-              className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl border-2 border-[#111111]/15 hover:border-[#F97415] text-[#111111] hover:text-[#F97415] font-bold text-base transition-colors"
+              className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl border-2 border-[#111111]/15 hover:border-eic-orange text-[#111111] hover:text-eic-orange font-bold text-base transition-colors"
             >
               Vedi i prezzi
             </Link>
@@ -447,12 +447,12 @@ export default function Funzionalita() {
               <Link
                 key={post.slug}
                 to={`/blog/${post.slug}/`}
-                className="flex items-center gap-3 p-4 rounded-xl border border-gray-200 bg-white hover:border-[#F97415]/40 hover:bg-[#F97415]/5 transition-all group"
+                className="flex items-center gap-3 p-4 rounded-xl border border-gray-200 bg-white hover:border-eic-orange/40 hover:bg-eic-orange/5 transition-all group"
               >
-                <span className="flex-1 text-sm font-semibold text-[#111111] group-hover:text-[#F97415] transition-colors leading-snug">
+                <span className="flex-1 text-sm font-semibold text-[#111111] group-hover:text-eic-orange transition-colors leading-snug">
                   {post.label}
                 </span>
-                <ArrowRight className="w-4 h-4 text-[#F97415] flex-shrink-0" />
+                <ArrowRight className="w-4 h-4 text-eic-orange flex-shrink-0" />
               </Link>
             ))}
           </div>
@@ -486,7 +486,7 @@ function FilterChip({
   const base =
     "shrink-0 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-sm font-semibold transition-colors border whitespace-nowrap";
   const off = accent
-    ? "border-[#F97415]/30 text-[#F97415] bg-[#F97415]/5 hover:bg-[#F97415]/10"
+    ? "border-eic-orange/30 text-eic-orange bg-eic-orange/5 hover:bg-eic-orange/10"
     : "border-gray-200 text-[#111111]/70 bg-white hover:border-[#111111]/30 hover:text-[#111111]";
   const on = "bg-[#111111] border-[#111111] text-white";
   return (
@@ -514,31 +514,31 @@ function FeatureCard({
       to={feature.slug}
       className={`group relative flex flex-col gap-2 rounded-2xl border p-4 md:p-5 transition-all hover:-translate-y-0.5 hover:shadow-md ${
         isRender
-          ? "border-[#F97415]/25 bg-white hover:border-[#F97415]"
-          : "border-gray-200 bg-white hover:border-[#F97415]/50"
+          ? "border-eic-orange/25 bg-white hover:border-eic-orange"
+          : "border-gray-200 bg-white hover:border-eic-orange/50"
       }`}
     >
       <div className="flex items-start justify-between gap-2">
         <span
           className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
             isRender
-              ? "bg-[#F97415]/10 text-[#F97415]"
-              : "bg-gray-100 text-[#111111] group-hover:bg-[#F97415]/10 group-hover:text-[#F97415]"
+              ? "bg-eic-orange/10 text-eic-orange"
+              : "bg-gray-100 text-[#111111] group-hover:bg-eic-orange/10 group-hover:text-eic-orange"
           } transition-colors`}
         >
           <Icon className="w-4.5 h-4.5" />
         </span>
         {feature.badge && (
-          <span className="text-[9px] font-black tracking-widest uppercase px-1.5 py-0.5 rounded-md bg-[#F97415] text-white">
+          <span className="text-[9px] font-black tracking-widest uppercase px-1.5 py-0.5 rounded-md bg-eic-orange text-white">
             {feature.badge}
           </span>
         )}
       </div>
-      <h3 className="font-bold text-[#111111] text-sm leading-tight group-hover:text-[#F97415] transition-colors">
+      <h3 className="font-bold text-[#111111] text-sm leading-tight group-hover:text-eic-orange transition-colors">
         {feature.label}
       </h3>
       <p className="text-xs text-[#111111]/55 leading-relaxed">{feature.desc}</p>
-      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#F97415] mt-auto pt-2 group-hover:gap-1.5 transition-all">
+      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-eic-orange mt-auto pt-2 group-hover:gap-1.5 transition-all">
         Scopri di più
         <ArrowRight className="w-3 h-3" />
       </span>

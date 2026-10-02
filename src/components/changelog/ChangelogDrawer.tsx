@@ -76,7 +76,7 @@ export function ChangelogDrawer() {
       <SheetContent className="w-full sm:max-w-md p-0 flex flex-col">
         <SheetHeader className="p-4 sm:p-6 pb-2 border-b bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/20">
           <SheetTitle className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shrink-0">
+            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-eic-amber to-orange-500 flex items-center justify-center shrink-0">
               <Sparkles className="h-4 w-4 text-white" />
             </div>
             Cosa c&apos;è di nuovo

@@ -103,7 +103,7 @@ function RoiCalculator({ config }: { config: FunzionalitaPageConfig }) {
           <label className="block">
             <span className="mb-2 flex items-center justify-between text-sm font-semibold text-slate-700">
               <span>{r.input1Label}</span>
-              <span className="text-[#F97415]">
+              <span className="text-eic-orange">
                 {v1}
                 {r.input1Suffix ?? ""}
               </span>
@@ -115,14 +115,14 @@ function RoiCalculator({ config }: { config: FunzionalitaPageConfig }) {
               step={r.input1Step}
               value={v1}
               onChange={(e) => setV1(Number(e.target.value))}
-              className="w-full accent-[#F97415]"
+              className="w-full accent-eic-orange"
               aria-label={r.input1Label}
             />
           </label>
           <label className="block">
             <span className="mb-2 flex items-center justify-between text-sm font-semibold text-slate-700">
               <span>{r.input2Label}</span>
-              <span className="text-[#F97415]">
+              <span className="text-eic-orange">
                 {v2}
                 {r.input2Suffix ?? ""}
               </span>
@@ -134,7 +134,7 @@ function RoiCalculator({ config }: { config: FunzionalitaPageConfig }) {
               step={r.input2Step}
               value={v2}
               onChange={(e) => setV2(Number(e.target.value))}
-              className="w-full accent-[#F97415]"
+              className="w-full accent-eic-orange"
               aria-label={r.input2Label}
             />
           </label>
@@ -191,7 +191,7 @@ function DashboardMock({ vertical }: { vertical: string }) {
             </div>
             <div className="mt-1 h-1.5 rounded-full bg-white/10">
               <div
-                className="h-full rounded-full bg-[#F97415]"
+                className="h-full rounded-full bg-eic-orange"
                 style={{ width: ["72%", "20%", "85%"][i] }}
               />
             </div>
@@ -206,7 +206,7 @@ function DashboardMock({ vertical }: { vertical: string }) {
           >
             <div className="flex items-center gap-3">
               <div
-                className="h-8 w-8 rounded-md bg-gradient-to-br from-orange-300 to-[#F97415]"
+                className="h-8 w-8 rounded-md bg-gradient-to-br from-orange-300 to-eic-orange"
                 aria-hidden
               />
               <div>
@@ -379,13 +379,13 @@ export default function FunzionalitaPageTemplate({
               backgroundSize: "50px 50px",
             }}
           />
-          <div className="absolute -left-24 top-10 h-72 w-72 rounded-full bg-[#F97415]/30 blur-3xl" />
+          <div className="absolute -left-24 top-10 h-72 w-72 rounded-full bg-eic-orange/30 blur-3xl" />
           <div className="absolute right-0 top-1/3 h-80 w-80 rounded-full bg-blue-500/20 blur-3xl" />
           <div className="absolute -bottom-24 left-1/2 h-72 w-[36rem] -translate-x-1/2 rounded-full bg-orange-400/15 blur-3xl" />
         </div>
         <div className="relative mx-auto max-w-6xl px-4">
           <div className="mx-auto max-w-3xl text-center">
-            <span className="inline-flex items-center gap-2 rounded-full border border-[#F97415]/40 bg-[#F97415]/15 px-4 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-[#F97415] backdrop-blur">
+            <span className="inline-flex items-center gap-2 rounded-full border border-eic-orange/40 bg-eic-orange/15 px-4 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-eic-orange backdrop-blur">
               <Sparkles className="h-3.5 w-3.5" />
               {config.heroBadge}
             </span>
@@ -394,7 +394,7 @@ export default function FunzionalitaPageTemplate({
               className="mt-6 text-3xl font-black leading-tight text-white sm:text-5xl md:text-6xl"
             >
               {config.heroH1Lead}{" "}
-              <span className="bg-gradient-to-br from-orange-300 to-[#F97415] bg-clip-text text-transparent">
+              <span className="bg-gradient-to-br from-orange-300 to-eic-orange bg-clip-text text-transparent">
                 {config.heroH1Highlight}
               </span>
               {config.heroH1Tail ? <span> {config.heroH1Tail}</span> : null}
@@ -424,7 +424,7 @@ export default function FunzionalitaPageTemplate({
             <div className="mt-9 flex flex-col items-center justify-center gap-4 sm:flex-row">
               <Link
                 to="/demo/"
-                className="group inline-flex items-center justify-center gap-2 rounded-2xl bg-[#F97415] px-8 py-4 text-base font-bold text-white shadow-[0_10px_30px_-10px_rgba(249,116,21,0.6)] transition-transform hover:-translate-y-0.5 hover:bg-[#e8650e] sm:text-lg"
+                className="group inline-flex items-center justify-center gap-2 rounded-2xl bg-eic-orange px-8 py-4 text-base font-bold text-white shadow-[0_10px_30px_-10px_rgba(249,116,21,0.6)] transition-transform hover:-translate-y-0.5 hover:bg-eic-orange-dark sm:text-lg"
               >
                 {config.heroPrimaryCta}
                 <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-0.5" />
@@ -472,7 +472,7 @@ export default function FunzionalitaPageTemplate({
           <div className="mx-auto mt-10 flex max-w-4xl flex-wrap items-center justify-center gap-x-6 gap-y-3 text-white/60">
             {TRUST_BADGES.map((t) => (
               <span key={t.label} className="inline-flex items-center gap-2 text-xs">
-                <t.icon className="h-4 w-4 text-[#F97415]" />
+                <t.icon className="h-4 w-4 text-eic-orange" />
                 {t.label}
               </span>
             ))}
@@ -488,7 +488,7 @@ export default function FunzionalitaPageTemplate({
         className="border-b border-orange-100 bg-gradient-to-br from-orange-50 via-white to-orange-50/40 py-14 px-4"
       >
         <div className="mx-auto max-w-4xl text-center">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-[#F97415]/30 bg-[#F97415]/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-[#F97415]">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-eic-orange/30 bg-eic-orange/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-eic-orange">
             <Sparkles className="h-3 w-3" />
             Programma early-adopter
           </span>
@@ -529,7 +529,7 @@ export default function FunzionalitaPageTemplate({
                 key={s.label}
                 className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-6 text-center shadow-sm"
               >
-                <div className="text-4xl font-black text-[#F97415] sm:text-5xl">
+                <div className="text-4xl font-black text-eic-orange sm:text-5xl">
                   <CountUp value={s.value} prefix={s.prefix} suffix={s.suffix} />
                 </div>
                 <div className="mt-2 text-xs leading-relaxed text-slate-600 sm:text-sm">
@@ -551,7 +551,7 @@ export default function FunzionalitaPageTemplate({
       >
         <div className="mx-auto max-w-6xl">
           <div className="mx-auto max-w-2xl text-center">
-            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#F97415]">
+            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-eic-orange">
               Tutta la piattaforma
             </span>
             <h2
@@ -567,14 +567,14 @@ export default function FunzionalitaPageTemplate({
           <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {config.familyItems.map((f) => {
               const inner = (
-                <div className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition-all hover:-translate-y-0.5 hover:border-[#F97415]/40 hover:shadow-md">
-                  <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-orange-100 text-[#F97415]">
+                <div className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition-all hover:-translate-y-0.5 hover:border-eic-orange/40 hover:shadow-md">
+                  <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-orange-100 text-eic-orange">
                     <f.icon className="h-5 w-5" />
                   </div>
                   <h3 className="mt-4 text-base font-bold text-[#111111]">{f.title}</h3>
                   <p className="mt-2 text-sm leading-relaxed text-slate-600">{f.text}</p>
                   {f.to && (
-                    <span className="mt-4 inline-flex items-center gap-1 text-xs font-bold text-[#F97415]">
+                    <span className="mt-4 inline-flex items-center gap-1 text-xs font-bold text-eic-orange">
                       Scopri <ArrowRight className="h-3 w-3" />
                     </span>
                   )}
@@ -611,7 +611,7 @@ export default function FunzionalitaPageTemplate({
       >
         <div className="mx-auto max-w-5xl">
           <div className="mx-auto max-w-2xl text-center">
-            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#F97415]">
+            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-eic-orange">
               {config.painKicker}
             </span>
             <h2
@@ -679,7 +679,7 @@ export default function FunzionalitaPageTemplate({
                     </div>
                     <p className="text-xs leading-relaxed text-white/70">{a.before}</p>
                   </div>
-                  <div className="rounded-xl bg-gradient-to-br from-orange-500/20 to-amber-400/10 p-4 ring-1 ring-orange-400/30">
+                  <div className="rounded-xl bg-gradient-to-br from-orange-500/20 to-eic-amber/10 p-4 ring-1 ring-orange-400/30">
                     <div className="mb-2 inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-[0.18em] text-orange-300">
                       <Sparkles className="h-3 w-3" />
                       Dopo
@@ -703,7 +703,7 @@ export default function FunzionalitaPageTemplate({
       >
         <div className="mx-auto max-w-5xl">
           <div className="mx-auto max-w-2xl text-center">
-            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#F97415]">
+            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-eic-orange">
               {config.mechanismKicker}
             </span>
             <h2
@@ -723,10 +723,10 @@ export default function FunzionalitaPageTemplate({
                 id={`step-${i + 1}`}
                 className="relative rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-6"
               >
-                <div className="absolute -top-3 left-6 inline-flex h-7 items-center rounded-full bg-[#F97415] px-3 text-[11px] font-black uppercase tracking-wider text-white shadow">
+                <div className="absolute -top-3 left-6 inline-flex h-7 items-center rounded-full bg-eic-orange px-3 text-[11px] font-black uppercase tracking-wider text-white shadow">
                   Step {i + 1}
                 </div>
-                <div className="mt-2 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-orange-100 text-[#F97415]">
+                <div className="mt-2 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-orange-100 text-eic-orange">
                   <s.icon className="h-5 w-5" />
                 </div>
                 <h3 className="mt-4 text-base font-bold text-[#111111]">{s.title}</h3>
@@ -737,7 +737,7 @@ export default function FunzionalitaPageTemplate({
           <div className="mt-10 text-center">
             <Link
               to="/demo/"
-              className="inline-flex items-center gap-2 rounded-2xl bg-[#F97415] px-8 py-4 text-base font-bold text-white shadow-lg transition-transform hover:-translate-y-0.5 hover:bg-[#e8650e]"
+              className="inline-flex items-center gap-2 rounded-2xl bg-eic-orange px-8 py-4 text-base font-bold text-white shadow-lg transition-transform hover:-translate-y-0.5 hover:bg-eic-orange-dark"
             >
               {config.mechanismCta}
               <ArrowRight className="h-5 w-5" />
@@ -774,7 +774,7 @@ export default function FunzionalitaPageTemplate({
                 key={l.title}
                 className="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur transition-colors hover:bg-white/10"
               >
-                <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[#F97415]/20 text-[#F97415] ring-1 ring-[#F97415]/40">
+                <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-eic-orange/20 text-eic-orange ring-1 ring-eic-orange/40">
                   <l.icon className="h-5 w-5" />
                 </div>
                 <h3 className="mt-4 text-base font-bold text-white">{l.title}</h3>
@@ -794,7 +794,7 @@ export default function FunzionalitaPageTemplate({
       >
         <div className="mx-auto max-w-6xl">
           <div className="mx-auto max-w-2xl text-center">
-            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#F97415]">
+            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-eic-orange">
               {config.resultsKicker}
             </span>
             <h2
@@ -814,7 +814,7 @@ export default function FunzionalitaPageTemplate({
                   key={p.title}
                   className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
                 >
-                  <div className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-orange-100 text-[#F97415]">
+                  <div className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-orange-100 text-eic-orange">
                     <p.icon className="h-4.5 w-4.5" />
                   </div>
                   <h3 className="mt-3 text-sm font-bold text-[#111111]">{p.title}</h3>
@@ -830,7 +830,7 @@ export default function FunzionalitaPageTemplate({
                 key={s.label}
                 className="rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm"
               >
-                <div className="text-3xl font-black text-[#F97415] sm:text-4xl">
+                <div className="text-3xl font-black text-eic-orange sm:text-4xl">
                   <CountUp value={s.value} prefix={s.prefix} suffix={s.suffix} />
                 </div>
                 <div className="mt-2 text-xs leading-relaxed text-slate-600 sm:text-sm">
@@ -842,7 +842,7 @@ export default function FunzionalitaPageTemplate({
           <div className="mt-12 text-center">
             <Link
               to="/demo/"
-              className="inline-flex items-center gap-2 rounded-2xl border-2 border-[#F97415] bg-white px-8 py-4 text-base font-bold text-[#F97415] transition-colors hover:bg-[#F97415] hover:text-white"
+              className="inline-flex items-center gap-2 rounded-2xl border-2 border-eic-orange bg-white px-8 py-4 text-base font-bold text-eic-orange transition-colors hover:bg-eic-orange hover:text-white"
             >
               {config.resultsCta}
               <ArrowRight className="h-5 w-5" />
@@ -860,7 +860,7 @@ export default function FunzionalitaPageTemplate({
       >
         <div className="mx-auto max-w-5xl">
           <div className="mx-auto max-w-2xl text-center">
-            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#F97415]">
+            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-eic-orange">
               {config.roiKicker}
             </span>
             <h2
@@ -888,7 +888,7 @@ export default function FunzionalitaPageTemplate({
       >
         <div className="mx-auto max-w-6xl">
           <div className="mx-auto max-w-2xl text-center">
-            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#F97415]">
+            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-eic-orange">
               {config.salesKicker}
             </span>
             <h2
@@ -907,7 +907,7 @@ export default function FunzionalitaPageTemplate({
                 key={i.title}
                 className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
               >
-                <TrendingUp className="h-5 w-5 text-[#F97415]" />
+                <TrendingUp className="h-5 w-5 text-eic-orange" />
                 <h3 className="mt-3 text-sm font-bold text-[#111111]">{i.title}</h3>
                 <p className="mt-1.5 text-xs leading-relaxed text-slate-600">{i.text}</p>
               </div>
@@ -925,7 +925,7 @@ export default function FunzionalitaPageTemplate({
       >
         <div className="mx-auto max-w-5xl">
           <div className="mx-auto max-w-2xl text-center">
-            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#F97415]">
+            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-eic-orange">
               {config.featureKicker}
             </span>
             <h2
@@ -960,7 +960,7 @@ export default function FunzionalitaPageTemplate({
       >
         <div className="mx-auto max-w-5xl">
           <div className="mx-auto max-w-2xl text-center">
-            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#F97415]">
+            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-eic-orange">
               {config.scenarioKicker}
             </span>
             <h2
@@ -976,7 +976,7 @@ export default function FunzionalitaPageTemplate({
                 key={s.title}
                 className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
               >
-                <div className="text-3xl font-black text-[#F97415]/30">{i + 1}</div>
+                <div className="text-3xl font-black text-eic-orange/30">{i + 1}</div>
                 <h3 className="mt-2 text-base font-bold text-[#111111]">{s.title}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-slate-600">{s.text}</p>
               </div>
@@ -992,12 +992,12 @@ export default function FunzionalitaPageTemplate({
         <section className="bg-white py-16 px-4">
           <div className="mx-auto max-w-3xl">
             <div className="rounded-3xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-8 shadow-sm sm:p-10">
-              <Quote className="h-8 w-8 text-[#F97415]" />
+              <Quote className="h-8 w-8 text-eic-orange" />
               <blockquote className="mt-4 text-lg font-medium leading-relaxed text-[#111111] sm:text-xl">
                 "{config.testimonialQuote}"
               </blockquote>
               <div className="mt-6 flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#F97415]/15 font-black text-[#F97415]">
+                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-eic-orange/15 font-black text-eic-orange">
                   {config.testimonialAuthor?.charAt(0) ?? "?"}
                 </div>
                 <div>
@@ -1022,7 +1022,7 @@ export default function FunzionalitaPageTemplate({
       >
         <div className="mx-auto max-w-3xl">
           <div className="mx-auto max-w-2xl text-center">
-            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#F97415]">
+            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-eic-orange">
               {config.faqKicker}
             </span>
             <h2
@@ -1037,7 +1037,7 @@ export default function FunzionalitaPageTemplate({
               <details key={i} className="group p-6">
                 <summary className="flex cursor-pointer list-none items-center justify-between text-base font-bold text-[#111111]">
                   <span>{f.q}</span>
-                  <span className="ml-4 inline-flex h-7 w-7 items-center justify-center rounded-full bg-orange-100 text-lg font-light text-[#F97415] transition-transform group-open:rotate-45">
+                  <span className="ml-4 inline-flex h-7 w-7 items-center justify-center rounded-full bg-orange-100 text-lg font-light text-eic-orange transition-transform group-open:rotate-45">
                     +
                   </span>
                 </summary>
@@ -1057,7 +1057,7 @@ export default function FunzionalitaPageTemplate({
       >
         <div className="mx-auto max-w-6xl">
           <div className="mx-auto max-w-2xl text-center">
-            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#F97415]">
+            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-eic-orange">
               {config.internalLinksKicker}
             </span>
             <h2
@@ -1075,13 +1075,13 @@ export default function FunzionalitaPageTemplate({
               <Link
                 key={l.to}
                 to={l.to}
-                className="group flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-[#F97415]/40 hover:shadow-md"
+                className="group flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-eic-orange/40 hover:shadow-md"
               >
-                <h3 className="text-sm font-bold text-[#111111] group-hover:text-[#F97415]">
+                <h3 className="text-sm font-bold text-[#111111] group-hover:text-eic-orange">
                   {l.title}
                 </h3>
                 <p className="mt-1.5 flex-1 text-xs leading-relaxed text-slate-600">{l.text}</p>
-                <span className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-[#F97415]">
+                <span className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-eic-orange">
                   Apri <ArrowRight className="h-3 w-3" />
                 </span>
               </Link>
@@ -1102,7 +1102,7 @@ export default function FunzionalitaPageTemplate({
                 <Link
                   key={p.slug}
                   to={`/blog/${p.slug}/`}
-                  className="group flex flex-col gap-2 rounded-xl border border-slate-200 p-4 transition-all hover:border-[#F97415]/40 hover:shadow-sm"
+                  className="group flex flex-col gap-2 rounded-xl border border-slate-200 p-4 transition-all hover:border-eic-orange/40 hover:shadow-sm"
                 >
                   <BlogCover
                     src={p.coverImage}
@@ -1112,10 +1112,10 @@ export default function FunzionalitaPageTemplate({
                     sizes="(max-width: 640px) 100vw, 280px"
                     className="h-28 w-full rounded-lg object-cover"
                   />
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#F97415]">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-eic-orange">
                     {p.category}
                   </span>
-                  <span className="line-clamp-2 text-sm font-semibold leading-snug text-[#111111] group-hover:text-[#F97415]">
+                  <span className="line-clamp-2 text-sm font-semibold leading-snug text-[#111111] group-hover:text-eic-orange">
                     {p.title}
                   </span>
                   <span className="text-xs text-slate-500">{p.readTime} min di lettura</span>
@@ -1131,7 +1131,7 @@ export default function FunzionalitaPageTemplate({
       {/* ════════════════════════════════════════════════════════════ */}
       <section className="relative overflow-hidden bg-[#0b0b0b] py-24 px-4 text-center text-white">
         <div className="pointer-events-none absolute inset-0">
-          <div className="absolute -left-32 top-0 h-96 w-96 rounded-full bg-[#F97415]/25 blur-3xl" />
+          <div className="absolute -left-32 top-0 h-96 w-96 rounded-full bg-eic-orange/25 blur-3xl" />
           <div className="absolute -right-32 bottom-0 h-96 w-96 rounded-full bg-orange-400/20 blur-3xl" />
         </div>
         <div className="relative mx-auto max-w-3xl">
@@ -1142,7 +1142,7 @@ export default function FunzionalitaPageTemplate({
           <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
             <Link
               to="/demo/"
-              className="group inline-flex items-center gap-2 rounded-2xl bg-[#F97415] px-10 py-5 text-base font-bold text-white shadow-[0_20px_40px_-10px_rgba(249,116,21,0.6)] transition-transform hover:-translate-y-0.5 hover:bg-[#e8650e] sm:text-lg"
+              className="group inline-flex items-center gap-2 rounded-2xl bg-eic-orange px-10 py-5 text-base font-bold text-white shadow-[0_20px_40px_-10px_rgba(249,116,21,0.6)] transition-transform hover:-translate-y-0.5 hover:bg-eic-orange-dark sm:text-lg"
             >
               {config.finalCtaButton}
               <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-0.5" />
@@ -1164,7 +1164,7 @@ export default function FunzionalitaPageTemplate({
       <div className="fixed inset-x-3 bottom-3 z-40 lg:hidden">
         <Link
           to="/demo/"
-          className="flex items-center justify-between gap-3 rounded-2xl bg-[#F97415] px-5 py-3.5 text-white shadow-2xl ring-1 ring-orange-300/50"
+          className="flex items-center justify-between gap-3 rounded-2xl bg-eic-orange px-5 py-3.5 text-white shadow-2xl ring-1 ring-orange-300/50"
         >
           <div>
             <div className="text-sm font-black leading-tight">{config.stickyCtaLabel}</div>

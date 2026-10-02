@@ -580,7 +580,7 @@ function Section({
   return (
     <div className="rounded-lg border bg-card overflow-hidden">
       <div className="flex items-center gap-2 px-3 py-2 border-b bg-muted/30">
-        <div className="h-7 w-7 rounded-md bg-gradient-to-br from-orange-500 to-amber-400 text-white flex items-center justify-center shrink-0">
+        <div className="h-7 w-7 rounded-md bg-gradient-to-br from-orange-500 to-eic-amber text-white flex items-center justify-center shrink-0">
           <span className="[&_svg]:h-3.5 [&_svg]:w-3.5">{icon}</span>
         </div>
         <div className="flex-1 min-w-0">

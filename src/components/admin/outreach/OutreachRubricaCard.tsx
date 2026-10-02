@@ -143,7 +143,7 @@ export function OutreachRubricaCard({ companyId }: { companyId: string }) {
       footer={
         <>
           <Button
-            className="flex-1 gap-1.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600"
+            className="flex-1 gap-1.5 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600"
             onClick={() => navigate("/admin/marketing/contatti")}
           >
             <Users className="h-4 w-4" /> Apri contatti

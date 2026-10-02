@@ -18,7 +18,7 @@ const config: PerTipoConfig = {
   heroTitle: (
     <>
       <span className="text-white">Gestisci 10 cantieri</span>{" "}
-      <span className="text-[#F97415]">come se fosse uno solo</span>
+      <span className="text-eic-orange">come se fosse uno solo</span>
     </>
   ),
   heroSubtitle:
@@ -27,10 +27,10 @@ const config: PerTipoConfig = {
 
   // Social proof
   socialProof: [
-    { initials: "CE", name: "Costruzioni Esposito", city: "Napoli", months: 22, gradient: "from-[#F97415] to-[#0d8f79]" },
-    { initials: "FB", name: "Fratelli Bianchi", city: "Bologna", months: 18, gradient: "from-[#111111] to-[#F97415]" },
+    { initials: "CE", name: "Costruzioni Esposito", city: "Napoli", months: 22, gradient: "from-eic-orange to-[#0d8f79]" },
+    { initials: "FB", name: "Fratelli Bianchi", city: "Bologna", months: 18, gradient: "from-[#111111] to-eic-orange" },
     { initials: "ME", name: "Marini Edilizia", city: "Verona", months: 14, gradient: "from-[#0d8f79] to-[#111111]" },
-    { initials: "GC", name: "Gruppo Costruire", city: "Roma", months: 24, gradient: "from-[#1a1a2e] to-[#F97415]" },
+    { initials: "GC", name: "Gruppo Costruire", city: "Roma", months: 24, gradient: "from-[#1a1a2e] to-eic-orange" },
   ],
 
   // Problems
@@ -247,7 +247,7 @@ const config: PerTipoConfig = {
     person: "Giorgia Esposito",
     role: "CFO e socia operativa",
     initials: "GE",
-    gradient: "from-[#F97415] to-[#0d8f79]",
+    gradient: "from-eic-orange to-[#0d8f79]",
     quote:
       "Eravamo 35 dipendenti e 8 cantieri aperti. Il problema non era il fatturato, era il controllo: chiudevo il consolidamento il 20 del mese successivo e quando vedevo che il cantiere di Salerno era andato a margine zero, ormai era finito. Con Edilizia in Cloud vedo lo scostamento il giorno stesso. Nel primo anno abbiamo recuperato due punti di marginalità — su 5 milioni sono 100.000 euro vere, non da slide.",
     metrics: [
@@ -332,7 +332,7 @@ const config: PerTipoConfig = {
   ctaTitle: (
     <>
       <span className="text-white">10 cantieri.</span>{" "}
-      <span className="text-[#F97415]">Una sola dashboard.</span>
+      <span className="text-eic-orange">Una sola dashboard.</span>
     </>
   ),
   ctaSubtitle:

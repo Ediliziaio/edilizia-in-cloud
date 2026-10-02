@@ -827,7 +827,7 @@ function MarketingOpportunitiesContent() {
             <Upload className="mr-1.5 h-3.5 w-3.5 max-xl:mr-0" /> <span className="max-xl:hidden">Importa</span>
           </Button>
           {/* Telefono e tablet: «+» quadrato, la testata sta su una riga. */}
-          <Button size="sm" className="tap-compact h-8 w-8 shrink-0 p-0 lg:w-auto lg:px-3 bg-gradient-to-r from-orange-500 to-amber-500 text-xs text-white shadow-sm shadow-orange-200 hover:from-orange-600 hover:to-amber-600" onClick={() => setDialogOpen(true)} disabled={stages.length === 0 || !canEditOpportunities} aria-label="Aggiungi opportunità">
+          <Button size="sm" className="tap-compact h-8 w-8 shrink-0 p-0 lg:w-auto lg:px-3 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-xs text-white shadow-sm shadow-orange-200 hover:from-orange-600 hover:to-amber-600" onClick={() => setDialogOpen(true)} disabled={stages.length === 0 || !canEditOpportunities} aria-label="Aggiungi opportunità">
             <Plus className="h-4 w-4 lg:mr-1.5 lg:h-3.5 lg:w-3.5" />
             <span className="hidden lg:inline xl:hidden">Aggiungi</span>
             <span className="hidden xl:inline">Aggiungi opportunità</span>

@@ -30,7 +30,7 @@ export function MarketingDomainGateWall() {
   return (
     <Card className="max-w-2xl mx-auto border-orange-200">
       <CardContent className="pt-10 pb-10 text-center space-y-6">
-        <div className="mx-auto h-16 w-16 rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center shadow-sm shadow-orange-200">
+        <div className="mx-auto h-16 w-16 rounded-2xl bg-gradient-to-br from-orange-500 to-eic-amber-strong flex items-center justify-center shadow-sm shadow-orange-200">
           <Globe className="h-8 w-8 text-white" />
         </div>
 

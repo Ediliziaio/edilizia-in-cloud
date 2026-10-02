@@ -514,12 +514,12 @@ export function StepContenuti({ form, onChange }: Props) {
       {/* Box intro: design neutro con accent blu navy (brand secondary)
           sul border-left. Le card di selezione sottostanti usano blu
           tenue per il selected state -> palette coerente. */}
-      <Card className="border-l-4 border-l-[#173b67] border-slate-200">
+      <Card className="border-l-4 border-l-eic-navy-deep border-slate-200">
         {/* Telefono: titolo e «Applica tutto» su una riga, senza spiegazioni. */}
         <CardContent className="p-4 flex items-start gap-3 flex-wrap max-md:flex-nowrap max-md:items-center max-md:p-3">
           <div className="flex-1 min-w-[220px] max-md:min-w-0">
             <div className="flex items-center gap-2 mb-1 max-md:mb-0">
-              <MessageCircle className="h-4 w-4 text-[#173b67]" />
+              <MessageCircle className="h-4 w-4 text-eic-navy-deep" />
               <span className="text-sm font-semibold text-slate-900">Contenuti del preventivo</span>
             </div>
             <p className="text-[11px] text-muted-foreground mb-1.5 leading-snug max-md:hidden">

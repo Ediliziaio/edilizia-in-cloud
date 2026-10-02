@@ -77,7 +77,7 @@ function SedeFilterBarMarketing() {
   return (
     <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <span className="text-sm font-semibold text-[#1E3A5F]">Analytics per Sede</span>
+        <span className="text-sm font-semibold text-eic-navy">Analytics per Sede</span>
         <SedeFilterBar />
       </div>
       <LeadPerSedeChart />
@@ -376,7 +376,7 @@ export default function MarketingDashboard() {
       {isLoading && !data?.kpi && (
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="grid gap-0 xl:grid-cols-[minmax(340px,0.58fr)_minmax(540px,1fr)]">
-            <div className="bg-[#173b67] p-5 text-white sm:p-6">
+            <div className="bg-eic-navy-deep p-5 text-white sm:p-6">
               <div className="flex items-center gap-3">
                 <Loader2 className="h-5 w-5 animate-spin text-orange-200" />
                 <p className="text-sm text-blue-50/85">Caricamento KPI commerciali…</p>
@@ -418,10 +418,10 @@ export default function MarketingDashboard() {
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="grid gap-0 xl:grid-cols-[minmax(340px,0.58fr)_minmax(540px,1fr)]">
             {/* Telefono: titolo, bottone e quattro numeri 2×2; via icona, occhiello e spiegazione. */}
-            <div className="bg-[#173b67] p-5 text-white sm:p-6 max-sm:p-4">
+            <div className="bg-eic-navy-deep p-5 text-white sm:p-6 max-sm:p-4">
               <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between max-sm:gap-3">
                 <div className="flex min-w-0 gap-3">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)] max-sm:hidden">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)] max-sm:hidden">
                     {executiveState.tone === "green" ? <ShieldCheck className="h-5 w-5" /> : <AlertTriangle className="h-5 w-5" />}
                   </div>
                   <div className="min-w-0">

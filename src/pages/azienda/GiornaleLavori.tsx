@@ -453,7 +453,7 @@ export default function GiornaleLavori() {
       <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/50 p-4 shadow-sm sm:p-5">
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-eic-amber-strong text-white shadow-sm shadow-orange-200">
               <NotebookPen className="h-5 w-5" />
             </div>
             <div className="min-w-0">
@@ -475,7 +475,7 @@ export default function GiornaleLavori() {
               </Button>
             )}
             {canEditGiornale && (
-              <Button size="sm" className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200 hover:from-orange-600 hover:to-amber-600" onClick={openNew}>
+              <Button size="sm" className="bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm shadow-orange-200 hover:from-orange-600 hover:to-amber-600" onClick={openNew}>
                 <Plus className="h-4 w-4" />
                 <span className="hidden sm:inline ml-1">Report</span>
               </Button>

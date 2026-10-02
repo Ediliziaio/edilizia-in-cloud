@@ -101,7 +101,7 @@ export default function AnalisiAcquisti() {
         {/* Senza titoletto («Analisi acquisti — Da chi compri, a che prezzo»,
             ripeteva la pagina) e tre per riga da 768: a due per riga il quinto
             restava da solo su una terza riga. */}
-        <div className="bg-[#173b67] p-4 text-white sm:p-5">
+        <div className="bg-eic-navy-deep p-4 text-white sm:p-5">
           <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-3 xl:grid-cols-5">
             {isLoading ? (
               Array.from({ length: 5 }).map((_, i) => (

@@ -424,7 +424,7 @@ export function SilvioFAB({ hidden = false, mode = "azienda" }: Props) {
 	            aria-label="Apri assistente Silvio"
               aria-expanded={open}
 	            className={cn(
-                "fixed bottom-4 right-4 z-40 hidden h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 via-orange-500 to-amber-400 text-white shadow-xl shadow-orange-300/40 transition-all hover:scale-105 hover:shadow-2xl md:bottom-6 md:right-6 md:flex",
+                "fixed bottom-4 right-4 z-40 hidden h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 via-orange-500 to-eic-amber text-white shadow-xl shadow-orange-300/40 transition-all hover:scale-105 hover:shadow-2xl md:bottom-6 md:right-6 md:flex",
                 senzaTondo && "md:hidden",
               )}
               style={{

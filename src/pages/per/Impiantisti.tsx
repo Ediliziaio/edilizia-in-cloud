@@ -15,7 +15,7 @@ const config: PerTipoConfig = {
   heroTitle: (
     <>
       <span className="text-white">Aumenta i margini. Blinda la cassa.</span>{" "}
-      <span className="text-[#F97415]">Il gestionale con AI per chi manda tecnici in campo.</span>
+      <span className="text-eic-orange">Il gestionale con AI per chi manda tecnici in campo.</span>
     </>
   ),
   heroSubtitle:
@@ -286,7 +286,7 @@ const config: PerTipoConfig = {
   ctaTitle: (
     <>
       <span className="text-white">Ogni ora fatturata. Cassa incassata.</span>{" "}
-      <span className="text-[#F97415]">Più interventi che rendono davvero.</span>
+      <span className="text-eic-orange">Più interventi che rendono davvero.</span>
     </>
   ),
   ctaSubtitle:

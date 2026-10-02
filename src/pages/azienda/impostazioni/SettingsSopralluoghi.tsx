@@ -115,7 +115,7 @@ export default function SettingsSopralluoghi() {
       {/* Header */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3">
-          <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center text-white shadow-lg">
+          <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber-strong flex items-center justify-center text-white shadow-lg">
             <ClipboardList className="h-6 w-6" />
           </div>
           <div>

@@ -60,7 +60,7 @@ export function SmsCompose() {
     <Card>
       <CardHeader className="max-md:p-3 max-md:pb-2">
         <CardTitle className="flex items-center gap-2 max-md:text-sm">
-          <Send className="h-5 w-5 text-[#1E3A5F] max-md:hidden" />
+          <Send className="h-5 w-5 text-eic-navy max-md:hidden" />
           Nuovo SMS
         </CardTitle>
       </CardHeader>
@@ -118,7 +118,7 @@ export function SmsCompose() {
           <Button
             type="submit"
             disabled={isPending}
-            className="w-full bg-[#1E3A5F] hover:bg-[#162d4a] text-white"
+            className="w-full bg-eic-navy hover:bg-[#162d4a] text-white"
           >
             <Send className="h-4 w-4 mr-2" />
             {isPending ? "Invio in corso…" : "Invia SMS"}

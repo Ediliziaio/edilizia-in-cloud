@@ -31,11 +31,11 @@ export function BrandPageHeader({
 }: BrandPageHeaderProps) {
   return (
     <section className={"overflow-hidden rounded-2xl border border-slate-200 shadow-sm dark:border-slate-800 " + (className ?? "")}>
-      <div className="relative overflow-hidden bg-[#173b67] p-5 text-white sm:p-6">
+      <div className="relative overflow-hidden bg-eic-navy-deep p-5 text-white sm:p-6">
         <HeroAurora />
         <div className="relative z-10 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="flex min-w-0 gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-sm">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-sm">
               <Icon className="h-5 w-5" aria-hidden="true" />
             </div>
             <div className="min-w-0">

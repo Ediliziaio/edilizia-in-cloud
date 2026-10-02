@@ -10,7 +10,7 @@
  * Nessun altro hook deve scrivere queste variabili.
  */
 
-import { garantisciContrasto, tintaChiara } from "./brandPalette";
+import { garantisciContrasto, rampaBrand, tintaChiara } from "./brandPalette";
 
 export interface BrandThemeColors {
   primaryColor: string;
@@ -78,6 +78,15 @@ const THEME_VARS = [
   "--sidebar-ring",
   "--sidebar-accent",
   "--sidebar-accent-foreground",
+  // Il marchio al posto dell'arancione e del blu scuro di EdiliziaInCloud
+  // (vedi tailwind.config: orange-*, eic-orange, eic-navy leggono queste variabili).
+  ...["50", "100", "200", "300", "400", "500", "600", "700", "800", "900", "950"].map((n) => `--brand-orange-${n}`),
+  "--brand-accent",
+  "--brand-accent-dark",
+  "--brand-accent-deep",
+  "--brand-accent-soft",
+  "--brand-navy",
+  "--brand-navy-deep",
 ] as const;
 
 /**
@@ -130,6 +139,18 @@ export function applyBrandTheme(colors: BrandThemeColors): void {
     const fg = hexToHslComponents(c.textOnPrimary) ?? "0 0% 100%";
     root.style.setProperty("--primary-foreground", fg);
     root.style.setProperty("--sidebar-primary-foreground", fg);
+  }
+
+  // Arancione e blu scuro della piattaforma → il marchio, in tutta l'applicazione.
+  const rampa = c.primary ? rampaBrand(c.primary) : null;
+  if (rampa) {
+    for (const [n, v] of Object.entries(rampa.orange)) root.style.setProperty(`--brand-orange-${n}`, v);
+    root.style.setProperty("--brand-accent", rampa.accent);
+    root.style.setProperty("--brand-accent-dark", rampa.accentDark);
+    root.style.setProperty("--brand-accent-deep", rampa.accentDeep);
+    root.style.setProperty("--brand-accent-soft", rampa.accentSoft);
+    root.style.setProperty("--brand-navy", rampa.navy);
+    root.style.setProperty("--brand-navy-deep", rampa.navyDeep);
   }
 
   // Le voci evidenziate (barra laterale, hover) restano coerenti con la tinta

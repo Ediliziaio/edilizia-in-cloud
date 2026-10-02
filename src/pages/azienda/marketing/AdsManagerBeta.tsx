@@ -5534,7 +5534,7 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
 
         {/* IMAGE AI */}
         <Card className="overflow-hidden">
-          <div className="h-0.5 bg-gradient-to-r from-amber-400 to-orange-500" />
+          <div className="h-0.5 bg-gradient-to-r from-eic-amber to-orange-500" />
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2.5">
@@ -7873,7 +7873,7 @@ function PixelConfigCard({ companyId, integrationId }: { companyId?: string; int
 
   return (
     <Card className="overflow-hidden border-orange-100">
-      <div className="h-0.5 bg-gradient-to-r from-orange-400 to-amber-400" />
+      <div className="h-0.5 bg-gradient-to-r from-orange-400 to-eic-amber" />
       <CardHeader className="pb-3">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <div>
@@ -8122,7 +8122,7 @@ function PixelConfigCard({ companyId, integrationId }: { companyId?: string; int
 
                 {wizardStep < WIZARD_STEPS.length - 1 ? (
                   <Button size="sm"
-                    className="bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:from-orange-600 hover:to-amber-600"
+                    className="bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white hover:from-orange-600 hover:to-amber-600"
                     onClick={() => {
                       if (currentWizardStep.action === "pixel_id") {
                         const err = validatePixelId(pixelId);

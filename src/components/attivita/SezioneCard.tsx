@@ -11,13 +11,13 @@ import type { ElementType, ReactNode } from "react";
 export type Tono = "blu" | "arancio" | "neutro";
 
 const TONO_BARRA: Record<Tono, string> = {
-  blu: "sm:border-l-[#1E3A5F]",
+  blu: "sm:border-l-eic-navy",
   arancio: "sm:border-l-orange-500",
   neutro: "sm:border-l-slate-300 sm:dark:border-l-slate-600",
 };
 
 const TONO_CHIP: Record<Tono, string> = {
-  blu: "bg-[#1E3A5F]/10 text-[#1E3A5F] dark:bg-blue-400/15 dark:text-blue-300",
+  blu: "bg-eic-navy/10 text-eic-navy dark:bg-blue-400/15 dark:text-blue-300",
   arancio: "bg-orange-500/10 text-orange-600 dark:text-orange-300",
   neutro: "bg-slate-200/70 text-slate-600 dark:bg-slate-700 dark:text-slate-300",
 };

@@ -243,7 +243,7 @@ export function SmsAutomationForm({
             <Button
               type="submit"
               disabled={isPending}
-              className="bg-[#1E3A5F] hover:bg-[#162d4a] text-white"
+              className="bg-eic-navy hover:bg-[#162d4a] text-white"
             >
               {isPending ? "Salvataggio…" : defaultValues ? "Salva modifiche" : "Crea automazione"}
             </Button>

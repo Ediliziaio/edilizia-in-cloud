@@ -78,7 +78,7 @@ export function FigureSicurezzaTab() {
           spiegazione (chi manca lo dice l'avviso qui sotto). */}
       {puoScrivere && (
         <div className="flex items-center justify-end">
-          <Button size="sm" onClick={() => setModulo(vuota("datore_lavoro"))} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600"><Plus className="mr-1 h-4 w-4" />Aggiungi figura</Button>
+          <Button size="sm" onClick={() => setModulo(vuota("datore_lavoro"))} className="bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600"><Plus className="mr-1 h-4 w-4" />Aggiungi figura</Button>
         </div>
       )}
 

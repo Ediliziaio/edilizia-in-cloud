@@ -334,7 +334,7 @@ function VisualDemoStoryboard() {
           ].map(([time, title, text]) => (
             <div key={title} className="group rounded-xl border border-white/10 bg-white/[0.06] p-3 transition hover:-translate-y-0.5 hover:bg-white/[0.09] sm:rounded-2xl sm:p-4">
               <div className="flex items-start gap-3">
-                <span className="flex h-12 w-14 shrink-0 items-center justify-center rounded-xl bg-[#F97415] text-xs font-black leading-tight text-white shadow-lg shadow-orange-950/20 sm:w-12 sm:text-sm">
+                <span className="flex h-12 w-14 shrink-0 items-center justify-center rounded-xl bg-eic-orange text-xs font-black leading-tight text-white shadow-lg shadow-orange-950/20 sm:w-12 sm:text-sm">
                   {time}
                 </span>
                 <div>
@@ -499,7 +499,7 @@ function RoiCalculator({ onRequestInfo }: { onRequestInfo: () => void }) {
           <div>
             <div className="flex items-center justify-between text-sm font-bold text-[#0f172a]">
               <label htmlFor="preventivi-mese">Preventivi al mese</label>
-              <span className="text-[#D95E0B]">{preventiviMese}</span>
+              <span className="text-eic-orange-dark">{preventiviMese}</span>
             </div>
             <input
               id="preventivi-mese"
@@ -509,7 +509,7 @@ function RoiCalculator({ onRequestInfo }: { onRequestInfo: () => void }) {
               step={1}
               value={preventiviMese}
               onChange={(e) => setPreventiviMese(Number(e.target.value))}
-              className="mt-3 w-full accent-[#F97415]"
+              className="mt-3 w-full accent-eic-orange"
             />
             <div className="mt-1 flex justify-between text-xs text-slate-500">
               <span>5</span>
@@ -519,7 +519,7 @@ function RoiCalculator({ onRequestInfo }: { onRequestInfo: () => void }) {
           <div>
             <div className="flex items-center justify-between text-sm font-bold text-[#0f172a]">
               <label htmlFor="ticket-medio">Ticket medio per ordine</label>
-              <span className="text-[#D95E0B]">{formatEuro(ticketMedio)}</span>
+              <span className="text-eic-orange-dark">{formatEuro(ticketMedio)}</span>
             </div>
             <input
               id="ticket-medio"
@@ -529,7 +529,7 @@ function RoiCalculator({ onRequestInfo }: { onRequestInfo: () => void }) {
               step={500}
               value={ticketMedio}
               onChange={(e) => setTicketMedio(Number(e.target.value))}
-              className="mt-3 w-full accent-[#F97415]"
+              className="mt-3 w-full accent-eic-orange"
             />
             <div className="mt-1 flex justify-between text-xs text-slate-500">
               <span>{formatEuro(2000)}</span>
@@ -539,7 +539,7 @@ function RoiCalculator({ onRequestInfo }: { onRequestInfo: () => void }) {
           <div>
             <div className="flex items-center justify-between text-sm font-bold text-[#0f172a]">
               <label htmlFor="close-rate">Close rate attuale</label>
-              <span className="text-[#D95E0B]">{closeRateAttuale}%</span>
+              <span className="text-eic-orange-dark">{closeRateAttuale}%</span>
             </div>
             <input
               id="close-rate"
@@ -549,7 +549,7 @@ function RoiCalculator({ onRequestInfo }: { onRequestInfo: () => void }) {
               step={1}
               value={closeRateAttuale}
               onChange={(e) => setCloseRateAttuale(Number(e.target.value))}
-              className="mt-3 w-full accent-[#F97415]"
+              className="mt-3 w-full accent-eic-orange"
             />
             <div className="mt-1 flex justify-between text-xs text-slate-500">
               <span>5%</span>
@@ -559,7 +559,7 @@ function RoiCalculator({ onRequestInfo }: { onRequestInfo: () => void }) {
         </div>
 
         <div className="rounded-xl border border-orange-200 bg-gradient-to-br from-[#fff4e6] to-[#ffe9d2] p-6">
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-[#D95E0B]">
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-eic-orange-dark">
             Stima conservativa
           </p>
           <p className="mt-1 text-sm leading-6 text-slate-600">
@@ -572,7 +572,7 @@ function RoiCalculator({ onRequestInfo }: { onRequestInfo: () => void }) {
               <p className="mt-1 text-2xl font-black text-[#0f172a]">
                 {closeRateAttuale}% → {result.newCloseRate.toFixed(0)}%
               </p>
-              <p className="mt-1 text-xs font-bold text-[#D95E0B]">+18% di chiusura</p>
+              <p className="mt-1 text-xs font-bold text-eic-orange-dark">+18% di chiusura</p>
             </div>
             <div className="rounded-lg bg-white p-4">
               <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Ordini in più al mese</p>
@@ -594,7 +594,7 @@ function RoiCalculator({ onRequestInfo }: { onRequestInfo: () => void }) {
           <button
             type="button"
             onClick={onRequestInfo}
-            className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#F97415] px-5 py-3 text-sm font-extrabold text-white shadow-md transition hover:bg-[#D95E0B]"
+            className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-eic-orange px-5 py-3 text-sm font-extrabold text-white shadow-md transition hover:bg-eic-orange-dark"
           >
             Sblocca l'anteprima visiva gratis per 31 giorni
             <ArrowRight className="h-4 w-4" />
@@ -809,7 +809,7 @@ function VisualProofMosaic() {
           ["Dettagli", "Cassonetti, oscuranti e cornici diventano parte visibile della proposta."],
         ].map(([title, text]) => (
           <div key={title} className="rounded-2xl border border-orange-200 bg-orange-50 p-5">
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-[#D95E0B]">{title}</p>
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-eic-orange-dark">{title}</p>
             <p className="mt-2 text-base font-extrabold leading-6 text-slate-900">{text}</p>
           </div>
         ))}
@@ -832,7 +832,7 @@ function ContextualCta({
   return (
     <div className="mt-10 rounded-2xl border border-orange-200 bg-gradient-to-r from-orange-50 to-white p-5 shadow-sm sm:flex sm:items-center sm:justify-between sm:gap-6">
       <div>
-        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[#D95E0B]">{eyebrow}</p>
+        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-eic-orange-dark">{eyebrow}</p>
         <p className="mt-2 text-lg font-black leading-7 text-[#0f172a]">{title}</p>
       </div>
       <button
@@ -1245,7 +1245,7 @@ export default function RenderInfissi() {
               <button
                 type="button"
                 onClick={openLeadModal}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#F97415] px-6 py-3.5 text-sm font-extrabold text-white shadow-lg shadow-orange-950/30 transition hover:bg-[#D95E0B] sm:w-auto sm:px-7 sm:py-4 sm:text-base"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-eic-orange px-6 py-3.5 text-sm font-extrabold text-white shadow-lg shadow-orange-950/30 transition hover:bg-eic-orange-dark sm:w-auto sm:px-7 sm:py-4 sm:text-base"
               >
                 Prova GRATIS il Render AI
                 <ArrowRight className="h-5 w-5" />
@@ -1352,7 +1352,7 @@ export default function RenderInfissi() {
         <section
           aria-labelledby="beta-title"
           data-render-reveal
-          className="relative overflow-hidden bg-gradient-to-br from-[#0b1220] via-[#1a2540] to-[#D95E0B] px-6 py-14 text-white"
+          className="relative overflow-hidden bg-gradient-to-br from-[#0b1220] via-[#1a2540] to-eic-orange-dark px-6 py-14 text-white"
         >
           <div
             className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_85%_50%,rgba(255,255,255,0.18),transparent_55%),linear-gradient(90deg,rgba(249,116,21,0.22)_1px,transparent_1px),linear-gradient(rgba(249,116,21,0.16)_1px,transparent_1px)] bg-[length:auto,52px_52px,52px_52px]"
@@ -1400,7 +1400,7 @@ export default function RenderInfissi() {
               <button
                 type="button"
                 onClick={openLeadModal}
-                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-white px-6 py-4 text-base font-extrabold text-[#D95E0B] shadow-lg transition hover:bg-orange-50"
+                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-white px-6 py-4 text-base font-extrabold text-eic-orange-dark shadow-lg transition hover:bg-orange-50"
               >
                 Riserva il tuo posto ora
                 <ArrowRight className="h-5 w-5" />
@@ -1413,7 +1413,7 @@ export default function RenderInfissi() {
         <section aria-labelledby="speed-title" data-render-reveal className="bg-[#fff7ed] px-6 py-16">
           <div className="mx-auto max-w-6xl">
             <div className="mx-auto max-w-3xl text-center">
-              <p className="text-sm font-black uppercase tracking-[0.2em] text-[#D95E0B]">
+              <p className="text-sm font-black uppercase tracking-[0.2em] text-eic-orange-dark">
                 Risposta immediata
               </p>
               <h2 id="speed-title" className="mt-3 text-2xl font-black tracking-tight text-[#0f172a] sm:text-4xl">
@@ -1432,7 +1432,7 @@ export default function RenderInfissi() {
                   data-render-item
                   className="group rounded-2xl border border-orange-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
                 >
-                  <p className="text-4xl font-black tracking-tight sm:text-5xl text-[#D95E0B] transition group-hover:scale-105">
+                  <p className="text-4xl font-black tracking-tight sm:text-5xl text-eic-orange-dark transition group-hover:scale-105">
                     <CountUp value={item.value} prefix={item.prefix} suffix={item.suffix} />
                   </p>
                   <p className="mt-3 text-sm font-semibold leading-6 text-slate-700">{item.label}</p>
@@ -1449,7 +1449,7 @@ export default function RenderInfissi() {
         <section aria-labelledby="visual-sales-title" data-render-reveal className="bg-white px-6 py-16 sm:py-20">
           <div className="mx-auto max-w-6xl">
             <div className="mx-auto max-w-3xl text-center">
-              <p className="text-sm font-black uppercase tracking-[0.2em] text-[#D95E0B]">Prima immagine, poi prezzo</p>
+              <p className="text-sm font-black uppercase tracking-[0.2em] text-eic-orange-dark">Prima immagine, poi prezzo</p>
               <h2 id="visual-sales-title" className="mt-3 text-2xl font-black tracking-tight text-[#0f172a] sm:text-4xl">
                 Il preventivo non resta più una lista di righe tecniche.
               </h2>
@@ -1472,8 +1472,8 @@ export default function RenderInfissi() {
         <section id="video-demo" aria-labelledby="video-title" data-render-reveal className="bg-white px-4 py-14 sm:px-6 sm:py-20">
           <div className="mx-auto max-w-5xl">
             <div className="mx-auto max-w-3xl text-center">
-              <div className="inline-flex items-center gap-2 rounded-full bg-orange-100 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-[#D95E0B] sm:text-xs sm:tracking-[0.18em]">
-                <Play className="h-3.5 w-3.5 fill-[#D95E0B]" />
+              <div className="inline-flex items-center gap-2 rounded-full bg-orange-100 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-eic-orange-dark sm:text-xs sm:tracking-[0.18em]">
+                <Play className="h-3.5 w-3.5 fill-eic-orange-dark" />
                 Demo visuale · 60 secondi
               </div>
               <h2 id="video-title" className="mt-4 text-[1.65rem] font-black leading-tight tracking-tight text-[#0f172a] sm:text-4xl">
@@ -1495,7 +1495,7 @@ export default function RenderInfissi() {
               <button
                 type="button"
                 onClick={openLeadModal}
-                className="mt-4 inline-flex items-center justify-center gap-2 rounded-lg bg-[#F97415] px-6 py-3 text-sm font-extrabold text-white shadow-lg shadow-orange-900/20 transition hover:bg-[#D95E0B]"
+                className="mt-4 inline-flex items-center justify-center gap-2 rounded-lg bg-eic-orange px-6 py-3 text-sm font-extrabold text-white shadow-lg shadow-orange-900/20 transition hover:bg-eic-orange-dark"
               >
                 Voglio provarlo su una foto reale
                 <ArrowRight className="h-4 w-4" />
@@ -1508,7 +1508,7 @@ export default function RenderInfissi() {
         <section aria-labelledby="followup-visual-title" data-render-reveal className="bg-[#f8fafc] px-6 py-20">
           <div className="mx-auto grid max-w-6xl gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
             <div>
-              <p className="text-sm font-black uppercase tracking-[0.2em] text-[#D95E0B]">
+              <p className="text-sm font-black uppercase tracking-[0.2em] text-eic-orange-dark">
                 Follow-up che si vede
               </p>
               <h2 id="followup-visual-title" className="mt-3 text-2xl font-black tracking-tight text-[#0f172a] sm:text-4xl">
@@ -1535,7 +1535,7 @@ export default function RenderInfissi() {
         <section aria-labelledby="proof-mosaic-title" data-render-reveal className="bg-white px-6 py-20">
           <div className="mx-auto max-w-6xl">
             <div className="max-w-3xl">
-              <p className="text-sm font-black uppercase tracking-[0.2em] text-[#D95E0B]">
+              <p className="text-sm font-black uppercase tracking-[0.2em] text-eic-orange-dark">
                 Prova visiva reale
               </p>
               <h2 id="proof-mosaic-title" className="mt-3 text-2xl font-black tracking-tight text-[#0f172a] sm:text-4xl">
@@ -1555,7 +1555,7 @@ export default function RenderInfissi() {
         <section className="bg-[#f8fafc] px-6 py-20">
           <div className="mx-auto max-w-6xl" data-render-reveal>
             <div className="max-w-3xl">
-              <p className="text-sm font-black uppercase tracking-[0.2em] text-[#D95E0B]">
+              <p className="text-sm font-black uppercase tracking-[0.2em] text-eic-orange-dark">
                 Il problema vero
               </p>
               <h2 className="mt-3 text-2xl font-black tracking-tight text-[#0f172a] sm:text-4xl">
@@ -1575,7 +1575,7 @@ export default function RenderInfissi() {
                   className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 >
                   <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-orange-50">
-                    <item.icon className="h-6 w-6 text-[#F97415]" />
+                    <item.icon className="h-6 w-6 text-eic-orange" />
                   </div>
                   <h3 className="mt-5 text-xl font-black text-[#0f172a]">{item.title}</h3>
                   <p className="mt-3 text-sm leading-7 text-slate-600">{item.text}</p>
@@ -1595,7 +1595,7 @@ export default function RenderInfissi() {
         <section className="bg-white px-6 py-20">
           <div className="mx-auto max-w-6xl" data-render-reveal>
             <div className="max-w-3xl">
-              <p className="text-sm font-black uppercase tracking-[0.2em] text-[#D95E0B]">
+              <p className="text-sm font-black uppercase tracking-[0.2em] text-eic-orange-dark">
                 Prima e dopo, dove conta davvero
               </p>
               <h2 className="mt-3 text-2xl font-black tracking-tight text-[#0f172a] sm:text-4xl">
@@ -1622,7 +1622,7 @@ export default function RenderInfissi() {
                       <p className="mt-4 text-sm leading-7 text-slate-300">{area.before}</p>
                     </div>
                     <div className="bg-orange-50 p-5 text-[#0f172a]">
-                      <p className="text-xs font-black uppercase tracking-[0.18em] text-[#D95E0B]">Dopo</p>
+                      <p className="text-xs font-black uppercase tracking-[0.18em] text-eic-orange-dark">Dopo</p>
                       <h3 className="mt-4 text-xl font-black">Nuovo impatto visivo</h3>
                       <p className="mt-4 text-sm leading-7 text-slate-700">{area.after}</p>
                     </div>
@@ -1637,7 +1637,7 @@ export default function RenderInfissi() {
         <section id="meccanismo" aria-labelledby="meccanismo-title" data-render-reveal className="bg-white px-6 py-20">
           <div className="mx-auto max-w-6xl">
             <div className="mx-auto max-w-3xl text-center">
-              <p className="text-sm font-black uppercase tracking-[0.2em] text-[#D95E0B]">Il meccanismo</p>
+              <p className="text-sm font-black uppercase tracking-[0.2em] text-eic-orange-dark">Il meccanismo</p>
               <h2 id="meccanismo-title" className="mt-3 text-2xl font-black tracking-tight text-[#0f172a] sm:text-4xl">
                 Una prova visiva che entra nella trattativa al momento giusto.
               </h2>
@@ -1655,11 +1655,11 @@ export default function RenderInfissi() {
               <div className="grid gap-8 md:grid-cols-3" data-render-stagger>
                 {mechanismSteps.map((step, index) => (
                   <div key={step.title} id={`step-${index + 1}`} className="relative" data-render-item>
-                    <div className="relative z-10 mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#F97415] text-white shadow-lg shadow-orange-200">
+                    <div className="relative z-10 mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-eic-orange text-white shadow-lg shadow-orange-200">
                       <step.icon className="h-5 w-5" />
                     </div>
                     <div className="mt-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                      <p className="text-xs font-black uppercase tracking-[0.18em] text-[#D95E0B]">
+                      <p className="text-xs font-black uppercase tracking-[0.18em] text-eic-orange-dark">
                         Step {index + 1}
                       </p>
                       <h3 className="mt-2 text-lg font-black text-[#0f172a]">{step.title}</h3>
@@ -1722,7 +1722,7 @@ export default function RenderInfissi() {
         <section className="bg-gradient-to-br from-[#fff7ed] via-white to-[#fff1e0] px-6 py-20" data-render-reveal>
           <div className="mx-auto max-w-6xl">
             <div className="mx-auto max-w-3xl text-center">
-              <div className="inline-flex items-center gap-2 rounded-full bg-orange-100 px-3 py-1 text-xs font-black uppercase tracking-[0.18em] text-[#D95E0B]">
+              <div className="inline-flex items-center gap-2 rounded-full bg-orange-100 px-3 py-1 text-xs font-black uppercase tracking-[0.18em] text-eic-orange-dark">
                 <TrendingUp className="h-3.5 w-3.5" />
                 Risultati con Edilizia in Cloud
               </div>
@@ -1745,7 +1745,7 @@ export default function RenderInfissi() {
                     className="rounded-xl border border-orange-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                   >
                     <div className="flex gap-4">
-                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-orange-50 text-[#D95E0B]">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-orange-50 text-eic-orange-dark">
                         <p.icon className="h-5 w-5" />
                       </div>
                       <div>
@@ -1780,7 +1780,7 @@ export default function RenderInfissi() {
               <button
                 type="button"
                 onClick={openLeadModal}
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#F97415] px-7 py-4 text-base font-extrabold text-white shadow-lg shadow-orange-900/20 transition hover:bg-[#D95E0B]"
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-eic-orange px-7 py-4 text-base font-extrabold text-white shadow-lg shadow-orange-900/20 transition hover:bg-eic-orange-dark"
               >
                 Apri il tuo cruscotto di prova
                 <ArrowRight className="h-5 w-5" />
@@ -1793,7 +1793,7 @@ export default function RenderInfissi() {
         <section className="bg-white px-6 py-20" data-render-reveal>
           <div className="mx-auto max-w-6xl">
             <div className="mx-auto max-w-3xl text-center">
-              <div className="inline-flex items-center gap-2 rounded-full bg-orange-100 px-3 py-1 text-xs font-black uppercase tracking-[0.18em] text-[#D95E0B]">
+              <div className="inline-flex items-center gap-2 rounded-full bg-orange-100 px-3 py-1 text-xs font-black uppercase tracking-[0.18em] text-eic-orange-dark">
                 <TrendingUp className="h-3.5 w-3.5" />
                 Calcola il tuo ROI
               </div>
@@ -1826,7 +1826,7 @@ export default function RenderInfissi() {
           <div className="mx-auto max-w-6xl">
             <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
               <div>
-                <p className="text-sm font-black uppercase tracking-[0.2em] text-[#D95E0B]">
+                <p className="text-sm font-black uppercase tracking-[0.2em] text-eic-orange-dark">
                   Più vendite, meno preventivi dimenticati
                 </p>
                 <h2 className="mt-3 text-2xl font-black tracking-tight text-[#0f172a] sm:text-4xl">
@@ -1857,7 +1857,7 @@ export default function RenderInfissi() {
         <section className="bg-white px-6 py-20" data-render-reveal>
           <div className="mx-auto max-w-6xl">
             <div className="max-w-3xl">
-              <p className="text-sm font-black uppercase tracking-[0.2em] text-[#D95E0B]">Cosa consegni</p>
+              <p className="text-sm font-black uppercase tracking-[0.2em] text-eic-orange-dark">Cosa consegni</p>
               <h2 className="mt-3 text-2xl font-black tracking-tight text-[#0f172a] sm:text-4xl">
                 Non una bella immagine. Uno strumento commerciale per vendere meglio.
               </h2>
@@ -1872,7 +1872,7 @@ export default function RenderInfissi() {
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <ImageIcon className="h-5 w-5 text-[#F97415]" />
+                    <ImageIcon className="h-5 w-5 text-eic-orange" />
                     <p className="font-black text-[#0f172a]">{row.label}</p>
                   </div>
                   <p className="text-sm leading-7 text-slate-600">{row.value}</p>
@@ -1887,7 +1887,7 @@ export default function RenderInfissi() {
           <div className="mx-auto max-w-6xl">
             <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
               <div>
-                <p className="text-sm font-black uppercase tracking-[0.2em] text-[#D95E0B]">Uso sul campo</p>
+                <p className="text-sm font-black uppercase tracking-[0.2em] text-eic-orange-dark">Uso sul campo</p>
                 <h2 className="mt-3 text-2xl font-black tracking-tight text-[#0f172a] sm:text-4xl">
                   Tre momenti in cui il render può spostare davvero la trattativa.
                 </h2>
@@ -1908,7 +1908,7 @@ export default function RenderInfissi() {
         <section id="faq" aria-labelledby="faq-title" className="bg-white px-6 py-20">
           <div className="mx-auto max-w-5xl">
             <div className="text-center">
-              <p className="text-sm font-black uppercase tracking-[0.2em] text-[#D95E0B]">Obiezioni frequenti</p>
+              <p className="text-sm font-black uppercase tracking-[0.2em] text-eic-orange-dark">Obiezioni frequenti</p>
               <h2 id="faq-title" className="mt-3 text-2xl font-black tracking-tight text-[#0f172a] sm:text-4xl">
                 Le domande che un serramentista serio si fa prima di firmare.
               </h2>
@@ -1918,7 +1918,7 @@ export default function RenderInfissi() {
                 <details key={item.q} className="group p-5">
                   <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-left text-base font-black text-[#0f172a]">
                     {item.q}
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-orange-50 text-[#D95E0B] transition group-open:rotate-45">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-orange-50 text-eic-orange-dark transition group-open:rotate-45">
                       +
                     </span>
                   </summary>
@@ -1936,7 +1936,7 @@ export default function RenderInfissi() {
         >
           <div className="mx-auto max-w-6xl">
             <div className="max-w-3xl">
-              <p className="text-sm font-black uppercase tracking-[0.2em] text-[#D95E0B]">
+              <p className="text-sm font-black uppercase tracking-[0.2em] text-eic-orange-dark">
                 Esplora gli altri moduli
               </p>
               <h2
@@ -2007,7 +2007,7 @@ export default function RenderInfissi() {
                       onClick={openLeadModal}
                       className="group flex flex-col rounded-xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-orange-300 hover:shadow-md"
                     >
-                      <span className="inline-flex items-center gap-2 text-base font-black text-[#0f172a] group-hover:text-[#D95E0B]">
+                      <span className="inline-flex items-center gap-2 text-base font-black text-[#0f172a] group-hover:text-eic-orange-dark">
                         {link.title}
                         <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
                       </span>
@@ -2022,7 +2022,7 @@ export default function RenderInfissi() {
                     to={link.to}
                     className="group flex flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-orange-300 hover:shadow-md"
                   >
-                    <span className="inline-flex items-center gap-2 text-base font-black text-[#0f172a] group-hover:text-[#D95E0B]">
+                    <span className="inline-flex items-center gap-2 text-base font-black text-[#0f172a] group-hover:text-eic-orange-dark">
                       {link.title}
                       <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
                     </span>
@@ -2066,7 +2066,7 @@ export default function RenderInfissi() {
               <button
                 type="button"
                 onClick={openLeadModal}
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#F97415] px-8 py-4 text-base font-extrabold text-white shadow-lg shadow-orange-900/30 transition hover:bg-[#D95E0B]"
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-eic-orange px-8 py-4 text-base font-extrabold text-white shadow-lg shadow-orange-900/30 transition hover:bg-eic-orange-dark"
               >
                 Riserva il tuo posto in anteprima
                 <ArrowRight className="h-5 w-5" />
@@ -2091,7 +2091,7 @@ export default function RenderInfissi() {
         <button
           type="button"
           onClick={openLeadModal}
-          className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#F97415] px-4 py-2.5 text-xs font-extrabold text-white shadow-md transition hover:bg-[#D95E0B] min-[390px]:text-sm sm:px-5 sm:py-3"
+          className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-eic-orange px-4 py-2.5 text-xs font-extrabold text-white shadow-md transition hover:bg-eic-orange-dark min-[390px]:text-sm sm:px-5 sm:py-3"
         >
           Prova gratis
           <ArrowRight className="h-4 w-4" />

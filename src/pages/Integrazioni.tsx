@@ -125,13 +125,13 @@ export default function Integrazioni() {
       {/* Hero */}
       <section className="bg-[#111111] pt-36 pb-20">
         <div className="max-w-4xl mx-auto px-6 text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#F97415]/10 border border-[#F97415]/20 mb-6">
-            <Zap size={14} className="text-[#F97415]" />
-            <span className="text-[#F97415] text-xs font-bold uppercase tracking-widest">Integrazioni</span>
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-eic-orange/10 border border-eic-orange/20 mb-6">
+            <Zap size={14} className="text-eic-orange" />
+            <span className="text-eic-orange text-xs font-bold uppercase tracking-widest">Integrazioni</span>
           </div>
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white mb-6 leading-tight">
             Si collega ai programmi<br />
-            <span className="text-[#F97415]">che già usi</span>
+            <span className="text-eic-orange">che già usi</span>
           </h1>
           <p className="text-white/60 text-lg md:text-xl max-w-2xl mx-auto mb-10">
             Fatturazione elettronica, programmi di fatturazione, prezzari regionali,
@@ -144,7 +144,7 @@ export default function Integrazioni() {
               { value: "2 al giorno", label: "Import da Fatture in Cloud" },
             ].map((s, i) => (
               <div key={i} className="text-center">
-                <p className="text-2xl font-extrabold text-[#F97415]">{s.value}</p>
+                <p className="text-2xl font-extrabold text-eic-orange">{s.value}</p>
                 <p className="text-white/50 text-xs mt-1">{s.label}</p>
               </div>
             ))}
@@ -171,7 +171,7 @@ export default function Integrazioni() {
                     key={item.name}
                     className={`rounded-2xl p-6 border transition-all duration-200 ${
                       item.status === "attiva"
-                        ? "bg-white border-gray-200 hover:border-[#F97415]/40 hover:shadow-md"
+                        ? "bg-white border-gray-200 hover:border-eic-orange/40 hover:shadow-md"
                         : "bg-gray-50 border-gray-100 opacity-70"
                     }`}
                   >
@@ -200,7 +200,7 @@ export default function Integrazioni() {
         <div className="mt-8 rounded-3xl bg-[#111111] p-8 md:p-12">
           <div className="grid md:grid-cols-2 gap-8 items-center">
             <div>
-              <span className="inline-block px-3 py-1 rounded-full bg-[#F97415]/10 text-[#F97415] text-xs font-bold uppercase tracking-widest mb-4">
+              <span className="inline-block px-3 py-1 rounded-full bg-eic-orange/10 text-eic-orange text-xs font-bold uppercase tracking-widest mb-4">
                 Automazioni & Sviluppatori
               </span>
               <h2 className="text-2xl md:text-3xl font-extrabold text-white mb-4">
@@ -218,14 +218,14 @@ export default function Integrazioni() {
                   "Assistenti AI collegati ai dati tramite MCP",
                 ].map((f, i) => (
                   <li key={i} className="flex items-center gap-2 text-white/70 text-sm">
-                    <CheckCircle2 size={14} className="text-[#F97415] shrink-0" />
+                    <CheckCircle2 size={14} className="text-eic-orange shrink-0" />
                     {f}
                   </li>
                 ))}
               </ul>
               <Link
                 to="/demo/"
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#F97415] text-white font-bold hover:bg-[#e8650e] transition-all"
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-eic-orange text-white font-bold hover:bg-eic-orange-dark transition-all"
               >
                 Parlane con noi <ExternalLink size={15} />
               </Link>
@@ -262,13 +262,13 @@ export default function Integrazioni() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
               to="/demo/"
-              className="inline-flex items-center gap-2 px-8 py-4 rounded-full bg-[#F97415] text-white font-bold hover:bg-[#e8650e] hover:scale-105 transition-all shadow-lg shadow-[#F97415]/30"
+              className="inline-flex items-center gap-2 px-8 py-4 rounded-full bg-eic-orange text-white font-bold hover:bg-eic-orange-dark hover:scale-105 transition-all shadow-lg shadow-eic-orange/30"
             >
               Richiedi un'integrazione <ArrowRight size={18} />
             </Link>
             <Link
               to="/funzionalita/"
-              className="inline-flex items-center gap-2 px-8 py-4 rounded-full border border-gray-200 text-gray-700 font-bold hover:border-[#F97415]/40 hover:text-[#F97415] transition-all"
+              className="inline-flex items-center gap-2 px-8 py-4 rounded-full border border-gray-200 text-gray-700 font-bold hover:border-eic-orange/40 hover:text-eic-orange transition-all"
             >
               Vedi tutte le funzionalità
             </Link>
@@ -333,7 +333,7 @@ export default function Integrazioni() {
               <details key={i} className="py-5 group">
                 <summary className="flex justify-between items-center cursor-pointer list-none font-semibold text-[#111111] text-sm">
                   {item.q}
-                  <span className="text-[#F97415] text-lg font-light ml-4">+</span>
+                  <span className="text-eic-orange text-lg font-light ml-4">+</span>
                 </summary>
                 <p className="mt-3 text-sm text-[#111111]/70 leading-relaxed">{item.a}</p>
               </details>

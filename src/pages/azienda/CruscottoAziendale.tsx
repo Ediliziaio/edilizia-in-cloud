@@ -336,7 +336,7 @@ export default function CruscottoAziendale() {
                   Con quattro riquadri lo riempivano; rimastine due, meta' blu
                   restava vuota. Ora la colonna e' piu' stretta e i due riquadri
                   si distribuiscono sull'altezza invece di ammucchiarsi in alto. */}
-              <div className="flex flex-col bg-[#173b67] p-4 text-white sm:p-6">
+              <div className="flex flex-col bg-eic-navy-deep p-4 text-white sm:p-6">
                 {/* Il richiamo urgente che stava qui — "Incassi da sbloccare,
                     279k € scaduti" — diceva la stessa cosa del primo punto di
                     "Da guardare oggi", poche righe piu' su, che pero' ne mostra
@@ -693,7 +693,7 @@ export default function CruscottoAziendale() {
                 <SectionErrorBoundary sectionName="Analytics per Sede">
                   <div className="space-y-4 rounded-lg border bg-white p-4">
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <h2 className="text-lg font-semibold text-[#1E3A5F]">P&amp;L per Sede</h2>
+                      <h2 className="text-lg font-semibold text-eic-navy">P&amp;L per Sede</h2>
                       <SedeFilterBar />
                     </div>
                     <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">

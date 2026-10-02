@@ -33,7 +33,7 @@ function dateLabel(value?: string | null) {
 
 const cellClass = "min-w-0 p-3 text-left sm:p-4";
 const linkClass = `${cellClass} group flex flex-col items-stretch justify-start transition-colors hover:bg-orange-50/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary`;
-const labelClass = "flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-[#173b67] [&>svg:first-child]:text-orange-500";
+const labelClass = "flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-eic-navy-deep [&>svg:first-child]:text-orange-500";
 
 /** A read-only overview shared by every tab. Actions reuse the page's navigation
  * and status controls; no duplicate fetching, financial formulas or mutations. */

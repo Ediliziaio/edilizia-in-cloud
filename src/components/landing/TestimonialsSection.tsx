@@ -7,10 +7,10 @@ import { useRef, useState } from "react";
 // sotto: nomi diversi tra strip e card minano la credibilità dell'intera
 // sezione (il lettore li confronta in pochi secondi).
 const clientBadges = [
-  { initials: "CR", name: "Costruzioni Rossi S.r.l.", city: "Roma", months: 14, gradient: "from-[#F97415] to-[#0d8f79]" },
+  { initials: "CR", name: "Costruzioni Rossi S.r.l.", city: "Roma", months: 14, gradient: "from-eic-orange to-[#0d8f79]" },
   { initials: "EP", name: "Edil Progetti S.r.l.", city: "Milano", months: 9, gradient: "from-[#111111] to-[#243566]" },
-  { initials: "FC", name: "Fratelli Conti Costruzioni", city: "Napoli", months: 22, gradient: "from-[#F97415] to-[#0a7a65]" },
-  { initials: "GB", name: "GreenBuild Italia", city: "Torino", months: 7, gradient: "from-[#111111] to-[#F97415]" },
+  { initials: "FC", name: "Fratelli Conti Costruzioni", city: "Napoli", months: 22, gradient: "from-eic-orange to-[#0a7a65]" },
+  { initials: "GB", name: "GreenBuild Italia", city: "Torino", months: 7, gradient: "from-[#111111] to-eic-orange" },
 ];
 
 const testimonials = [
@@ -22,7 +22,7 @@ const testimonials = [
     person: "Marco Rossi",
     role: "Titolare",
     initials: "MR",
-    gradient: "from-[#F97415] to-[#0a7a65]",
+    gradient: "from-eic-orange to-[#0a7a65]",
     quote: "In 8 mesi abbiamo scoperto che 3 cantieri su 10 erano in perdita. Ora ogni commessa è sotto controllo e i margini sono finalmente quelli che avevo immaginato.",
     before: "80.000 € utile (6.7%)",
     after: "360.000 € utile (30%)",
@@ -48,7 +48,7 @@ const testimonials = [
     person: "Giuseppe Conti",
     role: "Direttore Tecnico",
     initials: "GC",
-    gradient: "from-[#0d8f79] to-[#F97415]",
+    gradient: "from-[#0d8f79] to-eic-orange",
     quote: "Ho eliminato Excel dalla mia vita. Dashboard, margini, stato cantieri: tutto in un click. 12 ore a settimana risparmiate solo sui report.",
     before: "2 giorni/settimana su Excel",
     after: "Report automatici, 12h/sett risparmiate",
@@ -61,7 +61,7 @@ const testimonials = [
     person: "Alessia Verde",
     role: "Co-fondatrice",
     initials: "AV",
-    gradient: "from-[#111111] to-[#F97415]",
+    gradient: "from-[#111111] to-eic-orange",
     quote: "Come startup non potevamo permetterci errori. Edilizia in Cloud ci ha dato il controllo dal giorno uno. Ora cresciamo con numeri veri.",
     before: "Margine stimato \"a occhio\"",
     after: "+22% redditività in 6 mesi",
@@ -111,12 +111,12 @@ export default function TestimonialsSection() {
 
         {/* Header */}
         <div className={`text-center mb-12 transition-all duration-700 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
-          <p className="inline-block mb-4 px-4 py-1.5 rounded-full text-xs font-semibold uppercase tracking-widest text-[#F97415] bg-[#F97415]/10 border border-[#F97415]/20">
+          <p className="inline-block mb-4 px-4 py-1.5 rounded-full text-xs font-semibold uppercase tracking-widest text-eic-orange bg-eic-orange/10 border border-eic-orange/20">
             Casi Studio Reali
           </p>
           <h2 className="text-3xl md:text-5xl font-extrabold text-white mb-4">
             Imprenditori Edili. Risultati{" "}
-            <span className="text-[#F97415]">Reali.</span>
+            <span className="text-eic-orange">Reali.</span>
           </h2>
           <p className="text-white/60 text-lg max-w-2xl mx-auto">
             Ecco cosa ottengono le imprese edili che passano a Edilizia in Cloud.
@@ -214,8 +214,8 @@ export default function TestimonialsSection() {
                   <div className="flex items-center px-1 text-white/30">
                     <ArrowRight className="w-4 h-4 flex-shrink-0" />
                   </div>
-                  <div className="flex-1 bg-[#F97415]/10 p-3">
-                    <p className="text-[#F97415] text-[10px] font-bold uppercase tracking-wide mb-1">Dopo</p>
+                  <div className="flex-1 bg-eic-orange/10 p-3">
+                    <p className="text-eic-orange text-[10px] font-bold uppercase tracking-wide mb-1">Dopo</p>
                     <p className="text-[#4dd4be] font-semibold text-xs leading-snug">{t.after}</p>
                   </div>
                 </div>
@@ -244,7 +244,7 @@ export default function TestimonialsSection() {
                 <span
                   className={`block rounded-full transition-all duration-300 ${
                     i === activeIndex
-                      ? "w-6 h-2 bg-[#F97415]"
+                      ? "w-6 h-2 bg-eic-orange"
                       : "w-2 h-2 bg-white/20 group-hover:bg-white/40"
                   }`}
                 />

@@ -91,7 +91,7 @@ export default function Strumenti() {
       <main className="pt-24 pb-16 md:pt-28">
         <div className="mx-auto w-full max-w-4xl px-4 sm:px-6">
           <header className="mb-10 text-center">
-            <span className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-[#F97415]/10 px-3 py-1 text-xs font-semibold text-[#F97415]">
+            <span className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-eic-orange/10 px-3 py-1 text-xs font-semibold text-eic-orange">
               <Calculator className="h-3.5 w-3.5" aria-hidden="true" />
               Gratuiti · nessuna registrazione
             </span>
@@ -112,23 +112,23 @@ export default function Strumenti() {
                 <Link
                   key={s.slug}
                   to={`/strumenti/${s.slug}`}
-                  className="group flex flex-col rounded-2xl border border-gray-200 p-5 transition-all hover:border-[#F97415]/50 hover:shadow-md"
+                  className="group flex flex-col rounded-2xl border border-gray-200 p-5 transition-all hover:border-eic-orange/50 hover:shadow-md"
                 >
                   <div className="mb-3 flex items-center gap-3">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#F97415]/10">
-                      <Icona className="h-5 w-5 text-[#F97415]" aria-hidden="true" />
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-eic-orange/10">
+                      <Icona className="h-5 w-5 text-eic-orange" aria-hidden="true" />
                     </span>
                     <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-600">
                       {s.tag}
                     </span>
                   </div>
-                  <h2 className="text-lg font-bold text-gray-900 group-hover:text-[#F97415]">
+                  <h2 className="text-lg font-bold text-gray-900 group-hover:text-eic-orange">
                     {s.titolo}
                   </h2>
                   <p className="mt-2 flex-1 text-sm leading-relaxed text-gray-600">
                     {s.descrizione}
                   </p>
-                  <span className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-[#F97415]">
+                  <span className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-eic-orange">
                     Apri il calcolatore
                     <ArrowRight
                       className="h-4 w-4 transition-transform group-hover:translate-x-0.5"

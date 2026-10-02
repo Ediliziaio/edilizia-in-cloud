@@ -88,7 +88,7 @@ const NotFound = () => {
         <div className="text-center">
           <div
             aria-hidden="true"
-            className="mx-auto mb-5 grid h-20 w-20 place-items-center rounded-2xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-lg shadow-orange-200"
+            className="mx-auto mb-5 grid h-20 w-20 place-items-center rounded-2xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-lg shadow-orange-200"
           >
             <span className="text-3xl font-bold">404</span>
           </div>

@@ -112,7 +112,7 @@ export const TIPO_LABEL: Record<PreventivoTipo, { label: string; className: stri
 
 export const STATO_UNIF_LABEL: Record<UnifiedStato, { label: string; className: string }> = {
   bozza:    { label: "Bozza",    className: "bg-slate-100 text-slate-700 border-slate-200" },
-  in_corso: { label: "In corso", className: "bg-blue-50 text-[#173b67] border-blue-200" },
+  in_corso: { label: "In corso", className: "bg-blue-50 text-eic-navy-deep border-blue-200" },
   vinto:    { label: "Vinto",    className: "bg-emerald-100 text-emerald-700 border-emerald-200" },
   perso:    { label: "Perso",    className: "bg-rose-100 text-rose-700 border-rose-200" },
   altro:    { label: "Altro",    className: "bg-slate-100 text-slate-500 border-slate-200" },
@@ -1004,7 +1004,7 @@ export function UnifiedPreventiviList() {
       {/* ─── Striscia navy avanzata: solo desktop. Su mobile è superflua — i 4 KPI
           sopra bastano e conversione/pipeline sono già nei loro hint. ─── */}
       {!isMobile && (
-      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-[#1E3A5F] to-[#2C5184] p-4 sm:p-5 shadow-sm">
+      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-eic-navy to-[#2C5184] p-4 sm:p-5 shadow-sm">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <AdvKpi icon={<Target className="h-4 w-4 text-orange-300" />} label="Tasso conversione" value={kpi.tassoConv !== null ? `${kpi.tassoConv}%` : "—"} hint={kpi.vintaCount + kpi.persoCount > 0 ? `${kpi.vintaCount}/${kpi.vintaCount + kpi.persoCount} con risposta` : undefined} />
           <AdvKpi icon={<TrendingUp className="h-4 w-4 text-orange-300" />} label="Pipeline attiva" value={formatCurrency(kpi.pipeline)} hint={`${kpi.inCorsoCount} offert${kpi.inCorsoCount === 1 ? "a" : "e"}`} />

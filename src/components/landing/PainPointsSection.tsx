@@ -22,7 +22,7 @@ export default function PainPointsSection() {
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
           }`}
         >
-          Ti Riconosci in <span className="text-[#F97415]">Almeno uno</span> di Questi?
+          Ti Riconosci in <span className="text-eic-orange">Almeno uno</span> di Questi?
         </h2>
         <p
           className={`text-gray-500 text-center mb-16 text-lg transition-all duration-700 delay-150 ${
@@ -37,13 +37,13 @@ export default function PainPointsSection() {
             {painPoints.map((p, i) => (
               <div
                 key={i}
-                className={`flex items-start gap-4 p-5 rounded-2xl bg-white border border-gray-100 shadow-sm hover:shadow-md border-l-4 border-l-[#F97415] transition-all duration-500 group ${
+                className={`flex items-start gap-4 p-5 rounded-2xl bg-white border border-gray-100 shadow-sm hover:shadow-md border-l-4 border-l-eic-orange transition-all duration-500 group ${
                   isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
                 }`}
                 style={{ transitionDelay: isVisible ? `${200 + i * 80}ms` : "0ms" }}
               >
-                <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-[#F97415]/10 flex items-center justify-center group-hover:rotate-6 transition-transform duration-300">
-                  <p.icon className="w-5 h-5 text-[#F97415]" />
+                <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-eic-orange/10 flex items-center justify-center group-hover:rotate-6 transition-transform duration-300">
+                  <p.icon className="w-5 h-5 text-eic-orange" />
                 </div>
                 <p className="text-[#111111]/80 text-base md:text-lg leading-relaxed">{p.text}</p>
               </div>

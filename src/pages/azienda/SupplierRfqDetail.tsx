@@ -304,7 +304,7 @@ export default function SupplierRfqDetail() {
             <QuoteCard noHeader className="p-0 sm:p-0">
               <div className="px-5 sm:px-6 pt-5 pb-3">
                 <h3 className="text-[15px] font-bold text-slate-900 flex items-center gap-2.5">
-                  <span className="block w-1 h-4 rounded-sm bg-gradient-to-b from-orange-500 to-amber-400" />
+                  <span className="block w-1 h-4 rounded-sm bg-gradient-to-b from-orange-500 to-eic-amber" />
                   Confronto offerte
                 </h3>
                 <p className="text-xs text-slate-500 mt-1">

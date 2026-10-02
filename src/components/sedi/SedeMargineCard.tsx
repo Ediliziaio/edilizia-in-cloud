@@ -36,7 +36,7 @@ export function SedeMargineCard({ sede }: Props) {
               className="w-4 h-4 rounded-full flex-shrink-0"
               style={{ backgroundColor: sede.colore }}
             />
-            <CardTitle className="text-base font-semibold text-[#1E3A5F] truncate">
+            <CardTitle className="text-base font-semibold text-eic-navy truncate">
               {sede.nome}
             </CardTitle>
           </div>
@@ -73,7 +73,7 @@ export function SedeMargineCard({ sede }: Props) {
         <div>
           <div className="flex justify-between text-xs text-muted-foreground mb-1">
             <span>Incidenza sui ricavi azienda</span>
-            <span className="font-medium text-[#1E3A5F]">
+            <span className="font-medium text-eic-navy">
               {formatPercent(sede.incidenza_ricavi)}
             </span>
           </div>

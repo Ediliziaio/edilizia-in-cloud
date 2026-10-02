@@ -123,7 +123,7 @@ function ProgressBar() {
   return (
     <div className="fixed top-0 left-0 right-0 z-[100] h-1 bg-gray-200/50">
       <div
-        className="h-full bg-[#F97415] transition-all duration-100 ease-out"
+        className="h-full bg-eic-orange transition-all duration-100 ease-out"
         style={{ width: `${progress}%` }}
       />
     </div>
@@ -177,14 +177,14 @@ function TableOfContents({ headings }: TableOfContentsProps) {
                 }}
                 className={`flex items-start gap-2 text-sm transition-colors leading-snug ${
                   active === id
-                    ? "text-[#F97415] font-semibold"
+                    ? "text-eic-orange font-semibold"
                     : "text-gray-500 hover:text-[#111111]"
                 }`}
               >
                 <ChevronRight
                   size={14}
                   className={`mt-0.5 flex-shrink-0 transition-transform ${
-                    active === id ? "text-[#F97415] translate-x-0.5" : ""
+                    active === id ? "text-eic-orange translate-x-0.5" : ""
                   }`}
                 />
                 <span>{heading}</span>
@@ -222,7 +222,7 @@ function RelatedPostCard({ post }: RelatedPostCardProps) {
         >
           {post.category}
         </span>
-        <h4 className="text-sm font-semibold text-[#111111] group-hover:text-[#F97415] transition-colors line-clamp-2 leading-snug">
+        <h4 className="text-sm font-semibold text-[#111111] group-hover:text-eic-orange transition-colors line-clamp-2 leading-snug">
           {post.title}
         </h4>
         <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
@@ -284,7 +284,7 @@ export default function BlogPost() {
           </p>
           <Link
             to="/blog/"
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-[#F97415] text-white font-semibold hover:bg-[#e8650e] transition-colors"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-eic-orange text-white font-semibold hover:bg-eic-orange-dark transition-colors"
           >
             <ArrowLeft size={16} /> Torna al Blog
           </Link>
@@ -417,14 +417,14 @@ export default function BlogPost() {
             href={url}
             target="_blank"
             rel={isOwnBrand ? "noopener" : "nofollow noopener noreferrer"}
-            className="font-medium text-[#F97415] underline underline-offset-2 hover:text-[#d95f0e]"
+            className="font-medium text-eic-orange underline underline-offset-2 hover:text-eic-orange-dark"
           >
             {label}
           </a>
         );
       }
       return (
-        <Link key={i} to={url} className="font-medium text-[#F97415] underline underline-offset-2 hover:text-[#d95f0e]">
+        <Link key={i} to={url} className="font-medium text-eic-orange underline underline-offset-2 hover:text-eic-orange-dark">
           {label}
         </Link>
       );
@@ -530,7 +530,7 @@ export default function BlogPost() {
                   return (
                     <div
                       key={i}
-                      className="mb-10 border-l-4 border-[#F97415] pl-6"
+                      className="mb-10 border-l-4 border-eic-orange pl-6"
                     >
                       {renderBody(section.body ?? "", "text-xl text-gray-700 leading-relaxed font-light mb-4 last:mb-0")}
                     </div>
@@ -580,7 +580,7 @@ export default function BlogPost() {
                       ? { box: "border-amber-300 bg-amber-50", title: "text-amber-900", body: "text-amber-800" }
                       : section.variant === "success"
                         ? { box: "border-emerald-300 bg-emerald-50", title: "text-emerald-900", body: "text-emerald-800" }
-                        : { box: "border-[#F97415]/30 bg-[#F97415]/5", title: "text-[#111111]", body: "text-gray-700" };
+                        : { box: "border-eic-orange/30 bg-eic-orange/5", title: "text-[#111111]", body: "text-gray-700" };
                   return (
                     <aside key={i} className={`my-10 rounded-xl border-l-4 p-5 ${tone.box}`}>
                       {section.heading && (
@@ -623,7 +623,7 @@ export default function BlogPost() {
                                 {section.headers.map((h, j) => (
                                   <th
                                     key={j}
-                                    className={`px-4 py-3 font-semibold ${j === 0 ? "text-left" : "text-center"} ${j > 0 && section.headers![j]?.includes("Edilizia in Cloud") ? "text-[#F97415]" : ""}`}
+                                    className={`px-4 py-3 font-semibold ${j === 0 ? "text-left" : "text-center"} ${j > 0 && section.headers![j]?.includes("Edilizia in Cloud") ? "text-eic-orange" : ""}`}
                                   >
                                     {h}
                                   </th>
@@ -655,7 +655,7 @@ export default function BlogPost() {
                   return (
                     <blockquote
                       key={i}
-                      className="my-10 pl-6 border-l-4 border-[#F97415] bg-gray-50 rounded-r-xl py-5 pr-6"
+                      className="my-10 pl-6 border-l-4 border-eic-orange bg-gray-50 rounded-r-xl py-5 pr-6"
                     >
                       <p className="text-gray-700 italic text-lg leading-relaxed mb-3">
                         &ldquo;{section.quote}&rdquo;
@@ -684,7 +684,7 @@ export default function BlogPost() {
                         <ul className="space-y-3">
                           {section.items.map((item, j) => (
                             <li key={j} className="flex items-start gap-3">
-                              <span className="text-[#F97415] font-bold text-lg mt-0.5 flex-shrink-0">
+                              <span className="text-eic-orange font-bold text-lg mt-0.5 flex-shrink-0">
                                 ✓
                               </span>
                               <span className="text-gray-600 leading-relaxed">
@@ -702,7 +702,7 @@ export default function BlogPost() {
                   return (
                     <div
                       key={i}
-                      className="my-12 bg-gradient-to-br from-[#F97415] to-[#e8650e] rounded-2xl p-8 text-white text-center"
+                      className="my-12 bg-gradient-to-br from-eic-orange to-eic-orange-dark rounded-2xl p-8 text-white text-center"
                     >
                       {section.heading && (
                         <h3 className="text-xl font-bold mb-3">{section.heading}</h3>
@@ -712,7 +712,7 @@ export default function BlogPost() {
                       )}
                       <Link
                         to="/demo/"
-                        className="inline-flex items-center gap-2 px-7 py-3 bg-white text-[#F97415] font-bold rounded-full hover:bg-white/90 transition-colors shadow-lg"
+                        className="inline-flex items-center gap-2 px-7 py-3 bg-white text-eic-orange font-bold rounded-full hover:bg-white/90 transition-colors shadow-lg"
                       >
                         Prova Edilizia in Cloud <ArrowRight size={16} />
                       </Link>
@@ -755,7 +755,7 @@ export default function BlogPost() {
                 {post.tags.map((tag) => (
                   <span
                     key={tag}
-                    className="px-3 py-1 rounded-full bg-gray-100 text-gray-600 text-xs font-medium hover:bg-[#F97415]/10 hover:text-[#F97415] transition-colors cursor-default"
+                    className="px-3 py-1 rounded-full bg-gray-100 text-gray-600 text-xs font-medium hover:bg-eic-orange/10 hover:text-eic-orange transition-colors cursor-default"
                   >
                     {tag}
                   </span>
@@ -769,23 +769,23 @@ export default function BlogPost() {
                 <img width={56} height={56} loading="lazy"
                   src={post.author.avatar}
                   alt={post.author.name}
-                  className="w-14 h-14 rounded-full object-cover flex-shrink-0 border-2 border-[#F97415]/30"
+                  className="w-14 h-14 rounded-full object-cover flex-shrink-0 border-2 border-eic-orange/30"
                 />
               ) : (
-                <div className="w-14 h-14 rounded-full bg-[#F97415]/20 flex items-center justify-center flex-shrink-0">
-                  <span className="text-[#F97415] font-bold text-xl">
+                <div className="w-14 h-14 rounded-full bg-eic-orange/20 flex items-center justify-center flex-shrink-0">
+                  <span className="text-eic-orange font-bold text-xl">
                     {post.author.name.charAt(0)}
                   </span>
                 </div>
               )}
               <div>
                 <p className="font-bold text-[#111111]">
-                  <Link to="/autore/florin-andriciuc/" className="hover:text-[#F97415] transition-colors">{post.author.name}</Link>
+                  <Link to="/autore/florin-andriciuc/" className="hover:text-eic-orange transition-colors">{post.author.name}</Link>
                 </p>
                 <p className="text-sm text-gray-500 mb-2">
                   {post.author.role}
                   {" · "}
-                  <a href="https://www.linkedin.com/in/florinandriciuc/" rel="me noopener" target="_blank" className="hover:text-[#F97415]">LinkedIn</a>
+                  <a href="https://www.linkedin.com/in/florinandriciuc/" rel="me noopener" target="_blank" className="hover:text-eic-orange">LinkedIn</a>
                 </p>
                 <p className="text-sm text-gray-600 leading-relaxed">
                   Esperto di gestione aziendale per imprese edili italiane. Fondatore di Edilizia in Cloud, la piattaforma gestionale dedicata al settore delle costruzioni.
@@ -804,7 +804,7 @@ export default function BlogPost() {
                     <Link
                       key={s.href}
                       to={s.href}
-                      className="block rounded-2xl border border-gray-200 p-4 hover:border-[#F97415]/50 transition-colors"
+                      className="block rounded-2xl border border-gray-200 p-4 hover:border-eic-orange/50 transition-colors"
                     >
                       <span className="block font-semibold text-[#111111] text-sm mb-1">{s.label}</span>
                       <span className="block text-xs text-gray-500 leading-relaxed">{s.desc}</span>
@@ -830,7 +830,7 @@ export default function BlogPost() {
               </p>
               <Link
                 to="/demo/"
-                className="block text-center px-5 py-2.5 rounded-full bg-[#F97415] text-white font-bold text-sm hover:bg-[#e8650e] transition-colors"
+                className="block text-center px-5 py-2.5 rounded-full bg-eic-orange text-white font-bold text-sm hover:bg-eic-orange-dark transition-colors"
               >
                 Richiedi Demo
               </Link>
@@ -883,7 +883,7 @@ export default function BlogPost() {
                       </div>
                     </div>
                     <div className="p-5 flex flex-col flex-1">
-                      <h3 className="text-base font-bold text-[#111111] mb-2 group-hover:text-[#F97415] transition-colors line-clamp-2 leading-snug">
+                      <h3 className="text-base font-bold text-[#111111] mb-2 group-hover:text-eic-orange transition-colors line-clamp-2 leading-snug">
                         {rp.title}
                       </h3>
                       <p className="text-gray-500 text-sm leading-relaxed line-clamp-2 flex-1 mb-4">
@@ -893,7 +893,7 @@ export default function BlogPost() {
                         <span className="text-xs text-gray-400 flex items-center gap-1">
                           <Clock size={11} /> {rp.readTime} min
                         </span>
-                        <span className="flex items-center gap-1 text-[#F97415] font-semibold text-xs group-hover:gap-2 transition-all">
+                        <span className="flex items-center gap-1 text-eic-orange font-semibold text-xs group-hover:gap-2 transition-all">
                           Leggi <ArrowRight size={12} />
                         </span>
                       </div>

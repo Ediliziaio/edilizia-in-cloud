@@ -16,7 +16,7 @@ const config: PerTipoConfig = {
   heroTitle: (
     <>
       <span className="text-white">Gestionale per geometra: basta sere sui computi e telefonate alle imprese.</span>{" "}
-      <span className="text-[#F97415]">Cantieri, SAL e documenti in ordine — dal telefono.</span>
+      <span className="text-eic-orange">Cantieri, SAL e documenti in ordine — dal telefono.</span>
     </>
   ),
   heroSubtitle:
@@ -25,9 +25,9 @@ const config: PerTipoConfig = {
 
   // Social proof
   socialProof: [
-    { initials: "SF", name: "Studio Tecnico Ferrari", city: "Modena", months: 13, gradient: "from-[#111111] to-[#F97415]" },
+    { initials: "SF", name: "Studio Tecnico Ferrari", city: "Modena", months: 13, gradient: "from-[#111111] to-eic-orange" },
     { initials: "GC", name: "Geom. Colombo & Partner", city: "Como", months: 8, gradient: "from-[#0d8f79] to-[#111111]" },
-    { initials: "ST", name: "Studio Tecnico Amato", city: "Salerno", months: 16, gradient: "from-[#F97415] to-[#c45a0c]" },
+    { initials: "ST", name: "Studio Tecnico Amato", city: "Salerno", months: 16, gradient: "from-eic-orange to-[#c45a0c]" },
     { initials: "EP", name: "Edil Progetti", city: "Ancona", months: 10, gradient: "from-[#1a1a2e] to-[#0d8f79]" },
   ],
 
@@ -245,7 +245,7 @@ const config: PerTipoConfig = {
     person: "Luca Ferrari",
     role: "Geometra titolare",
     initials: "LF",
-    gradient: "from-[#111111] to-[#F97415]",
+    gradient: "from-[#111111] to-eic-orange",
     quote:
       "Seguivo otto cantieri con la memoria e una cartella per ognuno sul PC. Ogni SAL era una discussione con l'impresa, ogni variante un appunto perso. Adesso apro la commessa e vedo tutto: avanzamento con le foto, documenti, quanto ho fatturato e quanto manca. Le contestazioni sono finite perché la storia del cantiere è scritta, datata e fotografata. E i computi che facevo la sera ora li chiudo in studio in mezz'ora.",
     metrics: [
@@ -330,7 +330,7 @@ const config: PerTipoConfig = {
   ctaTitle: (
     <>
       <span className="text-white">Ogni cantiere documentato. Ogni margine visibile.</span>{" "}
-      <span className="text-[#F97415]">E le serate tornano tue.</span>
+      <span className="text-eic-orange">E le serate tornano tue.</span>
     </>
   ),
   ctaSubtitle:

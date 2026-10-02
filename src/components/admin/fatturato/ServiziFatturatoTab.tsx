@@ -125,7 +125,7 @@ export function ServiziFatturatoTab() {
   const kpis = [
     { l: "Fatturato servizi", v: eur(agg.dovuto), icon: TrendingUp, grad: "from-blue-500 to-indigo-500" },
     { l: "Incassato", v: eur(agg.incassato), icon: Wallet, grad: "from-emerald-500 to-teal-400" },
-    { l: "Da incassare", v: eur(Math.max(0, agg.dovuto - agg.incassato)), icon: Package, grad: "from-orange-500 to-amber-400" },
+    { l: "Da incassare", v: eur(Math.max(0, agg.dovuto - agg.incassato)), icon: Package, grad: "from-orange-500 to-eic-amber" },
     { l: "Provvigioni da pagare", v: eur(agg.provDaPagare), icon: Users, grad: "from-rose-500 to-red-400" },
     { l: "Margine netto", v: eur(agg.margineNetto), icon: PiggyBank, grad: "from-teal-500 to-emerald-400" },
     { l: "Ricorrente ~mese", v: eur(agg.mrr), icon: Repeat, grad: "from-violet-500 to-purple-400" },

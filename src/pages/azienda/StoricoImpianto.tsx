@@ -183,7 +183,7 @@ function TimelineItem({
               <Button
                 size="sm"
                 variant="outline"
-                className="gap-1.5 text-xs text-[#1E3A5F] border-[#1E3A5F]/30 hover:bg-blue-50"
+                className="gap-1.5 text-xs text-eic-navy border-eic-navy/30 hover:bg-blue-50"
                 onClick={() => onFirmaOra(ticketId)}
               >
                 <PenTool className="h-3 w-3" />
@@ -443,7 +443,7 @@ export default function StoricoImpianto() {
         <Button
           onClick={handleNuovoIntervento}
           size="sm"
-          className="gap-2 bg-[#1E3A5F] hover:bg-[#162d4a] shrink-0"
+          className="gap-2 bg-eic-navy hover:bg-[#162d4a] shrink-0"
         >
           <Plus className="h-4 w-4" />
           Nuovo intervento
@@ -451,7 +451,7 @@ export default function StoricoImpianto() {
       </div>
 
       {/* Impianto header card */}
-      <Card className="bg-gradient-to-br from-[#1E3A5F]/5 to-white border-[#1E3A5F]/10">
+      <Card className="bg-gradient-to-br from-eic-navy/5 to-white border-eic-navy/10">
         <CardContent className="pt-5 pb-5">
           <div className="flex items-start gap-4">
             <div className="h-12 w-12 rounded-xl bg-white border border-gray-100 shadow-sm flex items-center justify-center shrink-0">
@@ -516,7 +516,7 @@ export default function StoricoImpianto() {
                 Crea il primo intervento per questo impianto
               </p>
               <Button
-                className="mt-4 gap-2 bg-[#1E3A5F] hover:bg-[#162d4a]"
+                className="mt-4 gap-2 bg-eic-navy hover:bg-[#162d4a]"
                 onClick={handleNuovoIntervento}
               >
                 <Plus className="h-4 w-4" />

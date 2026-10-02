@@ -1052,9 +1052,9 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
             all'importo del preventivo + tipo lavoro. Configurabile in
             /azienda/impostazioni/scontistica. */}
         {/* Telefono no: le regole si leggono dal computer; il limite allo sconto vale comunque. */}
-        <div className="mb-3 rounded-md border border-slate-200 bg-slate-50/60 border-l-4 border-l-[#173b67] p-3 space-y-2 max-md:hidden">
+        <div className="mb-3 rounded-md border border-slate-200 bg-slate-50/60 border-l-4 border-l-eic-navy-deep p-3 space-y-2 max-md:hidden">
           <div className="flex items-start justify-between gap-2">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-[#173b67]">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-eic-navy-deep">
               <Tag className="h-3.5 w-3.5" />
               Regole scontistica aziendale
               {discountEval.isFallback ? (
@@ -1071,7 +1071,7 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
               href="/azienda/impostazioni/scontistica"
               target="_blank"
               rel="noreferrer"
-              className="text-[10px] text-[#173b67] underline hover:no-underline max-md:hidden"
+              className="text-[10px] text-eic-navy-deep underline hover:no-underline max-md:hidden"
             >
               Configura regole →
             </a>
@@ -1399,7 +1399,7 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
             <div className="col-span-12">
               <div className="rounded-md bg-blue-50/40 border border-blue-200 p-4 space-y-2">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <p className="text-[10px] uppercase font-semibold text-[#173b67]">
+                  <p className="text-[10px] uppercase font-semibold text-eic-navy-deep">
                     📊 Riepilogo IVA mista · Regola Beni Significativi (DM 29.12.99)
                   </p>
                   <span className="text-[10px] text-slate-600 max-md:hidden">

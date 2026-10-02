@@ -282,13 +282,13 @@ export default function CityHub() {
       {/* Hero */}
       <section className="py-16 bg-gradient-to-b from-[#FFF7F0] to-white border-b border-gray-100">
         <div className="max-w-4xl mx-auto px-6 text-center">
-          <div className="inline-flex items-center gap-2 bg-[#F97415]/10 text-[#F97415] px-4 py-2 rounded-full text-sm font-semibold mb-6">
+          <div className="inline-flex items-center gap-2 bg-eic-orange/10 text-eic-orange px-4 py-2 rounded-full text-sm font-semibold mb-6">
             <MapPin className="h-4 w-4" />
             Guida 2026 — copertura nazionale, {CITIES.length} città
           </div>
           <h1 className="text-4xl md:text-5xl font-bold text-[#111111] mb-6 leading-tight">
             Software Gestionale Edilizia Cloud<br />
-            <span className="text-[#F97415]">per imprese edili italiane</span>
+            <span className="text-eic-orange">per imprese edili italiane</span>
           </h1>
           <p className="text-xl text-[#111111]/60 mb-8 max-w-2xl mx-auto">
             Cos'è un gestionale edile, cosa deve fare davvero, quanto costa rispetto a un programma installato e come si sceglie senza pentirsene. E in fondo, la pagina della tua città.
@@ -296,14 +296,14 @@ export default function CityHub() {
           <div className="flex flex-wrap justify-center gap-4">
             <Link
               to="/demo/"
-              className="inline-flex items-center gap-2 bg-[#F97415] text-white px-8 py-4 rounded-xl font-bold text-lg hover:bg-[#e8650f] transition-colors"
+              className="inline-flex items-center gap-2 bg-eic-orange text-white px-8 py-4 rounded-xl font-bold text-lg hover:bg-[#e8650f] transition-colors"
             >
               Richiedi Demo Gratuita
               <ArrowRight className="h-5 w-5" />
             </Link>
             <Link
               to="/prezzi/"
-              className="inline-flex items-center gap-2 border-2 border-gray-200 text-[#111111] px-8 py-4 rounded-xl font-bold text-lg hover:border-[#F97415] hover:text-[#F97415] transition-colors"
+              className="inline-flex items-center gap-2 border-2 border-gray-200 text-[#111111] px-8 py-4 rounded-xl font-bold text-lg hover:border-eic-orange hover:text-eic-orange transition-colors"
             >
               Vedi i Prezzi
             </Link>
@@ -359,7 +359,7 @@ export default function CityHub() {
               <div key={item.title} className="bg-gray-50 rounded-2xl p-6 border border-gray-100 flex flex-col">
                 <h3 className="font-bold text-[#111111] mb-2">{item.title}</h3>
                 <p className="text-sm text-[#111111]/60 leading-relaxed flex-1">{item.desc}</p>
-                <Link to={item.href} className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-[#F97415] hover:gap-2 transition-all">
+                <Link to={item.href} className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-eic-orange hover:gap-2 transition-all">
                   {item.label} <ArrowRight className="h-4 w-4" />
                 </Link>
               </div>
@@ -386,16 +386,16 @@ export default function CityHub() {
                 <Link
                   key={module.href}
                   to={module.href}
-                  className="group rounded-lg border border-gray-200 bg-white p-5 transition-all hover:-translate-y-0.5 hover:border-[#F97415] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F97415] focus-visible:ring-offset-2"
+                  className="group rounded-lg border border-gray-200 bg-white p-5 transition-all hover:-translate-y-0.5 hover:border-eic-orange hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-eic-orange focus-visible:ring-offset-2"
                 >
-                  <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-lg bg-[#F97415]/10 text-[#F97415] transition-colors group-hover:bg-[#F97415] group-hover:text-white">
+                  <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-lg bg-eic-orange/10 text-eic-orange transition-colors group-hover:bg-eic-orange group-hover:text-white">
                     <Icon className="h-5 w-5" />
                   </div>
                   <div className="flex items-start justify-between gap-3">
-                    <h3 className="font-bold text-[#111111] transition-colors group-hover:text-[#F97415]">
+                    <h3 className="font-bold text-[#111111] transition-colors group-hover:text-eic-orange">
                       {module.title}
                     </h3>
-                    <ArrowRight className="mt-1 h-4 w-4 flex-shrink-0 text-gray-300 transition-colors group-hover:text-[#F97415]" />
+                    <ArrowRight className="mt-1 h-4 w-4 flex-shrink-0 text-gray-300 transition-colors group-hover:text-eic-orange" />
                   </div>
                   <p className="mt-2 text-sm leading-relaxed text-[#111111]/60">{module.desc}</p>
                 </Link>
@@ -404,7 +404,7 @@ export default function CityHub() {
           </div>
           <p className="text-center text-sm text-[#111111]/50 mt-8">
             Tutte le funzionalità, modulo per modulo, sono nella{" "}
-            <Link to="/funzionalita/" className="font-semibold text-[#F97415] hover:underline">pagina delle funzionalità</Link>.
+            <Link to="/funzionalita/" className="font-semibold text-eic-orange hover:underline">pagina delle funzionalità</Link>.
           </p>
         </div>
       </section>
@@ -461,7 +461,7 @@ export default function CityHub() {
                 Si parte dal piano Scopri, gratis per sempre fino a tre commesse attive. I piani Gestionale, Professionista
                 e Impresa AI si provano per 31 giorni con setup e migrazione dati inclusi, senza carta di credito, e il
                 preventivo si definisce in una consulenza gratuita. Gli utenti sono sempre illimitati.{" "}
-                <Link to="/prezzi/" className="font-semibold text-[#F97415] hover:underline">Vedi i piani</Link>.
+                <Link to="/prezzi/" className="font-semibold text-eic-orange hover:underline">Vedi i piani</Link>.
               </p>
             </div>
           </div>
@@ -508,12 +508,12 @@ export default function CityHub() {
               },
             ].map((q, i) => (
               <li key={q.t} className="flex gap-4">
-                <span className="flex-shrink-0 h-8 w-8 rounded-full bg-[#F97415]/10 text-[#F97415] font-bold flex items-center justify-center text-sm">{i + 1}</span>
+                <span className="flex-shrink-0 h-8 w-8 rounded-full bg-eic-orange/10 text-eic-orange font-bold flex items-center justify-center text-sm">{i + 1}</span>
                 <div>
                   <h3 className="font-bold text-[#111111]">{q.t}</h3>
                   <p className="text-sm text-[#111111]/60 leading-relaxed mt-1">{q.d}</p>
                   {q.href && (
-                    <Link to={q.href} className="mt-1 inline-flex items-center gap-1 text-sm font-semibold text-[#F97415] hover:gap-2 transition-all">
+                    <Link to={q.href} className="mt-1 inline-flex items-center gap-1 text-sm font-semibold text-eic-orange hover:gap-2 transition-all">
                       {q.label} <ArrowRight className="h-4 w-4" />
                     </Link>
                   )}
@@ -521,14 +521,14 @@ export default function CityHub() {
               </li>
             ))}
           </ol>
-          <div className="mt-8 rounded-2xl border border-[#F97415]/30 bg-[#FFF7F0] p-6">
+          <div className="mt-8 rounded-2xl border border-eic-orange/30 bg-[#FFF7F0] p-6">
             <p className="text-sm text-[#111111]/70 leading-relaxed">
               Vuoi i nomi? Nel confronto dei{" "}
-              <Link to="/blog/migliori-software-gestionali-edilizia-confronto/" className="font-semibold text-[#F97415] hover:underline">
+              <Link to="/blog/migliori-software-gestionali-edilizia-confronto/" className="font-semibold text-eic-orange hover:underline">
                 migliori software gestionali per l'edilizia
               </Link>{" "}
               trovi otto prodotti con pro, contro, matrice delle funzioni, prezzi pubblici a settembre 2026 e la checklist da portare in demo. La guida su{" "}
-              <Link to="/blog/come-scegliere-software-gestionale-edilizia/" className="font-semibold text-[#F97415] hover:underline">
+              <Link to="/blog/come-scegliere-software-gestionale-edilizia/" className="font-semibold text-eic-orange hover:underline">
                 come scegliere il software gestionale
               </Link>{" "}
               spiega le dieci domande da fare a ogni fornitore.
@@ -557,7 +557,7 @@ export default function CityHub() {
               },
             ].map((item) => (
               <div key={item.title} className="bg-gray-50 rounded-2xl p-6 border border-gray-100">
-                <CheckCircle className="h-6 w-6 text-[#F97415] mb-3" />
+                <CheckCircle className="h-6 w-6 text-eic-orange mb-3" />
                 <h3 className="font-bold text-[#111111] mb-2">{item.title}</h3>
                 <p className="text-sm text-[#111111]/60 leading-relaxed">{item.desc}</p>
               </div>
@@ -580,16 +580,16 @@ export default function CityHub() {
               <Link
                 key={city.slug}
                 to={`/software-gestionale-edilizia-${city.slug}/`}
-                className="group bg-white rounded-2xl p-5 border border-gray-200 hover:border-[#F97415] hover:shadow-md transition-all"
+                className="group bg-white rounded-2xl p-5 border border-gray-200 hover:border-eic-orange hover:shadow-md transition-all"
               >
                 <div className="flex items-start justify-between mb-2">
                   <div>
-                    <h3 className="font-bold text-[#111111] group-hover:text-[#F97415] transition-colors">
+                    <h3 className="font-bold text-[#111111] group-hover:text-eic-orange transition-colors">
                       {city.name}
                     </h3>
                     <span className="text-xs text-[#111111]/40 font-medium">{city.region}</span>
                   </div>
-                  <ArrowRight className="h-4 w-4 text-gray-300 group-hover:text-[#F97415] transition-colors mt-1 flex-shrink-0" />
+                  <ArrowRight className="h-4 w-4 text-gray-300 group-hover:text-eic-orange transition-colors mt-1 flex-shrink-0" />
                 </div>
                 <p className="text-sm text-[#111111]/60 leading-relaxed">{city.desc}</p>
               </Link>
@@ -624,7 +624,7 @@ export default function CityHub() {
           </p>
           <Link
             to="/demo/"
-            className="inline-flex items-center gap-2 bg-[#F97415] text-white px-10 py-4 rounded-xl font-bold text-lg hover:bg-[#e8650f] transition-colors"
+            className="inline-flex items-center gap-2 bg-eic-orange text-white px-10 py-4 rounded-xl font-bold text-lg hover:bg-[#e8650f] transition-colors"
           >
             Parla con un Consulente
             <ArrowRight className="h-5 w-5" />

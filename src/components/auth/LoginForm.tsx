@@ -349,7 +349,7 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
         style={gradientStyle}
       >
         {/* Orange ambient orb */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[500px] h-[300px] rounded-full bg-[#F97415]/20 blur-[100px] pointer-events-none" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[500px] h-[300px] rounded-full bg-eic-orange/20 blur-[100px] pointer-events-none" />
 
         <div className="max-w-sm w-full text-center space-y-10 animate-in fade-in-0 slide-in-from-bottom-4 duration-500 relative z-10">
           {/* Logo — è l'elemento LCP della pagina di accesso: niente lazy
@@ -392,8 +392,8 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
             <div className="space-y-4 text-left">
               {features.map(({ icon: Icon, text }) => (
                 <div key={text} className="flex items-center gap-3 text-white/80">
-                  <div className="rounded-full bg-[#F97415]/20 p-2 shrink-0">
-                    <Icon className="h-4 w-4 text-[#F97415]" />
+                  <div className="rounded-full bg-eic-orange/20 p-2 shrink-0">
+                    <Icon className="h-4 w-4 text-eic-orange" />
                   </div>
                   <span className="text-sm">{text}</span>
                 </div>
@@ -406,7 +406,7 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
             <div className="flex items-center justify-center gap-2 pt-2">
               <div className="flex items-center gap-0.5">
                 {[...Array(5)].map((_, i) => (
-                  <Star key={i} className="h-3.5 w-3.5 fill-[#F97415] text-[#F97415]" />
+                  <Star key={i} className="h-3.5 w-3.5 fill-eic-orange text-eic-orange" />
                 ))}
               </div>
               <span className="text-white/60 text-xs">4.9/5 da 142 imprese edili</span>
@@ -488,7 +488,7 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
                       disabled={isLoading}
                       autoComplete="email"
                       autoFocus={!isMobileAppRuntime}
-                      className="pl-10 h-12 sm:h-11 focus-visible:ring-[#F97415]"
+                      className="pl-10 h-12 sm:h-11 focus-visible:ring-eic-orange"
                     />
                   </div>
                 </div>
@@ -499,7 +499,7 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
                     <button
                       type="button"
                       onClick={switchToForgot}
-                      className="text-xs text-[#F97415] hover:text-[#F97415]/80 font-medium transition-colors"
+                      className="text-xs text-eic-orange hover:text-eic-orange/80 font-medium transition-colors"
                     >
                       Password dimenticata?
                     </button>
@@ -515,7 +515,7 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
                       required
                       disabled={isLoading}
                       autoComplete="current-password"
-                      className="pl-10 pr-12 h-12 sm:h-11 focus-visible:ring-[#F97415]"
+                      className="pl-10 pr-12 h-12 sm:h-11 focus-visible:ring-eic-orange"
                     />
                     <button
                       type="button"
@@ -539,7 +539,7 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
 
                 <Button
                   type="submit"
-                  className="w-full h-12 sm:h-11 bg-[#F97415] hover:bg-[#F97415]/90 text-white font-semibold transition-all"
+                  className="w-full h-12 sm:h-11 bg-eic-orange hover:bg-eic-orange/90 text-white font-semibold transition-all"
                   disabled={isLoading}
                 >
                   {isLoading ? (
@@ -572,7 +572,7 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
                 {!isMobileAppRuntime && (
                   <>
                     <br />
-                    <a href="https://www.ediliziaincloud.com" className="text-[#F97415] hover:text-[#F97415]/80 font-medium transition-colors" target="_blank" rel="noopener noreferrer">
+                    <a href="https://www.ediliziaincloud.com" className="text-eic-orange hover:text-eic-orange/80 font-medium transition-colors" target="_blank" rel="noopener noreferrer">
                       Scopri Edilizia in Cloud →
                     </a>
                   </>
@@ -615,7 +615,7 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
                         disabled={isLoading}
                         autoComplete="email"
                         autoFocus={!isMobileAppRuntime}
-                        className="pl-10 h-12 sm:h-11 focus-visible:ring-[#F97415]"
+                        className="pl-10 h-12 sm:h-11 focus-visible:ring-eic-orange"
                       />
                     </div>
                   </div>
@@ -630,7 +630,7 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
 
                   <Button
                     type="submit"
-                    className="w-full h-12 sm:h-11 bg-[#F97415] hover:bg-[#F97415]/90 text-white font-semibold transition-all"
+                    className="w-full h-12 sm:h-11 bg-eic-orange hover:bg-eic-orange/90 text-white font-semibold transition-all"
                     disabled={isLoading}
                   >
                     {isLoading ? (

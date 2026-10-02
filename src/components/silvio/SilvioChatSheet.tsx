@@ -1636,7 +1636,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
               <Button
                 size="sm"
                 onClick={confirmTranscribe}
-                className="h-7 px-3 text-xs bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 ml-auto"
+                className="h-7 px-3 text-xs bg-gradient-to-br from-orange-500 to-eic-amber hover:from-orange-600 hover:to-amber-500 ml-auto"
               >
                 <Sparkles className="h-3 w-3 mr-1" /> Trascrivi
               </Button>
@@ -1723,7 +1723,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
                 className="w-[340px] sm:w-[380px] p-0 border-orange-100 shadow-2xl rounded-2xl overflow-hidden flex flex-col"
                 style={{ maxHeight: 'min(70vh, 540px)' }}
               >
-                <div className="bg-gradient-to-br from-orange-500 to-amber-400 px-3 py-2 text-white shrink-0">
+                <div className="bg-gradient-to-br from-orange-500 to-eic-amber px-3 py-2 text-white shrink-0">
                   <div className="flex items-center gap-2">
                     <Zap className="h-4 w-4" fill="currentColor" />
                     <p className="text-xs font-semibold">Azioni rapide</p>
@@ -1871,7 +1871,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
                       loadingChannel ||
                       attachments.some((a) => a.uploading)
                     }
-                    className="h-11 w-11 sm:h-10 sm:w-10 rounded-full bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 shadow-md shadow-orange-300/30 shrink-0"
+                    className="h-11 w-11 sm:h-10 sm:w-10 rounded-full bg-gradient-to-br from-orange-500 to-eic-amber hover:from-orange-600 hover:to-amber-500 shadow-md shadow-orange-300/30 shrink-0"
                     aria-label="Invia messaggio"
                   >
                     {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}

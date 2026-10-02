@@ -98,10 +98,10 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
       {/* Testata navy di famiglia: la situazione dell'anno in quattro card
           in vetro, col selettore anno in chiaro sul blu. */}
       <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
-        <div className="bg-[#173b67] p-4 text-white sm:p-5">
+        <div className="bg-eic-navy-deep p-4 text-white sm:p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="flex items-start gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)] sm:h-11 sm:w-11">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)] sm:h-11 sm:w-11">
                 <Target className="h-4 w-4 sm:h-5 sm:w-5" />
               </div>
               <div className="min-w-0">
@@ -125,7 +125,7 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
                 <Button
                   size="sm"
                   variant="outline"
-                  className={selectedYear === currentYear ? "border-white bg-white text-[#173b67] hover:bg-white" : "border-white/25 bg-white/10 text-white hover:bg-white/20"}
+                  className={selectedYear === currentYear ? "border-white bg-white text-eic-navy-deep hover:bg-white" : "border-white/25 bg-white/10 text-white hover:bg-white/20"}
                   onClick={() => onYearChange(currentYear)}
                 >
                   {currentYear}
@@ -133,7 +133,7 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
                 <Button
                   size="sm"
                   variant="outline"
-                  className={selectedYear === currentYear - 1 ? "border-white bg-white text-[#173b67] hover:bg-white" : "border-white/25 bg-white/10 text-white hover:bg-white/20"}
+                  className={selectedYear === currentYear - 1 ? "border-white bg-white text-eic-navy-deep hover:bg-white" : "border-white/25 bg-white/10 text-white hover:bg-white/20"}
                   onClick={() => onYearChange(currentYear - 1)}
                 >
                   {currentYear - 1}

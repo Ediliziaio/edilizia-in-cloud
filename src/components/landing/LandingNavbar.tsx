@@ -315,7 +315,7 @@ export default function LandingNavbar() {
   const triggerClass = (key: Exclude<DropdownKey, null>) =>
     `flex items-center gap-1 text-sm font-medium transition-colors ${
       isWhiteBg ? "text-[#111111]/70 hover:text-[#111111]" : "text-white/80 hover:text-white"
-    } ${activeDropdown === key ? "!text-[#F97415]" : ""}`;
+    } ${activeDropdown === key ? "!text-eic-orange" : ""}`;
 
   // I pannelli restano sempre nella pagina, nascosti finché non si aprono.
   // Montati solo all'apertura, i loro ~70 link non esistevano nell'HTML che
@@ -327,7 +327,7 @@ export default function LandingNavbar() {
   const linkClass = (active: boolean) =>
     `text-sm font-medium transition-colors ${
       isWhiteBg ? "text-[#111111]/70 hover:text-[#111111]" : "text-white/80 hover:text-white"
-    } ${active ? "!text-[#F97415]" : ""}`;
+    } ${active ? "!text-eic-orange" : ""}`;
 
   return (
     <>
@@ -459,7 +459,7 @@ export default function LandingNavbar() {
             </a>
             <Link
               to="/demo/"
-              className="px-5 py-2.5 rounded-full bg-[#F97415] text-white text-sm font-bold hover:bg-[#C94F06] transition-colors shadow-lg shadow-[#F97415]/20"
+              className="px-5 py-2.5 rounded-full bg-eic-orange text-white text-sm font-bold hover:bg-eic-orange-deep transition-colors shadow-lg shadow-eic-orange/20"
             >
               Richiedi una demo
             </Link>
@@ -500,9 +500,9 @@ export default function LandingNavbar() {
                       <li key={`${col.heading}-${item.label}`}>
                         <Link
                           to={item.to}
-                          className="group flex items-start gap-2.5 rounded-lg px-2 py-2 -mx-2 hover:bg-[#F97415]/5 transition-colors"
+                          className="group flex items-start gap-2.5 rounded-lg px-2 py-2 -mx-2 hover:bg-eic-orange/5 transition-colors"
                         >
-                          <span className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-md bg-gray-50 text-[#111111] group-hover:bg-[#F97415]/10 group-hover:text-[#F97415] transition-colors">
+                          <span className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-md bg-gray-50 text-[#111111] group-hover:bg-eic-orange/10 group-hover:text-eic-orange transition-colors">
                             <item.icon className="h-3.5 w-3.5" />
                           </span>
                           <span className="flex-1 min-w-0">
@@ -511,7 +511,7 @@ export default function LandingNavbar() {
                                 {item.label}
                               </span>
                               {item.badge && (
-                                <span className="text-[9px] font-bold bg-[#F97415] text-white px-1.5 py-0.5 rounded-full leading-none">
+                                <span className="text-[9px] font-bold bg-eic-orange text-white px-1.5 py-0.5 rounded-full leading-none">
                                   {item.badge}
                                 </span>
                               )}
@@ -530,8 +530,8 @@ export default function LandingNavbar() {
               ))}
 
               {/* Render AI sidebar */}
-              <div className="col-span-4 bg-gradient-to-br from-[#F97415]/5 to-[#F97415]/10 rounded-2xl p-5 border border-[#F97415]/10">
-                <p className="text-[10px] font-bold tracking-widest text-[#F97415] mb-4 flex items-center gap-1.5">
+              <div className="col-span-4 bg-gradient-to-br from-eic-orange/5 to-eic-orange/10 rounded-2xl p-5 border border-eic-orange/10">
+                <p className="text-[10px] font-bold tracking-widest text-eic-orange mb-4 flex items-center gap-1.5">
                   <Sparkles className="h-3 w-3" />
                   {piattaformaSidebar.heading}
                 </p>
@@ -545,7 +545,7 @@ export default function LandingNavbar() {
                         to={item.to}
                         className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-white transition-colors"
                       >
-                        <item.icon className="h-3.5 w-3.5 text-[#F97415] flex-shrink-0" />
+                        <item.icon className="h-3.5 w-3.5 text-eic-orange flex-shrink-0" />
                         <span className="text-[12px] font-medium text-[#111111] truncate">
                           {item.label}
                         </span>
@@ -568,7 +568,7 @@ export default function LandingNavbar() {
               </div>
               <Link
                 to="/funzionalita/"
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#111111] text-white text-sm font-semibold hover:bg-[#F97415] transition-colors"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#111111] text-white text-sm font-semibold hover:bg-eic-orange transition-colors"
               >
                 Tutte le funzionalità
                 <ArrowRight className="h-3.5 w-3.5" />
@@ -598,9 +598,9 @@ export default function LandingNavbar() {
                       <li key={`${col.heading}-${item.label}`}>
                         <Link
                           to={item.to}
-                          className="group flex items-start gap-2.5 rounded-lg px-2 py-2 -mx-2 hover:bg-[#F97415]/5 transition-colors"
+                          className="group flex items-start gap-2.5 rounded-lg px-2 py-2 -mx-2 hover:bg-eic-orange/5 transition-colors"
                         >
-                          <span className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-md bg-gray-50 text-[#111111] group-hover:bg-[#F97415]/10 group-hover:text-[#F97415] transition-colors">
+                          <span className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-md bg-gray-50 text-[#111111] group-hover:bg-eic-orange/10 group-hover:text-eic-orange transition-colors">
                             <item.icon className="h-4 w-4" />
                           </span>
                           <span className="flex-1 min-w-0">
@@ -632,7 +632,7 @@ export default function LandingNavbar() {
                         to={item.to}
                         className="group flex items-start gap-2.5 rounded-lg p-2 hover:bg-white transition-colors"
                       >
-                        <span className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-md bg-white text-[#111111] group-hover:text-[#F97415]">
+                        <span className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-md bg-white text-[#111111] group-hover:text-eic-orange">
                           <item.icon className="h-4 w-4" />
                         </span>
                         <span className="flex-1">
@@ -659,7 +659,7 @@ export default function LandingNavbar() {
               </p>
               <Link
                 to="/casi-studio/"
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#111111] text-white text-sm font-semibold hover:bg-[#F97415] transition-colors"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#111111] text-white text-sm font-semibold hover:bg-eic-orange transition-colors"
               >
                 Leggi le storie dei nostri clienti
                 <ArrowRight className="h-3.5 w-3.5" />
@@ -688,9 +688,9 @@ export default function LandingNavbar() {
                       <li key={`${col.heading}-${item.label}`}>
                         <Link
                           to={item.to}
-                          className="group flex items-start gap-2.5 rounded-lg px-2 py-2 -mx-2 hover:bg-[#F97415]/5 transition-colors"
+                          className="group flex items-start gap-2.5 rounded-lg px-2 py-2 -mx-2 hover:bg-eic-orange/5 transition-colors"
                         >
-                          <span className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-md bg-gray-50 text-[#111111] group-hover:bg-[#F97415]/10 group-hover:text-[#F97415] transition-colors">
+                          <span className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-md bg-gray-50 text-[#111111] group-hover:bg-eic-orange/10 group-hover:text-eic-orange transition-colors">
                             <item.icon className="h-4 w-4" />
                           </span>
                           <span className="flex-1 min-w-0">
@@ -711,12 +711,12 @@ export default function LandingNavbar() {
               ))}
 
               {/* Newsletter card */}
-              <div className="col-span-3 bg-[#FFF4EC] rounded-2xl p-5 border border-[#F97415]/15 flex flex-col">
+              <div className="col-span-3 bg-[#FFF4EC] rounded-2xl p-5 border border-eic-orange/15 flex flex-col">
                 <div className="flex-1">
                   <div className="text-3xl font-black text-[#111111] leading-none mb-1">
                     COSE
                   </div>
-                  <div className="text-[10px] font-bold tracking-widest text-[#F97415] mb-4">
+                  <div className="text-[10px] font-bold tracking-widest text-eic-orange mb-4">
                     DI EDILIZIA IN CLOUD
                   </div>
                   <p className="text-sm font-bold text-[#111111] mb-2 leading-snug">
@@ -728,7 +728,7 @@ export default function LandingNavbar() {
                 </div>
                 <Link
                   to="/blog/"
-                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-full bg-white border border-[#111111]/10 text-sm font-semibold text-[#111111] hover:border-[#F97415] hover:text-[#F97415] transition-colors"
+                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-full bg-white border border-[#111111]/10 text-sm font-semibold text-[#111111] hover:border-eic-orange hover:text-eic-orange transition-colors"
                 >
                   Iscriviti
                   <ArrowRight className="h-3.5 w-3.5" />
@@ -758,9 +758,9 @@ export default function LandingNavbar() {
                       <li key={`${col.heading}-${item.label}`}>
                         <Link
                           to={item.to}
-                          className="group flex items-start gap-2.5 rounded-lg px-2 py-2 -mx-2 hover:bg-[#F97415]/5 transition-colors"
+                          className="group flex items-start gap-2.5 rounded-lg px-2 py-2 -mx-2 hover:bg-eic-orange/5 transition-colors"
                         >
-                          <span className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-md bg-gray-50 text-[#111111] group-hover:bg-[#F97415]/10 group-hover:text-[#F97415] transition-colors">
+                          <span className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-md bg-gray-50 text-[#111111] group-hover:bg-eic-orange/10 group-hover:text-eic-orange transition-colors">
                             <item.icon className="h-4 w-4" />
                           </span>
                           <span className="flex-1 min-w-0">
@@ -791,7 +791,7 @@ export default function LandingNavbar() {
                 </div>
                 <Link
                   to="/pianifica-migrazione/"
-                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-full bg-[#F97415] text-white text-sm font-semibold hover:bg-[#C94F06] transition-colors"
+                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-full bg-eic-orange text-white text-sm font-semibold hover:bg-eic-orange-deep transition-colors"
                 >
                   Pianifica la migrazione
                   <ArrowRight className="h-3.5 w-3.5" />
@@ -837,12 +837,12 @@ export default function LandingNavbar() {
                         <Link
                           to={item.to}
                           onClick={() => setMobileOpen(false)}
-                          className="flex items-center gap-2 py-1.5 text-[13px] text-[#111111]/80 hover:text-[#F97415]"
+                          className="flex items-center gap-2 py-1.5 text-[13px] text-[#111111]/80 hover:text-eic-orange"
                         >
                           <item.icon className="h-3.5 w-3.5 text-[#111111]/40 flex-shrink-0" />
                           <span>{item.label}</span>
                           {item.badge && (
-                            <span className="text-[9px] font-bold bg-[#F97415] text-white px-1.5 py-0.5 rounded-full leading-none">
+                            <span className="text-[9px] font-bold bg-eic-orange text-white px-1.5 py-0.5 rounded-full leading-none">
                               {item.badge}
                             </span>
                           )}
@@ -855,7 +855,7 @@ export default function LandingNavbar() {
               <Link
                 to="/funzionalita/"
                 onClick={() => setMobileOpen(false)}
-                className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-[#F97415]"
+                className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-eic-orange"
               >
                 Tutte le funzionalità →
               </Link>
@@ -878,7 +878,7 @@ export default function LandingNavbar() {
                         <Link
                           to={item.to}
                           onClick={() => setMobileOpen(false)}
-                          className="flex items-center gap-2 py-1.5 text-[13px] text-[#111111]/80 hover:text-[#F97415]"
+                          className="flex items-center gap-2 py-1.5 text-[13px] text-[#111111]/80 hover:text-eic-orange"
                         >
                           <item.icon className="h-3.5 w-3.5 text-[#111111]/40 flex-shrink-0" />
                           <span>{item.label}</span>
@@ -907,7 +907,7 @@ export default function LandingNavbar() {
                         <Link
                           to={item.to}
                           onClick={() => setMobileOpen(false)}
-                          className="flex items-center gap-2 py-1.5 text-[13px] text-[#111111]/80 hover:text-[#F97415]"
+                          className="flex items-center gap-2 py-1.5 text-[13px] text-[#111111]/80 hover:text-eic-orange"
                         >
                           <item.icon className="h-3.5 w-3.5 text-[#111111]/40 flex-shrink-0" />
                           <span>{item.label}</span>
@@ -936,7 +936,7 @@ export default function LandingNavbar() {
                         <Link
                           to={item.to}
                           onClick={() => setMobileOpen(false)}
-                          className="flex items-center gap-2 py-1.5 text-[13px] text-[#111111]/80 hover:text-[#F97415]"
+                          className="flex items-center gap-2 py-1.5 text-[13px] text-[#111111]/80 hover:text-eic-orange"
                         >
                           <item.icon className="h-3.5 w-3.5 text-[#111111]/40 flex-shrink-0" />
                           <span>{item.label}</span>
@@ -968,7 +968,7 @@ export default function LandingNavbar() {
               <Link
                 to="/demo/"
                 onClick={() => setMobileOpen(false)}
-                className="block py-3 text-center text-white font-bold bg-[#F97415] rounded-full shadow-lg shadow-[#F97415]/20"
+                className="block py-3 text-center text-white font-bold bg-eic-orange rounded-full shadow-lg shadow-eic-orange/20"
               >
                 Richiedi una demo
               </Link>

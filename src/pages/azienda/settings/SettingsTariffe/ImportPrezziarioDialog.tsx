@@ -393,7 +393,7 @@ export function ImportPrezziarioDialog({
                   <Button
                     onClick={handleImport}
                     disabled={importing || selectedCount === 0}
-                    className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 text-white"
+                    className="bg-gradient-to-br from-orange-500 to-eic-amber hover:from-orange-600 hover:to-amber-500 text-white"
                   >
                     {importing ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Upload className="h-4 w-4 mr-1.5" />}
                     Importa {selectedCount > 0 ? `${selectedCount} voci` : ""}

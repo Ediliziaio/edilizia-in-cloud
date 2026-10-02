@@ -14,7 +14,7 @@ export default function PricingSection() {
       <div ref={ref} className="relative z-10 max-w-4xl mx-auto px-6 text-center">
         {/* Label */}
         <div className={`transition-all duration-700 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}>
-          <span className="inline-block mb-5 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest text-[#F97415] bg-[#F97415]/10 border border-[#F97415]/20">
+          <span className="inline-block mb-5 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest text-eic-orange bg-eic-orange/10 border border-eic-orange/20">
             Pronto a partire?
           </span>
         </div>
@@ -22,7 +22,7 @@ export default function PricingSection() {
         {/* Hero claim — niente prezzo, focus su prova + consulenza */}
         <div className={`transition-all duration-700 delay-100 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}>
           <h2 className="text-4xl md:text-6xl font-extrabold text-white leading-tight mb-4">
-            Provalo <span className="text-[#F97415]">gratis</span>.<br className="hidden sm:block" /> Il piano lo costruiamo su di te.
+            Provalo <span className="text-eic-orange">gratis</span>.<br className="hidden sm:block" /> Il piano lo costruiamo su di te.
           </h2>
           <p className="text-white/50 text-base md:text-lg max-w-2xl mx-auto mb-2">
             Inizia senza carta con il piano Scopri. Quando vuoi crescere, definiamo insieme il piano giusto
@@ -41,17 +41,17 @@ export default function PricingSection() {
             "App mobile cantiere",
           ].map((f, i) => (
             <span key={i} className="flex items-center gap-2 text-white/60 text-sm">
-              <Check className="w-4 h-4 text-[#F97415] flex-shrink-0" />
+              <Check className="w-4 h-4 text-eic-orange flex-shrink-0" />
               {f}
             </span>
           ))}
         </div>
 
         {/* Free trial badge */}
-        <div className={`inline-flex items-center gap-3 bg-white/[0.07] border border-[#F97415]/30 rounded-2xl px-6 py-4 mb-10 transition-all duration-700 delay-300 ${isVisible ? "opacity-100 scale-100" : "opacity-0 scale-95"}`}>
-          <Shield className="w-5 h-5 text-[#F97415] flex-shrink-0" />
+        <div className={`inline-flex items-center gap-3 bg-white/[0.07] border border-eic-orange/30 rounded-2xl px-6 py-4 mb-10 transition-all duration-700 delay-300 ${isVisible ? "opacity-100 scale-100" : "opacity-0 scale-95"}`}>
+          <Shield className="w-5 h-5 text-eic-orange flex-shrink-0" />
           <span className="text-white font-bold text-base">
-            🎉 Prova gratuita di <span className="text-[#F97415]">31 giorni</span> — se non ti piace, non paghi nulla. Nessun obbligo.
+            🎉 Prova gratuita di <span className="text-eic-orange">31 giorni</span> — se non ti piace, non paghi nulla. Nessun obbligo.
           </span>
         </div>
 
@@ -60,7 +60,7 @@ export default function PricingSection() {
           <button
             type="button"
             onClick={() => { import("@/components/landing/QuickContactModal").then(m => m.openContactModal()); }}
-            className="w-full sm:w-auto px-8 py-4 rounded-full bg-[#F97415] text-white font-bold text-lg hover:bg-[#e8650e] hover:scale-105 transition-all shadow-lg shadow-[#F97415]/30"
+            className="w-full sm:w-auto px-8 py-4 rounded-full bg-eic-orange text-white font-bold text-lg hover:bg-eic-orange-dark hover:scale-105 transition-all shadow-lg shadow-eic-orange/30"
           >
             Inizia Gratis Adesso →
           </button>

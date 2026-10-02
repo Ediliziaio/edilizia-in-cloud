@@ -423,7 +423,7 @@ function CampoImporto({
           value={value}
           placeholder={placeholder}
           onChange={(e) => onChange(sanitize(e.target.value))}
-          className="h-14 w-full rounded-xl border border-slate-300 bg-white pl-4 pr-12 text-lg font-semibold tabular-nums text-[#111111] shadow-sm outline-none transition-colors placeholder:font-normal placeholder:text-slate-300 focus:border-[#F97415] focus:ring-2 focus:ring-[#F97415]/30"
+          className="h-14 w-full rounded-xl border border-slate-300 bg-white pl-4 pr-12 text-lg font-semibold tabular-nums text-[#111111] shadow-sm outline-none transition-colors placeholder:font-normal placeholder:text-slate-300 focus:border-eic-orange focus:ring-2 focus:ring-eic-orange/30"
         />
         <span
           aria-hidden
@@ -579,12 +579,12 @@ export default function CalcolatoreMargineCommessa() {
               backgroundSize: "50px 50px",
             }}
           />
-          <div className="absolute -left-24 top-10 h-72 w-72 rounded-full bg-[#F97415]/30 blur-3xl" />
+          <div className="absolute -left-24 top-10 h-72 w-72 rounded-full bg-eic-orange/30 blur-3xl" />
           <div className="absolute -bottom-24 left-1/2 h-72 w-[36rem] -translate-x-1/2 rounded-full bg-orange-400/15 blur-3xl" />
         </div>
 
         <div className="relative mx-auto max-w-4xl px-4 text-center">
-          <span className="inline-flex items-center gap-2 rounded-full border border-[#F97415]/40 bg-[#F97415]/15 px-4 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-[#F97415] backdrop-blur">
+          <span className="inline-flex items-center gap-2 rounded-full border border-eic-orange/40 bg-eic-orange/15 px-4 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-eic-orange backdrop-blur">
             <Sparkles className="h-3.5 w-3.5" />
             Strumento gratuito
           </span>
@@ -594,7 +594,7 @@ export default function CalcolatoreMargineCommessa() {
             className="mt-6 text-3xl font-black leading-tight text-white sm:text-5xl md:text-6xl"
           >
             Calcolatore{" "}
-            <span className="bg-gradient-to-br from-orange-300 to-[#F97415] bg-clip-text text-transparent">
+            <span className="bg-gradient-to-br from-orange-300 to-eic-orange bg-clip-text text-transparent">
               margine di commessa
             </span>
           </h1>
@@ -622,7 +622,7 @@ export default function CalcolatoreMargineCommessa() {
           <div className="mt-9">
             <a
               href="#calcolatore"
-              className="group inline-flex min-h-[52px] items-center justify-center gap-2 rounded-2xl bg-[#F97415] px-8 py-4 text-base font-bold text-white shadow-[0_10px_30px_-10px_rgba(249,116,21,0.6)] transition-transform hover:-translate-y-0.5 hover:bg-[#e8650e] sm:text-lg"
+              className="group inline-flex min-h-[52px] items-center justify-center gap-2 rounded-2xl bg-eic-orange px-8 py-4 text-base font-bold text-white shadow-[0_10px_30px_-10px_rgba(249,116,21,0.6)] transition-transform hover:-translate-y-0.5 hover:bg-eic-orange-dark sm:text-lg"
             >
               Calcola il margine adesso
               <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-0.5" />
@@ -670,7 +670,7 @@ export default function CalcolatoreMargineCommessa() {
                 <span className="text-lg font-black tabular-nums text-[#111111]">
                   {euro(r.margineEuro)}
                 </span>
-                <span className="text-sm font-bold tabular-nums text-[#F97415]">
+                <span className="text-sm font-bold tabular-nums text-eic-orange">
                   {perc(r.marginePct)}
                 </span>
               </div>
@@ -784,7 +784,7 @@ export default function CalcolatoreMargineCommessa() {
                 <button
                   type="button"
                   onClick={esempio}
-                  className="inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-xl border border-[#F97415]/30 bg-[#F97415]/10 px-5 py-3 text-sm font-bold text-[#C94F06] transition-colors hover:bg-[#F97415]/15"
+                  className="inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-xl border border-eic-orange/30 bg-eic-orange/10 px-5 py-3 text-sm font-bold text-eic-orange-deep transition-colors hover:bg-eic-orange/15"
                 >
                   <Calculator className="h-4 w-4" />
                   Ricarica esempio
@@ -920,7 +920,7 @@ export default function CalcolatoreMargineCommessa() {
       >
         <div className="mx-auto max-w-5xl">
           <div className="mx-auto max-w-2xl text-center">
-            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#F97415]">
+            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-eic-orange">
               Come si legge il risultato
             </span>
             <h2
@@ -978,7 +978,7 @@ export default function CalcolatoreMargineCommessa() {
       >
         <div className="mx-auto max-w-5xl">
           <div className="mx-auto max-w-2xl text-center">
-            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#F97415]">
+            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-eic-orange">
               Il buco nero del margine
             </span>
             <h2
@@ -1001,7 +1001,7 @@ export default function CalcolatoreMargineCommessa() {
                 key={titolo}
                 className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
               >
-                <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[#F97415]/10 text-[#F97415]">
+                <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-eic-orange/10 text-eic-orange">
                   <Icona className="h-5 w-5" />
                 </span>
                 <h3 className="mt-4 text-base font-bold text-[#111111]">
@@ -1025,7 +1025,7 @@ export default function CalcolatoreMargineCommessa() {
       >
         <div className="mx-auto max-w-4xl">
           <div className="mx-auto max-w-2xl text-center">
-            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#F97415]">
+            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-eic-orange">
               Il momento giusto
             </span>
             <h2
@@ -1096,7 +1096,7 @@ export default function CalcolatoreMargineCommessa() {
             <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <Link
                 to="/funzionalita/margini-cantiere/"
-                className="group inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-[#F97415] px-8 py-4 text-base font-bold text-white transition-transform hover:-translate-y-0.5 hover:bg-[#e8650e] sm:w-auto"
+                className="group inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-eic-orange px-8 py-4 text-base font-bold text-white transition-transform hover:-translate-y-0.5 hover:bg-eic-orange-dark sm:w-auto"
               >
                 Vedi il margine di cantiere in tempo reale
                 <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-0.5" />
@@ -1126,7 +1126,7 @@ export default function CalcolatoreMargineCommessa() {
       >
         <div className="mx-auto max-w-3xl">
           <div className="mx-auto max-w-2xl text-center">
-            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#F97415]">
+            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-eic-orange">
               Domande frequenti
             </span>
             <h2
@@ -1142,7 +1142,7 @@ export default function CalcolatoreMargineCommessa() {
               <details key={f.q} className="group p-6">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-base font-bold text-[#111111]">
                   <span>{f.q}</span>
-                  <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-orange-100 text-lg font-light text-[#F97415] transition-transform group-open:rotate-45">
+                  <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-orange-100 text-lg font-light text-eic-orange transition-transform group-open:rotate-45">
                     +
                   </span>
                 </summary>
@@ -1164,7 +1164,7 @@ export default function CalcolatoreMargineCommessa() {
       >
         <div className="mx-auto max-w-5xl">
           <div className="mx-auto max-w-2xl text-center">
-            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#F97415]">
+            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-eic-orange">
               Continua da qui
             </span>
             <h2
@@ -1211,15 +1211,15 @@ export default function CalcolatoreMargineCommessa() {
               <Link
                 key={l.to}
                 to={l.to}
-                className="group flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-[#F97415]/40 hover:shadow-md"
+                className="group flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-eic-orange/40 hover:shadow-md"
               >
-                <h3 className="text-sm font-bold text-[#111111] group-hover:text-[#F97415]">
+                <h3 className="text-sm font-bold text-[#111111] group-hover:text-eic-orange">
                   {l.title}
                 </h3>
                 <p className="mt-1.5 flex-1 text-xs leading-relaxed text-slate-600">
                   {l.text}
                 </p>
-                <span className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-[#F97415]">
+                <span className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-eic-orange">
                   Apri <ArrowRight className="h-3 w-3" />
                 </span>
               </Link>
@@ -1233,7 +1233,7 @@ export default function CalcolatoreMargineCommessa() {
       {/* ══════════════════════════════════════════════════════════════ */}
       <section className="relative overflow-hidden bg-[#0b0b0b] px-4 py-20 text-center text-white sm:py-24">
         <div className="pointer-events-none absolute inset-0">
-          <div className="absolute -left-32 top-0 h-96 w-96 rounded-full bg-[#F97415]/25 blur-3xl" />
+          <div className="absolute -left-32 top-0 h-96 w-96 rounded-full bg-eic-orange/25 blur-3xl" />
           <div className="absolute -right-32 bottom-0 h-96 w-96 rounded-full bg-orange-400/20 blur-3xl" />
         </div>
         <div className="relative mx-auto max-w-3xl">
@@ -1249,7 +1249,7 @@ export default function CalcolatoreMargineCommessa() {
           <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
             <Link
               to="/demo/"
-              className="group inline-flex min-h-[56px] w-full items-center justify-center gap-2 rounded-2xl bg-[#F97415] px-10 py-4 text-base font-bold text-white shadow-[0_20px_40px_-10px_rgba(249,116,21,0.6)] transition-transform hover:-translate-y-0.5 hover:bg-[#e8650e] sm:w-auto sm:text-lg"
+              className="group inline-flex min-h-[56px] w-full items-center justify-center gap-2 rounded-2xl bg-eic-orange px-10 py-4 text-base font-bold text-white shadow-[0_20px_40px_-10px_rgba(249,116,21,0.6)] transition-transform hover:-translate-y-0.5 hover:bg-eic-orange-dark sm:w-auto sm:text-lg"
             >
               Prova gratis 31 giorni
               <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-0.5" />
@@ -1278,7 +1278,7 @@ export default function CalcolatoreMargineCommessa() {
       >
         <a
           href="#calcolatore"
-          className="flex min-h-[56px] items-center justify-between gap-3 rounded-2xl bg-[#F97415] px-5 py-3.5 text-white shadow-2xl ring-1 ring-orange-300/50"
+          className="flex min-h-[56px] items-center justify-between gap-3 rounded-2xl bg-eic-orange px-5 py-3.5 text-white shadow-2xl ring-1 ring-orange-300/50"
         >
           <div>
             <div className="text-sm font-black leading-tight">

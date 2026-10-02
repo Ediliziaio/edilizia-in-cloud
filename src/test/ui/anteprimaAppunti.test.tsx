@@ -81,6 +81,9 @@ function pulsanteNote(conteggio: number) {
   return screen.getByText(String(conteggio), { selector: "span" }).closest("button")!;
 }
 
+/** Le richieste per le note: la card legge anche i motivi di perdita (cache condivisa), che qui non contano. */
+const richiesteNote = () => registro.filter((r) => r.startsWith("marketing_contact_notes"));
+
 beforeEach(() => {
   registro.length = 0;
   localStorage.clear();
@@ -90,7 +93,7 @@ afterEach(cleanup);
 describe("anteprima degli appunti sulla card del kanban", () => {
   it("non carica niente finché il riquadro resta chiuso", () => {
     monta(5);
-    expect(registro).toEqual([]);
+    expect(richiesteNote()).toEqual([]);
   });
 
   it("mostra le ultime note con data, ora e autore, e quante ne restano", async () => {
@@ -107,11 +110,11 @@ describe("anteprima degli appunti sulla card del kanban", () => {
     expect(screen.getAllByText("+2 altre").length).toBeGreaterThan(0);
 
     // Le note di QUESTA opportunità, le più recenti, al massimo tre: quelle che conta il numero sulla card.
-    expect(registro).toHaveLength(1);
-    expect(registro[0]).toContain(`eq("company_id","${BEMADE}")`);
-    expect(registro[0]).toContain(`eq("opportunity_id","${OPP}")`);
-    expect(registro[0]).toContain(`order("created_at",{"ascending":false})`);
-    expect(registro[0]).toContain("limit(3)");
+    expect(richiesteNote()).toHaveLength(1);
+    expect(richiesteNote()[0]).toContain(`eq("company_id","${BEMADE}")`);
+    expect(richiesteNote()[0]).toContain(`eq("opportunity_id","${OPP}")`);
+    expect(richiesteNote()[0]).toContain(`order("created_at",{"ascending":false})`);
+    expect(richiesteNote()[0]).toContain("limit(3)");
   });
 
   it("senza note resta «Appunti» e non chiede niente al database", () => {
@@ -119,6 +122,6 @@ describe("anteprima degli appunti sulla card del kanban", () => {
     // Non per ruolo: anche la card intera ha role="button" (drag&drop) e contiene l'icona.
     fireEvent.focus(container.querySelector(".lucide-sticky-note")!.closest("button")!);
     expect(screen.getAllByText("Appunti").length).toBeGreaterThan(0);
-    expect(registro).toEqual([]);
+    expect(richiesteNote()).toEqual([]);
   });
 });

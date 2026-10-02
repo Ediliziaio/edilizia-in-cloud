@@ -88,13 +88,13 @@ function HeroOfferta() {
         className="absolute inset-0"
         style={{ background: "linear-gradient(135deg, rgba(17,17,17,0.93) 0%, rgba(15,29,53,0.89) 50%, rgba(17,17,17,0.86) 100%)" }}
       />
-      <div className="absolute left-1/4 top-1/4 h-48 w-48 rounded-full bg-[#F97415]/[0.12] blur-[120px] md:h-96 md:w-96" />
-      <div className="absolute bottom-1/4 right-1/4 h-40 w-40 rounded-full bg-[#F97415]/[0.08] blur-[100px] md:h-80 md:w-80" />
+      <div className="absolute left-1/4 top-1/4 h-48 w-48 rounded-full bg-eic-orange/[0.12] blur-[120px] md:h-96 md:w-96" />
+      <div className="absolute bottom-1/4 right-1/4 h-40 w-40 rounded-full bg-eic-orange/[0.08] blur-[100px] md:h-80 md:w-80" />
 
       <div className="relative z-10 mx-auto max-w-5xl px-5 text-center sm:px-6">
         {/* Per chi è, in cima. Su telefono solo i primi tre settori, su due righe
             bilanciate: per questo lì gli angoli non sono a pillola. */}
-        <span className="mb-6 inline-flex items-center gap-2 rounded-2xl border border-[#F97415]/40 bg-[#F97415]/10 px-4 py-2 text-[10px] font-semibold uppercase leading-relaxed tracking-wider text-[#F97415] md:rounded-full md:px-5 md:text-xs md:tracking-widest">
+        <span className="mb-6 inline-flex items-center gap-2 rounded-2xl border border-eic-orange/40 bg-eic-orange/10 px-4 py-2 text-[10px] font-semibold uppercase leading-relaxed tracking-wider text-eic-orange md:rounded-full md:px-5 md:text-xs md:tracking-widest">
           <HardHat className="h-3.5 w-3.5 shrink-0" />
           <span className="text-balance">
             Per{" "}
@@ -111,7 +111,7 @@ function HeroOfferta() {
         <h1 className="mx-auto max-w-5xl font-extrabold leading-[1.05] tracking-tight">
           <span className="block text-balance text-[clamp(2.1rem,5vw,4.6rem)] text-white">
             Aumenta i tuoi margini e i tuoi guadagni di{" "}
-            <span className="whitespace-nowrap text-[#F97415]">+50.000 €</span>.
+            <span className="whitespace-nowrap text-eic-orange">+50.000 €</span>.
           </span>
           {/* Da tablet in su ogni frase resta intera: si va a capo tra una e l'altra. */}
           <span className="mt-3 block text-balance text-[clamp(1.35rem,2.9vw,2.6rem)] leading-tight text-white/90 md:mt-4">
@@ -126,13 +126,13 @@ function HeroOfferta() {
           squadra in un posto solo.
         </p>
 
-        <div className="mx-auto mt-8 max-w-2xl rounded-2xl border border-[#F97415]/45 bg-[#F97415]/10 px-5 py-4 backdrop-blur-sm md:px-8 md:py-5">
-          <p className="flex items-center justify-center gap-2 text-[11px] font-bold uppercase tracking-widest text-[#F97415] md:text-xs">
+        <div className="mx-auto mt-8 max-w-2xl rounded-2xl border border-eic-orange/45 bg-eic-orange/10 px-5 py-4 backdrop-blur-sm md:px-8 md:py-5">
+          <p className="flex items-center justify-center gap-2 text-[11px] font-bold uppercase tracking-widest text-eic-orange md:text-xs">
             <Sparkles className="h-3.5 w-3.5" />
             La promo
           </p>
           <p className="mt-1.5 text-balance text-xl font-extrabold leading-snug text-white md:text-3xl">
-            31 giorni gratis, <span className="text-[#F97415]">solo per {POSTI_PROMO} aziende.</span>
+            31 giorni gratis, <span className="text-eic-orange">solo per {POSTI_PROMO} aziende.</span>
           </p>
           <p className="mt-2 text-balance text-sm leading-relaxed text-white/70 md:text-base">
             L&apos;avvio lo seguiamo noi, uno per uno: quando i posti sono presi, la promo si chiude.
@@ -160,7 +160,7 @@ function HeroOfferta() {
               key={label}
               className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.07] px-3 py-1.5 text-[11px] font-medium text-white/75 md:text-xs"
             >
-              <Icon className="h-3.5 w-3.5 text-[#F97415]" />
+              <Icon className="h-3.5 w-3.5 text-eic-orange" />
               {label}
             </span>
           ))}
@@ -180,7 +180,7 @@ function DueDomande() {
   return (
     <section className="bg-white px-5 pb-4 pt-20 sm:px-6 md:pt-28">
       <div className="mx-auto max-w-3xl text-center">
-        <p className="text-sm font-bold uppercase tracking-widest text-[#F97415]">Prima di tutto, due domande</p>
+        <p className="text-sm font-bold uppercase tracking-widest text-eic-orange">Prima di tutto, due domande</p>
         <h2 className="mt-4 text-3xl font-extrabold leading-tight text-balance text-[#111111] md:text-5xl">
           L&apos;ultimo cantiere che hai chiuso: quanto ci hai guadagnato davvero?
         </h2>
@@ -222,7 +222,7 @@ function SilvioInCantiere() {
           </div>
         </div>
         <div>
-          <p className="text-sm font-bold uppercase tracking-widest text-[#F97415]">Dall&apos;ufficio al cantiere</p>
+          <p className="text-sm font-bold uppercase tracking-widest text-eic-orange">Dall&apos;ufficio al cantiere</p>
           <h2 className="mt-3 text-3xl font-extrabold leading-tight text-balance text-[#111111] md:text-4xl">
             Tutto dal telefono, anche con le mani sporche di malta.
           </h2>
@@ -234,8 +234,8 @@ function SilvioInCantiere() {
               { Icon: Sparkles, testo: "Silvio ti prepara il preventivo, ti ricorda le scadenze e ti avvisa quando un cantiere va sotto." },
             ].map(({ Icon, testo }) => (
               <li key={testo} className="flex items-start gap-3">
-                <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#F97415]/10">
-                  <Icon className="h-5 w-5 text-[#F97415]" />
+                <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-eic-orange/10">
+                  <Icon className="h-5 w-5 text-eic-orange" />
                 </span>
                 <span className="text-base leading-relaxed text-[#111111]/75">{testo}</span>
               </li>
@@ -268,7 +268,7 @@ function CostoSostituito() {
     <section className="bg-white px-5 py-20 sm:px-6 md:py-28">
       <div className="mx-auto grid max-w-6xl items-center gap-10 lg:grid-cols-[1.1fr_1fr] lg:gap-16">
         <div>
-          <p className="text-sm font-bold uppercase tracking-widest text-[#F97415]">Il conto che nessuno fa</p>
+          <p className="text-sm font-bold uppercase tracking-widest text-eic-orange">Il conto che nessuno fa</p>
           <h2 className="mt-3 text-3xl font-extrabold leading-tight text-balance text-[#111111] md:text-5xl">
             Quanto paghi già oggi, senza accorgertene.
           </h2>
@@ -276,7 +276,7 @@ function CostoSostituito() {
             Un abbonamento per le fatture, uno per le firme, uno per le presenze, il CRM, il cloud, la
             sicurezza, i preventivi. Presi uno alla volta sembrano pochi euro. Messi in fila, no.
           </p>
-          <div className="mt-8 rounded-2xl border-2 border-[#F97415]/25 bg-[#F97415]/[0.05] p-6">
+          <div className="mt-8 rounded-2xl border-2 border-eic-orange/25 bg-eic-orange/[0.05] p-6">
             <p className="text-lg font-bold leading-snug text-[#111111]">
               Il Professionista è 247 € al mese e li sostituisce tutti.
             </p>
@@ -298,9 +298,9 @@ function CostoSostituito() {
               </li>
             ))}
           </ul>
-          <div className="flex items-center justify-between gap-4 bg-[#F97415]/10 px-6 py-4">
+          <div className="flex items-center justify-between gap-4 bg-eic-orange/10 px-6 py-4">
             <span className="font-bold text-[#111111]">Totale strumenti già in casa</span>
-            <span className="shrink-0 text-lg font-extrabold tabular-nums text-[#C94F06]">175–360 €</span>
+            <span className="shrink-0 text-lg font-extrabold tabular-nums text-eic-orange-deep">175–360 €</span>
           </div>
           <p className="px-6 py-3 text-xs text-[#111111]/50">
             Stime medie di mercato. In demo facciamo il conto con i tuoi abbonamenti veri.
@@ -333,10 +333,10 @@ function Promo() {
   ];
   return (
     <section id="offerta" className="relative overflow-hidden px-5 py-20 sm:px-6 md:py-28" style={{ background: NERO }}>
-      <div className="absolute left-1/2 top-0 h-72 w-[40rem] -translate-x-1/2 rounded-full bg-[#F97415]/[0.12] blur-[120px]" />
+      <div className="absolute left-1/2 top-0 h-72 w-[40rem] -translate-x-1/2 rounded-full bg-eic-orange/[0.12] blur-[120px]" />
       <div className="relative mx-auto max-w-6xl">
         <div className="mx-auto max-w-3xl text-center">
-          <p className="text-sm font-bold uppercase tracking-widest text-[#F97415]">La promo</p>
+          <p className="text-sm font-bold uppercase tracking-widest text-eic-orange">La promo</p>
           <h2 className="mt-3 text-3xl font-extrabold leading-tight text-balance text-white md:text-5xl">
             31 giorni gratis. Solo per {POSTI_PROMO} aziende.
           </h2>
@@ -349,7 +349,7 @@ function Promo() {
         <div className="mt-12 grid gap-6 md:grid-cols-3">
           {punti.map(({ valore, etichetta, testo }) => (
             <div key={valore} className="rounded-3xl border border-white/10 bg-white/[0.04] p-7 text-center">
-              <p className="text-5xl font-extrabold tabular-nums text-[#F97415]">{valore}</p>
+              <p className="text-5xl font-extrabold tabular-nums text-eic-orange">{valore}</p>
               <p className="mt-2 text-sm font-bold uppercase tracking-wider text-white">{etichetta}</p>
               <p className="mt-4 text-sm leading-relaxed text-white/65">{testo}</p>
             </div>
@@ -392,7 +392,7 @@ function Garanzie() {
     <section className="bg-[#f7f9fc] px-5 py-20 sm:px-6 md:py-28">
       <div className="mx-auto max-w-6xl">
         <div className="mx-auto max-w-3xl text-center">
-          <p className="text-sm font-bold uppercase tracking-widest text-[#F97415]">Le garanzie</p>
+          <p className="text-sm font-bold uppercase tracking-widest text-eic-orange">Le garanzie</p>
           <h2 className="mt-3 text-3xl font-extrabold leading-tight text-balance text-[#111111] md:text-5xl">
             Il rischio lo prendiamo noi. Per iscritto.
           </h2>
@@ -403,8 +403,8 @@ function Garanzie() {
         <div className="mt-12 grid gap-5 md:grid-cols-3">
           {GARANZIE.map(({ Icon, titolo, testo, condizione }) => (
             <div key={titolo} className="flex flex-col rounded-3xl border border-gray-100 bg-white p-7 shadow-sm">
-              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#F97415]/10">
-                <Icon className="h-6 w-6 text-[#F97415]" />
+              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-eic-orange/10">
+                <Icon className="h-6 w-6 text-eic-orange" />
               </span>
               <h3 className="mt-5 text-lg font-extrabold leading-snug text-[#111111]">{titolo}</h3>
               <p className="mt-2 text-sm leading-relaxed text-[#111111]/70">{testo}</p>
@@ -456,7 +456,7 @@ function ComeSiParte() {
     <section className="bg-white px-5 py-20 sm:px-6 md:py-28">
       <div className="mx-auto max-w-6xl">
         <div className="mx-auto max-w-3xl text-center">
-          <p className="text-sm font-bold uppercase tracking-widest text-[#F97415]">Come si parte</p>
+          <p className="text-sm font-bold uppercase tracking-widest text-eic-orange">Come si parte</p>
           <h2 className="mt-3 text-3xl font-extrabold leading-tight text-balance text-[#111111] md:text-5xl">
             Tre passi. Il lavoro pesante lo facciamo noi.
           </h2>
@@ -464,7 +464,7 @@ function ComeSiParte() {
         <div className="mt-12 grid gap-6 md:grid-cols-3">
           {passi.map(({ n, titolo, testo, Icon }) => (
             <div key={n} className="relative rounded-3xl border border-gray-100 bg-[#f7f9fc] p-7">
-              <span className="absolute right-6 top-5 text-6xl font-extrabold text-[#F97415]/15">{n}</span>
+              <span className="absolute right-6 top-5 text-6xl font-extrabold text-eic-orange/15">{n}</span>
               <span className="flex h-12 w-12 items-center justify-center rounded-2xl text-white" style={{ background: ARANCIO }}>
                 <Icon className="h-6 w-6" />
               </span>
@@ -485,7 +485,7 @@ function Prenota({ onPrenotato }: { onPrenotato: (p: PrenotazioneFatta) => void 
     <section id="prenota" className="scroll-mt-20 bg-[#f7f9fc] px-5 py-20 sm:px-6 md:py-28">
       <div className="mx-auto max-w-6xl">
         <div className="mx-auto max-w-3xl text-center">
-          <p className="text-sm font-bold uppercase tracking-widest text-[#F97415]">Prenota adesso</p>
+          <p className="text-sm font-bold uppercase tracking-widest text-eic-orange">Prenota adesso</p>
           <h2 className="mt-3 text-3xl font-extrabold leading-tight text-balance text-[#111111] md:text-5xl">
             Scegli giorno e ora della tua demo.
           </h2>
@@ -508,14 +508,14 @@ function Prenota({ onPrenotato }: { onPrenotato: (p: PrenotazioneFatta) => void 
             ].map(({ Icon, testo }) => (
               <li key={testo} className="flex items-center gap-3 text-sm font-medium text-[#111111]/75">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white shadow-sm">
-                  <Icon className="h-5 w-5 text-[#F97415]" />
+                  <Icon className="h-5 w-5 text-eic-orange" />
                 </span>
                 {testo}
               </li>
             ))}
             <li className="pt-2 text-sm text-[#111111]/55">
               Preferisci essere richiamato?{" "}
-              <Link to="/demo" className="font-semibold text-[#C94F06] hover:underline">Lascia i tuoi dati</Link>
+              <Link to="/demo" className="font-semibold text-eic-orange-deep hover:underline">Lascia i tuoi dati</Link>
               {" "}e ti chiamiamo noi.
             </li>
           </ul>
@@ -539,7 +539,7 @@ function Domande() {
             <details key={q} className="group px-6 py-5 [&_summary::-webkit-details-marker]:hidden">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-base font-bold text-[#111111]">
                 {q}
-                <span className="shrink-0 text-2xl font-light text-[#F97415] transition-transform group-open:rotate-45">+</span>
+                <span className="shrink-0 text-2xl font-light text-eic-orange transition-transform group-open:rotate-45">+</span>
               </summary>
               <p className="mt-3 text-base leading-relaxed text-[#111111]/70">{a}</p>
             </details>
@@ -555,7 +555,7 @@ function Domande() {
 function Chiusura() {
   return (
     <section className="relative overflow-hidden px-5 py-20 text-center sm:px-6 md:py-28" style={{ background: NERO }}>
-      <div className="absolute left-1/2 top-1/2 h-80 w-80 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#F97415]/[0.14] blur-[120px]" />
+      <div className="absolute left-1/2 top-1/2 h-80 w-80 -translate-x-1/2 -translate-y-1/2 rounded-full bg-eic-orange/[0.14] blur-[120px]" />
       <div className="relative mx-auto max-w-3xl">
         <h2 className="text-3xl font-extrabold leading-tight text-balance text-white md:text-5xl">
           Il prossimo cantiere che chiudi, sai già quanto ci hai guadagnato.

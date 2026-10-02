@@ -671,7 +671,7 @@ export default function Warehouse() {
           Gestione magazzini ed esportazioni restano al desktop. */}
       <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-3 sm:px-6 py-3 sm:py-5 shadow-sm flex flex-col gap-3 sm:gap-4 xl:flex-row xl:items-start xl:justify-between print:hidden max-sm:gap-2 max-sm:rounded-none max-sm:border-0 max-sm:bg-none max-sm:p-0 max-sm:shadow-none">
         <div className="flex items-start gap-2.5 sm:gap-3 min-w-0">
-          <div className="hidden sm:flex h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
+          <div className="hidden sm:flex h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
             <WarehouseIcon className="h-4 w-4 sm:h-5 sm:w-5" />
           </div>
           <div className="min-w-0">
@@ -743,7 +743,7 @@ export default function Warehouse() {
                   <Button
                     size="sm"
                     onClick={apriArrivoMerce}
-                    className="tap-compact gap-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-9 max-sm:flex-1"
+                    className="tap-compact gap-2 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-9 max-sm:flex-1"
                   >
                     <ArrowDownToLine className="h-4 w-4" aria-hidden="true" />
                     <span className="hidden sm:inline">Registra arrivo merce</span>

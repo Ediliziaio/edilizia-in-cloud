@@ -160,7 +160,7 @@ export default function ReferralLogin() {
             </p>
           </div>
           <Button
-            className="mt-6 w-full bg-[#F97415] text-white hover:bg-[#ea6506]"
+            className="mt-6 w-full bg-eic-orange text-white hover:bg-[#ea6506]"
             onClick={async () => {
               await signOut();
             }}
@@ -398,7 +398,7 @@ export default function ReferralLogin() {
                   className="rounded-2xl border border-white/10 bg-white/[0.06] p-4 shadow-sm backdrop-blur"
                 >
                   <div className="flex gap-4">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#F97415]/20 text-[#F97415]">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-eic-orange/20 text-eic-orange">
                       <Icon className="h-5 w-5" />
                     </div>
                     <div className="space-y-1">
@@ -436,7 +436,7 @@ export default function ReferralLogin() {
           {view === "2fa" && (
             <section className="rounded-2xl border border-slate-200 bg-white p-7 shadow-xl shadow-slate-200/50">
               <div className="mb-6 text-center">
-                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-50 text-[#F97415]">
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-50 text-eic-orange">
                   <Lock className="h-7 w-7" />
                 </div>
                 <h2 className="mt-4 text-2xl font-bold text-slate-950">Verifica 2FA</h2>
@@ -449,7 +449,7 @@ export default function ReferralLogin() {
           {view === "login" && (
             <section className="rounded-2xl border border-slate-200 bg-white p-7 shadow-xl shadow-slate-200/50">
               <div className="mb-7 space-y-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#F97415] text-white">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-eic-orange text-white">
                   <Sparkles className="h-6 w-6" />
                 </div>
                 <div>
@@ -516,7 +516,7 @@ export default function ReferralLogin() {
                 <Button
                   type="submit"
                   disabled={isSubmitting}
-                  className="h-12 w-full bg-[#F97415] text-base font-semibold text-white shadow-lg shadow-orange-200 hover:bg-[#ea6506]"
+                  className="h-12 w-full bg-eic-orange text-base font-semibold text-white shadow-lg shadow-orange-200 hover:bg-[#ea6506]"
                 >
                   {isSubmitting ? (
                     <>
@@ -538,7 +538,7 @@ export default function ReferralLogin() {
                 <button
                   type="button"
                   onClick={switchToForgot}
-                  className="font-medium text-[#F97415] transition-colors hover:text-[#d95b00]"
+                  className="font-medium text-eic-orange transition-colors hover:text-[#d95b00]"
                 >
                   Password dimenticata?
                 </button>
@@ -553,7 +553,7 @@ export default function ReferralLogin() {
 
               <div className="mt-7 rounded-xl border border-slate-200 bg-slate-50 p-4">
                 <div className="flex gap-3">
-                  <Users className="mt-0.5 h-4 w-4 shrink-0 text-[#F97415]" />
+                  <Users className="mt-0.5 h-4 w-4 shrink-0 text-eic-orange" />
                   <p className="text-xs leading-relaxed text-slate-600">
                     Nuovo partner? Registrati in 30 secondi. Riceverai un'email di conferma
                     e potrai iniziare a generare commissioni subito.
@@ -575,7 +575,7 @@ export default function ReferralLogin() {
               </button>
 
               <div className="mb-6 space-y-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#F97415] text-white">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-eic-orange text-white">
                   <Sparkles className="h-6 w-6" />
                 </div>
                 <div>
@@ -702,7 +702,7 @@ export default function ReferralLogin() {
                     type="checkbox"
                     checked={signupTermsAccepted}
                     onChange={(event) => setSignupTermsAccepted(event.target.checked)}
-                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#F97415] focus:ring-[#F97415]"
+                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-eic-orange focus:ring-eic-orange"
                     required
                   />
                   <span>
@@ -711,7 +711,7 @@ export default function ReferralLogin() {
                       href="https://www.ediliziaincloud.com/termini-e-condizioni/"
                       target="_blank"
                       rel="noreferrer"
-                      className="font-medium text-[#F97415] hover:underline"
+                      className="font-medium text-eic-orange hover:underline"
                     >
                       Termini
                     </a>{" "}
@@ -720,7 +720,7 @@ export default function ReferralLogin() {
                       href="https://www.ediliziaincloud.com/privacy-policy/"
                       target="_blank"
                       rel="noreferrer"
-                      className="font-medium text-[#F97415] hover:underline"
+                      className="font-medium text-eic-orange hover:underline"
                     >
                       Privacy Policy
                     </a>{" "}
@@ -731,7 +731,7 @@ export default function ReferralLogin() {
                 <Button
                   type="submit"
                   disabled={isSubmitting}
-                  className="h-12 w-full bg-[#F97415] text-base font-semibold text-white shadow-lg shadow-orange-200 hover:bg-[#ea6506]"
+                  className="h-12 w-full bg-eic-orange text-base font-semibold text-white shadow-lg shadow-orange-200 hover:bg-[#ea6506]"
                 >
                   {isSubmitting ? (
                     <>
@@ -775,7 +775,7 @@ export default function ReferralLogin() {
                 </div>
                 <Button
                   onClick={switchToLogin}
-                  className="w-full bg-[#F97415] text-white hover:bg-[#ea6506]"
+                  className="w-full bg-eic-orange text-white hover:bg-[#ea6506]"
                 >
                   Vai al login
                 </Button>
@@ -805,7 +805,7 @@ export default function ReferralLogin() {
                       Controlla la posta e segui il link per reimpostare la password.
                     </p>
                   </div>
-                  <Button onClick={switchToLogin} className="w-full bg-[#F97415] text-white hover:bg-[#ea6506]">
+                  <Button onClick={switchToLogin} className="w-full bg-eic-orange text-white hover:bg-[#ea6506]">
                     Torna al login
                   </Button>
                 </div>
@@ -846,7 +846,7 @@ export default function ReferralLogin() {
                     <Button
                       type="submit"
                       disabled={isSubmitting}
-                      className="h-12 w-full bg-[#F97415] text-white hover:bg-[#ea6506]"
+                      className="h-12 w-full bg-eic-orange text-white hover:bg-[#ea6506]"
                     >
                       {isSubmitting ? (
                         <>

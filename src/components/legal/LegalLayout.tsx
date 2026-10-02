@@ -64,7 +64,7 @@ export default function LegalLayout({
       {/* Header */}
       <header className="pt-32 md:pt-36 pb-10 px-6 border-b border-gray-100 bg-gradient-to-b from-gray-50/40 to-white">
         <div className="max-w-4xl mx-auto">
-          <p className="text-[11px] font-bold tracking-widest uppercase text-[#F97415] mb-3 inline-flex items-center gap-1.5">
+          <p className="text-[11px] font-bold tracking-widest uppercase text-eic-orange mb-3 inline-flex items-center gap-1.5">
             <FileText className="w-3 h-3" /> Documento legale
           </p>
           <h1 className="text-3xl md:text-4xl lg:text-5xl font-extrabold tracking-tight text-[#111111] mb-3 leading-tight">
@@ -78,7 +78,7 @@ export default function LegalLayout({
               <a
                 href={downloadHref}
                 download
-                className="inline-flex items-center gap-1.5 text-[#F97415] hover:text-[#C94F06] font-semibold transition-colors"
+                className="inline-flex items-center gap-1.5 text-eic-orange hover:text-eic-orange-deep font-semibold transition-colors"
               >
                 <Download className="w-3.5 h-3.5" /> Scarica PDF
               </a>
@@ -103,7 +103,7 @@ export default function LegalLayout({
                   to={doc.href}
                   className={`shrink-0 lg:w-full px-3 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
                     active
-                      ? "bg-[#F97415]/10 text-[#F97415] border border-[#F97415]/30"
+                      ? "bg-eic-orange/10 text-eic-orange border border-eic-orange/30"
                       : "text-[#111111]/70 hover:bg-gray-50 hover:text-[#111111] border border-transparent"
                   }`}
                   aria-current={active ? "page" : undefined}

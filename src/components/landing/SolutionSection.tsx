@@ -40,7 +40,7 @@ export default function SolutionSection() {
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
           }`}
         >
-          Smetti di indovinare. <span className="text-[#F97415]">Inizia a sapere.</span>
+          Smetti di indovinare. <span className="text-eic-orange">Inizia a sapere.</span>
         </h2>
         <p
           className={`text-white/50 text-center mb-14 text-lg max-w-2xl mx-auto transition-all duration-700 delay-150 ${
@@ -54,13 +54,13 @@ export default function SolutionSection() {
           {questions.map((q, i) => (
             <div
               key={i}
-              className={`p-8 rounded-2xl bg-white/[0.05] border border-white/[0.1] hover:border-[#F97415]/40 hover:bg-white/[0.08] transition-all duration-500 group ${
+              className={`p-8 rounded-2xl bg-white/[0.05] border border-white/[0.1] hover:border-eic-orange/40 hover:bg-white/[0.08] transition-all duration-500 group ${
                 isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
               }`}
               style={{ transitionDelay: isVisible ? `${300 + i * 120}ms` : "0ms" }}
             >
-              <div className="w-12 h-12 rounded-xl bg-[#F97415]/20 flex items-center justify-center mb-5 group-hover:scale-110 transition-transform">
-                <q.icon className="w-6 h-6 text-[#F97415]" />
+              <div className="w-12 h-12 rounded-xl bg-eic-orange/20 flex items-center justify-center mb-5 group-hover:scale-110 transition-transform">
+                <q.icon className="w-6 h-6 text-eic-orange" />
               </div>
               <h3 className="text-white font-bold text-lg mb-3">{q.q}</h3>
               <p className="text-white/50 text-sm leading-relaxed">{q.desc}</p>
@@ -74,7 +74,7 @@ export default function SolutionSection() {
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
           }`}
         >
-          <div className="pointer-events-none absolute -inset-6 rounded-full bg-[#F97415]/10 blur-[70px]" />
+          <div className="pointer-events-none absolute -inset-6 rounded-full bg-eic-orange/10 blur-[70px]" />
           <div className="relative">
             <CruscottoMockup />
           </div>

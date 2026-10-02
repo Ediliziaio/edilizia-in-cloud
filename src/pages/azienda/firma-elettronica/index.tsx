@@ -464,7 +464,7 @@ export default function FirmaElettronicaHub() {
               {isMarketingContext ? "Apri preventivi" : "Apri commesse"}
             </Button>
             <Button
-              className="gap-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200 hover:from-orange-600 hover:to-amber-600"
+              className="gap-2 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm shadow-orange-200 hover:from-orange-600 hover:to-amber-600"
               onClick={() => navigate('/azienda/firma-elettronica/nuovo-template')}
             >
               <Plus className="h-4 w-4" />

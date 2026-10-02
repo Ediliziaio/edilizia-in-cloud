@@ -84,9 +84,9 @@ export default function AutoreFlorin() {
       <section className="pt-32 pb-14 bg-gradient-to-b from-[#FFF7F0] to-white border-b border-gray-100">
         <div className="max-w-3xl mx-auto px-6">
           <nav aria-label="Breadcrumb" className="mb-6 text-sm text-gray-500">
-            <Link to="/" className="hover:text-[#F97415]">Home</Link>
+            <Link to="/" className="hover:text-eic-orange">Home</Link>
             <span className="mx-2">›</span>
-            <Link to="/blog/" className="hover:text-[#F97415]">Blog</Link>
+            <Link to="/blog/" className="hover:text-eic-orange">Blog</Link>
             <span className="mx-2">›</span>
             <span className="text-[#111111]">{AUTORE.nome}</span>
           </nav>
@@ -100,12 +100,12 @@ export default function AutoreFlorin() {
             />
             <div>
               <h1 className="text-3xl md:text-4xl font-bold leading-tight mb-2">{AUTORE.nome}</h1>
-              <p className="text-[#F97415] font-semibold mb-4">{AUTORE.ruolo}</p>
+              <p className="text-eic-orange font-semibold mb-4">{AUTORE.ruolo}</p>
               <a
                 href={AUTORE.sameAs[0]}
                 rel="me noopener"
                 target="_blank"
-                className="inline-flex items-center gap-2 text-sm font-semibold text-[#111111] border border-gray-300 rounded-full px-4 py-2 hover:border-[#F97415] hover:text-[#F97415] transition-colors"
+                className="inline-flex items-center gap-2 text-sm font-semibold text-[#111111] border border-gray-300 rounded-full px-4 py-2 hover:border-eic-orange hover:text-eic-orange transition-colors"
               >
                 Profilo LinkedIn <ArrowRight className="h-4 w-4" />
               </a>
@@ -146,11 +146,11 @@ export default function AutoreFlorin() {
               <li key={p.slug} className="py-4">
                 <Link to={`/blog/${p.slug}/`} className="group block">
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500 mb-1">
-                    <span className="font-semibold text-[#F97415]">{p.category}</span>
+                    <span className="font-semibold text-eic-orange">{p.category}</span>
                     <span>{formatData(p.updatedAt ?? p.publishedAt)}</span>
                     <span className="inline-flex items-center gap-1"><Clock className="h-3 w-3" /> {p.readTime} min</span>
                   </div>
-                  <h3 className="font-bold text-[#111111] group-hover:text-[#F97415] transition-colors">{p.title}</h3>
+                  <h3 className="font-bold text-[#111111] group-hover:text-eic-orange transition-colors">{p.title}</h3>
                   <p className="text-sm text-gray-600 leading-relaxed mt-1">{p.excerpt}</p>
                 </Link>
               </li>

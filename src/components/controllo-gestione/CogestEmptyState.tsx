@@ -46,7 +46,7 @@ export function CogestEmptyState() {
     <div className="max-w-4xl mx-auto py-8 space-y-8">
       {/* Hero */}
       <div className="text-center space-y-3">
-        <div className="inline-flex h-14 w-14 rounded-2xl bg-gradient-to-br from-orange-500 to-amber-400 items-center justify-center shadow-sm">
+        <div className="inline-flex h-14 w-14 rounded-2xl bg-gradient-to-br from-orange-500 to-eic-amber items-center justify-center shadow-sm">
           <Sparkles className="h-7 w-7 text-white" />
         </div>
         <h1 className="text-3xl sm:text-4xl font-black tracking-tight">

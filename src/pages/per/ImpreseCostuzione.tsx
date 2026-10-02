@@ -18,7 +18,7 @@ const config: PerTipoConfig = {
   heroTitle: (
     <>
       <span className="text-white">Aumenta i margini. Blinda la cassa.</span>{" "}
-      <span className="text-[#F97415]">Controlla ogni cantiere in tempo reale.</span>
+      <span className="text-eic-orange">Controlla ogni cantiere in tempo reale.</span>
     </>
   ),
   heroSubtitle:
@@ -26,7 +26,7 @@ const config: PerTipoConfig = {
   heroImage: "/hero/stock/cantiere-1541888946425-1400.webp",
 
   socialProof: [
-    { initials: "CF", name: "Costruzioni Ferretti", city: "Bologna", months: 14, gradient: "from-[#F97415] to-[#e8650e]" },
+    { initials: "CF", name: "Costruzioni Ferretti", city: "Bologna", months: 14, gradient: "from-eic-orange to-eic-orange-dark" },
     { initials: "BG", name: "Bianchi & Grassi Edil", city: "Firenze", months: 9, gradient: "from-[#1a1a2e] to-[#16213e]" },
     { initials: "TM", name: "Tirelli Manufatti", city: "Brescia", months: 22, gradient: "from-[#0f3460] to-[#533483]" },
     { initials: "RE", name: "Romano Edilizia", city: "Napoli", months: 7, gradient: "from-[#2d6a4f] to-[#1b4332]" },
@@ -222,7 +222,7 @@ const config: PerTipoConfig = {
     person: "Gianluca Ferretti",
     role: "Titolare",
     initials: "GF",
-    gradient: "from-[#F97415] to-[#e8650e]",
+    gradient: "from-eic-orange to-eic-orange-dark",
     quote:
       "In sei mesi ho scoperto che 2 cantieri su 7 erano in perdita. Uno lo sospettavo. L'altro mi ha gelato. Adesso ogni lunedì mattina apro il gestionale e in 10 minuti so esattamente come stanno andando tutti i cantieri — margini, SAL aperti, subappaltatori da pagare. Prima impiegavo mezza giornata per avere la metà delle informazioni.",
     metrics: [
@@ -289,7 +289,7 @@ const config: PerTipoConfig = {
   ctaTitle: (
     <>
       <span className="text-white">I margini di ogni cantiere.</span>{" "}
-      <span className="text-[#F97415]">Visibili. In tempo reale.</span>
+      <span className="text-eic-orange">Visibili. In tempo reale.</span>
     </>
   ),
   ctaSubtitle:

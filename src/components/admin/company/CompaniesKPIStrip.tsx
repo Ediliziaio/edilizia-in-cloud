@@ -116,7 +116,7 @@ export function CompaniesKPIStrip({ companies, healthData, activeKpi = null, onK
       sub: compedCount > 0 ? `${compedCount} regalate` : "nessuna comp",
       icon: Gift,
       accent: excludedMRR > 0 ? "text-orange-600 dark:text-orange-400" : "text-muted-foreground",
-      grad: excludedMRR > 0 ? "from-orange-500 to-amber-400" : "from-slate-400 to-slate-300",
+      grad: excludedMRR > 0 ? "from-orange-500 to-eic-amber" : "from-slate-400 to-slate-300",
       ring: "ring-orange-500/40",
       onClick: () => onKpiClick?.("excluded"),
     },

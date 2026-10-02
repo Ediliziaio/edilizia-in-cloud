@@ -48,7 +48,7 @@ export function DashboardPageHeader({
       <div className="flex flex-col gap-2.5 sm:gap-4 xl:flex-row xl:items-center xl:justify-between">
         <div className={cn("flex min-w-0 items-start gap-3", compactTitle && "hidden sm:flex")}>
           {Icon && (
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
               <Icon className="h-5 w-5" />
             </div>
           )}

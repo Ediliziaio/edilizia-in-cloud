@@ -27,14 +27,14 @@ export function SrCard({ title, description, icon, className, children, variant 
   // primary (es. "IVA inclusa").
   return (
     <Card className={cn(
-      variant === "highlight" && "border-l-4 border-l-[#173b67] border-slate-200",
+      variant === "highlight" && "border-l-4 border-l-eic-navy-deep border-slate-200",
       variant === "muted" && "bg-muted/30",
       className,
     )}>
       {(title || icon) && (
         <CardHeader className="p-4 pb-2 max-md:p-3 max-md:pb-1.5">
           <CardTitle className="text-base flex items-center gap-2 max-md:text-sm">
-            {icon && <span className={variant === "highlight" ? "text-[#173b67]" : "text-slate-700"}>{icon}</span>}
+            {icon && <span className={variant === "highlight" ? "text-eic-navy-deep" : "text-slate-700"}>{icon}</span>}
             {title}
           </CardTitle>
           {/* Sul telefono niente spiegazioni sotto il titolo: il campo parla da sé. */}
