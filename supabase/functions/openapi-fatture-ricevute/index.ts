@@ -25,7 +25,7 @@
 // secondi, il giro finisce in background. Vedi «Cron e pg_net» in CLAUDE.md.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { DOMParser } from "https://deno.land/x/deno_dom@v0.1.45/deno-dom-wasm.ts";
+import { LettoreXmlMinimo } from "../_shared/xmlMinimo.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { serveConMetricheRapida } from "../_shared/withMetricsRapida.ts";
 import { chiamataInternaValida, rispostaNonAutorizzata } from "../_shared/chiamataInterna.ts";
@@ -182,13 +182,13 @@ async function importaUna(acc: Accesso, cfg: Config, id: string, giaLetta?: unkn
   const file = await scaricaFile(acc, id, fattura);
   if ("errore" in file) return { esito: "errore", motivo: file.errore };
   let xml = xmlDaFile(file);
-  let letta = xml ? leggiFatturaRicevuta(xml, new DOMParser() as unknown as LettoreXml) : null;
+  let letta = xml ? leggiFatturaRicevuta(xml, new LettoreXmlMinimo()) : null;
   if (!letta) {
     // Una fattura che arriva deve entrare, anche se non si legge per intero:
     // con i dati che si trovano e l'avviso «da controllare», e il file originale
     // nello storage. Prima restava fuori e il fornitore non compariva mai.
     const motivo = xml
-      ? motivoNonLeggibile(xml, new DOMParser() as unknown as LettoreXml)
+      ? motivoNonLeggibile(xml, new LettoreXmlMinimo())
       : `il file (${file.length} byte) non contiene un XML leggibile`;
     letta = lettaDiRiserva(xml, { nomeFile: nomeFileSdi(fattura), idOpenapi: id, ricevutaIl: ricevutaIl(fattura), motivo });
     console.error(`[openapi-fatture-ricevute] ${cfg.company_id} ${id}: importata incompleta — ${motivo}`);

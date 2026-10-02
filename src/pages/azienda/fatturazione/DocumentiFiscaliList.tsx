@@ -657,6 +657,11 @@ function DocumentiFiscaliListInner() {
                 <span className="hidden sm:inline">Abbina alle commesse</span>
               </Button>
             )}
+            <Button variant="outline" size="sm" asChild className="gap-1.5 max-sm:hidden">
+              <Link to="/azienda/documenti/emesse-importate" title="Fatture emesse con un altro programma e importate, mese per mese">
+                <span className="hidden sm:inline">Emesse importate</span>
+              </Link>
+            </Button>
             {!isCommercialistaMode && (
               <>
                 {/* Da telefono la fatturazione non si imposta (solo computer o tablet). */}
