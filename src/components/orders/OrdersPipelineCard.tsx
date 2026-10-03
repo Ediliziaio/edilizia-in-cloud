@@ -1,4 +1,5 @@
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
@@ -27,6 +28,8 @@ import {
 interface OrdersPipelineCardProps {
   order: OrderWithDetails;
   isDraggable?: boolean;
+  /** Copia che segue il mouse durante il trascinamento: non apre mai il riepilogo. */
+  soloAnteprima?: boolean;
 }
 
 const SUMMARY_OPEN_DELAY_MS = 1000;
@@ -106,7 +109,10 @@ function getPaymentTypeLabel(paymentType?: string | null) {
     bonus: "Bonus edilizio",
     rateale: "Rateale",
   };
-  return labels[normalized] || normalized;
+  if (labels[normalized]) return labels[normalized];
+  // Codice non in elenco (es. "acconto_saldo"): mai mostrarlo grezzo.
+  const leggibile = normalized.replace(/_/g, " ").trim();
+  return leggibile.charAt(0).toUpperCase() + leggibile.slice(1);
 }
 
 function getCustomerName(order: OrderWithDetails) {
@@ -179,10 +185,18 @@ function SummaryRow({ label, value, tone }: { label: string; value: string; tone
   );
 }
 
-export const OrdersPipelineCard = memo(function OrdersPipelineCard({ order, isDraggable = true }: OrdersPipelineCardProps) {
+export const OrdersPipelineCard = memo(function OrdersPipelineCard({
+  order,
+  isDraggable = true,
+  soloAnteprima = false,
+}: OrdersPipelineCardProps) {
   const navigate = useNavigate();
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [summaryPosition, setSummaryPosition] = useState<{ left: number; top: number } | null>(null);
+  // Aggiornato a ogni render: i timer partiti prima del trascinamento lo leggono
+  // allo scadere e non aprono il riepilogo in mezzo a un drag.
+  const inTrascinamentoRef = useRef(false);
+  const riepilogoRef = useRef<HTMLDivElement | null>(null);
   const longPressTimerRef = useRef<number | null>(null);
   const hoverTimerRef = useRef<number | null>(null);
   const closeTimerRef = useRef<number | null>(null);
@@ -252,17 +266,33 @@ export const OrdersPipelineCard = memo(function OrdersPipelineCard({ order, isDr
     clearCloseTimer();
   }, [clearCloseTimer, clearHoverTimer, clearLongPressTimer]);
 
+  // L'altezza vera del riepilogo si conosce solo dopo averlo disegnato (cambia
+  // con indirizzo e assegnazioni): se esce dallo schermo in basso, lo si alza.
+  useLayoutEffect(() => {
+    const el = riepilogoRef.current;
+    if (!summaryOpen || !el) return;
+    const margin = 12;
+    const { bottom, height } = el.getBoundingClientRect();
+    const viewportHeight = window.innerHeight;
+    if (bottom > viewportHeight - margin) {
+      setSummaryPosition((prec) =>
+        prec && { ...prec, top: Math.max(margin, viewportHeight - margin - height) },
+      );
+    }
+  }, [summaryOpen]);
+
   const handlePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     if (event.pointerType === "mouse") return;
     clearLongPressTimer();
     longPressTriggeredRef.current = false;
     startPointRef.current = { x: event.clientX, y: event.clientY };
     longPressTimerRef.current = window.setTimeout(() => {
+      if (inTrascinamentoRef.current || soloAnteprima) return;
       longPressTriggeredRef.current = true;
       updateSummaryPosition(event.clientX, event.clientY);
       setSummaryOpen(true);
     }, SUMMARY_OPEN_DELAY_MS);
-  }, [clearLongPressTimer, updateSummaryPosition]);
+  }, [clearLongPressTimer, soloAnteprima, updateSummaryPosition]);
 
   const handlePointerMove = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     if (!startPointRef.current) return;
@@ -277,14 +307,15 @@ export const OrdersPipelineCard = memo(function OrdersPipelineCard({ order, isDr
   }, [clearLongPressTimer]);
 
   const handleMouseEnter = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
-    if (summaryOpen) return;
+    if (summaryOpen || soloAnteprima || inTrascinamentoRef.current) return;
     clearCloseTimer();
     clearHoverTimer();
     updateSummaryPosition(event.clientX, event.clientY);
     hoverTimerRef.current = window.setTimeout(() => {
+      if (inTrascinamentoRef.current) return;
       setSummaryOpen(true);
     }, SUMMARY_OPEN_DELAY_MS);
-  }, [clearCloseTimer, clearHoverTimer, summaryOpen, updateSummaryPosition]);
+  }, [clearCloseTimer, clearHoverTimer, soloAnteprima, summaryOpen, updateSummaryPosition]);
 
   const handleMouseLeave = useCallback(() => {
     clearHoverTimer();
@@ -323,6 +354,18 @@ export const OrdersPipelineCard = memo(function OrdersPipelineCard({ order, isDr
     data: { order },
     disabled: !isDraggable,
   });
+
+  inTrascinamentoRef.current = isDragging;
+
+  // Appena parte il trascinamento il riepilogo si chiude e i timer si fermano:
+  // altrimenti restava aperto (o si apriva dopo un secondo) sopra le colonne.
+  useEffect(() => {
+    if (!isDragging) return;
+    clearHoverTimer();
+    clearLongPressTimer();
+    clearCloseTimer();
+    setSummaryOpen(false);
+  }, [isDragging, clearCloseTimer, clearHoverTimer, clearLongPressTimer]);
 
   const style = {
     transform: CSS.Translate.toString(transform),
@@ -501,8 +544,12 @@ export const OrdersPipelineCard = memo(function OrdersPipelineCard({ order, isDr
 
         </div>
       </div>
-      {summaryOpen && summaryPosition && (
+      {/* In un portale su <body>: un `fixed` dentro un elemento con `transform`
+          (la card lo ha mentre la si trascina) si misura sulla card e non sullo
+          schermo, e il riepilogo finiva spostato in basso a destra. */}
+      {summaryOpen && summaryPosition && createPortal(
         <div
+          ref={riepilogoRef}
           className="fixed z-[80] max-h-[calc(100vh-1.5rem)] w-[min(24rem,calc(100vw-1.5rem))] overflow-y-auto rounded-lg border bg-background p-3 text-left shadow-xl ring-1 ring-black/5"
           style={{ left: summaryPosition.left, top: summaryPosition.top }}
           onMouseEnter={clearCloseTimer}
@@ -633,7 +680,8 @@ export const OrdersPipelineCard = memo(function OrdersPipelineCard({ order, isDr
               Apri commessa
             </button>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );
