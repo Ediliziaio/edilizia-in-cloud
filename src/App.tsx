@@ -224,6 +224,9 @@ const AiEdilizia = lazy(() => import("@/app/ai-edilizia/page"));
 const PartnerPayoutPreview = lazy(() => import("@/pages/partner/PartnerPayoutPreview"));
 const ListinoAnteprima = lazy(() => import("@/pages/dev/ListinoAnteprima"));
 const PreventivoSerramentiAnteprima = lazy(() => import("@/pages/dev/PreventivoSerramentiAnteprima"));
+const DisegnoSerramentiAnteprima = lazy(() => import("@/pages/dev/DisegnoSerramentiAnteprima"));
+const DisegnoPersianeAnteprima = lazy(() => import("@/pages/dev/DisegnoPersianeAnteprima"));
+const DisegnoFamigliaAnteprima = lazy(() => import("@/pages/dev/DisegnoFamigliaAnteprima"));
 const AccountantLayout = lazy(() => import("@/pages/accountant/AccountantLayout"));
 const AccountantDashboard = lazy(() => import("@/pages/accountant/AccountantDashboard"));
 const AccountantCompaniesList = lazy(() => import("@/pages/accountant/AccountantCompaniesList"));
@@ -782,6 +785,18 @@ const App = () => (
               <Route
                 path="/dev/preventivo-serramenti"
                 element={import.meta.env.DEV ? <PreventivoSerramentiAnteprima /> : <NotFound />}
+              />
+              <Route
+                path="/dev/disegno-serramenti"
+                element={import.meta.env.DEV ? <DisegnoSerramentiAnteprima /> : <NotFound />}
+              />
+              <Route
+                path="/dev/disegno-persiane"
+                element={import.meta.env.DEV ? <DisegnoPersianeAnteprima /> : <NotFound />}
+              />
+              <Route
+                path="/dev/disegno-famiglia"
+                element={import.meta.env.DEV ? <DisegnoFamigliaAnteprima /> : <NotFound />}
               />
               {/* Portale commercialista — layout + nested routes.
                   Ogni azienda ha la sua pagina dedicata /commercialista/aziende/:companyId. */}

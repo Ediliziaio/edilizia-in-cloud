@@ -23,6 +23,9 @@
  * La posa configurata sulla famiglia è inglobata nel totale ma NON esposta al
  * commerciale (UX policy).
  */
+import { MisureForma, chiedeMisureForma, type MisureFormaValori } from "@/components/serramenti/MisureForma";
+import { AnteprimaDisegnoFamiglia, MiniaturaDisegnoFamiglia } from "@/components/serramenti/AnteprimaDisegnoFamiglia";
+import { type DisegnoConfig, configDaFamiglia, disegnoDaConfig, haDisegno, misureTipiche } from "@/lib/serramenti/disegnoDaFamiglia";
 import { useState, useEffect, useMemo } from "react";
 import type { SrQuoteModelId } from "@/lib/serramenti/quoteModel";
 import { modelCatalogTypes, suggestedModelTypes } from "@/lib/serramenti/modelCatalog";
@@ -96,6 +99,8 @@ export interface ListinoPickResult {
   /** La voce scelta dentro ogni valore: il colore vero di «Colore Standard».
    *  Mappa { axis_codice -> voce }; il prezzo resta quello del valore. */
   scelte_assi?: Record<string, string>;
+  /** Il disegno automatico congelato (null se l'articolo non ne ha). */
+  disegno_config?: DisegnoConfig | null;
   /** Snapshot modalita_prezzo_base del listino al momento del pick: dice se
    *  misure e pezzi contano nel prezzo (a m², a griglia) o no (a pezzo). */
   modalita_prezzo: "pz" | "mq" | "griglia" | "misura_libera" | null;
@@ -169,6 +174,8 @@ export function ListinoPickerDialog({
   const [axisSelection, setAxisSelection] = useState<AxisSelection>({});
   // La voce scelta dentro il valore (il colore di una fascia), per asse.
   const [vociScelte, setVociScelte] = useState<Record<string, string>>({});
+  // Le misure in più della sagoma (arco, trapezio).
+  const [formaExtra, setFormaExtra] = useState<MisureFormaValori>({});
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(search), 300);
@@ -183,7 +190,7 @@ export function ListinoPickerDialog({
       setStep("tipologia");
       setSearch(""); setDebounced("");
       setTipologiaChiave(null); setLineaChiave(null); setRiga(null);
-      setLarghezza(""); setAltezza(""); setQuantita("1");
+      setLarghezza(""); setAltezza(""); setQuantita("1"); setFormaExtra({});
       setAxisSelection({});
       setVociScelte({});
       setSelectedSupplierProductLineId(null);
@@ -248,9 +255,17 @@ export function ListinoPickerDialog({
   );
   // Un asse con tutti i valori spenti non si mostra: bloccherebbe l'articolo per sempre.
   const axes = useMemo(
-    () => assiDaScegliere((familyWithAxes?.axes ?? []).slice().sort((a, b) => a.sort_order - b.sort_order)),
+    // Prima l'apertura (misure → apertura → colore → vetro…), poi gli altri nell'ordine del listino.
+    () => assiDaScegliere((familyWithAxes?.axes ?? []).slice().sort((a, b) => Number(b.codice === "apertura") - Number(a.codice === "apertura") || a.sort_order - b.sort_order)),
     [familyWithAxes],
   );
+  // Il disegno dell'articolo, con le misure scritte (o quelle tipiche) e le scelte fatte.
+  const anteprimaDisegno = useMemo(() => {
+    if (!familyWithAxes || !haDisegno(familyWithAxes)) return null;
+    const tipiche = misureTipiche(familyWithAxes);
+    const config = configDaFamiglia(familyWithAxes, axisSelection, { voci: vociScelte, forma: formaExtra });
+    return config ? disegnoDaConfig(config, misuraDaTesto(larghezza) ?? tipiche.larghezzaMm, misuraDaTesto(altezza) ?? tipiche.altezzaMm) : null;
+  }, [familyWithAxes, axisSelection, larghezza, altezza, vociScelte, formaExtra]);
 
   // La scheda della linea scelta (PVC Salamander 76): foto, dati e testo da
   // leggere al cliente. La linea è il valore dell'asse Linea, o la categoria.
@@ -451,6 +466,8 @@ export function ListinoPickerDialog({
       // future al listino NON cambino i preventivi gia' inviati.
       valori_assi: { ...axisSelection },
       scelte_assi: { ...vociScelte },
+      // Il disegno si congela con la riga: un listino cambiato dopo non cambia il PDF di questo preventivo.
+      disegno_config: configDaFamiglia(familyWithAxes, axisSelection, { voci: vociScelte, forma: formaExtra }),
       modalita_prezzo: modalita,
     });
     onOpenChange(false);
@@ -677,7 +694,8 @@ export function ListinoPickerDialog({
 
         {/* ─── STEP MISURE + CALCOLO ─────────────────────────────────── */}
         {vista === "misure" && selectedFamily && (
-          <div className="space-y-3">
+          <div className={anteprimaDisegno ? "grid gap-4 md:grid-cols-[minmax(0,1fr)_240px]" : ""}>
+          <div className="min-w-0 space-y-3">
             <Card className="bg-orange-50/30 border-orange-200 p-3">
               <p className="text-[11px] uppercase tracking-wide text-orange-600 font-semibold mb-1">
                 Listino: {MODALITA_LABEL[selectedFamily.modalita_prezzo_base ?? "pz"]}
@@ -787,6 +805,16 @@ export function ListinoPickerDialog({
               </p>
             )}
 
+            {familyWithAxes && chiedeMisureForma(familyWithAxes.disegno_tipologia) && (
+              <MisureForma
+                tipologia={familyWithAxes.disegno_tipologia}
+                larghezzaMm={misuraDaTesto(larghezza) ?? misureTipiche(familyWithAxes).larghezzaMm}
+                altezzaMm={misuraDaTesto(altezza) ?? misureTipiche(familyWithAxes).altezzaMm}
+                valori={formaExtra}
+                onChange={setFormaExtra}
+              />
+            )}
+
             {/* Variabili Prodotto (axes): la linea parte già scelta, gli altri
                 assi come nell'ultima posizione o dai valori di serie. */}
             {axes.length > 0 && (
@@ -883,6 +911,15 @@ export function ListinoPickerDialog({
               </Card>
             )}
           </div>
+          {/* A destra il disegno, piccolo e fermo: si aggiorna mentre scegli misure e variabili. */}
+          {anteprimaDisegno && (
+            <aside>
+              <div className="sticky top-0">
+                <AnteprimaDisegnoFamiglia disegno={anteprimaDisegno} altezza="h-36" colonna />
+              </div>
+            </aside>
+          )}
+          </div>
         )}
 
         <div className="sticky -bottom-4 z-10 -mx-4 mt-1 flex flex-col gap-2 border-t bg-background px-4 pb-4 pt-3 sm:static sm:mx-0 sm:flex-row sm:items-center sm:justify-between sm:px-0 sm:pb-0">
@@ -944,7 +981,11 @@ function SchedaProdotto({ riga, contesto, onClick }: { riga: RigaListino; contes
       onClick={onClick}
       className="text-left rounded-md border-2 border-slate-200 hover:border-orange-400 hover:bg-orange-50/30 focus:outline-none focus:ring-2 focus:ring-orange-400 transition overflow-hidden group flex flex-col"
     >
-      {f.immagine_url ? (
+      {haDisegno(f) ? (
+        <div className="w-full h-24 sm:h-32 bg-white p-1.5">
+          <MiniaturaDisegnoFamiglia family={f} className="h-full w-full" />
+        </div>
+      ) : f.immagine_url ? (
         <img loading="lazy" src={f.immagine_url} alt={f.nome} className="w-full h-32 object-contain bg-slate-50" />
       ) : (
         <div className="w-full h-14 sm:h-32 flex items-center justify-center bg-slate-50 text-slate-300">

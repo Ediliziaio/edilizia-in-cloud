@@ -84,6 +84,7 @@ import { Switch } from "@/components/ui/switch";
 import { FamilyAxesEditor } from "./FamilyAxesEditor";
 import { FamilyGridEditor } from "./FamilyGridEditor";
 import { PhotoTemplatePicker } from "./PhotoTemplatePicker";
+import { CampoTipoDisegno, type ValoreTipoDisegno } from "./CampoTipoDisegno";
 import { firstGallerySlugFor } from "@/lib/verticalMapping";
 import { FamilyPricePreview } from "./FamilyPricePreview";
 import { MacroCategorieManager } from "./MacroCategorieManager";
@@ -233,6 +234,8 @@ export function FamilyEditor() {
    * createFamily/updateFamily insieme agli altri campi di Step 1.
    */
   const [immagineUrl, setImmagineUrl] = useState<string | null>(null);
+  // Il tipo di disegno automatico (al posto della foto); «personalizzata» porta con sé le ante composte a mano.
+  const [disegno, setDisegno] = useState<ValoreTipoDisegno>({ tipologia: null, definizione: null });
   const [photoTemplatePickerOpen, setPhotoTemplatePickerOpen] = useState(false);
   // Lightbox: click sulla miniatura → immagine ingrandita.
   const [imageZoomOpen, setImageZoomOpen] = useState(false);
@@ -300,14 +303,14 @@ export function FamilyEditor() {
   // attivano la guardia "modifiche non salvate" e si perdono in silenzio.
   const currentSnapshot = useMemo(
     () => JSON.stringify({
-      nome, codice, descrizione, immagineUrl, modalita, unitOfMeasure, vatRate, vatRateAcquisto,
+      nome, codice, descrizione, immagineUrl, disegno, modalita, unitOfMeasure, vatRate, vatRateAcquisto,
       macrocategoriaId, categoriaId, prezzoVendita, prezzoAcquisto, customFieldValues,
       supplierId, grigliaXLabel, grigliaYLabel, prezzoBaseMode, markupTipo, markupValore,
       scontoFornitore1, scontoFornitore2, manodoperaModalita, posaTariffaId, posaQuantita,
       posaLinked, manodoperaCostoAcquisto, manodoperaPrezzoVendita, manodoperaUnita,
     }),
     [
-      nome, codice, descrizione, immagineUrl, modalita, unitOfMeasure, vatRate, vatRateAcquisto,
+      nome, codice, descrizione, immagineUrl, disegno, modalita, unitOfMeasure, vatRate, vatRateAcquisto,
       macrocategoriaId, categoriaId, prezzoVendita, prezzoAcquisto, customFieldValues,
       supplierId, grigliaXLabel, grigliaYLabel, prezzoBaseMode, markupTipo, markupValore,
       scontoFornitore1, scontoFornitore2, manodoperaModalita, posaTariffaId, posaQuantita,
@@ -373,6 +376,7 @@ export function FamilyEditor() {
       setCategoriaId(family.categoria_id ?? "none");
       setDescrizione(family.descrizione ?? "");
       setImmagineUrl(family.immagine_url ?? null);
+      setDisegno({ tipologia: family.disegno_tipologia ?? null, definizione: family.disegno_definizione ?? null });
       setModalita(family.modalita_prezzo_base);
       setUnitOfMeasure(family.unit_of_measure);
       setVatRate(String(family.vat_rate));
@@ -820,6 +824,8 @@ export function FamilyEditor() {
       sconto_fornitore_1: scontoFornitore1Num,
       sconto_fornitore_2: scontoFornitore2Num,
       immagine_url: immagineUrl,
+      disegno_tipologia: disegno.tipologia,
+      disegno_definizione: disegno.tipologia === "personalizzata" ? disegno.definizione : null,
       // Manodopera: in modalità 'tariffa' salviamo il legacy link, in 'manuale'
       // gli importi diretti. Gli importi manuali E la tariffa collegata restano
       // in DB anche fuori dalla loro modalità per non perdere la scelta se
@@ -1206,8 +1212,14 @@ export function FamilyEditor() {
                     />
                   </div>
 
+                  {/* Tipo di disegno: il sistema disegna l'articolo da solo, al posto della foto. */}
+                  {(disegno.tipologia || macrocategorie.find((m) => m.id === macrocategoriaId)?.tipologia === "serramenti") && (
+                    <CampoTipoDisegno valore={disegno} onChange={setDisegno} />
+                  )}
+
                   {/* Upload immagine articolo — opzionale ma utile per il
                       riconoscimento visivo nell'elenco e in preventivo. */}
+                  {!disegno.tipologia && (
                   <div>
                     <Label>Immagine articolo (opzionale)</Label>
                     <p className="text-xs text-muted-foreground mt-1 mb-2">
@@ -1329,6 +1341,7 @@ export function FamilyEditor() {
                       className="hidden"
                     />
                   </div>
+                  )}
 
                   {/* Schede tecniche / documenti PDF — la colonna pdf_scheda_url
                       esisteva ma non era esposta; ora multi-documento via tabella

@@ -513,6 +513,7 @@ export async function addSerramento(
       valori_assi: serramento.valori_assi ?? {},
       // La voce scelta dentro ogni valore: il colore vero di «Colore Standard».
       scelte_assi: serramento.scelte_assi ?? {},
+      disegno_config: serramento.disegno_config ?? null,
       note: serramento.note ?? null,
       // Default FALSE = posa inclusa (comportamento di default per articoli
       // del listino che hanno manodopera configurata). Il commerciale puo'

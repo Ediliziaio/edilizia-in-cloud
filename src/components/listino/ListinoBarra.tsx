@@ -7,7 +7,7 @@
  */
 import { Link } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
-import { ChevronDown, FolderTree, LayoutGrid, Plus, Rows3, Search, SlidersHorizontal, Trash, Upload, X } from "lucide-react";
+import { ChevronDown, FolderTree, Layers, Wand2, LayoutGrid, Plus, Rows3, Search, SlidersHorizontal, Trash, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -48,6 +48,10 @@ export interface ListinoBarraProps {
   cestino?: number;
   onCestino?: () => void;
   onTipologie?: () => void;
+  /** Apre «Assegna i disegni dai nomi» (solo aziende con serramenti). */
+  onDisegni?: () => void;
+  /** Apre «Modelli di infissi»: scrivi i modelli e nascono tutte le tipologie col disegno. */
+  onModelli?: () => void;
   azioniImporta?: AzioneImporta[];
   onNuovoProdotto?: () => void;
 }
@@ -63,6 +67,8 @@ export function ListinoBarra({
   cestino = 0,
   onCestino,
   onTipologie,
+  onDisegni,
+  onModelli,
   azioniImporta,
   onNuovoProdotto,
 }: ListinoBarraProps) {
@@ -189,6 +195,18 @@ export function ListinoBarra({
             <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={onTipologie} aria-label="Tipologie e linee">
               <FolderTree className="h-4 w-4" aria-hidden="true" />
               <span className="hidden sm:inline">Tipologie</span>
+            </Button>
+          )}
+          {onModelli && (
+            <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={onModelli} aria-label="Modelli di infissi">
+              <Layers className="h-4 w-4" aria-hidden="true" />
+              <span className="hidden sm:inline">Modelli</span>
+            </Button>
+          )}
+          {onDisegni && (
+            <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={onDisegni} aria-label="Assegna i disegni">
+              <Wand2 className="h-4 w-4" aria-hidden="true" />
+              <span className="hidden sm:inline">Disegni</span>
             </Button>
           )}
           {azioniImporta && azioniImporta.length > 0 && (

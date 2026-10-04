@@ -268,10 +268,11 @@ export function useModelliAreaMutations() {
   });
 
   const installa = useMutation({
-    mutationFn: async (m: { modelloId: string; companyId: string }): Promise<EsitoInstallazione> => {
+    mutationFn: async (m: { modelloId: string; companyId: string; modelli?: string[] }): Promise<EsitoInstallazione> => {
       const { data, error } = await supabase.rpc("listino_modello_installa" as never, {
         p_modello_id: m.modelloId,
         p_company_id: m.companyId,
+        ...(m.modelli && m.modelli.length > 0 ? { p_modelli: m.modelli } : {}),
       } as never);
       if (error) throw error;
       return data as unknown as EsitoInstallazione;

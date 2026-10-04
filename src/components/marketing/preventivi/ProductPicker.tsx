@@ -10,6 +10,8 @@
  * sapere da quale fonte viene il prodotto.
  */
 import { useEffect, useState } from "react";
+import { MiniaturaDisegnoFamiglia } from "@/components/serramenti/AnteprimaDisegnoFamiglia";
+import { haDisegno } from "@/lib/serramenti/disegnoDaFamiglia";
 import { ArrowLeft, ChevronRight, Package, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -154,7 +156,11 @@ export function ProductPicker({ category, onBack, onSelectItem }: ProductPickerP
               className="group flex items-start gap-3 rounded-lg border bg-card p-3 text-left transition hover:border-primary hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring tap-compact max-sm:items-center max-sm:gap-2.5 max-sm:rounded-none max-sm:border-0 max-sm:px-3 max-sm:py-2"
             >
               <div className="h-20 w-20 shrink-0 overflow-hidden rounded-md bg-muted max-sm:h-10 max-sm:w-10">
-                {item.immagine_url ? (
+                {item.source === "family" && haDisegno(item.family) ? (
+                  <div className="flex h-full w-full items-center justify-center bg-white p-1">
+                    <MiniaturaDisegnoFamiglia family={item.family} className="h-full w-full" />
+                  </div>
+                ) : item.immagine_url ? (
                   <img
                     src={item.immagine_url}
                     alt={item.nome}

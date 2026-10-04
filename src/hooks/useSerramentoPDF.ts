@@ -20,6 +20,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getTemplatePdf } from "@/lib/serramenti/api";
 import { resolveSrDocumentTemplate } from "@/lib/serramenti/quoteModel";
 import { toDataUrl } from "@/lib/serramenti/pdfImageUtils";
+import { disegniDelPreventivo, type DisegnoPdf } from "@/lib/serramenti/disegniPerPdf";
 import { blocchiAccesi, fotoDeiBlocchi, fotoDellePagine } from "@/lib/pdf/fotoBlocchi";
 import { normalizePdfPagesOrder } from "@/types/serramenti";
 import { CAMPI_IMMAGINE_SERRAMENTI, firmaImmagine, firmaImmaginiModello } from "@/lib/storage/immaginiModelloPdf";
@@ -144,6 +145,8 @@ export interface SerramentoPdfEnriched {
   autoFallbackMacroId: string | null;
   /** Se il riquadro del prezzo mostra prezzo pieno e sconto (vedi mostraScontiNelPdf). */
   mostraSconti: boolean;
+  /** I disegni delle righe (dentro e fuori, con le quote), per chiave `chiaveDisegno`. Vuoto se nessun articolo ha il disegno. */
+  disegni?: Record<string, DisegnoPdf>;
 }
 
 export interface SerramentoPdfPayload {
@@ -402,11 +405,12 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
   ));
   const familiesById: Record<string, SerramentoPdfFamilyData> = {};
   const categoriaToMacro: Record<string, string> = {};
+  const tipologiaDisegno: Record<string, string | null> = {};
   if (familyIds.length > 0) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: famRows } = await (supabase as any)
       .from("article_families")
-      .select("id, nome, descrizione, immagine_url, custom_field_values, categoria_id, macrocategoria_id")
+      .select("id, nome, descrizione, immagine_url, custom_field_values, categoria_id, macrocategoria_id, disegno_tipologia")
       .in("id", familyIds);
     ((famRows ?? []) as Array<{
       id: string;
@@ -416,8 +420,10 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
       custom_field_values: Record<string, unknown> | null;
       categoria_id: string | null;
       macrocategoria_id: string | null;
+      disegno_tipologia: string | null;
     }>)
       .forEach((f) => {
+        tipologiaDisegno[f.id] = f.disegno_tipologia ?? null;
         familiesById[f.id] = {
           id: f.id,
           nome: f.nome,
@@ -712,8 +718,25 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
       immagine_url: (await toDataUrl(mp.immagine_url)) ?? mp.immagine_url,
     }),
   );
+  const disegni = Object.values(tipologiaDisegno).some(Boolean) || detail.serramenti.some((r) => r.disegno_config)
+    ? await disegniDelPreventivo(
+        detail.serramenti.map((r) => ({
+          family_id: r.family_id ?? null,
+          larghezza_mm: r.larghezza_mm ?? null,
+          altezza_mm: r.altezza_mm ?? null,
+          valori_assi: (r.valori_assi ?? null) as Record<string, string> | null,
+          disegno_config: r.disegno_config ?? null,
+          scelte_assi: (r.scelte_assi ?? null) as Record<string, string> | null,
+          colore_interno: r.colore_interno ?? null,
+          colore_esterno: r.colore_esterno ?? null,
+        })),
+        tipologiaDisegno,
+        axisLabelByKey,
+      )
+    : {};
   return {
     detail,
+    disegni,
     template: inlinedTemplate,
     company: inlinedCompany,
     consulente: inlinedConsulente,

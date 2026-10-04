@@ -5,7 +5,8 @@ import type { SrQuoteModelId } from "./quoteModel";
 // Sono i prodotti proposti per primi: «Tutto il listino dell'area» e la ricerca
 // restano sempre aperti, e un preventivo «finestre» può avere anche porte o zanzariere.
 const SUGGESTED_TYPES: Record<SrQuoteModelId, readonly string[]> = {
-  finestre: ["Serramenti"],
+  // 04/10/2026: le persiane si propongono anche da qui (si ordinano insieme alle finestre, con il loro disegno).
+  finestre: ["Serramenti", "Persiane e scuri"],
   persiane: ["Persiane e scuri"],
   avvolgibili: ["Tapparelle", "Cassonetti", "Accessori"],
   zanzariere: ["Zanzariere"],

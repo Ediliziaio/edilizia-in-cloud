@@ -70,7 +70,7 @@ const types = AREE_STANDARD.find(a => a.chiave === "serramenti")!.tipologie.map(
 describe("model-specific catalog suggestions", () => {
   it("uses canonical type, not company labels or IDs", () => {
     expect(suggestedModelTypes(types, "persiane").map(t => t.standard?.nome)).toEqual(["Persiane e scuri"]);
-    expect(suggestedModelTypes(types, "finestre").map(t => t.standard?.nome)).toEqual(["Serramenti"]);
+    expect(suggestedModelTypes(types, "finestre").map(t => t.standard?.nome)).toEqual(["Serramenti", "Persiane e scuri"]);
   });
   it("combined offers share the exact same catalog objects", () => {
     const combined = suggestedModelTypes(types, "combinato");

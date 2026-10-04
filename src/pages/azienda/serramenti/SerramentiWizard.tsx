@@ -29,6 +29,7 @@ import { useIsMutating, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useSerramentoPDF } from "@/hooks/useSerramentoPDF";
 import { useTemplatePdf, useAziendaPerPdf } from "@/lib/serramenti/queries";
+import { AnteprimaPdfLive } from "@/components/serramenti/AnteprimaPdfLive";
 import { Eye, ChevronDown, Copy, GitBranch } from "lucide-react";
 import { STATI_LABEL, TRANSIZIONI_STATO } from "@/lib/serramenti/statoLabels";
 import {
@@ -162,6 +163,15 @@ export default function SerramentiWizard() {
   // La stessa anagrafica del passo PDF, dell'azienda del preventivo: qui
   // mancava il logo chiaro e l'anteprima usciva diversa dal PDF scaricato.
   const { data: pdfCompany } = useAziendaPerPdf(detail?.progetto.company_id);
+
+  // Il pannello a destra: la scheda dei dati o il PDF in tempo reale (la scelta resta per la prossima volta).
+  const [pdfLive, setPdfLive] = useState<boolean>(() => {
+    try { return localStorage.getItem("sr_pannello_pdf_live") === "1"; } catch { return false; }
+  });
+  const impostaPdfLive = (v: boolean) => {
+    setPdfLive(v);
+    try { localStorage.setItem("sr_pannello_pdf_live", v ? "1" : "0"); } catch { /* senza memoria resta valido per questa visita */ }
+  };
 
   // PDF anteprima è disponibile solo se il preventivo è salvato (ha id) e
   // ha almeno 1 serramento o accessorio nel BOM (altrimenti PDF vuoto).
@@ -1001,7 +1011,7 @@ export default function SerramentiWizard() {
           </aside>
 
           {/* Step content */}
-          <main className="col-span-12 space-y-4 md:col-span-9 lg:col-span-6 xl:col-span-7">
+          <main className={cn("col-span-12 space-y-4 md:col-span-9", pdfLive && !isNew ? "lg:col-span-5 xl:col-span-6" : "lg:col-span-6 xl:col-span-7")}>
             {/* ErrorBoundary granulare per step: se uno step crasha (es. dato
                 corrotto), gli altri step restano navigabili e l'utente vede
                 un fallback con "Riprova" invece dell'app blank. */}
@@ -1088,11 +1098,29 @@ export default function SerramentiWizard() {
           </main>
 
           {!isNew && detail && (
-            <aside className="hidden lg:block lg:col-span-3">
-              <StepClienteSummary
-                form={form}
-                detail={{ ...detail, progetto: { ...detail.progetto, ...form } as SrProgettoRow }}
-              />
+            <aside className={cn("hidden lg:block", pdfLive ? "lg:col-span-4 xl:col-span-4" : "lg:col-span-3")}>
+              <div className="sticky top-24">
+                {/* La linguetta: scheda dei dati o PDF vero che si aggiorna mentre lavori. */}
+                <div className="mb-2 inline-flex rounded-md border border-slate-200 bg-white p-0.5 text-[11px] font-medium" role="tablist" aria-label="Pannello a destra">
+                  <button type="button" role="tab" aria-selected={!pdfLive} onClick={() => impostaPdfLive(false)} className={cn("rounded px-2.5 py-1", !pdfLive ? "bg-orange-500 text-white" : "text-slate-600 hover:bg-slate-100")}>Scheda</button>
+                  <button type="button" role="tab" aria-selected={pdfLive} onClick={() => impostaPdfLive(true)} className={cn("rounded px-2.5 py-1", pdfLive ? "bg-orange-500 text-white" : "text-slate-600 hover:bg-slate-100")}>PDF in tempo reale</button>
+                </div>
+                {pdfLive ? (
+                  <AnteprimaPdfLive
+                    attivo
+                    payload={{
+                      detail: { ...detail, progetto: { ...detail.progetto, ...form } as SrProgettoRow },
+                      template: pdfTemplate ?? null,
+                      company: pdfCompany ?? null,
+                    }}
+                  />
+                ) : (
+                  <StepClienteSummary
+                    form={form}
+                    detail={{ ...detail, progetto: { ...detail.progetto, ...form } as SrProgettoRow }}
+                  />
+                )}
+              </div>
             </aside>
           )}
         </div>

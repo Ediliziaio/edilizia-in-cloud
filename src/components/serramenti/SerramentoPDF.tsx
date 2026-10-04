@@ -52,6 +52,8 @@ import { serramentiCoverLayout } from "@/lib/moduli-vendita/serramentiCoverLayou
 import { leggiVotiOnline } from "../../../supabase/functions/_shared/recensioniOnline";
 import { leggiTestata } from "../../../supabase/functions/_shared/testatePagine";
 import { spezzaAccento } from "@/components/preventivi/pdf/testoDocumento";
+import { chiaveDisegno } from "@/lib/serramenti/disegniPerPdf";
+import type { DisegnoConfig } from "@/lib/serramenti/disegnoDaFamiglia";
 import { fotoPaginaPerIlPdf, fotoPerIlPdf, type FotoBloccoPronta } from "@/lib/pdf/fotoBlocchi";
 import { eTavola, proporzioniImmagine } from "@/lib/pdf/proporzioniImmagine";
 import { altezzaTesto, larghezzaTesto, testoDaHtml } from "@/components/preventivi/pdf/misuraTesto";
@@ -64,6 +66,8 @@ import type {
   SerramentoPdfMacroField, SerramentoPdfMacroPagina,
   SerramentoPdfSupplierLine, SerramentoPdfLineaPagina,
 } from "@/hooks/useSerramentoPDF";
+
+const ALTEZZA_DISEGNO_ALLEGATO = 84;
 
 // Direct Serramenti previews must not depend on another PDF entry having loaded.
 ensurePdfBufferCompatibility();
@@ -1105,6 +1109,8 @@ function groupSerramentiAdvanced(serr: SrSerramentoRow[]): Array<{
    *  per stampare la VERA configurazione scelta dal commerciale (es.
    *  "Profilo: Square +8%") invece dei default della scheda tecnica family. */
   valori_assi: Record<string, string>;
+  /** Il disegno congelato nella riga (se c'è). */
+  disegno_config: DisegnoConfig | null;
   /** La voce scelta dentro ogni valore: il colore vero di «Colore Standard». */
   scelte_assi: Record<string, string>;
   prezzo_totale: number;
@@ -1126,6 +1132,7 @@ function groupSerramentiAdvanced(serr: SrSerramentoRow[]): Array<{
     macrocategoria_override_id: string | null;
     note: string | null;
     valori_assi: Record<string, string>;
+    disegno_config: DisegnoConfig | null;
     scelte_assi: Record<string, string>;
     prezzo_totale: number;
     is_omaggio: boolean;
@@ -1182,6 +1189,7 @@ function groupSerramentiAdvanced(serr: SrSerramentoRow[]): Array<{
       macrocategoria_override_id: s.macrocategoria_override_id ?? null,
       note: noteVal,
       valori_assi: assi,
+      disegno_config: s.disegno_config ?? null,
       scelte_assi: scelte,
       prezzo_totale: Number(s.prezzo_totale ?? 0),
       is_omaggio: isOmaggio,
@@ -2124,6 +2132,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
   const {
     detail, template, company,
     consulente, familiesById, fieldsByMacro, macroPagineDedicate,
+    disegni = {},
     macroNomeById = {},
     axisLabelByKey = {},
     supplierLineById = {},
@@ -2141,7 +2150,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
   // Local intervention models have a compact, neutral layout. Existing company
   // templates keep their current typography and commercial presentation.
   const isLocalModule = template?.id?.startsWith("local-serramenti-") === true;
-  const showProductPhotos = !isLocalModule || detail.serramenti.some(row => row.family_id && familiesById[row.family_id]?.immagine_url);
+  const showProductPhotos = !isLocalModule || Object.keys(disegni).length > 0 || detail.serramenti.some(row => row.family_id && familiesById[row.family_id]?.immagine_url);
   const moduleExclusions = serramentiModuleExclusions(template);
   const baseStyles = makeStyles(C);
   const styles = isLocalModule ? { ...baseStyles,
@@ -2514,6 +2523,9 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
     .filter((p): p is { situazione: typeof situazioneRows[number]; render: typeof renderRows[number] } => p !== null)
     .slice(0, 4); // max 4 coppie per layout 2×2
   const serramentiGrouped = groupSerramentiAdvanced(detail.serramenti);
+  // Se un articolo ha il disegno, nell'allegato la colonna della foto ospita le due viste (da dentro e da fuori).
+  const conDisegni = serramentiGrouped.some((g) => disegni[chiaveDisegno(g.family_id, g.larghezza, g.altezza, g.valori_assi, g.disegno_config, g.scelte_assi, { interno: g.colore_interno, esterno: g.colore_esterno })]);
+  const colonnaFoto = conDisegni ? 160 : 70;
 
   // ─── Milestone 9 · Pagine foto-tecniche per articolo ──────────────────
   // Per ogni gruppo serramento, raccogliamo le foto sopralluogo + render AI
@@ -3337,7 +3349,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                     col frammento della View tabella, non su Accessori/Consulenza). */}
                 <View style={styles.tableHeader} fixed>
                   <View style={{ width: 28 }}><Text style={styles.tableHeaderText}>#</Text></View>
-                  {showProductPhotos && <View style={{ width: 70 }}><Text style={styles.tableHeaderText}>Foto</Text></View>}
+                  {showProductPhotos && <View style={{ width: colonnaFoto }}><Text style={styles.tableHeaderText}>{conDisegni ? "Disegno" : "Foto"}</Text></View>}
                   <View style={{ flex: 1, paddingRight: 6 }}><Text style={styles.tableHeaderText}>Descrizione &amp; Specifiche tecniche</Text></View>
                   <View style={{ width: 50, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Q.tà</Text></View>
                 </View>
@@ -3412,7 +3424,10 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                   // prodotti — feedback utente esplicito). Se famiglia non
                   // ha foto → placeholder SVG.
                   const prodottoImageUrl = family?.immagine_url || null;
+                  const disegnoRiga = disegni[chiaveDisegno(g.family_id, g.larghezza, g.altezza, g.valori_assi, g.disegno_config, g.scelte_assi, { interno: g.colore_interno, esterno: g.colore_esterno })];
                   righeAllegato.push({
+                    colonnaFoto,
+                    altezzaFoto: disegnoRiga ? ALTEZZA_DISEGNO_ALLEGATO + 10 : undefined,
                     macro: macroNomeRow,
                     titolo: [titoloConLinea(titolo, scheda.linea), g.ambiente ? ` · ${g.ambiente}` : "", g.is_omaggio ? "  IN OMAGGIO " : "", g.posa_esclusa ? "  SOLO FORNITURA " : ""].join(""),
                     datiPrincipali: [dimensioni, materialeFromFamily(family) ?? (g.materiale !== "—" ? g.materiale : null), g.serie].filter(Boolean).join(" · "),
@@ -3434,8 +3449,17 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                         <Text style={styles.tableRowNumberText}>{idx + 1}</Text>
                       </View>
                       {/* Foto reale */}
-                      {showProductPhotos && <View style={{ width: 70 }}>
-                        {prodottoImageUrl ? (
+                      {showProductPhotos && <View style={{ width: colonnaFoto }}>
+                        {disegnoRiga ? (
+                          <View style={{ flexDirection: "row", marginRight: 8 }}>
+                            {disegnoRiga.viste.map((v) => (
+                              <View key={v.vista} style={{ width: (colonnaFoto - 8) / 2, alignItems: "center" }}>
+                                <Image src={v.immagine.src} style={{ width: "100%", height: ALTEZZA_DISEGNO_ALLEGATO, objectFit: "contain" as const }} />
+                                <Text style={{ fontSize: 6, color: C.gray500 }}>{v.vista === "interna" ? "Da dentro" : "Da fuori"}</Text>
+                              </View>
+                            ))}
+                          </View>
+                        ) : prodottoImageUrl ? (
                           <Image src={prodottoImageUrl} style={styles.tableThumb} />
                         ) : (
                           <View style={styles.tableThumbPh}>

@@ -55,6 +55,8 @@ import type { FamilyWithAxes } from "@/types/articleFamily";
 import type { TipologiaStandard } from "@/lib/listino/areeStandard";
 import { formattaMaggiorazione } from "@/lib/listino/maggiorazione";
 import { statoMargine } from "@/lib/listino/filtriListino";
+import { MiniaturaDisegnoFamiglia } from "@/components/serramenti/AnteprimaDisegnoFamiglia";
+import { haDisegno } from "@/lib/serramenti/disegnoDaFamiglia";
 import { datiTecniciScheda, schedaVuota, type SchedaLinea } from "@/lib/listino/schedeLinea";
 import { eLineaBaseDeiModelli, haLineeDaAsse, prodottiSenzaLinee, riepilogoVarianti } from "@/lib/listino/organizzaListino";
 import {
@@ -802,7 +804,12 @@ function SchedaProdotto({ riga, isAdmin, azioni }: { riga: RigaListino; isAdmin:
       )}
     >
       <div className="relative aspect-[4/3] shrink-0 border-b bg-white">
-        {f.immagine_url ? (
+        {haDisegno(f) ? (
+          // L'articolo si disegna da solo (tipologia + apertura di serie): niente foto da caricare.
+          <div className="absolute inset-0 p-2">
+            <MiniaturaDisegnoFamiglia family={f} className="h-full w-full" />
+          </div>
+        ) : f.immagine_url ? (
           <img src={f.immagine_url} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-contain p-2" />
         ) : (
           <Package className="absolute left-1/2 top-1/2 h-8 w-8 -translate-x-1/2 -translate-y-1/2 text-slate-300" aria-hidden="true" />
@@ -879,7 +886,9 @@ function TabellaProdotti({
                 <TableCell>
                   <div className="flex min-w-0 items-center gap-2.5">
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded border bg-white">
-                      {f.immagine_url ? (
+                      {haDisegno(f) ? (
+                        <MiniaturaDisegnoFamiglia family={f} className="h-full w-full" />
+                      ) : f.immagine_url ? (
                         <img src={f.immagine_url} alt="" loading="lazy" className="h-full w-full object-contain p-0.5" />
                       ) : (
                         <Package className="h-4 w-4 text-slate-300" aria-hidden="true" />

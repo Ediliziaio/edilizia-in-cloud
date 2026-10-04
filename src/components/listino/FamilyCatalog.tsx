@@ -32,6 +32,8 @@ import { useOrganizzaListino } from "@/hooks/useOrganizzaListino";
 import { FamilyTemplatePicker } from "./FamilyTemplatePicker";
 import { ImpostaStandardSerramentiDialog } from "./ImpostaStandardSerramentiDialog";
 import { ImportaSerieDialog } from "./ImportaSerieDialog";
+import { AssegnaDisegniDialog } from "./AssegnaDisegniDialog";
+import { ModelliInfissiDialog } from "./ModelliInfissiDialog";
 import { ListinoBarra, type AzioneImporta, type VistaListino } from "./ListinoBarra";
 import { ListinoNavigatore } from "./ListinoNavigatore";
 import { NuovaAreaDialog } from "./NuovaAreaDialog";
@@ -145,6 +147,8 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
       // localStorage non disponibile: la vista vale fino al prossimo caricamento
     }
   };
+  const [disegniAperto, setDisegniAperto] = useState(false);
+  const [modelliAperto, setModelliAperto] = useState(false);
   const [cerca, setCerca] = useState("");
   const [filtri, setFiltri] = useState<FiltriListino>(FILTRI_LISTINO_VUOTI);
 
@@ -758,8 +762,24 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
           void refetchCestino();
         }}
         onTipologie={onGestisciTipologie}
+        onDisegni={gestore && haSerramenti ? () => setDisegniAperto(true) : undefined}
+        onModelli={gestore && haSerramenti ? () => setModelliAperto(true) : undefined}
         azioniImporta={azioniImporta}
         onNuovoProdotto={() => nuovoProdotto(scelta.area, scelta.tipologia, lineaContenitore)}
+      />
+
+      <ModelliInfissiDialog
+        open={modelliAperto}
+        onOpenChange={setModelliAperto}
+        companyId={companyId}
+        giaPresenti={Array.from(new Set(categorie.filter((c) => (macrocategorie.find((m) => m.id === c.macrocategoria_id)?.nome ?? "").toLowerCase() === "serramenti").map((c) => c.nome)))}
+      />
+      <AssegnaDisegniDialog
+        open={disegniAperto}
+        onOpenChange={setDisegniAperto}
+        companyId={companyId}
+        articoli={families.filter((f) => areaDiVerticale(f.vertical) === "serramenti")}
+        onFatto={() => void refetchFamilies()}
       />
 
       {!isAdmin && (

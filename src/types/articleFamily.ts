@@ -83,6 +83,10 @@ export interface ArticleFamily {
   codice: string | null;
   descrizione: string | null;
   immagine_url: string | null;
+  /** Disegno automatico (serramenti/persiane): id tipologia; null = foto. Vedi lib/serramenti/disegnoDaFamiglia. */
+  disegno_tipologia?: string | null;
+  /** Con disegno_tipologia = "personalizzata": le ante e le misure di partenza composte a mano. */
+  disegno_definizione?: import("@/lib/serramenti/disegnoSerramento").DefinizioneDisegno | null;
   pdf_scheda_url: string | null;
   /** FK a suppliers.id — fornitore associato al prodotto (correlazione listino↔fornitori). */
   supplier_id: string | null;

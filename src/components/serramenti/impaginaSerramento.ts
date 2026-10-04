@@ -170,6 +170,10 @@ const TESTATA_TABELLA = 6 + 7.5 * INTERLINEA_NATURALE_GRASSETTO + 1 + 5;
 
 /** Quello che una riga dell'allegato stampa, per misurarla. */
 export interface RigaAllegato {
+  /** Larghezza della colonna della foto/disegno (di serie 70). */
+  colonnaFoto?: number;
+  /** Altezza che il disegno occupa nella riga, se c'è. */
+  altezzaFoto?: number;
   macro: string | null;
   titolo: string;
   datiPrincipali: string;
@@ -196,7 +200,7 @@ function righeDiChip(chip: string[], larghezza: number): number {
 
 /** Altezza di una riga dei serramenti (tableRow): la colonna del testo o la miniatura, più 9 + 9 di margine. */
 export function altezzaRigaAllegato(r: RigaAllegato): number {
-  const w = UTILE_PAGINA - 28 - 70 - 50 - 6;
+  const w = UTILE_PAGINA - 28 - (r.colonnaFoto ?? 70) - 50 - 6;
   const muta = (t: string) => altezzaTesto(t, w, "Helvetica", 9, 1.4) + 2;
   let testo = 0;
   if (r.macro) testo += 7.5 * INTERLINEA_NATURALE_GRASSETTO + 1;
@@ -210,7 +214,7 @@ export function altezzaRigaAllegato(r: RigaAllegato): number {
   if (r.schede.length > 0) testo += 4 + righeDiChip(r.schede, w) * (8.5 * INTERLINEA_NATURALE + 4 + 3);
   if (r.scelte.length > 0) testo += 2 + righeDiChip(r.scelte, w) * (8.5 * INTERLINEA_NATURALE + 4 + 3);
   if (r.note) testo += muta(r.note);
-  return 18.5 + Math.max(60, 6 + 13 * INTERLINEA_NATURALE_GRASSETTO, testo);
+  return 18.5 + Math.max(60, r.altezzaFoto ?? 0, 6 + 13 * INTERLINEA_NATURALE_GRASSETTO, testo);
 }
 
 export function pezziAllegato(righe: RigaAllegato[], accessori: Array<{ descrizione: string; scelte: string | null }>): Pezzo[] {

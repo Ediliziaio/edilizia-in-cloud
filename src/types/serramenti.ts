@@ -274,6 +274,8 @@ export interface SrSerramentoRow {
    *  Snapshot: se l'azienda modifica le maggiorazioni dopo, i preventivi
    *  gia' creati conservano il prezzo originale. */
   valori_assi: Record<string, string>;
+  /** Il disegno automatico congelato al momento del preventivo (lib/serramenti/disegnoDaFamiglia). */
+  disegno_config?: import("@/lib/serramenti/disegnoDaFamiglia").DisegnoConfig | null;
   /** Per ogni variante, la voce scelta dentro il valore di valori_assi: il
    *  colore vero di «Colore Standard» ({ colore: "Grigio antracite RAL 7016" }).
    *  Migrazione 20280916700000. */

@@ -26,6 +26,8 @@ import {
 } from "@/components/ui/select";
 import { formatCurrency } from "@/lib/formatters";
 import { CampoQuantita } from "./CampoQuantita";
+import { AnteprimaDisegnoFamiglia } from "@/components/serramenti/AnteprimaDisegnoFamiglia";
+import { disegnoDaFamiglia, haDisegno } from "@/lib/serramenti/disegnoDaFamiglia";
 import {
   calcolaPrezzoFamiglia,
   useFamilyGrid,
@@ -62,6 +64,11 @@ function needsMisureXY(family: FamilyWithAxes): boolean {
   );
 }
 
+/** Le misure si chiedono anche a chi non prezza a mq, se l'articolo ha il disegno. */
+function chiedeMisure(family: FamilyWithAxes): boolean {
+  return needsMisureXY(family) || haDisegno(family);
+}
+
 /** Genera un UUID v4 cross-browser (crypto.randomUUID dove disponibile). */
 function uuid(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -95,7 +102,7 @@ export function FamilyConfigurator({
   const hMm = Number(altezza);
   const qty = Math.max(1, Number(quantita) || 1);
   const misureValide =
-    !needsMisureXY(family) ||
+    !chiedeMisure(family) ||
     (Number.isFinite(lMm) && lMm > 0 && Number.isFinite(hMm) && hMm > 0);
 
   const pricing = useMemo(() => {
@@ -161,6 +168,11 @@ export function FamilyConfigurator({
 
   const totaleCompleto = pricing.totale_vendita + posaTotale;
 
+  const disegno = useMemo(
+    () => disegnoDaFamiglia(family, selection, lMm, hMm),
+    [family, selection, lMm, hMm],
+  );
+
   const canConfirm = misureValide && qty > 0;
 
   function handleConfirm(): void {
@@ -201,8 +213,8 @@ export function FamilyConfigurator({
       prezzo_acquisto: pricing.unit_price_acquisto,
       mostra_nel_pdf: true,
       is_optional: false,
-      misura_x: needsMisureXY(family) ? lMm : null,
-      misura_y: needsMisureXY(family) ? hMm : null,
+      misura_x: chiedeMisure(family) ? lMm : null,
+      misura_y: chiedeMisure(family) ? hMm : null,
       family_id: family.id,
       axis_selections: selection,
       supplier_catalog_id: supplierCatalogId,
@@ -272,7 +284,7 @@ export function FamilyConfigurator({
         <span className="text-sm font-medium max-sm:hidden">{family.nome}</span>
       </div>
 
-      {needsMisureXY(family) && (
+      {chiedeMisure(family) && (
         <div className="grid grid-cols-2 gap-3">
           <div>
             <Label htmlFor="larghezza">
@@ -306,7 +318,8 @@ export function FamilyConfigurator({
       {family.axes.length > 0 && (
         // Telefono: varianti a due per riga, sono tendine corte.
         <div className="grid gap-3 md:grid-cols-2 max-sm:grid-cols-2">
-          {family.axes.map((axis) => {
+          {/* Prima l'apertura (misure → apertura → colore → vetro…). */}
+          {[...family.axes].sort((a, b) => Number(b.codice === "apertura") - Number(a.codice === "apertura")).map((axis) => {
             const values = axis.values.filter((v) => v.attivo);
             return (
               <div key={axis.id}>
@@ -338,6 +351,8 @@ export function FamilyConfigurator({
           })}
         </div>
       )}
+
+      {disegno && <AnteprimaDisegnoFamiglia disegno={disegno} />}
 
       <CampoQuantita value={quantita} onChange={setQuantita} />
 

@@ -8,6 +8,9 @@
  * cassonetto, persiana), con le sue misure e il modello già usato nel
  * preventivo: vedi ComplementiFinestra e lib/serramenti/complementiFinestra.
  */
+import { DisegnoDellaRiga } from "@/components/serramenti/AnteprimaDisegnoFamiglia";
+import { configDaFamiglia, disegnoDaConfig, formaDaConfig } from "@/lib/serramenti/disegnoDaFamiglia";
+import { MisureForma, chiedeMisureForma } from "@/components/serramenti/MisureForma";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,7 +35,6 @@ import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { ListinoPickerDialog, type ListinoPickResult } from "./ListinoPickerDialog";
-import { AiSerramentiDraftLauncher } from "./AiSerramentiDraftLauncher";
 import { calcolaPrezzoProdotto, calcolaPosaInclusa, applyMaggiorazioniAssi, listinoSenzaPrezzoDiVendita } from "@/lib/serramenti/pricing";
 import { useFamilies, useFamily } from "@/hooks/useFamilies";
 import type { FamilyWithAxes } from "@/types/articleFamily";
@@ -223,8 +225,11 @@ export function StepBom({ progettoId, detail, modelId }: Props) {
         valori_assi: item.valori_assi ?? {},
         // Il colore vero scelto dentro la fascia (Grigio antracite dentro «Colore Standard»).
         scelte_assi: item.scelte_assi ?? {},
-        colore_interno: ultimaDaListino?.colore_interno ?? null,
-        colore_esterno: ultimaDaListino?.colore_esterno ?? null,
+        // Il disegno si congela ora: un listino cambiato dopo non cambia il PDF di questo preventivo.
+        disegno_config: item.disegno_config ?? null,
+        // Il colore lo decide la variabile «Colore»: dentro/fuori si ereditano solo se la riga non ce l'ha.
+        colore_interno: item.valori_assi?.colore ? null : (ultimaDaListino?.colore_interno ?? null),
+        colore_esterno: item.valori_assi?.colore ? null : (ultimaDaListino?.colore_esterno ?? null),
         // La nota della riga è quella del commerciale e il PDF la stampa come
         // «Note tecniche». Il conto del prezzo non è una nota: finiva nel PDF in
         // formato inglese («1.68 m² × €600.00/m²») e restava vecchio appena si
@@ -305,6 +310,7 @@ export function StepBom({ progettoId, detail, modelId }: Props) {
       macrocategoria_override_id: s.macrocategoria_override_id,
       valori_assi: s.valori_assi ?? {},
       scelte_assi: s.scelte_assi ?? {},
+      disegno_config: s.disegno_config ?? null,
       // «Solo fornitura» segue la copia: il prezzo copiato è già senza posa.
       posa_esclusa: s.posa_esclusa ?? false,
       position: serramenti.length,
@@ -337,6 +343,11 @@ export function StepBom({ progettoId, detail, modelId }: Props) {
       ) {
         patch.prezzo_totale = (next.prezzo_unitario ?? 0) * (next.quantita ?? 1);
       }
+    }
+    // Cambiando le scelte (apertura, colore, vetro…) il disegno congelato si aggiorna con loro.
+    if (orig && orig.family_id && !orig.disegno_config?.nessuno && (patch.valori_assi !== undefined || patch.scelte_assi !== undefined || patch.colore_interno !== undefined || patch.colore_esterno !== undefined)) {
+      const dopo = { ...orig, ...patch };
+      patch.disegno_config = configDaFamiglia(familiesById.get(orig.family_id), (dopo.valori_assi ?? {}) as Record<string, string>, { coloreInterno: dopo.colore_interno, coloreEsterno: dopo.colore_esterno, voci: dopo.scelte_assi, forma: formaDaConfig(orig.disegno_config) }) ?? orig.disegno_config ?? null;
     }
     updateMut.mutate({ id, patch });
     // I complementi della finestra ne seguono misure, pezzi e posa.
@@ -382,20 +393,10 @@ export function StepBom({ progettoId, detail, modelId }: Props) {
         {/* Lista serramenti (se presenti). Box hint se vuota. */}
         {serramenti.length === 0 ? (
           <div className="space-y-3 mb-3">
-            {/* BOM vuoto → l'Assistente AI è la via più veloce: lo mettiamo in
-                cima come azione primaria (descrivi a voce / scrivi / fotografa
-                il rilievo → bozza pronta da approvare). */}
-            <AiSerramentiDraftLauncher
-              progettoId={progettoId}
-              detail={detail}
-              context="bom"
-              onInserted={setExpanded}
-            />
             <div className="border-2 border-dashed border-slate-200 rounded-md p-6 text-center">
               <RectangleVertical className="h-8 w-8 mx-auto text-slate-300 mb-2" />
               <p className="text-sm text-muted-foreground">
-                Il modo più veloce: usa l'<strong>Assistente AI</strong> qui sopra.
-                Oppure aggiungi dal listino (consigliato) o a mano coi bottoni sotto.
+                Aggiungi dal listino (consigliato) o a mano coi bottoni sotto.
               </p>
             </div>
           </div>
@@ -470,20 +471,6 @@ export function StepBom({ progettoId, detail, modelId }: Props) {
             })}
             </div>
           </>
-        )}
-
-        {/* AI launcher: quando il BOM è vuoto è già in cima come azione
-            primaria; qui lo mostriamo solo se ci sono già righe (per aggiungerne
-            altre con l'AI senza perdere la lista come elemento primario). */}
-        {serramenti.length > 0 && (
-          <div className="mb-3">
-            <AiSerramentiDraftLauncher
-              progettoId={progettoId}
-              detail={detail}
-              context="bom"
-              onInserted={setExpanded}
-            />
-          </div>
         )}
 
         {/* Bottoni di aggiunta — sempre visibili SOTTO la lista (o sotto
@@ -1296,6 +1283,33 @@ export function SerramentoRow({
     family.manodopera_modalita != null &&
     family.manodopera_modalita !== "nessuna";
 
+  // Con spazio il disegno sta a destra delle scelte; con la colonna stretta (PDF aperto a lato) va sopra, compatto.
+  const [riquadroLargo, setRiquadroLargo] = useState(false);
+  const haAsseColore = !!familyWithAxes?.axes.some((a) => a.codice === "colore");
+  // Dentro e fuori diversi: aperto solo se la riga li ha davvero diversi.
+  const [coloriDiversi, setColoriDiversi] = useState<boolean>(() => !!(s.colore_interno && s.colore_esterno && s.colore_interno !== s.colore_esterno));
+  const riquadroRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = riquadroRef.current;
+    if (!el) return;
+    const misura = () => setRiquadroLargo(el.clientWidth >= 580);
+    misura();
+    const osservatore = new ResizeObserver(misura);
+    osservatore.observe(el);
+    return () => osservatore.disconnect();
+  }, [expanded]);
+
+  // Il disegno della riga: da dentro e da fuori, con le misure e le scelte fatte.
+  const anteprimaDisegno = useMemo(
+    () => {
+      if (!familyWithAxes || !s.larghezza_mm || !s.altezza_mm) return null;
+      if (s.disegno_config?.nessuno) return null; // riga già consegnata, congelata con la foto
+      const config = configDaFamiglia(familyWithAxes, (s.valori_assi ?? {}) as Record<string, string>, { coloreInterno: s.colore_interno, coloreEsterno: s.colore_esterno, voci: s.scelte_assi, forma: formaDaConfig(s.disegno_config) });
+      return config ? disegnoDaConfig(config, s.larghezza_mm, s.altezza_mm) : null;
+    },
+    [familyWithAxes, s.valori_assi, s.scelte_assi, s.larghezza_mm, s.altezza_mm, s.colore_interno, s.colore_esterno, s.disegno_config],
+  );
+
   return (
     <Card className="border-orange-100">
       <CardHeader className="p-3 hover:bg-orange-50/30">
@@ -1442,7 +1456,9 @@ export function SerramentoRow({
         </CardTitle>
       </CardHeader>
       {expanded && (
-        <CardContent className="grid grid-cols-12 gap-3 border-t p-3 pt-0 sm:gap-2">
+        <CardContent ref={riquadroRef} className="grid grid-cols-12 gap-3 border-t p-3 pt-3 sm:gap-2">
+          {/* A sinistra la composizione della riga (misure → variabili → colori); a destra, piccolo e fermo, il disegno. */}
+          <div className={"col-span-12 grid grid-cols-12 gap-3 sm:gap-2" + (anteprimaDisegno && riquadroLargo ? " !col-span-8" : "")}>
           {/* Tipologia editabile SOLO off-listino. Per le righe da listino
               la "tipologia" coincide con il nome dell'articolo (gia' nella
               riga 1 dell'header) -> il dropdown sarebbe ridondante e
@@ -1450,7 +1466,7 @@ export function SerramentoRow({
               dropdown delle tipologie generiche). */}
           {isFromListino ? (
             <div className="col-span-12 md:col-span-6">
-              <Label className="text-xs text-muted-foreground">Articolo (da listino)</Label>
+              <Label className="flex h-5 items-center text-xs">Articolo (da listino)</Label>
               <div className="h-9 rounded-md border bg-slate-50 border-slate-200 px-3 flex items-center text-xs font-medium text-slate-800 truncate">
                 {family?.nome ?? s.tipologia_label ?? "—"}
               </div>
@@ -1467,7 +1483,7 @@ export function SerramentoRow({
             </div>
           )}
           <div className="col-span-12 md:col-span-6">
-            <Label className="text-xs">Ambiente</Label>
+            <Label className="flex h-5 items-center text-xs">Ambiente</Label>
             <Input
               defaultValue={s.ambiente ?? ""}
               onBlur={(e) => onPatch({ ambiente: e.target.value || null })}
@@ -1479,7 +1495,7 @@ export function SerramentoRow({
               le caratteristiche intrinseche del modello (materiale profilo, vetro,
               Uw…) non si modificano qui ma in Listino → Articolo. */}
           {isFromListino && macroId && family && Object.keys(family.custom_field_values ?? {}).length > 0 && (
-            <div className="col-span-12">
+            <div className="order-4 col-span-12">
               <div className="rounded-md border border-orange-100 bg-orange-50/40 p-2.5">
                 <div className="text-[10px] uppercase tracking-wide text-orange-600 font-semibold mb-1.5 flex items-center gap-1">
                   <Sparkles className="h-3 w-3" />
@@ -1498,8 +1514,19 @@ export function SerramentoRow({
               valori configurati a listino. Cambiando una scelta, il prezzo
               unitario si aggiorna in automatico applicando le maggiorazioni
               (es. cambio Profilo da Etrum 70 a Etrum 82 +€30/m²). */}
+          {isFromListino && s.disegno_config && s.larghezza_mm && s.altezza_mm && chiedeMisureForma(s.disegno_config.tipologia) && (
+            <div className="order-2 col-span-12">
+              <MisureForma
+                tipologia={s.disegno_config.tipologia}
+                larghezzaMm={s.larghezza_mm}
+                altezzaMm={s.altezza_mm}
+                valori={formaDaConfig(s.disegno_config)}
+                onChange={(v) => onPatch({ disegno_config: { ...s.disegno_config!, frecciaMm: v.frecciaMm, altezzaMinoreMm: v.altezzaMinoreMm, latoMinore: v.latoMinore, sopraluceMm: v.sopraluceMm, sottoluceMm: v.sottoluceMm } })}
+              />
+            </div>
+          )}
           {isFromListino && familyWithAxes && familyWithAxes.axes.length > 0 && (
-            <div className="col-span-12">
+            <div className="order-2 col-span-12">
               <div className="rounded-md border border-blue-100 bg-blue-50/40 p-2.5">
                 <div className="text-[10px] uppercase tracking-wide text-blue-800 font-semibold mb-2">
                   Variabili Prodotto
@@ -1507,7 +1534,8 @@ export function SerramentoRow({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                   {familyWithAxes.axes
                     .slice()
-                    .sort((a, b) => a.sort_order - b.sort_order)
+                    // Prima l'apertura, poi gli altri nell'ordine del listino.
+                    .sort((a, b) => Number(b.codice === "apertura") - Number(a.codice === "apertura") || a.sort_order - b.sort_order)
                     .map((axis) => {
                       const currentId = (s.valori_assi ?? {})[axis.codice] ?? "";
                       const isMissing = axis.obbligatorio && !currentId;
@@ -1541,7 +1569,7 @@ export function SerramentoRow({
           )}
 
           {schedaLinea && (
-            <div className="col-span-12">
+            <div className="order-4 col-span-12">
               <SchedaLineaCompatta scheda={schedaLinea} />
             </div>
           )}
@@ -1634,8 +1662,11 @@ export function SerramentoRow({
               spiega all'utente che L/H sono solo descrittive e non
               influenzano il prezzo. Senza, l'utente cambiava larghezza
               e si chiedeva "come mai il prezzo non si aggiorna?". */}
+          {isFromListino && (
+            <p className="order-1 col-span-12 mt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Misure e prezzo</p>
+          )}
           {isFromListino && (modalitaPrezzo === "pz" || modalitaPrezzo === "misura_libera" || isListinoManualPrice) && (
-            <div className="col-span-12 -mb-1">
+            <div className="order-1 col-span-12 -mb-1">
               <p className="text-[10px] text-slate-600 bg-slate-50 border border-slate-200 rounded px-2 py-1">
                 {isListinoManualPrice ? (
                   <>
@@ -1656,7 +1687,7 @@ export function SerramentoRow({
               griglia + L×H fuori range producibile). Indica chiaramente il
               range disponibile per guidare l'utente a una correzione. */}
           {isFromListino && priceCheck?.fuoriRange && priceCheck.range && (
-            <div className="col-span-12 -mb-1">
+            <div className="order-1 col-span-12 -mb-1">
               <p className="text-[11px] text-rose-800 bg-rose-50 border border-rose-200 rounded px-2.5 py-1.5 leading-tight">
                 <span className="font-semibold">⚠ Misure fuori standard:</span> queste misure non sono producibili da listino.
                 {priceCheck.range.minL != null && priceCheck.range.maxL != null && priceCheck.range.minH != null && priceCheck.range.maxH != null && (
@@ -1670,8 +1701,8 @@ export function SerramentoRow({
           )}
           {!isManualCorpo && (
             <>
-              <div className="col-span-12 sm:col-span-4 md:col-span-3">
-                <Label className="text-xs">Largh. (mm)</Label>
+              <div className="order-1 col-span-12 sm:col-span-4 md:col-span-3">
+                <Label className="flex h-5 items-center text-xs">Largh. (mm)</Label>
                 <Input
                   type="number"
                   key={`L-${s.id}`}
@@ -1687,8 +1718,8 @@ export function SerramentoRow({
                   className="h-9 text-xs"
                 />
               </div>
-              <div className="col-span-12 sm:col-span-4 md:col-span-3">
-                <Label className="text-xs">Altezza (mm)</Label>
+              <div className="order-1 col-span-12 sm:col-span-4 md:col-span-3">
+                <Label className="flex h-5 items-center text-xs">Altezza (mm)</Label>
                 <Input
                   type="number"
                   key={`H-${s.id}`}
@@ -1702,8 +1733,8 @@ export function SerramentoRow({
                   className="h-9 text-xs"
                 />
               </div>
-              <div className="col-span-12 sm:col-span-4 md:col-span-2">
-                <Label className="text-xs">Quantità</Label>
+              <div className="order-1 col-span-12 sm:col-span-4 md:col-span-2">
+                <Label className="flex h-5 items-center text-xs">Quantità</Label>
                 <Input
                   type="number"
                   min={1}
@@ -1719,13 +1750,13 @@ export function SerramentoRow({
               </div>
             </>
           )}
-          <div className={isManualCorpo ? "col-span-12 md:col-span-6" : "col-span-12 md:col-span-4"}>
-            <Label className="text-xs flex items-center justify-between">
+          <div className={"order-1 " + (isManualCorpo ? "col-span-12 md:col-span-6" : "col-span-12 md:col-span-4")}>
+            <Label className="flex h-5 items-center justify-between gap-1 whitespace-nowrap text-xs">
               <span>
                 {isManualCorpo
                   ? "Importo vendita totale (€)"
                   : isListinoManualPrice
-                    ? "Prezzo manuale vendita (€)"
+                    ? "Prezzo vendita (€)"
                     : "Prezzo unitario (€)"}
               </span>
               {isFromListino && !isListinoManualPrice && (
@@ -1777,7 +1808,7 @@ export function SerramentoRow({
               automaticamente la quota posa. Cambio prezzo immediato senza
               roundtrip DB. */}
           {hasPosaConfigured && (
-            <div className="col-span-12">
+            <div className="order-5 col-span-12">
               <div className={
                 "rounded-md border px-3 py-2 flex items-center justify-between gap-3 " +
                 (s.posa_esclusa
@@ -1809,33 +1840,63 @@ export function SerramentoRow({
               «Colore» (lo stesso sui due lati, o bianco dentro con la pellicola su
               un lato) e il segnaposto li mostra. Si scrivono solo quando sono
               diversi, per esempio una finestra bicolore o una riga fuori listino. */}
-          <div className="col-span-12 sm:col-span-6 md:col-span-4">
-            <Label className="text-xs">Colore interno</Label>
-            <SceltaColore
-              value={s.colore_interno}
-              onChange={(valore) => {
-                if (valore !== (s.colore_interno ?? null)) onPatch({ colore_interno: valore });
-              }}
-              gruppi={gruppiDiColori}
-              placeholder={coloriDaVariante.coloreInterno ?? "Bianco RAL 9010"}
-              aria-label="Colore interno"
-            />
+          {/* Un colore solo: quello di «Colore» nelle variabili. Dentro e fuori diversi (finestra bicolore)
+              si sceglie a parte, sotto, e solo se serve. Senza la variabile «Colore» restano i due campi. */}
+          <div className="order-5 col-span-12">
+            {haAsseColore && (
+              <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-slate-700">
+                <input
+                  type="checkbox"
+                  className="h-3.5 w-3.5 accent-orange-500"
+                  checked={coloriDiversi}
+                  onChange={(e) => {
+                    setColoriDiversi(e.target.checked);
+                    if (!e.target.checked && (s.colore_interno || s.colore_esterno)) onPatch({ colore_interno: null, colore_esterno: null });
+                  }}
+                />
+                Colore diverso dentro e fuori
+              </label>
+            )}
+            {(!haAsseColore || coloriDiversi) && (
+              <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <div>
+                  <Label className="flex h-5 items-center text-xs">Colore interno</Label>
+                  <SceltaColore
+                    value={s.colore_interno}
+                    onChange={(valore) => {
+                      if (valore !== (s.colore_interno ?? null)) onPatch({ colore_interno: valore });
+                    }}
+                    gruppi={gruppiDiColori}
+                    placeholder={coloriDaVariante.coloreInterno ?? "Bianco RAL 9010"}
+                    aria-label="Colore interno"
+                  />
+                </div>
+                <div>
+                  <Label className="flex h-5 items-center text-xs">Colore esterno</Label>
+                  <SceltaColore
+                    value={s.colore_esterno}
+                    onChange={(valore) => {
+                      if (valore !== (s.colore_esterno ?? null)) onPatch({ colore_esterno: valore });
+                    }}
+                    gruppi={gruppiDiColori}
+                    placeholder={coloriDaVariante.coloreEsterno ?? "Antracite RAL 7016"}
+                    aria-label="Colore esterno"
+                  />
+                </div>
+              </div>
+            )}
           </div>
-          <div className="col-span-12 sm:col-span-6 md:col-span-4">
-            <Label className="text-xs">Colore esterno</Label>
-            <SceltaColore
-              value={s.colore_esterno}
-              onChange={(valore) => {
-                if (valore !== (s.colore_esterno ?? null)) onPatch({ colore_esterno: valore });
-              }}
-              gruppi={gruppiDiColori}
-              placeholder={coloriDaVariante.coloreEsterno ?? "Antracite RAL 7016"}
-              aria-label="Colore esterno"
-            />
-          </div>
-          {complementi && <div className="col-span-12">{complementi}</div>}
+          {complementi && <div className="order-5 col-span-12">{complementi}</div>}
           {/* Duplica/Elimina sono ora sempre visibili nell'header (icone) —
               evitiamo bottoni duplicati nel dettaglio espanso. */}
+          </div>
+          {anteprimaDisegno && (
+            <aside className={"order-first " + (riquadroLargo ? "col-span-4" : "col-span-12")}>
+              <div className={riquadroLargo ? "sticky top-24" : ""}>
+                <DisegnoDellaRiga disegno={anteprimaDisegno} colonna={riquadroLargo} />
+              </div>
+            </aside>
+          )}
         </CardContent>
       )}
     </Card>
