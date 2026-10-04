@@ -1598,206 +1598,226 @@ export function OrderItemsList({
                     {controlloStato("tap-compact h-7 w-auto max-w-[140px] shrink-0 gap-1 px-2 text-[11px] font-medium border")}
                   </div>
                 </div>
-                {/* Item info (left) */}
+                {/* Item info (left): tre colonne — articolo, ordine e consegna, costi e
+                    pagamento. Prima era un'unica riga di 6-8 etichette di colori diversi. */}
                 <div className="flex-1 min-w-0 max-sm:hidden">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-medium">{item.name}</span>
-                    {item.quantity > 1 && (
-                      <span className="text-sm text-muted-foreground">(x{item.quantity})</span>
-                    )}
-                    {item.stock_item_id ? (
-                      <Badge className="text-xs bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-700 gap-1">
-                        <Warehouse className="h-3 w-3" />
-                        Da Giacenza
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline" className="text-xs gap-1">
-                        <Package className="h-3 w-3" />
-                        Da Fornitore
-                      </Badge>
-                    )}
-                    {/* Payment status badge */}
-                    {(item.payment_method === "50_50" || item.payment_method === "30_70") ? (
-                      <>
-                        {item.deposit_paid && item.balance_paid ? (
-                          <Badge className="text-xs bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-700 gap-1">
-                            <CheckCircle className="h-3 w-3" />Tutto pagato
+                  <div className="grid gap-x-6 gap-y-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(10rem,auto)]">
+                    {/* Colonna 1 — articolo e provenienza */}
+                    <div className="min-w-0">
+                      <p className="font-medium leading-snug">
+                        {item.name}
+                        {item.quantity > 1 && (
+                          <span className="ml-1.5 text-sm font-normal text-muted-foreground">×{item.quantity}</span>
+                        )}
+                      </p>
+                      <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-muted-foreground">
+                        {item.stock_item_id ? (
+                          <span className="inline-flex items-center gap-1 font-medium text-emerald-700 dark:text-emerald-400">
+                            <Warehouse className="h-3.5 w-3.5" />Da giacenza
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1">
+                            <Package className="h-3.5 w-3.5" />
+                            {item.supplier_id || item.supplier_name
+                              ? `Fornitore: ${item.supplier_name || getSupplierName(item.supplier_id) || "—"}`
+                              : "Da fornitore"}
+                          </span>
+                        )}
+                        {item.stock_item_id && (item.supplier_id || item.supplier_name) && (
+                          <span>Fornitore: {item.supplier_name || getSupplierName(item.supplier_id) || "—"}</span>
+                        )}
+                      </p>
+                      {item.description && (
+                        <p className="text-sm text-muted-foreground truncate mt-1">{item.description}</p>
+                      )}
+                      {/* La distinta si legge dalla riga: e' il motivo per cui esiste. */}
+                      {item.posizioni && item.posizioni.length > 0 && (
+                        <ul className="mt-1 space-y-0.5">
+                          {item.posizioni.map((po, pi) => (
+                            <li key={pi} className="text-xs text-muted-foreground">
+                              • {po.descrizione}{po.misure ? ` · ${po.misure}` : ""} ×{po.quantita}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+
+                    {/* Colonna 2 — ordine al fornitore e consegna */}
+                    <div className="flex min-w-0 flex-wrap content-start items-start gap-1.5">
+                      {/* OdA coverage badge */}
+                      {showOdaCoverage && item.id && poItemMap.has(item.id) && (
+                        <Badge className="text-xs bg-violet-100 text-violet-700 border-violet-300 dark:bg-violet-950 dark:text-violet-400 dark:border-violet-700 gap-1">
+                          <Link2 className="h-3 w-3" />
+                          {poItemMap.get(item.id)!.map(p => `${p.oda_number} · ${ODA_STATUS_LABELS[p.status] ?? p.status}`).join(", ")}
+                        </Badge>
+                      )}
+                      {/* Il controllo "260 su 200": quantita' ordinata ai fornitori
+                          (OdA emessi) contro quantita' prevista in commessa. Due
+                          numeri affiancati, cosi' chi legge puo' rifare il conto a
+                          mente; rosso solo quando si e' ordinato PIU' del previsto. */}
+                      {showOdaCoverage && item.id && (qtaOrdinataMap.get(item.id) ?? 0) > 0 && (() => {
+                        const ordinata = qtaOrdinataMap.get(item.id!)!;
+                        const prevista = Number(item.quantity) || 0;
+                        const oltre = prevista > 0 && ordinata > prevista;
+                        const pct = prevista > 0 ? Math.round(((ordinata - prevista) / prevista) * 100) : 0;
+                        return (
+                          <Badge
+                            className={`text-xs gap-1 ${
+                              oltre
+                                ? "bg-red-100 text-red-700 border-red-300 dark:bg-red-950 dark:text-red-400 dark:border-red-700"
+                                : "bg-slate-100 text-slate-600 border-slate-300 dark:bg-slate-900 dark:text-slate-400 dark:border-slate-700"
+                            }`}
+                            title="Quantita' ordinata ai fornitori (OdA emessi) rispetto alla quantita' prevista in commessa"
+                          >
+                            {oltre && <AlertTriangle className="h-3 w-3" />}
+                            Ordinato {ordinata.toLocaleString("it-IT")}/{prevista.toLocaleString("it-IT")}
+                            {oltre && ` (+${pct}%)`}
                           </Badge>
-                        ) : item.deposit_paid ? (
-                          <Badge className="text-xs bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-950 dark:text-amber-400 dark:border-amber-700 gap-1">
-                            <Clock className="h-3 w-3" />Acconto pagato
+                        );
+                      })()}
+                      {showOdaCoverage && item.id && !coverage.isPending && !coverage.isError && !poItemMap.has(item.id) && !item.stock_item_id && (
+                        <Badge variant="outline" className="text-xs text-muted-foreground gap-1 border-dashed">
+                          <Link2 className="h-3 w-3" />
+                          Senza OdA
+                        </Badge>
+                      )}
+                      {/* v8.6.35 — Badge data arrivo prevista */}
+                      {item.delivery_date && (() => {
+                        const arr = new Date(item.delivery_date);
+                        const now = new Date();
+                        const diffDays = Math.floor((arr.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                        const isPast = diffDays < 0;
+                        const isImminent = diffDays >= 0 && diffDays <= 3;
+                        const isInArrival = item.status === "in_arrivo" || item.status === "in_magazzino";
+                        // Highlight giallo se prossima/imminente, rosso se scaduta
+                        // e status non è ancora in_arrivo (auto-suggest), grigio normale altrimenti
+                        const colorClass = isPast && !isInArrival
+                          ? "bg-red-100 text-red-700 border-red-300 dark:bg-red-950 dark:text-red-400 dark:border-red-700"
+                          : isImminent && !isInArrival
+                            ? "bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-950 dark:text-amber-400 dark:border-amber-700"
+                            : "bg-sky-100 text-sky-700 border-sky-300 dark:bg-sky-950 dark:text-sky-400 dark:border-sky-700";
+                        const title = isPast && !isInArrival
+                          ? `Arrivo previsto ${format(arr, "dd/MM/yyyy", { locale: it })} — già passata. Aggiorna stato a 'In Arrivo' o 'In Magazzino'.`
+                          : isImminent && !isInArrival
+                            ? `Arrivo previsto in ${diffDays === 0 ? "oggi" : `${diffDays} gg`}`
+                            : `Arrivo previsto ${format(arr, "dd/MM/yyyy", { locale: it })}`;
+                        return (
+                          <Badge className={`text-xs gap-1 ${colorClass}`} title={title}>
+                            <CalendarIcon className="h-3 w-3" />
+                            Arrivo {format(arr, "dd/MM", { locale: it })}
+                            {isPast && !isInArrival && " ⚠"}
+                          </Badge>
+                        );
+                      })()}
+                      {/* v8.6.35 — Badge allegato ODA */}
+                      {item.attachments && item.attachments.some((a) => a.file_name.startsWith("ODA") || a.file_name.toLowerCase().includes("oda")) && (
+                        <Badge
+                          variant="outline"
+                          className="text-xs gap-1 cursor-pointer hover:bg-muted/50"
+                          title="Allegato ODA disponibile — click per scaricare"
+                          onClick={async () => {
+                            const odaAtt = item.attachments?.find(
+                              (a) => a.file_name.startsWith("ODA") || a.file_name.toLowerCase().includes("oda")
+                            );
+                            if (!odaAtt) return;
+                            try {
+                              // file_url può essere un path relativo o un URL completo:
+                              // estrai il path dello storage dopo il nome del bucket.
+                              let filePath = odaAtt.file_url;
+                              if (filePath.startsWith("http")) {
+                                const parts = filePath.split("/order-attachments/");
+                                if (parts.length > 1) filePath = decodeURIComponent(parts[1]);
+                              }
+                              const { data, error } = await supabase.storage
+                                .from("order-attachments")
+                                .createSignedUrl(filePath, 3600);
+                              if (error || !data?.signedUrl) throw error ?? new Error("URL non disponibile");
+                              window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+                            } catch (err) {
+                              const msg = err instanceof Error ? err.message : String(err);
+                              toast({ variant: "destructive", title: "Apertura ODA fallita", description: msg });
+                            }
+                          }}
+                        >
+                          <Paperclip className="h-3 w-3" />
+                          ODA allegato
+                        </Badge>
+                      )}
+                      {showOdaCoverage && item.id && !coverage.isPending && !coverage.isError && (() => {
+                        const plan = planMaterial(item, poItemCoverage);
+                        if (plan.covered === 0) return null;
+                        return <span className="basis-full text-xs text-muted-foreground">
+                          {plan.drafted > 0 && `In bozza ${plan.drafted.toLocaleString("it-IT")} · `}
+                          Ricevuto {plan.received.toLocaleString("it-IT")} · Residuo da acquistare {plan.remaining.toLocaleString("it-IT")}
+                        </span>;
+                      })()}
+                    </div>
+
+                    {/* Colonna 3 — costo e pagamento, allineati a destra */}
+                    <div className="flex min-w-0 flex-col gap-1 text-sm lg:items-end lg:text-right">
+                      {item.purchase_price != null && item.purchase_price > 0 && (
+                        <p className="font-semibold tabular-nums text-slate-900 dark:text-slate-100">
+                          {formatCurrency(item.purchase_price * item.quantity)}
+                          <span className="ml-1 text-xs font-normal text-muted-foreground">IVA {item.vat_rate ?? 22}%</span>
+                        </p>
+                      )}
+                      {item.standard_cost != null && item.standard_cost > 0 && (() => {
+                        // Confronto costo STANDARD (da listino) vs REALE (pagato).
+                        const realeUnit = item.purchase_price ?? 0;
+                        const deltaLine = (realeUnit - item.standard_cost!) * item.quantity;
+                        const pct = (realeUnit - item.standard_cost!) / item.standard_cost! * 100;
+                        const over = deltaLine > 0.005;
+                        const under = deltaLine < -0.005;
+                        return (
+                          <span className="text-xs text-muted-foreground" title="Costo da listino (standard) vs costo realmente pagato">
+                            Listino: {formatCurrency(item.standard_cost! * item.quantity)}
+                            {(over || under) && (
+                              <span className={`ml-1 font-medium ${over ? "text-red-600" : "text-emerald-600"}`}>
+                                {over ? "▲" : "▼"} {deltaLine > 0 ? "+" : ""}{formatCurrency(deltaLine)} ({pct > 0 ? "+" : ""}{pct.toFixed(0)}%)
+                              </span>
+                            )}
+                          </span>
+                        );
+                      })()}
+                      {/* Payment status badge */}
+                      <div className="flex flex-wrap items-center gap-1.5 lg:justify-end">
+                        {(item.payment_method === "50_50" || item.payment_method === "30_70") ? (
+                          <>
+                            {item.deposit_paid && item.balance_paid ? (
+                              <Badge className="text-xs bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-700 gap-1">
+                                <CheckCircle className="h-3 w-3" />Tutto pagato
+                              </Badge>
+                            ) : item.deposit_paid ? (
+                              <Badge className="text-xs bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-950 dark:text-amber-400 dark:border-amber-700 gap-1">
+                                <Clock className="h-3 w-3" />Acconto pagato
+                              </Badge>
+                            ) : (
+                              <Badge className="text-xs bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-950 dark:text-amber-400 dark:border-amber-700 gap-1">
+                                <Clock className="h-3 w-3" />Non pagato
+                              </Badge>
+                            )}
+                          </>
+                        ) : item.is_paid ? (
+                          <Badge className="text-xs bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-700 gap-1">
+                            <CheckCircle className="h-3 w-3" />Pagato
                           </Badge>
                         ) : (
                           <Badge className="text-xs bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-950 dark:text-amber-400 dark:border-amber-700 gap-1">
                             <Clock className="h-3 w-3" />Non pagato
                           </Badge>
                         )}
-                      </>
-                    ) : item.is_paid ? (
-                      <Badge className="text-xs bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-700 gap-1">
-                        <CheckCircle className="h-3 w-3" />Pagato
-                      </Badge>
-                    ) : (
-                      <Badge className="text-xs bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-950 dark:text-amber-400 dark:border-amber-700 gap-1">
-                        <Clock className="h-3 w-3" />Non pagato
-                      </Badge>
-                    )}
-                    {/* OdA coverage badge */}
-                    {showOdaCoverage && item.id && poItemMap.has(item.id) && (
-                      <Badge className="text-xs bg-violet-100 text-violet-700 border-violet-300 dark:bg-violet-950 dark:text-violet-400 dark:border-violet-700 gap-1">
-                        <Link2 className="h-3 w-3" />
-                        {poItemMap.get(item.id)!.map(p => `${p.oda_number} · ${ODA_STATUS_LABELS[p.status] ?? p.status}`).join(", ")}
-                      </Badge>
-                    )}
-                    {/* Il controllo "260 su 200": quantita' ordinata ai fornitori
-                        (OdA emessi) contro quantita' prevista in commessa. Due
-                        numeri affiancati, cosi' chi legge puo' rifare il conto a
-                        mente; rosso solo quando si e' ordinato PIU' del previsto. */}
-                    {showOdaCoverage && item.id && (qtaOrdinataMap.get(item.id) ?? 0) > 0 && (() => {
-                      const ordinata = qtaOrdinataMap.get(item.id!)!;
-                      const prevista = Number(item.quantity) || 0;
-                      const oltre = prevista > 0 && ordinata > prevista;
-                      const pct = prevista > 0 ? Math.round(((ordinata - prevista) / prevista) * 100) : 0;
-                      return (
-                        <Badge
-                          className={`text-xs gap-1 ${
-                            oltre
-                              ? "bg-red-100 text-red-700 border-red-300 dark:bg-red-950 dark:text-red-400 dark:border-red-700"
-                              : "bg-slate-100 text-slate-600 border-slate-300 dark:bg-slate-900 dark:text-slate-400 dark:border-slate-700"
-                          }`}
-                          title="Quantita' ordinata ai fornitori (OdA emessi) rispetto alla quantita' prevista in commessa"
-                        >
-                          {oltre && <AlertTriangle className="h-3 w-3" />}
-                          Ordinato {ordinata.toLocaleString("it-IT")}/{prevista.toLocaleString("it-IT")}
-                          {oltre && ` (+${pct}%)`}
-                        </Badge>
-                      );
-                    })()}
-                    {showOdaCoverage && item.id && !coverage.isPending && !coverage.isError && !poItemMap.has(item.id) && !item.stock_item_id && (
-                      <Badge variant="outline" className="text-xs text-muted-foreground gap-1 border-dashed">
-                        <Link2 className="h-3 w-3" />
-                        Senza OdA
-                      </Badge>
-                    )}
-                    {showOdaCoverage && item.id && !coverage.isPending && !coverage.isError && (() => {
-                      const plan = planMaterial(item, poItemCoverage);
-                      if (plan.covered === 0) return null;
-                      return <span className="text-xs text-muted-foreground">
-                        {plan.drafted > 0 && `In bozza ${plan.drafted.toLocaleString("it-IT")} · `}
-                        Ricevuto {plan.received.toLocaleString("it-IT")} · Residuo da acquistare {plan.remaining.toLocaleString("it-IT")}
-                      </span>;
-                    })()}
-                    {/* v8.6.35 — Badge data arrivo prevista */}
-                    {item.delivery_date && (() => {
-                      const arr = new Date(item.delivery_date);
-                      const now = new Date();
-                      const diffDays = Math.floor((arr.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-                      const isPast = diffDays < 0;
-                      const isImminent = diffDays >= 0 && diffDays <= 3;
-                      const isInArrival = item.status === "in_arrivo" || item.status === "in_magazzino";
-                      // Highlight giallo se prossima/imminente, rosso se scaduta
-                      // e status non è ancora in_arrivo (auto-suggest), grigio normale altrimenti
-                      const colorClass = isPast && !isInArrival
-                        ? "bg-red-100 text-red-700 border-red-300 dark:bg-red-950 dark:text-red-400 dark:border-red-700"
-                        : isImminent && !isInArrival
-                          ? "bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-950 dark:text-amber-400 dark:border-amber-700"
-                          : "bg-sky-100 text-sky-700 border-sky-300 dark:bg-sky-950 dark:text-sky-400 dark:border-sky-700";
-                      const title = isPast && !isInArrival
-                        ? `Arrivo previsto ${format(arr, "dd/MM/yyyy", { locale: it })} — già passata. Aggiorna stato a 'In Arrivo' o 'In Magazzino'.`
-                        : isImminent && !isInArrival
-                          ? `Arrivo previsto in ${diffDays === 0 ? "oggi" : `${diffDays} gg`}`
-                          : `Arrivo previsto ${format(arr, "dd/MM/yyyy", { locale: it })}`;
-                      return (
-                        <Badge className={`text-xs gap-1 ${colorClass}`} title={title}>
-                          <CalendarIcon className="h-3 w-3" />
-                          Arrivo {format(arr, "dd/MM", { locale: it })}
-                          {isPast && !isInArrival && " ⚠"}
-                        </Badge>
-                      );
-                    })()}
-                    {/* v8.6.35 — Badge allegato ODA */}
-                    {item.attachments && item.attachments.some((a) => a.file_name.startsWith("ODA") || a.file_name.toLowerCase().includes("oda")) && (
-                      <Badge
-                        variant="outline"
-                        className="text-xs gap-1 cursor-pointer hover:bg-muted/50"
-                        title="Allegato ODA disponibile — click per scaricare"
-                        onClick={async () => {
-                          const odaAtt = item.attachments?.find(
-                            (a) => a.file_name.startsWith("ODA") || a.file_name.toLowerCase().includes("oda")
-                          );
-                          if (!odaAtt) return;
-                          try {
-                            // file_url può essere un path relativo o un URL completo:
-                            // estrai il path dello storage dopo il nome del bucket.
-                            let filePath = odaAtt.file_url;
-                            if (filePath.startsWith("http")) {
-                              const parts = filePath.split("/order-attachments/");
-                              if (parts.length > 1) filePath = decodeURIComponent(parts[1]);
-                            }
-                            const { data, error } = await supabase.storage
-                              .from("order-attachments")
-                              .createSignedUrl(filePath, 3600);
-                            if (error || !data?.signedUrl) throw error ?? new Error("URL non disponibile");
-                            window.open(data.signedUrl, "_blank", "noopener,noreferrer");
-                          } catch (err) {
-                            const msg = err instanceof Error ? err.message : String(err);
-                            toast({ variant: "destructive", title: "Apertura ODA fallita", description: msg });
-                          }
-                        }}
-                      >
-                        <Paperclip className="h-3 w-3" />
-                        ODA allegato
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1 flex-wrap">
-                    {(item.supplier_id || item.supplier_name) && (
-                      <span>Fornitore: {item.supplier_name || getSupplierName(item.supplier_id) || "—"}</span>
-                    )}
-                    {item.purchase_price != null && item.purchase_price > 0 && (
-                      <span>Costo: {formatCurrency(item.purchase_price * item.quantity)} <span className="text-xs">({item.vat_rate ?? 22}% IVA)</span></span>
-                    )}
-                    {item.standard_cost != null && item.standard_cost > 0 && (() => {
-                      // Confronto costo STANDARD (da listino) vs REALE (pagato).
-                      const realeUnit = item.purchase_price ?? 0;
-                      const deltaLine = (realeUnit - item.standard_cost!) * item.quantity;
-                      const pct = (realeUnit - item.standard_cost!) / item.standard_cost! * 100;
-                      const over = deltaLine > 0.005;
-                      const under = deltaLine < -0.005;
-                      return (
-                        <span title="Costo da listino (standard) vs costo realmente pagato">
-                          Listino: {formatCurrency(item.standard_cost! * item.quantity)}
-                          {(over || under) && (
-                            <span className={`ml-1 font-medium ${over ? "text-red-600" : "text-emerald-600"}`}>
-                              {over ? "▲" : "▼"} {deltaLine > 0 ? "+" : ""}{formatCurrency(deltaLine)} ({pct > 0 ? "+" : ""}{pct.toFixed(0)}%)
-                            </span>
-                          )}
-                        </span>
-                      );
-                    })()}
-                    {item.payment_method && (
-                      <span>Mod.: {getPaymentMethodLabel(item.payment_method)}</span>
-                    )}
-                  </div>
-                  {(item.payment_method === "50_50" || item.payment_method === "30_70") && (item.deposit_amount || item.balance_amount) && (
-                    <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1 flex-wrap">
-                      <span>Acconto: {formatCurrency(item.deposit_amount || 0)} {item.deposit_paid ? "✓" : "—"}</span>
-                      <span>Saldo: {formatCurrency(item.balance_amount || 0)} {item.balance_paid ? "✓" : item.balance_expected_date ? `prev. ${item.balance_expected_date}` : "—"}</span>
+                        {item.payment_method && (
+                          <span className="text-xs text-muted-foreground">Modalità: {getPaymentMethodLabel(item.payment_method)}</span>
+                        )}
+                      </div>
+                      {(item.payment_method === "50_50" || item.payment_method === "30_70") && (item.deposit_amount || item.balance_amount) && (
+                        <div className="flex flex-col gap-0.5 text-xs text-muted-foreground lg:items-end">
+                          <span>Acconto: {formatCurrency(item.deposit_amount || 0)} {item.deposit_paid ? "✓" : "—"}</span>
+                          <span>Saldo: {formatCurrency(item.balance_amount || 0)} {item.balance_paid ? "✓" : item.balance_expected_date ? `prev. ${item.balance_expected_date}` : "—"}</span>
+                        </div>
+                      )}
                     </div>
-                  )}
-                  {/* La distinta si legge dalla riga: e' il motivo per cui esiste. */}
-                  {item.posizioni && item.posizioni.length > 0 && (
-                    <ul className="mt-1 space-y-0.5">
-                      {item.posizioni.map((po, pi) => (
-                        <li key={pi} className="text-xs text-muted-foreground">
-                          • {po.descrizione}{po.misure ? ` · ${po.misure}` : ""} ×{po.quantita}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  {item.description && (
-                    <p className="text-sm text-muted-foreground truncate mt-1">{item.description}</p>
-                  )}
+                  </div>
                 </div>
 
                 {/* Right column: status + actions + attachments (compact on desktop) */}

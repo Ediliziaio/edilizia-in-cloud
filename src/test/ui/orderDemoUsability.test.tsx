@@ -33,6 +33,14 @@ describe('Usabilità del collaudo commesse', () => {
     view.rerender(<OrdineRapportiniCampo orderId="two"/>);
     expect(screen.getAllByRole('button',{name:/Registrazione manuale/})).toHaveLength(10);
   });
+  it('raggruppa per mese e riassume ore e rapportini anche se ne mostra solo dieci', () => {
+    render(<OrdineRapportiniCampo orderId="one"/>);
+    expect(screen.getByRole('heading',{name:/settembre 2026/i})).toBeVisible();
+    // i totali del mese contano tutti i 23, non solo i 10 visibili: 23 × 8 h
+    expect(screen.getByText('23 rapportini · 184 h')).toBeVisible();
+    // nessun rapportino in attesa: la voce lo dice a parole
+    expect(screen.getByText('Nessuno')).toBeVisible();
+  });
   it('apre il dettaglio con un controllo accessibile senza inventare un autore', () => {
     render(<OrdineRapportiniCampo orderId="one"/>);
     const button=screen.getAllByRole('button',{name:/Registrazione manuale/})[0];

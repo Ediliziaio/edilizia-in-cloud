@@ -10,13 +10,11 @@
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { Mail, MessageSquare, ArrowRight, Inbox } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useEmailCliente, useMessaggiCliente, emailDaCercare } from "@/hooks/useComunicazioniCliente";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
-const INTERNAL_NO_EMAIL_DOMAIN = "@no-email.ediliziaincloud.local";
 
 interface CommItem {
   id: string;
@@ -48,65 +46,10 @@ export function OrderCommunicationsCard({ customerId, customerEmail, customerNam
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
-  const emailLookup = (() => {
-    const e = (customerEmail ?? "").trim().toLowerCase();
-    return e && e.includes("@") && !e.endsWith(INTERNAL_NO_EMAIL_DOMAIN) ? e : null;
-  })();
-
-  // ── Email (in arrivo + inviate) per indirizzo del cliente ──────────────────
-  const emailQ = useQuery({
-    queryKey: ["order-comm-email", customerId, companyId, emailLookup],
-    enabled: !!companyId && !!emailLookup,
-    staleTime: 60_000,
-    queryFn: async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const client = supabase as any;
-      const base = () =>
-        client
-          .from("v_my_email_inbox")
-          .select("id, thread_id, from_email, subject, received_at, preview")
-          .eq("company_id", companyId)
-          .order("received_at", { ascending: false })
-          .limit(10);
-      const [fromR, toR] = await Promise.all([
-        base().ilike("from_email", emailLookup!),
-        base().ilike("to_email", emailLookup!),
-      ]);
-      const all = [...(fromR.data ?? []), ...(toR.data ?? [])];
-      const byThread = new Map<string, { id?: string; thread_id?: string; from_email?: string; subject?: string; received_at?: string; preview?: string }>();
-      all.forEach((r: { id?: string; thread_id?: string; received_at?: string }) => {
-        const key = (r.thread_id ?? r.id ?? "") as string;
-        if (!key) return;
-        const prev = byThread.get(key);
-        if (!prev || new Date(r.received_at ?? 0).getTime() > new Date(prev.received_at ?? 0).getTime()) {
-          byThread.set(key, r);
-        }
-      });
-      return Array.from(byThread.values());
-    },
-  });
-
-  // ── Messaggi WhatsApp/SMS dalla RPC conversazione_timeline ──────────────────
-  const messaggiQ = useQuery({
-    queryKey: ["order-comm-msg", customerId],
-    enabled: !!customerId,
-    staleTime: 60_000,
-    queryFn: async () => {
-      const rpc = supabase.rpc.bind(supabase) as unknown as (
-        f: string,
-        a: Record<string, unknown>,
-      ) => Promise<{ data: unknown; error: { message: string } | null }>;
-      const { data, error } = await rpc("conversazione_timeline", {
-        p_entita_tipo: "cliente",
-        p_entita_id: customerId,
-      });
-      if (error) return [];
-      type Msg = { canale: string; direzione: string; oggetto: string | null; testo: string | null; ts: string; ref_id: string };
-      return ((data as Msg[]) ?? []).filter(
-        (m) => !(m.canale === "email" && m.direzione === "in") && m.canale !== "nota",
-      );
-    },
-  });
+  const emailLookup = emailDaCercare(customerEmail);
+  // Le stesse richieste del registro «Attività»: una volta sola, condivise.
+  const emailQ = useEmailCliente(customerId, companyId, emailLookup);
+  const messaggiQ = useMessaggiCliente(customerId);
 
   const items: CommItem[] = useMemo(() => {
     const emails = emailQ.data ?? [];

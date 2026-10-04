@@ -53,6 +53,7 @@ import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { OrderCommessaSummary } from "@/components/orders/OrderCommessaSummary";
 import { OrderFinancialOverview } from "@/components/orders/OrderFinancialOverview";
 import { OrderHeaderSummary, VoceRiepilogo } from "@/components/orders/OrderHeaderSummary";
+import { useConteggiCommessa } from "@/hooks/useConteggiCommessa";
 import { OrderDetailNavigation } from "@/components/orders/OrderDetailNavigation";
 import { useOrderDetailNavigation } from "@/hooks/useOrderDetailNavigation";
 import { CantiereViewNav } from "@/components/orders/CantiereViewNav";
@@ -360,6 +361,11 @@ function OrderDetailInner() {
     staleTime: 120_000,
     gcTime: 10 * 60 * 1000,
   });
+
+  // Numeri accanto alle sotto-schede (Diario 16, Collaudo 1, Ordini d'acquisto 3…):
+  // una sola richiesta, e solo a commessa caricata, così non compete con quelle
+  // che servono per vedere la pagina.
+  const { data: conteggiViste } = useConteggiCommessa(id, companyId, !!order);
 
   const variationsEnabled = permissions.canViewOrderAmounts || permissions.canViewMargins;
   const variations = useOrderVariations(id, effectiveCompany?.id, variationsEnabled);
@@ -1585,7 +1591,7 @@ function OrderDetailInner() {
           {/* Materiali: acquisti, consegne, uscite e matricole. Le lavorazioni sono in Cantiere. */}
           <TabsContent value="articoli" className="space-y-4 mt-4">
             <div id="materiali-workspace" className="scroll-mt-24">
-              <OrderWorkspaceNav label="Viste dei materiali" views={MATERIALI_VIEWS} value={activeMaterialiView} onChange={materialiView => navigateTo({ tab: "articoli", materialiView })} />
+              <OrderWorkspaceNav label="Viste dei materiali" views={MATERIALI_VIEWS} value={activeMaterialiView} onChange={materialiView => navigateTo({ tab: "articoli", materialiView })} counts={{ articoli: displayItems.length, acquisti: conteggiViste?.ordiniAcquisto }} />
             </div>
             {activeMaterialiView === "articoli" && <>
             <div id="section-materiali" className="scroll-mt-24">
@@ -2087,7 +2093,11 @@ function OrderDetailInner() {
           {/* Un solo percorso operativo su desktop e mobile. Nessuna duplicazione dei dati. */}
           <TabsContent value="cantiere" className="space-y-4 mt-4">
             <div id="cantiere-workspace" className="scroll-mt-24">
-              <CantiereViewNav value={activeCantiereView} onChange={cantiereView => navigateTo({ tab: "cantiere", cantiereView })} />
+              <CantiereViewNav
+                value={activeCantiereView}
+                onChange={cantiereView => navigateTo({ tab: "cantiere", cantiereView })}
+                counts={{ lavorazioni: conteggiViste?.lavorazioni, diario: conteggiViste?.rapportini, collaudo: conteggiViste?.verbali }}
+              />
             </div>
             {(activeCantiereView === "lavorazioni" || activeCantiereView === "squadra") && <>
             {activeCantiereView === "lavorazioni" && <div id="section-attivita" className="scroll-mt-24">
@@ -2133,18 +2143,15 @@ function OrderDetailInner() {
             </div>
             <div id="section-foto" className="space-y-4 scroll-mt-24">
               <OrdineFotoCantiere orderId={id!} />
-              <details className="rounded-lg border bg-white">
-                <summary className="cursor-pointer px-4 py-3 text-sm font-medium">Aggiornamenti WhatsApp</summary>
-                <div className="p-3 pt-0"><WhatsAppActivityFeed cantiereId={id!} /></div>
-              </details>
+              {/* Chiuse finché non servono: i loro dati si chiedono alla prima apertura. */}
+              <OrderDisclosure title="Aggiornamenti WhatsApp">
+                <WhatsAppActivityFeed cantiereId={id!} />
+              </OrderDisclosure>
             </div>
             {effectiveCompany?.id && (
-              <details id="section-diario" className="rounded-lg border bg-white scroll-mt-24">
-                <summary className="cursor-pointer px-4 py-3 text-sm font-medium">Storico economico · varianti e SAL</summary>
-                <div className="p-4 pt-0">
-                  <TimelineCantiere orderId={id!} companyId={effectiveCompany.id} adminView={true} />
-                </div>
-              </details>
+              <OrderDisclosure id="section-diario" title="Storico della commessa · stati, varianti e SAL">
+                <TimelineCantiere orderId={id!} companyId={effectiveCompany.id} adminView={true} />
+              </OrderDisclosure>
             )}
             </>}
             {activeCantiereView === "collaudo" && companyId && (

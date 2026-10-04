@@ -49,6 +49,18 @@ describe("Viste materiali ed economia", () => {
     fireEvent.click(screen.getByRole("button", { name: "Indietro" }));
     expect(screen.getByRole("button", { name: "Margini e costi" })).toHaveAttribute("aria-current", "page");
   });
+  it("mostra il numero accanto alla vista solo se maggiore di zero", () => {
+    render(<OrderWorkspaceNav label="Viste dei materiali" views={MATERIALI_VIEWS} value="articoli" onChange={() => {}} counts={{ articoli: 7, acquisti: 0 }} />);
+    expect(screen.getByRole("button", { name: /Articoli e misure.*7/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ordini d’acquisto" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Magazzino e seriali" })).toBeInTheDocument();
+  });
+  it("su mobile il numero sta nella voce del selettore", () => {
+    device.mobile = true;
+    render(<OrderWorkspaceNav label="Viste dei materiali" views={MATERIALI_VIEWS} value="articoli" onChange={() => {}} counts={{ articoli: 7, acquisti: null }} />);
+    expect(screen.getByRole("option", { name: "Articoli e misure (7)" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Ordini d’acquisto" })).toBeInTheDocument();
+  });
   it("il collegamento SAL apre la vista documenti e il dettaglio senza click aggiuntivi", async () => {
     mount("?tab=articoli&vista_economia=margini#section-sal");
     expect(screen.getByRole("button", { name: "Varianti, SAL e documenti" })).toHaveAttribute("aria-current", "page");

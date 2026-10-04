@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -220,6 +221,14 @@ export function useFotoCantiere(orderId?: string) {
     onError: () => toast.error('Errore eliminazione foto'),
   });
 
+  // Identità stabile: le schede foto la usano come dipendenza dell'effetto che
+  // chiede il link. Nuova a ogni render, ogni cambio nella pagina (anche aprire
+  // un pannello) rifaceva la richiesta per TUTTE le foto e le faceva lampeggiare.
+  const getSignedUrl = useCallback(async (path: string) => {
+    const { data } = await supabase.storage.from('foto-cantiere').createSignedUrl(path, 3600);
+    return data?.signedUrl ?? null;
+  }, []);
+
   return {
     foto: fotoQuery.data ?? [],
     isLoading: fotoQuery.isLoading,
@@ -227,9 +236,6 @@ export function useFotoCantiere(orderId?: string) {
     isUploading: uploadMutation.isPending,
     elimina: eliminaMutation.mutate,
     isEliminando: eliminaMutation.isPending,
-    getSignedUrl: async (path: string) => {
-      const { data } = await supabase.storage.from('foto-cantiere').createSignedUrl(path, 3600);
-      return data?.signedUrl ?? null;
-    },
+    getSignedUrl,
   };
 }

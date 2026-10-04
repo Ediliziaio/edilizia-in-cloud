@@ -7,9 +7,11 @@ import { OrderWorkspaceNav } from "./OrderWorkspaceNav";
 export function CantiereViewNav({
   value,
   onChange,
+  counts,
 }: {
   value: CantiereView;
   onChange: (value: CantiereView) => void;
+  counts?: Partial<Record<CantiereView, number | null | undefined>>;
 }) {
   return (
     <OrderWorkspaceNav
@@ -17,6 +19,7 @@ export function CantiereViewNav({
       views={CANTIERE_VIEWS}
       value={value}
       onChange={onChange}
+      counts={counts}
     />
   );
 }
