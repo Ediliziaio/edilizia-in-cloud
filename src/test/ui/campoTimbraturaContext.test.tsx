@@ -147,8 +147,10 @@ describe("Timbratura a un tocco: durante la giornata", () => {
   it("mostra dov'è la persona e da che ora", () => {
     state.selected = null; state.punches = [punch("entrata", "08:00")];
     render(<CampoTimbratura />);
-    expect(screen.getByText("In servizio")).toBeInTheDocument();
-    expect(screen.getByText("A · Cantiere A", { exact: false })).toBeInTheDocument();
+    expect(screen.getByText("In servizio", { exact: false })).toBeInTheDocument();
+    expect(screen.getByText("A")).toBeInTheDocument();
+    expect(screen.getByText("Cantiere A")).toBeInTheDocument();
+    expect(screen.getByText(/dalle \d\d:\d\d/)).toBeInTheDocument();
   });
   it("un tocco sul nuovo posto cambia luogo senza due timbrature a mano", async () => {
     state.selected = null; state.punches = [punch("entrata", "08:00")]; state.sedi = [{ id: "S", nome: "Magazzino" }];

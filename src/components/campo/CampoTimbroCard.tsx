@@ -184,7 +184,7 @@ export function CampoTimbroCard({ preferOrderId = null, onPunched }: {
       return { tipo: "cambio", orderId: luogo.orderId, day: campoWorkDay(new Date(adesso)) };
     },
     onSuccess: async (esito, luogo) => {
-      toast.success(`Ora sei: ${nomeLuogo(luogo)}`);
+      toast.success(`Ora sei: ${luogo.nome}`);
       await aggiorna();
       onPunched?.(esito);
     },
@@ -224,10 +224,13 @@ export function CampoTimbroCard({ preferOrderId = null, onPunched }: {
         inServizio ? "bg-green-50 text-green-800" : inPausa ? "bg-amber-50 text-amber-800" : "bg-muted text-muted-foreground",
       )}>
         <span className={cn("h-2 w-2 shrink-0 rounded-full", inServizio ? "animate-pulse bg-green-500" : inPausa ? "animate-pulse bg-amber-500" : "bg-slate-400")} aria-hidden="true" />
-        <span className="min-w-0 font-medium">
+        <span className="min-w-0 flex-1 font-medium">
           {inPausa ? "In pausa" : inServizio ? "In servizio" : haTimbratoOggi ? "Giornata finita" : "Non hai ancora timbrato"}
           {(inServizio || inPausa) && corrente && (
-            <span className="font-normal"> · <span className="font-semibold">{nomeLuogo(corrente)}</span>{dalle ? ` dalle ${dalle}` : ""}</span>
+            <span className="font-normal"> · <span className="font-semibold">{corrente.nome}</span>{dalle ? ` dalle ${dalle}` : ""}</span>
+          )}
+          {(inServizio || inPausa) && corrente?.dettaglio && (
+            <span className="block truncate text-xs font-normal opacity-80">{corrente.dettaglio}</span>
           )}
         </span>
       </div>
@@ -304,7 +307,7 @@ export function CampoTimbroCard({ preferOrderId = null, onPunched }: {
               {altriCantieri.map(opzione)}
             </select>
           )}
-          <p className="text-xs text-muted-foreground">Toccalo quando arrivi: da quel momento le ore vanno lì. La giornata resta una sola.</p>
+          <p className="text-xs text-muted-foreground">Toccalo quando arrivi: da lì le ore passano al posto nuovo.</p>
         </div>
       )}
       {inPausa && (altriDove.length > 0 || altriCantieri.length > 0) && (

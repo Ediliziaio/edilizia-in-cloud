@@ -103,3 +103,40 @@ export function nomeLuogo(l: Luogo): string {
   if (l.tipo === "nessuno") return "Nessun posto indicato";
   return l.dettaglio ? `${l.nome} · ${l.dettaglio}` : l.nome;
 }
+
+export interface RigaTimeline {
+  id: string;
+  tipo: "inizio" | "cambio" | "pausa_inizio" | "pausa_fine" | "fine";
+  at: string;
+  luogo: string | null;
+}
+
+/**
+ * La cronologia della giornata come la leggerebbe la persona: un cambio di posto è una
+ * sola riga («Arrivato a …»), non un'uscita e un'entrata a un millisecondo di distanza.
+ */
+export function righeTimeline(
+  punches: ReadonlyArray<{ id?: string; tipo: string; timestamp_evento: string; order_id: string | null; in_sede?: boolean | null; sede_id?: string | null }>,
+  luoghi: readonly Luogo[],
+): RigaTimeline[] {
+  const ordinate = [...punches].sort((a, b) => Date.parse(a.timestamp_evento) - Date.parse(b.timestamp_evento));
+  const nome = (p: (typeof ordinate)[number]): string | null => {
+    if (p.order_id) return luoghi.find(l => l.key === chiaveCantiere(p.order_id!))?.nome ?? "Cantiere";
+    if (p.in_sede && p.sede_id) return luoghi.find(l => l.key === chiaveSede(p.sede_id!))?.nome ?? "Sede";
+    return null;
+  };
+  const righe: RigaTimeline[] = [];
+  for (let i = 0; i < ordinate.length; i++) {
+    const p = ordinate[i];
+    const id = p.id ?? `${p.tipo}-${p.timestamp_evento}`;
+    const dopo = ordinate[i + 1];
+    if (p.tipo === "uscita" && dopo?.tipo === "entrata"
+        && Date.parse(dopo.timestamp_evento) - Date.parse(p.timestamp_evento) <= 1000) {
+      righe.push({ id: dopo.id ?? `${dopo.tipo}-${dopo.timestamp_evento}`, tipo: "cambio", at: dopo.timestamp_evento, luogo: nome(dopo) });
+      i++;
+    } else if (p.tipo === "entrata") righe.push({ id, tipo: "inizio", at: p.timestamp_evento, luogo: nome(p) });
+    else if (p.tipo === "uscita") righe.push({ id, tipo: "fine", at: p.timestamp_evento, luogo: null });
+    else if (p.tipo === "pausa_inizio" || p.tipo === "pausa_fine") righe.push({ id, tipo: p.tipo, at: p.timestamp_evento, luogo: null });
+  }
+  return righe;
+}

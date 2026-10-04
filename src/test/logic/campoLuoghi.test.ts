@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   LUOGO_NESSUNO, chiaveCantiere, chiaveLuogoCorrente, chiaveSede, costruisciLuoghi, nomeLuogo, partenzaPredefinita, trovaLuogo,
-  type LuogoOrigine,
+  righeTimeline, type LuogoOrigine,
 } from "@/lib/campo/luoghi";
 import { summarizeCampoTime, type CampoPunch } from "@/lib/campo/timeSummary";
 
@@ -111,5 +111,31 @@ describe("Ore senza posto: la sede dichiarata non è «da attribuire»", () => {
   it("dice da che ora dura il tratto aperto", () => {
     const s = summarizeCampoTime([punch("entrata", "08:00", { order_id: "A" }), punch("pausa_inizio", "10:00", { order_id: "A" }), punch("pausa_fine", "10:30", { order_id: "A" })], window);
     expect(s.legStartedAt).toBe(Date.parse("2026-09-24T08:00:00Z"));
+  });
+});
+
+describe("Cronologia della giornata", () => {
+  const luoghi = costruisciLuoghi(origine({ sedi: [{ id: "S", nome: "Magazzino" }], assegnazioni: [ass("A", "ORD-1")] }));
+  const ev = (tipo: string, at: string, extra: Record<string, unknown> = {}) =>
+    ({ tipo, timestamp_evento: `2026-09-24T${at}Z`, order_id: null as string | null, ...extra });
+
+  it("un cambio di posto (uscita + entrata a un millisecondo) è una sola riga", () => {
+    const righe = righeTimeline([
+      ev("entrata", "07:00:00.000", { in_sede: true, sede_id: "S" }),
+      ev("uscita", "08:00:00.000", { in_sede: true, sede_id: "S" }),
+      ev("entrata", "08:00:00.001", { order_id: "A" }),
+      ev("pausa_inizio", "12:00:00.000", { order_id: "A" }),
+      ev("pausa_fine", "12:30:00.000", { order_id: "A" }),
+      ev("uscita", "16:00:00.000", { order_id: "A" }),
+    ], luoghi).map(r => [r.tipo, r.luogo]);
+    expect(righe).toEqual([["inizio", "Magazzino"], ["cambio", "ORD-1"], ["pausa_inizio", null], ["pausa_fine", null], ["fine", null]]);
+  });
+  it("un'uscita seguita da una nuova entrata ore dopo non è un cambio", () => {
+    const righe = righeTimeline([ev("entrata", "08:00:00", { order_id: "A" }), ev("uscita", "12:00:00", { order_id: "A" }), ev("entrata", "13:00:00", { order_id: "A" })], luoghi).map(r => r.tipo);
+    expect(righe).toEqual(["inizio", "fine", "inizio"]);
+  });
+  it("ordina le timbrature anche se arrivano in disordine", () => {
+    const righe = righeTimeline([ev("uscita", "16:00:00"), ev("entrata", "08:00:00")], luoghi).map(r => r.tipo);
+    expect(righe).toEqual(["inizio", "fine"]);
   });
 });

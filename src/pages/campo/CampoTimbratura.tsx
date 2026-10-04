@@ -15,6 +15,9 @@ import { cn } from "@/lib/utils";
 import { useCampoDayTime } from "@/hooks/campo/useCampoDayTime";
 import { campoDayWindow, campoReportHours, summarizeCampoTime } from "@/lib/campo/timeSummary";
 import { CampoTimbroCard, type TimbroEsito } from "@/components/campo/CampoTimbroCard";
+import { useCampoAssignments } from "@/hooks/campo/useCampoAssignments";
+import { useCampoSedi } from "@/hooks/campo/useCampoSedi";
+import { costruisciLuoghi, righeTimeline, type RigaTimeline } from "@/lib/campo/luoghi";
 import { campoWorkDay, reportDayAllowed } from "@/lib/campo/workDay";
 
 type TipoTimbratura = "entrata" | "uscita" | "pausa_inizio" | "pausa_fine";
@@ -28,6 +31,16 @@ interface Timbratura {
   lng?: number;
   indirizzo?: string;
   fonte: string;
+}
+
+function etichettaRiga(r: RigaTimeline): string {
+  switch (r.tipo) {
+    case "inizio": return r.luogo ? `Inizio giornata · ${r.luogo}` : "Inizio giornata";
+    case "cambio": return r.luogo ? `Arrivato a ${r.luogo}` : "Cambio posto";
+    case "pausa_inizio": return "Inizio pausa";
+    case "pausa_fine": return "Fine pausa";
+    default: return "Fine giornata";
+  }
 }
 
 export default function CampoTimbratura() {
@@ -46,6 +59,12 @@ function CampoTimbraturaEditor() {
   const linkedOrderId = searchParams.get("order_id");
   const today = campoWorkDay(dayTime.now);
   const timbratureOggi = dayTime.todayPunches;
+  const assegnazioni = useCampoAssignments();
+  const sedi = useCampoSedi();
+  const righe = useMemo(
+    () => righeTimeline(timbratureOggi, costruisciLuoghi({ assegnazioni: assegnazioni.data ?? [], sedi: sedi.data ?? [], oggiIds: new Set() })),
+    [timbratureOggi, assegnazioni.data, sedi.data],
+  );
   const isInPausa = dayTime.summary.state === "paused";
   const minutiPausa = Math.round(dayTime.summary.pauseMinutes);
   const oreLavorate = campoReportHours(dayTime.summary.workMinutes);
@@ -113,23 +132,22 @@ function CampoTimbraturaEditor() {
             <p className="mt-2 text-sm">Su questo cantiere: {campoReportHours(focusSiteMinutes)} h · pause escluse</p>
           )}
 
-          {/* Timeline oggi */}
-          {timbratureOggi.length > 0 && (
+          {/* Cronologia di oggi: un cambio di posto è una riga sola */}
+          {righe.length > 0 && (
             <div className="mt-4 space-y-2">
-              {timbratureOggi.map((t) => (
-                <div key={t.id} className="flex items-center gap-3">
+              {righe.map((r) => (
+                <div key={r.id} className="flex items-center gap-3">
                   <div className={cn(
                     "w-2 h-2 rounded-full shrink-0",
-                    t.tipo === "entrata" ? "bg-green-400" :
-                    t.tipo === "uscita" ? "bg-red-400" :
+                    r.tipo === "inizio" ? "bg-green-400" :
+                    r.tipo === "fine" ? "bg-red-400" :
+                    r.tipo === "cambio" ? "bg-blue-400" :
                     "bg-primary"
                   )} />
-                  <div className="flex-1 flex items-center justify-between">
-                    <span className="text-sm text-foreground capitalize">
-                      {t.tipo.replace("_", " ")}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {format(parseISO(t.timestamp_evento), "HH:mm")}
+                  <div className="flex min-w-0 flex-1 items-center justify-between gap-3">
+                    <span className="min-w-0 truncate text-sm text-foreground">{etichettaRiga(r)}</span>
+                    <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                      {format(parseISO(r.at), "HH:mm")}
                     </span>
                   </div>
                 </div>
