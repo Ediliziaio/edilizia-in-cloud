@@ -27,6 +27,23 @@ describe("Contratto del costo orario usato nell'approvazione",()=>{
   });
 });
 
+describe("Le ore di una persona si contano una volta sola",()=>{
+  const frase="Mario Rossi ha già 7,5 ore su questo cantiere in questa giornata (rapportino di Luca Bianchi). Le ore di una persona si contano una volta sola: rifiuta uno dei due rapportini, oppure correggilo prima di approvare.";
+  it("la frase del database blocca l'approvazione, senza richiedere conferma",()=>{
+    const r=reviewLaborReport(report,[],[e],true,frase);
+    expect(r.blockers).toEqual([frase]);
+  });
+  it("senza conflitto non cambia nulla",()=>{
+    expect(reviewLaborReport(report,[],[e],true,null).blockers).toEqual([]);
+    expect(reviewLaborReport(report,[],[e],true,"").blockers).toEqual([]);
+    expect(reviewLaborReport(report,[],[e],true).blockers).toEqual([]);
+  });
+  it("su un rapportino già approvato si dice solo che non è più da approvare",()=>{
+    const r=reviewLaborReport({...report,stato:"approvato"},[],[e],true,frase);
+    expect(r.blockers).toEqual(["Questo rapportino non è più da approvare."]);
+  });
+});
+
 describe("Controllo personale e squadra",()=>{
   it("separa budget mancante, zero registrato e importi noti",()=>{
     expect(summarizeLaborBudget([])).toEqual({planned:null,registered:0});

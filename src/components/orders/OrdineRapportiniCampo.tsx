@@ -30,6 +30,7 @@ import { Textarea } from "@/components/ui/textarea";
 import type { RapportinoStato } from "@/types/rapportino";
 import { SourceBadge } from "@/components/whatsapp/SourceBadge";
 import { LaborApprovalDialog } from "@/components/orders/LaborApprovalDialog";
+import { messaggioApprovazione } from "@/lib/campo/erroreApprovazione";
 import { recheckLaborApproval } from "@/lib/campo/loadLaborReview";
 
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -204,7 +205,7 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
       void notifyRapportinoPdf(rapportinoId, orderId, qc);
       setApprovalId(null);
     },
-    onError: (error: unknown) => toast.error(error instanceof Error ? error.message : "Errore durante l'approvazione"),
+    onError: (error: unknown) => toast.error(messaggioApprovazione(error)),
   });
 
   // ── Rifiuta ────────────────────────────────────────────────────────────────

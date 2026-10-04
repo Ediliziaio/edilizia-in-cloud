@@ -94,9 +94,15 @@ export function summarizeLaborBudget(rows: {cost_preventivo: Numeric; total_cost
   };
   return { planned: rows.length ? sum("cost_preventivo") : null, registered: sum("total_cost") };
 }
-export function reviewLaborReport(target: LaborReport, dayReports: LaborReport[], employees: LaborEmployee[], showCosts: boolean) {
+/**
+ * `dbConflict` è la frase con cui il database fermerebbe questa approvazione perché le
+ * ore di una persona verrebbero contate due volte (o oltre le 24 al giorno): la regola
+ * vive nel database, qui si mostra soltanto, prima che l'ufficio prema «Approva».
+ */
+export function reviewLaborReport(target: LaborReport, dayReports: LaborReport[], employees: LaborEmployee[], showCosts: boolean, dbConflict?: string | null) {
   const participants = reportParticipants(target, employees);
   const blockers: string[] = [], warnings: string[] = [];
+  if (dbConflict && ["inviato", "rifiutato"].includes(reportStatus(target))) blockers.push(dbConflict);
   if (!["inviato", "rifiutato"].includes(reportStatus(target))) blockers.push("Questo rapportino non è più da approvare.");
   const seen = new Set<string>();
   for (const p of participants) {

@@ -302,9 +302,13 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
   // descrizione, foto, materiali, ma non le ore. Solo se il cantiere ha davvero
   // un capo (altrimenti nessuno le scriverebbe) e salvo «oggi il capo non c'era».
   const [oreMieForzate, setOreMieForzate] = useState(false);
+  // Se il capo l'ha già segnato, le ore di base non si riscrivono: ma la stessa
+  // persona può aver fatto ore DIVERSE sullo stesso cantiere (squadra al mattino,
+  // da solo il pomeriggio). Per quelle c'è «Ho fatto altre ore»: si scrivono solo le
+  // ore in più, e l'ufficio vede l'avviso sulla stessa persona in approvazione.
   const oreRegistrateDalCapo = !!oreGiaRegistrate;
-  const oreLasciateAlCapo = regole.chiCompila === "capo" && !!ruoloCampo?.esisteCapo && !oreMieForzate;
-  const oreNonMie = !faSquadra && (oreRegistrateDalCapo || oreLasciateAlCapo);
+  const oreLasciateAlCapo = regole.chiCompila === "capo" && !!ruoloCampo?.esisteCapo;
+  const oreNonMie = !faSquadra && !oreMieForzate && (oreRegistrateDalCapo || oreLasciateAlCapo);
   useEffect(() => {
     if (oreModificate.current || rapportinoGiaOggi || !dayTime.isSuccess || oreRilevate == null || anomalieTimbrature) return;
     let cancelled = false;
@@ -841,15 +845,21 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
                     ? `${oreGiaRegistrate?.da || "Il tuo capo"} ha già segnato le tue ore di questa giornata (${oreInTesto(Number(oreGiaRegistrate?.ore) || 0)}). Non vanno scritte due volte: qui aggiungi descrizione, foto e materiali.`
                     : "In questa azienda il rapportino del cantiere lo fa il capocantiere. Tu timbri entrata e uscita; qui puoi aggiungere descrizione, foto e materiali."}
                 </p>
-                {!oreRegistrateDalCapo && (
-                  <button type="button" className="min-h-11 text-sm text-primary underline" onClick={() => setOreMieForzate(true)}>
-                    Oggi il capocantiere non c’era? Scrivo io le mie ore
-                  </button>
-                )}
+                <button type="button" className="min-h-11 text-sm text-primary underline" onClick={() => setOreMieForzate(true)}>
+                  {oreRegistrateDalCapo
+                    ? "Ho fatto altre ore, non comprese in queste"
+                    : "Oggi il capocantiere non c’era? Scrivo io le mie ore"}
+                </button>
               </div>
             ) : (
             <div className="space-y-3 rounded-2xl border bg-background p-4 shadow-sm">
               <div>
+                {oreRegistrateDalCapo && (
+                  <p role="status" className="mb-2 rounded-lg bg-amber-50 p-2.5 text-xs text-amber-900">
+                    {oreGiaRegistrate?.da || "Il tuo capo"} ha già segnato {oreInTesto(Number(oreGiaRegistrate?.ore) || 0)} per te in questa giornata:
+                    scrivi qui solo le ore in più, non quelle già segnate.
+                  </p>
+                )}
                 <label htmlFor="ore-cantiere" className="text-sm font-semibold">Ore ordinarie su questo cantiere</label>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {dayTime.isError ? "Timbrature non disponibili: inserisci le ore oppure riprova." :

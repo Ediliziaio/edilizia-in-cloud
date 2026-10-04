@@ -7,8 +7,29 @@ const COST_FIELDS = ", costo_orario, gross_salary, monthly_hours, inps_rate";
 export interface LaborReviewRequest { companyId: string; orderId: string; reportId: string; showCosts: boolean }
 
 /** Office-only read. The caller checks permission; RLS remains authoritative.
- * No new privileged RPC, no mutation, no claim of serializable consistency.
+ * No mutation, no claim of serializable consistency. The only RPC is a read-only preview
+ * of the database's own «hours are counted once» rule (campo_rapportino_conflitto_ore):
+ * advisory here, enforced by the approval trigger.
  */
+/**
+ * Cosa direbbe il database se si approvasse ora: la frase del conflitto, o null.
+ * Se la domanda non va a buon fine non si inventa nulla: il controllo vero resta
+ * quello che il database fa all'approvazione.
+ */
+async function leggiConflittoOre(reportId: string): Promise<string | null> {
+  try {
+    const rpc = supabase.rpc.bind(supabase) as unknown as (
+      f: string,
+      a: Record<string, unknown>,
+    ) => Promise<{ data: unknown; error: { message: string } | null }>;
+    const { data, error } = await rpc("campo_rapportino_conflitto_ore", { p_rapportino_id: reportId });
+    if (error) return null;
+    return typeof data === "string" && data.trim() ? data : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function loadLaborReview(request: LaborReviewRequest) {
   const {companyId, orderId, reportId, showCosts} = request;
   if (!companyId || !orderId || !reportId) throw new Error("Contesto azienda/commessa non disponibile");
@@ -74,9 +95,10 @@ export async function loadLaborReview(request: LaborReviewRequest) {
       laborRows.push(...result.data); laborCursor = next;
     }
   }
+  const dbConflict = await leggiConflittoOre(reportId);
   // Local comparison token, not a security token or a database version.
-  const fingerprint = JSON.stringify({ showCosts, reports: [...dayReports].sort((a,b) => a.id.localeCompare(b.id)), employees: employeeRows, laborRows });
-  return { target, fingerprint, budget: showCosts ? summarizeLaborBudget(laborRows) : null, ...reviewLaborReport(current, dayReports, employeeRows, showCosts) };
+  const fingerprint = JSON.stringify({ showCosts, dbConflict, reports: [...dayReports].sort((a,b) => a.id.localeCompare(b.id)), employees: employeeRows, laborRows });
+  return { target, fingerprint, budget: showCosts ? summarizeLaborBudget(laborRows) : null, ...reviewLaborReport(current, dayReports, employeeRows, showCosts, dbConflict) };
 }
 export type LaborReview = Awaited<ReturnType<typeof loadLaborReview>>;
 

@@ -7,8 +7,12 @@ const state=vi.hoisted(()=>({
   labor:[] as Array<{id:string;cost_preventivo:number;total_cost:number;order_id:string}>,
   calls:[] as Array<{table:string;selected:string;filters:Array<[string,string,unknown]>}>,
   failure:"",shortCount:false,changeBetweenReads:false,missingTarget:false,
+  conflict:null as string|null,conflictError:false,rpcCalls:[] as Array<{fn:string;args:Record<string,unknown>}>,
 }));
-vi.mock("@/integrations/supabase/client",()=>({supabase:{from:(table:string)=>{
+vi.mock("@/integrations/supabase/client",()=>({supabase:{rpc:async(fn:string,args:Record<string,unknown>):Promise<{data:string|null;error:{message:string}|null}>=>{
+  state.rpcCalls.push({fn,args});
+  return state.conflictError?{data:null,error:{message:"boom"}}:{data:state.conflict,error:null};
+},from:(table:string)=>{
   const call={table,selected:"",filters:[] as Array<[string,string,unknown]>};state.calls.push(call);
   const resolve=()=>{
     let rows:Record<string,unknown>[] = (table==="campo_rapportini"?state.reports:table==="employees"?state.employees:state.labor).map(row => ({ ...row }));
@@ -41,8 +45,20 @@ vi.mock("@/integrations/supabase/client",()=>({supabase:{from:(table:string)=>{
 const target:LaborReport={id:"a",company_id:"c",order_id:"A",user_id:"u",data_lavoro:"2026-09-24",stato:"inviato",updated_at:"version",ore_lavorate:4};
 const employee={id:"e",user_id:"u",company_id:"c",first_name:"Mario",last_name:"Rossi",costo_orario:25};
 const request={companyId:"c",orderId:"A",reportId:"a",showCosts:true};
-beforeEach(()=>{state.reports=[target];state.employees=[employee];state.labor=[{id:"l",order_id:"A",cost_preventivo:500,total_cost:200}];state.calls=[];state.failure="";state.shortCount=false;state.changeBetweenReads=false;state.missingTarget=false;});
+beforeEach(()=>{state.reports=[target];state.employees=[employee];state.labor=[{id:"l",order_id:"A",cost_preventivo:500,total_cost:200}];state.calls=[];state.failure="";state.shortCount=false;state.changeBetweenReads=false;state.missingTarget=false;state.conflict=null;state.conflictError=false;state.rpcCalls=[];});
 describe("Lettura e rivalidazione prima di approvare",()=>{
+  it("porta nel controllo la frase con cui il database fermerebbe le ore doppie",async()=>{
+    state.conflict="Mario Rossi ha già 7,5 ore su questo cantiere in questa giornata.";
+    const result=await loadLaborReview(request);
+    expect(state.rpcCalls).toEqual([{fn:"campo_rapportino_conflitto_ore",args:{p_rapportino_id:"a"}}]);
+    expect(result.blockers).toEqual([state.conflict]);
+    await expect(recheckLaborApproval(request,result.fingerprint,true)).rejects.toThrow("7,5 ore");
+  });
+  it("se il controllo anticipato non risponde non inventa conflitti: decide il database all'approvazione",async()=>{
+    state.conflictError=true;
+    const result=await loadLaborReview(request);
+    expect(result.blockers).toEqual([]);
+  });
   it("legge tutte le pagine della giornata, anche con limite API ridotto",async()=>{
     state.reports=[target,...["b","c","d"].map(id=>({...target,id,user_id:"capo",presenze:[{employee_id:"e",ore:1}]}))];
     const result=await loadLaborReview(request);expect(result.overlaps).toHaveLength(3);

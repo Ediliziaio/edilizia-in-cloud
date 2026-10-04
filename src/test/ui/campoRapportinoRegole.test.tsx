@@ -191,9 +191,19 @@ describe("L'operaio, secondo come lavora l'azienda", () => {
     render(<CampoRapportino />);
     expect(ore()).toBeNull();
     expect(screen.getByText(/Marco Operaio ha già segnato le tue ore di questa giornata \(8h\)/)).toBeInTheDocument();
-    // qui non c'è la scappatoia: le ore ci sono già
+    // «Oggi il capo non c'era» non ha senso: il capo c'era e le ha segnate
     expect(screen.queryByRole("button", { name: /Scrivo io le mie ore/ })).toBeNull();
     avanti(); invia();
     await waitFor(() => expect(state.insert).toHaveBeenCalledWith(expect.objectContaining({ ore_lavorate: 0 })));
+  });
+
+  it("ma chi ha fatto ore diverse sullo stesso cantiere può aggiungerle: solo quelle in più", async () => {
+    state.oreGia = { ore: 4, da: "Marco Operaio" };
+    render(<CampoRapportino />);
+    fireEvent.click(screen.getByRole("button", { name: /Ho fatto altre ore, non comprese in queste/ }));
+    expect(screen.getByText(/ha già segnato 4h per te in questa giornata: scrivi qui solo le ore in più/)).toBeInTheDocument();
+    fireEvent.change(ore()!, { target: { value: "3" } });
+    avanti(); invia();
+    await waitFor(() => expect(state.insert).toHaveBeenCalledWith(expect.objectContaining({ ore_lavorate: 3 })));
   });
 });
